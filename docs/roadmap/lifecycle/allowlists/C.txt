@@ -8,10 +8,10 @@ apps/web/src/app/app/applicant/[id]/actions.ts
 apps/web/src/app/app/applicant/[id]/actions.test.ts
 apps/web/src/app/app/applicant/[id]/document-uploader.tsx
 apps/web/src/app/app/applicant/[id]/document-uploader.test.tsx
-apps/web/src/app/app/applicant/[id]/history/**
 apps/web/src/app/app/(home)/**
 apps/web/src/app/api/jobs/process-erasure/**
 apps/web/src/lib/lifecycle-jobs/purge.ts
 apps/web/src/lib/lifecycle-jobs/purge.test.ts
 apps/web/src/app/globals.css
 docs/roadmap/lifecycle/lanes/C.md
+apps/web/src/app/app/applicant/[id]/removal-records/**

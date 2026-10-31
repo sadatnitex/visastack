@@ -27,11 +27,15 @@ Do this:
    lane's session with get_session and its PR state, then report to me in plain words: lane,
    state, PR, blocked or not. Re-arm while any lane is open.
 5. When lane F has merged to main, tell me the migration number so I can say "migrate <number>",
-   then start wave 1: six sessions, lanes A1, A2, B, C, D, E, the same way.
+   then start wave 1: six sessions, lanes A1, A2, B, C, D, E, the same way. If the Scroll Budget
+   programme (WP-SB) is merging its own wave at the same time, start ours in two batches
+   (A1, A2, B, then C, D, E) so deployments stay within the daily limit.
 6. When every wave 0 and wave 1 lane has merged, start lane Z.
-7. If a lane writes a Blocked note, decide it only when the answer is already in PROGRAMME.md;
+7. WP-SB (docs/upgrades/programme/SCROLL-BUDGET-PLAN.md) runs alongside; PROGRAMME section 5.3
+   keeps the two apart. A lane that needs a file or function WP-SB owns is Blocked, never edits it.
+8. If a lane writes a Blocked note, decide it only when the answer is already in PROGRAMME.md;
    otherwise bring it to me as one plain question.
-8. Finish with Z's report and the list of my open gates (PROGRAMME section 10).
+9. Finish with Z's report and the list of my open gates (PROGRAMME section 10).
 ```
 
 ## Option 2: start each lane yourself

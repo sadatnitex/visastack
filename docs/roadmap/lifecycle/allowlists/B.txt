@@ -10,9 +10,5 @@ packages/services/src/email-design.test.ts
 packages/services/src/index.ts
 apps/web/src/app/app/applicant/[id]/documents/manage/replace/**
 apps/web/src/app/app/applicant/[id]/documents/manage/registry.tsx
-apps/web/src/app/app/mission/[id]/**
-apps/web/src/app/app/notifications/**
-apps/web/src/app/app/agency/[orgId]/cases/**
-apps/web/src/app/app/agency/[orgId]/mission-collaboration.tsx
 apps/web/src/app/globals.css
 docs/roadmap/lifecycle/lanes/B.md

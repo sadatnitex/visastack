@@ -12,3 +12,5 @@ apps/web/src/app/app/applicant/[id]/section-actions.test.ts
 apps/web/src/app/app/applicant/[id]/profile/**
 apps/web/src/app/globals.css
 docs/roadmap/lifecycle/lanes/G1.md
+packages/services/src/missions.ts
+packages/services/src/missions.test.ts

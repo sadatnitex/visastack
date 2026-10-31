@@ -7,8 +7,6 @@ packages/services/src/ai-reading.ts
 packages/services/src/ai-reading.test.ts
 packages/services/src/ai.ts
 packages/services/src/ai.test.ts
-packages/services/src/application-memory.ts
-packages/services/src/application-memory.test.ts
 packages/services/src/assurance.ts
 packages/services/src/assurance.test.ts
 packages/services/src/attention.ts

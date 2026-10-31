@@ -128,7 +128,7 @@ Text columns with CHECK constraints (the `profile_field_exemptions` pattern), no
 | Lifecycle tabs | `.../documents/manage/lifecycle-tabs.tsx` | Current, Archived, Recently Deleted. A tab other than Current shows only when its list is non-empty. |
 | Undo status | `apps/web/src/components/lifecycle/undo-status.tsx` | `<output>` polite status, Undo button for 10 seconds, focus-safe. |
 | Removal record list | `apps/web/src/components/lifecycle/removal-record-list.tsx` | Renders receipts: "Removed on 3 Nov: Passport D-7K2Q9M. Used in 2 cases." Status words: Scheduled, Restored, Removing Securely, Removed, Kept (legal requirement). |
-| Documents page wiring | `.../documents/page.tsx` | Adds tabs and the menu per document at Browse depth. No other page change. |
+| Documents page wiring | `.../documents/page.tsx` | Adds tabs, the menu per document at Browse depth, a "Removal Records" link shown only when records exist, and a deep link `?manage=<documentId>&action=<ACTION>` that opens that action (used by reminders). No other page change, and never the detail panel (WP-SB4, 5.3). |
 
 ### 3.5 Names registered by F (lanes never edit these lists)
 
@@ -159,17 +159,17 @@ Features go live per lane on merge, but every lifecycle action stays hidden unti
 | `packages/db/**` (schema, migration, meta) | F only. No other lane adds a migration. |
 | `packages/services/src/lifecycle/foundation/**`, `erasure.ts`, `backup-reconciliation.ts`, `product-events.ts` | F |
 | `packages/services/src/lifecycle/<lane>/**` | That lane (archive A1, replace B, duplicates C, removal-requests D, travellers E, profile G1, agency G3) |
-| `missions.ts` (readiness matching only) | A1 |
+| `missions.ts` (document readiness matching only; never `listMissionSnapshots` or `listTasks`, WP-SB2) | A1 |
 | `wallet.ts`, `notification-sweep.ts`, `email-design.ts` | B |
 | `applicants.ts`, `apps/web/src/lib/profile-photos.ts` | E |
-| `profile.ts`, `profile-sections.ts` | G1 |
+| `profile.ts` (except `listFactHistory` and `listApplicantProfile`, WP-SB1), `profile-sections.ts`, `missions.ts` field-requirement readiness only | G1 |
 | `organizations.ts` | G3 |
-| Every other service file that reads documents or applicants (listed in A2's allowlist) | A2 |
+| Every other service file that reads documents or applicants (listed in A2's allowlist), except the functions WP-SB owns (5.3) | A2 |
 | `apps/web/src/app/app/applicant/[id]/documents/page.tsx`, `documents/manage/*.tsx` (top level), `components/lifecycle/**` | F |
 | `.../documents/manage/<lane>/**` | That lane |
-| `.../applicant/[id]/actions.ts`, `document-uploader.tsx`, `history/**`, `(home)/page.tsx`, `api/jobs/process-erasure/route.ts` | C |
-| `apps/web/src/app/app/mission/[id]/**` (lifecycle labels on evidence), `notifications/**`, `agency/[orgId]/cases/**` | B |
-| `apps/web/src/app/app/admin/privacy/**`, `api/jobs/process-notification-sweeps/route.ts`, `apps/web/src/lib/env.ts` | D |
+| `.../applicant/[id]/actions.ts`, `document-uploader.tsx`, `applicant/[id]/removal-records/**` (new), `(home)/page.tsx`, `api/jobs/process-erasure/route.ts` | C |
+| (no screen files beyond its own `documents/manage/replace/**`; see 5.3) | B |
+| `apps/web/src/app/app/admin/removals/**` (new), `apps/web/src/lib/navigation.ts` (one entry), `api/jobs/process-notification-sweeps/route.ts`, `apps/web/src/lib/env.ts` | D |
 | `apps/web/src/app/app/applicants/**`, `applicant/[id]/page.tsx`, `api/jobs/process-deletions/route.ts` | E |
 | `applicant/[id]/profile-editor.tsx`, `section-actions.ts`, `applicant/[id]/profile/**` | G1 |
 | `applicant/[id]/missions/page.tsx` | G2 |
@@ -192,6 +192,24 @@ F writes one anchor comment per lane in each, separated by a blank line, for exa
 | `apps/web/src/app/globals.css` | Each lane appends its own `/* WP-LC-<LANE> ... */` block at the end; merge with `scripts/agent/merge-css.py` |
 
 If a conflict still appears: take main's file, re-insert only your own lines under your anchor, rerun the checks.
+
+### 5.3 Boundary with the Scroll Budget programme (WP-SB, `docs/upgrades/programme/SCROLL-BUDGET-PLAN.md`, merged 31 Oct as #368)
+
+WP-SB runs its own parallel sessions at the same time. Its section 4 gives every file to exactly one SB package. This programme never edits a file or function WP-SB owns. Where both need the same place, the work moves as below.
+
+| Place WP-SB owns | Owner there | What this programme does instead |
+|---|---|---|
+| `applicant/[id]/history/**` | SB1 | Removal Records get their own route, `applicant/[id]/removal-records/**` (lane C), linked from the Documents page tabs (lane F, link shown only when records exist) |
+| `app/notifications/**` | SB1 | "Replace It" travels in the notification's existing `deepLinkPath`, set by `notification-sweep.ts` (lane B); the page already renders it |
+| `app/mission/[id]/**`, `agency/[orgId]/cases/**` | SB2, SB5 | Lifecycle labels on case evidence ("Replaced on", "Archived", "Removed by the traveller on") are wired by lane Z after SB2 and SB5 have merged, editing only the evidence label lines |
+| `app/admin/privacy/**` | SB7 | The removal queue is its own route, `app/admin/removals/**` (lane D), with one entry in `apps/web/src/lib/navigation.ts` under the privacy access |
+| `applicant/[id]/documents/**` detail panel | SB4 | Lane F edits `documents/page.tsx` only to add the tabs, the records link, the deep-link handler and the menu per row, and never moves the detail panel. Whichever lands second merges main and keeps the other's structure. |
+| `profile.ts` `listFactHistory`, `listApplicantProfile` | SB1 | G1 does not edit these two functions; "No Longer Current" is rendered in `profile-editor.tsx` from the status the read already returns |
+| `missions.ts` `listMissionSnapshots`, `listTasks` | SB2 | A1 and G1 never edit them |
+| `application-memory.ts` `getApplicationMemory` | SB1 | A2 does not edit `application-memory.ts`; Case History stays a permanent exception in `read-exempt.json` (it must show removed documents as "removed") |
+| `agency.ts` `listNotesForOwner`, `listEvidenceRequestsForApplicant`, `listNotes`, `listVisibleMissionsForMember`, client invitation and request lists; `sharing.ts` `listAccessForApplicantDetailed`; `organizations.ts` `listAllOrganizations`; `legal-hold.ts` `listLegalHolds` | SB2, SB3, SB5, SB7 | Never edited here. If one of them reads documents and needs the lifecycle rule, A2 leaves its baseline entry and writes it under Blocked; Z handles it after that SB package merges |
+
+Rules carried over from WP-SB: new lists in this programme meet its targets (section 1 there: 10 rows for travellers and 25 for staff, then Show More; logs in a fixed panel with a server limit), using its SB0 components once SB0 is on main. The shared files `packages/services/src/index.ts` and `globals.css` follow both programmes' append rules.
 
 ## 6. Parallel safety protocol (every lane, every session)
 

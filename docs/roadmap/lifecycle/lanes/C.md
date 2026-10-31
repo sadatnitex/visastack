@@ -14,7 +14,7 @@ Duplicates can be removed by the person, safely: right after upload or later, wi
 3. `apps/web/src/lib/lifecycle-jobs/purge.ts` called from `api/jobs/process-erasure/route.ts` before the erasure worker runs.
 4. Upload result: when the upload matched an identical document, offer "Remove This New Copy" (calls `deleteDuplicate` on the new document; `DUPLICATE_REMOVED_AT_UPLOAD`). Files: `applicant/[id]/actions.ts`, `document-uploader.tsx`.
 5. Manage menu actions under `documents/manage/delete/` (Delete Duplicate with the case-switch confirmation when an open case uses it; Restore from Recently Deleted showing "Removed in N Days"), registered under the C anchor.
-6. Removal Records on the traveller's History page through `RemovalRecordList`; the backup sentence of D10 on the record.
+6. Removal Records on their own page, `applicant/[id]/removal-records/page.tsx`, through `RemovalRecordList` (10 rows, then Show More, per the Scroll Budget targets); the backup sentence of D10 on the page. The History page belongs to WP-SB1 and is not edited (PROGRAMME 5.3); F's Documents page links here when records exist.
 7. Tidy Up card on Home (`(home)/page.tsx`): only when there is something to tidy (duplicates, expired, replaced), one action, Glance depth.
 
 ## Red first

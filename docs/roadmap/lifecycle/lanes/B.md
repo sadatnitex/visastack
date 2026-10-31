@@ -13,8 +13,8 @@
 2. Fix, red first: the same document as its own replacement; a loop (new document already replaced, or replaced by the old one); a replacement that is not usable (not clean or not servable); an already-replaced old document (keep the existing race-safe update).
 3. Keep today's behaviour: case revision bump and task per affected case, `DOCUMENT_SUPERSEDED` audit, snapshots untouched. Add product event `DOCUMENT_REPLACED`.
 4. Replace flow under `documents/manage/replace/`, registered under the B anchor: choose an existing document of the same kind or upload a new one, then a confirmation listing the affected cases by name ("2 cases will be updated and will need to be confirmed again"), then the result line.
-5. `notification-sweep.ts` expiry reminders: skip archived and non-present documents and archived travellers; add a "Replace It" link to the reminder (notification and the designed email in `email-design.ts`) that opens the Replace flow for that document. Migrate `wallet.ts` and `notification-sweep.ts` read sites (empty `read-baseline/B.json`).
-6. Evidence lists on the case page (`mission/[id]`) and agency case views show "Replaced on {date}", "Archived" or "Removed by the traveller on {date}" from `getDocumentLifecycles`, never a document title for removed ones.
+5. `notification-sweep.ts` expiry reminders: skip archived and non-present documents and archived travellers; set the reminder's existing `deepLinkPath` to `/app/applicant/<id>/documents?manage=<documentId>&action=REPLACE` (the notifications page already renders it; it belongs to WP-SB1 and is not edited) and add a "Replace It" button with the same link to the designed email in `email-design.ts`. Migrate `wallet.ts` and `notification-sweep.ts` read sites (empty `read-baseline/B.json`).
+6. Export a small pure helper `documentLifecycleLabel(lifecycle, now)` in `lifecycle/replace/` returning "Replaced on {date}", "Archived" or "Removed by the traveller on {date}" (never a title for removed ones). The case page and agency case views belong to WP-SB2 and SB5; lane Z wires the helper into them (PROGRAMME 5.3).
 
 ## Red first
 
@@ -22,7 +22,7 @@ The four defects in step 2; a reminder for an archived document is still sent.
 
 ## Acceptance
 
-Same person only; agency, stranger and guessed id refused; snapshots byte-identical before and after; affected open cases flagged and revision bumped; Replace It link lands on the right document; works with tables missing. Record whether an open task blocks final submission after a replacement (PROGRAMME section 12).
+Same person only; agency, stranger and guessed id refused; snapshots byte-identical before and after; affected open cases flagged and revision bumped; Replace It deep link opens the Replace flow on the right document; works with tables missing. Record whether an open task blocks final submission after a replacement (PROGRAMME section 12).
 
 ## Not yours
 
