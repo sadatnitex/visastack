@@ -5,7 +5,7 @@ import {
   looksLikeHeic,
   structuralCheck,
 } from '@visastack/adapters';
-import { readEnv } from './env';
+import { pdfUploadsSwitchedOff, readEnv } from './env';
 import { STORED_UPLOAD_TYPES, isHeicType } from './upload-rules';
 
 // Below Vercel's 4.5 MB request ceiling, including request overhead.
@@ -41,9 +41,7 @@ export function permitsPdfAdmission(provider: string | undefined): boolean {
  * The one place the upload form, the upload route and the upload action ask.
  */
 export function pdfUploadsAccepted(): boolean {
-  return (
-    readEnv('PDF_UPLOADS') !== 'off' && permitsPdfAdmission(readEnv('MALWARE_SCANNER_PROVIDER'))
-  );
+  return !pdfUploadsSwitchedOff() && permitsPdfAdmission(readEnv('MALWARE_SCANNER_PROVIDER'));
 }
 
 export function validateUploadBytes(

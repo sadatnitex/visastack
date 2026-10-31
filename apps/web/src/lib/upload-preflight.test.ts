@@ -32,8 +32,10 @@ describe('upload preflight', () => {
 
   it('lets the owner switch PDF uploads off without a deployment change', () => {
     vi.stubEnv('MALWARE_SCANNER_PROVIDER', 'builtin');
-    vi.stubEnv('PDF_UPLOADS', 'off');
-    expect(pdfUploadsAccepted()).toBe(false);
+    for (const off of ['off', 'OFF', ' false ', '0', 'no']) {
+      vi.stubEnv('PDF_UPLOADS', off);
+      expect(pdfUploadsAccepted(), off).toBe(false);
+    }
     vi.stubEnv('PDF_UPLOADS', 'on');
     expect(pdfUploadsAccepted()).toBe(true);
   });

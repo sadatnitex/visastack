@@ -258,7 +258,7 @@ describe('createMalwareScanner / createDocumentConverter', () => {
     expect(createDocumentConverter({} as never)).toBeInstanceOf(DeterministicTextExtractor);
   });
 
-  it('admit PDFs on the built-in scanner by default, and refuse them when PDF_UPLOADS=off', async () => {
+  it('admit PDFs on the built-in scanner only for the caller that asks, and never when PDF_UPLOADS is off', async () => {
     const { createMalwareScanner } = await import('./providers');
     const blobStore = {
       getObject: async () => ({
@@ -267,9 +267,18 @@ describe('createMalwareScanner / createDocumentConverter', () => {
       }),
     };
     const input = { bucket: 'QUARANTINE' as const, objectKey: 'k' };
-    expect((await createMalwareScanner(blobStore as never).scan(input)).safe).toBe(true);
-    setEnv('PDF_UPLOADS', 'off');
+    // Payment proofs, invoices and photos do not ask: a PDF stays refused there.
     expect((await createMalwareScanner(blobStore as never).scan(input)).safe).toBe(false);
+    expect(
+      (await createMalwareScanner(blobStore as never, { allowPdf: true }).scan(input)).safe,
+    ).toBe(true);
+    for (const off of ['off', 'OFF', ' false ', '0', 'no']) {
+      setEnv('PDF_UPLOADS', off);
+      expect(
+        (await createMalwareScanner(blobStore as never, { allowPdf: true }).scan(input)).safe,
+        off,
+      ).toBe(false);
+    }
   });
 
   it('reject an unrecognized MALWARE_SCANNER_PROVIDER / DOCUMENT_CONVERTER_PROVIDER', async () => {

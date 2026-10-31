@@ -441,15 +441,15 @@ describe('owner deferrals', () => {
     ];
   }
 
-  it('allows exactly two deferrable gates: the external penetration test (H01) and the virus scanner (H20)', async () => {
+  it('allows exactly two deferrable gates: the external penetration test (H01) and the virus scanner (H29)', async () => {
     const { DEFERRABLE_GATES } = await import('./commercial-readiness');
     expect([...DEFERRABLE_GATES]).toEqual([
       ['externalPenetrationTest', 'H01'],
-      ['realMalwareScanner', 'H20'],
+      ['realMalwareScanner', 'H29'],
     ]);
   });
 
-  it('defers the virus scanner with exactly H20, and a wrong id or an unset variable does not count', async () => {
+  it('defers the virus scanner with exactly H29, and a wrong id or an unset variable does not count', async () => {
     const { evaluateOperationalReadiness } = await import('./commercial-readiness');
     const find = () =>
       evaluateOperationalReadiness(input(true)).gates.find((g) => g.key === 'realMalwareScanner');
@@ -459,7 +459,7 @@ describe('owner deferrals', () => {
     setEnv(deferEnv('realMalwareScanner'), 'H01');
     expect(find()?.satisfied).toBe(false);
     expect(find()?.deferral).toMatchObject({ status: 'not_deferred' });
-    setEnv(deferEnv('realMalwareScanner'), 'H20');
+    setEnv(deferEnv('realMalwareScanner'), 'H29');
     expect(find()?.satisfied).toBe(true);
     expect(find()?.deferral).toMatchObject({ status: 'deferred' });
     unsetEnv(deferEnv('realMalwareScanner'));
@@ -549,7 +549,7 @@ describe('owner deferrals', () => {
         (key) => !DEFERRABLE_GATES.has(key),
       );
       expect(keys.length).toBeGreaterThan(19);
-      for (const value of ['H01', 'H20', 'true', ...keys]) {
+      for (const value of ['H01', 'H29', 'true', ...keys]) {
         for (const key of keys) setEnv(deferEnv(key), value);
         const deferred = await everyGate(databaseReady);
         for (const key of keys) unsetEnv(deferEnv(key));

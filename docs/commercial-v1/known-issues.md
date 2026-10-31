@@ -6842,6 +6842,6 @@ Owner approval ("go phase 2") after phase 1 (#351). Same pattern and opt-in styl
 
 ### 2026-10-31, PDF intake before the scanner (ADR 0024)
 
-- Owner decision: PDFs are admitted on the built-in checks, the scan record says content is unverified, and the scanner gate is deferrable as H20. `PDF_UPLOADS=off` stops PDF uploads.
+- Owner decision: PDFs are admitted on the built-in checks, the scan record says content is unverified, and the scanner gate is deferrable as H29. `PDF_UPLOADS=off` stops PDF uploads.
 - Live readiness read on the fallback address (31 Oct 2026): `aiExtraction` available, `redactedDownload` available, `malwareScanning` unconfigured, `realApplicantData` disabled, `commercialClaims` disabled, `aiConnector` available, `payments` unconfigured. This settles the status file's mixed lines: AI reading and Safe Copies are configured; the earlier "unconfigured" and "disabled" lines are older.
 - Not verified: a PDF uploaded, read and approved on the live site after this change; the main production address (not reachable from this session).
