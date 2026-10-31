@@ -559,9 +559,9 @@ describe('agency AI tools on an agency grant (S22)', () => {
     });
     expect(stubProps(await render(), 'GrantAiChoice')).toEqual([]);
     mocks.aiAssistAvailable.mockResolvedValue(true);
-    expect(stubProps(await render(), 'GrantAiChoice').map((p) => p['grantId'])).toEqual([
-      'agency-grant',
-    ]);
+    expect(
+      stubProps(await render(), 'GrantAiChoice').map((p) => Reflect.get(p, 'grantId')),
+    ).toEqual(['agency-grant']);
   });
 
   it('names the agency and the app in the Access Log', async () => {

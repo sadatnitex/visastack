@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AI_AGENCY_FEATURE_KEYS,
   AI_FEATURES,
   AI_FEATURE_KEYS,
   AI_FEATURE_LIMIT_HINT,
   AI_FEATURE_OFF_HINT,
   AI_FEATURE_OFF_REASONS,
   AI_PLAN_TIERS,
+  AI_TRAVELLER_FEATURE_KEYS,
+  aiDailyLimitLabel,
   aiFeatureOffHint,
   aiFeatureOffSentence,
   effectiveAiDailyLimit,
@@ -23,6 +26,7 @@ describe('the AI feature registry', () => {
       'ai_app_access',
       'ai_app_suggestions',
       'ai_app_original_files',
+      'ai_agency_tools',
     ]);
     for (const key of [
       'ai_automatic_reading',
@@ -41,6 +45,21 @@ describe('the AI feature registry', () => {
     }
     expect(AI_FEATURES.ai_app_access.kind).toBe('connector');
     expect(AI_FEATURES.ai_document_reading).toMatchObject({ name: 'Read with AI', kind: 'model' });
+  });
+
+  it('registers Agency AI Tools (S22) for agencies only, off until the platform owner turns it on, 500 a day per agency', () => {
+    expect(AI_FEATURES.ai_agency_tools).toMatchObject({
+      name: 'Agency AI Tools',
+      kind: 'connector',
+      audience: 'agency',
+      defaultEnabled: false,
+      planDefault: { included: true, dailyLimit: 500 },
+    });
+    expect(AI_AGENCY_FEATURE_KEYS).toEqual(['ai_agency_tools']);
+    expect(AI_TRAVELLER_FEATURE_KEYS).not.toContain('ai_agency_tools');
+    expect(AI_TRAVELLER_FEATURE_KEYS).toHaveLength(AI_FEATURE_KEYS.length - 1);
+    expect(aiDailyLimitLabel('ai_agency_tools')).toBe('Daily Limit per Agency');
+    expect(aiDailyLimitLabel('ai_app_access')).toBe('Daily Limit per Person');
   });
 
   it('registers AI App Suggestions, off until the platform owner turns it on, 15 a day', () => {

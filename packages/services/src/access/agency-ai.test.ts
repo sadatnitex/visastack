@@ -11,7 +11,6 @@ import { MESSAGES } from '../ai-tools/result';
 import { createApplicant } from '../applicants';
 import { setConsent } from '../consent';
 import type { Db } from '../db';
-import { setOrganizationAiSetting } from '../organization-ai-settings';
 import { setMembershipActive } from '../organizations';
 import { createGrant, pauseGrant, resumeGrant, revokeGrant } from '../sharing';
 import { createAgencyAiConnection, listAgencyAiConnections } from './agency-ai-connections';
@@ -33,6 +32,7 @@ import {
   shareWithAgency,
   traveller,
 } from './agency-ai.test-support';
+import { setOrganizationAiSetting } from './organization-ai-settings';
 
 /**
  * S22 (ADR 0021 S22 amendment): an agency's AI connection reads only what each traveller allowed

@@ -46,6 +46,8 @@ vi.mock('@visastack/services', async (importOriginal) => ({
     value: { available: true, active: [], recentlyEnded: [] },
   }),
   listMissions: async () => ({ ok: true, value: [] }),
+  // S22: before the update that stores agency AI choices, the screen is exactly as it was.
+  aiAssistAvailable: async () => false,
 }));
 vi.mock('../locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('../session', () => ({

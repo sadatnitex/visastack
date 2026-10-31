@@ -1,15 +1,15 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq } from 'drizzle-orm';
-import { AGENCY_AI_ROLES } from './access/agency-ai-scope';
-import { agencyAiAvailable } from './agency-ai-ready';
+import { agencyAiAvailable } from '../agency-ai-ready';
 import {
   type AiFeatureState,
   aiOrganizationContext,
   getAiFeatureState,
-} from './ai-feature-settings';
-import { appendAuditEvent } from './audit';
-import { type Db, first, schema } from './db';
-import { type ServiceError, serviceError } from './errors';
+} from '../ai-feature-settings';
+import { appendAuditEvent } from '../audit';
+import { type Db, first, schema } from '../db';
+import { type ServiceError, serviceError } from '../errors';
+import { AGENCY_AI_ROLES } from './agency-ai-scope';
 
 /**
  * "AI Connections for This Agency" (S22, ADR 0021 S22 amendment): an agency's own switch for

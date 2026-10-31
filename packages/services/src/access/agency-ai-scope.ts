@@ -20,6 +20,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { listVisibleMissionsForMember } from '../agency';
 import { agencyAiAvailable } from '../agency-ai-ready';
 import { type Db, first, schema } from '../db';
+import { resolveEntitlements } from '../entitlements';
 import { findReferenceEntity, referenceCodesFor } from '../reference-codes';
 import { documentCategory, toPolicyGrant } from '../sharing';
 import { loadCaseExclusions } from './grant-scope';
@@ -140,16 +141,11 @@ export async function checkAgencyAiStanding(
         active: schema.memberships.active,
         status: schema.organizations.status,
         name: schema.organizations.name,
-        billing: schema.billingAccounts.status,
       })
       .from(schema.memberships)
       .innerJoin(
         schema.organizations,
         eq(schema.organizations.id, schema.memberships.organizationId),
-      )
-      .leftJoin(
-        schema.billingAccounts,
-        eq(schema.billingAccounts.organizationId, schema.memberships.organizationId),
       )
       .where(
         and(
@@ -163,7 +159,9 @@ export async function checkAgencyAiStanding(
     return err('agency_member_ended');
   }
   if (row.status !== 'ACTIVE') return err('agency_not_active');
-  if (row.billing === 'SUSPENDED') return err('agency_billing_suspended');
+  // Billing status through the one entitlement resolver, the reader every limit uses.
+  const entitlements = await resolveEntitlements(tx, { organizationId: input.organizationId });
+  if (entitlements.billingStatus === 'SUSPENDED') return err('agency_billing_suspended');
   if (!(await agencyAiSettingOn(tx, input.organizationId))) return err('agency_setting_off');
   if (input.now.getTime() - input.connectionCreatedAt.getTime() > AGENCY_AI_CONNECTION_MAX_MS) {
     return err('agency_connection_expired');

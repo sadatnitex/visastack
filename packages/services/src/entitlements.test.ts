@@ -640,7 +640,9 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
       const rules = Object.fromEntries(
         Object.entries(traveller.rules).filter(([key]) => key.startsWith('ai.')),
       );
-      expect(Object.keys(rules)).toHaveLength(8);
+      // S22: Agency AI Tools is listed too, as not part of the traveller plan.
+      expect(Object.keys(rules)).toHaveLength(9);
+      expect(rules['ai.ai_agency_tools']).toEqual({ included: false, limit: null });
       const saved = await savePlan(db, scope, {
         planId: traveller.id,
         draft: {

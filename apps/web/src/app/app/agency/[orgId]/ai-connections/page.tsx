@@ -58,10 +58,7 @@ export default async function AgencyAiConnectionsPage({
               <li className="row" key={connection.id}>
                 <span className="row-key">
                   {label}
-                  <span
-                    className="muted"
-                    style={{ display: 'block', fontSize: 'var(--text-small)' }}
-                  >
+                  <span className="scope-row-note">
                     Connected by {connection.connectedBy} on{' '}
                     {formatTimestampDate(connection.createdAt.toISOString())}.{' '}
                     {connection.live

@@ -21,12 +21,15 @@ import {
   shareWithAgency,
   traveller,
 } from './access/agency-ai.test-support';
+import {
+  getOrganizationAiSetting,
+  setOrganizationAiSetting,
+} from './access/organization-ai-settings';
 import { requireAccess } from './access/require-access';
 import { agencyAiAvailable, aiAssistAvailable } from './agency-ai-ready';
 import { aiOrganizationContext, getAiFeatureState } from './ai-feature-settings';
 import type { Db } from './db';
 import { setGrantAiAssist } from './grant-ai-assist';
-import { getOrganizationAiSetting, setOrganizationAiSetting } from './organization-ai-settings';
 
 /**
  * S22: production runs the new code for a while before migrations 0108 and 0109. This proves that

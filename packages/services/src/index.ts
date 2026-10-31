@@ -2147,7 +2147,7 @@ export {
   type OrganizationAiSetting,
   getOrganizationAiSetting,
   setOrganizationAiSetting,
-} from './organization-ai-settings';
+} from './access/organization-ai-settings';
 export {
   GRANT_AI_ASSIST_STEP_UP_ACTION,
   type GrantAiAssistRefusal,
