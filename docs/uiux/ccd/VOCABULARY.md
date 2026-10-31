@@ -110,3 +110,4 @@ Added 31 Oct 2026 (S22, agency AI connectors):
 | Traveller plan storage rules (registry names) | Storage for the Whole Account, Storage per Person; an empty rule reads Upload Setting ({n} MB) | "Account quota", "Applicant bytes" | **New (ADR 0025 T2b)** |
 | The Plans page cards for new plans | New Agency Plan, New Traveller Plan (replaces New Plan) | "New Plan" alone, "Create SKU" | **New (ADR 0025 T2b)**, extends the S29 row |
 | A paid traveller plan before buying is switched on | Not Sold Yet (status); price "BDT {amount} for {n} days"; an unpriced one reads No Price (Not for Sale) | "Draft", "Inactive", "Unpublished" | **New (ADR 0025 T2b)** |
+| Buying a paid traveller plan | Compare Plans (card), Get {Plan} (button), Confirm Your Purchase (card), Pay with bKash, Nagad, Rocket or Card (button), Covers You Until (row) | "Upgrade Now", "Subscribe", "Checkout" | **New (ADR 0025 T3c)** |

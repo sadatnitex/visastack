@@ -18,13 +18,14 @@ import {
   startPersonPayment,
 } from './payments';
 import { FakePaymentPort, onePort } from './payments.test-support';
-import { startPersonCheckout } from './person-billing';
+import { getOwnPurchase, startPersonCheckout } from './person-billing';
 import {
   personInvoices,
   personPaymentAttempts,
   personPaymentReceipts,
 } from './person-billing-tables';
 import { grantPlatformRole } from './platform-roles';
+import { listTravellerPlansForSale } from './traveller-plan';
 
 /**
  * ADR 0025 T3b: a person buys a paid traveller plan and pays for it online. The ADR 0020 security
@@ -522,5 +523,53 @@ describe('never charged for time already past or already paid (ADR 0025 T3b revi
         ${PRICE}, 'BDT', now(), 'VOID')`);
     const made = await checkout(alice);
     expect(made.invoiceRef).toBe(`TP-${alice.replace(/-/g, '').slice(0, 12).toUpperCase()}-1`);
+  });
+});
+
+describe('what Plan & Usage shows (ADR 0025 T3c)', () => {
+  it('lists Traveller Free and the paid plans on sale with their own rules, cheapest first', async () => {
+    const season = await secondPlan();
+    const unpriced = (
+      await db
+        .insert(schema.plans)
+        .values({
+          key: 'traveller_draft',
+          name: 'Draft Plan',
+          audience: 'TRAVELLER',
+          periodDays: 30,
+        })
+        .returning({ id: schema.plans.id })
+    )[0];
+    expect(unpriced).toBeDefined();
+    const catalogue = await listTravellerPlansForSale(db);
+    expect(catalogue.free?.name).toBe('Traveller Free');
+    expect(catalogue.offers.map((o) => o.key)).toEqual([
+      'traveller_plus_pay',
+      'traveller_season_pay',
+    ]);
+    const plus = catalogue.offers[0];
+    expect(plus?.price).toEqual({ amountMinorUnits: PRICE, currency: 'BDT' });
+    expect(plus?.storage).toEqual({ accountBytes: null, personBytes: 500 * 1024 * 1024 });
+    expect(catalogue.offers.some((o) => o.id === season)).toBe(true);
+    // A retired plan is not on sale.
+    await db.update(schema.plans).set({ active: false }).where(eq(schema.plans.id, season));
+    expect((await listTravellerPlansForSale(db)).offers.map((o) => o.key)).toEqual([
+      'traveller_plus_pay',
+    ]);
+  });
+
+  it("shows a person their own payable purchase only, never another person's or a paid one", async () => {
+    const made = await checkout(alice);
+    const own = await getOwnPurchase(db, self(alice), { invoiceId: made.invoiceId });
+    expect(own).toMatchObject({
+      invoiceId: made.invoiceId,
+      planName: 'Traveller Plus',
+      amountMinorUnits: PRICE,
+    });
+    expect(await getOwnPurchase(db, self(bob), { invoiceId: made.invoiceId })).toBeNull();
+    const attempt = await pay(alice, made.invoiceId);
+    const paid = port.succeed(attempt.merchantTranId, PRICE);
+    expect((await settle(attempt.merchantTranId, paid.valId)).code).toBe('recorded');
+    expect(await getOwnPurchase(db, self(alice), { invoiceId: made.invoiceId })).toBeNull();
   });
 });

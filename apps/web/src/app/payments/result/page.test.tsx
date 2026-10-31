@@ -96,4 +96,45 @@ describe('the payment result page', () => {
       'This Payment Link Is No Longer Available',
     );
   });
+
+  it("sends a traveller's own plan purchase back to Plan & Usage (ADR 0025)", async () => {
+    mocks.signed.mockReturnValue(true);
+    mocks.view.mockResolvedValue({
+      state: 'not_completed',
+      invoiceRef: 'TP-ABCDEF12-1',
+      amountMinorUnits: 49900,
+      currency: 'BDT',
+      payer: 'person',
+    });
+    const document = await render({ t: TRAN, x: '9999999999', s: 'sig' });
+    expect(document.body.textContent).toContain('You can go back to Plan & Usage and try again.');
+    expect(document.body.textContent).toContain('Purchase TP-ABCDEF12-1');
+    expect(document.querySelector('a.btn-primary')?.getAttribute('href')).toBe('/app/account/plan');
+  });
+
+  it('checks again by itself, with no script, while a payment is still being confirmed', async () => {
+    mocks.signed.mockReturnValue(true);
+    mocks.view.mockResolvedValue({
+      state: 'confirming',
+      invoiceRef: 'INV-100',
+      amountMinorUnits: 125050,
+      currency: 'BDT',
+      payer: 'organization',
+    });
+    const confirming = await render({ t: TRAN, x: '9999999999', s: 'sig' });
+    expect(confirming.querySelector('meta[http-equiv="refresh"]')?.getAttribute('content')).toBe(
+      '15',
+    );
+    expect(confirming.querySelectorAll('script')).toHaveLength(0);
+    mocks.view.mockResolvedValue({
+      state: 'received',
+      invoiceRef: 'INV-100',
+      amountMinorUnits: 125050,
+      currency: 'BDT',
+      payer: 'organization',
+    });
+    const received = await render({ t: TRAN, x: '9999999999', s: 'sig' });
+    expect(received.querySelector('meta[http-equiv="refresh"]')).toBeNull();
+    expect(received.querySelector('a.btn-primary')?.getAttribute('href')).toBe('/app');
+  });
 });

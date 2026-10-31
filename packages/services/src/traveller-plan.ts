@@ -1,7 +1,14 @@
 import { switchOn } from '@visastack/core';
 import type { AiFeatureEntitlement, AiFeatureKey } from '@visastack/core/ai-features';
-import type { Db } from './db';
-import { type TravellerStorageRules, resolveEntitlements } from './entitlements';
+import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { type Db, schema } from './db';
+import {
+  TRAVELLER_PLAN_KEY,
+  type TravellerStorageRules,
+  resolveEntitlements,
+  travellerRulesOf,
+} from './entitlements';
+import { entitlementsSchemaPresent } from './plans-schema';
 
 export interface TravellerPlanSummary {
   /** The plan every traveller is on (Traveller Free), or null when no plan row exists. */
@@ -57,4 +64,90 @@ export function travellerPlansEnabled(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
   return switchOn(env[TRAVELLER_PLANS_SWITCH]);
+}
+
+/** A paid traveller plan offered now, as Plan & Usage compares it with Traveller Free. */
+export interface TravellerPlanOffer {
+  readonly id: string;
+  readonly key: string;
+  readonly name: string;
+  readonly periodDays: number;
+  readonly price: { readonly amountMinorUnits: number; readonly currency: string };
+  readonly features: Readonly<Record<AiFeatureKey, AiFeatureEntitlement>>;
+  readonly storage: TravellerStorageRules;
+}
+
+export interface TravellerPlanCatalogue {
+  /** Traveller Free's own rules, the first column; null when its row is missing. */
+  readonly free: {
+    readonly name: string;
+    readonly features: Readonly<Record<AiFeatureKey, AiFeatureEntitlement>>;
+    readonly storage: TravellerStorageRules;
+  } | null;
+  /** The paid traveller plans on sale now: offered, and priced in BDT now. Cheapest first. */
+  readonly offers: readonly TravellerPlanOffer[];
+}
+
+/**
+ * The traveller plans to compare on Plan & Usage (ADR 0025 section 8): Traveller Free and every
+ * paid traveller plan on sale now, each with the rules the resolver would give a person on it.
+ * Reads plans only, never anyone's billing. Empty offers before migration 0107; the page also
+ * shows none while selling is switched off.
+ */
+export async function listTravellerPlansForSale(
+  db: Db,
+  now: Date = new Date(),
+): Promise<TravellerPlanCatalogue> {
+  if (!(await entitlementsSchemaPresent(db))) return { free: null, offers: [] };
+  const p = schema.plans;
+  const plans = await db
+    .select({ id: p.id, key: p.key, name: p.name, periodDays: p.periodDays })
+    .from(p)
+    .where(and(eq(p.audience, 'TRAVELLER'), eq(p.active, true)));
+  if (plans.length === 0) return { free: null, offers: [] };
+  const ids = plans.map((plan) => plan.id);
+  const e = schema.planEntitlements;
+  const ruleRows = await db
+    .select({
+      planId: e.planId,
+      key: e.key,
+      included: e.included,
+      limit: sql<string | null>`${e.limitValue}::text`,
+    })
+    .from(e)
+    .where(inArray(e.planId, ids));
+  const pp = schema.planPrices;
+  const prices = await db
+    .selectDistinctOn([pp.planId], {
+      planId: pp.planId,
+      amount: pp.priceMinorUnits,
+      currency: pp.currency,
+    })
+    .from(pp)
+    .where(and(inArray(pp.planId, ids), lte(pp.effectiveFrom, now)))
+    .orderBy(pp.planId, desc(pp.effectiveFrom));
+  const rulesFor = (planId: string) =>
+    travellerRulesOf(ruleRows.filter((r) => r.planId === planId));
+  const freePlan = plans.find((plan) => plan.key === TRAVELLER_PLAN_KEY);
+  const offers: TravellerPlanOffer[] = [];
+  for (const plan of plans) {
+    if (plan.key === TRAVELLER_PLAN_KEY) continue;
+    const price = prices.find((row) => row.planId === plan.id);
+    if (!price || price.amount === null || price.amount <= 0 || price.currency !== 'BDT') continue;
+    offers.push({
+      id: plan.id,
+      key: plan.key,
+      name: plan.name,
+      periodDays: plan.periodDays,
+      price: { amountMinorUnits: price.amount, currency: price.currency },
+      ...rulesFor(plan.id),
+    });
+  }
+  offers.sort(
+    (a, b) => a.price.amountMinorUnits - b.price.amountMinorUnits || a.name.localeCompare(b.name),
+  );
+  return {
+    free: freePlan ? { name: freePlan.name, ...rulesFor(freePlan.id) } : null,
+    offers,
+  };
 }

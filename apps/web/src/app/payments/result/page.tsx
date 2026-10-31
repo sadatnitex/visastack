@@ -24,7 +24,7 @@ const COPY: Readonly<Record<PaymentResultState, ResultCopy>> = {
   },
   confirming: {
     heading: 'We Are Confirming Your Payment',
-    body: 'Your payment is still being confirmed. This usually takes a minute. Refresh this page shortly. If you were charged, you do not need to pay again.',
+    body: 'Your payment is still being confirmed. This usually takes a minute, and this page checks again by itself. If you were charged, you do not need to pay again.',
   },
   not_completed: {
     heading: 'Payment Not Completed',
@@ -34,6 +34,15 @@ const COPY: Readonly<Record<PaymentResultState, ResultCopy>> = {
     heading: 'Payment Needs a Check',
     body: 'We received your payment but need to check it before we can count it. We will contact you. You do not need to pay again.',
   },
+};
+
+/** How often a payment still being confirmed is checked again, without any script. */
+const CONFIRMING_REFRESH_SECONDS = 15;
+
+/** A traveller's own plan purchase (ADR 0025): the way back is Plan & Usage, not an invoice. */
+const PERSON_NOT_COMPLETED: ResultCopy = {
+  heading: 'Payment Not Completed',
+  body: 'Nothing was charged. You can go back to Plan & Usage and try again.',
 };
 
 const GENERIC: ResultCopy = {
@@ -72,21 +81,37 @@ export default async function PaymentResultPage({
   const params = { t: one(raw, 't'), x: one(raw, 'x'), s: one(raw, 's') };
   const signed = verifyPaymentResultParams(params);
   const view = signed && params.t ? await loadView(params.t) : null;
-  const copy = view ? COPY[view.state] : GENERIC;
+  const person = view?.payer === 'person';
+  const copy = view
+    ? person && view.state === 'not_completed'
+      ? PERSON_NOT_COMPLETED
+      : COPY[view.state]
+    : GENERIC;
 
   return (
     <section className="section container center payment-result">
+      {view?.state === 'confirming' ? (
+        // React places this in the page head: the page reloads itself until the payment is decided.
+        <meta httpEquiv="refresh" content={String(CONFIRMING_REFRESH_SECONDS)} />
+      ) : null}
       <h1 className="section-title">{copy.heading}</h1>
       <p className="section-sub payment-result-body">{copy.body}</p>
       {view ? (
         <p className="section-sub payment-result-body payment-result-amount">
-          Invoice {view.invoiceRef}: {formatMoney(view.amountMinorUnits, view.currency)}
+          {person ? 'Purchase' : 'Invoice'} {view.invoiceRef}:{' '}
+          {formatMoney(view.amountMinorUnits, view.currency)}
         </p>
       ) : null}
       <div className="cta-row cta-row-center">
-        <a className="btn btn-primary" href="/app">
-          Go to Workspace
-        </a>
+        {person ? (
+          <a className="btn btn-primary" href="/app/account/plan">
+            Go to Plan &amp; Usage
+          </a>
+        ) : (
+          <a className="btn btn-primary" href="/app">
+            Go to Workspace
+          </a>
+        )}
       </div>
     </section>
   );
