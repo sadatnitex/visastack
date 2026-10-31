@@ -52,9 +52,20 @@ const CURSOR_VERSION = 1;
 const MAX_CURSOR_LENGTH = 512;
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
 // UTC only, so two cursors for the same instant always compare the same way.
-const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
+const ISO_UTC = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,6})?Z$/;
 // Row ids are UUIDs or short codes; nothing that could carry markup or SQL.
 const ROW_ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The id column a list orders by: `uuid` (the default, most tables) or `code` for a text key. A
+ * decoder checks the id has the column's shape, so the database never sees a value it would refuse.
+ */
+export type CursorIdShape = 'uuid' | 'code';
+
+function validId(id: unknown, shape: CursorIdShape): id is string {
+  return typeof id === 'string' && (shape === 'uuid' ? UUID.test(id) : ROW_ID.test(id));
+}
 // Postgres bigint range, as digits.
 const SEQ = /^(?:0|[1-9]\d{0,18})$/;
 const MAX_BIGINT = 9_223_372_036_854_775_807n;
@@ -107,8 +118,28 @@ function unpack(cursor: unknown, scope: string): CursorBody | null {
   return record;
 }
 
+/**
+ * A real calendar instant Postgres accepts: each field is checked against the date it makes, so
+ * values a lenient parser would roll over (30 February, hour 24) are refused, as is year 0.
+ */
 function validTime(at: unknown): at is string {
-  return typeof at === 'string' && ISO_UTC.test(at) && Number.isFinite(Date.parse(at));
+  if (typeof at !== 'string') return false;
+  const match = ISO_UTC.exec(at);
+  if (!match) return false;
+  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  if (year < 1 || hour > 23 || minute > 59 || second > 59) return false;
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  date.setUTCFullYear(year);
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
 }
 
 function validSeq(seq: unknown): seq is string {
@@ -122,13 +153,20 @@ export function encodeTimeCursor(key: TimeCursorKey, scope: string): string {
   return pack({ v: CURSOR_VERSION, s: scopeTag(scope), t: key.at, i: key.id });
 }
 
-/** Reads a time plus id cursor; null when it is missing, malformed or made for another scope. */
-export function decodeTimeCursor(cursor: unknown, scope: string): TimeCursorKey | null {
+/**
+ * Reads a time plus id cursor; null when it is missing, malformed, made for another scope or its
+ * id does not have the shape of the list's id column.
+ */
+export function decodeTimeCursor(
+  cursor: unknown,
+  scope: string,
+  idShape: CursorIdShape = 'uuid',
+): TimeCursorKey | null {
   const body = unpack(cursor, scope);
   if (!body) return null;
   const at = body.t;
   const id = body.i;
-  if (!validTime(at) || typeof id !== 'string' || !ROW_ID.test(id)) return null;
+  if (!validTime(at) || !validId(id, idShape)) return null;
   return { at, id };
 }
 
@@ -169,16 +207,19 @@ export function belowSeq(seqColumn: SQLWrapper, key: SeqCursorKey): SQL {
 
 /**
  * Turns rows read with `limit + 1` into a page: the extra row only proves an older page exists, so
- * it is dropped and the cursor points at the last row kept.
+ * it is dropped and the cursor points at the last row kept. `limit` must be the same number the
+ * query used (normally `clampLimit(request.limit)`); it is not clamped again here.
  */
 export function toPage<T>(
   rows: readonly T[],
   limit: number,
   cursorFor: (last: T) => string,
 ): Page<T> {
-  const size = clampLimit(limit);
-  if (rows.length <= size) return { items: rows, nextCursor: null };
-  const items = rows.slice(0, size);
+  if (!Number.isInteger(limit) || limit < PAGE_LIMIT_MIN) {
+    throw new Error('A page size must be a whole number of at least 1');
+  }
+  if (rows.length <= limit) return { items: rows, nextCursor: null };
+  const items = rows.slice(0, limit);
   const last = items.at(-1);
   return { items, nextCursor: last === undefined ? null : cursorFor(last) };
 }

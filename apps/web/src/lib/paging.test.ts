@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   SHOW_MAX,
@@ -32,6 +34,12 @@ describe('parseShow', () => {
     expect(parseShow('30', { step })).toBe(30);
     expect(parseShow(['40', '90'], { step })).toBe(40);
     expect(parseShow('999999', { step })).toBe(SHOW_MAX);
+    // Show More never grows past the largest page the services return.
+    const services = readFileSync(
+      join(__dirname, '..', '..', '..', '..', 'packages', 'services', 'src', 'paging.ts'),
+      'utf8',
+    );
+    expect(services).toContain(`export const PAGE_LIMIT_MAX = ${SHOW_MAX};`);
     expect(parseShow('999', { step: TEAM_LIST_STEP, max: 100 })).toBe(100);
     expect(parseShow('999', { step: 30, max: 100 })).toBe(90);
   });
@@ -40,8 +48,8 @@ describe('parseShow', () => {
 describe('nextShow', () => {
   it('adds one step until the ceiling, then says there is no more', () => {
     expect(nextShow(10, { step: 10 })).toBe(20);
-    expect(nextShow(490, { step: 10 })).toBe(500);
-    expect(nextShow(500, { step: 10 })).toBeNull();
+    expect(nextShow(90, { step: 10 })).toBe(100);
+    expect(nextShow(100, { step: 10 })).toBeNull();
     expect(nextShow(75, { step: 25, max: 100 })).toBe(100);
     expect(nextShow(100, { step: 25, max: 100 })).toBeNull();
   });
@@ -87,6 +95,9 @@ describe('pagingHref', () => {
     expect(() => pagingHref('https://example.com/x', undefined, {})).toThrow();
     expect(() => pagingHref('//example.com/x', undefined, {})).toThrow();
     expect(() => pagingHref('/\\example.com/x', undefined, {})).toThrow();
+    expect(() => pagingHref('/\t/example.com/x', undefined, {})).toThrow();
+    expect(() => pagingHref('/\n/example.com/x', undefined, {})).toThrow();
+    expect(() => pagingHref('/app/x y', undefined, {})).toThrow();
     expect(() => pagingHref('x', undefined, {})).toThrow();
   });
 });

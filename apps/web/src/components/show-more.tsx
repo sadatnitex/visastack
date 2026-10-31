@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
 import { type SearchParamsRecord, pagingHref } from '../lib/paging';
 
 /** How to name the rows in the count, for example `{ one: 'case', other: 'cases' }`. */
@@ -39,8 +42,10 @@ export function showMoreCount({
  * the keyboard pick up exactly where the new rows start (it falls back to this control, right
  * below them). The count sits in a polite status, so a screen reader hears the new total.
  *
- * Server-rendered: it needs no script, and the server read behind it must use the same access
- * checks whatever the address says.
+ * After the new rows arrive (the page re-renders with a larger `shown`), keyboard focus moves to the
+ * landing element too, so the next Tab continues through the new rows instead of skipping them.
+ * Without script the link is an ordinary address with an anchor and still works. The server read
+ * behind it must use the same access checks whatever the address says.
  */
 export function ShowMore({
   id,
@@ -60,7 +65,7 @@ export function ShowMore({
   /** This page's path, for example `/app/agency/123/cases`. */
   readonly pathname: string;
   /** This page's current parameters (filters and tabs are kept). */
-  readonly searchParams?: SearchParamsRecord | URLSearchParams;
+  readonly searchParams?: SearchParamsRecord;
   /** The parameters for the next load, for example `{ show: 20 }`; null when nothing more exists. */
   readonly next: Readonly<Record<string, string | number | null>> | null;
   /** Rows on the page now. */
@@ -70,7 +75,29 @@ export function ShowMore({
   readonly noun: RowNoun;
   readonly label?: 'Show More' | 'Show Older Entries';
 }) {
-  const href = next ? pagingHref(pathname, searchParams, next, landOn ?? id) : null;
+  const target = landOn ?? id;
+  const href = next ? pagingHref(pathname, searchParams, next, target) : null;
+  // The address names the landing of the click that loaded these rows, which is the previous
+  // render's target; on a fresh page load it is this render's.
+  const lastTarget = useRef(target);
+  useEffect(() => {
+    void shown;
+    const landings = new Set([target, lastTarget.current, id]);
+    lastTarget.current = target;
+    let named = '';
+    try {
+      named = decodeURIComponent(window.location.hash.slice(1));
+    } catch {
+      return;
+    }
+    if (!landings.has(named)) return;
+    const landing = document.getElementById(named);
+    if (!landing || landing.contains(document.activeElement)) return;
+    if (!landing.matches('a[href], button, input, select, textarea, [tabindex]')) {
+      landing.setAttribute('tabindex', '-1');
+    }
+    landing.focus({ preventScroll: true });
+  }, [target, shown, id]);
   return (
     <div className="show-more" id={id}>
       <output className="show-more-count muted u-fs-085">

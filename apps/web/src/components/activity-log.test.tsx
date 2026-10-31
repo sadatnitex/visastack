@@ -200,4 +200,46 @@ describe('the activity log', () => {
     ]);
     expect(host.textContent).toContain('The 3 newest entries, back to Last month.');
   });
+
+  it('starts a newly loaded page at the top of the box and focuses it when the address points here', () => {
+    const older: ActivityLogEntry[] = entries.map((e) => ({ ...e, id: `old-${e.id}` }));
+    act(() =>
+      root.render(
+        <ActivityLog
+          entries={entries}
+          label="Audit Events"
+          id="audit-log"
+          olderHref="/a?before=x"
+        />,
+      ),
+    );
+    const box = host.querySelector<HTMLElement>('.activity-log-scroll');
+    if (!box) throw new Error('box');
+    box.scrollTop = 120;
+    window.history.replaceState(null, '', '#audit-log');
+    act(() =>
+      root.render(
+        <ActivityLog
+          entries={older}
+          label="Audit Events"
+          id="audit-log"
+          olderHref="/a?before=y"
+          newestHref="/a"
+        />,
+      ),
+    );
+    expect(box.scrollTop).toBe(0);
+    expect(document.activeElement).toBe(box);
+    window.history.replaceState(null, '', '#');
+  });
+
+  it('leaves the scroll position alone for the pages that do not page the log', () => {
+    const box = host.querySelector<HTMLElement>('.activity-log-scroll');
+    if (!box) throw new Error('box');
+    box.scrollTop = 120;
+    act(() =>
+      root.render(<ActivityLog entries={[...entries].reverse()} label="Access Log Entries" />),
+    );
+    expect(box.scrollTop).toBe(120);
+  });
 });

@@ -10991,6 +10991,10 @@ html:has(.sticky-action-bar) {
   scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
 }
 @media (max-width: 640px) {
+  /* On a phone the note and the full-width buttons stack, so the bar is taller. */
+  html:has(.sticky-action-bar) {
+    scroll-padding-bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+  }
   .sticky-action-bar-actions {
     display: grid;
     grid-auto-flow: column;

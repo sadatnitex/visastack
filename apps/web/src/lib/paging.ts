@@ -18,8 +18,12 @@ export type SearchParamsRecord = Readonly<Record<string, string | string[] | und
 /** The traveller and staff list steps from the scroll budget (10 rows, then 25 for teams). */
 export const TRAVELLER_LIST_STEP = 10;
 export const TEAM_LIST_STEP = 25;
-/** No list grows past this through `show`; longer reads use a cursor instead. */
-export const SHOW_MAX = 500;
+/**
+ * No list grows past this through `show`: it matches the largest page a service read returns
+ * (PAGE_LIMIT_MAX in packages/services/src/paging.ts), so Show More never offers rows the server
+ * would not send. Longer reads use a cursor instead.
+ */
+export const SHOW_MAX = 100;
 
 const MAX_CURSOR_LENGTH = 512;
 const CURSOR_SHAPE = /^[A-Za-z0-9_-]+$/;
@@ -77,8 +81,13 @@ export function pagingHref(
   changes: Readonly<Record<string, string | number | null | undefined>>,
   hash?: string,
 ): string {
-  // A leading // or /\ would make browsers leave the site.
-  if (!/^\/(?![/\\])/.test(pathname)) {
+  // A leading // or /\ would make browsers leave the site, and browsers drop tabs and line breaks
+  // before reading an address, so no whitespace, control character or backslash is allowed.
+  const control = [...pathname].some((char) => {
+    const code = char.charCodeAt(0);
+    return code < 0x20 || code === 0x7f;
+  });
+  if (control || !/^\/(?!\/)[^\s\\]*$/.test(pathname)) {
     throw new Error('A paging link must stay on this site');
   }
   const params = new URLSearchParams();

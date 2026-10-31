@@ -120,6 +120,19 @@ test.describe('WP-SB0 parts with worst-case data', () => {
     const last = await page.locator('#field-29').boundingBox();
     const barNow = await bar.boundingBox();
     expect((last?.y ?? 0) + (last?.height ?? 0)).toBeLessThanOrEqual(barNow?.y ?? 0);
+    // Tabbing down the form from the top: every field the keyboard reaches is above the bar,
+    // with the note making the bar as tall as it gets on a phone.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.locator('#field-0').focus();
+    for (let n = 1; n < 30; n += 1) {
+      await page.keyboard.press('Tab');
+      await expect(page.locator(`#field-${n}`)).toBeFocused();
+      const field = await page.locator(`#field-${n}`).boundingBox();
+      const barBox = await bar.boundingBox();
+      expect((field?.y ?? 0) + (field?.height ?? 0), `field ${n}`).toBeLessThanOrEqual(
+        barBox?.y ?? 0,
+      );
+    }
     // At the very end the bar sits after the last field, in the flow.
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     const end = await page.locator('#field-29').boundingBox();

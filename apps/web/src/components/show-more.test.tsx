@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import type { ReactElement } from 'react';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 import { axeViolations } from '../lib/axe.test-support';
 import { ShowMore, showMoreCount } from './show-more';
 
@@ -85,5 +89,42 @@ describe('ShowMore', () => {
       <ShowMore id="x" pathname="/app/x" next={{ show: 20 }} shown={10} total={30} noun={cases} />,
     );
     expect(await axeViolations(html)).toEqual([]);
+  });
+
+  it('moves keyboard focus to the first new row once the larger list arrives', () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const page = (shown: number) => (
+      <>
+        <ol>
+          {Array.from({ length: shown }, (_, n) => `row-${n}`).map((rowId) => (
+            <li id={rowId} key={rowId}>
+              {rowId}
+            </li>
+          ))}
+        </ol>
+        <ShowMore
+          id="more"
+          landOn={`row-${shown}`}
+          pathname="/app/x"
+          next={{ show: shown + 10 }}
+          shown={shown}
+          total={40}
+          noun={cases}
+        />
+      </>
+    );
+    act(() => root.render(page(10)));
+    expect(document.activeElement).toBe(document.body);
+    host.querySelector('a')?.focus();
+    window.history.replaceState(null, '', '#row-10');
+    act(() => root.render(page(20)));
+    const landed = document.getElementById('row-10');
+    expect(document.activeElement).toBe(landed);
+    expect(landed?.getAttribute('tabindex')).toBe('-1');
+    window.history.replaceState(null, '', '#');
+    act(() => root.unmount());
+    host.remove();
   });
 });

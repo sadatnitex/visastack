@@ -65,12 +65,31 @@ describe('time cursors', () => {
       forged({ ...good, t: '2026-10-31 09:15:02' }),
       forged({ ...good, t: '2026-10-31T09:15:02+06:00' }),
       forged({ ...good, t: '2026-13-45T99:99:99Z' }),
+      forged({ ...good, t: '2026-02-30T00:00:00Z' }),
+      forged({ ...good, t: '2026-02-29T00:00:00Z' }),
+      forged({ ...good, t: '2026-04-31T00:00:00Z' }),
+      forged({ ...good, t: '2026-10-31T24:00:00Z' }),
+      forged({ ...good, t: '0000-01-01T00:00:00Z' }),
+      forged({ ...good, i: 'abc' }),
       forged({ ...good, i: "x' or 1=1 --" }),
       forged({ ...good, i: 42 }),
       forged({ ...good, i: '' }),
     ]) {
       expect(decodeTimeCursor(bad, SCOPE)).toBeNull();
     }
+  });
+
+  it('accepts real edge dates and text ids when the list says its ids are codes', () => {
+    for (const at of [
+      '2028-02-29T23:59:59.999999Z',
+      '0001-01-01T00:00:00Z',
+      '9999-12-31T23:59:59Z',
+    ]) {
+      expect(decodeTimeCursor(encodeTimeCursor({ ...KEY, at }, SCOPE), SCOPE)?.at).toBe(at);
+    }
+    const coded = encodeTimeCursor({ ...KEY, id: 'pack:uk-visitor.v2' }, SCOPE);
+    expect(decodeTimeCursor(coded, SCOPE)).toBeNull();
+    expect(decodeTimeCursor(coded, SCOPE, 'code')?.id).toBe('pack:uk-visitor.v2');
   });
 
   it('refuses to make a cursor no reader would accept', () => {
@@ -106,6 +125,9 @@ describe('toPage', () => {
     });
     expect(toPage(rows, 4, (last) => `after-${last}`)).toEqual({ items: rows, nextCursor: null });
     expect(toPage([], 3, () => 'never')).toEqual({ items: [], nextCursor: null });
+    expect(() => toPage(rows, 0, () => 'never')).toThrow();
+    expect(() => toPage(rows, 2.5, () => 'never')).toThrow();
+    expect(toPage([1, 2, 3, 4, 5, 6], 150, () => 'never').items).toHaveLength(6);
   });
 });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { StatusBadge } from './ui';
 
 export interface ActivityLogEntry {
@@ -48,7 +48,9 @@ function stillOffered(value: string, options: readonly string[]): string {
  *
  * Long logs load from the server one page at a time (WP-SB0): `olderHref` adds a Show Older
  * Entries link under the box (the page builds it with `pagingHref` and a server cursor), and
- * `newestHref` a way back to the newest page. Without those props the log looks and behaves as it
+ * `newestHref` a way back to the newest page. When another page of entries arrives, the box
+ * scrolls back to its top and, if the address points at this log, takes keyboard focus, so the
+ * new page starts where people read from. Without those props the log looks and behaves as it
  * always has.
  */
 export function ActivityLog({
@@ -72,6 +74,17 @@ export function ActivityLog({
   readonly totalLabel?: string;
 }) {
   const id = useId();
+  const box = useRef<HTMLElement>(null);
+  const paged = Boolean(olderHref || newestHref);
+  const pageKey = `${entries[0]?.id ?? ''}:${entries.at(-1)?.id ?? ''}`;
+  useEffect(() => {
+    void pageKey;
+    if (!paged || !box.current) return;
+    box.current.scrollTop = 0;
+    if (anchorId && window.location.hash === `#${encodeURIComponent(anchorId)}`) {
+      box.current.focus({ preventScroll: true });
+    }
+  }, [paged, pageKey, anchorId]);
   const [query, setQuery] = useState('');
   const [whatChoice, setWhat] = useState('');
   const [whoChoice, setWho] = useState('');
@@ -219,7 +232,7 @@ export function ActivityLog({
         ) : null}
       </div>
       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it */}
-      <section className="activity-log-scroll" aria-label={label} tabIndex={0}>
+      <section className="activity-log-scroll" aria-label={label} tabIndex={0} ref={box}>
         {shown.length === 0 ? (
           <p className="muted activity-log-none">Nothing matches these filters.</p>
         ) : (
