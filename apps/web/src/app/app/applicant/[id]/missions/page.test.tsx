@@ -97,7 +97,8 @@ const finished = (id: string, n: number, state = 'CLOSED'): CaseRow => ({
   packVersionId: null,
   updatedAt: day(n),
 });
-const withCases = (rows: CaseRow[]) => service.listMissions.mockResolvedValue({ ok: true, value: rows });
+const withCases = (rows: CaseRow[]) =>
+  service.listMissions.mockResolvedValue({ ok: true, value: rows });
 const parse = (html: string) => new JSDOM(html).window.document;
 const section = (doc: Document, name: string) =>
   doc.querySelector<HTMLElement>(`[data-case-group="${name}"]`);
@@ -140,13 +141,13 @@ describe('Active Cases and Past Cases (LC-G2)', () => {
     // Active Cases comes before Past Cases in reading order.
     expect(
       (active as HTMLElement).compareDocumentPosition(past as HTMLElement) &
-        doc.defaultView!.Node.DOCUMENT_POSITION_FOLLOWING,
+        4 /* DOCUMENT_POSITION_FOLLOWING */,
     ).toBeTruthy();
     expect(past?.querySelector('h2')?.textContent).toBe('Past Cases');
     const fold = past?.querySelector('details');
     expect(fold).not.toBeNull();
     expect(fold?.hasAttribute('open')).toBe(false);
-    expect(fold?.querySelector('summary')?.textContent).toContain('Show 4 Past Cases');
+    expect(fold?.querySelector('summary')?.textContent).toBe('4 Past Cases');
     // Each past row keeps its stage badge.
     const badges = [...(past?.querySelectorAll('.row-end') ?? [])].map((n) => n.textContent ?? '');
     expect(badges[0]).toContain('Cancelled');
@@ -169,6 +170,8 @@ describe('Active Cases and Past Cases (LC-G2)', () => {
     expect(active?.textContent).not.toContain('No Cases Yet');
     expect(titlesIn(section(doc, 'past'))).toEqual(['Past p1']);
     expect(textOf(doc.body.outerHTML)).toContain('No active case yet.');
+    // Nothing is being worked on, so the Start a Case form is not tucked away.
+    expect(levelOfForm(doc.body.outerHTML)).toBe('browse');
   });
 
   it('keeps both groups at the Browse level and the Your case line at Glance', async () => {
@@ -194,7 +197,13 @@ describe('Active Cases and Past Cases (LC-G2)', () => {
   });
 
   it('never shows the word mission', async () => {
-    withCases([open('a', 2), finished('p1', 1), finished('p2', 1), finished('p3', 1), finished('p4', 1)]);
+    withCases([
+      open('a', 2),
+      finished('p1', 1),
+      finished('p2', 1),
+      finished('p3', 1),
+      finished('p4', 1),
+    ]);
     expect(textOf(await render()).toLowerCase()).not.toContain('mission');
   });
 });

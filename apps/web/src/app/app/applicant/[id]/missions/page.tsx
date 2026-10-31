@@ -109,7 +109,7 @@ export default async function MissionsPage({
           if (result.ok) readiness.set(mission.id, result.value);
         }),
     );
-    return { applicant, missions: rows, groups, missionsRead: missions.ok, readiness, coreGranted };
+    return { applicant, groups, missionsRead: missions.ok, readiness, coreGranted };
   });
 
   if (!data) notFound();
@@ -118,6 +118,7 @@ export default async function MissionsPage({
   // traveller's own page).
   const { active: activeCases, past: pastCases } = data.groups;
   const active = activeCases[0];
+  const hasNoCase = activeCases.length + pastCases.length === 0;
 
   return (
     <>
@@ -150,16 +151,14 @@ export default async function MissionsPage({
 
         <div className="grid">
           <article className="card" {...atLevel('browse')}>
-            <section aria-labelledby="active-cases-title" data-case-group="active">
-              <h2 className="card-title" id="active-cases-title">
-                Active Cases
-              </h2>
+            <div data-case-group="active">
+              <h2 className="card-title">Active Cases</h2>
               {!data.missionsRead ? (
                 // A failed read never claims there are no cases: that invites a duplicate case.
                 <p className="notice notice-warn u-mt-050">
                   Your cases could not be loaded. Refresh to try again.
                 </p>
-              ) : data.missions.length === 0 ? (
+              ) : hasNoCase ? (
                 <EmptyState
                   icon="briefcase"
                   title="No Cases Yet"
@@ -171,30 +170,21 @@ export default async function MissionsPage({
                 </EmptyState>
               ) : activeCases.length === 0 ? (
                 <p className="muted u-mt-050">
-                  No case is being worked on right now.{' '}
-                  <a href="#start-case">Start a Case</a>
+                  No case is being worked on right now. <a href="#start-case">Start a Case</a>
                 </p>
               ) : (
                 <CaseRows cases={activeCases} readiness={data.readiness} />
               )}
-            </section>
+            </div>
 
             {pastCases.length > 0 ? (
-              <section
-                aria-labelledby="past-cases-title"
-                className="u-mt-150"
-                data-case-group="past"
-              >
-                <h2 className="card-title" id="past-cases-title">
-                  Past Cases
-                </h2>
+              <div className="u-mt-150" data-case-group="past">
+                <h2 className="card-title">Past Cases</h2>
                 <p className="muted">Closed and cancelled cases. You can still open them.</p>
                 {pastCases.length > PAST_OPEN_LIMIT ? (
                   <details className="disclosure u-mt-050">
                     <summary>
-                      <span className="disclosure-title">
-                        Show {pastCases.length} Past Cases
-                      </span>
+                      <span className="disclosure-title">{pastCases.length} Past Cases</span>
                     </summary>
                     <div className="disclosure-body">
                       <CaseRows cases={pastCases} readiness={data.readiness} />
@@ -203,15 +193,16 @@ export default async function MissionsPage({
                 ) : (
                   <CaseRows cases={pastCases} readiness={data.readiness} />
                 )}
-              </section>
+              </div>
             ) : null}
           </article>
 
           <article
             className="card"
             id="start-case"
-            // With no case yet, starting one is the main thing to do here, so the form is not tucked away.
-            {...atLevel(data.missionsRead && data.missions.length === 0 ? 'browse' : 'everything')}
+            // With no case being worked on, starting one is the main thing to do here, so the form is
+            // not tucked away.
+            {...atLevel(data.missionsRead && activeCases.length === 0 ? 'browse' : 'everything')}
           >
             <p className="card-kicker">New</p>
             <h2 className="card-title">Start a Case</h2>
