@@ -19,10 +19,11 @@ const vercel = JSON.parse(readFileSync(join(root, 'apps/web/vercel.json'), 'utf8
 
 test('the Vercel build clears the compiler cache, then runs next build', () => {
   const steps = String(vercel.buildCommand ?? '')
-    .split('&&')
+    .split(/&&|;/)
     .map((step) => step.trim());
-  const clear = steps.indexOf('rm -rf .next/cache/webpack');
-  const build = steps.indexOf('next build');
+  // The path is relative to apps/web, the Vercel project's root directory.
+  const clear = steps.findIndex((step) => /^rm -rf (\.\/)?\.next\/cache\/webpack\/?$/.test(step));
+  const build = steps.findIndex((step) => /^next build(\s|$)/.test(step));
   assert.notEqual(clear, -1, 'buildCommand must clear .next/cache/webpack');
   assert.notEqual(build, -1, 'buildCommand must run next build');
   assert.ok(clear < build, 'the cache must be cleared before next build runs');
