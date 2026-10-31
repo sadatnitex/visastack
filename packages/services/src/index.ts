@@ -1135,6 +1135,8 @@ export {
   getPlatformEvidenceBytes,
   loadUploadQuotaConfig,
   mbLabel,
+  storageLimitsForOwner,
+  storageLimitsFrom,
 } from './quotas';
 
 export {
@@ -2075,6 +2077,7 @@ export {
   type ResolvedEntitlements,
   type ResolvedPlan,
   TRAVELLER_PLAN_KEY,
+  type TravellerStorageRules,
   billingPeriodStart,
 } from './entitlements';
 // S29 round 2: `resolveEntitlements` is not exported. It takes no scope proof, so only service

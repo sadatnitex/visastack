@@ -50,13 +50,13 @@ const seenConnections = new Set<string>();
  * What a handle's answer is kept against: the query builder a connection shares with every
  * transaction opened on it (and nested transactions), or the handle itself when it has none.
  */
-function cacheOwner(db: Db): object {
+export function cacheOwner(db: Db): object {
   const dialect = (db as unknown as { dialect?: unknown }).dialect;
   return typeof dialect === 'object' && dialect !== null ? dialect : db;
 }
 
 /** A stable key for the database behind a handle, or null when it cannot be read. */
-function connectionKey(db: Db): string | null {
+export function connectionKey(db: Db): string | null {
   const client = (db as unknown as { $client?: unknown }).$client as
     | { options?: { connectionString?: unknown }; connectionString?: unknown }
     | undefined;

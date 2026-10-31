@@ -51,6 +51,9 @@ beforeEach(() => {
       ai_explanations: { included: true, dailyLimit: null },
       ai_document_kind: { included: true, dailyLimit: 10 },
     },
+    paidUntil: null,
+    // Traveller Free sets no storage rules of its own: the upload settings apply.
+    storage: { accountBytes: null, personBytes: null },
   });
   mocks.applicants.mockResolvedValue([
     { id: 'a1', displayName: 'Rahim Uddin' },
@@ -106,7 +109,7 @@ describe('Plan & Usage for a traveller', () => {
     expect(text).toContain('Plan & Usage');
     expect(text).toContain('Traveller Free');
     expect(text).toContain('Complimentary during public beta. No payment method is required.');
-    expect(text).toContain('There are no paid plans for travellers');
+    expect(text).toContain('Paid plans for travellers are not offered yet');
     // Never a price, an upgrade or a payment step for a traveller: the one sentence that says so
     // is the only place these words may appear.
     const rest = text.replace('so there is nothing to choose or upgrade', '');
@@ -123,6 +126,34 @@ describe('Plan & Usage for a traveller', () => {
     expect(text).toContain('Ayesha Uddin 2 MB of 50 MB used');
     expect(text).toContain('Each file can be up to 20 MB.');
     expect(text).toContain("that agency's own plan can also limit what more can be added to it");
+  });
+
+  it('measures storage against this account’s own limits, which its plan can raise', async () => {
+    mocks.summary.mockResolvedValue({
+      plan: { key: 'traveller_plus', name: 'Traveller Plus' },
+      features: null,
+      paidUntil: new Date('2026-12-12T06:00:00Z'),
+      storage: { accountBytes: 500 * MB, personBytes: null },
+    });
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('Your Whole Account 12 MB of 500 MB used');
+    // A rule the plan leaves open falls back to the upload setting.
+    expect(text).toContain('Rahim Uddin 10 MB of 50 MB used');
+    expect(text).toContain('Each person you keep a record for can hold up to 50 MB.');
+  });
+
+  it('says how long a paid plan is paid for, instead of the beta offer', async () => {
+    mocks.summary.mockResolvedValue({
+      plan: { key: 'traveller_plus', name: 'Traveller Plus' },
+      features: null,
+      paidUntil: new Date('2026-12-12T06:00:00Z'),
+      storage: null,
+    });
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('Traveller Plus');
+    expect(text).toMatch(/Paid until 12 Dec 2026/);
+    expect(text).not.toContain('Complimentary during public beta');
+    expect(text).not.toContain('not offered yet');
   });
 
   it('says for each AI feature whether the plan includes it, apart from whether it works now', async () => {
@@ -143,7 +174,7 @@ describe('Plan & Usage for a traveller', () => {
   });
 
   it('falls back to the feature state when the plan has no rules to read', async () => {
-    mocks.summary.mockResolvedValue({ plan: null, features: null });
+    mocks.summary.mockResolvedValue({ plan: null, features: null, paidUntil: null, storage: null });
     mocks.applicants.mockResolvedValue([]);
     mocks.aiUsage.mockResolvedValue([
       feature({ name: 'Automatic Reading', available: false, reason: 'not_in_plan' }),
@@ -161,7 +192,7 @@ describe('Plan & Usage for a traveller', () => {
   });
 
   it('says nothing is stored yet for a new account', async () => {
-    mocks.summary.mockResolvedValue({ plan: null, features: null });
+    mocks.summary.mockResolvedValue({ plan: null, features: null, paidUntil: null, storage: null });
     mocks.applicants.mockResolvedValue([]);
     const text = textOf(await renderServer(Page()));
     expect(text).toContain('Your Plan');

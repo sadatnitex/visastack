@@ -188,8 +188,9 @@ export interface AiPlanEntitlement {
 
 /**
  * The AI features a plan includes (S29): read through the one entitlement resolver, so the
- * platform owner sets them on the Plans page. A traveller is on Traveller Free today, which is also
- * the floor everyone keeps; a feature the plan has no row for uses the registry's `planDefault`.
+ * platform owner sets them on the Plans page. A traveller is on Traveller Free unless a paid
+ * traveller plan covers now (ADR 0025); Traveller Free is also the floor everyone keeps; a feature
+ * the plan has no row for uses the registry's `planDefault`.
  * An agency's plan decides the agency AI features (S22, Agency AI Tools: its `ai.<feature>` row,
  * else the registry default); the traveller features keep the registry default for an agency. The
  * caller already passed the access gate; this only decides how much.
