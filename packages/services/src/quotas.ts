@@ -13,7 +13,7 @@ import { type TravellerStorageRules, travellerStorageRulesFor } from './entitlem
  * silently exceeded.
  */
 
-const BYTES_PER_MB = 1024 * 1024;
+export const BYTES_PER_MB = 1024 * 1024;
 
 export interface UploadQuotaConfig {
   /** Per-file upload size limit. */

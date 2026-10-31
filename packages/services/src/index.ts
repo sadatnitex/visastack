@@ -2097,6 +2097,7 @@ export {
   type SavePlanInput,
   type SavedPlan,
   DEFAULT_PLAN_PRICE_NEEDED,
+  TRAVELLER_PLAN_CURRENCY,
   getPlanLatestPrice,
   listPlansForAdmin,
   pendingDowngradesSentence,

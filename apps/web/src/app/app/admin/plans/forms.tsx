@@ -1,7 +1,11 @@
 'use client';
 
 import { AI_AGENCY_FEATURE_KEYS, AI_TRAVELLER_FEATURE_KEYS } from '@visastack/core/ai-features';
-import type { CapacityKey } from '@visastack/core/entitlements';
+import {
+  type CapacityKey,
+  TRAVELLER_STORAGE_KEYS,
+  type TravellerStorageKey,
+} from '@visastack/core/entitlements';
 import { useActionState, useEffect, useId, useRef } from 'react';
 import {
   FormMessage,
@@ -20,17 +24,28 @@ import {
   PRICE_CHANGE_NOTE,
   type PlanFormState,
   type PlanFormValues,
+  type PlanKind,
   RETIRED_LINE,
   RETIRE_NOTE,
   type RetireFormState,
-  STORAGE_SHOWN_FIELD,
-  TRAVELLER_LIMITS_NOTE,
+  TRAVELLER_FLOOR_NOTE,
+  TRAVELLER_PERIOD_LOCKED_NOTE,
+  TRAVELLER_PRICE_CHANGE_STEP,
+  TRAVELLER_PRICE_NOTE,
+  TRAVELLER_RETIRED_LINE,
+  TRAVELLER_RETIRE_NOTE,
   UNLIMITED_HINT,
   aiFeatureName,
   capacityLabel,
   featureLimitField,
   featureOnField,
+  keepingWords,
   limitField,
+  shownField,
+  storageKeysOf,
+  travellerFreeStorageNote,
+  travellerStorageHint,
+  travellerStorageLabel,
 } from './labels';
 
 const NO_REPLY: PlanFormState = { ok: true, message: '' };
@@ -44,8 +59,13 @@ export interface PlanFormProps {
   /** What the form shows before anything is typed (field name to text). */
   readonly initial: PlanFormValues;
   readonly periodLocked: boolean;
-  /** The traveller plan has no price and no billing period of its own to set. */
-  readonly traveller: boolean;
+  /**
+   * Which plan it edits: an agency plan; Traveller Free (no price, no period of its own, storage
+   * from the upload settings); or a paid traveller plan (a price in BDT, storage and AI rules).
+   */
+  readonly kind: PlanKind;
+  /** The upload settings a traveller storage rule follows when empty, in bytes. */
+  readonly uploadDefaults: { readonly accountBytes: number; readonly personBytes: number };
   /** What was typed before a fresh sign-in check, to save again; it was not saved yet. */
   readonly retry?: PlanFormValues;
 }
@@ -65,9 +85,12 @@ export function PlanForm({
   planName,
   initial,
   periodLocked,
-  traveller,
+  kind,
+  uploadDefaults,
   retry,
 }: PlanFormProps) {
+  const traveller = kind !== 'agency';
+  const free = kind === 'traveller_free';
   const [state, formAction, pending] = useActionState(savePlanAction, NO_REPLY);
   const form = useRef<HTMLFormElement>(null);
   const confirmStep = useRef<HTMLFieldSetElement>(null);
@@ -108,16 +131,42 @@ export function PlanForm({
       </small>
     </div>
   );
+  const storage = (key: TravellerStorageKey) => (
+    <div className="field-row" key={key}>
+      <label className="field-label" htmlFor={`${id}-${key}`}>
+        {travellerStorageLabel(key)}
+      </label>
+      <input
+        id={`${id}-${key}`}
+        type="text"
+        inputMode="numeric"
+        className="input"
+        {...input(limitField(key), `${id}-${key}-hint`)}
+      />
+      <small className="muted" id={`${id}-${key}-hint`}>
+        {travellerStorageHint(
+          key === 'account_storage_bytes'
+            ? uploadDefaults.accountBytes
+            : uploadDefaults.personBytes,
+        )}
+      </small>
+    </div>
+  );
   return (
     <form ref={form} action={formAction} className="field-list form-narrow">
       <input type="hidden" name="planId" value={planId ?? ''} />
-      {planId ? (
-        <input
-          type="hidden"
-          name={STORAGE_SHOWN_FIELD}
-          value={initial[limitField('storage_bytes')] ?? ''}
-        />
-      ) : null}
+      <input type="hidden" name="audience" value={traveller ? 'TRAVELLER' : 'AGENCY'} />
+      {kind === 'traveller' ? <input type="hidden" name="fixedCurrency" value="yes" /> : null}
+      {planId
+        ? storageKeysOf(kind).map((key) => (
+            <input
+              key={key}
+              type="hidden"
+              name={shownField(key)}
+              value={initial[limitField(key)] ?? ''}
+            />
+          ))
+        : null}
       {retry && state === NO_REPLY ? (
         <output className="notice notice-warn" ref={notSaved} tabIndex={-1}>
           Your change was not saved yet. Check it below and choose Save again.
@@ -139,12 +188,12 @@ export function PlanForm({
                 {...input('name')}
               />
             </div>
-            {traveller ? (
+            {free ? (
               <input type="hidden" name="periodDays" value={value('periodDays')} />
             ) : (
               <div className="field-row">
                 <label className="field-label" htmlFor={`${id}-period`}>
-                  Billing Period (Days)
+                  {traveller ? 'Period (Days)' : 'Billing Period (Days)'}
                 </label>
                 <input
                   id={`${id}-period`}
@@ -156,13 +205,35 @@ export function PlanForm({
                 />
                 {periodLocked ? (
                   <small className="muted" id={`${id}-period-hint`}>
-                    {PERIOD_LOCKED_NOTE}
+                    {traveller ? TRAVELLER_PERIOD_LOCKED_NOTE : PERIOD_LOCKED_NOTE}
                   </small>
                 ) : null}
               </div>
             )}
           </div>
         </fieldset>
+        {kind === 'traveller' ? (
+          <fieldset className="form-section">
+            <legend>Price per Period</legend>
+            <div className="form-grid">
+              <div className="field-row">
+                <label className="field-label" htmlFor={`${id}-price`}>
+                  Amount (BDT)
+                </label>
+                <input
+                  id={`${id}-price`}
+                  type="text"
+                  inputMode="decimal"
+                  className="input"
+                  {...input('price', `${id}-price-hint`)}
+                />
+              </div>
+            </div>
+            <small className="muted" id={`${id}-price-hint`}>
+              {TRAVELLER_PRICE_NOTE}
+            </small>
+          </fieldset>
+        ) : null}
         {traveller ? null : (
           <fieldset className="form-section">
             <legend>Price per Billing Period</legend>
@@ -198,8 +269,16 @@ export function PlanForm({
             </small>
           </fieldset>
         )}
-        {traveller ? (
-          <p className="muted u-fs-085">{TRAVELLER_LIMITS_NOTE}</p>
+        {free ? (
+          <p className="muted u-fs-085">
+            {travellerFreeStorageNote(uploadDefaults.accountBytes, uploadDefaults.personBytes)}
+          </p>
+        ) : kind === 'traveller' ? (
+          <fieldset className="form-section">
+            <legend>Storage</legend>
+            <div className="form-grid">{TRAVELLER_STORAGE_KEYS.map(storage)}</div>
+            <p className="muted u-fs-085">{TRAVELLER_FLOOR_NOTE}</p>
+          </fieldset>
         ) : (
           <fieldset className="form-section">
             <legend>Limits</legend>
@@ -218,6 +297,9 @@ export function PlanForm({
                       type="checkbox"
                       name={featureOnField(feature)}
                       defaultChecked={value(featureOnField(feature)) === 'on'}
+                      {...(problem(featureOnField(feature))['aria-invalid']
+                        ? { 'aria-invalid': true as const, 'aria-describedby': messageId }
+                        : {})}
                     />
                     <span>{aiFeatureName(feature)}</span>
                   </label>
@@ -254,7 +336,7 @@ export function PlanForm({
             {state.pricePreview.before
               ? `The price changes from ${state.pricePreview.before} to ${state.pricePreview.after}.`
               : `The plan gets a price of ${state.pricePreview.after}.`}{' '}
-            {PRICE_CHANGE_NOTE}
+            {traveller ? TRAVELLER_PRICE_CHANGE_STEP : PRICE_CHANGE_NOTE}
           </p>
           <input type="hidden" name="pricePreviewed" value="yes" />
           <div className="checks">
@@ -268,7 +350,11 @@ export function PlanForm({
                   ? { 'aria-invalid': true as const, 'aria-describedby': messageId }
                   : {})}
               />
-              <span>I Understand the New Price Applies from the Next Billing Period</span>
+              <span>
+                {traveller
+                  ? 'I Understand the New Price Applies to Purchases from Now'
+                  : 'I Understand the New Price Applies from the Next Billing Period'}
+              </span>
             </label>
           </div>
         </fieldset>
@@ -290,9 +376,12 @@ export function RetirePlanForm({
   planName,
   headingId,
   retired = false,
+  audience = 'AGENCY',
 }: {
   readonly planId: string;
   readonly planName: string;
+  /** Who the plan is for: the words say agencies or people (ADR 0025). */
+  readonly audience?: 'AGENCY' | 'TRAVELLER';
   /** The plan card's heading, where focus goes once the plan is retired. */
   readonly headingId: string;
   /** The plan is retired: the card keeps a polite line saying so, and no button. */
@@ -313,22 +402,23 @@ export function RetirePlanForm({
   const messageId = `${id}-message`;
   const keeping = state.agenciesKeepingIt;
   if (retired || (state.ok && state.retired)) {
-    return <output className="notice">{RETIRED_LINE}</output>;
+    return (
+      <output className="notice">
+        {audience === 'TRAVELLER' ? TRAVELLER_RETIRED_LINE : RETIRED_LINE}
+      </output>
+    );
   }
   return (
     <form ref={form} action={formAction} className="field-list">
       <input type="hidden" name="planId" value={planId} />
-      <p className="muted u-fs-085">{RETIRE_NOTE}</p>
+      <input type="hidden" name="audience" value={audience} />
+      <p className="muted u-fs-085">
+        {audience === 'TRAVELLER' ? TRAVELLER_RETIRE_NOTE : RETIRE_NOTE}
+      </p>
       {keeping !== undefined ? (
         <fieldset ref={confirmStep} tabIndex={-1} className="fieldset notice notice-warn">
           <legend className="field-label">Retire {planName}</legend>
-          <p>
-            {keeping === 0
-              ? 'No agency is on this plan now.'
-              : keeping === 1
-                ? '1 agency is on this plan now and keeps it.'
-                : `${keeping} agencies are on this plan now and keep it.`}
-          </p>
+          <p>{keepingWords(keeping, audience)}</p>
           {state.waiting ? (
             <p>{state.waiting}</p>
           ) : (

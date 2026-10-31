@@ -13,14 +13,17 @@ export const PLAN_FORM_RETRY_COOKIE = 'vs_plan_form_retry';
 export const PLAN_FORM_RETRY_LIFETIME_S = 15 * 60;
 export const PLAN_FORM_RETRY_PATH = '/app/admin/plans';
 
-/** Which form the values belong to: a plan id, or "new" for the New Plan form. */
+/**
+ * Which form the values belong to: a plan id, "new" for the New Agency Plan form, or
+ * "new-traveller" for the New Traveller Plan form.
+ */
 export interface PlanFormRetry {
   readonly form: string;
   /** Field name to typed text, exactly as the form sends it. */
   readonly fields: Readonly<Record<string, string>>;
 }
 
-const FORM = /^(new|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+const FORM = /^(new|new-traveller|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
 const FIELD_NAME = /^[a-zA-Z][a-zA-Z0-9_.:]{0,80}$/;
 const MAX_FIELDS = 40;
 const MAX_VALUE = 120;

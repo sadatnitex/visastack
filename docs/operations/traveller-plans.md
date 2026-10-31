@@ -42,3 +42,15 @@ Run outside the nightly backup, with the owner's go-ahead for this run (O8). Aft
 select count(*) from drizzle.__drizzle_migrations where created_at = 1793441322837;   -- 1 (0111 recorded)
 select count(*) from pg_constraint where conname = 'subscriptions_organization_assigned' and convalidated;   -- 1
 ```
+
+## Creating a paid traveller plan (package T2b)
+
+On Admin > Settings > Plans, use New Traveller Plan:
+
+- Name, period in days (30 is the default; it cannot change once someone has been on the plan), and the price in BDT. Leave the price empty while the plan is not for sale; a price of 0 is refused.
+- Storage for the Whole Account and Storage per Person, in whole MB. Empty follows the upload settings shown beside the box.
+- The daily limit of each AI feature per person.
+
+A paid plan can never give less than Traveller Free: the save says which rule to raise. Traveller Free's storage follows the upload settings and is not set on this page.
+
+Nothing is sold yet: every paid traveller plan shows "Not Sold Yet" until checkout (package T3) is switched on, so creating or changing one charges nobody and changes nothing for travellers. Retiring a paid plan stops new purchases; people already on it keep it until the period they paid for ends. Every save asks for a fresh sign-in and is recorded in the audit log.

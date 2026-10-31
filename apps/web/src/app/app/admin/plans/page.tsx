@@ -6,8 +6,21 @@ import {
   AI_TRAVELLER_FEATURE_KEYS,
   type AiFeatureKey,
 } from '@visastack/core/ai-features';
-import { CAPACITY_KEYS, aiEntitlementKey } from '@visastack/core/entitlements';
-import { PLANS_UNAVAILABLE, type PlanAdminView, listPlansForAdmin } from '@visastack/services';
+import {
+  CAPACITY_KEYS,
+  TRAVELLER_STORAGE_ENTITLEMENTS,
+  TRAVELLER_STORAGE_KEYS,
+  type TravellerStorageKey,
+  aiEntitlementKey,
+} from '@visastack/core/entitlements';
+import {
+  PLANS_UNAVAILABLE,
+  type PlanAdminView,
+  TRAVELLER_PLAN_CURRENCY,
+  TRAVELLER_PLAN_KEY,
+  listPlansForAdmin,
+  loadUploadQuotaConfig,
+} from '@visastack/services';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { StickyDetails } from '../../../../components/sticky-details';
@@ -21,18 +34,33 @@ import {
   BYTES_PER_MB,
   EDITABLE_CAPACITY_KEYS,
   type PlanFormValues,
+  type PlanKind,
+  TRAVELLER_SELLING_NOTE,
   aiFeatureName,
   aiFeatureSummary,
   capacityLabel,
   featureLimitField,
   featureOnField,
   limitField,
+  mbText,
   onItWords,
+  travellerFreeStorageNote,
 } from './labels';
 
 export const metadata: Metadata = { title: 'Plans' };
 
 export const dynamic = 'force-dynamic';
+
+/** The upload settings a traveller storage rule follows when empty, in bytes. */
+interface UploadDefaults {
+  readonly accountBytes: number;
+  readonly personBytes: number;
+}
+
+function kindOf(plan: PlanAdminView): PlanKind {
+  if (plan.audience === 'AGENCY') return 'agency';
+  return plan.key === TRAVELLER_PLAN_KEY ? 'traveller_free' : 'traveller';
+}
 
 /** What a plan's form shows before anything is typed. */
 function initialValues(plan: PlanAdminView | null): PlanFormValues {
@@ -44,6 +72,10 @@ function initialValues(plan: PlanAdminView | null): PlanFormValues {
       : '',
     currency: plan?.price?.currency ?? (plan ? '' : 'BDT'),
   };
+  for (const key of TRAVELLER_STORAGE_KEYS) {
+    const limit = plan?.rules[key]?.limit ?? null;
+    values[limitField(key)] = limit === null ? '' : String(Math.round(limit / BYTES_PER_MB));
+  }
   for (const key of CAPACITY_KEYS) {
     const limit = plan?.rules[key]?.limit ?? null;
     values[limitField(key)] =
@@ -55,6 +87,28 @@ function initialValues(plan: PlanAdminView | null): PlanFormValues {
     const rule = plan ? aiRuleOf(plan, feature) : undefined;
     values[featureOnField(feature)] = rule?.included ? 'on' : '';
     values[featureLimitField(feature)] = rule?.limit === null || !rule ? '' : String(rule.limit);
+  }
+  return values;
+}
+
+/**
+ * What the New Traveller Plan form starts with: no name or price, and Traveller Free's own AI
+ * rules, so a plan saved as it first appears gives at least what Free gives (ADR 0025 D1).
+ */
+function newTravellerValues(free: PlanAdminView | undefined): PlanFormValues {
+  const values: Record<string, string> = {
+    ...initialValues(null),
+    currency: TRAVELLER_PLAN_CURRENCY,
+  };
+  for (const feature of AI_FEATURE_KEYS) {
+    const rule = free
+      ? aiRuleOf(free, feature)
+      : {
+          included: AI_FEATURES[feature].planDefault.included,
+          limit: AI_FEATURES[feature].planDefault.dailyLimit,
+        };
+    values[featureOnField(feature)] = rule.included ? 'on' : '';
+    values[featureLimitField(feature)] = rule.limit === null ? '' : String(rule.limit);
   }
   return values;
 }
@@ -77,9 +131,24 @@ function aiRuleOf(
 }
 
 function priceWords(plan: PlanAdminView): string {
-  if (plan.audience === 'TRAVELLER') return 'Free';
-  if (!plan.price) return 'No Price';
-  return `${formatMoney(plan.price.priceMinorUnits, plan.price.currency)} every ${periodWords(plan.periodDays)}`;
+  if (plan.key === TRAVELLER_PLAN_KEY) return 'Free';
+  if (!plan.price) return plan.audience === 'TRAVELLER' ? 'No Price (Not for Sale)' : 'No Price';
+  const money = formatMoney(plan.price.priceMinorUnits, plan.price.currency);
+  return plan.audience === 'TRAVELLER'
+    ? `${money} for ${periodWords(plan.periodDays)}`
+    : `${money} every ${periodWords(plan.periodDays)}`;
+}
+
+/** A traveller storage rule: its limit, or the upload setting it follows. */
+function storageWords(
+  plan: PlanAdminView,
+  key: TravellerStorageKey,
+  defaults: UploadDefaults,
+): string {
+  const limit = plan.rules[key]?.limit ?? null;
+  if (limit !== null) return mbText(limit);
+  const setting = key === 'account_storage_bytes' ? defaults.accountBytes : defaults.personBytes;
+  return `Upload Setting (${mbText(setting)})`;
 }
 
 /** "30 days", "1 day". */
@@ -98,12 +167,15 @@ function PlanCard({
   plan,
   available,
   retry,
+  uploadDefaults,
 }: {
   readonly plan: PlanAdminView;
   readonly available: boolean;
   readonly retry: PlanFormValues | undefined;
+  readonly uploadDefaults: UploadDefaults;
 }) {
   const titleId = `plan-${plan.id}`;
+  const kind = kindOf(plan);
   return (
     <article className="card u-mb-150" aria-labelledby={titleId} id={titleId.concat('-card')}>
       <h2 className="card-title" id={titleId} tabIndex={-1}>
@@ -127,14 +199,22 @@ function PlanCard({
         <div className="row">
           <span className="row-key">Status</span>
           <span className="row-val">
-            <StatusBadge tone={plan.active ? 'success' : 'neutral'}>
-              {plan.active ? 'Offered' : 'Retired'}
+            {/* A paid traveller plan is not sold until buying is switched on (ADR 0025). */}
+            <StatusBadge
+              tone={plan.active ? (kind === 'traveller' ? 'warning' : 'success') : 'neutral'}
+            >
+              {plan.active ? (kind === 'traveller' ? 'Not Sold Yet' : 'Offered') : 'Retired'}
             </StatusBadge>{' '}
             {plan.bypassLimits ? <StatusBadge tone="success">Complimentary</StatusBadge> : null}
           </span>
         </div>
         {plan.audience === 'TRAVELLER'
-          ? null
+          ? TRAVELLER_STORAGE_KEYS.map((key) => (
+              <div className="row" key={key}>
+                <span className="row-key">{TRAVELLER_STORAGE_ENTITLEMENTS[key].name}</span>
+                <span className="row-val">{storageWords(plan, key, uploadDefaults)}</span>
+              </div>
+            ))
           : EDITABLE_CAPACITY_KEYS.map((key) => (
               <div className="row" key={key}>
                 <span className="row-key">{capacityLabel(key).replace(' (MB)', '')}</span>
@@ -150,6 +230,14 @@ function PlanCard({
           ),
         )}
       </div>
+      {kind === 'traveller' && plan.active ? (
+        <p className="muted u-fs-085 u-mt-100">{TRAVELLER_SELLING_NOTE}</p>
+      ) : null}
+      {kind === 'traveller_free' ? (
+        <p className="muted u-fs-085 u-mt-100">
+          {travellerFreeStorageNote(uploadDefaults.accountBytes, uploadDefaults.personBytes)}
+        </p>
+      ) : null}
       {available ? (
         <>
           {/* Folded, so a page of plans is not a column of open forms; a save that needs
@@ -165,7 +253,8 @@ function PlanCard({
                 planName={plan.name}
                 initial={initialValues(plan)}
                 periodLocked={plan.periodLocked}
-                traveller={plan.audience === 'TRAVELLER'}
+                kind={kind}
+                uploadDefaults={uploadDefaults}
                 {...(retry ? { retry } : {})}
               />
             </div>
@@ -182,11 +271,18 @@ function PlanCard({
                   planName={plan.name}
                   headingId={titleId}
                   retired={false}
+                  audience={plan.audience}
                 />
               </div>
             </StickyDetails>
           ) : plan.retireBlocked === 'retired' ? (
-            <RetirePlanForm planId={plan.id} planName={plan.name} headingId={titleId} retired />
+            <RetirePlanForm
+              planId={plan.id}
+              planName={plan.name}
+              headingId={titleId}
+              retired
+              audience={plan.audience}
+            />
           ) : (
             <p className="muted u-fs-085">
               {plan.retireBlocked === 'traveller'
@@ -217,8 +313,13 @@ export default async function PlansPage() {
     if (!staff.ok) return { kind: 'restricted' as const };
     const listed = await listPlansForAdmin(db, staff.value);
     if (!listed.ok) return { kind: 'restricted' as const };
+    const quota = loadUploadQuotaConfig();
     return {
       kind: 'ready' as const,
+      uploadDefaults: {
+        accountBytes: quota.maxAccountEvidenceBytes,
+        personBytes: quota.maxApplicantEvidenceBytes,
+      },
       available: listed.value.available,
       plans: listed.value.plans,
       retry: decodePlanFormRetry(remembered, accountId),
@@ -231,7 +332,7 @@ export default async function PlansPage() {
         back={{ href: '/app/admin/settings', label: 'Settings' }}
         eyebrow="Platform Settings"
         title="Plans"
-        description="The plans agencies can be put on: what each includes, what it costs and for how long. A new price applies from each agency's next billing period."
+        description="The plans for agencies and travellers: what each includes, what it costs and for how long. A new agency price applies from each agency's next billing period."
       />
       {data.kind === 'restricted' ? (
         <AdminRestricted />
@@ -246,25 +347,46 @@ export default async function PlansPage() {
               plan={plan}
               available={data.available}
               retry={data.retry?.form === plan.id ? data.retry.fields : undefined}
+              uploadDefaults={data.uploadDefaults}
             />
           ))}
           {data.available ? (
-            <article className="card u-mb-150" aria-labelledby="new-plan-title">
-              <h2 className="card-title" id="new-plan-title">
-                New Plan
-              </h2>
-              <p className="card-body">
-                A new plan is for agencies. Once saved, it can be given to an agency on its
-                Organizations page.
-              </p>
-              <PlanForm
-                planName="New Plan"
-                initial={initialValues(null)}
-                periodLocked={false}
-                traveller={false}
-                {...(data.retry?.form === 'new' ? { retry: data.retry.fields } : {})}
-              />
-            </article>
+            <>
+              <article className="card u-mb-150" aria-labelledby="new-plan-title">
+                <h2 className="card-title" id="new-plan-title">
+                  New Agency Plan
+                </h2>
+                <p className="card-body">
+                  Once saved, it can be given to an agency on its Organizations page.
+                </p>
+                <PlanForm
+                  planName="New Agency Plan"
+                  initial={initialValues(null)}
+                  periodLocked={false}
+                  kind="agency"
+                  uploadDefaults={data.uploadDefaults}
+                  {...(data.retry?.form === 'new' ? { retry: data.retry.fields } : {})}
+                />
+              </article>
+              <article className="card u-mb-150" aria-labelledby="new-traveller-plan-title">
+                <h2 className="card-title" id="new-traveller-plan-title">
+                  New Traveller Plan
+                </h2>
+                <p className="card-body">
+                  A paid plan travellers buy for themselves and everyone they keep a record for. It
+                  gives more room than Traveller Free: more storage and higher daily limits.{' '}
+                  {TRAVELLER_SELLING_NOTE}
+                </p>
+                <PlanForm
+                  planName="New Traveller Plan"
+                  initial={newTravellerValues(data.plans.find((p) => p.key === TRAVELLER_PLAN_KEY))}
+                  periodLocked={false}
+                  kind="traveller"
+                  uploadDefaults={data.uploadDefaults}
+                  {...(data.retry?.form === 'new-traveller' ? { retry: data.retry.fields } : {})}
+                />
+              </article>
+            </>
           ) : null}
         </>
       )}
