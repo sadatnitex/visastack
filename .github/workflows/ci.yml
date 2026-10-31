@@ -149,8 +149,40 @@ jobs:
       - name: Test
         run: pnpm --filter @visastack/services test --shard=${{ matrix.shard }}/6 --maxWorkers=2
 
+  test-web:
+    name: Test web (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The web suite (about 400 files) was the longest job once the services were split, so it
+      # is split by file into three shards too. Packages load from source, so no build is needed
+      # first. Every shard runs the whole of its share; nothing is skipped.
+      - name: Test
+        run: pnpm --filter @visastack/web test --shard=${{ matrix.shard }}/3 --maxWorkers=2
+
   test-packages:
-    name: Test web and other packages
+    name: Test other packages
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -219,9 +251,10 @@ jobs:
           exit 0
 
       - name: Test
-        # Bound concurrent database-heavy packages and use two Vitest workers rather than the
-        # runner's one-worker default.
-        run: pnpm exec turbo run test --filter=!@visastack/services --concurrency=2 -- --maxWorkers=2
+        # The packages other than services and web (their own jobs above). Bound concurrent
+        # database-heavy packages and use two Vitest workers rather than the runner's one-worker
+        # default.
+        run: pnpm exec turbo run test --filter=!@visastack/services --filter=!@visastack/web --concurrency=2 -- --maxWorkers=2
 
   verify:
     # The required status check. Keep this name: branch protection matches on it.
@@ -229,7 +262,7 @@ jobs:
     # Always runs, so a failed, skipped or cancelled job turns the check red. A skipped required
     # check counts as passed, so this job must never be skipped itself.
     if: always()
-    needs: [static, build, test-services, test-packages]
+    needs: [static, build, test-services, test-web, test-packages]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
