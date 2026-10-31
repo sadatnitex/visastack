@@ -517,18 +517,6 @@ export async function setMembershipActive(
       }
     }
 
-    // S22: a member turned off can no longer use the agency's AI tools (the AI gate refuses them
-    // on the next call); their agency AI connections are also ended, tokens and all. Before this
-    // transaction's own audit record, so the audit chain is taken last, as in the AI gate.
-    if (!input.active) {
-      await endAgencyAiConnectionsOfMember(tx, {
-        organizationId: input.organizationId,
-        memberAccountId: target.accountId,
-        actorAccountId: input.actorAccountId,
-        reason: 'member_removed',
-      });
-    }
-
     const rows = await tx
       .update(schema.memberships)
       .set({ active: input.active, updatedAt: new Date() })
@@ -543,6 +531,21 @@ export async function setMembershipActive(
     if (!updated) {
       return err(serviceError('not_found', 'membership no longer exists in this organization'));
     }
+
+    // S22: a member turned off can no longer use the agency's AI tools (the AI gate refuses them
+    // on the next call); their agency AI connections are also ended, tokens and all. Only after
+    // the membership change itself succeeded (round 3), so a membership that vanished ends
+    // nothing, and before this transaction's own audit record, so the audit chain is taken last,
+    // as in the AI gate.
+    if (!input.active) {
+      await endAgencyAiConnectionsOfMember(tx, {
+        organizationId: input.organizationId,
+        memberAccountId: target.accountId,
+        actorAccountId: input.actorAccountId,
+        reason: 'member_removed',
+      });
+    }
+
     await appendAuditEvent(tx, {
       eventType: input.active ? 'MEMBERSHIP_ACTIVATED' : 'MEMBERSHIP_DEACTIVATED',
       actorAccountId: input.actorAccountId,

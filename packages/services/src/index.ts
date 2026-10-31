@@ -2161,5 +2161,5 @@ export {
   type AgencyAiNarrowing,
   withAgencyAiConnection,
 } from './access/with-ai-connection';
-export { AGENCY_AI_TOOLS, aiToolsFor } from './ai-tools';
+export { AGENCY_AI_TOOLS, aiToolsFor, isAgencyToolCall } from './ai-tools';
 export type { AgencyAiToolDefinition, AnyConnectorToolDefinition } from './ai-tools/result';

@@ -204,8 +204,8 @@ export const agencyGetDocumentText: AgencyAiToolDefinition<typeof documentTextIn
         return refusal(MESSAGES.documentProtected);
       }
       // One answer whether the document has no text or is not shared: nothing about what the
-      // traveller withheld reaches the app (the composer gives no count of it for agencies).
-      gateway.denied('no_text');
+      // traveller withheld reaches the app; the gate records the true reason for the audit.
+      gateway.documentUnread();
       return refusal(MESSAGES.agencyNoText);
     }
     const summary = `Text read from ${read.kind} ${documentReference}${read.truncated ? ' (shortened to the limit)' : ''}. ${GUIDANCE}`;

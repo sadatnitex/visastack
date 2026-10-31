@@ -699,6 +699,22 @@ export async function refundAiFeatureUse(db: Db, charge: AiFeatureCharge | null)
   record.state = 'refunded';
 }
 
+/**
+ * Gives one counted use back on the day it was counted (S22 round 3): an agency answer the route
+ * withheld as too large reached nobody, so it is free. The caller makes sure it happens once.
+ */
+export async function giveBackAiFeatureUseOn(
+  db: Db,
+  input: { readonly feature: AiFeatureKey; readonly subjectId: string; readonly day: Date },
+): Promise<void> {
+  if (!countedHere(input.feature)) return;
+  await refundRateLimitWindow(
+    db,
+    { subjectId: input.subjectId, action: usageAction(input.feature) },
+    windowStart(input.day),
+  );
+}
+
 /** The platform owner's saved daily limit for one feature, in one read; null when none. */
 async function savedDailyLimit(db: Db, feature: AiFeatureKey): Promise<number | null> {
   try {

@@ -57,6 +57,17 @@ export type AiToolName = (typeof AI_TOOLS)[number]['name'];
 export { AGENCY_AI_TOOLS };
 
 /** The tools a connection of this kind is offered. */
+/**
+ * Whether a message calls one of the agency's tools with arguments that tool accepts (S22 round
+ * 3). Only then does the route leave the member's admission and standing to the agency gate on
+ * the call itself; any other message, an unknown tool or arguments the tool refuses, is checked
+ * in full before it goes further, so nothing skips the checks.
+ */
+export function isAgencyToolCall(name: string, args: unknown): boolean {
+  const tool = (AGENCY_AI_TOOLS as readonly AgencyAiToolDefinition[]).find((t) => t.name === name);
+  return tool?.inputSchema.safeParse(args).success === true;
+}
+
 export function aiToolsFor(kind: 'OWNER' | 'AGENCY'): readonly AnyConnectorToolDefinition[] {
   return kind === 'AGENCY'
     ? (AGENCY_AI_TOOLS as readonly AgencyAiToolDefinition[])

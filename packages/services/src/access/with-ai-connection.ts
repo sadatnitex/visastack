@@ -17,11 +17,14 @@ import {
   selectionFromStoredChoices,
 } from '../ai-connection-scopes';
 import {
+  type AiFeatureCharge,
   type AiFeatureGate,
+  aiFeatureDay,
   aiOrganizationContext,
   chargeAiFeatureUse,
   countAiUseAfterCall,
   getAiFeatureState,
+  giveBackAiFeatureUseOn,
   openAiFeatureGate,
   refundAiFeatureUse,
 } from '../ai-feature-settings';
@@ -477,10 +480,12 @@ export async function authenticateAiRequest(
   db: Db,
   request: Pick<AiGateRequest, 'token' | 'resource' | 'now' | 'admission'> & {
     /**
-     * The message is a tool call (S22): for an agency connection the agency gate checks the
-     * member's admission and standing on that call itself, so they are checked once per request.
+     * The message calls a known agency tool with arguments it accepts (S22 round 3, see
+     * `isAgencyToolCall`): for an agency connection the agency gate then checks the member's
+     * admission and standing on that call itself, so they are checked once per request. Anything
+     * else (another message, an unknown tool, arguments the tool refuses) is checked here.
      */
-    readonly toolCall?: boolean;
+    readonly agencyToolCall?: boolean;
   },
 ): Promise<AiCaller | null> {
   if (!isWellFormedAiAccessToken(request.token)) return null;
@@ -491,7 +496,7 @@ export async function authenticateAiRequest(
       ...(request.now ? { now: request.now } : {}),
     });
     if (resolved?.kind === 'AGENCY') {
-      if (request.toolCall === true) {
+      if (request.agencyToolCall === true) {
         return {
           connectionId: resolved.connectionId,
           clientHost: resolved.clientHost,
@@ -564,6 +569,11 @@ function agencyMetadata(target: AuditTarget) {
 interface DeniedOptions {
   /** The route withheld an answer the gate had already recorded as served. */
   readonly withheld?: boolean;
+  /**
+   * An agency read (S22 round 3): how much the traveller had not shared with the agency's AI
+   * tools. Kept for the audit only; the app is never told.
+   */
+  readonly notGranted?: number;
   readonly now?: Date;
 }
 
@@ -598,6 +608,7 @@ async function auditDenied(
       reason,
       ...agencyMetadata(target),
       ...(target.callId ? { callId: target.callId } : {}),
+      ...(options.notGranted !== undefined ? { notGranted: options.notGranted } : {}),
       ...(options.withheld ? { withheld: true } : {}),
     },
   });
@@ -628,6 +639,8 @@ export async function auditAiAnswerWithheld(
     readonly callId?: string;
   },
 ): Promise<void> {
+  // An agency call's count to give back once the withheld records are written (round 3).
+  let giveBack: { readonly organizationId: string; readonly day: Date } | null = null;
   try {
     await db.transaction(async (tx) => {
       const row = first(
@@ -684,6 +697,28 @@ export async function auditAiAnswerWithheld(
         await auditDenied(tx, base, input.tool, 'too_large', withheld);
         return;
       }
+      // A withheld answer is free (round 3): the call's count is given back, once, however many
+      // times the route reports it.
+      const reported = first(
+        await tx
+          .select({ seq: schema.auditEvents.seq })
+          .from(schema.auditEvents)
+          .where(
+            and(
+              eq(schema.auditEvents.eventType, 'AI_CONTEXT_DENIED'),
+              eq(schema.auditEvents.resourceId, row.id),
+              sql`${schema.auditEvents.metadata}->>'callId' = ${input.callId ?? ''}`,
+              sql`${schema.auditEvents.metadata}->>'withheld' = 'true'`,
+            ),
+          )
+          .limit(1),
+      );
+      const countDay = served
+        .map((record) => Reflect.get(Object(record.metadata), 'countDay'))
+        .find((value): value is string => typeof value === 'string');
+      if (!reported && countDay !== undefined && !Number.isNaN(Date.parse(countDay))) {
+        giveBack = { organizationId: agency.organizationId, day: new Date(countDay) };
+      }
       for (const record of served) {
         const grantIds = Reflect.get(Object(record.metadata), 'grantIds');
         await auditDenied(
@@ -704,7 +739,21 @@ export async function auditAiAnswerWithheld(
       }
     });
   } catch {
-    // Recording is best effort here; the app already gets a plain refusal.
+    // Recording is best effort here; the app already gets a plain refusal. Nothing recorded,
+    // nothing given back, so a later report can still give it back once.
+    giveBack = null;
+  }
+  // (Set inside the transaction's callback, which the compiler cannot follow.)
+  const due = giveBack as { readonly organizationId: string; readonly day: Date } | null;
+  if (due === null) return;
+  try {
+    await giveBackAiFeatureUseOn(db, {
+      feature: 'ai_agency_tools',
+      subjectId: due.organizationId,
+      day: due.day,
+    });
+  } catch (error) {
+    console.error(formatObservabilityLine(serverErrorEvent('aiAgencyToolsGiveBack', error)));
   }
 }
 
@@ -1638,6 +1687,11 @@ export interface AgencyAiGateway {
     narrowing?: AgencyAiNarrowing,
   ): Promise<Result<SelectedOutput, AiComposeFailure>>;
   denied(reason: AiDenialReason): void;
+  /**
+   * A document's text was asked for and not given (S22 round 3). The app's answer is the same
+   * either way; the gate records the true reason (not shared, or no text) for the audit only.
+   */
+  documentUnread(): void;
 }
 
 type AgencyOpened =
@@ -1684,6 +1738,65 @@ interface AgencyTouch {
   readonly missionId: string | null;
   readonly grantIds: readonly string[];
   cases: number;
+}
+
+/**
+ * Gives a counted use back, never masking what really happened: a give-back that fails is
+ * reported through the services' error report, and the call's own answer or error stands.
+ */
+async function giveBackQuietly(db: Db, charge: AiFeatureCharge | null): Promise<void> {
+  try {
+    await refundAiFeatureUse(db, charge);
+  } catch (error) {
+    console.error(formatObservabilityLine(serverErrorEvent('aiAgencyToolsGiveBack', error)));
+  }
+}
+
+/**
+ * The member's standing again, at the start of the work's own transaction (S22 round 3), under a
+ * shared lock on the connection's row: a Turn Off, a member removed or moved out of owner and
+ * admin, the agency's setting turned off, Suspended billing or the connection's end that committed
+ * after the first checks stops this call. Turning a connection off takes the row's update lock, so
+ * it waits for a read in progress, or the read sees it.
+ */
+async function recheckAgencyStanding(
+  tx: Db,
+  connection: ResolvedAiConnection,
+  now: Date,
+): Promise<AgencyOpened> {
+  const row = first(
+    await tx
+      .select({
+        revokedAt: schema.aiConnections.revokedAt,
+        expiresAt: schema.aiConnections.expiresAt,
+        createdAt: schema.aiConnections.createdAt,
+      })
+      .from(schema.aiConnections)
+      .where(eq(schema.aiConnections.id, connection.connectionId))
+      .limit(1)
+      .for('share'),
+  );
+  if (
+    !row ||
+    row.revokedAt !== null ||
+    (row.expiresAt !== null && row.expiresAt.getTime() <= now.getTime()) ||
+    connection.organizationId === null
+  ) {
+    return { kind: 'unauthorized', reason: 'agency_connection_expired' };
+  }
+  const standing = await checkAgencyAiStanding(tx, {
+    connectionId: connection.connectionId,
+    organizationId: connection.organizationId,
+    accountId: connection.accountId,
+    connectionCreatedAt: row.createdAt,
+    now,
+  });
+  if (standing.ok) return { kind: 'open', member: standing.value };
+  const reason = standing.error;
+  if (reason === 'agency_member_ended' || reason === 'agency_connection_expired') {
+    return { kind: 'unauthorized', reason };
+  }
+  return { kind: 'agency_off', reason };
 }
 
 /** The audit target of one traveller an agency call reached. */
@@ -1733,72 +1846,93 @@ export async function withAgencyAiConnection<T>(
   const callId = request.callId ?? randomUUID();
   const now = request.now ?? new Date();
 
+  // Known once the token resolved to an agency connection, so a failure from then on is recorded.
+  let known: AuditTarget | null = null;
   // 1. The checks, in a short transaction of their own.
-  const prepared: AgencyPrepared = await db.transaction(async (tx) => {
-    const connection = await resolveAiAccessToken(tx, {
-      token: request.token,
-      resource: request.resource,
-      ...(request.now ? { now: request.now } : {}),
-    });
-    if (!connection) return { kind: 'refused', refusal: { kind: 'unauthorized' } } as const;
-    if (connection.kind !== 'AGENCY' || connection.organizationId === null) {
-      // An owner connection never reaches the agency tools (the route never lists them for it):
-      // recorded on the owner's own record.
-      await auditDenied(
+  let prepared: AgencyPrepared;
+  try {
+    prepared = await db.transaction(async (tx) => {
+      const connection = await resolveAiAccessToken(tx, {
+        token: request.token,
+        resource: request.resource,
+        ...(request.now ? { now: request.now } : {}),
+      });
+      if (!connection) return { kind: 'refused', refusal: { kind: 'unauthorized' } } as const;
+      if (connection.kind !== 'AGENCY' || connection.organizationId === null) {
+        // An owner connection never reaches the agency tools (the route never lists them for it):
+        // recorded on the owner's own record.
+        await auditDenied(
+          tx,
+          {
+            connectionId: connection.connectionId,
+            accountId: connection.accountId,
+            applicantId: connection.applicantId,
+            clientHost: connection.clientHost,
+            caseMode: connection.caseMode,
+            missionId: connection.missionId,
+            callId,
+          },
+          request.tool,
+          'tool_not_offered',
+          { now },
+        );
+        return { kind: 'refused', refusal: { kind: 'unauthorized' } } as const;
+      }
+      const base: AuditTarget = {
+        connectionId: connection.connectionId,
+        accountId: connection.accountId,
+        applicantId: null,
+        clientHost: connection.clientHost,
+        caseMode: connection.caseMode,
+        missionId: null,
+        agency: { organizationId: connection.organizationId, grantIds: [] },
+        callId,
+      };
+      known = base;
+      const opened = await openAgencyConnection(tx, connection, request.admission, new Date());
+      if (opened.kind !== 'open') {
+        if (opened.reason) await auditDenied(tx, base, request.tool, opened.reason, { now });
+        return {
+          kind: 'refused',
+          refusal: opened.kind === 'agency_off' ? { kind: 'agency_off' } : { kind: 'unauthorized' },
+        } as const;
+      }
+      // Agency AI Tools (S22): the switch, the agency's plan and today's limit for the agency.
+      const access = await openAiFeatureGate(
         tx,
-        {
-          connectionId: connection.connectionId,
-          accountId: connection.accountId,
-          applicantId: connection.applicantId,
-          clientHost: connection.clientHost,
-          caseMode: connection.caseMode,
-          missionId: connection.missionId,
-          callId,
-        },
-        request.tool,
-        'tool_not_offered',
+        'ai_agency_tools',
+        aiOrganizationContext(opened.member.organizationId),
         { now },
       );
-      return { kind: 'refused', refusal: { kind: 'unauthorized' } } as const;
-    }
-    const base: AuditTarget = {
-      connectionId: connection.connectionId,
-      accountId: connection.accountId,
-      applicantId: null,
-      clientHost: connection.clientHost,
-      caseMode: connection.caseMode,
-      missionId: null,
-      agency: { organizationId: connection.organizationId, grantIds: [] },
-      callId,
-    };
-    const opened = await openAgencyConnection(tx, connection, request.admission, new Date());
-    if (opened.kind !== 'open') {
-      if (opened.reason) await auditDenied(tx, base, request.tool, opened.reason, { now });
+      if (!access.ok) {
+        const reason = access.error.reason === 'daily_limit' ? 'access_limit' : 'feature_off';
+        await auditDenied(tx, base, request.tool, reason, { now });
+        return { kind: 'refused', refusal: { kind: 'feature_off', reason } } as const;
+      }
       return {
-        kind: 'refused',
-        refusal: opened.kind === 'agency_off' ? { kind: 'agency_off' } : { kind: 'unauthorized' },
+        kind: 'open',
+        connection,
+        member: opened.member,
+        base,
+        access: access.value,
       } as const;
-    }
-    // Agency AI Tools (S22): the switch, the agency's plan and today's limit for the agency.
-    const access = await openAiFeatureGate(
-      tx,
-      'ai_agency_tools',
-      aiOrganizationContext(opened.member.organizationId),
-      { now },
-    );
-    if (!access.ok) {
-      const reason = access.error.reason === 'daily_limit' ? 'access_limit' : 'feature_off';
-      await auditDenied(tx, base, request.tool, reason, { now });
-      return { kind: 'refused', refusal: { kind: 'feature_off', reason } } as const;
-    }
-    return { kind: 'open', connection, member: opened.member, base, access: access.value } as const;
-  });
+    });
+  } catch (error) {
+    if (known) await auditFailedCall(db, known, request.tool);
+    throw error;
+  }
   if (prepared.kind === 'refused') return err(prepared.refusal);
   const { connection, member, base, access } = prepared;
 
   // 2. The day's count: one conditional statement, only while under the limit.
   const limited = access.dailyLimit !== null;
-  const charge = limited ? await chargeAiFeatureUse(db, access, { now }) : null;
+  let charge: AiFeatureCharge | null;
+  try {
+    charge = limited ? await chargeAiFeatureUse(db, access, { now }) : null;
+  } catch (error) {
+    await auditFailedCall(db, base, request.tool);
+    throw error;
+  }
   if (limited && !charge) {
     await db.transaction((tx) => auditDenied(tx, base, request.tool, 'access_limit', { now }));
     return err({ kind: 'feature_off', reason: 'access_limit' });
@@ -1816,11 +1950,28 @@ export async function withAgencyAiConnection<T>(
   };
   // Kept outside the transaction, so a failure part-way is recorded on everyone reached.
   const touched = new Map<string, AgencyTouch>();
-  let outcome: { readonly value: T; readonly denied: boolean };
+  let outcome:
+    | { readonly kind: 'done'; readonly value: T; readonly denied: boolean }
+    | { readonly kind: 'refused'; readonly refusal: AiGateRefusal };
   try {
     outcome = await db.transaction(async (tx) => {
+      // First, the standing again, under a lock on the connection (S22 round 3).
+      const again = await recheckAgencyStanding(tx, connection, new Date());
+      if (again.kind !== 'open') {
+        if (again.reason) await auditDenied(tx, base, request.tool, again.reason, { now });
+        return {
+          kind: 'refused',
+          refusal:
+            again.kind === 'agency_off'
+              ? ({ kind: 'agency_off' } as const)
+              : ({ kind: 'unauthorized' } as const),
+        } as const;
+      }
       let open = true;
       let denial: AiDenialReason | null = null;
+      // How much the last composed answer left out as not shared: the audit's, never the app's.
+      let lastNotGranted = 0;
+      let notGrantedTotal = 0;
       // One traveller per composed answer; the first one reached is the only one this call reads.
       let composedFor: string | null = null;
       // The depth actually served, as the owner path records it.
@@ -1889,22 +2040,28 @@ export async function withAgencyAiConnection<T>(
             revealIdentifiers: false,
             depth,
           };
-          const built = await buildAgencySelectedOutput(proof, agencyScope, selection, {
+          const composed = await buildAgencySelectedOutput(proof, agencyScope, selection, {
             ...options,
             ...(narrowing.layers ? { profileLayers: narrowing.layers } : {}),
             ...(narrowing.basics === false ? { basics: false } : {}),
             ...(narrowing.documentScope ? { documentScope: narrowing.documentScope } : {}),
             ...(narrowing.fieldKeys ? { fieldKeys: narrowing.fieldKeys } : {}),
           });
-          if (!built.ok) {
-            return err(built.error.code === 'not_found' ? 'case_unavailable' : 'failed');
+          if (!composed.ok) {
+            return err(composed.error.code === 'not_found' ? 'case_unavailable' : 'failed');
           }
-          servedDepth = built.value.selection.depth;
-          return ok(built.value);
+          lastNotGranted = composed.value.notGranted;
+          notGrantedTotal += composed.value.notGranted;
+          servedDepth = composed.value.output.selection.depth;
+          return ok(composed.value.output);
         },
         denied(reason: AiDenialReason) {
           // The member's own record is recorded as such, whatever plain refusal the tool gives.
           if (denial !== 'agency_own_record') denial = reason;
+        },
+        documentUnread() {
+          if (denial === 'agency_own_record') return;
+          denial = lastNotGranted > 0 ? 'document_not_shared' : 'no_text';
         },
       });
 
@@ -1923,9 +2080,9 @@ export async function withAgencyAiConnection<T>(
           one ? agencyTouchTarget(base, member.organizationId, one) : base,
           request.tool,
           record.reason,
-          { now },
+          { now, notGranted: notGrantedTotal },
         );
-        return { value, denied: true };
+        return { kind: 'done', value, denied: true } as const;
       }
       const label = aiContextToolLabel(request.tool);
       await recordProductEvent(tx, {
@@ -1955,15 +2112,19 @@ export async function withAgencyAiConnection<T>(
             documents: composed ? record.documents : 0,
             documentTexts: composed ? record.documentTexts : 0,
             ...(composed && servedDepth ? { depth: servedDepth } : {}),
+            // For the audit only: how much the traveller had not shared (never told to the app).
+            ...(composed ? { notGranted: notGrantedTotal } : {}),
             ...agencyMetadata(target),
             callId,
+            // The day this call was counted on, so an answer withheld later is given back there.
+            countDay: aiFeatureDay(now).from.toISOString(),
           },
         });
       }
-      return { value, denied: false };
+      return { kind: 'done', value, denied: false } as const;
     });
   } catch (error) {
-    await refundAiFeatureUse(db, charge);
+    // The failure is recorded first; giving the count back never replaces the real error.
     const reached = [...touched.values()];
     if (reached.length === 0) await auditFailedCall(db, base, request.tool);
     for (const touch of reached) {
@@ -1973,10 +2134,15 @@ export async function withAgencyAiConnection<T>(
         request.tool,
       );
     }
+    await giveBackQuietly(db, charge);
     throw error;
   }
+  if (outcome.kind === 'refused') {
+    await giveBackQuietly(db, charge);
+    return err(outcome.refusal);
+  }
   if (outcome.denied) {
-    await refundAiFeatureUse(db, charge);
+    await giveBackQuietly(db, charge);
   } else if (!limited) {
     try {
       await countAiUseAfterCall(db, access, now);

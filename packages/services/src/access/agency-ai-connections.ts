@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { type SQL, and, desc, eq, gt, inArray, isNotNull, isNull, not, or } from 'drizzle-orm';
+import { type SQL, and, desc, eq, gt, inArray, isNotNull, isNull, not, or, sql } from 'drizzle-orm';
 import { agencyAiAvailable } from '../agency-ai-ready';
 import {
   AI_CONNECTION_LAYERS,
@@ -217,7 +217,13 @@ export async function listAgencyAiConnections(
     gt(c.createdAt, oldestLive),
     or(isNull(c.expiresAt), gt(c.expiresAt, now)),
   );
-  const select = (where: SQL | undefined, limit: number | null) => {
+  // When a connection ended: turned off, else the earlier of its own end and its 30 days. The
+  // ended list is newest ended first (round 3), so a long-lived connection turned off today is
+  // listed even when many younger ones ended before it.
+  const endedAt = sql`coalesce(${c.revokedAt}, least(${c.expiresAt}, ${c.createdAt} + ${sql.raw(
+    `interval '${AGENCY_AI_CONNECTION_MAX_MS / 1000} seconds'`,
+  )}))`;
+  const select = (where: SQL | undefined, order: readonly SQL[], limit: number | null) => {
     const query = db
       .select({
         id: c.id,
@@ -239,12 +245,12 @@ export async function listAgencyAiConnections(
           where,
         ),
       )
-      .orderBy(desc(c.createdAt), desc(c.id));
+      .orderBy(...order);
     return limit === null ? query : query.limit(limit);
   };
   const [liveRows, endedRows] = await Promise.all([
-    select(live, null),
-    select(not(live as SQL), AGENCY_AI_ENDED_LIST_LIMIT),
+    select(live, [desc(c.createdAt), desc(c.id)], null),
+    select(not(live as SQL), [desc(endedAt), desc(c.id)], AGENCY_AI_ENDED_LIST_LIMIT),
   ]);
   const summary = (row: (typeof liveRows)[number], isLive: boolean): AgencyAiConnectionSummary => ({
     id: row.id,
@@ -281,6 +287,14 @@ async function endConnections(
   },
 ): Promise<number> {
   if (input.connectionIds.length === 0) return 0;
+  // The rows' update lock first (round 3): an agency call reading under the connection's shared
+  // lock finishes before this commits, and any call after it sees the connection ended.
+  await tx
+    .select({ id: schema.aiConnections.id })
+    .from(schema.aiConnections)
+    .where(inArray(schema.aiConnections.id, [...input.connectionIds]))
+    .orderBy(schema.aiConnections.id)
+    .for('update');
   await tx
     .update(schema.aiConnectionTokens)
     .set({ revokedAt: input.now })

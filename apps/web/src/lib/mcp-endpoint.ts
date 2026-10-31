@@ -21,6 +21,7 @@ import {
   auditAiAnswerWithheld,
   authenticateAiRequest,
   checkRateLimit,
+  isAgencyToolCall,
   isWellFormedAiAccessToken,
   oauthScopeNames,
   runAiTool,
@@ -190,6 +191,19 @@ function calledTool(body: unknown): string | null {
   return typeof name === 'string' ? name : null;
 }
 
+/**
+ * Whether the message calls a known agency tool with arguments it accepts (S22 round 3): only
+ * then are the member's checks left to the agency gate on the call itself.
+ */
+function agencyToolCall(body: unknown): boolean {
+  const name = calledTool(body);
+  if (name === null || typeof body !== 'object' || body === null) return false;
+  const params = Reflect.get(body, 'params');
+  const args =
+    typeof params === 'object' && params !== null ? Reflect.get(params, 'arguments') : undefined;
+  return isAgencyToolCall(name, args);
+}
+
 /** Seconds until the window a fixed-window counter is in ends (the daily one ends at UTC midnight). */
 export function secondsUntilWindowEnds(config: RateLimitConfig, now: Date): number {
   const end = (Math.floor(now.getTime() / config.windowMs) + 1) * config.windowMs;
@@ -332,12 +346,13 @@ export async function handleMcpPost(
   try {
     return await deps.withDb(async (db) => {
       const now = deps.now();
-      // A tool call's admission and agency standing are checked by the gate on the call itself.
+      // A valid agency tool call's admission and standing are checked by the gate on the call
+      // itself; every other message is checked in full here.
       const caller = await authenticateAiRequest(db, {
         token,
         resource,
         admission: deps.admission,
-        toolCall: calledTool(body) !== null,
+        agencyToolCall: agencyToolCall(body),
       });
       if (!caller) {
         // Charged only on failure: a network address guessing tokens is slowed down.

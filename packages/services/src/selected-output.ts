@@ -638,7 +638,7 @@ export async function buildAgencySelectedOutput(
   scope: AgencyAiScope,
   selection: Selection,
   options: Omit<SelectedOutputOptions, 'stepUp'> = {},
-): Promise<Result<SelectedOutput, ServiceError>> {
+): Promise<Result<{ readonly output: SelectedOutput; readonly notGranted: number }, ServiceError>> {
   if (
     !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
     !AgencyAiScope.isGenuine(scope) ||
@@ -661,8 +661,12 @@ export async function buildAgencySelectedOutput(
   );
   if (!built.ok) return built;
   // The app never learns how much the traveller did not share with the agency (S22 round 2):
-  // what no AI grant covers is left out without a count.
-  return ok({ ...built.value, omitted: { ...built.value.omitted, not_granted: 0 } });
+  // what no AI grant covers is left out without a count. The true count goes to the gate, for
+  // the audit only (round 3).
+  return ok({
+    output: { ...built.value, omitted: { ...built.value.omitted, not_granted: 0 } },
+    notGranted: built.value.omitted.not_granted,
+  });
 }
 
 async function composeOutput(
@@ -1259,11 +1263,6 @@ async function loadDocumentParts(
     const version = latest.get(document.id);
     // A file that failed its safety check, was rejected or is being erased is not listed at all.
     if (!version || !isListableVersion(version, erased.has(version.storageObjectId))) continue;
-    // An agency AI call: a document no AI grant shares is not listed, dated or read at all.
-    if (input.agency && !input.agency.documentAllowed(document)) {
-      omitted.not_granted += 1;
-      continue;
-    }
     const key = documentKey(document.docType);
     if (input.scope) {
       const { groups, kinds, referenceCodes } = input.scope;
@@ -1277,6 +1276,13 @@ async function loadDocumentParts(
         const code = codes.get(document.id);
         if (code === undefined || !referenceCodes.includes(code)) continue;
       }
+    }
+    // An agency AI call: a document no AI grant shares is not listed, dated or read at all. It is
+    // counted only when it was asked for (after the narrowing above), so the audit's count
+    // (S22 round 3; the app is never told) is about what the call asked.
+    if (input.agency && !input.agency.documentAllowed(document)) {
+      omitted.not_granted += 1;
+      continue;
     }
     const requiredKind = key !== null && needs.documentKeys.has(key);
     const requiredNow = key !== null && needs.documentKeys.get(key) === true;
@@ -1357,7 +1363,10 @@ async function loadDocumentParts(
   expiry.sort((a, b) => a.daysLeft - b.daysLeft || compareText(a.kind, b.kind));
 
   const documentText = wantsText
-    ? await loadDocumentText(db, candidates, codes, omitted, input.maskText)
+    ? await loadDocumentText(db, candidates, codes, omitted, input.maskText, {
+        // An agency read always keeps the default protected types closed (S22 round 3).
+        agency: input.agency !== null,
+      })
     : [];
   return { documents, expiry, documentText };
 }
@@ -1444,12 +1453,20 @@ async function loadDocumentText(
   codes: ReadonlyMap<string, string>,
   omitted: Record<OmissionReason, number>,
   maskText: () => Promise<((text: string) => string) | null>,
+  reader: { readonly agency: boolean },
 ): Promise<OutputDocumentText[]> {
   if (candidates.length === 0) return [];
   // The platform's protection switches decide which document types never give out their text.
   const protection = await loadDocumentProtectionSettings(db, DEFAULT_DOCUMENT_PROTECTION);
+  // For an agency's AI tools (S22 round 3) the default protected types (passport, ID, money and
+  // health documents, and types not known) stay closed whatever the switches say: the promise
+  // made to travellers on Sharing does not depend on a setting. A traveller's own AI connection
+  // follows the switches as before.
+  const restricted = (docType: string | null): boolean =>
+    documentTypeRestricted(docType, protection) ||
+    (reader.agency && documentTypeRestricted(docType, DEFAULT_DOCUMENT_PROTECTION));
   const allowed = candidates.filter(({ document }) => {
-    if (documentTypeRestricted(document.docType, protection)) {
+    if (restricted(document.docType)) {
       omitted.restricted += 1;
       return false;
     }
