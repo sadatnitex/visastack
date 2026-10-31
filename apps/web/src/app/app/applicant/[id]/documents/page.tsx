@@ -30,6 +30,7 @@ import {
   readDocumentProtectionSettings,
   referenceCodesFor,
   requireAccess,
+  storageLimitsForOwner,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -192,6 +193,7 @@ export default async function ApplicantDocumentsPage({
     const encryption = createKeyManagementPort();
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
+    const quota = loadUploadQuotaConfig();
     const [
       documents,
       coreGranted,
@@ -312,7 +314,10 @@ export default async function ApplicantDocumentsPage({
       confirmed,
       pendingClassificationProposals,
       pendingInconsistencyFlags,
-      quota: loadUploadQuotaConfig(),
+      quota,
+      // The record owner's storage limit for one person: their plan's rule, else the setting.
+      personLimitBytes: (await storageLimitsForOwner(db, applicant.ownerAccountId, quota))
+        .personBytes,
       virusScanning: (await resolvePlatformCapabilities(db)).malwareScanning === 'available',
       wallet: new Map((wallet.ok ? wallet.value : []).map((w) => [w.document.id, w])),
       issuerVerifications,
@@ -894,7 +899,7 @@ export default async function ApplicantDocumentsPage({
                     <UsageMeter
                       label="Evidence Storage"
                       usedBytes={data.evidenceBytes}
-                      limitBytes={data.quota.maxApplicantEvidenceBytes}
+                      limitBytes={data.personLimitBytes}
                     />
                   </div>
                   <DocumentUploader

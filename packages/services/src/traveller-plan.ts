@@ -10,12 +10,14 @@ export interface TravellerPlanSummary {
    * whether the feature works right now (that is `getAiUsageToday`).
    */
   readonly features: Readonly<Record<AiFeatureKey, AiFeatureEntitlement>> | null;
+  /** When the paid period covering now ends; null on Traveller Free (ADR 0025). */
+  readonly paidUntil: Date | null;
 }
 
 /**
- * The plan a traveller is on, for Plan & Usage. Every traveller is on the traveller plan (no
- * traveller subscriptions yet), so this is the same for every account and reads no one's own
- * records: storage is counted by the page with the readers the upload limits use. The plan's
+ * The plan a traveller is on, for Plan & Usage: a paid traveller plan while a paid period covers
+ * now (ADR 0025), else Traveller Free. Storage is counted by the page with the readers the upload
+ * limits use. The plan's
  * capacity limits (seats, cases) are agency limits not enforced on travellers, so none are
  * returned.
  */
@@ -32,5 +34,6 @@ export async function getTravellerPlanSummary(
   return {
     plan: plan ? { key: plan.key, name: plan.name } : null,
     features: entitlements.features,
+    paidUntil: entitlements.periodEnd,
   };
 }

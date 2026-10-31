@@ -24,6 +24,14 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   loadUploadQuotaConfig: mocks.loadUploadQuotaConfig,
   referenceCodesFor: async () => new Map([['passport', 'DOC-7K2M']]),
   getApplicantEvidenceBytes: async () => 0,
+  storageLimitsForOwner: async (
+    _db: unknown,
+    _owner: string,
+    config: { maxAccountEvidenceBytes: number; maxApplicantEvidenceBytes: number },
+  ) => ({
+    accountBytes: config.maxAccountEvidenceBytes,
+    personBytes: config.maxApplicantEvidenceBytes,
+  }),
   getLatestOcrRun: async () => undefined,
   listIssuerVerificationsForDocument: async () => [],
   listPendingDocumentTypeProposals: async () => [],
