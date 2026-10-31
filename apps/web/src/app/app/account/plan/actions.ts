@@ -40,6 +40,7 @@ const PERSON_REASONS = new Set([
   'already_covered',
   'plan_not_for_sale',
   'purchase_expired',
+  'purchase_refunded',
   'currency_not_offered',
   'provider_not_configured',
 ]);

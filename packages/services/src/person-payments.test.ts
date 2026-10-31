@@ -18,7 +18,7 @@ import {
   startPersonPayment,
 } from './payments';
 import { FakePaymentPort, onePort } from './payments.test-support';
-import { getOwnPurchase, startPersonCheckout } from './person-billing';
+import { getOwnPurchase, payablePersonInvoice, startPersonCheckout } from './person-billing';
 import {
   personInvoices,
   personPaymentAttempts,
@@ -571,5 +571,46 @@ describe('what Plan & Usage shows (ADR 0025 T3c)', () => {
     const paid = port.succeed(attempt.merchantTranId, PRICE);
     expect((await settle(attempt.merchantTranId, paid.valId)).code).toBe('recorded');
     expect(await getOwnPurchase(db, self(alice), { invoiceId: made.invoiceId })).toBeNull();
+  });
+});
+
+describe('a refunded purchase is never paid again (ADR 0025 T6)', () => {
+  it('refuses to open a payment for it, shows no confirmation, and Get makes a new purchase', async () => {
+    const made = await checkout(alice);
+    const attempt = await pay(alice, made.invoiceId);
+    const paid = port.succeed(attempt.merchantTranId, PRICE);
+    expect((await settle(attempt.merchantTranId, paid.valId)).code).toBe('recorded');
+    // The refund as the ledger keeps it: a REFUND row, nothing collected, the invoice open again.
+    await db.insert(schema.invoicePayments).values({
+      invoiceId: made.invoiceId,
+      amountMinorUnits: -PRICE,
+      currency: 'BDT',
+      kind: 'REFUND',
+      sourceId: '00000000-0000-4000-8000-00000000beef',
+      reference: 'RF-T6A-1',
+      collectedDate: new Date(),
+      mode: 'LIVE',
+    });
+    await db
+      .update(personInvoices)
+      .set({ status: 'OPEN', collectedAmountMinorUnits: 0 })
+      .where(eq(personInvoices.id, made.invoiceId));
+
+    const payable = await payablePersonInvoice(db, self(alice), {
+      invoiceId: made.invoiceId,
+      now: new Date(),
+    });
+    expect(isErr(payable) && payable.error).toMatchObject({ reason: 'purchase_refunded' });
+    expect(await getOwnPurchase(db, self(alice), { invoiceId: made.invoiceId })).toBeNull();
+    const started = await startPersonPayment(db, resolver(), self(alice), {
+      invoiceId: made.invoiceId,
+      urlFor,
+      startAnother: true,
+    });
+    expect(isErr(started) && started.error).toMatchObject({ reason: 'purchase_refunded' });
+    // No paid period covers them now, so Get makes a new purchase, never the refunded one.
+    const again = await checkout(alice);
+    expect(again.invoiceId).not.toBe(made.invoiceId);
+    expect(again.reused).toBe(false);
   });
 });
