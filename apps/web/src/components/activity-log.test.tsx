@@ -132,4 +132,72 @@ describe('the activity log', () => {
     expect(rows()).toHaveLength(2);
     expect(select('Who').value).toBe('');
   });
+
+  it('adds nothing new for the pages that pass only entries and a label', () => {
+    expect(host.querySelector('.activity-log')?.hasAttribute('id')).toBe(false);
+    expect(host.querySelector('.activity-log-more')).toBeNull();
+    expect(host.querySelectorAll('a')).toHaveLength(0);
+  });
+
+  it('offers the Who filter only when entries name someone', () => {
+    act(() =>
+      root.render(
+        <ActivityLog
+          entries={entries.map(({ who: _who, ...e }) => e)}
+          label="Access Log Entries"
+        />,
+      ),
+    );
+    expect(select('Who')).toBeUndefined();
+  });
+
+  it('links to older and newest pages from the server and closes the summary with the total', () => {
+    act(() =>
+      root.render(
+        <ActivityLog
+          entries={entries}
+          label="Audit Events"
+          id="audit-log"
+          olderHref="/app/admin/audit?before=abc#audit-log"
+          newestHref="/app/admin/audit#audit-log"
+          totalLabel="1,240 entries in all."
+        />,
+      ),
+    );
+    expect(host.querySelector('.activity-log')?.id).toBe('audit-log');
+    const more = host.querySelector('.activity-log-more');
+    expect(more?.tagName).toBe('NAV');
+    expect(more?.getAttribute('aria-label')).toBe('More of Audit Events');
+    const links = [...(more?.querySelectorAll('a') ?? [])].map((a) => [
+      a.textContent,
+      a.getAttribute('href'),
+    ]);
+    expect(links).toEqual([
+      ['Show Newest Entries', '/app/admin/audit#audit-log'],
+      ['Show Older Entries', '/app/admin/audit?before=abc#audit-log'],
+    ]);
+    expect(host.textContent).toContain(
+      'The 3 older entries, back to Last month. 1,240 entries in all.',
+    );
+    choose('Result', 'Blocked');
+    expect(host.textContent).toContain(
+      'Showing 1 of the 3 older entries, back to Last month. 1,240 entries in all.',
+    );
+  });
+
+  it('shows only the older link on the newest page', () => {
+    act(() =>
+      root.render(
+        <ActivityLog
+          entries={entries}
+          label="Audit Events"
+          olderHref="/app/admin/audit?before=abc"
+        />,
+      ),
+    );
+    expect([...host.querySelectorAll('.activity-log-more a')].map((a) => a.textContent)).toEqual([
+      'Show Older Entries',
+    ]);
+    expect(host.textContent).toContain('The 3 newest entries, back to Last month.');
+  });
 });
