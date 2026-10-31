@@ -1517,6 +1517,7 @@ export {
   ALREADY_COVERED,
   PERSON_SELLING_OFF,
   PURCHASE_EXPIRED,
+  PURCHASE_REFUNDED,
   type PersonCheckout,
   type OwnRenewal,
   type PersonPurchase,
