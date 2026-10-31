@@ -184,7 +184,8 @@ describe('renewing a paid traveller plan by paying a link (ADR 0025 T4)', () => 
 
     await run(new Date(end.getTime() - 2 * DAY));
     await run(new Date(end.getTime() - 2 * DAY));
-    await run(new Date(end.getTime() - DAY / 2));
+    // The last covered moment is always on the last day, whatever the time of day the plan ends.
+    await run(new Date(end.getTime() - 1));
     const stages = (await notices(alice))
       .filter((n) => n.event_type === 'PERSON_PLAN_RENEWAL_DUE' && n.channel === 'IN_APP')
       .map((n) => n.idempotency_key.split(':').pop());
