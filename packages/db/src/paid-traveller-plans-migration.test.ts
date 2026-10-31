@@ -168,9 +168,13 @@ describe('migration 0110: the payer is an organization or a person (ADR 0025, T1
       await expect(
         subscription('organization_id, payer_account_id', `'${agency.org}', '${person}'`),
       ).rejects.toThrow(/subscriptions_one_payer/);
-      await expect(subscription('assigned_by_account_id', `'${person}'`)).rejects.toThrow(/subscriptions_one_payer/);
+      await expect(subscription('assigned_by_account_id', `'${person}'`)).rejects.toThrow(
+        /subscriptions_one_payer/,
+      );
       // One current subscription per person.
-      await expect(subscription('payer_account_id', `'${person}'`)).rejects.toThrow(/subscriptions_one_current_per_person/);
+      await expect(subscription('payer_account_id', `'${person}'`)).rejects.toThrow(
+        /subscriptions_one_current_per_person/,
+      );
 
       // Invoices: a person's, tied to the subscription; one live invoice per person, plan and period.
       const personInvoice = (
