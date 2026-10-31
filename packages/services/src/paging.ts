@@ -124,7 +124,7 @@ function unpack(cursor: unknown, scope: string): CursorBody | null {
  */
 function validTime(at: unknown): at is string {
   if (typeof at !== 'string') return false;
-  const match = ISO_UTC.exec(at);
+  const match = at.match(ISO_UTC);
   if (!match) return false;
   const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number) as [
     number,

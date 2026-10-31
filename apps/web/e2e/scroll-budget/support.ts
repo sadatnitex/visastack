@@ -84,7 +84,8 @@ function fixtureBundle(name: string): Promise<string> {
           name: 'scroll-budget-mount',
           enforce: 'pre',
           resolveId(id: string) {
-            return id === MOUNT ? `\0${MOUNT}` : null;
+            // The library entry arrives resolved against the working folder, so match the end.
+            return id === MOUNT || id.endsWith(`/${MOUNT}`) ? `\0${MOUNT}` : null;
           },
           load(id: string) {
             if (id !== `\0${MOUNT}`) return null;
