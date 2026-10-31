@@ -10919,3 +10919,17 @@ summary.safe-copy-title {
 .form-compact {
   max-width: 44rem;
 }
+
+/* WP-TRIP-CHECKS trip date checks: a title with its status word, wrapping on a narrow screen, then the reason below */
+.trip-check {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3rem;
+}
+.trip-check-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+}
