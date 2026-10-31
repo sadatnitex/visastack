@@ -1518,10 +1518,16 @@ export {
   PERSON_SELLING_OFF,
   PURCHASE_EXPIRED,
   type PersonCheckout,
+  type OwnRenewal,
   type PersonPurchase,
+  RENEWAL_GRACE_DAYS,
   getOwnPurchase,
+  getOwnRenewal,
+  setPlanRenewal,
   startPersonCheckout,
 } from './person-billing';
+// ADR 0025 T4: the daily run's person step (renewals, reminders, lapses).
+export type { PersonRenewalSummary } from './person-renewals';
 
 export { type PlatformOverview, getPlatformOverview } from './platform-overview';
 
@@ -2198,3 +2204,14 @@ export {
 } from './access/with-ai-connection';
 export { AGENCY_AI_TOOLS, aiToolsFor, isAgencyToolCall } from './ai-tools';
 export type { AgencyAiToolDefinition, AnyConnectorToolDefinition } from './ai-tools/result';
+// ADR 0025 T5: a person's own Billing History (purchases, receipts and their PDFs).
+export {
+  type OwnPurchaseStatus,
+  type OwnPurchaseView,
+  type OwnReceiptView,
+  PERSON_REFUND_WINDOW_DAYS,
+  hasOwnBilling,
+  listOwnBilling,
+  ownInvoiceDocument,
+  ownReceiptDocument,
+} from './person-billing-history';

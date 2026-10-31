@@ -2,7 +2,12 @@
 
 import { useActionState, useId } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
-import { type PayPurchaseState, buyPlanAction, payPurchaseAction } from './actions';
+import {
+  type PayPurchaseState,
+  buyPlanAction,
+  payPurchaseAction,
+  setRenewalAction,
+} from './actions';
 
 const NO_PAY_RESULT: PayPurchaseState = NO_RESULT;
 
@@ -49,6 +54,24 @@ export function PayPurchaseForm({ invoiceId }: { readonly invoiceId: string }) {
           />
         ) : null}
       </div>
+      <FormMessage id={messageId} result={state} />
+    </form>
+  );
+}
+
+/** Stop Renewing (a secondary choice) or Keep Renewing, for the person's own paid plan (T4). */
+export function RenewalForm({ renews }: { readonly renews: boolean }) {
+  const [state, formAction, pending] = useActionState(setRenewalAction, NO_RESULT);
+  const messageId = useId();
+  return (
+    <form action={formAction} className="field-stack">
+      <input type="hidden" name="renews" value={renews ? 'no' : 'yes'} />
+      <SubmitButton
+        pending={pending}
+        idle={renews ? 'Stop Renewing' : 'Keep Renewing'}
+        busy="Saving…"
+        className={renews ? 'btn btn-secondary' : 'btn btn-primary'}
+      />
       <FormMessage id={messageId} result={state} />
     </form>
   );

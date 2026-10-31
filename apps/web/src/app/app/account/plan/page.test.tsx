@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   bytes: {} as Record<string, number>,
   catalogue: vi.fn(),
   purchase: vi.fn(),
+  renewal: vi.fn(),
+  billing: vi.fn(),
 }));
 
 vi.mock('../../../../lib/session', () => ({
@@ -27,10 +29,16 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   getApplicantEvidenceBytes: async (_db: unknown, id: string) => mocks.bytes[id] ?? 0,
   listTravellerPlansForSale: (...args: unknown[]) => mocks.catalogue(...args),
   getOwnPurchase: (...args: unknown[]) => mocks.purchase(...args),
+  getOwnRenewal: (...args: unknown[]) => mocks.renewal(...args),
+  hasOwnBilling: (...args: unknown[]) => mocks.billing(...args),
 }));
 vi.mock('./plan-forms', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
-  return { BuyPlanForm: stub('BuyPlanForm'), PayPurchaseForm: stub('PayPurchaseForm') };
+  return {
+    BuyPlanForm: stub('BuyPlanForm'),
+    PayPurchaseForm: stub('PayPurchaseForm'),
+    RenewalForm: stub('RenewalForm'),
+  };
 });
 vi.mock('../../../../lib/ai-usage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../../lib/ai-usage')>()),
@@ -54,6 +62,8 @@ const feature = (overrides: Record<string, unknown>) => ({
 
 beforeEach(() => {
   navigationState.pathname = '/app/account/plan';
+  mocks.renewal.mockResolvedValue(null);
+  mocks.billing.mockResolvedValue(false);
   mocks.summary.mockResolvedValue({
     plan: { key: 'traveller_free', name: 'Traveller Free' },
     // The plan's own rules, apart from whether each feature works right now.
@@ -210,6 +220,15 @@ describe('Plan & Usage for a traveller', () => {
     const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Your Plan');
     expect(text).toContain('Nothing stored yet.');
+  });
+
+  it('links to Billing History once there is a purchase of theirs to show, and not before', async () => {
+    expect(await renderServer(Page({}))).not.toContain('href="/app/account/plan/billing"');
+    mocks.billing.mockResolvedValue(true);
+    const html = await renderServer(Page({}));
+    expect(html).toContain('href="/app/account/plan/billing"');
+    expect(textOf(html)).toContain('Billing History');
+    expect(mocks.billing.mock.calls[1]?.[1]).toEqual({ kind: 'self' });
   });
 
   it('passes the automated accessibility rules', async () => {
@@ -390,5 +409,131 @@ describe('buying a paid plan on Plan & Usage (ADR 0025 T3c)', () => {
         ),
       ),
     ).toEqual([]);
+  });
+});
+
+describe('renewing a paid plan on Plan & Usage (ADR 0025 T4)', () => {
+  const RENEWAL = '00000000-0000-4000-8000-0000000000cc';
+  const DAY = 24 * 60 * 60 * 1000;
+  const covered = (paidUntil: Date | null) =>
+    mocks.summary.mockResolvedValue({
+      plan:
+        paidUntil === null
+          ? { key: 'traveller_free', name: 'Traveller Free' }
+          : { key: 'traveller_plus', name: 'Traveller Plus' },
+      features: null,
+      paidUntil,
+      storage: null,
+    });
+  const renewal = (overrides: Record<string, unknown>) => {
+    const paidUntil = new Date(Date.now() + 5 * DAY);
+    return {
+      planName: 'Traveller Plus',
+      renews: true,
+      renewable: true,
+      paidUntil,
+      payableUntil: new Date(paidUntil.getTime() + 7 * DAY),
+      openRenewal: { invoiceId: RENEWAL, amountMinorUnits: 49900, currency: 'BDT' },
+      ...overrides,
+    };
+  };
+
+  beforeEach(() => {
+    vi.stubEnv('TRAVELLER_PLANS_ENABLED', 'true');
+    mocks.catalogue.mockResolvedValue({
+      free: {
+        name: 'Traveller Free',
+        features: {},
+        storage: { accountBytes: null, personBytes: null },
+      },
+      offers: [
+        {
+          id: '00000000-0000-4000-8000-0000000000aa',
+          key: 'traveller_plus',
+          name: 'Traveller Plus',
+          periodDays: 30,
+          price: { amountMinorUnits: 49900, currency: 'BDT' },
+          features: { ai_app_suggestions: { included: true, dailyLimit: 60 } },
+          storage: { accountBytes: 500 * MB, personBytes: null },
+        },
+      ],
+    });
+    mocks.purchase.mockResolvedValue(null);
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('offers Renew Now for the waiting renewal and Stop Renewing, with the price and no automatic charge', async () => {
+    const view = renewal({});
+    covered(view.paidUntil);
+    mocks.renewal.mockResolvedValue(view);
+    const html = await renderServer(Page({}));
+    const text = textOf(html);
+    expect(text).toContain('Your renewal is ready');
+    expect(text).toContain('for the next period');
+    expect(html).toContain(`href="/app/account/plan?purchase=${RENEWAL}#confirm-purchase-title"`);
+    expect(text).toContain('Renew Now');
+    expect(stubProps(html, 'RenewalForm')).toEqual([{ renews: true }]);
+    expect(mocks.renewal.mock.calls[0]?.[1]).toEqual({ kind: 'self' });
+  });
+
+  it('says when the reminder comes before a renewal is made, and nothing is charged', async () => {
+    const view = renewal({ openRenewal: null });
+    covered(view.paidUntil);
+    mocks.renewal.mockResolvedValue(view);
+    const html = await renderServer(Page({}));
+    expect(textOf(html)).toContain('We remind you 7 days before Traveller Plus ends');
+    expect(textOf(html)).not.toContain('Renew Now');
+  });
+
+  it('after Stop Renewing, says when the plan ends and offers Keep Renewing only', async () => {
+    const view = renewal({ renews: false });
+    covered(view.paidUntil);
+    mocks.renewal.mockResolvedValue(view);
+    const html = await renderServer(Page({}));
+    const text = textOf(html);
+    expect(text).toContain('Renewing is off, so Traveller Plus ends after');
+    expect(text).not.toContain('Renew Now');
+    expect(stubProps(html, 'RenewalForm')).toEqual([{ renews: false }]);
+  });
+
+  it('inside the grace week, points to renewing instead of buying again', async () => {
+    const paidUntil = new Date(Date.now() - 2 * DAY);
+    covered(null);
+    mocks.renewal.mockResolvedValue(
+      renewal({ paidUntil, payableUntil: new Date(paidUntil.getTime() + 7 * DAY) }),
+    );
+    const html = await renderServer(Page({}));
+    const text = textOf(html);
+    expect(text).toContain('You can still renew it until');
+    expect(text).toContain('You can still renew Traveller Plus above and keep it.');
+    expect(text).toContain('Renew Now');
+    expect(stubProps(html, 'BuyPlanForm')).toHaveLength(0);
+  });
+
+  it('says a plan no longer offered simply ends, with no renewal controls', async () => {
+    const view = renewal({ renewable: false, openRenewal: null });
+    covered(view.paidUntil);
+    mocks.renewal.mockResolvedValue(view);
+    const html = await renderServer(Page({}));
+    expect(textOf(html)).toContain('Traveller Plus is no longer offered, so it ends after');
+    expect(stubProps(html, 'RenewalForm')).toHaveLength(0);
+    expect(textOf(html)).not.toContain('Renew Now');
+  });
+
+  it('reads no renewal while selling is switched off', async () => {
+    vi.stubEnv('TRAVELLER_PLANS_ENABLED', 'false');
+    mocks.renewal.mockClear();
+    const html = await renderServer(Page({}));
+    expect(mocks.renewal).not.toHaveBeenCalled();
+    expect(stubProps(html, 'RenewalForm')).toHaveLength(0);
+  });
+
+  it('passes the automated accessibility rules with the renewal controls', async () => {
+    const view = renewal({});
+    covered(view.paidUntil);
+    mocks.renewal.mockResolvedValue(view);
+    expect(await axeViolations(await renderServer(Page({})))).toEqual([]);
   });
 });

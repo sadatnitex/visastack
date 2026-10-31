@@ -9,7 +9,7 @@ import {
   travellerRulesOf,
 } from './entitlements';
 import { entitlementsSchemaPresent } from './plans-schema';
-import { personBillingPresent } from './traveller-billing';
+import { coveringPaidPeriod, personBillingPresent } from './traveller-billing';
 
 export interface TravellerPlanSummary {
   /** The plan every traveller is on (Traveller Free), or null when no plan row exists. */
@@ -20,8 +20,9 @@ export interface TravellerPlanSummary {
    */
   readonly features: Readonly<Record<AiFeatureKey, AiFeatureEntitlement>> | null;
   /**
-   * The last moment the paid period covering now includes (its end is exclusive, so this is one
-   * millisecond before it), for "Paid until <day>"; null on Traveller Free (ADR 0025).
+   * The last moment the paid time from now includes (its end is exclusive, so this is one
+   * millisecond before it), counting a renewal paid ahead, for "Paid until <day>"; null on
+   * Traveller Free (ADR 0025).
    */
   readonly paidUntil: Date | null;
   /** The plan's own storage rules; a rule left null falls back to the upload settings. */
@@ -38,16 +39,18 @@ export async function getTravellerPlanSummary(
   db: Db,
   input: { readonly actorAccountId: string; readonly now?: Date },
 ): Promise<TravellerPlanSummary> {
-  const entitlements = await resolveEntitlements(
-    db,
-    { accountId: input.actorAccountId },
-    input.now ?? new Date(),
-  );
+  const now = input.now ?? new Date();
+  const entitlements = await resolveEntitlements(db, { accountId: input.actorAccountId }, now);
   const plan = entitlements.plan;
+  // A renewal paid ahead extends what "Paid until" says (ADR 0025 T4): the paid time without a gap.
+  const covering = entitlements.periodEnd
+    ? await coveringPaidPeriod(db, input.actorAccountId, now, { paidThrough: true })
+    : undefined;
+  const paidEnd = covering?.paidThrough ?? entitlements.periodEnd;
   return {
     plan: plan ? { key: plan.key, name: plan.name } : null,
     features: entitlements.features,
-    paidUntil: entitlements.periodEnd ? new Date(entitlements.periodEnd.getTime() - 1) : null,
+    paidUntil: paidEnd ? new Date(paidEnd.getTime() - 1) : null,
     storage: entitlements.travellerStorage,
   };
 }

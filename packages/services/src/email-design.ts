@@ -300,6 +300,25 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     why: 'Money you paid before was counted towards this invoice. Open your invoices to see what is left to pay.',
     action: 'Open Invoices',
   },
+  PERSON_PLAN_RENEWAL_DUE: {
+    eyebrow: 'Your Plan',
+    heading: ({ timing }) =>
+      timing === 'overdue'
+        ? 'Your paid plan has ended: you can still renew it'
+        : timing === 'today'
+          ? 'Your paid plan ends today'
+          : 'Your paid plan ends soon',
+    why: 'Renew it to keep your extra room. Nothing is charged unless you pay.',
+    action: 'Renew Your Plan',
+    after:
+      'Do not want it any more? Choose Stop Renewing on Plan & Usage and we stop reminding you.',
+  },
+  PERSON_PLAN_ENDED: {
+    eyebrow: 'Your Plan',
+    heading: 'Your paid plan has ended',
+    why: 'You are on Traveller Free again. Everything you stored is kept.',
+    action: 'See Your Plan',
+  },
   LEGAL_HOLD_REVIEW_REMINDER: {
     eyebrow: 'Platform',
     heading: 'A legal hold is due for review',

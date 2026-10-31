@@ -7,11 +7,14 @@ import {
 } from '@visastack/core/ai-features';
 import {
   BILLING_TIME_ZONE,
+  type OwnRenewal,
   type PersonPurchase,
   type TravellerPlanCatalogue,
   getApplicantEvidenceBytes,
   getOwnPurchase,
+  getOwnRenewal,
   getTravellerPlanSummary,
+  hasOwnBilling,
   listApplicants,
   listTravellerPlansForSale,
   loadUploadQuotaConfig,
@@ -25,7 +28,7 @@ import { PageHeader } from '../../../../components/ui';
 import { planFeatureView, readAiUsage } from '../../../../lib/ai-usage';
 import { withSession } from '../../../../lib/session';
 import { UsageMeter } from '../../applicant/[id]/usage-meter';
-import { BuyPlanForm, PayPurchaseForm } from './plan-forms';
+import { BuyPlanForm, PayPurchaseForm, RenewalForm } from './plan-forms';
 
 export const metadata: Metadata = { title: 'Plan & Usage' };
 
@@ -33,6 +36,7 @@ export const dynamic = 'force-dynamic';
 
 /** The address parameter that names a purchase to confirm (set by the Get action). */
 const PURCHASE_PARAM = 'purchase';
+const PLAN_PATH = '/app/account/plan';
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** One AI feature's rule as a comparison cell. */
@@ -59,11 +63,12 @@ function lastDay(end: Date): string {
 function ComparePlans({
   catalogue,
   settings,
-  covered,
+  buyNote,
 }: {
   readonly catalogue: TravellerPlanCatalogue;
   readonly settings: { readonly accountBytes: number; readonly personBytes: number };
-  readonly covered: boolean;
+  /** Said in place of the Get buttons when buying is not the next step (covered, or renewing). */
+  readonly buyNote: string | null;
 }) {
   const free = catalogue.free;
   const columns = [
@@ -148,10 +153,8 @@ function ComparePlans({
           </tbody>
         </table>
       </div>
-      {covered ? (
-        <p className="card-body u-mt-100">
-          Your paid plan covers today. You can buy again when it ends.
-        </p>
+      {buyNote ? (
+        <p className="card-body u-mt-100">{buyNote}</p>
       ) : (
         <div className="page-actions u-mt-100">
           {catalogue.offers.map((offer) => (
@@ -160,6 +163,50 @@ function ComparePlans({
         </div>
       )}
     </article>
+  );
+}
+
+/**
+ * Renewing the paid plan (ADR 0025 T4): renewed by paying a link each time, never charged by
+ * itself. Renew Now opens the renewal to confirm; Stop Renewing cancels it and its reminders.
+ */
+function RenewalControls({ renewal, now }: { readonly renewal: OwnRenewal; readonly now: Date }) {
+  const ended = renewal.paidUntil.getTime() <= now.getTime();
+  const until = lastDay(renewal.paidUntil);
+  const open = renewal.renews ? renewal.openRenewal : null;
+  let words: string;
+  if (!renewal.renewable) {
+    words = ended
+      ? `${renewal.planName} covered you until ${until} and is no longer offered. You can choose another plan below.`
+      : `${renewal.planName} is no longer offered, so it ends after ${until}. Nothing is charged, and you can choose another plan then.`;
+  } else if (ended && open) {
+    words = `${renewal.planName} covered you until ${until}. You can still renew it until ${lastDay(renewal.payableUntil)} and keep it.`;
+  } else if (ended && renewal.renews) {
+    words = `${renewal.planName} covered you until ${until}. You can get it again below.`;
+  } else if (ended) {
+    words = `${renewal.planName} covered you until ${until}. Choose Keep Renewing by ${lastDay(renewal.payableUntil)} if you want it back without starting again.`;
+  } else if (!renewal.renews) {
+    words = `Renewing is off, so ${renewal.planName} ends after ${until}. Nothing is charged.`;
+  } else if (open) {
+    words = `Your renewal is ready: ${formatMoney(open.amountMinorUnits, open.currency)} for the next period. Pay it before ${until} ends to keep ${renewal.planName} without a break.`;
+  } else {
+    words = `We remind you 7 days before ${renewal.planName} ends. Nothing is charged unless you pay.`;
+  }
+  return (
+    <div className="u-mt-100">
+      <p className="card-body">{words}</p>
+      <div className="page-actions u-mt-100">
+        {open ? (
+          <Link
+            className="btn btn-primary"
+            href={`${PLAN_PATH}?${PURCHASE_PARAM}=${open.invoiceId}#confirm-purchase-title`}
+          >
+            Renew Now
+          </Link>
+        ) : null}
+        {renewal.renewable ? <RenewalForm renews={renewal.renews} /> : null}
+      </div>
+    </div>
   );
 }
 
@@ -220,7 +267,8 @@ function ConfirmPurchase({
         </>
       ) : (
         <p className="card-body">
-          This purchase can no longer be paid. It may already be paid, or be more than a day old.
+          This purchase can no longer be paid. It may already be paid, or its time to pay may be
+          over.
           {canBuy ? ' You can start it again below.' : ''}
         </p>
       )}
@@ -265,21 +313,33 @@ export default async function TravellerPlanPage({
     // This account's limits: its plan's storage rules, else the upload settings (ADR 0025).
     const limits = storageLimitsFrom(summary.storage, quota);
     // Selling (ADR 0025 T3c): only while switched on, and only plans on sale now.
-    const catalogue = selling ? await listTravellerPlansForSale(db) : null;
-    const purchase =
+    // Renewing (T4): the person's current paid plan and its renewal, while selling is on.
+    // Billing History (T5): linked once there is something of theirs to show, switch or not.
+    const [catalogue, purchase, renewal, billing] = await Promise.all([
+      selling ? listTravellerPlansForSale(db) : null,
       selling && purchaseParam !== null && ID.test(purchaseParam)
-        ? await getOwnPurchase(db, self, { invoiceId: purchaseParam })
-        : null;
-    return { summary, aiUsage, profiles, quota, limits, catalogue, purchase };
+        ? getOwnPurchase(db, self, { invoiceId: purchaseParam })
+        : null,
+      selling ? getOwnRenewal(db, self) : null,
+      hasOwnBilling(db, self),
+    ]);
+    return { summary, aiUsage, profiles, quota, limits, catalogue, purchase, renewal, billing };
   });
-  const { summary, aiUsage, profiles, quota, limits, catalogue, purchase } = data;
+  const { summary, aiUsage, profiles, quota, limits, catalogue, purchase, renewal, billing } = data;
+  const now = new Date();
+  // Inside the grace week after a paid period, renewing it is the next step, not a new purchase.
+  const waitingPlan =
+    renewal?.renews && renewal.openRenewal !== null && renewal.paidUntil.getTime() <= now.getTime()
+      ? renewal.planName
+      : null;
+  const renewalWaiting = waitingPlan !== null;
   const usedBytes = profiles.reduce((total, profile) => total + profile.usedBytes, 0);
   const offered = catalogue !== null && catalogue.offers.length > 0;
   // ADR 0025 section 12.2: offered at the moment of need, once, never nagged: when a daily AI limit
   // is reached or storage is mostly used, and only while a plan is on sale and none covers today.
   // Each line only when a plan on sale really gives more of what ran short: its own limit, or the
   // upload setting it follows, above the one this person has now.
-  const canUpgrade = offered && summary.paidUntil === null;
+  const canUpgrade = offered && summary.paidUntil === null && !renewalWaiting;
   const offers = catalogue?.offers ?? [];
   const moreAccountRoom = offers.some(
     (offer) => (offer.storage.accountBytes ?? quota.maxAccountEvidenceBytes) > limits.accountBytes,
@@ -310,9 +370,16 @@ export default async function TravellerPlanPage({
         title={<>Plan &amp; Usage</>}
         description="Your plan, what it includes and how much of it you have used."
         actions={
-          <Link className="btn btn-secondary" href="/app/account">
-            Your Account
-          </Link>
+          <>
+            {billing ? (
+              <Link className="btn btn-secondary" href={`${PLAN_PATH}/billing`}>
+                Billing History
+              </Link>
+            ) : null}
+            <Link className="btn btn-secondary" href="/app/account">
+              Your Account
+            </Link>
+          </>
         }
       />
 
@@ -340,6 +407,7 @@ export default async function TravellerPlanPage({
               </p>
             </>
           )}
+          {renewal ? <RenewalControls renewal={renewal} now={now} /> : null}
         </article>
 
         <article className="card" aria-labelledby="storage-title">
@@ -385,7 +453,7 @@ export default async function TravellerPlanPage({
       </div>
 
       {selling && purchaseParam !== null ? (
-        <ConfirmPurchase purchase={purchase} canBuy={offered && summary.paidUntil === null} />
+        <ConfirmPurchase purchase={purchase} canBuy={canUpgrade} />
       ) : null}
       {offered && catalogue ? (
         <ComparePlans
@@ -394,7 +462,13 @@ export default async function TravellerPlanPage({
             accountBytes: quota.maxAccountEvidenceBytes,
             personBytes: quota.maxApplicantEvidenceBytes,
           }}
-          covered={summary.paidUntil !== null}
+          buyNote={
+            summary.paidUntil !== null
+              ? 'Your paid plan covers today. You can buy again when it ends.'
+              : renewalWaiting
+                ? `You can still renew ${waitingPlan} above and keep it.`
+                : null
+          }
         />
       ) : null}
 

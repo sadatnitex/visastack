@@ -7,7 +7,9 @@ import { triggerBillingCycle, triggerNotificationWorker } from '../../../../lib/
  * The daily billing run (S17, ADR 0020 Phase 2). Creates each agency's invoice for the plan
  * period running now (once: a rerun creates nothing), queues reminders 3 days before, on, and 3
  * and 7 days after each due date, and, only when the owner has switched automatic Grace and
- * Suspended on in Billing Rules, moves agencies whose invoice stays unpaid. Paying in full ends a
+ * Suspended on in Billing Rules, moves agencies whose invoice stays unpaid. For a person's own paid
+ * plan (ADR 0025 T4) it makes the renewal 7 days before the end, reminds at 7, 3 and 0 days, and
+ * ends a plan left unpaid 7 days after it ended. Paying in full ends a
  * Grace or Suspended status VisaStack set; a status a person set is never changed. Does nothing
  * before migration 0103. Scheduled daily (see `apps/web/vercel.json`) and signed with the cron
  * secret; fails closed (503) if the secret is not configured. Returns counts only.
@@ -30,7 +32,10 @@ export async function GET(request: Request): Promise<Response> {
         result.remindersQueued +
         result.movedToGrace +
         result.movedToSuspended +
-        result.returnedToActive ===
+        result.returnedToActive +
+        result.travellerPlans.renewalInvoicesCreated +
+        result.travellerPlans.remindersQueued +
+        result.travellerPlans.lapsed ===
         0);
   // Notices this run queued go out now, not at the next day's sending run.
   if (!('error' in result) && result.available) {

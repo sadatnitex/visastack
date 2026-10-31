@@ -1,14 +1,23 @@
-import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, isNull, lte, ne, sql } from 'drizzle-orm';
-import { type SelfScope, selfScopeProblem } from './access/principal';
+import { type Result, billingDaysUntil, err, formatBillingDate, ok } from '@visastack/core';
+import { and, desc, eq, inArray, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm';
+import { type SelfScope, type SystemScope, selfScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { invoiceHasRefundSql } from './billing-standing';
 import { type Db, first, required, schema } from './db';
 import { TRAVELLER_PLAN_KEY } from './entitlements';
 import { type ServiceError, refusal, serviceError } from './errors';
 import { lockPersonBilling } from './invoice-ledger';
+import {
+  cancelOwnQueuedNotifications,
+  cancelQueuedNotificationsForResource,
+  enqueueNotificationBothChannels,
+} from './notifications';
 import type { NewAttemptValues, PaymentAttempt } from './payments';
-import { personInvoices, personPaymentAttempts } from './person-billing-tables';
+import {
+  personInvoices,
+  personPaymentAttempts,
+  personSubscriptions,
+} from './person-billing-tables';
 import { coveringPaidPeriod, personBillingPresent } from './traveller-billing';
 import { travellerPlansEnabled } from './traveller-plan';
 
@@ -35,10 +44,48 @@ export const ALREADY_COVERED =
 /** A purchase invoice younger than this is offered again instead of a new one (two tabs). */
 const REUSE_OPEN_INVOICE_MS = 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** After a paid period ends, a renewal stays payable this long, then the plan lapses (D4). */
+export const RENEWAL_GRACE_DAYS = 7;
+const RENEWAL_GRACE_MS = RENEWAL_GRACE_DAYS * DAY_MS;
 
 /** The short code a person's invoices and receipts carry instead of a name (ADR 0025 D14). */
-function referenceCode(accountId: string, length = 8): string {
+export function referenceCode(accountId: string, length = 8): string {
   return accountId.replace(/-/g, '').slice(0, length).toUpperCase();
+}
+
+/**
+ * The references a person's `number`th invoice may take, shortest first (ADR 0025 D14: a code,
+ * never a name). References are unique across every invoice, so a longer code is used when another
+ * person holds the short one.
+ */
+export function personInvoiceRefCandidates(accountId: string, number: number): string[] {
+  return [8, 12, 16, 32].map((length) => `TP-${referenceCode(accountId, length)}-${number}`);
+}
+
+/**
+ * The next free reference for one of this person's invoices: their invoice count plus one, after
+ * the short code. References are unique across every invoice; two accounts can share the short
+ * code, so a longer one is used when the short one is taken (D14: still never a name or an
+ * email). Inside the person's billing lock.
+ */
+async function nextPersonInvoiceRef(tx: Db, accountId: string): Promise<string> {
+  const count = first(
+    await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(personInvoices)
+      .where(eq(personInvoices.payerAccountId, accountId)),
+  );
+  for (const candidate of personInvoiceRefCandidates(accountId, (count?.n ?? 0) + 1)) {
+    const taken = first(
+      await tx
+        .select({ id: schema.invoices.id })
+        .from(schema.invoices)
+        .where(eq(schema.invoices.invoiceRef, candidate))
+        .limit(1),
+    );
+    if (!taken) return candidate;
+  }
+  throw new Error('no free invoice reference for this person');
 }
 
 export interface PersonCheckout {
@@ -156,31 +203,7 @@ export async function startPersonCheckout(
     });
     if (reusable) return ok(view(reusable, true));
 
-    const count = first(
-      await tx
-        .select({ n: sql<number>`count(*)::int` })
-        .from(i)
-        .where(eq(i.payerAccountId, accountId)),
-    );
-    // References are unique across every invoice; two accounts can share the short code, so a
-    // longer one is used when the short one is taken (D14: still never a name or an email).
-    const number = (count?.n ?? 0) + 1;
-    let invoiceRef = '';
-    for (const length of [8, 12, 16, 32]) {
-      const candidate = `TP-${referenceCode(accountId, length)}-${number}`;
-      const taken = first(
-        await tx
-          .select({ id: schema.invoices.id })
-          .from(schema.invoices)
-          .where(eq(schema.invoices.invoiceRef, candidate))
-          .limit(1),
-      );
-      if (!taken) {
-        invoiceRef = candidate;
-        break;
-      }
-    }
-    if (invoiceRef === '') throw new Error('no free invoice reference for this person');
+    const invoiceRef = await nextPersonInvoiceRef(tx, accountId);
     const created = required(
       first(
         await tx
@@ -222,6 +245,19 @@ export async function startPersonCheckout(
   });
 }
 
+/**
+ * Whether a person's invoice is still inside the time it can be paid in. A renewal (T4) is linked
+ * to the plan it renews: from when it is made until the grace week after the paid period ends. A
+ * purchase, for a day. Billing History says "Not Paid" for one past it.
+ */
+export function personInvoiceInTime(
+  invoice: { readonly subscriptionId: string | null; readonly periodStart: Date },
+  now: Date,
+): boolean {
+  const payableFor = invoice.subscriptionId !== null ? RENEWAL_GRACE_MS : REUSE_OPEN_INVOICE_MS;
+  return invoice.periodStart.getTime() > now.getTime() - payableFor;
+}
+
 /** Said when a purchase is too old to pay: its period would already be partly over. */
 export const PURCHASE_EXPIRED = 'This purchase has expired. Start it again on Plan & Usage.';
 
@@ -245,6 +281,7 @@ export async function payablePersonInvoice(
         id: i.id,
         currency: i.currency,
         planId: i.planId,
+        subscriptionId: i.subscriptionId,
         periodStart: i.periodStart,
         periodEnd: i.periodEnd,
       })
@@ -253,8 +290,25 @@ export async function payablePersonInvoice(
       .limit(1),
   );
   if (!invoice) return err(serviceError('not_found', 'invoice not found'));
-  if (invoice.periodStart.getTime() <= input.now.getTime() - REUSE_OPEN_INVOICE_MS) {
+  const renewal = invoice.subscriptionId !== null;
+  if (!personInvoiceInTime(invoice, input.now)) {
     return err(refusal('purchase_expired', PURCHASE_EXPIRED));
+  }
+  if (invoice.subscriptionId !== null) {
+    const current = first(
+      await db
+        .select({ id: personSubscriptions.id })
+        .from(personSubscriptions)
+        .where(
+          and(
+            eq(personSubscriptions.id, invoice.subscriptionId),
+            eq(personSubscriptions.payerAccountId, self.accountId),
+            isNull(personSubscriptions.endedAt),
+          ),
+        )
+        .limit(1),
+    );
+    if (!current) return err(refusal('purchase_expired', PURCHASE_EXPIRED));
   }
   const offered = first(
     await db
@@ -270,7 +324,15 @@ export async function payablePersonInvoice(
       .limit(1),
   );
   if (!offered) return err(refusal('plan_not_for_sale', 'This plan is not for sale.'));
-  if (await coveringPaidPeriod(db, self.accountId, input.now)) {
+  const covering = await coveringPaidPeriod(db, self.accountId, input.now);
+  // The period a renewal follows covers them until it starts; anything else covering them now
+  // means this would pay twice for the same days.
+  const renewsCovering =
+    renewal &&
+    covering !== undefined &&
+    covering.planId === invoice.planId &&
+    covering.periodEnd.getTime() <= invoice.periodStart.getTime();
+  if (covering && !renewsCovering) {
     return err(refusal('already_covered', ALREADY_COVERED));
   }
   const overlapping = first(
@@ -371,4 +433,551 @@ export function personAttemptWriter(
       ),
       'payment attempt',
     ) as unknown as PaymentAttempt;
+}
+
+// --- Renewing a paid plan (ADR 0025 T4, D4) ------------------------------------------------------
+//
+// A paid plan is renewed by paying a link, never charged by itself. Lock order everywhere here is
+// the recording's: the person's open renewal invoices first (row locks), then their billing lock.
+
+/** A renewal is made, and reminders start, 7 calendar days before the last paid day (D4). */
+export const RENEWAL_NOTICE_DAYS = 7;
+/** A higher price reaches a renewal only when it was set at least this long before it starts. */
+const PRICE_NOTICE_MS = 30 * DAY_MS;
+const PLAN_PATH = '/app/account/plan';
+
+/** Payment attempts still on their way: a renewal being paid now is never cancelled under it. */
+export const IN_FLIGHT_ATTEMPTS = ['CREATED', 'REDIRECTED', 'VALIDATED'] as const;
+
+type RenewalStage = 'd7' | 'd3' | 'd0';
+
+/**
+ * The reminder stage a paid period ending `end` (exclusive) has reached at `now`, counted in
+ * Bangladesh calendar days to its last covered day, as agency reminders are (S30): 7 to 4 days
+ * before, 3 to 1 days before, then the last day itself and the grace week after it.
+ */
+function renewalStage(end: Date, now: Date): RenewalStage | null {
+  if (now.getTime() >= end.getTime()) return 'd0';
+  const days = billingDaysUntil(new Date(end.getTime() - 1), now);
+  if (days > RENEWAL_NOTICE_DAYS) return null;
+  if (days >= 4) return 'd7';
+  if (days >= 1) return 'd3';
+  return 'd0';
+}
+
+interface RenewalState {
+  readonly subscriptionId: string;
+  readonly planId: string;
+  readonly planName: string;
+  readonly periodDays: number;
+  readonly renews: boolean;
+  /** The plan is still offered and priced in BDT now, so it can be renewed. */
+  readonly renewable: boolean;
+  /** The end (exclusive) of the last paid, unrefunded period, and what was paid for it. */
+  readonly paidUntil: Date;
+  readonly lastAmount: number;
+  readonly lastCurrency: string;
+  /** The renewal for the period after it, unless cancelled or refunded. */
+  readonly renewal: {
+    readonly id: string;
+    readonly status: string;
+    readonly amountMinorUnits: number;
+    readonly currency: string;
+  } | null;
+}
+
+/** The person's current paid traveller plan, its last paid period and its renewal, or null. */
+async function renewalState(db: Db, accountId: string, now: Date): Promise<RenewalState | null> {
+  const s = personSubscriptions;
+  const i = personInvoices;
+  const p = schema.plans;
+  const current = first(
+    await db
+      .select({
+        id: s.id,
+        planId: s.planId,
+        renews: s.renews,
+        planName: p.name,
+        planKey: p.key,
+        active: p.active,
+        periodDays: p.periodDays,
+      })
+      .from(s)
+      .innerJoin(p, and(eq(p.id, s.planId), eq(p.audience, 'TRAVELLER')))
+      .where(and(eq(s.payerAccountId, accountId), isNull(s.endedAt)))
+      .limit(1),
+  );
+  if (!current) return null;
+  const unrefunded = sql`not ${invoiceHasRefundSql(sql`${i.id}`)}`;
+  const last = first(
+    await db
+      .select({ periodEnd: i.periodEnd, amount: i.invoicedAmountMinorUnits, currency: i.currency })
+      .from(i)
+      .where(
+        and(
+          eq(i.subscriptionId, current.id),
+          eq(i.payerAccountId, accountId),
+          eq(i.status, 'PAID'),
+          unrefunded,
+        ),
+      )
+      .orderBy(desc(i.periodEnd))
+      .limit(1),
+  );
+  if (!last) return null;
+  const renewal = first(
+    await db
+      .select({
+        id: i.id,
+        status: i.status,
+        amountMinorUnits: i.invoicedAmountMinorUnits,
+        currency: i.currency,
+      })
+      .from(i)
+      .where(
+        and(
+          eq(i.subscriptionId, current.id),
+          eq(i.payerAccountId, accountId),
+          eq(i.periodStart, last.periodEnd),
+          ne(i.status, 'VOID'),
+          unrefunded,
+        ),
+      )
+      .limit(1),
+  );
+  const price = await priceAt(db, current.planId, now);
+  return {
+    subscriptionId: current.id,
+    planId: current.planId,
+    planName: current.planName,
+    periodDays: current.periodDays,
+    renews: current.renews,
+    renewable: current.active && current.planKey !== TRAVELLER_PLAN_KEY && forSale(price) !== null,
+    paidUntil: last.periodEnd,
+    lastAmount: last.amount,
+    lastCurrency: last.currency,
+    renewal: renewal ?? null,
+  };
+}
+
+type PriceRow = { readonly amount: number | null; readonly currency: string | null } | undefined;
+
+/** A price a plan can be sold at: priced, above zero, in BDT. */
+function forSale(price: PriceRow): number | null {
+  return price && price.amount !== null && price.amount > 0 && price.currency === 'BDT'
+    ? price.amount
+    : null;
+}
+
+/** The plan's price in force at `at`; with `setBefore`, only one set by then. */
+async function priceAt(db: Db, planId: string, at: Date, setBefore?: Date): Promise<PriceRow> {
+  const pp = schema.planPrices;
+  return first(
+    await db
+      .select({ amount: pp.priceMinorUnits, currency: pp.currency })
+      .from(pp)
+      .where(
+        and(
+          eq(pp.planId, planId),
+          lte(pp.effectiveFrom, at),
+          ...(setBefore ? [lte(pp.createdAt, setBefore)] : []),
+        ),
+      )
+      .orderBy(desc(pp.effectiveFrom), desc(pp.createdAt))
+      .limit(1),
+  );
+}
+
+/**
+ * The price of a renewal starting `start` (ADR 0025 12.1): the price set at least 30 days before
+ * it starts, else the one they paid last, and never more than the plan sells at then (a lower
+ * price reaches them at once). Null when the plan is not for sale then.
+ */
+async function renewalPrice(tx: Db, state: RenewalState, start: Date): Promise<number | null> {
+  const selling = forSale(await priceAt(tx, state.planId, start));
+  if (selling === null) return null;
+  const noticed = forSale(
+    await priceAt(tx, state.planId, start, new Date(start.getTime() - PRICE_NOTICE_MS)),
+  );
+  const paid = state.lastCurrency === 'BDT' ? state.lastAmount : selling;
+  return Math.min(noticed ?? paid, selling);
+}
+
+/**
+ * The renewal for the period after the last paid one, made once: none when one already exists
+ * for that start (a refunded one included: the period is not sold twice) or the plan is not for
+ * sale then. Its period is the plan's length from the end of the paid one, and it is linked to
+ * the subscription it renews, so paying it extends that plan. Inside both locks.
+ */
+async function makeRenewal(
+  tx: Db,
+  accountId: string,
+  state: RenewalState,
+  actorAccountId: string | null,
+): Promise<string | null> {
+  const i = personInvoices;
+  const start = state.paidUntil;
+  const existing = first(
+    await tx
+      .select({ id: i.id })
+      .from(i)
+      .where(
+        and(
+          eq(i.payerAccountId, accountId),
+          eq(i.planId, state.planId),
+          eq(i.periodStart, start),
+          ne(i.status, 'VOID'),
+        ),
+      )
+      .limit(1),
+  );
+  if (existing) return null;
+  const amount = await renewalPrice(tx, state, start);
+  if (amount === null) return null;
+  const created = required(
+    first(
+      await tx
+        .insert(i)
+        .values({
+          organizationId: null,
+          payerAccountId: accountId,
+          subscriptionId: state.subscriptionId,
+          planId: state.planId,
+          periodStart: start,
+          periodEnd: new Date(start.getTime() + state.periodDays * DAY_MS),
+          invoiceRef: await nextPersonInvoiceRef(tx, accountId),
+          invoicedAmountMinorUnits: amount,
+          currency: 'BDT',
+          dueDate: start,
+          status: 'OPEN',
+        })
+        .returning({ id: i.id }),
+    ),
+    'renewal invoice',
+  );
+  await appendAuditEvent(tx, {
+    eventType: 'PERSON_PLAN_RENEWAL_INVOICED',
+    actorAccountId,
+    action: 'MANAGE',
+    method: actorAccountId === null ? 'SYSTEM' : 'MANUAL',
+    result: 'ALLOWED',
+    resourceType: 'invoice',
+    resourceId: created.id,
+    metadata: {
+      subscriptionId: state.subscriptionId,
+      planId: state.planId,
+      amountMinorUnits: amount,
+      currency: 'BDT',
+      periodStart: start.toISOString(),
+    },
+  });
+  return created.id;
+}
+
+/**
+ * Locks the person's open renewal invoices, then their billing lock: the recording's order
+ * (invoice, then person), so a payment being recorded and this never wait on each other in a
+ * circle. Returns the locked rows.
+ */
+async function lockOwnRenewals(
+  tx: Db,
+  accountId: string,
+): Promise<readonly { readonly id: string; readonly subscriptionId: string | null }[]> {
+  const i = personInvoices;
+  const rows = await tx
+    .select({ id: i.id, subscriptionId: i.subscriptionId })
+    .from(i)
+    .where(and(eq(i.payerAccountId, accountId), eq(i.status, 'OPEN'), isNotNull(i.subscriptionId)))
+    .orderBy(i.id)
+    .for('update');
+  await lockPersonBilling(tx, accountId);
+  return rows;
+}
+
+/** Whether a payment on `invoiceId` is still on its way (it may yet be recorded). */
+async function paymentOnTheWay(tx: Db, invoiceId: string): Promise<boolean> {
+  const a = personPaymentAttempts;
+  const row = first(
+    await tx
+      .select({ id: a.id })
+      .from(a)
+      .where(and(eq(a.invoiceId, invoiceId), inArray(a.status, [...IN_FLIGHT_ATTEMPTS])))
+      .limit(1),
+  );
+  return row !== undefined;
+}
+
+/** Cancels an open renewal with nothing paid on it and no payment on its way. Inside both locks. */
+async function voidUnpaidRenewal(tx: Db, invoiceId: string, now: Date): Promise<boolean> {
+  if (await paymentOnTheWay(tx, invoiceId)) return false;
+  const i = personInvoices;
+  const updated = await tx
+    .update(i)
+    .set({ status: 'VOID', updatedAt: now })
+    .where(
+      and(
+        eq(i.id, invoiceId),
+        eq(i.status, 'OPEN'),
+        eq(i.collectedAmountMinorUnits, 0),
+        sql`not ${invoiceHasRefundSql(sql`${i.id}`)}`,
+      ),
+    )
+    .returning({ id: i.id });
+  return updated.length > 0;
+}
+
+/** What Plan & Usage shows about renewing the person's current paid plan. */
+export interface OwnRenewal {
+  readonly planName: string;
+  readonly renews: boolean;
+  /** Whether the plan is still offered: when it is not, it simply ends. */
+  readonly renewable: boolean;
+  /** The end of the last paid period (exclusive): the plan covers them until then. */
+  readonly paidUntil: Date;
+  /** After `paidUntil`, until this moment, a renewal can still be paid without losing the plan. */
+  readonly payableUntil: Date;
+  /** The renewal waiting to be paid, once made (7 days before the end). */
+  readonly openRenewal: {
+    readonly invoiceId: string;
+    readonly amountMinorUnits: number;
+    readonly currency: string;
+  } | null;
+}
+
+/** The person's current paid plan and its renewal, or null when no paid plan is theirs. */
+export async function getOwnRenewal(
+  db: Db,
+  self: SelfScope,
+  input: { readonly now?: Date } = {},
+): Promise<OwnRenewal | null> {
+  if (selfScopeProblem(self)) return null;
+  if (!(await personBillingPresent(db))) return null;
+  const state = await renewalState(db, self.accountId, input.now ?? new Date());
+  if (!state) return null;
+  const open = state.renewal?.status === 'OPEN' ? state.renewal : null;
+  return {
+    planName: state.planName,
+    renews: state.renews,
+    renewable: state.renewable,
+    paidUntil: state.paidUntil,
+    payableUntil: new Date(state.paidUntil.getTime() + RENEWAL_GRACE_MS),
+    openRenewal: open
+      ? {
+          invoiceId: open.id,
+          amountMinorUnits: open.amountMinorUnits,
+          currency: open.currency,
+        }
+      : null,
+  };
+}
+
+/** What Stop Renewing or Keep Renewing did, for the words shown after it. */
+export interface PlanRenewalChange {
+  readonly renews: boolean;
+  /** A renewal is waiting to be paid now (made at once inside the last week or the grace week). */
+  readonly renewalReady: boolean;
+  /** The last paid period has already ended (the grace week). */
+  readonly ended: boolean;
+}
+
+/**
+ * Stop Renewing or Keep Renewing the person's current paid plan. Stopping cancels the renewal
+ * waiting to be paid and its reminders (one being paid right now is left to finish: money is
+ * never refused under a person); the plan still covers them until the paid period ends. Keeping
+ * it renewing inside the last week or the grace week makes the renewal at once, so there is
+ * something to pay straight away. Audited when it changes; a repeat changes nothing.
+ */
+export async function setPlanRenewal(
+  db: Db,
+  self: SelfScope,
+  input: { readonly renews: boolean; readonly now?: Date },
+): Promise<Result<PlanRenewalChange, ServiceError>> {
+  const denied = selfScopeProblem(self);
+  if (denied) return err(denied);
+  if (!(await personBillingPresent(db))) return err(serviceError('invalid', NOT_AVAILABLE));
+  const now = input.now ?? new Date();
+  const accountId = self.accountId;
+  return db.transaction(async (tx): Promise<Result<PlanRenewalChange, ServiceError>> => {
+    await lockOwnRenewals(tx, accountId);
+    const state = await renewalState(tx, accountId, now);
+    if (!state) return err(serviceError('not_found', 'no paid plan'));
+    const ended = now.getTime() >= state.paidUntil.getTime();
+    const s = personSubscriptions;
+    const i = personInvoices;
+    let cancelled = 0;
+    if (state.renews !== input.renews) {
+      await tx.update(s).set({ renews: input.renews }).where(eq(s.id, state.subscriptionId));
+      if (!input.renews) {
+        if (
+          state.renewal?.status === 'OPEN' &&
+          (await voidUnpaidRenewal(tx, state.renewal.id, now))
+        ) {
+          cancelled++;
+        }
+        // Every reminder about a renewal of this plan stops, the one being paid included.
+        const renewals = await tx
+          .select({ id: i.id })
+          .from(i)
+          .where(and(eq(i.subscriptionId, state.subscriptionId), eq(i.payerAccountId, accountId)));
+        await cancelOwnQueuedNotifications(
+          tx,
+          self,
+          renewals.map((invoice) => invoice.id),
+        );
+      }
+      await appendAuditEvent(tx, {
+        eventType: input.renews ? 'PERSON_PLAN_RENEWAL_RESUMED' : 'PERSON_PLAN_RENEWAL_STOPPED',
+        actorAccountId: accountId,
+        action: 'MANAGE',
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        resourceType: 'subscription',
+        resourceId: state.subscriptionId,
+        metadata: { cancelledInvoices: cancelled },
+      });
+    }
+    let renewalReady = input.renews && state.renewal?.status === 'OPEN';
+    const inWindow =
+      renewalStage(state.paidUntil, now) !== null &&
+      now.getTime() < state.paidUntil.getTime() + RENEWAL_GRACE_MS;
+    if (
+      input.renews &&
+      !renewalReady &&
+      state.renewal === null &&
+      state.renewable &&
+      travellerPlansEnabled() &&
+      inWindow
+    ) {
+      renewalReady =
+        (await makeRenewal(tx, accountId, { ...state, renews: true }, accountId)) !== null;
+    }
+    return ok({ renews: input.renews, renewalReady, ended });
+  });
+}
+
+/** What the daily run did for one person. */
+export interface PersonRenewalRun {
+  readonly created: boolean;
+  readonly reminded: boolean;
+  readonly lapsed: boolean;
+  readonly cancelled: number;
+}
+
+/**
+ * The daily run's work for one person (ADR 0025 T4, D4), in one transaction under both locks, so
+ * what it decides is read again after anything the person did meanwhile:
+ * - a renewal of a plan that is no longer theirs is cancelled (unless a payment is on its way);
+ * - 7 days after the last paid period ended with nothing paid since, the plan ends: the unpaid
+ *   renewal is cancelled with its reminders and they are told. Never while a payment on the
+ *   renewal is on its way. Nothing is deleted;
+ * - while selling is on, they keep renewing and the plan is still offered: from 7 days before the
+ *   end, the renewal (once) and the reminder for the stage reached (once each: 7, 3, 0 days).
+ */
+export async function processPersonRenewal(
+  db: Db,
+  scope: SystemScope<'process-billing-cycle'>,
+  input: { readonly accountId: string; readonly now: Date; readonly selling: boolean },
+): Promise<PersonRenewalRun> {
+  if (scope.job !== 'process-billing-cycle') throw new Error('wrong job scope');
+  const { accountId, now } = input;
+  return db.transaction(async (tx): Promise<PersonRenewalRun> => {
+    const locked = await lockOwnRenewals(tx, accountId);
+    const state = await renewalState(tx, accountId, now);
+    let cancelled = 0;
+    for (const row of locked) {
+      if (state && row.subscriptionId === state.subscriptionId) continue;
+      if (await voidUnpaidRenewal(tx, row.id, now)) cancelled++;
+      await cancelQueuedNotificationsForResource(tx, row.id);
+    }
+    const nothing = { created: false, reminded: false, lapsed: false, cancelled };
+    if (!state) return nothing;
+
+    if (now.getTime() >= state.paidUntil.getTime() + RENEWAL_GRACE_MS) {
+      const renewal = state.renewal;
+      if (renewal?.status === 'OPEN' && (await paymentOnTheWay(tx, renewal.id))) return nothing;
+      await lapsePlan(tx, accountId, state, now);
+      return { ...nothing, lapsed: true };
+    }
+    if (!input.selling || !state.renews || !state.renewable) return nothing;
+    const stage = renewalStage(state.paidUntil, now);
+    if (stage === null) return nothing;
+    let renewalId = state.renewal?.status === 'OPEN' ? state.renewal.id : null;
+    let created = false;
+    if (state.renewal === null) {
+      renewalId = await makeRenewal(tx, accountId, state, null);
+      created = renewalId !== null;
+    }
+    if (renewalId === null) return { ...nothing, created };
+    const reminded = await queueRenewalReminder(tx, accountId, state, renewalId, stage, now);
+    return { ...nothing, created, reminded };
+  });
+}
+
+/** The reminder for the stage reached, once per stage. Neutral words: no amount, as every notice. */
+async function queueRenewalReminder(
+  tx: Db,
+  accountId: string,
+  state: RenewalState,
+  renewalId: string,
+  stage: RenewalStage,
+  now: Date,
+): Promise<boolean> {
+  const ended = state.paidUntil.getTime() <= now.getTime();
+  const lastDay = formatBillingDate(new Date(state.paidUntil.getTime() - 1));
+  const renewBy = formatBillingDate(new Date(state.paidUntil.getTime() + RENEWAL_GRACE_MS - 1));
+  const plan = state.planName;
+  const written = await enqueueNotificationBothChannels(tx, {
+    eventType: 'PERSON_PLAN_RENEWAL_DUE',
+    resourceId: renewalId,
+    recipientAccountId: accountId,
+    threshold: stage,
+    payload: {
+      subject: ended
+        ? `Renew ${plan} by ${renewBy}`
+        : stage === 'd0'
+          ? `${plan} ends today`
+          : `${plan} ends soon`,
+      summary: ended
+        ? `${plan} covered you until ${lastDay}. Renew it by ${renewBy} to keep it. Nothing is charged unless you pay.`
+        : `${plan} covers you until ${lastDay}. Renew it to keep your extra room. Nothing is charged unless you pay.`,
+      deepLinkPath: `${PLAN_PATH}?purchase=${renewalId}#confirm-purchase-title`,
+      timing: ended ? 'overdue' : stage === 'd0' ? 'today' : 'upcoming',
+    },
+  });
+  return written > 0;
+}
+
+/** Ends the person's plan after the grace week: cancels the unpaid renewal, tells them. */
+async function lapsePlan(tx: Db, accountId: string, state: RenewalState, now: Date): Promise<void> {
+  const s = personSubscriptions;
+  await tx.update(s).set({ endedAt: now }).where(eq(s.id, state.subscriptionId));
+  let cancelled = 0;
+  if (state.renewal?.status === 'OPEN') {
+    if (await voidUnpaidRenewal(tx, state.renewal.id, now)) cancelled++;
+    await cancelQueuedNotificationsForResource(tx, state.renewal.id);
+  }
+  await appendAuditEvent(tx, {
+    eventType: 'PERSON_PLAN_LAPSED',
+    actorAccountId: null,
+    action: 'MANAGE',
+    method: 'SYSTEM',
+    result: 'ALLOWED',
+    resourceType: 'subscription',
+    resourceId: state.subscriptionId,
+    metadata: {
+      planId: state.planId,
+      lastPeriodEnd: state.paidUntil.toISOString(),
+      cancelledInvoices: cancelled,
+    },
+  });
+  await enqueueNotificationBothChannels(tx, {
+    eventType: 'PERSON_PLAN_ENDED',
+    resourceId: state.subscriptionId,
+    recipientAccountId: accountId,
+    payload: {
+      subject: `${state.planName} has ended`,
+      summary: `${state.planName} has ended, so you are on Traveller Free again. Everything you stored is kept. If you are over a limit, only new uploads wait until you make room or buy a plan again.`,
+      deepLinkPath: PLAN_PATH,
+    },
+  });
 }

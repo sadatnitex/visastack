@@ -62,7 +62,10 @@ const PAYER_COLUMN_MODULES = [
   'person-billing-tables',
   'traveller-billing',
   'person-billing',
+  'person-billing-history',
   'invoice-ledger',
+  // T4: the daily run's person step reads current subscriptions in plain SQL.
+  'person-renewals',
 ] as const;
 /**
  * Exported functions that touch person billing tables without a gate and are trusted not to
@@ -78,7 +81,12 @@ const PERSON_TRUSTED: Readonly<Record<string, string>> = {
  * record is read). A function taking only a `SelfScope` that touches an applicant-owned table
  * itself, or through any other ungated function, is a violation.
  */
-const SELF_SAFE_CALLS: ReadonlySet<string> = new Set(['audit#appendAuditEvent']);
+const SELF_SAFE_CALLS: ReadonlySet<string> = new Set([
+  'audit#appendAuditEvent',
+  // T4: takes the SelfScope itself and cancels only still-queued notices addressed to that
+  // person's own account (Stop Renewing); reads nothing back. Its test: person-renewals.test.ts.
+  'notifications#cancelOwnQueuedNotifications',
+]);
 /**
  * Exported person billing functions that take no gate, each with why. Fixed, not a baseline: a new
  * function cannot be added here without a reason a reviewer reads, and an entry that no longer
@@ -706,10 +714,19 @@ function ratchet(
     changed = false;
     for (const entry of exported) {
       if (violations.has(entry.id) || entry.inAccess || options.trusted?.has(entry.id)) continue;
+      const self = options.selfGate;
+      // A listed safe call that itself takes a SelfScope acts only on that person's own rows
+      // (reviewed with its reason in SELF_SAFE_CALLS); one without a SelfScope is judged as usual.
+      if (
+        self?.safe.has(entry.id) &&
+        !entry.shape.opaque &&
+        complies(checker, entry.shape.fns, self.decls)
+      ) {
+        continue;
+      }
       entry.scan.memo.clear();
       const touches = entry.shape.roots.some((root) => touchesOwnedTable(entry.scan, root));
       let gated = !entry.shape.opaque && complies(checker, entry.shape.fns, gateDecls);
-      const self = options.selfGate;
       if (
         touches &&
         !gated &&
@@ -880,7 +897,7 @@ describe('person billing ratchet (ADR 0025)', () => {
     const personGates = gateDeclarations(program, checker, PERSON_GATE_TYPES);
     // The plain-SQL reader module is judged function by function (the others are seen by the
     // type-based ratchet above).
-    for (const module of ['traveller-billing']) {
+    for (const module of ['traveller-billing', 'person-renewals']) {
       const sf = sourceFileAt(program, real(path.join(srcDir, `${module}.ts`)));
       for (const [name, shape] of exportedFunctions(checker, sf)) {
         const id = `${module}#${name}`;

@@ -1228,11 +1228,20 @@ async function activatePersonPeriod(
   let subscriptionId: string;
   if (current && current.planId === invoice.planId) {
     subscriptionId = current.id;
+    // Buying the same plan again is asking for it again: it renews, even after Stop Renewing (T4).
+    await tx.update(s).set({ renews: true }).where(eq(s.id, current.id));
   } else {
     // A different plan's subscription that no paid period covers (`checkPersonCollection` held
     // any overlapping money) ends now; the new plan starts with the period paid for.
     if (current) {
       await tx.update(s).set({ endedAt: input.now }).where(eq(s.id, current.id));
+      // Its renewal's reminders stop now; the daily run cancels the renewal itself (T4), taking
+      // the invoice lock before the person lock as this recording does.
+      const renewals = await tx
+        .select({ id: i.id })
+        .from(i)
+        .where(and(eq(i.subscriptionId, current.id), eq(i.status, 'OPEN')));
+      for (const renewal of renewals) await cancelQueuedNotificationsForResource(tx, renewal.id);
     }
     const plan = required(
       first(

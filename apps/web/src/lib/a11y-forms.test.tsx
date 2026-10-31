@@ -1603,6 +1603,14 @@ const ADMIN: readonly Case[] = [
     ),
   },
   {
+    name: 'stop renewing a paid traveller plan (ADR 0025 T4)',
+    element: () => <travellerPlanForms.RenewalForm renews />,
+  },
+  {
+    name: 'keep renewing a paid traveller plan (ADR 0025 T4)',
+    element: () => <travellerPlanForms.RenewalForm renews={false} />,
+  },
+  {
     name: 'create or change a plan (S29)',
     element: () => (
       <planForms.PlanForm

@@ -93,6 +93,16 @@ export function billingDaysUntil(value: Date | string, now: Date = new Date()): 
  * A period is stored with an exclusive end (the next period starts at that moment), so the last
  * day shown is the stored end minus one day. The one place a period is written (S30).
  */
+/**
+ * "30 Oct 2026 to 29 Nov 2026" for a period that can start at any moment (a person's own paid
+ * plan): its last day is the day of its last covered moment, as Plan & Usage and the reminders
+ * say it. Agency periods start at the start of a day and keep `formatBillingPeriod`.
+ */
+export function formatCoveredPeriod(start: Date | string, end: Date | string): string {
+  const last = new Date(toDate(end).getTime() - 1);
+  return `${formatBillingDate(start)} to ${formatBillingDate(last)}`;
+}
+
 export function formatBillingPeriod(start: Date | string, end: Date | string): string {
   const last = new Date(toDate(end).getTime() - 86_400_000);
   return `${formatBillingDate(start)} to ${formatBillingDate(last)}`;
