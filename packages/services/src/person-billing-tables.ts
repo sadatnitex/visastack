@@ -1,5 +1,4 @@
-import { schema } from '@visastack/db';
-import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 /**
  * The billing tables as a person's own billing sees them (ADR 0025, migration 0110): the same
@@ -21,6 +20,36 @@ import { boolean, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg
  * Constraints, indexes and foreign keys live in the database (migrations 0110 and 0111) and are
  * not repeated here.
  */
+
+// The enum types these tables use, declared here by their database names rather than read from
+// `schema` when this module loads: tests that stand in for @visastack/db must still be able to
+// load the services. person-billing-tables.test.ts keeps every value equal to schema.ts.
+export const personInvoiceStatus = pgEnum('invoice_status', [
+  'OPEN',
+  'PARTIALLY_PAID',
+  'PAID',
+  'VOID',
+]);
+export const personPaymentAttemptStatus = pgEnum('payment_attempt_status', [
+  'CREATED',
+  'REDIRECTED',
+  'VALIDATED',
+  'RECORDED',
+  'FAILED',
+  'CANCELLED',
+  'EXPIRED',
+  'HELD_FOR_REVIEW',
+  'REFUNDED',
+]);
+export const personPaymentMode = pgEnum('payment_mode', ['TEST', 'LIVE']);
+export const personRefundMethod = pgEnum('refund_method', ['PROVIDER', 'MANUAL']);
+export const personRefundStatus = pgEnum('refund_status', [
+  'REQUESTED',
+  'SUBMITTED',
+  'CONFIRMED',
+  'FAILED',
+  'CANCELLED',
+]);
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -52,7 +81,7 @@ export const personInvoices = pgTable('invoices', {
   invoicedAmountMinorUnits: integer('invoiced_amount_minor_units').notNull(),
   currency: text('currency').notNull(),
   dueDate: timestamp('due_date', { withTimezone: true }).notNull(),
-  status: schema.invoiceStatus('status').notNull().default('OPEN'),
+  status: personInvoiceStatus('status').notNull().default('OPEN'),
   collectedAmountMinorUnits: integer('collected_amount_minor_units').notNull().default(0),
   collectedDate: timestamp('collected_date', { withTimezone: true }),
   paymentReference: text('payment_reference'),
@@ -68,14 +97,14 @@ export const personPaymentAttempts = pgTable('payment_attempts', {
   merchantTranId: text('merchant_tran_id').notNull(),
   amountMinorUnits: integer('amount_minor_units').notNull(),
   currency: text('currency').notNull(),
-  status: schema.paymentAttemptStatus('status').notNull().default('CREATED'),
+  status: personPaymentAttemptStatus('status').notNull().default('CREATED'),
   providerSessionKey: text('provider_session_key'),
   providerValId: text('provider_val_id'),
   bankTranId: text('bank_tran_id'),
   riskLevel: integer('risk_level'),
   lastProviderStatus: text('last_provider_status'),
   reasonCode: text('reason_code'),
-  mode: schema.paymentMode('mode').notNull(),
+  mode: personPaymentMode('mode').notNull(),
   initiatedByAccountId: uuid('initiated_by_account_id'),
   redirectedAt: timestamp('redirected_at', { withTimezone: true }),
   lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
@@ -90,8 +119,8 @@ export const personRefundRequests = pgTable('refund_requests', {
   invoiceId: uuid('invoice_id').notNull(),
   invoicePaymentId: uuid('invoice_payment_id'),
   paymentAttemptId: uuid('payment_attempt_id'),
-  method: schema.refundMethod('method').notNull(),
-  status: schema.refundStatus('status').notNull().default('REQUESTED'),
+  method: personRefundMethod('method').notNull(),
+  status: personRefundStatus('status').notNull().default('REQUESTED'),
   amountMinorUnits: integer('amount_minor_units').notNull(),
   currency: text('currency').notNull(),
   provider: text('provider'),
