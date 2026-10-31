@@ -1,6 +1,7 @@
-import { asc, eq, sql } from 'drizzle-orm';
-import { type Db, schema } from './db';
+import type { AiFeatureEntitlement, AiFeatureKey } from '@visastack/core/ai-features';
+import type { Db } from './db';
 import { resolveEntitlements } from './entitlements';
+import { listOwnedApplicantEvidenceBytes } from './quotas';
 
 /** One traveller profile the account owns, and the evidence bytes it holds. */
 export interface TravellerProfileStorage {
@@ -12,6 +13,11 @@ export interface TravellerProfileStorage {
 export interface TravellerPlanSummary {
   /** The plan every traveller is on (Traveller Free), or null when no plan row exists. */
   readonly plan: { readonly key: string; readonly name: string } | null;
+  /**
+   * What the plan itself gives for each AI feature (set on the admin Plans page), apart from
+   * whether the feature works right now (that is `getAiUsageToday`).
+   */
+  readonly features: Readonly<Record<AiFeatureKey, AiFeatureEntitlement>> | null;
   /** Evidence bytes across every profile the account owns (the account storage limit counts these). */
   readonly usedBytes: number;
   /** Each owned profile with its own bytes (each profile has its own storage limit), oldest first. */
@@ -21,41 +27,22 @@ export interface TravellerPlanSummary {
 /**
  * The signed-in traveller's own plan and storage, for Plan & Usage. Scoped to the actor: it reads
  * only the profiles that account owns, never anyone else's. Every traveller is on the traveller
- * plan (no traveller subscriptions yet); its AI rules are read with `getAiUsageToday`, and its
- * capacity limits are not enforced on travellers, so none are returned. The bytes use the same
- * definition as the upload limits (`getAccountEvidenceBytes`, `getApplicantEvidenceBytes`): every
- * stored version of every document.
+ * plan (no traveller subscriptions yet). The plan's capacity limits (seats, cases) are agency
+ * limits not enforced on travellers, so none are returned. Storage is counted exactly as the
+ * upload limits count it (quotas.ts).
  */
 export async function getTravellerPlanSummary(
   db: Db,
   input: { readonly actorAccountId: string; readonly now?: Date },
 ): Promise<TravellerPlanSummary> {
-  const [entitlements, rows] = await Promise.all([
+  const [entitlements, profiles] = await Promise.all([
     resolveEntitlements(db, { accountId: input.actorAccountId }, input.now ?? new Date()),
-    db
-      .select({
-        applicantId: schema.applicants.id,
-        displayName: schema.applicants.displayName,
-        usedBytes: sql<string>`coalesce(sum(${schema.documentVersions.sizeBytes}), 0)`,
-      })
-      .from(schema.applicants)
-      .leftJoin(schema.documents, eq(schema.documents.applicantId, schema.applicants.id))
-      .leftJoin(
-        schema.documentVersions,
-        eq(schema.documentVersions.documentId, schema.documents.id),
-      )
-      .where(eq(schema.applicants.ownerAccountId, input.actorAccountId))
-      .groupBy(schema.applicants.id)
-      .orderBy(asc(schema.applicants.createdAt), asc(schema.applicants.id)),
+    listOwnedApplicantEvidenceBytes(db, input.actorAccountId),
   ]);
-  const profiles = rows.map((row) => ({
-    applicantId: row.applicantId,
-    displayName: row.displayName,
-    usedBytes: Number(row.usedBytes),
-  }));
   const plan = entitlements.plan;
   return {
     plan: plan ? { key: plan.key, name: plan.name } : null,
+    features: entitlements.features,
     usedBytes: profiles.reduce((total, profile) => total + profile.usedBytes, 0),
     profiles,
   };

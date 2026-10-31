@@ -73,6 +73,10 @@ describe('getTravellerPlanSummary', () => {
     const summary = await getTravellerPlanSummary(db, { actorAccountId: accountId });
     expect(summary.plan?.key).toBe(TRAVELLER_PLAN_KEY);
     expect(summary.plan?.name.length).toBeGreaterThan(0);
+    // The plan's own rule for each traveller AI feature, apart from whether it works now.
+    expect(summary.features?.ai_automatic_reading).toEqual(
+      expect.objectContaining({ included: expect.any(Boolean) }),
+    );
   });
 
   it('counts storage per owned profile and in total, the same way the upload limits do', async () => {

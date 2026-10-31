@@ -1126,6 +1126,7 @@ export {
   DEFAULT_UPLOAD_QUOTAS,
   type UploadQuotaConfig,
   getAccountEvidenceBytes,
+  listOwnedApplicantEvidenceBytes,
   getApplicantEvidenceBytes,
   getOrganizationEvidenceBytes,
   getPlatformEvidenceBytes,

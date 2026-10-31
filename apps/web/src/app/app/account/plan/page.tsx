@@ -1,39 +1,15 @@
 import { AI_DAY_BOUNDARY_NOTE } from '@visastack/core/ai-features';
-import {
-  type AiUsageToday,
-  getTravellerPlanSummary,
-  loadUploadQuotaConfig,
-  mbLabel,
-} from '@visastack/services';
+import { getTravellerPlanSummary, loadUploadQuotaConfig, mbLabel } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
-import { readAiUsage, usageLine } from '../../../../lib/ai-usage';
+import { planFeatureView, readAiUsage } from '../../../../lib/ai-usage';
 import { withSession } from '../../../../lib/session';
 import { UsageMeter } from '../../applicant/[id]/usage-meter';
 
 export const metadata: Metadata = { title: 'Plan & Usage' };
 
 export const dynamic = 'force-dynamic';
-
-/** What the plan gives for one AI feature today, in the traveller's words. */
-function featureStatus(feature: AiUsageToday): { readonly label: string; readonly tone: string } {
-  if (feature.available) return { label: 'Included', tone: 'badge-success' };
-  switch (feature.reason) {
-    case 'daily_limit':
-      return { label: 'Limit Reached Today', tone: 'badge-warning' };
-    case 'not_in_plan':
-      return { label: 'Not in Your Plan', tone: 'badge-neutral' };
-    default:
-      return { label: 'Off for Now', tone: 'badge-neutral' };
-  }
-}
-
-/** "No daily limit" or "Up to 15 a day", for a feature the plan includes. */
-function limitWords(feature: AiUsageToday): string | null {
-  if (feature.reason === 'not_in_plan') return null;
-  return feature.dailyLimit === null ? 'No daily limit' : `Up to ${feature.dailyLimit} a day`;
-}
 
 /**
  * Plan & Usage for a traveller (owner request 2026-10-31): the plan every traveller is on, what it
@@ -71,7 +47,7 @@ export default async function TravellerPlanPage() {
         <article className="card" aria-labelledby="current-plan-title">
           <p className="card-kicker">Current Plan</p>
           <h2 className="card-title" id="current-plan-title">
-            {summary.plan?.name ?? 'Founding Access'}
+            {summary.plan?.name ?? 'Your Plan'}
           </h2>
           <p className="card-body">
             Complimentary during public beta. No payment method is required. Fair-use safeguards and
@@ -111,7 +87,8 @@ export default async function TravellerPlanPage() {
           ) : (
             <p className="muted u-fs-085">
               Each person you keep a record for can hold up to{' '}
-              {mbLabel(quota.maxApplicantEvidenceBytes)}.
+              {mbLabel(quota.maxApplicantEvidenceBytes)}. When you share a record with an agency,
+              that agency's own plan can also limit what more can be added to it.
             </p>
           )}
         </article>
@@ -124,24 +101,31 @@ export default async function TravellerPlanPage() {
             AI Features
           </h2>
           <p className="card-body">
-            Each feature, whether your plan includes it, and how much you used it today. Only the
-            number is kept, never what was read. Everything in VisaStack works without these
-            features.
+            Whether your plan includes each feature, whether it works right now, and how much you
+            used it today. Only the number is kept, never what was read. Everything in VisaStack
+            works without these features.
           </p>
           <div className="rows rows-grid u-mt-050">
             {aiUsage.map((feature) => {
-              const status = featureStatus(feature);
-              const limit = limitWords(feature);
+              const view = planFeatureView(feature, summary.features?.[feature.feature]);
               return (
                 <div className="row" key={feature.feature}>
                   <span className="row-key">{feature.name}</span>
                   <span className="row-val">
-                    <span className={`badge ${status.tone}`}>{status.label}</span>
+                    <span className={`badge ${view.inPlan ? 'badge-success' : 'badge-neutral'}`}>
+                      {view.inPlan ? 'In Your Plan' : 'Not in Your Plan'}
+                    </span>{' '}
+                    {view.now ? (
+                      <span className={`badge ${view.now.tone}`}>
+                        <span className="sr-only">Now: </span>
+                        {view.now.label}
+                      </span>
+                    ) : null}
                   </span>
-                  <span className="muted u-fs-085">
-                    {limit ? `${limit}. ` : ''}
-                    {usageLine(feature)}.
-                  </span>
+                  {view.detail ? <span className="muted u-fs-085">{view.detail}</span> : null}
+                  {view.offSentence ? (
+                    <span className="muted u-fs-085">{view.offSentence}</span>
+                  ) : null}
                 </div>
               );
             })}
