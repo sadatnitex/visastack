@@ -7,9 +7,13 @@ import {
   isModuleSuggested,
 } from '@visastack/core/catalogue';
 import {
+  accountPrincipal,
   editFact,
   listMissions,
+  markFactNotCurrent,
+  markRecordEnded,
   registerFieldDefinition,
+  requireAccess,
   setExemption,
   setSectionOpen,
 } from '@visastack/services';
@@ -156,4 +160,88 @@ export async function saveOtherItemAction(
   });
   if (result.ok) refresh(applicantId);
   return result;
+}
+
+/** Plain words for a refusal from the two lifecycle marks. Never the engineering message. */
+function markRefusal(code: string): string {
+  if (code === 'forbidden') return 'Only the profile owner can change this.';
+  if (code === 'consent_required') {
+    return 'Turn on \u201cLet VisaStack Process My Details\u201d on Home first.';
+  }
+  if (code === 'not_found') return 'This detail is no longer here. Reload the page.';
+  if (code === 'encryption_unavailable') return 'Protected details cannot be changed right now.';
+  return 'This could not be saved. Try again.';
+}
+
+/** LC-G1: say one saved value is no longer current. Its earlier versions stay in History. */
+export async function markNotCurrentAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = text(formData, 'applicantId');
+  const factId = text(formData, 'factId');
+  if (factId === '') return { ok: false, message: 'Choose a detail first.' };
+  const result = await withSession(async ({ db, accountId }) => {
+    const gate = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'APPROVE_EDIT',
+      { applicantId },
+      { purpose: 'profile_edit' },
+    );
+    if (!gate.ok) return gate;
+    return markFactNotCurrent(gate.value, { factId });
+  });
+  if (!result.ok) return { ok: false, message: markRefusal(result.error.code) };
+  refresh(applicantId);
+  return {
+    ok: true,
+    message: 'Marked as no longer current. The earlier value stays in History.',
+  };
+}
+
+/** LC-G1: say one entry in a list ended (an old address, a past job). Its details stay on file. */
+export async function markEndedAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = text(formData, 'applicantId');
+  const recordGroupKey = text(formData, 'recordGroupKey');
+  const repeatingRecordKey = text(formData, 'repeatingRecordKey');
+  const endedText = text(formData, 'endedOn');
+  if (recordGroupKey === '' || repeatingRecordKey === '') {
+    return { ok: false, message: 'Choose an entry first.' };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(endedText)) {
+    return { ok: false, message: 'Enter the date it ended.', field: 'endedOn' };
+  }
+  const endedOn = new Date(`${endedText}T00:00:00.000Z`);
+  if (Number.isNaN(endedOn.getTime())) {
+    return { ok: false, message: 'Enter a valid date.', field: 'endedOn' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const gate = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'APPROVE_EDIT',
+      { applicantId },
+      { purpose: 'profile_edit' },
+    );
+    if (!gate.ok) return gate;
+    const encryption = createKeyManagementPort();
+    return markRecordEnded(gate.value, {
+      recordGroupKey,
+      repeatingRecordKey,
+      endedOn,
+      ...(encryption ? { encryption } : {}),
+    });
+  });
+  if (!result.ok) {
+    if (result.error.code === 'invalid' && result.error.message.includes('future')) {
+      return { ok: false, message: 'The end date cannot be in the future.', field: 'endedOn' };
+    }
+    return { ok: false, message: markRefusal(result.error.code) };
+  }
+  refresh(applicantId);
+  return { ok: true, message: 'Marked as ended. Its details stay on file.' };
 }

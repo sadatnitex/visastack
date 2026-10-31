@@ -10,6 +10,7 @@ import {
   listApplicantAssurance,
   listApplicantProfile,
   listDocumentsDetailed,
+  listEndedRecords,
   listMissions,
   listPendingAppSuggestions,
   requireAccess,
@@ -80,34 +81,52 @@ export default async function ApplicantProfilePage({
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const [profile, coreGranted, assurance, sectionChoices, documents, photoUrl, fromApps] =
-      await Promise.all([
-        listApplicantProfile(db, id),
-        hasConsent(db, accountId, 'CORE_PROCESSING'),
-        listApplicantAssurance(db, { actorAccountId: accountId, applicantId: id }),
-        getProfileSectionState(db, id),
-        Promise.all([
-          getWalletView(db, { actorAccountId: accountId, applicantId: id }),
-          listDocumentsDetailed(db, accountId, id),
-        ]),
-        ownedPhotoUrl(db, accountId, id),
-        // Suggestions the person's own AI apps made about the profile itself, with no document
-        // (S21). They stay here to decide whether or not AI App Suggestions is on.
-        requireAccess(
-          db,
-          accountPrincipal(accountId),
-          'VIEW_METADATA',
-          { applicantId: id },
-          { purpose: 'ai_app_suggestions' },
-        ).then(async (gate) =>
-          gate.ok
-            ? {
-                pending: await listPendingAppSuggestions(gate.value),
-                inUse: await aiSuggestionsInUse(gate.value),
-              }
-            : { pending: [], inUse: false },
-        ),
-      ]);
+    const [
+      profile,
+      coreGranted,
+      assurance,
+      sectionChoices,
+      documents,
+      photoUrl,
+      fromApps,
+      endedRecords,
+    ] = await Promise.all([
+      listApplicantProfile(db, id),
+      hasConsent(db, accountId, 'CORE_PROCESSING'),
+      listApplicantAssurance(db, { actorAccountId: accountId, applicantId: id }),
+      getProfileSectionState(db, id),
+      Promise.all([
+        getWalletView(db, { actorAccountId: accountId, applicantId: id }),
+        listDocumentsDetailed(db, accountId, id),
+      ]),
+      ownedPhotoUrl(db, accountId, id),
+      // Suggestions the person's own AI apps made about the profile itself, with no document
+      // (S21). They stay here to decide whether or not AI App Suggestions is on.
+      requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'VIEW_METADATA',
+        { applicantId: id },
+        { purpose: 'ai_app_suggestions' },
+      ).then(async (gate) =>
+        gate.ok
+          ? {
+              pending: await listPendingAppSuggestions(gate.value),
+              inUse: await aiSuggestionsInUse(gate.value),
+            }
+          : { pending: [], inUse: false },
+      ),
+      // LC-G1: the list entries the person said have ended, so each shows "Ended" with its date.
+      requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'VIEW_METADATA',
+        { applicantId: id },
+        { purpose: 'profile_view' },
+      ).then(async (gate) =>
+        gate.ok ? await listEndedRecords(gate.value) : new Map<string, string>(),
+      ),
+    ]);
     // How many usable copies of each kind are in the wallet, so each section can say what backs
     // it. Usable: shown in the wallet, not expired or replaced, and not failed or quarantined.
     // When either list cannot load, the counts stay unknown rather than reading as "none".
@@ -157,6 +176,7 @@ export default async function ApplicantProfilePage({
       // itself. A denial here (a caller who somehow isn't the owner) just
       // means no breakdown renders, never a page error.
       assurance: assurance.ok ? assurance.value : [],
+      endedRecords: Object.fromEntries(endedRecords),
     };
   });
 
@@ -312,6 +332,7 @@ export default async function ApplicantProfilePage({
                 view={view}
                 // A link that asks for everything, or details that disagree, open every section.
                 startWithAll={viewParam === 'all' || conflictedCount > 0}
+                endedRecords={data.endedRecords}
               />
             ) : (
               <EmptyState

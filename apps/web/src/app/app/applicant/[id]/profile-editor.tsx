@@ -1,7 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useEffect, useId, useRef, useState } from 'react';
+import {
+  createContext,
+  useActionState,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react';
 import {
   FormMessage,
   SubmitButton,
@@ -20,6 +28,8 @@ import type {
 import { plural } from '../../../../lib/plural';
 import { type ActionState, saveFactAction } from './actions';
 import {
+  markEndedAction,
+  markNotCurrentAction,
   openSuggestedSectionsAction,
   saveOtherItemAction,
   setExemptionAction,
@@ -37,7 +47,8 @@ const STATUS_LABELS: Record<string, string> = {
   DOCUMENT_SUPPORTED: 'Document-supported',
   AGENCY_REVIEWED: 'Agency-reviewed',
   CONFLICTED: 'Conflicted',
-  STALE: 'Stale',
+  // LC-G1: the person said this value is no longer current (the version holds no value).
+  STALE: 'No Longer Current',
 };
 
 const SENSITIVITY_LABELS: Record<string, string> = {
@@ -401,6 +412,102 @@ function ExemptionToggle({
   );
 }
 
+/** LC-G1: entry key to the date it ended (ISO), for the entries the person said have ended. */
+const EndedRecordsContext = createContext<ReadonlyMap<string, string>>(new Map());
+
+/** A saved value that is still current: something is on file and it was not marked no longer current. */
+function isCurrentValue(current: ProfileValue | undefined): boolean {
+  if (!current) return false;
+  if (current.status === 'STALE' && !current.value) return false;
+  return Boolean(current.value || current.status);
+}
+
+/** "No Longer Current" for one saved value. Reversible by entering a new value. */
+function NotCurrentControl({
+  applicantId,
+  field,
+  factId,
+}: {
+  readonly applicantId: string;
+  readonly field: EditorFieldDef;
+  readonly factId: string;
+}) {
+  const [state, formAction, pending] = useActionState(markNotCurrentAction, INITIAL);
+  const messageId = useId();
+  return (
+    <form action={formAction} className="profile-lifecycle-mark">
+      <input type="hidden" name="applicantId" value={applicantId} />
+      <input type="hidden" name="factId" value={factId} />
+      <SubmitButton
+        pending={pending}
+        idle="No Longer Current"
+        busy="Saving…"
+        className="btn btn-secondary btn-compact"
+        label={`No Longer Current: ${field.label}`}
+      />
+      <FormMessage id={messageId} result={state} />
+    </form>
+  );
+}
+
+/** "Ended" for one saved entry of a list, or the note that it ended. */
+function RecordEndState({
+  applicantId,
+  group,
+  recordKey,
+  endedOn,
+}: {
+  readonly applicantId: string;
+  readonly group: EditorGroup;
+  readonly recordKey: string;
+  readonly endedOn: string | undefined;
+}) {
+  const [state, formAction, pending] = useActionState(markEndedAction, INITIAL);
+  const formRef = useRef<HTMLFormElement>(null);
+  const messageId = useId();
+  const dateId = useId();
+  useFocusInvalidField(formRef, state);
+  if (endedOn) {
+    return (
+      <div className="profile-record-ended">
+        <span className="badge badge-neutral">Ended</span>
+        <p className="muted u-fs-075-m0">
+          Ended on {formatDateOnly(endedOn)}. Its details stay on file. Save a change below to make
+          it current again.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <details className="profile-record-end">
+      <summary className="muted">This {group.label} Ended</summary>
+      <form ref={formRef} action={formAction} className="field-control">
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="recordGroupKey" value={group.key} />
+        <input type="hidden" name="repeatingRecordKey" value={recordKey} />
+        <label className="field-label" htmlFor={dateId}>
+          Date It Ended
+        </label>
+        <input
+          id={dateId}
+          type="date"
+          name="endedOn"
+          className="input"
+          required
+          {...fieldProblem(state, 'endedOn', messageId)}
+        />
+        <SubmitButton
+          pending={pending}
+          idle="Mark as Ended"
+          busy="Saving…"
+          className="btn btn-secondary btn-compact"
+        />
+      </form>
+      <FormMessage id={messageId} result={state} />
+    </details>
+  );
+}
+
 interface RepeatingGroupProps {
   readonly applicantId: string;
   readonly group: EditorGroup;
@@ -416,6 +523,7 @@ function RepeatingGroup({ applicantId, group, repeatingValues, assurance }: Repe
     for (const recordKey of Object.keys(repeatingValues[field.key] ?? {})) savedKeys.add(recordKey);
   }
   const recordKeys = [...savedKeys, ...newRecordKeys];
+  const ended = useContext(EndedRecordsContext);
 
   return (
     <div className="profile-group">
@@ -441,6 +549,14 @@ function RepeatingGroup({ applicantId, group, repeatingValues, assurance }: Repe
         <div className="profile-group-records">
           {recordKeys.map((recordKey) => (
             <div key={recordKey} className="field-list profile-group-record">
+              {savedKeys.has(recordKey) ? (
+                <RecordEndState
+                  applicantId={applicantId}
+                  group={group}
+                  recordKey={recordKey}
+                  endedOn={ended.get(recordKey)}
+                />
+              ) : null}
               {group.fields.map((field) => (
                 <FieldWithOther
                   key={field.key}
@@ -474,6 +590,7 @@ function matchesSearch(label: string, search: string): boolean {
 
 function displayValue(field: EditorFieldDef, current: ProfileValue | undefined): string {
   const value = current?.value;
+  if (!value && current?.status === 'STALE') return 'No longer current';
   if (!value) {
     return current?.status && field.sensitivity !== 'STANDARD'
       ? 'Protected detail'
@@ -638,7 +755,8 @@ function SingleField({
   readonly values: Readonly<Record<string, ProfileValue>>;
   readonly assurance: ReadonlyMap<string, FieldAssurance>;
 }) {
-  const hasValue = Boolean(values[field.key]?.value || values[field.key]?.status);
+  const current = values[field.key];
+  const hasValue = isCurrentValue(current);
   return (
     <div className="profile-field-item">
       {applies ? (
@@ -651,6 +769,14 @@ function SingleField({
       ) : (
         <p className="muted">{field.label}: marked as not applying to you.</p>
       )}
+      {applies && current && hasValue ? (
+        <NotCurrentControl applicantId={applicantId} field={field} factId={current.factId} />
+      ) : null}
+      {applies && current?.status === 'STALE' && !current.value ? (
+        <p className="muted u-fs-075-m0">
+          You said this is no longer current. Enter a new value above when you have one.
+        </p>
+      ) : null}
       {(hasValue && applies) || field.optional ? null : (
         <ExemptionToggle
           applicantId={applicantId}
@@ -1072,6 +1198,8 @@ interface ProfileEditorProps {
   readonly view: MasterProfileView;
   /** Open on every section (a link that asks for it, or details that disagree). */
   readonly startWithAll?: boolean;
+  /** LC-G1: entry key to the date it ended (ISO), for the entries the person said have ended. */
+  readonly endedRecords?: Readonly<Record<string, string>>;
 }
 
 /** Opens the first visible section's details and focuses its first field. False when none is shown. */
@@ -1096,6 +1224,7 @@ export function ProfileEditor({
   assurance,
   view,
   startWithAll = false,
+  endedRecords,
 }: ProfileEditorProps) {
   const editor = useRef<HTMLDivElement>(null);
   // Essentials First leads until every essential is added; a profile with no essentials list
@@ -1219,127 +1348,133 @@ export function ProfileEditor({
       document.getElementById(`profile-tab-${target.key}`)?.focus();
     }
   }
+  const ended = new Map(Object.entries(endedRecords ?? {}));
   return (
-    <div ref={editor} id="profile-editor" tabIndex={-1}>
-      {hasEssentials ? (
-        <EssentialsFirst
-          applicantId={applicantId}
-          view={view}
-          values={values}
-          repeatingValues={repeatingValues}
-          assurance={assurance}
-          showAll={showAll}
-          onToggle={() => setShowAll((shown) => !shown)}
-        />
-      ) : null}
-      {showAll ? (
-        <>
-          <SuggestionBar applicantId={applicantId} view={view} />
-          <div className="profile-areas">
-            <div className="profile-area-nav">
-              <div
-                className="profile-area-rail"
-                role={searching ? undefined : 'tablist'}
-                aria-orientation={searching ? undefined : 'vertical'}
-                aria-label="Profile areas"
-              >
-                {view.layers.map((layer, index) => (
-                  <button
-                    key={layer.key}
-                    type="button"
-                    role={searching ? undefined : 'tab'}
-                    id={`profile-tab-${layer.key}`}
-                    aria-selected={searching ? undefined : selected === layer.key}
-                    aria-controls={`profile-panel-${layer.key}`}
-                    tabIndex={searching || selected === layer.key ? 0 : -1}
-                    onClick={() => selectLayer(layer.key)}
-                    onKeyDown={(event) => moveBetweenAreas(event, index)}
-                  >
-                    <span className="profile-area-name">{layer.label}</span>
-                    <AreaCount layer={layer} />
-                  </button>
-                ))}
-              </div>
-              <details
-                className="profile-area-picker"
-                open={pickerOpen}
-                onToggle={(event) => setPickerOpen(event.currentTarget.open)}
-              >
-                <summary>
-                  <span className="profile-area-picker-label">Area</span>
-                  <span className="profile-area-name">{current?.label}</span>
-                  {current ? <AreaCount layer={current} /> : null}
-                </summary>
-                <div className="profile-area-picker-list">
-                  {view.layers.map((layer) => (
+    <EndedRecordsContext.Provider value={ended}>
+      <div ref={editor} id="profile-editor" tabIndex={-1}>
+        {hasEssentials ? (
+          <EssentialsFirst
+            applicantId={applicantId}
+            view={view}
+            values={values}
+            repeatingValues={repeatingValues}
+            assurance={assurance}
+            showAll={showAll}
+            onToggle={() => setShowAll((shown) => !shown)}
+          />
+        ) : null}
+        {showAll ? (
+          <>
+            <SuggestionBar applicantId={applicantId} view={view} />
+            <div className="profile-areas">
+              <div className="profile-area-nav">
+                <div
+                  className="profile-area-rail"
+                  role={searching ? undefined : 'tablist'}
+                  aria-orientation={searching ? undefined : 'vertical'}
+                  aria-label="Profile areas"
+                >
+                  {view.layers.map((layer, index) => (
                     <button
                       key={layer.key}
                       type="button"
-                      aria-current={!searching && selected === layer.key ? 'true' : undefined}
-                      onClick={() => chooseFromPicker(layer.key)}
+                      role={searching ? undefined : 'tab'}
+                      id={`profile-tab-${layer.key}`}
+                      aria-selected={searching ? undefined : selected === layer.key}
+                      aria-controls={`profile-panel-${layer.key}`}
+                      tabIndex={searching || selected === layer.key ? 0 : -1}
+                      onClick={() => selectLayer(layer.key)}
+                      onKeyDown={(event) => moveBetweenAreas(event, index)}
                     >
                       <span className="profile-area-name">{layer.label}</span>
                       <AreaCount layer={layer} />
                     </button>
                   ))}
                 </div>
-              </details>
-            </div>
-            <div className="profile-area-content">
-              <Link href={`/app/applicant/${applicantId}/history`} className="profile-history-link">
-                History →
-              </Link>
-              <div className="profile-field-search">
-                <label className="field-label" htmlFor="profile-search">
-                  Search All Profile Fields
-                </label>
-                <input
-                  id="profile-search"
-                  type="search"
-                  className="input"
-                  placeholder="e.g. passport, address, employer"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
+                <details
+                  className="profile-area-picker"
+                  open={pickerOpen}
+                  onToggle={(event) => setPickerOpen(event.currentTarget.open)}
+                >
+                  <summary>
+                    <span className="profile-area-picker-label">Area</span>
+                    <span className="profile-area-name">{current?.label}</span>
+                    {current ? <AreaCount layer={current} /> : null}
+                  </summary>
+                  <div className="profile-area-picker-list">
+                    {view.layers.map((layer) => (
+                      <button
+                        key={layer.key}
+                        type="button"
+                        aria-current={!searching && selected === layer.key ? 'true' : undefined}
+                        onClick={() => chooseFromPicker(layer.key)}
+                      >
+                        <span className="profile-area-name">{layer.label}</span>
+                        <AreaCount layer={layer} />
+                      </button>
+                    ))}
+                  </div>
+                </details>
               </div>
-              {searching && visibleLayers.length === 0 ? (
-                <output className="muted">No fields match. Try another field name.</output>
-              ) : null}
-              {view.layers.map((layer) => {
-                const visible = visibleLayers.some((item) => item.key === layer.key);
-                return (
-                  <section
-                    key={layer.key}
-                    id={`profile-panel-${layer.key}`}
-                    role={searching ? undefined : 'tabpanel'}
-                    aria-labelledby={`profile-tab-${layer.key}`}
-                    hidden={!visible}
-                  >
-                    <h3>{layer.label}</h3>
-                    <p className="muted">
-                      {layer.description} {layer.openCount} of {layer.sections.length} sections
-                      open.
-                    </p>
-                    {layer.sections
-                      .filter((section) => sectionMatches(section, search))
-                      .map((section) => (
-                        <SectionCard
-                          key={section.key}
-                          applicantId={applicantId}
-                          section={section}
-                          values={values}
-                          repeatingValues={repeatingValues}
-                          assurance={assurance}
-                          search={search}
-                        />
-                      ))}
-                  </section>
-                );
-              })}
+              <div className="profile-area-content">
+                <Link
+                  href={`/app/applicant/${applicantId}/history`}
+                  className="profile-history-link"
+                >
+                  History →
+                </Link>
+                <div className="profile-field-search">
+                  <label className="field-label" htmlFor="profile-search">
+                    Search All Profile Fields
+                  </label>
+                  <input
+                    id="profile-search"
+                    type="search"
+                    className="input"
+                    placeholder="e.g. passport, address, employer"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                </div>
+                {searching && visibleLayers.length === 0 ? (
+                  <output className="muted">No fields match. Try another field name.</output>
+                ) : null}
+                {view.layers.map((layer) => {
+                  const visible = visibleLayers.some((item) => item.key === layer.key);
+                  return (
+                    <section
+                      key={layer.key}
+                      id={`profile-panel-${layer.key}`}
+                      role={searching ? undefined : 'tabpanel'}
+                      aria-labelledby={`profile-tab-${layer.key}`}
+                      hidden={!visible}
+                    >
+                      <h3>{layer.label}</h3>
+                      <p className="muted">
+                        {layer.description} {layer.openCount} of {layer.sections.length} sections
+                        open.
+                      </p>
+                      {layer.sections
+                        .filter((section) => sectionMatches(section, search))
+                        .map((section) => (
+                          <SectionCard
+                            key={section.key}
+                            applicantId={applicantId}
+                            section={section}
+                            values={values}
+                            repeatingValues={repeatingValues}
+                            assurance={assurance}
+                            search={search}
+                          />
+                        ))}
+                    </section>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </>
-      ) : null}
-    </div>
+          </>
+        ) : null}
+      </div>
+    </EndedRecordsContext.Provider>
   );
 }
