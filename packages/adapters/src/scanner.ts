@@ -190,6 +190,12 @@ export interface BasicSafetyScannerOptions {
   readonly blobStore: BlobStore;
   /** Reject anything larger than this many bytes (default 25 MiB). */
   readonly maxBytes?: number;
+  /**
+   * Admit a structurally well-formed PDF without an antivirus verdict (owner decision, ADR 0024).
+   * Content stays unverified until a real scanner is switched on; the scan record says so.
+   * Defaults to false: this file still never claims to establish PDF content safety.
+   */
+  readonly allowPdf?: boolean;
 }
 
 export class BasicSafetyScanner implements MalwareScannerPort {
@@ -197,10 +203,12 @@ export class BasicSafetyScanner implements MalwareScannerPort {
   readonly version = SCANNER_VERSION;
   private readonly blobStore: BlobStore;
   private readonly maxBytes: number;
+  private readonly allowPdf: boolean;
 
   constructor(options: BasicSafetyScannerOptions) {
     this.blobStore = options.blobStore;
     this.maxBytes = options.maxBytes ?? 25 * 1024 * 1024;
+    this.allowPdf = options.allowPdf ?? false;
   }
 
   async scan(input: { bucket: 'QUARANTINE' | 'CLEAN'; objectKey: string }): Promise<ScanResult> {
@@ -209,7 +217,7 @@ export class BasicSafetyScanner implements MalwareScannerPort {
 
     const result = structuralCheck(object.bytes, object.contentType, {
       maxBytes: this.maxBytes,
-      allowPdf: false,
+      allowPdf: this.allowPdf,
     });
     return { safe: result.accepted, detail: result.detail };
   }

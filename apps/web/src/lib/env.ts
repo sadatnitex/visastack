@@ -36,3 +36,12 @@ export function isClamAvConfigured(): boolean {
     (isPresent('CLAMAV_SOCKET_PATH') || (isPresent('CLAMAV_HOST') && isPresent('CLAMAV_PORT')))
   );
 }
+
+/**
+ * The owner's `PDF_UPLOADS` switch (ADR 0024). PDFs are on unless it says off, in any of the
+ * usual spellings; one reading for every caller so the form, the routes and the scanner agree.
+ */
+export function pdfUploadsSwitchedOff(): boolean {
+  const value = (readEnv('PDF_UPLOADS') ?? '').trim().toLowerCase();
+  return value === 'off' || value === 'false' || value === '0' || value === 'no';
+}

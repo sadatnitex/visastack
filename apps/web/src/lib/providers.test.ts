@@ -19,6 +19,7 @@ const ENV_KEYS = [
   'STORAGE_PROVIDER',
   'DATABASE_PROVIDER',
   'MALWARE_SCANNER_PROVIDER',
+  'PDF_UPLOADS',
   'CLAMAV_SOCKET_PATH',
   'CLAMAV_HOST',
   'CLAMAV_PORT',
@@ -255,6 +256,29 @@ describe('createMalwareScanner / createDocumentConverter', () => {
     const { createMalwareScanner, createDocumentConverter } = await import('./providers');
     expect(createMalwareScanner({} as never)).toBeInstanceOf(BasicSafetyScanner);
     expect(createDocumentConverter({} as never)).toBeInstanceOf(DeterministicTextExtractor);
+  });
+
+  it('admit PDFs on the built-in scanner only for the caller that asks, and never when PDF_UPLOADS is off', async () => {
+    const { createMalwareScanner } = await import('./providers');
+    const blobStore = {
+      getObject: async () => ({
+        contentType: 'application/pdf',
+        bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]),
+      }),
+    };
+    const input = { bucket: 'QUARANTINE' as const, objectKey: 'k' };
+    // Payment proofs, invoices and photos do not ask: a PDF stays refused there.
+    expect((await createMalwareScanner(blobStore as never).scan(input)).safe).toBe(false);
+    expect(
+      (await createMalwareScanner(blobStore as never, { allowPdf: true }).scan(input)).safe,
+    ).toBe(true);
+    for (const off of ['off', 'OFF', ' false ', '0', 'no']) {
+      setEnv('PDF_UPLOADS', off);
+      expect(
+        (await createMalwareScanner(blobStore as never, { allowPdf: true }).scan(input)).safe,
+        off,
+      ).toBe(false);
+    }
   });
 
   it('reject an unrecognized MALWARE_SCANNER_PROVIDER / DOCUMENT_CONVERTER_PROVIDER', async () => {

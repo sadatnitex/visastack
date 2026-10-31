@@ -28,7 +28,7 @@ import {
   type PreviewRendererPort,
   loadUploadQuotaConfig,
 } from '@visastack/services';
-import { isClamAvConfigured } from './env';
+import { isClamAvConfigured, pdfUploadsSwitchedOff } from './env';
 import { NeonIdentityPort } from './identity-provider';
 import {
   type IncompletePaymentProvider,
@@ -173,7 +173,10 @@ export function createIdentityPort(): IdentityPort {
  * (`createImageSanitizer` below, and the profile photo re-encoder) and only
  * image data is ever stored; a PDF proof is refused by the structural checker.
  */
-export function createMalwareScanner(blobStore: BlobStore): MalwareScannerPort {
+export function createMalwareScanner(
+  blobStore: BlobStore,
+  options: { readonly allowPdf?: boolean } = {},
+): MalwareScannerPort {
   checkKnownProvider('MALWARE_SCANNER_PROVIDER');
   if (readEnv('MALWARE_SCANNER_PROVIDER') === 'github_clamav') {
     if (!readEnv('GITHUB_INTAKE_DISPATCH_TOKEN'))
@@ -202,7 +205,13 @@ export function createMalwareScanner(blobStore: BlobStore): MalwareScannerPort {
       ...(maxAgeHoursRaw ? { maxSignatureAgeMs: Number(maxAgeHoursRaw) * 60 * 60 * 1000 } : {}),
     });
   }
-  return new BasicSafetyScanner({ blobStore });
+  // No antivirus yet. Structural checks only, and a PDF is admitted only for the caller that asks
+  // (applicant document intake, ADR 0024; the scan record says its content is unverified).
+  // Payment proofs, invoices and photos never ask, so a PDF there stays refused.
+  return new BasicSafetyScanner({
+    blobStore,
+    allowPdf: options.allowPdf === true && !pdfUploadsSwitchedOff(),
+  });
 }
 
 /**
