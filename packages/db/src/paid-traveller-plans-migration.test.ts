@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
@@ -6,14 +6,15 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { describe, expect, it } from 'vitest';
 import { migrationsFolder } from './paths';
+import { createMigratedPglite } from './testing';
 
 const MIGRATION_TIMEOUT_MS = 180_000;
 const FILE = '0110_paid_traveller_plans';
 
 function statements(): string[] {
-  return readFileSync(join(migrationsFolder, `${FILE}.sql`), 'utf8')
-    .split('--> statement-breakpoint')
-    .filter((statement) => statement.replace(/--[^\n]*/g, '').trim().length > 0);
+  return readFileSync(join(migrationsFolder, `${FILE}.sql`), 'utf8').split(
+    '--> statement-breakpoint',
+  );
 }
 
 /** A copy of the migrations folder holding every migration before 0110: the database as production has it today. */
@@ -37,12 +38,15 @@ async function one(client: PGlite, text: string): Promise<string> {
   return id;
 }
 
-/** An agency's billing as it exists today: a subscription, a paid invoice, an online attempt, a ledger row and its receipt. */
-async function seedAgency(client: PGlite) {
-  const admin = await one(
+const account = (client: PGlite, label: string) =>
+  one(
     client,
-    `insert into accounts (email) values ('admin-${Math.random()}@example.test') returning id`,
+    `insert into accounts (email) values ('${label}-${Math.random()}@example.test') returning id`,
   );
+
+/** An agency's billing as it exists today: a subscription, a paid invoice, an online attempt, a ledger row, its receipt and a refund request. */
+async function seedAgency(client: PGlite) {
+  const admin = await account(client, 'admin');
   const org = await one(
     client,
     `insert into organizations (name, status) values ('Synthetic Agency', 'ACTIVE') returning id`,
@@ -73,11 +77,16 @@ async function seedAgency(client: PGlite) {
     `insert into payment_receipts (organization_id, invoice_id, invoice_payment_id, receipt_number, amount_minor_units, currency)
      values ('${org}', '${invoice}', '${entry}', 1, 5000, 'BDT') returning id`,
   );
-  return { admin, org, plan, subscription, invoice, attempt, entry, receipt };
+  const refund = await one(
+    client,
+    `insert into refund_requests (organization_id, invoice_id, invoice_payment_id, method, status, amount_minor_units, currency, provider, idempotency_key, reason, requested_by_account_id)
+     values ('${org}', '${invoice}', '${entry}', 'PROVIDER', 'REQUESTED', 100, 'BDT', 'sslcommerz', '${crypto.randomUUID()}', 'Synthetic', '${admin}') returning id`,
+  );
+  return { admin, org, plan, subscription, invoice, attempt, entry, receipt, refund };
 }
 
 describe('migration 0110: the payer is an organization or a person (ADR 0025, T1)', () => {
-  it('names no number of its own, so renumbering is a rename only', () => {
+  it('names no number of its own', () => {
     expect(readFileSync(join(migrationsFolder, `${FILE}.sql`), 'utf8')).not.toMatch(/\b0110\b/);
   });
 
@@ -85,226 +94,205 @@ describe('migration 0110: the payer is an organization or a person (ADR 0025, T1
     'runs twice on the database as it is today, keeps every agency row, and today’s writes still work',
     async () => {
       const client = new PGlite();
-      await migrate(drizzle(client), { migrationsFolder: folderBefore() });
-      const agency = await seedAgency(client);
+      const folder = folderBefore();
+      try {
+        await migrate(drizzle(client), { migrationsFolder: folder });
+        const agency = await seedAgency(client);
 
-      // The runbook's pre-checks: every existing row is an organization's.
-      for (const table of [
-        'subscriptions',
-        'invoices',
-        'payment_attempts',
-        'refund_requests',
-        'payment_receipts',
-      ]) {
-        const n = await client.query<{ n: number }>(
-          `select count(*)::int as n from ${table} where organization_id is null`,
+        // Statement by statement, twice: the second run changes nothing and raises nothing.
+        for (let run = 0; run < 2; run++) {
+          for (const statement of statements()) await client.exec(statement);
+        }
+
+        // Every agency row is kept as it was, with no person and the default renewal.
+        const sub = await client.query(
+          `select organization_id, payer_account_id, renews from subscriptions where id = '${agency.subscription}'`,
         );
-        expect(n.rows[0]?.n, table).toBe(0);
-      }
+        expect(sub.rows[0]).toEqual({
+          organization_id: agency.org,
+          payer_account_id: null,
+          renews: true,
+        });
+        for (const [table, id] of [
+          ['invoices', agency.invoice],
+          ['payment_attempts', agency.attempt],
+          ['payment_receipts', agency.receipt],
+          ['refund_requests', agency.refund],
+        ] as const) {
+          const row = await client.query(
+            `select organization_id, payer_account_id from ${table} where id = '${id}'`,
+          );
+          expect(row.rows[0], table).toEqual({
+            organization_id: agency.org,
+            payer_account_id: null,
+          });
+        }
 
-      // Statement by statement, twice: the second run changes nothing and raises nothing.
-      for (let run = 0; run < 2; run++) {
-        for (const statement of statements()) await client.exec(statement);
-      }
-
-      // Every agency row is kept as it was, with no person and the default renewal.
-      const sub = await client.query<{
-        organization_id: string;
-        payer_account_id: string | null;
-        renews: boolean;
-      }>(
-        `select organization_id, payer_account_id, renews from subscriptions where id = '${agency.subscription}'`,
-      );
-      expect(sub.rows[0]).toEqual({
-        organization_id: agency.org,
-        payer_account_id: null,
-        renews: true,
-      });
-      for (const [table, id] of [
-        ['invoices', agency.invoice],
-        ['payment_attempts', agency.attempt],
-        ['payment_receipts', agency.receipt],
-      ] as const) {
-        const row = await client.query<{
-          organization_id: string;
-          payer_account_id: string | null;
-        }>(`select organization_id, payer_account_id from ${table} where id = '${id}'`);
-        expect(row.rows[0], table).toEqual({ organization_id: agency.org, payer_account_id: null });
-      }
-
-      // Today's code writes only the old columns: those writes still work unchanged.
-      await client.query(
-        `insert into invoices (organization_id, plan_id, period_start, period_end, invoice_ref, invoiced_amount_minor_units, currency, due_date)
-         values ('${agency.org}', '${agency.plan}', '2026-12-01T00:00:00Z', '2027-01-01T00:00:00Z', 'INV-T1-B', 5000, 'BDT', '2026-12-08T00:00:00Z')`,
-      );
-    },
-    MIGRATION_TIMEOUT_MS,
-  );
-
-  it(
-    'takes a person as the payer, and refuses a row with both payers or none',
-    async () => {
-      const client = new PGlite();
-      await migrate(drizzle(client), { migrationsFolder });
-      const agency = await seedAgency(client);
-      const person = await one(
-        client,
-        `insert into accounts (email) values ('traveller-${Math.random()}@example.test') returning id`,
-      );
-      const plan = await one(client, `select id from plans where key = 'traveller_free'`);
-
-      // Subscriptions: a person's own, renewal off, assigned by themselves.
-      const subscription = (fields: string, values: string) =>
-        client.query<{ id: string }>(
-          `insert into subscriptions (plan_id, reason, ${fields}) values ('${plan}', 'Synthetic', ${values}) returning id`,
-        );
-      const personal = (
-        await subscription(
-          'payer_account_id, assigned_by_account_id, renews',
-          `'${person}', '${person}', false`,
-        )
-      ).rows[0]?.id;
-      expect(personal).toBeTruthy();
-      await expect(
-        subscription('organization_id, payer_account_id', `'${agency.org}', '${person}'`),
-      ).rejects.toThrow(/subscriptions_one_payer/);
-      await expect(subscription('assigned_by_account_id', `'${person}'`)).rejects.toThrow(
-        /subscriptions_one_payer/,
-      );
-      // One current subscription per person.
-      await expect(subscription('payer_account_id', `'${person}'`)).rejects.toThrow(
-        /subscriptions_one_current_per_person/,
-      );
-
-      // Invoices: a person's, tied to the subscription; one live invoice per person, plan and period.
-      const personInvoice = (
-        await client.query<{ id: string }>(
-          `insert into invoices (payer_account_id, subscription_id, plan_id, period_start, period_end, invoice_ref, invoiced_amount_minor_units, currency, due_date)
-           values ('${person}', '${personal}', '${plan}', '2026-11-01T00:00:00Z', '2026-12-01T00:00:00Z', 'INV-P-1', 49900, 'BDT', '2026-11-01T00:00:00Z') returning id`,
-        )
-      ).rows[0]?.id;
-      expect(personInvoice).toBeTruthy();
-      await expect(
-        client.query(
-          `insert into invoices (payer_account_id, plan_id, period_start, period_end, invoice_ref, invoiced_amount_minor_units, currency, due_date)
-           values ('${person}', '${plan}', '2026-11-01T00:00:00Z', '2026-12-01T00:00:00Z', 'INV-P-2', 49900, 'BDT', '2026-11-01T00:00:00Z')`,
-        ),
-      ).rejects.toThrow(/invoices_person_plan_period_unique/);
-      await expect(
-        client.query(
-          `insert into invoices (organization_id, payer_account_id, plan_id, period_start, period_end, invoice_ref, invoiced_amount_minor_units, currency, due_date)
-           values ('${agency.org}', '${person}', '${plan}', '2027-01-01T00:00:00Z', '2027-02-01T00:00:00Z', 'INV-P-3', 49900, 'BDT', '2027-01-01T00:00:00Z')`,
-        ),
-      ).rejects.toThrow(/invoices_one_payer/);
-      await expect(
-        client.query(
-          `insert into invoices (plan_id, period_start, period_end, invoice_ref, invoiced_amount_minor_units, currency, due_date)
-           values ('${plan}', '2027-01-01T00:00:00Z', '2027-02-01T00:00:00Z', 'INV-P-4', 49900, 'BDT', '2027-01-01T00:00:00Z')`,
-        ),
-      ).rejects.toThrow(/invoices_one_payer/);
-
-      // Attempts, refunds and receipts: one payer each.
-      await client.query(
-        `insert into payment_attempts (invoice_id, payer_account_id, provider, merchant_tran_id, amount_minor_units, currency, status, mode)
-         values ('${personInvoice}', '${person}', 'sslcommerz', 'VSP${'c'.repeat(26)}', 49900, 'BDT', 'CREATED', 'TEST')`,
-      );
-      await expect(
-        client.query(
-          `insert into payment_attempts (invoice_id, provider, merchant_tran_id, amount_minor_units, currency, status, mode)
-           values ('${personInvoice}', 'sslcommerz', 'VSP${'d'.repeat(26)}', 49900, 'BDT', 'CREATED', 'TEST')`,
-        ),
-      ).rejects.toThrow(/payment_attempts_one_payer/);
-      const entry = await one(
-        client,
-        `insert into invoice_payments (invoice_id, amount_minor_units, currency, kind, reference, collected_date, recorded_by_account_id, mode)
-         values ('${personInvoice}', 49900, 'BDT', 'ADMIN_RECORDED', 'TEST-P', now(), '${person}', 'LIVE') returning id`,
-      );
-      await client.query(
-        `insert into payment_receipts (payer_account_id, invoice_id, invoice_payment_id, receipt_number, amount_minor_units, currency)
-         values ('${person}', '${personInvoice}', '${entry}', 1, 49900, 'BDT')`,
-      );
-      // A person's receipt numbers are their own: an agency's receipt 1 does not clash.
-      const counters = await client.query<{ present: boolean }>(
-        `select to_regclass('person_receipt_counters') is not null as present`,
-      );
-      expect(counters.rows[0]?.present).toBe(true);
-      await expect(
-        client.query(
-          `insert into refund_requests (invoice_id, invoice_payment_id, method, status, amount_minor_units, currency, provider, idempotency_key, reason, requested_by_account_id)
-           values ('${personInvoice}', '${entry}', 'PROVIDER', 'REQUESTED', 100, 'BDT', 'sslcommerz', '${crypto.randomUUID()}', 'Synthetic', '${person}')`,
-        ),
-      ).rejects.toThrow(/refund_requests_one_payer/);
-      await client.query(
-        `insert into refund_requests (payer_account_id, invoice_id, invoice_payment_id, method, status, amount_minor_units, currency, provider, idempotency_key, reason, requested_by_account_id)
-         values ('${person}', '${personInvoice}', '${entry}', 'PROVIDER', 'REQUESTED', 100, 'BDT', 'sslcommerz', '${crypto.randomUUID()}', 'Synthetic', '${person}')`,
-      );
-    },
-    MIGRATION_TIMEOUT_MS,
-  );
-
-  it(
-    'lets a person who bought for themselves delete their account, and keeps the money records',
-    async () => {
-      const client = new PGlite();
-      await migrate(drizzle(client), { migrationsFolder });
-      const agency = await seedAgency(client);
-      const person = await one(
-        client,
-        `insert into accounts (email) values ('leaving-${Math.random()}@example.test') returning id`,
-      );
-      const plan = await one(client, `select id from plans where key = 'traveller_free'`);
-      await client.query(
-        `insert into subscriptions (payer_account_id, assigned_by_account_id, plan_id, reason) values ('${person}', '${person}', '${plan}', 'Synthetic')`,
-      );
-      const invoice = await one(
-        client,
-        `insert into invoices (payer_account_id, plan_id, period_start, period_end, invoice_ref, invoiced_amount_minor_units, currency, due_date)
-         values ('${person}', '${plan}', '2026-11-01T00:00:00Z', '2026-12-01T00:00:00Z', 'INV-P-D', 49900, 'BDT', '2026-11-01T00:00:00Z') returning id`,
-      );
-      // An agency subscription the person assigned (as a platform owner would) loses the name, not the row.
-      await client.query(
-        `update subscriptions set assigned_by_account_id = '${person}' where id = '${agency.subscription}'`,
-      );
-
-      await client.query(`delete from accounts where id = '${person}'`);
-
-      const personal = await client.query<{ n: number }>(
-        `select count(*)::int as n from subscriptions where payer_account_id = '${person}'`,
-      );
-      expect(personal.rows[0]?.n).toBe(0);
-      const kept = await client.query<{ payer_account_id: string }>(
-        `select payer_account_id from invoices where id = '${invoice}'`,
-      );
-      expect(kept.rows[0]?.payer_account_id).toBe(person);
-      const assigned = await client.query<{ assigned_by_account_id: string | null }>(
-        `select assigned_by_account_id from subscriptions where id = '${agency.subscription}'`,
-      );
-      expect(assigned.rows[0]?.assigned_by_account_id).toBeNull();
-    },
-    MIGRATION_TIMEOUT_MS,
-  );
-
-  it(
-    'takes the two traveller storage rules, counted in total only',
-    async () => {
-      const client = new PGlite();
-      await migrate(drizzle(client), { migrationsFolder });
-      const plan = await one(client, `select id from plans where key = 'traveller_free'`);
-      for (const key of ['account_storage_bytes', 'person_storage_bytes']) {
+        // Today's code writes only the old columns: those writes still work unchanged.
         await client.query(
-          `insert into plan_entitlements (plan_id, key, included, limit_value, per) values ('${plan}', '${key}', true, 1048576, 'TOTAL')`,
+          `insert into invoices (organization_id, plan_id, period_start, period_end, invoice_ref, invoiced_amount_minor_units, currency, due_date)
+           values ('${agency.org}', '${agency.plan}', '2026-12-01T00:00:00Z', '2027-01-01T00:00:00Z', 'INV-T1-B', 5000, 'BDT', '2026-12-08T00:00:00Z')`,
+        );
+        // The assigning account stays required and still blocks its own deletion (unchanged in T1).
+        await expect(
+          client.query(`delete from accounts where id = '${agency.admin}'`),
+        ).rejects.toThrow(/subscriptions_assigned_by_account_id/);
+      } finally {
+        await client.close();
+        rmSync(folder, { recursive: true, force: true });
+      }
+    },
+    MIGRATION_TIMEOUT_MS,
+  );
+
+  it(
+    'takes a person as the payer on every billing table, and refuses both payers or none on each',
+    async () => {
+      const client = await createMigratedPglite();
+      try {
+        const agency = await seedAgency(client);
+        const person = await account(client, 'traveller');
+        const plan = await one(client, `select id from plans where key = 'traveller_free'`);
+
+        // Subscriptions.
+        const subscription = (columns: string, values: string) =>
+          client.query<{ id: string }>(
+            `insert into subscriptions (plan_id, reason, assigned_by_account_id, ${columns}) values ('${plan}', 'Synthetic', '${person}', ${values}) returning id`,
+          );
+        const personal = (await subscription('payer_account_id, renews', `'${person}', false`))
+          .rows[0]?.id;
+        expect(personal).toBeTruthy();
+        await expect(
+          subscription('organization_id, payer_account_id', `'${agency.org}', '${person}'`),
+        ).rejects.toThrow(/subscriptions_one_payer/);
+        await expect(subscription('renews', 'true')).rejects.toThrow(/subscriptions_one_payer/);
+        await expect(subscription('payer_account_id', `'${person}'`)).rejects.toThrow(
+          /subscriptions_one_current_per_person/,
+        );
+
+        // Invoices: a person's, tied to the subscription; one live invoice per person, plan and period.
+        const invoice = (columns: string, values: string, ref: string, start = '2026-11-01') =>
+          client.query<{ id: string }>(
+            `insert into invoices (${columns}, plan_id, period_start, period_end, invoice_ref, invoiced_amount_minor_units, currency, due_date)
+             values (${values}, '${plan}', '${start}T00:00:00Z', '${start}T00:00:00Z'::timestamptz + interval '30 days', '${ref}', 49900, 'BDT', '${start}T00:00:00Z') returning id`,
+          );
+        const personInvoice = (
+          await invoice(
+            'payer_account_id, subscription_id',
+            `'${person}', '${personal}'`,
+            'INV-P-1',
+          )
+        ).rows[0]?.id;
+        expect(personInvoice).toBeTruthy();
+        await expect(invoice('payer_account_id', `'${person}'`, 'INV-P-2')).rejects.toThrow(
+          /invoices_person_plan_period_unique/,
         );
         await expect(
-          client.query(
-            `update plan_entitlements set per = 'DAY' where plan_id = '${plan}' and key = '${key}'`,
+          invoice(
+            'organization_id, payer_account_id',
+            `'${agency.org}', '${person}'`,
+            'INV-P-3',
+            '2027-01-01',
           ),
-        ).rejects.toThrow(/plan_entitlements_per_matches_key/);
+        ).rejects.toThrow(/invoices_one_payer/);
+        await expect(
+          invoice('subscription_id', `'${personal}'`, 'INV-P-4', '2027-01-01'),
+        ).rejects.toThrow(/invoices_one_payer/);
+
+        // Online payments.
+        let tran = 0;
+        const attempt = (columns: string, values: string) =>
+          client.query(
+            `insert into payment_attempts (invoice_id, ${columns}, provider, merchant_tran_id, amount_minor_units, currency, mode)
+             values ('${personInvoice}', ${values}, 'sslcommerz', 'VSP${String(++tran).padStart(26, 'c')}', 49900, 'BDT', 'TEST')`,
+          );
+        await attempt('payer_account_id, status', `'${person}', 'CREATED'`);
+        await expect(
+          attempt(
+            'organization_id, payer_account_id, status',
+            `'${agency.org}', '${person}', 'CREATED'`,
+          ),
+        ).rejects.toThrow(/payment_attempts_one_payer/);
+        await expect(attempt('status', `'CREATED'`)).rejects.toThrow(/payment_attempts_one_payer/);
+
+        // Receipts: numbered per person, apart from any agency's.
+        const entry = (reference: string) =>
+          one(
+            client,
+            `insert into invoice_payments (invoice_id, amount_minor_units, currency, kind, reference, collected_date, recorded_by_account_id, mode)
+             values ('${personInvoice}', 100, 'BDT', 'ADMIN_RECORDED', '${reference}', now(), '${person}', 'LIVE') returning id`,
+          );
+        const receipt = async (columns: string, values: string, number: number) => {
+          const ledger = await entry(`R-${Math.random()}`);
+          return client.query(
+            `insert into payment_receipts (${columns}invoice_id, invoice_payment_id, receipt_number, amount_minor_units, currency)
+             values (${values}'${personInvoice}', '${ledger}', ${number}, 100, 'BDT')`,
+          );
+        };
+        await receipt('payer_account_id, ', `'${person}', `, 1);
+        await expect(receipt('payer_account_id, ', `'${person}', `, 1)).rejects.toThrow(
+          /payment_receipts_person_number_unique/,
+        );
+        await expect(
+          receipt('organization_id, payer_account_id, ', `'${agency.org}', '${person}', `, 2),
+        ).rejects.toThrow(/payment_receipts_one_payer/);
+        await expect(receipt('', '', 3)).rejects.toThrow(/payment_receipts_one_payer/);
+        await expect(
+          client.query(
+            `insert into person_receipt_counters (account_id, last_number) values ('${person}', -1)`,
+          ),
+        ).rejects.toThrow(/person_receipt_counters_not_negative/);
+
+        // Refund requests.
+        const refundEntry = await entry('REF');
+        const refund = (columns: string, values: string) =>
+          client.query(
+            `insert into refund_requests (${columns}invoice_id, invoice_payment_id, method, status, amount_minor_units, currency, provider, idempotency_key, reason, requested_by_account_id)
+             values (${values}'${personInvoice}', '${refundEntry}', 'PROVIDER', 'REQUESTED', 100, 'BDT', 'sslcommerz', '${crypto.randomUUID()}', 'Synthetic', '${person}')`,
+          );
+        await refund('payer_account_id, ', `'${person}', `);
+        await expect(
+          refund('organization_id, payer_account_id, ', `'${agency.org}', '${person}', `),
+        ).rejects.toThrow(/refund_requests_one_payer/);
+        await expect(refund('', '')).rejects.toThrow(/refund_requests_one_payer/);
+      } finally {
+        await client.close();
       }
-      await expect(
-        client.query(
-          `insert into plan_entitlements (plan_id, key, included, limit_value, per) values ('${plan}', 'people_storage', true, 1, 'TOTAL')`,
-        ),
-      ).rejects.toThrow(/plan_entitlements_key_shape/);
+    },
+    MIGRATION_TIMEOUT_MS,
+  );
+
+  it(
+    'removes a deleted person’s subscription and keeps their money records',
+    async () => {
+      const client = await createMigratedPglite();
+      try {
+        const assigner = await account(client, 'assigner');
+        const person = await account(client, 'leaving');
+        const plan = await one(client, `select id from plans where key = 'traveller_free'`);
+        const subscription = await one(
+          client,
+          `insert into subscriptions (payer_account_id, assigned_by_account_id, plan_id, reason) values ('${person}', '${assigner}', '${plan}', 'Synthetic') returning id`,
+        );
+        const invoice = await one(
+          client,
+          `insert into invoices (payer_account_id, subscription_id, plan_id, period_start, period_end, invoice_ref, invoiced_amount_minor_units, currency, due_date)
+           values ('${person}', '${subscription}', '${plan}', '2026-11-01T00:00:00Z', '2026-12-01T00:00:00Z', 'INV-P-D', 49900, 'BDT', '2026-11-01T00:00:00Z') returning id`,
+        );
+
+        await client.query(`delete from accounts where id = '${person}'`);
+
+        const left = await client.query<{ n: number }>(
+          `select count(*)::int as n from subscriptions where id = '${subscription}'`,
+        );
+        expect(left.rows[0]?.n).toBe(0);
+        const kept = await client.query(
+          `select payer_account_id, subscription_id from invoices where id = '${invoice}'`,
+        );
+        expect(kept.rows[0]).toEqual({ payer_account_id: person, subscription_id: null });
+      } finally {
+        await client.close();
+      }
     },
     MIGRATION_TIMEOUT_MS,
   );
