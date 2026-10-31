@@ -36,8 +36,8 @@ const UNAVAILABLE =
 
 function Rules({ settings }: { readonly settings: BillingSettings }) {
   return (
-    <div className="rows">
-      <div className="row">
+    <div className="rows rows-grid">
+      <div className="row row-wide">
         <span className="row-key">Payment Due After</span>
         <span>
           {dayCount(settings.dueDays)} from the start of each billing period (or from the day the
@@ -150,11 +150,11 @@ export default async function BillingRulesPage({
             <h2 className="card-title">Current Rules</h2>
             <Rules settings={data.settings} />
             {data.settings.updatedAt && data.settings.updatedByAccountId ? (
-              <p className="muted u-fs-085">
+              <p className="muted u-fs-085 u-mt-100">
                 Last changed on {formatBillingDateTime(data.settings.updatedAt)}.
               </p>
             ) : (
-              <p className="muted u-fs-085">The standard rules, never changed.</p>
+              <p className="muted u-fs-085 u-mt-100">The standard rules, never changed.</p>
             )}
           </article>
 
@@ -162,7 +162,7 @@ export default async function BillingRulesPage({
             <h2 className="card-title" id="online-payments-title">
               Online Payments
             </h2>
-            <div className="rows">
+            <div className="rows rows-grid">
               <div className="row">
                 <span className="row-key">Mode</span>
                 <StatusBadge tone={mode.tone}>{mode.badge}</StatusBadge>

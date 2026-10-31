@@ -10814,7 +10814,8 @@ summary.safe-copy-title {
 }
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  /* auto-fill keeps empty columns, so a lone field takes one column instead of the whole row. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
   gap: var(--space-4) var(--space-5);
   align-items: start;
 }

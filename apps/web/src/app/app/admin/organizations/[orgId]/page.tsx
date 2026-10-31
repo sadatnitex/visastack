@@ -323,9 +323,9 @@ export default async function AdminOrganizationPage({
         ) : null}
 
         {data.usage ? (
-          <div className="rows u-mb-125">
+          <div className="rows rows-grid u-mb-125">
             {data.usage.meters.map((meter) => (
-              <div key={meter.key} className="u-mb-125">
+              <div key={meter.key}>
                 <div className="meter-label">
                   <span>{meter.label}</span>
                   <span>{formatMeterValue(meter)}</span>
@@ -358,15 +358,26 @@ export default async function AdminOrganizationPage({
           ) : null}
         </div>
         {data.currentPlan ? (
-          <div className="u-mt-100">
-            <EndSubscriptionButton organizationId={orgId} />
+          <div className="action-bar">
+            <div className="action-bar-end">
+              <EndSubscriptionButton organizationId={orgId} />
+            </div>
           </div>
         ) : null}
       </article>
 
       <article className="card u-mb-150">
-        <p className="card-kicker">Commerce</p>
-        <h2 className="card-title">Billing</h2>
+        <div className="card-head">
+          <div>
+            <p className="card-kicker">Commerce</p>
+            <h2 className="card-title">Billing</h2>
+          </div>
+          {data.billing ? (
+            <span className={`badge ${BILLING_STATUS_TONE[data.billing.status]}`}>
+              {billingStatusLabel(data.billing.status)}
+            </span>
+          ) : null}
+        </div>
         {!data.billing ? (
           <>
             <p className="card-body u-mb-100">
@@ -376,13 +387,8 @@ export default async function AdminOrganizationPage({
           </>
         ) : (
           <>
-            <div className="toolbar u-mb-100">
-              <span className={`badge ${BILLING_STATUS_TONE[data.billing.status]}`}>
-                {billingStatusLabel(data.billing.status)}
-              </span>
-            </div>
             {data.billingHistory.length > 0 ? (
-              <div className="rows u-mb-125">
+              <div className="rows rows-grid u-mb-125">
                 {data.billingHistory.map((h) => (
                   <div className="row" key={h.id}>
                     <span className="row-key">{billingHistoryMove(h.fromStatus, h.toStatus)}</span>
@@ -410,48 +416,49 @@ export default async function AdminOrganizationPage({
           <p className="card-body u-mb-125">No invoices issued yet.</p>
         ) : (
           <div className="rows u-mb-125">
-            {data.invoices.map((invoice) => (
-              <div
-                className="row"
-                key={invoice.id}
-                style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                  <span className="row-key">{invoice.invoiceRef}</span>
-                  <span className={`badge ${INVOICE_STATUS_TONE[invoice.status]}`}>
-                    {invoiceStatusLabel(invoice.status)}
-                  </span>
-                </div>
-                <span className="muted u-fs-085">
-                  {invoiceAmount(invoice)} · due {formatBillingDate(invoice.dueDate)}
-                </span>
-                <a
-                  className="invoice-link"
-                  href={`/app/admin/organizations/${orgId}/invoices/${invoice.id}/pdf`}
+            {data.invoices.map((invoice) => {
+              // An invoice still owing money takes a payment, or can be cancelled.
+              const open = invoice.status === 'OPEN' || invoice.status === 'PARTIALLY_PAID';
+              return (
+                <div
+                  className="row"
+                  key={invoice.id}
+                  style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
                 >
-                  Download Invoice (PDF)
-                  <span className="sr-only"> {invoice.invoiceRef}</span>
-                </a>
-                {invoice.status === 'OPEN' || invoice.status === 'PARTIALLY_PAID' ? (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: '1rem',
-                      alignItems: 'flex-start',
-                    }}
-                  >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+                    <span className="row-key">{invoice.invoiceRef}</span>
+                    <span className={`badge ${INVOICE_STATUS_TONE[invoice.status]}`}>
+                      {invoiceStatusLabel(invoice.status)}
+                    </span>
+                  </div>
+                  <span className="muted u-fs-085">
+                    {invoiceAmount(invoice)} · due {formatBillingDate(invoice.dueDate)}
+                  </span>
+                  {open ? (
                     <RecordPaymentForm
                       organizationId={orgId}
                       invoiceId={invoice.id}
                       currency={invoice.currency}
                       idempotencyKey={randomUUID()}
                     />
-                    <VoidInvoiceButton organizationId={orgId} invoiceId={invoice.id} />
+                  ) : null}
+                  <div className="action-bar">
+                    <a
+                      className="invoice-link"
+                      href={`/app/admin/organizations/${orgId}/invoices/${invoice.id}/pdf`}
+                    >
+                      Download Invoice (PDF)
+                      <span className="sr-only"> {invoice.invoiceRef}</span>
+                    </a>
+                    {open ? (
+                      <div className="action-bar-end">
+                        <VoidInvoiceButton organizationId={orgId} invoiceId={invoice.id} />
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         )}
         <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>Create an Invoice</h3>

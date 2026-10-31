@@ -106,37 +106,39 @@ export function ActivatePlanForm({
   return (
     <form action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
-      <div className="field-row">
-        <label className="field-label" htmlFor="activate-planId">
-          Plan
-        </label>
-        {plans.length === 0 ? (
-          <p className="muted u-fs-085">No active plans in the catalog yet.</p>
-        ) : (
-          <select id="activate-planId" name="planId" required className="input" defaultValue="">
-            <option value="" disabled>
-              Choose a plan…
-            </option>
-            {plans.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
+      <div className="form-grid">
+        <div className="field-row">
+          <label className="field-label" htmlFor="activate-planId">
+            Plan
+          </label>
+          {plans.length === 0 ? (
+            <p className="muted u-fs-085">No active plans in the catalog yet.</p>
+          ) : (
+            <select id="activate-planId" name="planId" required className="input" defaultValue="">
+              <option value="" disabled>
+                Choose a plan…
               </option>
-            ))}
-          </select>
-        )}
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="activate-reason">
-          Reason
-        </label>
-        <input
-          id="activate-reason"
-          name="reason"
-          type="text"
-          required
-          className="input"
-          placeholder="Why this plan is being assigned"
-        />
+              {plans.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="activate-reason">
+            Reason
+          </label>
+          <input
+            id="activate-reason"
+            name="reason"
+            type="text"
+            required
+            className="input"
+            placeholder="Why this plan is being assigned"
+          />
+        </div>
       </div>
       <div>
         <SubmitButton
@@ -176,49 +178,51 @@ export function ScheduleDowngradeForm({
   return (
     <form action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
-      <div className="field-row">
-        <label className="field-label" htmlFor="downgrade-toPlanId">
-          Target Plan
-        </label>
-        {plans.length === 0 ? (
-          <p className="muted u-fs-085">No active plans in the catalog yet.</p>
-        ) : (
-          <select
-            id="downgrade-toPlanId"
-            name="toPlanId"
+      <div className="form-grid">
+        <div className="field-row">
+          <label className="field-label" htmlFor="downgrade-toPlanId">
+            Target Plan
+          </label>
+          {plans.length === 0 ? (
+            <p className="muted u-fs-085">No active plans in the catalog yet.</p>
+          ) : (
+            <select
+              id="downgrade-toPlanId"
+              name="toPlanId"
+              required
+              className="input"
+              defaultValue=""
+            >
+              <option value="" disabled>
+                Choose a plan…
+              </option>
+              {plans.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="downgrade-effectiveAt">
+            Effective Date (Optional -- Defaults to 14 Days Out)
+          </label>
+          <input id="downgrade-effectiveAt" name="effectiveAt" type="date" className="input" />
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="downgrade-reason">
+            Reason
+          </label>
+          <input
+            id="downgrade-reason"
+            name="reason"
+            type="text"
             required
             className="input"
-            defaultValue=""
-          >
-            <option value="" disabled>
-              Choose a plan…
-            </option>
-            {plans.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="downgrade-effectiveAt">
-          Effective Date (Optional -- Defaults to 14 Days Out)
-        </label>
-        <input id="downgrade-effectiveAt" name="effectiveAt" type="date" className="input" />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="downgrade-reason">
-          Reason
-        </label>
-        <input
-          id="downgrade-reason"
-          name="reason"
-          type="text"
-          required
-          className="input"
-          placeholder="Why this downgrade is being scheduled"
-        />
+            placeholder="Why this downgrade is being scheduled"
+          />
+        </div>
       </div>
       <div>
         <SubmitButton
@@ -256,27 +260,34 @@ export function OpenBillingAccountForm({ organizationId }: { readonly organizati
   return (
     <form action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
-      <div className="field-row">
-        <label className="field-label" htmlFor="open-initialStatus">
-          Starting Status
-        </label>
-        <select id="open-initialStatus" name="initialStatus" className="input" defaultValue="TRIAL">
-          <option value="TRIAL">Trial</option>
-          <option value="ACTIVE">Active (Terms Already Agreed)</option>
-        </select>
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="open-reason">
-          Reason
-        </label>
-        <input
-          id="open-reason"
-          name="reason"
-          type="text"
-          required
-          className="input"
-          placeholder="Why this billing account is being opened"
-        />
+      <div className="form-grid">
+        <div className="field-row">
+          <label className="field-label" htmlFor="open-initialStatus">
+            Starting Status
+          </label>
+          <select
+            id="open-initialStatus"
+            name="initialStatus"
+            className="input"
+            defaultValue="TRIAL"
+          >
+            <option value="TRIAL">Trial</option>
+            <option value="ACTIVE">Active (Terms Already Agreed)</option>
+          </select>
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="open-reason">
+            Reason
+          </label>
+          <input
+            id="open-reason"
+            name="reason"
+            type="text"
+            required
+            className="input"
+            placeholder="Why this billing account is being opened"
+          />
+        </div>
       </div>
       <div>
         <SubmitButton
@@ -303,33 +314,41 @@ export function TransitionBillingStatusForm({
   return (
     <form action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
-      <div className="field-row">
-        <label className="field-label" htmlFor="transition-toStatus">
-          New Status
-        </label>
-        <select id="transition-toStatus" name="toStatus" required className="input" defaultValue="">
-          <option value="" disabled>
-            Choose a status…
-          </option>
-          {legalStatuses.map((s) => (
-            <option key={s} value={s}>
-              {billingStatusLabel(s)}
+      <div className="form-grid">
+        <div className="field-row">
+          <label className="field-label" htmlFor="transition-toStatus">
+            New Status
+          </label>
+          <select
+            id="transition-toStatus"
+            name="toStatus"
+            required
+            className="input"
+            defaultValue=""
+          >
+            <option value="" disabled>
+              Choose a status…
             </option>
-          ))}
-        </select>
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="transition-reason">
-          Reason
-        </label>
-        <input
-          id="transition-reason"
-          name="reason"
-          type="text"
-          required
-          className="input"
-          placeholder="Why this status is changing"
-        />
+            {legalStatuses.map((s) => (
+              <option key={s} value={s}>
+                {billingStatusLabel(s)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="transition-reason">
+            Reason
+          </label>
+          <input
+            id="transition-reason"
+            name="reason"
+            type="text"
+            required
+            className="input"
+            placeholder="Why this status is changing"
+          />
+        </div>
       </div>
       <div>
         <SubmitButton
@@ -356,103 +375,122 @@ export function CreateInvoiceForm({
   const messageId = useId();
   useFocusInvalidField(formRef, state);
   return (
-    <form ref={formRef} action={formAction} className="field-list">
+    <form ref={formRef} action={formAction} className="field-list form-narrow">
       <input type="hidden" name="organizationId" value={organizationId} />
-      <div className="field-row">
-        <label className="field-label" htmlFor="invoice-planId">
-          Plan Billed
-        </label>
-        {plans.length === 0 ? (
-          <p className="muted u-fs-085">No active plans in the catalog yet.</p>
-        ) : (
-          <select id="invoice-planId" name="planId" required className="input" defaultValue="">
-            <option value="" disabled>
-              Choose a plan…
-            </option>
-            {plans.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="invoice-ref">
-          Invoice Reference
-        </label>
-        <input
-          id="invoice-ref"
-          name="invoiceRef"
-          type="text"
-          required
-          className="input"
-          placeholder="e.g. INV-2026-014"
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="invoice-currency">
-          Currency
-        </label>
-        <input
-          id="invoice-currency"
-          name="currency"
-          type="text"
-          required
-          minLength={3}
-          maxLength={3}
-          autoCapitalize="characters"
-          className="input"
-          placeholder="BDT"
-          {...describedBy('invoice-currency-hint', fieldProblem(state, 'currency', messageId))}
-        />
-        <p className="field-hint" id="invoice-currency-hint">
-          The three-letter currency code, for example BDT.
-        </p>
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="invoice-amount">
-          Invoiced Amount
-        </label>
-        <input
-          id="invoice-amount"
-          name="invoicedAmount"
-          type="text"
-          inputMode="decimal"
-          autoComplete="off"
-          required
-          className="input"
-          placeholder="2,500.00"
-          {...describedBy('invoice-amount-hint', fieldProblem(state, 'invoicedAmount', messageId))}
-        />
-        <p className="field-hint" id="invoice-amount-hint">
-          In the currency above, for example 2500.00 or 2,500.00.
-        </p>
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="invoice-periodStart">
-          Period Start
-        </label>
-        <input id="invoice-periodStart" name="periodStart" type="date" required className="input" />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="invoice-periodLastDay">
-          Last Day of the Period
-        </label>
-        <input
-          id="invoice-periodLastDay"
-          name="periodLastDay"
-          type="date"
-          required
-          className="input"
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="invoice-dueDate">
-          Due Date
-        </label>
-        <input id="invoice-dueDate" name="dueDate" type="date" required className="input" />
-      </div>
+      <fieldset className="form-section">
+        <legend>What Is Billed</legend>
+        <div className="form-grid">
+          <div className="field-row">
+            <label className="field-label" htmlFor="invoice-planId">
+              Plan Billed
+            </label>
+            {plans.length === 0 ? (
+              <p className="muted u-fs-085">No active plans in the catalog yet.</p>
+            ) : (
+              <select id="invoice-planId" name="planId" required className="input" defaultValue="">
+                <option value="" disabled>
+                  Choose a plan…
+                </option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor="invoice-ref">
+              Invoice Reference
+            </label>
+            <input
+              id="invoice-ref"
+              name="invoiceRef"
+              type="text"
+              required
+              className="input"
+              placeholder="e.g. INV-2026-014"
+            />
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor="invoice-currency">
+              Currency
+            </label>
+            <input
+              id="invoice-currency"
+              name="currency"
+              type="text"
+              required
+              minLength={3}
+              maxLength={3}
+              autoCapitalize="characters"
+              className="input"
+              placeholder="BDT"
+              {...describedBy('invoice-currency-hint', fieldProblem(state, 'currency', messageId))}
+            />
+            <p className="field-hint" id="invoice-currency-hint">
+              The three-letter currency code, for example BDT.
+            </p>
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor="invoice-amount">
+              Invoiced Amount
+            </label>
+            <input
+              id="invoice-amount"
+              name="invoicedAmount"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              required
+              className="input"
+              placeholder="2,500.00"
+              {...describedBy(
+                'invoice-amount-hint',
+                fieldProblem(state, 'invoicedAmount', messageId),
+              )}
+            />
+            <p className="field-hint" id="invoice-amount-hint">
+              In the currency above, for example 2500.00 or 2,500.00.
+            </p>
+          </div>
+        </div>
+      </fieldset>
+      <fieldset className="form-section">
+        <legend>Dates</legend>
+        <div className="form-grid">
+          <div className="field-row">
+            <label className="field-label" htmlFor="invoice-periodStart">
+              Period Start
+            </label>
+            <input
+              id="invoice-periodStart"
+              name="periodStart"
+              type="date"
+              required
+              className="input"
+            />
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor="invoice-periodLastDay">
+              Last Day of the Period
+            </label>
+            <input
+              id="invoice-periodLastDay"
+              name="periodLastDay"
+              type="date"
+              required
+              className="input"
+            />
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor="invoice-dueDate">
+              Due Date
+            </label>
+            <input id="invoice-dueDate" name="dueDate" type="date" required className="input" />
+          </div>
+        </div>
+      </fieldset>
       <div>
         <SubmitButton
           pending={pending}
@@ -488,91 +526,93 @@ export function RecordPaymentForm({
     <form
       ref={formRef}
       action={formAction}
-      className="field-list"
-      style={{ maxWidth: '22rem', marginTop: '0.5rem' }}
+      className="field-list form-narrow"
+      style={{ marginTop: '0.5rem' }}
     >
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="invoiceId" value={invoiceId} />
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
-      <div className="field-row">
-        <label className="field-label" htmlFor={`payment-amount-${invoiceId}`}>
-          Payment Amount
-        </label>
-        <input
-          id={`payment-amount-${invoiceId}`}
-          name="amount"
-          type="text"
-          inputMode="decimal"
-          autoComplete="off"
-          required
-          className="input"
-          placeholder="2,500.00"
-          {...describedBy(
-            `payment-amount-hint-${invoiceId}`,
-            fieldProblem(state, 'amount', messageId),
-          )}
-        />
-        <p className="field-hint" id={`payment-amount-hint-${invoiceId}`}>
-          In {currency.trim().toUpperCase() || 'the invoice currency'}, for example 2500.00 or
-          2,500.00.
-        </p>
-      </div>
-      {confirmCurrency ? (
+      <div className="form-grid">
         <div className="field-row">
-          <label className="field-label" htmlFor={`payment-currency-${invoiceId}`}>
-            Currency Received
+          <label className="field-label" htmlFor={`payment-amount-${invoiceId}`}>
+            Payment Amount
           </label>
           <input
-            id={`payment-currency-${invoiceId}`}
-            name="currency"
+            id={`payment-amount-${invoiceId}`}
+            name="amount"
             type="text"
+            inputMode="decimal"
+            autoComplete="off"
             required
-            minLength={3}
-            maxLength={3}
-            autoCapitalize="characters"
-            placeholder={`e.g. ${currency.trim().toUpperCase()}`}
             className="input"
-            {...fieldProblem(state, 'currency', messageId)}
+            placeholder="2,500.00"
+            {...describedBy(
+              `payment-amount-hint-${invoiceId}`,
+              fieldProblem(state, 'amount', messageId),
+            )}
+          />
+          <p className="field-hint" id={`payment-amount-hint-${invoiceId}`}>
+            In {currency.trim().toUpperCase() || 'the invoice currency'}, for example 2500.00 or
+            2,500.00.
+          </p>
+        </div>
+        {confirmCurrency ? (
+          <div className="field-row">
+            <label className="field-label" htmlFor={`payment-currency-${invoiceId}`}>
+              Currency Received
+            </label>
+            <input
+              id={`payment-currency-${invoiceId}`}
+              name="currency"
+              type="text"
+              required
+              minLength={3}
+              maxLength={3}
+              autoCapitalize="characters"
+              placeholder={`e.g. ${currency.trim().toUpperCase()}`}
+              className="input"
+              {...fieldProblem(state, 'currency', messageId)}
+            />
+          </div>
+        ) : null}
+        <div className="field-row">
+          <label className="field-label" htmlFor={`payment-date-${invoiceId}`}>
+            Collected Date
+          </label>
+          <input
+            id={`payment-date-${invoiceId}`}
+            name="collectedDate"
+            type="date"
+            required
+            className="input"
           />
         </div>
-      ) : null}
-      <div className="field-row">
-        <label className="field-label" htmlFor={`payment-date-${invoiceId}`}>
-          Collected Date
-        </label>
-        <input
-          id={`payment-date-${invoiceId}`}
-          name="collectedDate"
-          type="date"
-          required
-          className="input"
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={`payment-ref-${invoiceId}`}>
-          Payment Reference
-        </label>
-        <input
-          id={`payment-ref-${invoiceId}`}
-          name="paymentReference"
-          type="text"
-          required
-          className="input"
-          placeholder="e.g. bank transfer id"
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor={`payment-reason-${invoiceId}`}>
-          Reason
-        </label>
-        <input
-          id={`payment-reason-${invoiceId}`}
-          name="reason"
-          type="text"
-          required
-          className="input"
-          placeholder="How this payment was confirmed"
-        />
+        <div className="field-row">
+          <label className="field-label" htmlFor={`payment-ref-${invoiceId}`}>
+            Payment Reference
+          </label>
+          <input
+            id={`payment-ref-${invoiceId}`}
+            name="paymentReference"
+            type="text"
+            required
+            className="input"
+            placeholder="e.g. bank transfer id"
+          />
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor={`payment-reason-${invoiceId}`}>
+            Reason
+          </label>
+          <input
+            id={`payment-reason-${invoiceId}`}
+            name="reason"
+            type="text"
+            required
+            className="input"
+            placeholder="How this payment was confirmed"
+          />
+        </div>
       </div>
       <div>
         <SubmitButton
@@ -611,33 +651,35 @@ export function GrantOverrideForm({ organizationId }: { readonly organizationId:
   return (
     <form action={formAction} className="field-list">
       <input type="hidden" name="organizationId" value={organizationId} />
-      <div className="field-row">
-        <label className="field-label" htmlFor="override-durationDays">
-          Duration (Days, Max 30)
-        </label>
-        <input
-          id="override-durationDays"
-          name="durationDays"
-          type="number"
-          min="1"
-          max="30"
-          required
-          className="input"
-          placeholder="e.g. 7"
-        />
-      </div>
-      <div className="field-row">
-        <label className="field-label" htmlFor="override-reason">
-          Reason
-        </label>
-        <input
-          id="override-reason"
-          name="reason"
-          type="text"
-          required
-          className="input"
-          placeholder="Why this bypass is being granted"
-        />
+      <div className="form-grid">
+        <div className="field-row">
+          <label className="field-label" htmlFor="override-durationDays">
+            Duration (Days, Max 30)
+          </label>
+          <input
+            id="override-durationDays"
+            name="durationDays"
+            type="number"
+            min="1"
+            max="30"
+            required
+            className="input"
+            placeholder="e.g. 7"
+          />
+        </div>
+        <div className="field-row">
+          <label className="field-label" htmlFor="override-reason">
+            Reason
+          </label>
+          <input
+            id="override-reason"
+            name="reason"
+            type="text"
+            required
+            className="input"
+            placeholder="Why this bypass is being granted"
+          />
+        </div>
       </div>
       <div>
         <SubmitButton

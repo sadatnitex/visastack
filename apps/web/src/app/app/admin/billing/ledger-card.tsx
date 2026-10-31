@@ -56,25 +56,27 @@ export function LedgerCard({
           {problem}
         </p>
       ) : null}
-      <form method="get" action="/app/admin/billing/ledger" className="field-list">
-        <div className="field-row">
-          <label className="field-label" htmlFor="ledger-month">
-            Month
-          </label>
-          <input
-            id="ledger-month"
-            name="month"
-            type="month"
-            required
-            max={thisMonth}
-            defaultValue={thisMonth}
-            className="input"
-            aria-describedby={problem ? 'ledger-month-hint ledger-problem' : 'ledger-month-hint'}
-            {...(problem ? { 'aria-invalid': true, autoFocus: true } : {})}
-          />
-          <p id="ledger-month-hint" className="muted u-fs-085">
-            For example 2026-10.
-          </p>
+      <form method="get" action="/app/admin/billing/ledger" className="field-list form-narrow">
+        <div className="form-grid">
+          <div className="field-row">
+            <label className="field-label" htmlFor="ledger-month">
+              Month
+            </label>
+            <input
+              id="ledger-month"
+              name="month"
+              type="month"
+              required
+              max={thisMonth}
+              defaultValue={thisMonth}
+              className="input"
+              aria-describedby={problem ? 'ledger-month-hint ledger-problem' : 'ledger-month-hint'}
+              {...(problem ? { 'aria-invalid': true, autoFocus: true } : {})}
+            />
+            <p id="ledger-month-hint" className="muted u-fs-085">
+              For example 2026-10.
+            </p>
+          </div>
         </div>
         <div>
           <button type="submit" className="btn btn-secondary">

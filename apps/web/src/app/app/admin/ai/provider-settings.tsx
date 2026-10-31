@@ -24,7 +24,7 @@ import {
   type FallbackOption,
   RollbackConfigButton,
 } from '../ai-settings/forms';
-import { StickyDetails } from '../ai-settings/sticky-details';
+import { StickyDetails } from '../../../../components/sticky-details';
 
 export type AiProviderSettingsData = Awaited<ReturnType<typeof loadAiProviderSettings>>;
 

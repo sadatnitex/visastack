@@ -159,13 +159,13 @@ export function RefundForm({
   const formRef = useRef<HTMLFormElement>(null);
   useFocusInvalidField(formRef, state);
   return (
-    <form ref={formRef} action={formAction} className="field-list">
+    <form ref={formRef} action={formAction} className="field-list form-narrow">
       <SourceFields
         organizationId={organizationId}
         source={source}
         idempotencyKey={state.nextKey ?? firstKey}
       />
-      <div key={state.nextKey ?? firstKey} className="field-list">
+      <div key={state.nextKey ?? firstKey} className="form-grid">
         <TextField
           id={`${id}-amount`}
           name="amount"
@@ -222,13 +222,13 @@ export function ManualRefundForm({
   const formRef = useRef<HTMLFormElement>(null);
   useFocusInvalidField(formRef, state);
   return (
-    <form ref={formRef} action={formAction} className="field-list">
+    <form ref={formRef} action={formAction} className="field-list form-narrow">
       <SourceFields
         organizationId={organizationId}
         source={source}
         idempotencyKey={state.nextKey ?? firstKey}
       />
-      <div key={state.nextKey ?? firstKey} className="field-list">
+      <div key={state.nextKey ?? firstKey} className="form-grid">
         <TextField
           id={`${id}-amount`}
           name="amount"
@@ -394,10 +394,10 @@ export function ConfirmUnsentRefundForm({
   const formRef = useRef<HTMLFormElement>(null);
   useFocusInvalidField(formRef, state);
   return (
-    <form ref={formRef} action={formAction} className="field-list">
+    <form ref={formRef} action={formAction} className="field-list form-narrow">
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="refundRequestId" value={refundRequestId} />
-      <div key={state.nextKey ?? 'first'} className="field-list">
+      <div key={state.nextKey ?? 'first'} className="form-grid">
         <TextField
           id={`${id}-amount`}
           name="amount"
@@ -453,10 +453,10 @@ export function CancelRefundForm({
   const formRef = useRef<HTMLFormElement>(null);
   useFocusInvalidField(formRef, state);
   return (
-    <form ref={formRef} action={formAction} className="field-list">
+    <form ref={formRef} action={formAction} className="field-list form-narrow">
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="refundRequestId" value={refundRequestId} />
-      <div key={state.nextKey ?? 'first'} className="field-list">
+      <div key={state.nextKey ?? 'first'} className="form-grid">
         <TextField
           id={`${id}-reason`}
           name="reason"

@@ -77,6 +77,8 @@ export function LazyDisclosure({
   return (
     <details
       className="disclosure u-mt-100"
+      // Full width inside a payment's box, so the form it opens lays its fields side by side.
+      style={{ justifySelf: 'stretch' }}
       onToggle={(event) => {
         if (event.currentTarget.open) setOpened(true);
       }}
