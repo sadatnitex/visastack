@@ -1594,10 +1594,30 @@ const ADMIN: readonly Case[] = [
         planName="Agency Growth"
         initial={{ name: 'Agency Growth', periodDays: '30', price: '2500.00', currency: 'BDT' }}
         periodLocked={false}
-        traveller={false}
+        kind="agency"
+        uploadDefaults={{ accountBytes: 100 * 1024 * 1024, personBytes: 50 * 1024 * 1024 }}
       />
     ),
     fields: ['name', 'periodDays', 'price', 'currency', 'limit.seats'],
+  },
+  {
+    name: 'create or change a traveller plan (ADR 0025)',
+    element: () => (
+      <planForms.PlanForm
+        planName="New Traveller Plan"
+        initial={{ name: '', periodDays: '30', price: '', currency: 'BDT' }}
+        periodLocked={false}
+        kind="traveller"
+        uploadDefaults={{ accountBytes: 100 * 1024 * 1024, personBytes: 50 * 1024 * 1024 }}
+      />
+    ),
+    fields: [
+      'name',
+      'periodDays',
+      'price',
+      'limit.account_storage_bytes',
+      'limit.person_storage_bytes',
+    ],
   },
   {
     name: 'retire a plan (S29)',

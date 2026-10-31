@@ -80,3 +80,21 @@ export async function coveringPaidPeriod(
     periodEnd: new Date(row.period_end),
   };
 }
+
+/**
+ * People on a paid traveller plan now: accounts with a current subscription of their own on a
+ * traveller plan (ADR 0025). Zero before migration 0110. For the Plans page, which counts
+ * everyone else as on Traveller Free.
+ */
+export async function peopleOnPaidTravellerPlans(db: Db): Promise<number> {
+  if (!(await personBillingPresent(db))) return 0;
+  const rows = await db.execute<{ n: number }>(
+    sql`select count(distinct s.payer_account_id)::int as n
+      from subscriptions s
+      join plans p on p.id = s.plan_id and p.audience = 'TRAVELLER'
+      where s.payer_account_id is not null and s.ended_at is null`,
+  );
+  const list = Array.isArray(rows) ? rows : (rows as { rows?: unknown[] }).rows;
+  const row = (list ?? [])[0] as { n: number | string } | undefined;
+  return Number(row?.n ?? 0);
+}

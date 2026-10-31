@@ -8,6 +8,7 @@ import {
 import {
   CAPACITY_KEYS,
   type CapacityKey,
+  TRAVELLER_STORAGE_ENTITLEMENTS,
   aiEntitlementKey,
   isEntitlementKey,
 } from '@visastack/core/entitlements';
@@ -67,10 +68,10 @@ export interface TravellerStorageRules {
   readonly personBytes: number | null;
 }
 
-/** The plan rule names for a traveller plan's storage (migration 0111). */
+/** The plan rule names for a traveller plan's storage (migration 0111; the core registry). */
 export const TRAVELLER_STORAGE_KEYS = {
-  account: 'account_storage_bytes',
-  person: 'person_storage_bytes',
+  account: TRAVELLER_STORAGE_ENTITLEMENTS.account_storage_bytes.key,
+  person: TRAVELLER_STORAGE_ENTITLEMENTS.person_storage_bytes.key,
 } as const;
 
 export interface ResolvedEntitlements {

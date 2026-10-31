@@ -100,8 +100,51 @@ describe('Platform > Plans (S29)', () => {
     expect(text).not.toContain('Team Members and Invitations');
     expect(text).toContain('Complimentary');
     expect(text).toContain('Every new agency starts on this plan, so it cannot be retired.');
-    expect(text).toContain('New Plan');
+    expect(text).toContain('New Agency Plan');
+    expect(text).toContain('New Traveller Plan');
+    // Traveller Free's storage follows the upload settings, named with their numbers (ADR 0025).
+    expect(text).toContain('Storage per Person Upload Setting (50 MB)');
+    expect(text).toContain(
+      'Traveller Free follows the upload settings for storage: 100 MB for the whole account and 50 MB per person.',
+    );
     expect(mocks.staffPrincipal.mock.calls[0]?.[2]).toBe('PLANS_MANAGE');
+  });
+
+  it('shows a paid traveller plan with its BDT price, storage and AI rules, as not sold yet (ADR 0025)', async () => {
+    mocks.listPlansForAdmin.mockResolvedValue({
+      ok: true,
+      value: {
+        available: true,
+        plans: [
+          plan({
+            id: '00000000-0000-4000-8000-000000000004',
+            key: 'traveller_traveller_plus_abc123',
+            name: 'Traveller Plus',
+            audience: 'TRAVELLER',
+            price: { priceMinorUnits: 49900, currency: 'BDT' },
+            onIt: 0,
+            periodLocked: false,
+            rules: {
+              account_storage_bytes: { included: true, limit: 500 * 1024 * 1024 },
+              person_storage_bytes: { included: true, limit: null },
+              'ai.ai_app_suggestions': { included: true, limit: 60 },
+            },
+          }),
+        ],
+      },
+    });
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('Traveller Plus For Travellers Price BDT 499.00 for 30 days');
+    expect(text).toContain('0 Travellers');
+    expect(text).toContain('Not Sold Yet');
+    expect(text).not.toContain('Offered');
+    expect(text).toContain('Storage for the Whole Account 500 MB');
+    expect(text).toContain('Storage per Person Upload Setting (50 MB)');
+    expect(text).toContain('AI App Suggestions On, 60 a Day');
+    expect(text).toContain('Travellers cannot buy a plan yet');
+    // No agency limits on a traveller plan.
+    expect(text).not.toContain('Team Members');
+    expect(text).toContain('Retire Traveller Plus');
   });
 
   it('says plans can be changed after the database update, and offers no form until then', async () => {
@@ -111,7 +154,8 @@ describe('Platform > Plans (S29)', () => {
     });
     const text = textOf(await renderServer(Page()));
     expect(text).toContain('Plans can be changed after the database update.');
-    expect(text).not.toContain('New Plan');
+    expect(text).not.toContain('New Agency Plan');
+    expect(text).not.toContain('New Traveller Plan');
   });
 
   it('is restricted to the platform owner', async () => {

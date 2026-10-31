@@ -627,6 +627,26 @@ describe('the entitlement resolver and the Plans page (S29)', () => {
   );
 
   it(
+    'counts the agencies on each plan and fixes its period once one has been on it',
+    async () => {
+      const planId = await newPlan();
+      const listedBefore = await listPlansForAdmin(db, await plansScope());
+      if (!isOk(listedBefore)) throw new Error('list');
+      const before = listedBefore.value.plans.find((p) => p.id === planId);
+      expect(before?.onIt).toBe(0);
+      expect(before?.periodLocked).toBe(false);
+      const { organizationId } = await agency('counted');
+      await putOn(organizationId, planId);
+      const listed = await listPlansForAdmin(db, await plansScope());
+      if (!isOk(listed)) throw new Error('list');
+      const view = listed.value.plans.find((p) => p.id === planId);
+      expect(view?.onIt).toBe(1);
+      expect(view?.periodLocked).toBe(true);
+    },
+    TIMEOUT,
+  );
+
+  it(
     'saves the whole Traveller Free form as the Plans page fills it, with an unrelated change (S28 round 2)',
     async () => {
       const scope = await plansScope();
