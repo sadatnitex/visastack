@@ -29,6 +29,7 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import type { UpgradeLineKind } from '../../../../components/upgrade-line';
 import { resolveAiExplainer } from '../../../../lib/ai';
 import { resolveBaseUrl } from '../../../../lib/base-url';
 import { caseStateLabel } from '../../../../lib/case-stages';
@@ -38,11 +39,14 @@ import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 import { checklistAttachedLine, evidenceChosenLine } from '../../../../lib/success-lines';
 import { isKnownTimeZone } from '../../../../lib/time-zones';
+import { upgradeLineForRefusal } from '../../../../lib/upgrade-offer';
 
 /** Result surfaced back to the client for inline feedback. */
 export interface ActionState {
   readonly ok: boolean;
   readonly message: string;
+  /** The plain line after a refusal a paid plan would help with (ADR 0025 section 12.2). */
+  readonly upgrade?: UpgradeLineKind;
 }
 
 /** Attach a PUBLISHED pack version to the mission. */
@@ -665,7 +669,7 @@ export async function explainReadinessGapAction(
     return { ok: false, message: 'Missing case or requirement.' };
   }
 
-  const result = await withSession(async ({ db, accountId }) => {
+  const result = await withSession(async ({ db, accountId, self }) => {
     const mission = await getMissionForOwner(db, accountId, missionId);
     if (!mission.ok) return { ok: false, message: mission.error.message } satisfies ActionState;
     if (!mission.value.packVersionId) {
@@ -714,7 +718,12 @@ export async function explainReadinessGapAction(
       killSwitchCheck: () => isAiDispatchAllowed(db),
     });
     if (!explained.ok) {
-      return { ok: false, message: explained.error.message } satisfies ActionState;
+      // The case's owner, for themselves (checked above): the line when a paid plan would help.
+      return {
+        ok: false,
+        message: explained.error.message,
+        ...(await upgradeLineForRefusal(db, self, explained.error, 'ai_explanations')),
+      } satisfies ActionState;
     }
     return { ok: true, message: 'Explanation ready below.' } satisfies ActionState;
   });

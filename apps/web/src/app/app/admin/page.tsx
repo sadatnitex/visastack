@@ -9,7 +9,10 @@ import {
   getProductAnalytics,
   listFailedJobs,
   loadUploadQuotaConfig,
+  personBillingPresent,
+  personRefundGuardPresent,
   totalAiCostUnits,
+  travellerPlansEnabled,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -21,10 +24,12 @@ import { gateStatus } from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
 import { SHIPPED_MIGRATIONS } from '../../../lib/migration-journal';
 import { type ProviderStatus, describeProviderOperations } from '../../../lib/provider-operations';
+import { paymentMode } from '../../../lib/providers';
 import { evaluateReadiness } from '../../../lib/readiness';
 import { withSession } from '../../../lib/session';
 import { staffFactorMode } from '../../../lib/staff-factor';
 import { tolerantReader } from '../../../lib/tolerate';
+import { travellerPlansRow } from '../../../lib/traveller-plans-readiness';
 import { UsageMeter } from '../applicant/[id]/usage-meter';
 import { RetryJobButton } from './action-buttons';
 import { AdminRestricted } from './admin-restricted';
@@ -149,6 +154,22 @@ export default async function AdminOperationsPage() {
       [],
     );
     const readiness = await t('platform readiness', () => evaluateReadiness(), null);
+    // ADR 0025 T6: shown beside the readiness detail, never part of it (selling traveller plans
+    // is optional, so it never makes the platform degraded).
+    const travellerPlansDatabase = await t(
+      'traveller plans',
+      async () => ({
+        personBilling: await personBillingPresent(db),
+        refundGuard: await personRefundGuardPresent(db),
+      }),
+      null,
+    );
+    const travellerPlans = travellerPlansRow({
+      selling: travellerPlansEnabled(),
+      mode: paymentMode(),
+      personBilling: travellerPlansDatabase?.personBilling ?? null,
+      refundGuard: travellerPlansDatabase?.refundGuard ?? null,
+    });
     const overview = await t(
       'platform overview',
       async () => {
@@ -193,6 +214,7 @@ export default async function AdminOperationsPage() {
       quota: loadUploadQuotaConfig(),
       signals,
       readiness,
+      travellerPlans,
       failedSections,
       providerOperations: describeProviderOperations({
         ...(!failedSections.includes('evidence storage')
@@ -715,6 +737,7 @@ export default async function AdminOperationsPage() {
                         r.capabilities.asyncIntakeSweep ? 'configured' : 'not configured',
                         true,
                       ],
+                      ['Traveller Plans', data.travellerPlans.value, data.travellerPlans.good],
                     ];
                     return rows.map(([label, value, good]) => (
                       <div className="row" key={label}>

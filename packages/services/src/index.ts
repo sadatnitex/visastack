@@ -68,6 +68,7 @@ export {
   type RefusalReason,
   type ServiceError,
   type ServiceErrorCode,
+  type StorageLimitReason,
   refusal,
   serviceError,
 } from './errors';
@@ -1512,6 +1513,13 @@ export {
   type TravellerPlanSummary,
   travellerPlansEnabled,
 } from './traveller-plan';
+// ADR 0025 section 12.2: a paid plan offered at the moment of need, only when it would help.
+export {
+  type UpgradeContext,
+  type UpgradeShortfall,
+  upgradeHelps,
+  upgradeWouldHelp,
+} from './upgrade-offer';
 // ADR 0025 T3: a traveller buys and pays for their own paid plan (SelfScope from withSession).
 export {
   ALREADY_COVERED,
@@ -2037,7 +2045,27 @@ export {
   recordManualRefund,
   requestRefund,
   retryRefund,
+  // ADR 0025 T6: a traveller's refund, recorded by the platform owner.
+  PERSON_REFUNDS_UNAVAILABLE,
+  type PersonRefundOutcome,
+  type PersonRefundSource,
+  type RecordPersonRefundInput,
+  recordPersonRefund,
 } from './refunds';
+// ADR 0025 T6: the platform owner's Traveller Billing view.
+export {
+  TRAVELLER_NEEDS_CHECK_LIMIT,
+  type TravellerBilling,
+  type TravellerBillingResult,
+  type TravellerHeldView,
+  type TravellerInvoiceView,
+  type TravellerNeedsCheckItem,
+  type TravellerPaymentView,
+  type TravellerRefundView,
+  getTravellerBilling,
+  listTravellerNeedsCheck,
+  travellerLookup,
+} from './person-billing-admin';
 export {
   LEDGER_CSV_COLUMNS,
   LEDGER_EXPORT_MAX_ROWS,
@@ -2144,6 +2172,8 @@ export {
   startPersonPayment,
 } from './payments';
 export { countLedgerTestRows } from './ledger-export';
+export { personRefundGuardPresent } from './refunds';
+export { personBillingPresent } from './traveller-billing';
 export { MODE_CHANGED_CODE } from './refunds';
 // S28: AI feature controls. The owner context, the gate and the charge stay inside the services.
 export {

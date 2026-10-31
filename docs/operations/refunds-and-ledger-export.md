@@ -115,3 +115,27 @@ Both must be true.
 - Every SSLCOMMERZ refund detail (parameter names, the meaning of `cancelled`, timing, what a repeated refund id does, partial-refund limits, sandbox behaviour): built from search summaries of the v4 documentation; the documentation site could not be reached. Tested only against a fake gateway.
 - Live refunds need the server's outbound address registered with SSLCOMMERZ; Vercel has none fixed by default (O18).
 - Nothing here has run against production yet.
+
+## Two columns added to the accounting file: who paid (T6, ADR 0025)
+
+From T6 the monthly accounting file also holds the money of people who buy their own traveller plan. Two columns are added at the end of every row, after `recorded_by`, so an accountant's existing sheet keeps reading the first 15 columns as before:
+
+| Column | What it says |
+| --- | --- |
+| `payer_type` | `AGENCY` when an agency's invoice was paid or refunded, `PERSON` when a person's own traveller plan invoice was. |
+| `payer_code` | For an agency, its short code (the same as `agency_code`). For a person, their reference code: the first 8 characters of their account number, in capitals, the same code their receipts show. |
+
+For a person's row, `agency_code` and `agency_name` are empty. The file never holds a person's name, email address or full account number: only the reference code. Test payments stay out of the file for people exactly as for agencies, and are counted in "test payments left out".
+
+Before migration 0110 there are no person invoices: the file is read as before and every row says `AGENCY`.
+
+## Traveller Plans on the platform readiness detail (T6)
+
+Platform Operations, Platform Readiness Detail, has a Traveller Plans row. It is shown to platform administrators only and never changes the overall reading or `/api/health/ready`.
+
+- `Off`: traveller plans are not on sale (`TRAVELLER_PLANS_ENABLED` is not `true`).
+- `Test (only the platform owner can pay)`: on sale, payments in test mode.
+- `Live`: on sale and taking real money. `Partly Live` when some payment providers are live and some are not. `On, online payment not set up` when no payment provider is set up.
+- `Database behind` is added when migration 0110 or 0111 has not run.
+- `Refunds not ready yet` is added when migration 0112 has not run: the refund guard does not yet check a person's own refunds. The check reads only the guard function's text (`visastack_refund_requests_guard` names `payer_account_id` once 0112 has run).
+- The row is shown as a problem only when traveller plans take real money (Live or Partly Live) and the refund guard is not confirmed in place.

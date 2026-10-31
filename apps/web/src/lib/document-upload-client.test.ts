@@ -97,4 +97,21 @@ describe('reading the answer', () => {
     expect(readAnswer(201, JSON.stringify({ other: true }))).toEqual({ kind: 'unknown' });
     expect(readAnswer(201, 'null')).toEqual({ kind: 'unknown' });
   });
+
+  it('carries the upgrade line with a refusal, and only a line it knows (ADR 0025)', () => {
+    expect(readAnswer(400, JSON.stringify({ message: 'Full.', upgrade: 'storage' }))).toEqual({
+      kind: 'refused',
+      message: 'Full.',
+      upgrade: 'storage',
+    });
+    expect(readAnswer(400, JSON.stringify({ message: 'Full.', upgrade: 'pop-up' }))).toEqual({
+      kind: 'refused',
+      message: 'Full.',
+    });
+    expect(readAnswer(201, JSON.stringify({ message: 'Added.', upgrade: 'storage' }))).toEqual({
+      kind: 'added',
+      message: 'Added.',
+      title: null,
+    });
+  });
 });

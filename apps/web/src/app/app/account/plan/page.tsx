@@ -21,6 +21,7 @@ import {
   mbLabel,
   storageLimitsFrom,
   travellerPlansEnabled,
+  upgradeHelps,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -335,33 +336,34 @@ export default async function TravellerPlanPage({
   const renewalWaiting = waitingPlan !== null;
   const usedBytes = profiles.reduce((total, profile) => total + profile.usedBytes, 0);
   const offered = catalogue !== null && catalogue.offers.length > 0;
-  // ADR 0025 section 12.2: offered at the moment of need, once, never nagged: when a daily AI limit
-  // is reached or storage is mostly used, and only while a plan is on sale and none covers today.
-  // Each line only when a plan on sale really gives more of what ran short: its own limit, or the
-  // upload setting it follows, above the one this person has now.
+  // A Get button shows only while a plan is on sale and nothing paid covers today.
   const canUpgrade = offered && summary.paidUntil === null && !renewalWaiting;
-  const offers = catalogue?.offers ?? [];
-  const moreAccountRoom = offers.some(
-    (offer) => (offer.storage.accountBytes ?? quota.maxAccountEvidenceBytes) > limits.accountBytes,
-  );
-  const morePersonRoom = offers.some(
-    (offer) => (offer.storage.personBytes ?? quota.maxApplicantEvidenceBytes) > limits.personBytes,
-  );
+  // ADR 0025 section 12.2: offered at the moment of need, once, never nagged: when a daily AI limit
+  // is reached or storage is mostly used, and only when a plan on sale really gives more of what
+  // ran short. The same decision as the line in the upload and AI refusals (`upgradeHelps`).
+  const upgrade = {
+    selling,
+    offers: catalogue?.offers ?? [],
+    covered: summary.paidUntil !== null || renewalWaiting,
+    storage: summary.storage,
+    features: summary.features,
+    quota,
+  };
   const storageTight =
-    (moreAccountRoom && usedBytes >= limits.accountBytes * 0.8) ||
-    (morePersonRoom && profiles.some((profile) => profile.usedBytes >= limits.personBytes * 0.8));
+    (upgradeHelps(upgrade, { kind: 'account_storage' }) &&
+      usedBytes >= limits.accountBytes * 0.8) ||
+    (upgradeHelps(upgrade, { kind: 'person_storage' }) &&
+      profiles.some((profile) => profile.usedBytes >= limits.personBytes * 0.8));
   const aiLimitReached =
-    aiUsage?.some((feature) => {
-      if (feature.reason !== 'daily_limit') return false;
-      const now = summary.features?.[feature.feature]?.dailyLimit ?? feature.dailyLimit;
-      return offers.some((offer) => {
-        const rule = offer.features[feature.feature];
-        return (
-          rule?.included === true &&
-          (rule.dailyLimit === null || (now !== null && rule.dailyLimit > now))
-        );
-      });
-    }) ?? false;
+    aiUsage?.some(
+      (feature) =>
+        feature.reason === 'daily_limit' &&
+        upgradeHelps(upgrade, {
+          kind: 'ai',
+          feature: feature.feature,
+          limitNow: feature.dailyLimit,
+        }),
+    ) ?? false;
 
   return (
     <section className="section container">
@@ -443,7 +445,7 @@ export default async function TravellerPlanPage({
               be added to it.
             </p>
           )}
-          {canUpgrade && storageTight ? (
+          {storageTight ? (
             <p className="card-body u-mt-100">
               Running out of room? A paid plan gives you more storage.{' '}
               <a href="#compare-plans-title">Compare Plans</a>
@@ -512,7 +514,7 @@ export default async function TravellerPlanPage({
             {AI_DAY_BOUNDARY_NOTE} Turn AI features on or off under{' '}
             <Link href="/app#permissions">Permissions You Control on Home</Link>.
           </p>
-          {canUpgrade && aiLimitReached ? (
+          {aiLimitReached ? (
             <p className="card-body u-mt-050">
               Reached a daily limit? A paid plan gives you higher daily limits.{' '}
               <a href="#compare-plans-title">Compare Plans</a>

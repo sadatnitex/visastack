@@ -44,6 +44,9 @@ describe('Platform > Settings', () => {
     const html = await renderServer(Page());
     expect(textOf(html)).toContain('Billing Rules');
     expect(html).toContain('href="/app/admin/billing"');
+    // ADR 0025 T6b: a traveller's own billing sits beside the agency billing rules.
+    expect(html).toContain('href="/app/admin/billing/travellers"');
+    expect(textOf(html)).toContain('Open Traveller Billing');
   });
 
   it('hides it from an administrator without that permission', async () => {

@@ -313,6 +313,12 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     after:
       'Do not want it any more? Choose Stop Renewing on Plan & Usage and we stop reminding you.',
   },
+  PERSON_REFUND_RECORDED: {
+    eyebrow: 'Your Plan',
+    heading: 'A refund was made',
+    why: 'Your Billing History shows the refund. It can take a few days to reach the account you paid from.',
+    action: 'See Billing History',
+  },
   PERSON_PLAN_ENDED: {
     eyebrow: 'Your Plan',
     heading: 'Your paid plan has ended',

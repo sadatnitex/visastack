@@ -53,6 +53,28 @@ describe('FormMessage', () => {
     expect(html).toContain('<output class="field-msg field-msg-err"></output>');
   });
 
+  it('says the upgrade line after a refusal’s own words, as a link to Plan & Usage (ADR 0025)', () => {
+    const html = render({ result: { ok: false, message: 'Limit reached.', upgrade: 'ai' } });
+    expect(html).toContain(
+      '<p role="alert" class="field-msg field-msg-err">Limit reached. <a href="/app/account/plan">A paid plan gives you a higher daily limit. See Plan &amp; Usage.</a></p>',
+    );
+    expect(render({ result: { ok: false, message: 'Full.', upgrade: 'storage' } })).toContain(
+      'Full. <a href="/app/account/plan">A paid plan gives you more room. See Plan &amp; Usage.</a>',
+    );
+    // Only ever with a refusal: never on success, and not while a new attempt is running.
+    expect(render({ result: { ok: true, message: 'Saved.', upgrade: 'ai' } })).not.toContain(
+      'paid plan',
+    );
+    expect(
+      render({
+        result: { ok: false, message: 'Full.', upgrade: 'storage' },
+        pending: true,
+        pendingText: 'Working.',
+      }),
+    ).not.toContain('paid plan');
+    expect(render({ result: failure })).not.toContain('paid plan');
+  });
+
   it('announces a success politely, in the success colour', () => {
     const html = render({ result: success });
     expect(html).toContain('<output class="field-msg field-msg-ok">Saved.</output>');

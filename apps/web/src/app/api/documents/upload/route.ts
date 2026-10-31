@@ -1,4 +1,5 @@
 import { getApplicant } from '@visastack/services';
+import type { UpgradeLineKind } from '../../../../components/upgrade-line';
 import { withSession } from '../../../../lib/session';
 import {
   STREAM_UPLOAD_LIMIT,
@@ -13,9 +14,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const json = (message: string, status: number, title?: string) =>
+const json = (message: string, status: number, title?: string, upgrade?: UpgradeLineKind) =>
   Response.json(
-    { message, ...(title ? { title } : {}) },
+    { message, ...(title ? { title } : {}), ...(upgrade ? { upgrade } : {}) },
     {
       status,
       headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
@@ -76,6 +77,11 @@ export async function POST(request: Request): Promise<Response> {
     // Do not accept a caller-controlled path or header as the stored filename.
     form.set('file', new File([Buffer.from(bytes)], 'document', { type: contentType }));
     const result = await uploadDocumentAction({ ok: false, message: '' }, form);
-    return json(result.message, result.ok ? 201 : 400, result.ok ? result.title : undefined);
+    return json(
+      result.message,
+      result.ok ? 201 : 400,
+      result.ok ? result.title : undefined,
+      result.ok ? undefined : result.upgrade,
+    );
   });
 }

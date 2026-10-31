@@ -59,6 +59,7 @@ vi.mock('../app/app/actions', standIn);
 vi.mock('../app/app/admin/actions', standIn);
 vi.mock('../app/app/admin/ai-settings/actions', standIn);
 vi.mock('../app/app/admin/billing/actions', standIn);
+vi.mock('../app/app/admin/billing/travellers/actions', standIn);
 vi.mock('../app/app/admin/ai/actions', standIn);
 vi.mock('../app/app/applicant/[id]/sharing/ai-draft-actions', standIn);
 vi.mock('../app/app/admin/document-protection/actions', standIn);
@@ -99,6 +100,7 @@ const adminForms = await import('../app/app/admin/admin-forms');
 const aiSettings = await import('../app/app/admin/ai-settings/forms');
 const protectionForms = await import('../app/app/admin/document-protection/forms');
 const billingRulesForms = await import('../app/app/admin/billing/forms');
+const travellerBillingForms = await import('../app/app/admin/billing/travellers/forms');
 const aiFeatureForms = await import('../app/app/admin/ai/forms');
 const planForms = await import('../app/app/admin/plans/forms');
 const travellerPlanForms = await import('../app/app/account/plan/plan-forms');
@@ -1822,6 +1824,42 @@ const ADMIN: readonly Case[] = [
       />
     ),
     fields: ['amount', 'reference', 'refundedOn', 'reason'],
+    repeated: true,
+  },
+  {
+    name: "record a traveller's refund",
+    element: () => (
+      <travellerBillingForms.TravellerRefundForm
+        formId={rowId()}
+        source={{ kind: 'entry', id: rowId() }}
+        invoiceRef="TP-9D1E2F3A-2"
+        amountMinorUnits={150000}
+        amountText="BDT 1,500.00"
+        earliestDate="2026-10-01"
+        latestDate="2026-10-30"
+        outsideWindow={false}
+        testPayment={false}
+      />
+    ),
+    fields: ['reference', 'refundedOn', 'reason'],
+    repeated: true,
+  },
+  {
+    name: "record a traveller's refund (held, past the 7 days)",
+    element: () => (
+      <travellerBillingForms.TravellerRefundForm
+        formId={rowId()}
+        source={{ kind: 'held', id: rowId() }}
+        invoiceRef="TP-9D1E2F3A-3"
+        amountMinorUnits={30000}
+        amountText="BDT 300.00"
+        earliestDate="2026-10-01"
+        latestDate="2026-10-30"
+        outsideWindow
+        testPayment
+      />
+    ),
+    fields: ['reference', 'refundedOn', 'reason'],
     repeated: true,
   },
   row('apply held money to the next invoice', () => (

@@ -119,6 +119,31 @@ describe('the camera control', () => {
   });
 });
 
+describe('a file refused for storage (ADR 0025 section 12.2)', () => {
+  it('shows the upgrade line after the refusal only when the server sends it, and drops it on Try Again', async () => {
+    await mount();
+    await choose(picker(), [file('one.png', 10, 'image/png'), file('two.png', 10, 'image/png')]);
+    const refusal = 'This account has reached its 100 MB evidence limit.';
+    await act(async () =>
+      (FakeRequest.sent[0] as FakeRequest).answer(400, { message: refusal, upgrade: 'storage' }),
+    );
+    await act(async () => (FakeRequest.sent[1] as FakeRequest).answer(400, { message: refusal }));
+    const [offered, plain] = rows();
+    const status = offered?.querySelector('.upload-item-status');
+    expect(status?.textContent).toBe(
+      `Not added. ${refusal} A paid plan gives you more room. See Plan & Usage.`,
+    );
+    const link = status?.querySelector('a');
+    expect(link?.getAttribute('href')).toBe('/app/account/plan');
+    expect(link?.textContent).toBe('A paid plan gives you more room. See Plan & Usage.');
+    expect(plain?.querySelector('.upload-item-status')?.textContent).toBe(`Not added. ${refusal}`);
+    expect(plain?.querySelector('a')).toBeNull();
+
+    await act(async () => (offered?.querySelector('button') as HTMLButtonElement).click());
+    expect(offered?.querySelector('a')).toBeNull();
+  });
+});
+
 describe('adding several files at once', () => {
   it('gives each file its own line, sends them one at a time, and shows each result', async () => {
     await mount();

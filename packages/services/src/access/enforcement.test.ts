@@ -66,6 +66,11 @@ const PAYER_COLUMN_MODULES = [
   'invoice-ledger',
   // T4: the daily run's person step reads current subscriptions in plain SQL.
   'person-renewals',
+  // T6: the accounting file reads an invoice's payer for its reference code (StaffScope gated).
+  'ledger-export',
+  // T6: a person's refund (below its marker) and the owner's Traveller Billing view.
+  'refunds',
+  'person-billing-admin',
 ] as const;
 /**
  * Exported functions that touch person billing tables without a gate and are trusted not to
@@ -772,21 +777,32 @@ const PERSON_ROW_TEXT =
  * The private person section of the recording module: the payer column may be named only below
  * this line of invoice-ledger.ts (its agency code above it may not).
  */
-const LEDGER_PERSON_SECTION = "// --- A person's own invoice (ADR 0025, T3b)";
+/**
+ * Shared modules where a person's billing may be named only below a marker: everything above it is
+ * agency code and must not name the payer column. Fixed, like the lists above.
+ */
+const PERSON_SECTIONS: Readonly<Record<string, string>> = {
+  'invoice-ledger': "// --- A person's own invoice (ADR 0025, T3b)",
+  // T6: person refunds reuse the agency refund rules from below this marker.
+  refunds: "// --- A person's refund (ADR 0025, T6)",
+};
 
 /** Service and web files outside PAYER_COLUMN_MODULES that match PERSON_ROW_TEXT. Tests left out. */
 function payerColumnUsers(): string[] {
-  const ledger = path.join(srcDir, 'invoice-ledger.ts');
+  const sections = new Map(
+    Object.entries(PERSON_SECTIONS).map(([m, marker]) => [path.join(srcDir, `${m}.ts`), marker]),
+  );
   const allowed = new Set(
-    PAYER_COLUMN_MODULES.filter((m) => m !== 'invoice-ledger').map((m) =>
+    PAYER_COLUMN_MODULES.filter((m) => !Object.hasOwn(PERSON_SECTIONS, m)).map((m) =>
       path.join(srcDir, `${m}.ts`),
     ),
   );
   const checkedText = (file: string): string => {
     const text = readFileSync(file, 'utf8');
-    if (file !== ledger) return text;
-    const at = text.indexOf(LEDGER_PERSON_SECTION);
-    if (at < 0) throw new Error('invoice-ledger.ts has lost its person section marker');
+    const marker = sections.get(file);
+    if (marker === undefined) return text;
+    const at = text.indexOf(marker);
+    if (at < 0) throw new Error(`${path.basename(file)} has lost its person section marker`);
     return text.slice(0, at);
   };
   return [...sourceFilesUnder(srcDir), ...sourceFilesUnder(webSrcDir)]
