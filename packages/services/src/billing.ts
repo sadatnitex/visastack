@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { isActiveMember } from './agency';
 import { appendAuditEvent } from './audit';
 import {
@@ -685,11 +685,15 @@ export async function recordInvoicePayment(
   }
 
   return db.transaction(async (tx) => {
+    // An agency invoice only (ADR 0025): a person's own invoice is recorded only by its online
+    // payment, never by staff here, so it reads as not found.
     const invoice = first(
       await tx
         .select({ currency: schema.invoices.currency })
         .from(schema.invoices)
-        .where(eq(schema.invoices.id, input.invoiceId))
+        .where(
+          and(eq(schema.invoices.id, input.invoiceId), isNotNull(schema.invoices.organizationId)),
+        )
         .limit(1),
     );
     if (!invoice) return err(serviceError('not_found', 'invoice not found'));
@@ -763,11 +767,14 @@ export async function voidInvoice(
   return db.transaction(async (tx) => {
     // Read under the same row lock a payment takes, so an invoice cannot be voided in the
     // instant after money was recorded against it.
+    // An agency invoice only (ADR 0025): a person's invoice is never voided here.
     const invoice = first(
       await tx
         .select()
         .from(schema.invoices)
-        .where(eq(schema.invoices.id, input.invoiceId))
+        .where(
+          and(eq(schema.invoices.id, input.invoiceId), isNotNull(schema.invoices.organizationId)),
+        )
         .limit(1)
         .for('update'),
     );

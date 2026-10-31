@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
 import { TRAVELLER_PLAN_KEY } from './entitlements';
-import { getTravellerPlanSummary } from './traveller-plan';
+import { getTravellerPlanSummary, travellerPlansEnabled } from './traveller-plan';
 
 let db: Db;
 
@@ -40,5 +40,16 @@ describe('getTravellerPlanSummary', () => {
       actorAccountId: await traveller('two@example.com'),
     });
     expect(two).toEqual(one);
+  });
+});
+
+describe('travellerPlansEnabled (ADR 0025 section 9)', () => {
+  it('is off unless TRAVELLER_PLANS_ENABLED is the word true', () => {
+    expect(travellerPlansEnabled({})).toBe(false);
+    for (const off of ['', 'false', 'TRUE', 'yes', '1', 'on', 'truee']) {
+      expect(travellerPlansEnabled({ TRAVELLER_PLANS_ENABLED: off }), off).toBe(false);
+    }
+    expect(travellerPlansEnabled({ TRAVELLER_PLANS_ENABLED: 'true' })).toBe(true);
+    expect(travellerPlansEnabled({ TRAVELLER_PLANS_ENABLED: ' true ' })).toBe(true);
   });
 });
