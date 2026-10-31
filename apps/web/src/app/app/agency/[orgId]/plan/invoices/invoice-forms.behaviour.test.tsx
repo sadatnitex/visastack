@@ -98,4 +98,31 @@ describe('the report form after the server refuses a report', () => {
     expect(field<HTMLInputElement>('reference').value).toBe('');
     expect(container.querySelector('details')?.hasAttribute('open')).toBe(false);
   });
+
+  it('reads each hint with its field, and shows a refusal beside the field it is about', async () => {
+    actions.submitClaim.mockResolvedValue({
+      ok: false,
+      message: 'Enter the payment reference.',
+      field: 'reference',
+      values: { method: 'BKASH', reference: '', amount: '10', paidOn: '2026-10-25', note: '' },
+    });
+    await render();
+    const hintOf = (name: string) =>
+      (field(name).getAttribute('aria-describedby') ?? '')
+        .split(' ')
+        .map((id) => container.ownerDocument.getElementById(id)?.textContent ?? '');
+    expect(hintOf('reference').join(' ')).toMatch(/transaction id/);
+    expect(hintOf('proof').join(' ')).toMatch(/under 4 MB/);
+
+    await submit();
+
+    const reference = field<HTMLInputElement>('reference');
+    expect(hintOf('reference').join(' ')).toMatch(/transaction id/);
+    expect(hintOf('reference').join(' ')).toMatch(/Enter the payment reference/);
+    const beside = reference.parentElement?.querySelector('.field-msg-err');
+    expect(beside?.textContent).toBe('Enter the payment reference.');
+    expect(beside?.getAttribute('aria-hidden')).toBe('true');
+    // Only the field the refusal is about carries it.
+    expect(field('amount').parentElement?.querySelector('.field-msg-err')).toBeNull();
+  });
 });

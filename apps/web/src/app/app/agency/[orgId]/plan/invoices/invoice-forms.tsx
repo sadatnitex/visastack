@@ -5,6 +5,7 @@ import {
   FormMessage,
   SubmitButton,
   fieldProblem,
+  isFailure,
   useFocusInvalidField,
 } from '../../../../../../components/form-feedback';
 import { CLAIM_METHOD_LABELS } from '../../../../../../lib/invoice-labels';
@@ -139,6 +140,23 @@ export function ClaimForm({
   // When a report is refused the page gives back what was typed (never the file), because a form
   // action clears an uncontrolled form once it finishes.
   const kept: Partial<ClaimValues> = state.values ?? {};
+  const referenceHintId = `${base}-reference-hint`;
+  const proofHintId = `${base}-proof-hint`;
+  // A field's hint is always read with it; when a refused report is about that field, the
+  // message is read too (the alert under the button is the one announced).
+  const problem = (field: keyof ClaimValues | 'proof', hintId?: string) => {
+    const marked = fieldProblem(state, field, messageId);
+    const describedBy = [hintId, marked['aria-describedby']].filter(Boolean).join(' ');
+    return { ...marked, ...(describedBy ? { 'aria-describedby': describedBy } : {}) };
+  };
+  // The same message shown again right under the field it is about, so it is seen where the
+  // fix is made. Hidden from screen readers, which already hear it through the field.
+  const besideField = (field: keyof ClaimValues | 'proof') =>
+    isFailure(state) && state.field === field ? (
+      <p className="field-msg field-msg-err" aria-hidden="true">
+        {state.message}
+      </p>
+    ) : null;
   return (
     <details className="invoice-claim" open={state.values !== undefined ? true : undefined}>
       <summary className="invoice-claim-summary">I Paid Another Way</summary>
@@ -162,7 +180,7 @@ export function ClaimForm({
               className="input"
               required
               defaultValue={kept.method ?? 'BANK_TRANSFER'}
-              {...fieldProblem(state, 'method', messageId)}
+              {...problem('method')}
             >
               {Object.entries(CLAIM_METHOD_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -170,6 +188,7 @@ export function ClaimForm({
                 </option>
               ))}
             </select>
+            {besideField('method')}
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-reference`}>
@@ -184,9 +203,12 @@ export function ClaimForm({
               maxLength={120}
               autoComplete="off"
               defaultValue={kept.reference ?? ''}
-              {...fieldProblem(state, 'reference', messageId)}
+              {...problem('reference', referenceHintId)}
             />
-            <p className="invoice-hint">A transfer id, bKash transaction id or cheque number.</p>
+            {besideField('reference')}
+            <p className="invoice-hint" id={referenceHintId}>
+              A transfer id, bKash transaction id or cheque number.
+            </p>
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-amount`}>
@@ -201,8 +223,9 @@ export function ClaimForm({
               required
               defaultValue={kept.amount ?? balance}
               autoComplete="off"
-              {...fieldProblem(state, 'amount', messageId)}
+              {...problem('amount')}
             />
+            {besideField('amount')}
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor={`${base}-paid-on`}>
@@ -216,8 +239,9 @@ export function ClaimForm({
               required
               max={latestDate}
               defaultValue={kept.paidOn ?? ''}
-              {...fieldProblem(state, 'paidOn', messageId)}
+              {...problem('paidOn')}
             />
+            {besideField('paidOn')}
           </div>
           <div className="field-row field-wide">
             <label className="field-label" htmlFor={`${base}-note`}>
@@ -230,8 +254,9 @@ export function ClaimForm({
               rows={2}
               maxLength={500}
               defaultValue={kept.note ?? ''}
-              {...fieldProblem(state, 'note', messageId)}
+              {...problem('note')}
             />
+            {besideField('note')}
           </div>
           <div className="field-row field-wide">
             <label className="field-label" htmlFor={`${base}-proof`}>
@@ -243,9 +268,10 @@ export function ClaimForm({
               type="file"
               className="input"
               accept="application/pdf,image/jpeg,image/png"
-              {...fieldProblem(state, 'proof', messageId)}
+              {...problem('proof', proofHintId)}
             />
-            <p className="invoice-hint">
+            {besideField('proof')}
+            <p className="invoice-hint" id={proofHintId}>
               A photo or screenshot (JPEG or PNG) or a PDF, under 4 MB. Only your owners and admins
               and VisaStack staff can open it. If you report again after an error, choose the file
               again.
