@@ -43,7 +43,14 @@ export type RefusalReason =
   | PlanAdminReason
   | PaymentModeReason
   | AiFeatureReason
-  | PaymentProviderReason;
+  | PaymentProviderReason
+  | PersonBillingReason;
+
+/**
+ * Why a traveller cannot buy or pay for a paid plan right now (ADR 0025): selling is switched off,
+ * a paid period already covers them, or the plan is not for sale.
+ */
+export type PersonBillingReason = 'selling_off' | 'already_covered' | 'plan_not_for_sale';
 
 /**
  * Why an AI step was refused because its feature is off (S28): the platform is not running it,

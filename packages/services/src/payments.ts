@@ -13,7 +13,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import type { SystemScope } from './access/principal';
+import { type SelfScope, type SystemScope, selfScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { invoiceLedgerReader } from './billing';
 import { type Db, first, required, schema } from './db';
@@ -29,6 +29,7 @@ import {
 import { isMissingRelationError } from './missing-relation';
 import { isOrgAdmin } from './organizations';
 import { providerShareDeadline } from './payment-resolver';
+import { PERSON_SELLING_OFF, ownPersonInvoice, personAttemptWriter } from './person-billing';
 import {
   type PaymentMode,
   attemptColumns,
@@ -39,6 +40,8 @@ import {
 import { isPlatformOwner } from './platform-roles';
 import type { PaymentPort, PaymentPortResolver, PaymentValidation } from './ports';
 import { RATE_LIMITS, checkRateLimit, checkRateLimits } from './rate-limit';
+import { personBillingPresent } from './traveller-billing';
+import { travellerPlansEnabled } from './traveller-plan';
 
 /**
  * Online invoice payments through a hosted gateway (Small Commercial V1 S11, ADR 0020).
@@ -521,6 +524,10 @@ async function applyDecision(
         case 'refunded_invoice':
           // S18 (D2): the invoice was refunded meanwhile and is never owed again.
           return hold('invoice_refunded', []);
+        case 'already_covered':
+          // ADR 0025: a person paid for a period another paid invoice of theirs already covers
+          // (two tabs, two payments). Kept for a refund or a credit, never counted twice.
+          return hold('already_covered', []);
         case 'currency_mismatch':
           return hold('mismatch', ['currency']);
         case 'key_conflict':
@@ -844,6 +851,78 @@ export async function startOnlinePayment(
   }
 }
 
+export interface StartPersonPaymentInput {
+  readonly invoiceId: string;
+  readonly urlFor: (kind: PaymentReturnKind, merchantTranId: string, provider: string) => string;
+  readonly startAnother?: boolean;
+  /** The person's sign-in email and the bootstrap owner list, for test mode (owner only). */
+  readonly actorEmail?: string;
+  readonly bootstrapEmails?: readonly string[];
+  readonly now?: Date;
+  readonly timeoutMs?: number;
+}
+
+/**
+ * Starts the online payment of the signed-in person's own purchase invoice (ADR 0025), through the
+ * same opening as an agency's: in test mode only the platform owner may pay, and the person's own
+ * start allowance applies (there is no agency allowance to share). An invoice whose payer is
+ * anyone else reads as not found. Waits for `TRAVELLER_PLANS_ENABLED` and migrations 0110 and 0111.
+ */
+export async function startPersonPayment(
+  db: Db,
+  payments: PaymentPortResolver,
+  self: SelfScope,
+  input: StartPersonPaymentInput,
+): Promise<Result<StartedPayment, ServiceError>> {
+  const denied = selfScopeProblem(self);
+  if (denied) return err(denied);
+  if (!travellerPlansEnabled()) return err(refusal('selling_off', PERSON_SELLING_OFF));
+  const fallback = payments.configured()[0];
+  if (fallback === undefined) return err(serviceError('invalid', NOT_AVAILABLE));
+  const now = input.now ?? new Date();
+  try {
+    if (!(await personBillingPresent(db))) return err(serviceError('invalid', NOT_AVAILABLE));
+    const invoice = await ownPersonInvoice(db, self, input.invoiceId);
+    if (!invoice) return err(serviceError('not_found', 'invoice not found'));
+    const accountId = self.accountId;
+    return await openInvoicePayment(
+      db,
+      payments,
+      invoice,
+      {
+        payerLimit: null,
+        audit: { payerKind: 'person' },
+        // The payment page shows the part of the email before the @, never a stored name.
+        customerName: async (tx) => {
+          const row = first(
+            await tx
+              .select({ email: schema.accounts.email })
+              .from(schema.accounts)
+              .where(eq(schema.accounts.id, accountId))
+              .limit(1),
+          );
+          return row ? (row.email.split('@')[0] ?? row.email) : null;
+        },
+        insertAttempt: personAttemptWriter(self),
+      },
+      {
+        actorAccountId: accountId,
+        invoiceId: invoice.id,
+        urlFor: input.urlFor,
+        ...(input.startAnother !== undefined ? { startAnother: input.startAnother } : {}),
+        ...(input.actorEmail !== undefined ? { actorEmail: input.actorEmail } : {}),
+        ...(input.bootstrapEmails !== undefined ? { bootstrapEmails: input.bootstrapEmails } : {}),
+        ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
+        now,
+      },
+      fallback,
+    );
+  } catch (error) {
+    if (isMissingRelationError(error)) return err(serviceError('invalid', NOT_AVAILABLE));
+    throw error;
+  }
+}
+
 /** The columns of a new payment attempt that do not name its payer (ADR 0025). */
 export interface NewAttemptValues {
   readonly invoiceId: string;
@@ -883,7 +962,7 @@ export interface InvoicePaymentPayer {
  * stranded payment and the new attempt, then the payment page. The refusals come in that order,
  * as they always have.
  */
-export async function openInvoicePayment(
+async function openInvoicePayment(
   db: Db,
   payments: PaymentPortResolver,
   invoice: { readonly id: string; readonly currency: string },
