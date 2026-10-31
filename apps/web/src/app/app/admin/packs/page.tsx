@@ -138,13 +138,14 @@ export default async function PackStudioPage() {
             )}
           </article>
 
-          <article className="card">
+          {/* The two forms span the whole row, so their fields can sit side by side. */}
+          <article className="card" style={{ gridColumn: '1 / -1' }}>
             <p className="card-kicker">New</p>
             <h2 className="card-title">Create a Pack</h2>
             <CreatePackForm />
           </article>
 
-          <article className="card">
+          <article className="card" style={{ gridColumn: '1 / -1' }}>
             <p className="card-kicker">Expiry Centre</p>
             <h2 className="card-title">Reminder Thresholds by Document Type</h2>
             <p
@@ -155,7 +156,7 @@ export default async function PackStudioPage() {
               type below.
             </p>
             {data.expiryPolicies.length > 0 ? (
-              <div className="rows u-mb-125">
+              <div className="rows rows-grid u-mb-125">
                 {data.expiryPolicies.map((p) => (
                   <div className="row" key={p.id}>
                     <span className="row-key">{documentTypeLabel(p.docType)}</span>
