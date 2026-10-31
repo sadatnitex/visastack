@@ -146,6 +146,22 @@ export const AI_DENIAL_REASONS = [
   'file_type_unsupported',
   'file_limit',
   'safe_copy_limit',
+  // Agency AI connections (S22): the member's standing, read again on every call.
+  'agency_member_ended',
+  'agency_not_active',
+  'agency_billing_suspended',
+  'agency_setting_off',
+  'agency_connection_expired',
+  // The connection was turned off by an owner or admin of the agency (S22 round 4).
+  'agency_turned_off',
+  // The member's account is no longer admitted (suspended or locked), seen inside the work (round 5).
+  'agency_account_not_admitted',
+  // The member personally owns the traveller's record: never read through the agency.
+  'agency_own_record',
+  // An agency tool named no case: every agency read is through one case.
+  'case_required',
+  // A tool this kind of connection never has (an owner tool on an agency connection, or back).
+  'tool_not_offered',
 ] as const;
 export type AiDenialReason = (typeof AI_DENIAL_REASONS)[number];
 

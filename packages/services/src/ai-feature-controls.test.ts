@@ -4,6 +4,7 @@ import { isOk } from '@visastack/core';
 import {
   AI_FEATURE_KEYS,
   AI_FEATURE_OFF_HINT,
+  AI_TRAVELLER_FEATURE_KEYS,
   type AiFeatureKey,
 } from '@visastack/core/ai-features';
 import { schema } from '@visastack/db';
@@ -450,7 +451,8 @@ describe('counting each use against the daily limit', () => {
         available: false,
         reason: 'daily_limit',
       });
-      expect(today.features.map((f) => f.feature)).toEqual(AI_FEATURE_KEYS);
+      // A person's own page lists the traveller features only (S22: never Agency AI Tools).
+      expect(today.features.map((f) => f.feature)).toEqual(AI_TRAVELLER_FEATURE_KEYS);
       expect(today.startsAgainAt.toISOString()).toMatch(/T00:00:00\.000Z$/);
       // The next UTC day starts afresh.
       const tomorrow = aiFeatureDay().to;

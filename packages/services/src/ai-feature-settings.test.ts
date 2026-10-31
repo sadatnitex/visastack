@@ -187,6 +187,15 @@ describe('changing an AI feature', () => {
         planDailyLimit: 30,
         ready: true,
       }),
+      // S22: registered, off until turned on, 500 a day per agency; ready once its migrations ran.
+      expect.objectContaining({
+        feature: 'ai_agency_tools',
+        name: 'Agency AI Tools',
+        enabled: false,
+        adminDailyLimit: null,
+        planDailyLimit: 500,
+        ready: true,
+      }),
     ]);
     const audit = await db
       .select()

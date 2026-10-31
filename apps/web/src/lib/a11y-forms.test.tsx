@@ -87,6 +87,9 @@ vi.mock('../app/app/mission/[id]/snapshots/[snapshotId]/actions', standIn);
 vi.mock('../app/app/privacy/actions', standIn);
 vi.mock('../app/app/staff-code/actions', standIn);
 vi.mock('../app/oauth/authorize/actions', standIn);
+vi.mock('../app/oauth/authorize/agency-actions', standIn);
+vi.mock('../app/app/agency/[orgId]/ai-actions', standIn);
+vi.mock('../app/app/applicant/[id]/sharing/grant-ai-actions', standIn);
 
 const { ConnectWhatsAppForm } = await import('../app/app/account/whatsapp/connect-form');
 const { AddApplicantForm } = await import('../app/app/add-applicant-form');
@@ -100,6 +103,10 @@ const aiFeatureForms = await import('../app/app/admin/ai/forms');
 const planForms = await import('../app/app/admin/plans/forms');
 const aiDraftForms = await import('../app/app/applicant/[id]/sharing/ai-drafts');
 const aiConsentForms = await import('../app/oauth/authorize/consent-form');
+const agencyConsentForms = await import('../app/oauth/authorize/agency-consent-form');
+const { AgencyAiSettingForm } = await import('../app/app/agency/[orgId]/agency-ai-setting-form');
+const { AgencyAiTurnOff } = await import('../app/app/agency/[orgId]/agency-ai-turn-off');
+const { GrantAiChoice } = await import('../app/app/applicant/[id]/sharing/grant-ai-choice');
 const signInRecoveryForms = await import('../app/app/admin/sign-in-recovery/forms');
 const emailDeliveryForms = await import('../app/app/admin/email/forms');
 const staffCodeForms = await import('../app/app/staff-code/forms');
@@ -627,6 +634,12 @@ const SHARING: readonly Case[] = [
   )),
   row('turn off an AI app', () => (
     <AiConnectionTurnOff applicantId="a1" connectionId={rowId()} appName="Claude" />
+  )),
+  row('let an agency use AI tools (off)', () => (
+    <GrantAiChoice applicantId="a1" grantId={rowId()} agencyName="Harbor Visas" allowed={false} />
+  )),
+  row('let an agency use AI tools (on)', () => (
+    <GrantAiChoice applicantId="a1" grantId={rowId()} agencyName="Harbor Visas" allowed />
   )),
   {
     name: 'change what an AI app can read',
@@ -1263,6 +1276,24 @@ const AGENCY: readonly Case[] = [
   row('switch a team member on or off (inactive)', () => (
     <MemberToggleButton organizationId="o1" membershipId="m2" active={false} />
   )),
+  {
+    name: 'turn on AI connections for an agency',
+    element: () => (
+      <AgencyAiSettingForm organizationId="o1" organizationName="Harbor Visas" enabled={false} />
+    ),
+    fields: ['confirm'],
+  },
+  row('turn off AI connections for an agency', () => (
+    <AgencyAiSettingForm organizationId="o1" organizationName="Harbor Visas" enabled />
+  )),
+  row('turn off an agency AI app', () => (
+    <AgencyAiTurnOff
+      organizationId="o1"
+      connectionId={rowId()}
+      appLabel="Claude (claude.ai)"
+      live
+    />
+  )),
   row('require a different reviewer (on)', () => (
     <RequireDifferentReviewerToggle organizationId="o1" required />
   )),
@@ -1641,6 +1672,22 @@ const ADMIN: readonly Case[] = [
       />
     )),
     fields: ['cases', 'duration'],
+  },
+  {
+    ...row('connect an AI app for an agency', () => (
+      <agencyConsentForms.AgencyConsentForm
+        request={{
+          clientId: 'https://claude.ai/oauth/x',
+          redirectUri: 'https://claude.ai/api/mcp/auth_callback',
+          codeChallenge: 'c'.repeat(43),
+          resource: 'https://vs.example.test/mcp',
+          state: 'abc',
+        }}
+        agency={{ id: rowId(), name: 'Harbor Visas' }}
+        defaultDuration="30d"
+      />
+    )),
+    fields: ['duration'],
   },
   row('assign a complaint', () => <complaintForms.AssignComplaintForm complaintId={rowId()} />),
   row('update a complaint (open)', () => (

@@ -2,6 +2,7 @@ import { aiAppLabel } from '@visastack/core/ai-features';
 import { createTranslator } from '@visastack/i18n';
 import {
   accountPrincipal,
+  aiAssistAvailable,
   documentCategory,
   getAiFeatureStates,
   getApplicant,
@@ -29,6 +30,7 @@ import {
   describeGrantScope,
 } from '../../../../../components/selected-scope-summary';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { AGENCY_AI_ALLOWED_LINE, agencyAiAccessLine } from '../../../../../lib/agency-ai';
 import { aiConnectorEnabled } from '../../../../../lib/ai-connector';
 import {
   type AiFileChoice,
@@ -58,6 +60,7 @@ import {
 import { type AiDraftItem, AiDraftsSection } from './ai-drafts';
 import { CaseExceptions } from './case-exceptions';
 import { DoneNotice } from './done-notice';
+import { GrantAiChoice } from './grant-ai-choice';
 import { GrantForm } from './grant-form';
 import { GrantOpButtons } from './grant-op-buttons';
 import { ScopeExpansionForm } from './scope-expansion-form';
@@ -281,7 +284,11 @@ export default async function SharingPage({
           )
         : [];
 
+    // S22: the agency AI choice is offered only once the permission exists in the database.
+    const aiAssistReady = await aiAssistAvailable(db);
+
     return {
+      aiAssistReady,
       aiConnections: aiRead.list,
       aiAccess: aiRead.access,
       aiFiles: aiRead.files,
@@ -428,11 +435,12 @@ export default async function SharingPage({
                         <div className="depth-item" {...atLevel('browse')}>
                           <SelectedScopeSummary
                             purpose={grant.purpose}
-                            permissions={grant.actions.map((a) =>
-                              permissionActionLabel(a).toLowerCase(),
-                            )}
+                            permissions={grant.actions
+                              .filter((a) => a !== 'AI_ASSIST')
+                              .map((a) => permissionActionLabel(a).toLowerCase())}
                             {...describeGrantScope({
-                              actions: grant.actions,
+                              // AI tools are their own line below, never part of this sentence.
+                              actions: grant.actions.filter((a) => a !== 'AI_ASSIST'),
                               caseGrant: Boolean(grant.missionId),
                               partLabels: (grant.categories ?? []).map((c) => categoryLabel(c)),
                               documentNames: (grant.documentIds ?? []).map((documentId) => {
@@ -459,6 +467,25 @@ export default async function SharingPage({
                           >
                             Accepted {formatTimestampDate(grant.acceptedAt)}
                           </p>
+                        ) : null}
+                        {grant.actions.includes('AI_ASSIST') && !ended ? (
+                          <p className="u-m-0">
+                            <span className="badge badge-neutral">{AGENCY_AI_ALLOWED_LINE}</span>
+                          </p>
+                        ) : null}
+                        {data.aiAssistReady &&
+                        grant.recipient.kind === 'organization' &&
+                        !ended &&
+                        grant.status !== 'REVOKED' &&
+                        grant.actions.includes('VIEW_METADATA') ? (
+                          <div {...atLevel('browse')}>
+                            <GrantAiChoice
+                              applicantId={id}
+                              grantId={grant.id}
+                              agencyName={grant.recipient.label}
+                              allowed={grant.actions.includes('AI_ASSIST')}
+                            />
+                          </div>
                         ) : null}
                         {canPause || canResume || canRevoke ? (
                           <p className="muted" style={{ margin: 0, fontSize: 'var(--text-small)' }}>
@@ -638,7 +665,9 @@ export default async function SharingPage({
                   label="Access Log Entries"
                   entries={data.auditEvents.map((e) => ({
                     id: String(e.seq),
-                    what: humanizeCode(e.eventType),
+                    what: e.agencyAi
+                      ? agencyAiAccessLine(e.agencyAi.agencyName, e.agencyAi.appHost)
+                      : humanizeCode(e.eventType),
                     who: e.actorEmail ?? 'System',
                     ...(e.result
                       ? {

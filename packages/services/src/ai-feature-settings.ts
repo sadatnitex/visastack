@@ -1,11 +1,13 @@
 import type { PermissionAction, Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
 import {
+  AI_AGENCY_FEATURE_KEYS,
   AI_FEATURES,
   AI_FEATURE_KEYS,
   AI_FEATURE_LIMIT_MAX,
   AI_FEATURE_LIMIT_MIN,
   AI_PLAN_TIERS,
+  AI_TRAVELLER_FEATURE_KEYS,
   type AiFeatureEntitlement,
   type AiFeatureKey,
   type AiFeatureKind,
@@ -17,6 +19,7 @@ import {
 import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { type StaffScope, SystemScope, staffScopeProblem } from './access/principal';
 import { AuthorizedApplicant } from './access/require-access';
+import { agencyAiAvailable } from './agency-ai-ready';
 import { aiFilesAvailable } from './ai-files-ready';
 import { isAiDispatchAllowed } from './ai-provider-config';
 import { aiSuggestionsAvailable } from './ai-suggestions';
@@ -70,6 +73,12 @@ export interface AiOwnerContext {
 }
 const OWNER_CONTEXTS = new WeakSet<object>();
 
+/** Made only by `aiOrganizationContext`; the module keeps the genuine ones (S22). */
+export interface AiOrganizationContext {
+  readonly organizationId: string;
+}
+const ORGANIZATION_CONTEXTS = new WeakSet<object>();
+
 /**
  * Who is asking:
  * - `proof`: a person's record, through the access gate; the record owner's plan and count apply;
@@ -77,15 +86,18 @@ const OWNER_CONTEXTS = new WeakSet<object>();
  * - `system`: the automatic reading job, for the owner of the file it is reading;
  * - `owner`: a service that has itself shown the account owns the record (`aiOwnerContext`, not
  *   exported from the services index, so the web app cannot make one);
- * - `agency`: an organization member's proof; the agency's plan and count apply (S22 wires the
- *   callers; agency plans carry no AI rows yet, so the registry default applies).
+ * - `agency`: an organization member's proof; the agency's plan and count apply;
+ * - `organization`: an agency a service has itself shown the caller acts for, with a live owner or
+ *   admin membership (`aiOrganizationContext`, not exported from the services index; S22's agency
+ *   AI gate and settings). The agency's plan (`ai.<feature>` rows, S22) and count apply.
  */
 export type AiFeatureContext =
   | { readonly proof: AuthorizedApplicant<PermissionAction> }
   | { readonly staff: StaffScope<'AI_FEATURES_MANAGE'> }
   | { readonly system: SystemScope<'process-ai-reading'>; readonly accountId: string }
   | { readonly owner: AiOwnerContext }
-  | { readonly agency: AuthorizedApplicant<PermissionAction> };
+  | { readonly agency: AuthorizedApplicant<PermissionAction> }
+  | { readonly organization: AiOrganizationContext };
 
 /**
  * The context of an account a service has already shown owns the record it works on (for example
@@ -95,6 +107,18 @@ export function aiOwnerContext(accountId: string): { readonly owner: AiOwnerCont
   const owner: AiOwnerContext = Object.freeze({ accountId });
   OWNER_CONTEXTS.add(owner);
   return { owner };
+}
+
+/**
+ * The context of an agency a service has already shown the caller acts for (S22: a live owner or
+ * admin membership of an active agency). For services only: never exported from the services index.
+ */
+export function aiOrganizationContext(organizationId: string): {
+  readonly organization: AiOrganizationContext;
+} {
+  const organization: AiOrganizationContext = Object.freeze({ organizationId });
+  ORGANIZATION_CONTEXTS.add(organization);
+  return { organization };
 }
 
 /** Whose use is counted and whose plan applies. */
@@ -113,6 +137,7 @@ const FEATURE_READY: Readonly<Record<AiFeatureKey, (db: Db) => Promise<boolean>>
   ai_app_access: always,
   ai_app_suggestions: aiSuggestionsAvailable,
   ai_app_original_files: aiFilesAvailable,
+  ai_agency_tools: agencyAiAvailable,
 };
 
 /**
@@ -165,16 +190,17 @@ export interface AiPlanEntitlement {
  * The AI features a plan includes (S29): read through the one entitlement resolver, so the
  * platform owner sets them on the Plans page. A traveller is on Traveller Free today, which is also
  * the floor everyone keeps; a feature the plan has no row for uses the registry's `planDefault`.
- * An agency's plan carries no AI rules yet (the resolver answers "not applicable"), so the
- * registry default applies until S22 adds them. The caller already passed the access gate; this
- * only decides how much.
+ * An agency's plan decides the agency AI features (S22, Agency AI Tools: its `ai.<feature>` row,
+ * else the registry default); the traveller features keep the registry default for an agency. The
+ * caller already passed the access gate; this only decides how much.
  */
 export async function aiEntitlementFor(
   db: Db,
   subject: EntitlementSubject,
 ): Promise<AiPlanEntitlement> {
   const resolved = await resolveEntitlements(db, subject);
-  return { tier: 'FREE', features: resolved.features ?? AI_PLAN_TIERS.FREE };
+  if (resolved.features) return { tier: 'FREE', features: resolved.features };
+  return { tier: 'FREE', features: { ...AI_PLAN_TIERS.FREE, ...resolved.agencyFeatures } };
 }
 
 interface SavedSetting {
@@ -253,6 +279,11 @@ function contextSubject(context: AiFeatureContext): AiSubject | null | undefined
   if ('owner' in context) {
     return OWNER_CONTEXTS.has(context.owner)
       ? { kind: 'account', id: context.owner.accountId }
+      : undefined;
+  }
+  if ('organization' in context) {
+    return ORGANIZATION_CONTEXTS.has(context.organization)
+      ? { kind: 'organization', id: context.organization.organizationId }
       : undefined;
   }
   return staffScopeProblem(context.staff, 'AI_FEATURES_MANAGE') ? undefined : null;
@@ -388,7 +419,10 @@ async function resolveStates(
     // Each readiness probe caches a "yes" per database handle, so asking again is free.
     else if (!(await FEATURE_READY[feature](db))) state = off(feature, 'not_available_yet');
     else if (!setting.enabled) state = off(feature, 'turned_off', dailyLimit);
-    else if (!entitlement.included) state = off(feature, 'not_in_plan', dailyLimit);
+    // An agency feature works only for an agency (S22): never for a person's own plan or count.
+    else if (AI_FEATURES[feature].audience === 'agency' && subject?.kind !== 'organization') {
+      state = off(feature, 'not_in_plan', dailyLimit);
+    } else if (!entitlement.included) state = off(feature, 'not_in_plan', dailyLimit);
     else if (
       checksLimit &&
       options.alreadyCounted !== true &&
@@ -507,7 +541,14 @@ async function addOne(db: Db, subjectId: string, action: string, window: Date): 
 export async function chargeAiFeatureUse(
   db: Db,
   gate: AiFeatureGate,
-  options: { readonly now?: Date } = {},
+  options: {
+    readonly now?: Date;
+    /**
+     * Counted with no limit outside any transaction (Agency AI Tools, S22 round 5): report a
+     * limit saved meanwhile and now passed, once per subject and day.
+     */
+    readonly reportOverage?: boolean;
+  } = {},
 ): Promise<AiFeatureCharge | null> {
   if (gate.subject === null || !countedHere(gate.feature)) {
     return Object.freeze({ feature: gate.feature, counted: false });
@@ -527,6 +568,15 @@ export async function chargeAiFeatureUse(
     })
     .returning({ count: bucket.count });
   if (rows.length === 0) return null;
+  if (limit === null && options.reportOverage === true) {
+    // Counted with no limit: a limit saved while the call started may now be passed; reported
+    // once per subject and day, never failing the count it follows.
+    try {
+      await reportOverageOnce(db, gate.feature, gate.subject.id, rows[0]?.count ?? 0, window);
+    } catch (error) {
+      console.error(formatObservabilityLine(serverErrorEvent('aiFeatureOverage', error)));
+    }
+  }
   const charge: AiFeatureCharge = Object.freeze({ feature: gate.feature, counted: true });
   CHARGES.set(charge, {
     subjectId: gate.subject.id,
@@ -665,6 +715,22 @@ export async function refundAiFeatureUse(db: Db, charge: AiFeatureCharge | null)
   record.state = 'refunded';
 }
 
+/**
+ * Gives one counted use back on the day it was counted (S22 round 3): an agency answer the route
+ * withheld as too large reached nobody, so it is free. The caller makes sure it happens once.
+ */
+export async function giveBackAiFeatureUseOn(
+  db: Db,
+  input: { readonly feature: AiFeatureKey; readonly subjectId: string; readonly day: Date },
+): Promise<void> {
+  if (!countedHere(input.feature)) return;
+  await refundRateLimitWindow(
+    db,
+    { subjectId: input.subjectId, action: usageAction(input.feature) },
+    windowStart(input.day),
+  );
+}
+
 /** The platform owner's saved daily limit for one feature, in one read; null when none. */
 async function savedDailyLimit(db: Db, feature: AiFeatureKey): Promise<number | null> {
   try {
@@ -695,14 +761,29 @@ export async function countAiUseAfterCall(
   if (gate.subject === null || !countedHere(gate.feature)) return;
   const window = windowStart(now);
   const count = await addOne(db, gate.subject.id, usageAction(gate.feature), window);
-  const limit = await savedDailyLimit(db, gate.feature);
+  await reportOverageOnce(db, gate.feature, gate.subject.id, count, window);
+}
+
+/**
+ * When a count taken with no daily limit is past a limit the platform owner saved meanwhile,
+ * reports the overage at most once per subject, feature and day: a marker row in the same bucket
+ * table, written only by the first report.
+ */
+async function reportOverageOnce(
+  db: Db,
+  feature: AiFeatureKey,
+  subjectId: string,
+  count: number,
+  window: Date,
+): Promise<void> {
+  const limit = await savedDailyLimit(db, feature);
   if (limit === null || count <= limit) return;
   const bucket = schema.rateLimitBuckets;
   const first = await db
     .insert(bucket)
     .values({
-      subjectId: gate.subject.id,
-      action: `ai_feature_overage:${gate.feature}`,
+      subjectId,
+      action: `ai_feature_overage:${feature}`,
       windowStart: window,
       count: 1,
     })
@@ -714,7 +795,7 @@ export async function countAiUseAfterCall(
       serverErrorEvent(
         'aiFeatureOverage',
         new Error('answers were counted past a daily limit set while they ran'),
-        { feature: gate.feature },
+        { feature },
       ),
     ),
   );
@@ -777,7 +858,9 @@ export async function getAiUsageToday(
       ? { kind: 'account', id: subject.accountId }
       : { kind: 'organization', id: subject.organizationId };
   const usage = await usageToday(db, who, now);
-  const resolved = await resolveStates(db, AI_FEATURE_KEYS, who, { ...options, now, usage });
+  // A person sees the traveller features, an agency its own (S22): never the other audience's.
+  const shown = who.kind === 'account' ? AI_TRAVELLER_FEATURE_KEYS : AI_AGENCY_FEATURE_KEYS;
+  const resolved = await resolveStates(db, shown, who, { ...options, now, usage });
   const features: AiUsageToday[] = resolved.map(({ state }) => ({
     feature: state.feature,
     name: AI_FEATURES[state.feature].name,

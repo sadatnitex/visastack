@@ -1,4 +1,5 @@
 import {
+  AI_AGENCY_FEATURE_KEYS,
   AI_FEATURE_KEYS,
   AI_PLAN_TIERS,
   type AiFeatureEntitlement,
@@ -71,6 +72,12 @@ export interface ResolvedEntitlements {
    * after migration 0107, never "not in your plan".
    */
   readonly features: Readonly<Record<AiFeatureKey, AiFeatureEntitlement>> | null;
+  /**
+   * What the plan gives for each agency AI feature (S22, Agency AI Tools), for an agency: its
+   * plan's `ai.<feature>` row, or the registry's plan default when the plan has no row, no plan is
+   * set, or migration 0107 has not run. Null for a traveller.
+   */
+  readonly agencyFeatures: Readonly<Partial<Record<AiFeatureKey, AiFeatureEntitlement>>> | null;
   readonly gate: EntitlementGate;
   /** When the current billing period started (agencies with a plan only). */
   readonly periodStart: Date | null;
@@ -137,8 +144,9 @@ function limitOf(value: string | null): number | null {
 
 /**
  * The plan's rules from its rows. A capacity key with no row keeps the old column (no row was
- * ever written for it). The AI features are read for the traveller plan only (agencies have
- * none yet); a feature with no row is the built-in FREE tier, the floor every person keeps.
+ * ever written for it). The AI features are read for the traveller plan, and the agency AI
+ * features (S22) for an agency's plan; a feature with no row is the built-in FREE tier, the floor
+ * every person keeps.
  */
 function fromRows(
   plan: PlanRow,
@@ -165,6 +173,15 @@ function fromRows(
 
 function freeTier(): Record<AiFeatureKey, AiFeatureEntitlement> {
   return { ...AI_PLAN_TIERS.FREE };
+}
+
+/** The agency features of a set of plan rules (S22): the plan's own, else the registry default. */
+function agencyOnly(
+  features: Readonly<Record<AiFeatureKey, AiFeatureEntitlement>>,
+): Partial<Record<AiFeatureKey, AiFeatureEntitlement>> {
+  const picked: Partial<Record<AiFeatureKey, AiFeatureEntitlement>> = {};
+  for (const feature of AI_AGENCY_FEATURE_KEYS) picked[feature] = features[feature];
+  return picked;
 }
 
 /** The price in effect at `at`: the newest row from on or before it. */
@@ -316,6 +333,7 @@ async function resolveForOrganization(
       bypassLimits: false,
       limits: NO_LIMITS,
       features: null,
+      agencyFeatures: agencyOnly(AI_PLAN_TIERS.FREE),
       gate,
       periodStart: null,
       source: present ? 'entitlements' : 'columns',
@@ -325,9 +343,8 @@ async function resolveForOrganization(
     row?.startedAt instanceof Date
       ? billingPeriodStart(row.startedAt, planRow.periodDays, now)
       : null;
-  const limits = present
-    ? fromRows(planRow, row?.entitlements ?? []).limits
-    : columnLimits(planRow);
+  const rules = present ? fromRows(planRow, row?.entitlements ?? []) : null;
+  const limits = rules ? rules.limits : columnLimits(planRow);
   return {
     plan: resolvedPlan(planRow, present ? (row?.prices ?? []) : null, periodStart, now),
     billingStatus,
@@ -335,6 +352,7 @@ async function resolveForOrganization(
     bypassLimits: bypass,
     limits,
     features: null,
+    agencyFeatures: agencyOnly(rules ? rules.features : AI_PLAN_TIERS.FREE),
     gate,
     periodStart,
     source: present ? 'entitlements' : 'columns',
@@ -359,6 +377,7 @@ async function resolveForTraveller(
   );
   const base = {
     billingStatus: null,
+    agencyFeatures: null,
     override: null,
     bypassLimits: false,
     gate: 'plan' as const,

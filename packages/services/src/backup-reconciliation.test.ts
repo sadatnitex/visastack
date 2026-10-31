@@ -1559,6 +1559,8 @@ describe('reconcileRestoredBranch: AI connections (S15)', () => {
     // And 0106 (S20), whose table points at AI connections and documents.
     await newDb.execute(sql`drop table ai_connection_documents`);
     await newDb.execute(sql`drop table ai_task_origins`);
+    // And 0109 (S22), whose table points at AI connections.
+    await newDb.execute(sql`drop table ai_connection_agencies`);
     await newDb.execute(sql`drop table ai_connection_tokens`);
     await newDb.execute(sql`drop table ai_connections`);
     const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);

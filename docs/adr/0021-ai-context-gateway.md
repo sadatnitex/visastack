@@ -435,3 +435,114 @@ Owner rule: AI is additive. Without AI the product already meets every goal; eve
 
 - **Cover tokens.** The `ocr_runs` inference is removed. A counted scan leaves a single-use cover (`rate_limit_buckets`, action `ai_scan_cover:<feature>:<document version>`, the person, the day window) written with the charge; the details step for the same feature, person and file uses it with one conditional update in today's or yesterday's window, after the feature gate and consent, inside the reserve transaction. Giving back a kill-switched scan removes its cover; giving back a details call that used a cover puts the cover back.
 - **AI App Access.** With no limit, the after-call count is unconditional; a passed limit set mid-call is reported once.
+
+## S22 amendment: agency AI connectors as built (31 Oct 2026)
+
+Appended for S22. It records how the "Agency AI connectors (S22)" extension above was built, the four findings that changed it, the approved decisions D1 to D6, and where the build differs from the text above. The text above stays as it was; where this amendment differs, this amendment is the current decision. Local branch `s22-wip`, not merged, not live.
+
+### Findings that changed the extension text
+
+1. **Purpose.** The policy engine refuses a grant whose purpose differs from the request's, and grant purposes are free text, so a request with the purpose `ai_connection` would never match an agency's grant. The agency path judges each grant against its own purpose (`EACH_GRANT`, the same rule as `orgGrantPermits`). `ai_connection` stays the purpose written in the audit records.
+2. **Owner-only engine.** The composer (`buildSelectedOutput`, `listSelectableCases`), the owner gate (`openConnection`) and `createAiConnection` accept only the record's owner. The agency path is a second, separate entry: `buildAgencySelectedOutput` accepts a member's proof only together with a genuine `AgencyAiScope` for the same traveller, member and agency.
+3. **One record per connection.** `ai_connections.applicant_id` was required, but an agency connection reaches many travellers. It is now optional, only for an agency connection (a database trigger, below).
+4. **Grants are made, not edited.** The grant form makes personal grants only, agency grants come from accepted client invitations with fixed actions, and no service changed a grant's actions. The traveller's choice is therefore a new owner-only service on an existing agency grant (`setGrantAiAssist`), on the agency's access card and on the invitation-accept page. Making a grant with `AI_ASSIST` is refused (`prepareGrantScope`).
+
+### Decisions D1 to D6 (approved plan)
+
+- **D1.** Only an agency's active OWNER or ADMIN may connect an AI app for it, and keep using one; each connection reaches only what that person can see in the agency. A member who loses the role, is turned off or leaves is refused on the next call; turning a member off also ends their agency connections and cuts their tokens.
+- **D2.** Turning `AI_ASSIST` on needs a fresh identity check (`SHARE` on the traveller's record). Turning it off needs nothing more.
+- **D3.** The agency's own notes and tasks are left out in V1, and so is the "what comes next" list (it reads the person's tasks).
+- **D4.** An agency connection lasts at most 30 days (`1h`, `24h`, `7d` or `30d`; never "until I turn it off"), then the agency connects again. The gate also refuses a connection older than 30 days, whatever its stored end.
+- **D5.** Child tables, not the contract's columns: `organization_ai_settings` (the agency's setting) and `ai_connection_agencies` (one row per agency connection). Every existing read of `ai_connections` selects the whole row, so a new column would fail every AI call between the deploy and the migration. The kind (`OWNER` or `AGENCY`) is derived from the agency row and exposed on `ResolvedAiConnection`; it is never read from the token.
+- **D6.** An agency whose billing is Suspended has its AI tools paused (AI is additive; a plain notice), as does an agency that is not active.
+- **O10.** Built with the draft wording of the approved plan (`apps/web/src/lib/agency-ai.ts`). Agency AI Tools stays off for everyone until the owner approves the legal wording.
+
+### Migrations
+
+- **0108 (journal index 106), `0108_ai_assist_permission.sql`:** only `ALTER TYPE "public"."permission_action" ADD VALUE IF NOT EXISTS 'AI_ASSIST'`. Postgres cannot use a new enum value in the transaction that adds it, so nothing else is in this file and the next file never names the value.
+- **0109 (journal index 107), `0109_agency_ai_connections.sql`:** the two tables with their foreign keys (cascade; the setting's author set null), the index on the agency, `ai_connections.applicant_id` made optional, and `visastack_ai_connection_kind_guard()` with two deferrable constraint triggers: a connection names a record or an agency, never both and never neither, checked at the end of the transaction. Built stricter than the plan: removing only the agency row of a connection that stays is refused too.
+- Both are re-runnable statement by statement and never name their own number; snapshots `0106_snapshot.json` (enum only) and `0107_snapshot.json`. A test runs them twice on the database as production has it (through 0107).
+
+### Before the migrations
+
+`aiAssistAvailable` (the enum value, from `pg_enum`) and `agencyAiAvailable` (the value, both tables and the kind guard trigger) are catalogue probes, a "yes" cached per database handle, never a "no". Until they say yes: `AI_ASSIST` is never written (`setGrantAiAssist` answers `not_available`), the traveller's choice is not shown, the agency setting reads "Available After the Next Update", no agency connection can be made, Agency AI Tools reads `not_available_yet`, and SQL compares the permission as text (`'AI_ASSIST' = any(actions::text[])`), so nothing fails. Every grant and owner connection works exactly as before (pre-migration test).
+
+### The gate
+
+- `withAgencyAiConnection` (in `access/with-ai-connection.ts`, the one module tools may import) runs every agency call from scratch: the token and the stored connection, the member's account admitted, then `checkAgencyAiStanding` (an active OWNER or ADMIN membership, an active agency, billing not Suspended, the agency's setting on, the connection no older than 30 days), then Agency AI Tools for that agency (the platform owner's switch, the agency's plan and today's limit, counted once for the whole agency). A member who left or a connection past 30 days is answered 401 (the app signs in again and cannot); a paused agency or a feature that is off gets a plain answer and the connection stays.
+- Every read goes through one case: `openAgencyAiScope` asks the central gate (`requireAccess`, `VIEW_METADATA` on the case, acting for the agency, each grant on its own purpose), refuses the record's owner (a member who owns the traveller's record never reads it through the agency) and any actor that is not that member of that agency, loads the AI grants live, and mints the scope only if the case is one the member can see (`listVisibleMissionsForMember`) and an AI grant covers (per-case exceptions included).
+- **AI grants** are the traveller's grants to that agency (a grant naming one person counts only for that person) holding both `AI_ASSIST` and `VIEW_METADATA`. Every read is judged against the AI grants alone, through `authorize()`: a detail by its category (`VIEW_METADATA`), a document by its id and category (`VIEW_METADATA`), a document's text by `PREVIEW` and never a restricted type, a case by coverage. Full numbers are never shown and the depth is at most standard, whatever the selection says.
+- Nothing is cached between calls, so revoking, pausing, expiry, a per-case exception or turning `AI_ASSIST` off stops the very next call (law 6).
+
+### What a grant gives the agency's AI tools (found while building; for the owner)
+
+- **Case-only grants give the case, not the record.** Law 5 keeps profile details and documents out of a case-scoped grant, and client invitations make case-scoped grants. So with today's invitation grants the AI tools read the case (state, dates, readiness and its requirements), but no profile detail and no document. A traveller who wants the agency's AI tools to read more shares their whole record with the agency.
+- **Category grants never open a case.** A category-scoped grant covers details and documents but no case (the policy engine needs a category on the resource), and every agency read goes through a case, so a category grant alone reads nothing; with a case grant beside it, the category grant decides which details and documents are read (its document snapshot included).
+- **Documents belong to no case.** A per-case exception hides the case and everything of the case; documents and profile details keep their own grant scope, exactly as for the agency itself (law 9).
+- **Every section the AI grants share** is read, including past refusals and health when the grant shares them: the traveller's grant decides, as it does for the agency's staff. Special-category and biometric details never leave the record.
+
+### Tools
+
+An agency connection is offered four read-only tools, and only these (`aiToolsFor('AGENCY')`): `list_cases` (every case the member can see whose traveller allowed the agency's AI tools; reference, title, traveller, destination, state and dates; at most 50), `prepare_context`, `list_documents` and `get_document_text`, each with a required case reference. No suggestion, draft, reminder, file or profile-section tool. An owner tool called with an agency token, or an agency tool with an owner token, is refused (401 and an audit record `tool_not_offered`); the route never lists them.
+
+### Audit and telemetry
+
+- `AI_CONTEXT_SERVED` or `AI_CONTEXT_DENIED` per call, with the member as actor, the traveller's record and case, and metadata `connectionKind: AGENCY`, `organizationId`, `grantIds` (the AI grants judged) and `purpose: ai_connection`. `list_cases` writes one served record per traveller it named, so each traveller's own Access Log shows it ("Agency AI Tools: {Agency} via {app address}"). Never a value, document text or token.
+- New audit events `GRANT_AI_ASSIST_CHANGED` (the grant, the agency, on or off) and `ORGANIZATION_AI_SETTING_UPDATED` (before and after, and that the statement was confirmed); `AI_CONNECTION_CREATED` and `AI_CONNECTION_REVOKED` carry the agency for agency connections. New denial reasons `agency_member_ended`, `agency_not_active`, `agency_billing_suspended`, `agency_setting_off`, `agency_connection_expired`, `agency_own_record`, `case_required`, `tool_not_offered`.
+- `AI_CONNECTOR_CONNECTED` gains the dimension `AGENCY`.
+- Backup reconciliation also re-applies, after a restore, a traveller turning `AI_ASSIST` off and an agency turning its setting off.
+
+### Agency AI Tools in the registry
+
+`ai_agency_tools` ("Agency AI Tools"), kind connector, audience `agency` (a new registry field; every earlier feature is `traveller`), **off by default**, plan default included with 500 a day per agency. `getAiFeatureState` gains an organization subject (`aiOrganizationContext`, services only); the S29 resolver reads `ai.ai_agency_tools` from the agency's own plan (`agencyFeatures`), and an agency feature is never available for a person's own plan. The Plans page shows it on agency plans ("Daily Limit per Agency"); traveller plans and AI Use Today show only the traveller features.
+
+### Screens
+
+- Traveller, Sharing: on each live agency grant that shares details, "Let This Agency Use AI Tools on What I Share" with the O10 note (`aria-describedby`) and Save (the grant id in the form body, never the address), and the line "AI Tools Allowed" when on; the permission sentence never lists it. The same unticked box on the client-invitation accept page: a recent sign-in saves it with the acceptance; otherwise the person confirms it is them and lands on Sharing to tick it again (nothing is carried).
+- Agency, Settings: "AI Connections for This Agency", owners and admins turn it on after confirming the O10 statement, everyone else reads "Only owners and admins can change this."; a link to the new AI Connections page, where owners and admins see every agency connection with Turn Off.
+- Consent screen: agencies the person runs with the setting and the feature on are listed under the records; the agency in the address is only a pick, re-checked on the page and again in the answer.
+- Admin, AI Settings: the registry row appears with "Daily Limit per Agency".
+
+### Not verified
+
+- How ChatGPT and Claude show an agency connection, and prompt injection from traveller documents into the agency's AI app (the tools label all document text as data, never instructions).
+- Provider retention and the agency's agreements with AI providers (O10).
+- Real Postgres concurrency of an agency's daily count (the test database runs one connection).
+- Production behaviour waits for migrations 0108 and 0109 (owner action O8-S22), the owner's approval of the wording (O10), and the platform owner turning Agency AI Tools on.
+
+### S22 round 2 (31 Oct 2026, code and security review)
+
+- **Nothing about what was withheld.** An agency answer gives no count of what the traveller did not share: `omitted.not_granted` is always 0 for an agency (context, document list and one document), and a document with no shared text gets the same answer whether it has no text or is not shared. Owner connections are unchanged.
+- **The agency's list.** Every live agency connection is listed (finished connecting, not turned off, within its end and its 30 days), filtered in the query, so none falls off the page or loses Turn Off; the ten most recently ended follow. Turn Off stays mounted when the row reloads as ended, announces "Turned off" in a polite `<output>` and moves focus to it.
+- **Members.** Turning a member off ends their agency connections before the transaction's own audit record (the gate's lock order: count, then the audit chain). Accepting an invitation that moves a member out of owner and admin ends them too, with the reason `agency_member_role_changed`.
+- **One call, one id.** Every audit record of a tool call carries `callId` (chosen by the route). An agency answer the route withholds as too large gets a withheld record beside every served record of that call, on the same traveller, with the agency; a call that fails part-way is recorded as failed on every traveller it reached. The staff counts count distinct calls (one `list_cases` naming 30 travellers is one call) and subtract withheld calls. Agency served records carry the depth actually served.
+- **Migration 0109, edited in place (it has run nowhere real).** Removing an agency row, directly or by removing the agency, now removes its connection in the same statement (`ai_connection_agencies_removed`, AFTER DELETE, before the deferred check), so an agency with connections can be removed. An agency row can never move to another connection or agency (`ai_connection_agencies_fixed`, BEFORE UPDATE). This replaces round 1's "removing only the agency row is refused". `agencyAiAvailable` now checks the last trigger.
+- **Efficiency.** One case is checked directly (an active, accepted, unexpired grant to the agency reaching it, exceptions included, plus assignment for a member who is not an owner or admin), not by loading every agency case. `list_cases` loads every traveller's AI grants in one query and their exceptions in one more. The day's Agency AI Tools count is charged in one conditional statement of its own between the checks and the work (the count row is never held through a call) and given back with S28's helper when the call ends refused or fails. The route checks an agency tool call's admission and standing once, in the gate; the token is looked up once per check.
+- **Refusals across kinds.** A person's tool called with an agency token is recorded as `tool_not_offered` with the agency; an agency tool called with a person's token is recorded on that person's record.
+- **Wording (O10 draft, corrected).** "Full document numbers are never sent" was stronger than what is enforced: only the ID numbers saved in the profile are shortened in document text, the text of restricted types (passport, ID, money, health) is never read, and files are never sent. The traveller note now reads: "When this is on, staff at {Agency} can ask an AI app they choose, such as ChatGPT or Claude, to read what you already share with {Agency}, to help with your cases. It reads nothing more. {Agency} runs that app under its own agreement with the app's provider and is responsible for how that provider handles your information. Files are never sent to it. The text of passport, ID, money and health documents is never read, and the ID numbers saved in your profile are shortened wherever they appear. Turn this off at any time; it stops the next request." The consent sentence, the app instructions and the `prepare_context` description say the same.
+- **One duration list.** The web keeps only the words for the services' `AGENCY_AI_CONNECTION_DURATIONS`; the server action uses the services' check and default.
+
+### S22 round 3 (31 Oct 2026, code and security review)
+
+- **Standing checked again inside the work.** The work's own transaction starts by locking the connection's row for share and checking again: not turned off, not past its end or its 30 days, the member an active owner or admin, the agency active and not Suspended, the setting on. A Turn Off, a member removed or demoted, or the setting turned off that committed after the first checks refuses the call, with the usual denial record and the count given back. Ending connections takes the rows' update lock first, so it waits for a read in progress, and any later read sees it.
+- **Every failure recorded.** A throw from the checks or the count, once the token resolved to an agency connection, writes a `failed` denial with the agency. On a failure part-way, the per-traveller failed records are written before the count is given back.
+- **Give-backs never hide the outcome.** A give-back that throws is reported through the services' error report (`aiAgencyToolsGiveBack`); the call's own error or plain refusal stands.
+- **A withheld answer is free.** When the route withholds an agency answer as too large, the call's count is given back once, on the day it was counted (served records carry `countDay`); reporting it again gives nothing back.
+- **Ended list.** The ten ended connections listed are the ten that ended most recently (turned off, else the earlier of their end and their 30 days).
+- **Membership first.** Turning a member off changes the membership row first; only then are their agency connections ended, and the audit record is still last. A membership that vanished ends nothing and records nothing.
+- **True reason in the audit.** The app gets the same answer for a document not shared and one with no text; the denial record keeps the true reason (`document_not_shared` or `no_text`), and agency records carry `notGranted`, the count of what was asked for and not shared, for the audit only. That count now covers only the documents the call asked for.
+- **No tool call skips the route's checks.** The route leaves the member's admission and standing to the agency gate only for a known agency tool whose arguments it accepts (`isAgencyToolCall`); any other message, an unknown tool or arguments a tool refuses, is checked in full first, so a removed member or an expired connection gets the sign-in challenge and the per-address throttle as before.
+- **Protected documents always closed to agencies.** For an agency's AI tools the default protected types (passport, ID, money and health documents, and unknown types) never give out their text, whatever the platform's protection switches say. A traveller's own AI connection follows the switches as before.
+
+### S22 round 4 (31 Oct 2026, re-review)
+
+- **Give back only what was charged.** Every agency call is now counted before the work, with or without a daily limit (the after-call count is no longer used for agencies), and served records carry `countDay` only when that count was really taken; a withheld answer gives back only then.
+- **True reason, and the account again.** The re-check inside the work checks the account's admission (the same rule as the first checks), then the member, the agency, billing and the setting, and only then the connection's own end; a connection turned off is recorded with the reason stored when it was (`agency_turned_off`, a new denial reason, or `agency_member_ended`).
+- **No queue on the last-used time.** The once-a-minute last-used write locks the row only if it is free (`FOR UPDATE SKIP LOCKED`) and otherwise skips that time, so calls on one connection never wait behind a call in progress. Ending connections still waits for a read in progress.
+- **Turn-off times only on live connections.** Ending connections marks only those not already past their own end or their 30 days; the others keep no turn-off time and get no record, so the ended list shows the true order.
+
+### S22 round 5 (31 Oct 2026, review of round 4)
+
+- **Last-used lock.** The touch takes `FOR NO KEY UPDATE SKIP LOCKED`, which does not conflict with the key-share locks that rows pointing at a connection take (drafts, task origins, tokens, ticked files).
+- **Re-check order.** Inside the work: the connection's own end first (turned off, with its stored reason, then past its end or 30 days), then the account's admission (read only, writing nothing), then member, agency, billing and setting. Every refusal there is recorded with a reason; an account no longer admitted is `agency_account_not_admitted` (a new denial reason).
+- **Counting with no limit.** With no daily limit, a count that cannot be written is reported (`aiAgencyToolsCount`) and the call goes ahead with nothing to give back; with a limit it still fails closed. A limit the platform owner saved while a call started with none is reported once per agency and day, with S28's overage marker (`aiFeatureOverage`).

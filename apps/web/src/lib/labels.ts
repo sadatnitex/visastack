@@ -129,6 +129,8 @@ export const PERMISSION_ACTION_LABELS: Readonly<Record<PermissionAction, string>
   EXPORT_PROFILE: 'Export the Full Profile',
   SHARE: 'Re-Share Access',
   MANAGE: 'Manage the Case',
+  // S22: shown on its own line on an agency grant, never in the list of what a grant allows.
+  AI_ASSIST: 'Use AI Tools on What I Share',
 };
 
 export const permissionActionLabel = (code: string) =>

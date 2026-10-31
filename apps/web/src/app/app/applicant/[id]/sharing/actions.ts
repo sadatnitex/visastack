@@ -47,7 +47,8 @@ export interface ActionState {
 }
 
 function isPermissionAction(value: string): value is PermissionAction {
-  return (PERMISSION_ACTIONS as readonly string[]).includes(value);
+  // S22: AI tools are the traveller's own later choice on an agency grant, never a box here.
+  return value !== 'AI_ASSIST' && (PERMISSION_ACTIONS as readonly string[]).includes(value);
 }
 
 /** Create a pending, purpose-bound grant to an existing VisaStack user by email. */

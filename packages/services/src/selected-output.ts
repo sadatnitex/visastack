@@ -13,6 +13,7 @@ import {
 } from '@visastack/core/catalogue';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { AuthorizedApplicant, DEFAULT_DOCUMENT_PROTECTION, StepUpProof } from './access';
+import { AgencyAiScope } from './access/agency-ai-scope';
 import {
   documentTypeRestricted,
   loadDocumentProtectionSettings,
@@ -54,6 +55,13 @@ import { referenceCodesFor } from './reference-codes';
  * It takes a proof from the central access gate and further requires that it was issued to the
  * owner of the record: a recipient of a share never builds an output of somebody else's record.
  * It never calls the full account export.
+ *
+ * The one exception is an agency's AI connection (S22, `buildAgencySelectedOutput`): a member's
+ * proof for the traveller's case plus a genuine `AgencyAiScope` for the same traveller, member and
+ * agency. Then every read is also judged against the traveller's AI grants alone (each detail by
+ * its category, each document by its id, each document's text by `PREVIEW`, each case by its
+ * coverage and the member's own view), full numbers are never shown, the depth is at most
+ * `standard`, and the "what comes next" list (which reads tasks) is left out.
  */
 
 // --- The vocabulary --------------------------------------------------------
@@ -352,6 +360,11 @@ const CASE_STATE_WORDS: Readonly<Record<MissionState, string>> = {
   LOCKED: 'Locked',
 };
 
+/** A case's state in the plain words every output uses. */
+export function caseStateWords(state: MissionState): string {
+  return CASE_STATE_WORDS[state];
+}
+
 const DEFAULT_SOON_DAYS = Math.max(0, ...DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS);
 
 const FINISHED_CASE_STATES: ReadonlySet<string> = new Set(['CLOSED', 'CANCELLED']);
@@ -554,6 +567,8 @@ export function decideField(input: FieldDecisionInput): FieldDecision {
 
 type FactRow = {
   readonly factId: string;
+  /** The detail's category (its pack): what a category-scoped grant is judged on (S22). */
+  readonly packId: string | null;
   readonly repeatingRecordKey: string | null;
   readonly factCreatedAt: Date;
   readonly fieldKey: string;
@@ -582,6 +597,12 @@ interface CaseNeeds {
   readonly documentKeys: Map<string, boolean>;
 }
 
+/** Who the output is built for: the record's owner, or an agency AI call within its scope. */
+interface ComposerAccess {
+  readonly proof: AuthorizedApplicant<'VIEW_METADATA'>;
+  readonly agency: AgencyAiScope | null;
+}
+
 /** Owner only, genuine proof, issued for the person's record. Anything else looks like "not found". */
 function ownerProof(
   proof: AuthorizedApplicant<'VIEW_METADATA'>,
@@ -603,6 +624,57 @@ export async function buildSelectedOutput(
 ): Promise<Result<SelectedOutput, ServiceError>> {
   const owner = ownerProof(proof);
   if (!owner.ok) return owner;
+  return composeOutput({ proof, agency: null }, selection, options);
+}
+
+/**
+ * The output an agency's AI connection may read of one traveller (S22): a genuine member proof
+ * for one of the traveller's cases, issued to an organization member, plus a genuine scope for the
+ * same traveller, member and agency. Anything else is refused like a stranger's request. Full
+ * numbers are never shown and the depth is at most `standard`, whatever the selection says.
+ */
+export async function buildAgencySelectedOutput(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+  scope: AgencyAiScope,
+  selection: Selection,
+  options: Omit<SelectedOutputOptions, 'stepUp'> = {},
+): Promise<Result<{ readonly output: SelectedOutput; readonly notGranted: number }, ServiceError>> {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
+    !AgencyAiScope.isGenuine(scope) ||
+    proof.actor.kind !== 'organization_member' ||
+    proof.actor.accountId !== scope.accountId ||
+    proof.actor.membership.organizationId !== scope.organizationId ||
+    proof.applicant.id !== scope.applicantId
+  ) {
+    return err(serviceError('forbidden', 'only an agency AI call within its scope can read this'));
+  }
+  const { stepUp: _stepUp, ...rest } = options as SelectedOutputOptions;
+  const built = await composeOutput(
+    { proof, agency: scope },
+    {
+      ...selection,
+      revealIdentifiers: false,
+      depth: selection.depth === 'full' ? 'standard' : selection.depth,
+    },
+    rest,
+  );
+  if (!built.ok) return built;
+  // The app never learns how much the traveller did not share with the agency (S22 round 2):
+  // what no AI grant covers is left out without a count. The true count goes to the gate, for
+  // the audit only (round 3).
+  return ok({
+    output: { ...built.value, omitted: { ...built.value.omitted, not_granted: 0 } },
+    notGranted: built.value.omitted.not_granted,
+  });
+}
+
+async function composeOutput(
+  access: ComposerAccess,
+  selection: Selection,
+  options: SelectedOutputOptions,
+): Promise<Result<SelectedOutput, ServiceError>> {
+  const { proof, agency } = access;
   const normalised = normaliseSelection(selection);
   if (!normalised.ok) return normalised;
   const chosen = normalised.value;
@@ -624,7 +696,12 @@ export async function buildSelectedOutput(
   const omitted = emptyOmitted();
 
   // 1. The cases, only this person's own.
-  const casesResult = await loadSelectedCases(db, applicant.id, chosen.cases);
+  const casesResult = await loadSelectedCases(
+    db,
+    applicant.id,
+    chosen.cases,
+    agency ? (missionId) => agency.caseAllowed(missionId) : null,
+  );
   if (!casesResult.ok) return casesResult;
   const { missions, notShown } = casesResult.value;
 
@@ -664,6 +741,11 @@ export async function buildSelectedOutput(
   const onlyFields = options.fieldKeys ? new Set(options.fieldKeys) : null;
   for (const row of factRows) {
     if (row.status === 'SUPERSEDED') continue;
+    // An agency AI call: only details an AI grant shares, by the detail's own category (S22).
+    if (agency && !agency.factAllowed(row.packId)) {
+      omitted.not_granted += 1;
+      continue;
+    }
     const policy = fieldPolicyOf(row.fieldKey);
     const basic = includeBasics && IDENTITY_BASICS_KEYS.includes(row.fieldKey);
     if (onlyFields && !onlyFields.has(row.fieldKey)) {
@@ -699,6 +781,7 @@ export async function buildSelectedOutput(
         applicant.id,
         selectedRows.filter((entry) => entry.form !== 'conflict').map((entry) => entry.row),
         chosen.layers,
+        agency ? (document) => agency.documentAllowed(document) : null,
       )
     : new Map<string, ValueEvidence[]>();
 
@@ -780,11 +863,13 @@ export async function buildSelectedOutput(
     timezone: applicant.timezone,
     omitted,
     scope: options.documentScope ?? null,
+    agency,
     maskText: () => identifierMasker(db, applicant.id, chosen, options.encryption),
   });
 
   // 5. Cases, with reference codes and what comes next from the existing attention projection.
-  const attention = withCases ? await loadAttention(proof, now) : null;
+  // An agency AI call leaves "what comes next" out: it reads the person's tasks and reminders.
+  const attention = withCases && !agency ? await loadAttention(proof, now) : null;
   const caseCodes = await referenceCodesFor(
     db,
     'C',
@@ -873,6 +958,8 @@ async function loadSelectedCases(
   db: Db,
   applicantId: string,
   choice: CaseSelection,
+  /** An agency AI call: only cases its scope reaches (S22); null for the owner. */
+  caseAllowed: ((missionId: string) => boolean) | null,
 ): Promise<Result<{ missions: MissionRow[]; notShown: number }, ServiceError>> {
   if (choice.kind === 'none') return ok({ missions: [], notShown: 0 });
   if (choice.kind === 'one') {
@@ -889,7 +976,9 @@ async function loadSelectedCases(
       .limit(1);
     const mission = rows[0];
     // Someone else's case, a removed case and a made-up id all look the same.
-    if (!mission) return err(serviceError('not_found', 'case not found'));
+    if (!mission || (caseAllowed && !caseAllowed(mission.id))) {
+      return err(serviceError('not_found', 'case not found'));
+    }
     return ok({ missions: [mission], notShown: 0 });
   }
   const rows = await db
@@ -897,7 +986,10 @@ async function loadSelectedCases(
     .from(schema.missions)
     .where(and(eq(schema.missions.applicantId, applicantId), isNull(schema.missions.purgedAt)))
     .orderBy(desc(schema.missions.createdAt), asc(schema.missions.id));
-  const current = rows.filter((mission) => !FINISHED_CASE_STATES.has(mission.state));
+  const current = rows.filter(
+    (mission) =>
+      !FINISHED_CASE_STATES.has(mission.state) && (caseAllowed === null || caseAllowed(mission.id)),
+  );
   return ok({
     missions: current.slice(0, MAX_CASES_PER_OUTPUT),
     notShown: Math.max(0, current.length - MAX_CASES_PER_OUTPUT),
@@ -908,6 +1000,7 @@ async function loadFactRows(db: Db, applicantId: string): Promise<FactRow[]> {
   const rows = await db
     .select({
       factId: schema.facts.id,
+      packId: schema.fieldDefinitions.packId,
       repeatingRecordKey: schema.facts.repeatingRecordKey,
       factCreatedAt: schema.facts.createdAt,
       fieldKey: schema.fieldDefinitions.key,
@@ -995,6 +1088,8 @@ async function loadEvidence(
   applicantId: string,
   rows: readonly FactRow[],
   layers: readonly LayerKey[],
+  /** An agency AI call: only documents its scope reaches are named as a source (S22). */
+  documentAllowed: ((document: { id: string; docType: string | null }) => boolean) | null,
 ): Promise<Map<string, ValueEvidence[]>> {
   const result = new Map<string, ValueEvidence[]>();
   if (rows.length === 0) return result;
@@ -1042,8 +1137,11 @@ async function loadEvidence(
     db,
     evidenceDocuments.map((document) => document.storageObjectId),
   );
-  const documents = evidenceDocuments.filter((document) =>
-    isListableVersion(document, erasing.has(document.storageObjectId)),
+  const documents = evidenceDocuments.filter(
+    (document) =>
+      isListableVersion(document, erasing.has(document.storageObjectId)) &&
+      (documentAllowed === null ||
+        documentAllowed({ id: document.documentId, docType: document.docType })),
   );
   const codes = await referenceCodesFor(
     db,
@@ -1088,6 +1186,8 @@ async function loadDocumentParts(
     readonly timezone: string;
     readonly omitted: Record<OmissionReason, number>;
     readonly scope: SelectedOutputOptions['documentScope'] | null;
+    /** An agency AI call (S22): each document, and each document's text, judged by its scope. */
+    readonly agency: AgencyAiScope | null;
     /** Builds the masker for the person's own identifiers in document text (null: cannot). */
     readonly maskText: () => Promise<((text: string) => string) | null>;
   },
@@ -1177,6 +1277,13 @@ async function loadDocumentParts(
         if (code === undefined || !referenceCodes.includes(code)) continue;
       }
     }
+    // An agency AI call: a document no AI grant shares is not listed, dated or read at all. It is
+    // counted only when it was asked for (after the narrowing above), so the audit's count
+    // (S22 round 3; the app is never told) is about what the call asked.
+    if (input.agency && !input.agency.documentAllowed(document)) {
+      omitted.not_granted += 1;
+      continue;
+    }
     const requiredKind = key !== null && needs.documentKeys.has(key);
     const requiredNow = key !== null && needs.documentKeys.get(key) === true;
     const groupKey = documentGroupOf(document.docType);
@@ -1234,7 +1341,12 @@ async function loadDocumentParts(
     }
 
     if (usable && selection.documentText.includes(groupKey)) {
-      if (layerGranted) candidates.push({ document, versionId: version.id });
+      // An agency AI call also needs PREVIEW on this document from an AI grant (S22); restricted
+      // types are refused for everyone below, with the platform's protection switches.
+      const textShared =
+        input.agency === null ||
+        input.agency.documentTextAllowed({ ...document, restricted: false });
+      if (layerGranted && textShared) candidates.push({ document, versionId: version.id });
       else omitted.not_granted += 1;
     } else if (wantsText && usable && input.scope?.referenceCodes !== undefined) {
       // A document named by reference whose group's text is not shared: say so in the counts.
@@ -1251,7 +1363,10 @@ async function loadDocumentParts(
   expiry.sort((a, b) => a.daysLeft - b.daysLeft || compareText(a.kind, b.kind));
 
   const documentText = wantsText
-    ? await loadDocumentText(db, candidates, codes, omitted, input.maskText)
+    ? await loadDocumentText(db, candidates, codes, omitted, input.maskText, {
+        // An agency read always keeps the default protected types closed (S22 round 3).
+        agency: input.agency !== null,
+      })
     : [];
   return { documents, expiry, documentText };
 }
@@ -1338,12 +1453,20 @@ async function loadDocumentText(
   codes: ReadonlyMap<string, string>,
   omitted: Record<OmissionReason, number>,
   maskText: () => Promise<((text: string) => string) | null>,
+  reader: { readonly agency: boolean },
 ): Promise<OutputDocumentText[]> {
   if (candidates.length === 0) return [];
   // The platform's protection switches decide which document types never give out their text.
   const protection = await loadDocumentProtectionSettings(db, DEFAULT_DOCUMENT_PROTECTION);
+  // For an agency's AI tools (S22 round 3) the default protected types (passport, ID, money and
+  // health documents, and types not known) stay closed whatever the switches say: the promise
+  // made to travellers on Sharing does not depend on a setting. A traveller's own AI connection
+  // follows the switches as before.
+  const restricted = (docType: string | null): boolean =>
+    documentTypeRestricted(docType, protection) ||
+    (reader.agency && documentTypeRestricted(docType, DEFAULT_DOCUMENT_PROTECTION));
   const allowed = candidates.filter(({ document }) => {
-    if (documentTypeRestricted(document.docType, protection)) {
+    if (restricted(document.docType)) {
       omitted.restricted += 1;
       return false;
     }

@@ -92,3 +92,19 @@ This replaces the round 3 "one file, one use" note above.
 - Only a counted scan that read text leaves a cover, and a file has at most one waiting: scanning it again sets the cover to one, never more. A scan that failed or read nothing leaves none.
 - The details step checks for a cover only after the feature switch, the plan and consent pass; a refused call reads no cover.
 - AI App Access with no limit: after the call only the platform owner's saved limit is read; a count past it is reported at most once per person, feature and day.
+
+## Turning on agency AI tools (S22, added 31 Oct 2026)
+
+Agency AI Tools lets an agency's owners and admins connect an AI app (ChatGPT, Claude) that reads, for each case they can see, only what that case's traveller allowed the agency's AI tools to read. It is off for everyone on deploy and stays off until all of these are done, in this order:
+
+1. **Migrations.** After the merge, run db-migrate.yml with the owner's word for 0108 and then 0109 (owner action O8-S22). 0108 adds only the permission; 0109 the tables. Until both ran, the agency setting reads "Available After the Next Update" and nothing else changes.
+2. **Legal wording (O10).** The owner approves (or replaces) the traveller note and the agency statement in `apps/web/src/lib/agency-ai.ts`. Do not turn the feature on before that.
+3. **Platform switch.** Admin > Settings > AI Settings > AI Features: turn Agency AI Tools on (a fresh sign-in check; audited as `AI_FEATURE_SETTING_UPDATED`). The Daily Limit per Agency there lowers the plan's limit for every agency.
+4. **Plans.** Admin > Settings > Plans: each agency plan shows Agency AI Tools (included, 500 a day per agency unless changed). Switch it off on a plan to leave it out of that plan.
+5. **Each agency.** An owner or admin turns on "AI Connections for This Agency" in the agency's Settings, after confirming the statement (audited as `ORGANIZATION_AI_SETTING_UPDATED`).
+6. **Each traveller.** A traveller ticks "Let This Agency Use AI Tools on What I Share" on that agency's access card (Sharing) or when accepting the agency's invitation, after confirming it is them (audited as `GRANT_AI_ASSIST_CHANGED`).
+7. **Connect.** The owner or admin adds VisaStack to the AI app and chooses the agency on the consent screen, for at most 30 days.
+
+Stopping it, fastest first: the platform switch (every agency, next request); the agency's own setting (that agency); Turn Off on the agency's AI Connections page (one app); a traveller unticking the box, pausing or revoking the grant (that traveller). An agency whose billing is Suspended, or that is not active, is paused automatically. A member turned off loses their connections at once.
+
+Checks after turning it on: the agency's Settings shows On; a traveller's Access Log shows "Agency AI Tools: {Agency} via {app address}" after a read; the audit has `AI_CONTEXT_SERVED` with `connectionKind: AGENCY` on the traveller's record. Note for agencies: with today's case-only invitation grants the AI app reads the case and its readiness but no profile detail or document; a traveller who shares their whole record lets it read more.

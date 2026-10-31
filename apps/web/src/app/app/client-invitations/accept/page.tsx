@@ -1,4 +1,5 @@
 import {
+  aiAssistAvailable,
   getConsents,
   getOrganizationBrandingForDisplay,
   listApplicants,
@@ -51,12 +52,13 @@ export default async function AcceptClientInvitationPage({
   const data = await withSession(async ({ db, accountId }) => {
     const preview = await previewClientInvitation(db, token, accountId);
     if (!preview.ok) return { preview, consents: null, applicants: [], branding: undefined };
-    const [consents, applicants, branding] = await Promise.all([
+    const [consents, applicants, branding, aiReady] = await Promise.all([
       getConsents(db, accountId),
       listApplicants(db, accountId),
       getOrganizationBrandingForDisplay(db, preview.value.organizationId),
+      aiAssistAvailable(db),
     ]);
-    return { preview, consents, applicants, branding };
+    return { preview, consents, applicants, branding, aiReady };
   });
 
   // The same sentences the public page showed before sign-in, from the same real access.
@@ -124,6 +126,9 @@ export default async function AcceptClientInvitationPage({
               <AcceptClientInvitationForm
                 token={token}
                 applicants={data.applicants.map((a) => ({ id: a.id, displayName: a.displayName }))}
+                {...('aiReady' in data && data.aiReady
+                  ? { agencyAi: { agencyName: data.preview.value.organizationName } }
+                  : {})}
               />
             )}
           </>

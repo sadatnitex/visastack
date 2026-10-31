@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { storeAiConnectionFiles } from '../ai-connection-files';
 import {
   AI_CONNECTION_LAYERS,
@@ -374,6 +374,37 @@ export async function createAiConnection(
   });
 }
 
+/**
+ * The single-use code for a connection just stored by another part of the access gate (S22's
+ * agency connections), bound exactly like `createAiConnection`'s. For the access gate only: not
+ * exported from the services index.
+ */
+export async function issueAiAuthorizationCode(
+  tx: Db,
+  input: {
+    readonly connectionId: string;
+    readonly codeChallenge: string;
+    readonly redirectUri: string;
+    readonly resource: string;
+    readonly now: Date;
+  },
+): Promise<Result<string, AiOAuthError>> {
+  if (!CHALLENGE_RE.test(input.codeChallenge)) {
+    return err(oauthError('invalid_request', 'a valid S256 code_challenge is required'));
+  }
+  return ok(
+    await insertToken(tx, {
+      connectionId: input.connectionId,
+      kind: 'CODE',
+      familyId: randomUUID(),
+      resource: input.resource,
+      expiresAt: new Date(input.now.getTime() + AI_CODE_TTL_MS),
+      codeChallenge: input.codeChallenge,
+      redirectUri: input.redirectUri,
+    }),
+  );
+}
+
 export interface ExchangeCodeInput {
   readonly code: string;
   readonly codeVerifier: string;
@@ -455,7 +486,8 @@ export async function exchangeAiAuthorizationCode(
         await recordProductEvent(tx, {
           eventType: 'AI_CONNECTOR_CONNECTED',
           accountId: connection.accountId,
-          dimension: connection.caseMode,
+          // An agency connection (S22) names no record: it is counted apart from case modes.
+          dimension: connection.applicantId === null ? 'AGENCY' : connection.caseMode,
           metricValue: AI_CONNECTION_LAYERS.filter((layer) => connection.scopes.includes(layer))
             .length,
           onceFor: connection.id,
@@ -574,7 +606,17 @@ export async function revokeAiToken(
 export interface ResolvedAiConnection {
   readonly connectionId: string;
   readonly accountId: string;
-  readonly applicantId: string;
+  /**
+   * `OWNER`: the person's own record (`applicantId`). `AGENCY` (S22): an agency owner or admin
+   * acting for `organizationId`, reaching only what travellers allowed that agency's AI tools to
+   * see. Derived from the stored rows (an agency row present), never from the token.
+   */
+  readonly kind: 'OWNER' | 'AGENCY';
+  /** The record of an owner connection; null for an agency connection. */
+  readonly applicantId: string | null;
+  /** The agency of an agency connection; null for an owner connection. */
+  readonly organizationId: string | null;
+  readonly createdAt: Date;
   readonly clientHost: string;
   readonly clientName: string;
   readonly scopes: readonly string[];
@@ -617,24 +659,51 @@ export async function resolveAiAccessToken(
     if (token.revokedAt || token.expiresAt.getTime() <= now.getTime()) return null;
     if (!sameText(token.resource, input.resource)) return null;
     if (!connection.activatedAt || !connectionAlive(connection, now)) return null;
+    // A connection names a record, or (S22) an agency. Without a record it must name an agency;
+    // the agency table exists whenever such a row can (migration 0109 made the record optional).
+    const organizationId =
+      connection.applicantId === null
+        ? (first(
+            await db
+              .select({ organizationId: schema.aiConnectionAgencies.organizationId })
+              .from(schema.aiConnectionAgencies)
+              .where(eq(schema.aiConnectionAgencies.connectionId, connection.id))
+              .limit(1),
+          )?.organizationId ?? null)
+        : null;
+    if (connection.applicantId === null && organizationId === null) return null;
     const stale =
       !connection.lastUsedAt ||
       now.getTime() - connection.lastUsedAt.getTime() >= LAST_USED_WRITE_GAP_MS;
     if (stale) {
-      await db
-        .update(schema.aiConnections)
-        .set({ lastUsedAt: now })
+      // Never waits (S22 round 4): an agency call holds a shared lock on this row for its work,
+      // so the touch updates the row only when it can be locked at once, and otherwise skips this
+      // time. Other calls on the same connection never queue behind a call in progress. The lock
+      // is NO KEY UPDATE (round 5), the one an update that leaves the key alone takes: it does
+      // not conflict with the KEY SHARE locks taken by rows that point at this connection (drafts,
+      // task origins, tokens, ticked files), so it never blocks or deadlocks those writes.
+      const unlocked = db
+        .select({ id: schema.aiConnections.id })
+        .from(schema.aiConnections)
         .where(
           and(
             eq(schema.aiConnections.id, connection.id),
             sql`(${schema.aiConnections.lastUsedAt} is null or ${schema.aiConnections.lastUsedAt} <= ${new Date(now.getTime() - LAST_USED_WRITE_GAP_MS).toISOString()}::timestamptz)`,
           ),
-        );
+        )
+        .for('no key update', { skipLocked: true });
+      await db
+        .update(schema.aiConnections)
+        .set({ lastUsedAt: now })
+        .where(inArray(schema.aiConnections.id, unlocked));
     }
     return {
       connectionId: connection.id,
       accountId: connection.accountId,
+      kind: organizationId === null ? 'OWNER' : 'AGENCY',
       applicantId: connection.applicantId,
+      organizationId,
+      createdAt: connection.createdAt,
       clientHost: connection.clientHost,
       clientName: connection.clientName,
       scopes: connection.scopes,

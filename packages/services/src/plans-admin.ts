@@ -1,5 +1,6 @@
 import { type Result, err, isIsoCurrencyCode, normalizeCurrencyCode, ok } from '@visastack/core';
 import {
+  AI_FEATURES,
   AI_FEATURE_LIMIT_MAX,
   AI_FEATURE_LIMIT_MIN,
   AI_PLAN_TIERS,
@@ -361,11 +362,13 @@ function retireBlock(plan: { key: string; active: boolean }): PlanAdminView['ret
 }
 
 function standardRule(key: EntitlementKey, audience: PlanAudience): PlanRuleInput {
-  // An AI feature with no row is not part of an agency plan; on the traveller plan it is the
-  // built-in daily limit (entitlements.ts reads it the same way).
+  // An AI feature with no row is the built-in plan default for a plan of its own audience (a
+  // traveller feature on the traveller plan, Agency AI Tools on an agency plan, S22), exactly as
+  // entitlements.ts reads it; a feature of the other audience is not part of the plan.
   const feature = aiFeatureOfKey(key);
   if (feature === null) return { included: true, limit: null };
-  if (audience !== 'TRAVELLER') return { included: false, limit: null };
+  const own = audience === 'TRAVELLER' ? 'traveller' : 'agency';
+  if (AI_FEATURES[feature].audience !== own) return { included: false, limit: null };
   const free = AI_PLAN_TIERS.FREE[feature];
   return { included: free.included, limit: free.dailyLimit };
 }

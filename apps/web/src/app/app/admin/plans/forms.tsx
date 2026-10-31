@@ -1,6 +1,6 @@
 'use client';
 
-import { AI_FEATURE_KEYS } from '@visastack/core/ai-features';
+import { AI_AGENCY_FEATURE_KEYS, AI_TRAVELLER_FEATURE_KEYS } from '@visastack/core/ai-features';
 import type { CapacityKey } from '@visastack/core/entitlements';
 import { useActionState, useEffect, useId, useRef } from 'react';
 import {
@@ -11,6 +11,7 @@ import {
 } from '../../../../components/form-feedback';
 import { retirePlanAction, savePlanAction } from './actions';
 import {
+  AGENCY_AI_LIMIT_HINT,
   AGENCY_AI_NOTE,
   AI_ALLOWANCE_HINT,
   AI_LIMIT_HINT,
@@ -205,43 +206,41 @@ export function PlanForm({
             <div className="form-grid">{EDITABLE_CAPACITY_KEYS.map(capacity)}</div>
           </fieldset>
         )}
-        {traveller ? (
-          <fieldset className="form-section">
-            <legend>AI Features</legend>
-            <div className="form-grid">
-              {AI_FEATURE_KEYS.map((feature) => (
-                <div className="field-row" key={feature}>
-                  <div className="checks">
-                    <label className="check" htmlFor={`${id}-${feature}-on`}>
-                      <input
-                        id={`${id}-${feature}-on`}
-                        type="checkbox"
-                        name={featureOnField(feature)}
-                        defaultChecked={value(featureOnField(feature)) === 'on'}
-                      />
-                      <span>{aiFeatureName(feature)}</span>
-                    </label>
-                  </div>
-                  <label className="field-label" htmlFor={`${id}-${feature}-limit`}>
-                    Daily Limit per Person: {aiFeatureName(feature)}
+        <fieldset className="form-section">
+          <legend>AI Features</legend>
+          <div className="form-grid">
+            {(traveller ? AI_TRAVELLER_FEATURE_KEYS : AI_AGENCY_FEATURE_KEYS).map((feature) => (
+              <div className="field-row" key={feature}>
+                <div className="checks">
+                  <label className="check" htmlFor={`${id}-${feature}-on`}>
+                    <input
+                      id={`${id}-${feature}-on`}
+                      type="checkbox"
+                      name={featureOnField(feature)}
+                      defaultChecked={value(featureOnField(feature)) === 'on'}
+                    />
+                    <span>{aiFeatureName(feature)}</span>
                   </label>
-                  <input
-                    id={`${id}-${feature}-limit`}
-                    type="text"
-                    inputMode="numeric"
-                    className="input"
-                    {...input(featureLimitField(feature), `${id}-${feature}-hint`)}
-                  />
-                  <small className="muted" id={`${id}-${feature}-hint`}>
-                    {AI_LIMIT_HINT}
-                  </small>
                 </div>
-              ))}
-            </div>
-          </fieldset>
-        ) : (
-          <p className="muted u-fs-085">{AGENCY_AI_NOTE}</p>
-        )}
+                <label className="field-label" htmlFor={`${id}-${feature}-limit`}>
+                  {traveller ? 'Daily Limit per Person' : 'Daily Limit per Agency'}:{' '}
+                  {aiFeatureName(feature)}
+                </label>
+                <input
+                  id={`${id}-${feature}-limit`}
+                  type="text"
+                  inputMode="numeric"
+                  className="input"
+                  {...input(featureLimitField(feature), `${id}-${feature}-hint`)}
+                />
+                <small className="muted" id={`${id}-${feature}-hint`}>
+                  {traveller ? AI_LIMIT_HINT : AGENCY_AI_LIMIT_HINT}
+                </small>
+              </div>
+            ))}
+          </div>
+          {traveller ? null : <p className="muted u-fs-085">{AGENCY_AI_NOTE}</p>}
+        </fieldset>
       </div>
       {state.pricePreview ? (
         <fieldset

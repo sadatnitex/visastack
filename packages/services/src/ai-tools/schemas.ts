@@ -145,6 +145,23 @@ export const caseListOutputSchema = z.looseObject({
   notice: noticeField,
 });
 
+/** `list_cases` for an agency connection (S22): the cases the agency's AI tools may read. */
+export const agencyCaseListOutputSchema = z.looseObject({
+  cases: z.array(
+    z.looseObject({
+      reference: z.string().nullable().describe('For example C-7K2Q9M.'),
+      title: z.string(),
+      traveller: z.string().describe('The traveller the case is for.'),
+      destination: z.string().nullable(),
+      state: z.string(),
+      targetDeadline: z.string().nullable(),
+      travelStart: z.string().nullable(),
+    }),
+  ),
+  casesNotShown: z.number(),
+  notice: noticeField,
+});
+
 export const profileSectionOutputSchema = z.looseObject({
   section: z.string(),
   label: z.string(),

@@ -48,6 +48,7 @@ export async function getAiConnectionCounts(
   const since = new Date(now.getTime() - AI_CONNECTION_COUNT_WINDOW_MS);
   const connections = schema.aiConnections;
   const audit = schema.auditEvents;
+  const callKey = sql`coalesce(${audit.metadata}->>'callId', 'seq:' || ${audit.seq}::text)`;
   try {
     const [totals, calls] = await Promise.all([
       db
@@ -58,9 +59,11 @@ export async function getAiConnectionCounts(
         .from(connections),
       db
         .select({
-          served: sql<string>`count(*) filter (where ${audit.eventType} = 'AI_CONTEXT_SERVED')`,
-          denied: sql<string>`count(*) filter (where ${audit.eventType} = 'AI_CONTEXT_DENIED')`,
-          withheld: sql<string>`count(*) filter (where ${audit.eventType} = 'AI_CONTEXT_DENIED' and ${audit.metadata}->>'withheld' = 'true')`,
+          // One call is one call (S22): an agency call writes a record per traveller it reached,
+          // all with the call's id. Records from before call ids count one each.
+          served: sql<string>`count(distinct ${callKey}) filter (where ${audit.eventType} = 'AI_CONTEXT_SERVED')`,
+          denied: sql<string>`count(distinct ${callKey}) filter (where ${audit.eventType} = 'AI_CONTEXT_DENIED')`,
+          withheld: sql<string>`count(distinct ${callKey}) filter (where ${audit.eventType} = 'AI_CONTEXT_DENIED' and ${audit.metadata}->>'withheld' = 'true')`,
         })
         .from(audit)
         .where(

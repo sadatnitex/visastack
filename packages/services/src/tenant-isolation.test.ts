@@ -2,10 +2,21 @@ import { randomUUID } from 'node:crypto';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { accountPrincipal, requireAccess } from './access';
+import {
+  agency,
+  fact as aiFact,
+  callAgencyTool,
+  caseOf,
+  connectAgency,
+  enableAgencyAiTools,
+  said,
+  shareWithAgency,
+  traveller,
+} from './access/agency-ai.test-support';
 import { provisionAccount } from './accounts';
 import {
   addNote,
@@ -860,5 +871,56 @@ describe('per-case sharing exceptions never cross from one person to another', (
           .values({ grantId: grantX, missionId: caseY.value.id, applicantId }),
       ).rejects.toThrow();
     }
+  }, 60_000);
+});
+
+describe('agency AI connections (S22): never across agencies, never by guessing', () => {
+  it('another agency reaches nothing of a traveller who let only the first agency’s AI tools read, even with real references or random ids', async () => {
+    const db = await freshDb();
+    await enableAgencyAiTools(db);
+    const t = await traveller(db, 'ai-traveller@example.com');
+    await aiFact(db, t.ownerId, t.applicantId, 'given_name', 'Isolated Name', 'universal');
+    const someCase = await caseOf(db, t.ownerId, t.applicantId, 'London Trip');
+    const a = await agency(db, 'ai-owner-a@example.com', 'Agency A');
+    const b = await agency(db, 'ai-owner-b@example.com', 'Agency B');
+    await shareWithAgency(db, { ...t, organization: a, ai: true });
+    // Agency B holds an ordinary grant on the same traveller, without AI tools.
+    await shareWithAgency(db, { ...t, organization: b, ai: false });
+    const fromA = await connectAgency(db, a.organizationId, a.ownerId);
+    const fromB = await connectAgency(db, b.organizationId, b.ownerId);
+
+    const allowed = await callAgencyTool(db, fromA.token, 'prepare_context', {
+      case_reference: someCase.reference,
+    });
+    expect(said(allowed.result)).toContain('Isolated Name');
+
+    const listed = await callAgencyTool(db, fromB.token, 'list_cases', {});
+    expect(said(listed.result)).not.toContain('London Trip');
+    for (const reference of [someCase.reference, randomUUID(), '']) {
+      const guessed = await callAgencyTool(db, fromB.token, 'prepare_context', {
+        case_reference: reference,
+      });
+      expect(guessed.result.isError).toBe(true);
+      expect(said(guessed.result)).not.toContain('Isolated Name');
+    }
+    // A's token never works as B's, and an owner tool is never offered to either.
+    const audit = await db
+      .select({ organizationId: sql<string>`${schema.auditEvents.metadata}->>'organizationId'` })
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'AI_CONTEXT_SERVED'));
+    expect(new Set(audit.map((row) => row.organizationId))).toEqual(
+      new Set([a.organizationId, b.organizationId]),
+    );
+    const servedForB = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(
+        and(
+          eq(schema.auditEvents.eventType, 'AI_CONTEXT_SERVED'),
+          eq(schema.auditEvents.applicantId, t.applicantId),
+          sql`${schema.auditEvents.metadata}->>'organizationId' = ${b.organizationId}`,
+        ),
+      );
+    expect(servedForB).toHaveLength(0);
   }, 60_000);
 });

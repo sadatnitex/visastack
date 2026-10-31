@@ -195,6 +195,13 @@ export async function prepareGrantScope(
     (action) => !(PERMISSION_ACTIONS as readonly string[]).includes(action),
   );
   if (invalidAction) return err(serviceError('invalid', `unknown action: ${invalidAction}`));
+  // S22: letting an agency's AI tools read is the traveller's own separate choice on an agency
+  // grant (`setGrantAiAssist`, with a fresh identity check), never part of making a grant.
+  if (input.actions.includes('AI_ASSIST')) {
+    return err(
+      serviceError('invalid', 'AI tools are allowed on an agency grant itself, after it is made'),
+    );
+  }
   if (input.actions.some((action) => STEP_UP_ACTIONS.includes(action)) && !input.stepUpSatisfied) {
     return err(
       serviceError('step_up_required', 'granting this level of access requires reauthentication'),

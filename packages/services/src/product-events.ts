@@ -107,8 +107,14 @@ function upperLabels<T extends string>(values: readonly T[]): readonly Uppercase
 // The AI connector's labels (S16) are derived from the vocabularies the connector itself uses, so
 // a new case mode, tool or denial reason is a label here too and is never silently dropped.
 
-/** `AI_CONNECTOR_CONNECTED`: which cases the person shared (the connection's case mode). */
-export const AI_CONNECTOR_CASE_LABELS: readonly AiCaseMode[] = AI_CASE_MODES;
+/**
+ * `AI_CONNECTOR_CONNECTED`: which cases the person shared (the connection's case mode), or
+ * `AGENCY` for an agency's AI connection (S22), which reaches cases through travellers' grants.
+ */
+export const AI_CONNECTOR_CASE_LABELS: readonly (AiCaseMode | 'AGENCY')[] = [
+  ...AI_CASE_MODES,
+  'AGENCY',
+];
 /** `AI_CONTEXT_REQUESTED`: the tool the app called. */
 export const AI_CONTEXT_TOOL_LABELS = upperLabels(AI_TOOL_NAMES);
 /** `AI_CONTEXT_DENIED`: the denial reason code, as the audit records it. */
