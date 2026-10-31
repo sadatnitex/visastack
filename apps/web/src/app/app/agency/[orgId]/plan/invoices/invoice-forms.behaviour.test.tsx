@@ -98,4 +98,37 @@ describe('the report form after the server refuses a report', () => {
     expect(field<HTMLInputElement>('reference').value).toBe('');
     expect(container.querySelector('details')?.hasAttribute('open')).toBe(false);
   });
+
+  it('reads each hint with its field, and shows a refusal beside the field it is about', async () => {
+    actions.submitClaim.mockResolvedValue({
+      ok: false,
+      message: 'Enter the payment reference.',
+      field: 'reference',
+      values: { method: 'BKASH', reference: '', amount: '10', paidOn: '2026-10-25', note: '' },
+    });
+    await render();
+    // What a screen reader reads with a field, in order; every id must point at something.
+    const hintOf = (name: string) =>
+      (field(name).getAttribute('aria-describedby') ?? '').split(' ').map((id) => {
+        const target = container.ownerDocument.getElementById(id);
+        if (!target) throw new Error(`${name} points at a missing description ${id}`);
+        return target.textContent ?? '';
+      });
+    expect(hintOf('reference').join(' ')).toMatch(/transaction id/);
+    expect(hintOf('proof').join(' ')).toMatch(/under 4 MB/);
+
+    await submit();
+
+    const reference = field<HTMLInputElement>('reference');
+    // The problem first, then the hint.
+    expect(hintOf('reference')[0]).toBe('Enter the payment reference.');
+    expect(hintOf('reference')[1]).toMatch(/transaction id/);
+    const beside = reference.parentElement?.querySelector('.field-msg-err');
+    expect(beside?.textContent).toBe('Enter the payment reference.');
+    expect(beside?.getAttribute('aria-hidden')).toBe('true');
+    // Only the field the refusal is about carries it, and the alert under the button is kept for
+    // screen readers only, so the message is not seen twice.
+    expect(field('amount').parentElement?.querySelector('.field-msg-err')).toBeNull();
+    expect(container.querySelector('[role="alert"]')?.closest('.sr-only')).not.toBeNull();
+  });
 });

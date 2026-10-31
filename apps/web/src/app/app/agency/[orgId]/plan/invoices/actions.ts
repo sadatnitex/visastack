@@ -16,7 +16,6 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { bootstrapAdminEmails } from '../../../../../../lib/admin-emails';
 import { resolveBaseUrl } from '../../../../../../lib/base-url';
-import { moneyFieldOf } from '../../../../../../lib/money-fields';
 import { paymentUrlFor } from '../../../../../../lib/payment-urls';
 import {
   createImageSanitizer,
@@ -26,6 +25,7 @@ import {
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
 import { createStorage } from '../../../../../../lib/storage';
+import { claimFieldOf } from './claim-fields';
 
 /** What an Invoices form gets back. `field` names the input a problem is about. */
 /** What was typed into the report form, kept across a refusal. */
@@ -232,7 +232,7 @@ export async function submitClaimAction(
         : {}),
     });
     if (!submitted.ok) {
-      return refuse(submitted.error.message, moneyFieldOf(submitted.error.reason));
+      return refuse(submitted.error.message, claimFieldOf(submitted.error.reason));
     }
     return {
       ok: true,

@@ -27,15 +27,20 @@ export function isFailure(result: FormResult): boolean {
  * The attributes that tie an input to the form's message when the problem is about
  * that input. Spread onto the input: `<input {...fieldProblem(state, 'name', messageId)} />`.
  * For an input the problem is not about it returns nothing, so a message about one
- * field is never read out as an error on another.
+ * field is never read out as an error on another. `hintIds` are the ids of the field's own
+ * hints: they are always read with it, after the problem when there is one.
  */
 export function fieldProblem(
   result: FormResult,
   field: string,
   messageId: string,
+  ...hintIds: readonly string[]
 ): { 'aria-invalid'?: true; 'aria-describedby'?: string } {
-  if (!isFailure(result) || result.field !== field) return {};
-  return { 'aria-invalid': true, 'aria-describedby': messageId };
+  const hints = hintIds.join(' ');
+  if (!isFailure(result) || result.field !== field) {
+    return hints ? { 'aria-describedby': hints } : {};
+  }
+  return { 'aria-invalid': true, 'aria-describedby': [messageId, hints].join(' ').trim() };
 }
 
 /**
@@ -88,26 +93,53 @@ export function FormMessage({
   pending = false,
   pendingText,
   style,
+  visuallyHidden = false,
 }: {
   readonly id?: string;
   readonly result: FormResult;
   readonly pending?: boolean;
   readonly pendingText?: string;
   readonly style?: CSSProperties;
+  /** Kept for screen readers only, while the same message is shown beside its field (`FieldError`). */
+  readonly visuallyHidden?: boolean;
 }) {
   const failed = isFailure(result);
   const working = pending && pendingText !== undefined;
   const status = working ? pendingText : failed ? '' : result.message;
   const tone = result.ok ? 'field-msg-ok' : 'field-msg-err';
+  const hidden = visuallyHidden ? ' sr-only' : '';
   return (
     <>
-      <output className={`field-msg ${working ? '' : tone}`.trim()} style={style}>
+      <output className={`field-msg ${working ? '' : tone}${hidden}`.trim()} style={style}>
         {status}
       </output>
-      <p id={id} role="alert" className="field-msg field-msg-err" style={style}>
+      <p id={id} role="alert" className={`field-msg field-msg-err${hidden}`} style={style}>
         {failed && !working ? result.message : ''}
       </p>
     </>
+  );
+}
+
+/**
+ * A refusal shown again right under the field it is about, so it is seen where the fix is made.
+ * Hidden from screen readers, which already hear it through the field (`fieldProblem`) and the
+ * form's alert; give that `FormMessage` `visuallyHidden` while this shows, so it is seen once.
+ * Pass the result as the fields see it (empty while a new attempt is sending).
+ */
+export function FieldError({
+  result,
+  field,
+  className,
+}: {
+  readonly result: FormResult;
+  readonly field: string;
+  readonly className?: string;
+}) {
+  if (!isFailure(result) || result.field !== field) return null;
+  return (
+    <p className={`field-msg field-msg-err${className ? ` ${className}` : ''}`} aria-hidden="true">
+      {result.message}
+    </p>
   );
 }
 
