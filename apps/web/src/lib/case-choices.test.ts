@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  caseCountriesForFamily,
   caseCountry,
   caseCountryOptions,
+  casePurposeGroups,
   savedCaseMatchTerms,
   travellerMatchTerms,
 } from './case-choices';
@@ -68,5 +70,21 @@ describe('case choices', () => {
     });
     expect(savedCaseMatchTerms('Japan', null)).toBeNull();
     expect(savedCaseMatchTerms(' ', 'Tourism')).toBeNull();
+  });
+
+  it("finds the countries of a person's own cases for one purpose family", () => {
+    const study = casePurposeGroups().find((group) => group.family === 'study')?.options[0];
+    const visit = casePurposeGroups().find((group) => group.family === 'visit')?.options[0];
+    if (!study || !visit) throw new Error('missing purposes');
+    const cases = [
+      { destination: 'Ireland', purpose: study.label },
+      { destination: 'United States', purpose: visit.label },
+      { destination: 'Narnia', purpose: study.label },
+      { destination: null, purpose: study.label },
+      { destination: 'Australia', purpose: 'Gap year' },
+    ];
+    expect([...caseCountriesForFamily(cases, 'study')]).toEqual(['IE']);
+    expect([...caseCountriesForFamily(cases, 'visit')]).toEqual(['US']);
+    expect(caseCountriesForFamily([], 'study').size).toBe(0);
   });
 });

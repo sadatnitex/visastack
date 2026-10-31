@@ -1,7 +1,9 @@
 import { CATALOGUE_MODULES } from '@visastack/core/catalogue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { casePurposeGroups } from '../../../../lib/case-choices';
 
 const mocks = vi.hoisted(() => ({
+  listMissions: vi.fn(),
   setSectionOpen: vi.fn(),
   setExemption: vi.fn(),
   editFact: vi.fn(),
@@ -9,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
 }));
 vi.mock('@visastack/services', () => ({
+  listMissions: mocks.listMissions,
   setSectionOpen: mocks.setSectionOpen,
   setExemption: mocks.setExemption,
   editFact: mocks.editFact,
@@ -40,6 +43,7 @@ const nextRecord = () => mocks.editFact.mock.calls.map((call) => call[1].repeati
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.listMissions.mockResolvedValue({ ok: true, value: [] });
   mocks.setSectionOpen.mockResolvedValue(ok);
   mocks.setExemption.mockResolvedValue(ok);
   mocks.editFact.mockResolvedValue(ok);
@@ -94,6 +98,24 @@ describe('opening the sections a purpose suggests', () => {
     expect(result.ok).toBe(true);
     expect(mocks.setSectionOpen.mock.calls.map((call) => call[1].sectionKey)).toEqual(expected);
     expect(mocks.setSectionOpen.mock.calls.every((call) => call[1].open === true)).toBe(true);
+  });
+
+  it('opens only the country sections a study case is about, the same ones the profile shows', async () => {
+    const study = casePurposeGroups().find((group) => group.family === 'study')?.options[0];
+    if (!study) throw new Error('missing study purpose');
+    mocks.listMissions.mockResolvedValue({
+      ok: true,
+      value: [{ destination: 'Ireland', purpose: study.label }],
+    });
+    const result = await openSuggestedSectionsAction(
+      initial,
+      form({ applicantId: 'a1', family: 'study' }),
+    );
+    expect(result.ok).toBe(true);
+    const opened = mocks.setSectionOpen.mock.calls.map((call) => call[1].sectionKey);
+    expect(opened).toContain('uk_ireland');
+    expect(opened).not.toContain('united_states');
+    expect(opened).not.toContain('australia_new_zealand');
   });
 
   it('refuses a purpose that does not exist and opens nothing', async () => {

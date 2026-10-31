@@ -254,6 +254,22 @@ describe('master profile view', () => {
     }
   });
 
+  it('suggests only the country sections a study case is about, and all of them with no such case', () => {
+    const countrySections = ['united_states', 'uk_ireland', 'australia_new_zealand'];
+    const suggestedKeys = (caseCountries: ReadonlySet<string>) =>
+      sectionsOf(buildMasterProfileView({ ...none(), suggestFor: 'study', caseCountries }))
+        .filter((section) => section.suggested && countrySections.includes(section.key))
+        .map((section) => section.key)
+        .sort();
+    expect(suggestedKeys(new Set())).toEqual([...countrySections].sort());
+    expect(suggestedKeys(new Set(['IE']))).toEqual(['uk_ireland']);
+    expect(suggestedKeys(new Set(['CA']))).toEqual([]);
+    expect(suggestedKeys(new Set(['US', 'AU']))).toEqual([
+      'australia_new_zealand',
+      'united_states',
+    ]);
+  });
+
   it('marks only locked sections that suit the chosen purpose, and ignores an unknown purpose', () => {
     const study = buildMasterProfileView({ ...none(), suggestFor: 'study' });
     const marked = sectionsOf(study).filter((section) => section.suggested);
