@@ -66,6 +66,8 @@ const PAYER_COLUMN_MODULES = [
   'invoice-ledger',
   // T4: the daily run's person step reads current subscriptions in plain SQL.
   'person-renewals',
+  // T6: the accounting file reads an invoice's payer for its reference code (StaffScope gated).
+  'ledger-export',
 ] as const;
 /**
  * Exported functions that touch person billing tables without a gate and are trusted not to

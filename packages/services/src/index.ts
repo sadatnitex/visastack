@@ -2144,6 +2144,8 @@ export {
   startPersonPayment,
 } from './payments';
 export { countLedgerTestRows } from './ledger-export';
+export { personRefundGuardPresent } from './refunds';
+export { personBillingPresent } from './traveller-billing';
 export { MODE_CHANGED_CODE } from './refunds';
 // S28: AI feature controls. The owner context, the gate and the charge stay inside the services.
 export {

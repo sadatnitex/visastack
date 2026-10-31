@@ -8,7 +8,10 @@ import { BILLING_TIME_ZONE, agencyCode } from './billing-standing';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { currencyDecimals } from './payment-amounts';
+import { referenceCode } from './person-billing';
+import { personInvoices } from './person-billing-tables';
 import { ledgerModeSql } from './plans-schema';
+import { personBillingPresent } from './traveller-billing';
 
 /**
  * The monthly accounting export (Small Commercial V1 S18, ADR 0020 Phase 2 "Accounting export"
@@ -21,6 +24,9 @@ import { ledgerModeSql } from './plans-schema';
  * - Ledger rows only: money held for a check and never counted is not in it (D3).
  * - Only the ledger, its invoices and the agencies are read: no traveller data can appear. The
  *   agency's name is business data and is included with its short code (D3).
+ * - A person's own invoice (ADR 0025, migration 0110) has no agency: its rows say PERSON and carry
+ *   the person's reference code only (the first 8 hex digits of the account id, as on their
+ *   receipts), never a name, an email or the full account id. Before 0110 the read is unchanged.
  * - No formulas: every cell is quoted, quotes are doubled, and a cell whose first character after
  *   any spaces is `=`, `+`, `-`, `@`, a tab or a carriage return gets a leading apostrophe, so a
  *   spreadsheet shows it as text. Amounts are exact decimals without a sign (the direction column
@@ -50,6 +56,9 @@ export const LEDGER_CSV_COLUMNS = [
   'reference',
   'refund_request_id',
   'recorded_by',
+  // T6 (ADR 0025): appended at the end, so an accountant's existing sheet keeps its columns.
+  'payer_type',
+  'payer_code',
 ] as const;
 
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
@@ -104,8 +113,14 @@ export interface LedgerExportRow {
   readonly createdAt: Date;
   readonly collectedDate: Date;
   readonly invoiceRef: string;
-  readonly organizationId: string;
-  readonly organizationName: string;
+  /** The agency that pays, or null for a person's own invoice (ADR 0025). */
+  readonly organizationId: string | null;
+  readonly organizationName: string | null;
+  /**
+   * The paying person's reference code (`referenceCode`, 8 hex digits), or null for an agency's
+   * invoice. Never the account id itself, so the file cannot carry it.
+   */
+  readonly personCode: string | null;
   readonly kind: string;
   readonly amountMinorUnits: number;
   readonly currency: string;
@@ -126,8 +141,8 @@ export function ledgerCsv(rows: readonly LedgerExportRow[]): string {
       recorded_at_bd: bdDateTime(row.createdAt),
       collected_date_bd: bdDate(row.collectedDate),
       invoice_ref: row.invoiceRef,
-      agency_code: agencyCode(row.organizationId),
-      agency_name: row.organizationName,
+      agency_code: row.organizationId === null ? null : agencyCode(row.organizationId),
+      agency_name: row.organizationId === null ? null : row.organizationName,
       kind: row.kind,
       direction: row.amountMinorUnits < 0 ? 'OUT' : 'IN',
       amount: exactDecimal(row.amountMinorUnits, row.currency),
@@ -137,6 +152,8 @@ export function ledgerCsv(rows: readonly LedgerExportRow[]): string {
       reference: row.reference,
       refund_request_id: refund ? row.sourceId : null,
       recorded_by: row.recordedByAccountId === null ? 'provider' : 'staff',
+      payer_type: row.organizationId === null ? 'PERSON' : 'AGENCY',
+      payer_code: row.organizationId === null ? row.personCode : agencyCode(row.organizationId),
     };
     lines.push(LEDGER_CSV_COLUMNS.map((column) => ledgerCsvCell(cells[column])).join(','));
   }
@@ -154,9 +171,76 @@ export interface LedgerExport {
 }
 
 /**
- * The ledger rows of one Bangladesh calendar month as a CSV file. Refused for a month that is not
- * `YYYY-MM`, without a fresh sign-in check, or above the row cap.
+ * The month's ledger rows that are real money, oldest first, one more than the cap so a month
+ * above it can be refused. Agency and person invoices alike (ADR 0025).
  */
+async function ledgerRowsOfMonth(
+  db: Db,
+  bounds: { readonly start: Date; readonly end: Date },
+): Promise<LedgerExportRow[]> {
+  const p = schema.invoicePayments;
+  const o = schema.organizations;
+  const ledger = {
+    id: p.id,
+    createdAt: p.createdAt,
+    collectedDate: p.collectedDate,
+    kind: p.kind,
+    amountMinorUnits: p.amountMinorUnits,
+    currency: p.currency,
+    provider: p.provider,
+    providerTransactionId: p.providerTransactionId,
+    reference: p.reference,
+    sourceId: p.sourceId,
+    recordedByAccountId: p.recordedByAccountId,
+  };
+  const inMonth = and(
+    gte(p.createdAt, bounds.start),
+    lt(p.createdAt, bounds.end),
+    // S29: test payments are not money; the accountant never sees them.
+    ne(await ledgerModeSql(db), 'TEST'),
+  );
+  if (!(await personBillingPresent(db))) {
+    // Before migration 0110 every invoice has an agency: the read is the one S18 shipped.
+    const i = schema.invoices;
+    const rows = await db
+      .select({
+        ...ledger,
+        invoiceRef: i.invoiceRef,
+        organizationId: o.id,
+        organizationName: o.name,
+      })
+      .from(p)
+      .innerJoin(i, eq(i.id, p.invoiceId))
+      .innerJoin(o, eq(o.id, i.organizationId))
+      .where(inMonth)
+      .orderBy(asc(p.seq))
+      .limit(LEDGER_EXPORT_MAX_ROWS + 1);
+    return rows.map((row) => ({ ...row, personCode: null }));
+  }
+  // ADR 0025: a person's own invoice has no agency, so the agency is joined only where there is
+  // one. The person is read only to make their reference code.
+  const i = personInvoices;
+  const rows = await db
+    .select({
+      ...ledger,
+      invoiceRef: i.invoiceRef,
+      organizationId: o.id,
+      organizationName: o.name,
+      payerAccountId: i.payerAccountId,
+    })
+    .from(p)
+    .innerJoin(i, eq(i.id, p.invoiceId))
+    .leftJoin(o, eq(o.id, i.organizationId))
+    .where(inMonth)
+    .orderBy(asc(p.seq))
+    .limit(LEDGER_EXPORT_MAX_ROWS + 1);
+  return rows.map(({ payerAccountId, ...row }) => ({
+    ...row,
+    personCode:
+      row.organizationId === null && payerAccountId !== null ? referenceCode(payerAccountId) : null,
+  }));
+}
+
 async function countTestLedgerRows(
   db: Db,
   bounds: { readonly start: Date; readonly end: Date },
@@ -194,6 +278,10 @@ export async function countLedgerTestRows(
   return ok(await countTestLedgerRows(db, bounds));
 }
 
+/**
+ * The ledger rows of one Bangladesh calendar month as a CSV file. Refused for a month that is not
+ * `YYYY-MM`, without a fresh sign-in check, or above the row cap.
+ */
 export async function exportLedgerMonth(
   db: Db,
   staff: StaffScope<'BILLING_LEDGER_EXPORT'>,
@@ -210,39 +298,7 @@ export async function exportLedgerMonth(
       serviceError('step_up_required', 'downloading the ledger requires reauthentication'),
     );
   }
-  const p = schema.invoicePayments;
-  const i = schema.invoices;
-  const o = schema.organizations;
-  const rows = await db
-    .select({
-      id: p.id,
-      createdAt: p.createdAt,
-      collectedDate: p.collectedDate,
-      invoiceRef: i.invoiceRef,
-      organizationId: o.id,
-      organizationName: o.name,
-      kind: p.kind,
-      amountMinorUnits: p.amountMinorUnits,
-      currency: p.currency,
-      provider: p.provider,
-      providerTransactionId: p.providerTransactionId,
-      reference: p.reference,
-      sourceId: p.sourceId,
-      recordedByAccountId: p.recordedByAccountId,
-    })
-    .from(p)
-    .innerJoin(i, eq(i.id, p.invoiceId))
-    .innerJoin(o, eq(o.id, i.organizationId))
-    .where(
-      and(
-        gte(p.createdAt, bounds.start),
-        lt(p.createdAt, bounds.end),
-        // S29: test payments are not money; the accountant never sees them.
-        ne(await ledgerModeSql(db), 'TEST'),
-      ),
-    )
-    .orderBy(asc(p.seq))
-    .limit(LEDGER_EXPORT_MAX_ROWS + 1);
+  const rows = await ledgerRowsOfMonth(db, bounds);
   if (rows.length > LEDGER_EXPORT_MAX_ROWS) {
     return err(
       serviceError(

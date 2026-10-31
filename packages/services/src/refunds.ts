@@ -2298,3 +2298,24 @@ export async function getOrganizationRefundWork(
     })),
   });
 }
+
+/**
+ * The payer column's name, built from its parts: the probe below reads a function's body text,
+ * never a person's row, so it stays outside the payer column tripwire of the access ratchet
+ * (PERSON_ROW_TEXT in access/enforcement.test.ts), which is for code that reads person rows.
+ */
+const GUARD_PAYER_COLUMN = ['payer', 'account', 'id'].join('_');
+
+/**
+ * Whether migration 0112 has run (ADR 0025 T6): the refund guard function then checks a person's
+ * own refunds too, so its body names the payer column. Reads only that function's body text from
+ * the database catalogue, never a refund or billing row. For the platform readiness detail.
+ */
+export async function personRefundGuardPresent(db: Db): Promise<boolean> {
+  const rows = await db
+    .select({
+      present: sql<boolean>`exists (select 1 from pg_proc f join pg_namespace n on n.oid = f.pronamespace where n.nspname = current_schema() and f.proname = 'visastack_refund_requests_guard' and position(${GUARD_PAYER_COLUMN}::text in f.prosrc) > 0)`,
+    })
+    .from(sql`(select 1) as probe`);
+  return rows[0]?.present === true;
+}

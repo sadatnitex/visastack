@@ -19,6 +19,10 @@ const mocks = vi.hoisted(() => ({
   resolveAiLimits: vi.fn(),
   evaluateReadiness: vi.fn(),
   getDeploymentMode: vi.fn(),
+  travellerPlansEnabled: vi.fn(),
+  personBillingPresent: vi.fn(),
+  personRefundGuardPresent: vi.fn(),
+  paymentMode: vi.fn(),
 }));
 
 vi.mock('../../../lib/session', () => ({
@@ -42,6 +46,13 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   getProductAnalytics: (...args: unknown[]) => mocks.getProductAnalytics(...args),
   listFailedJobs: (...args: unknown[]) => mocks.listFailedJobs(...args),
   totalAiCostUnits: (...args: unknown[]) => mocks.totalAiCostUnits(...args),
+  travellerPlansEnabled: () => mocks.travellerPlansEnabled(),
+  personBillingPresent: (...args: unknown[]) => mocks.personBillingPresent(...args),
+  personRefundGuardPresent: (...args: unknown[]) => mocks.personRefundGuardPresent(...args),
+}));
+vi.mock('../../../lib/providers', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../lib/providers')>()),
+  paymentMode: () => mocks.paymentMode(),
 }));
 vi.mock('../../../lib/ai', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../lib/ai')>()),
@@ -132,6 +143,84 @@ beforeEach(() => {
   mocks.totalAiCostUnits.mockResolvedValue(0);
   mocks.resolveAiLimits.mockResolvedValue({ budgetLimitUnits: 1_000_000 });
   mocks.evaluateReadiness.mockResolvedValue(readiness);
+  mocks.travellerPlansEnabled.mockReturnValue(false);
+  mocks.personBillingPresent.mockResolvedValue(true);
+  mocks.personRefundGuardPresent.mockResolvedValue(true);
+  mocks.paymentMode.mockReturnValue(null);
+});
+
+/** The Traveller Plans row of the readiness detail: its words and whether it is shown as a problem. */
+function travellerPlansRowOf(html: string): { value: string; problem: boolean } {
+  const match = html.match(
+    /<span class="row-key">Traveller Plans<\/span><span class="([^"]*)"[^>]*>([^<]*)<\/span>/,
+  );
+  if (!match) throw new Error('no Traveller Plans row');
+  return { value: match[2] ?? '', problem: (match[1] ?? '').includes('badge-danger') };
+}
+
+describe('Platform Readiness Detail: Traveller Plans (ADR 0025 T6)', () => {
+  it('says Off while traveller plans are not sold', async () => {
+    const html = await renderServer(Page());
+    expect(travellerPlansRowOf(html)).toEqual({ value: 'Off', problem: false });
+  });
+
+  it('says Test, and who can pay, while payments are in test mode', async () => {
+    mocks.travellerPlansEnabled.mockReturnValue(true);
+    mocks.paymentMode.mockReturnValue('TEST');
+    mocks.personRefundGuardPresent.mockResolvedValue(false);
+    const html = await renderServer(Page());
+    // No real money moves in test mode, so a missing refund guard is not a problem yet.
+    expect(travellerPlansRowOf(html)).toEqual({
+      value: 'Test (only the platform owner can pay), Refunds not ready yet',
+      problem: false,
+    });
+  });
+
+  it('says Live when on and live, with every migration in place', async () => {
+    mocks.travellerPlansEnabled.mockReturnValue(true);
+    mocks.paymentMode.mockReturnValue('LIVE');
+    const html = await renderServer(Page());
+    expect(travellerPlansRowOf(html)).toEqual({ value: 'Live', problem: false });
+  });
+
+  it('says Database behind when migrations 0110 or 0111 are missing', async () => {
+    mocks.personBillingPresent.mockResolvedValue(false);
+    mocks.personRefundGuardPresent.mockResolvedValue(false);
+    const html = await renderServer(Page());
+    expect(travellerPlansRowOf(html)).toEqual({
+      value: 'Off, Database behind, Refunds not ready yet',
+      problem: false,
+    });
+  });
+
+  it('marks Live without the refund guard of migration 0112 as a problem, and nothing else changes', async () => {
+    mocks.travellerPlansEnabled.mockReturnValue(true);
+    mocks.paymentMode.mockReturnValue('LIVE');
+    mocks.personRefundGuardPresent.mockResolvedValue(false);
+    mocks.evaluateReadiness.mockResolvedValue({ ...readiness, ready: true, status: 'ready' });
+    const html = await renderServer(Page());
+    expect(travellerPlansRowOf(html)).toEqual({
+      value: 'Live, Refunds not ready yet',
+      problem: true,
+    });
+    // The overall reading still comes from evaluateReadiness alone.
+    const text = textOf(html);
+    expect(text).toMatch(/Overall\s*Ready/);
+    expect(text).not.toContain('Degraded: something required is missing');
+  });
+
+  it('says the database could not be checked when the probe fails, and names the section', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.travellerPlansEnabled.mockReturnValue(true);
+    mocks.paymentMode.mockReturnValue('LIVE');
+    mocks.personRefundGuardPresent.mockRejectedValue(new Error('permission denied for pg_proc'));
+    const html = await renderServer(Page());
+    expect(travellerPlansRowOf(html)).toEqual({
+      value: 'Live, Database could not be checked',
+      problem: true,
+    });
+    expect(textOf(html)).toContain('traveller plans');
+  });
 });
 
 describe('Platform > Operations', () => {
