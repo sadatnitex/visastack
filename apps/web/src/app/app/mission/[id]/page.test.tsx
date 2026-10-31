@@ -7,6 +7,7 @@ const ok = <T,>(value: T) => ({ ok: true as const, value });
 const mocks = vi.hoisted(() => ({
   referenceCodeFor: vi.fn(async (): Promise<string | null> => null),
   computeReadiness: vi.fn(),
+  computeTripChecks: vi.fn(),
   getApplicant: vi.fn(),
   getEvidenceCandidates: vi.fn(),
   getLatestExplanationForRequirement: vi.fn(),
@@ -110,6 +111,7 @@ function setUp(
   mocks.getMissionForOwner.mockResolvedValue(
     ok(options.requirements ? { ...MISSION, packVersionId: 'pv-1' } : MISSION),
   );
+  mocks.computeTripChecks.mockResolvedValue([]);
   mocks.computeReadiness.mockResolvedValue(
     ok({
       overallState: 'NEEDS_ACTION',
@@ -263,6 +265,68 @@ describe('case page as it is today (WP-X1 characterization)', () => {
     expect(text).toContain('open tasks');
     expect(html).toContain('href="#work"');
     expect(text).not.toContain('Nothing needs attention right now');
+  });
+
+  it('lists dates to check as needing attention, linked to the trip date checks', async () => {
+    setUp({});
+    mocks.getMissionForOwner.mockResolvedValue(
+      ok({
+        ...MISSION,
+        travelStartDate: new Date('2027-03-10T00:00:00Z'),
+        travelEndDate: new Date('2027-03-24T00:00:00Z'),
+      }),
+    );
+    mocks.computeTripChecks.mockResolvedValue([
+      {
+        key: 'passport_validity',
+        level: 'problem',
+        title: 'Your passport expires before your trip ends',
+        detail: 'It expires on 1 March 2027. Renew it before you apply.',
+      },
+      {
+        key: 'target_date',
+        level: 'check',
+        title: 'Your target date is after your trip starts',
+        detail: 'Allow time before you travel.',
+      },
+    ]);
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('dates to check');
+    expect(html).toContain('href="#trip-checks"');
+    expect(text).toContain('Trip Date Checks');
+    expect(text).toContain('Your passport expires before your trip ends');
+    expect(text).not.toContain('Nothing needs attention right now');
+  });
+
+  it('asks for travel dates in one line when the case has none, and shows no date card', async () => {
+    setUp({});
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('Add your travel dates under Edit Case Details');
+    expect(text).not.toContain('Trip Date Checks');
+    expect(html).not.toContain('href="#trip-checks"');
+  });
+
+  it('says so when the date checks could not be worked out, instead of asking for dates', async () => {
+    setUp({});
+    mocks.getMissionForOwner.mockResolvedValue(
+      ok({ ...MISSION, travelStartDate: new Date('2027-03-10T00:00:00Z') }),
+    );
+    mocks.computeTripChecks.mockRejectedValue(new Error('database'));
+    const text = textOf(await render());
+    expect(text).toContain('We could not check your dates just now');
+    expect(text).not.toContain('Add your travel dates under Edit Case Details');
+  });
+
+  it('shows no date card on a case that was handed in', async () => {
+    setUp({});
+    mocks.getMissionForOwner.mockResolvedValue(
+      ok({ ...MISSION, state: 'SUBMITTED', travelStartDate: new Date('2027-03-10T00:00:00Z') }),
+    );
+    const text = textOf(await render());
+    expect(text).not.toContain('Trip Date Checks');
+    expect(text).not.toContain('Add your travel dates under Edit Case Details');
   });
 
   it('warns when the case changed since it was last acknowledged, keeping the wording', async () => {

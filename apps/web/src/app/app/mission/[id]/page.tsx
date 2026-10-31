@@ -1,3 +1,4 @@
+import { tripChecksApply, tripChecksNeedingAction } from '@visastack/core';
 import { aiAppLabel } from '@visastack/core/ai-features';
 import { createTranslator } from '@visastack/i18n';
 import {
@@ -7,6 +8,7 @@ import {
   type RequirementResultState,
   accountPrincipal,
   computeReadiness,
+  computeTripChecks,
   getAiFeatureState,
   getApplicant,
   getEvidenceCandidates,
@@ -91,6 +93,7 @@ import {
 import { OutcomePanel } from './outcome-panel';
 import { ExplainGapButton } from './readiness-gap-explain';
 import { SubmissionReportPanel } from './submission-report-panel';
+import { TripChecksPanel } from './trip-checks-panel';
 
 export const metadata: Metadata = { title: 'Case' };
 
@@ -155,7 +158,7 @@ const REQUIREMENT_STATE_META: Record<
   },
 };
 
-type AttentionKind = 'changed' | 'missing' | 'unconfirmed' | 'tasks';
+type AttentionKind = 'changed' | 'missing' | 'unconfirmed' | 'trip' | 'tasks';
 
 /** How long after it is made a case still opens with its welcome note. */
 const WELCOME_WINDOW_MS = 60 * 60 * 1000;
@@ -224,6 +227,12 @@ const NEXT_STEP_COPY: Record<
     body: () => 'Whether these apply depends on case details that are not confirmed yet.',
     action: 'See What to Confirm',
   },
+  trip: {
+    title: (count, caseTitle) => `Check ${plural(count, 'date', 'dates')} for ${caseTitle}`,
+    body: () =>
+      'Open Trip Date Checks to see which dates do not line up with your passport, insurance or plans.',
+    action: 'See Trip Date Checks',
+  },
   tasks: {
     title: (count, caseTitle) =>
       `Finish ${plural(count, 'open task', 'open tasks')} for ${caseTitle}`,
@@ -291,6 +300,7 @@ export default async function MissionPage({
       complaints,
       feedback,
       explanationConfigured,
+      tripChecks,
     ] = await Promise.all([
       mission.packVersionId ? computeReadiness(db, mission.id) : Promise.resolve(null),
       mission.packVersionId ? listRequirements(db, mission.packVersionId) : Promise.resolve([]),
@@ -328,6 +338,7 @@ export default async function MissionPage({
       listComplaintsForMission(db, accountId, mission.id),
       listFeedbackForMission(db, accountId, mission.id),
       isExplanationConfigured(db),
+      computeTripChecks(db, mission).catch(() => null),
     ]);
     const complaintList = complaints.ok ? complaints.value : [];
     const complaintEventsById = new Map(
@@ -557,6 +568,7 @@ export default async function MissionPage({
       firstHardGapLabel,
       requiredUnverifiedCount,
       explanationConfigured,
+      tripChecks,
       explanationFeature,
       explanationsByRequirement,
       packInfo: pack
@@ -642,6 +654,9 @@ export default async function MissionPage({
   const openTasks = data.tasks.filter(
     (task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS',
   ).length;
+  const showTripChecks =
+    tripChecksApply(mission.state) && Boolean(mission.travelStartDate || mission.travelEndDate);
+  const tripChecksToAct = tripChecksNeedingAction(data.tripChecks ?? []);
   const attention: {
     readonly kind: AttentionKind;
     readonly label: string;
@@ -679,6 +694,17 @@ export default async function MissionPage({
             label: 'need a check',
             href: '#readiness',
             count: data.requiredUnverifiedCount,
+            tone: 'warning' as const,
+          },
+        ]
+      : []),
+    ...(tripChecksToAct > 0
+      ? [
+          {
+            kind: 'trip' as const,
+            label: tripChecksToAct === 1 ? 'date to check' : 'dates to check',
+            href: '#trip-checks',
+            count: tripChecksToAct,
             tone: 'warning' as const,
           },
         ]
@@ -762,7 +788,9 @@ export default async function MissionPage({
               packName: mission.packVersionId ? (data.packInfo?.name ?? null) : null,
               // A linked checklist whose name could not be read promises nothing.
               checklists: data.welcomeNote.checklists ?? { kind: 'unknown' },
-              firstGapHref: attention.find((item) => item.kind !== 'changed')?.href ?? null,
+              firstGapHref:
+                attention.find((item) => item.kind !== 'changed' && item.kind !== 'trip')?.href ??
+                null,
             })}
             primary={!hasNextStepOrAlert}
           />
@@ -863,6 +891,7 @@ export default async function MissionPage({
 
         {/* At every level: each link opens the level its section lives at. */}
         <nav className="jump-nav" aria-label="Sections of this case">
+          {showTripChecks ? <a href="#trip-checks">Dates</a> : null}
           <a href="#readiness">Readiness</a>
           <a href="#evidence">Evidence</a>
           <a href="#work">Tasks and Letters</a>
@@ -873,6 +902,16 @@ export default async function MissionPage({
 
         <div className="split case-working-area">
           <div className="split-main">
+            {showTripChecks ? (
+              <article className="card" id="trip-checks" {...atLevel('browse')}>
+                <TripChecksPanel checks={data.tripChecks} />
+              </article>
+            ) : tripChecksApply(mission.state) ? (
+              <p className="muted u-fs-085" {...atLevel('browse')}>
+                Add your travel dates under Edit Case Details to see passport and insurance date
+                checks.
+              </p>
+            ) : null}
             <article
               className="card case-evidence-overview"
               // With a checklist, #readiness points at the checklist itself (Browse), so a link to it

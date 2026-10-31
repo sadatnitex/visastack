@@ -6891,3 +6891,11 @@ Owner approval ("go phase 2") after phase 1 (#351). Same pattern and opt-in styl
 - The case destination was already a listed country on the new-case form, so no form or database change. The three Study country sections (United States, United Kingdom and Ireland, Australia and New Zealand) now carry their country codes. When a person has a Study case that names a country, only the matching section is suggested; with no such case, all three are suggested as before. The suggestion list and the Open Suggested Sections button share one rule.
 - Guard proved: with the country check removed the profile and catalogue tests failed, and passed again once restored.
 - Not verified: how the profile screen reads on production with a real Study case (needs a signed-in check).
+
+## 2026-10-31: Trip date checks on the case page (no migration)
+
+- Owner chose option A for the date checks. The earlier claim that readiness rules could flag a failing date check was wrong: conditions only decide whether a requirement applies. Option B (a real rule field with a source per country) needs a database change and the owner's go-ahead, and is parked.
+- Built: pure core checks (case dates against passport expiry and travel insurance, end before start, start passed, target after start), one service call that reads three profile fields, and a Trip Date Checks card with a jump link and a place in the attention list. Facts only, no country rule; the six-month passport figure is a prompt to check the destination's rule.
+- Guards proved: moving the passport boundary by one day failed two core tests; the tests pass again with the original.
+- Code review at high effort (ten findings, all fixed): a failed lookup was shown as "no dates", the welcome link could point at the date card, finished cases kept raising the item, start-only titles named an end date, a second full fact load on every page view, passport expiry depended on row order, the date parser accepted trailing text, and a large card showed on cases without dates.
+- Not verified: how the card reads on production (needs a signed-in case with dates); badge colour contrast was not re-measured in a browser; the hotel and flight dates are not checked.

@@ -23,3 +23,4 @@ export * from './money';
 export * from './billing-date';
 export * from './billing-words';
 export * from './switches';
+export * from './trip-checks';
