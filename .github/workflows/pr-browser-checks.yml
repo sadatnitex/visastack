@@ -26,10 +26,17 @@ env:
   NEXT_TELEMETRY_DISABLED: '1'
 
 jobs:
+  # One machine builds the app once and serves both required checks (until 31 Oct 2026 each check
+  # built the same app on its own machine, about 130 seconds each). The smoke check runs first,
+  # against the fresh server, then every browser test. Each check keeps its own name and result:
+  # this job is "No-secret Playwright checks", and the job below carries "No-secret smoke check"
+  # and passes only when the smoke step here passed.
   playwright:
     name: No-secret Playwright checks
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    outputs:
+      smoke: ${{ steps.smoke.outcome }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,6 +55,19 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # The browser download and its system packages need little processor time, so they install
+      # while the app builds instead of after it. The step "Install Playwright Chromium" below
+      # waits for this and fails if it failed.
+      - name: Start installing Playwright Chromium
+        working-directory: apps/web
+        run: |
+          # Fully detached (no output pipe held open, so this step ends at once). The exit code is
+          # written to a temporary name and then moved, so the waiting step never reads it half
+          # written.
+          nohup bash -c 'npx playwright install --with-deps chromium > "$RUNNER_TEMP/playwright-install.log" 2>&1
+            echo $? > "$RUNNER_TEMP/playwright-install.exit.tmp"
+            mv "$RUNNER_TEMP/playwright-install.exit.tmp" "$RUNNER_TEMP/playwright-install.exit"' > /dev/null 2>&1 &
 
       - name: Build the web app
         run: pnpm --filter @visastack/web build
@@ -69,18 +89,41 @@ jobs:
             exit 1
           fi
 
-      - name: Install Playwright Chromium
+      # Its result is reported by the "No-secret smoke check" job below, so a smoke failure does
+      # not hide the browser test results here, and a browser test failure never turns the smoke
+      # check red.
+      - name: Run the no-secret smoke check
+        id: smoke
+        continue-on-error: true
+        # The smoke check makes 8 quick requests; a hang must not use up the browser tests' time.
+        timeout-minutes: 3
         working-directory: apps/web
-        run: npx playwright install --with-deps chromium
+        run: SMOKE_BASE_URL=http://localhost:3100 node scripts/smoke.mjs
+
+      - name: Install Playwright Chromium
+        timeout-minutes: 6
+        run: |
+          for i in $(seq 1 300); do
+            [ -f "$RUNNER_TEMP/playwright-install.exit" ] && break
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/playwright-install.log" || true
+          if [ ! -f "$RUNNER_TEMP/playwright-install.exit" ]; then
+            echo "The Playwright Chromium install did not finish within 5 minutes."
+            exit 1
+          fi
+          exit "$(cat "$RUNNER_TEMP/playwright-install.exit")"
 
       - name: Run the no-secret Playwright checks
+        # Below the job limit, so a hang ends this step and the job still reports the smoke result.
+        timeout-minutes: 15
         working-directory: apps/web
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3100
         run: npx playwright test no-secret-auth.spec.ts ux-public.spec.ts browser-security.spec.ts pwa.spec.ts
 
       - name: Show the app log
-        if: failure()
+        if: failure() || steps.smoke.outcome == 'failure'
         run: tail -80 "$RUNNER_TEMP/next.log" || true
 
       - name: Upload Playwright report
@@ -94,52 +137,18 @@ jobs:
           retention-days: 7
 
   smoke:
+    # Required check. Always runs, so it turns red when the smoke step failed, never ran (an
+    # earlier step or the build failed) or was cancelled. A skipped required check counts as
+    # passed, so this job must never be skipped itself.
     name: No-secret smoke check
+    if: always()
+    needs: [playwright]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build the web app
-        run: pnpm --filter @visastack/web build
-
-      - name: Start the app on this machine
-        working-directory: apps/web
+      - name: The smoke step passed
+        env:
+          SMOKE: ${{ needs.playwright.outputs.smoke }}
         run: |
-          export NODE_ENV=production
-          export NEON_AUTH_COOKIE_SECRET="$(openssl rand -hex 32)"
-          nohup ./node_modules/.bin/next start -p 3100 > "$RUNNER_TEMP/next.log" 2>&1 &
-          ready=no
-          for i in $(seq 1 60); do
-            if curl -sf -o /dev/null http://localhost:3100/; then ready=yes; break; fi
-            sleep 2
-          done
-          if [ "$ready" != yes ]; then
-            echo "The app did not start within 120 seconds."
-            tail -60 "$RUNNER_TEMP/next.log"
-            exit 1
-          fi
-
-      - name: Run the no-secret smoke check
-        working-directory: apps/web
-        run: SMOKE_BASE_URL=http://localhost:3100 node scripts/smoke.mjs
-
-      - name: Show the app log
-        if: failure()
-        run: tail -80 "$RUNNER_TEMP/next.log" || true
+          echo "Smoke step result: ${SMOKE:-did not run} (its log is in the No-secret Playwright checks job, step Run the no-secret smoke check)"
+          test "$SMOKE" = success
