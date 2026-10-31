@@ -26,6 +26,15 @@
 
 export type RuleFieldValue = string | number | boolean | Date;
 
+/**
+ * Two reserved field names that always mean the case's own travel dates, never an applicant fact.
+ * A requirement's condition can compare them with a fact (for example a passport expiry date that
+ * must fall after `case_travel_end`). They resolve to nothing, so the result is unknown rather than
+ * false, when the case has no date yet. Once published these names cannot change.
+ */
+export const CASE_TRAVEL_START_KEY = 'case_travel_start';
+export const CASE_TRAVEL_END_KEY = 'case_travel_end';
+
 /** Looks up a field's current value for one evaluation. Returns `undefined` for a field with no known value -- never throws for a missing field. */
 export interface EvaluationContext {
   readonly now: Date;

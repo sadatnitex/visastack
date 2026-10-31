@@ -758,6 +758,7 @@ export const CATALOGUE_MODULES: readonly CatalogueModule[] = [
     layer: 'country_packs',
     pack: 'country_ids',
     blocks: ['S:australia', 'S:new_zealand'],
+    suggestedFor: ['study'],
   }),
   m({
     key: 'europe',
@@ -774,6 +775,7 @@ export const CATALOGUE_MODULES: readonly CatalogueModule[] = [
     layer: 'country_packs',
     pack: 'country_ids',
     blocks: ['S:united_kingdom', 'S:ireland'],
+    suggestedFor: ['study'],
   }),
   m({
     key: 'united_states',
@@ -782,6 +784,7 @@ export const CATALOGUE_MODULES: readonly CatalogueModule[] = [
     layer: 'country_packs',
     pack: 'country_ids',
     blocks: ['S:united_states'],
+    suggestedFor: ['study'],
   }),
   m({
     key: 'canada',
