@@ -261,6 +261,9 @@ export function personInvoiceInTime(
 /** Said when a purchase is too old to pay: its period would already be partly over. */
 export const PURCHASE_EXPIRED = 'This purchase has expired. Start it again on Plan & Usage.';
 
+/** Said when a purchase was refunded: it is never owed again, so a new one is needed (T6). */
+export const PURCHASE_REFUNDED = 'This purchase was refunded. Start a new one on Plan & Usage.';
+
 /**
  * The signed-in person's own purchase invoice, if it can be paid online now: another person's
  * invoice reads as not found; a purchase made more than a day ago, for a plan no longer offered, or
@@ -290,6 +293,16 @@ export async function payablePersonInvoice(
       .limit(1),
   );
   if (!invoice) return err(serviceError('not_found', 'invoice not found'));
+  // A refunded invoice goes back to open with nothing collected, but it is never owed again (D2):
+  // money paid on it would only be held, so it is refused before any payment page opens (T6).
+  const refunded = first(
+    await db
+      .select({ refunded: sql<boolean>`${invoiceHasRefundSql(sql`${i.id}`)}` })
+      .from(i)
+      .where(eq(i.id, invoice.id))
+      .limit(1),
+  );
+  if (refunded?.refunded === true) return err(refusal('purchase_refunded', PURCHASE_REFUNDED));
   const renewal = invoice.subscriptionId !== null;
   if (!personInvoiceInTime(invoice, input.now)) {
     return err(refusal('purchase_expired', PURCHASE_EXPIRED));

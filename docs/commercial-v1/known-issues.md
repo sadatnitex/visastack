@@ -6954,6 +6954,12 @@ Correction to the entry above (same day): the first full check failed twice and 
 - Tests: `person-renewals.test.ts` (15: one renewal and reminders at 7, 3 and 0 days, reruns make nothing, early and late payment, lapse with nothing deleted, Stop and Keep Renewing, price notice and price cuts, selling off, a payment on its way, calendar days, a refunded renewal, a retired plan, buying again, an orphaned renewal, Paid until), `person-billing-history.test.ts` (11), billing-documents tests, page, action, route and accessibility tests. Guards proven red by planting the fault: the own-notices filter, the lapse wait for a payment on its way, the payer filters in the history and the receipt.
 - Not in this change: WhatsApp reminders (no outbound WhatsApp notices exist), the upgrade line inside upload and AI refusals (moved to T6), a billing route in Help when no support inbox is set up.
 
+## 2026-10-31: Paid traveller plans T6a (refund guard keeps the payer, migration 0112)
+
+- Migration `0112_refund_payer_guard.sql`: the refund guard also freezes `payer_account_id` on an open refund; a new refund must name its invoice's payer (`refund_requests_payer_matches`). Test `packages/db/src/refund-payer-guard-migration.test.ts`: runs twice from the database as it is at 0111, refuses a refund naming another payer or an agency for a person's invoice, keeps an open refund's payer fixed (to another person or to an agency), keeps the agency's fixed too, lets progress move, final rows still frozen; every refund column is either guarded or listed as progress (a new column fails until classified). Guard proven red by dropping the payer line.
+- `payablePersonInvoice` refuses a refunded purchase; test in `person-payments.test.ts` (payment start, confirmation card, Get makes a new purchase). Proven red by removing the check.
+- Needs the owner: the production run of 0112 (db-migrate.yml) right after merge.
+
 ## 2026-10-31: Faster pull request checks for the merge train (CI speedup)
 
 - Why: about 22 pull requests from about 10 sessions will merge one at a time within a day, and GitHub Actions on this public repository runs at most about 20 jobs at once. Runner-minutes per pull request decide how long the queue takes to clear; the slowest required check decides each lane's wait.
