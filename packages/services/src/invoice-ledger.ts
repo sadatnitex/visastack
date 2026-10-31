@@ -1,5 +1,5 @@
 import { type Result, dayCount, err, normalizeCurrencyCode, ok } from '@visastack/core';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, ne, sql } from 'drizzle-orm';
 import type { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
 import {
@@ -25,6 +25,13 @@ import {
   enqueueNotificationBothChannels,
 } from './notifications';
 import {
+  personInvoices,
+  personPaymentAttempts,
+  personPaymentReceipts,
+  personReceiptCounters,
+  personSubscriptions,
+} from './person-billing-tables';
+import {
   type PaymentMode,
   attemptModeColumn,
   entitlementsSchemaPresent,
@@ -33,6 +40,7 @@ import {
 } from './plans-schema';
 import { recordProductEvent } from './product-events';
 import { type PaymentReceipt, issueReceiptForPayment } from './receipts';
+import { coveringPaidPeriod } from './traveller-billing';
 
 /**
  * The cash ledger and the one recording function (Small Commercial V1 S10,
@@ -145,6 +153,10 @@ export type CollectionRefusalCode =
   | 'key_conflict'
   /** The invoice has a refund (D2): it is never owed again, so money arriving on it is held. */
   | 'refunded_invoice'
+  /** ADR 0025: a person's invoice for a period another paid invoice of theirs already covers. */
+  | 'already_covered'
+  /** ADR 0025: a person's invoice whose period is over: never paid for a time already past. */
+  | 'period_over'
   | 'unavailable';
 
 export interface CollectionRefusal {
@@ -187,7 +199,11 @@ export interface InvoiceCollectionOutcome {
   readonly payment: InvoicePayment | null;
   /** True when this exact recording had already been made and nothing changed. */
   readonly alreadyRecorded: boolean;
-  /** The numbered receipt for the ledger row. Null while the ledger or the receipt tables do not exist yet. */
+  /**
+   * The agency's numbered receipt for the ledger row. Null while the ledger or the receipt tables
+   * do not exist yet, and for a person's invoice, whose receipt is in their own series and read
+   * through person billing (ADR 0025).
+   */
   readonly receipt: PaymentReceipt | null;
   /**
    * True when this recording left the agency with nothing overdue and so ended a Grace or
@@ -329,6 +345,26 @@ export async function applyInvoiceCollection(
         return refuse('key_conflict', 'this payment key was already used for a different payment');
       }
       // A recording made before the receipt tables existed gets its receipt on its first replay.
+      // A person's recording is completed again too (its receipt and period), finding both there.
+      if (invoice.organizationId === null) {
+        const person = await personPayerOf(tx, invoice.id);
+        if (person === null) return refuse('not_found', 'invoice not found');
+        await lockPersonBilling(tx, person);
+        await completePersonCollection(tx, {
+          invoiceId: invoice.id,
+          payer: person,
+          payment: existing,
+          paid: invoice.status === 'PAID',
+          now: input.collectedDate,
+        });
+        return ok({
+          invoice,
+          payment: existing,
+          alreadyRecorded: true,
+          receipt: null,
+          reactivated: false,
+        });
+      }
       const issued = await issueReceiptForPayment(tx, {
         payment: existing,
         organizationId: invoice.organizationId,
@@ -365,11 +401,45 @@ export async function applyInvoiceCollection(
     newCollected,
   );
 
+  // ADR 0025: a person's own invoice. They pay online only, and money for a period another paid
+  // invoice of theirs already covers is refused (an online payment is then held for a check).
+  // This takes the person's billing lock, in the billing account's place in the lock order.
+  const personPayer = invoice.organizationId === null ? await personPayerOf(tx, invoice.id) : null;
+  if (invoice.organizationId === null) {
+    if (personPayer === null) return refuse('not_found', 'invoice not found');
+    const refused = await checkPersonCollection(tx, {
+      invoiceId: invoice.id,
+      payer: personPayer,
+      online: input.kind === 'ONLINE',
+      sourceId,
+      provider,
+      now: input.collectedDate,
+    });
+    if (refused === 'online_only') {
+      return refuse('invalid', "A traveller's own invoice is paid online only.");
+    }
+    if (refused === 'unverified') {
+      return refuse(
+        'invalid',
+        "this payment is not one of the payer's own payments on this invoice",
+      );
+    }
+    if (refused === 'period_over') {
+      return refuse('period_over', 'the period this invoice is for is over');
+    }
+    if (refused === 'already_covered') {
+      return refuse('already_covered', 'a paid period already covers this invoice');
+    }
+  }
+
   // Lock order (billing-standing.ts): the invoice (locked above), then the billing account, then
   // the audit chain. The billing account is locked here, always, before the first audit append
   // below. Callers must not append audit events in this transaction before calling this function
-  // (none does).
-  const restorable = await lockRestorableAccount(tx, invoice.organizationId);
+  // (none does). A person's invoice has no billing account.
+  const restorable =
+    invoice.organizationId === null
+      ? null
+      : await lockRestorableAccount(tx, invoice.organizationId);
 
   let payment: InvoicePayment | null = null;
   if (ledgerPresent) {
@@ -421,6 +491,7 @@ export async function applyInvoiceCollection(
     reason: input.reason ?? null,
     metadata: {
       organizationId: invoice.organizationId,
+      ...(personPayer !== null ? { payerKind: 'person' } : {}),
       amountMinorUnits: input.amountMinorUnits,
       newCollectedAmountMinorUnits: newCollected,
       newStatus,
@@ -439,9 +510,20 @@ export async function applyInvoiceCollection(
     dimension: invoice.currency.trim().toUpperCase(),
     metricValue: input.amountMinorUnits,
   });
-  const issued = payment
-    ? await issueReceiptForPayment(tx, { payment, organizationId: invoice.organizationId })
-    : null;
+  // An agency's receipt in its series; a person's in theirs, with their plan once it is paid.
+  const issued =
+    payment && invoice.organizationId !== null
+      ? await issueReceiptForPayment(tx, { payment, organizationId: invoice.organizationId })
+      : null;
+  if (payment && personPayer !== null) {
+    await completePersonCollection(tx, {
+      invoiceId: invoice.id,
+      payer: personPayer,
+      payment,
+      paid: newStatus === 'PAID',
+      now: input.collectedDate,
+    });
+  }
   // S17: a paid invoice's queued reminders never go out, and paying everything that was overdue
   // ends a Grace or Suspended status VisaStack set, in this same transaction (so a rollback undoes
   // both).
@@ -914,4 +996,287 @@ async function restoreBillingAfterPayment(
     paymentKey,
   );
   return true;
+}
+
+// --- A person's own invoice (ADR 0025, T3b) ----------------------------------------------------
+//
+// The person steps of this one recording function, private to it: each acts only on the locked
+// invoice's own payer, never on an id a caller chose. Lock order, as the code takes them: the
+// payment attempt, the invoice, this person's billing lock (in the agency billing account's place),
+// the audit chain (the payment's own audit record), their receipt counter, their subscription.
+// Checkout takes only the person's billing lock, before any audit record.
+
+/** This person's billing lock: checkout, recording and their subscription take turns on it. */
+export async function lockPersonBilling(tx: Db, accountId: string): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${`visastack:person-billing:${accountId}`}))`,
+  );
+}
+
+/** The person who pays `invoiceId`, or null for an agency's invoice. Inside the recording. */
+async function personPayerOf(tx: Db, invoiceId: string): Promise<string | null> {
+  const row = first(
+    await tx
+      .select({ payer: personInvoices.payerAccountId })
+      .from(personInvoices)
+      .where(eq(personInvoices.id, invoiceId))
+      .limit(1),
+  );
+  return row?.payer ?? null;
+}
+
+type PersonCollectionRefusal = 'online_only' | 'unverified' | 'period_over' | 'already_covered';
+
+/**
+ * Before money is recorded on a person's invoice, under the invoice lock, so a person is never
+ * charged for less than they pay for:
+ * - they pay online only (D13), and the money is one of their own payment attempts on this
+ *   invoice, through the provider that reports it;
+ * - the invoice's period is not over (a period already past is never sold);
+ * - no other paid, unrefunded invoice of theirs covers any of the same time, and no paid period of
+ *   another plan covers them now (their current plan is never ended while paid for).
+ * Takes the person's billing lock, which the recording keeps until it commits.
+ */
+async function checkPersonCollection(
+  tx: Db,
+  input: {
+    readonly invoiceId: string;
+    readonly payer: string;
+    readonly online: boolean;
+    readonly sourceId: string | null;
+    readonly provider: string | null;
+    readonly now: Date;
+  },
+): Promise<PersonCollectionRefusal | null> {
+  if (!input.online) return 'online_only';
+  await lockPersonBilling(tx, input.payer);
+  if (input.sourceId === null || input.provider === null || !isUuid(input.sourceId)) {
+    return 'unverified';
+  }
+  const ownAttempt = first(
+    await tx
+      .select({ id: personPaymentAttempts.id })
+      .from(personPaymentAttempts)
+      .where(
+        and(
+          eq(personPaymentAttempts.id, input.sourceId),
+          eq(personPaymentAttempts.invoiceId, input.invoiceId),
+          eq(personPaymentAttempts.payerAccountId, input.payer),
+          eq(personPaymentAttempts.provider, input.provider),
+        ),
+      )
+      .limit(1),
+  );
+  if (!ownAttempt) return 'unverified';
+  const i = personInvoices;
+  const own = required(
+    first(
+      await tx
+        .select({ start: i.periodStart, end: i.periodEnd, planId: i.planId })
+        .from(i)
+        .where(eq(i.id, input.invoiceId))
+        .limit(1),
+    ),
+    'person invoice',
+  );
+  if (own.end.getTime() <= input.now.getTime()) return 'period_over';
+  const coveredNow = await coveringPaidPeriod(tx, input.payer, input.now);
+  if (coveredNow && coveredNow.planId !== own.planId) return 'already_covered';
+  const overlapping = first(
+    await tx
+      .select({ id: i.id })
+      .from(i)
+      .where(
+        and(
+          eq(i.payerAccountId, input.payer),
+          ne(i.id, input.invoiceId),
+          eq(i.status, 'PAID'),
+          sql`${i.periodStart} < ${own.end.toISOString()}::timestamptz`,
+          sql`${i.periodEnd} > ${own.start.toISOString()}::timestamptz`,
+          sql`not ${invoiceHasRefundSql(sql`${i.id}`)}`,
+        ),
+      )
+      .limit(1),
+  );
+  return overlapping ? 'already_covered' : null;
+}
+
+/**
+ * After money was recorded on a person's invoice, in the same transaction: the person's numbered
+ * receipt (their own series, gap-free), and once the invoice is paid, their plan for its period
+ * (a new subscription, or the current one when it is the same plan; a different plan no paid
+ * period covers is ended first). A replay finds the receipt and the subscription already there.
+ */
+async function completePersonCollection(
+  tx: Db,
+  input: {
+    readonly invoiceId: string;
+    readonly payer: string;
+    readonly payment: {
+      readonly id: string;
+      readonly amountMinorUnits: number;
+      readonly currency: string;
+    };
+    readonly paid: boolean;
+    readonly now: Date;
+  },
+): Promise<void> {
+  await issuePersonReceipt(tx, input);
+  if (input.paid) await activatePersonPeriod(tx, input);
+}
+
+async function issuePersonReceipt(
+  tx: Db,
+  input: {
+    readonly invoiceId: string;
+    readonly payer: string;
+    readonly payment: {
+      readonly id: string;
+      readonly amountMinorUnits: number;
+      readonly currency: string;
+    };
+  },
+): Promise<void> {
+  if (input.payment.amountMinorUnits <= 0) return;
+  const r = personPaymentReceipts;
+  const existing = first(
+    await tx.select({ id: r.id }).from(r).where(eq(r.invoicePaymentId, input.payment.id)),
+  );
+  if (existing) return;
+  const c = personReceiptCounters;
+  const highest = sql`coalesce((select max(pr.receipt_number) from payment_receipts pr where pr.payer_account_id = ${input.payer}::uuid), 0)`;
+  const counter = required(
+    first(
+      await tx
+        .insert(c)
+        .values({ accountId: input.payer, lastNumber: sql`${highest} + 1` })
+        .onConflictDoUpdate({
+          target: c.accountId,
+          set: { lastNumber: sql`greatest(${c.lastNumber}, ${highest}) + 1` },
+        })
+        .returning({ lastNumber: c.lastNumber }),
+    ),
+    'person receipt counter',
+  );
+  const receipt = required(
+    first(
+      await tx
+        .insert(r)
+        .values({
+          organizationId: null,
+          payerAccountId: input.payer,
+          invoiceId: input.invoiceId,
+          invoicePaymentId: input.payment.id,
+          receiptNumber: counter.lastNumber,
+          amountMinorUnits: input.payment.amountMinorUnits,
+          currency: input.payment.currency,
+        })
+        .returning({ id: r.id, receiptNumber: r.receiptNumber }),
+    ),
+    'person receipt',
+  );
+  await appendAuditEvent(tx, {
+    eventType: 'PAYMENT_RECEIPT_ISSUED',
+    actorAccountId: null,
+    action: 'MANAGE',
+    method: 'SYSTEM',
+    result: 'ALLOWED',
+    resourceType: 'payment_receipt',
+    resourceId: receipt.id,
+    metadata: {
+      payerKind: 'person',
+      invoiceId: input.invoiceId,
+      invoicePaymentId: input.payment.id,
+      receiptNumber: receipt.receiptNumber,
+      amountMinorUnits: input.payment.amountMinorUnits,
+      currency: input.payment.currency,
+    },
+  });
+}
+
+async function activatePersonPeriod(
+  tx: Db,
+  input: { readonly invoiceId: string; readonly payer: string; readonly now: Date },
+): Promise<void> {
+  const i = personInvoices;
+  const s = personSubscriptions;
+  const invoice = required(
+    first(
+      await tx
+        .select({
+          planId: i.planId,
+          subscriptionId: i.subscriptionId,
+          periodStart: i.periodStart,
+          periodEnd: i.periodEnd,
+        })
+        .from(i)
+        .where(eq(i.id, input.invoiceId))
+        .limit(1),
+    ),
+    'person invoice',
+  );
+  // Already linked: a replay, or the period was activated before.
+  if (invoice.subscriptionId !== null) return;
+  const current = first(
+    await tx
+      .select({ id: s.id, planId: s.planId })
+      .from(s)
+      .where(and(eq(s.payerAccountId, input.payer), isNull(s.endedAt)))
+      .limit(1)
+      .for('update'),
+  );
+  let subscriptionId: string;
+  if (current && current.planId === invoice.planId) {
+    subscriptionId = current.id;
+  } else {
+    // A different plan's subscription that no paid period covers (`checkPersonCollection` held
+    // any overlapping money) ends now; the new plan starts with the period paid for.
+    if (current) {
+      await tx.update(s).set({ endedAt: input.now }).where(eq(s.id, current.id));
+    }
+    const plan = required(
+      first(
+        await tx
+          .select({ name: schema.plans.name })
+          .from(schema.plans)
+          .where(eq(schema.plans.id, invoice.planId))
+          .limit(1),
+      ),
+      'plan',
+    );
+    subscriptionId = required(
+      first(
+        await tx
+          .insert(s)
+          .values({
+            organizationId: null,
+            payerAccountId: input.payer,
+            planId: invoice.planId,
+            startedAt: invoice.periodStart,
+            assignedByAccountId: null,
+            reason: `Bought ${plan.name}`,
+            renews: true,
+          })
+          .returning({ id: s.id }),
+      ),
+      'person subscription',
+    ).id;
+  }
+  await tx.update(i).set({ subscriptionId, updatedAt: input.now }).where(eq(i.id, input.invoiceId));
+  await appendAuditEvent(tx, {
+    eventType: 'PERSON_PLAN_PURCHASED',
+    actorAccountId: null,
+    action: 'MANAGE',
+    method: 'SYSTEM',
+    result: 'ALLOWED',
+    resourceType: 'subscription',
+    resourceId: subscriptionId,
+    metadata: {
+      invoiceId: input.invoiceId,
+      planId: invoice.planId,
+      periodStart: invoice.periodStart.toISOString(),
+      periodEnd: invoice.periodEnd.toISOString(),
+      endedSubscriptionId: current && current.planId !== invoice.planId ? current.id : null,
+    },
+  });
 }

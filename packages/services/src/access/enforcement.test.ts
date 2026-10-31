@@ -58,7 +58,27 @@ const PERSON_GATE_TYPES = ['SelfScope', 'StaffScope', 'SystemScope'] as const;
  * The only modules that may name the 0110 payer column in plain text: the declarations, and T2's
  * plain-SQL readers, whose exported functions are listed in PERSON_EXCEPTIONS.
  */
-const PAYER_COLUMN_MODULES = ['person-billing-tables', 'traveller-billing'] as const;
+const PAYER_COLUMN_MODULES = [
+  'person-billing-tables',
+  'traveller-billing',
+  'person-billing',
+  'invoice-ledger',
+] as const;
+/**
+ * Exported functions that touch person billing tables without a gate and are trusted not to
+ * spread to their callers, each with why (ADR 0025). Fixed, like PERSON_EXCEPTIONS.
+ */
+const PERSON_TRUSTED: Readonly<Record<string, string>> = {
+  'invoice-ledger#applyInvoiceCollection':
+    "the one recording function (ADR 0020): its person steps are private to it and act only on the locked invoice's own payer; its agency callers prove the money (gateway validation, staff, claims) as before",
+};
+/**
+ * ADR 0025: a `SelfScope` also gates the applicant ratchet, but only for a function that reaches
+ * applicant-owned tables through these calls alone (an audit record is written, nothing of anyone's
+ * record is read). A function taking only a `SelfScope` that touches an applicant-owned table
+ * itself, or through any other ungated function, is a violation.
+ */
+const SELF_SAFE_CALLS: ReadonlySet<string> = new Set(['audit#appendAuditEvent']);
 /**
  * Exported person billing functions that take no gate, each with why. Fixed, not a baseline: a new
  * function cannot be added here without a reason a reviewer reads, and an entry that no longer
@@ -601,7 +621,12 @@ function analyse(): Analysis {
   const tables = ownedTables(sourceFileAt(program, schemaFile));
   const gateDecls = gateDeclarations(program, checker);
   return {
-    ...ratchet(program, checker, tables, gateDecls),
+    ...ratchet(program, checker, tables, gateDecls, {
+      selfGate: {
+        decls: gateDeclarations(program, checker, ['SelfScope']),
+        safe: SELF_SAFE_CALLS,
+      },
+    }),
     ownedTableNames: tables.names,
     systemScopeUsers: systemScopeUsers(configFileNames),
     selfScopeUsers: selfScopeUsers(),
@@ -617,6 +642,12 @@ function ratchet(
   checker: ts.TypeChecker,
   tables: { readonly decls: Set<ts.Node>; readonly names: Set<string> },
   gateDecls: Set<ts.Node>,
+  options: {
+    /** Never a violation and never spread to callers (see PERSON_TRUSTED). */
+    readonly trusted?: ReadonlySet<string>;
+    /** A gate that counts only when the tables are reached through `safe` calls alone. */
+    readonly selfGate?: { readonly decls: Set<ts.Node>; readonly safe: ReadonlySet<string> };
+  } = {},
 ): { violations: Set<string>; exportedFunctionIds: Set<string> } {
   interface ExportedFn {
     readonly id: string;
@@ -674,10 +705,31 @@ function ratchet(
   for (let changed = true; changed; ) {
     changed = false;
     for (const entry of exported) {
-      if (violations.has(entry.id) || entry.inAccess) continue;
+      if (violations.has(entry.id) || entry.inAccess || options.trusted?.has(entry.id)) continue;
       entry.scan.memo.clear();
       const touches = entry.shape.roots.some((root) => touchesOwnedTable(entry.scan, root));
-      const gated = !entry.shape.opaque && complies(checker, entry.shape.fns, gateDecls);
+      let gated = !entry.shape.opaque && complies(checker, entry.shape.fns, gateDecls);
+      const self = options.selfGate;
+      if (
+        touches &&
+        !gated &&
+        self &&
+        !entry.shape.opaque &&
+        complies(checker, entry.shape.fns, self.decls)
+      ) {
+        // Gated by a SelfScope alone: allowed only if, leaving out the safe calls, it touches
+        // nothing (no table of its own, no other ungated function).
+        const safeEntries = exported.filter((e) => self.safe.has(e.id));
+        const safeDecls = new Set(safeEntries.flatMap((e) => e.decls));
+        const safeNames = new Set(safeEntries.map((e) => e.name));
+        const strict: FileScan = {
+          ...entry.scan,
+          memo: new Map(),
+          ungatedNames: new Set([...ungatedNames].filter((n) => !safeNames.has(n))),
+          ungatedDecls: new Set([...ungatedDecls].filter((d) => !safeDecls.has(d))),
+        };
+        gated = !entry.shape.roots.some((root) => touchesOwnedTable(strict, root));
+      }
       if (touches && !gated) {
         violations.add(entry.id);
         ungatedNames.add(entry.name);
@@ -699,13 +751,31 @@ function ratchet(
 const PERSON_ROW_TEXT =
   /payer_account_id|payerAccountId|person_receipt_counters|organization_id"?\s+is\s+null/i;
 
+/**
+ * The private person section of the recording module: the payer column may be named only below
+ * this line of invoice-ledger.ts (its agency code above it may not).
+ */
+const LEDGER_PERSON_SECTION = "// --- A person's own invoice (ADR 0025, T3b)";
+
 /** Service and web files outside PAYER_COLUMN_MODULES that match PERSON_ROW_TEXT. Tests left out. */
 function payerColumnUsers(): string[] {
-  const allowed = new Set(PAYER_COLUMN_MODULES.map((m) => path.join(srcDir, `${m}.ts`)));
+  const ledger = path.join(srcDir, 'invoice-ledger.ts');
+  const allowed = new Set(
+    PAYER_COLUMN_MODULES.filter((m) => m !== 'invoice-ledger').map((m) =>
+      path.join(srcDir, `${m}.ts`),
+    ),
+  );
+  const checkedText = (file: string): string => {
+    const text = readFileSync(file, 'utf8');
+    if (file !== ledger) return text;
+    const at = text.indexOf(LEDGER_PERSON_SECTION);
+    if (at < 0) throw new Error('invoice-ledger.ts has lost its person section marker');
+    return text.slice(0, at);
+  };
   return [...sourceFilesUnder(srcDir), ...sourceFilesUnder(webSrcDir)]
     .map(real)
     .filter((file) => !isTestFile(file) && !/\.test\.tsx$/.test(file) && !allowed.has(file))
-    .filter((file) => PERSON_ROW_TEXT.test(readFileSync(file, 'utf8')))
+    .filter((file) => PERSON_ROW_TEXT.test(checkedText(file)))
     .map((file) => path.relative(repoDir, file).replace(/\\/g, '/'))
     .sort();
 }
@@ -743,6 +813,11 @@ describe('access gate enforcement ratchet', () => {
       analysis.selfScopeUsers,
       'only withSession (apps/web/src/lib/session.ts) may use selfPrincipal',
     ).toEqual([]);
+    for (const id of SELF_SAFE_CALLS) {
+      expect(analysis.exportedFunctionIds.has(id), `${id} is listed but no longer exists`).toBe(
+        true,
+      );
+    }
 
     const duplicates = baseline.filter((entry, i) => baseline.indexOf(entry) !== i);
     expect(duplicates, 'duplicate baseline entries').toEqual([]);
@@ -787,7 +862,11 @@ describe('person billing ratchet (ADR 0025)', () => {
       checker,
       tables,
       gateDeclarations(program, checker, PERSON_GATE_TYPES),
+      { trusted: new Set(Object.keys(PERSON_TRUSTED)) },
     );
+    for (const id of Object.keys(PERSON_TRUSTED)) {
+      expect(exportedFunctionIds.has(id), `${id} is trusted but no longer exists`).toBe(true);
+    }
     expect(
       [...violations].filter((id) => !Object.hasOwn(PERSON_EXCEPTIONS, id)).sort(),
       'These exported functions touch person billing tables without a SelfScope, StaffScope or SystemScope parameter',
@@ -799,8 +878,9 @@ describe('person billing ratchet (ADR 0025)', () => {
       [],
     );
     const personGates = gateDeclarations(program, checker, PERSON_GATE_TYPES);
-    // The declarations module exports tables only; the reader module is judged function by function.
-    for (const module of PAYER_COLUMN_MODULES.filter((m) => m !== 'person-billing-tables')) {
+    // The plain-SQL reader module is judged function by function (the others are seen by the
+    // type-based ratchet above).
+    for (const module of ['traveller-billing']) {
       const sf = sourceFileAt(program, real(path.join(srcDir, `${module}.ts`)));
       for (const [name, shape] of exportedFunctions(checker, sf)) {
         const id = `${module}#${name}`;
@@ -821,5 +901,75 @@ describe('person billing ratchet (ADR 0025)', () => {
       const gated = !shape.opaque && complies(checker, shape.fns, personGates);
       expect(gated, `${id} now takes a gate: remove it from PERSON_EXCEPTIONS`).toBe(false);
     }
+  }, 180_000);
+});
+
+describe('functions taking a SelfScope (ADR 0025)', () => {
+  it('check the scope first and take no other account id', () => {
+    const { program } = programOnce();
+    const checker = program.getTypeChecker();
+    const selfDecls = gateDeclarations(program, checker, ['SelfScope']);
+    const found: string[] = [];
+    const problems: string[] = [];
+    for (const sf of program.getSourceFiles()) {
+      const fileName = real(sf.fileName);
+      if (sf.isDeclarationFile || !fileName.startsWith(srcDir + path.sep) || isTestFile(fileName)) {
+        continue;
+      }
+      if (fileName.startsWith(accessDir + path.sep)) continue;
+      for (const [name, shape] of exportedFunctions(checker, sf)) {
+        for (const fn of shape.fns) {
+          const selfParams = fn.parameters.filter((p) =>
+            isGateType(checker.getTypeAtLocation(p), selfDecls),
+          );
+          if (selfParams.length === 0) continue;
+          const id = `${moduleId(fileName)}#${name}`;
+          found.push(id);
+          // A real call of selfScopeProblem on the scope parameter itself (not text in a comment).
+          const selfNames = new Set(selfParams.map((p) => p.name.getText()));
+          let checks = false;
+          const visit = (node: ts.Node) => {
+            if (
+              ts.isCallExpression(node) &&
+              ts.isIdentifier(node.expression) &&
+              node.expression.text === 'selfScopeProblem' &&
+              node.arguments.some((a) => ts.isIdentifier(a) && selfNames.has(a.text))
+            ) {
+              checks = true;
+            }
+            ts.forEachChild(node, visit);
+          };
+          if (fn.body) visit(fn.body);
+          if (!checks) problems.push(`${id} does not call selfScopeProblem on its scope`);
+          // No other parameter, or property of one (two levels deep), names a person: the scope
+          // says whose rows.
+          const PERSON_ID = /(account|payer|person|owner|user)_?id/i;
+          const props = (type: ts.Type, prefix: string, depth: number): void => {
+            for (const prop of type.getProperties()) {
+              const label = `${prefix}.${prop.getName()}`;
+              if (PERSON_ID.test(prop.getName())) problems.push(`${id} takes ${label}`);
+              if (depth > 0) {
+                const decl = prop.valueDeclaration ?? prop.declarations?.[0];
+                if (decl) props(checker.getTypeOfSymbolAtLocation(prop, decl), label, depth - 1);
+              }
+            }
+          };
+          for (const p of fn.parameters) {
+            if (selfParams.includes(p)) continue;
+            if (PERSON_ID.test(p.name.getText())) problems.push(`${id} takes ${p.name.getText()}`);
+            props(checker.getTypeAtLocation(p), p.name.getText(), 1);
+          }
+        }
+      }
+    }
+    // Guard the scan itself: the person billing functions are found.
+    expect(found).toEqual(
+      expect.arrayContaining([
+        'person-billing#startPersonCheckout',
+        'payments#startPersonPayment',
+        'person-billing#payablePersonInvoice',
+      ]),
+    );
+    expect(problems).toEqual([]);
   }, 180_000);
 });

@@ -5,11 +5,16 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { describe, expect, it } from 'vitest';
 import type { Db } from './db';
 import {
+  personInvoiceStatus,
   personInvoices,
+  personPaymentAttemptStatus,
   personPaymentAttempts,
+  personPaymentMode,
   personPaymentReceipts,
   personReceiptCounters,
+  personRefundMethod,
   personRefundRequests,
+  personRefundStatus,
   personSubscriptions,
 } from './person-billing-tables';
 import { personBillingPresent } from './traveller-billing';
@@ -93,4 +98,20 @@ describe('person billing waits for both of its migrations (ADR 0025)', () => {
       await before0111.close();
     }
   }, 60_000);
+});
+
+describe('the person billing enums equal schema.ts (ADR 0025)', () => {
+  it('has the same name and values for each enum type', () => {
+    const pairs = [
+      [personInvoiceStatus, schema.invoiceStatus],
+      [personPaymentAttemptStatus, schema.paymentAttemptStatus],
+      [personPaymentMode, schema.paymentMode],
+      [personRefundMethod, schema.refundMethod],
+      [personRefundStatus, schema.refundStatus],
+    ] as const;
+    for (const [mine, theirs] of pairs) {
+      expect(mine.enumName).toBe(theirs.enumName);
+      expect([...mine.enumValues]).toEqual([...theirs.enumValues]);
+    }
+  });
 });
