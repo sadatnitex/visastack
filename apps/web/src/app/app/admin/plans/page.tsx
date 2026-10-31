@@ -4,6 +4,7 @@ import { CAPACITY_KEYS, aiEntitlementKey } from '@visastack/core/entitlements';
 import { PLANS_UNAVAILABLE, type PlanAdminView, listPlansForAdmin } from '@visastack/services';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import { StickyDetails } from '../../../../components/sticky-details';
 import { PageHeader, StatusBadge } from '../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { PLAN_FORM_RETRY_COOKIE, decodePlanFormRetry } from '../../../../lib/plan-form-retry';
@@ -130,27 +131,41 @@ function PlanCard({
       </div>
       {available ? (
         <>
-          <h3 className="card-title">Change {plan.name}</h3>
-          <PlanForm
-            planId={plan.id}
-            planName={plan.name}
-            initial={initialValues(plan)}
-            periodLocked={plan.periodLocked}
-            traveller={plan.audience === 'TRAVELLER'}
-            {...(retry ? { retry } : {})}
-          />
-          {plan.retireBlocked === null || plan.retireBlocked === 'retired' ? (
-            <>
-              {plan.retireBlocked === null ? (
-                <h3 className="card-title">Retire {plan.name}</h3>
-              ) : null}
-              <RetirePlanForm
+          {/* Folded, so a page of plans is not a column of open forms; a save that needs
+              fixing reopens it with the entered values. */}
+          <StickyDetails
+            className="disclosure form-more u-mt-100"
+            initiallyOpen={retry !== undefined}
+            summary={<>Change {plan.name}</>}
+          >
+            <div className="disclosure-body">
+              <PlanForm
                 planId={plan.id}
                 planName={plan.name}
-                headingId={titleId}
-                retired={plan.retireBlocked === 'retired'}
+                initial={initialValues(plan)}
+                periodLocked={plan.periodLocked}
+                traveller={plan.audience === 'TRAVELLER'}
+                {...(retry ? { retry } : {})}
               />
-            </>
+            </div>
+          </StickyDetails>
+          {plan.retireBlocked === null ? (
+            <StickyDetails
+              className="disclosure form-more u-mt-100"
+              initiallyOpen={false}
+              summary={<>Retire {plan.name}</>}
+            >
+              <div className="disclosure-body">
+                <RetirePlanForm
+                  planId={plan.id}
+                  planName={plan.name}
+                  headingId={titleId}
+                  retired={false}
+                />
+              </div>
+            </StickyDetails>
+          ) : plan.retireBlocked === 'retired' ? (
+            <RetirePlanForm planId={plan.id} planName={plan.name} headingId={titleId} retired />
           ) : (
             <p className="muted u-fs-085">
               {plan.retireBlocked === 'traveller'

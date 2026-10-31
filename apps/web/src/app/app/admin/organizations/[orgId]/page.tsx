@@ -388,7 +388,7 @@ export default async function AdminOrganizationPage({
         ) : (
           <>
             {data.billingHistory.length > 0 ? (
-              <div className="rows rows-grid u-mb-125">
+              <div className="rows u-mb-125">
                 {data.billingHistory.map((h) => (
                   <div className="row" key={h.id}>
                     <span className="row-key">{billingHistoryMove(h.fromStatus, h.toStatus)}</span>
@@ -442,7 +442,7 @@ export default async function AdminOrganizationPage({
                       idempotencyKey={randomUUID()}
                     />
                   ) : null}
-                  <div className="action-bar">
+                  <div className="action-bar action-bar-flush">
                     <a
                       className="invoice-link"
                       href={`/app/admin/organizations/${orgId}/invoices/${invoice.id}/pdf`}

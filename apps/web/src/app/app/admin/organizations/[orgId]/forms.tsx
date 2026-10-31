@@ -104,7 +104,7 @@ export function ActivatePlanForm({
 }) {
   const [state, formAction, pending] = useActionState(activatePlanAction, INITIAL);
   return (
-    <form action={formAction} className="field-list">
+    <form action={formAction} className="field-list form-narrow">
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="form-grid">
         <div className="field-row">
@@ -176,7 +176,7 @@ export function ScheduleDowngradeForm({
 }) {
   const [state, formAction, pending] = useActionState(scheduleDowngradeAction, INITIAL);
   return (
-    <form action={formAction} className="field-list">
+    <form action={formAction} className="field-list form-narrow">
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="form-grid">
         <div className="field-row">
@@ -258,7 +258,7 @@ export function CancelDowngradeButton({
 export function OpenBillingAccountForm({ organizationId }: { readonly organizationId: string }) {
   const [state, formAction, pending] = useActionState(openBillingAccountAction, INITIAL);
   return (
-    <form action={formAction} className="field-list">
+    <form action={formAction} className="field-list form-narrow">
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="form-grid">
         <div className="field-row">
@@ -312,7 +312,7 @@ export function TransitionBillingStatusForm({
   const [state, formAction, pending] = useActionState(transitionBillingStatusAction, INITIAL);
   if (legalStatuses.length === 0) return null;
   return (
-    <form action={formAction} className="field-list">
+    <form action={formAction} className="field-list form-narrow">
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="form-grid">
         <div className="field-row">
@@ -526,7 +526,7 @@ export function RecordPaymentForm({
     <form
       ref={formRef}
       action={formAction}
-      className="field-list form-narrow"
+      className="field-list form-compact"
       style={{ marginTop: '0.5rem' }}
     >
       <input type="hidden" name="organizationId" value={organizationId} />
@@ -649,7 +649,7 @@ export function VoidInvoiceButton({
 export function GrantOverrideForm({ organizationId }: { readonly organizationId: string }) {
   const [state, formAction, pending] = useActionState(grantOverrideAction, INITIAL);
   return (
-    <form action={formAction} className="field-list">
+    <form action={formAction} className="field-list form-narrow">
       <input type="hidden" name="organizationId" value={organizationId} />
       <div className="form-grid">
         <div className="field-row">

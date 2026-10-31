@@ -168,7 +168,7 @@ export default async function BillingRulesPage({
                 <StatusBadge tone={mode.tone}>{mode.badge}</StatusBadge>
               </div>
             </div>
-            <p className="card-body">{mode.sentence}</p>
+            <p className="card-body u-mt-100">{mode.sentence}</p>
           </article>
 
           <article className="card u-mb-150">

@@ -10898,3 +10898,21 @@ summary.safe-copy-title {
   color: var(--text-secondary);
   font-size: var(--text-small);
 }
+/* An action bar inside a list row, which already has its own divider: no second line above it. */
+.action-bar.action-bar-flush {
+  margin-top: var(--space-3);
+  padding-top: 0;
+  border-top: none;
+}
+/* A card that spans every column of a .grid (a wide form among narrow cards). */
+.grid > .grid-span-all {
+  grid-column: 1 / -1;
+}
+/* A small form inside a list row (a payment on one invoice): columns, but kept compact. */
+.form-compact {
+  max-width: 44rem;
+}
+/* A disclosure inside an invoice's box spans the box, so the form it opens can use columns. */
+.invoice-list-item-block > .disclosure {
+  justify-self: stretch;
+}

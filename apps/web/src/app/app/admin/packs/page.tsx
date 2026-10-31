@@ -139,13 +139,13 @@ export default async function PackStudioPage() {
           </article>
 
           {/* The two forms span the whole row, so their fields can sit side by side. */}
-          <article className="card" style={{ gridColumn: '1 / -1' }}>
+          <article className="card grid-span-all">
             <p className="card-kicker">New</p>
             <h2 className="card-title">Create a Pack</h2>
             <CreatePackForm />
           </article>
 
-          <article className="card" style={{ gridColumn: '1 / -1' }}>
+          <article className="card grid-span-all">
             <p className="card-kicker">Expiry Centre</p>
             <h2 className="card-title">Reminder Thresholds by Document Type</h2>
             <p

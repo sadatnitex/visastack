@@ -123,7 +123,13 @@ export function AddRequirementForm({
   const [state, formAction, pending] = useActionState(addRequirementAction, INITIAL);
   const [kind, setKind] = useState<'FIELD' | 'DOCUMENT'>('FIELD');
   return (
-    <form action={formAction} className="field-list form-narrow">
+    <form
+      action={formAction}
+      className="field-list form-narrow"
+      // React resets the form after a save; the kind list returns to its first option, so the
+      // key suggestions and hint follow it.
+      onReset={() => setKind('FIELD')}
+    >
       <input type="hidden" name="packId" value={packId} />
       <input type="hidden" name="packVersionId" value={packVersionId} />
       <fieldset className="form-section">
