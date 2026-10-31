@@ -55,6 +55,7 @@ import { ReferenceCode } from '../../../../components/reference-code';
 import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
 import { memoryHref } from '../../../../lib/application-memory-labels';
+import { bookingReminderFor } from '../../../../lib/booking-reminder';
 import { checklistsToPick } from '../../../../lib/case-checklist-match';
 import { savedCaseMatchTerms } from '../../../../lib/case-choices';
 import { CASE_STATE_LABELS, caseStateLabel, stageButtonStates } from '../../../../lib/case-stages';
@@ -932,6 +933,10 @@ export default async function MissionPage({
                                   .filter(Boolean)
                                   .join(' · ');
                                 const sourceHref = safeHttpUrl(r.sourceUrl);
+                                const bookingReminder =
+                                  r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION'
+                                    ? bookingReminderFor(r.kind, r.key)
+                                    : null;
                                 return (
                                   <div
                                     className="row"
@@ -977,6 +982,9 @@ export default async function MissionPage({
                                           </>
                                         ) : null}
                                       </span>
+                                    ) : null}
+                                    {bookingReminder ? (
+                                      <span className="muted u-fs-085">{bookingReminder}</span>
                                     ) : null}
                                     {r.citation ? (
                                       <span className="muted u-fs-075">

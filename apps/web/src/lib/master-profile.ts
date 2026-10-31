@@ -16,6 +16,7 @@ import {
   documentsSupportingFields,
   fieldRegistryInputOf,
   isFieldAnswered,
+  isModuleSuggested,
   knownFieldOptions,
   savableFieldDefinition,
 } from '@visastack/core/catalogue';
@@ -110,6 +111,8 @@ export interface ProfileEntryLite {
   readonly status: string | null;
 }
 
+const NO_COUNTRIES: ReadonlySet<string> = new Set();
+
 export interface MasterProfileInput {
   readonly entries: readonly ProfileEntryLite[];
   /** Sections the person opened on purpose. */
@@ -120,6 +123,8 @@ export interface MasterProfileInput {
   readonly suggestFor: string | null;
   /** How many documents of each catalogue kind the person has uploaded. */
   readonly uploadedDocumentTypes?: ReadonlyMap<string, number> | undefined;
+  /** Countries (two-letter codes) of the person's own cases for the chosen purpose; empty when none. */
+  readonly caseCountries?: ReadonlySet<string> | undefined;
 }
 
 /**
@@ -268,7 +273,7 @@ export function buildMasterProfileView(input: MasterProfileInput): MasterProfile
       const suggested =
         !open &&
         suggestFor !== null &&
-        (module.suggestedFor ?? []).some((key) => key === suggestFor);
+        isModuleSuggested(module, suggestFor, input.caseCountries ?? NO_COUNTRIES);
       if (suggested) suggestedLockedCount += 1;
 
       const singles: EditorFieldDef[] = [];

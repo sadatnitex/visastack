@@ -16,11 +16,11 @@ Nothing in this report is live yet. The catalogue is data only. No screen, rule,
 | Fields counted when only the default sections are open | 54 |
 | Repeating records added | 66 |
 | Live repeating records extended | 8 |
-| Document types | 215 |
+| Document types | 216 |
 | Document types recognised by the scanner today | 3 |
 | Purposes | 109 |
 | Fields marked "proposed" (need sign-off) | 0 |
-| Document types marked "proposed" (need sign-off) | 39 |
+| Document types marked "proposed" (need sign-off) | 40 |
 
 ## Layers
 
@@ -118,10 +118,10 @@ Every section is visible. Only the ones marked Open are open from the start; the
 | Bangladesh Address Details | country_packs | bangladesh | Locked | 5 |  |
 | Gulf Countries | country_packs | country_ids | Locked | 11 |  |
 | Asia Pacific | country_packs | country_ids | Locked | 12 |  |
-| Australia and New Zealand | country_packs | country_ids | Locked | 11 |  |
+| Australia and New Zealand | country_packs | country_ids | Locked | 11 | study |
 | European Union and Switzerland | country_packs | country_ids | Locked | 4 |  |
-| United Kingdom and Ireland | country_packs | country_ids | Locked | 7 |  |
-| United States | country_packs | country_ids | Locked | 11 |  |
+| United Kingdom and Ireland | country_packs | country_ids | Locked | 7 | study |
+| United States | country_packs | country_ids | Locked | 11 | study |
 | Canada | country_packs | country_ids | Locked | 3 |  |
 | Brazil and Mexico | country_packs | country_ids | Locked | 2 |  |
 | Africa and the Middle East | country_packs | country_ids | Locked | 6 |  |
@@ -148,7 +148,7 @@ A sharing category decides what a grant can include. The five live categories al
 | medical | Live | 6 | 51 | 14 | Existing category |
 | medical_attendant | Live | 6 | 5 | 0 | Existing category |
 | declarations | Proposed | 0 | 108 | 7 | Legal and security history must never ride along with a general profile grant. Its own category means nobody receives it unless the person grants it by name. |
-| study | Proposed | 0 | 29 | 14 | A university or education agent needs this without seeing work or money detail. |
+| study | Proposed | 0 | 29 | 15 | A university or education agent needs this without seeing work or money detail. |
 | settle | Proposed | 0 | 25 | 8 | Relationship and residence evidence is personal and used only for family and settlement routes. |
 | labour_migration | Proposed | 0 | 28 | 8 | Contract-work records are shared with a recruiting agency and the government, not with every visa adviser. |
 | official_travel | Proposed | 0 | 16 | 5 | Official and pilgrimage details apply to few people and go to specific recipients. |
@@ -444,7 +444,7 @@ Distinct documents stay distinct. Exact duplicates are merged and kept as aliase
 | SKILL_TEST_CERTIFICATE | Skill Test Certificate | labour_migration |  |  |  | proposed |
 | OTHER_EMPLOYMENT_DOCUMENT | Other Employment or Business Document | (none) |  |  |  | owner_vision |
 
-### Education and Qualifications (27)
+### Education and Qualifications (28)
 
 | Key | Name | Pack | Valid for (months) | Needs | Aliases | Origin |
 |---|---|---|---|---|---|---|
@@ -457,6 +457,7 @@ Distinct documents stay distinct. Exact duplicates are merged and kept as aliase
 | SCHOLARSHIP_LETTER | Scholarship Letter | study |  |  | FINANCIAL_AID_LETTER | bidesh365 |
 | FORM_I20 | Form I-20 | study |  |  | I_20 | bidesh365 |
 | FORM_DS2019 | Form DS-2019 | study |  |  | DS_2019 | bidesh365 |
+| FORM_I901_FEE_RECEIPT | SEVIS I-901 Fee Receipt | study |  |  | I_901_RECEIPT, SEVIS_FEE_RECEIPT | proposed |
 | CAS_STATEMENT | CAS Statement | study |  |  | CONFIRMATION_OF_ACCEPTANCE_FOR_STUDIES | bidesh365 |
 | CONFIRMATION_OF_ENROLMENT | Confirmation of Enrolment | study |  |  | COE, COE_LETTER | bidesh365 |
 | LANGUAGE_PROFICIENCY | Language Proficiency Certificate | professional | 24 |  | LANGUAGE_CERTIFICATE | bidesh365 |

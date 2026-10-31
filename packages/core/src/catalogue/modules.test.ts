@@ -12,7 +12,7 @@ import { LEGACY_FIELD_SNAPSHOT } from './legacy';
 import { CATALOGUE_MODULES } from './modules';
 import { MAX_KEY_LENGTH, isFieldKey, isTitleCaseLabel } from './naming';
 import { CATALOGUE_PURPOSES } from './purposes';
-import { MODULE_FIELDS, moduleOfLegacyField } from './queries';
+import { MODULE_FIELDS, isModuleSuggested, moduleOfLegacyField } from './queries';
 import { LAYER_KEYS, OTHER_OPTION, PROPOSED_PACK_KEYS, PURPOSE_FAMILY_KEYS } from './types';
 
 const ALL_PACKS: readonly string[] = [...PROFILE_PACKS, ...PROPOSED_PACK_KEYS];
@@ -30,6 +30,13 @@ describe('modules (the opt-in sections)', () => {
       expect(ALL_PACKS, m.key).toContain(m.pack);
       for (const family of m.suggestedFor ?? [])
         expect(PURPOSE_FAMILY_KEYS, m.key).toContain(family);
+      if (m.suggestedForCountries) {
+        expect(
+          m.suggestedFor?.length ?? 0,
+          `${m.key} lists countries but no purpose`,
+        ).toBeGreaterThan(0);
+        for (const code of m.suggestedForCountries) expect(code, m.key).toMatch(/^[A-Z]{2}$/);
+      }
     }
     expect(CATALOGUE_MODULES.filter((m) => m.internal).map((m) => m.key)).toEqual(['other_items']);
   });
@@ -264,5 +271,25 @@ describe('document lookup for links and the upload form', () => {
     expect(keys).toContain('TAX_ACKNOWLEDGEMENT_SLIP');
     expect(new Set(keys).size).toBe(keys.length);
     expect(documentsSupportingFields([])).toEqual([]);
+  });
+
+  it("suggests a country section for study by the countries of the person's own cases", () => {
+    const us = moduleByKey.get('united_states');
+    const uk = moduleByKey.get('uk_ireland');
+    if (!us || !uk) throw new Error('missing country sections');
+    // No case names a country: the whole family sees every study country section.
+    expect(isModuleSuggested(us, 'study', new Set())).toBe(true);
+    expect(isModuleSuggested(uk, 'study', new Set())).toBe(true);
+    // A study case for Ireland: only the United Kingdom and Ireland section is suggested.
+    expect(isModuleSuggested(uk, 'study', new Set(['IE']))).toBe(true);
+    expect(isModuleSuggested(us, 'study', new Set(['IE']))).toBe(false);
+    // Another purpose family never gets a study-only section, whatever the countries.
+    expect(isModuleSuggested(us, 'work', new Set(['US']))).toBe(false);
+    // A section that lists no countries is unaffected by the countries of the cases.
+    const general = CATALOGUE_MODULES.find(
+      (m) => !m.internal && m.suggestedFor?.includes('study') && !m.suggestedForCountries,
+    );
+    if (!general) throw new Error('no general study section');
+    expect(isModuleSuggested(general, 'study', new Set(['CA']))).toBe(true);
   });
 });

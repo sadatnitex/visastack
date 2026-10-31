@@ -57,6 +57,7 @@ import {
 } from './packs';
 import { recordProductEvent } from './product-events';
 import { editFact, registerFieldDefinition } from './profile';
+import { CASE_TRAVEL_END_KEY, CASE_TRAVEL_START_KEY } from './rule-conditions';
 import { acceptGrant, createGrant } from './sharing';
 
 async function freshDb(): Promise<Db> {
@@ -2903,6 +2904,84 @@ describe('RUL-04 - richer per-requirement/overall readiness states (condition-dr
     expect(readiness.value.missing).toHaveLength(0);
     expect(readiness.value.ready).toBe(true);
     expect(readiness.value.overallState).toBe('READY_FOR_APPLICANT_REVIEW');
+  });
+
+  it('a condition can read the case travel dates: unknown with no dates, then applies or not by trip length', async () => {
+    const { account, applicantId } = await seed(db);
+    const pack = await createPack(db, { actorAccountId: account.id, key: 'long.stay', name: 'L' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: account.id, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'FIELD',
+      fieldKey: 'us_visa_history',
+      citation: 'trips of 30 days or more',
+      condition: {
+        op: 'durationAtLeastDays',
+        from: { kind: 'field', field: CASE_TRAVEL_START_KEY },
+        to: { kind: 'field', field: CASE_TRAVEL_END_KEY },
+        days: 30,
+      },
+    });
+    await approvePackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    const stateOf = async (missionId: string) => {
+      const readiness = await computeReadiness(db, missionId);
+      if (!isOk(readiness)) throw new Error('readiness');
+      return readiness.value.requirementResults.find((r) => r.key === 'us_visa_history')?.state;
+    };
+    const makeCase = async (title: string, start: Date | null, end: Date | null) => {
+      const created = await createMission(db, {
+        actorAccountId: account.id,
+        applicantId,
+        title,
+        manualMode: false,
+        ...(start ? { travelStartDate: start } : {}),
+        ...(end ? { travelEndDate: end } : {}),
+      });
+      if (!isOk(created)) throw new Error('mission');
+      await attachPackVersion(db, {
+        actorAccountId: account.id,
+        missionId: created.value.id,
+        packVersionId: version.value.id,
+      });
+      return created.value.id;
+    };
+
+    // A saved fact with the same name as a reserved key must not stand in for a case date.
+    await registerFieldDefinition(db, { key: CASE_TRAVEL_END_KEY, dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: CASE_TRAVEL_END_KEY,
+      value: '2030-01-01',
+    });
+    await registerFieldDefinition(db, { key: CASE_TRAVEL_START_KEY, dataType: 'string' });
+    await editFact(db, {
+      actorAccountId: account.id,
+      applicantId,
+      fieldKey: CASE_TRAVEL_START_KEY,
+      value: '2026-01-01',
+    });
+
+    const noDates = await makeCase('No dates', null, null);
+    expect(await stateOf(noDates)).toBe('UNVERIFIED');
+
+    const short = await makeCase(
+      'Ten days',
+      new Date('2026-11-01T00:00:00Z'),
+      new Date('2026-11-11T00:00:00Z'),
+    );
+    expect(await stateOf(short)).toBe('NOT_APPLICABLE');
+
+    const long = await makeCase(
+      'Sixty days',
+      new Date('2026-11-01T00:00:00Z'),
+      new Date('2026-12-31T00:00:00Z'),
+    );
+    expect(await stateOf(long)).toBe('CRITICAL_GAP');
   });
 
   it('a condition evaluating unknown marks UNVERIFIED and the case NEEDS_REVIEW, distinct from a hard CRITICAL_GAP', async () => {

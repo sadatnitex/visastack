@@ -1,14 +1,20 @@
 'use server';
 
 import { randomUUID } from 'node:crypto';
-import { CATALOGUE_MODULES, CATALOGUE_PURPOSE_FAMILIES } from '@visastack/core/catalogue';
+import {
+  CATALOGUE_MODULES,
+  CATALOGUE_PURPOSE_FAMILIES,
+  isModuleSuggested,
+} from '@visastack/core/catalogue';
 import {
   editFact,
+  listMissions,
   registerFieldDefinition,
   setExemption,
   setSectionOpen,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { caseCountriesForFamily } from '../../../../lib/case-choices';
 import { fieldRegistryInputOf, savableField } from '../../../../lib/master-profile';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
@@ -54,13 +60,15 @@ export async function openSuggestedSectionsAction(
   if (!CATALOGUE_PURPOSE_FAMILIES.some((candidate) => candidate.key === family)) {
     return { ok: false, message: 'Choose a purpose first.' };
   }
-  const keys = CATALOGUE_MODULES.filter(
-    (module) =>
-      !module.internal &&
-      !module.defaultOpen &&
-      (module.suggestedFor ?? []).some((candidate) => candidate === family),
-  ).map((module) => module.key);
   const outcome = await withSession(async ({ db, accountId }) => {
+    // The same rule the profile screen uses to show the suggestions, so the button opens exactly
+    // the sections the person was shown: only the countries their own cases are about.
+    const cases = await listMissions(db, accountId, applicantId);
+    const caseCountries = caseCountriesForFamily(cases.ok ? cases.value : [], family);
+    const keys = CATALOGUE_MODULES.filter(
+      (module) =>
+        !module.internal && !module.defaultOpen && isModuleSuggested(module, family, caseCountries),
+    ).map((module) => module.key);
     let opened = 0;
     for (const sectionKey of keys) {
       const result = await setSectionOpen(db, {

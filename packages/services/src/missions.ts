@@ -22,6 +22,8 @@ import { type PackRequirement, listRequirements } from './packs';
 import { elapsedSeconds, recordProductEvent } from './product-events';
 import { assignReferenceCode } from './reference-codes';
 import {
+  CASE_TRAVEL_END_KEY,
+  CASE_TRAVEL_START_KEY,
   type EvaluationContext,
   type RuleConditionResult,
   evaluateCondition,
@@ -918,7 +920,7 @@ export async function computeReadiness(
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
   const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, missionId);
-  const context = buildFactEvaluationContext(factsByKey, now);
+  const context = buildFactEvaluationContext(factsByKey, now, mission);
   const mapping = buildRequirementMapping(
     requirements,
     factsByKey,
@@ -1179,10 +1181,15 @@ export interface RequirementMappingEntry {
 function buildFactEvaluationContext(
   factsByKey: ReadonlyMap<string, readonly FactInstance[]>,
   now: Date,
+  caseDates?: { readonly travelStartDate: Date | null; readonly travelEndDate: Date | null },
 ): EvaluationContext {
   return {
     now,
     getValue(field) {
+      // The two case-date names are reserved: they never fall back to an applicant fact of the
+      // same name, so a saved fact cannot stand in for a trip date. No case date means unknown.
+      if (field === CASE_TRAVEL_START_KEY) return caseDates?.travelStartDate ?? undefined;
+      if (field === CASE_TRAVEL_END_KEY) return caseDates?.travelEndDate ?? undefined;
       const eligible = (factsByKey.get(field) ?? []).find((i) => isFactStatusEligible(i.status));
       return eligible?.value ?? undefined;
     },
@@ -1422,7 +1429,7 @@ async function loadCaseEvidence(db: Db, mission: Mission) {
       documentsByType,
       selections,
       snapshotNow,
-      buildFactEvaluationContext(factsByKey, snapshotNow),
+      buildFactEvaluationContext(factsByKey, snapshotNow, mission),
     );
     packVersionSnapshot = packVersion ?? null;
   }
@@ -2540,7 +2547,7 @@ export async function generateCoverLetter(
     documentsByType,
     selections,
     letterNow,
-    buildFactEvaluationContext(factsByKey, letterNow),
+    buildFactEvaluationContext(factsByKey, letterNow, mission),
   );
   const { content, groundedReferences } = buildCoverLetterContent(mission, mapping);
   if (groundedReferences.length === 0) {
