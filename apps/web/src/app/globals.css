@@ -8216,6 +8216,10 @@ summary.visa-photo-title {
   border-radius: var(--radius-sm);
   padding: var(--space-3);
 }
+/* A disclosure inside an invoice's box spans the box, so the form it opens can use columns. */
+.invoice-list-item-block > .disclosure {
+  justify-self: stretch;
+}
 .invoice-link {
   display: inline-flex;
   align-items: center;
@@ -10911,8 +10915,4 @@ summary.safe-copy-title {
 /* A small form inside a list row (a payment on one invoice): columns, but kept compact. */
 .form-compact {
   max-width: 44rem;
-}
-/* A disclosure inside an invoice's box spans the box, so the form it opens can use columns. */
-.invoice-list-item-block > .disclosure {
-  justify-self: stretch;
 }
