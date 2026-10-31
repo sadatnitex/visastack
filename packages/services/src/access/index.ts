@@ -8,10 +8,13 @@ export {
   type AccountPrincipal,
   type Principal,
   type SystemJob,
+  SelfScope,
   StaffScope,
   SystemScope,
   SYSTEM_JOBS,
   accountPrincipal,
+  selfPrincipal,
+  selfScopeProblem,
   staffPrincipal,
   systemPrincipal,
 } from './principal';

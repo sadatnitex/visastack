@@ -3,7 +3,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { SYSTEM_JOBS, SystemScope, systemPrincipal } from './principal';
+import {
+  SYSTEM_JOBS,
+  SelfScope,
+  SystemScope,
+  selfPrincipal,
+  selfScopeProblem,
+  systemPrincipal,
+} from './principal';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const servicesDir = path.resolve(here, '../..');
@@ -46,6 +53,30 @@ describe('gate values cannot be forged', () => {
     expect(Object.isFrozen(scope)).toBe(true);
     const Ctor = SystemScope as unknown as new (job: string) => unknown;
     expect(() => new Ctor('process-erasure')).toThrow(/systemPrincipal/);
+  });
+
+  it('rejects spread copies, direct construction and stale copies of a SelfScope (ADR 0025)', () => {
+    const self = selfPrincipal('00000000-0000-4000-8000-000000000001');
+    expect(SelfScope.isGenuine(self)).toBe(true);
+    expect(selfScopeProblem(self)).toBeUndefined();
+    expect(Object.isFrozen(self)).toBe(true);
+    const copy = { ...self };
+    expect(SelfScope.isGenuine(copy)).toBe(false);
+    expect(selfScopeProblem(copy)?.code).toBe('forbidden');
+    expect(selfScopeProblem({ kind: 'self', accountId: 'x', verifiedAt: new Date() })?.code).toBe(
+      'forbidden',
+    );
+    const Ctor = SelfScope as unknown as new (id: string, at: Date) => unknown;
+    expect(() => new Ctor('x', new Date())).toThrow(/selfPrincipal/);
+    expect(() => selfPrincipal('')).toThrow(/signed-in account/);
+    // Minted for one request: an old one is refused.
+    const real = Date.now;
+    try {
+      Date.now = () => real() + 6 * 60 * 1000;
+      expect(selfScopeProblem(self)?.code).toBe('forbidden');
+    } finally {
+      Date.now = real;
+    }
   });
 
   it('SYSTEM_JOBS matches the job routes in apps/web/src/app/api/jobs', () => {

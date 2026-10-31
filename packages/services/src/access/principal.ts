@@ -22,8 +22,13 @@ import {
  * - `staff`: a platform staff member, as a `StaffScope<A>` for exactly one
  *   platform action whose role was re-checked live. Only `staffPrincipal()`
  *   can make one.
+ * - `self`: the signed-in person acting on their own records only (ADR 0025:
+ *   their own plan, invoices, payments and receipts), as a `SelfScope`. Only
+ *   `selfPrincipal()` can make one, and `enforcement.test.ts` allows it to be
+ *   referenced only by `withSession` (apps/web/src/lib/session.ts), which
+ *   mints it from the server-side session for the account it resolved.
  *
- * `SystemScope` and `StaffScope` are classes with a private constructor and a
+ * `SystemScope`, `StaffScope` and `SelfScope` are classes with a private constructor and a
  * `#private` brand: an object literal or a spread copy (`{ ...scope }`) is
  * not one, at compile time or at run time.
  */
@@ -73,6 +78,8 @@ let mintStaffScope: <A extends PlatformAction>(
   action: A,
   verifiedAt: Date,
 ) => StaffScope<A>;
+let mintingSelfScope = false;
+let mintSelfScope: (accountId: string, verifiedAt: Date) => SelfScope;
 
 export class SystemScope<J extends SystemJob> {
   readonly #brand = 'SystemScope';
@@ -139,7 +146,46 @@ export class StaffScope<A extends PlatformAction> {
   }
 }
 
-export type Principal = AccountPrincipal | SystemScope<SystemJob> | StaffScope<PlatformAction>;
+/**
+ * The signed-in person, for their own records only (ADR 0025 section 6). It names no other account
+ * and grants nothing over anyone else's records: a service that takes it reads and writes only rows
+ * whose payer (or owner) is `accountId`.
+ */
+export class SelfScope {
+  readonly #brand = 'SelfScope';
+  readonly kind = 'self' as const;
+  readonly accountId: string;
+  readonly verifiedAt: Date;
+
+  private constructor(accountId: string, verifiedAt: Date) {
+    if (!mintingSelfScope) throw new Error('a SelfScope can only be made by selfPrincipal()');
+    this.accountId = accountId;
+    this.verifiedAt = verifiedAt;
+    Object.freeze(this);
+  }
+
+  /** Run-time check that `value` is a genuine scope, not a copy. */
+  static isGenuine(value: unknown): value is SelfScope {
+    return typeof value === 'object' && value !== null && #brand in value;
+  }
+
+  static {
+    mintSelfScope = (accountId: string, verifiedAt: Date): SelfScope => {
+      mintingSelfScope = true;
+      try {
+        return new SelfScope(accountId, verifiedAt);
+      } finally {
+        mintingSelfScope = false;
+      }
+    };
+  }
+}
+
+export type Principal =
+  | AccountPrincipal
+  | SystemScope<SystemJob>
+  | StaffScope<PlatformAction>
+  | SelfScope;
 
 /** A signed-in person. Identity only: `requireAccess` still decides every request. */
 export function accountPrincipal(
@@ -195,6 +241,37 @@ export function staffScopeProblem(
     Date.now() - staff.verifiedAt.getTime() > STAFF_SCOPE_MAX_AGE_MS
   ) {
     return serviceError('forbidden', 'this account does not hold the platform role required');
+  }
+  return undefined;
+}
+
+/**
+ * The scope of the signed-in person over their own records. Only `withSession` calls this, with the
+ * account it resolved from the server-side session (a static test allows no other caller), so a
+ * `SelfScope` always names the person actually signed in. Throws on an empty id (a programmer
+ * fault).
+ */
+export function selfPrincipal(accountId: string): SelfScope {
+  if (typeof accountId !== 'string' || accountId.length === 0) {
+    throw new Error('selfPrincipal needs the signed-in account id');
+  }
+  return mintSelfScope(accountId, new Date());
+}
+
+/** How long a self scope stays good for: minted for one request, never kept. */
+const SELF_SCOPE_MAX_AGE_MS = 5 * 60 * 1000;
+
+/**
+ * The refusal for a self scope that is not a genuine, fresh one, or undefined when it is. Services
+ * that take a `SelfScope` call this first, because a type alone does not stop a cast object at run
+ * time.
+ */
+export function selfScopeProblem(self: unknown): ServiceError | undefined {
+  if (
+    !SelfScope.isGenuine(self) ||
+    Date.now() - self.verifiedAt.getTime() > SELF_SCOPE_MAX_AGE_MS
+  ) {
+    return serviceError('forbidden', 'this request is not signed in as the account it names');
   }
   return undefined;
 }

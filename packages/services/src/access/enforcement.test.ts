@@ -20,6 +20,8 @@ import { describe, expect, it } from 'vitest';
  *   is judged by the functions it wraps.
  * - `systemPrincipal` (a scheduled job's scope) may only be used by the job
  *   routes in apps/web/src/app/api/jobs.
+ * - `selfPrincipal` (the signed-in person's scope over their own records, ADR
+ *   0025) may only be used by `withSession` in apps/web/src/lib/session.ts.
  *
  * Everything here is resolved through the TypeScript type checker, not text:
  * a table counts only if the identifier resolves to the table's declaration in
@@ -465,6 +467,7 @@ interface Analysis {
   readonly exportedFunctionIds: Set<string>;
   readonly ownedTableNames: Set<string>;
   readonly systemScopeUsers: string[];
+  readonly selfScopeUsers: string[];
 }
 
 function sourceFilesUnder(dir: string): string[] {
@@ -488,6 +491,25 @@ function systemScopeUsers(serviceFiles: readonly string[]): string[] {
     if (file.startsWith(accessDir + path.sep) || file === indexFile) continue;
     if (file.startsWith(jobsDir + path.sep)) continue;
     if (/\bsystemPrincipal\b/.test(readFileSync(file, 'utf8'))) {
+      users.push(path.relative(path.resolve(servicesDir, '../..'), file).replace(/\\/g, '/'));
+    }
+  }
+  return users.sort();
+}
+
+/**
+ * Files outside access/ and apps/web/src/lib/session.ts that mention `selfPrincipal`. Plain text on
+ * purpose, as above; the services index re-exports it and is the one allowed exception.
+ */
+function selfScopeUsers(serviceFiles: readonly string[]): string[] {
+  const indexFile = path.join(srcDir, 'index.ts');
+  const sessionFile = path.join(webSrcDir, 'lib', 'session.ts');
+  const users: string[] = [];
+  for (const file of [...serviceFiles.map(real), ...sourceFilesUnder(webSrcDir)]) {
+    if (file.startsWith(accessDir + path.sep) || file === indexFile || file === sessionFile) {
+      continue;
+    }
+    if (/\bselfPrincipal\b/.test(readFileSync(file, 'utf8'))) {
       users.push(path.relative(path.resolve(servicesDir, '../..'), file).replace(/\\/g, '/'));
     }
   }
@@ -574,6 +596,7 @@ function analyse(): Analysis {
     exportedFunctionIds,
     ownedTableNames: tables.names,
     systemScopeUsers: systemScopeUsers(configFileNames),
+    selfScopeUsers: selfScopeUsers(configFileNames),
   };
 }
 
@@ -605,6 +628,10 @@ describe('access gate enforcement ratchet', () => {
     expect(
       analysis.systemScopeUsers,
       'only the job routes in apps/web/src/app/api/jobs may use systemPrincipal',
+    ).toEqual([]);
+    expect(
+      analysis.selfScopeUsers,
+      'only withSession (apps/web/src/lib/session.ts) may use selfPrincipal',
     ).toEqual([]);
 
     const duplicates = baseline.filter((entry, i) => baseline.indexOf(entry) !== i);
