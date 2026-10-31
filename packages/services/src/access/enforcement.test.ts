@@ -46,6 +46,32 @@ const OWNED_COLUMNS = new Set([
   'owner_account_id',
 ]);
 const GATE_TYPES = ['AuthorizedApplicant', 'SystemScope', 'StaffScope'] as const;
+
+/**
+ * ADR 0025: the person billing tables (a person's own plan, invoices, payments and receipts) are
+ * declared in person-billing-tables.ts. Every exported function that touches one must take a
+ * `SelfScope` (the signed-in person, for their own rows), a `StaffScope` or a `SystemScope`.
+ */
+const personTablesFile = path.join(srcDir, 'person-billing-tables.ts');
+const PERSON_GATE_TYPES = ['SelfScope', 'StaffScope', 'SystemScope'] as const;
+/**
+ * The only modules that may name the 0110 payer column in plain text: the declarations, and T2's
+ * plain-SQL readers, whose exported functions are listed in PERSON_EXCEPTIONS.
+ */
+const PAYER_COLUMN_MODULES = ['person-billing-tables', 'traveller-billing'] as const;
+/**
+ * Exported person billing functions that take no gate, each with why. Fixed, not a baseline: a new
+ * function cannot be added here without a reason a reviewer reads, and an entry that no longer
+ * exists fails the test.
+ */
+const PERSON_EXCEPTIONS: Readonly<Record<string, string>> = {
+  'traveller-billing#personBillingPresent':
+    'reads only whether migration 0110 ran (information_schema), no billing row',
+  'traveller-billing#coveringPaidPeriod':
+    "the entitlement resolver's coverage check for the account the caller already acts as; returns a plan id and dates, never a billing row (ADR 0025 section 13)",
+  'traveller-billing#paidTravellerCoverage':
+    'counts people per plan for the owner-only Plans page; returns counts, never a billing row',
+};
 const webSrcDir = path.resolve(servicesDir, '../../apps/web/src');
 const jobsDir = path.join(webSrcDir, 'app', 'api', 'jobs');
 
@@ -167,12 +193,36 @@ function ownedTables(schemaSf: ts.SourceFile): { decls: Set<ts.Node>; names: Set
   return { decls, names };
 }
 
+/** Every exported `pgTable` of a declarations file (person-billing-tables.ts: all of them count). */
+function allTables(sf: ts.SourceFile): { decls: Set<ts.Node>; names: Set<string> } {
+  const decls = new Set<ts.Node>();
+  const names = new Set<string>();
+  for (const statement of sf.statements) {
+    if (!ts.isVariableStatement(statement) || !hasExportModifier(statement)) continue;
+    for (const decl of statement.declarationList.declarations) {
+      if (!decl.initializer || !ts.isIdentifier(decl.name)) continue;
+      const init = unwrapExpression(decl.initializer);
+      if (!ts.isCallExpression(init)) continue;
+      const callee = init.expression;
+      if (!ts.isIdentifier(callee) || callee.text !== 'pgTable') continue;
+      decls.add(decl);
+      names.add(decl.name.text);
+    }
+  }
+  if (decls.size === 0) throw new Error(`found no pgTable declarations in ${sf.fileName}`);
+  return { decls, names };
+}
+
 function resolve(checker: ts.TypeChecker, symbol: ts.Symbol | undefined): ts.Symbol | undefined {
   if (symbol && symbol.flags & ts.SymbolFlags.Alias) return checker.getAliasedSymbol(symbol);
   return symbol;
 }
 
-function gateDeclarations(program: ts.Program, checker: ts.TypeChecker): Set<ts.Node> {
+function gateDeclarations(
+  program: ts.Program,
+  checker: ts.TypeChecker,
+  types: readonly string[] = GATE_TYPES,
+): Set<ts.Node> {
   const decls = new Set<ts.Node>();
   const found = new Set<string>();
   for (const file of ['principal.ts', 'require-access.ts']) {
@@ -180,12 +230,12 @@ function gateDeclarations(program: ts.Program, checker: ts.TypeChecker): Set<ts.
     const moduleSymbol = checker.getSymbolAtLocation(sf);
     if (!moduleSymbol) throw new Error(`no module symbol for ${file}`);
     for (const exported of checker.getExportsOfModule(moduleSymbol)) {
-      if (!(GATE_TYPES as readonly string[]).includes(exported.name)) continue;
+      if (!types.includes(exported.name)) continue;
       for (const decl of resolve(checker, exported)?.declarations ?? []) decls.add(decl);
       found.add(exported.name);
     }
   }
-  for (const name of GATE_TYPES) {
+  for (const name of types) {
     if (!found.has(name)) throw new Error(`gate type ${name} not found in access/`);
   }
   return decls;
@@ -516,12 +566,36 @@ function selfScopeUsers(serviceFiles: readonly string[]): string[] {
   return users.sort();
 }
 
+let loaded: { program: ts.Program; configFileNames: readonly string[] } | undefined;
+/** One program for both ratchets: building it is the slow part. */
+function programOnce(): { program: ts.Program; configFileNames: readonly string[] } {
+  loaded ??= loadProgram();
+  return loaded;
+}
+
 function analyse(): Analysis {
-  const { program, configFileNames } = loadProgram();
+  const { program, configFileNames } = programOnce();
   const checker = program.getTypeChecker();
   const tables = ownedTables(sourceFileAt(program, schemaFile));
   const gateDecls = gateDeclarations(program, checker);
+  return {
+    ...ratchet(program, checker, tables, gateDecls),
+    ownedTableNames: tables.names,
+    systemScopeUsers: systemScopeUsers(configFileNames),
+    selfScopeUsers: selfScopeUsers(configFileNames),
+  };
+}
 
+/**
+ * The exported functions (module#name) that touch one of `tables` without a parameter of a gate in
+ * `gateDecls`, directly or by calling one that does.
+ */
+function ratchet(
+  program: ts.Program,
+  checker: ts.TypeChecker,
+  tables: { readonly decls: Set<ts.Node>; readonly names: Set<string> },
+  gateDecls: Set<ts.Node>,
+): { violations: Set<string>; exportedFunctionIds: Set<string> } {
   interface ExportedFn {
     readonly id: string;
     readonly name: string;
@@ -591,13 +665,21 @@ function analyse(): Analysis {
     }
   }
 
-  return {
-    violations,
-    exportedFunctionIds,
-    ownedTableNames: tables.names,
-    systemScopeUsers: systemScopeUsers(configFileNames),
-    selfScopeUsers: selfScopeUsers(configFileNames),
-  };
+  return { violations, exportedFunctionIds };
+}
+
+/**
+ * Service files outside PAYER_COLUMN_MODULES that name the 0110 payer column in text (plain SQL the
+ * type-based ratchet cannot see). Tests are left out.
+ */
+function payerColumnUsers(): string[] {
+  const allowed = new Set(PAYER_COLUMN_MODULES.map((m) => path.join(srcDir, `${m}.ts`)));
+  return sourceFilesUnder(srcDir)
+    .map(real)
+    .filter((file) => !isTestFile(file) && !allowed.has(file))
+    .filter((file) => /payer_account_id|payerAccountId/.test(readFileSync(file, 'utf8')))
+    .map((file) => path.relative(srcDir, file).replace(/\\/g, '/'))
+    .sort();
 }
 
 function readBaseline(): string[] {
@@ -655,5 +737,51 @@ describe('access gate enforcement ratchet', () => {
       stale,
       `Remove these entries from packages/services/src/access/enforcement-baseline.json (the baseline only shrinks):\n${staleDetail.join('\n')}`,
     ).toEqual([]);
+  }, 180_000);
+});
+
+describe('person billing ratchet (ADR 0025)', () => {
+  it('every exported function touching a person billing table takes SelfScope, StaffScope or SystemScope', () => {
+    const { program } = programOnce();
+    const checker = program.getTypeChecker();
+    const tables = allTables(sourceFileAt(program, real(personTablesFile)));
+    // Guard the analysis itself: the six declarations are found.
+    expect([...tables.names].sort()).toEqual([
+      'personInvoices',
+      'personPaymentAttempts',
+      'personPaymentReceipts',
+      'personReceiptCounters',
+      'personRefundRequests',
+      'personSubscriptions',
+    ]);
+    const { violations, exportedFunctionIds } = ratchet(
+      program,
+      checker,
+      tables,
+      gateDeclarations(program, checker, PERSON_GATE_TYPES),
+    );
+    expect(
+      [...violations].filter((id) => !Object.hasOwn(PERSON_EXCEPTIONS, id)).sort(),
+      'These exported functions touch person billing tables without a SelfScope, StaffScope or SystemScope parameter',
+    ).toEqual([]);
+
+    // The plain-SQL readers are confined to the allowed modules, and every exported function there
+    // is either gated or a listed exception with its reason.
+    expect(payerColumnUsers(), 'only the person billing modules may name payer_account_id').toEqual(
+      [],
+    );
+    const personGates = gateDeclarations(program, checker, PERSON_GATE_TYPES);
+    // The declarations module exports tables only; the reader module is judged function by function.
+    for (const module of PAYER_COLUMN_MODULES.filter((m) => m !== 'person-billing-tables')) {
+      const sf = sourceFileAt(program, real(path.join(srcDir, `${module}.ts`)));
+      for (const [name, shape] of exportedFunctions(checker, sf)) {
+        const id = `${module}#${name}`;
+        const gated = !shape.opaque && complies(checker, shape.fns, personGates);
+        expect(gated || Object.hasOwn(PERSON_EXCEPTIONS, id), `${id} needs a gate`).toBe(true);
+      }
+    }
+    for (const id of Object.keys(PERSON_EXCEPTIONS)) {
+      expect(exportedFunctionIds.has(id), `${id} is listed but no longer exists`).toBe(true);
+    }
   }, 180_000);
 });
