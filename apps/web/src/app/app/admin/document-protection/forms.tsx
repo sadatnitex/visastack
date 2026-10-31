@@ -72,7 +72,7 @@ export function ProtectionSwitch({
     .join(' ');
 
   return (
-    <form action={formAction} className="field-list">
+    <form action={formAction} className="field-list form-compact">
       <input type="hidden" name="scope" value={scope} />
       <input type="hidden" name="key" value={switchKey} />
 

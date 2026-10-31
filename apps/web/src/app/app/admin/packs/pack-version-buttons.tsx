@@ -47,7 +47,7 @@ export function ApproveVersionButton({
 }) {
   const [state, formAction, pending] = useActionState(approveVersionAction, INITIAL);
   return (
-    <div>
+    <div className="action-bar">
       <form action={formAction}>
         <input type="hidden" name="packId" value={packId} />
         <input type="hidden" name="packVersionId" value={packVersionId} />
@@ -72,7 +72,7 @@ export function PublishVersionButton({
 }) {
   const [state, formAction, pending] = useActionState(publishVersionAction, INITIAL);
   return (
-    <div className="u-mt-100">
+    <div className="action-bar">
       <form
         action={formAction}
         onSubmit={(e) => {
@@ -107,7 +107,7 @@ export function WithdrawVersionButton({
 }) {
   const [state, formAction, pending] = useActionState(withdrawVersionAction, INITIAL);
   return (
-    <div className="u-mt-100">
+    <div className="action-bar">
       <form
         action={formAction}
         onSubmit={(e) => {
