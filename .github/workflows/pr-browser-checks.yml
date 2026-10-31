@@ -62,8 +62,12 @@ jobs:
       - name: Start installing Playwright Chromium
         working-directory: apps/web
         run: |
-          ( npx playwright install --with-deps chromium > "$RUNNER_TEMP/playwright-install.log" 2>&1
-            echo $? > "$RUNNER_TEMP/playwright-install.exit" ) &
+          # Fully detached (no output pipe held open, so this step ends at once). The exit code is
+          # written to a temporary name and then moved, so the waiting step never reads it half
+          # written.
+          nohup bash -c 'npx playwright install --with-deps chromium > "$RUNNER_TEMP/playwright-install.log" 2>&1
+            echo $? > "$RUNNER_TEMP/playwright-install.exit.tmp"
+            mv "$RUNNER_TEMP/playwright-install.exit.tmp" "$RUNNER_TEMP/playwright-install.exit"' > /dev/null 2>&1 &
 
       - name: Build the web app
         run: pnpm --filter @visastack/web build
@@ -91,10 +95,13 @@ jobs:
       - name: Run the no-secret smoke check
         id: smoke
         continue-on-error: true
+        # The smoke check makes 8 quick requests; a hang must not use up the browser tests' time.
+        timeout-minutes: 3
         working-directory: apps/web
         run: SMOKE_BASE_URL=http://localhost:3100 node scripts/smoke.mjs
 
       - name: Install Playwright Chromium
+        timeout-minutes: 6
         run: |
           for i in $(seq 1 300); do
             [ -f "$RUNNER_TEMP/playwright-install.exit" ] && break
@@ -108,6 +115,8 @@ jobs:
           exit "$(cat "$RUNNER_TEMP/playwright-install.exit")"
 
       - name: Run the no-secret Playwright checks
+        # Below the job limit, so a hang ends this step and the job still reports the smoke result.
+        timeout-minutes: 15
         working-directory: apps/web
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3100
