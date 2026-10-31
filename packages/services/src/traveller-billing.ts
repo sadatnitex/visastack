@@ -39,12 +39,23 @@ export async function personBillingPresent(db: Db): Promise<boolean> {
   return present;
 }
 
+function listOf<T>(result: unknown): T[] {
+  const list = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows;
+  return (list ?? []) as T[];
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface CoveringPeriod {
   readonly planId: string;
   readonly periodStart: Date;
   readonly periodEnd: Date;
+  /**
+   * Where the paid time runs to without a gap: the end of the last paid, unrefunded period of the
+   * same plan that follows on from this one (a renewal paid ahead, T4). Read only when asked for
+   * (Plan & Usage); otherwise `periodEnd`.
+   */
+  readonly paidThrough: Date;
 }
 
 /**
@@ -57,11 +68,17 @@ export async function coveringPaidPeriod(
   db: Db,
   accountId: string,
   now: Date,
+  options: { readonly paidThrough?: boolean } = {},
 ): Promise<CoveringPeriod | undefined> {
   if (!UUID.test(accountId) || !(await personBillingPresent(db))) return undefined;
   const refunded: SQL = invoiceHasRefundSql(sql`i.id`);
-  const rows = await db.execute<{ plan_id: string; period_start: string; period_end: string }>(
-    sql`select s.plan_id, i.period_start, i.period_end
+  const rows = await db.execute<{
+    subscription_id: string;
+    plan_id: string;
+    period_start: string;
+    period_end: string;
+  }>(
+    sql`select s.id as subscription_id, s.plan_id, i.period_start, i.period_end
       from subscriptions s
       join plans p on p.id = s.plan_id and p.audience = 'TRAVELLER'
       join invoices i on i.subscription_id = s.id and i.payer_account_id = s.payer_account_id
@@ -73,16 +90,39 @@ export async function coveringPaidPeriod(
       order by i.period_end desc
       limit 1`,
   );
-  const list = Array.isArray(rows) ? rows : (rows as { rows?: unknown[] }).rows;
-  const row = (list ?? [])[0] as
-    | { plan_id: string; period_start: string | Date; period_end: string | Date }
-    | undefined;
+  const row = listOf<{
+    subscription_id: string;
+    plan_id: string;
+    period_start: string | Date;
+    period_end: string | Date;
+  }>(rows)[0];
   if (!row) return undefined;
-  return {
+  const periodEnd = new Date(row.period_end);
+  const covering = {
     planId: row.plan_id,
     periodStart: new Date(row.period_start),
-    periodEnd: new Date(row.period_end),
+    periodEnd,
+    paidThrough: periodEnd,
   };
+  if (!options.paidThrough) return covering;
+  // Later paid periods of the same plan, in order: the paid time runs on while each starts where
+  // the one before ends.
+  const later = listOf<{ period_start: string | Date; period_end: string | Date }>(
+    await db.execute(
+      sql`select i.period_start, i.period_end from invoices i
+        where i.subscription_id = ${row.subscription_id}::uuid and i.payer_account_id = ${accountId}::uuid
+          and i.plan_id = ${row.plan_id}::uuid and i.status = 'PAID'
+          and i.period_start >= ${periodEnd.toISOString()}::timestamptz and not ${refunded}
+        order by i.period_start
+        limit 24`,
+    ),
+  );
+  let paidThrough = periodEnd;
+  for (const next of later) {
+    if (new Date(next.period_start).getTime() !== paidThrough.getTime()) break;
+    paidThrough = new Date(next.period_end);
+  }
+  return { ...covering, paidThrough };
 }
 
 /**

@@ -136,7 +136,10 @@ describe('Billing History', () => {
     );
     const text = textOf(html);
     expect(text).toContain('Request a Refund for TP-A1B2C3D4-2');
-    expect(text).toContain('You can ask for a full refund until 6 Nov 2026');
+    // The exact moment the offer ends, so nobody loses part of the last day.
+    expect(text).toContain(
+      'You can ask for a full refund until 6 Nov 2026, 12:00 (Bangladesh time)',
+    );
     expect(text).toContain('you do not need to give a reason');
   });
 
@@ -174,6 +177,22 @@ describe('Billing History', () => {
     expect(textOf(html)).not.toContain('Request a Refund');
     expect(textOf(html)).toContain('Test Payment');
     expect(textOf(html)).toContain('The money paid for this was refunded.');
+  });
+
+  it('says a purchase not paid in time cost nothing, and a partial refund was partial', async () => {
+    mocks.listOwnBilling.mockResolvedValue({
+      ok: true,
+      value: [
+        { ...waiting, status: 'not_paid', statusLabel: 'Not Paid' },
+        { ...paid, status: 'refunded', statusLabel: 'Partly Refunded', refundableUntil: null },
+      ],
+    });
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('Not paid in time, so nothing was charged and you owe nothing.');
+    expect(text).toContain('Part of the money paid for this was refunded.');
+    expect(text).not.toContain('Cancelled. There is nothing to pay.');
+    // A period that starts mid-day ends on the day of its last covered moment.
+    expect(text).toContain('30 Oct 2026 to 29 Nov 2026');
   });
 
   it('shows a plain empty state with no billing figures', async () => {

@@ -21,6 +21,7 @@ import {
 } from './person-billing';
 import { personInvoices, personSubscriptions } from './person-billing-tables';
 import { coveringPaidPeriod } from './traveller-billing';
+import { getTravellerPlanSummary } from './traveller-plan';
 
 /**
  * ADR 0025 T4 (D4): a paid traveller plan is renewed by paying a link, never charged by itself.
@@ -101,12 +102,12 @@ async function payInvoice(accountId: string, invoiceId: string): Promise<string>
   return settled.code;
 }
 
-/** Buys and pays one 30-day period, then moves it so it ends `endsInDays` from now. */
-async function paidPeriod(accountId: string, endsInDays: number): Promise<Date> {
+/** Buys and pays one 30-day period, then moves it so it ends `endsInDays` from now (or at `at`). */
+async function paidPeriod(accountId: string, endsInDays: number, at?: Date): Promise<Date> {
   const made = await startPersonCheckout(db, self(accountId), { planId });
   if (!isOk(made)) throw new Error(`checkout: ${made.error.message}`);
   expect(await payInvoice(accountId, made.value.invoiceId)).toBe('recorded');
-  const end = new Date(Date.now() + endsInDays * DAY);
+  const end = at ?? new Date(Date.now() + endsInDays * DAY);
   const start = new Date(end.getTime() - 30 * DAY);
   await db
     .update(personInvoices)
@@ -326,10 +327,16 @@ describe('renewing a paid traveller plan by paying a link (ADR 0025 T4)', () => 
     const bobs = await setPlanRenewal(db, self(bob), { renews: false });
     expect(isErr(bobs) && bobs.error.code).toBe('not_found');
 
+    // Inside the last week, Keep Renewing makes the renewal at once: there is something to pay now.
     const resumed = await setPlanRenewal(db, self(alice), { renews: true });
-    expect(isOk(resumed) && resumed.value.renews).toBe(true);
+    expect(isOk(resumed) && resumed.value).toEqual({
+      renews: true,
+      renewalReady: true,
+      ended: false,
+    });
+    expect((await invoicesOf(alice)).filter((i) => i.status === 'OPEN')).toHaveLength(1);
     expect((await run(new Date(Date.now() + 4 * DAY))).travellerPlans).toMatchObject({
-      renewalInvoicesCreated: 1,
+      renewalInvoicesCreated: 0,
       remindersQueued: 1,
     });
     const audits = await rows<{ event_type: string }>(
@@ -391,5 +398,131 @@ describe('renewing a paid traveller plan by paying a link (ADR 0025 T4)', () => 
       .from(personSubscriptions)
       .where(and(eq(personSubscriptions.payerAccountId, bob)));
     expect(bobSub?.endedAt).not.toBeNull();
+  });
+
+  it('never lapses a plan while a payment on its renewal is on its way', async () => {
+    await paidPeriod(alice, -6);
+    await run(new Date());
+    const renewal = (await invoicesOf(alice))[1];
+    if (!renewal) throw new Error('renewal');
+    await startPersonPayment(db, onePort(port), self(alice), {
+      invoiceId: renewal.id,
+      urlFor,
+      startAnother: false,
+    });
+    const waiting = await run(new Date(Date.now() + 2 * DAY));
+    expect(waiting.travellerPlans.lapsed).toBe(0);
+    expect((await invoicesOf(alice))[1]?.status).toBe('OPEN');
+    // Once the payment is over without money, the plan lapses on the next run.
+    await db.execute(
+      sql`update payment_attempts set status = 'EXPIRED' where invoice_id = ${renewal.id}::uuid`,
+    );
+    expect((await run(new Date(Date.now() + 2 * DAY))).travellerPlans.lapsed).toBe(1);
+  });
+
+  it('counts reminder days on the Bangladesh calendar, like agency reminders', async () => {
+    // Ends 10 Nov at 10:00 in Bangladesh: on 9 Nov at 12:15 there is still a day to go.
+    const end = new Date('2026-11-10T04:00:00Z');
+    await paidPeriod(alice, 0, end);
+    await run(new Date('2026-11-09T06:15:00Z'));
+    await run(new Date('2026-11-10T01:00:00Z'));
+    const stages = (await notices(alice))
+      .filter((n) => n.event_type === 'PERSON_PLAN_RENEWAL_DUE' && n.channel === 'IN_APP')
+      .map((n) => n.idempotency_key.split(':').pop());
+    expect(stages).toEqual(['d3', 'd0']);
+    const [today] = await rows<{ payload: { subject: string } }>(
+      sql`select payload from notifications where idempotency_key like '%:d0' and channel = 'IN_APP'`,
+    );
+    expect(today?.payload.subject).toBe('Traveller Plus ends today');
+  });
+
+  it('treats a refunded renewal as never paid: the plan still lapses, with no more reminders', async () => {
+    await paidPeriod(alice, 3);
+    await run(new Date());
+    const renewal = (await invoicesOf(alice))[1];
+    if (!renewal) throw new Error('renewal');
+    expect(await payInvoice(alice, renewal.id)).toBe('recorded');
+    await db.insert(schema.invoicePayments).values({
+      invoiceId: renewal.id,
+      amountMinorUnits: -PRICE,
+      currency: 'BDT',
+      kind: 'REFUND',
+      sourceId: '00000000-0000-4000-8000-00000000f00d',
+      reference: 'RF-RENEW-1',
+      collectedDate: new Date(),
+      mode: 'LIVE',
+    });
+    await db
+      .update(personInvoices)
+      .set({ status: 'OPEN', collectedAmountMinorUnits: 0 })
+      .where(eq(personInvoices.id, renewal.id));
+    const later = new Date(Date.now() + 11 * DAY);
+    const summary = await run(later);
+    expect(summary.travellerPlans).toMatchObject({
+      lapsed: 1,
+      renewalInvoicesCreated: 0,
+      failed: 0,
+    });
+    // The refunded invoice keeps its own record (never voided over it).
+    expect((await invoicesOf(alice))[1]?.status).toBe('OPEN');
+  });
+
+  it('makes no renewal for a plan no longer offered, and says it is not renewable', async () => {
+    await paidPeriod(alice, 5);
+    await db.update(schema.plans).set({ active: false }).where(eq(schema.plans.id, planId));
+    expect((await run(new Date())).travellerPlans.renewalInvoicesCreated).toBe(0);
+    expect(await getOwnRenewal(db, self(alice))).toMatchObject({
+      renewable: false,
+      openRenewal: null,
+    });
+  });
+
+  it('turns renewing back on when the same plan is bought again after Stop Renewing', async () => {
+    await paidPeriod(alice, -2);
+    await setPlanRenewal(db, self(alice), { renews: false });
+    const again = await startPersonCheckout(db, self(alice), { planId });
+    if (!isOk(again)) throw new Error('checkout');
+    expect(await payInvoice(alice, again.value.invoiceId)).toBe('recorded');
+    const [sub] = await db
+      .select({ renews: personSubscriptions.renews, endedAt: personSubscriptions.endedAt })
+      .from(personSubscriptions)
+      .where(eq(personSubscriptions.payerAccountId, alice));
+    expect(sub).toEqual({ renews: true, endedAt: null });
+  });
+
+  it('cancels a renewal left open on a plan that is no longer theirs', async () => {
+    await paidPeriod(alice, 5);
+    await run(new Date());
+    const renewal = (await invoicesOf(alice))[1];
+    await db
+      .update(personSubscriptions)
+      .set({ endedAt: new Date() })
+      .where(eq(personSubscriptions.payerAccountId, alice));
+    await run(new Date());
+    expect((await invoicesOf(alice)).find((i) => i.id === renewal?.id)?.status).toBe('VOID');
+    const due = (await notices(alice)).filter((n) => n.event_type === 'PERSON_PLAN_RENEWAL_DUE');
+    expect(due.every((n) => n.status === 'CANCELLED')).toBe(true);
+  });
+
+  it('gives a renewal a lower price at once', async () => {
+    await paidPeriod(alice, 5);
+    await db.insert(schema.planPrices).values({
+      planId,
+      priceMinorUnits: 29_900,
+      currency: 'BDT',
+      effectiveFrom: new Date(Date.now() - DAY),
+    });
+    await run(new Date());
+    expect((await invoicesOf(alice))[1]?.amount).toBe(29_900);
+  });
+
+  it('says Paid until the end of a renewal paid ahead', async () => {
+    const end = await paidPeriod(alice, 5);
+    await run(new Date());
+    const renewal = (await invoicesOf(alice))[1];
+    if (!renewal) throw new Error('renewal');
+    expect(await payInvoice(alice, renewal.id)).toBe('recorded');
+    const summary = await getTravellerPlanSummary(db, { actorAccountId: alice });
+    expect(summary.paidUntil?.getTime()).toBe(end.getTime() + 30 * DAY - 1);
   });
 });

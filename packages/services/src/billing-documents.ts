@@ -6,6 +6,7 @@ import {
   formatBillingDate,
   formatBillingDateTime,
   formatBillingPeriod,
+  formatCoveredPeriod,
   formatMoney,
   ok,
   paymentKindWords,
@@ -349,6 +350,8 @@ function receiptDocument(
   facts: ReceiptDocumentCore,
   payer: BillingDocument['billedTo'],
   now: Date,
+  /** How the paid period reads: an agency's starts at a day, a person's at any moment. */
+  period: (start: Date, end: Date) => string = formatBillingPeriod,
 ): BillingDocument {
   const money = (minor: number) => formatMoney(minor, facts.currency);
   const number = formatReceiptNumber(facts.receiptNumber);
@@ -383,13 +386,7 @@ function receiptDocument(
       {
         heading: 'For Invoice',
         columns: ['Invoice', 'Plan', 'Period'],
-        rows: [
-          [
-            facts.invoiceRef,
-            facts.planName,
-            formatBillingPeriod(facts.periodStart, facts.periodEnd),
-          ],
-        ],
+        rows: [[facts.invoiceRef, facts.planName, period(facts.periodStart, facts.periodEnd)]],
       },
     ],
     notes: [
@@ -424,8 +421,10 @@ export interface PersonInvoiceDocumentFacts {
   readonly periodStart: Date;
   readonly periodEnd: Date;
   readonly planName: string;
-  /** When the invoice was paid in full, if it was. */
+  /** When the invoice was paid in full, if it was (kept after a refund). */
   readonly paidAt: Date | null;
+  /** Whether it can still be paid, or a payment on it is still being confirmed (T4). */
+  readonly stillPayable: boolean;
   readonly payer: PersonPayer;
   readonly payments: readonly InvoiceDocumentPayment[];
 }
@@ -449,6 +448,8 @@ export function personInvoiceDocumentStamp(facts: {
   readonly status: InvoiceDocumentFacts['status'];
   readonly collectedAmountMinorUnits: number;
   readonly refunded: boolean;
+  /** Whether it can still be paid, or a payment on it is still being confirmed (T4). */
+  readonly stillPayable: boolean;
 }): BillingDocumentStamp {
   if (facts.status === 'VOID') return { label: 'Cancelled', tone: 'cancelled' };
   if (facts.refunded) {
@@ -457,8 +458,14 @@ export function personInvoiceDocumentStamp(facts: {
       : { label: 'Refunded', tone: 'refunded' };
   }
   if (facts.status === 'PAID') return { label: 'Paid', tone: 'paid' };
+  if (facts.collectedAmountMinorUnits === 0 && !facts.stillPayable) {
+    return { label: PERSON_NOT_PAID_LABEL, tone: 'cancelled' };
+  }
   return { label: 'Waiting for Payment', tone: 'open' };
 }
+
+/** A person's purchase or renewal left unpaid past the time it could be paid in. */
+export const PERSON_NOT_PAID_LABEL = 'Not Paid';
 
 /** A person's own invoice document, in words. Pure. */
 export function buildPersonInvoiceDocument(
@@ -481,9 +488,11 @@ export function buildPersonInvoiceDocument(
         : 'The money paid on this invoice was refunded. There is nothing to pay.',
     );
   } else if (facts.status === 'PAID') notes.push('This invoice is paid in full. Thank you.');
-  else {
+  else if (stamp.label === PERSON_NOT_PAID_LABEL) {
+    notes.push('This invoice was not paid in time, so nothing was charged and you owe nothing.');
+  } else {
     notes.push(
-      'This invoice is not paid yet, and you owe nothing. The plan covers you only once it is paid online, from Plan & Usage in VisaStack.',
+      'This invoice is not paid yet, and you owe nothing. The plan covers you only once it is paid online. While it can still be paid, Plan & Usage in VisaStack shows it.',
     );
   }
 
@@ -496,10 +505,8 @@ export function buildPersonInvoiceDocument(
     facts: [
       { label: 'Invoice Number', value: facts.invoiceRef },
       { label: 'Issue Date', value: formatBillingDate(facts.issuedAt) },
-      ...(facts.paidAt && facts.status === 'PAID'
-        ? [{ label: 'Paid On', value: formatBillingDate(facts.paidAt) }]
-        : []),
-      { label: 'Period', value: formatBillingPeriod(facts.periodStart, facts.periodEnd) },
+      ...(facts.paidAt ? [{ label: 'Paid On', value: formatBillingDate(facts.paidAt) }] : []),
+      { label: 'Period', value: formatCoveredPeriod(facts.periodStart, facts.periodEnd) },
     ],
     billedTo: personBilledTo(facts.payer),
     items: {
@@ -508,7 +515,7 @@ export function buildPersonInvoiceDocument(
       rows: [
         [
           facts.planName,
-          formatBillingPeriod(facts.periodStart, facts.periodEnd),
+          formatCoveredPeriod(facts.periodStart, facts.periodEnd),
           money(facts.invoicedAmountMinorUnits),
         ],
       ],
@@ -533,7 +540,7 @@ export function buildPersonReceiptDocument(
   facts: PersonReceiptDocumentFacts,
   now: Date,
 ): BillingDocument {
-  return receiptDocument(facts, personBilledTo(facts.payer), now);
+  return receiptDocument(facts, personBilledTo(facts.payer), now, formatCoveredPeriod);
 }
 
 // --- Reading ----------------------------------------------------------------------------------

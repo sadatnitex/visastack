@@ -148,10 +148,16 @@ export async function setRenewalAction(_prev: FormResult, formData: FormData): P
     };
   }
   revalidatePath(PLAN_PATH);
-  return {
-    ok: true,
-    message: renews
-      ? 'Renewing is on again. We remind you 7 days before your plan ends.'
-      : 'Renewing is off. Your plan still covers you until it ends, and nothing is charged.',
-  };
+  const change = outcome.value;
+  let message: string;
+  if (renews) {
+    message = change.renewalReady
+      ? 'Renewing is on again. Your renewal is ready to pay above.'
+      : 'Renewing is on again. We remind you 7 days before your plan ends.';
+  } else {
+    message = change.ended
+      ? 'Renewing is off. Nothing is charged.'
+      : 'Renewing is off. Your plan still covers you until it ends, and nothing is charged.';
+  }
+  return { ok: true, message };
 }

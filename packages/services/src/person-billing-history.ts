@@ -5,6 +5,7 @@ import {
   type BillingDocument,
   type BillingDocumentTone,
   type InvoiceDocumentPayment,
+  PERSON_NOT_PAID_LABEL,
   type PersonPayer,
   buildPersonInvoiceDocument,
   buildPersonReceiptDocument,
@@ -14,8 +15,12 @@ import { invoiceHasRefundSql } from './billing-standing';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isUuid, normalizeCurrency } from './invoice-ledger';
-import { personInvoiceInTime, referenceCode } from './person-billing';
-import { personInvoices, personPaymentReceipts } from './person-billing-tables';
+import { IN_FLIGHT_ATTEMPTS, personInvoiceInTime, referenceCode } from './person-billing';
+import {
+  personInvoices,
+  personPaymentAttempts,
+  personPaymentReceipts,
+} from './person-billing-tables';
 import { formatReceiptNumber } from './receipts';
 import { personBillingPresent } from './traveller-billing';
 
@@ -40,7 +45,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const NOT_FOUND = 'document not found';
 
 /** Where a purchase stands, in the words the page and the PDF both use. */
-export type OwnPurchaseStatus = 'paid' | 'waiting' | 'cancelled' | 'refunded';
+export type OwnPurchaseStatus = 'paid' | 'waiting' | 'not_paid' | 'cancelled' | 'refunded';
 
 export interface OwnReceiptView {
   readonly id: string;
@@ -78,9 +83,6 @@ export interface OwnPurchaseView {
   readonly receipts: readonly OwnReceiptView[];
 }
 
-/** A purchase or renewal left unpaid past the time it could be paid in. */
-const NOT_PAID = 'Not Paid';
-
 function statusOf(tone: BillingDocumentTone): OwnPurchaseStatus {
   if (tone === 'paid') return 'paid';
   if (tone === 'refunded') return 'refunded';
@@ -89,6 +91,41 @@ function statusOf(tone: BillingDocumentTone): OwnPurchaseStatus {
 }
 
 const refundedSql = () => sql<boolean>`${invoiceHasRefundSql(sql`${personInvoices.id}`)}`;
+
+/**
+ * Which of these unpaid invoices of the person can still be paid, or have a payment on the way
+ * (a confirmation can arrive days later): those still read "Waiting for Payment", the rest "Not
+ * Paid". The same rule as paying (`personInvoiceInTime`).
+ */
+async function stillPayable(
+  db: Db,
+  accountId: string,
+  invoices: readonly {
+    readonly id: string;
+    readonly subscriptionId: string | null;
+    readonly periodStart: Date;
+  }[],
+  now: Date,
+): Promise<ReadonlySet<string>> {
+  const payable = new Set(
+    invoices.filter((row) => personInvoiceInTime(row, now)).map((row) => row.id),
+  );
+  const others = invoices.filter((row) => !payable.has(row.id)).map((row) => row.id);
+  if (others.length === 0) return payable;
+  const a = personPaymentAttempts;
+  const confirming = await db
+    .select({ invoiceId: a.invoiceId })
+    .from(a)
+    .where(
+      and(
+        eq(a.payerAccountId, accountId),
+        inArray(a.invoiceId, others),
+        inArray(a.status, [...IN_FLIGHT_ATTEMPTS]),
+      ),
+    );
+  for (const row of confirming) payable.add(row.invoiceId);
+  return payable;
+}
 
 /**
  * Whether the signed-in person has any purchase invoice at all. One small read, so a page can
@@ -146,6 +183,7 @@ export async function listOwnBilling(
     .orderBy(desc(i.createdAt), desc(i.periodStart), desc(i.id));
   if (invoices.length === 0) return ok([]);
   const ids = invoices.map((row) => row.id);
+  const payable = await stillPayable(db, accountId, invoices, now);
 
   // How each invoice was paid (test or real money). The ledger has no payer column; it is read
   // only for invoices already proven to be this person's.
@@ -193,20 +231,17 @@ export async function listOwnBilling(
         status: row.status,
         collectedAmountMinorUnits: row.collectedAmountMinorUnits,
         refunded,
+        stillPayable: payable.has(row.id),
       });
-      // An unpaid purchase past the time it could be paid in is not waiting any more (T4).
-      const lapsed =
-        stamp.tone !== 'paid' &&
-        stamp.tone !== 'refunded' &&
-        stamp.tone !== 'cancelled' &&
-        row.collectedAmountMinorUnits === 0 &&
-        !personInvoiceInTime(row, now);
-      const status = lapsed ? 'cancelled' : statusOf(stamp.tone);
+      const status = stamp.label === PERSON_NOT_PAID_LABEL ? 'not_paid' : statusOf(stamp.tone);
       const money = ledger.filter((entry) => entry.invoiceId === row.id && entry.kind !== 'REFUND');
       const testPayment = money.length > 0 && money.every((entry) => entry.mode === 'TEST');
-      const paidAt = status === 'paid' ? row.collectedDate : null;
+      // The day it was paid stays after a refund (a refunded invoice is no longer PAID).
+      const paidAt = status === 'paid' || status === 'refunded' ? row.collectedDate : null;
       const windowEnd =
-        paidAt === null ? null : new Date(paidAt.getTime() + PERSON_REFUND_WINDOW_DAYS * DAY_MS);
+        status !== 'paid' || paidAt === null
+          ? null
+          : new Date(paidAt.getTime() + PERSON_REFUND_WINDOW_DAYS * DAY_MS);
       const refundableUntil =
         windowEnd !== null && !testPayment && windowEnd.getTime() > now.getTime()
           ? windowEnd
@@ -218,7 +253,7 @@ export async function listOwnBilling(
         amountMinorUnits: row.amountMinorUnits,
         currency: normalizeCurrency(row.currency),
         status,
-        statusLabel: lapsed ? NOT_PAID : stamp.label,
+        statusLabel: stamp.label,
         periodStart: row.periodStart,
         periodEnd: row.periodEnd,
         paidAt,
@@ -270,6 +305,7 @@ export async function ownInvoiceDocument(
         periodStart: i.periodStart,
         periodEnd: i.periodEnd,
         collectedDate: i.collectedDate,
+        subscriptionId: i.subscriptionId,
         planName: schema.plans.name,
       })
       .from(i)
@@ -316,7 +352,13 @@ export async function ownInvoiceDocument(
         periodStart: row.periodStart,
         periodEnd: row.periodEnd,
         planName: row.planName,
-        paidAt: row.status === 'PAID' ? row.collectedDate : null,
+        paidAt:
+          row.status === 'PAID' || payments.some((entry) => entry.kind === 'REFUND')
+            ? row.collectedDate
+            : null,
+        stillPayable: (
+          await stillPayable(db, self.accountId, [{ id: invoiceId, ...row }], now)
+        ).has(invoiceId),
         payer: await payerOf(db, self.accountId),
         payments,
       },

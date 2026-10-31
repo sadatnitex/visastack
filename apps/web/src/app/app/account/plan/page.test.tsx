@@ -430,6 +430,7 @@ describe('renewing a paid plan on Plan & Usage (ADR 0025 T4)', () => {
     return {
       planName: 'Traveller Plus',
       renews: true,
+      renewable: true,
       paidUntil,
       payableUntil: new Date(paidUntil.getTime() + 7 * DAY),
       openRenewal: { invoiceId: RENEWAL, amountMinorUnits: 49900, currency: 'BDT' },
@@ -509,6 +510,16 @@ describe('renewing a paid plan on Plan & Usage (ADR 0025 T4)', () => {
     expect(text).toContain('You can still renew Traveller Plus above and keep it.');
     expect(text).toContain('Renew Now');
     expect(stubProps(html, 'BuyPlanForm')).toHaveLength(0);
+  });
+
+  it('says a plan no longer offered simply ends, with no renewal controls', async () => {
+    const view = renewal({ renewable: false, openRenewal: null });
+    covered(view.paidUntil);
+    mocks.renewal.mockResolvedValue(view);
+    const html = await renderServer(Page({}));
+    expect(textOf(html)).toContain('Traveller Plus is no longer offered, so it ends after');
+    expect(stubProps(html, 'RenewalForm')).toHaveLength(0);
+    expect(textOf(html)).not.toContain('Renew Now');
   });
 
   it('reads no renewal while selling is switched off', async () => {

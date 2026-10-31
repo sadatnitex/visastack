@@ -6,11 +6,13 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { selfPrincipal } from './access/principal';
+import { systemScopeForTest } from './access/system-scope.test-support';
 import { provisionAccount } from './accounts';
+import { runBillingCycle } from './billing-cycle';
 import type { Db } from './db';
 import { settlePaymentAttempt, startPersonPayment } from './payments';
 import { FakePaymentPort, onePort } from './payments.test-support';
-import { startPersonCheckout } from './person-billing';
+import { setPlanRenewal, startPersonCheckout } from './person-billing';
 import {
   PERSON_REFUND_WINDOW_DAYS,
   hasOwnBilling,
@@ -18,7 +20,11 @@ import {
   ownInvoiceDocument,
   ownReceiptDocument,
 } from './person-billing-history';
-import { personInvoices, personPaymentAttempts } from './person-billing-tables';
+import {
+  personInvoices,
+  personPaymentAttempts,
+  personSubscriptions,
+} from './person-billing-tables';
 import { grantPlatformRole } from './platform-roles';
 
 /**
@@ -187,7 +193,7 @@ describe("a person's own Billing History (ADR 0025 T5)", () => {
     const later = await listOwnBilling(db, self(alice), { now: new Date(Date.now() + 2 * DAY_MS) });
     if (!later.ok) throw new Error('history');
     expect(later.value.find((p) => p.invoiceRef === older.invoiceRef)).toMatchObject({
-      status: 'cancelled',
+      status: 'not_paid',
       statusLabel: 'Not Paid',
     });
   });
@@ -206,6 +212,36 @@ describe("a person's own Billing History (ADR 0025 T5)", () => {
     expect(tooLate[0]?.refundableUntil).toBeNull();
   });
 
+  it('shows a renewal the daily run made as waiting, from the end of the paid period, and Cancelled after Stop Renewing (T4)', async () => {
+    const made = await checkout(alice);
+    await payAndRecord(alice, made.invoiceId);
+    // Move the paid period so it ends in 5 days, then let the daily run make the renewal.
+    const end = new Date(Date.now() + 5 * DAY_MS);
+    await db
+      .update(personInvoices)
+      .set({ periodStart: new Date(end.getTime() - 30 * DAY_MS), periodEnd: end })
+      .where(eq(personInvoices.id, made.invoiceId));
+    await db
+      .update(personSubscriptions)
+      .set({ startedAt: new Date(end.getTime() - 30 * DAY_MS) })
+      .where(eq(personSubscriptions.payerAccountId, alice));
+    await runBillingCycle(db, systemScopeForTest('process-billing-cycle'), { now: new Date() });
+    const [renewal, original] = await history(alice);
+    expect(original?.status).toBe('paid');
+    expect(renewal).toMatchObject({ status: 'waiting', statusLabel: 'Waiting for Payment' });
+    expect(renewal?.periodStart.getTime()).toBe(end.getTime());
+    // Still waiting through the grace week, and not paid after it.
+    expect((await history(alice, new Date(end.getTime() + 6 * DAY_MS)))[0]?.status).toBe('waiting');
+    expect((await history(alice, new Date(end.getTime() + 8 * DAY_MS)))[0]?.status).toBe(
+      'not_paid',
+    );
+    expect(isOk(await setPlanRenewal(db, self(alice), { renews: false }))).toBe(true);
+    expect((await history(alice))[0]).toMatchObject({
+      status: 'cancelled',
+      statusLabel: 'Cancelled',
+    });
+  });
+
   it('shows a refunded purchase as Refunded, with no further refund offered', async () => {
     const made = await checkout(alice);
     await payAndRecord(alice, made.invoiceId);
@@ -214,9 +250,10 @@ describe("a person's own Billing History (ADR 0025 T5)", () => {
     expect(refunded).toMatchObject({
       status: 'refunded',
       statusLabel: 'Refunded',
-      paidAt: null,
       refundableUntil: null,
     });
+    // The day it was paid stays on the record after the refund.
+    expect(refunded?.paidAt).toBeInstanceOf(Date);
     // The receipt for the money that came in is still part of the record.
     expect(refunded?.receipts.map((r) => r.number)).toEqual(['R-000001']);
     const doc = await ownInvoiceDocument(db, self(alice), made.invoiceId);

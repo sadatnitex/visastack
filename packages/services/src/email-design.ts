@@ -311,7 +311,7 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     why: 'Renew it to keep your extra room. Nothing is charged unless you pay.',
     action: 'Renew Your Plan',
     after:
-      'Do not want it any more? Choose Stop Renewing on Plan & Usage and these reminders stop.',
+      'Do not want it any more? Choose Stop Renewing on Plan & Usage and we stop reminding you.',
   },
   PERSON_PLAN_ENDED: {
     eyebrow: 'Your Plan',

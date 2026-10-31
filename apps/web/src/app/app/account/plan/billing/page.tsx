@@ -1,7 +1,8 @@
 import {
   TEST_PAYMENT_LABEL,
   formatBillingDate,
-  formatBillingPeriod,
+  formatBillingDateTime,
+  formatCoveredPeriod,
   formatMoney,
 } from '@visastack/core';
 import {
@@ -82,6 +83,7 @@ export default async function BillingHistoryPage() {
 const STATUS_TONES: Readonly<Record<OwnPurchaseStatus, 'success' | 'neutral' | 'warning'>> = {
   paid: 'success',
   waiting: 'neutral',
+  not_paid: 'neutral',
   cancelled: 'neutral',
   refunded: 'warning',
 };
@@ -90,9 +92,18 @@ const STATUS_TONES: Readonly<Record<OwnPurchaseStatus, 'success' | 'neutral' | '
 const STATUS_NOTES: Readonly<Record<OwnPurchaseStatus, string>> = {
   paid: 'Paid. Your plan covers the period shown.',
   waiting: 'Not paid. You owe nothing: the plan covers you only once it is paid.',
+  not_paid: 'Not paid in time, so nothing was charged and you owe nothing.',
   cancelled: 'Cancelled. There is nothing to pay.',
   refunded: 'The money paid for this was refunded.',
 };
+
+/** The note under the status; a partial refund says only part was refunded. */
+function statusNote(purchase: OwnPurchaseView): string {
+  if (purchase.status === 'refunded' && purchase.statusLabel === 'Partly Refunded') {
+    return 'Part of the money paid for this was refunded.';
+  }
+  return STATUS_NOTES[purchase.status];
+}
 
 function PurchaseCard({
   purchase,
@@ -116,7 +127,7 @@ function PurchaseCard({
           ) : null}
         </span>
       </div>
-      <p className="invoice-note">{STATUS_NOTES[purchase.status]}</p>
+      <p className="invoice-note">{statusNote(purchase)}</p>
       <dl className="invoice-facts">
         <div>
           <dt>Plan</dt>
@@ -128,7 +139,7 @@ function PurchaseCard({
         </div>
         <div>
           <dt>Period</dt>
-          <dd>{formatBillingPeriod(purchase.periodStart, purchase.periodEnd)}</dd>
+          <dd>{formatCoveredPeriod(purchase.periodStart, purchase.periodEnd)}</dd>
         </div>
         {purchase.paidAt ? (
           <div>
@@ -215,8 +226,8 @@ function RefundRequest({
         Refund
       </h3>
       <p className="invoice-note">
-        You can ask for a full refund until {formatBillingDate(until)}, and you do not need to give
-        a reason. Your plan ends once the refund is made.
+        You can ask for a full refund until {formatBillingDateTime(until)} (Bangladesh time), and
+        you do not need to give a reason. The period it paid for ends once the refund is made.
       </p>
       {mailto ? (
         <a className="invoice-link" href={mailto}>

@@ -175,8 +175,14 @@ function RenewalControls({ renewal, now }: { readonly renewal: OwnRenewal; reado
   const until = lastDay(renewal.paidUntil);
   const open = renewal.renews ? renewal.openRenewal : null;
   let words: string;
-  if (ended && renewal.renews) {
+  if (!renewal.renewable) {
+    words = ended
+      ? `${renewal.planName} covered you until ${until} and is no longer offered. You can choose another plan below.`
+      : `${renewal.planName} is no longer offered, so it ends after ${until}. Nothing is charged, and you can choose another plan then.`;
+  } else if (ended && open) {
     words = `${renewal.planName} covered you until ${until}. You can still renew it until ${lastDay(renewal.payableUntil)} and keep it.`;
+  } else if (ended && renewal.renews) {
+    words = `${renewal.planName} covered you until ${until}. You can get it again below.`;
   } else if (ended) {
     words = `${renewal.planName} covered you until ${until}. Choose Keep Renewing by ${lastDay(renewal.payableUntil)} if you want it back without starting again.`;
   } else if (!renewal.renews) {
@@ -198,7 +204,7 @@ function RenewalControls({ renewal, now }: { readonly renewal: OwnRenewal; reado
             Renew Now
           </Link>
         ) : null}
-        <RenewalForm renews={renewal.renews} />
+        {renewal.renewable ? <RenewalForm renews={renewal.renews} /> : null}
       </div>
     </div>
   );
@@ -261,7 +267,8 @@ function ConfirmPurchase({
         </>
       ) : (
         <p className="card-body">
-          This purchase can no longer be paid. It may already be paid, or be more than a day old.
+          This purchase can no longer be paid. It may already be paid, or its time to pay may be
+          over.
           {canBuy ? ' You can start it again below.' : ''}
         </p>
       )}
@@ -306,22 +313,25 @@ export default async function TravellerPlanPage({
     // This account's limits: its plan's storage rules, else the upload settings (ADR 0025).
     const limits = storageLimitsFrom(summary.storage, quota);
     // Selling (ADR 0025 T3c): only while switched on, and only plans on sale now.
-    const catalogue = selling ? await listTravellerPlansForSale(db) : null;
-    const purchase =
-      selling && purchaseParam !== null && ID.test(purchaseParam)
-        ? await getOwnPurchase(db, self, { invoiceId: purchaseParam })
-        : null;
     // Renewing (T4): the person's current paid plan and its renewal, while selling is on.
-    const renewal = selling ? await getOwnRenewal(db, self) : null;
     // Billing History (T5): linked once there is something of theirs to show, switch or not.
-    const billing = await hasOwnBilling(db, self);
+    const [catalogue, purchase, renewal, billing] = await Promise.all([
+      selling ? listTravellerPlansForSale(db) : null,
+      selling && purchaseParam !== null && ID.test(purchaseParam)
+        ? getOwnPurchase(db, self, { invoiceId: purchaseParam })
+        : null,
+      selling ? getOwnRenewal(db, self) : null,
+      hasOwnBilling(db, self),
+    ]);
     return { summary, aiUsage, profiles, quota, limits, catalogue, purchase, renewal, billing };
   });
   const { summary, aiUsage, profiles, quota, limits, catalogue, purchase, renewal, billing } = data;
   const now = new Date();
   // Inside the grace week after a paid period, renewing it is the next step, not a new purchase.
   const waitingPlan =
-    renewal?.renews && renewal.paidUntil.getTime() <= now.getTime() ? renewal.planName : null;
+    renewal?.renews && renewal.openRenewal !== null && renewal.paidUntil.getTime() <= now.getTime()
+      ? renewal.planName
+      : null;
   const renewalWaiting = waitingPlan !== null;
   const usedBytes = profiles.reduce((total, profile) => total + profile.usedBytes, 0);
   const offered = catalogue !== null && catalogue.offers.length > 0;

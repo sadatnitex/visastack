@@ -141,7 +141,10 @@ describe('buying a paid plan (ADR 0025 T3c)', () => {
 
 describe('Stop Renewing and Keep Renewing (ADR 0025 T4)', () => {
   it("changes only the session's own plan, and says what happens next", async () => {
-    mocks.renewal.mockResolvedValue({ ok: true, value: { renews: false } });
+    mocks.renewal.mockResolvedValue({
+      ok: true,
+      value: { renews: false, renewalReady: false, ended: false },
+    });
     const stopped = await setRenewalAction(INITIAL, form({ renews: 'no' }));
     expect(mocks.renewal.mock.calls[0]?.[1]).toBe(SELF);
     expect(mocks.renewal.mock.calls[0]?.[2]).toEqual({ renews: false });
@@ -150,9 +153,23 @@ describe('Stop Renewing and Keep Renewing (ADR 0025 T4)', () => {
       message: 'Renewing is off. Your plan still covers you until it ends, and nothing is charged.',
     });
     expect(mocks.revalidate).toHaveBeenCalledWith('/app/account/plan');
-    mocks.renewal.mockResolvedValue({ ok: true, value: { renews: true } });
-    expect((await setRenewalAction(INITIAL, form({ renews: 'yes' }))).ok).toBe(true);
+    mocks.renewal.mockResolvedValue({
+      ok: true,
+      value: { renews: true, renewalReady: true, ended: true },
+    });
+    expect(await setRenewalAction(INITIAL, form({ renews: 'yes' }))).toEqual({
+      ok: true,
+      message: 'Renewing is on again. Your renewal is ready to pay above.',
+    });
     expect(mocks.renewal.mock.calls[1]?.[2]).toEqual({ renews: true });
+    // After the paid period has ended, nothing says it still covers them.
+    mocks.renewal.mockResolvedValue({
+      ok: true,
+      value: { renews: false, renewalReady: false, ended: true },
+    });
+    expect((await setRenewalAction(INITIAL, form({ renews: 'no' }))).message).toBe(
+      'Renewing is off. Nothing is charged.',
+    );
   });
 
   it('refuses a choice that is not one of the two, and words a missing plan plainly', async () => {

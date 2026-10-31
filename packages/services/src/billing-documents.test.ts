@@ -244,6 +244,7 @@ describe("a person's own documents in words (ADR 0025 T5)", () => {
     periodEnd: new Date('2026-12-01T04:00:00Z'),
     planName: 'Traveller Plus',
     paidAt: new Date('2026-11-01T04:10:00Z'),
+    stillPayable: false,
     payer,
     payments: [
       {
@@ -275,23 +276,47 @@ describe("a person's own documents in words (ADR 0025 T5)", () => {
       { label: 'Paid', value: `BDT${NBSP}499.00`, strong: true },
     ]);
     expect(JSON.stringify(doc)).not.toMatch(/Agency|Still Owed|Due Date|Overdue|workspace/);
+    // A period starting mid-day ends on the day of its last covered moment, as Plan & Usage says.
+    expect(doc.facts.find((f) => f.label === 'Period')?.value).toBe('1 Nov 2026 to 1 Dec 2026');
   });
 
   it('never stamps an unpaid person invoice Overdue, however old', () => {
     const doc = buildPersonInvoiceDocument(
-      personFacts({ status: 'OPEN', collectedAmountMinorUnits: 0, paidAt: null, payments: [] }),
+      personFacts({
+        status: 'OPEN',
+        collectedAmountMinorUnits: 0,
+        paidAt: null,
+        payments: [],
+        stillPayable: true,
+      }),
       new Date('2027-06-01T00:00:00Z'),
     );
     expect(doc.stamp).toEqual({ label: 'Waiting for Payment', tone: 'open' });
     expect(doc.notes[0]).toContain('you owe nothing');
+    // Past the time it could be paid in, it says so: the page and the PDF use the same word.
+    const lapsed = buildPersonInvoiceDocument(
+      personFacts({ status: 'OPEN', collectedAmountMinorUnits: 0, paidAt: null, payments: [] }),
+      NOW,
+    );
+    expect(lapsed.stamp).toEqual({ label: 'Not Paid', tone: 'cancelled' });
+    expect(lapsed.notes[0]).toBe(
+      'This invoice was not paid in time, so nothing was charged and you owe nothing.',
+    );
     expect(
-      personInvoiceDocumentStamp({ status: 'VOID', collectedAmountMinorUnits: 0, refunded: false }),
+      personInvoiceDocumentStamp({
+        status: 'VOID',
+        collectedAmountMinorUnits: 0,
+        refunded: false,
+        stillPayable: true,
+      }),
     ).toEqual({ label: 'Cancelled', tone: 'cancelled' });
   });
 
   it('shows a refund and what was kept', () => {
+    // A full refund leaves the invoice open with nothing collected (invoiceStatusForTotals).
     const doc = buildPersonInvoiceDocument(
       personFacts({
+        status: 'OPEN',
         collectedAmountMinorUnits: 0,
         payments: [
           ...personFacts().payments,
@@ -339,7 +364,20 @@ describe("a person's own documents in words (ADR 0025 T5)", () => {
       name: 'rahim@example.test',
       lines: ['Reference Code A1B2C3D4'],
     });
-    expect({ ...person, billedTo: null }).toEqual({ ...agency, billedTo: null });
+    // The same receipt apart from who paid, and the period: a person's starts at the moment they
+    // bought, so its last day is the day of its last covered moment.
+    const period = (doc: typeof person) => doc.sections[0]?.rows[0]?.[2];
+    expect(period(person)).toBe('1 Nov 2026 to 1 Dec 2026');
+    expect(period(agency)).toBe('1 Nov 2026 to 30 Nov 2026');
+    const without = (doc: typeof person) => ({
+      ...doc,
+      billedTo: null,
+      sections: doc.sections.map((section) => ({
+        ...section,
+        rows: section.rows.map((row) => row.slice(0, 2)),
+      })),
+    });
+    expect(without(person)).toEqual(without(agency));
     // After the account is gone, the receipt says so instead of naming anyone.
     expect(
       buildPersonReceiptDocument({ ...core, payer: { ...payer, email: null } }, NOW).billedTo.name,
