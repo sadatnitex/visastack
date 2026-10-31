@@ -145,11 +145,9 @@ jobs:
 
       # The service suite is the largest by far, so it is split by file into six shards that
       # run at the same time (three took about 7 minutes each and held up every pull request).
-      # Every shard runs the whole of its share; nothing is skipped. One worker per core (four on
-      # the public-repository runner; measured 31 Oct 2026: shard 1 took 295 s with two workers,
-      # 208 s with four). A percentage, so a smaller runner never gets more workers than cores.
+      # Every shard runs the whole of its share; nothing is skipped.
       - name: Test
-        run: pnpm --filter @visastack/services test --shard=${{ matrix.shard }}/6 --maxWorkers=100%
+        run: pnpm --filter @visastack/services test --shard=${{ matrix.shard }}/6 --maxWorkers=2
 
   test-web:
     name: Test web (${{ matrix.shard }}/3)
@@ -179,10 +177,9 @@ jobs:
 
       # The web suite (about 400 files) was the longest job once the services were split, so it
       # is split by file into three shards too. Packages load from source, so no build is needed
-      # first. Every shard runs the whole of its share; nothing is skipped. One worker per core, as
-      # above (measured 31 Oct 2026: shard 1 took 79 s with two workers, 52 s with four).
+      # first. Every shard runs the whole of its share; nothing is skipped.
       - name: Test
-        run: pnpm --filter @visastack/web test --shard=${{ matrix.shard }}/3 --maxWorkers=100%
+        run: pnpm --filter @visastack/web test --shard=${{ matrix.shard }}/3 --maxWorkers=2
 
   test-packages:
     name: Test other packages
