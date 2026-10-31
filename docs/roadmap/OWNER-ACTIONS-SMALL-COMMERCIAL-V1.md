@@ -328,3 +328,7 @@ Nothing changes for anyone on deploy: Agency AI Tools is off, every agency's set
 ## Paid traveller plans: decisions before build (added 31 Oct 2026)
 
 Design: `docs/adr/0025-paid-traveller-plans.md`. Decided 31 Oct 2026: the owner chose the recommended defaults D1 to D14 ("use the defaults"). The ones that cannot be defaulted away: the Plus price (set on the Plans page), the accountant's VAT answer before live selling (D7), the lawyer's review of the sale, renewal and refund wording (D12), and the "go live" word after O6.
+
+## Paid traveller plans T1: O8 for migration 0110 (added 31 Oct 2026)
+
+Given 31 Oct 2026: the owner asked for migration 0110 to run after the T1 pull request merges (runbook: `docs/operations/traveller-plans.md`). It only adds; nothing changes for anyone once it has run. Between the merge and the run, readiness reports the database as behind. T2 waits for it. Migration numbers follow merge order: if the payment provider package (S19) reaches main first with its own migration, T1's is renumbered before merging.
