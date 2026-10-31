@@ -425,8 +425,10 @@ describe('S16: no value, task text, document text, token or code in AI audit or 
         'documents',
         'documentTexts',
         'depth',
+        // S22 round 2: one random id per tool call, so a call is counted once.
+        'callId',
       ],
-      AI_CONTEXT_DENIED: ['clientHost', 'tool', 'caseMode', 'reason', 'withheld'],
+      AI_CONTEXT_DENIED: ['clientHost', 'tool', 'caseMode', 'reason', 'withheld', 'callId'],
     };
     for (const row of await aiAuditRows()) {
       const keysAllowed = allowedKeys[row.eventType];

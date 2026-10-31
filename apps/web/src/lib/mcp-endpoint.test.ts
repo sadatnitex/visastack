@@ -138,6 +138,8 @@ describe('the AI context address: sign-in challenge', () => {
         token: TOKEN,
         resource: RESOURCE,
         admission: ADMISSION,
+        // Not a tool call: the agency standing is checked here, not left to the gate.
+        toolCall: false,
       },
     );
   });
@@ -316,7 +318,11 @@ describe('the AI context address: limits', () => {
     expect(body.id).toBe(3);
     expect(body.error.message).toMatch(/too large/);
     // Recorded as withheld for that connection and tool.
-    expect(mocks.withheld).toHaveBeenCalledWith({}, { connectionId: 'conn-1', tool: 'list_cases' });
+    expect(mocks.withheld).toHaveBeenCalledWith(
+      {},
+      // S22 round 2: with the call's id, so every record of that call gets its withheld record.
+      { connectionId: 'conn-1', tool: 'list_cases', callId: expect.any(String) },
+    );
   });
 
   it('refuses a batch, so the limit counts every tool call', async () => {
@@ -516,7 +522,11 @@ describe('the AI context address: files (S20)', () => {
     expect(((await other.json()) as { error: { message: string } }).error.message).toMatch(
       /too large/,
     );
-    expect(mocks.withheld).toHaveBeenCalledWith({}, { connectionId: 'conn-1', tool: 'list_cases' });
+    expect(mocks.withheld).toHaveBeenCalledWith(
+      {},
+      // S22 round 2: with the call's id, so every record of that call gets its withheld record.
+      { connectionId: 'conn-1', tool: 'list_cases', callId: expect.any(String) },
+    );
   });
 
   it('runs without file deps when none are wired', async () => {

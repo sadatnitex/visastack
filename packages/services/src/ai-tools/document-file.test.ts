@@ -367,6 +367,7 @@ describe('get_document_file: a Safe Copy by default', () => {
     expect(served).toHaveLength(1);
     expect(served[0]?.resourceId).toBe(connectionId);
     expect(served[0]?.metadata).toEqual({
+      callId: expect.any(String),
       clientHost: 'claude.ai',
       tool: 'get_document_file',
       layers: [],
