@@ -7,7 +7,6 @@ import {
 } from '@visastack/core';
 import {
   PERSON_REFUNDS_UNAVAILABLE,
-  PERSON_REFUND_WINDOW_DAYS,
   type RefundStatus,
   type TravellerBilling,
   type TravellerBillingResult,
@@ -45,7 +44,6 @@ export const metadata: Metadata = { title: 'Traveller Billing' };
 
 export const dynamic = 'force-dynamic';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 const CODE_FIELD = 'traveller-code';
 const CODE_ERROR = 'traveller-code-error';
 const NOT_FOUND = 'No traveller has that reference code or purchase reference.';
@@ -385,8 +383,8 @@ function RefundForms({
         invoiceRef: held.invoiceRef,
         amountMinorUnits: held.remainingMinorUnits,
         amountText: formatMoney(held.remainingMinorUnits, held.currency),
-        earliestDate: dayField(held.since),
-        outsideWindow: now.getTime() - held.since.getTime() > PERSON_REFUND_WINDOW_DAYS * DAY_MS,
+        earliestDate: dayField(held.paidOn),
+        outsideWindow: now.getTime() > held.refundWindowEndsAt.getTime(),
         testPayment: false,
         title: `Record Refund (${held.invoiceRef}, Held Payment)`,
       })),

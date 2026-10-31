@@ -97,6 +97,10 @@ export interface TravellerHeldView {
   readonly currency: string;
   readonly reasonCode: string | null;
   readonly since: Date;
+  /** The day the money came in, as a refund counts it (the earliest refund day). */
+  readonly paidOn: Date;
+  /** When the 7 days the person was promised end, counted from that day (D8). */
+  readonly refundWindowEndsAt: Date;
 }
 
 export interface TravellerRefundView {
@@ -231,6 +235,7 @@ async function billingOf(db: Db, payer: string, now: Date): Promise<TravellerBil
       currency: a.currency,
       reasonCode: a.reasonCode,
       createdAt: a.createdAt,
+      redirectedAt: a.redirectedAt,
     })
     .from(a)
     .where(and(eq(a.payerAccountId, payer), eq(a.status, 'HELD_FOR_REVIEW')))
@@ -308,6 +313,11 @@ async function billingOf(db: Db, payer: string, now: Date): Promise<TravellerBil
       currency: row.currency,
       reasonCode: row.reasonCode,
       since: row.createdAt,
+      // The same day a refund counts from (refunds.ts `paymentDay`).
+      paidOn: row.redirectedAt ?? row.createdAt,
+      refundWindowEndsAt: new Date(
+        (row.redirectedAt ?? row.createdAt).getTime() + PERSON_REFUND_WINDOW_DAYS * DAY_MS,
+      ),
     })),
     refunds: requests.map((row) => ({
       id: row.id,
