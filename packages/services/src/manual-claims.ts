@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { invoiceLedgerReader } from './billing';
 import { type Db, first, required, schema } from './db';
@@ -550,11 +550,15 @@ export async function submitManualPaymentClaim(
   const note = (input.note ?? '').trim();
 
   try {
+    // An agency invoice only: travellers pay online only (ADR 0025 D13), so a person's invoice
+    // reads as not found here, before any membership check.
     const invoice = first(
       await db
         .select()
         .from(schema.invoices)
-        .where(eq(schema.invoices.id, input.invoiceId))
+        .where(
+          and(eq(schema.invoices.id, input.invoiceId), isNotNull(schema.invoices.organizationId)),
+        )
         .limit(1),
     );
     if (!invoice || !(await isOrgAdmin(db, input.actorAccountId, invoice.organizationId))) {

@@ -26,6 +26,7 @@ export {
   type SystemJob,
   AuthorizedApplicant,
   CONTRIBUTOR_ACTIONS,
+  SelfScope,
   StaffScope,
   SystemScope,
   EACH_GRANT,
@@ -40,6 +41,8 @@ export {
   applyDocumentProtectionOverrides,
   isRestrictedDocumentType,
   requireAccess,
+  selfPrincipal,
+  selfScopeProblem,
   staffPrincipal,
   systemPrincipal,
   verifyStepUp,
@@ -1501,7 +1504,11 @@ export {
   type WorkspaceSearchResult,
 } from './workspace-search';
 export { loadWorkspaceToolbarState, type WorkspaceToolbarState } from './workspace-toolbar';
-export { getTravellerPlanSummary, type TravellerPlanSummary } from './traveller-plan';
+export {
+  getTravellerPlanSummary,
+  type TravellerPlanSummary,
+  travellerPlansEnabled,
+} from './traveller-plan';
 
 export { type PlatformOverview, getPlatformOverview } from './platform-overview';
 

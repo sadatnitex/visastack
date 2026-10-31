@@ -151,3 +151,5 @@ Update 2026-10-30 (S19 step 0, round 2):
   - `PAYMENT_RESULT_SIGNING_SECRET` is set but shorter than 32 characters.
 - Result links are no longer accepted with the old store-password key (decision O2 closed). The cookie-derived fallback key needs `NEON_AUTH_COOKIE_SECRET` of at least 32 characters.
 - The platform overview row is "Online Payments", with the provider named in its detail.
+
+Added 2026-10-31 (ADR 0025 T3a): `TRAVELLER_PLANS_ENABLED` (Vercel), off by default, on only for `true` (spaces around it ignored, the shared rule for switches new from S29). It will govern selling paid traveller plans and their renewal invoices; nothing reads it until T3b. Turning it off never removes a period already paid for.

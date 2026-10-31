@@ -5,10 +5,12 @@ import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
 import {
   ACTIVITY_TOUCH_THROTTLE_MS,
   type Db,
+  type SelfScope,
   attributeInvitation,
   claimInvitation,
   provisionNeonAccount,
   releaseInvitationClaim,
+  selfPrincipal,
   touchAccountActivity,
 } from '@visastack/services';
 import { redirect } from 'next/navigation';
@@ -348,6 +350,11 @@ export async function withSession<T>(
     readonly accountId: string;
     readonly email: string;
     readonly displayName?: string;
+    /**
+     * The signed-in person's scope over their own records (ADR 0025): minted here, and only here
+     * (a static test allows no other caller), for the account this session resolved.
+     */
+    readonly self: SelfScope;
   }) => Promise<T>,
 ): Promise<T> {
   // Who is signed in, from the server-side session only. An address that has not been confirmed
@@ -374,6 +381,7 @@ export async function withSession<T>(
       db: shared.db,
       accountId: account.accountId,
       email: user.email,
+      self: selfPrincipal(account.accountId),
       ...(user.displayName ? { displayName: user.displayName } : {}),
     });
   } catch (error) {

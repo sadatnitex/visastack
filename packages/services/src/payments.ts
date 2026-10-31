@@ -1,6 +1,18 @@
 import { randomBytes } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { type SQL, and, desc, eq, gte, inArray, lte, notInArray, or, sql } from 'drizzle-orm';
+import {
+  type SQL,
+  and,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  lte,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { SystemScope } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { invoiceLedgerReader } from './billing';
@@ -779,11 +791,15 @@ export async function startOnlinePayment(
   try {
     // S29: every attempt records its mode, which needs migration 0107.
     if (!(await entitlementsSchemaPresent(db))) return err(serviceError('invalid', NOT_AVAILABLE));
+    // An agency invoice only (ADR 0025): a person pays their own invoice through the person
+    // checkout, never here, so it reads as not found before any membership check.
     const invoice = first(
       await db
         .select()
         .from(schema.invoices)
-        .where(eq(schema.invoices.id, input.invoiceId))
+        .where(
+          and(eq(schema.invoices.id, input.invoiceId), isNotNull(schema.invoices.organizationId)),
+        )
         .limit(1),
     );
     if (!invoice || !(await isOrgAdmin(db, input.actorAccountId, invoice.organizationId))) {

@@ -8,6 +8,7 @@ import type { Applicant } from '../applicants';
 import {
   AuthorizedApplicant,
   type RequireAccessOptions,
+  type SelfScope,
   type StaffScope,
   StepUpProof,
   type SystemScope,
@@ -19,6 +20,7 @@ declare const applicantY: Applicant;
 declare const staff: StaffScope<'PACK_MANAGE'>;
 declare const job: SystemScope<'process-erasure'>;
 declare const stepUp: StepUpProof;
+declare const self: SelfScope;
 
 // A spread copy loses the #private brand, so it is not a proof.
 // @ts-expect-error spread forgery of a proof
@@ -57,3 +59,10 @@ export const claimedStepUp: RequireAccessOptions = { purpose: 'self', stepUpSati
 // The evaluation time is never caller-chosen.
 // @ts-expect-error caller-chosen clock
 export const chosenClock: RequireAccessOptions = { purpose: 'self', now: new Date(0) };
+
+// ADR 0025: a self scope names the signed-in person; a copy naming someone else is not one.
+// @ts-expect-error spread forgery of a self scope
+export const forgedSelf: SelfScope = { ...self, accountId: 'someone-else' };
+
+// @ts-expect-error a staff scope is not a self scope
+export const staffAsSelf: SelfScope = staff;

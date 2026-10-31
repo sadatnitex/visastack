@@ -1,3 +1,4 @@
+import { switchOn } from '@visastack/core';
 import type { AiFeatureEntitlement, AiFeatureKey } from '@visastack/core/ai-features';
 import type { Db } from './db';
 import { type TravellerStorageRules, resolveEntitlements } from './entitlements';
@@ -41,4 +42,19 @@ export async function getTravellerPlanSummary(
     paidUntil: entitlements.periodEnd ? new Date(entitlements.periodEnd.getTime() - 1) : null,
     storage: entitlements.travellerStorage,
   };
+}
+
+/** The switch that lets paid traveller plans be sold (ADR 0025 section 9). */
+export const TRAVELLER_PLANS_SWITCH = 'TRAVELLER_PLANS_ENABLED';
+
+/**
+ * Whether paid traveller plans may be sold (ADR 0025 section 9): `TRAVELLER_PLANS_ENABLED`, off by
+ * default and on only for the word "true" (the shared reading of new switches). It governs selling
+ * and renewal invoices only: turning it off never removes a period already paid for, which the
+ * entitlement resolver keeps reading from paid invoices.
+ */
+export function travellerPlansEnabled(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  return switchOn(env[TRAVELLER_PLANS_SWITCH]);
 }

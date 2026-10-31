@@ -9,14 +9,18 @@ import { cacheOwner, connectionKey } from './plans-schema';
  * (ADR 0025 section 13): Drizzle names every declared column in each insert and plain select, so
  * declaring them would break every agency billing read and write on a database before 0110, which
  * the release must tolerate. Person billing is therefore read here, by column name, only once
- * `personBillingPresent` says 0110 has run; before that, nobody has a paid traveller plan.
+ * `personBillingPresent` says 0110 and 0111 have run; before that, nobody has a paid traveller plan.
  */
 
 /** Database handles and connections already seen with migration 0110 in place (only a yes is kept). */
 const seen = new WeakMap<object, true>();
 const seenConnections = new Set<string>();
 
-/** Whether migration 0110 has run: the last column it adds exists. Never raises. */
+/**
+ * Whether person billing can be read and written: migration 0110 has run (the last column it adds
+ * exists, and the person receipt counters) and so has 0111 (a person's own subscription may have no
+ * assigning account). Never raises.
+ */
 export async function personBillingPresent(db: Db): Promise<boolean> {
   const owner = cacheOwner(db);
   if (seen.has(owner)) return true;
@@ -24,7 +28,7 @@ export async function personBillingPresent(db: Db): Promise<boolean> {
   if (key !== null && seenConnections.has(key)) return true;
   const rows = await db
     .select({
-      present: sql<boolean>`exists (select 1 from information_schema.columns where table_schema = current_schema() and table_name = 'payment_receipts' and column_name = 'payer_account_id') and to_regclass('person_receipt_counters') is not null`,
+      present: sql<boolean>`exists (select 1 from information_schema.columns where table_schema = current_schema() and table_name = 'payment_receipts' and column_name = 'payer_account_id') and to_regclass('person_receipt_counters') is not null and exists (select 1 from information_schema.columns where table_schema = current_schema() and table_name = 'subscriptions' and column_name = 'assigned_by_account_id' and is_nullable = 'YES')`,
     })
     .from(sql`(select 1) as probe`);
   const present = rows[0]?.present === true;
