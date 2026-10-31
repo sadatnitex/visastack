@@ -24,6 +24,63 @@ export const dynamic = 'force-dynamic';
 /** The most cases whose readiness is worked out for the list, so a long history never slows the page. */
 const RING_LIMIT = 25;
 
+/** Past Cases folds away once it holds more than this many, so open work stays in view. */
+const PAST_OPEN_LIMIT = 3;
+
+type CaseListRow = {
+  readonly id: string;
+  readonly title: string;
+  readonly state: string;
+  readonly packVersionId: string | null;
+  readonly updatedAt: Date;
+};
+
+/**
+ * Open cases first (newest first, the first one is "the case you are on"), then the closed and
+ * cancelled ones, also newest first. Presentation only: no case changes state here.
+ */
+function groupCases<T extends CaseListRow>(cases: readonly T[]): { active: T[]; past: T[] } {
+  const active = openCasesNewestFirst(cases);
+  const openIds = new Set(active.map((item) => item.id));
+  const past = cases
+    .filter((item) => !openIds.has(item.id))
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  return { active, past };
+}
+
+function CaseRows({
+  cases,
+  readiness,
+}: {
+  readonly cases: readonly CaseListRow[];
+  readonly readiness: ReadonlyMap<string, ReadinessCounts>;
+}) {
+  return (
+    <div className="rows u-mt-050">
+      {cases.map((mission) => (
+        <Link className="row row-link" key={mission.id} href={`/app/mission/${mission.id}`}>
+          <span className="row-key">
+            {mission.title}
+            <span className="progress-ring-row">
+              <CaseReadinessRing
+                size="sm"
+                readiness={readiness.get(mission.id) ?? null}
+                {...(mission.packVersionId ? { emptyLine: PROGRESS_IN_CASE_LINE } : {})}
+              />
+            </span>
+          </span>
+          <span className="row-end">
+            <StatusBadge tone="neutral">{caseStateLabel(mission.state)}</StatusBadge>
+            <span className="muted" aria-hidden="true">
+              →
+            </span>
+          </span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 export default async function MissionsPage({
   params,
 }: {
@@ -39,10 +96,12 @@ export default async function MissionsPage({
       hasConsent(db, accountId, 'CORE_PROCESSING'),
     ]);
     const rows = missions.ok ? missions.value : [];
-    // Readiness only for a case with a checklist attached; the owner check above covers every case here.
+    const groups = groupCases(rows);
+    // Readiness only for a case with a checklist attached, open cases first so a long history never
+    // pushes them past the limit; the owner check above covers every case here.
     const readiness = new Map<string, ReadinessCounts>();
     await Promise.all(
-      rows
+      [...groups.active, ...groups.past]
         .filter((mission) => mission.packVersionId)
         .slice(0, RING_LIMIT)
         .map(async (mission) => {
@@ -50,14 +109,15 @@ export default async function MissionsPage({
           if (result.ok) readiness.set(mission.id, result.value);
         }),
     );
-    return { applicant, missions: rows, missionsRead: missions.ok, readiness, coreGranted };
+    return { applicant, missions: rows, groups, missionsRead: missions.ok, readiness, coreGranted };
   });
 
   if (!data) notFound();
   const depth = await readDepth('cases');
   // The case being worked on: the newest one that is not closed or cancelled (as on the
   // traveller's own page).
-  const active = openCasesNewestFirst(data.missions)[0];
+  const { active: activeCases, past: pastCases } = data.groups;
+  const active = activeCases[0];
 
   return (
     <>
@@ -90,50 +150,61 @@ export default async function MissionsPage({
 
         <div className="grid">
           <article className="card" {...atLevel('browse')}>
-            <h2 className="card-title">All Cases</h2>
-            {!data.missionsRead ? (
-              // A failed read never claims there are no cases: that invites a duplicate case.
-              <p className="notice notice-warn u-mt-050">
-                Your cases could not be loaded. Refresh to try again.
-              </p>
-            ) : data.missions.length === 0 ? (
-              <EmptyState
-                icon="briefcase"
-                title="No Cases Yet"
-                why="Once a checklist is attached, you see how many items are ready and what is still missing."
-                action={{ href: '#start-case', label: 'Start a Case' }}
+            <section aria-labelledby="active-cases-title" data-case-group="active">
+              <h2 className="card-title" id="active-cases-title">
+                Active Cases
+              </h2>
+              {!data.missionsRead ? (
+                // A failed read never claims there are no cases: that invites a duplicate case.
+                <p className="notice notice-warn u-mt-050">
+                  Your cases could not be loaded. Refresh to try again.
+                </p>
+              ) : data.missions.length === 0 ? (
+                <EmptyState
+                  icon="briefcase"
+                  title="No Cases Yet"
+                  why="Once a checklist is attached, you see how many items are ready and what is still missing."
+                  action={{ href: '#start-case', label: 'Start a Case' }}
+                >
+                  A case checks this person's documents against the checklist of one visa route.
+                  Start one with the form on this page.
+                </EmptyState>
+              ) : activeCases.length === 0 ? (
+                <p className="muted u-mt-050">
+                  No case is being worked on right now.{' '}
+                  <a href="#start-case">Start a Case</a>
+                </p>
+              ) : (
+                <CaseRows cases={activeCases} readiness={data.readiness} />
+              )}
+            </section>
+
+            {pastCases.length > 0 ? (
+              <section
+                aria-labelledby="past-cases-title"
+                className="u-mt-150"
+                data-case-group="past"
               >
-                A case checks this person's documents against the checklist of one visa route. Start
-                one with the form on this page.
-              </EmptyState>
-            ) : (
-              <div className="rows u-mt-050">
-                {data.missions.map((mission) => (
-                  <Link
-                    className="row row-link"
-                    key={mission.id}
-                    href={`/app/mission/${mission.id}`}
-                  >
-                    <span className="row-key">
-                      {mission.title}
-                      <span className="progress-ring-row">
-                        <CaseReadinessRing
-                          size="sm"
-                          readiness={data.readiness.get(mission.id) ?? null}
-                          {...(mission.packVersionId ? { emptyLine: PROGRESS_IN_CASE_LINE } : {})}
-                        />
+                <h2 className="card-title" id="past-cases-title">
+                  Past Cases
+                </h2>
+                <p className="muted">Closed and cancelled cases. You can still open them.</p>
+                {pastCases.length > PAST_OPEN_LIMIT ? (
+                  <details className="disclosure u-mt-050">
+                    <summary>
+                      <span className="disclosure-title">
+                        Show {pastCases.length} Past Cases
                       </span>
-                    </span>
-                    <span className="row-end">
-                      <StatusBadge tone="neutral">{caseStateLabel(mission.state)}</StatusBadge>
-                      <span className="muted" aria-hidden="true">
-                        →
-                      </span>
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
+                    </summary>
+                    <div className="disclosure-body">
+                      <CaseRows cases={pastCases} readiness={data.readiness} />
+                    </div>
+                  </details>
+                ) : (
+                  <CaseRows cases={pastCases} readiness={data.readiness} />
+                )}
+              </section>
+            ) : null}
           </article>
 
           <article
