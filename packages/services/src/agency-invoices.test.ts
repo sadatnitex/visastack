@@ -855,6 +855,20 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
       expect(await ledgerRows()).toHaveLength(0);
     });
 
+    it('says which field of the report each refusal is about, so the form can point to it', async () => {
+      const invoiceId = await openInvoice(org.organizationId, 'INV-C-WHICH', 10000);
+      const reason = async (overrides: Record<string, unknown>) => {
+        const result = await submit(invoiceId, overrides);
+        return isErr(result) ? result.error.reason : 'accepted';
+      };
+      expect(await reason({ method: 'CRYPTO' })).toBe('claim_method_invalid');
+      expect(await reason({ reference: '   ' })).toBe('claim_reference_invalid');
+      expect(await reason({ note: 'n'.repeat(CLAIM_NOTE_MAX + 1) })).toBe('claim_note_invalid');
+      expect(await reason({ paidOn: new Date('not a date') })).toBe('claim_date_invalid');
+      expect(await reason({ paidOn: new Date(Date.now() + 5 * DAY) })).toBe('claim_date_invalid');
+      expect(await reason({ amountMinorUnits: 10001 })).toBe('amount_over_balance');
+    });
+
     it('lets one report wait per invoice, and a new one once it was decided', async () => {
       const invoiceId = await openInvoice(org.organizationId, 'INV-C-ONE');
       const first = await waitingClaim(invoiceId);
@@ -1220,6 +1234,7 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
         proofFile: { contentType: 'image/jpeg', bytes: bad },
       });
       expect(isErr(result) && result.error.message).toMatch(/safety check/);
+      expect(isErr(result) && result.error.reason).toBe('claim_proof_invalid');
       expect(storage.objects.size).toBe(0);
       expect(await db.select().from(schema.storageObjects)).toHaveLength(0);
       expect(await db.select().from(schema.manualPaymentClaims)).toHaveLength(0);
@@ -1249,6 +1264,10 @@ describe('agency invoices and "I Paid Another Way" (S12)', () => {
           bytes: new Uint8Array([1, 2, 3, 4, 5, 6]),
         }),
       ).toMatch(/not the kind of file/);
+      const kind = await submit(invoiceId, {
+        proofFile: { contentType: 'text/html', bytes: pdf().bytes },
+      });
+      expect(isErr(kind) && kind.error.reason).toBe('claim_proof_invalid');
       expect(storage.objects.size).toBe(0);
     });
 

@@ -280,6 +280,28 @@ describe('reporting a payment made another way', () => {
     expect(await run()).toMatchObject({ ok: false, field: 'amount' });
   });
 
+  it("points at the report field the service's typed reason names, and at nothing without one", async () => {
+    const cases = [
+      ['claim_method_invalid', 'method'],
+      ['claim_reference_invalid', 'reference'],
+      ['claim_note_invalid', 'note'],
+      ['claim_date_invalid', 'paidOn'],
+      ['claim_proof_invalid', 'proof'],
+    ] as const;
+    for (const [reason, field] of cases) {
+      mocks.submitManualPaymentClaim.mockResolvedValueOnce({
+        ok: false,
+        error: { code: 'invalid', reason, message: 'Not accepted.' },
+      });
+      expect(await run(), reason).toMatchObject({ ok: false, field });
+    }
+    mocks.submitManualPaymentClaim.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'invalid', message: 'This invoice was cancelled. There is nothing to pay.' },
+    });
+    expect(await run()).not.toHaveProperty('field');
+  });
+
   it('gives back what was typed (not the file) with every refusal, so the form can keep it', async () => {
     const typed = {
       method: 'BKASH',

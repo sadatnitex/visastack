@@ -8183,6 +8183,9 @@ summary.visa-photo-title {
   max-width: 44rem;
   padding-bottom: var(--space-4);
 }
+.invoice-field-error {
+  margin-top: var(--space-1);
+}
 .invoice-section {
   display: grid;
   gap: var(--space-2);

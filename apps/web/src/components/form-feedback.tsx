@@ -27,15 +27,20 @@ export function isFailure(result: FormResult): boolean {
  * The attributes that tie an input to the form's message when the problem is about
  * that input. Spread onto the input: `<input {...fieldProblem(state, 'name', messageId)} />`.
  * For an input the problem is not about it returns nothing, so a message about one
- * field is never read out as an error on another.
+ * field is never read out as an error on another. `hintIds` are the ids of the field's own
+ * hints: they are always read with it, after the problem when there is one.
  */
 export function fieldProblem(
   result: FormResult,
   field: string,
   messageId: string,
+  ...hintIds: readonly string[]
 ): { 'aria-invalid'?: true; 'aria-describedby'?: string } {
-  if (!isFailure(result) || result.field !== field) return {};
-  return { 'aria-invalid': true, 'aria-describedby': messageId };
+  const hints = hintIds.join(' ');
+  if (!isFailure(result) || result.field !== field) {
+    return hints ? { 'aria-describedby': hints } : {};
+  }
+  return { 'aria-invalid': true, 'aria-describedby': [messageId, hints].join(' ').trim() };
 }
 
 /**

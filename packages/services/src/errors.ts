@@ -80,7 +80,20 @@ export type FieldReason =
   | 'amount_invalid'
   | 'amount_over_balance'
   | 'currency_mismatch'
-  | 'currency_invalid';
+  | 'currency_invalid'
+  | ClaimFieldReason;
+
+/**
+ * Which field of a payment report ("I Paid Another Way") a refusal is about, so the form can mark
+ * that field and show the message beside it without reading the wording: how it was paid, the
+ * reference, the note, the date paid, or the proof file (its type, size, safety check or upload).
+ */
+export type ClaimFieldReason =
+  | 'claim_method_invalid'
+  | 'claim_reference_invalid'
+  | 'claim_note_invalid'
+  | 'claim_date_invalid'
+  | 'claim_proof_invalid';
 
 export interface ServiceError {
   readonly code: ServiceErrorCode;

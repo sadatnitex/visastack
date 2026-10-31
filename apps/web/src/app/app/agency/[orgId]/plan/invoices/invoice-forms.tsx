@@ -142,18 +142,13 @@ export function ClaimForm({
   const kept: Partial<ClaimValues> = state.values ?? {};
   const referenceHintId = `${base}-reference-hint`;
   const proofHintId = `${base}-proof-hint`;
-  // A field's hint is always read with it; when a refused report is about that field, the
-  // message is read too (the alert under the button is the one announced).
-  const problem = (field: keyof ClaimValues | 'proof', hintId?: string) => {
-    const marked = fieldProblem(state, field, messageId);
-    const describedBy = [hintId, marked['aria-describedby']].filter(Boolean).join(' ');
-    return { ...marked, ...(describedBy ? { 'aria-describedby': describedBy } : {}) };
-  };
-  // The same message shown again right under the field it is about, so it is seen where the
-  // fix is made. Hidden from screen readers, which already hear it through the field.
+  // A refusal about one field is shown again right under that field, so it is seen where the fix
+  // is made. That copy is hidden from screen readers, which hear the alert under the button and
+  // the field's own description; the alert is then kept for them only, so it is not seen twice.
+  const refusedField = isFailure(state) && !pending ? state.field : undefined;
   const besideField = (field: keyof ClaimValues | 'proof') =>
-    isFailure(state) && state.field === field ? (
-      <p className="field-msg field-msg-err" aria-hidden="true">
+    refusedField === field ? (
+      <p className="field-msg field-msg-err invoice-field-error" aria-hidden="true">
         {state.message}
       </p>
     ) : null;
@@ -180,7 +175,7 @@ export function ClaimForm({
               className="input"
               required
               defaultValue={kept.method ?? 'BANK_TRANSFER'}
-              {...problem('method')}
+              {...fieldProblem(state, 'method', messageId)}
             >
               {Object.entries(CLAIM_METHOD_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -203,7 +198,7 @@ export function ClaimForm({
               maxLength={120}
               autoComplete="off"
               defaultValue={kept.reference ?? ''}
-              {...problem('reference', referenceHintId)}
+              {...fieldProblem(state, 'reference', messageId, referenceHintId)}
             />
             {besideField('reference')}
             <p className="invoice-hint" id={referenceHintId}>
@@ -223,7 +218,7 @@ export function ClaimForm({
               required
               defaultValue={kept.amount ?? balance}
               autoComplete="off"
-              {...problem('amount')}
+              {...fieldProblem(state, 'amount', messageId)}
             />
             {besideField('amount')}
           </div>
@@ -239,7 +234,7 @@ export function ClaimForm({
               required
               max={latestDate}
               defaultValue={kept.paidOn ?? ''}
-              {...problem('paidOn')}
+              {...fieldProblem(state, 'paidOn', messageId)}
             />
             {besideField('paidOn')}
           </div>
@@ -254,7 +249,7 @@ export function ClaimForm({
               rows={2}
               maxLength={500}
               defaultValue={kept.note ?? ''}
-              {...problem('note')}
+              {...fieldProblem(state, 'note', messageId)}
             />
             {besideField('note')}
           </div>
@@ -268,7 +263,7 @@ export function ClaimForm({
               type="file"
               className="input"
               accept="application/pdf,image/jpeg,image/png"
-              {...problem('proof', proofHintId)}
+              {...fieldProblem(state, 'proof', messageId, proofHintId)}
             />
             {besideField('proof')}
             <p className="invoice-hint" id={proofHintId}>
@@ -279,12 +274,14 @@ export function ClaimForm({
           </div>
         </div>
         <SubmitButton pending={pending} idle="Report This Payment" busy="Sending Your Report" />
-        <FormMessage
-          id={messageId}
-          result={state}
-          pending={pending}
-          pendingText="Sending your report."
-        />
+        <div className={refusedField ? 'sr-only' : undefined}>
+          <FormMessage
+            id={messageId}
+            result={state}
+            pending={pending}
+            pendingText="Sending your report."
+          />
+        </div>
       </form>
     </details>
   );

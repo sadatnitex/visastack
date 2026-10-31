@@ -125,14 +125,14 @@ function sha256Hex(bytes: Uint8Array): string {
 function proofFileProblem(file: ProofFileInput): ServiceError | undefined {
   const type = file.contentType as (typeof PROOF_FILE_TYPES)[number];
   if (!(PROOF_FILE_TYPES as readonly string[]).includes(file.contentType)) {
-    return serviceError('invalid', 'Attach a PDF, JPEG or PNG file.');
+    return refusal('claim_proof_invalid', 'Attach a PDF, JPEG or PNG file.');
   }
   if (file.bytes.byteLength === 0 || file.bytes.byteLength > PROOF_FILE_MAX_BYTES) {
-    return serviceError('invalid', 'Attach a file smaller than 4 MB.');
+    return refusal('claim_proof_invalid', 'Attach a file smaller than 4 MB.');
   }
   const signature = SIGNATURES[type];
   if (!signature.every((value, i) => file.bytes[i] === value)) {
-    return serviceError('invalid', 'This file is not the kind of file it says it is.');
+    return refusal('claim_proof_invalid', 'This file is not the kind of file it says it is.');
   }
   return undefined;
 }
@@ -169,13 +169,15 @@ async function scanAndStoreProof(
     });
     const stored = await ports.storage.getObject(quarantineKey);
     if (!stored || sha256Hex(stored.bytes) !== sha256) {
-      return err(serviceError('invalid', 'The file did not upload correctly. Please try again.'));
+      return err(
+        refusal('claim_proof_invalid', 'The file did not upload correctly. Please try again.'),
+      );
     }
     const scan = await ports.scanner.scan({ bucket: 'QUARANTINE', objectKey: quarantineKey });
     if (!scan.safe) {
       return err(
-        serviceError(
-          'invalid',
+        refusal(
+          'claim_proof_invalid',
           file.contentType === 'application/pdf'
             ? 'We could not check this PDF for safety here. Attach a photo or screenshot of it (JPEG or PNG) instead.'
             : 'This file did not pass the safety check.',
@@ -188,7 +190,7 @@ async function scanAndStoreProof(
     };
     if (file.contentType !== 'application/pdf') {
       const unreadable = err(
-        serviceError('invalid', 'This image could not be read. Try a JPEG or PNG file.'),
+        refusal('claim_proof_invalid', 'This image could not be read. Try a JPEG or PNG file.'),
       );
       let image: Awaited<ReturnType<ImageSanitizerPort['sanitize']>>;
       try {
@@ -231,7 +233,9 @@ async function scanAndStoreProof(
     const copy = await ports.storage.getObject(cleanKey);
     if (!copy || sha256Hex(copy.bytes) !== keptSha256) {
       await discardObject(db, ports.storage, 'CLEAN', clean);
-      return err(serviceError('invalid', 'The file did not save correctly. Please try again.'));
+      return err(
+        refusal('claim_proof_invalid', 'The file did not save correctly. Please try again.'),
+      );
     }
     return ok({
       storageObjectId: cleanId,
@@ -506,17 +510,17 @@ export const CLAIM_AMOUNT_PROBLEM =
 
 function inputProblem(input: SubmitManualClaimInput, now: Date): ServiceError | null {
   if (!(MANUAL_CLAIM_METHODS as readonly string[]).includes(input.method)) {
-    return serviceError('invalid', 'Choose how you paid.');
+    return refusal('claim_method_invalid', 'Choose how you paid.');
   }
   const reference = input.reference.trim();
   if (reference.length === 0 || reference.length > CLAIM_REFERENCE_MAX) {
-    return serviceError(
-      'invalid',
+    return refusal(
+      'claim_reference_invalid',
       `Enter the payment reference (a transfer id or cheque number), up to ${CLAIM_REFERENCE_MAX} characters.`,
     );
   }
   if ((input.note ?? '').trim().length > CLAIM_NOTE_MAX) {
-    return serviceError('invalid', `Keep the note under ${CLAIM_NOTE_MAX} characters.`);
+    return refusal('claim_note_invalid', `Keep the note under ${CLAIM_NOTE_MAX} characters.`);
   }
   if ((input.amountMinorUnits === undefined) === (input.amountText === undefined)) {
     return refusal('amount_invalid', CLAIM_AMOUNT_PROBLEM);
@@ -525,10 +529,10 @@ function inputProblem(input: SubmitManualClaimInput, now: Date): ServiceError | 
     return refusal('amount_invalid', CLAIM_AMOUNT_PROBLEM);
   }
   if (Number.isNaN(input.paidOn.getTime())) {
-    return serviceError('invalid', 'Enter the date you paid.');
+    return refusal('claim_date_invalid', 'Enter the date you paid.');
   }
   if (input.paidOn.getTime() > now.getTime() + FUTURE_SLACK_MS) {
-    return serviceError('invalid', 'The date you paid cannot be in the future.');
+    return refusal('claim_date_invalid', 'The date you paid cannot be in the future.');
   }
   return input.proofFile ? (proofFileProblem(input.proofFile) ?? null) : null;
 }

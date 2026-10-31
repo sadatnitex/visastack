@@ -16,7 +16,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { bootstrapAdminEmails } from '../../../../../../lib/admin-emails';
 import { resolveBaseUrl } from '../../../../../../lib/base-url';
-import { moneyFieldOf } from '../../../../../../lib/money-fields';
+import { claimFieldOf } from '../../../../../../lib/money-fields';
 import { paymentUrlFor } from '../../../../../../lib/payment-urls';
 import {
   createImageSanitizer,
@@ -232,7 +232,7 @@ export async function submitClaimAction(
         : {}),
     });
     if (!submitted.ok) {
-      return refuse(submitted.error.message, moneyFieldOf(submitted.error.reason));
+      return refuse(submitted.error.message, claimFieldOf(submitted.error.reason));
     }
     return {
       ok: true,
