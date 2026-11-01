@@ -16,6 +16,7 @@ beforeEach(() => {
     <a id="chip" href="#group-check">3 need a check</a>
     <a id="away" href="/elsewhere#group-done">Elsewhere</a>
     <a id="outside-link" href="#outside">Outside</a>
+    <a id="named" href="#readiness" data-open-group="group-done">2 done</a>
     <div id="readiness">
       <details id="group-you" open><summary>Needs You</summary><p>a</p></details>
       <details id="group-check"><summary>Needs a Check</summary><p id="row-check">b</p></details>
@@ -79,5 +80,12 @@ describe('OpenGroupOnLink', () => {
     mount();
     expect(isOpen('group-done-rest')).toBe(true);
     expect(isOpen('group-done')).toBe(true);
+  });
+
+  it('opens the group a link names while it points at the whole checklist', () => {
+    mount();
+    (document.getElementById('named') as HTMLAnchorElement).click();
+    expect(isOpen('group-done')).toBe(true);
+    expect(isOpen('group-check')).toBe(false);
   });
 });

@@ -910,24 +910,18 @@ describe('WP-SB2: a worst-case case stays short', () => {
     setUp({ requirements: sixty });
     const page = await doc(await renderWith({}));
     const groups = [...page.querySelectorAll('#readiness details.collapsible-group')];
-    expect(groups.map((g) => g.querySelector('.collapsible-group-title')?.textContent)).toEqual([
-      'Needs You',
-      'Needs a Check',
-      'Done',
-    ]);
-    expect(groups.map((g) => g.querySelector('.collapsible-group-count')?.textContent)).toEqual([
-      '20',
-      '10',
-      '30',
+    // Each opener holds the group's real heading with its count, as the checklist had before.
+    expect(groups.map((g) => g.querySelector('summary > h4')?.textContent)).toEqual([
+      'Needs You 20',
+      'Needs a Check 10',
+      'Done 30',
     ]);
     expect(groups.map((g) => g.hasAttribute('open'))).toEqual([true, false, false]);
     expect(groups[0]?.id).toBe('case-checklist-needs-you');
     expect(page.querySelectorAll('#readiness .row')).toHaveLength(60);
     // Each group shows 3 rows; the rest fold under one more control inside it.
     const first = groups[0];
-    expect(first?.querySelectorAll(':scope .collapsible-group-body > .rows > .row')).toHaveLength(
-      3,
-    );
+    expect(first?.querySelectorAll('.collapsible-group-body > .rows > .row')).toHaveLength(3);
     const rest = first?.querySelector('details.case-checklist-rest');
     expect(rest?.hasAttribute('open')).toBe(false);
     expect(rest?.querySelector('summary')?.textContent).toBe('17 More Items');
@@ -941,8 +935,8 @@ describe('WP-SB2: a worst-case case stays short', () => {
     setUp({ requirements: ['UNVERIFIED', 'SATISFIED'] });
     const page = await doc(await renderWith({}));
     const open = [...page.querySelectorAll('#readiness details.collapsible-group[open]')];
-    expect(open.map((g) => g.querySelector('.collapsible-group-title')?.textContent)).toEqual([
-      'Needs a Check',
+    expect(open.map((g) => g.querySelector('summary > h4')?.textContent)).toEqual([
+      'Needs a Check 1',
     ]);
   });
 
@@ -1110,13 +1104,15 @@ describe('WP-SB2: a worst-case case stays short', () => {
     expect(page.querySelector('.case-sticky-next')).toBeNull();
   });
 
-  it('points the need-a-check link at its own checklist group, which opens when followed', async () => {
+  it('names the need-a-check group on its link, which opens it when followed', async () => {
     setUp({ requirements: ['CRITICAL_GAP', 'UNVERIFIED', 'UNVERIFIED'] });
     const page = await doc(await renderWith({}));
     const chip = [...page.querySelectorAll('.case-attention a')].find((a) =>
       a.textContent?.includes('need a check'),
     );
-    expect(chip?.getAttribute('href')).toBe('#case-checklist-needs-a-check');
+    // The address stays the checklist; the link names the group it opens.
+    expect(chip?.getAttribute('href')).toBe('#readiness');
+    expect(chip?.getAttribute('data-open-group')).toBe('case-checklist-needs-a-check');
     expect(page.querySelector('#case-checklist-needs-a-check')?.tagName).toBe('DETAILS');
   });
 

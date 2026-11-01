@@ -21,3 +21,5 @@ docs/commercial-v1/known-issues.md
 docs/upgrades/programme/COVERAGE-LEDGER.csv
 docs/upgrades/programme/allowlists/WP-SB2.txt
 apps/web/e2e/scroll-budget/WP-SB2.fixture.tsx
+# Coordinator-approved exception (1 Nov 2026): mock return shapes only, no assertion changes.
+apps/web/src/lib/ccd/parity-case.test.tsx

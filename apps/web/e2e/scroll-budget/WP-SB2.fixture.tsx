@@ -69,15 +69,20 @@ function checklist(capped: boolean) {
   ];
   if (capped) {
     return (
-      <CollapsibleGroups
-        idPrefix="case-checklist"
-        noun={{ one: 'item', other: 'items' }}
-        groups={groups.map((g) => ({
-          key: g.key,
-          title: g.title,
-          count: g.count,
-          content: (
-            <>
+      <div className="collapsible-groups">
+        {groups.map((g, index) => (
+          <details
+            className="collapsible-group"
+            id={`case-checklist-${g.key}`}
+            key={g.key}
+            open={index === 0}
+          >
+            <summary className="collapsible-group-summary">
+              <h4 className="case-group-heading collapsible-group-title">
+                {g.title} <span className="muted">{g.count}</span>
+              </h4>
+            </summary>
+            <div className="collapsible-group-body">
               <div className="rows">{g.rows.slice(0, 3)}</div>
               {g.rows.length > 3 ? (
                 <details className="case-checklist-rest">
@@ -85,10 +90,10 @@ function checklist(capped: boolean) {
                   <div className="rows">{g.rows.slice(3)}</div>
                 </details>
               ) : null}
-            </>
-          ),
-        }))}
-      />
+            </div>
+          </details>
+        ))}
+      </div>
     );
   }
   return groups.map((g) => (

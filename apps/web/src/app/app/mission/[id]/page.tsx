@@ -50,7 +50,6 @@ import {
   CaseStageTracker,
 } from '../../../../components/case-preparation-summary';
 import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
-import { CollapsibleGroups } from '../../../../components/collapsible-group';
 import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
 import { ReferenceCode } from '../../../../components/reference-code';
@@ -734,6 +733,8 @@ export default async function MissionPage({
     readonly href: string;
     readonly count: number;
     readonly tone: 'warning' | 'danger';
+    /** The id of a checklist group the link opens, which then shows the rows it counts. */
+    readonly opens?: string;
   }[] = [
     ...(data.isDirty
       ? [
@@ -763,8 +764,9 @@ export default async function MissionPage({
           {
             kind: 'unconfirmed' as const,
             label: 'need a check',
-            // Its own group of the checklist, which opens when the link is followed (WP-SB2).
-            href: hasChecklist ? `#${CHECKLIST_ID_PREFIX}-needs-a-check` : '#readiness',
+            href: '#readiness',
+            // The group this link opens when followed (WP-SB2).
+            ...(hasChecklist ? { opens: `${CHECKLIST_ID_PREFIX}-needs-a-check` } : {}),
             count: data.requiredUnverifiedCount,
             tone: 'warning' as const,
           },
@@ -891,6 +893,13 @@ export default async function MissionPage({
       </div>
     );
   };
+  // The checklist's groups that have rows, in their fixed order (WP-SB2).
+  const checklistGroups = REQUIREMENT_GROUPS.flatMap((group) => {
+    const rows = data.requirementDetails.filter((r) => group.states.includes(r.state));
+    return rows.length === 0
+      ? []
+      : [{ key: group.heading.toLowerCase().replace(/\s+/g, '-'), heading: group.heading, rows }];
+  });
   const pathname = `/app/mission/${mission.id}`;
   const newCaseHref = `/app/applicant/${data.applicantId}/missions/prepare-again?from=${mission.id}`;
   const totals: Record<CappedList, number> = {
@@ -1042,7 +1051,7 @@ export default async function MissionPage({
             <p className="case-next-step-body">
               {NEXT_STEP_COPY[nextStep.kind].body(data.firstHardGapLabel)}
             </p>
-            <a className="btn btn-primary" href={nextStep.href}>
+            <a className="btn btn-primary" href={nextStep.href} data-open-group={nextStep.opens}>
               {NEXT_STEP_COPY[nextStep.kind].action}
             </a>
           </section>
@@ -1079,7 +1088,7 @@ export default async function MissionPage({
             ) : (
               attention.map((item) => (
                 <li key={item.label}>
-                  <a href={item.href}>
+                  <a href={item.href} data-open-group={item.opens}>
                     <StatusBadge tone={item.tone}>{item.count}</StatusBadge>
                     {item.label}
                   </a>
@@ -1155,46 +1164,44 @@ export default async function MissionPage({
                     <div id="readiness" {...atLevel('browse')}>
                       <h3 className="case-checklist-heading">Evidence Checklist</h3>
                       {/* WP-SB2: each group opens and closes; the first one with rows (what is
-                          missing, when anything is) starts open. */}
+                          missing, when anything is) starts open. Its heading stays a real heading
+                          inside the opener, so heading navigation still finds every group. */}
                       <OpenGroupOnLink scopeId="readiness" />
-                      <CollapsibleGroups
-                        idPrefix={CHECKLIST_ID_PREFIX}
-                        noun={{ one: 'item', other: 'items' }}
-                        groups={REQUIREMENT_GROUPS.flatMap((group) => {
-                          const groupRows = data.requirementDetails.filter((r) =>
-                            group.states.includes(r.state),
-                          );
-                          if (groupRows.length === 0) return [];
-                          return [
-                            {
-                              key: group.heading.toLowerCase().replace(/\s+/g, '-'),
-                              title: group.heading,
-                              count: groupRows.length,
-                              content: (
-                                <>
+                      <div className="collapsible-groups">
+                        {checklistGroups.map((group, index) => (
+                          <details
+                            className="collapsible-group"
+                            id={`${CHECKLIST_ID_PREFIX}-${group.key}`}
+                            key={group.key}
+                            open={index === 0}
+                          >
+                            <summary className="collapsible-group-summary">
+                              <h4 className="case-group-heading collapsible-group-title">
+                                {group.heading} <span className="muted">{group.rows.length}</span>
+                              </h4>
+                            </summary>
+                            <div className="collapsible-group-body">
+                              <div className="rows">
+                                {group.rows.slice(0, CHECKLIST_ROWS_SHOWN).map(requirementRow)}
+                              </div>
+                              {group.rows.length > CHECKLIST_ROWS_SHOWN ? (
+                                <details className="case-checklist-rest">
+                                  <summary>
+                                    {plural(
+                                      group.rows.length - CHECKLIST_ROWS_SHOWN,
+                                      'More Item',
+                                      'More Items',
+                                    )}
+                                  </summary>
                                   <div className="rows">
-                                    {groupRows.slice(0, CHECKLIST_ROWS_SHOWN).map(requirementRow)}
+                                    {group.rows.slice(CHECKLIST_ROWS_SHOWN).map(requirementRow)}
                                   </div>
-                                  {groupRows.length > CHECKLIST_ROWS_SHOWN ? (
-                                    <details className="case-checklist-rest">
-                                      <summary>
-                                        {plural(
-                                          groupRows.length - CHECKLIST_ROWS_SHOWN,
-                                          'More Item',
-                                          'More Items',
-                                        )}
-                                      </summary>
-                                      <div className="rows">
-                                        {groupRows.slice(CHECKLIST_ROWS_SHOWN).map(requirementRow)}
-                                      </div>
-                                    </details>
-                                  ) : null}
-                                </>
-                              ),
-                            },
-                          ];
-                        })}
-                      />
+                                </details>
+                              ) : null}
+                            </div>
+                          </details>
+                        ))}
+                      </div>
                     </div>
                   ) : null}
                   <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '1rem' }}>
@@ -1554,7 +1561,11 @@ export default async function MissionPage({
               label="Next Step"
               note={nextStepAction.title(nextStep.count, mission.title)}
             >
-              <a className="btn btn-secondary" href={nextStep.href}>
+              <a
+                className="btn btn-secondary"
+                href={nextStep.href}
+                data-open-group={nextStep.opens}
+              >
                 {nextStepAction.action}
               </a>
             </StickyActionBar>
