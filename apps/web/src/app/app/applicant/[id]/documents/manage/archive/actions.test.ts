@@ -73,6 +73,20 @@ describe('LC-A1 archive server actions', () => {
     expect(mocks.archiveDocument).toHaveBeenCalledTimes(1);
   });
 
+  it('matches the record id in any letter case', async () => {
+    mocks.archiveDocument.mockResolvedValue(ok({ state: 'ARCHIVED', changed: true }));
+    mocks.requireAccess.mockResolvedValue(ok({ applicant: { id: 'abc-def' } }));
+    expect(await archiveDocumentAction('ABC-DEF', 'doc-1')).toEqual({ ok: true, changed: true });
+  });
+
+  it('asks for a refresh when the document changed meanwhile', async () => {
+    mocks.archiveDocument.mockResolvedValue(err({ code: 'stale', message: 'x' }));
+    expect(await archiveDocumentAction('applicant-1', 'doc-1')).toEqual({
+      ok: false,
+      message: 'This document changed a moment ago. Refresh the page and try again.',
+    });
+  });
+
   it('points a document in Recently Deleted to its own list', async () => {
     mocks.restoreDocument.mockResolvedValue(err({ code: 'invalid', message: 'x' }));
     expect(await restoreDocumentAction('applicant-1', 'doc-1')).toEqual({

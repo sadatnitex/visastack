@@ -3826,12 +3826,12 @@ describe('LC-A1 - readiness counts only what it should (replaced, archived, dele
       missionId: mission.value.id,
       packVersionId,
     });
-    const addDocument = async (name: string) => {
+    const addDocument = async (name: string, docType = 'bank_statement') => {
       const doc = await registerDocument(db, {
         actorAccountId: account.id,
         applicantId,
         originalName: name,
-        docType: 'bank_statement',
+        docType,
       });
       if (!isOk(doc)) throw new Error('doc');
       await addDocumentVersion(db, {
@@ -3885,8 +3885,8 @@ describe('LC-A1 - readiness counts only what it should (replaced, archived, dele
         purgeAfter: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
       });
     };
-    const replace = async (id: string) => {
-      const newer = await addDocument('bank-newer.pdf');
+    const replace = async (id: string, docType = 'bank_statement') => {
+      const newer = await addDocument('bank-newer.pdf', docType);
       await db
         .update(schema.documents)
         .set({ supersededByDocumentId: newer })
@@ -3938,17 +3938,35 @@ describe('LC-A1 - readiness counts only what it should (replaced, archived, dele
     const label = withoutLifecycle ? 'lifecycle tables missing' : 'lifecycle tables present';
     it(`a replaced document no longer satisfies a requirement automatically (${label})`, async () => {
       const t = await setUp({ withoutLifecycle });
-      // The newer document is still uploading, so only the replaced one could satisfy it.
+      // Replaced by a usable document filed as another type: only the replaced one could match.
+      await t.replace(t.documentId, 'payslip');
+      const { result, missing } = await t.documentResult();
+      expect(result?.state).not.toBe('SATISFIED');
+      expect(missing).toBe(true);
+      expect(await t.candidates()).toEqual([]);
+      expect((await t.snapshotDocumentIds()).documents).not.toContain(t.documentId);
+    });
+
+    it(`a replaced document steps aside for its usable replacement (${label})`, async () => {
+      const t = await setUp({ withoutLifecycle });
+      const newer = await t.replace(t.documentId);
+      const { result } = await t.documentResult();
+      expect(result?.state).toBe('SATISFIED');
+      expect(result?.selectedButReplacedOrArchived).toBeUndefined();
+      expect(await t.candidates()).toEqual([newer]);
+      expect((await t.snapshotDocumentIds()).documents).not.toContain(t.documentId);
+    });
+
+    it(`a replaced document counts again while its replacement is not usable (${label})`, async () => {
+      const t = await setUp({ withoutLifecycle });
       const newer = await t.replace(t.documentId);
       await t.db
         .update(schema.documentVersions)
         .set({ processingStatus: 'UPLOADING' })
         .where(eq(schema.documentVersions.documentId, newer));
-      const { result, missing } = await t.documentResult();
-      expect(result?.state).not.toBe('SATISFIED');
-      expect(missing).toBe(true);
-      expect(await t.candidates()).toEqual([newer]);
-      expect((await t.snapshotDocumentIds()).documents).not.toContain(t.documentId);
+      const { result } = await t.documentResult();
+      expect(result?.state).toBe('SATISFIED');
+      expect(await t.candidates()).toEqual(expect.arrayContaining([t.documentId]));
     });
 
     it(`an explicitly selected replaced document stays eligible and is flagged (${label})`, async () => {
@@ -3974,6 +3992,15 @@ describe('LC-A1 - readiness counts only what it should (replaced, archived, dele
     expect(missing).toBe(true);
     expect(await t.candidates()).toEqual([]);
     expect((await t.snapshotDocumentIds()).documents).not.toContain(t.documentId);
+  });
+
+  it('a replaced document counts again while its replacement is in Recently Deleted', async () => {
+    const t = await setUp();
+    const newer = await t.replace(t.documentId);
+    await t.markDeleted(newer);
+    const { result } = await t.documentResult();
+    expect(result?.state).toBe('SATISFIED');
+    expect(await t.candidates()).toEqual([t.documentId]);
   });
 
   it('an archived document leaves automatic matching but another current one still counts', async () => {

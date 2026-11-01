@@ -16,6 +16,7 @@ export type ArchiveActionResult =
 /** One answer for every refusal (not signed in as the owner, a guessed id, not available yet). */
 const UNAVAILABLE = 'This document is not available to archive or restore right now.';
 const IN_RECENTLY_DELETED = 'This document is in Recently Deleted. Restore it from there first.';
+const CHANGED_MEANWHILE = 'This document changed a moment ago. Refresh the page and try again.';
 
 async function run(
   change: 'ARCHIVE' | 'RESTORE',
@@ -34,7 +35,8 @@ async function run(
         { documentId },
         { purpose: change === 'ARCHIVE' ? 'owner_document_archive' : 'owner_document_restore' },
       );
-      if (!access.ok || access.value.applicant.id !== applicantId) {
+      // Ids compared in lower case: a page opened with an upper-case id is the same record.
+      if (!access.ok || access.value.applicant.id.toLowerCase() !== applicantId.toLowerCase()) {
         return { ok: false, message: UNAVAILABLE } satisfies ArchiveActionResult;
       }
       const result =
@@ -44,7 +46,12 @@ async function run(
       if (!result.ok) {
         return {
           ok: false,
-          message: result.error.code === 'invalid' ? IN_RECENTLY_DELETED : UNAVAILABLE,
+          message:
+            result.error.code === 'invalid'
+              ? IN_RECENTLY_DELETED
+              : result.error.code === 'stale'
+                ? CHANGED_MEANWHILE
+                : UNAVAILABLE,
         } satisfies ArchiveActionResult;
       }
       return { ok: true, changed: result.value.changed } satisfies ArchiveActionResult;

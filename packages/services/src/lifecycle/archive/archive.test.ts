@@ -125,7 +125,10 @@ describe('LC-A1 archiveDocument / restoreDocument', () => {
   it('the owner archives and restores, recorded once each, ids only in the audit trail', async () => {
     const t = await setUp();
     const archived = await archiveDocument(t.documentId, await t.manage());
-    expect(archived).toEqual({ ok: true, value: { state: 'ARCHIVED', changed: true } });
+    expect(archived).toEqual({
+      ok: true,
+      value: { state: 'ARCHIVED', changed: true, casesAffected: 0 },
+    });
     const row = await t.lifecycleRow();
     expect(row?.archivedAt).toBeInstanceOf(Date);
     expect(row?.archivedByAccountId).toBe(t.ownerId);
@@ -137,18 +140,21 @@ describe('LC-A1 archiveDocument / restoreDocument', () => {
     // A second click (or a racing Undo) changes nothing and records nothing.
     expect(await archiveDocument(t.documentId, await t.manage())).toEqual({
       ok: true,
-      value: { state: 'ARCHIVED', changed: false },
+      value: { state: 'ARCHIVED', changed: false, casesAffected: 0 },
     });
 
     const restored = await restoreDocument(t.documentId, await t.manage());
-    expect(restored).toEqual({ ok: true, value: { state: 'CURRENT', changed: true } });
+    expect(restored).toEqual({
+      ok: true,
+      value: { state: 'CURRENT', changed: true, casesAffected: 0 },
+    });
     const after = await t.lifecycleRow();
     expect(after?.archivedAt).toBeNull();
     expect(after?.archivedByAccountId).toBeNull();
     expect((await getDocumentLifecycle(t.db, t.documentId, proof))?.state).toBe('CURRENT');
     expect(await restoreDocument(t.documentId, await t.manage())).toEqual({
       ok: true,
-      value: { state: 'CURRENT', changed: false },
+      value: { state: 'CURRENT', changed: false, casesAffected: 0 },
     });
 
     const audit = await t.auditTypes();
@@ -243,6 +249,69 @@ describe('LC-A1 archiveDocument / restoreDocument', () => {
     expect(
       await t.db.select().from(schema.documents).where(eq(schema.documents.id, t.documentId)),
     ).toEqual(documentBefore);
+  });
+
+  it('gives open cases that counted it automatically a new revision, and leaves finished ones alone', async () => {
+    const t = await setUp();
+    const pack = await createPack(t.db, { actorAccountId: t.ownerId, key: 'uk', name: 'UK' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(t.db, {
+      actorAccountId: t.ownerId,
+      packId: pack.value.id,
+    });
+    if (!isOk(version)) throw new Error('version');
+    await addRequirement(t.db, {
+      actorAccountId: t.ownerId,
+      packVersionId: version.value.id,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+      citation: 'rule',
+    });
+    await approvePackVersion(t.db, { actorAccountId: t.ownerId, packVersionId: version.value.id });
+    await publishPackVersion(t.db, { actorAccountId: t.ownerId, packVersionId: version.value.id });
+    const caseWithPack = async (title: string) => {
+      const mission = await createMission(t.db, {
+        actorAccountId: t.ownerId,
+        applicantId: t.applicantId,
+        title,
+      });
+      if (!isOk(mission)) throw new Error('mission');
+      await attachPackVersion(t.db, {
+        actorAccountId: t.ownerId,
+        missionId: mission.value.id,
+        packVersionId: version.value.id,
+      });
+      return mission.value.id;
+    };
+    const open = await caseWithPack('Open');
+    const finished = await caseWithPack('Finished');
+    await t.db
+      .update(schema.missions)
+      .set({ state: 'CLOSED' })
+      .where(eq(schema.missions.id, finished));
+    const revision = async (id: string) =>
+      (
+        await t.db
+          .select({ revision: schema.missions.materialRevision })
+          .from(schema.missions)
+          .where(eq(schema.missions.id, id))
+      )[0]?.revision;
+    const openBefore = await revision(open);
+    const finishedBefore = await revision(finished);
+
+    const archived = await archiveDocument(t.documentId, await t.manage());
+    expect(archived.ok && archived.value.casesAffected).toBe(1);
+    expect(await revision(open)).toBe((openBefore ?? 0) + 1);
+    expect(await revision(finished)).toBe(finishedBefore);
+
+    // Repeating it changes nothing, so no new revision.
+    await archiveDocument(t.documentId, await t.manage());
+    expect(await revision(open)).toBe((openBefore ?? 0) + 1);
+
+    const restored = await restoreDocument(t.documentId, await t.manage());
+    expect(restored.ok && restored.value.casesAffected).toBe(1);
+    expect(await revision(open)).toBe((openBefore ?? 0) + 2);
+    expect(await revision(finished)).toBe(finishedBefore);
   });
 
   it('refuses a stranger at the gate, and an agency recipient, a guessed id, another document and a copied proof with not found', async () => {

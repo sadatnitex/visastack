@@ -829,7 +829,7 @@ type DocumentGroupKey = string | typeof UNCLASSIFIED_DOCUMENT_GROUP;
 
 /**
  * Every present document of one person, grouped by type, plus the ones automatic matching leaves
- * out (LC-A1): replaced by a newer document, or archived. Those still count where a case chose
+ * out (LC-A1): replaced by a newer document that is here and usable, or archived. Those still count where a case chose
  * them on purpose (owner decision D6), flagged. Kept beside the instances, never inside them, so
  * a snapshot's document entries keep exactly their shape.
  */
@@ -914,7 +914,7 @@ async function loadDocumentInstancesByType(db: Db, applicantId: string): Promise
   const map = new Map<DocumentGroupKey, DocumentInstance[]>();
   const setAside = new Set<string>();
   for (const row of latestByDocument.values()) {
-    if (row.supersededByDocumentId !== null || row.everyday !== true) setAside.add(row.documentId);
+    if (row.everyday !== true) setAside.add(row.documentId);
     const groupKey = row.docType ?? UNCLASSIFIED_DOCUMENT_GROUP;
     const eligible =
       isDocumentVersionUsable({
@@ -936,6 +936,20 @@ async function loadDocumentInstancesByType(db: Db, applicantId: string): Promise
       documentDate: row.documentDate,
     });
     map.set(groupKey, list);
+  }
+  // A replaced document steps aside only while its replacement is here and usable: if the newer
+  // one is in Recently Deleted, removed, unsafe or still processing, the older one counts again
+  // rather than leaving the person with nothing that matches.
+  const usable = new Set(
+    [...map.values()]
+      .flat()
+      .filter((d) => d.eligible)
+      .map((d) => d.documentId),
+  );
+  for (const row of latestByDocument.values()) {
+    if (row.supersededByDocumentId !== null && usable.has(row.supersededByDocumentId)) {
+      setAside.add(row.documentId);
+    }
   }
   return { byType: map, setAside };
 }

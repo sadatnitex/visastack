@@ -4,11 +4,16 @@ import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const refresh = vi.fn();
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }));
+let search = new URLSearchParams();
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh }),
+  useSearchParams: () => search,
+}));
 const archiveDocumentAction = vi.fn();
 const restoreDocumentAction = vi.fn();
 vi.mock('./actions', () => ({ archiveDocumentAction, restoreDocumentAction }));
 const { ArchiveAction, RestoreAction } = await import('./archive-action');
+const { resetUndoWindowsForTests } = await import('./list-refresh');
 const { UNDO_WINDOW_MS } = await import('../../../../../../../components/lifecycle/undo-status');
 const { MANAGE_ACTIONS } = await import('../registry');
 
@@ -19,6 +24,8 @@ let container: HTMLDivElement;
 const onClose = vi.fn();
 beforeEach(() => {
   vi.useFakeTimers();
+  search = new URLSearchParams();
+  resetUndoWindowsForTests();
   refresh.mockReset();
   onClose.mockReset();
   archiveDocumentAction.mockReset();
@@ -30,6 +37,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  document.getElementById('lc-archive-announcer')?.remove();
   vi.useRealTimers();
 });
 
@@ -40,8 +48,14 @@ const flush = async () => {
     await Promise.resolve();
   });
 };
-const buttonNamed = (name: string) =>
-  [...container.querySelectorAll('button')].find((b) => b.textContent === name);
+const buttonNamed = (name: string, within: ParentNode = container) =>
+  [...within.querySelectorAll('button')].find((b) => b.textContent === name);
+const announced = () => {
+  act(() => vi.advanceTimersByTime(60));
+  return document.getElementById('lc-archive-announcer')?.textContent;
+};
+const DONE =
+  'Bank Statement moved to Archived. Cases that chose it still use it; other cases stop counting it.';
 
 describe('LC-A1 Archive and Restore actions', () => {
   it('are registered under the A1 anchor with their vocabulary labels', () => {
@@ -51,7 +65,7 @@ describe('LC-A1 Archive and Restore actions', () => {
     expect(MANAGE_ACTIONS.RESTORE?.Component).toBe(RestoreAction);
   });
 
-  it('archives at once, exactly once, then offers Undo and refreshes the list only after it', async () => {
+  it('archives at once, exactly once, announces it through a region already on the page, and refreshes only after the Undo window', async () => {
     archiveDocumentAction.mockResolvedValue({ ok: true, changed: true });
     act(() =>
       root.render(
@@ -60,13 +74,15 @@ describe('LC-A1 Archive and Restore actions', () => {
         </StrictMode>,
       ),
     );
+    expect(document.getElementById('lc-archive-announcer')?.getAttribute('aria-live')).toBe(
+      'polite',
+    );
     expect(container.querySelector('output')?.textContent).toBe('Moving to Archived.');
     await flush();
     expect(archiveDocumentAction).toHaveBeenCalledTimes(1);
     expect(archiveDocumentAction).toHaveBeenCalledWith('a1', 'd1');
-    expect(container.textContent).toContain(
-      'Bank Statement moved to Archived. Cases that chose it still use it.',
-    );
+    expect(container.textContent).toContain(DONE);
+    expect(announced()).toBe(DONE);
     expect(buttonNamed('Undo')).toBeDefined();
     expect(refresh).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS));
@@ -74,7 +90,22 @@ describe('LC-A1 Archive and Restore actions', () => {
     expect(restoreDocumentAction).not.toHaveBeenCalled();
   });
 
-  it('Undo restores the document and refreshes at once', async () => {
+  it('moves focus out of the row to the list tab before the refresh takes the row away', async () => {
+    const nav = document.createElement('nav');
+    nav.innerHTML = '<a class="lc-tab" aria-current="page" href="#">Current</a>';
+    document.body.append(nav);
+    archiveDocumentAction.mockResolvedValue({ ok: true, changed: true });
+    act(() => root.render(<ArchiveAction {...props} />));
+    await flush();
+    act(() => buttonNamed('Undo')?.focus());
+    expect(document.activeElement?.textContent).toBe('Undo');
+    act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS));
+    expect(document.activeElement).toBe(nav.querySelector('a'));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    nav.remove();
+  });
+
+  it('Undo restores the document, closes the panel so the menu works again, and refreshes', async () => {
     archiveDocumentAction.mockResolvedValue({ ok: true, changed: true });
     restoreDocumentAction.mockResolvedValue({ ok: true, changed: true });
     act(() => root.render(<ArchiveAction {...props} />));
@@ -82,7 +113,8 @@ describe('LC-A1 Archive and Restore actions', () => {
     act(() => buttonNamed('Undo')?.click());
     await flush();
     expect(restoreDocumentAction).toHaveBeenCalledWith('a1', 'd1');
-    expect(container.textContent).toContain('Undone. It is back in your current documents.');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(announced()).toBe('Undone. It is back in your current documents.');
     expect(refresh).toHaveBeenCalledTimes(1);
     act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS * 2));
     expect(refresh).toHaveBeenCalledTimes(1);
@@ -98,10 +130,57 @@ describe('LC-A1 Archive and Restore actions', () => {
     await flush();
     expect(container.textContent).toContain('That could not be undone. Try again.');
     expect(buttonNamed('Undo')).toBeDefined();
+    expect(onClose).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS - 1));
     expect(refresh).not.toHaveBeenCalled();
     act(() => vi.advanceTimersByTime(1));
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('two archives in a row refresh the list once, after the later Undo window', async () => {
+    archiveDocumentAction.mockResolvedValue({ ok: true, changed: true });
+    const second = document.createElement('div');
+    document.body.append(second);
+    const secondRoot = createRoot(second);
+    act(() => root.render(<ArchiveAction {...props} />));
+    await flush();
+    act(() => vi.advanceTimersByTime(3000));
+    act(() => secondRoot.render(<ArchiveAction {...props} documentId="d2" />));
+    await flush();
+    act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS - 3000));
+    expect(refresh).not.toHaveBeenCalled();
+    expect(buttonNamed('Undo', second)).toBeDefined();
+    act(() => vi.advanceTimersByTime(3000));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    act(() => secondRoot.unmount());
+    second.remove();
+  });
+
+  it('never refreshes a page the person has already left', async () => {
+    let resolve: (value: unknown) => void = () => {};
+    archiveDocumentAction.mockReturnValue(
+      new Promise((r) => {
+        resolve = r;
+      }),
+    );
+    act(() => root.render(<ArchiveAction {...props} />));
+    act(() => root.render(<span />));
+    resolve({ ok: true, changed: true });
+    await flush();
+    act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS * 2));
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("opened from a reminder's link, it waits for a click", async () => {
+    search = new URLSearchParams('manage=D1&action=ARCHIVE');
+    archiveDocumentAction.mockResolvedValue({ ok: true, changed: true });
+    act(() => root.render(<ArchiveAction {...props} />));
+    await flush();
+    expect(archiveDocumentAction).not.toHaveBeenCalled();
+    act(() => buttonNamed('Archive This Document')?.click());
+    await flush();
+    expect(archiveDocumentAction).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain(DONE);
   });
 
   it('a refused archive explains, moves focus to the reason and offers Try Again and Close', async () => {
@@ -147,6 +226,6 @@ describe('LC-A1 Archive and Restore actions', () => {
     act(() => buttonNamed('Undo')?.click());
     await flush();
     expect(archiveDocumentAction).toHaveBeenCalledWith('a1', 'd1');
-    expect(container.textContent).toContain('Undone. It is back in Archived.');
+    expect(announced()).toBe('Undone. It is back in Archived.');
   });
 });
