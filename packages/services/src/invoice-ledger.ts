@@ -1288,4 +1288,18 @@ async function activatePersonPeriod(
       endedSubscriptionId: current && current.planId !== invoice.planId ? current.id : null,
     },
   });
+  if (current && current.planId !== invoice.planId) {
+    // Recorded so a restore from backup never brings the old plan back (owner, 1 Nov 2026).
+    await appendAuditEvent(tx, {
+      eventType: 'SUBSCRIPTION_ENDED',
+      actorAccountId: null,
+      action: 'MANAGE',
+      method: 'SYSTEM',
+      result: 'ALLOWED',
+      resourceType: 'subscription',
+      resourceId: current.id,
+      reason: 'plan_switched',
+      metadata: { personPlan: true, replacedBy: subscriptionId },
+    });
+  }
 }

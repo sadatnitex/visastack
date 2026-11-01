@@ -499,7 +499,7 @@ export async function activateSubscription(
       return err(serviceError('invalid', AGENCY_KEEPS_NO_PLAN));
     }
     const now = new Date();
-    await tx
+    const replaced = await tx
       .update(schema.subscriptions)
       .set({ endedAt: now })
       .where(
@@ -507,7 +507,8 @@ export async function activateSubscription(
           eq(schema.subscriptions.organizationId, input.organizationId),
           isNull(schema.subscriptions.endedAt),
         ),
-      );
+      )
+      .returning({ id: schema.subscriptions.id });
     const subscription = required(
       first(
         await tx
@@ -533,6 +534,20 @@ export async function activateSubscription(
       resourceId: subscription.id,
       metadata: { organizationId: input.organizationId, planKey: plan.key, reason },
     });
+    // Every ending is recorded, so a restore from backup never brings it back (owner, 1 Nov 2026).
+    for (const ended of replaced) {
+      await appendAuditEvent(tx, {
+        eventType: 'SUBSCRIPTION_ENDED',
+        actorAccountId: input.actor.accountId,
+        action: 'MANAGE',
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        resourceType: 'subscription',
+        resourceId: ended.id,
+        reason: 'plan_changed',
+        metadata: { organizationId: input.organizationId, replacedBy: subscription.id },
+      });
+    }
     // OPS-04 plan usage: an organization's plan changed. No account is recorded:
     // this is a commercial fact about the organization, not about the platform
     // owner who happened to record it.
@@ -1118,6 +1133,18 @@ export async function executeScheduledDowngrade(
         planKey: toPlan.key,
         scheduledDowngradeId: pending.id,
       },
+    });
+    // Recorded so a restore from backup never brings the old plan back (owner, 1 Nov 2026).
+    await appendAuditEvent(tx, {
+      eventType: 'SUBSCRIPTION_ENDED',
+      actorAccountId: pending.requestedByAccountId,
+      action: 'MANAGE',
+      method: 'SYSTEM',
+      result: 'ALLOWED',
+      resourceType: 'subscription',
+      resourceId: current.id,
+      reason: 'downgrade_executed',
+      metadata: { organizationId: pending.organizationId, replacedBy: subscription.id },
     });
     await recordProductEvent(tx, {
       eventType: 'PLAN_CHANGED',

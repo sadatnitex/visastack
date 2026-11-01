@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { selfPrincipal } from './access/principal';
@@ -146,6 +146,21 @@ async function recordRefund(invoiceId: string) {
 }
 
 describe("a person's own Billing History (ADR 0025 T5)", () => {
+  it('records the ending when a traveller moves to another plan, for a restore from backup', async () => {
+    // A current plan that no paid period covers (one paid period would hold the new money).
+    await db.execute(sql`insert into subscriptions (payer_account_id, plan_id, reason)
+      values (${alice}::uuid, ${otherPlanId}::uuid, 'earlier plan')`);
+    const bought = await checkout(alice, planId);
+    await payAndRecord(alice, bought.invoiceId);
+    const ended = (
+      (await db.execute(
+        sql`select a.reason, s.plan_id from audit_events a join subscriptions s on s.id::text = a.resource_id::text
+          where a.event_type = 'SUBSCRIPTION_ENDED'`,
+      )) as unknown as { rows: { reason: string; plan_id: string }[] }
+    ).rows;
+    expect(ended).toEqual([{ reason: 'plan_switched', plan_id: otherPlanId }]);
+  });
+
   it('is empty for someone who never bought, and says so without a billing row', async () => {
     expect(await history(alice)).toEqual([]);
     expect(await hasOwnBilling(db, self(alice))).toBe(false);

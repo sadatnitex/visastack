@@ -266,7 +266,7 @@ describe('renewing a paid traveller plan by paying a link (ADR 0025 T4)', () => 
     );
     expect(receiptsAfter).toEqual(receiptsBefore);
     const [sub] = await db
-      .select({ endedAt: personSubscriptions.endedAt })
+      .select({ id: personSubscriptions.id, endedAt: personSubscriptions.endedAt })
       .from(personSubscriptions)
       .where(eq(personSubscriptions.payerAccountId, alice));
     expect(sub?.endedAt).not.toBeNull();
@@ -281,6 +281,11 @@ describe('renewing a paid traveller plan by paying a link (ADR 0025 T4)', () => 
       sql`select count(*)::int as n from audit_events where event_type = 'PERSON_PLAN_LAPSED'`,
     );
     expect(audit[0]?.n).toBe(1);
+    // The ending is recorded for a restore from backup (owner decision, 1 Nov 2026).
+    const ended = await rows<{ reason: string; resource_id: string }>(
+      sql`select reason, resource_id from audit_events where event_type = 'SUBSCRIPTION_ENDED'`,
+    );
+    expect(ended).toEqual([{ reason: 'plan_lapsed', resource_id: sub?.id }]);
     // The cancelled renewal can no longer be paid, and a rerun changes nothing.
     const refused = await payablePersonInvoice(db, self(alice), {
       invoiceId: before[1]?.id ?? '',

@@ -201,10 +201,16 @@ describe("a traveller's full refund, recorded by the platform owner (ADR 0025 T6
     // Plus ends now: nothing paid covers them, and their plan has ended.
     expect(await coveringPaidPeriod(db, alice, new Date())).toBeUndefined();
     const [sub] = await db
-      .select({ endedAt: personSubscriptions.endedAt })
+      .select({ id: personSubscriptions.id, endedAt: personSubscriptions.endedAt })
       .from(personSubscriptions)
       .where(eq(personSubscriptions.payerAccountId, alice));
     expect(sub?.endedAt).not.toBeNull();
+    // The ending is recorded for a restore from backup (owner decision, 1 Nov 2026).
+    const ended = await db
+      .select({ reason: schema.auditEvents.reason, resourceId: schema.auditEvents.resourceId })
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'SUBSCRIPTION_ENDED'));
+    expect(ended).toEqual([{ reason: 'refunded', resourceId: sub?.id }]);
     // Their Billing History reads Refunded, with no refund offered.
     const history = await listOwnBilling(db, self(alice));
     expect(isOk(history) && history.value[0]).toMatchObject({

@@ -65,15 +65,17 @@ async function main(): Promise<void> {
     // back. A plan started after the restore point cannot come back with a restore.
     if (report.plansToCheck.length > 0) {
       process.stdout.write(
-        `${report.plansToCheck.length} plan(s) ended to match the pre-incident branch; check each:\n`,
+        `${report.plansToCheck.length} plan(s) ended by the restore (lines marked ACTION need a plan given back):\n`,
       );
       for (const plan of report.plansToCheck) {
         const who = plan.organizationId
           ? `agency ${plan.organizationId}`
           : `traveller account ${plan.payerAccountId ?? 'unknown'}`;
-        const now = plan.hasCurrentPlan ? 'still has a current plan' : 'now has NO plan';
+        const action = plan.needsAction
+          ? `ACTION: had ${plan.planOnPreIncidentBranch} before the incident, now has ${plan.planNow ?? 'no plan'}`
+          : 'no action';
         process.stdout.write(
-          `  ${who}: ${plan.planKey ?? 'unknown plan'} ended ${plan.endedAt.toISOString()}; ${now}\n`,
+          `  ${who}: ${plan.endedPlanKey ?? 'unknown plan'} ended (${plan.reason ?? 'no reason'}) ${plan.endedAt.toISOString()}; ${action}\n`,
         );
       }
     }
