@@ -1432,11 +1432,31 @@ export async function listNotesForOwner(
   db: Db,
   actorAccountId: string,
   missionId: string,
-): Promise<OwnerVisibleNote[]> {
+): Promise<OwnerVisibleNote[]>;
+/**
+ * WP-SB2: with `options.limit` only the newest `limit` shared notes come back (clamped to 1 to
+ * 100, as every capped list is), with how many shared notes the case holds. The same owner check
+ * and the same TRAVELLER_SHARED rule apply; a reader who is not the owner gets an empty list.
+ */
+export async function listNotesForOwner(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  options: { readonly limit?: number },
+): Promise<{ readonly items: readonly OwnerVisibleNote[]; readonly total: number }>;
+export async function listNotesForOwner(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  options?: { readonly limit?: number },
+): Promise<
+  OwnerVisibleNote[] | { readonly items: readonly OwnerVisibleNote[]; readonly total: number }
+> {
+  const none = options ? { items: [], total: 0 } : [];
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return [];
+  if (!mission) return none;
   const applicant = first(
     await db
       .select()
@@ -1444,8 +1464,12 @@ export async function listNotesForOwner(
       .where(eq(schema.applicants.id, mission.applicantId))
       .limit(1),
   );
-  if (!applicant || applicant.ownerAccountId !== actorAccountId) return [];
-  const rows = await db
+  if (!applicant || applicant.ownerAccountId !== actorAccountId) return none;
+  const shared = and(
+    eq(schema.missionNotes.missionId, missionId),
+    eq(schema.missionNotes.visibility, 'TRAVELLER_SHARED'),
+  );
+  const query = db
     .select({
       id: schema.missionNotes.id,
       body: schema.missionNotes.body,
@@ -1454,14 +1478,25 @@ export async function listNotesForOwner(
     })
     .from(schema.missionNotes)
     .leftJoin(schema.accounts, eq(schema.accounts.id, schema.missionNotes.authorAccountId))
-    .where(
-      and(
-        eq(schema.missionNotes.missionId, missionId),
-        eq(schema.missionNotes.visibility, 'TRAVELLER_SHARED'),
-      ),
-    )
-    .orderBy(desc(schema.missionNotes.createdAt));
-  return rows.map((r) => ({ ...r, authorEmail: r.authorEmail ?? null }));
+    .where(shared)
+    .orderBy(desc(schema.missionNotes.createdAt), desc(schema.missionNotes.id));
+  if (!options) {
+    const rows = await query;
+    return rows.map((r) => ({ ...r, authorEmail: r.authorEmail ?? null }));
+  }
+  const requested = Number.isFinite(options.limit) ? Math.floor(options.limit ?? 50) : 50;
+  const limit = Math.min(100, Math.max(1, requested));
+  const [rows, counts] = await Promise.all([
+    query.limit(limit),
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(schema.missionNotes)
+      .where(shared),
+  ]);
+  return {
+    items: rows.map((r) => ({ ...r, authorEmail: r.authorEmail ?? null })),
+    total: Number(counts[0]?.total ?? 0),
+  };
 }
 
 /**

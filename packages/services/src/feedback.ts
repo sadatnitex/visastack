@@ -1,9 +1,10 @@
 import { type Result, err, ok } from '@visastack/core';
-import { eq } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
-import { getMissionForOwner } from './missions';
+import { clampLimit } from './paging';
+import { type CappedRows, getMissionForOwner } from './missions';
 import { type PlatformAuthInput, canPerformPlatformAction } from './platform-roles';
 
 /**
@@ -60,19 +61,51 @@ export async function submitFeedback(
   });
 }
 
-/** Feedback submitted on a mission, newest first (owner-scoped to the case). */
+/**
+ * Feedback submitted on a mission, newest first (owner-scoped to the case). With `options.limit` (WP-SB2) only the
+ * newest `limit` rows come back (clamped to 1 to 100) with the case's total, behind the same owner
+ * check.
+ */
 export async function listFeedbackForMission(
   db: Db,
   actorAccountId: string,
   missionId: string,
-): Promise<Result<CaseFeedback[], ServiceError>> {
+): Promise<Result<CaseFeedback[], ServiceError>>;
+export async function listFeedbackForMission(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  options: { readonly limit?: number },
+): Promise<Result<CappedRows<CaseFeedback>, ServiceError>>;
+export async function listFeedbackForMission(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  options?: { readonly limit?: number },
+): Promise<Result<CaseFeedback[] | CappedRows<CaseFeedback>, ServiceError>> {
   const owned = await getMissionForOwner(db, actorAccountId, missionId);
   if (!owned.ok) return owned;
-  const rows = await db
-    .select()
-    .from(schema.caseFeedback)
-    .where(eq(schema.caseFeedback.missionId, missionId));
-  return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+  if (!options) {
+    const rows = await db
+      .select()
+      .from(schema.caseFeedback)
+      .where(eq(schema.caseFeedback.missionId, missionId));
+    return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+  }
+  const onCase = eq(schema.caseFeedback.missionId, missionId);
+  const [items, counts] = await Promise.all([
+    db
+      .select()
+      .from(schema.caseFeedback)
+      .where(onCase)
+      .orderBy(desc(schema.caseFeedback.createdAt), desc(schema.caseFeedback.id))
+      .limit(clampLimit(options.limit)),
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(schema.caseFeedback)
+      .where(onCase),
+  ]);
+  return ok({ items, total: Number(counts[0]?.total ?? 0) });
 }
 
 /** QUALITY_ADMIN-only: every submitted feedback record platform-wide, newest first. */
