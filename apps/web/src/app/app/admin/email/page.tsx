@@ -42,7 +42,7 @@ export default async function EmailDeliveryPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<SearchParamsRecord>;
-} = {}) {
+}) {
   const search = (await searchParams) ?? {};
   const param = (name: string) => search[name];
   const failedBefore = parseCursor(param('failedBefore'));

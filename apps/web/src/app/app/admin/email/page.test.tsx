@@ -97,7 +97,7 @@ describe('Platform > Email Delivery (WP-SB6)', () => {
 
   it('keeps its role check: no support role, no read', async () => {
     mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(textOf(html)).toContain('restricted to platform administrators');
     expect(mocks.listEmailDeliveryProblems).not.toHaveBeenCalled();
     expect(mocks.staffPrincipal).toHaveBeenCalledWith(

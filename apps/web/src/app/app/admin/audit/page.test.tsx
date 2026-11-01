@@ -62,7 +62,7 @@ beforeEach(() => {
 
 describe('Platform > Audit', () => {
   it('lists the newest audit events and says how many it shows', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(text).toContain('Recent Audit Events');
     expect(text).toContain('The 2 newest entries');
@@ -143,12 +143,12 @@ describe('Platform > Audit', () => {
 
   it('says there is nothing yet rather than an empty box', async () => {
     mocks.listRecentAuditEvents.mockResolvedValue(page([]));
-    expect(textOf(await renderServer(Page()))).toContain('No Audit Events Yet');
+    expect(textOf(await renderServer(Page({})))).toContain('No Audit Events Yet');
   });
 
   it('refuses anyone who is not a platform administrator, without reading the trail', async () => {
     mocks.isPlatformAdmin.mockResolvedValue(false);
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(textOf(html)).toContain('restricted to platform administrators');
     expect(mocks.listRecentAuditEvents).not.toHaveBeenCalled();
   });
@@ -158,7 +158,7 @@ describe('Platform > Audit', () => {
       ok: false,
       error: { code: 'forbidden', message: 'no role' },
     });
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Not available for your role');
     expect(mocks.listRecentAuditEvents).not.toHaveBeenCalled();
     expect(mocks.staffPrincipal).toHaveBeenCalledWith(
@@ -171,7 +171,7 @@ describe('Platform > Audit', () => {
   it('names the section it could not read', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.listRecentAuditEvents.mockRejectedValue(new Error('boom'));
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Some Sections Could Not Be Loaded');
     expect(text).toContain('audit events');
   });

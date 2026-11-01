@@ -61,7 +61,7 @@ export default async function AdminAccessPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<SearchParamsRecord>;
-} = {}) {
+}) {
   const search = (await searchParams) ?? {};
   const param = (name: string) => search[name];
   const pendingBefore = parseCursor(param('pendingBefore'));

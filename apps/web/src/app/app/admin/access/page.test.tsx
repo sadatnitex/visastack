@@ -104,7 +104,7 @@ beforeEach(() => {
 
 describe('Platform > Access', () => {
   it('shows who holds a role and the state of every pilot invitation', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(text).toContain('Platform Roles');
     expect(text).toContain('Platform Owner');
@@ -116,7 +116,7 @@ describe('Platform > Access', () => {
   });
 
   it('lets a platform owner grant and revoke, and revoke only an invitation not already revoked', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(stubProps(html, 'GrantRoleForm')).toHaveLength(1);
     expect(stubProps(html, 'InviteForm')).toHaveLength(1);
     expect(stubProps<{ grantId: string }>(html, 'RevokeRoleButton').map((p) => p.grantId)).toEqual([
@@ -131,7 +131,7 @@ describe('Platform > Access', () => {
 
   it('tells an administrator who is not an owner that only an owner can change this', async () => {
     mocks.isPlatformOwnerAccount.mockResolvedValue(false);
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(stubProps(html, 'GrantRoleForm')).toHaveLength(0);
     expect(stubProps(html, 'RevokeRoleButton')).toHaveLength(0);
@@ -140,19 +140,19 @@ describe('Platform > Access', () => {
   });
 
   it('says how many staff have set up an authenticator and whether codes can be checked here', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('1 of 3 staff have set one up');
     expect(text).toContain('Codes can be checked here');
     mocks.createKeyManagementPort.mockReturnValue(undefined);
-    expect(textOf(await renderServer(Page()))).toContain('Codes cannot be checked here yet');
+    expect(textOf(await renderServer(Page({})))).toContain('Codes cannot be checked here yet');
   });
 
   it('explains legacy references without claiming current Neon sign-in is missing', async () => {
-    expect(textOf(await renderServer(Page()))).not.toContain('Legacy Sign-In References');
+    expect(textOf(await renderServer(Page({})))).not.toContain('Legacy Sign-In References');
     mocks.reportUnboundAccounts.mockResolvedValue([
       { id: 'a1', email: 'old@example.com', createdAt: new Date('2026-08-01'), applicantCount: 2 },
     ]);
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Legacy Sign-In References');
     expect(text).toContain('even when its current sign-in works');
     expect(text).not.toContain('resolves itself');
@@ -163,7 +163,7 @@ describe('Platform > Access', () => {
 
   it('refuses anyone who is not a platform administrator, without reading roles or invitations', async () => {
     mocks.isPlatformAdmin.mockResolvedValue(false);
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('restricted to platform administrators');
     expect(mocks.listActivePlatformRoles).not.toHaveBeenCalled();
     expect(mocks.listInvitations).not.toHaveBeenCalled();
@@ -172,7 +172,7 @@ describe('Platform > Access', () => {
   it('keeps showing the rest of the page when one list cannot be read, and says which', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.listInvitations.mockRejectedValue(new Error('relation does not exist'));
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Some Sections Could Not Be Loaded');
     expect(text).toContain('invitations');
     expect(text).toContain('Platform Owner');

@@ -75,7 +75,7 @@ export default async function AdminComplaintsPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<SearchParamsRecord>;
-} = {}) {
+}) {
   const search = (await searchParams) ?? {};
   const param = (name: string) => search[name];
   const tab = tabFrom(param('status'));

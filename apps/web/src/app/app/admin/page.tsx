@@ -143,7 +143,7 @@ export default async function AdminOperationsPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<SearchParamsRecord>;
-} = {}) {
+}) {
   const search = (await searchParams) ?? {};
   const param = (name: string) => search[name];
   const jobsBefore = parseCursor(param('jobsBefore'));

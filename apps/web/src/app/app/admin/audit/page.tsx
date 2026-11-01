@@ -48,7 +48,7 @@ export default async function AdminAuditPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<SearchParamsRecord>;
-} = {}) {
+}) {
   const search = (await searchParams) ?? {};
   const param = (name: string) => search[name];
   const before = parseCursor(param('before'));
