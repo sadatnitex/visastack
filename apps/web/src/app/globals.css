@@ -12240,6 +12240,123 @@ html:has(.sticky-action-bar) {
   margin: 0;
 }
 
+/* WP-LC-D removal requests: Ask Us to Remove This File, Removal Requested, and the staff Removal Requests queue (44 px targets) */
+.lc-request {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+.lc-request-heading {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.lc-request-heading:focus {
+  outline: none;
+}
+.lc-request-heading:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.lc-request-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.lc-request-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.lc-request-legend {
+  padding: 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.lc-request-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.lc-request-choice input {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+}
+.lc-request-choice:has(input:checked) {
+  border-color: var(--accent);
+}
+.lc-request-problem {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+.lc-request-actions,
+.lc-removal-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.lc-request-actions .btn,
+.lc-removal-buttons .btn {
+  min-height: 44px;
+}
+.lc-removal-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lc-removal-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lc-removal-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.lc-removal-code {
+  margin: 0;
+}
+.lc-removal-meta,
+.lc-removal-impact {
+  margin: 0;
+}
+.lc-removal-meta {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.lc-removal-decide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lc-removal-decline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 32rem;
+}
+.lc-removal-decline select {
+  min-height: 44px;
+  max-width: 100%;
+}
+
 /* WP-LC-E travellers: Archived and Recently Deleted notes and lists, Restore Traveller, the traveller Manage menu and its confirmation (44 px targets) */
 .lc-traveller-bar {
   display: flex;

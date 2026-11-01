@@ -6,6 +6,7 @@ import {
   loadWorkspaceToolbarState,
 } from '@visastack/services';
 import { hasPlatformPermission, holdsPlatformRole, isPlatformOwnerAccount } from './admin';
+import { documentRemovalRequestsOn } from './env';
 import { loadOwnedTravellers } from './profile-photos';
 import type { WorkspaceAccess } from './workspace-navigation';
 
@@ -66,6 +67,8 @@ export async function loadWorkspaceChrome(
           complaints: permissions[2] === true,
           audit: permissions[3] === true,
           privacy: permissions[4] === true,
+          // The removal queue needs privacy access and the owner's switch (lifecycle lane D).
+          removals: permissions[4] === true && documentRemovalRequestsOn(),
         }
       : null,
   };

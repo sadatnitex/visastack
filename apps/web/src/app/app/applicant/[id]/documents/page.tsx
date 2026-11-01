@@ -100,6 +100,7 @@ import { UsageMeter } from '../usage-meter';
 import { type LifecycleTab, LifecycleTabs, lifecycleTabOf } from './manage/lifecycle-tabs';
 import { ManageMenu } from './manage/manage-menu';
 import { registeredActions } from './manage/registry';
+import { removalRequestFacts } from './manage/request/facts';
 import { documentActionView, isDocumentAction } from './manage/view';
 
 const ORIGINAL_KINDS: readonly string[] = [...ORIGINAL_DOCUMENT_KEYS];
@@ -324,6 +325,13 @@ export default async function ApplicantDocumentsPage({
               documentRows.map((doc) => doc.id),
               readingAccess.value,
             );
+            // Lane D's facts: a waiting removal request, a legal hold, the request switch.
+            const removal = await removalRequestFacts(
+              db,
+              readingAccess.value,
+              id,
+              documentRows.map((doc) => doc.id),
+            );
             const actions = new Map<string, readonly DocumentAction[]>(
               documentRows.map((doc) => {
                 const state = states.get(doc.id);
@@ -331,6 +339,7 @@ export default async function ApplicantDocumentsPage({
                 const facts = {
                   isDuplicate: duplicate?.isDuplicate ?? false,
                   duplicateBlockReason: duplicate?.blockReason ?? null,
+                  ...removal.get(doc.id),
                 };
                 return [
                   doc.id,

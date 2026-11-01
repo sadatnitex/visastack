@@ -101,6 +101,7 @@ const adminForms = await import('../app/app/admin/admin-forms');
 const { ApplicantPicker } = await import('../app/app/admin/privacy/applicant-picker');
 const aiSettings = await import('../app/app/admin/ai-settings/forms');
 const protectionForms = await import('../app/app/admin/document-protection/forms');
+const removalForms = await import('../app/app/admin/removals/decide-form');
 const billingRulesForms = await import('../app/app/admin/billing/forms');
 const travellerBillingForms = await import('../app/app/admin/billing/travellers/forms');
 const travellerThresholdsForms = await import('../app/app/admin/billing/travellers/metrics/forms');
@@ -1563,6 +1564,16 @@ const ADMIN: readonly Case[] = [
       />
     )),
     fields: ['reason'],
+  },
+  {
+    ...row('decide a removal request', () => (
+      <removalForms.DecideRemovalForm
+        requestId="11111111-1111-4111-8111-111111111111"
+        documentCode="D-7K2Q9"
+        legalHold={false}
+      />
+    )),
+    fields: ['decisionCode'],
   },
   {
     name: 'an AI feature switch and daily limit',
