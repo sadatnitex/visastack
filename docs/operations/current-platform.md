@@ -2,7 +2,7 @@
 
 > Current status: [product and verified release state](../public-beta/CURRENT-STATE.md) (its newest dated section wins; 2026-10-29 at this writing). On this page the newest dated update at the end wins where it differs from the text above it. Earlier dated candidate, activation and verification statements below are historical checkpoints, not current operating claims. Original policy and acceptance requirements remain in force.
 
-Updated 2026-10-11. Start here for current deployment and setup facts. Earlier runbooks remain historical records; their provider, automatic-migration, email-linking and recovery claims are superseded where they conflict with this page. Original security and acceptance targets still apply.
+Updated 2026-10-11; newest addition 1 Nov 2026 (the last section, which supersedes earlier lines where they differ). Start here for current deployment and setup facts. Earlier runbooks remain historical records; their provider, automatic-migration, email-linking and recovery claims are superseded where they conflict with this page. Original security and acceptance targets still apply.
 
 ## Product and access
 
@@ -94,7 +94,7 @@ Update 2026-10-26:
 Update 2026-10-29 (S13 to S16, connector switched on):
 - AI connector: the owner set `AI_CONNECTOR_ENABLED=true` in Vercel Production on 28 Oct. The connector address is `https://vs.obsidianglobal.studio/mcp`; a person adds it in their own AI app (Claude or ChatGPT), signs in to VisaStack and chooses what the app may read (ADR 0021). Checked live: `/.well-known/oauth-authorization-server` answers and readiness reports `aiConnector` available. Not verified: a real Claude or ChatGPT connection end to end. Setting the variable to anything other than `true` turns the connector off.
 - `SUPPORT_EMAIL` is set in Vercel Production by the owner. Its value, like every secret or address in configuration, is never written in docs.
-- Migrations: the repository holds 100 migrations, up to 0101 (0098 and 0099 are unused numbers). Verified 29 Oct 2026 on Neon (project long-sun-23747504, database visastackdev): `drizzle.__drizzle_migrations` holds 100 rows, so every shipped migration through 0101 is applied. 0100 (AI connections) and 0101 (calendar links) were run in production right after their merges, each with the owner's word for that run. Readiness reported ready on 29 Oct after #337; it reports not ready while any shipped migration is pending (unless that check could not run). The "90 migrations" line in the 2026-10-26 update is historical. Next: 0102 (S23 redaction masks, in progress), which needs the owner's word after its merge.
+- Migrations: the repository holds 100 migrations, up to 0101 (0098 and 0099 are unused numbers). Verified 29 Oct 2026 on Neon (project long-sun-23747504, database visastackdev): `drizzle.__drizzle_migrations` holds 100 rows, so every shipped migration through 0101 is applied. 0100 (AI connections) and 0101 (calendar links) were run in production right after their merges, each with the owner's word for that run. Readiness reported ready on 29 Oct after #337; it reports not ready while any shipped migration is pending (unless that check could not run). The "90 migrations" line in the 2026-10-26 update is historical. Next: 0102 (S23 redaction masks, in progress), which needs the owner's word after its merge. (Historical: superseded by the 1 Nov 2026 update at the end of this page, which has every migration through 0114 applied.)
 - Production readiness on 29 Oct after #337: status ready, deployment mode `controlled_pilot`, `malwareScanning` unconfigured, `redactedDownload` disabled, `payments` unconfigured, `aiConnector` available, `realApplicantData` disabled, `commercialClaims` disabled.
 
 Update 2026-10-29 (S27):
@@ -153,3 +153,15 @@ Update 2026-10-30 (S19 step 0, round 2):
 - The platform overview row is "Online Payments", with the provider named in its detail.
 
 Added 2026-10-31 (ADR 0025 T3a): `TRAVELLER_PLANS_ENABLED` (Vercel), off by default, on only for `true` (spaces around it ignored, the shared rule for switches new from S29). It will govern selling paid traveller plans and their renewal invoices; nothing reads it until T3b. Turning it off never removes a period already paid for.
+
+Update 2026-11-01 (handover; supersedes earlier migration and readiness lines where they differ):
+
+- Migrations: the repository holds 113 migrations, up to `0114_traveller_plan_metrics` (0098 and 0099 are unused numbers). Every one is applied in production. The last three each ran once through `db-migrate.yml` on the owner's word for that number: 0112 refund payer guard (run 41233325574, 31 Oct), 0113 resource lifecycle (run 41263156493, 1 Nov 01:57Z), 0114 traveller plan metrics (run 41289963351, 1 Nov 09:42Z). No migration is pending.
+- Readiness on 1 Nov 2026 (`https://visastack-five.vercel.app/api/health/ready`): status ready, deployment mode `controlled_pilot`; `aiExtraction`, `redactedDownload`, `aiConnector`, `publicSignup` available; `malwareScanning` and `payments` unconfigured; `realApplicantData` and `commercialClaims` disabled. The main domain could not be probed from a cloud session (the session proxy refuses it); not verified there.
+- New switch, set by the owner on 1 Nov 2026:
+
+| Capability | Switch (where) | Off / not set | On | Notes |
+|---|---|---|---|---|
+| Document removal requests | `DOCUMENT_REMOVAL_REQUESTS` (Vercel Production) | Ask Us to Remove This File, the staff Removal Requests queue and its alerts stay hidden | People can ask; the Compliance Admin role decides, each decision after a fresh sign-in | Read by `documentRemovalRequestsOn` in `apps/web/src/lib/env.ts`: `on`, `true`, `1` or `yes`, any case, spaces ignored. Set to `on` with a redeploy (deployment `dpl_CHa5srZp3PyLaDkoxaCBu9KfR8Va`, reported READY by the coordinator). Gate G-D, `docs/roadmap/lifecycle/STATUS.md`. The owner checked that the option appears on screen (1 Nov 2026, reported by the coordinator) |
+
+- `TRAVELLER_PLANS_ENABLED`: the coordinator reports it is not on, so paid traveller plans are not on sale. Not readable from cloud sessions; not verified here. Readiness reports `payments` unconfigured in any case.
