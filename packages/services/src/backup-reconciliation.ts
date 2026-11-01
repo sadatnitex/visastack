@@ -114,6 +114,11 @@ const RECONCILED_EVENT_TYPES = [
   // for review, and its unused team invitations stay revoked. Its memberships end through their
   // own MEMBERSHIP_DEACTIVATED events, replayed above.
   'ORGANIZATION_APPLICATION_WITHDRAWN',
+  // Owner decision "Founding A": a subscription ended after the restore point never comes back
+  // (an agency's plan when it closes, or one the owner ended), and an application rejected after
+  // it never comes back to waiting for review. Only a REJECTED review is replayed.
+  'SUBSCRIPTION_ENDED',
+  'ORGANIZATION_REVIEWED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -143,6 +148,8 @@ export interface ReconciliationCounts {
   readonly aiAssistRemoved: number;
   /** Agencies that turned their AI connections off after the restore point, again (S22). */
   readonly agencyAiSettingsOff: number;
+  /** Subscriptions ended after the restore point, ended again (owner decision "Founding A"). */
+  readonly subscriptionsEnded: number;
 }
 
 export interface ReconciliationError {
@@ -309,6 +316,42 @@ async function forceOrganizationApplicationWithdrawn(
   });
 }
 
+/**
+ * Replays an ended subscription (owner decision "Founding A"): still current on the restored
+ * branch, it ends again at the moment it ended. A no-op once it is already ended there, or when it
+ * was created after the restore point.
+ */
+async function forceSubscriptionEnded(
+  newDb: Db,
+  subscriptionId: string,
+  endedAt: Date,
+): Promise<boolean> {
+  const ended = await newDb
+    .update(schema.subscriptions)
+    .set({ endedAt })
+    .where(and(eq(schema.subscriptions.id, subscriptionId), isNull(schema.subscriptions.endedAt)))
+    .returning({ id: schema.subscriptions.id });
+  return ended.length > 0;
+}
+
+/**
+ * Replays a rejected agency application: still waiting for review on the restored branch, it is
+ * REJECTED again. Any other status there (already decided, or closed) is left as it is.
+ */
+async function forceApplicationRejected(newDb: Db, organizationId: string): Promise<boolean> {
+  const rejected = await newDb
+    .update(schema.organizations)
+    .set({ status: 'REJECTED', updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.organizations.id, organizationId),
+        eq(schema.organizations.status, 'PENDING_VERIFICATION'),
+      ),
+    )
+    .returning({ id: schema.organizations.id });
+  return rejected.length > 0;
+}
+
 /** Ends every live token of one AI connection on the restored branch. */
 async function revokeAiConnectionTokens(tx: Db, connectionId: string, now: Date): Promise<number> {
   const rows = await tx
@@ -360,6 +403,12 @@ function metadataFlag(metadata: unknown, key: string): boolean | undefined {
   if (typeof metadata !== 'object' || metadata === null) return undefined;
   const value = Reflect.get(metadata, key);
   return typeof value === 'boolean' ? value : undefined;
+}
+
+function metadataText(metadata: unknown, key: string): string | undefined {
+  if (typeof metadata !== 'object' || metadata === null) return undefined;
+  const value = Reflect.get(metadata, key);
+  return typeof value === 'string' ? value : undefined;
 }
 
 /**
@@ -1181,6 +1230,8 @@ const EVENT_META: Readonly<
     counter: 'organizationsForced',
     resourceType: 'organization',
   },
+  SUBSCRIPTION_ENDED: { counter: 'subscriptionsEnded', resourceType: 'subscription' },
+  ORGANIZATION_REVIEWED: { counter: 'organizationsForced', resourceType: 'organization' },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -1236,6 +1287,13 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
         : false;
     case 'ORGANIZATION_APPLICATION_WITHDRAWN':
       return forceOrganizationApplicationWithdrawn(newDb, resourceId);
+    case 'SUBSCRIPTION_ENDED':
+      return forceSubscriptionEnded(newDb, resourceId, event.occurredAt);
+    case 'ORGANIZATION_REVIEWED':
+      // Only a rejection narrows; an approval is the platform's to make again.
+      return metadataText(event.metadata, 'decision') === 'REJECTED'
+        ? forceApplicationRejected(newDb, resourceId)
+        : false;
     default:
       return false;
   }
@@ -1276,6 +1334,7 @@ export async function reconcileRestoredBranch(
     redactionMasksReconciled: 0,
     aiAssistRemoved: 0,
     agencyAiSettingsOff: 0,
+    subscriptionsEnded: 0,
   };
   const errors: ReconciliationError[] = [];
   const mutableCounts = counts as {

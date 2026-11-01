@@ -1010,14 +1010,15 @@ export async function executeScheduledDowngrade(
         .for('update'),
     );
     if (!stillPending) return err(serviceError('not_found', 'no pending scheduled downgrade'));
-    // Owner decision "Founding A": a closed agency keeps no plan, so none is ever put back.
+    // Owner decision "Founding A": a closed or rejected agency keeps no plan, so none is ever
+    // put back.
     const organization = first(
       await tx
         .select({ status: schema.organizations.status })
         .from(schema.organizations)
         .where(eq(schema.organizations.id, pending.organizationId)),
     );
-    if (!organization || organization.status === 'CLOSED') {
+    if (!organization || organization.status === 'CLOSED' || organization.status === 'REJECTED') {
       return err(serviceError('invalid', 'this agency is closed'));
     }
     if (!current || current.planId !== pending.fromPlanId) {
