@@ -243,6 +243,7 @@ describe('Platform > Traveller Billing (ADR 0025 T6b)', () => {
     expect(textOf(html)).not.toContain('Find a Traveller');
     expect(mocks.listTravellerNeedsCheck).not.toHaveBeenCalled();
     expect(mocks.getTravellerBilling).not.toHaveBeenCalled();
+    expect(html).not.toContain('/app/admin/billing/travellers/metrics');
   });
 
   it('shows the restricted page when a service refuses the scope', async () => {
@@ -259,6 +260,10 @@ describe('Platform > Traveller Billing (ADR 0025 T6b)', () => {
     expect(html.match(/<h1/g)).toHaveLength(1);
     expect(text).toContain('Traveller Billing');
     expect(text).toContain('Needs a Check');
+    // T6: the header links to the traveller plan metrics and alerts.
+    expect(html).toMatch(
+      /<a [^>]*href="\/app\/admin\/billing\/travellers\/metrics"[^>]*>Metrics and Alerts<\/a>/,
+    );
     expect(mocks.listTravellerNeedsCheck.mock.calls[0]?.[1]).toEqual(SCOPE);
     expect(mocks.listTravellerNeedsCheck.mock.calls[0]?.[2]).toEqual({ now: NOW });
     expect(text).toContain('9D1E2F3A');

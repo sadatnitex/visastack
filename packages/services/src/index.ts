@@ -2327,3 +2327,23 @@ export {
 // LC-D exports
 
 // LC-E exports
+// ADR 0025 T6: the owner's traveller plan metrics and health thresholds (migration 0114).
+export {
+  STANDARD_TRAVELLER_THRESHOLDS,
+  TRAVELLER_HEALTH_UNAVAILABLE,
+  TRAVELLER_METRICS_MAX_DAYS,
+  type TravellerHealth,
+  type TravellerHealthSettings,
+  type TravellerHealthSignal,
+  type TravellerHealthThresholds,
+  type TravellerPlanDay,
+  type TravellerPlanEvent,
+  type TravellerPlanMetrics,
+  type TravellerSignalStatus,
+  countTravellerPlanEvent,
+  getTravellerHealthSettings,
+  travellerPlanHealth,
+  travellerPlanMetrics,
+  travellerThresholdsProblem,
+  updateTravellerHealthSettings,
+} from './traveller-plan-metrics';

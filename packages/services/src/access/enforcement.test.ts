@@ -71,6 +71,8 @@ const PAYER_COLUMN_MODULES = [
   // T6: a person's refund (below its marker) and the owner's Traveller Billing view.
   'refunds',
   'person-billing-admin',
+  // T6: the owner's traveller plan metrics count traveller rows in plain SQL (PLANS_MANAGE).
+  'traveller-plan-metrics',
 ] as const;
 /**
  * Exported functions that touch person billing tables without a gate and are trusted not to
@@ -114,6 +116,10 @@ const PERSON_EXCEPTIONS: Readonly<Record<string, string>> = {
     "the entitlement resolver's coverage check for the account the caller already acts as; returns a plan id and dates, never a billing row (ADR 0025 section 13)",
   'traveller-billing#paidTravellerCoverage':
     'counts people per plan for the owner-only Plans page; returns counts, never a billing row',
+  'traveller-plan-metrics#countTravellerPlanEvent':
+    'adds one to a day counter of Plan & Usage views or Get taps; never who, reads no billing row',
+  'traveller-plan-metrics#travellerThresholdsProblem':
+    'checks typed threshold numbers; reads nothing',
 };
 const webSrcDir = path.resolve(servicesDir, '../../apps/web/src');
 const jobsDir = path.join(webSrcDir, 'app', 'api', 'jobs');
@@ -959,7 +965,7 @@ describe('person billing ratchet (ADR 0025)', () => {
     const personGates = gateDeclarations(program, checker, PERSON_GATE_TYPES);
     // The plain-SQL reader module is judged function by function (the others are seen by the
     // type-based ratchet above).
-    for (const module of ['traveller-billing', 'person-renewals']) {
+    for (const module of ['traveller-billing', 'person-renewals', 'traveller-plan-metrics']) {
       const sf = sourceFileAt(program, real(path.join(srcDir, `${module}.ts`)));
       for (const [name, shape] of exportedFunctions(checker, sf)) {
         const id = `${module}#${name}`;
