@@ -16,6 +16,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { CollapsibleGroups } from '../../../../../components/collapsible-group';
 import { PageHeader, StatusBadge } from '../../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../../lib/admin';
 import {
@@ -361,33 +362,30 @@ function RefundForms({
   readonly now: Date;
   readonly latestDate: string;
 }) {
+  const left = refundable(person);
   const forms = [
-    ...person.payments
-      .filter((payment) => payment.refundableMinorUnits > 0)
-      .map((payment, index) => ({
-        formId: `traveller-refund-${person.code}-payment-${index}`,
-        source: { kind: 'entry' as const, id: payment.id },
-        invoiceRef: payment.invoiceRef,
-        amountMinorUnits: payment.refundableMinorUnits,
-        amountText: formatMoney(payment.refundableMinorUnits, payment.currency),
-        earliestDate: dayField(payment.collectedDate),
-        outsideWindow: now.getTime() > payment.refundWindowEndsAt.getTime(),
-        testPayment: payment.mode === 'TEST',
-        title: `Record Refund (${payment.invoiceRef}${payment.mode === 'TEST' ? `, ${TEST_PAYMENT_LABEL}` : ''})`,
-      })),
-    ...person.held
-      .filter((held) => held.remainingMinorUnits > 0)
-      .map((held, index) => ({
-        formId: `traveller-refund-${person.code}-held-${index}`,
-        source: { kind: 'held' as const, id: held.id },
-        invoiceRef: held.invoiceRef,
-        amountMinorUnits: held.remainingMinorUnits,
-        amountText: formatMoney(held.remainingMinorUnits, held.currency),
-        earliestDate: dayField(held.paidOn),
-        outsideWindow: now.getTime() > held.refundWindowEndsAt.getTime(),
-        testPayment: false,
-        title: `Record Refund (${held.invoiceRef}, Held Payment)`,
-      })),
+    ...left.payments.map((payment, index) => ({
+      formId: `traveller-refund-${person.code}-payment-${index}`,
+      source: { kind: 'entry' as const, id: payment.id },
+      invoiceRef: payment.invoiceRef,
+      amountMinorUnits: payment.refundableMinorUnits,
+      amountText: formatMoney(payment.refundableMinorUnits, payment.currency),
+      earliestDate: dayField(payment.collectedDate),
+      outsideWindow: now.getTime() > payment.refundWindowEndsAt.getTime(),
+      testPayment: payment.mode === 'TEST',
+      title: `Record Refund (${payment.invoiceRef}${payment.mode === 'TEST' ? `, ${TEST_PAYMENT_LABEL}` : ''})`,
+    })),
+    ...left.held.map((held, index) => ({
+      formId: `traveller-refund-${person.code}-held-${index}`,
+      source: { kind: 'held' as const, id: held.id },
+      invoiceRef: held.invoiceRef,
+      amountMinorUnits: held.remainingMinorUnits,
+      amountText: formatMoney(held.remainingMinorUnits, held.currency),
+      earliestDate: dayField(held.paidOn),
+      outsideWindow: now.getTime() > held.refundWindowEndsAt.getTime(),
+      testPayment: false,
+      title: `Record Refund (${held.invoiceRef}, Held Payment)`,
+    })),
   ];
   if (forms.length === 0) {
     return <p className="card-body">Nothing is left to refund for this traveller.</p>;
@@ -432,55 +430,93 @@ function Person({
         </p>
       ) : null}
 
-      <h3 className="invoice-subhead">Plan</h3>
-      {person.plan ? (
-        <div className="rows rows-grid u-mb-100">
-          <div className="row">
-            <span className="row-key">Plan</span>
-            <span>{person.plan.planName}</span>
-          </div>
-          <div className="row">
-            <span className="row-key">Renewing</span>
-            <span>{person.plan.renews ? 'Yes' : 'No'}</span>
-          </div>
-          <div className="row">
-            <span className="row-key">Paid Until</span>
-            <span>
-              {person.plan.paidUntil
-                ? formatBillingDateTime(person.plan.paidUntil)
-                : 'Not paid now'}
-            </span>
-          </div>
-        </div>
-      ) : (
-        <p className="card-body u-mb-100">No plan now.</p>
-      )}
-
-      <h3 className="invoice-subhead">Purchases</h3>
-      <Purchases person={person} shown={shown} />
-
-      <h3 className="invoice-subhead">Payments</h3>
-      <Payments person={person} shown={shown} now={now} />
-
-      <h3 className="invoice-subhead">Held Payments</h3>
-      <Held person={person} shown={shown} />
-
-      <h3 className="invoice-subhead">Refunds Made</h3>
-      <Refunds person={person} shown={shown} />
-
-      {refundsAvailable ? (
-        <>
-          <h3 className="invoice-subhead">Record a Refund</h3>
-          <p className="card-body u-mb-100">
-            Make the refund in the payment gateway's merchant panel first, then record it here with
-            the panel's refund reference. A refund is always all that is left of the payment.
-            Refunding the period that covers today ends the traveller's plan at once. Every refund
-            asks you to confirm it is you.
-          </p>
-          <RefundForms person={person} now={now} latestDate={latestDate} />
-        </>
-      ) : null}
+      {/* Scroll Budget (WP-SB9): each part folds, with how many rows it holds in its title, so a
+          traveller with a long history still fits; the plan starts open. */}
+      <CollapsibleGroups
+        idPrefix={`traveller-${person.code}`}
+        // A held payment is what Needs a Check sends the owner here for, so it opens first.
+        openKey={person.held.length > 0 ? 'held' : 'plan'}
+        groups={[
+          { key: 'plan', title: 'Plan', content: <PlanFacts person={person} /> },
+          {
+            key: 'purchases',
+            title: 'Purchases',
+            count: person.invoices.length,
+            content: <Purchases person={person} shown={shown} />,
+          },
+          {
+            key: 'payments',
+            title: 'Payments',
+            count: person.payments.length,
+            content: <Payments person={person} shown={shown} now={now} />,
+          },
+          {
+            key: 'held',
+            title: 'Held Payments',
+            count: person.held.length,
+            content: <Held person={person} shown={shown} />,
+          },
+          {
+            key: 'refunds',
+            title: 'Refunds Made',
+            count: person.refunds.length,
+            content: <Refunds person={person} shown={shown} />,
+          },
+          ...(refundsAvailable
+            ? [
+                {
+                  key: 'record',
+                  title: 'Record a Refund',
+                  count: refundable(person).payments.length + refundable(person).held.length,
+                  content: (
+                    <>
+                      <p className="card-body u-mb-100">
+                        Make the refund in the payment gateway's merchant panel first, then record
+                        it here with the panel's refund reference. A refund is always all that is
+                        left of the payment. Refunding the period that covers today ends the
+                        traveller's plan at once. Every refund asks you to confirm it is you.
+                      </p>
+                      <RefundForms person={person} now={now} latestDate={latestDate} />
+                    </>
+                  ),
+                },
+              ]
+            : []),
+        ]}
+      />
     </article>
+  );
+}
+
+/** The payments and held payments of this traveller that still have something to refund. */
+function refundable(person: TravellerBilling) {
+  return {
+    payments: person.payments.filter((payment) => payment.refundableMinorUnits > 0),
+    held: person.held.filter((held) => held.remainingMinorUnits > 0),
+  };
+}
+
+/** The traveller's plan now: which, whether it renews, and until when it is paid. */
+function PlanFacts({ person }: { readonly person: TravellerBilling }) {
+  return person.plan ? (
+    <div className="rows rows-grid u-mb-100">
+      <div className="row">
+        <span className="row-key">Plan</span>
+        <span>{person.plan.planName}</span>
+      </div>
+      <div className="row">
+        <span className="row-key">Renewing</span>
+        <span>{person.plan.renews ? 'Yes' : 'No'}</span>
+      </div>
+      <div className="row">
+        <span className="row-key">Paid Until</span>
+        <span>
+          {person.plan.paidUntil ? formatBillingDateTime(person.plan.paidUntil) : 'Not paid now'}
+        </span>
+      </div>
+    </div>
+  ) : (
+    <p className="card-body u-mb-100">No plan now.</p>
   );
 }
 

@@ -1440,11 +1440,31 @@ export async function listNotesForOwner(
   db: Db,
   actorAccountId: string,
   missionId: string,
-): Promise<OwnerVisibleNote[]> {
+): Promise<OwnerVisibleNote[]>;
+/**
+ * WP-SB2: with `options.limit` only the newest `limit` shared notes come back (clamped to 1 to
+ * 100, as every capped list is), with how many shared notes the case holds. The same owner check
+ * and the same TRAVELLER_SHARED rule apply; a reader who is not the owner gets an empty list.
+ */
+export async function listNotesForOwner(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  options: { readonly limit?: number },
+): Promise<{ readonly items: readonly OwnerVisibleNote[]; readonly total: number }>;
+export async function listNotesForOwner(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  options?: { readonly limit?: number },
+): Promise<
+  OwnerVisibleNote[] | { readonly items: readonly OwnerVisibleNote[]; readonly total: number }
+> {
+  const none = options ? { items: [], total: 0 } : [];
   const mission = first(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
-  if (!mission) return [];
+  if (!mission) return none;
   const applicant = first(
     await db
       .select()
@@ -1452,8 +1472,12 @@ export async function listNotesForOwner(
       .where(eq(schema.applicants.id, mission.applicantId))
       .limit(1),
   );
-  if (!applicant || applicant.ownerAccountId !== actorAccountId) return [];
-  const rows = await db
+  if (!applicant || applicant.ownerAccountId !== actorAccountId) return none;
+  const shared = and(
+    eq(schema.missionNotes.missionId, missionId),
+    eq(schema.missionNotes.visibility, 'TRAVELLER_SHARED'),
+  );
+  const query = db
     .select({
       id: schema.missionNotes.id,
       body: schema.missionNotes.body,
@@ -1462,14 +1486,24 @@ export async function listNotesForOwner(
     })
     .from(schema.missionNotes)
     .leftJoin(schema.accounts, eq(schema.accounts.id, schema.missionNotes.authorAccountId))
-    .where(
-      and(
-        eq(schema.missionNotes.missionId, missionId),
-        eq(schema.missionNotes.visibility, 'TRAVELLER_SHARED'),
-      ),
-    )
-    .orderBy(desc(schema.missionNotes.createdAt));
-  return rows.map((r) => ({ ...r, authorEmail: r.authorEmail ?? null }));
+    .where(shared)
+    .orderBy(desc(schema.missionNotes.createdAt), desc(schema.missionNotes.id));
+  if (!options) {
+    const rows = await query;
+    return rows.map((r) => ({ ...r, authorEmail: r.authorEmail ?? null }));
+  }
+  // The same clamp as clampLimit in paging.ts (1 to 100, default 50), written here so this shared
+  // file gains no new import line that parallel packages would also touch.
+  const requested = Number.isFinite(options.limit) ? Math.floor(options.limit ?? 50) : 50;
+  const limit = Math.min(100, Math.max(1, requested));
+  const [rows, counts] = await Promise.all([
+    query.limit(limit),
+    db.select({ total: sql<number>`count(*)::int` }).from(schema.missionNotes).where(shared),
+  ]);
+  return {
+    items: rows.map((r) => ({ ...r, authorEmail: r.authorEmail ?? null })),
+    total: Number(counts[0]?.total ?? 0),
+  };
 }
 
 /**
@@ -1634,12 +1668,42 @@ export async function requestEvidence(
   });
 }
 
-/** Evidence requests directed at an applicant (owner-scoped), newest first. */
+/** WP-SB3: one page of an applicant's evidence requests, with counts over all of them. */
+export interface EvidenceRequestListPage {
+  readonly items: EvidenceRequest[];
+  /** True when more requests exist after these. */
+  readonly more: boolean;
+  readonly counts: {
+    readonly total: number;
+    /** Requests waiting on the person's reply (open, or sent back for a replacement). */
+    readonly awaiting: number;
+  };
+}
+
+/**
+ * Evidence requests directed at an applicant (owner-scoped), newest first.
+ *
+ * With `options` (WP-SB3) it reads at most `limit` requests (clamped 1 to 500) in the order the
+ * evidence page shows them: waiting on the person first, then the soonest due date (none last),
+ * then newest, then by id, plus counts over every request. The owner check is the same.
+ */
 export async function listEvidenceRequestsForApplicant(
   db: Db,
   actorAccountId: string,
   applicantId: string,
-): Promise<Result<EvidenceRequest[], ServiceError>> {
+): Promise<Result<EvidenceRequest[], ServiceError>>;
+export async function listEvidenceRequestsForApplicant(
+  db: Db,
+  actorAccountId: string,
+  applicantId: string,
+  options: { readonly limit?: number },
+): Promise<Result<EvidenceRequestListPage, ServiceError>>;
+export async function listEvidenceRequestsForApplicant(
+  db: Db,
+  actorAccountId: string,
+  applicantId: string,
+  options?: { readonly limit?: number },
+): Promise<Result<EvidenceRequest[] | EvidenceRequestListPage, ServiceError>> {
   const applicant = first(
     await db.select().from(schema.applicants).where(eq(schema.applicants.id, applicantId)).limit(1),
   );
@@ -1647,12 +1711,46 @@ export async function listEvidenceRequestsForApplicant(
   if (applicant.ownerAccountId !== actorAccountId) {
     return err(serviceError('forbidden', 'not authorized to view these requests'));
   }
-  const rows = await db
-    .select()
-    .from(schema.evidenceRequests)
-    .where(eq(schema.evidenceRequests.applicantId, applicantId));
-  const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  return ok(sorted);
+  const requests = schema.evidenceRequests;
+  if (options === undefined) {
+    const rows = await db.select().from(requests).where(eq(requests.applicantId, applicantId));
+    const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return ok(sorted);
+  }
+  // Every request must stay reachable from the page (each may need a reply), so the list grows
+  // past the usual 100-row page, up to 500.
+  const wanted = options.limit;
+  const limit =
+    wanted === undefined || !Number.isFinite(wanted)
+      ? 500
+      : Math.min(500, Math.max(1, Math.floor(wanted)));
+  const awaitingSql = inArray(requests.status, ['OPEN', 'NEEDS_REPLACEMENT']);
+  const [rows, totals] = await Promise.all([
+    db
+      .select()
+      .from(requests)
+      .where(eq(requests.applicantId, applicantId))
+      .orderBy(
+        sql`case when ${awaitingSql} then 0 else 1 end`,
+        sql`${requests.dueDate} asc nulls last`,
+        desc(requests.createdAt),
+        desc(requests.id),
+      )
+      .limit(limit + 1),
+    db
+      .select({
+        total: sql<number>`count(*)::int`,
+        awaiting: sql<number>`(count(*) filter (where ${awaitingSql}))::int`,
+      })
+      .from(requests)
+      .where(eq(requests.applicantId, applicantId)),
+  ]);
+  const counted = first(totals);
+  return ok({
+    items: rows.slice(0, limit),
+    more: rows.length > limit,
+    counts: { total: Number(counted?.total ?? 0), awaiting: Number(counted?.awaiting ?? 0) },
+  });
 }
 
 /**

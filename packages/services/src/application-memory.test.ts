@@ -782,3 +782,101 @@ describe('Application Memory and prior versus current (WP-V3 part 3)', () => {
     expect(changes).not.toContainEqual(expect.objectContaining({ caseField: 'travelStartDate' }));
   }, 60_000);
 });
+
+describe('Case History limited read (WP-SB1)', () => {
+  let db: Db;
+
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function person(email: string) {
+    const provisioned = await provisionAccount(db, { email });
+    if (!isOk(provisioned)) throw new Error('provision failed');
+    const accountId = provisioned.value.id;
+    await setConsent(db, {
+      actorAccountId: accountId,
+      accountId,
+      type: 'CORE_PROCESSING',
+      granted: true,
+    });
+    const applicant = await createApplicant(db, {
+      actorAccountId: accountId,
+      ownerAccountId: accountId,
+      displayName: 'Self',
+    });
+    if (!isOk(applicant)) throw new Error('applicant failed');
+    return { accountId, applicantId: applicant.value.id };
+  }
+
+  async function cases(who: { accountId: string; applicantId: string }, howMany: number) {
+    const ids: string[] = [];
+    for (let i = 0; i < howMany; i += 1) {
+      const mission = await createMission(db, {
+        actorAccountId: who.accountId,
+        applicantId: who.applicantId,
+        title: `Case ${i + 1}`,
+        destination: 'Japan',
+        purpose: 'Tourism',
+      });
+      if (!isOk(mission)) throw new Error('mission failed');
+      ids.push(mission.value.id);
+    }
+    return ids;
+  }
+
+  async function proofFor(who: { accountId: string; applicantId: string }) {
+    const proof = await requireAccess(
+      db,
+      accountPrincipal(who.accountId),
+      'VIEW_METADATA',
+      { applicantId: who.applicantId },
+      { purpose: 'application_memory' },
+    );
+    if (!isOk(proof)) throw new Error('gate refused');
+    return proof.value;
+  }
+
+  it('reads only the most recently active cases, in the order the full read gives them', async () => {
+    const ana = await person('ana-sb1@example.test');
+    const ids = await cases(ana, 12);
+    // The oldest case gets the latest record, so it becomes the most recently active.
+    const snap = await snapshotMission(db, {
+      actorAccountId: ana.accountId,
+      missionId: ids[0] ?? '',
+    });
+    if (!isOk(snap)) throw new Error('snapshot failed');
+
+    const full = await getApplicationMemory(await proofFor(ana));
+    const limited = await getApplicationMemory(await proofFor(ana), { limit: 10 });
+    if (!isOk(full) || !isOk(limited)) throw new Error('read failed');
+
+    expect(full.value.cases).toHaveLength(12);
+    expect(full.value.totalCases).toBeUndefined();
+    expect(limited.value.cases).toHaveLength(10);
+    expect(limited.value.totalCases).toBe(12);
+    expect(limited.value.cases[0]?.missionId).toBe(ids[0]);
+    expect(limited.value.cases[0]?.events.map((e) => e.kind)).toEqual(['prepared']);
+    expect(limited.value.cases.map((c) => c.missionId)).toEqual(
+      full.value.cases.slice(0, 10).map((c) => c.missionId),
+    );
+  });
+
+  it("never counts or returns another person's cases, and clamps the limit", async () => {
+    const ana = await person('ana-sb1b@example.test');
+    const ben = await person('ben-sb1b@example.test');
+    await cases(ana, 2);
+    const bens = await cases(ben, 3);
+
+    const limited = await getApplicationMemory(await proofFor(ana), { limit: 0 });
+    if (!isOk(limited)) throw new Error('read failed');
+    expect(limited.value.totalCases).toBe(2);
+    expect(limited.value.cases).toHaveLength(1);
+    expect(limited.value.cases.some((c) => bens.includes(c.missionId))).toBe(false);
+
+    const none = await person('cy-sb1b@example.test');
+    const empty = await getApplicationMemory(await proofFor(none), { limit: 10 });
+    if (!isOk(empty)) throw new Error('read failed');
+    expect(empty.value).toEqual({ recordShares: [], cases: [], totalCases: 0 });
+  });
+});

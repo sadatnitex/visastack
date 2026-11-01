@@ -936,3 +936,54 @@ describe('applyEmailDeliveryEvent (NTF-03 delivery/bounce webhook)', () => {
     expect(result.applied).toBe(false);
   });
 });
+
+describe('listNotificationsForAccount unread first (WP-SB1)', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  it('puts unread before read, each newest first, and keeps the default order without the option', async () => {
+    const { account } = await seedOwner(db, 'unread-first@example.com');
+    for (const name of ['Oldest', 'Middle', 'Newest']) {
+      await enqueueNotification(db, {
+        eventType: name,
+        channel: 'IN_APP',
+        resourceId: name,
+        recipientAccountId: account.id,
+        payload: { subject: name, summary: 's', deepLinkPath: '/x' },
+      });
+    }
+    await runNotificationWorker(db, new FakeEmailPort(), 'https://app.example.com');
+    // Spread the times so the order does not rest on insertion speed.
+    const rows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.recipientAccountId, account.id));
+    const at = { Oldest: 1, Middle: 2, Newest: 3 } as const;
+    for (const row of rows) {
+      const subject = (row.payload as { subject: keyof typeof at }).subject;
+      await db
+        .update(schema.notifications)
+        .set({ createdAt: new Date(Date.UTC(2026, 9, at[subject])) })
+        .where(eq(schema.notifications.id, row.id));
+    }
+    const newest = rows.find((row) => (row.payload as { subject: string }).subject === 'Newest');
+    const marked = await markNotificationRead(db, {
+      actorAccountId: account.id,
+      notificationId: newest?.id ?? '',
+    });
+    expect(isOk(marked)).toBe(true);
+
+    const plain = await listNotificationsForAccount(db, account.id);
+    expect(plain.map((n) => n.subject)).toEqual(['Newest', 'Middle', 'Oldest']);
+    const unreadFirst = await listNotificationsForAccount(db, account.id, {
+      unreadFirst: true,
+      limit: 2,
+    });
+    expect(unreadFirst.map((n) => [n.subject, n.read])).toEqual([
+      ['Middle', false],
+      ['Oldest', false],
+    ]);
+  });
+});

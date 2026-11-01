@@ -142,8 +142,8 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
   {
     screen: 'cases',
     from: { kind: 'heading', name: 'Active & Past', detail: '2' },
-    to: { kind: 'heading', name: 'All Cases', detail: '2' },
-    reason: 'D3: the list section is "All Cases".',
+    to: { kind: 'heading', name: 'Active Cases', detail: '2' },
+    reason: 'LC-G2: open cases under Active Cases, closed and cancelled under Past Cases.',
   },
   {
     screen: 'cases',
