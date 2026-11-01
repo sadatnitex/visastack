@@ -133,7 +133,6 @@ function setUp(
   mocks.getLatestExplanationForRequirement.mockResolvedValue(undefined);
   mocks.getApplicant.mockResolvedValue({ id: 'synthetic-family', displayName: 'Rahman family' });
   for (const name of [
-    'listMissionSnapshots',
     'listGeneratedOutputs',
     'listSelectedEvidence',
     'getEvidenceCandidates',
@@ -142,19 +141,21 @@ function setUp(
     'listAppointments',
     'listOutcomesForMission',
     'listSubmissionsForMission',
-    'listComplaintsForMission',
-    'listFeedbackForMission',
   ] as const) {
     mocks[name].mockResolvedValue(ok([]));
   }
+  // WP-SB2: the capped reads answer with their first rows and totals.
+  mocks.listMissionSnapshots.mockResolvedValue(ok({ items: [], nextCursor: null }));
+  mocks.listComplaintsForMission.mockResolvedValue(ok({ items: [], total: 0 }));
+  mocks.listFeedbackForMission.mockResolvedValue(ok({ items: [], total: 0 }));
   mocks.listPublishedPackVersions.mockResolvedValue([]);
   mocks.listFittingPublicPacks.mockResolvedValue([]);
   mocks.readTravellerCoverage.mockResolvedValue({ nationality: ['Bangladeshi'], residence: [] });
   mocks.listMissionsByItineraryRef.mockResolvedValue([]);
-  mocks.listNotesForOwner.mockResolvedValue([]);
+  mocks.listNotesForOwner.mockResolvedValue({ items: [], total: 0 });
   mocks.listTasks.mockResolvedValue(
-    ok(
-      Array.from({ length: options.openTasks ?? 0 }, (_, i) => ({
+    ok({
+      items: Array.from({ length: options.openTasks ?? 0 }, (_, i) => ({
         id: `task-${i}`,
         description: `Task ${i}`,
         status: 'OPEN',
@@ -162,7 +163,9 @@ function setUp(
         dueDate: null,
         dueTimezone: null,
       })),
-    ),
+      total: options.openTasks ?? 0,
+      open: options.openTasks ?? 0,
+    }),
   );
   mocks.requireAccess.mockResolvedValue(
     options.gateRefuses
@@ -615,7 +618,16 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
       { missionId: 'synthetic-case', nextStates: ['READY_FOR_REVIEW'] },
     ]);
     expect(stubProps(html, 'CaseMoreMenu')).toEqual([
-      { missionId: 'synthetic-case', applicantId: 'synthetic-family', canCancel: true },
+      {
+        missionId: 'synthetic-case',
+        applicantId: 'synthetic-family',
+        canCancel: true,
+        // WP-SB2: on a phone the header's own actions are offered from More too.
+        headerActions: {
+          addEvidenceHref: '#evidence',
+          newCaseHref: '/app/applicant/synthetic-family/missions/prepare-again?from=synthetic-case',
+        },
+      },
     ]);
     // More sits with the header actions, above the stage tracker.
     expect(html.indexOf('data-stub="CaseMoreMenu"')).toBeLessThan(
@@ -856,5 +868,235 @@ describe('the case on Glance, Browse and Everything (CCD-4)', () => {
     const html = await render();
     const [picker] = stubProps<{ primary?: boolean }>(html, 'AttachPackForm');
     expect(picker?.primary).toBe(!html.includes('case-next-step-heading'));
+  });
+});
+
+/**
+ * WP-SB2 (Scroll Budget): the case page reads every list capped on the server and shows 10 rows,
+ * then Show More; the checklist sits in groups that open and close; five snapshots and a link to
+ * the rest; on a phone the header actions fold into More and the next step stays in reach.
+ */
+describe('WP-SB2: a worst-case case stays short', () => {
+  const doc = async (html: string) => new (await import('jsdom')).JSDOM(html).window.document;
+  const renderWith = async (query: Record<string, string | string[]>) =>
+    renderServer(
+      await MissionPage({
+        params: Promise.resolve({ id: 'synthetic-case' }),
+        searchParams: Promise.resolve(query),
+      }),
+    );
+  /** A 60-requirement case: 20 missing, 10 to confirm, 30 on file. */
+  const sixty = [
+    ...Array.from({ length: 20 }, () => 'CRITICAL_GAP'),
+    ...Array.from({ length: 10 }, () => 'UNVERIFIED'),
+    ...Array.from({ length: 30 }, () => 'SATISFIED'),
+  ];
+  const note = (i: number) => ({
+    id: `note-${i}`,
+    body: `Shared note ${i}`,
+    authorEmail: 'agent@example.com',
+    createdAt: new Date('2026-10-20T00:00:00Z'),
+  });
+  const outcome = (i: number) => ({
+    id: `outcome-${i}`,
+    decision: 'GRANTED',
+    decisionDate: new Date('2026-10-20T00:00:00Z'),
+    officialWording: null,
+    agencyInterpretation: null,
+    createdAt: new Date('2026-10-20T00:00:00Z'),
+  });
+
+  it('groups a 60-item checklist, with what is missing open first and the rest closed', async () => {
+    setUp({ requirements: sixty });
+    const page = await doc(await renderWith({}));
+    const groups = [...page.querySelectorAll('#readiness details.collapsible-group')];
+    expect(groups.map((g) => g.querySelector('.collapsible-group-title')?.textContent)).toEqual([
+      'Needs You',
+      'Needs a Check',
+      'Done',
+    ]);
+    expect(groups.map((g) => g.querySelector('.collapsible-group-count')?.textContent)).toEqual([
+      '20',
+      '10',
+      '30',
+    ]);
+    expect(groups.map((g) => g.hasAttribute('open'))).toEqual([true, false, false]);
+    expect(groups[0]?.id).toBe('case-checklist-needs-you');
+    expect(page.querySelectorAll('#readiness .row')).toHaveLength(60);
+  });
+
+  it('opens the first group that has rows when nothing is missing', async () => {
+    setUp({ requirements: ['UNVERIFIED', 'SATISFIED'] });
+    const page = await doc(await renderWith({}));
+    const open = [...page.querySelectorAll('#readiness details.collapsible-group[open]')];
+    expect(open.map((g) => g.querySelector('.collapsible-group-title')?.textContent)).toEqual([
+      'Needs a Check',
+    ]);
+  });
+
+  it('asks the server for 10 rows of each list and 5 snapshots by default', async () => {
+    setUp();
+    await renderWith({});
+    expect(mocks.listTasks).toHaveBeenCalledWith({}, 'synthetic-owner', 'synthetic-case', {
+      limit: 10,
+    });
+    expect(mocks.listNotesForOwner).toHaveBeenCalledWith({}, 'synthetic-owner', 'synthetic-case', {
+      limit: 10,
+    });
+    expect(mocks.listComplaintsForMission).toHaveBeenCalledWith(
+      {},
+      'synthetic-owner',
+      'synthetic-case',
+      { limit: 10 },
+    );
+    expect(mocks.listFeedbackForMission).toHaveBeenCalledWith(
+      {},
+      'synthetic-owner',
+      'synthetic-case',
+      { limit: 10 },
+    );
+    expect(mocks.listMissionSnapshots).toHaveBeenCalledWith(
+      {},
+      'synthetic-owner',
+      'synthetic-case',
+      { limit: 5 },
+    );
+  });
+
+  it('grows one list by 10 per Show More, clamps a hand-edited address and keeps others at 10', async () => {
+    setUp();
+    await renderWith({ tasks: '20', notes: 'lots', complaints: '999999', feedback: ['30', '10'] });
+    expect(mocks.listTasks.mock.calls[0]?.[3]).toEqual({ limit: 20 });
+    expect(mocks.listNotesForOwner.mock.calls[0]?.[3]).toEqual({ limit: 10 });
+    expect(mocks.listComplaintsForMission.mock.calls[0]?.[3]).toEqual({ limit: 100 });
+    expect(mocks.listFeedbackForMission.mock.calls[0]?.[3]).toEqual({ limit: 30 });
+  });
+
+  it('shows 10 shared notes of 34 with a Show More link that lands on the first new note', async () => {
+    setUp();
+    mocks.listNotesForOwner.mockResolvedValue({
+      items: Array.from({ length: 10 }, (_, i) => note(i)),
+      total: 34,
+    });
+    const page = await doc(await renderWith({ welcome: '1' }));
+    const notes = page.querySelector('#notes');
+    expect(notes?.querySelectorAll('[id^="case-note-"].row')).toHaveLength(10);
+    expect(notes?.querySelector('.show-more-count')?.textContent).toBe('Showing 10 of 34 notes.');
+    const link = notes?.querySelector<HTMLAnchorElement>('a.show-more-link');
+    expect(link?.textContent).toBe('Show More notes');
+    // Other address parameters are kept; only this list grows.
+    expect(link?.getAttribute('href')).toBe(
+      '/app/mission/synthetic-case?welcome=1&notes=20#case-note-10',
+    );
+    expect(notes?.querySelector('details')?.hasAttribute('open')).toBe(false);
+  });
+
+  it('keeps the section open after Show More and drops the link once every row is shown', async () => {
+    setUp();
+    mocks.listNotesForOwner.mockResolvedValue({
+      items: Array.from({ length: 14 }, (_, i) => note(i)),
+      total: 14,
+    });
+    const page = await doc(await renderWith({ notes: '20' }));
+    const notes = page.querySelector('#notes');
+    expect(notes?.querySelector('details')?.hasAttribute('open')).toBe(true);
+    expect(notes?.querySelector('.show-more-count')?.textContent).toBe('Showing all 14 notes.');
+    expect(notes?.querySelector('a.show-more-link')).toBeNull();
+  });
+
+  it('passes a Show More to each capped panel only when its list is longer than 10', async () => {
+    setUp();
+    mocks.listTasks.mockResolvedValue(
+      ok({
+        items: Array.from({ length: 10 }, (_, i) => ({
+          id: `task-${i}`,
+          description: `Task ${i}`,
+          status: 'OPEN',
+          priority: 'NORMAL',
+          dueDate: null,
+          dueTimezone: null,
+        })),
+        total: 40,
+        open: 25,
+      }),
+    );
+    mocks.listComplaintsForMission.mockResolvedValue(ok({ items: [], total: 3 }));
+    mocks.listOutcomesForMission.mockResolvedValue(
+      ok(Array.from({ length: 12 }, (_, i) => outcome(i))),
+    );
+    const html = await renderWith({});
+    const [tasks] = stubProps<{ tasks: unknown[]; rowIdPrefix: string; more: unknown }>(
+      html,
+      'TasksPanel',
+    );
+    expect(tasks?.tasks).toHaveLength(10);
+    expect(tasks?.rowIdPrefix).toBe('case-task');
+    expect(tasks?.more).toMatchObject({
+      props: {
+        id: 'case-tasks-more',
+        landOn: 'case-task-10',
+        next: { tasks: 20 },
+        shown: 10,
+        total: 40,
+      },
+    });
+    const [complaints] = stubProps<{ more: unknown }>(html, 'ComplaintPanel');
+    expect(complaints?.more).toBeNull();
+    // Outcomes are cut to 10 on the page, with Show More for the other 2.
+    const [outcomes] = stubProps<{ outcomes: unknown[]; more: unknown }>(html, 'OutcomePanel');
+    expect(outcomes?.outcomes).toHaveLength(10);
+    expect(outcomes?.more).toMatchObject({ props: { next: { outcomes: 20 }, total: 12 } });
+    // The open-task count comes from the whole case, not the 10 rows on the page.
+    expect(textOf(html)).toContain('Finish 25 open tasks for Japan visitor visa');
+  });
+
+  it('lists 5 snapshots and links to the rest only when more exist', async () => {
+    setUp();
+    const snap = (version: number) => ({
+      id: `snap-${version}`,
+      version,
+      checksum: `checksum-${version}-0123456789`,
+      content: { state: 'IN_PROGRESS' },
+    });
+    mocks.listMissionSnapshots.mockResolvedValue(
+      ok({ items: [9, 8, 7, 6, 5].map(snap), nextCursor: 'opaque' }),
+    );
+    let page = await doc(await renderWith({}));
+    expect(page.querySelectorAll('#snapshots a.row')).toHaveLength(5);
+    expect(
+      [...page.querySelectorAll('#snapshots a')]
+        .find((a) => a.textContent === 'See All Snapshots')
+        ?.getAttribute('href'),
+    ).toBe('/app/mission/synthetic-case/snapshots');
+    mocks.listMissionSnapshots.mockResolvedValue(ok({ items: [snap(1)], nextCursor: null }));
+    page = await doc(await renderWith({}));
+    expect(textOf(page.querySelector('#snapshots')?.outerHTML ?? '')).not.toContain(
+      'See All Snapshots',
+    );
+  });
+
+  it('folds the header actions into More on a phone and keeps the next step in reach', async () => {
+    setUp({ requirements: ['CRITICAL_GAP'] });
+    const page = await doc(await renderWith({}));
+    const wide = page.querySelector('.page-actions .case-header-wide');
+    expect([...(wide?.querySelectorAll('a') ?? [])].map((a) => a.textContent)).toEqual([
+      'Add Evidence',
+      'Start a New Case from This One',
+    ]);
+    expect(wide?.querySelector('[data-stub="SnapshotButton"]')).not.toBeNull();
+    const bar = page.querySelector('.case-sticky-next fieldset.sticky-action-bar');
+    expect(bar?.querySelector('legend')?.textContent).toBe('Next Step');
+    expect(bar?.querySelector('output')?.textContent).toBe(
+      'Fix 1 required item for Japan visitor visa',
+    );
+    const action = bar?.querySelector('a');
+    expect(action?.getAttribute('href')).toBe('#readiness');
+    expect(action?.className).toBe('btn btn-secondary');
+  });
+
+  it('shows no sticky bar when there is no next step', async () => {
+    setUp();
+    const page = await doc(await renderWith({}));
+    expect(page.querySelector('.case-sticky-next')).toBeNull();
   });
 });

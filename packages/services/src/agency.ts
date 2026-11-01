@@ -1488,10 +1488,7 @@ export async function listNotesForOwner(
   const limit = Math.min(100, Math.max(1, requested));
   const [rows, counts] = await Promise.all([
     query.limit(limit),
-    db
-      .select({ total: sql<number>`count(*)::int` })
-      .from(schema.missionNotes)
-      .where(shared),
+    db.select({ total: sql<number>`count(*)::int` }).from(schema.missionNotes).where(shared),
   ]);
   return {
     items: rows.map((r) => ({ ...r, authorEmail: r.authorEmail ?? null })),

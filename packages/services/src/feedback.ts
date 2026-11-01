@@ -3,8 +3,8 @@ import { desc, eq, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
-import { clampLimit } from './paging';
 import { type CappedRows, getMissionForOwner } from './missions';
+import { clampLimit } from './paging';
 import { type PlatformAuthInput, canPerformPlatformAction } from './platform-roles';
 
 /**
@@ -100,10 +100,7 @@ export async function listFeedbackForMission(
       .where(onCase)
       .orderBy(desc(schema.caseFeedback.createdAt), desc(schema.caseFeedback.id))
       .limit(clampLimit(options.limit)),
-    db
-      .select({ total: sql<number>`count(*)::int` })
-      .from(schema.caseFeedback)
-      .where(onCase),
+    db.select({ total: sql<number>`count(*)::int` }).from(schema.caseFeedback).where(onCase),
   ]);
   return ok({ items, total: Number(counts[0]?.total ?? 0) });
 }
