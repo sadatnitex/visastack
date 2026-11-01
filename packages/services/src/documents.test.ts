@@ -1879,7 +1879,11 @@ describe('documents and the resource lifecycle (LC-A2)', () => {
     );
   }
 
-  const ownerPreview = (db: Db, storage: FakeStorage, document: { id: string; applicantId: string }) =>
+  const ownerPreview = (
+    db: Db,
+    storage: FakeStorage,
+    document: { id: string; applicantId: string },
+  ) =>
     previewDocument(db, storage, {
       actor: { kind: 'applicant_owner', applicantId: document.applicantId as never },
       documentId: document.id,
@@ -1928,8 +1932,10 @@ describe('documents and the resource lifecycle (LC-A2)', () => {
     );
     await markLifecycle(db, document, 'ARCHIVED');
     expect(isOk(await ownerPreview(db, storage, document))).toBe(true);
-    // The default list leaves it out; the full list (the Documents page tabs) keeps it.
-    const everyday = await listDocuments(db, account.id, applicant.id);
+    // The default list keeps it (D6); a list of offers leaves it out; the full list keeps it.
+    const listed = await listDocuments(db, account.id, applicant.id);
+    expect(isOk(listed) && listed.value.map((d) => d.id)).toEqual([document.id]);
+    const everyday = await listDocuments(db, account.id, applicant.id, { lifecycle: 'everyday' });
     expect(isOk(everyday) && everyday.value.map((d) => d.id)).toEqual([]);
     const all = await listDocumentsDetailed(db, account.id, applicant.id, { lifecycle: 'all' });
     expect(isOk(all) && all.value.map((d) => d.id)).toEqual([document.id]);
@@ -1937,10 +1943,7 @@ describe('documents and the resource lifecycle (LC-A2)', () => {
 
   it('refuses changes to a Recently Deleted document and leaves it out of every list', async () => {
     const db = await freshDb();
-    const { account, applicant, document } = await seedOwnerWithDocument(
-      db,
-      'lc-edit@example.com',
-    );
+    const { account, applicant, document } = await seedOwnerWithDocument(db, 'lc-edit@example.com');
     await markLifecycle(db, document, 'DELETED');
     const dated = await setDocumentDate(db, {
       actorAccountId: account.id,

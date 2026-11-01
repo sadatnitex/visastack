@@ -489,14 +489,16 @@ export async function listAgencyAiCases(
   const ownedByMember = new Set(
     owners.filter((row) => row.owner === member.accountId).map((row) => row.id),
   );
+  // A record missing here (deleted meanwhile) is never treated as someone else's: it is skipped.
+  const present = new Set(owners.map((row) => row.id));
   const reachable: ((typeof visible.missions)[number] & { grantIds: readonly string[] })[] = [];
   const allGrants = await loadAiGrants(
     tx,
-    [...byApplicant.keys()].filter((id) => !ownedByMember.has(id)),
+    [...byApplicant.keys()].filter((id) => present.has(id) && !ownedByMember.has(id)),
     member,
   );
   for (const [applicantId, missions] of byApplicant) {
-    if (ownedByMember.has(applicantId)) continue;
+    if (!present.has(applicantId) || ownedByMember.has(applicantId)) continue;
     const grants = allGrants.get(applicantId) ?? [];
     if (grants.length === 0) continue;
     const scope = mint({

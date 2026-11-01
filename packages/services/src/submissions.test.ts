@@ -531,7 +531,7 @@ describe('external submission report and the resource lifecycle (LC-A2)', () => 
     return { applicantId, documentId: doc.value.id, submit };
   }
 
-  it('no longer blocks on an expired selected document in Recently Deleted', async () => {
+  it('blocks on a selected document in Recently Deleted until it is replaced', async () => {
     const db = await freshDb();
     const s = await readyWithExpiredDocument(db);
     const now = new Date();
@@ -542,7 +542,9 @@ describe('external submission report and the resource lifecycle (LC-A2)', () => 
       deletePath: 'DUPLICATE',
       purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
     });
-    expect(isOk(await s.submit())).toBe(true);
+    const result = await s.submit();
+    expect(isErr(result) && result.error.code).toBe('stale');
+    expect(isErr(result) && result.error.message).toContain('was deleted');
   });
 
   it('still blocks on an expired selected document that is only archived', async () => {

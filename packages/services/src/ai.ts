@@ -2516,14 +2516,23 @@ export async function suggestDocumentKind(
   const proposal = summary.value.proposal;
   if (!proposal) return ok({ status: 'no_suggestion' });
 
-  const nameVersion = await db.transaction((tx) =>
-    nameForSuggestedKind(tx, {
-      documentId: row.documentId,
-      kind: proposal.suggestedType,
-      primarySubject: proof.applicant.displayName ?? 'Unknown',
-      originalName: row.originalName,
-    }),
-  );
+  let nameVersion: DocumentNameVersion;
+  try {
+    nameVersion = await db.transaction((tx) =>
+      nameForSuggestedKind(tx, {
+        documentId: row.documentId,
+        kind: proposal.suggestedType,
+        primarySubject: proof.applicant.displayName ?? 'Unknown',
+        originalName: row.originalName,
+      }),
+    );
+  } catch (error) {
+    // Deleted while the reading ran (LC-A2): the same answer as a document that does not exist.
+    if (error instanceof DocumentGoneDuringSuggestion) {
+      return err(serviceError('not_found', 'document version not found'));
+    }
+    throw error;
+  }
   return ok({ status: 'suggested', proposal, nameVersion });
 }
 
@@ -2565,9 +2574,15 @@ async function nameForSuggestedKind(
     }),
     reason: 'suggested from the AI reading of this document',
   });
-  if (!proposed.ok) throw new Error(`name suggestion failed: ${proposed.error.message}`);
+  if (!proposed.ok) {
+    if (proposed.error.code === 'not_found') throw new DocumentGoneDuringSuggestion();
+    throw new Error(`name suggestion failed: ${proposed.error.message}`);
+  }
   return proposed.value;
 }
+
+/** Thrown inside the naming transaction so it rolls back when the document left meanwhile. */
+class DocumentGoneDuringSuggestion extends Error {}
 
 export interface RunOcrInput {
   readonly actorAccountId: string;

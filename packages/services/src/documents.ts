@@ -26,13 +26,13 @@ import {
 import { enqueueErasureJob, hasActiveOrVerifiedErasureJob, safeCopyDrawingIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { isValidDocumentDateString } from './expiry';
-import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
-import { AUTOMATIC_TITLE_REASON, buildDocumentTitle } from './naming';
 import {
   everydayDocumentCondition,
   lifecycleTablesPresent,
   presentDocumentCondition,
 } from './lifecycle/foundation';
+import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
+import { AUTOMATIC_TITLE_REASON, buildDocumentTitle } from './naming';
 import { listMembershipsForAccount } from './organizations';
 import { recordProductEvent } from './product-events';
 import { redactionMasksTablePresent } from './redaction-table';
@@ -280,7 +280,12 @@ async function findPresentDocument(db: Db, documentId: string): Promise<Document
       .select()
       .from(schema.documents)
       // Commands and serving bytes: presentDocumentCondition (archived stays, deleted goes).
-      .where(and(eq(schema.documents.id, documentId), lifecycle ? presentDocumentCondition() : undefined))
+      .where(
+        and(
+          eq(schema.documents.id, documentId),
+          lifecycle ? presentDocumentCondition() : undefined,
+        ),
+      )
       .limit(1),
   );
 }
@@ -952,8 +957,10 @@ export async function listDocumentReviews(db: Db, documentId: string): Promise<D
 
 /**
  * Which documents a list holds (resource lifecycle, LC-A2):
- * - `everyday` (the default): current documents only, never archived or deleted ones;
- * - `present`: archived ones too, never a deleted one;
+ * - `present` (the default): current and archived documents, never a deleted one. Archived stays
+ *   by default because several screens look up documents a person chose (a share, an evidence
+ *   answer) in this list, and an archived choice stays where it was chosen (D6);
+ * - `everyday`: current documents only, for a screen that offers documents to pick from;
  * - `all`: every document, for the owner's own Documents page with its Archived and Recently
  *   Deleted tabs, which labels each one by its lifecycle state.
  */
@@ -975,7 +982,7 @@ export async function listDocuments(
   if (applicant.ownerAccountId !== actorAccountId) {
     return err(serviceError('forbidden', 'not authorized to list these documents'));
   }
-  const view = options.lifecycle ?? 'everyday';
+  const view = options.lifecycle ?? 'present';
   const lifecycle = view !== 'all' && (await lifecycleTablesPresent(db));
   const rows = await db
     .select()
@@ -983,11 +990,11 @@ export async function listDocuments(
     .where(
       and(
         eq(schema.documents.applicantId, applicantId),
-        // Default list: everydayDocumentCondition; `present` keeps archived; `all` is the owner's tabs.
+        // Default: presentDocumentCondition (D6); `everyday` for offers; `all` is the owner's tabs.
         lifecycle
-          ? view === 'present'
-            ? presentDocumentCondition()
-            : everydayDocumentCondition()
+          ? view === 'everyday'
+            ? everydayDocumentCondition()
+            : presentDocumentCondition()
           : undefined,
       ),
     );
