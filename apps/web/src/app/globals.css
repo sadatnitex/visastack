@@ -11114,3 +11114,11 @@ html:has(.sticky-action-bar) {
     scroll-padding-bottom: auto;
   }
 }
+.case-checklist-rest > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--space-2);
+  color: var(--accent);
+  cursor: pointer;
+}

@@ -19,7 +19,9 @@ beforeEach(() => {
     <div id="readiness">
       <details id="group-you" open><summary>Needs You</summary><p>a</p></details>
       <details id="group-check"><summary>Needs a Check</summary><p id="row-check">b</p></details>
-      <details id="group-done"><summary>Done</summary><p>c</p></details>
+      <details id="group-done"><summary>Done</summary><p>c</p>
+        <details id="group-done-rest"><summary>10 More Items</summary><p id="row-deep">d</p></details>
+      </details>
     </div>
     <details id="outside"><summary>Other</summary></details>`;
   host = document.createElement('div');
@@ -70,5 +72,12 @@ describe('OpenGroupOnLink', () => {
   it('ignores an address it cannot read', () => {
     history.replaceState(null, '', '/app/mission/case-1#%E0%A4%A');
     expect(() => mount()).not.toThrow();
+  });
+
+  it('opens every closed group around a row folded inside another group', () => {
+    history.replaceState(null, '', '/app/mission/case-1#row-deep');
+    mount();
+    expect(isOpen('group-done-rest')).toBe(true);
+    expect(isOpen('group-done')).toBe(true);
   });
 });

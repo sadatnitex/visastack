@@ -169,6 +169,9 @@ type AttentionKind = 'changed' | 'missing' | 'unconfirmed' | 'trip' | 'tasks';
 /** How many snapshots the case page lists; the rest are one link away (WP-SB2). */
 const SNAPSHOTS_ON_PAGE = 5;
 
+/** Rows a checklist group shows before the rest fold under Show All (WP-SB2). */
+const CHECKLIST_ROWS_SHOWN = 3;
+
 /**
  * The case page's capped lists (WP-SB2): each shows 10 rows, then Show More asks the server for
  * 10 more through its own address parameter, so opening one list never resets another.
@@ -800,6 +803,94 @@ export default async function MissionPage({
   // The one primary button on the page belongs to the next step or the changed-case alert; the
   // welcome note and the checklist picker offer theirs only when neither is there.
   const hasNextStepOrAlert = data.isDirty || showNextStep;
+  /** One checklist row (WP-SB2 moved it out of the group so a group can show its first rows). */
+  const requirementRow = (r: RequirementDetailRow) => {
+    const meta = REQUIREMENT_STATE_META[r.state];
+    const label = requirementLabel(r);
+    const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
+    const sourceHref = safeHttpUrl(r.sourceUrl);
+    const bookingReminder =
+      r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION'
+        ? bookingReminderFor(r.kind, r.key)
+        : null;
+    return (
+      <div
+        className="row"
+        key={r.packRequirementId}
+        style={{
+          flexDirection: 'column',
+          alignItems: 'stretch',
+          gap: '0.3rem',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '0.75rem',
+          }}
+        >
+          <span className="row-key">
+            {label || '(unnamed)'}
+            {r.optional ? ' · optional' : ''}
+          </span>
+          <span className={`badge ${meta.tone}`}>{meta.label}</span>
+        </div>
+        {meta.next ? (
+          <span className="muted u-fs-085">
+            {meta.next}
+            {r.state === 'CONFLICTING' ? (
+              <>
+                {' '}
+                <Link href={`/app/applicant/${data.applicantId}/profile`}>
+                  Resolve on Profile →
+                </Link>
+              </>
+            ) : null}
+            {r.state === 'CRITICAL_GAP' || r.state === 'EXPIRING_STALE' ? (
+              <>
+                {' '}
+                <a href="#evidence">Provide Evidence ↓</a>
+              </>
+            ) : null}
+          </span>
+        ) : null}
+        {bookingReminder ? <span className="muted u-fs-085">{bookingReminder}</span> : null}
+        {r.citation ? (
+          <span className="muted u-fs-075">
+            Cite: {sourceLine || r.citation}
+            {r.observedDate ? ` · as of ${formatDateOnly(r.observedDate)}` : ''}
+            {sourceHref ? (
+              <>
+                {' · '}
+                <a href={sourceHref} target="_blank" rel="noreferrer">
+                  source
+                </a>
+              </>
+            ) : null}
+          </span>
+        ) : null}
+        {r.sourceInaccessible ? (
+          <span className="badge badge-danger" style={{ alignSelf: 'flex-start' }}>
+            Source Currently Unreachable - Under Review
+          </span>
+        ) : null}
+        {data.explanationConfigured && (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
+          <ExplainGapButton
+            missionId={data.mission.id}
+            packRequirementId={r.packRequirementId}
+            explanation={
+              data.explanationsByRequirement.get(r.packRequirementId)?.explanation ?? null
+            }
+            {...(data.explanationFeature && !data.explanationFeature.available
+              ? { off: data.explanationFeature.reason }
+              : {})}
+          />
+        ) : null}
+      </div>
+    );
+  };
   const pathname = `/app/mission/${mission.id}`;
   const newCaseHref = `/app/applicant/${data.applicantId}/missions/prepare-again?from=${mission.id}`;
   const totals: Record<CappedList, number> = {
@@ -1080,115 +1171,25 @@ export default async function MissionPage({
                               title: group.heading,
                               count: groupRows.length,
                               content: (
-                                <div className="rows">
-                                  {groupRows.map((r) => {
-                                    const meta = REQUIREMENT_STATE_META[r.state];
-                                    const label = requirementLabel(r);
-                                    const sourceLine = [r.publisher, r.sourceTitle]
-                                      .filter(Boolean)
-                                      .join(' · ');
-                                    const sourceHref = safeHttpUrl(r.sourceUrl);
-                                    const bookingReminder =
-                                      r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION'
-                                        ? bookingReminderFor(r.kind, r.key)
-                                        : null;
-                                    return (
-                                      <div
-                                        className="row"
-                                        key={r.packRequirementId}
-                                        style={{
-                                          flexDirection: 'column',
-                                          alignItems: 'stretch',
-                                          gap: '0.3rem',
-                                        }}
-                                      >
-                                        <div
-                                          style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            gap: '0.75rem',
-                                          }}
-                                        >
-                                          <span className="row-key">
-                                            {label || '(unnamed)'}
-                                            {r.optional ? ' · optional' : ''}
-                                          </span>
-                                          <span className={`badge ${meta.tone}`}>{meta.label}</span>
-                                        </div>
-                                        {meta.next ? (
-                                          <span className="muted u-fs-085">
-                                            {meta.next}
-                                            {r.state === 'CONFLICTING' ? (
-                                              <>
-                                                {' '}
-                                                <Link
-                                                  href={`/app/applicant/${data.applicantId}/profile`}
-                                                >
-                                                  Resolve on Profile →
-                                                </Link>
-                                              </>
-                                            ) : null}
-                                            {r.state === 'CRITICAL_GAP' ||
-                                            r.state === 'EXPIRING_STALE' ? (
-                                              <>
-                                                {' '}
-                                                <a href="#evidence">Provide Evidence ↓</a>
-                                              </>
-                                            ) : null}
-                                          </span>
-                                        ) : null}
-                                        {bookingReminder ? (
-                                          <span className="muted u-fs-085">{bookingReminder}</span>
-                                        ) : null}
-                                        {r.citation ? (
-                                          <span className="muted u-fs-075">
-                                            Cite: {sourceLine || r.citation}
-                                            {r.observedDate
-                                              ? ` · as of ${formatDateOnly(r.observedDate)}`
-                                              : ''}
-                                            {sourceHref ? (
-                                              <>
-                                                {' · '}
-                                                <a
-                                                  href={sourceHref}
-                                                  target="_blank"
-                                                  rel="noreferrer"
-                                                >
-                                                  source
-                                                </a>
-                                              </>
-                                            ) : null}
-                                          </span>
-                                        ) : null}
-                                        {r.sourceInaccessible ? (
-                                          <span
-                                            className="badge badge-danger"
-                                            style={{ alignSelf: 'flex-start' }}
-                                          >
-                                            Source Currently Unreachable - Under Review
-                                          </span>
-                                        ) : null}
-                                        {data.explanationConfigured &&
-                                        (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
-                                          <ExplainGapButton
-                                            missionId={data.mission.id}
-                                            packRequirementId={r.packRequirementId}
-                                            explanation={
-                                              data.explanationsByRequirement.get(
-                                                r.packRequirementId,
-                                              )?.explanation ?? null
-                                            }
-                                            {...(data.explanationFeature &&
-                                            !data.explanationFeature.available
-                                              ? { off: data.explanationFeature.reason }
-                                              : {})}
-                                          />
-                                        ) : null}
+                                <>
+                                  <div className="rows">
+                                    {groupRows.slice(0, CHECKLIST_ROWS_SHOWN).map(requirementRow)}
+                                  </div>
+                                  {groupRows.length > CHECKLIST_ROWS_SHOWN ? (
+                                    <details className="case-checklist-rest">
+                                      <summary>
+                                        {plural(
+                                          groupRows.length - CHECKLIST_ROWS_SHOWN,
+                                          'More Item',
+                                          'More Items',
+                                        )}
+                                      </summary>
+                                      <div className="rows">
+                                        {groupRows.slice(CHECKLIST_ROWS_SHOWN).map(requirementRow)}
                                       </div>
-                                    );
-                                  })}
-                                </div>
+                                    </details>
+                                  ) : null}
+                                </>
                               ),
                             },
                           ];

@@ -923,6 +923,18 @@ describe('WP-SB2: a worst-case case stays short', () => {
     expect(groups.map((g) => g.hasAttribute('open'))).toEqual([true, false, false]);
     expect(groups[0]?.id).toBe('case-checklist-needs-you');
     expect(page.querySelectorAll('#readiness .row')).toHaveLength(60);
+    // Each group shows 3 rows; the rest fold under one more control inside it.
+    const first = groups[0];
+    expect(first?.querySelectorAll(':scope .collapsible-group-body > .rows > .row')).toHaveLength(
+      3,
+    );
+    const rest = first?.querySelector('details.case-checklist-rest');
+    expect(rest?.hasAttribute('open')).toBe(false);
+    expect(rest?.querySelector('summary')?.textContent).toBe('17 More Items');
+    expect(rest?.querySelectorAll('.row')).toHaveLength(17);
+    expect(groups[1]?.querySelector('details.case-checklist-rest summary')?.textContent).toBe(
+      '7 More Items',
+    );
   });
 
   it('opens the first group that has rows when nothing is missing', async () => {
@@ -1121,5 +1133,14 @@ describe('WP-SB2: a worst-case case stays short', () => {
       'TasksPanel',
     );
     expect(tasks?.finishedOpen).toBe(true);
+  });
+});
+
+describe('WP-SB2: a short checklist group', () => {
+  it('shows every row of a group of 3 or fewer, with no fold', async () => {
+    setUp({ requirements: ['CRITICAL_GAP', 'CRITICAL_GAP', 'CRITICAL_GAP', 'SATISFIED'] });
+    const page = new (await import('jsdom')).JSDOM(await render()).window.document;
+    expect(page.querySelector('#case-checklist-needs-you details.case-checklist-rest')).toBeNull();
+    expect(page.querySelectorAll('#case-checklist-needs-you .row')).toHaveLength(3);
   });
 });

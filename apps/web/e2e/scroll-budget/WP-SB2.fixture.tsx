@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
+import { CaseStageTracker } from '../../src/components/case-preparation-summary';
 import { CollapsibleGroups } from '../../src/components/collapsible-group';
 import { ShowMore } from '../../src/components/show-more';
 import { StickyActionBar } from '../../src/components/sticky-action-bar';
-import { Disclosure, PageHeader } from '../../src/components/ui';
+import { Disclosure, PageHeader, StatusBadge } from '../../src/components/ui';
+import { CASE_STATE_LABELS } from '../../src/lib/case-stages';
 
 /**
  * WP-SB2 scroll budget fixture: the case workspace and a snapshot, built from the same shared parts
@@ -10,8 +12,10 @@ import { Disclosure, PageHeader } from '../../src/components/ui';
  * database and run server actions, so they cannot be bundled here; this keeps their layout.
  *
  * Views:
- * - `case`: a 60-item checklist in groups (missing items open), every list capped at 10 rows with
- *   Show More, five snapshots and the phone next-step bar, as WP-SB2 shows them.
+ * - `case`: the case at the Browse level (the plan's 3-screen budget): a 60-item checklist in
+ *   groups (missing items open, 3 rows then the rest folded), the task and note lists capped at 10
+ *   rows with Show More inside their closed sections, and the phone next-step bar. Snapshots,
+ *   complaints and feedback show only at the Everything level, so they are not part of it.
  * - `case-uncapped`: the same case laid out as before WP-SB2 (every group open, every row listed),
  *   which proves the budget check fails on it.
  * - `snapshot`: a snapshot with 60 requirements, 40 facts and 30 documents in groups.
@@ -72,7 +76,17 @@ function checklist(capped: boolean) {
           key: g.key,
           title: g.title,
           count: g.count,
-          content: <div className="rows">{g.rows}</div>,
+          content: (
+            <>
+              <div className="rows">{g.rows.slice(0, 3)}</div>
+              {g.rows.length > 3 ? (
+                <details className="case-checklist-rest">
+                  <summary>{g.rows.length - 3} More Items</summary>
+                  <div className="rows">{g.rows.slice(3)}</div>
+                </details>
+              ) : null}
+            </>
+          ),
         }))}
       />
     );
@@ -142,6 +156,12 @@ function CaseView({ capped }: { readonly capped: boolean }) {
           </>
         }
       />
+      <CaseStageTracker
+        state="IN_PROGRESS"
+        labels={CASE_STATE_LABELS}
+        nextStates={['READY_FOR_REVIEW']}
+        cancelInMore
+      />
       <section className="case-next-step" aria-labelledby="case-next-step-heading">
         <h2 className="case-next-step-kicker" id="case-next-step-heading">
           Next Step
@@ -151,6 +171,29 @@ function CaseView({ capped }: { readonly capped: boolean }) {
           See What Needs Fixing
         </a>
       </section>
+      <p className="case-journey-reminder">
+        Preparing a file is not the same as submitting it. VisaStack does not submit applications or
+        predict decisions.
+      </p>
+      <div className="case-context-strip">
+        <ul className="case-attention" aria-label="What needs attention on this case">
+          <li>
+            <a href="#readiness">
+              <StatusBadge tone="danger">20</StatusBadge>required items missing
+            </a>
+          </li>
+          <li>
+            <a href="#readiness">
+              <StatusBadge tone="warning">10</StatusBadge>need a check
+            </a>
+          </li>
+          <li>
+            <a href="#work">
+              <StatusBadge tone="warning">40</StatusBadge>open tasks
+            </a>
+          </li>
+        </ul>
+      </div>
       <nav className="jump-nav" aria-label="Sections of this case">
         <a href="#readiness">Readiness</a>
         <a href="#work">Tasks and Letters</a>
@@ -175,10 +218,6 @@ function CaseView({ capped }: { readonly capped: boolean }) {
               <Disclosure title="Contributors and Notes from Your Agency">
                 {cappedList('Notes', 80, capped)}
               </Disclosure>
-              <Disclosure title="Problems and Feedback">
-                {cappedList('Complaints', 60, capped)}
-                {cappedList('Feedback', 60, capped)}
-              </Disclosure>
             </>
           ) : (
             <>
@@ -190,19 +229,39 @@ function CaseView({ capped }: { readonly capped: boolean }) {
           )}
         </div>
         <aside className="split-rail" aria-label="About this case">
-          <article className="card" id="snapshots">
-            <h2 className="card-title">Snapshots</h2>
-            <div className="rows">
-              {ids('snapshot', capped ? 5 : 60).map((id, n) => (
-                <Row key={id} id={id} title={`Version ${60 - n}`} />
-              ))}
-            </div>
-            {capped ? (
-              <p className="card-body">
-                <a href="/app/mission/synthetic-case/snapshots">See All Snapshots</a>
-              </p>
-            ) : null}
+          <article className="card">
+            <p className="card-kicker">Case</p>
+            <h2 className="card-title">Case Details</h2>
+            <p className="card-body">Made-up country · Visitor</p>
+            <p className="muted">1 Dec 2026 to 20 Dec 2026</p>
           </article>
+          <article className="card">
+            <p className="card-kicker">Requirements</p>
+            <h2 className="card-title">Requirement Pack</h2>
+            <p className="card-body">Made-up visitor checklist</p>
+          </article>
+          <article className="card">
+            <p className="card-kicker">Workflow</p>
+            <h2 className="card-title">Advance the Case</h2>
+            <button type="button" className="btn btn-secondary">
+              Move to Ready for Review
+            </button>
+          </article>
+          {capped ? null : (
+            <article className="card" id="snapshots">
+              <h2 className="card-title">Snapshots</h2>
+              <div className="rows">
+                {ids('snapshot', capped ? 5 : 60).map((id, n) => (
+                  <Row key={id} id={id} title={`Version ${60 - n}`} />
+                ))}
+              </div>
+              {capped ? (
+                <p className="card-body">
+                  <a href="/app/mission/synthetic-case/snapshots">See All Snapshots</a>
+                </p>
+              ) : null}
+            </article>
+          )}
         </aside>
       </div>
       {capped ? (

@@ -5,8 +5,11 @@ import { useEffect } from 'react';
 function openAround(id: string, scope: Element): void {
   const target = id ? document.getElementById(id) : null;
   if (!target || !scope.contains(target)) return;
-  const group = target.closest('details');
-  if (group && scope.contains(group) && !group.open) group.open = true;
+  // Every closed group around the target opens, so a row folded inside a group shows too.
+  for (let node = target.closest('details'); node && scope.contains(node); ) {
+    if (!node.open) node.open = true;
+    node = node.parentElement?.closest('details') ?? null;
+  }
 }
 
 /**

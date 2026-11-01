@@ -55,14 +55,22 @@ test.describe('WP-SB2 case workspace', () => {
     await expect(bar).toBeHidden();
   });
 
-  test('a snapshot with 130 entries fits 2 screens on a phone, groups closed after the first', async ({
+  test('a snapshot with 130 entries opens on its first group and folds to one screen', async ({
     page,
   }) => {
     await renderFixture(page, FIXTURE, { view: 'snapshot' });
     await page.setViewportSize(VIEWPORTS.phone);
+    const groups = page.locator('details.collapsible-group');
+    await expect(groups).toHaveCount(3);
+    await expect(page.locator('#snapshot-requirements')).toHaveAttribute('open', '');
+    await expect(page.locator('#snapshot-facts')).not.toHaveAttribute('open', '');
+    // As it opens: measured and printed only, the 60 open rows are the reason to open it.
+    await expectWithinBudget(page, { screens: 2, viewport: 'phone', mode: 'report' });
+    // With its first group closed again, every part of the snapshot is one tap away.
     await page.locator('#snapshot-requirements > summary').click();
-    await expectWithinBudget(page, { screens: 2, viewport: 'phone', mode: 'enforce' });
-    await expectWithinBudget(page, { screens: 2, viewport: 'desktop', mode: 'enforce' });
+    for (const viewport of ['phone', 'desktop'] as const) {
+      await expectWithinBudget(page, { screens: 2, viewport, mode: 'enforce' });
+    }
     await noSeriousAxe(page);
   });
 });
