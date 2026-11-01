@@ -733,7 +733,7 @@
   }
 }
 
-/* WP-SB8 (scroll budget): the story groups and the phone row of product cards.
+/* OWNER-EXTENSION (WP-SB8 scroll budget, owner request 31 Oct 2026): the story groups and the phone row of product cards.
    The six story sections are one block of details groups; a closed group shows its kicker and
    heading as one tappable row. Headings keep their reference type, only smaller inside a row. */
 .c1 .land-story {
