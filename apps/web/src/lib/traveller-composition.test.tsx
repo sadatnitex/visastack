@@ -19,6 +19,7 @@ const service = vi.hoisted(() => ({
   listNeedsAttention: vi.fn(),
   listPendingAppSuggestions: vi.fn(),
   aiSuggestionsInUse: vi.fn(),
+  listEndedRecords: vi.fn(async () => new Map()),
 }));
 vi.mock('@visastack/services', () => service);
 vi.mock('./ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
