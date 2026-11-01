@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { FactStatus, MissionState, PermissionAction } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { AuthorizedApplicant, accountPrincipal, requireAccess } from './access';
 import { lockCaseSharing } from './access/grant-scope';
 import { orgGrantPermits } from './agency';
@@ -19,6 +19,15 @@ import { type StalenessClassification, classifyStaleness, parseDocumentDate } fr
 import { getLiveAcknowledgement, incrementMaterialRevision } from './material-revision';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import { type PackRequirement, listRequirements } from './packs';
+import {
+  type Page,
+  type PageRequest,
+  belowSeq,
+  clampLimit,
+  decodeSeqCursor,
+  encodeSeqCursor,
+  toPage,
+} from './paging';
 import { elapsedSeconds, recordProductEvent } from './product-events';
 import { assignReferenceCode } from './reference-codes';
 import {
@@ -127,20 +136,57 @@ export async function getMissionForOwner(
   return ownedMission(db, actorAccountId, missionId);
 }
 
-/** Immutable snapshots for a mission, newest version first (owner-scoped). */
+/** The cursor scope of one case's snapshot list, so a cursor never moves to another case. */
+const snapshotCursorScope = (missionId: string) => `mission:${missionId}:snapshots`;
+
+/**
+ * Immutable snapshots for a mission, newest version first (owner-scoped). Without `page` every
+ * snapshot comes back, as before. With `page` (WP-SB2) one page comes back, at most `limit` rows
+ * (default 50, clamped to 1 to 100), and a cursor for the older ones; a cursor made for another
+ * case or anything malformed gives the first page. The owner check runs on every page.
+ */
 export async function listMissionSnapshots(
   db: Db,
   actorAccountId: string,
   missionId: string,
-): Promise<Result<MissionSnapshot[], ServiceError>> {
+): Promise<Result<MissionSnapshot[], ServiceError>>;
+export async function listMissionSnapshots(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  page: PageRequest,
+): Promise<Result<Page<MissionSnapshot>, ServiceError>>;
+export async function listMissionSnapshots(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  page?: PageRequest,
+): Promise<Result<MissionSnapshot[] | Page<MissionSnapshot>, ServiceError>> {
   const owned = await ownedMission(db, actorAccountId, missionId);
   if (!owned.ok) return owned;
+  if (!page) {
+    const rows = await db
+      .select()
+      .from(schema.missionSnapshots)
+      .where(eq(schema.missionSnapshots.missionId, missionId));
+    const sorted = [...rows].sort((a, b) => b.version - a.version);
+    return ok(sorted);
+  }
+  const limit = clampLimit(page.limit);
+  const scope = snapshotCursorScope(missionId);
+  const cursor = decodeSeqCursor(page.before, scope);
   const rows = await db
     .select()
     .from(schema.missionSnapshots)
-    .where(eq(schema.missionSnapshots.missionId, missionId));
-  const sorted = [...rows].sort((a, b) => b.version - a.version);
-  return ok(sorted);
+    .where(
+      and(
+        eq(schema.missionSnapshots.missionId, missionId),
+        cursor ? belowSeq(schema.missionSnapshots.version, cursor) : undefined,
+      ),
+    )
+    .orderBy(desc(schema.missionSnapshots.version))
+    .limit(limit + 1);
+  return ok(toPage(rows, limit, (last) => encodeSeqCursor(last.version, scope)));
 }
 
 /** Load one immutable snapshot by id, owner-scoped via its parent mission. */
@@ -2174,27 +2220,91 @@ export async function updateTask(
 /** A task, and the AI app that added it when one did (S21). */
 export type MissionTaskView = MissionTask & { readonly addedBy: TaskAddedBy | null };
 
-/** Every task for a mission, newest first (owner-scoped). */
+/**
+ * The first rows of a capped case list (WP-SB2) and how many rows the list holds in all, so a page
+ * can say "Showing 10 of 34" and offer Show More without reading the rest.
+ */
+export interface CappedRows<T> {
+  readonly items: readonly T[];
+  readonly total: number;
+}
+
+/** The first tasks of a case, with the totals the case page counts from. */
+export interface CappedTasks extends CappedRows<MissionTaskView> {
+  /** Tasks still open or in progress, across the whole case, not only the rows returned. */
+  readonly open: number;
+}
+
+/**
+ * Every task for a mission, newest first (owner-scoped). With `options.limit` (WP-SB2) only the
+ * first `limit` tasks come back (clamped to 1 to 100), open and in-progress tasks before finished
+ * ones so nothing still to do is cut off, each newest first, together with the case's total and
+ * open counts. The owner check is the same either way.
+ */
 export async function listTasks(
   db: Db,
   actorAccountId: string,
   missionId: string,
-): Promise<Result<MissionTaskView[], ServiceError>> {
+): Promise<Result<MissionTaskView[], ServiceError>>;
+export async function listTasks(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  options: { readonly limit?: number },
+): Promise<Result<CappedTasks, ServiceError>>;
+export async function listTasks(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  options?: { readonly limit?: number },
+): Promise<Result<MissionTaskView[] | CappedTasks, ServiceError>> {
   const owned = await ownedMission(db, actorAccountId, missionId);
   if (!owned.ok) return owned;
-  const rows = await db
-    .select()
-    .from(schema.missionTasks)
-    .where(eq(schema.missionTasks.missionId, missionId));
+  if (!options) {
+    const rows = await db
+      .select()
+      .from(schema.missionTasks)
+      .where(eq(schema.missionTasks.missionId, missionId));
+    const addedBy = await taskAddedByApps(
+      db,
+      rows.map((row) => row.id),
+    );
+    return ok(
+      [...rows]
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+        .map((row) => ({ ...row, addedBy: addedBy.get(row.id) ?? null })),
+    );
+  }
+  const limit = clampLimit(options.limit);
+  const isOpen = inArray(schema.missionTasks.status, ['OPEN', 'IN_PROGRESS']);
+  const [rows, counts] = await Promise.all([
+    db
+      .select()
+      .from(schema.missionTasks)
+      .where(eq(schema.missionTasks.missionId, missionId))
+      .orderBy(
+        sql`case when ${isOpen} then 0 else 1 end`,
+        desc(schema.missionTasks.createdAt),
+        desc(schema.missionTasks.id),
+      )
+      .limit(limit),
+    db
+      .select({
+        total: sql<number>`count(*)::int`,
+        open: sql<number>`(count(*) filter (where ${isOpen}))::int`,
+      })
+      .from(schema.missionTasks)
+      .where(eq(schema.missionTasks.missionId, missionId)),
+  ]);
   const addedBy = await taskAddedByApps(
     db,
     rows.map((row) => row.id),
   );
-  return ok(
-    [...rows]
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map((row) => ({ ...row, addedBy: addedBy.get(row.id) ?? null })),
-  );
+  return ok({
+    items: rows.map((row) => ({ ...row, addedBy: addedBy.get(row.id) ?? null })),
+    total: Number(counts[0]?.total ?? 0),
+    open: Number(counts[0]?.open ?? 0),
+  });
 }
 
 // --- Mission appointments (Commercial V1 Part 4 §11) ------------------------

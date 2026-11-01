@@ -139,7 +139,6 @@ function setUp(
   mocks.getLatestExplanationForRequirement.mockResolvedValue(undefined);
   mocks.getApplicant.mockResolvedValue({ id: 'synthetic-family', displayName: 'Rahman family' });
   for (const name of [
-    'listMissionSnapshots',
     'listGeneratedOutputs',
     'listSelectedEvidence',
     'getEvidenceCandidates',
@@ -148,19 +147,21 @@ function setUp(
     'listAppointments',
     'listOutcomesForMission',
     'listSubmissionsForMission',
-    'listComplaintsForMission',
-    'listFeedbackForMission',
   ] as const) {
     mocks[name].mockResolvedValue(ok([]));
   }
+  // WP-SB2: the case page's capped reads answer with their first rows and totals.
+  mocks.listMissionSnapshots.mockResolvedValue(ok({ items: [], nextCursor: null }));
+  mocks.listComplaintsForMission.mockResolvedValue(ok({ items: [], total: 0 }));
+  mocks.listFeedbackForMission.mockResolvedValue(ok({ items: [], total: 0 }));
   mocks.listPublishedPackVersions.mockResolvedValue([]);
   mocks.listFittingPublicPacks.mockResolvedValue([]);
   mocks.readTravellerCoverage.mockResolvedValue({ nationality: ['Bangladeshi'], residence: [] });
   mocks.listMissionsByItineraryRef.mockResolvedValue([]);
-  mocks.listNotesForOwner.mockResolvedValue([]);
+  mocks.listNotesForOwner.mockResolvedValue({ items: [], total: 0 });
   mocks.listTasks.mockResolvedValue(
-    ok(
-      Array.from({ length: options.openTasks ?? 0 }, (_, i) => ({
+    ok({
+      items: Array.from({ length: options.openTasks ?? 0 }, (_, i) => ({
         id: `task-${i}`,
         description: `Task ${i}`,
         status: 'OPEN',
@@ -168,7 +169,9 @@ function setUp(
         dueDate: null,
         dueTimezone: null,
       })),
-    ),
+      total: options.openTasks ?? 0,
+      open: options.openTasks ?? 0,
+    }),
   );
   mocks.requireAccess.mockResolvedValue(
     options.gateRefuses

@@ -1,9 +1,10 @@
 import { type Result, err, ok } from '@visastack/core';
-import { eq } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
-import { getMissionForOwner } from './missions';
+import { type CappedRows, getMissionForOwner } from './missions';
+import { clampLimit } from './paging';
 import { type PlatformAuthInput, canPerformPlatformAction } from './platform-roles';
 import { elapsedSeconds, recordProductEvent } from './product-events';
 
@@ -105,19 +106,48 @@ export async function fileComplaint(
   });
 }
 
-/** Every complaint filed on a mission, newest first (owner-scoped). */
+/**
+ * Every complaint filed on a mission, newest first (owner-scoped). With `options.limit` (WP-SB2) only the
+ * newest `limit` rows come back (clamped to 1 to 100) with the case's total, behind the same owner
+ * check.
+ */
 export async function listComplaintsForMission(
   db: Db,
   actorAccountId: string,
   missionId: string,
-): Promise<Result<CaseComplaint[], ServiceError>> {
+): Promise<Result<CaseComplaint[], ServiceError>>;
+export async function listComplaintsForMission(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  options: { readonly limit?: number },
+): Promise<Result<CappedRows<CaseComplaint>, ServiceError>>;
+export async function listComplaintsForMission(
+  db: Db,
+  actorAccountId: string,
+  missionId: string,
+  options?: { readonly limit?: number },
+): Promise<Result<CaseComplaint[] | CappedRows<CaseComplaint>, ServiceError>> {
   const owned = await getMissionForOwner(db, actorAccountId, missionId);
   if (!owned.ok) return owned;
-  const rows = await db
-    .select()
-    .from(schema.caseComplaints)
-    .where(eq(schema.caseComplaints.missionId, missionId));
-  return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+  if (!options) {
+    const rows = await db
+      .select()
+      .from(schema.caseComplaints)
+      .where(eq(schema.caseComplaints.missionId, missionId));
+    return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+  }
+  const onCase = eq(schema.caseComplaints.missionId, missionId);
+  const [items, counts] = await Promise.all([
+    db
+      .select()
+      .from(schema.caseComplaints)
+      .where(onCase)
+      .orderBy(desc(schema.caseComplaints.createdAt), desc(schema.caseComplaints.id))
+      .limit(clampLimit(options.limit)),
+    db.select({ total: sql<number>`count(*)::int` }).from(schema.caseComplaints).where(onCase),
+  ]);
+  return ok({ items, total: Number(counts[0]?.total ?? 0) });
 }
 
 /** A complaint's full history, oldest first (owner-scoped to its filer's own mission). */

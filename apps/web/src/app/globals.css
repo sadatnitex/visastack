@@ -11193,3 +11193,45 @@ html:has(.sticky-action-bar) {
 .wallet-document-manage {
   padding: 0 var(--space-3) var(--space-2);
 }
+
+/* WP-SB2 case workspace: on a phone the header actions fold into More and the next step stays in
+   reach at the bottom of the screen; the All Snapshots page badge spacing. */
+.case-header-wide {
+  display: contents;
+}
+.case-more-phone,
+.case-sticky-next {
+  display: none;
+}
+.case-more-snapshot {
+  padding: 0.25rem 0.75rem;
+}
+.case-snapshot-packet {
+  margin-left: 0.5rem;
+}
+@media (max-width: 640px) {
+  .case-header-wide {
+    display: none;
+  }
+  .case-more-phone {
+    display: block;
+  }
+  /* No box of its own, so the bar sticks within the whole case page, not this wrapper. */
+  .case-sticky-next {
+    display: contents;
+  }
+}
+@media (min-width: 641px) {
+  /* The case page's next-step bar shows on phones only, so it keeps no room on wider screens. */
+  html:has(.case-sticky-next) {
+    scroll-padding-bottom: auto;
+  }
+}
+.case-checklist-rest > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--space-2);
+  color: var(--accent);
+  cursor: pointer;
+}
