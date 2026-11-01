@@ -6,9 +6,9 @@ import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
+import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import type { KeyManagementPort } from './ports';
-import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
 
 /**
  * CAS-08 - Contributor request (Commercial V1 Part 4 §14): lets a mission
@@ -274,6 +274,16 @@ export async function beginContributorSubmission(
   }
   if (request.contributorEmail !== input.actorEmail.trim().toLowerCase()) {
     return err(serviceError('forbidden', 'this request was sent to a different email address'));
+  }
+  // A traveller in Recently Deleted takes in nothing new (presentApplicantCondition, LC-A2): the
+  // same answer as the preview gives, checked again here because this is the step that uploads.
+  if (await lifecycleTablesPresent(db)) {
+    const present = await db
+      .select({ id: schema.applicants.id })
+      .from(schema.applicants)
+      .where(and(eq(schema.applicants.id, request.applicantId), presentApplicantCondition()))
+      .limit(1);
+    if (present.length === 0) return err(serviceError('not_found', 'request not found'));
   }
 
   return db.transaction(async (tx) => {

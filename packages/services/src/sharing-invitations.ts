@@ -138,28 +138,35 @@ export async function previewSharingInvitation(
   const applicant = await getApplicant(db, invite.applicantId);
   if (!applicant || applicant.ownerAccountId !== invite.invitedByAccountId)
     return err(serviceError('forbidden', 'Invitation unavailable.'));
+  // Documents the owner moved to Recently Deleted after inviting are no longer part of the share
+  // (LC-A2), so the recipient is shown, and given, only what is still there; archived ones stay
+  // (D6). An invitation whose named documents are all gone offers nothing and is refused here.
+  if (invite.documentIds?.length) {
+    const documentIds = await stillPresentDocumentIds(db, invite.documentIds);
+    if (documentIds.length === 0)
+      return err(
+        serviceError('invalid', 'The documents in this invitation are no longer available.'),
+      );
+    return ok({ ...invite, documentIds });
+  }
   return ok(invite);
 }
 
-/** Claim once, revalidate owner/consent and restore the original category snapshot atomically. */
 /**
- * The named documents of an invitation that are not in Recently Deleted, in their order. `null`
- * when the invitation names no documents (a case or category share). Before migration 0113 every
- * named document is kept, exactly as before.
+ * The named documents that are not in Recently Deleted or being removed, in their order
+ * (presentDocumentCondition). Before migration 0113 every named document is kept.
  */
-async function stillPresentDocumentIds(
-  tx: Db,
-  documentIds: readonly string[] | null | undefined,
-): Promise<string[] | null> {
-  if (!documentIds || documentIds.length === 0) return documentIds ? [...documentIds] : null;
-  if (!(await lifecycleTablesPresent(tx))) return [...documentIds];
-  const present = await tx
+async function stillPresentDocumentIds(db: Db, documentIds: readonly string[]): Promise<string[]> {
+  if (!(await lifecycleTablesPresent(db))) return [...documentIds];
+  const present = await db
     .select({ id: schema.documents.id })
     .from(schema.documents)
-    .where(and(inArray(schema.documents.id, [...documentIds]), presentDocumentCondition()));
+    .where(and(inArray(schema.documents.id, documentIds), presentDocumentCondition()));
   const kept = new Set(present.map((row) => row.id));
   return documentIds.filter((id) => kept.has(id));
 }
+
+/** Claim once, revalidate owner/consent and restore the original category snapshot atomically. */
 
 export async function acceptSharingInvitation(
   db: Db,
@@ -204,15 +211,9 @@ export async function acceptSharingInvitation(
         .returning();
       if (!claimed.length)
         return err(serviceError('invalid', 'This invitation is no longer pending.'));
-      // Documents the owner moved to Recently Deleted after inviting are left out of the share
-      // (LC-A2: presentDocumentCondition); archived ones stay (D6). If none of the named
-      // documents is left, the invitation shares nothing and is refused plainly.
-      const documentIds = await stillPresentDocumentIds(tx, invite.documentIds);
-      if ((invite.documentIds?.length ?? 0) > 0 && documentIds?.length === 0) {
-        throw new SharingAcceptanceError(
-          serviceError('invalid', 'The documents in this invitation are no longer available.'),
-        );
-      }
+      // The preview already left out documents in Recently Deleted (LC-A2); how many is recorded.
+      const documentsLeftOut =
+        (claimed[0]?.documentIds?.length ?? 0) - (invite.documentIds?.length ?? 0);
       const created = await createGrant(tx, {
         actorAccountId: invite.invitedByAccountId,
         applicantId: invite.applicantId,
@@ -223,7 +224,7 @@ export async function acceptSharingInvitation(
         stepUpSatisfied: invite.stepUpSatisfied,
         ...(invite.missionId ? { missionId: invite.missionId } : {}),
         ...(invite.categories ? { categories: invite.categories } : {}),
-        ...(documentIds ? { documentIds } : {}),
+        ...(invite.documentIds ? { documentIds: invite.documentIds } : {}),
       });
       // Throw to roll back the claimed invitation and every nested write on a rejected grant.
       if (!created.ok) throw new SharingAcceptanceError(created.error);
@@ -254,7 +255,14 @@ export async function acceptSharingInvitation(
         resourceId: invite.id,
         method: 'MANUAL',
         result: 'ALLOWED',
-        ...(carried > 0 ? { metadata: { caseExceptions: carried } } : {}),
+        ...(carried > 0 || documentsLeftOut > 0
+          ? {
+              metadata: {
+                ...(carried > 0 ? { caseExceptions: carried } : {}),
+                ...(documentsLeftOut > 0 ? { documentsLeftOut } : {}),
+              },
+            }
+          : {}),
       });
       return ok(accepted.value.id);
     })

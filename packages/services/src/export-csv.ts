@@ -1,5 +1,5 @@
 import { type ReferenceKind, csvCell } from '@visastack/core';
-import type { AccountExport } from './export';
+import type { AccountExport, ExportLifecycleLabel } from './export';
 
 /**
  * CSV rendering of the account export (master directive Part 7 §14:
@@ -79,15 +79,27 @@ function withReferenceCodes<T extends { readonly id: string }>(
 }
 
 /**
- * The lifecycle label of each row ("Archived" or "Scheduled for removal", LC-A2), as a `status`
- * column on every row of the table, empty for a current record. Added only when some row has a
- * label, so an export with nothing archived or deleted is exactly as before.
+ * The lifecycle label of each record ("Archived" or "Scheduled for removal", LC-A2) as a
+ * `record_status` column, empty for a current record. Keyed by id, like the reference codes, and
+ * added only when some record has a label, so an export with nothing archived or deleted is
+ * exactly as before. A separate column name, so a table's own `status` is never overwritten.
  */
-function withLifecycleStatus<T extends Record<string, unknown>>(
-  rows: readonly { readonly row: T; readonly status: string | undefined }[],
+function withLifecycleStatus(
+  rows: readonly Record<string, unknown>[],
+  labels: ReadonlyMap<string, ExportLifecycleLabel>,
 ): readonly Record<string, unknown>[] {
-  if (!rows.some((entry) => entry.status !== undefined)) return rows.map((entry) => entry.row);
-  return rows.map((entry) => ({ ...entry.row, status: entry.status ?? '' }));
+  if (labels.size === 0) return rows;
+  return rows.map((row) => {
+    const { id } = row;
+    return { ...row, record_status: labels.get(String(id)) ?? '' };
+  });
+}
+
+/** Each labelled record's id and label. */
+function lifecycleLabels(
+  entries: readonly { readonly id: string; readonly status?: ExportLifecycleLabel }[],
+): ReadonlyMap<string, ExportLifecycleLabel> {
+  return new Map(entries.flatMap((entry) => (entry.status ? [[entry.id, entry.status]] : [])));
 }
 
 export function buildExportCsvTables(
@@ -95,6 +107,13 @@ export function buildExportCsvTables(
   codes: ExportReferenceCodes = {},
 ): readonly ExportCsvTable[] {
   const applicants = data.applicants;
+  const documents = applicants.flatMap((a) => a.documents);
+  const applicantLabels = lifecycleLabels(
+    applicants.map((a) => ({ id: a.applicant.id, ...(a.status ? { status: a.status } : {}) })),
+  );
+  const documentLabels = lifecycleLabels(
+    documents.map((d) => ({ id: d.document.id, ...(d.status ? { status: d.status } : {}) })),
+  );
   return [
     table('account.csv', [data.account]),
     table('consents.csv', [data.consents]),
@@ -111,7 +130,8 @@ export function buildExportCsvTables(
         withReferenceCodes(
           applicants.map((a) => a.applicant),
           codes.P,
-        ).map((row, index) => ({ row, status: applicants[index]?.status })),
+        ),
+        applicantLabels,
       ),
     ),
     table(
@@ -125,13 +145,11 @@ export function buildExportCsvTables(
     table(
       'documents.csv',
       withLifecycleStatus(
-        (() => {
-          const documents = applicants.flatMap((a) => a.documents);
-          return withReferenceCodes(
-            documents.map((d) => d.document),
-            codes.D,
-          ).map((row, index) => ({ row, status: documents[index]?.status }));
-        })(),
+        withReferenceCodes(
+          documents.map((d) => d.document),
+          codes.D,
+        ),
+        documentLabels,
       ),
     ),
     table(

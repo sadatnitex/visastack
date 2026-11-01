@@ -929,6 +929,23 @@ describe('archive, Recently Deleted and the Manage menu (resource lifecycle, mig
     expect(textOf(deleted)).not.toContain('kept.pdf');
   });
 
+  it('never keeps refreshing for a document in Recently Deleted, whatever state it was left in (LC-A2)', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc('kept', 'APPROVED'), doc('binned', 'SCANNING')],
+    });
+    mocks.lifecycleTablesPresent.mockResolvedValue(true);
+    mocks.getDocumentLifecycles.mockResolvedValue(
+      new Map([
+        ['kept', state('CURRENT')],
+        ['binned', state('RECENTLY_DELETED')],
+      ]),
+    );
+    const html = await render();
+    expect(stubProps<{ active: boolean }>(html, 'AutoRefresh')).toEqual([{ active: false }]);
+    expect(textOf(html)).not.toContain('Some documents are still being checked');
+  });
+
   it('links to the Removal Records only when there are some', async () => {
     mocks.lifecycleTablesPresent.mockResolvedValue(true);
     mocks.getDocumentLifecycles.mockResolvedValue(new Map([['kept', state('CURRENT')]]));

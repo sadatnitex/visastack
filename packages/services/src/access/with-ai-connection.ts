@@ -44,6 +44,7 @@ import { hasConsent } from '../consent';
 import { type Db, first, schema } from '../db';
 import { readOriginalDocumentFile, writeDocumentAccessAudit } from '../document-access';
 import { serverErrorEvent } from '../error-report';
+import { lifecycleTablesPresent, presentDocumentCondition } from '../lifecycle/foundation';
 import { formatObservabilityLine } from '../observability-format';
 import type { KeyManagementPort } from '../ports';
 import {
@@ -87,7 +88,6 @@ import {
 } from './require-access';
 import { documentTypeRestricted, loadDocumentProtectionSettings } from './restricted-documents';
 import { stepUpForAiOriginalFile, stepUpFromAiConnection } from './step-up-proof';
-import { lifecycleTablesPresent, presentDocumentCondition } from '../lifecycle/foundation';
 
 /**
  * The AI gate (ADR 0021 section 3): the only way an AI app's request reaches a person's record.

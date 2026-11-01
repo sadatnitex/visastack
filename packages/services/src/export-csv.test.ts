@@ -199,7 +199,7 @@ describe('lifecycle labels in the account export tables (LC-A2)', () => {
     } as unknown as AccountExport;
     const tables = buildExportCsvTables(data, { D: new Map([['d1', 'D-7K2Q9M']]) });
     const documents = csvOf(tables, 'documents.csv').split(/\r?\n/);
-    expect(documents[0]).toBe('id,reference_code,status');
+    expect(documents[0]).toBe('id,reference_code,record_status');
     expect(documents[1]).toBe('d1,D-7K2Q9M,');
     expect(documents[2]).toBe('d2,,Archived');
     expect(documents[3]).toBe('d3,,Scheduled for removal');

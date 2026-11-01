@@ -2,7 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import type { PGlite } from '@electric-sql/pglite';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
@@ -300,6 +300,12 @@ describe('personal sharing before registration', () => {
     if (!created.ok) throw new Error(`Invitation failed: ${created.error.message}`);
     await markDeleted(gone);
     const target = await recipient(request.email);
+    // The recipient is shown only what is still there.
+    const preview = await previewSharingInvitation(db, {
+      actorAccountId: target,
+      rawToken: created.value.rawToken,
+    });
+    expect(preview.ok && preview.value.documentIds).toEqual([kept]);
     const accepted = await acceptSharingInvitation(db, {
       actorAccountId: target,
       rawToken: created.value.rawToken,
@@ -310,6 +316,16 @@ describe('personal sharing before registration', () => {
       .from(schema.grants)
       .where(eq(schema.grants.id, accepted.value));
     expect(grant?.documentIds).toEqual([kept]);
+    const [audit] = await db
+      .select({ metadata: schema.auditEvents.metadata })
+      .from(schema.auditEvents)
+      .where(
+        and(
+          eq(schema.auditEvents.resourceId, created.value.invitation.id),
+          eq(schema.auditEvents.eventType, 'SHARING_INVITATION_ACCEPTED'),
+        ),
+      );
+    expect(audit?.metadata).toMatchObject({ documentsLeftOut: 1 });
 
     const onlyGone = await named('only-gone.pdf');
     const second = { ...input(), documentIds: [onlyGone] };
@@ -317,6 +333,13 @@ describe('personal sharing before registration', () => {
     if (!invited.ok) throw new Error('Invitation failed');
     await markDeleted(onlyGone);
     const other = await recipient(second.email);
+    const previewed = await previewSharingInvitation(db, {
+      actorAccountId: other,
+      rawToken: invited.value.rawToken,
+    });
+    expect(!previewed.ok && previewed.error.message).toBe(
+      'The documents in this invitation are no longer available.',
+    );
     const refused = await acceptSharingInvitation(db, {
       actorAccountId: other,
       rawToken: invited.value.rawToken,

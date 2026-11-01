@@ -15,6 +15,7 @@ import {
   type DocumentProof,
   type DocumentPurposes,
   documentAuditActor,
+  documentIsPresent,
   latestUsableVersion,
   writeDocumentAccessAudit,
 } from './document-access';
@@ -205,13 +206,7 @@ function notFound(): ServiceError {
  * document exactly like a missing one. An archived document keeps its Safe Copy.
  */
 async function documentGone(db: Db, documentId: string): Promise<boolean> {
-  if (!(await lifecycleTablesPresent(db))) return false;
-  const present = await db
-    .select({ id: schema.documents.id })
-    .from(schema.documents)
-    .where(and(eq(schema.documents.id, documentId), presentDocumentCondition()))
-    .limit(1);
-  return present.length === 0;
+  return !(await documentIsPresent(db, documentId));
 }
 
 async function audit(

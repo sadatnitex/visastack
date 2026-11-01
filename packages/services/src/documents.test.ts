@@ -2115,10 +2115,10 @@ describe('every byte path refuses a Recently Deleted document (LC-A2, latestUsab
     expect(isErr(sized)).toBe(true);
     // No stored bytes were read and no image work ran.
     expect(deps.calls).toEqual([]);
-    // The one rule every byte path shares (Safe Copy, AI original file, photo sizing).
+    // The one rule the file paths built on a document proof share (Safe Copy, AI original file, photo sizing).
     expect(await latestUsableVersion(await photo.gate())).toEqual({
       kind: 'refused',
-      reason: 'no_stored_version',
+      reason: 'document_removed',
     });
   });
 

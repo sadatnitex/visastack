@@ -28,7 +28,7 @@
     "legal-hold#listActiveLegalHoldsForAccount": "legal hold: scope checks and hold lists must see every document a hold protects",
     "platform-reads#listAllApplicants": "privacy administrator: the platform-wide traveller picker must see every record, Recently Deleted included, to place a legal hold or answer a privacy request",
     "quotas#getAccountEvidenceBytes": "storage quota: a deleted document's file stays stored until it is destroyed, so it still counts against the owner's room (otherwise delete and upload again would pass the limit)",
-    "uploads#growUploadReservation": "storage quota: a deleted document's file stays stored until it is destroyed, so it still counts against the owner's room (otherwise delete and upload again would pass the limit)",
-    "uploads#reserveUpload": "storage quota: a deleted document's file stays stored until it is destroyed, so it still counts against the owner's room (otherwise delete and upload again would pass the limit)"
+    "uploads#growUploadReservation": "upload reservations: the owner's room counts every traveller record's pending uploads until each one finishes or is swept, Recently Deleted records included, so the limit cannot be passed by deleting and uploading again",
+    "uploads#reserveUpload": "upload reservations: the owner's room counts every traveller record's pending uploads until each one finishes or is swept, Recently Deleted records included, so the limit cannot be passed by deleting and uploading again"
   }
 }
