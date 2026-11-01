@@ -448,6 +448,7 @@ export async function listFactHistory(db: Db, factId: string): Promise<FactVersi
 async function listApplicantFactHistory(
   db: Db,
   applicantId: string,
+  ownerAccountId: string,
   options: FactHistoryOptions,
 ): Promise<FactHistoryPage> {
   const v = schema.factVersions;
@@ -474,7 +475,6 @@ async function listApplicantFactHistory(
         method: v.method,
         reason: v.reason,
         actorAccountId: v.actorAccountId,
-        ownerAccountId: schema.applicants.ownerAccountId,
         currentVersionId: f.currentVersionId,
         createdAt: v.createdAt,
         cursorAt: cursorTime(v.createdAt),
@@ -482,7 +482,6 @@ async function listApplicantFactHistory(
       .from(v)
       .innerJoin(f, eq(v.factId, f.id))
       .innerJoin(d, eq(f.fieldDefinitionId, d.id))
-      .innerJoin(schema.applicants, eq(f.applicantId, schema.applicants.id))
       .where(and(matches, key ? olderThan(v.createdAt, v.id, key) : undefined))
       .orderBy(...cursorOrder(v.createdAt, v.id))
       .limit(limit + 1),
@@ -515,7 +514,7 @@ async function listApplicantFactHistory(
       actor:
         row.actorAccountId === null
           ? 'not_recorded'
-          : row.actorAccountId === row.ownerAccountId
+          : row.actorAccountId === ownerAccountId
             ? 'owner'
             : 'someone_else',
       isCurrent: row.currentVersionId === row.id,
@@ -644,7 +643,14 @@ export async function listApplicantProfile(
       return err(serviceError('forbidden', 'Only the owner of this record can see its history.'));
     }
     const history = third && 'history' in third ? third.history : {};
-    return ok(await listApplicantFactHistory(subject.tx, subject.applicant.id, history));
+    return ok(
+      await listApplicantFactHistory(
+        subject.tx,
+        subject.applicant.id,
+        subject.applicant.ownerAccountId,
+        history,
+      ),
+    );
   }
   const applicantId = subject;
   const encryption = third && !('history' in third) ? third : undefined;
