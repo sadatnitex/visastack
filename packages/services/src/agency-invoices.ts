@@ -7,6 +7,7 @@ import type { Invoice, InvoiceStatus } from './invoice-ledger';
 import { outstandingMinorUnits } from './invoice-ledger';
 import { type ManualClaimView, listManualClaims } from './manual-claims';
 import { isMissingRelationError } from './missing-relation';
+import { clampLimit } from './paging';
 import {
   type PaymentAttempt,
   type PaymentAttemptView,
@@ -132,6 +133,8 @@ export async function listAgencyInvoices(
      * 0 round 4), so the Invoices page and the services can never disagree about a stranded payment.
      */
     readonly payments: Pick<PaymentPortResolver, 'configured'>;
+    /** WP-SB9: how many of the newest invoices to read (1 to 100); 50 when left out. */
+    readonly limit?: number;
   },
 ): Promise<Result<AgencyInvoiceView[], ServiceError>> {
   const reader = await invoiceLedgerReader(db, input);
@@ -143,8 +146,8 @@ export async function listAgencyInvoices(
     .select()
     .from(schema.invoices)
     .where(eq(schema.invoices.organizationId, input.organizationId))
-    .orderBy(desc(schema.invoices.createdAt))
-    .limit(INVOICE_LIMIT);
+    .orderBy(desc(schema.invoices.createdAt), desc(schema.invoices.id))
+    .limit(input.limit === undefined ? INVOICE_LIMIT : clampLimit(input.limit));
   if (invoices.length === 0) return ok([]);
   const ids = invoices.map((invoice) => invoice.id);
 

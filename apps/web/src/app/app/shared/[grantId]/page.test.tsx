@@ -173,3 +173,57 @@ describe('Safe copies on a shared record (S23)', () => {
     expect(stubProps(html, 'SafeCopyDownload')).toEqual([]);
   });
 });
+
+describe('a long shared record stays short (WP-SB3)', () => {
+  function large() {
+    const base = workspace(['VIEW_METADATA', 'DOWNLOAD_REDACTED']);
+    return {
+      ...base,
+      value: {
+        ...base.value,
+        fields: Array.from({ length: 30 }, (_, index) => ({
+          fieldKey: `custom_field_${index}`,
+          value: `Value ${index}`,
+        })),
+        documents: Array.from({ length: 30 }, (_, index) => ({
+          id: `doc-${index}`,
+          displayName: `File ${index}.pdf`,
+          docType: index === 25 ? 'PHOTO' : 'EMPLOYMENT_CERTIFICATE',
+        })),
+      },
+    };
+  }
+  const renderAt = (search: Record<string, string>) =>
+    renderServer(
+      SharedWorkspacePage({
+        params: Promise.resolve({ grantId: 'grant-1' }),
+        searchParams: Promise.resolve(search),
+      }),
+    );
+
+  it('lists ten details and ten documents, each with Show More', async () => {
+    mocks.getRecipientWorkspace.mockResolvedValue(large());
+    mocks.mayUseVisaPhotoSizes.mockResolvedValue(true);
+    const html = await render();
+    expect(html.match(/id="shared-field-\d+"/g)).toHaveLength(10);
+    expect(html.match(/id="shared-document-\d+"/g)).toHaveLength(10);
+    expect(html).toContain('Showing 10 of 30 details.');
+    expect(html).toContain('Showing 10 of 30 documents.');
+    expect(html).toContain('href="/app/shared/grant-1?fields=20#shared-field-11"');
+    expect(html).toContain('href="/app/shared/grant-1?docs=20#shared-document-11"');
+    // Only the documents on the page are asked about; the photo is not on it yet.
+    expect(mocks.safeCopyOffers.mock.calls[0]?.[2]).toHaveLength(10);
+    expect(mocks.mayUseVisaPhotoSizes).not.toHaveBeenCalled();
+  });
+
+  it('keeps the other list where it was when one grows', async () => {
+    mocks.getRecipientWorkspace.mockResolvedValue(large());
+    mocks.mayUseVisaPhotoSizes.mockResolvedValue(true);
+    const html = await renderAt({ docs: '30' });
+    expect(html.match(/id="shared-document-\d+"/g)).toHaveLength(30);
+    expect(html.match(/id="shared-field-\d+"/g)).toHaveLength(10);
+    expect(html).toContain('href="/app/shared/grant-1?docs=30&amp;fields=20#shared-field-11"');
+    expect(html).toContain('Showing all 30 documents.');
+    expect(mocks.mayUseVisaPhotoSizes).toHaveBeenCalledTimes(1);
+  });
+});

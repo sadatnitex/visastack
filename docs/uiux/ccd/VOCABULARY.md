@@ -112,3 +112,22 @@ Added 31 Oct 2026 (S22, agency AI connectors):
 | A paid traveller plan before buying is switched on | Not Sold Yet (status); price "BDT {amount} for {n} days"; an unpriced one reads No Price (Not for Sale) | "Draft", "Inactive", "Unpublished" | **New (ADR 0025 T2b)** |
 | Buying a paid traveller plan | Compare Plans (card), Get {Plan} (button), Confirm Your Purchase (card), Pay with bKash, Nagad, Rocket or Card (button), Covers You Until (row) | "Upgrade Now", "Subscribe", "Checkout" | **New (ADR 0025 T3c)** |
 | Renewing and billing for a paid traveller plan | Renew Now (button), Stop Renewing (button), Keep Renewing (button), Billing History (page and link), Not Paid (status), Request a Refund (link) | "Cancel Subscription", "Auto-renew", "Unsubscribe", "Overdue" | **New (ADR 0025 T4, T5)** |
+
+Added 1 Nov 2026 (Resource lifecycle, lane F registers every lane's words; `docs/architecture/resource-lifecycle-contract.md`):
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The menu of what can be done with one document | Manage (button; menu items below) | "More", "Options", "Actions" | **New (LC-F)**: menu built, empty until a lane registers an action |
+| Hiding something unwanted but unique | Archive; the list is Archived; to bring it back, Restore | "Hide", "Soft delete" | **Planned (LC-A1, LC-E)**; tab built (LC-F) |
+| A newer document taking an old one's place | Replace With a Newer Document; the old one reads Replaced | "Supersede", "Superseded" | **Planned (LC-B)** |
+| Removing an exact duplicate | Delete Duplicate; at upload, Remove This New Copy | "Erase", "Purge", "Destroy" | **Planned (LC-C)** |
+| Where a deleted duplicate waits | Recently Deleted; each item reads Removed in N Days | "Trash", "Bin", "Tombstone" | **Planned (LC-C)**; tab built (LC-F) |
+| Asking support to remove a unique file | Ask Us to Remove This File; while waiting, Removal Requested | "Erasure request", "Deletion request" | **Planned (LC-D)** |
+| The kept record of a removal | Removal Record (list: Removal Records); states Scheduled, Restored, Removing Securely, Removed, Kept (Legal Requirement) | "Deletion receipt", "Erasure log", "Cascade" | **New (LC-F)**: list built; page planned (LC-C) |
+| Clearing out several things at once | Tidy Up | "Bulk delete", "Cleanup" | **Planned** |
+| A profile answer that no longer applies | No Longer Current | "Fact version", "Deprecated" | **Planned (LC-G1)** |
+| An agency relationship that has stopped | Ended | "Terminated", "Revoked" (in traveller text) | **Planned (LC-G3)** |
+| Cases still in progress, and finished ones | Active Cases, Past Cases | "Open / Closed", "Archived Cases" | **Planned (LC-G2)** |
+| Taking back an application to an agency | Withdraw Application | "Cancel application" | **Planned (LC-G3)** |
+| Travellers | Archive Traveller, Restore Traveller, Remove Empty Record | "Delete Traveller", "Erase Traveller" | **Planned (LC-E)** |
+| Words retired on every screen | (none) | erase, erasure, purge, tombstone, supersede, soft delete, cascade, fact version | **New (LC-F)**: kept out of the lifecycle screens; admin and code names unchanged |

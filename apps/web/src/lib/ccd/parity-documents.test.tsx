@@ -39,6 +39,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listPendingProposals: mocks.listPendingProposals,
   listApplicantProfile: async () => [],
   requireAccess: async () => ({ ok: true, value: { proof: 'owner' } }),
+  lifecycleTablesPresent: async () => false,
   listDocumentReadingStates: async () => ({
     ok: true,
     value: { states: new Map(), sourceOfRun: new Map() },

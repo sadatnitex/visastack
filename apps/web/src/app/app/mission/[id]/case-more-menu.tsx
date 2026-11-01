@@ -6,6 +6,7 @@ import { FormMessage, SubmitButton } from '../../../../components/form-feedback'
 import { Icon } from '../../../../components/icons';
 import { useCloseOnOutsidePress } from '../../../../lib/use-popover';
 import { type ActionState, transitionMissionAction } from './actions';
+import { SnapshotButton } from './mission-buttons';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -17,16 +18,26 @@ const INITIAL: ActionState = { ok: true, message: '' };
  * cancelling means, with Yes and Keep buttons; focus moves to that question, Escape or Keep the
  * Case goes back without changing anything, and only Yes sends the request (which the server
  * refuses unless it carries the confirmation). No browser pop-up is used.
+ *
+ * WP-SB2: on a phone the page header keeps only this menu, so the header's other actions (Add
+ * Evidence, Start a New Case from This One and Snapshot) are offered here as well when the page
+ * passes `headerActions`; those items show on narrow screens only, where the header hides its own.
  */
 export function CaseMoreMenu({
   missionId,
   applicantId,
   canCancel,
+  headerActions,
 }: {
   readonly missionId: string;
   readonly applicantId: string;
   /** Whether the case's current stage allows cancelling. */
   readonly canCancel: boolean;
+  /** The header's own actions, repeated here for phones (WP-SB2). */
+  readonly headerActions?: {
+    readonly addEvidenceHref: string;
+    readonly newCaseHref: string;
+  };
 }) {
   const [state, formAction, pending] = useActionState(transitionMissionAction, INITIAL);
   const [confirming, setConfirming] = useState(false);
@@ -124,6 +135,27 @@ export function CaseMoreMenu({
             </section>
           ) : (
             <ul className="case-more-list">
+              {headerActions ? (
+                <>
+                  <li className="case-more-phone">
+                    <a
+                      className="case-more-item"
+                      href={headerActions.addEvidenceHref}
+                      onClick={() => close()}
+                    >
+                      Add Evidence
+                    </a>
+                  </li>
+                  <li className="case-more-phone">
+                    <Link className="case-more-item" href={headerActions.newCaseHref}>
+                      Start a New Case from This One
+                    </Link>
+                  </li>
+                  <li className="case-more-phone case-more-snapshot">
+                    <SnapshotButton missionId={missionId} align="start" />
+                  </li>
+                </>
+              ) : null}
               <li>
                 <Link className="case-more-item" href={`/app/applicant/${applicantId}/memory`}>
                   Open Case History

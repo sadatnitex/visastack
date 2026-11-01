@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { type ReactNode, useActionState } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
 import { useLatestOf } from '../../../../components/latest-result';
 import { TimeZoneSelect } from '../../../../components/time-zone-select';
@@ -42,9 +42,21 @@ interface TaskView {
 export function TasksPanel({
   missionId,
   tasks,
+  rowIdPrefix,
+  more,
+  finishedTotal,
+  finishedOpen = false,
 }: {
   readonly missionId: string;
   readonly tasks: readonly TaskView[];
+  /** WP-SB2: finished tasks across the whole case, when the page shows only the first rows. */
+  readonly finishedTotal?: number;
+  /** WP-SB2: open the finished list, for example after Show More added rows to it. */
+  readonly finishedOpen?: boolean;
+  /** WP-SB2: each row gets the id `<rowIdPrefix>-<index>`, so Show More can land on the first new one. */
+  readonly rowIdPrefix?: string;
+  /** WP-SB2: the Show More control under the list, when the page capped it. */
+  readonly more?: ReactNode;
 }) {
   const [createState, createAction, createPending] = useActionState(createTaskAction, INITIAL);
   const [decideState, decideAction, decidePending] = useActionState(decideTaskAction, INITIAL);
@@ -63,8 +75,13 @@ export function TasksPanel({
         <p className="card-body">No open tasks.</p>
       ) : (
         <div className="rows u-mb-100">
-          {openOrInProgress.map((task) => (
-            <form action={decideAction} key={task.id} className="row task-row">
+          {openOrInProgress.map((task, index) => (
+            <form
+              action={decideAction}
+              key={task.id}
+              className="row task-row"
+              id={rowIdPrefix ? `${rowIdPrefix}-${index}` : undefined}
+            >
               <input type="hidden" name="missionId" value={missionId} />
               <input type="hidden" name="taskId" value={task.id} />
               <span className="row-key">
@@ -126,13 +143,17 @@ export function TasksPanel({
       )}
       <FormMessage result={statusFrom === 'list' ? status : NO_RESULT} />
       {decided.length > 0 ? (
-        <details className="u-mb-100">
+        <details className="u-mb-100" open={finishedOpen}>
           <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
-            {plural(decided.length, 'Task')} Done or Cancelled
+            {plural(Math.max(finishedTotal ?? 0, decided.length), 'Task')} Done or Cancelled
           </summary>
           <div className="rows u-mt-050">
-            {decided.map((task) => (
-              <div className="row" key={task.id}>
+            {decided.map((task, index) => (
+              <div
+                className="row"
+                key={task.id}
+                id={rowIdPrefix ? `${rowIdPrefix}-${openOrInProgress.length + index}` : undefined}
+              >
                 <span className="row-key" style={{ textDecoration: 'line-through' }}>
                   {task.description}
                 </span>
@@ -142,6 +163,7 @@ export function TasksPanel({
           </div>
         </details>
       ) : null}
+      {more}
 
       <form action={createAction} className="collab-add-form">
         <input type="hidden" name="missionId" value={missionId} />

@@ -3,11 +3,13 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { SafeCopyDownload } from '../../../../components/safe-copy-download';
+import { ShowMore } from '../../../../components/show-more';
 import { EmptyState, PageHeader } from '../../../../components/ui';
 import { VisaPhotoSizes } from '../../../../components/visa-photo-sizes';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldLabel } from '../../../../lib/master-profile';
+import { TRAVELLER_LIST_STEP, nextShow, parseShow } from '../../../../lib/paging';
 import { mayUseVisaPhotoSizes } from '../../../../lib/photo-sizes';
 import { safeCopiesAvailable, safeCopyOffers } from '../../../../lib/safe-copy';
 import { withSession } from '../../../../lib/session';
@@ -16,16 +18,39 @@ export const metadata: Metadata = { title: 'Shared Record' };
 
 export const dynamic = 'force-dynamic';
 
+/** The address parameters for how many details and documents show. */
+const FIELDS_KEY = 'fields';
+const DOCS_KEY = 'docs';
+/** Everything the grant covers stays reachable, so each list may grow this far. */
+const SHARED_SHOW_MAX = 500;
+const FIELD_NOUN = { one: 'detail', other: 'details' } as const;
+const DOCUMENT_NOUN = { one: 'document', other: 'documents' } as const;
+
 export default async function SharedWorkspacePage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ grantId: string }>;
+  /** `fields` and `docs`: how many shared details and documents to list (WP-SB3: 10, then more). */
+  readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { grantId } = await params;
+  const search = (await searchParams) ?? {};
+  const fieldsShown = parseShow(search[FIELDS_KEY], {
+    step: TRAVELLER_LIST_STEP,
+    max: SHARED_SHOW_MAX,
+  });
+  const documentsShown = parseShow(search[DOCS_KEY], {
+    step: TRAVELLER_LIST_STEP,
+    max: SHARED_SHOW_MAX,
+  });
 
   const loaded = await withSession(async ({ db, accountId }) => {
     const result = await getRecipientWorkspace(db, { actorAccountId: accountId, grantId });
     if (!result.ok) return null;
+    // Only the documents on this page are checked for safe copies and photo sizes (WP-SB3); the
+    // grant decides which documents exist here, never the page size.
+    const shownDocuments = result.value.documents.slice(0, documentsShown);
     // Visa Photo Sizes only for a photo this viewer may take safe copies of, decided by the same
     // gate question the photo routes ask (across every grant they hold for it), never by this one
     // grant's list of actions, so the section and the server always agree.
@@ -40,20 +65,30 @@ export default async function SharedWorkspacePage({
       ? await safeCopyOffers(
           db,
           accountId,
-          result.value.documents.map((doc) => doc.id),
+          shownDocuments.map((doc) => doc.id),
           actingFor,
         )
       : new Map<string, never>();
-    for (const doc of result.value.documents) {
+    for (const doc of shownDocuments) {
       if (!isPassportPhotoType(doc.docType)) continue;
       const allowed = await mayUseVisaPhotoSizes(db, accountId, doc.id, actingFor);
       if (allowed) photoIds.push(doc.id);
     }
-    return { workspace: result.value, photoIds, safeCopies, safeCopiesOn };
+    return { workspace: result.value, shownDocuments, photoIds, safeCopies, safeCopiesOn };
   });
 
   if (!loaded) notFound();
-  const { workspace, photoIds, safeCopies, safeCopiesOn } = loaded;
+  const { workspace, shownDocuments, photoIds, safeCopies, safeCopiesOn } = loaded;
+  const pathname = `/app/shared/${grantId}`;
+  const shownFields = workspace.fields.slice(0, fieldsShown);
+  const fieldsNext =
+    workspace.fields.length > shownFields.length
+      ? nextShow(shownFields.length, { step: TRAVELLER_LIST_STEP, max: SHARED_SHOW_MAX })
+      : null;
+  const documentsNext =
+    workspace.documents.length > shownDocuments.length
+      ? nextShow(shownDocuments.length, { step: TRAVELLER_LIST_STEP, max: SHARED_SHOW_MAX })
+      : null;
 
   return (
     <section className="section container">
@@ -98,14 +133,28 @@ export default async function SharedWorkspacePage({
               This person has not shared any profile details with you for this purpose.
             </EmptyState>
           ) : (
-            <div className="rows u-mt-050">
-              {workspace.fields.map((field) => (
-                <div className="row" key={field.fieldKey}>
-                  <span className="row-key">{fieldLabel(field.fieldKey) ?? field.fieldKey}</span>
-                  <span>{field.value}</span>
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="rows u-mt-050">
+                {shownFields.map((field, index) => (
+                  <div className="row" key={field.fieldKey}>
+                    <span className="row-key" id={`shared-field-${index + 1}`}>
+                      {fieldLabel(field.fieldKey) ?? field.fieldKey}
+                    </span>
+                    <span>{field.value}</span>
+                  </div>
+                ))}
+              </div>
+              <ShowMore
+                id="shared-fields-more"
+                pathname={pathname}
+                searchParams={search}
+                next={fieldsNext === null ? null : { [FIELDS_KEY]: fieldsNext }}
+                shown={shownFields.length}
+                total={workspace.fields.length}
+                noun={FIELD_NOUN}
+                landOn={`shared-field-${shownFields.length + 1}`}
+              />
+            </>
           )}
         </article>
 
@@ -119,11 +168,13 @@ export default async function SharedWorkspacePage({
           ) : (
             <>
               <div className="rows" style={{ marginTop: '0.5rem', marginBottom: '1rem' }}>
-                {workspace.documents.map((doc) => {
+                {shownDocuments.map((doc, index) => {
                   const offer = safeCopies.get(doc.id) ?? 'none';
                   return (
                     <div className="row" key={doc.id}>
-                      <span className="row-key">{doc.displayName}</span>
+                      <span className="row-key" id={`shared-document-${index + 1}`}>
+                        {doc.displayName}
+                      </span>
                       <span className="row-end">
                         {doc.docType ? (
                           <span className="badge badge-neutral">
@@ -150,6 +201,16 @@ export default async function SharedWorkspacePage({
                   );
                 })}
               </div>
+              <ShowMore
+                id="shared-documents-more"
+                pathname={pathname}
+                searchParams={search}
+                next={documentsNext === null ? null : { [DOCS_KEY]: documentsNext }}
+                shown={shownDocuments.length}
+                total={workspace.documents.length}
+                noun={DOCUMENT_NOUN}
+                landOn={`shared-document-${shownDocuments.length + 1}`}
+              />
               {photoIds.map((documentId) => (
                 <VisaPhotoSizes
                   key={`photo-${documentId}`}

@@ -12,6 +12,7 @@ import { axeViolations } from '../../../../lib/axe.test-support';
 
 vi.mock('./actions', () => ({
   transitionMissionAction: vi.fn(async () => ({ ok: true, message: '' })),
+  snapshotMissionAction: vi.fn(async () => ({ ok: true, message: '' })),
 }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: unknown }) => (
@@ -123,5 +124,46 @@ describe('CaseMoreMenu', () => {
     const { open } = mount();
     open();
     expect(await axeViolations(container.innerHTML)).toEqual([]);
+  });
+
+  it('repeats the header actions for phones when the page passes them (WP-SB2)', async () => {
+    act(() =>
+      root.render(
+        <CaseMoreMenu
+          missionId="case-1"
+          applicantId="person-1"
+          canCancel
+          headerActions={{
+            addEvidenceHref: '#evidence',
+            newCaseHref: '/app/applicant/person-1/missions/prepare-again?from=case-1',
+          }}
+        />,
+      ),
+    );
+    const details = container.querySelector('details') as HTMLDetailsElement;
+    act(() => {
+      details.open = true;
+      details.dispatchEvent(new Event('toggle'));
+    });
+    const phoneItems = [...container.querySelectorAll('li.case-more-phone')];
+    expect(phoneItems).toHaveLength(3);
+    expect(phoneItems[0]?.querySelector('a')?.getAttribute('href')).toBe('#evidence');
+    expect(phoneItems[0]?.textContent).toBe('Add Evidence');
+    expect(phoneItems[1]?.querySelector('a')?.getAttribute('href')).toBe(
+      '/app/applicant/person-1/missions/prepare-again?from=case-1',
+    );
+    expect(phoneItems[2]?.querySelector('button')?.textContent).toBe('Snapshot');
+    // The usual items follow, and the menu stays free of accessibility problems.
+    expect(button('Cancel Case')).toBeDefined();
+    expect(await axeViolations(`${container.innerHTML}<div id="evidence"></div>`)).toEqual([]);
+    // Choosing Add Evidence closes the menu, so the page section it points at is not covered.
+    act(() => (phoneItems[0]?.querySelector('a') as HTMLAnchorElement).click());
+    expect(details.open).toBe(false);
+  });
+
+  it('shows no phone items when the page passes none', () => {
+    const { open } = mount();
+    open();
+    expect(container.querySelectorAll('.case-more-phone')).toHaveLength(0);
   });
 });

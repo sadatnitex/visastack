@@ -28,6 +28,7 @@ import { PageHeader, StatusBadge } from '../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { PLAN_FORM_RETRY_COOKIE, decodePlanFormRetry } from '../../../../lib/plan-form-retry';
 import { withSession } from '../../../../lib/session';
+import { BillingRow } from '../../account/plan/billing/billing-row';
 import { AdminRestricted } from '../admin-restricted';
 import { PlanForm, RetirePlanForm } from './forms';
 import {
@@ -176,9 +177,28 @@ function PlanCard({
 }) {
   const titleId = `plan-${plan.id}`;
   const kind = kindOf(plan);
+  // Scroll Budget (WP-SB9): one compact row per plan (who it is for, price, how many are on it and
+  // its status); its limits, AI features and forms open beneath it. A save that needs fixing
+  // reopens its row with the entered values.
   return (
-    <article className="card u-mb-150" aria-labelledby={titleId} id={titleId.concat('-card')}>
-      <h2 className="card-title" id={titleId} tabIndex={-1}>
+    <BillingRow
+      id={titleId.concat('-card')}
+      open={retry !== undefined}
+      title={plan.name}
+      line={`${plan.audience === 'TRAVELLER' ? 'Travellers' : 'Agencies'}, ${priceWords(plan)}, ${onItWords(plan.onIt, plan.audience)}`}
+      badges={
+        <>
+          {/* A paid traveller plan is not sold until buying is switched on (ADR 0025). */}
+          <StatusBadge
+            tone={plan.active ? (kind === 'traveller' ? 'warning' : 'success') : 'neutral'}
+          >
+            {plan.active ? (kind === 'traveller' ? 'Not Sold Yet' : 'Offered') : 'Retired'}
+          </StatusBadge>
+          {plan.bypassLimits ? <StatusBadge tone="success">Complimentary</StatusBadge> : null}
+        </>
+      }
+    >
+      <h2 className="sr-only" id={titleId} tabIndex={-1}>
         {plan.name}
       </h2>
       <div className="rows rows-grid">
@@ -195,18 +215,6 @@ function PlanCard({
         <div className="row">
           <span className="row-key">On This Plan</span>
           <span className="row-val">{onItWords(plan.onIt, plan.audience)}</span>
-        </div>
-        <div className="row">
-          <span className="row-key">Status</span>
-          <span className="row-val">
-            {/* A paid traveller plan is not sold until buying is switched on (ADR 0025). */}
-            <StatusBadge
-              tone={plan.active ? (kind === 'traveller' ? 'warning' : 'success') : 'neutral'}
-            >
-              {plan.active ? (kind === 'traveller' ? 'Not Sold Yet' : 'Offered') : 'Retired'}
-            </StatusBadge>{' '}
-            {plan.bypassLimits ? <StatusBadge tone="success">Complimentary</StatusBadge> : null}
-          </span>
         </div>
         {plan.audience === 'TRAVELLER'
           ? TRAVELLER_STORAGE_KEYS.map((key) => (
@@ -292,7 +300,7 @@ function PlanCard({
           )}
         </>
       ) : null}
-    </article>
+    </BillingRow>
   );
 }
 
@@ -341,15 +349,17 @@ export default async function PlansPage() {
           {data.available ? null : (
             <output className="notice notice-warn">{PLANS_UNAVAILABLE}</output>
           )}
-          {data.plans.map((plan) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              available={data.available}
-              retry={data.retry?.form === plan.id ? data.retry.fields : undefined}
-              uploadDefaults={data.uploadDefaults}
-            />
-          ))}
+          <div className="billing-rows u-mb-150">
+            {data.plans.map((plan) => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                available={data.available}
+                retry={data.retry?.form === plan.id ? data.retry.fields : undefined}
+                uploadDefaults={data.uploadDefaults}
+              />
+            ))}
+          </div>
           {data.available ? (
             <>
               <article className="card u-mb-150" aria-labelledby="new-plan-title">
@@ -359,14 +369,23 @@ export default async function PlansPage() {
                 <p className="card-body">
                   Once saved, it can be given to an agency on its Organizations page.
                 </p>
-                <PlanForm
-                  planName="New Agency Plan"
-                  initial={initialValues(null)}
-                  periodLocked={false}
-                  kind="agency"
-                  uploadDefaults={data.uploadDefaults}
-                  {...(data.retry?.form === 'new' ? { retry: data.retry.fields } : {})}
-                />
+                {/* Folded like each plan's own form (WP-SB9); a save that needs fixing reopens it. */}
+                <StickyDetails
+                  className="disclosure form-more u-mt-100"
+                  initiallyOpen={data.retry?.form === 'new'}
+                  summary={<>Create an Agency Plan</>}
+                >
+                  <div className="disclosure-body">
+                    <PlanForm
+                      planName="New Agency Plan"
+                      initial={initialValues(null)}
+                      periodLocked={false}
+                      kind="agency"
+                      uploadDefaults={data.uploadDefaults}
+                      {...(data.retry?.form === 'new' ? { retry: data.retry.fields } : {})}
+                    />
+                  </div>
+                </StickyDetails>
               </article>
               <article className="card u-mb-150" aria-labelledby="new-traveller-plan-title">
                 <h2 className="card-title" id="new-traveller-plan-title">
@@ -377,14 +396,26 @@ export default async function PlansPage() {
                   gives more room than Traveller Free: more storage and higher daily limits.{' '}
                   {TRAVELLER_SELLING_NOTE}
                 </p>
-                <PlanForm
-                  planName="New Traveller Plan"
-                  initial={newTravellerValues(data.plans.find((p) => p.key === TRAVELLER_PLAN_KEY))}
-                  periodLocked={false}
-                  kind="traveller"
-                  uploadDefaults={data.uploadDefaults}
-                  {...(data.retry?.form === 'new-traveller' ? { retry: data.retry.fields } : {})}
-                />
+                <StickyDetails
+                  className="disclosure form-more u-mt-100"
+                  initiallyOpen={data.retry?.form === 'new-traveller'}
+                  summary={<>Create a Traveller Plan</>}
+                >
+                  <div className="disclosure-body">
+                    <PlanForm
+                      planName="New Traveller Plan"
+                      initial={newTravellerValues(
+                        data.plans.find((p) => p.key === TRAVELLER_PLAN_KEY),
+                      )}
+                      periodLocked={false}
+                      kind="traveller"
+                      uploadDefaults={data.uploadDefaults}
+                      {...(data.retry?.form === 'new-traveller'
+                        ? { retry: data.retry.fields }
+                        : {})}
+                    />
+                  </div>
+                </StickyDetails>
               </article>
             </>
           ) : null}

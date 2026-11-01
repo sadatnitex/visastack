@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { type ReactNode, useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { formatDateOnly } from '../../../../lib/format-date';
 import { type ActionState, recordOutcomeAction } from './actions';
@@ -42,10 +42,16 @@ export function OutcomePanel({
   missionId,
   outcomes,
   evidenceOptions,
+  rowIdPrefix,
+  more,
 }: {
   readonly missionId: string;
   readonly outcomes: readonly OutcomeView[];
   readonly evidenceOptions: readonly EvidenceOption[];
+  /** WP-SB2: each row gets the id `<rowIdPrefix>-<index>`, so Show More can land on the first new one. */
+  readonly rowIdPrefix?: string;
+  /** WP-SB2: the Show More control under the list, when the page capped it. */
+  readonly more?: ReactNode;
 }) {
   const [state, formAction, pending] = useActionState(recordOutcomeAction, INITIAL);
 
@@ -60,10 +66,11 @@ export function OutcomePanel({
       </p>
       {outcomes.length > 0 ? (
         <div className="rows u-mb-125">
-          {outcomes.map((o) => (
+          {outcomes.map((o, index) => (
             <div
               className="row"
               key={o.id}
+              id={rowIdPrefix ? `${rowIdPrefix}-${index}` : undefined}
               style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
@@ -84,6 +91,7 @@ export function OutcomePanel({
               ) : null}
             </div>
           ))}
+          {more}
         </div>
       ) : (
         <p className="card-body u-mb-125">No outcome recorded yet.</p>

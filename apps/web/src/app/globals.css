@@ -11081,6 +11081,344 @@ html:has(.sticky-action-bar) {
   gap: 0.5rem;
 }
 
+/* WP-LC-F resource lifecycle: Manage menu, Current / Archived / Recently Deleted links, Undo status and Removal Records (44 px targets) */
+.lc-manage {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.lc-manage-button {
+  min-height: 44px;
+  min-width: 44px;
+}
+.lc-manage-menu {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 20;
+  min-width: 14rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  padding: var(--space-1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+}
+.lc-manage-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lc-manage-item:hover,
+.lc-manage-item:focus-visible {
+  background: var(--bg-subtle);
+}
+.lc-manage-panel {
+  width: 100%;
+}
+.lc-tabs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.lc-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.lc-tab[aria-current="page"] {
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 650;
+}
+.lc-tab-count {
+  color: var(--text-tertiary);
+}
+.lc-undo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.lc-undo-button {
+  min-height: 44px;
+}
+.lc-record-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lc-record {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.lc-record-status {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 650;
+}
+.lc-records-more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+/* The Manage menu inside a document row, below the row's select button. */
+.wallet-document-manage {
+  padding: 0 var(--space-3) var(--space-2);
+}
+
+/* WP-SB2 case workspace: on a phone the header actions fold into More and the next step stays in
+   reach at the bottom of the screen; the All Snapshots page badge spacing. */
+.case-header-wide {
+  display: contents;
+}
+.case-more-phone,
+.case-sticky-next {
+  display: none;
+}
+.case-more-snapshot {
+  padding: 0.25rem 0.75rem;
+}
+.case-snapshot-packet {
+  margin-left: 0.5rem;
+}
+@media (max-width: 640px) {
+  .case-header-wide {
+    display: none;
+  }
+  .case-more-phone {
+    display: block;
+  }
+  /* No box of its own, so the bar sticks within the whole case page, not this wrapper. */
+  .case-sticky-next {
+    display: contents;
+  }
+}
+@media (min-width: 641px) {
+  /* The case page's next-step bar shows on phones only, so it keeps no room on wider screens. */
+  html:has(.case-sticky-next) {
+    scroll-padding-bottom: auto;
+  }
+}
+.case-checklist-rest > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--space-2);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+/* WP-SB3 scroll budget for sharing, insights, evidence and the shared view: each grant's details
+   behind its own expander, and each insights card's list opens and closes under its heading,
+   with its count. Show More itself comes from WP-SB0. */
+.sharing-grant-details {
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: var(--space-2);
+}
+.sharing-grant-details > :not(summary) {
+  margin-top: var(--space-2);
+}
+.sharing-grant-details-summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--text-small);
+}
+.insights-card-fold > .insights-card-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+.insights-card-summary::-webkit-details-marker {
+  display: none;
+}
+.insights-card-summary::after {
+  content: "";
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+.insights-card-fold[open] > .insights-card-summary::after {
+  transform: rotate(-135deg);
+}
+.insights-card-list {
+  min-width: 0;
+  margin-inline-end: auto;
+  font-weight: 600;
+  font-size: var(--text-small);
+}
+.insights-card-count {
+  padding: 0 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--hairline-soft);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+.insights-card-body {
+  margin-top: var(--space-2);
+}
+.insights-card-body > .insights-action,
+.insights-more {
+  margin-top: 12px;
+}
+.insights-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.insights-more > .insights-note {
+  margin: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .insights-card-summary::after {
+    transition: transform var(--motion-state) var(--motion-ease);
+  }
+}
+
+/* WP-SB9 billing surfaces within the scroll budget: one compact row per invoice, purchase or plan
+   that opens to its details (reference, status and amount stay visible when closed), the parts of
+   the platform owner's organization page, and the layout that replaced its inline styles. */
+.billing-rows {
+  display: grid;
+  gap: var(--space-2);
+}
+.billing-row {
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  scroll-margin-top: 6rem;
+}
+.billing-row-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  list-style: none;
+}
+.billing-row-summary::-webkit-details-marker {
+  display: none;
+}
+.billing-row-summary::after {
+  content: "";
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-inline-start: auto;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+.billing-row[open] > .billing-row-summary::after {
+  transform: rotate(-135deg);
+}
+.billing-row-main {
+  display: grid;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.billing-row-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.billing-row-line {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.billing-row-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.billing-row-body {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0 var(--space-3) var(--space-3);
+}
+.billing-row-body > .rows-grid {
+  margin: 0;
+}
+.billing-row-card {
+  padding: 0;
+}
+/* The organization page's parts wrap onto a second line on a phone instead of scrolling
+   sideways, so the open part is never hidden off the edge. */
+.subnav.org-admin-tabs {
+  flex-wrap: wrap;
+  row-gap: 0;
+  overflow-x: visible;
+}
+.org-admin-downgrade {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: 0.4rem;
+}
+.row.org-admin-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+.org-admin-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.org-admin-forms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+}
+.org-admin-form {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.org-admin-form-title {
+  margin-bottom: 0.5rem;
+  font-size: var(--text-small);
+}
+
 /* WP-SB1 traveller records and logs: the profile-part choice above Profile History, Case History
    as closed groups with each case's records in a fixed panel, and the notification panel. */
 .history-part-form {
