@@ -26,3 +26,9 @@ apps/web/src/app/globals.css
 docs/commercial-v1/known-issues.md
 docs/upgrades/programme/COVERAGE-LEDGER.csv
 docs/upgrades/programme/allowlists/WP-SB7.txt
+# Coordinator-approved additions (1 Nov 2026): the privacy picker lives in admin-forms.tsx (LegalHoldForm only;
+# the a11y test gets the new prop shape only, no weaker assertions), and Members paging needs listPlatformMembers.
+apps/web/src/app/app/admin/admin-forms.tsx
+apps/web/src/lib/a11y-forms.test.tsx
+packages/services/src/platform-directory.ts
+packages/services/src/platform-directory.test.ts

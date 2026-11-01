@@ -106,3 +106,65 @@ describe('owner-only bounded member directory', () => {
     if (!denied.ok) expect(denied.error.code).toBe('forbidden');
   });
 });
+
+describe('member directory read with options (WP-SB7)', () => {
+  it('pages 20 at a time, newest first, without losing or repeating anyone', async () => {
+    const all = await listPlatformMembers(db, owner, undefined, { limit: 100 });
+    if (!all.ok) throw new Error('first page');
+    expect(all.value.members).toHaveLength(20);
+    const seen: string[] = [];
+    let before: string | undefined;
+    for (let guard = 0; guard < 10; guard += 1) {
+      const page = await listPlatformMembers(db, owner, undefined, before ? { before } : {});
+      if (!page.ok) throw new Error('page');
+      expect(page.value.members.length).toBeLessThanOrEqual(20);
+      seen.push(...page.value.members.map((member) => member.id));
+      if (!page.value.next) break;
+      before = page.value.next;
+    }
+    const total = (await db.select({ id: schema.accounts.id }).from(schema.accounts)).length;
+    expect(total).toBeGreaterThan(40);
+    expect(seen).toHaveLength(total);
+    expect(new Set(seen).size).toBe(total);
+  });
+
+  it('matches part of an email, any case, with % and _ as plain text, never more than 20', async () => {
+    const found = await listPlatformMembers(db, owner, undefined, {
+      emailSearch: ' SYNTHETIC-DIRECTORY-1',
+    });
+    if (!found.ok) throw new Error('search');
+    // 1 and 10 to 19.
+    expect(found.value.members).toHaveLength(11);
+    expect(Object.keys(found.value.members[0] ?? {}).sort()).toEqual([
+      'createdAt',
+      'email',
+      'emailVerifiedAt',
+      'id',
+    ]);
+    const wide = await listPlatformMembers(db, owner, undefined, { emailSearch: 'example' });
+    if (!wide.ok) throw new Error('search');
+    expect(wide.value.members).toHaveLength(20);
+    expect(wide.value.next).not.toBeNull();
+    const wildcard = await listPlatformMembers(db, owner, undefined, { emailSearch: '%' });
+    expect(wildcard.ok && wildcard.value.members).toEqual([]);
+    const underscore = await listPlatformMembers(db, owner, undefined, { emailSearch: '_' });
+    expect(underscore.ok && underscore.value.members).toEqual([]);
+  });
+
+  it('gives the first page for a malformed cursor or one made for another search', async () => {
+    const first = await listPlatformMembers(db, owner, undefined, {});
+    const other = await listPlatformMembers(db, owner, undefined, { emailSearch: 'example' });
+    if (!first.ok || !other.ok) throw new Error('pages');
+    const firstIds = first.value.members.map((member) => member.id);
+    for (const before of [other.value.next ?? '', 'not-a-cursor', 'x'.repeat(600)]) {
+      const page = await listPlatformMembers(db, owner, undefined, { before });
+      expect(page.ok && page.value.members.map((member) => member.id)).toEqual(firstIds);
+    }
+  });
+
+  it('still refuses anyone who is not a platform owner', async () => {
+    const denied = await listPlatformMembers(db, staff, undefined, { emailSearch: 'example' });
+    expect(denied.ok).toBe(false);
+    if (!denied.ok) expect(denied.error.code).toBe('forbidden');
+  });
+});

@@ -1,12 +1,23 @@
-import type { MembershipRole } from '@visastack/core';
+import type { MembershipRole, OrganizationStatus } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, ilike, ne } from 'drizzle-orm';
 import { endAgencyAiConnectionsOfMember } from './access/agency-ai-connections';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { checkSeatEntitlement } from './entitlement-enforcement';
 import { type ServiceError, serviceError } from './errors';
 import { assignFoundingAccess } from './founding-access';
+import {
+  type Page,
+  type PageRequest,
+  clampLimit,
+  cursorOrder,
+  cursorTime,
+  decodeTimeCursor,
+  encodeTimeCursor,
+  olderThan,
+  toPage,
+} from './paging';
 
 /**
  * Organizations (agencies) — verification and membership (Build Spec §2;
@@ -103,10 +114,64 @@ export async function getOrganization(
   );
 }
 
-/** Every organization (platform-admin overview), newest first. */
-export async function listAllOrganizations(db: Db): Promise<Organization[]> {
-  const rows = await db.select().from(schema.organizations);
-  return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+/** How the platform organizations list may be narrowed and paged (WP-SB7). */
+export interface OrganizationListOptions extends PageRequest {
+  /** Part of the organization's name, any case. Trimmed; at most 100 characters are used. */
+  readonly search?: string;
+  /** Only organizations in this status. */
+  readonly status?: OrganizationStatus;
+}
+
+const ORG_SEARCH_MAX = 100;
+
+/**
+ * The cursor scope for the organizations list. The filters are part of it, so a cursor made for one
+ * search or status gives the first page of another instead of skipping rows.
+ */
+function organizationsCursorScope(search: string, status: OrganizationStatus | undefined): string {
+  return `platform:organizations:${status ?? 'ALL'}:${search}`;
+}
+
+/**
+ * Every organization (platform-admin overview), newest first. Callers check the platform role.
+ * With `options`, one page of at most `limit` (default 50, at most 100) rows comes back, optionally
+ * narrowed by a name search and a status; without it, today's full list.
+ */
+export async function listAllOrganizations(db: Db): Promise<Organization[]>;
+export async function listAllOrganizations(
+  db: Db,
+  options: OrganizationListOptions,
+): Promise<Page<Organization>>;
+export async function listAllOrganizations(
+  db: Db,
+  options?: OrganizationListOptions,
+): Promise<Organization[] | Page<Organization>> {
+  if (!options) {
+    const rows = await db.select().from(schema.organizations);
+    return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  const search = (options.search ?? '').trim().slice(0, ORG_SEARCH_MAX);
+  const status = options.status;
+  const limit = clampLimit(options.limit);
+  const scope = organizationsCursorScope(search, status);
+  const cursor = decodeTimeCursor(options.before, scope);
+  const table = schema.organizations;
+  const rows = await db
+    .select({ organization: table, at: cursorTime(table.createdAt) })
+    .from(table)
+    .where(
+      and(
+        search ? ilike(table.name, `%${search.replace(/[\\%_]/g, '\\$&')}%`) : undefined,
+        status ? eq(table.status, status) : undefined,
+        cursor ? olderThan(table.createdAt, table.id, cursor) : undefined,
+      ),
+    )
+    .orderBy(...cursorOrder(table.createdAt, table.id))
+    .limit(limit + 1);
+  const page = toPage(rows, limit, (last) =>
+    encodeTimeCursor({ at: last.at, id: last.organization.id }, scope),
+  );
+  return { items: page.items.map((row) => row.organization), nextCursor: page.nextCursor };
 }
 
 /** A membership resolved with the member's email, for the org console. */

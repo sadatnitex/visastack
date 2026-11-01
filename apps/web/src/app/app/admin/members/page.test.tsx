@@ -26,7 +26,7 @@ beforeEach(() => {
   mocks.isPlatformOwnerAccount.mockResolvedValue(true);
   mocks.listPlatformMembers.mockResolvedValue({
     ok: true,
-    value: { members: [], nextCursor: null },
+    value: { members: [], next: null },
   });
 });
 
@@ -41,5 +41,51 @@ describe('Platform > Members', () => {
   it('lists members for an owner who has passed the check', async () => {
     await renderServer(Page({ searchParams: Promise.resolve({}) }));
     expect(mocks.listPlatformMembers).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads 20 newest accounts with the email search and cursor from the address', async () => {
+    await renderServer(
+      Page({ searchParams: Promise.resolve({ q: '  agent@  ', before: 'cur_1', after: 'old' }) }),
+    );
+    expect(mocks.listPlatformMembers).toHaveBeenLastCalledWith(
+      {},
+      { accountId: 'acct-1', email: 'owner@example.com', bootstrapEmails: [] },
+      undefined,
+      { limit: 20, emailSearch: 'agent@', before: 'cur_1' },
+    );
+    await renderServer(Page({ searchParams: Promise.resolve({ before: '<script>' }) }));
+    expect(mocks.listPlatformMembers).toHaveBeenLastCalledWith(
+      {},
+      expect.anything(),
+      undefined,
+      { limit: 20 },
+    );
+  });
+
+  it('offers the next page with the search kept and a search form', async () => {
+    mocks.listPlatformMembers.mockResolvedValue({
+      ok: true,
+      value: {
+        members: [
+          {
+            id: 'm-1',
+            email: 'agent@example.test',
+            emailVerifiedAt: null,
+            createdAt: new Date('2026-10-01T00:00:00Z'),
+          },
+        ],
+        next: 'cur_2',
+      },
+    });
+    const html = await renderServer(Page({ searchParams: Promise.resolve({ q: 'agent' }) }));
+    expect(html).toContain('href="/app/admin/members?q=agent&amp;before=cur_2#members-list"');
+    expect(html).toContain('role="search"');
+    expect(textOf(html)).toContain('agent@example.test');
+    expect(textOf(html)).toContain('Clear Search');
+  });
+
+  it('says plainly when the search matches nobody', async () => {
+    const html = await renderServer(Page({ searchParams: Promise.resolve({ q: 'nobody' }) }));
+    expect(textOf(html)).toContain('No members match this search.');
   });
 });
