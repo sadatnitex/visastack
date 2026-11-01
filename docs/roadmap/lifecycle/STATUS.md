@@ -23,7 +23,7 @@ During the run, each lane's own file (`lanes/<LANE>.md`, Status section) was the
 | G-GO | Given (the coordinator prompt from `KICKOFF.md`). |
 | G-MIG | Given. Migration 0113 ran on production on the owner's word: `db-migrate.yml` run 41263156493, 1 Nov 2026 01:57Z. Confirmed: 112 rows in the migration journal, the four lifecycle tables, and the `DOCUMENT_REMOVAL` erasure reason. Production is in "tables present" mode. (Paid plans migration 0114, run 41289963351, is a separate track.) |
 | G-D | Approved by the owner on 1 Nov 2026 ("G-D approved"). Reviewing role: the Compliance Admin role reads the queue and decides; a decision needs a fresh sign-in; no new role. Then "switch on removal requests": `DOCUMENT_REMOVAL_REQUESTS=on` is set in Vercel production and redeployed (by the coordinator). |
-| G-Z | Accepted by the owner on 1 Nov 2026 ("G-Z accepted") after reading lane Z's report. The Founding Access question was decided by the owner the same day (Founding A: renewal stops at once on withdraw or terminate, access ends at the end of the paid period, no automatic refund), implemented separately by the paid plans session. |
+| G-Z | Accepted by the owner on 1 Nov 2026 ("G-Z accepted") after reading lane Z's report. The Founding Access question was decided by the owner the same day (Founding A: renewal stops at once on withdraw or terminate, access ends at the end of the paid period, no automatic refund), implemented separately by the paid plans session (draft PR #405 on 1 Nov 2026, not merged when the handover was written; check its state). |
 
 ### Privacy notice lines approved at G-D (the exact wording on screen today)
 
@@ -38,3 +38,12 @@ Everything in the table is live on production with the lifecycle tables present:
 ## Cross-lane acceptance (PROGRAMME section 8)
 
 Each row's journey test is listed in `lanes/Z.md` (Status) and in `docs/commercial-v1/known-issues.md`, 2026-11-01 Resource Lifecycle Programme (lane Z).
+
+## Open after the programme (handover, 1 Nov 2026)
+
+The programme is closed; these stay open outside it.
+
+- Founding A: draft PR #405 (session VS-XYZ-02). Not merged, not live.
+- Deferred with triggers: H30 voluntary agency closure, H31 automatic Safe Copy for the surviving copy of a deleted duplicate, H32 storage-plus-database restore drill for removed documents (`docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md`).
+- Cleanup, not urgent: the per-request presence checks for the lifecycle tables can be removed now that 0113 is confirmed on production.
+- Not verified: a signed-in live click-through of the lifecycle actions; Ask Us to Remove This File on screen after the switch was set; the finished-case packet download after a removal in a real browser. Only the fallback domain could be probed from cloud sessions (the main domain is refused by the session proxy).

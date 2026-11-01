@@ -127,3 +127,14 @@ People can now tidy their records without losing history. Live on production (mi
 
 Acceptance: the cross-lane journey tests in `packages/services/src/lifecycle/integration/` (PROGRAMME section 8). Not verified: a full storage-plus-database restore drill for removed documents (H32); the finished-case packet download after a removal in a real browser.
 
+## Update, 2026-11-01 (handover): paid traveller plans, scroll budget and the database
+
+This section supersedes the sections above where they differ.
+
+- **Paid traveller plans (ADR 0025):** T1 to T6 are merged, the last being T6a #375 (migration 0112), T6 #377 (traveller refunds, Traveller Billing, person rows in the accounting file) and T6 metrics #398 (migration 0114, plan counts and owner-set health thresholds). Selling stays off: the coordinator reports `TRAVELLER_PLANS_ENABLED` is not on (not readable from this session), and readiness reports `payments` unconfigured. It waits on the accountant's VAT answer (D7), the lawyer's wording review (D12), a live payment account (O6) and the owner's "go live". The Founding A rule (an agency that withdraws or is terminated stops renewing Founding Access at once, access lasts to the end of the paid period, no automatic refund) is in draft PR #405, not merged.
+- **Scroll budget:** complete (WP-SB0 #378 to WP-SB11 #402). Every scroll-budget check enforces, and no known exception remains.
+- **Small Commercial V1:** S1 to S18, S20 to S23 and S27 to S29 are merged, plus S19 step 0 (the payment provider registry). Left: S24 and S25, each only on the owner's word, and S19 proper only if the owner names a second payment provider.
+- **Database:** every migration through 0114 is applied in production; none is pending.
+- **Readiness, 1 Nov 2026** (fallback address): ready, controlled pilot; AI reading, Safe Copies, the AI connector and public sign-up available; malware scanning and payments unconfigured; real applicant data and commercial claims disabled.
+- **Not verified:** a signed-in live click-through of the lifecycle actions, including Ask Us to Remove This File on screen; signed-in Scroll Budget pages on the live site; the main domain from a cloud session (only the fallback was probed).
+

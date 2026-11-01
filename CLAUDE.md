@@ -83,5 +83,9 @@ Then read docs/SESSION-START.md once: the full picture (where things are, standa
 - Merging main into a branch: append-only files take main's version plus the branch's own tail; when force-push to the designated branch is refused, record its history with git merge -s ours.
 - GitHub can re-subscribe PR activity after a PR is created: unsubscribe again when the notice arrives.
 - A page that loads data after a #section link must scroll to that section again once the data arrives.
+- A PR with no checks 15 minutes after a push usually conflicts with main (GitHub runs no pull_request workflow on a conflicting PR): merge main.
+- Parallel lanes: a blocked lane sends the coordinator a message, not only "Blocked" in its lane file; the coordinator checks each running session's status at every check-in. When the three required checks are green on the exact head and the PR contains main and is clean, merge it right away; do not wait for the authoring session.
+- A database change word ("migrate NNNN") is valid only for that number; if the next free number changes, ask again.
+- Some sessions rightly refuse security-test or billing edits relayed from another session: the owner then types the decision in that session.
 
 Owner reporting instruction (2026-10-10): after each deployment, show the public beta action list with done, in-progress and remaining work. Explain what each deployment means for whom: what changed, what users will see, who is affected, and live verification versus unverified acceptance. Never describe a partial package as complete.

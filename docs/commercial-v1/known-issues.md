@@ -7115,3 +7115,13 @@ Branch `claude/lc-z-integration`, started on main 457fb5e7 (LC-E, #400). Migrati
 - Scroll budget: the Documents list shows 6 rows a page on a phone; measured 2,025 px, 2.40 screens against 3; `WP-SB4.spec.ts` enforces it on both screens (`docs/uiux/SCROLL-BUDGET.md` section 2).
 - Reviews: `/code-review max` (15 findings, 13 fixed in code, 2 were these docs); `/security-review`: no findings. `design:accessibility-review` and `design:ux-copy` are not available in this session; the accessibility scan in `a11y-forms.test.tsx` covers the new badge.
 - Not verified: the finished-case packet download after a removal in a real browser; a full storage-plus-database restore drill for removed documents (H32); the founding access question (lane Z Blocked).
+
+## 2026-11-01: Documentation handover (branch claude/docs-handover-2026-11-01)
+
+Docs only; no code, test, workflow or migration change. Started on main `b665fd4e` (#404).
+
+- Checked on GitHub and main: migrations 0112, 0113 and 0114 each ran once in production through `db-migrate.yml` (runs 41233325574, 41263156493, 41289963351, all success); the journal holds 113 entries up to 0114; readiness on the fallback address reports ready (so none is pending). Main CI, CodeQL, the live signed-in check and the Vercel status succeeded on `b665fd4e`.
+- Corrections to the coordinator's brief: Founding A is open as draft PR #405, not merged; migration 0112 ran in run 41233325574 (31 Oct 19:15Z); #376 measured about 7 to 9 percent and its description still says "not merged" although it merged as `7704ec58`; the `grep -qF --` fix in `scripts/agent/full-check.sh` landed in #395, so it is not open.
+- Updated: new `docs/upgrades/programme/SESSION-HANDOFF-2026-11-01.md`; `docs/SESSION-START.md` sections 6, 7 and 8; `docs/public-beta/CURRENT-STATE.md`; `docs/operations/current-platform.md` (`DOCUMENT_REMOVAL_REQUESTS`, migrations, readiness); `docs/upgrades/programme/STATUS.md`; `docs/roadmap/lifecycle/STATUS.md`; `CLAUDE.md` section 7.
+- Not verified: Vercel settings (`DOCUMENT_REMOVAL_REQUESTS`, `TRAVELLER_PLANS_ENABLED`) and deployment `dpl_CHa5srZp3PyLaDkoxaCBu9KfR8Va` (reported by the coordinator); the main domain (refused by the session proxy); any signed-in screen.
+
