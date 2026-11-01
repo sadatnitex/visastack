@@ -798,13 +798,8 @@ export async function revokeClientInvitation(
   return ok(undefined);
 }
 
-/** List an organization's client invitations, newest first (org OWNER/ADMIN only). */
-export async function listClientInvitations(
-  db: Db,
-  input: { readonly actorAccountId: string; readonly organizationId: string },
-): Promise<Result<readonly ClientInvitation[], ServiceError>>;
 /**
- * WP-SB5: one page of the same invitations, newest first (time, then id), at most `limit`
+ * WP-SB5: one page of the invitations the full read below returns, newest first (time, then id), at most `limit`
  * (clamped to 1 to 100), optionally in one status only, with how many match in all. The same
  * OWNER/ADMIN check and the same organization filter apply on every page; `before` is the previous
  * page's `nextCursor`, and one made for another organization, or malformed, gives the first page.
@@ -814,6 +809,11 @@ export async function listClientInvitations(
   input: { readonly actorAccountId: string; readonly organizationId: string },
   options: ClientInvitationsPageRequest,
 ): Promise<Result<ClientInvitationsPage, ServiceError>>;
+/** List an organization's client invitations, newest first (org OWNER/ADMIN only). */
+export async function listClientInvitations(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly organizationId: string },
+): Promise<Result<readonly ClientInvitation[], ServiceError>>;
 export async function listClientInvitations(
   db: Db,
   input: { readonly actorAccountId: string; readonly organizationId: string },

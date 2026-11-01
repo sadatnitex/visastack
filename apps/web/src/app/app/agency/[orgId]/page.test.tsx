@@ -437,3 +437,52 @@ describe('agency Dashboard: file states for triage (WP-V4 re-review)', () => {
     expect(mocks.loadEvidenceRequests.mock.calls[0]?.[4]).toEqual({ withFileStates: true });
   });
 });
+
+describe('agency Dashboard: within the scroll budget (WP-SB5)', () => {
+  const many = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      ...inGoodShape,
+      missionId: `c${i}`,
+      applicantId: `apc${i}`,
+      applicantName: `Traveller ${i}`,
+      title: `Case ${i}`,
+    }));
+
+  it('shows the 10 most urgent of 200 cases, with Show More and a way to every case', async () => {
+    mocks.loadCases.mockResolvedValue({ admin: true, cases: [...many(199), needsAttention] });
+    const html = await renderServer(Page(pageProps({ quick: 'mine' })));
+    const rows = html.split('id="agency-case-table-rows"')[1]?.split('</tbody>')[0] ?? '';
+    expect(rows.match(/<tr>/g)).toHaveLength(10);
+    const text = textOf(html);
+    expect(text).toContain('Showing 10 of 199 cases.');
+    // The filters stay on the Show More link.
+    expect(html).toContain('href="/app/agency/o1?quick=mine&amp;show=20#agency-case-table-rows"');
+    expect(html).toContain('href="/app/agency/o1/cases" class="btn btn-secondary u-btn-sm"');
+    expect(text).toContain('View All Cases');
+  });
+
+  it('grows the table by 10 when asked, and never past what exists', async () => {
+    mocks.loadCases.mockResolvedValue({ admin: true, cases: many(25) });
+    const html = await renderServer(Page(pageProps({ show: '20' })));
+    const rows = html.split('id="agency-case-table-rows"')[1]?.split('</tbody>')[0] ?? '';
+    expect(rows.match(/<tr>/g)).toHaveLength(20);
+    const all = await renderServer(Page(pageProps({ show: '30' })));
+    expect(textOf(all)).toContain('Showing all 25 cases.');
+    expect(all).not.toContain('show=40');
+  });
+
+  it('caps the reassignment queue at 10 with Show More', async () => {
+    mocks.loadUnassignedQueue.mockResolvedValue(
+      Array.from({ length: 30 }, (_, i) => ({
+        missionId: `u${i}`,
+        title: `Unassigned ${i}`,
+        applicantName: `Traveller ${i}`,
+      })),
+    );
+    const html = await renderServer(Page(pageProps()));
+    const queue = html.split('id="agency-reassignment-rows"')[1]?.split('</div>')[0] ?? '';
+    expect(queue.match(/class="row row-link"/g)).toHaveLength(10);
+    expect(textOf(html)).toContain('Showing 10 of 30 cases.');
+    expect(html).toContain('href="/app/agency/o1?queue=20#agency-reassignment-rows"');
+  });
+});

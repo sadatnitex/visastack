@@ -1,5 +1,6 @@
 import 'server-only';
 import {
+  type ClientInvitation,
   type Db,
   EACH_GRANT,
   type TriageDocumentState,
@@ -118,19 +119,32 @@ export async function loadEvidenceRequests(
   accountId: string,
   orgId: string,
   access: Pick<OrgAccess, 'admin'>,
-  options: { readonly withFileStates?: boolean } = {},
+  options: {
+    readonly withFileStates?: boolean;
+    /**
+     * WP-SB5: only the requests that count on this one case (those naming it, and those made for
+     * its traveller with no case), narrowed before any file or reference code is read.
+     */
+    readonly forCase?: { readonly missionId: string; readonly applicantId: string };
+  } = {},
 ): Promise<EvidenceRequestRow[]> {
   if (!access.admin) return [];
   const result = await listEvidenceRequestsForOrgDetailed(db, accountId, orgId);
   if (!result.ok) return [];
+  const forCase = options.forCase;
+  const listed = forCase
+    ? result.value.filter((r) =>
+        r.missionId ? r.missionId === forCase.missionId : r.applicantId === forCase.applicantId,
+      )
+    : result.value;
   // One registry read for the whole list (ADR 0018), alongside the file states.
   const [codes, rows] = await Promise.all([
     referenceCodesFor(
       db,
       'R',
-      result.value.map((r) => r.id),
+      listed.map((r) => r.id),
     ),
-    withRespondingDocumentStates(db, accountId, orgId, result.value, options),
+    withRespondingDocumentStates(db, accountId, orgId, listed, options),
   ]);
   if (codes.size === 0) return rows;
   return rows.map((r) => {
@@ -247,140 +261,14 @@ export async function loadVisibleCaseList(db: Db, accountId: string, orgId: stri
 }
 
 /**
- * Every case this person can see, each with its assignments, notes, tasks,
- * appointments, requirements, reviewer decisions, issuer confirmations,
- * readiness and the applicant's live acknowledgement. This is the heavy read, so
- * only the two pages that show it (Dashboard and Cases) call it.
+ * Every case this person can see, each with its assignments, tasks, appointments, requirements,
+ * reviewer decisions, issuer confirmations, readiness and the applicant's live acknowledgement:
+ * what the Dashboard ranks and counts. This is the heavy read, so only the Dashboard calls it. It
+ * reads no notes (WP-SB5): the Dashboard shows none, and the Cases page reads them for the one
+ * case it opens, a page at a time (`loadOpenCase`).
  */
-export async function loadCases(
-  db: Db,
-  accountId: string,
-  orgId: string,
-  members: readonly OrgMember[],
-) {
+export async function loadCases(db: Db, accountId: string, orgId: string) {
   const visible = await listVisibleMissionsForMember(db, orgId, accountId);
-  const casesRead = Promise.all(
-    visible.missions.map(async (mission) => {
-      const [
-        assignments,
-        notes,
-        requirements,
-        decisions,
-        selectedEvidence,
-        tasks,
-        appointments,
-        readiness,
-        liveAcknowledgement,
-      ] = await Promise.all([
-        listAssignmentsDetailed(db, orgId, mission.applicantId, mission.missionId),
-        listNotes(db, orgId, mission.applicantId, mission.missionId),
-        listMissionRequirementsForOrg(db, orgId, mission.missionId),
-        listMissionDecisions(db, accountId, mission.missionId),
-        listSelectedEvidenceForOrg(db, orgId, mission.missionId),
-        listTasksForOrg(db, orgId, mission.applicantId, mission.missionId),
-        listAppointmentsForOrg(db, orgId, mission.applicantId, mission.missionId),
-        // Manual-mode cases never carry an official readiness claim
-        // (CAS-01 §8), even if a pack happens to still be attached;
-        // a case with no pack attached at all has nothing to compute.
-        !mission.manualMode && mission.packVersionId
-          ? computeReadiness(db, mission.missionId)
-          : Promise.resolve(null),
-        // TRU-02 (Part 7 §3): replaces CAS-02's earlier "Acknowledgement:
-        // not yet tracked" placeholder now that the feature exists.
-        // getLiveAcknowledgement does no authorization of its own by
-        // design -- safe here since `mission.missionId` is already this
-        // org's own authorized set (every other read in this Promise.all
-        // already trusts it the same way).
-        getLiveAcknowledgement(db, mission.missionId),
-      ]);
-      // EVI-05: an issuer confirmation is recorded against whatever a
-      // requirement's evidence resolves to (fact or document), not
-      // against the requirement directly, so it's looked up the same way
-      // the write action resolves it (listSelectedEvidenceForOrg), then
-      // tagged with the requirement id here for display grouping.
-      const issuerVerifications = selectedEvidence.ok
-        ? (
-            await Promise.all(
-              selectedEvidence.value.map(async (evidence) => {
-                const rows = evidence.factId
-                  ? await listIssuerVerificationsForFact(db, evidence.factId)
-                  : evidence.documentId
-                    ? await listIssuerVerificationsForDocument(db, evidence.documentId)
-                    : [];
-                return rows.map((v) => ({
-                  id: v.id,
-                  packRequirementId: evidence.packRequirementId,
-                  issuerIdentity: v.issuerIdentity,
-                  exactClaim: v.exactClaim,
-                  response: v.response,
-                  validUntil: v.validUntil.toISOString(),
-                  expired: v.validUntil.getTime() <= Date.now(),
-                }));
-              }),
-            )
-          ).flat()
-        : [];
-      return {
-        ...mission,
-        assignments,
-        notes: notes.map((n) => ({
-          id: n.id,
-          body: n.body,
-          createdAt: n.createdAt.toISOString(),
-          visibility: n.visibility,
-          // Author email resolution needs the full membership roster,
-          // admin-only data -- a non-admin viewer correctly sees
-          // "Unknown" here rather than gaining roster access through a
-          // side door; the note body/date/requirement content itself
-          // is unaffected.
-          authorEmail: members.find((m) => m.accountId === n.authorAccountId)?.email ?? 'Unknown',
-        })),
-        requirements: requirements.ok
-          ? requirements.value.map((r) => ({
-              id: r.id,
-              label:
-                r.kind === 'FIELD'
-                  ? (fieldLabel(r.fieldKey ?? '') ?? r.fieldKey ?? '')
-                  : (r.docType ?? ''),
-            }))
-          : [],
-        // A non-admin, non-assigned-to-THIS-mission member correctly
-        // gets [] here (listMissionDecisions refuses per-mission, not
-        // per-org) -- they still see every mission they ARE assigned to.
-        decisions: decisions.ok
-          ? decisions.value.map((d) => ({
-              id: d.id,
-              packRequirementId: d.packRequirementId,
-              outcome: d.outcome,
-              reason: d.reason,
-              createdAt: d.createdAt.toISOString(),
-            }))
-          : [],
-        issuerVerifications,
-        viewerAssigned: assignments.some((a) => a.memberAccountId === accountId),
-        tasks: tasks.map((t) => ({
-          id: t.id,
-          description: t.description,
-          status: t.status,
-          priority: t.priority,
-          assigneeAccountId: t.assigneeAccountId,
-          dueDate: t.dueDate ? t.dueDate.toISOString() : null,
-          dueTimezone: t.dueTimezone,
-        })),
-        appointments: appointments.map((a) => ({
-          id: a.id,
-          title: a.title,
-          localDateTime: a.localDateTime.toISOString(),
-          timezone: a.timezone,
-          place: a.place,
-          channel: a.channel,
-          status: a.status,
-        })),
-        readiness: readiness?.ok ? readiness.value : null,
-        liveAcknowledgementAt: liveAcknowledgement?.createdAt.toISOString() ?? null,
-      };
-    }),
-  );
   // One registry read for the whole list (ADR 0018), never one per case.
   const [caseCodes, cases] = await Promise.all([
     referenceCodesFor(
@@ -388,16 +276,376 @@ export async function loadCases(
       'C',
       visible.missions.map((m) => m.missionId),
     ),
-    casesRead,
+    Promise.all(
+      visible.missions.map((mission) => readCaseWorkspace(db, accountId, orgId, mission)),
+    ),
   ]);
   return {
     admin: visible.admin,
-    cases: cases.map((c): typeof c & { readonly referenceCode?: string } => {
-      // The case's visible code (`C-7K2Q9M`); absent when it has none yet.
-      const referenceCode = caseCodes.get(c.missionId);
-      return referenceCode ? { ...c, referenceCode } : c;
+    cases: cases.map((c) => withReferenceCode(c, caseCodes.get(c.missionId))),
+  };
+}
+
+/** The Cases page's list step (WP-SB5): agency lists show 15 rows, then the next page. */
+export const CASE_LIST_STEP = 15;
+/** The Cases page shows this many notes on the open case, then Show More (WP-SB5). */
+export const CASE_NOTES_STEP = 10;
+
+/**
+ * One page of the cases this person can see, newest opened first, with only what a list row
+ * shows (WP-SB5): no per-case detail is read for any of them. The same visibility rule as every
+ * other case read (`listVisibleMissionsForMember`): an administrator sees what the organization
+ * can reach, anyone else only the cases assigned to them.
+ */
+export async function loadCaseListPage(
+  db: Db,
+  accountId: string,
+  orgId: string,
+  page: { readonly before?: string | undefined } = {},
+) {
+  const visible = await listVisibleMissionsForMember(db, orgId, accountId, {
+    limit: CASE_LIST_STEP,
+    ...(page.before ? { before: page.before } : {}),
+  });
+  const codes = await referenceCodesFor(
+    db,
+    'C',
+    visible.missions.map((m) => m.missionId),
+  );
+  return {
+    admin: visible.admin,
+    total: visible.total,
+    nextCursor: visible.nextCursor,
+    cases: visible.missions.map((m) => withReferenceCode(m, codes.get(m.missionId))),
+  };
+}
+
+/**
+ * The one case the Cases page has open, with its whole workspace and its newest notes (WP-SB5),
+ * or null when this person may not see that case. Whether they may is decided by the same
+ * visibility read as the list (`listVisibleMissionsForMember` narrowed to this one id), so an
+ * address naming any other case opens nothing. Nothing is read for any other case.
+ */
+export async function loadOpenCase(
+  db: Db,
+  accountId: string,
+  orgId: string,
+  members: readonly OrgMember[],
+  missionId: string,
+  options: { readonly notesLimit: number; readonly notesBefore?: string | undefined },
+) {
+  const visible = await listVisibleMissionsForMember(db, orgId, accountId, {
+    only: missionId,
+    limit: 1,
+  });
+  const mission = visible.missions[0];
+  if (!mission) return null;
+  const [codes, workspace, notes] = await Promise.all([
+    referenceCodesFor(db, 'C', [mission.missionId]),
+    readCaseWorkspace(db, accountId, orgId, mission),
+    listNotes(db, orgId, mission.applicantId, mission.missionId, {
+      limit: options.notesLimit,
+      withTotal: true,
+      ...(options.notesBefore ? { before: options.notesBefore } : {}),
     }),
+  ]);
+  return {
+    ...withReferenceCode(workspace, codes.get(mission.missionId)),
+    notes: notes.items.map((n) => noteView(n, members)),
+    notesTotal: notes.total ?? notes.items.length,
+    notesNextCursor: notes.nextCursor,
+  };
+}
+
+/** How the workspace shows a note's author: administrator data, "Unknown" for anyone else. */
+function noteView(
+  n: {
+    readonly id: string;
+    readonly body: string;
+    readonly createdAt: Date;
+    readonly visibility: 'AGENCY_INTERNAL' | 'TRAVELLER_SHARED';
+    readonly authorAccountId: string | null;
+  },
+  members: readonly OrgMember[],
+) {
+  return {
+    id: n.id,
+    body: n.body,
+    createdAt: n.createdAt.toISOString(),
+    visibility: n.visibility,
+    // Author email resolution needs the full membership roster, admin-only data -- a non-admin
+    // viewer correctly sees "Unknown" here rather than gaining roster access through a side
+    // door; the note body/date/requirement content itself is unaffected.
+    authorEmail: members.find((m) => m.accountId === n.authorAccountId)?.email ?? 'Unknown',
+  };
+}
+
+function withReferenceCode<T extends object>(
+  value: T,
+  referenceCode: string | undefined,
+): T & { readonly referenceCode?: string } {
+  // The case's visible code (`C-7K2Q9M`); absent when it has none yet.
+  return referenceCode ? { ...value, referenceCode } : value;
+}
+
+type VisibleCase = Awaited<ReturnType<typeof listVisibleMissionsForMember>>['missions'][number];
+
+/** One case's workspace, apart from its notes: the reads the Dashboard and the open case share. */
+async function readCaseWorkspace(db: Db, accountId: string, orgId: string, mission: VisibleCase) {
+  const [
+    assignments,
+    requirements,
+    decisions,
+    selectedEvidence,
+    tasks,
+    appointments,
+    readiness,
+    liveAcknowledgement,
+  ] = await Promise.all([
+    listAssignmentsDetailed(db, orgId, mission.applicantId, mission.missionId),
+    listMissionRequirementsForOrg(db, orgId, mission.missionId),
+    listMissionDecisions(db, accountId, mission.missionId),
+    listSelectedEvidenceForOrg(db, orgId, mission.missionId),
+    listTasksForOrg(db, orgId, mission.applicantId, mission.missionId),
+    listAppointmentsForOrg(db, orgId, mission.applicantId, mission.missionId),
+    // Manual-mode cases never carry an official readiness claim
+    // (CAS-01 §8), even if a pack happens to still be attached;
+    // a case with no pack attached at all has nothing to compute.
+    !mission.manualMode && mission.packVersionId
+      ? computeReadiness(db, mission.missionId)
+      : Promise.resolve(null),
+    // TRU-02 (Part 7 §3): replaces CAS-02's earlier "Acknowledgement:
+    // not yet tracked" placeholder now that the feature exists.
+    // getLiveAcknowledgement does no authorization of its own by
+    // design -- safe here since `mission.missionId` is already this
+    // org's own authorized set (every other read in this Promise.all
+    // already trusts it the same way).
+    getLiveAcknowledgement(db, mission.missionId),
+  ]);
+  // EVI-05: an issuer confirmation is recorded against whatever a
+  // requirement's evidence resolves to (fact or document), not
+  // against the requirement directly, so it's looked up the same way
+  // the write action resolves it (listSelectedEvidenceForOrg), then
+  // tagged with the requirement id here for display grouping.
+  const issuerVerifications = selectedEvidence.ok
+    ? (
+        await Promise.all(
+          selectedEvidence.value.map(async (evidence) => {
+            const rows = evidence.factId
+              ? await listIssuerVerificationsForFact(db, evidence.factId)
+              : evidence.documentId
+                ? await listIssuerVerificationsForDocument(db, evidence.documentId)
+                : [];
+            return rows.map((v) => ({
+              id: v.id,
+              packRequirementId: evidence.packRequirementId,
+              issuerIdentity: v.issuerIdentity,
+              exactClaim: v.exactClaim,
+              response: v.response,
+              validUntil: v.validUntil.toISOString(),
+              expired: v.validUntil.getTime() <= Date.now(),
+            }));
+          }),
+        )
+      ).flat()
+    : [];
+  return {
+    ...mission,
+    assignments,
+    requirements: requirements.ok
+      ? requirements.value.map((r) => ({
+          id: r.id,
+          label:
+            r.kind === 'FIELD'
+              ? (fieldLabel(r.fieldKey ?? '') ?? r.fieldKey ?? '')
+              : (r.docType ?? ''),
+        }))
+      : [],
+    // A non-admin, non-assigned-to-THIS-mission member correctly
+    // gets [] here (listMissionDecisions refuses per-mission, not
+    // per-org) -- they still see every mission they ARE assigned to.
+    decisions: decisions.ok
+      ? decisions.value.map((d) => ({
+          id: d.id,
+          packRequirementId: d.packRequirementId,
+          outcome: d.outcome,
+          reason: d.reason,
+          createdAt: d.createdAt.toISOString(),
+        }))
+      : [],
+    issuerVerifications,
+    viewerAssigned: assignments.some((a) => a.memberAccountId === accountId),
+    tasks: tasks.map((t) => ({
+      id: t.id,
+      description: t.description,
+      status: t.status,
+      priority: t.priority,
+      assigneeAccountId: t.assigneeAccountId,
+      dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+      dueTimezone: t.dueTimezone,
+    })),
+    appointments: appointments.map((a) => ({
+      id: a.id,
+      title: a.title,
+      localDateTime: a.localDateTime.toISOString(),
+      timezone: a.timezone,
+      place: a.place,
+      channel: a.channel,
+      status: a.status,
+    })),
+    readiness: readiness?.ok ? readiness.value : null,
+    liveAcknowledgementAt: liveAcknowledgement?.createdAt.toISOString() ?? null,
+  };
+}
+
+/** How many of the most recently updated cases the Activity page reads notes from. */
+export const ACTIVITY_CASE_LIMIT = 10;
+/** Notes per Activity page (the log panel's server limit). */
+export const ACTIVITY_PAGE_SIZE = 50;
+
+/**
+ * Case Activity (WP-SB5): one page of notes from the most recently updated cases this person can
+ * see, newest first, as one list. Each case's notes are read through `listNotes`, so the same
+ * read check and visibility rule apply; `before` is the previous page's cursor and continues every
+ * case strictly after that note. Authors are named only for an administrator (the roster is
+ * administrator data).
+ */
+export async function loadCaseActivity(
+  db: Db,
+  accountId: string,
+  orgId: string,
+  members: readonly OrgMember[],
+  page: { readonly before?: string | undefined } = {},
+) {
+  const visible = await loadVisibleCaseList(db, accountId, orgId);
+  const selected = [...visible]
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .slice(0, ACTIVITY_CASE_LIMIT);
+  const perCase = await Promise.all(
+    selected.map(async (mission) => {
+      const notes = await listNotes(db, orgId, mission.applicantId, mission.missionId, {
+        limit: ACTIVITY_PAGE_SIZE,
+        ...(page.before ? { before: page.before } : {}),
+      });
+      return {
+        more: notes.nextCursor !== null,
+        notes: notes.items.map((note) => ({ note, mission })),
+      };
+    }),
+  );
+  // The same order every case read used (exact time, then id, newest first), so the merged page
+  // continues each case exactly where it stops.
+  const merged = perCase
+    .flatMap((c) => c.notes)
+    .sort((a, b) =>
+      a.note.cursorAt === b.note.cursorAt
+        ? b.note.id.localeCompare(a.note.id)
+        : b.note.cursorAt.localeCompare(a.note.cursorAt),
+    );
+  const kept = merged.slice(0, ACTIVITY_PAGE_SIZE);
+  const more = merged.length > kept.length || perCase.some((c) => c.more);
+  const last = kept.at(-1);
+  return {
+    cases: selected.map((m) => ({ missionId: m.missionId, title: m.title })),
+    caseLimitReached: visible.length > ACTIVITY_CASE_LIMIT,
+    nextCursor: more && last ? last.note.cursor : null,
+    notes: kept.map(({ note, mission }) => ({
+      id: note.id,
+      createdAt: note.createdAt,
+      body: note.body,
+      caseTitle: mission.title,
+      missionId: mission.missionId,
+      authorEmail: members.find((m) => m.accountId === note.authorAccountId)?.email ?? null,
+    })),
+  };
+}
+
+/** The Clients page's list step (WP-SB5). */
+export const CLIENT_LIST_STEP = 15;
+
+/** One page of pending client invitations (WP-SB5): administrator data, empty for anyone else. */
+export async function loadPendingClientInvitationPage(
+  db: Db,
+  accountId: string,
+  orgId: string,
+  access: Pick<OrgAccess, 'admin'>,
+  page: { readonly before?: string | undefined } = {},
+): Promise<{
+  readonly items: readonly ClientInvitation[];
+  readonly nextCursor: string | null;
+  readonly total: number;
+}> {
+  const none = { items: [], nextCursor: null, total: 0 };
+  if (!access.admin) return none;
+  const result = await listClientInvitations(
+    db,
+    { actorAccountId: accountId, organizationId: orgId },
+    { limit: CLIENT_LIST_STEP, status: 'PENDING', ...(page.before ? { before: page.before } : {}) },
+  );
+  return result.ok ? result.value : none;
+}
+
+/** The status views of the Clients page's request list (WP-SB5). */
+export const REQUEST_VIEWS = [
+  { key: 'open', label: 'Open', statuses: ['OPEN'] },
+  { key: 'review', label: 'Waiting on You', statuses: ['RECEIVED', 'UNDER_REVIEW'] },
+  { key: 'replacement', label: 'Needs Replacement', statuses: ['NEEDS_REPLACEMENT'] },
+  {
+    key: 'closed',
+    label: 'Closed',
+    statuses: ['ACCEPTED', 'CANCELLED', 'FULFILLED', 'DECLINED'],
+  },
+] as const;
+export type RequestViewKey = (typeof REQUEST_VIEWS)[number]['key'];
+
+/**
+ * One page of the organization's evidence requests (WP-SB5), optionally one status view, with
+ * each request's visible code and how many requests each view holds. Administrator data: empty
+ * for anyone else.
+ */
+export async function loadEvidenceRequestPage(
+  db: Db,
+  accountId: string,
+  orgId: string,
+  access: Pick<OrgAccess, 'admin'>,
+  page: { readonly view?: RequestViewKey | undefined; readonly before?: string | undefined } = {},
+): Promise<{
+  readonly items: EvidenceRequestRow[];
+  readonly nextCursor: string | null;
+  readonly total: number;
+  readonly viewCounts: Readonly<Record<'all' | RequestViewKey, number>>;
+}> {
+  const viewCounts = { all: 0, open: 0, review: 0, replacement: 0, closed: 0 };
+  const none = { items: [], nextCursor: null, total: 0, viewCounts };
+  if (!access.admin) return none;
+  const view = REQUEST_VIEWS.find((v) => v.key === page.view);
+  const result = await listEvidenceRequestsForOrgDetailed(db, accountId, orgId, {
+    limit: CLIENT_LIST_STEP,
+    ...(view ? { statuses: view.statuses } : {}),
+    ...(page.before ? { before: page.before } : {}),
+  });
+  if (!result.ok) return none;
+  for (const [status, count] of Object.entries(result.value.statusCounts)) {
+    viewCounts.all += count;
+    const owner = REQUEST_VIEWS.find((v) => (v.statuses as readonly string[]).includes(status));
+    if (owner) viewCounts[owner.key] += count;
+  }
+  const codes = await referenceCodesFor(
+    db,
+    'R',
+    result.value.items.map((r) => r.id),
+  );
+  return {
+    items: result.value.items.map((r) => {
+      const referenceCode = codes.get(r.id);
+      return referenceCode ? { ...r, referenceCode } : { ...r };
+    }),
+    nextCursor: result.value.nextCursor,
+    total: result.value.total,
+    viewCounts,
   };
 }
 
 export type CaseDetail = Awaited<ReturnType<typeof loadCases>>['cases'][number];
+export type CaseListRow = Awaited<ReturnType<typeof loadCaseListPage>>['cases'][number];
+export type OpenCase = NonNullable<Awaited<ReturnType<typeof loadOpenCase>>>;

@@ -1144,6 +1144,20 @@ export interface OrgCaseSummary {
 }
 
 /**
+ * WP-SB5: one page of the cases the full read below returns, newest opened first (opening time, then id), at most
+ * `limit` (clamped to 1 to 100), with how many cases this actor may see in all. `before` is the
+ * previous page's `nextCursor`; one made for another organization, or malformed, gives the first
+ * page. `only` narrows the page to one case, and only when that case is already in the actor's
+ * visible set: the way the Cases page opens a single case without reading any other. The
+ * visibility rule is exactly the full read's; the cursor only says where the last page stopped.
+ */
+export async function listVisibleMissionsForMember(
+  db: Db,
+  organizationId: string,
+  actorAccountId: string,
+  options: VisibleCasesPageRequest,
+): Promise<VisibleCasesPage>;
+/**
  * Every case this actor may see in this organization's console, and whether
  * they're seeing it as an admin (the whole org's reachable cases) or as a
  * non-admin member (only cases they're personally assigned to, Build Spec
@@ -1164,20 +1178,6 @@ export async function listVisibleMissionsForMember(
   organizationId: string,
   actorAccountId: string,
 ): Promise<{ readonly admin: boolean; readonly missions: OrgCaseSummary[] }>;
-/**
- * WP-SB5: one page of the same cases, newest opened first (opening time, then id), at most
- * `limit` (clamped to 1 to 100), with how many cases this actor may see in all. `before` is the
- * previous page's `nextCursor`; one made for another organization, or malformed, gives the first
- * page. `only` narrows the page to one case, and only when that case is already in the actor's
- * visible set: the way the Cases page opens a single case without reading any other. The
- * visibility rule is exactly the one above; the cursor only says where the last page stopped.
- */
-export async function listVisibleMissionsForMember(
-  db: Db,
-  organizationId: string,
-  actorAccountId: string,
-  options: VisibleCasesPageRequest,
-): Promise<VisibleCasesPage>;
 export async function listVisibleMissionsForMember(
   db: Db,
   organizationId: string,
@@ -1461,6 +1461,22 @@ export async function addNote(
 }
 
 /**
+ * WP-SB5: one page of the notes the full read below returns, newest first (time, then id), at most `limit` (clamped to
+ * 1 to 100), under the same read check and the same visibility rule. `before` is the previous
+ * page's `nextCursor`. The cursor belongs to this organization's notes, not one case, so the
+ * Activity page can page several cases' notes as one list (each note carries its own cursor for
+ * that); one made for another organization, or
+ * malformed, gives the first page. `withTotal` also counts the notes this organization may read on
+ * the case. A reader without access gets an empty page.
+ */
+export async function listNotes(
+  db: Db,
+  organizationId: string,
+  applicantId: string,
+  missionId: string,
+  options: NotesPageRequest,
+): Promise<NotesPage>;
+/**
  * Notes on a mission, visible to ONE organization, gated on
  * `canReadMissionCollaboration` (finding #5): an org's grant must permit
  * `COMMENT` or `MANAGE` on this specific mission before ANY note becomes
@@ -1478,22 +1494,6 @@ export async function listNotes(
   applicantId: string,
   missionId: string,
 ): Promise<MissionNote[]>;
-/**
- * WP-SB5: one page of the same notes, newest first (time, then id), at most `limit` (clamped to
- * 1 to 100), under the same read check and the same visibility rule. `before` is the previous
- * page's `nextCursor`. The cursor belongs to this organization's notes, not one case, so the
- * Activity page can page several cases' notes as one list (each note carries its own cursor for
- * that); one made for another organization, or
- * malformed, gives the first page. `withTotal` also counts the notes this organization may read on
- * the case. A reader without access gets an empty page.
- */
-export async function listNotes(
-  db: Db,
-  organizationId: string,
-  applicantId: string,
-  missionId: string,
-  options: NotesPageRequest,
-): Promise<NotesPage>;
 export async function listNotes(
   db: Db,
   organizationId: string,
@@ -1539,6 +1539,7 @@ export async function listNotes(
   return {
     items: page.items.map((row) => ({
       ...row.note,
+      cursorAt: row.cursorAt,
       cursor: encodeTimeCursor({ at: row.cursorAt, id: row.note.id }, cursorScope),
     })),
     nextCursor: page.nextCursor,
@@ -1557,7 +1558,11 @@ export interface NotesPageRequest extends PageRequest {
  * notes into one newest-first list (the Activity page) passes the last kept note's cursor as
  * `before` to every case, so each case's next read starts strictly after that position.
  */
-export type PagedMissionNote = MissionNote & { readonly cursor: string };
+export type PagedMissionNote = MissionNote & {
+  /** The note's exact time as UTC text (microseconds kept), the order a merge must use. */
+  readonly cursorAt: string;
+  readonly cursor: string;
+};
 
 /** WP-SB5: one page of a case's notes. */
 export interface NotesPage extends Page<PagedMissionNote> {
@@ -1948,14 +1953,8 @@ export interface EvidenceRequestWithApplicant extends EvidenceRequest {
   readonly applicantTimezone: string | null;
 }
 
-/** Same as `listEvidenceRequestsForOrg`, but resolves each request's applicant name. */
-export async function listEvidenceRequestsForOrgDetailed(
-  db: Db,
-  actorAccountId: string,
-  organizationId: string,
-): Promise<Result<EvidenceRequestWithApplicant[], ServiceError>>;
 /**
- * WP-SB5: one page of the same requests, newest first (time, then id), at most `limit` (clamped
+ * WP-SB5: one page of the requests the full read below returns, newest first (time, then id), at most `limit` (clamped
  * to 1 to 100), optionally only the given statuses, with how many match and how many of each
  * status the organization holds. The same administrator check and the same case rules decide
  * which requests exist at all; names are read only for the requests on the page. `before` is the
@@ -1968,6 +1967,12 @@ export async function listEvidenceRequestsForOrgDetailed(
   organizationId: string,
   options: EvidenceRequestsPageRequest,
 ): Promise<Result<EvidenceRequestsPage, ServiceError>>;
+/** Same as `listEvidenceRequestsForOrg`, but resolves each request's applicant name. */
+export async function listEvidenceRequestsForOrgDetailed(
+  db: Db,
+  actorAccountId: string,
+  organizationId: string,
+): Promise<Result<EvidenceRequestWithApplicant[], ServiceError>>;
 export async function listEvidenceRequestsForOrgDetailed(
   db: Db,
   actorAccountId: string,
