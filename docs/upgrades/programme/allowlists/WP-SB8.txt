@@ -7,6 +7,9 @@ apps/web/src/app/page.tsx
 apps/web/src/app/page.test.tsx
 apps/web/src/app/public-pages.test.tsx
 apps/web/src/app/landing-c1.css
+# Approved by the owner on 1 Nov 2026: the small client helper that opens a story group from a menu link.
+apps/web/src/app/landing-story.tsx
+apps/web/src/app/landing-story.test.tsx
 apps/web/src/app/trust/**
 apps/web/src/components/country-browser.tsx
 apps/web/src/components/country-browser.test.tsx

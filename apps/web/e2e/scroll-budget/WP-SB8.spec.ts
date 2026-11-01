@@ -58,19 +58,28 @@ test.describe('WP-SB8 landing page', () => {
     expect(sideways).toBeLessThanOrEqual(0);
   });
 
-  test('a closed group opens from the keyboard and the menu anchors still land on their group', async ({
+  test('the menu links open their group, and a closed group opens from the keyboard', async ({
     page,
   }) => {
     await page.setViewportSize(VIEWPORTS.phone);
+    // A full load into a group's address opens it.
     await page.goto('/#for-agencies');
-    await expect(page.locator('#for-agencies')).toBeInViewport();
-    const summary = page.locator('#how-it-works > summary');
+    await expect(page.locator('#for-agencies')).toHaveAttribute('open', '');
+    await expect(page.getByText('Stop Chasing Documents by Message')).toBeInViewport();
+    // The site menu moves within the page; its link still opens the group it names.
+    await page.goto('/');
+    const menu = page.getByRole('button', { name: 'Menu', exact: true });
+    await menu.click();
+    await page.getByRole('link', { name: 'How It Works', exact: true }).click();
+    await expect(page.locator('#how-it-works')).toHaveAttribute('open', '');
+    await expect(page.getByText('Add Your Details Once')).toBeInViewport();
+    // The keyboard opens any other group; groups open independently.
+    const summary = page.locator('#problem > summary');
     await summary.focus();
     await page.keyboard.press('Enter');
-    await expect(page.locator('#how-it-works')).toHaveAttribute('open', '');
-    await expect(page.getByText('Add Your Details Once')).toBeVisible();
-    // Groups open independently: the others stay as they were.
-    await expect(page.locator('#problem')).not.toHaveAttribute('open', '');
+    await expect(page.locator('#problem')).toHaveAttribute('open', '');
+    await expect(page.getByText('Without One Profile')).toBeVisible();
+    await expect(page.locator('#capabilities')).not.toHaveAttribute('open', '');
     await noSeriousAxe(page, '.land-story');
   });
 
@@ -91,9 +100,10 @@ test.describe('WP-SB8 landing page', () => {
     await row.focus();
     await expect(row).toBeFocused();
     await noSeriousAxe(page, '#product');
-    // On a desktop the reference grid stays.
+    // On a desktop the reference grid stays, and the row is no longer a keyboard stop.
     await page.setViewportSize(VIEWPORTS.desktop);
     expect(await row.evaluate((element) => getComputedStyle(element).display)).toBe('grid');
+    await expect(row).not.toHaveAttribute('tabindex', /.*/);
   });
 });
 

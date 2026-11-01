@@ -5,6 +5,7 @@ import { Icon, type IconName } from '../components/icons';
 import { countryStartData } from '../lib/country-start';
 import { isPublicBetaOpen } from '../lib/public-beta';
 import { isSignedIn } from '../lib/signed-in';
+import { LandingStoryHelper } from './landing-story';
 import './landing-c1.css';
 
 /**
@@ -219,6 +220,16 @@ function StoryGroup({
   );
 }
 
+/** The story groups a link may open (the site menu links to three of them). */
+const STORY_GROUP_IDS: readonly string[] = [
+  'problem',
+  'how-it-works',
+  'capabilities',
+  'for-agencies',
+  'trust',
+  'road-ahead',
+];
+
 interface HomePageProps {
   readonly searchParams: Promise<{ readonly auth_error?: string }>;
 }
@@ -385,7 +396,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             // biome-ignore lint/a11y/useSemanticElements: a fieldset groups form controls; these are cards
             role="group"
             aria-labelledby="land-product-title"
-            // biome-ignore lint/a11y/noNoninteractiveTabindex: on a phone this row scrolls sideways, so the keyboard must reach it.
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: on a phone this row scrolls sideways, so the keyboard must reach it; LandingStoryHelper drops the stop where it does not scroll.
             tabIndex={0}
           >
             <article className="c1-feature c1-feature-glow c1-feature-big">
@@ -614,6 +625,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
           </StoryGroup>
         </div>
       </div>
+
+      <LandingStoryHelper groupIds={STORY_GROUP_IDS} rowSelector=".c1-bento" />
 
       <section className="land-final" aria-labelledby="land-final-title">
         <div className="land-wrap">
