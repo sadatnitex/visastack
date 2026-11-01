@@ -1,5 +1,5 @@
 import { type PermissionAction, type Result, err, ok } from '@visastack/core';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { type SQL, and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import {
   isLiveGrant,
@@ -11,6 +11,7 @@ import { type DeclarationComparison, compareAuthorizedFactVersions } from './con
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { listCaseEvidenceIds } from './missions';
+import { clampLimit } from './paging';
 import type { KeyManagementPort } from './ports';
 
 /**
@@ -240,6 +241,49 @@ export interface ApplicationMemory {
   readonly recordShares: readonly MemoryShare[];
   /** Most recent activity first. */
   readonly cases: readonly MemoryCase[];
+  /** Every case of this person, when the read was limited (`limit`); `cases` may hold fewer. */
+  readonly totalCases?: number;
+}
+
+export interface ApplicationMemoryOptions {
+  /**
+   * At most this many cases, the most recently active first (clamped to 1 to 100). Only those
+   * cases' records are read, so a person with many cases still gets a bounded read. Left out,
+   * every case is returned, as before.
+   */
+  readonly limit?: number;
+}
+
+/**
+ * The `limit` most recently active cases of one person, in that order, with their agency's name:
+ * the latest of the case's start and every record the timeline shows. These are the same moments
+ * the full read sorts by (`lastActivity` in `getApplicationMemory`); a new kind of record on the
+ * timeline must be added to both. Ties are settled by the earlier start and then the id, as the
+ * full read settles them.
+ */
+async function mostRecentCases(db: Db, applicantId: string, limit: number) {
+  const m = schema.missions;
+  const latest = (column: SQL, table: SQL, missionColumn: SQL, extra?: SQL): SQL =>
+    sql`(select max(${column}) from ${table} where ${missionColumn} = ${m.id}${extra ? sql` and ${extra}` : sql``})`;
+  const lastActivity = sql`greatest(
+    ${m.createdAt},
+    ${latest(sql`${schema.missionSnapshots.createdAt}`, sql`${schema.missionSnapshots}`, sql`${schema.missionSnapshots.missionId}`)},
+    ${latest(sql`${schema.acknowledgements.createdAt}`, sql`${schema.acknowledgements}`, sql`${schema.acknowledgements.missionId}`)},
+    ${latest(sql`${schema.grants.createdAt}`, sql`${schema.grants}`, sql`${schema.grants.missionId}`, sql`${schema.grants.applicantId} = ${applicantId}`)},
+    ${latest(sql`${schema.missionSubmissions.submittedAt}`, sql`${schema.missionSubmissions}`, sql`${schema.missionSubmissions.missionId}`)},
+    ${latest(sql`${schema.missionOutcomes.decisionDate}`, sql`${schema.missionOutcomes}`, sql`${schema.missionOutcomes.missionId}`)}
+  )`;
+  const [rows, totals] = await Promise.all([
+    db
+      .select({ mission: m, agencyName: schema.organizations.name })
+      .from(m)
+      .leftJoin(schema.organizations, eq(schema.organizations.id, m.ownerOrganizationId))
+      .where(eq(m.applicantId, applicantId))
+      .orderBy(sql`${lastActivity} desc`, asc(m.createdAt), asc(m.id))
+      .limit(limit),
+    db.select({ total: count() }).from(m).where(eq(m.applicantId, applicantId)),
+  ]);
+  return { rows, total: Number(first(totals)?.total ?? 0) };
 }
 
 /** Within one moment, records keep the order a case lives through them. */
@@ -272,22 +316,28 @@ function byTime(a: Timed, b: Timed): number {
  */
 export async function getApplicationMemory(
   proof: AuthorizedApplicant<'VIEW_METADATA'>,
+  options: ApplicationMemoryOptions = {},
 ): Promise<Result<ApplicationMemory, ServiceError>> {
   const owner = ownerProof(proof, 'VIEW_METADATA');
   if (!owner.ok) return owner;
   const db = proof.tx;
   const applicantId = proof.applicant.id;
 
-  const [missions, grants] = await Promise.all([
-    db
-      .select({ mission: schema.missions, agencyName: schema.organizations.name })
-      .from(schema.missions)
-      .leftJoin(
-        schema.organizations,
-        eq(schema.organizations.id, schema.missions.ownerOrganizationId),
-      )
-      .where(eq(schema.missions.applicantId, applicantId))
-      .orderBy(asc(schema.missions.createdAt), asc(schema.missions.id)),
+  // A limited read picks its cases and reads only their records; the full read takes every case.
+  const limit = options.limit === undefined ? null : clampLimit(options.limit, 10);
+  const [ranked, everyCase, grants] = await Promise.all([
+    limit === null ? Promise.resolve(null) : mostRecentCases(db, applicantId, limit),
+    limit !== null
+      ? Promise.resolve(null)
+      : db
+          .select({ mission: schema.missions, agencyName: schema.organizations.name })
+          .from(schema.missions)
+          .leftJoin(
+            schema.organizations,
+            eq(schema.organizations.id, schema.missions.ownerOrganizationId),
+          )
+          .where(eq(schema.missions.applicantId, applicantId))
+          .orderBy(asc(schema.missions.createdAt), asc(schema.missions.id)),
     db
       .select({
         id: schema.grants.id,
@@ -309,6 +359,9 @@ export async function getApplicationMemory(
       .where(eq(schema.grants.applicantId, applicantId))
       .orderBy(asc(schema.grants.createdAt), asc(schema.grants.id)),
   ]);
+
+  const missions = ranked ? ranked.rows : (everyCase ?? []);
+  const counted = ranked ? { totalCases: ranked.total } : {};
 
   const shareOf = (g: (typeof grants)[number]): MemoryShare => {
     const isOrganization = g.recipientOrganizationId !== null;
@@ -351,7 +404,7 @@ export async function getApplicationMemory(
   }
 
   const missionIds = missions.map((m) => m.mission.id);
-  if (missionIds.length === 0) return ok({ recordShares, cases: [] });
+  if (missionIds.length === 0) return ok({ recordShares, cases: [], ...counted });
 
   const [snapshots, acknowledgements, submissions, outcomes] = await Promise.all([
     db
@@ -475,6 +528,7 @@ export async function getApplicationMemory(
 
   const cases = missions.map(({ mission, agencyName }) => {
     const events = [...(eventsByMission.get(mission.id) ?? [])].sort(byTime);
+    // The same moments `mostRecentCases` ranks by in SQL; keep the two in step.
     const lastActivity = Math.max(mission.createdAt.getTime(), ...events.map((e) => e.sortAt));
     return {
       lastActivity,
@@ -492,9 +546,19 @@ export async function getApplicationMemory(
       } satisfies MemoryCase,
     };
   });
-  // Most recent first; the earlier (stable) order by creation settles a tie.
-  cases.sort((a, b) => b.lastActivity - a.lastActivity);
-  return ok({ recordShares, cases: cases.map((c) => c.value) });
+  if (ranked) {
+    // A limited read keeps the order the cases were ranked in.
+    const rank = new Map(ranked.rows.map((row, index) => [row.mission.id, index] as const));
+    cases.sort(
+      (a, b) =>
+        (rank.get(a.value.missionId) ?? Number.MAX_SAFE_INTEGER) -
+        (rank.get(b.value.missionId) ?? Number.MAX_SAFE_INTEGER),
+    );
+  } else {
+    // Most recent first; the earlier (stable) order by creation settles a tie.
+    cases.sort((a, b) => b.lastActivity - a.lastActivity);
+  }
+  return ok({ recordShares, cases: cases.map((c) => c.value), ...counted });
 }
 
 // --- What changed since a snapshot ------------------------------------------

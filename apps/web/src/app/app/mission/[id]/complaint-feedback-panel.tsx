@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { type ReactNode, useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { complaintStatusLabel } from '../../../../lib/labels';
@@ -43,9 +43,15 @@ export interface ComplaintView {
 export function ComplaintPanel({
   missionId,
   complaints,
+  rowIdPrefix,
+  more,
 }: {
   readonly missionId: string;
   readonly complaints: readonly ComplaintView[];
+  /** WP-SB2: each row gets the id `<rowIdPrefix>-<index>`, so Show More can land on the first new one. */
+  readonly rowIdPrefix?: string;
+  /** WP-SB2: the Show More control under the list, when the page capped it. */
+  readonly more?: ReactNode;
 }) {
   const [fileState, fileAction, filePending] = useActionState(fileComplaintAction, INITIAL);
   const [withdrawState, withdrawAction, withdrawPending] = useActionState(
@@ -63,10 +69,11 @@ export function ComplaintPanel({
       </p>
       {complaints.length > 0 ? (
         <div className="rows u-mb-125">
-          {complaints.map((c) => (
+          {complaints.map((c, index) => (
             <div
               className="row"
               key={c.id}
+              id={rowIdPrefix ? `${rowIdPrefix}-${index}` : undefined}
               style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
@@ -112,6 +119,7 @@ export function ComplaintPanel({
               ) : null}
             </div>
           ))}
+          {more}
           <FormMessage result={withdrawState} />
         </div>
       ) : null}
@@ -154,10 +162,16 @@ export function FeedbackPanel({
   missionId,
   feedback,
   canSubmit,
+  rowIdPrefix,
+  more,
 }: {
   readonly missionId: string;
   readonly feedback: readonly FeedbackView[];
   readonly canSubmit: boolean;
+  /** WP-SB2: each row gets the id `<rowIdPrefix>-<index>`, so Show More can land on the first new one. */
+  readonly rowIdPrefix?: string;
+  /** WP-SB2: the Show More control under the list, when the page capped it. */
+  readonly more?: ReactNode;
 }) {
   const [state, formAction, pending] = useActionState(submitFeedbackAction, INITIAL);
 
@@ -171,16 +185,18 @@ export function FeedbackPanel({
       </p>
       {feedback.length > 0 ? (
         <div className="rows u-mb-125">
-          {feedback.map((f) => (
+          {feedback.map((f, index) => (
             <div
               className="row"
               key={f.id}
+              id={rowIdPrefix ? `${rowIdPrefix}-${index}` : undefined}
               style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
             >
               <span className="u-fs-085">{f.comments}</span>
               <span className="muted u-fs-075">{formatTimestampDate(f.createdAt)}</span>
             </div>
           ))}
+          {more}
         </div>
       ) : null}
       {canSubmit ? (
