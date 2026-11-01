@@ -5,6 +5,7 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import {
   type AiClassifyOutcome,
@@ -32,6 +33,7 @@ import {
   runExtraction,
   runInconsistencyCheck,
   runOcr,
+  suggestDocumentKind,
   totalAiCostUnits,
 } from './ai';
 import { createApplicant } from './applicants';
@@ -3805,5 +3807,126 @@ describe("AI Gateway -- reuse of an earlier reading stays inside one person's re
       expect(isOk(result)).toBe(true);
     }
     expect(callCount()).toBe(2);
+  });
+});
+
+describe('document commands and the resource lifecycle (LC-A2)', () => {
+  async function documentOf(db: Db, versionId: string): Promise<string> {
+    const [row] = await db
+      .select({ documentId: schema.documentVersions.documentId })
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, versionId));
+    if (!row) throw new Error('version');
+    return row.documentId;
+  }
+
+  async function markDocument(
+    db: Db,
+    documentId: string,
+    applicantId: string,
+    state: 'archived' | 'deleted',
+  ) {
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values(
+      state === 'archived'
+        ? { documentId, applicantId, archivedAt: now }
+        : {
+            documentId,
+            applicantId,
+            deletedAt: now,
+            deletePath: 'DUPLICATE',
+            purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+          },
+    );
+  }
+
+  async function proposalFor(db: Db, email: string) {
+    const seeded = await seedVersion(db, email);
+    await grantAiConsent(db, seeded.account.id);
+    await seedExtractionRun(db, seeded.versionId);
+    const run = await runClassification(db, stubClassifyAi(), {
+      actorAccountId: seeded.account.id,
+      applicantId: seeded.applicantId,
+      documentVersionId: seeded.versionId,
+      text: 'statement of account, opening balance, closing balance',
+      budgetLimitUnits: 1000,
+    });
+    if (!isOk(run) || !run.value.proposal) throw new Error('expected a proposal');
+    return {
+      ...seeded,
+      documentId: await documentOf(db, seeded.versionId),
+      proposalId: run.value.proposal.id,
+    };
+  }
+
+  it('approveDocumentTypeProposal answers a deleted document as missing and approves for an archived one', async () => {
+    const db = await freshDb();
+    const deleted = await proposalFor(db, 'lc-ai-approve-deleted@example.com');
+    const archived = await proposalFor(db, 'lc-ai-approve-archived@example.com');
+    await markDocument(db, deleted.documentId, deleted.applicantId, 'deleted');
+    await markDocument(db, archived.documentId, archived.applicantId, 'archived');
+
+    const refused = await approveDocumentTypeProposal(db, {
+      actorAccountId: deleted.account.id,
+      proposalId: deleted.proposalId,
+    });
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.error.code).toBe('not_found');
+    const [document] = await db
+      .select({ docType: schema.documents.docType })
+      .from(schema.documents)
+      .where(eq(schema.documents.id, deleted.documentId));
+    expect(document?.docType).toBeNull();
+
+    const approved = await approveDocumentTypeProposal(db, {
+      actorAccountId: archived.account.id,
+      proposalId: archived.proposalId,
+    });
+    expect(isOk(approved)).toBe(true);
+    if (isOk(approved)) expect(approved.value.status).toBe('APPROVED');
+  });
+
+  it('suggestDocumentKind answers a deleted document as missing without calling the AI, and suggests for an archived one', async () => {
+    const db = await freshDb();
+    const ready = async (email: string) => {
+      const seeded = await seedVersion(db, email);
+      await grantAiConsent(db, seeded.account.id);
+      await seedExtractionRun(db, seeded.versionId);
+      await db
+        .update(schema.documentVersions)
+        .set({ safetyStatus: 'CLEAN', processingStatus: 'AWAITING_REVIEW' })
+        .where(eq(schema.documentVersions.id, seeded.versionId));
+      const documentId = await documentOf(db, seeded.versionId);
+      const proof = await requireAccess(
+        db,
+        accountPrincipal(seeded.account.id),
+        'MANAGE',
+        { documentId },
+        { purpose: 'self' },
+      );
+      if (!isOk(proof)) throw new Error('access');
+      return { ...seeded, documentId, proof: proof.value };
+    };
+    const deleted = await ready('lc-ai-kind-deleted@example.com');
+    const archived = await ready('lc-ai-kind-archived@example.com');
+    await markDocument(db, deleted.documentId, deleted.applicantId, 'deleted');
+    await markDocument(db, archived.documentId, archived.applicantId, 'archived');
+
+    const refusedAi = countingStubClassifyAi();
+    const refused = await suggestDocumentKind(deleted.proof, refusedAi.ai, {
+      documentVersionId: deleted.versionId,
+      budgetLimitUnits: 1000,
+    });
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.error.code).toBe('not_found');
+    expect(refusedAi.callCount()).toBe(0);
+
+    const keptAi = countingStubClassifyAi();
+    const kept = await suggestDocumentKind(archived.proof, keptAi.ai, {
+      documentVersionId: archived.versionId,
+      budgetLimitUnits: 1000,
+    });
+    expect(isOk(kept)).toBe(true);
+    expect(keptAi.callCount()).toBe(1);
   });
 });
