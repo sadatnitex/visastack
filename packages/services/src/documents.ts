@@ -28,6 +28,11 @@ import { type ServiceError, serviceError } from './errors';
 import { isValidDocumentDateString } from './expiry';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { AUTOMATIC_TITLE_REASON, buildDocumentTitle } from './naming';
+import {
+  everydayDocumentCondition,
+  lifecycleTablesPresent,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
 import { listMembershipsForAccount } from './organizations';
 import { recordProductEvent } from './product-events';
 import { redactionMasksTablePresent } from './redaction-table';
@@ -264,18 +269,28 @@ export interface AddDocumentVersionResult {
   readonly storageObject: StorageObject;
 }
 
+/**
+ * One document by id for a command or for serving its bytes. A Recently Deleted document (or one
+ * being removed) is not found, exactly like a missing one; an archived one stays reachable (LC-A2).
+ */
+async function findPresentDocument(db: Db, documentId: string): Promise<Document | undefined> {
+  const lifecycle = await lifecycleTablesPresent(db);
+  return first(
+    await db
+      .select()
+      .from(schema.documents)
+      // Commands and serving bytes: presentDocumentCondition (archived stays, deleted goes).
+      .where(and(eq(schema.documents.id, documentId), lifecycle ? presentDocumentCondition() : undefined))
+      .limit(1),
+  );
+}
+
 /** Attach a new stored version to a document (metadata + storage object). */
 export async function addDocumentVersion(
   db: Db,
   input: AddDocumentVersionInput,
 ): Promise<Result<AddDocumentVersionResult, ServiceError>> {
-  const document = first(
-    await db
-      .select()
-      .from(schema.documents)
-      .where(eq(schema.documents.id, input.documentId))
-      .limit(1),
-  );
+  const document = await findPresentDocument(db, input.documentId);
   if (!document) return err(serviceError('not_found', 'document not found'));
   const applicant = await getApplicant(db, document.applicantId);
   if (!applicant) return err(serviceError('not_found', 'applicant not found'));
@@ -543,6 +558,7 @@ export async function findDuplicateVersions(
     readonly excludeDocumentId: string;
   },
 ): Promise<DuplicateDocumentMatch[]> {
+  const lifecycle = await lifecycleTablesPresent(db);
   const rows = await db
     .selectDistinct({
       documentId: schema.documents.id,
@@ -556,6 +572,8 @@ export async function findDuplicateVersions(
         eq(schema.documents.applicantId, input.applicantId),
         eq(schema.documentVersions.sha256, input.sha256),
         ne(schema.documents.id, input.excludeDocumentId),
+        // A copy still held (archived included) is a duplicate; a deleted one is not: present.
+        lifecycle ? presentDocumentCondition() : undefined,
       ),
     );
   return rows.map((r) => ({
@@ -594,13 +612,7 @@ export async function recordDocumentReview(
     readonly reason?: string;
   },
 ): Promise<Result<DocumentReview, ServiceError>> {
-  const document = first(
-    await db
-      .select()
-      .from(schema.documents)
-      .where(eq(schema.documents.id, input.documentId))
-      .limit(1),
-  );
+  const document = await findPresentDocument(db, input.documentId);
   if (!document) return err(serviceError('not_found', 'document not found'));
 
   const applicant = await getApplicant(db, document.applicantId);
@@ -656,12 +668,19 @@ export async function getDocumentTypeOfVersion(
   db: Db,
   documentVersionId: string,
 ): Promise<string | null> {
+  const lifecycle = await lifecycleTablesPresent(db);
   const row = first(
     await db
       .select({ docType: schema.documents.docType })
       .from(schema.documentVersions)
       .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
-      .where(eq(schema.documentVersions.id, documentVersionId))
+      .where(
+        and(
+          eq(schema.documentVersions.id, documentVersionId),
+          // Processing: presentDocumentCondition (a deleted document has no kind to read as).
+          lifecycle ? presentDocumentCondition() : undefined,
+        ),
+      )
       .limit(1),
   );
   if (!row) return null;
@@ -699,13 +718,7 @@ export async function setDocumentDate(
     readonly documentDate: string | null;
   },
 ): Promise<Result<Document, ServiceError>> {
-  const document = first(
-    await db
-      .select()
-      .from(schema.documents)
-      .where(eq(schema.documents.id, input.documentId))
-      .limit(1),
-  );
+  const document = await findPresentDocument(db, input.documentId);
   if (!document) return err(serviceError('not_found', 'document not found'));
 
   const applicant = await getApplicant(db, document.applicantId);
@@ -805,13 +818,7 @@ export async function setDocumentType(
     readonly keepName?: boolean;
   },
 ): Promise<Result<Document, ServiceError>> {
-  const document = first(
-    await db
-      .select()
-      .from(schema.documents)
-      .where(eq(schema.documents.id, input.documentId))
-      .limit(1),
-  );
+  const document = await findPresentDocument(db, input.documentId);
   if (!document) return err(serviceError('not_found', 'document not found'));
 
   const applicant = await getApplicant(db, document.applicantId);
@@ -943,21 +950,47 @@ export async function listDocumentReviews(db: Db, documentId: string): Promise<D
     .orderBy(desc(schema.documentReviews.createdAt));
 }
 
+/**
+ * Which documents a list holds (resource lifecycle, LC-A2):
+ * - `everyday` (the default): current documents only, never archived or deleted ones;
+ * - `present`: archived ones too, never a deleted one;
+ * - `all`: every document, for the owner's own Documents page with its Archived and Recently
+ *   Deleted tabs, which labels each one by its lifecycle state.
+ */
+export type DocumentListLifecycle = 'everyday' | 'present' | 'all';
+
+export interface ListDocumentsOptions {
+  readonly lifecycle?: DocumentListLifecycle;
+}
+
 /** List an applicant's documents (owner-scoped). */
 export async function listDocuments(
   db: Db,
   actorAccountId: string,
   applicantId: string,
+  options: ListDocumentsOptions = {},
 ): Promise<Result<Document[], ServiceError>> {
   const applicant = await getApplicant(db, applicantId);
   if (!applicant) return err(serviceError('not_found', 'applicant not found'));
   if (applicant.ownerAccountId !== actorAccountId) {
     return err(serviceError('forbidden', 'not authorized to list these documents'));
   }
+  const view = options.lifecycle ?? 'everyday';
+  const lifecycle = view !== 'all' && (await lifecycleTablesPresent(db));
   const rows = await db
     .select()
     .from(schema.documents)
-    .where(eq(schema.documents.applicantId, applicantId));
+    .where(
+      and(
+        eq(schema.documents.applicantId, applicantId),
+        // Default list: everydayDocumentCondition; `present` keeps archived; `all` is the owner's tabs.
+        lifecycle
+          ? view === 'present'
+            ? presentDocumentCondition()
+            : everydayDocumentCondition()
+          : undefined,
+      ),
+    );
   return ok(rows);
 }
 
@@ -995,8 +1028,9 @@ export async function listDocumentsDetailed(
   db: Db,
   actorAccountId: string,
   applicantId: string,
+  options: ListDocumentsOptions = {},
 ): Promise<Result<DocumentSummary[], ServiceError>> {
-  const listed = await listDocuments(db, actorAccountId, applicantId);
+  const listed = await listDocuments(db, actorAccountId, applicantId, options);
   if (!listed.ok) return listed;
 
   // Three queries for the whole list, not three per document. Measured on a database 40 ms away,
@@ -1233,13 +1267,7 @@ async function accessDocument(
   disposition: 'preview' | 'download',
   input: DocumentAccessInput,
 ): Promise<Result<AccessRef, ServiceError>> {
-  const document = first(
-    await db
-      .select()
-      .from(schema.documents)
-      .where(eq(schema.documents.id, input.documentId))
-      .limit(1),
-  );
+  const document = await findPresentDocument(db, input.documentId);
   if (!document) return err(serviceError('not_found', 'document not found'));
 
   // Preview is ALWAYS the rendered `redacted` derivative, for the owner and
@@ -1432,13 +1460,7 @@ export async function recheckDocumentAccess(
   fields: Omit<DocumentAccessTokenFields, 'sig' | 'exp'>,
   now: Date = new Date(),
 ): Promise<RecheckDocumentAccessResult> {
-  const document = first(
-    await db
-      .select()
-      .from(schema.documents)
-      .where(eq(schema.documents.id, fields.documentId))
-      .limit(1),
-  );
+  const document = await findPresentDocument(db, fields.documentId);
   if (!document) return { allowed: false, reason: 'document_not_found' };
 
   let actor: Actor;

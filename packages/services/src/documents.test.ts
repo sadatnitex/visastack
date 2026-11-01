@@ -1857,3 +1857,132 @@ describe('registerDocumentWithVersion: a kind chosen at upload', () => {
     if (isOk(docs)) expect(docs.value[0]?.docType).toBeNull();
   });
 });
+
+describe('documents and the resource lifecycle (LC-A2)', () => {
+  /** Archive or delete a document the way lanes A1 and C will (one row in `document_lifecycle`). */
+  async function markLifecycle(
+    db: Db,
+    document: { id: string; applicantId: string },
+    state: 'ARCHIVED' | 'DELETED',
+  ) {
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values(
+      state === 'ARCHIVED'
+        ? { documentId: document.id, applicantId: document.applicantId, archivedAt: now }
+        : {
+            documentId: document.id,
+            applicantId: document.applicantId,
+            deletedAt: now,
+            deletePath: 'DUPLICATE',
+            purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+          },
+    );
+  }
+
+  const ownerPreview = (db: Db, storage: FakeStorage, document: { id: string; applicantId: string }) =>
+    previewDocument(db, storage, {
+      actor: { kind: 'applicant_owner', applicantId: document.applicantId as never },
+      documentId: document.id,
+      purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+
+  it('never previews or downloads a Recently Deleted document, with the same not-found as a missing one', async () => {
+    const db = await freshDb();
+    const storage = new FakeStorage();
+    const { document } = await seedOwnerWithDocument(db, 'lc-deleted@example.com');
+    const before = await ownerPreview(db, storage, document);
+    expect(isOk(before)).toBe(true);
+    const fields = isOk(before)
+      ? readDocumentAccessToken(new URL(before.value.url).searchParams)
+      : undefined;
+
+    await markLifecycle(db, document, 'DELETED');
+
+    const missing = await ownerPreview(db, storage, { ...document, id: crypto.randomUUID() });
+    const preview = await ownerPreview(db, storage, document);
+    expect(isErr(preview) && preview.error).toEqual(isErr(missing) && missing.error);
+    const download = await downloadDocument(db, storage, {
+      actor: { kind: 'applicant_owner', applicantId: document.applicantId as never },
+      documentId: document.id,
+      purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+      variant: 'original',
+    });
+    expect(isErr(download) && download.error.code).toBe('not_found');
+    // A link handed out before the delete stops working at its next redemption.
+    if (fields) {
+      expect(await recheckDocumentAccess(db, fields)).toEqual({
+        allowed: false,
+        reason: 'document_not_found',
+      });
+    }
+  });
+
+  it('keeps an archived document reachable (archive changes only what is offered by default)', async () => {
+    const db = await freshDb();
+    const storage = new FakeStorage();
+    const { account, applicant, document } = await seedOwnerWithDocument(
+      db,
+      'lc-archived@example.com',
+    );
+    await markLifecycle(db, document, 'ARCHIVED');
+    expect(isOk(await ownerPreview(db, storage, document))).toBe(true);
+    // The default list leaves it out; the full list (the Documents page tabs) keeps it.
+    const everyday = await listDocuments(db, account.id, applicant.id);
+    expect(isOk(everyday) && everyday.value.map((d) => d.id)).toEqual([]);
+    const all = await listDocumentsDetailed(db, account.id, applicant.id, { lifecycle: 'all' });
+    expect(isOk(all) && all.value.map((d) => d.id)).toEqual([document.id]);
+  });
+
+  it('refuses changes to a Recently Deleted document and leaves it out of every list', async () => {
+    const db = await freshDb();
+    const { account, applicant, document } = await seedOwnerWithDocument(
+      db,
+      'lc-edit@example.com',
+    );
+    await markLifecycle(db, document, 'DELETED');
+    const dated = await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      documentDate: '2026-01-01',
+    });
+    expect(isErr(dated) && dated.error.code).toBe('not_found');
+    const typed = await setDocumentType(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      docType: 'BANK_STATEMENT',
+    });
+    expect(isErr(typed) && typed.error.code).toBe('not_found');
+    const listed = await listDocumentsDetailed(db, account.id, applicant.id);
+    expect(isOk(listed) && listed.value).toEqual([]);
+    const present = await listDocumentsDetailed(db, account.id, applicant.id, {
+      lifecycle: 'present',
+    });
+    expect(isOk(present) && present.value).toEqual([]);
+    const all = await listDocumentsDetailed(db, account.id, applicant.id, { lifecycle: 'all' });
+    expect(isOk(all) && all.value.map((d) => d.id)).toEqual([document.id]);
+  });
+
+  it('works exactly as before with the lifecycle tables missing', async () => {
+    const client = await createMigratedPglite();
+    await client.exec(
+      'drop table document_removal_requests, document_lifecycle, applicant_lifecycle, deletion_receipts cascade',
+    );
+    const db = drizzle(client, { schema }) as unknown as Db;
+    const storage = new FakeStorage();
+    const { account, applicant, document } = await seedOwnerWithDocument(
+      db,
+      'lc-missing@example.com',
+    );
+    expect(isOk(await ownerPreview(db, storage, document))).toBe(true);
+    const listed = await listDocumentsDetailed(db, account.id, applicant.id);
+    expect(isOk(listed) && listed.value.map((d) => d.id)).toEqual([document.id]);
+    const dated = await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      documentDate: '2026-01-01',
+    });
+    expect(isOk(dated)).toBe(true);
+  });
+});
