@@ -1,5 +1,6 @@
 import { asc, desc, eq, sql } from 'drizzle-orm';
 import { type Db, first, schema } from './db';
+import { clampLimit } from './paging';
 
 /**
  * Billing status history rows, written and read so that they work both before and after
@@ -111,13 +112,17 @@ function toEntry(row: {
 export async function readBillingStatusHistory(
   db: Db,
   billingAccountId: string,
+  options: { readonly limit?: number } = {},
 ): Promise<BillingStatusHistoryEntry[]> {
   const h = schema.billingStatusHistory;
-  const rows = await db
+  const query = db
     .select(historySelection())
     .from(h)
     .where(eq(h.billingAccountId, billingAccountId))
     .orderBy(desc(h.createdAt), asc(h.id));
+  // WP-SB9: a page that shows only the newest changes reads only those (1 to 100 rows).
+  const rows =
+    options.limit === undefined ? await query : await query.limit(clampLimit(options.limit));
   return rows.map(toEntry);
 }
 

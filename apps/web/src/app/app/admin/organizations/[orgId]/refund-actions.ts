@@ -185,7 +185,8 @@ async function asOwner(
     if (stepUp) {
       const checked = await tryEstablishStepUp(
         { accountId, action: stepUp.action, resourceId: stepUp.resourceId },
-        returnPath(organizationId),
+        // Back to the Refunds part of the organization page after the check (WP-SB9).
+        `${returnPath(organizationId)}?tab=refunds`,
       );
       if (checked.kind === 'not_configured') {
         return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE };

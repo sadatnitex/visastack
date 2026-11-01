@@ -21,6 +21,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { RowNoun } from '../../../../../components/show-more';
 import { PageHeader } from '../../../../../components/ui';
 import {
   bootstrapAdminEmails,
@@ -37,9 +38,18 @@ import {
   invoiceStatusLabel,
   organizationStatusLabel,
 } from '../../../../../lib/labels';
+import { type SearchParamsRecord, firstParam } from '../../../../../lib/paging';
 import { refundGatewayViews, refundPorts } from '../../../../../lib/refund-gateway';
 import { withSession } from '../../../../../lib/session';
 import { formatMeterValue, meterFraction, meterTone } from '../../../../../lib/usage-format';
+import {
+  BillingListEnd,
+  type CappedRows,
+  billingRowId,
+  billingRowsShown,
+  capRows,
+} from '../../../account/plan/billing/billing-list';
+import { BillingRow } from '../../../account/plan/billing/billing-row';
 import {
   ActivatePlanForm,
   ApproveClaimButton,
@@ -161,16 +171,74 @@ function invoiceAmount(invoice: Invoice): string {
   return `${formatMoney(invoice.invoicedAmountMinorUnits, invoice.currency)} invoiced, ${formatMoney(invoice.collectedAmountMinorUnits, invoice.currency)} collected`;
 }
 
+/** The parts of this page, one open at a time (Scroll Budget WP-SB9), in the order work happens. */
+const ORGANIZATION_TABS = [
+  { key: 'plan', label: 'Plan & Billing' },
+  { key: 'invoices', label: 'Invoices' },
+  { key: 'reports', label: 'Payment Reports' },
+  { key: 'refunds', label: 'Refunds' },
+  { key: 'overrides', label: 'Overrides' },
+] as const;
+type OrganizationTab = (typeof ORGANIZATION_TABS)[number]['key'];
+
+/**
+ * Which part to show, from `?tab=`. The refund panel's own paging and search links carry only
+ * their refund parameters, so those open the Refunds part; anything unknown opens Plan & Billing.
+ */
+function tabFrom(query: SearchParamsRecord): OrganizationTab {
+  const { tab, refundPage, refundInvoice } = query;
+  const asked = firstParam(tab);
+  const known = ORGANIZATION_TABS.find((one) => one.key === asked);
+  if (known) return known.key;
+  return refundPage !== undefined || refundInvoice !== undefined ? 'refunds' : 'plan';
+}
+
+/** The bar of parts: plain links, the open one marked as the current page. */
+function OrganizationTabs({
+  organizationId,
+  current,
+  waitingReports,
+}: {
+  readonly organizationId: string;
+  readonly current: OrganizationTab;
+  /** Payment reports waiting for a decision, counted on their tab. */
+  readonly waitingReports: number;
+}) {
+  const base = `/app/admin/organizations/${encodeURIComponent(organizationId)}`;
+  return (
+    <nav className="subnav org-admin-tabs" aria-label="Organization">
+      {ORGANIZATION_TABS.map((tab) => (
+        <Link
+          key={tab.key}
+          href={tab.key === 'plan' ? base : `${base}?tab=${tab.key}`}
+          aria-current={tab.key === current ? 'page' : undefined}
+        >
+          {tab.label}
+          {tab.key === 'reports' && waitingReports > 0 ? (
+            <>
+              <span aria-hidden="true">{` (${waitingReports})`}</span>
+              <span className="sr-only">{`, ${waitingReports} waiting`}</span>
+            </>
+          ) : null}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 export default async function AdminOrganizationPage({
   params,
   searchParams,
 }: {
   readonly params: Promise<{ orgId: string }>;
-  readonly searchParams?: Promise<{ refundPage?: string; refundInvoice?: string }>;
+  readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
   const { orgId } = await params;
-  const asked = (await searchParams) ?? {};
-  const refundPage = Number.parseInt(asked.refundPage ?? '1', 10);
+  const query = (await searchParams) ?? {};
+  const tab = tabFrom(query);
+  const shown = billingRowsShown(query);
+  const { refundPage: refundPageParam, refundInvoice } = query;
+  const refundPage = Number.parseInt(firstParam(refundPageParam) ?? '1', 10);
 
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return { owner: false as const };
@@ -183,6 +251,9 @@ export default async function AdminOrganizationPage({
       actorEmail: email,
       bootstrapEmails: bootstrapAdminEmails(),
     };
+    // Only the open part's reads run (WP-SB9); each uses the same platform-owner checks as before,
+    // and each long list reads one row more than it shows.
+    const needsPlans = tab === 'plan' || tab === 'invoices';
     const [
       allPlans,
       currentPlan,
@@ -194,15 +265,21 @@ export default async function AdminOrganizationPage({
       claims,
       overrides,
     ] = await Promise.all([
-      listPlans(db),
-      getCurrentPlanForOrganization(db, orgId),
-      getPendingDowngradeForOrganization(db, orgId),
-      getUsageForOrganization(db, actorRead),
-      getBillingAccountForOrganization(db, actorRead),
-      listBillingStatusHistory(db, actorRead),
-      listInvoicesForOrganization(db, actorRead),
+      needsPlans ? listPlans(db) : [],
+      tab === 'plan' ? getCurrentPlanForOrganization(db, orgId) : undefined,
+      tab === 'plan' ? getPendingDowngradeForOrganization(db, orgId) : undefined,
+      tab === 'plan' ? getUsageForOrganization(db, actorRead) : undefined,
+      tab === 'plan' ? getBillingAccountForOrganization(db, actorRead) : undefined,
+      tab === 'plan' ? listBillingStatusHistory(db, actorRead, { limit: shown + 1 }) : undefined,
+      tab === 'invoices'
+        ? listInvoicesForOrganization(db, actorRead, { limit: shown + 1 })
+        : undefined,
+      // Read on every part (at most 200, as before), so a report waiting for a decision is never
+      // hidden behind a closed part: its count shows on the bar and in a notice.
       listManualClaims(db, actorRead),
-      listCommercialOverridesForOrganization(db, orgId),
+      tab === 'overrides'
+        ? listCommercialOverridesForOrganization(db, orgId, { limit: shown + 1 })
+        : [],
     ]);
 
     // S18: refunds and credits, under the platform owner's own refund scope. The payment ports are
@@ -211,17 +288,20 @@ export default async function AdminOrganizationPage({
     const { send: sendPort, check: checkPort } = refundPorts();
     // Round 4: only providers that can refund, so no other is ever offered the gateway refund.
     const gateways = refundGatewayViews(sendPort);
-    const refundScope = await staffPrincipal(
-      db,
-      { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
-      'BILLING_REFUND_MANAGE',
-    );
-    const refundWork = refundScope.ok
+    const refundScope =
+      tab === 'refunds'
+        ? await staffPrincipal(
+            db,
+            { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+            'BILLING_REFUND_MANAGE',
+          )
+        : undefined;
+    const refundWork = refundScope?.ok
       ? await getOrganizationRefundWork(db, refundScope.value, {
           organizationId: orgId,
           gateways,
           page: Number.isFinite(refundPage) ? refundPage : 1,
-          invoiceRef: asked.refundInvoice ?? null,
+          invoiceRef: firstParam(refundInvoice) ?? null,
         })
       : undefined;
 
@@ -233,18 +313,19 @@ export default async function AdminOrganizationPage({
       planById: new Map(allPlans.map((p) => [p.id, p])),
       currentPlan,
       pendingDowngrade,
-      usage: usage.ok ? usage.value : undefined,
-      billing: billing.ok ? billing.value : undefined,
-      billingHistory: billingHistory.ok ? billingHistory.value : [],
-      invoices: invoices.ok ? invoices.value : [],
+      usage: usage?.ok ? usage.value : undefined,
+      billing: billing?.ok ? billing.value : undefined,
+      billingHistory: capRows(billingHistory?.ok ? billingHistory.value : [], shown),
+      invoices: capRows(invoices?.ok ? invoices.value : [], shown),
       claims: claims.ok ? claims.value : [],
-      overrides,
+      overrides: capRows(overrides, shown),
       refundWork: refundWork?.ok ? refundWork.value : undefined,
       // The page is the platform owner's already, so the refund scope fails only while this
       // sign-in has not entered its authenticator code.
-      refundProblem: refundScope.ok
-        ? undefined
-        : 'Refunds and credits need your authenticator code first. Enter it, then open this page again.',
+      refundProblem:
+        refundScope === undefined || refundScope.ok
+          ? undefined
+          : 'Refunds and credits need your authenticator code first. Enter it, then open this page again.',
       gatewayAvailable: sendPort !== null,
       checkAvailable: checkPort !== null,
     };
@@ -265,8 +346,21 @@ export default async function AdminOrganizationPage({
   if (!data.org) notFound();
 
   const now = Date.now();
-  const activeOverrides = data.overrides.filter(
-    (o) => o.revokedAt === null && o.expiryAt.getTime() > now,
+  const pathname = `/app/admin/organizations/${encodeURIComponent(orgId)}`;
+  const listEnd = (prefix: string, capped: CappedRows<unknown>, noun: RowNoun) => (
+    <BillingListEnd
+      prefix={prefix}
+      pathname={pathname}
+      searchParams={query}
+      capped={capped}
+      shown={shown}
+      noun={noun}
+    />
+  );
+  const waitingReports = data.claims.filter((claim) => claim.status === 'SUBMITTED').length;
+  // One invoice starts open: the newest that still owes money, else the newest.
+  const owedIndex = data.invoices.rows.findIndex(
+    (invoice) => invoice.status === 'OPEN' || invoice.status === 'PARTIALLY_PAID',
   );
 
   return (
@@ -281,257 +375,270 @@ export default async function AdminOrganizationPage({
         title={data.org.name}
         description={<>Status: {organizationStatusLabel(data.org.status)}</>}
       />
-
-      <article className="card u-mb-150">
-        <p className="card-kicker">Commerce</p>
-        <h2 className="card-title">Plan &amp; Subscription</h2>
-        <p className="card-body u-mb-100">
-          {data.currentPlan
-            ? `Currently on ${data.currentPlan.name}.`
-            : 'No plan is active for this organization yet. Agencies cannot choose a plan themselves: activate one below.'}
+      <OrganizationTabs organizationId={orgId} current={tab} waitingReports={waitingReports} />
+      {waitingReports > 0 && tab !== 'reports' ? (
+        <p className="notice notice-warn u-mb-150">
+          {waitingReports === 1
+            ? '1 payment report is waiting for you.'
+            : `${waitingReports} payment reports are waiting for you.`}{' '}
+          <Link href={`${pathname}?tab=reports`}>Open Payment Reports</Link>
         </p>
+      ) : null}
 
-        {data.pendingDowngrade ? (
-          <div
-            className="rows"
-            style={{
-              marginBottom: '1.25rem',
-              border: '1px solid var(--border, #ddd)',
-              padding: '0.75rem',
-              borderRadius: '0.4rem',
-            }}
-          >
-            <div
-              className="row"
-              style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
-            >
-              <span className="row-key">
-                Downgrade to{' '}
-                {data.planById.get(data.pendingDowngrade.toPlanId)?.name ??
-                  'a plan that is no longer listed'}{' '}
-                scheduled for {formatBillingDate(data.pendingDowngrade.effectiveAt)}
-              </span>
-              <span className="muted u-fs-085">{data.pendingDowngrade.reason}</span>
-              <div>
-                <CancelDowngradeButton
-                  organizationId={orgId}
-                  downgradeId={data.pendingDowngrade.id}
-                />
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {data.usage ? (
-          <div className="rows rows-grid u-mb-125">
-            {data.usage.meters.map((meter) => (
-              <div key={meter.key}>
-                <div className="meter-label">
-                  <span>{meter.label}</span>
-                  <span>{formatMeterValue(meter)}</span>
-                </div>
-                <div className="meter">
-                  <div
-                    className={`meter-fill ${meterTone(meter)}`.trim()}
-                    style={{ width: `${Math.round(meterFraction(meter) * 100)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem' }}>
-          <div style={{ flex: '1 1 18rem' }}>
-            <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
-              Activate a Plan
-            </h3>
-            <ActivatePlanForm organizationId={orgId} plans={data.activePlans} />
-          </div>
-          {data.currentPlan && !data.pendingDowngrade ? (
-            <div style={{ flex: '1 1 18rem' }}>
-              <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>
-                Schedule a Downgrade
-              </h3>
-              <ScheduleDowngradeForm organizationId={orgId} plans={data.activePlans} />
-            </div>
-          ) : null}
-        </div>
-        {data.currentPlan ? (
-          <div className="action-bar">
-            <div className="action-bar-end">
-              <EndSubscriptionButton organizationId={orgId} />
-            </div>
-          </div>
-        ) : null}
-      </article>
-
-      <article className="card u-mb-150">
-        <div className="card-head">
-          <div>
+      {tab === 'plan' ? (
+        <>
+          <article className="card u-mb-150">
             <p className="card-kicker">Commerce</p>
-            <h2 className="card-title">Billing</h2>
-          </div>
-          {data.billing ? (
-            <span className={`badge ${BILLING_STATUS_TONE[data.billing.status]}`}>
-              {billingStatusLabel(data.billing.status)}
-            </span>
-          ) : null}
-        </div>
-        {!data.billing ? (
-          <>
+            <h2 className="card-title">Plan &amp; Subscription</h2>
             <p className="card-body u-mb-100">
-              No billing account has been opened for this organization yet.
+              {data.currentPlan
+                ? `Currently on ${data.currentPlan.name}.`
+                : 'No plan is active for this organization yet. Agencies cannot choose a plan themselves: activate one below.'}
             </p>
-            <OpenBillingAccountForm organizationId={orgId} />
-          </>
-        ) : (
-          <>
-            {data.billingHistory.length > 0 ? (
-              <div className="rows u-mb-125">
-                {data.billingHistory.map((h) => (
-                  <div className="row" key={h.id}>
-                    <span className="row-key">{billingHistoryMove(h.fromStatus, h.toStatus)}</span>
-                    <span className="muted u-fs-085">
-                      {formatBillingDate(h.createdAt)} ·{' '}
-                      {h.actorAccountId === null ? 'VisaStack (automatic)' : 'By a person'} ·{' '}
-                      {billingHistoryReason(h.reason)}
-                    </span>
+
+            {data.pendingDowngrade ? (
+              <div className="rows org-admin-downgrade">
+                <div className="row org-admin-stack">
+                  <span className="row-key">
+                    Downgrade to{' '}
+                    {data.planById.get(data.pendingDowngrade.toPlanId)?.name ??
+                      'a plan that is no longer listed'}{' '}
+                    scheduled for {formatBillingDate(data.pendingDowngrade.effectiveAt)}
+                  </span>
+                  <span className="muted u-fs-085">{data.pendingDowngrade.reason}</span>
+                  <div>
+                    <CancelDowngradeButton
+                      organizationId={orgId}
+                      downgradeId={data.pendingDowngrade.id}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {data.usage ? (
+              <div className="rows rows-grid u-mb-125">
+                {data.usage.meters.map((meter) => (
+                  <div key={meter.key}>
+                    <div className="meter-label">
+                      <span>{meter.label}</span>
+                      <span>{formatMeterValue(meter)}</span>
+                    </div>
+                    <div className="meter">
+                      <div
+                        className={`meter-fill ${meterTone(meter)}`.trim()}
+                        style={{ width: `${Math.round(meterFraction(meter) * 100)}%` }}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
             ) : null}
-            <TransitionBillingStatusForm
-              organizationId={orgId}
-              legalStatuses={legalBillingTransitions(data.billing.status)}
-            />
-          </>
-        )}
-      </article>
 
-      <article className="card u-mb-150">
-        <p className="card-kicker">Commerce</p>
-        <h2 className="card-title">Invoices</h2>
-        {data.invoices.length === 0 ? (
-          <p className="card-body u-mb-125">No invoices issued yet.</p>
-        ) : (
-          <div className="rows u-mb-125">
-            {data.invoices.map((invoice) => {
-              // An invoice still owing money takes a payment, or can be cancelled.
-              const open = invoice.status === 'OPEN' || invoice.status === 'PARTIALLY_PAID';
-              return (
-                <div
-                  className="row"
-                  key={invoice.id}
-                  style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                    <span className="row-key">{invoice.invoiceRef}</span>
-                    <span className={`badge ${INVOICE_STATUS_TONE[invoice.status]}`}>
-                      {invoiceStatusLabel(invoice.status)}
-                    </span>
+            <div className="org-admin-forms">
+              <div className="org-admin-form">
+                <h3 className="org-admin-form-title">Activate a Plan</h3>
+                <ActivatePlanForm organizationId={orgId} plans={data.activePlans} />
+              </div>
+              {data.currentPlan && !data.pendingDowngrade ? (
+                <div className="org-admin-form">
+                  <h3 className="org-admin-form-title">Schedule a Downgrade</h3>
+                  <ScheduleDowngradeForm organizationId={orgId} plans={data.activePlans} />
+                </div>
+              ) : null}
+            </div>
+            {data.currentPlan ? (
+              <div className="action-bar">
+                <div className="action-bar-end">
+                  <EndSubscriptionButton organizationId={orgId} />
+                </div>
+              </div>
+            ) : null}
+          </article>
+
+          <article className="card u-mb-150">
+            <div className="card-head">
+              <div>
+                <p className="card-kicker">Commerce</p>
+                <h2 className="card-title">Billing</h2>
+              </div>
+              {data.billing ? (
+                <span className={`badge ${BILLING_STATUS_TONE[data.billing.status]}`}>
+                  {billingStatusLabel(data.billing.status)}
+                </span>
+              ) : null}
+            </div>
+            {!data.billing ? (
+              <>
+                <p className="card-body u-mb-100">
+                  No billing account has been opened for this organization yet.
+                </p>
+                <OpenBillingAccountForm organizationId={orgId} />
+              </>
+            ) : (
+              <>
+                {data.billingHistory.rows.length > 0 ? (
+                  <div className="u-mb-125">
+                    <div className="rows">
+                      {data.billingHistory.rows.map((h, index) => (
+                        <div className="row" key={h.id} id={billingRowId('billing-history', index)}>
+                          <span className="row-key">
+                            {billingHistoryMove(h.fromStatus, h.toStatus)}
+                          </span>
+                          <span className="muted u-fs-085">
+                            {formatBillingDate(h.createdAt)} ·{' '}
+                            {h.actorAccountId === null ? 'VisaStack (automatic)' : 'By a person'} ·{' '}
+                            {billingHistoryReason(h.reason)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {listEnd('billing-history', data.billingHistory, {
+                      one: 'change',
+                      other: 'changes',
+                    })}
                   </div>
-                  <span className="muted u-fs-085">
-                    {invoiceAmount(invoice)} · due {formatBillingDate(invoice.dueDate)}
-                  </span>
-                  {open ? (
-                    <RecordPaymentForm
-                      organizationId={orgId}
-                      invoiceId={invoice.id}
-                      currency={invoice.currency}
-                      idempotencyKey={randomUUID()}
-                    />
-                  ) : null}
-                  <div className="action-bar action-bar-flush">
-                    <a
-                      className="invoice-link"
-                      href={`/app/admin/organizations/${orgId}/invoices/${invoice.id}/pdf`}
-                    >
-                      Download Invoice (PDF)
-                      <span className="sr-only"> {invoice.invoiceRef}</span>
-                    </a>
+                ) : null}
+                <TransitionBillingStatusForm
+                  organizationId={orgId}
+                  legalStatuses={legalBillingTransitions(data.billing.status)}
+                />
+              </>
+            )}
+          </article>
+        </>
+      ) : null}
+
+      {tab === 'invoices' ? (
+        <article className="card u-mb-150">
+          <p className="card-kicker">Commerce</p>
+          <h2 className="card-title">Invoices</h2>
+          {data.invoices.rows.length === 0 ? (
+            <p className="card-body u-mb-125">No invoices issued yet.</p>
+          ) : (
+            <div className="billing-rows u-mb-125">
+              {data.invoices.rows.map((invoice, index) => {
+                // An invoice still owing money takes a payment, or can be cancelled.
+                const open = invoice.status === 'OPEN' || invoice.status === 'PARTIALLY_PAID';
+                return (
+                  <BillingRow
+                    key={invoice.id}
+                    id={billingRowId('invoice', index)}
+                    open={index === (owedIndex === -1 ? 0 : owedIndex)}
+                    title={invoice.invoiceRef}
+                    line={`${invoiceAmount(invoice)} · due ${formatBillingDate(invoice.dueDate)}`}
+                    badges={
+                      <span className={`badge ${INVOICE_STATUS_TONE[invoice.status]}`}>
+                        {invoiceStatusLabel(invoice.status)}
+                      </span>
+                    }
+                  >
+                    <h3 className="sr-only">{invoice.invoiceRef}</h3>
                     {open ? (
-                      <div className="action-bar-end">
-                        <VoidInvoiceButton organizationId={orgId} invoiceId={invoice.id} />
-                      </div>
+                      <RecordPaymentForm
+                        organizationId={orgId}
+                        invoiceId={invoice.id}
+                        currency={invoice.currency}
+                        idempotencyKey={randomUUID()}
+                      />
                     ) : null}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>Create an Invoice</h3>
-        <CreateInvoiceForm organizationId={orgId} plans={data.activePlans} />
-      </article>
-
-      <article className="card u-mb-150">
-        <p className="card-kicker">Commerce</p>
-        <h2 className="card-title">Payment Reports</h2>
-        <p className="card-body u-mb-100">
-          Payments the agency says it made another way. Nothing is counted until you confirm it,
-          with a fresh sign-in check. A rejection needs a reason the agency will read.
-        </p>
-        <ClaimQueue organizationId={orgId} claims={data.claims} />
-      </article>
-
-      <RefundsCard
-        organizationId={orgId}
-        work={data.refundWork}
-        gatewayAvailable={data.gatewayAvailable}
-        checkAvailable={data.checkAvailable}
-        latestDate={new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'Asia/Dhaka',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        }).format(new Date())}
-        {...(data.refundProblem ? { problem: data.refundProblem } : {})}
-      />
-
-      <article className="card">
-        <p className="card-kicker">Commerce</p>
-        <h2 className="card-title">Commercial Overrides</h2>
-        <p className="card-body u-mb-100">
-          A time-limited bypass of this organization's commercial capacity caps and any billing
-          suspension. Never bypasses security, consent, or release gates.
-        </p>
-        {data.overrides.length === 0 ? (
-          <p className="card-body u-mb-125">No overrides have ever been granted.</p>
-        ) : (
-          <div className="rows u-mb-125">
-            {data.overrides.map((o) => {
-              const active = activeOverrides.some((a) => a.id === o.id);
-              const status = o.revokedAt ? 'Revoked' : active ? 'Active' : 'Expired';
-              const tone = o.revokedAt
-                ? 'badge-neutral'
-                : active
-                  ? 'badge-success'
-                  : 'badge-neutral';
-              return (
-                <div
-                  className="row"
-                  key={o.id}
-                  style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                    <span className="row-key">Until {formatBillingDateTime(o.expiryAt)}</span>
-                    <span className="row-end">
-                      <span className={`badge ${tone}`}>{status}</span>
-                      {active ? (
-                        <RevokeOverrideButton organizationId={orgId} overrideId={o.id} />
+                    <div className="action-bar action-bar-flush">
+                      <a
+                        className="invoice-link"
+                        href={`/app/admin/organizations/${orgId}/invoices/${invoice.id}/pdf`}
+                      >
+                        Download Invoice (PDF)
+                        <span className="sr-only"> {invoice.invoiceRef}</span>
+                      </a>
+                      {open ? (
+                        <div className="action-bar-end">
+                          <VoidInvoiceButton organizationId={orgId} invoiceId={invoice.id} />
+                        </div>
                       ) : null}
-                    </span>
-                  </div>
-                  <span className="muted u-fs-085">{o.reason}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <h3 style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}>Grant an Override</h3>
-        <GrantOverrideForm organizationId={orgId} />
-      </article>
+                    </div>
+                  </BillingRow>
+                );
+              })}
+              {listEnd('invoice', data.invoices, { one: 'invoice', other: 'invoices' })}
+            </div>
+          )}
+          <h3 className="org-admin-form-title">Create an Invoice</h3>
+          <CreateInvoiceForm organizationId={orgId} plans={data.activePlans} />
+        </article>
+      ) : null}
+
+      {tab === 'reports' ? (
+        <article className="card u-mb-150">
+          <p className="card-kicker">Commerce</p>
+          <h2 className="card-title">Payment Reports</h2>
+          <p className="card-body u-mb-100">
+            Payments the agency says it made another way. Nothing is counted until you confirm it,
+            with a fresh sign-in check. A rejection needs a reason the agency will read.
+          </p>
+          <ClaimQueue organizationId={orgId} claims={data.claims} />
+        </article>
+      ) : null}
+
+      {tab === 'refunds' ? (
+        <RefundsCard
+          organizationId={orgId}
+          work={data.refundWork}
+          gatewayAvailable={data.gatewayAvailable}
+          checkAvailable={data.checkAvailable}
+          latestDate={new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Dhaka',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          }).format(new Date())}
+          {...(data.refundProblem ? { problem: data.refundProblem } : {})}
+        />
+      ) : null}
+
+      {tab === 'overrides' ? (
+        <article className="card">
+          <p className="card-kicker">Commerce</p>
+          <h2 className="card-title">Commercial Overrides</h2>
+          <p className="card-body u-mb-100">
+            A time-limited bypass of this organization's commercial capacity caps and any billing
+            suspension. Never bypasses security, consent, or release gates.
+          </p>
+          {data.overrides.rows.length === 0 ? (
+            <p className="card-body u-mb-125">No overrides have ever been granted.</p>
+          ) : (
+            <div className="u-mb-125">
+              <div className="rows">
+                {data.overrides.rows.map((o, index) => {
+                  const active = o.revokedAt === null && o.expiryAt.getTime() > now;
+                  const status = o.revokedAt ? 'Revoked' : active ? 'Active' : 'Expired';
+                  const tone = active ? 'badge-success' : 'badge-neutral';
+                  return (
+                    <div
+                      className="row org-admin-stack"
+                      key={o.id}
+                      id={billingRowId('override', index)}
+                    >
+                      <div className="org-admin-row-head">
+                        <span className="row-key">Until {formatBillingDateTime(o.expiryAt)}</span>
+                        <span className="row-end">
+                          <span className={`badge ${tone}`}>{status}</span>
+                          {active ? (
+                            <RevokeOverrideButton organizationId={orgId} overrideId={o.id} />
+                          ) : null}
+                        </span>
+                      </div>
+                      <span className="muted u-fs-085">{o.reason}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {listEnd('override', data.overrides, { one: 'override', other: 'overrides' })}
+            </div>
+          )}
+          <h3 className="org-admin-form-title">Grant an Override</h3>
+          <GrantOverrideForm organizationId={orgId} />
+        </article>
+      ) : null}
     </section>
   );
 }
