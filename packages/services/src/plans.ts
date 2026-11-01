@@ -616,6 +616,7 @@ export async function endSubscription(
       result: 'ALLOWED',
       resourceType: 'subscription',
       resourceId: current.id,
+      reason: 'owner_ended',
       metadata: { organizationId: input.organizationId, reason },
     });
     await supersedePendingDowngrade(tx, input.organizationId, input.actor.accountId, now);

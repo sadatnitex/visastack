@@ -139,25 +139,26 @@ async function currentPlans(branch: Db, organizationId: string) {
 }
 
 describe('a restore never brings back an ended plan, whatever ended it', () => {
-  it('a plan change after the restore point: the old plan ends there too, and the owner is told which plan to give back', async () => {
+  it('a plan change after the restore point is replayed whole: the old plan ends and the new one is back', async () => {
     const organizationId = await activeAgency();
     const [founding] = await currentPlans(db, organizationId);
+    const proPlanId = await agencyPlan('agency_pro_restore');
     const restored = await restoredBranch();
     const restorePoint = await restorePointNow();
     const changed = await activateSubscription(db, {
       actor: { accountId: platformOwner, email: OWNER_EMAIL, bootstrapEmails: [] },
       stepUpSatisfied: true,
       organizationId,
-      planId: await agencyPlan('agency_pro_restore'),
+      planId: proPlanId,
       reason: 'moved to Pro',
     });
-    expect(isOk(changed)).toBe(true);
+    if (!isOk(changed)) throw new Error('change');
 
     const report = await reconcileRestoredBranch(db, restored, restorePoint);
     expect(report.errors).toEqual([]);
-    expect(await currentPlans(restored, organizationId)).toEqual([]);
+    // Never left with no plan (which would lift every limit): the recorded new plan is back.
+    expect(await currentPlans(restored, organizationId)).toEqual([{ id: changed.value.id }]);
     expect(report.counts.subscriptionsEnded).toBe(1);
-    // The new plan cannot come back with a restore: the list says which one to give back.
     expect(report.plansToCheck).toEqual([
       expect.objectContaining({
         subscriptionId: founding?.id,
@@ -165,30 +166,86 @@ describe('a restore never brings back an ended plan, whatever ended it', () => {
         payerAccountId: null,
         endedPlanKey: AGENCY_FOUNDING_PLAN_KEY,
         reason: 'plan_changed',
-        planNow: null,
-        planOnPreIncidentBranch: 'agency_pro_restore',
-        needsAction: true,
+        planNow: 'agency_pro_restore',
+        planToHave: 'agency_pro_restore',
+        needsAction: false,
       }),
     ]);
 
-    // A second run changes nothing; the list still names who needs their plan back.
+    // A second run changes nothing.
     const again = await reconcileRestoredBranch(db, restored, restorePoint);
     expect(again.counts.subscriptionsEnded).toBe(0);
-    expect(again.plansToCheck.map((plan) => plan.needsAction)).toEqual([true]);
+    expect(await currentPlans(restored, organizationId)).toEqual([{ id: changed.value.id }]);
   });
 
-  it('an executed downgrade after the restore point: the old plan ends there and its downgrade is cancelled', async () => {
+  it('when the new plan is not on the restored branch, the old plan stays and the owner is told which to give', async () => {
+    const organizationId = await activeAgency();
+    const [founding] = await currentPlans(db, organizationId);
+    const restored = await restoredBranch();
+    const restorePoint = await restorePointNow();
+    // A plan made after the restore point, and the agency moved to it.
+    const changed = await activateSubscription(db, {
+      actor: { accountId: platformOwner, email: OWNER_EMAIL, bootstrapEmails: [] },
+      stepUpSatisfied: true,
+      organizationId,
+      planId: await agencyPlan('agency_new_after_restore'),
+      reason: 'moved to a new plan',
+    });
+    expect(isOk(changed)).toBe(true);
+
+    const report = await reconcileRestoredBranch(db, restored, restorePoint);
+    expect(report.errors).toEqual([]);
+    expect(await currentPlans(restored, organizationId)).toEqual([{ id: founding?.id }]);
+    expect(report.plansToCheck).toEqual([
+      expect.objectContaining({
+        planNow: AGENCY_FOUNDING_PLAN_KEY,
+        planToHave: 'agency_new_after_restore',
+        needsAction: true,
+      }),
+    ]);
+  });
+
+  it('a chain of changes replays in order and gives one line per agency', async () => {
+    const organizationId = await activeAgency();
+    const bPlan = await agencyPlan('agency_b_restore');
+    const cPlan = await agencyPlan('agency_c_restore');
+    const restored = await restoredBranch();
+    const restorePoint = await restorePointNow();
+    for (const planId of [bPlan, cPlan]) {
+      const moved = await activateSubscription(db, {
+        actor: { accountId: platformOwner, email: OWNER_EMAIL, bootstrapEmails: [] },
+        stepUpSatisfied: true,
+        organizationId,
+        planId,
+        reason: 'moved',
+      });
+      expect(isOk(moved)).toBe(true);
+    }
+    const [final] = await currentPlans(db, organizationId);
+    const report = await reconcileRestoredBranch(db, restored, restorePoint);
+    expect(report.errors).toEqual([]);
+    expect(await currentPlans(restored, organizationId)).toEqual([{ id: final?.id }]);
+    expect(report.plansToCheck).toHaveLength(1);
+    expect(report.plansToCheck[0]).toMatchObject({
+      planNow: 'agency_c_restore',
+      planToHave: 'agency_c_restore',
+      needsAction: false,
+    });
+  });
+
+  it('an executed downgrade after the restore point is replayed whole and is not applied twice', async () => {
     const organizationId = await activeAgency();
     const [{ id: fromPlanId } = { id: '' }] = await db
       .select({ id: schema.plans.id })
       .from(schema.plans)
       .where(eq(schema.plans.key, AGENCY_FOUNDING_PLAN_KEY));
+    const smallPlanId = await agencyPlan('agency_small_restore');
     const [downgrade] = await db
       .insert(schema.scheduledDowngrades)
       .values({
         organizationId,
         fromPlanId,
-        toPlanId: await agencyPlan('agency_small_restore'),
+        toPlanId: smallPlanId,
         requestedAt: new Date(Date.now() - 2 * 86_400_000),
         effectiveAt: new Date(Date.now() - 86_400_000),
         requestedByAccountId: platformOwner,
@@ -201,23 +258,24 @@ describe('a restore never brings back an ended plan, whatever ended it', () => {
       true,
     );
 
+    const [downgraded] = await currentPlans(db, organizationId);
     const report = await reconcileRestoredBranch(db, restored, restorePoint);
     expect(report.errors).toEqual([]);
-    expect(await currentPlans(restored, organizationId)).toEqual([]);
+    expect(await currentPlans(restored, organizationId)).toEqual([{ id: downgraded?.id }]);
     expect(report.plansToCheck).toEqual([
       expect.objectContaining({
         reason: 'downgrade_executed',
-        planNow: null,
-        planOnPreIncidentBranch: 'agency_small_restore',
-        needsAction: true,
+        planNow: 'agency_small_restore',
+        planToHave: 'agency_small_restore',
+        needsAction: false,
       }),
     ]);
-    // Nothing is left to change from, so the waiting downgrade is not tried every day.
+    // Done already, so the daily run does not apply it a second time.
     const [left] = await restored
       .select({ status: schema.scheduledDowngrades.status })
       .from(schema.scheduledDowngrades)
       .where(eq(schema.scheduledDowngrades.id, downgrade?.id ?? ''));
-    expect(left?.status).toBe('CANCELLED');
+    expect(left?.status).toBe('EXECUTED');
   });
 
   it("a traveller's plan ended after the restore point (refunded): it ends there, nothing to give back, and its renewal reminder stops", async () => {
@@ -287,7 +345,7 @@ describe('a restore never brings back an ended plan, whatever ended it', () => {
         endedPlanKey: 'traveller_plus_restore',
         reason: 'refunded',
         planNow: null,
-        planOnPreIncidentBranch: null,
+        planToHave: null,
         needsAction: false,
       }),
     ]);

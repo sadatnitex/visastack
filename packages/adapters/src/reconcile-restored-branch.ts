@@ -72,7 +72,7 @@ async function main(): Promise<void> {
           ? `agency ${plan.organizationId}`
           : `traveller account ${plan.payerAccountId ?? 'unknown'}`;
         const action = plan.needsAction
-          ? `ACTION: had ${plan.planOnPreIncidentBranch} before the incident, now has ${plan.planNow ?? 'no plan'}`
+          ? `ACTION: should have ${plan.planToHave}, now has ${plan.planNow ?? 'no plan'}`
           : 'no action';
         process.stdout.write(
           `  ${who}: ${plan.endedPlanKey ?? 'unknown plan'} ended (${plan.reason ?? 'no reason'}) ${plan.endedAt.toISOString()}; ${action}\n`,

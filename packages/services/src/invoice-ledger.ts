@@ -1226,6 +1226,8 @@ async function activatePersonPeriod(
       .for('update'),
   );
   let subscriptionId: string;
+  // A different plan's subscription ends with this purchase (the person switched plans).
+  const switchedFrom = current && current.planId !== invoice.planId ? current.id : null;
   if (current && current.planId === invoice.planId) {
     subscriptionId = current.id;
     // Buying the same plan again is asking for it again: it renews, even after Stop Renewing (T4).
@@ -1285,10 +1287,10 @@ async function activatePersonPeriod(
       planId: invoice.planId,
       periodStart: invoice.periodStart.toISOString(),
       periodEnd: invoice.periodEnd.toISOString(),
-      endedSubscriptionId: current && current.planId !== invoice.planId ? current.id : null,
+      endedSubscriptionId: switchedFrom,
     },
   });
-  if (current && current.planId !== invoice.planId) {
+  if (switchedFrom) {
     // Recorded so a restore from backup never brings the old plan back (owner, 1 Nov 2026).
     await appendAuditEvent(tx, {
       eventType: 'SUBSCRIPTION_ENDED',
@@ -1297,7 +1299,7 @@ async function activatePersonPeriod(
       method: 'SYSTEM',
       result: 'ALLOWED',
       resourceType: 'subscription',
-      resourceId: current.id,
+      resourceId: switchedFrom,
       reason: 'plan_switched',
       metadata: { personPlan: true, replacedBy: subscriptionId },
     });
