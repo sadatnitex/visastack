@@ -130,16 +130,20 @@ beforeEach(() => {
   ]);
   mocks.getPlatformEvidenceBytes.mockResolvedValue(1024);
   mocks.getProductAnalytics.mockResolvedValue({ available: false, reason: 'schema_pending' });
-  mocks.listFailedJobs.mockResolvedValue([
-    {
-      id: 'j1',
-      documentName: 'passport.pdf',
-      errorCode: 'ocr_timeout',
-      attempts: 5,
-      maxAttempts: 5,
-      lastError: 'timed out',
-    },
-  ]);
+  mocks.listFailedJobs.mockResolvedValue({
+    items: [
+      {
+        id: 'j1',
+        documentName: 'passport.pdf',
+        errorCode: 'ocr_timeout',
+        attempts: 5,
+        maxAttempts: 5,
+        lastError: 'timed out',
+      },
+    ],
+    nextCursor: null,
+    total: 1,
+  });
   mocks.totalAiCostUnits.mockResolvedValue(0);
   mocks.resolveAiLimits.mockResolvedValue({ budgetLimitUnits: 1_000_000 });
   mocks.evaluateReadiness.mockResolvedValue(readiness);
@@ -160,7 +164,7 @@ function travellerPlansRowOf(html: string): { value: string; problem: boolean } 
 
 describe('Platform Readiness Detail: Traveller Plans (ADR 0025 T6)', () => {
   it('says Off while traveller plans are not sold', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(travellerPlansRowOf(html)).toEqual({ value: 'Off', problem: false });
   });
 
@@ -168,7 +172,7 @@ describe('Platform Readiness Detail: Traveller Plans (ADR 0025 T6)', () => {
     mocks.travellerPlansEnabled.mockReturnValue(true);
     mocks.paymentMode.mockReturnValue('TEST');
     mocks.personRefundGuardPresent.mockResolvedValue(false);
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     // No real money moves in test mode, so a missing refund guard is not a problem yet.
     expect(travellerPlansRowOf(html)).toEqual({
       value: 'Test (only the platform owner can pay), Refunds not ready yet',
@@ -179,14 +183,14 @@ describe('Platform Readiness Detail: Traveller Plans (ADR 0025 T6)', () => {
   it('says Live when on and live, with every migration in place', async () => {
     mocks.travellerPlansEnabled.mockReturnValue(true);
     mocks.paymentMode.mockReturnValue('LIVE');
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(travellerPlansRowOf(html)).toEqual({ value: 'Live', problem: false });
   });
 
   it('says Database behind when migrations 0110 or 0111 are missing', async () => {
     mocks.personBillingPresent.mockResolvedValue(false);
     mocks.personRefundGuardPresent.mockResolvedValue(false);
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(travellerPlansRowOf(html)).toEqual({
       value: 'Off, Database behind, Refunds not ready yet',
       problem: false,
@@ -198,7 +202,7 @@ describe('Platform Readiness Detail: Traveller Plans (ADR 0025 T6)', () => {
     mocks.paymentMode.mockReturnValue('LIVE');
     mocks.personRefundGuardPresent.mockResolvedValue(false);
     mocks.evaluateReadiness.mockResolvedValue({ ...readiness, ready: true, status: 'ready' });
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(travellerPlansRowOf(html)).toEqual({
       value: 'Live, Refunds not ready yet',
       problem: true,
@@ -214,7 +218,7 @@ describe('Platform Readiness Detail: Traveller Plans (ADR 0025 T6)', () => {
     mocks.travellerPlansEnabled.mockReturnValue(true);
     mocks.paymentMode.mockReturnValue('LIVE');
     mocks.personRefundGuardPresent.mockRejectedValue(new Error('permission denied for pg_proc'));
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(travellerPlansRowOf(html)).toEqual({
       value: 'Live, Database could not be checked',
       problem: true,
@@ -225,29 +229,30 @@ describe('Platform Readiness Detail: Traveller Plans (ADR 0025 T6)', () => {
 
 describe('Platform > Operations', () => {
   it('uses real aggregate totals, an explicit no-measurement state and a separate operational rail', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(text).toContain('Registered Accounts');
     expect(text).toContain('Traveller Records');
     expect(text).toContain('Not measured');
-    expect(html).toContain('admin-reference-working-area');
+    // WP-SB6: the rail's cards now sit in the Providers and Capacity group of the overview.
+    expect(html).toContain('admin-overview-groups');
     expect(html).toContain('admin-reference-rail');
     expect(text).toContain('Recorded Activity, Last 30 Days');
   });
   it('shows unavailable global counts when the independent aggregate reader fails', async () => {
     mocks.getPlatformOverview.mockRejectedValue(new Error('Read unavailable'));
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Activity counts are unavailable. No trend is inferred.');
     expect(text).toContain('Unavailable');
   });
   it('is the landing page of the platform area and names itself Operations', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(html).toContain('>Operations<');
     expect(textOf(html)).toContain('Platform health, readiness, capacity and pilot measurement.');
   });
 
   it('shows every signal with its status and the explanation behind it', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(text).toContain('Operational Signals');
     expect(text).toContain('Database migrations');
@@ -259,7 +264,7 @@ describe('Platform > Operations', () => {
   });
 
   it('hands the signals the AI figures and the migration status it just read', async () => {
-    await renderServer(Page());
+    await renderServer(Page({}));
     const options = mocks.collectOperationalSignals.mock.calls[0]?.[1];
     expect(options.ai.spentUnits).toBe(0);
     expect(options.ai.limitUnits).toBe(1_000_000);
@@ -267,7 +272,7 @@ describe('Platform > Operations', () => {
   });
 
   it('shows the readiness detail, naming what is missing but never a value', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(text).toContain('Platform Readiness Detail');
     expect(text).toContain('Degraded: something required is missing');
@@ -277,20 +282,20 @@ describe('Platform > Operations', () => {
   });
 
   it('labels the pilot scorecard in product words', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Product Scorecard');
     expect(text).toContain('Cases Started');
     expect(text).toContain('Accounts Created');
   });
 
   it('explains that the learning-area figures wait for a database update instead of showing zeros', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Learning Areas');
     expect(text).toContain('Waiting for a database update');
   });
 
   it('lists a failed intake job with its error code and a retry control', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(text).toContain('passport.pdf');
     expect(text).toContain('ocr_timeout');
@@ -302,7 +307,7 @@ describe('Platform > Operations', () => {
   });
 
   it('says commercial mode does not apply yet while the deployment is a controlled pilot', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Commercial Readiness');
     expect(text).toContain('controlled_pilot');
     expect(text).toContain('this guard does not apply yet');
@@ -318,7 +323,7 @@ describe('Platform > Operations', () => {
         gates: [{ key: 'pentest', label: 'Penetration test', satisfied: false }],
       },
     });
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('0 of 1 gates satisfied');
     expect(text).toContain('Penetration test');
     expect(text).toContain('unmet');
@@ -328,7 +333,7 @@ describe('Platform > Operations', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.getDeploymentMode.mockReturnValue('commercial');
     mocks.evaluateReadiness.mockRejectedValue(new Error('probe failed'));
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Commercial readiness could not be evaluated');
     expect(text).not.toContain('this guard does not apply yet');
   });
@@ -356,7 +361,7 @@ describe('Platform > Operations', () => {
       });
       mocks.getDeploymentMode.mockReturnValue('commercial');
       mocks.evaluateReadiness.mockResolvedValue({ ...readiness, commercial });
-      const html = await renderServer(Page());
+      const html = await renderServer(Page({}));
       const text = textOf(html);
       expect(text).toContain('Deferred by Owner (H01)');
       expect(text).toContain('1 of them deferred by the owner');
@@ -370,7 +375,7 @@ describe('Platform > Operations', () => {
 
   it('refuses anyone who is not a platform administrator, without reading a figure', async () => {
     mocks.isPlatformAdmin.mockResolvedValue(false);
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('restricted to platform administrators');
     expect(mocks.getPilotScorecard).not.toHaveBeenCalled();
     expect(mocks.collectOperationalSignals).not.toHaveBeenCalled();
@@ -383,7 +388,7 @@ describe('Platform > Operations', () => {
     mocks.getPilotScorecard.mockRejectedValue(
       new Error('relation "product_events" does not exist'),
     );
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(text).toContain('Some Sections Could Not Be Loaded');
     expect(text).toContain('AI cost');
@@ -398,10 +403,89 @@ describe('Platform > Operations', () => {
 it('does not show zero spend or capacity meters when the readings are unavailable', async () => {
   mocks.getPlatformEvidenceBytes.mockRejectedValue(new Error('synthetic unavailable'));
   mocks.totalAiCostUnits.mockRejectedValue(new Error('synthetic unavailable'));
-  const html = await renderServer(await Page());
+  const html = await renderServer(await Page({}));
   expect(textOf(html)).toContain('Evidence storage could not be read');
   expect(textOf(html)).toContain('AI usage or its limit could not be read');
   expect(html).not.toContain('meter-fill');
   expect(textOf(html)).not.toContain('$0.00 of');
   expect(mocks.collectOperationalSignals.mock.calls[0]?.[1]).not.toHaveProperty('ai');
+});
+
+describe('WP-SB6 overview within the scroll budget', () => {
+  const job = (n: number) => ({
+    id: `job-${n}`,
+    documentName: `document-${n}.pdf`,
+    errorCode: 'ocr_timeout',
+    attempts: 5,
+    maxAttempts: 5,
+    lastError: 'timed out',
+  });
+
+  it('keeps failed jobs in a fixed box, 50 a load from the server, with Show Older Entries', async () => {
+    mocks.listFailedJobs.mockResolvedValue({
+      items: Array.from({ length: 50 }, (_, n) => job(n)),
+      nextCursor: 'JOBS_NEXT',
+      total: 1000,
+    });
+    const html = await renderServer(Page({ searchParams: Promise.resolve({}) }));
+    expect(mocks.listFailedJobs).toHaveBeenCalledWith({}, { limit: 50 });
+    expect(html).toContain('class="activity-log-scroll staff-queue-panel"');
+    expect(html).toContain('aria-label="Failed Intake Jobs"');
+    expect(html.match(/class="row failed-job-row"/g) ?? []).toHaveLength(50);
+    expect(html).toContain('href="/app/admin?jobsBefore=JOBS_NEXT#admin-failed-jobs-panel"');
+    const text = textOf(html);
+    expect(text).toContain('Showing the newest 50 of 1000 failed jobs.');
+    expect(text).toContain('Show Older Entries');
+    // The attention count says every failed job, not only the ones loaded.
+    expect(text).toMatch(/Failed Intake Jobs\s*1000/);
+  });
+
+  it('reads an older page of failed jobs from the cursor, with a way back', async () => {
+    mocks.listFailedJobs.mockResolvedValue({ items: [job(1)], nextCursor: null, total: 51 });
+    const html = await renderServer(Page({ searchParams: Promise.resolve({ jobsBefore: 'OLD' }) }));
+    expect(mocks.listFailedJobs).toHaveBeenCalledWith({}, { limit: 50, before: 'OLD' });
+    expect(html).toContain('href="/app/admin#admin-failed-jobs-panel"');
+    expect(textOf(html)).toContain('Show Newest Entries');
+  });
+
+  it('folds every specialist card into a named group that keeps its section link', async () => {
+    const html = await renderServer(Page({}));
+    const groups = [
+      ...html.matchAll(
+        /<details class="admin-overview-controls admin-overview-group"[^>]*><summary>([^<]+)<\/summary>/g,
+      ),
+    ].map((m) => m[1]);
+    expect(groups).toEqual([
+      'Activity and Adoption',
+      'Product Scorecard',
+      'Providers and Capacity',
+      'All Operational Signals',
+      'Readiness',
+      'Learning Areas',
+      'Storage Integrity',
+    ]);
+    // The group headings are the way to each section; the one link only the old jump list had
+    // (the public status page) sits in the Readiness group.
+    expect(html).toContain('href="/status"');
+    // Closed by default, so the first screen is status and failed jobs.
+    expect(html).not.toMatch(/<details class="admin-overview-controls admin-overview-group" open/);
+    for (const id of [
+      'admin-signals',
+      'admin-platform-readiness',
+      'admin-analytics',
+      'admin-readiness',
+      'admin-provider-operations',
+      'admin-usage',
+      'admin-processing',
+    ]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+    // Status comes before the groups.
+    expect(html.indexOf('Signals Needing Attention')).toBeLessThan(
+      html.indexOf('admin-overview-groups'),
+    );
+    expect(html.indexOf('id="admin-processing"')).toBeLessThan(
+      html.indexOf('admin-overview-groups'),
+    );
+  });
 });
