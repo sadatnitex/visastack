@@ -6,7 +6,7 @@ import { expectFixedPanel, expectWithinBudget, renderFixture } from './support';
  * WP-SB3: sharing, insights, evidence requests and the shared view at their row caps with
  * worst-case data (40 grants and a 300-entry access log, 100 documents, 30 requests, 30 shared
  * details and documents). The sharing and insights budgets are the plan's acceptance and are
- * enforced here; evidence and the shared view are measured and reported. The page tests prove
+ * enforced here; evidence and the shared view enforce by default since WP-SB10. The page tests prove
  * the real pages apply these caps.
  */
 

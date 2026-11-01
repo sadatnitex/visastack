@@ -12,16 +12,19 @@ import { type Locator, type Page, expect, test } from '@playwright/test';
  * `expectFixedPanel` checks a log keeps its fixed scrolling box.
  *
  * Modes: in "report" mode the checks print what they measured and pass; in "enforce" mode they
- * fail when a budget is broken. WP-SB0 lands everything in report mode. A package switches its own
- * spec file by passing `mode: 'enforce'`; WP-SB10 changes `DEFAULT_MODE` for every file. For a
- * local run, SCROLL_BUDGET_MODE=enforce enforces every check that does not name its own mode.
+ * fail when a budget is broken. WP-SB0 landed everything in report mode, each package switched its
+ * own spec file, and WP-SB10 made enforce the default for every file. For a local run,
+ * SCROLL_BUDGET_MODE=report prints every check that does not name its own mode without failing.
  */
 
 export type BudgetMode = 'report' | 'enforce';
 export type BudgetViewport = 'phone' | 'desktop';
 
-/** The enforcement switch (owned by WP-SB10). */
-export const DEFAULT_MODE: BudgetMode = 'report';
+/**
+ * The enforcement switch (owned by WP-SB10): every check enforces unless it names its own mode.
+ * The only check left in report mode is a known, recorded exception (docs/uiux/SCROLL-BUDGET.md).
+ */
+export const DEFAULT_MODE: BudgetMode = 'enforce';
 
 export const VIEWPORTS: Readonly<Record<BudgetViewport, { width: number; height: number }>> = {
   phone: { width: 390, height: 844 },

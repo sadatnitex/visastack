@@ -10,7 +10,7 @@ import {
 
 /**
  * WP-SB0: the shared scroll budget parts with worst-case data, and proof that the guard itself
- * fails on a page that breaks its budget. Budgets here are in report mode (support.ts); the
+ * fails on a page that breaks its budget. Budgets enforce by default since WP-SB10 (support.ts); the
  * behaviour checks (focus, landing anchor, bar never covering a field) always apply.
  */
 
@@ -42,6 +42,15 @@ test.describe('scroll budget guard', () => {
     await expect(
       expectWithinBudget(page, { screens: 4, viewport: 'phone', mode: 'enforce' }),
     ).resolves.toMatchObject({ viewport: 'phone', sideways: 0 });
+  });
+
+  test('enforces by default: a check that names no mode fails an over-budget page', async ({
+    page,
+  }) => {
+    await renderFixture(page, FIXTURE, { view: 'padded', padding: 3 * 844 });
+    await expect(expectWithinBudget(page, { screens: 2, viewport: 'phone' })).rejects.toThrow(
+      /page height at phone/,
+    );
   });
 
   test('fails a page that scrolls sideways', async ({ page }) => {

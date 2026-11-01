@@ -116,6 +116,7 @@ test.describe('WP-SB4 traveller tasks and forms with worst-case data', () => {
       // On a phone the paged list itself (12 rows a page, in the shared list component outside
       // this package) is taller than the budget, so the page height there is reported, not
       // enforced, until that list is settled; the sheet's own fixed height is enforced everywhere.
+      // This is the single known exception recorded in docs/uiux/SCROLL-BUDGET.md (WP-SB10).
       await expectWithinBudget(page, {
         screens: 3,
         viewport,

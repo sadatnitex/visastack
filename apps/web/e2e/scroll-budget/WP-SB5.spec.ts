@@ -6,7 +6,7 @@ import { expectFixedPanel, expectWithinBudget, renderFixture } from './support';
  * WP-SB5: the agency Cases, Activity, Clients and Dashboard pages at their row caps with
  * worst-case data (200 cases, 300 notes, 400 invitations and 300 requests). The Cases budget
  * (3 screens with 200 cases) and the Activity log panel are the plan's acceptance and are
- * enforced; Clients and the Dashboard table are measured and reported. The page tests prove the
+ * enforced; Clients and the Dashboard table enforce by default since WP-SB10. The page tests prove the
  * real pages apply these caps and read data for the one open case only.
  */
 
