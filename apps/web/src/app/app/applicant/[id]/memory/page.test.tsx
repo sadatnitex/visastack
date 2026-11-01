@@ -256,3 +256,106 @@ describe('Case History page (once Application Memory; v1.2 B08, WP-V3 part 3)', 
     expect(html).toContain('href="/app/applicant/synthetic-family/sharing"');
   });
 });
+
+describe('Case History within the scroll budget (WP-SB1)', () => {
+  const renderWith = async (search: Record<string, string>) =>
+    renderServer(
+      await ApplicationMemoryPage({
+        params: Promise.resolve({ id: 'synthetic-family' }),
+        searchParams: Promise.resolve(search),
+      }),
+    );
+
+  /** Ten cases of a person with 40, each carrying 50 records: the worst case the budget uses. */
+  function worstCase(count: number, total: number) {
+    return ok({
+      recordShares: [],
+      totalCases: total,
+      cases: Array.from({ length: count }, (_, i) => ({
+        missionId: `case-${i}`,
+        title: `Case ${i + 1}`,
+        destination: 'Japan',
+        purpose: 'Tourism',
+        agencyName: null,
+        state: 'DRAFT',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        removed: false,
+        notSharedWith: [],
+        events: Array.from({ length: 50 }, (_, j) => ({
+          kind: 'prepared',
+          id: `snap-${i}-${j}`,
+          at: '2026-02-01T00:00:00.000Z',
+          snapshotId: `snap-${i}-${j}`,
+          snapshotVersion: j + 1,
+        })),
+      })),
+    });
+  }
+
+  it('asks the server for ten cases, opens only the latest and offers ten more', async () => {
+    mocks.getApplicationMemory.mockResolvedValue(worstCase(10, 40));
+    const html = await renderWith({});
+    expect(mocks.getApplicationMemory).toHaveBeenCalledWith({ synthetic: 'proof' }, { limit: 10 });
+    expect(html.match(/<details/g)).toHaveLength(10);
+    expect(html.match(/<details[^>]*open=""/g)).toHaveLength(1);
+    expect(html).toMatch(/<details class="collapsible-group" id="memory-case-1" open="">/);
+    expect(html.match(/class="activity-log-scroll memory-events-scroll"/g)).toHaveLength(10);
+    expect(html).toContain('aria-label="Records of Case 1"');
+    const text = textOf(html);
+    expect(text).toContain('Showing 10 of 40 cases.');
+    expect(html).toContain('href="/app/applicant/synthetic-family/memory?show=20#memory-case-11"');
+  });
+
+  it('grows by ten through the address, clamps a wild value and stops when all are shown', async () => {
+    mocks.getApplicationMemory.mockResolvedValue(worstCase(12, 12));
+    const html = await renderWith({ show: '15' });
+    expect(mocks.getApplicationMemory).toHaveBeenCalledWith({ synthetic: 'proof' }, { limit: 20 });
+    expect(textOf(html)).toContain('Showing all 12 cases.');
+    expect(html).not.toContain('show-more-link');
+
+    await renderWith({ show: '999999' });
+    expect(mocks.getApplicationMemory).toHaveBeenLastCalledWith(
+      { synthetic: 'proof' },
+      { limit: 100 },
+    );
+    await renderWith({ show: 'lots' });
+    expect(mocks.getApplicationMemory).toHaveBeenLastCalledWith(
+      { synthetic: 'proof' },
+      { limit: 10 },
+    );
+  });
+});
+
+describe('Case History past the largest step (WP-SB1)', () => {
+  it('points to Cases when more cases exist than one read returns', async () => {
+    const many = {
+      recordShares: [],
+      totalCases: 105,
+      cases: Array.from({ length: 100 }, (_, i) => ({
+        missionId: `case-${i}`,
+        title: `Case ${i + 1}`,
+        destination: null,
+        purpose: null,
+        agencyName: null,
+        state: 'DRAFT',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        removed: false,
+        notSharedWith: [],
+        events: [],
+      })),
+    };
+    mocks.getApplicationMemory.mockResolvedValue(ok(many));
+    const html = renderServer(
+      await ApplicationMemoryPage({
+        params: Promise.resolve({ id: 'synthetic-family' }),
+        searchParams: Promise.resolve({ show: '100' }),
+      }),
+    );
+    const text = textOf(await html);
+    expect(text).toContain('Showing 100 of 105 cases.');
+    expect(text).toContain(
+      'Case History lists the 100 most recently active cases. Every case is on Cases .',
+    );
+    expect(await html).toContain('href="/app/applicant/synthetic-family/missions"');
+  });
+});
