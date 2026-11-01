@@ -11587,3 +11587,13 @@ html:has(.sticky-action-bar) {
     font-size: var(--text-small);
   }
 }
+/* WP-SB6 overview on wider screens: the group headings sit three per row (two on a phone, above),
+   and an opened group takes the whole width for its cards. */
+@media (min-width: 761px) {
+  .platform-operations .admin-overview-groups {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .platform-operations .admin-overview-groups > .admin-overview-group[open] {
+    grid-column: 1 / -1;
+  }
+}
