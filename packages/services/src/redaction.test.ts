@@ -1307,7 +1307,11 @@ describe('safe copy states and the resource lifecycle (LC-A2)', () => {
     const archived = await addLarge('archived.pdf');
     const deleted = await addLarge('deleted.pdf');
     const documentProof = async (documentId: string) => {
-      const binding = { accountId: owner, action: 'VIEW_METADATA' as const, resourceId: documentId };
+      const binding = {
+        accountId: owner,
+        action: 'VIEW_METADATA' as const,
+        resourceId: documentId,
+      };
       const stepUp = verifyStepUp(
         STEP_UP_SECRET,
         issueStepUpAssurance(STEP_UP_SECRET, binding),
