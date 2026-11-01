@@ -31,6 +31,18 @@ const mocks = vi.hoisted(() => ({
   detailsAvailable: vi.fn(async () => 'unconfigured'),
   depth: 'auto' as string,
   ocrConfigured: vi.fn(async () => false),
+  /** Resource lifecycle (migration 0113): missing unless a test says the tables are there. */
+  lifecycleTablesPresent: vi.fn(async () => false),
+  getDocumentLifecycles: vi.fn(async (): Promise<Map<string, unknown>> => new Map()),
+  listDeletionReceipts: vi.fn(
+    async (): Promise<{ ok: boolean; value: unknown[] }> => ({
+      ok: true,
+      value: [],
+    }),
+  ),
+  availableDocumentActions: vi.fn((_view: unknown): string[] => []),
+  /** The Manage registry as lanes will fill it: empty unless a test registers an action. */
+  registry: {} as Record<string, { label: string; Component: () => null }>,
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -67,6 +79,10 @@ vi.mock('@visastack/services', async (importOriginal) => ({
     ),
   listDocumentReadingStates: mocks.listDocumentReadingStates,
   listRedactionStates: mocks.listRedactionStates,
+  lifecycleTablesPresent: mocks.lifecycleTablesPresent,
+  getDocumentLifecycles: mocks.getDocumentLifecycles,
+  listDeletionReceipts: mocks.listDeletionReceipts,
+  availableDocumentActions: mocks.availableDocumentActions,
 }));
 vi.mock('../../../../../lib/ai', () => ({
   isClassificationConfigured: async () => false,
@@ -103,6 +119,14 @@ vi.mock('../document-suggestion-card', () => ({
   DocumentSuggestionCard: stub('DocumentSuggestionCard'),
 }));
 vi.mock('../../../../../components/auto-refresh', () => ({ AutoRefresh: stub('AutoRefresh') }));
+vi.mock('./manage/registry', () => ({
+  get MANAGE_ACTIONS() {
+    return mocks.registry;
+  },
+  registeredActions: (actions: readonly string[], registry = mocks.registry) =>
+    actions.flatMap((action) => (registry[action] ? [{ action, entry: registry[action] }] : [])),
+}));
+vi.mock('./manage/manage-menu', () => ({ ManageMenu: stub('ManageMenu') }));
 
 const { default: DocumentsPage } = await import('./page');
 
@@ -122,11 +146,11 @@ function doc(id: string, processingStatus: string) {
   };
 }
 
-const render = async (document?: string) =>
+const render = async (document?: string, extra: Record<string, string> = {}) =>
   renderServer(
     DocumentsPage({
       params: Promise.resolve({ id: 'a1' }),
-      searchParams: Promise.resolve(document ? { document } : {}),
+      searchParams: Promise.resolve({ ...(document ? { document } : {}), ...extra }),
     }),
   );
 
@@ -758,5 +782,136 @@ describe('the documents page with the depth switch (CCD-3)', () => {
     mocks.depth = 'glance';
     expect(await render()).toContain('data-depth="glance"');
     mocks.depth = 'auto';
+  });
+});
+
+describe('archive, Recently Deleted and the Manage menu (resource lifecycle, migration 0113)', () => {
+  const state = (value: string, replaced = false) => ({
+    state: value,
+    replaced,
+    archivedAt: null,
+    deletedAt: null,
+    purgeAfter: null,
+    deletePath: null,
+  });
+  beforeEach(async () => {
+    mocks.registry = {};
+    const real = await vi.importActual<typeof import('@visastack/services')>('@visastack/services');
+    mocks.availableDocumentActions.mockImplementation((view) =>
+      real.availableDocumentActions(view as Parameters<typeof real.availableDocumentActions>[0]),
+    );
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc('kept', 'APPROVED'), doc('shelved', 'APPROVED'), doc('binned', 'APPROVED')],
+    });
+  });
+
+  it('renders exactly as before while the lifecycle tables are missing', async () => {
+    const html = await render();
+    expect(mocks.lifecycleTablesPresent).toHaveBeenCalled();
+    expect(mocks.getDocumentLifecycles).not.toHaveBeenCalled();
+    expect(mocks.listDeletionReceipts).not.toHaveBeenCalled();
+    expect(mocks.availableDocumentActions).not.toHaveBeenCalled();
+    expect(html).not.toContain('aria-label="Document lists"');
+    expect(html).not.toContain('aria-haspopup="menu"');
+    for (const name of ['kept.pdf', 'shelved.pdf', 'binned.pdf'])
+      expect(textOf(html)).toContain(name);
+    // Even a hand-written list address shows the one list.
+    const archived = await render(undefined, { view: 'archived' });
+    expect(textOf(archived)).toContain('binned.pdf');
+  });
+
+  it('shows no tabs while nothing is archived or deleted, and no menu while no action is registered', async () => {
+    mocks.lifecycleTablesPresent.mockResolvedValue(true);
+    mocks.getDocumentLifecycles.mockResolvedValue(
+      new Map([
+        ['kept', state('CURRENT')],
+        ['shelved', state('CURRENT')],
+        ['binned', state('CURRENT')],
+      ]),
+    );
+    const html = await render();
+    expect(mocks.availableDocumentActions).toHaveBeenCalledTimes(3);
+    expect(html).not.toContain('aria-label="Document lists"');
+    expect(stubProps(html, 'ManageMenu')).toEqual([]);
+    // Not even an empty wrapper: every row is exactly as before.
+    expect(html).not.toContain('wallet-document-manage');
+  });
+
+  it('gives each row its menu once a lane registers an action, and a reminder link opens it', async () => {
+    mocks.registry = { ARCHIVE: { label: 'Archive', Component: () => null } };
+    mocks.lifecycleTablesPresent.mockResolvedValue(true);
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: Array.from({ length: 14 }, (_, i) => doc(`d${i}`, 'APPROVED')),
+    });
+    mocks.getDocumentLifecycles.mockResolvedValue(
+      new Map(
+        Array.from({ length: 14 }, (_, i) => [`d${i}`, state(i === 13 ? 'ARCHIVED' : 'CURRENT')]),
+      ),
+    );
+    const html = await render();
+    const menus = stubProps<{ documentId: string; actions: string[] }>(html, 'ManageMenu');
+    expect(menus).toHaveLength(12);
+    expect(menus[0]).toMatchObject({ documentId: 'd0', actions: ['ARCHIVE'] });
+    expect(html).toContain('wallet-document-manage');
+
+    // A reminder for an archived document on what would be page two: its list opens, it comes
+    // first and is selected; RESTORE is not registered, so no action opens by itself.
+    const linked = await render(undefined, { manage: 'd13', action: 'RESTORE' });
+    expect(textOf(linked)).toContain('Archived (1)');
+    const archivedLink = linked.match(/<a [^>]*>Archived<span/)?.[0] ?? '';
+    expect(archivedLink).toContain('aria-current="page"');
+    expect(textOf(linked)).toContain('d13.pdf');
+    expect(textOf(linked)).not.toContain('d0.pdf');
+
+    mocks.getDocumentLifecycles.mockResolvedValue(
+      new Map(Array.from({ length: 14 }, (_, i) => [`d${i}`, state('CURRENT')])),
+    );
+    const archiveLink = await render(undefined, { manage: 'd13', action: 'ARCHIVE' });
+    const first = stubProps<{ documentId: string; initialAction?: string }>(
+      archiveLink,
+      'ManageMenu',
+    )[0];
+    expect(first).toMatchObject({ documentId: 'd13', initialAction: 'ARCHIVE' });
+    const ignored = await render(undefined, { manage: 'd13', action: 'DESTROY' });
+    expect(
+      stubProps<{ initialAction?: string }>(ignored, 'ManageMenu')[0]?.initialAction,
+    ).toBeUndefined();
+  });
+
+  it('splits the documents into Current, Archived and Recently Deleted once there is something to show', async () => {
+    mocks.lifecycleTablesPresent.mockResolvedValue(true);
+    mocks.getDocumentLifecycles.mockResolvedValue(
+      new Map([
+        ['kept', state('CURRENT')],
+        ['shelved', state('ARCHIVED')],
+        ['binned', state('RECENTLY_DELETED')],
+      ]),
+    );
+    const current = await render();
+    expect(current).toContain('aria-label="Document lists"');
+    expect(textOf(current)).toContain('Archived (1)');
+    expect(textOf(current)).toContain('Recently Deleted (1)');
+    expect(textOf(current)).toContain('kept.pdf');
+    expect(textOf(current)).not.toContain('shelved.pdf');
+    expect(textOf(current)).not.toContain('binned.pdf');
+    expect(textOf(current)).not.toContain('Removal Records');
+
+    const archived = await render(undefined, { view: 'archived' });
+    expect(textOf(archived)).toContain('shelved.pdf');
+    expect(textOf(archived)).not.toContain('kept.pdf');
+    const deleted = await render(undefined, { view: 'deleted' });
+    expect(textOf(deleted)).toContain('binned.pdf');
+    expect(textOf(deleted)).not.toContain('shelved.pdf');
+  });
+
+  it('links to the Removal Records only when there are some', async () => {
+    mocks.lifecycleTablesPresent.mockResolvedValue(true);
+    mocks.getDocumentLifecycles.mockResolvedValue(new Map([['kept', state('CURRENT')]]));
+    mocks.listDeletionReceipts.mockResolvedValue({ ok: true, value: [{ id: 'r1' }] });
+    const html = await render();
+    expect(html).toContain('href="/app/applicant/a1/removal-records"');
+    expect(textOf(html)).toContain('Removal Records');
   });
 });
