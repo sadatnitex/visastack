@@ -8,7 +8,7 @@ import { PANEL_MAX_PX, expectFixedPanel, expectWithinBudget, renderFixture } fro
  * history and notifications sit in a fixed panel that scrolls inside.
  */
 
-const FIXTURE = 'scroll-budget-sb1';
+const FIXTURE = 'WP-SB1';
 const VIEWPORTS = ['phone', 'desktop'] as const;
 
 async function noSeriousAxe(page: import('@playwright/test').Page): Promise<void> {

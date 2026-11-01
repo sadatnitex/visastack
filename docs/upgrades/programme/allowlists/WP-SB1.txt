@@ -18,9 +18,11 @@ packages/services/src/consent-history.test.ts
 packages/services/src/notifications.ts
 packages/services/src/notifications.test.ts
 apps/web/e2e/scroll-budget/WP-SB1.spec.ts
-# The spec's own fixture (test support for the spec above; support.ts reads a package's fixture from this folder).
-apps/web/e2e/scroll-budget/scroll-budget-sb1.fixture.tsx
+# The spec's own fixture (coordinator approved on 1 Nov 2026 as part of "their tests"; support.ts loads <name>.fixture.tsx).
+apps/web/e2e/scroll-budget/WP-SB1.fixture.tsx
 apps/web/src/app/globals.css
 docs/commercial-v1/known-issues.md
 docs/upgrades/programme/COVERAGE-LEDGER.csv
 docs/upgrades/programme/allowlists/WP-SB1.txt
+# Outside the seed, under the coordinator's standing approval of 1 Nov 2026: only its fake return value changes to the paged shape.
+apps/web/src/lib/ccd/parity-privacy.test.tsx

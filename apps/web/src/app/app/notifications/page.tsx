@@ -31,11 +31,19 @@ export const dynamic = 'force-dynamic';
  * WP-SB1: unread ones come first, then read ones, each newest first. Ten load at a time inside a
  * panel of fixed height; Show More asks the server for ten more, and Mark All Read clears them.
  */
+/** The address parameters this page reads. */
+interface NotificationsPageProps {
+  readonly searchParams?: Promise<SearchParamsRecord & { readonly show?: string | string[] }>;
+}
+
+// Next.js reads the props type from the last signature; the bare call serves older tests.
+export default async function NotificationsPage(): Promise<React.JSX.Element>;
+export default async function NotificationsPage(
+  props: NotificationsPageProps,
+): Promise<React.JSX.Element>;
 export default async function NotificationsPage({
   searchParams,
-}: {
-  readonly searchParams?: Promise<SearchParamsRecord & { readonly show?: string | string[] }>;
-} = {}) {
+}: NotificationsPageProps = {}): Promise<React.JSX.Element> {
   const query = (await searchParams) ?? {};
   const shown = parseShow(query.show, { step: TRAVELLER_LIST_STEP });
   // One more than shown proves whether another step exists.

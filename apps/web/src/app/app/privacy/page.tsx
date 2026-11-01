@@ -50,13 +50,19 @@ const CONSENT_PAGE_SIZE = 50;
 const CONSENT_LOG_ID = 'consent-history-log';
 const PATHNAME = '/app/privacy';
 
-export default async function PrivacyPage({
-  searchParams,
-}: {
+/** The address parameters this page reads. */
+interface PrivacyPageProps {
   readonly searchParams?: Promise<
     SearchParamsRecord & { readonly consentBefore?: string | string[] }
   >;
-} = {}) {
+}
+
+// Next.js reads the props type from the last signature; the bare call serves older tests.
+export default async function PrivacyPage(): Promise<React.JSX.Element>;
+export default async function PrivacyPage(props: PrivacyPageProps): Promise<React.JSX.Element>;
+export default async function PrivacyPage({
+  searchParams,
+}: PrivacyPageProps = {}): Promise<React.JSX.Element> {
   const query = (await searchParams) ?? {};
   const consentBefore = parseCursor(query.consentBefore);
   const data = await withSession(async ({ db, accountId }) => {
