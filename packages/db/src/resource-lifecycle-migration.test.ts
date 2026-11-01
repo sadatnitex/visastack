@@ -112,6 +112,12 @@ describe('migration 0113: resource lifecycle', () => {
         `update deletion_receipts set requested_by_account_id = null where id = '${id}'`,
       ),
     ).rejects.toThrow(/who asked/);
+    await client.query(
+      `update deletion_receipts set approved_by_account_id = '${account}' where id = '${id}'`,
+    );
+    await expect(
+      client.query(`update deletion_receipts set approved_by_account_id = null where id = '${id}'`),
+    ).rejects.toThrow(/who approved/);
   });
 
   it('moves status only forward', async () => {

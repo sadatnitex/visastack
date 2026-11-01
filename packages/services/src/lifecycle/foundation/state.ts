@@ -55,7 +55,7 @@ export async function getDocumentLifecycles(
   options: { readonly now?: Date } = {},
 ): Promise<ReadonlyMap<string, DocumentLifecycle>> {
   const scope = lifecycleScope(access);
-  const ids = [...new Set(documentIds)].filter(isUuid);
+  const ids = [...new Set(documentIds.filter(isUuid).map((id) => id.toLowerCase()))];
   if (scope === undefined || ids.length === 0) return new Map();
   const now = options.now ?? new Date();
   const documents = schema.documents;
@@ -110,5 +110,9 @@ export async function getDocumentLifecycle(
   access: LifecycleAccess,
   options: { readonly now?: Date } = {},
 ): Promise<DocumentLifecycle | null> {
-  return (await getDocumentLifecycles(db, [documentId], access, options)).get(documentId) ?? null;
+  return (
+    (await getDocumentLifecycles(db, [documentId], access, options)).get(
+      documentId.toLowerCase(),
+    ) ?? null
+  );
 }

@@ -11,7 +11,7 @@ import { createApplicant } from '../../applicants';
 import { setConsent } from '../../consent';
 import type { Db } from '../../db';
 import { addDocumentVersion, registerDocument } from '../../documents';
-import { runErasureWorker } from '../../erasure';
+import { enqueueErasureJob, runErasureWorker } from '../../erasure';
 import { placeLegalHold } from '../../legal-hold';
 import {
   attachPackVersion,
@@ -426,7 +426,11 @@ describe('lifecycle foundation with the tables present', () => {
       ).toBe(false);
       const stranger = await seedOwner(db, 'receipt-stranger@example.com');
       const strangerAccess = await proof(db, stranger.accountId, stranger.applicantId, 'MANAGE');
-      expect((await openDeletionReceipt(db, input, strangerAccess)).error?.code).toBe('forbidden');
+      const refused = await openDeletionReceipt(db, input, strangerAccess);
+      expect(refused.ok ? null : refused.error.code).toBe('forbidden');
+      // A read-level proof, even the owner's own, cannot write a removal record.
+      const readOnly = await proof(db, owner.accountId, owner.applicantId, 'VIEW_METADATA');
+      expect((await openDeletionReceipt(db, input, readOnly)).ok).toBe(false);
       expect((await openDeletionReceipt(db, input, { ...access } as typeof access)).ok).toBe(false);
 
       const opened = await openDeletionReceipt(
@@ -486,6 +490,14 @@ describe('lifecycle foundation with the tables present', () => {
       expect((await listDeletionReceipts(scope, { db })).ok).toBe(false);
       const byStaff = await listDeletionReceipts(scope, { db, applicantId: owner.applicantId });
       expect(byStaff.ok && byStaff.value).toHaveLength(1);
+      // A directory view is not the authority to change a removal record.
+      const [receiptId] = listed.value.map((row) => row.id);
+      expect((await advanceDeletionReceipt(db, receiptId ?? '', 'RESTORED', {}, scope)).ok).toBe(
+        false,
+      );
+      expect((await advanceDeletionReceipt(db, receiptId ?? '', 'RESTORED', {}, view)).ok).toBe(
+        false,
+      );
     },
     HEAVY,
   );
@@ -595,6 +607,112 @@ describe('lifecycle foundation with the tables present', () => {
   );
 
   it(
+    'keeps a deleted duplicate restorable for its 30 days, then removes it',
+    async () => {
+      const documentId = await seedDocument(db, owner, ['w-v1'], storage);
+      const { receiptId, access } = await markDeleted(db, owner, documentId, 'DUPLICATE');
+      const input = { documentId, applicantId: owner.applicantId, receiptId };
+      const early = await enqueueDocumentRemoval(db, input, access);
+      expect(early.ok).toBe(false);
+      expect(await jobsFor(db, documentId)).toHaveLength(0);
+      expect((await receiptRow(db, receiptId))?.status).toBe('SCHEDULED');
+      const view = await proof(db, owner.accountId, owner.applicantId, 'VIEW_METADATA');
+      expect((await enqueueDocumentRemoval(db, input, view)).ok).toBe(false);
+      const later = await enqueueDocumentRemoval(db, input, access, {
+        now: new Date(Date.now() + 31 * 86_400_000),
+      });
+      expect(later.ok && later.value.outcome).toBe('QUEUED');
+    },
+    HEAVY,
+  );
+
+  it(
+    'records the removal when a retention purge is what finishes a deleted document',
+    async () => {
+      const documentId = await seedDocument(db, owner, ['p-v1'], storage);
+      const { receiptId } = await markDeleted(db, owner, documentId, 'DUPLICATE');
+      const [object] = await db
+        .select()
+        .from(schema.storageObjects)
+        .where(eq(schema.storageObjects.objectKey, 'p-v1'));
+      if (!object) throw new Error('object');
+      await enqueueErasureJob(db, {
+        reason: 'RETENTION_PURGE',
+        bucket: 'CLEAN',
+        objectKey: 'p-v1',
+        expectedHash: null,
+        storageObjectId: object.id,
+        documentId,
+        applicantId: owner.applicantId,
+      });
+      expect((await runErasureWorker(db, storage, { limit: 5 })).processed).toBe(1);
+      const receipt = await receiptRow(db, receiptId);
+      expect(receipt?.status).toBe('REMOVED');
+      expect(receipt?.effects).toEqual({ bytesFreed: 10 });
+    },
+    HEAVY,
+  );
+
+  it(
+    'removes a document with no stored file at once and records it',
+    async () => {
+      const documentId = await seedDocument(db, owner, []);
+      const { receiptId, access } = await markDeleted(db, owner, documentId, 'REQUEST');
+      const result = await enqueueDocumentRemoval(
+        db,
+        { documentId, applicantId: owner.applicantId, receiptId },
+        access,
+      );
+      expect(result.ok && result.value.outcome).toBe('REMOVED');
+      expect(
+        await db.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+      ).toHaveLength(0);
+      const receipt = await receiptRow(db, receiptId);
+      expect(receipt?.status).toBe('REMOVED');
+      expect(receipt?.effects).toEqual({ bytesFreed: 0 });
+      const [event] = await db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, 'DOCUMENT_REMOVAL_QUEUED'));
+      expect(event?.metadata).toMatchObject({ receiptId, storageObjects: 0, removed: true });
+    },
+    HEAVY,
+  );
+
+  it(
+    'keeps who approved once recorded',
+    async () => {
+      const access = await proof(db, owner.accountId, owner.applicantId, 'MANAGE');
+      const opened = await openDeletionReceipt(
+        db,
+        {
+          applicantId: owner.applicantId,
+          subjectKind: 'DOCUMENT',
+          subjectCode: 'D-7K2Q9M',
+          path: 'REQUEST',
+          approvedByAccountId: owner.accountId,
+        },
+        access,
+      );
+      if (!opened.ok) throw new Error('open');
+      const other = await seedOwner(db, 'other-approver@example.com');
+      expect(
+        (
+          await advanceDeletionReceipt(
+            db,
+            opened.value.id,
+            'REMOVING',
+            { approvedByAccountId: other.accountId },
+            access,
+          )
+        ).ok,
+      ).toBe(false);
+      expect((await receiptRow(db, opened.value.id))?.approvedByAccountId).toBe(owner.accountId);
+    },
+    HEAVY,
+  );
+
+  it(
     'keeps the record and reads Kept when a hold lands while the files are being removed',
     async () => {
       const documentId = await seedDocument(db, owner, ['h-v1'], storage);
@@ -678,7 +796,9 @@ describe('lifecycle foundation with the tables missing', () => {
           await tx.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
         ).toHaveLength(1);
       });
-      expect((await listDeletionReceipts(view)).ok && []).toEqual([]);
+      const listed = await listDeletionReceipts(view);
+      expect(listed.ok).toBe(true);
+      expect(listed.ok ? listed.value : null).toEqual([]);
     },
     HEAVY,
   );

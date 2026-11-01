@@ -568,9 +568,10 @@ async function finalizeVerifiedJob(
         for (const missionId of await missionsSelectingDocument(tx, job.documentId)) {
           await incrementMaterialRevision(tx, missionId);
         }
-        // Read before the delete: the document's lifecycle row goes with it.
-        const receiptId =
-          job.reason === 'DOCUMENT_REMOVAL' ? await removalReceiptId(tx, job.documentId) : null;
+        // Read before the delete: the document's lifecycle row goes with it. Whichever reason
+        // finishes the document (a lifecycle removal, or a retention purge reaching a document
+        // that sits in Recently Deleted), its Removal Record reads Removed.
+        const receiptId = await removalReceiptId(tx, job.documentId);
         const freed =
           receiptId === null
             ? 0
@@ -605,8 +606,8 @@ async function finalizeVerifiedJob(
 }
 
 /**
- * The Removal Record of a document waiting for a `DOCUMENT_REMOVAL`, read from its lifecycle row
- * (migration 0113), or null when there is none.
+ * The Removal Record of a deleted document, read from its lifecycle row (migration 0113), or null
+ * when there is none (the tables are missing, or the document was never deleted).
  */
 async function removalReceiptId(tx: Db, documentId: string): Promise<string | null> {
   if (!(await lifecycleTablesPresent(tx))) return null;

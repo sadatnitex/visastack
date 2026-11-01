@@ -46,4 +46,18 @@ describe('UndoStatus', () => {
     expect(undoButton()).toBeUndefined();
     expect(document.activeElement).toBe(container.querySelector('output'));
   });
+
+  it('says when Undo failed and keeps the button to try again', async () => {
+    const onUndo = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    act(() => root.render(<UndoStatus message="Moved to Archived." onUndo={onUndo} />));
+    await act(async () => undoButton()?.click());
+    expect(container.querySelector('output')?.textContent).toContain(
+      'That could not be undone. Try again.',
+    );
+    expect(undoButton()).toBeDefined();
+    act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS));
+    expect(undoButton()).toBeUndefined();
+  });
 });

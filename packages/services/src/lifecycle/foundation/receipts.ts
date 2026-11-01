@@ -5,7 +5,7 @@ import { type StaffScope, staffScopeProblem } from '../../access/principal';
 import { AuthorizedApplicant } from '../../access/require-access';
 import { type Db, first, schema } from '../../db';
 import { type ServiceError, serviceError } from '../../errors';
-import { type LifecycleAccess, lifecycleAccessCovers } from './access';
+import { type LifecycleAccess, lifecycleCommandCovers } from './access';
 import { isUuid } from './ids';
 import { lifecycleTablesPresent } from './presence';
 
@@ -96,7 +96,10 @@ const openInputSchema = z
 export type OpenDeletionReceiptInput = z.input<typeof openInputSchema>;
 
 /**
- * Write one Removal Record inside the caller's transaction and return its id. Refuses anything
+ * Write one Removal Record inside the caller's transaction and return its id. A record removing a
+ * whole traveller (`TRAVELLER`, `EMPTY_TRAVELLER`) is anchored on another traveller record of the
+ * same owner that stays (their Myself), never on the record being removed: the receipt goes with
+ * its anchor (cascade), so anchoring it on the removed record would lose it. Refuses anything
  * outside the strict input (a title, a name, free text), a code that does not match its kind,
  * and an access that does not cover the applicant.
  */
@@ -108,7 +111,7 @@ export async function openDeletionReceipt(
   const parsed = openInputSchema.safeParse(input);
   if (!parsed.success) return err(serviceError('invalid', 'the removal record is not valid'));
   const value = parsed.data;
-  if (!lifecycleAccessCovers(access, value.applicantId)) {
+  if (!lifecycleCommandCovers(access, value.applicantId)) {
     return err(serviceError('forbidden', 'this removal record cannot be written'));
   }
   if (!(await lifecycleTablesPresent(tx))) {
@@ -138,7 +141,7 @@ export async function openDeletionReceipt(
 
 const patchSchema = z
   .object({
-    approvedByAccountId: z.string().refine(isUuid).nullable().optional(),
+    approvedByAccountId: z.string().refine(isUuid).optional(),
     verifiedGoneAt: z.date().optional(),
     effects: receiptEffectsSchema.optional(),
   })
@@ -169,7 +172,8 @@ export function mergeReceiptEffects(
       return null;
     }
   }
-  return receiptEffectsSchema.parse(merged);
+  const parsedMerge = receiptEffectsSchema.safeParse(merged);
+  return parsedMerge.success ? parsedMerge.data : null;
 }
 
 /**
@@ -200,31 +204,41 @@ export async function advanceDeletionReceipt(
         status: receipts.status,
         effects: receipts.effects,
         verifiedGoneAt: receipts.verifiedGoneAt,
+        approvedByAccountId: receipts.approvedByAccountId,
       })
       .from(receipts)
       .where(eq(receipts.id, id))
       .for('update'),
   );
-  if (!current || !lifecycleAccessCovers(access, current.applicantId)) {
+  if (!current || !lifecycleCommandCovers(access, current.applicantId)) {
     return err(serviceError('not_found', 'removal record not found'));
   }
   if (!receiptMoveAllowed(current.status, next)) {
     return err(serviceError('stale', 'this removal record has already moved on'));
   }
-  const effects = parsed.data.effects
-    ? mergeReceiptEffects(receiptEffectsSchema.parse(current.effects), parsed.data.effects)
-    : null;
+  const recorded = receiptEffectsSchema.safeParse(current.effects);
+  const effects =
+    parsed.data.effects && recorded.success
+      ? mergeReceiptEffects(recorded.data, parsed.data.effects)
+      : null;
   if (parsed.data.effects && !effects) {
     return err(serviceError('invalid', 'a recorded effect cannot change'));
   }
   if (parsed.data.verifiedGoneAt && current.verifiedGoneAt) {
     return err(serviceError('invalid', 'the verified time is already recorded'));
   }
+  if (
+    parsed.data.approvedByAccountId !== undefined &&
+    current.approvedByAccountId !== null &&
+    parsed.data.approvedByAccountId !== current.approvedByAccountId
+  ) {
+    return err(serviceError('invalid', 'who approved is already recorded'));
+  }
   await tx
     .update(receipts)
     .set({
       status: next,
-      ...(parsed.data.approvedByAccountId !== undefined
+      ...(parsed.data.approvedByAccountId
         ? { approvedByAccountId: parsed.data.approvedByAccountId }
         : {}),
       ...(parsed.data.verifiedGoneAt ? { verifiedGoneAt: parsed.data.verifiedGoneAt } : {}),

@@ -201,10 +201,10 @@ CREATE INDEX IF NOT EXISTS "document_removal_requests_receipt_idx" ON "document_
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "document_removal_requests_one_pending" ON "document_removal_requests" USING btree ("document_id") WHERE "document_removal_requests"."status" = 'PENDING';
 --> statement-breakpoint
--- The Removal Record is kept as written. Only a forward status move, the approver, the time the
--- file was verified gone and new effects (existing effects never change or disappear) may be
--- recorded later; a record goes only when the person's whole record does (cascade), or when an
--- account it names is deleted (that name is cleared, nothing else).
+-- The Removal Record is kept as written. Only a forward status move, the approver (once), the time
+-- the file was verified gone (once) and new effects (existing effects never change or disappear)
+-- may be recorded later; a record goes only when the person's whole record does (cascade), and
+-- deleting an account it names clears that name and nothing else.
 CREATE OR REPLACE FUNCTION "visastack_deletion_receipts_guard"() RETURNS trigger
 LANGUAGE plpgsql AS $fn$
 BEGIN
@@ -230,6 +230,11 @@ BEGIN
 	IF NEW."requested_by_account_id" IS DISTINCT FROM OLD."requested_by_account_id"
 		AND NOT (NEW."requested_by_account_id" IS NULL AND pg_trigger_depth() > 1) THEN
 		RAISE EXCEPTION 'deletion_receipts: who asked cannot be changed' USING ERRCODE = 'restrict_violation';
+	END IF;
+	IF OLD."approved_by_account_id" IS NOT NULL
+		AND NEW."approved_by_account_id" IS DISTINCT FROM OLD."approved_by_account_id"
+		AND NOT (NEW."approved_by_account_id" IS NULL AND pg_trigger_depth() > 1) THEN
+		RAISE EXCEPTION 'deletion_receipts: who approved cannot be changed' USING ERRCODE = 'restrict_violation';
 	END IF;
 	IF OLD."verified_gone_at" IS NOT NULL AND NEW."verified_gone_at" IS DISTINCT FROM OLD."verified_gone_at" THEN
 		RAISE EXCEPTION 'deletion_receipts: the verified time cannot be replaced' USING ERRCODE = 'restrict_violation';

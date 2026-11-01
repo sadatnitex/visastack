@@ -7,8 +7,8 @@ import { MANAGE_ACTIONS, type ManageActionEntry, registeredActions } from './reg
  * The Manage menu of one document (WAI-ARIA menu button). Lists only the actions the lifecycle
  * rule allows (`availableDocumentActions`, decided on the server) that a lane has registered, so
  * it renders nothing at all until there is something to offer. Arrow keys, Home and End move
- * between items; Escape and Tab close it; focus returns to the button when the menu or an
- * opened action closes. Every target is at least 44 px.
+ * between items; Escape and Tab close it. A chosen action takes focus; focus returns to the
+ * button when the menu (by Escape) or the opened action closes. Every target is at least 44 px.
  */
 export function ManageMenu({
   applicantId,
@@ -34,8 +34,17 @@ export function ManageMenu({
   const button = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const menuId = useId();
-  const panelId = useId();
+  const panel = useRef<HTMLDivElement>(null);
   const focusIndex = useRef(0);
+  // An action chosen from the menu takes focus, so the keyboard carries on inside it.
+  const chosenByMenu = useRef(false);
+
+  useEffect(() => {
+    if (active && chosenByMenu.current) {
+      chosenByMenu.current = false;
+      panel.current?.focus();
+    }
+  }, [active]);
 
   useEffect(() => {
     if (open) itemRefs.current[focusIndex.current]?.focus();
@@ -135,6 +144,7 @@ export function ManageMenu({
               className="lc-manage-item"
               onKeyDown={(event) => onItemKey(event, index)}
               onClick={() => {
+                chosenByMenu.current = true;
                 setActive(item.action);
                 setOpen(false);
               }}
@@ -145,7 +155,13 @@ export function ManageMenu({
         </div>
       ) : null}
       {Chosen ? (
-        <div id={panelId} className="lc-manage-panel">
+        <div
+          ref={panel}
+          className="lc-manage-panel"
+          tabIndex={-1}
+          role="group"
+          aria-label={chosen?.entry.label}
+        >
           <Chosen
             applicantId={applicantId}
             documentId={documentId}

@@ -107,6 +107,9 @@ const RECONCILED_EVENT_TYPES = [
   'DOCUMENT_REDACTION_CLEARED',
   'GRANT_AI_ASSIST_CHANGED',
   'ORGANIZATION_AI_SETTING_UPDATED',
+  // LC-F: a deleted document with no stored file is removed at once (no erasure job, so no
+  // ERASURE_VERIFIED); its `removed: true` event is replayed here instead (owner decision D10).
+  'DOCUMENT_REMOVAL_QUEUED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -1019,7 +1022,7 @@ async function forceErasureVerified(
       }
       // The restored Removal Record reads Removed, as it did on the old branch: read before the
       // delete, which takes the document's lifecycle row with it.
-      if (reason === 'DOCUMENT_REMOVAL') await markRestoredRemovalComplete(tx, documentId);
+      await markRestoredRemovalComplete(tx, documentId);
       const deletedDocuments = await tx
         .delete(schema.documents)
         .where(eq(schema.documents.id, documentId))
@@ -1071,6 +1074,33 @@ async function markRestoredRemovalComplete(tx: Db, documentId: string): Promise<
     .where(eq(schema.deletionReceipts.id, row.receiptId));
 }
 
+/**
+ * A document removed with no stored file on the old branch is removed on the restored one too:
+ * every case selecting it moves on, its Removal Record reads Removed, then the row goes. Running
+ * again finds no row and does nothing.
+ */
+async function forceDocumentRemovedWithoutFiles(newDb: Db, documentId: string): Promise<boolean> {
+  return newDb.transaction(async (tx) => {
+    const present = first(
+      await tx
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .where(eq(schema.documents.id, documentId))
+        .for('update'),
+    );
+    if (!present) return false;
+    for (const missionId of await missionsSelectingDocument(tx, documentId)) {
+      await incrementMaterialRevision(tx, missionId);
+    }
+    await markRestoredRemovalComplete(tx, documentId);
+    const deleted = await tx
+      .delete(schema.documents)
+      .where(eq(schema.documents.id, documentId))
+      .returning({ id: schema.documents.id });
+    return deleted.length > 0;
+  });
+}
+
 /** Which counter and audit resourceType each event type drives, once applied. */
 const EVENT_META: Readonly<
   Record<
@@ -1100,6 +1130,7 @@ const EVENT_META: Readonly<
   DOCUMENT_REDACTION_CLEARED: { counter: 'redactionMasksReconciled', resourceType: 'document' },
   GRANT_AI_ASSIST_CHANGED: { counter: 'aiAssistRemoved', resourceType: 'grant' },
   ORGANIZATION_AI_SETTING_UPDATED: { counter: 'agencyAiSettingsOff', resourceType: 'organization' },
+  DOCUMENT_REMOVAL_QUEUED: { counter: 'erasuresVerified', resourceType: 'document' },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -1147,6 +1178,11 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
     case 'ORGANIZATION_AI_SETTING_UPDATED':
       return metadataFlag(event.metadata, 'after') === false
         ? forceAgencyAiSettingOff(newDb, resourceId)
+        : false;
+    case 'DOCUMENT_REMOVAL_QUEUED':
+      // Only a removal already complete is replayed; a queued one ends in ERASURE_VERIFIED.
+      return metadataFlag(event.metadata, 'removed') === true
+        ? forceDocumentRemovedWithoutFiles(newDb, resourceId)
         : false;
     default:
       return false;

@@ -1,14 +1,11 @@
-import type { DocumentAction, DocumentActionView, DocumentLifecycle } from '@visastack/services';
+import {
+  DOCUMENT_ACTIONS,
+  type DocumentAction,
+  type DocumentActionView,
+  type DocumentLifecycle,
+} from '@visastack/services';
 
-const ACTIONS: readonly string[] = [
-  'ARCHIVE',
-  'RESTORE',
-  'REPLACE',
-  'DELETE_DUPLICATE',
-  'RESTORE_DELETED',
-  'REQUEST_REMOVAL',
-  'CANCEL_REMOVAL_REQUEST',
-];
+const ACTIONS: readonly string[] = DOCUMENT_ACTIONS;
 
 /** True for one of the frozen `DOCUMENT_ACTIONS` values (a deep link's `action`). */
 export function isDocumentAction(value: unknown): value is DocumentAction {

@@ -31,10 +31,10 @@ export const REMOVAL_RECORDS_FIRST_ROWS = 10;
 
 const DAY_MS = 86_400_000;
 
-function shortDate(value: Date | string): string {
-  // "3 Nov": the year is added only when it is not this year.
+function shortDate(value: Date | string, now: Date): string {
+  // "3 Nov": the year is added only when it is not the current year.
   const date = new Date(value);
-  const sameYear = date.getFullYear() === new Date().getFullYear();
+  const sameYear = date.getFullYear() === now.getFullYear();
   return sameYear
     ? date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
     : formatTimestampDate(date);
@@ -51,7 +51,7 @@ export function removalRecordSentence(row: RemovalRecordRow, now: Date = new Dat
   const used = cases > 0 ? ` Used in ${cases} ${cases === 1 ? 'case' : 'cases'}.` : '';
   let lead: string;
   if (row.status === 'REMOVED') {
-    lead = `Removed on ${shortDate(row.verifiedGoneAt ?? row.requestedAt)}`;
+    lead = `Removed on ${shortDate(row.verifiedGoneAt ?? row.requestedAt, now)}`;
   } else if (row.status === 'SCHEDULED' && row.scheduledFor) {
     const days = Math.max(
       0,

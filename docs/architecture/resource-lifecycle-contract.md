@@ -32,7 +32,7 @@ The four conditions are written against the unaliased `documents` and `applicant
 | Document (exact duplicate) | Upload | As above | As above | As above | As above | As above, and from Recently Deleted for 30 days | Delete Duplicate, no new sign-in (D7), when every version's fingerprint exists in another usable document of the same person that stays (D2) | 30 days in Recently Deleted, then verified erasure (D3) | Removal Record | Open cases using it switch to the surviving copy and their material revision moves on (D4); restoring does not switch back. Refused, with Archive offered, for a finished case's choice, an agency request answer, a contributor's handover, a live grant naming it, or a legal hold (D5) |
 | Traveller record | Add Traveller | Travellers list; archived ones on their own list | Profile edits (versioned) | Not applicable | Archive Traveller (never "Myself") | Restore Traveller | Remove Empty Record only, through Recently Deleted; an empty Myself only while another Myself exists (D9) | Account deletion | Removal Record (path `EMPTY_TRAVELLER`) | Archived travellers leave default lists and offers |
 | Removal request | Ask Us to Remove This File (reason from a closed list, no typed note) | The person's document; the support queue | Not applicable | Not applicable | Not applicable | Cancel while pending | Not applicable | Approved, Declined, Cancelled or Completed | The request row and the Removal Record | Approval moves the document to removal at once; staff approving pass staff step-up (D7) |
-| Removal Record | Opened by the action that removes | Removal Records (owner); privacy admin | Never: only a forward status move, the approver, the verified time and new effects | Not applicable | Not applicable | Not applicable | Never by itself; it goes only with the whole traveller record (cascade) | Never | Itself; `audit_events` stays as the pseudonymous proof after a whole account goes (PRV-03) | None |
+| Removal Record | Opened by the action that removes | Removal Records (owner); privacy admin | Never: only a forward status move, the approver (once), the verified time (once) and new effects | Not applicable | Not applicable | Not applicable | Never by itself; it goes only with the whole traveller record (cascade) | Never | Itself; `audit_events` stays as the pseudonymous proof after a whole account goes (PRV-03) | None |
 | Profile fact | Answer or approve a suggestion | Profile | A new version (P1) | Not applicable | Marked No Longer Current, never deleted | Not applicable | Never | Account deletion | Every version | Cases keep the version they captured |
 | Share, membership, request, invoice | Their own flows | Their own pages | Not applicable | Not applicable | Not applicable | Not applicable | Never: revoked, cancelled or ended (P2) | Revoke, cancel, end | The row and its audit events | Access ends at once |
 
@@ -45,7 +45,7 @@ The four conditions are written against the unaliased `documents` and `applicant
 | Recently Deleted | `deleted_at` set, `delete_path = DUPLICATE`, `purge_after` in the future | Restore (from Recently Deleted) |
 | Being removed | `delete_path = REQUEST`, or `purge_after` reached | none |
 
-A legal hold (on the whole record, on the document, or on a case selecting it) offers neither deletion nor a request, refuses `enqueueDocumentRemoval` (the receipt reads Kept (Legal Requirement)), and, if it lands while files are being erased, keeps the document row and blocks the receipt.
+A deleted duplicate cannot start its removal before its 30 days are over; a support-approved removal starts at once. Whichever erasure finishes a deleted document (a lifecycle removal or a retention purge), its Removal Record reads Removed with the space freed. A document with no stored file is removed at once, recorded with `removed: true` so a backup restore removes it again. A legal hold (on the whole record, on the document, or on a case selecting it) offers neither deletion nor a request, refuses `enqueueDocumentRemoval` (the receipt reads Kept (Legal Requirement)), and, if it lands while files are being erased, keeps the document row and blocks the receipt.
 
 ## 4. Removal Record
 
@@ -55,7 +55,12 @@ Status moves only forward: Scheduled to Restored, Removing or Kept; Removing to 
 
 ## 5. Access
 
-Every exported lifecycle function that touches a person's records takes an access gate as its last parameter (the access ratchet, `access/enforcement.test.ts`): an `AuthorizedApplicant` for that applicant, a `SystemScope` (a scheduled job) or a `StaffScope`. The Removal Records list takes the owner's own `VIEW_METADATA` proof, or a fresh `APPLICANT_DIRECTORY_VIEW` staff scope with the database and applicant named.
+Every exported lifecycle function that touches a person's records takes an access gate as its last parameter (the access ratchet, `access/enforcement.test.ts`): an `AuthorizedApplicant` for that applicant, a `SystemScope` (a scheduled job) or a `StaffScope`.
+
+- Reading lifecycle state: any genuine proof for that applicant, a job, or a fresh staff scope.
+- Changing it (receipts, removal): only the record owner's own `MANAGE` proof, the jobs `process-erasure`, `process-notification-sweeps` and `process-deletions`, or a fresh staff scope for `RETENTION_PURGE` (the compliance administrator). An agency's grant, a contributor and a read-level proof never change a lifecycle record.
+- The Removal Records list: the owner's own `VIEW_METADATA` proof, or a fresh `APPLICANT_DIRECTORY_VIEW` staff scope with the database and applicant named.
+- A traveller's Removal Record is anchored on another traveller record of the same owner that stays (their Myself), because a receipt goes with its traveller record.
 
 ## 6. Registered names
 

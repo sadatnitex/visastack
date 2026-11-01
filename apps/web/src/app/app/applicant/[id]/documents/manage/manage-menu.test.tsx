@@ -131,6 +131,9 @@ describe('ManageMenu', () => {
     act(() => items()[0]?.click());
     expect(container.textContent).toContain('Archive Passport?');
     expect(container.querySelector('[role="menu"]')).toBeNull();
+    // The keyboard carries on inside the chosen action, never from the top of the page.
+    expect(document.activeElement).toBe(container.querySelector('.lc-manage-panel'));
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Archive');
     const close = [...container.querySelectorAll('button')].find(
       (b) => b.textContent === 'Close Panel',
     );

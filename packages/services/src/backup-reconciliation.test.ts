@@ -20,6 +20,7 @@ import { accountPrincipal } from './access/principal';
 import { requireAccess } from './access/require-access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
+import { appendAuditEvent } from './audit';
 import { reconcileRestoredBranch } from './backup-reconciliation';
 import { sweepCaseRetentionPurge } from './case-retention';
 import { setConsent } from './consent';
@@ -2001,5 +2002,45 @@ describe('reconcileRestoredBranch: lifecycle removal (LC-F, owner decision D10)'
     const second = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
     expect(second.errors).toHaveLength(0);
     expect(second.counts.erasuresVerified).toBe(0);
+  });
+
+  it('replays a removal of a document with no stored file, which has no erasure to replay', async () => {
+    const owner = await seedAccount(oldDb, 'lifecycle-nofile-owner@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const applicant = await seedApplicant(oldDb, owner.id);
+    await mirrorRow(newDb, schema.applicants, applicant);
+    const registered = await registerDocument(oldDb, {
+      actorAccountId: owner.id,
+      applicantId: applicant.id,
+      originalName: 'synthetic-empty.pdf',
+    });
+    if (!isOk(registered)) throw new Error('setup failed');
+    const documentId = registered.value.id;
+    const documentRow = first(
+      await oldDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    );
+    if (!documentRow) throw new Error('setup failed');
+    await mirrorRow(newDb, schema.documents, documentRow);
+    await appendAuditEvent(oldDb, {
+      eventType: 'DOCUMENT_REMOVAL_QUEUED',
+      method: 'SYSTEM',
+      result: 'ALLOWED',
+      applicantId: applicant.id,
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { storageObjects: 0, removed: true },
+    });
+    await oldDb
+      .update(schema.auditEvents)
+      .set({ occurredAt: AFTER })
+      .where(eq(schema.auditEvents.eventType, 'DOCUMENT_REMOVAL_QUEUED'));
+    await oldDb.delete(schema.documents).where(eq(schema.documents.id, documentId));
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toHaveLength(0);
+    expect(
+      await newDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    ).toHaveLength(0);
+    expect((await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT)).errors).toHaveLength(0);
   });
 });

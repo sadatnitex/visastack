@@ -1,5 +1,12 @@
 // Resource lifecycle foundation (LC-F, PROGRAMME section 3.2). Lanes import from here.
-export { type LifecycleAccess, lifecycleAccessCovers, lifecycleScope } from './access';
+export {
+  LIFECYCLE_STAFF_ACTIONS,
+  LIFECYCLE_SYSTEM_JOBS,
+  type LifecycleAccess,
+  lifecycleAccessCovers,
+  lifecycleCommandCovers,
+  lifecycleScope,
+} from './access';
 export {
   DOCUMENT_ACTIONS,
   DOCUMENT_LIFECYCLE_STATES,

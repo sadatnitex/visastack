@@ -33,6 +33,12 @@ describe('removal record sentences', () => {
       ),
     ).toBe('Removed on 3 Nov: Passport D-7K2Q9M. Used in 2 cases.');
   });
+  it('decides "this year" from the given time, not the clock', () => {
+    const next = new Date('2027-01-02T09:00:00Z');
+    expect(
+      removalRecordSentence(row({ verifiedGoneAt: new Date(2026, 10, 3, 12) }), next),
+    ).toBe('Removed on 3 Nov 2026: Passport D-7K2Q9M.');
+  });
   it('counts down a scheduled removal and names every other state in plain words', () => {
     expect(
       removalRecordSentence(

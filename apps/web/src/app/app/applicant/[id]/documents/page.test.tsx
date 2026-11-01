@@ -41,6 +41,8 @@ const mocks = vi.hoisted(() => ({
     }),
   ),
   availableDocumentActions: vi.fn((_view: unknown): string[] => []),
+  /** The Manage registry as lanes will fill it: empty unless a test registers an action. */
+  registry: {} as Record<string, { label: string; Component: () => null }>,
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -117,6 +119,14 @@ vi.mock('../document-suggestion-card', () => ({
   DocumentSuggestionCard: stub('DocumentSuggestionCard'),
 }));
 vi.mock('../../../../../components/auto-refresh', () => ({ AutoRefresh: stub('AutoRefresh') }));
+vi.mock('./manage/registry', () => ({
+  get MANAGE_ACTIONS() {
+    return mocks.registry;
+  },
+  registeredActions: (actions: readonly string[], registry = mocks.registry) =>
+    actions.flatMap((action) => (registry[action] ? [{ action, entry: registry[action] }] : [])),
+}));
+vi.mock('./manage/manage-menu', () => ({ ManageMenu: stub('ManageMenu') }));
 
 const { default: DocumentsPage } = await import('./page');
 
@@ -785,6 +795,7 @@ describe('archive, Recently Deleted and the Manage menu (resource lifecycle, mig
     deletePath: null,
   });
   beforeEach(async () => {
+    mocks.registry = {};
     const real = await vi.importActual<typeof import('@visastack/services')>('@visastack/services');
     mocks.availableDocumentActions.mockImplementation((view) =>
       real.availableDocumentActions(view as Parameters<typeof real.availableDocumentActions>[0]),
@@ -822,7 +833,43 @@ describe('archive, Recently Deleted and the Manage menu (resource lifecycle, mig
     const html = await render();
     expect(mocks.availableDocumentActions).toHaveBeenCalledTimes(3);
     expect(html).not.toContain('aria-label="Document lists"');
-    expect(html).not.toContain('aria-haspopup="menu"');
+    expect(stubProps(html, 'ManageMenu')).toEqual([]);
+    // Not even an empty wrapper: every row is exactly as before.
+    expect(html).not.toContain('wallet-document-manage');
+  });
+
+  it('gives each row its menu once a lane registers an action, and a reminder link opens it', async () => {
+    mocks.registry = { ARCHIVE: { label: 'Archive', Component: () => null } };
+    mocks.lifecycleTablesPresent.mockResolvedValue(true);
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: Array.from({ length: 14 }, (_, i) => doc(`d${i}`, 'APPROVED')),
+    });
+    mocks.getDocumentLifecycles.mockResolvedValue(
+      new Map(Array.from({ length: 14 }, (_, i) => [`d${i}`, state(i === 13 ? 'ARCHIVED' : 'CURRENT')])),
+    );
+    const html = await render();
+    const menus = stubProps<{ documentId: string; actions: string[] }>(html, 'ManageMenu');
+    expect(menus).toHaveLength(12);
+    expect(menus[0]).toMatchObject({ documentId: 'd0', actions: ['ARCHIVE'] });
+    expect(html).toContain('wallet-document-manage');
+
+    // A reminder for an archived document on what would be page two: its list opens, it comes
+    // first and is selected; RESTORE is not registered, so no action opens by itself.
+    const linked = await render(undefined, { manage: 'd13', action: 'RESTORE' });
+    expect(textOf(linked)).toContain('Archived (1)');
+    expect(linked).toMatch(/aria-current="page"[^>]*>Archived|>Archived<span[^]*?aria-current/);
+    expect(textOf(linked)).toContain('d13.pdf');
+    expect(textOf(linked)).not.toContain('d0.pdf');
+
+    mocks.getDocumentLifecycles.mockResolvedValue(
+      new Map(Array.from({ length: 14 }, (_, i) => [`d${i}`, state('CURRENT')])),
+    );
+    const archiveLink = await render(undefined, { manage: 'd13', action: 'ARCHIVE' });
+    const first = stubProps<{ documentId: string; initialAction?: string }>(archiveLink, 'ManageMenu')[0];
+    expect(first).toMatchObject({ documentId: 'd13', initialAction: 'ARCHIVE' });
+    const ignored = await render(undefined, { manage: 'd13', action: 'DESTROY' });
+    expect(stubProps<{ initialAction?: string }>(ignored, 'ManageMenu')[0]?.initialAction).toBeUndefined();
   });
 
   it('splits the documents into Current, Archived and Recently Deleted once there is something to show', async () => {

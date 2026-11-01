@@ -2255,6 +2255,8 @@ export {
   DOCUMENT_LIFECYCLE_STATES,
   DELETION_RECEIPT_STATUSES,
   LIFECYCLE_RELATIONS,
+  LIFECYCLE_STAFF_ACTIONS,
+  LIFECYCLE_SYSTEM_JOBS,
   type AdvanceDeletionReceiptPatch,
   type DeletionReceiptStatus,
   type DeletionReceiptView,

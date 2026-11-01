@@ -42,7 +42,7 @@ Any read-site migration (A1, A2, B, E do those), any action component, any job r
 - Checks seen green: (filled in at merge)
 - Tests added (each new guard broken once on purpose and seen red):
   - `packages/db/src/resource-lifecycle-migration.test.ts`: re-runnable statement by statement; deleted, path and purge time together; one pending request per document and only known values; the receipt guard refuses an edit of `subject_code`, `path` or who asked, a backward status move, a second verified time, losing or changing an effect, and a direct delete; deleting an asking account clears only that name; the whole record cascades.
-  - `packages/services/src/lifecycle/foundation/foundation.test.ts`: presence false before and true after the migration; the four conditions; state per document, scoped to the proof; `availableDocumentActions` for every state; strict receipts and effects; forward-only advance; owner and privacy-admin lists; `enqueueDocumentRemoval` refuses under an applicant-wide, a document and a case hold; removal deletes the row only after every sibling file verifies, bumps the material revision of the selecting case and reads Removed with the space freed; a hold landing mid-erasure keeps the row and reads Kept; with the tables missing everything reads Current, commands refuse and the transaction stays usable.
+  - `packages/services/src/lifecycle/foundation/foundation.test.ts`: commands refuse a read-level proof and a directory-view staff scope; a deleted duplicate cannot be removed inside its 30 days; a retention purge finishing a deleted document still completes its Removal Record; a document with no stored file is removed at once and recorded for restores; who approved cannot be replaced; presence false before and true after the migration; the four conditions; state per document, scoped to the proof; `availableDocumentActions` for every state; strict receipts and effects; forward-only advance; owner and privacy-admin lists; `enqueueDocumentRemoval` refuses under an applicant-wide, a document and a case hold; removal deletes the row only after every sibling file verifies, bumps the material revision of the selecting case and reads Removed with the space freed; a hold landing mid-erasure keeps the row and reads Kept; with the tables missing everything reads Current, commands refuse and the transaction stays usable.
   - `packages/services/src/lifecycle/foundation/read-paths.test.ts` (with `read-paths.test-support.ts`): the read-path guard over all services; fixtures prove it fails on a new unlisted read and on a baseline entry that already complies, follows aliases, joins and private helpers, ignores comments and strings, exempts an applicant read keyed on its id (not a join on it) and refuses a same-named local condition.
   - `packages/services/src/backup-reconciliation.test.ts` (new case): a restore never brings back a `DOCUMENT_REMOVAL` and the restored Removal Record reads Removed.
   - `packages/services/src/product-events.test.ts`: the new analytics category.
@@ -64,11 +64,16 @@ Any read-site migration (A1, A2, B, E do those), any action component, any job r
     Stop. Ask the owner to approve an allowlist change before editing these files.
     OK: no long dashes in added lines (excluding docs/design/harbor-v2).
     ```
+- Ordering note for the coordinator: the Documents page shows a Removal Records link (to `applicant/[id]/removal-records`, lane C) as soon as a receipt exists. Lane C's page must be on main before any lane ships code that writes receipts, or that link leads to a missing page.
 - Blocked: none (the earlier block on the privacy page was answered by the coordinator on 31 Oct 2026).
 
 ### Signatures for wave 1
 
-Import from `@visastack/services` (or `../lifecycle/foundation` inside services). `LifecycleAccess = AuthorizedApplicant<PermissionAction> | SystemScope<SystemJob> | StaffScope<PlatformAction>`; a proof for another applicant, a copy or a forgery is refused. `Result` is `@visastack/core`'s.
+Import from `@visastack/services` (or `../lifecycle/foundation` inside services). `LifecycleAccess = AuthorizedApplicant<PermissionAction> | SystemScope<SystemJob> | StaffScope<PlatformAction>`; `Result` is `@visastack/core`'s.
+
+- Reads (`getDocumentLifecycle(s)`): any genuine proof for that applicant, any genuine `SystemScope`, or a fresh `StaffScope`.
+- Commands (`openDeletionReceipt`, `advanceDeletionReceipt`, `enqueueDocumentRemoval`): only the record owner's own `MANAGE` proof for that applicant, a `SystemScope` for one of `LIFECYCLE_SYSTEM_JOBS` (`process-erasure`, `process-notification-sweeps`, `process-deletions`), or a fresh `StaffScope` for one of `LIFECYCLE_STAFF_ACTIONS` (`RETENTION_PURGE`, the compliance administrator). A read-level proof, an agency or contributor proof, any other job, and a stale or other staff scope are refused. A lane needing another job or staff action asks the coordinator; the lists live in `lifecycle/foundation/access.ts`.
+- A traveller receipt (`TRAVELLER`, `EMPTY_TRAVELLER`) is opened with `applicantId` = another traveller record of the same owner that stays (their Myself), never the record being removed: receipts go with their applicant (cascade, PROGRAMME 3.1).
 
 ```ts
 lifecycleTablesPresent(db: Db): Promise<boolean>
