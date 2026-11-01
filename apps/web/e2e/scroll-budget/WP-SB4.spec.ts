@@ -60,7 +60,12 @@ test.describe('WP-SB4 traveller tasks and forms with worst-case data', () => {
     ).toBe(true);
     await appointments.first().uncheck();
     expect(await all.evaluate((b) => (b as HTMLInputElement).indeterminate)).toBe(true);
-    await all.uncheck();
+    // As in every browser, a part-ticked box ticks the whole group, and the next click clears it.
+    await all.click();
+    expect(
+      await appointments.evaluateAll((b) => b.every((x) => (x as HTMLInputElement).checked)),
+    ).toBe(true);
+    await all.click();
     expect(
       await appointments.evaluateAll((b) => b.some((x) => (x as HTMLInputElement).checked)),
     ).toBe(false);
