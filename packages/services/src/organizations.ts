@@ -1,7 +1,8 @@
 import type { MembershipRole, OrganizationStatus } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, ilike, ne } from 'drizzle-orm';
+import { and, eq, ilike, isNull, ne } from 'drizzle-orm';
 import { endAgencyAiConnectionsOfMember } from './access/agency-ai-connections';
+import { agencyAiAvailable } from './agency-ai-ready';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { checkSeatEntitlement } from './entitlement-enforcement';
@@ -273,22 +274,28 @@ export async function reviewOrganization(
   );
   if (!org) return err(serviceError('not_found', 'organization not found'));
   if (org.status !== 'PENDING_VERIFICATION') {
-    return err(serviceError('invalid', 'only a PENDING_VERIFICATION org can be reviewed'));
+    return err(serviceError('invalid', 'This application is no longer waiting for review.'));
   }
   if (await isMember(db, input.reviewerAccountId, input.organizationId)) {
     return err(serviceError('forbidden', 'an organization cannot verify itself'));
   }
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.organizations)
-          .set({ status: input.decision, updatedAt: new Date() })
-          .where(eq(schema.organizations.id, input.organizationId))
-          .returning(),
-      ),
-      'organization',
+    const updated = first(
+      await tx
+        .update(schema.organizations)
+        .set({ status: input.decision, updatedAt: new Date() })
+        // Compare-and-set: an application withdrawn after the read above stays withdrawn.
+        .where(
+          and(
+            eq(schema.organizations.id, input.organizationId),
+            eq(schema.organizations.status, 'PENDING_VERIFICATION'),
+          ),
+        )
+        .returning(),
     );
+    if (!updated) {
+      return err(serviceError('invalid', 'This application is no longer waiting for review.'));
+    }
     await appendAuditEvent(tx, {
       eventType: 'ORGANIZATION_REVIEWED',
       actorAccountId: input.reviewerAccountId,
@@ -543,6 +550,31 @@ export async function setMembershipActive(
   }
 
   return db.transaction(async (tx) => {
+    // Re-checked under a shared lock on the organization row: an owner withdrawing the
+    // application (which locks that row for update and ends every membership) either finishes
+    // first, and this sees the actor's membership ended and the organization CLOSED, or waits.
+    const lockedOrg = first(
+      await tx
+        .select({ status: schema.organizations.status })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, input.organizationId))
+        .for('share'),
+    );
+    if (!lockedOrg) return err(serviceError('not_found', 'organization not found'));
+    const lockedActor = first(
+      await tx
+        .select({ role: schema.memberships.role, active: schema.memberships.active })
+        .from(schema.memberships)
+        .where(eq(schema.memberships.id, actorMembership.id))
+        .limit(1),
+    );
+    if (!lockedActor?.active || (lockedActor.role !== 'OWNER' && lockedActor.role !== 'ADMIN')) {
+      return err(serviceError('forbidden', 'only an org OWNER/ADMIN can change memberships'));
+    }
+    if (input.active && lockedOrg.status === 'CLOSED') {
+      return err(serviceError('invalid', 'a closed organization cannot take members back'));
+    }
+
     // Only a genuine false -> true transition consumes a new seat; a
     // redundant "activate an already-active member" call is a no-op that
     // must never be blocked by a full org.
@@ -582,9 +614,19 @@ export async function setMembershipActive(
       }
     }
 
+    if (!input.active) {
+      return endMembershipInTx(tx, {
+        actorAccountId: input.actorAccountId,
+        organizationId: input.organizationId,
+        membershipId: input.membershipId,
+        memberAccountId: target.accountId,
+        targetRole: target.role,
+      });
+    }
+
     const rows = await tx
       .update(schema.memberships)
-      .set({ active: input.active, updatedAt: new Date() })
+      .set({ active: true, updatedAt: new Date() })
       .where(
         and(
           eq(schema.memberships.id, input.membershipId),
@@ -596,23 +638,8 @@ export async function setMembershipActive(
     if (!updated) {
       return err(serviceError('not_found', 'membership no longer exists in this organization'));
     }
-
-    // S22: a member turned off can no longer use the agency's AI tools (the AI gate refuses them
-    // on the next call); their agency AI connections are also ended, tokens and all. Only after
-    // the membership change itself succeeded (round 3), so a membership that vanished ends
-    // nothing, and before this transaction's own audit record, so the audit chain is taken last,
-    // as in the AI gate.
-    if (!input.active) {
-      await endAgencyAiConnectionsOfMember(tx, {
-        organizationId: input.organizationId,
-        memberAccountId: target.accountId,
-        actorAccountId: input.actorAccountId,
-        reason: 'member_removed',
-      });
-    }
-
     await appendAuditEvent(tx, {
-      eventType: input.active ? 'MEMBERSHIP_ACTIVATED' : 'MEMBERSHIP_DEACTIVATED',
+      eventType: 'MEMBERSHIP_ACTIVATED',
       actorAccountId: input.actorAccountId,
       action: 'MANAGE',
       method: 'MANUAL',
@@ -621,64 +648,119 @@ export async function setMembershipActive(
       resourceId: updated.id,
       metadata: { organizationId: input.organizationId, targetRole: target.role },
     });
-
-    // Commercial V1 Part 4 §11: "Removed member may not remain sole owner of
-    // active case." A deactivated member no longer passes `isActiveMember`,
-    // so leaving them as a mission's only assignment would quietly strand
-    // that case with an assignee who can no longer act on it. Unassign them
-    // from every such mission (active, not CLOSED/CANCELLED) where they were
-    // the SOLE assignee -- never where a co-assignee remains, since that
-    // case still has a working assignee -- landing each one in the
-    // "reassignment queue" (`agency.ts`'s `listUnassignedActiveMissions`)
-    // rather than blocking the deactivation itself on a hand-off first.
-    if (!input.active) {
-      const ownMissionAssignments = await tx
-        .select({ id: schema.assignments.id, missionId: schema.assignments.missionId })
-        .from(schema.assignments)
-        .where(
-          and(
-            eq(schema.assignments.organizationId, input.organizationId),
-            eq(schema.assignments.memberAccountId, target.accountId),
-          ),
-        );
-      for (const assignment of ownMissionAssignments) {
-        const coAssignees = await tx
-          .select({ id: schema.assignments.id })
-          .from(schema.assignments)
-          .where(
-            and(
-              eq(schema.assignments.organizationId, input.organizationId),
-              eq(schema.assignments.missionId, assignment.missionId),
-              ne(schema.assignments.id, assignment.id),
-            ),
-          )
-          .limit(1);
-        if (coAssignees.length > 0) continue;
-        const mission = first(
-          await tx
-            .select({ state: schema.missions.state })
-            .from(schema.missions)
-            .where(eq(schema.missions.id, assignment.missionId))
-            .limit(1),
-        );
-        if (!mission || mission.state === 'CLOSED' || mission.state === 'CANCELLED') continue;
-        await tx.delete(schema.assignments).where(eq(schema.assignments.id, assignment.id));
-        await appendAuditEvent(tx, {
-          eventType: 'MEMBER_UNASSIGNED',
-          actorAccountId: input.actorAccountId,
-          method: 'MANUAL',
-          result: 'ALLOWED',
-          missionId: assignment.missionId,
-          resourceType: 'assignment',
-          resourceId: assignment.id,
-          reason: 'sole_assignee_deactivated',
-          metadata: { organizationId: input.organizationId, memberAccountId: target.accountId },
-        });
-      }
-    }
-
     return ok(updated);
   });
+}
+
+/**
+ * Ends one membership inside the caller's transaction: the single path every deactivation takes
+ * (`setMembershipActive`, and an owner withdrawing a pending application). The caller has already
+ * decided the change is allowed (role and last-owner rules belong to the caller). It turns the
+ * membership off, ends the member's agency AI connections, records MEMBERSHIP_DEACTIVATED and
+ * unassigns the member from every open case where they were the only assignee.
+ */
+async function endMembershipInTx(
+  tx: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly organizationId: string;
+    readonly membershipId: string;
+    readonly memberAccountId: string;
+    readonly targetRole: MembershipRole;
+  },
+): Promise<Result<Membership, ServiceError>> {
+  const rows = await tx
+    .update(schema.memberships)
+    .set({ active: false, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.memberships.id, input.membershipId),
+        eq(schema.memberships.organizationId, input.organizationId),
+      ),
+    )
+    .returning();
+  const updated = first(rows);
+  if (!updated) {
+    return err(serviceError('not_found', 'membership no longer exists in this organization'));
+  }
+
+  // S22: a member turned off can no longer use the agency's AI tools (the AI gate refuses them
+  // on the next call); their agency AI connections are also ended, tokens and all. Only after
+  // the membership change itself succeeded (round 3), so a membership that vanished ends
+  // nothing, and before this transaction's own audit record, so the audit chain is taken last,
+  // as in the AI gate.
+  await endAgencyAiConnectionsOfMember(tx, {
+    organizationId: input.organizationId,
+    memberAccountId: input.memberAccountId,
+    actorAccountId: input.actorAccountId,
+    reason: 'member_removed',
+  });
+
+  await appendAuditEvent(tx, {
+    eventType: 'MEMBERSHIP_DEACTIVATED',
+    actorAccountId: input.actorAccountId,
+    action: 'MANAGE',
+    method: 'MANUAL',
+    result: 'ALLOWED',
+    resourceType: 'membership',
+    resourceId: updated.id,
+    metadata: { organizationId: input.organizationId, targetRole: input.targetRole },
+  });
+
+  // Commercial V1 Part 4 §11: "Removed member may not remain sole owner of
+  // active case." A deactivated member no longer passes `isActiveMember`,
+  // so leaving them as a mission's only assignment would quietly strand
+  // that case with an assignee who can no longer act on it. Unassign them
+  // from every such mission (active, not CLOSED/CANCELLED) where they were
+  // the SOLE assignee -- never where a co-assignee remains, since that
+  // case still has a working assignee -- landing each one in the
+  // "reassignment queue" (`agency.ts`'s `listUnassignedActiveMissions`)
+  // rather than blocking the deactivation itself on a hand-off first.
+  const ownMissionAssignments = await tx
+    .select({ id: schema.assignments.id, missionId: schema.assignments.missionId })
+    .from(schema.assignments)
+    .where(
+      and(
+        eq(schema.assignments.organizationId, input.organizationId),
+        eq(schema.assignments.memberAccountId, input.memberAccountId),
+      ),
+    );
+  for (const assignment of ownMissionAssignments) {
+    const coAssignees = await tx
+      .select({ id: schema.assignments.id })
+      .from(schema.assignments)
+      .where(
+        and(
+          eq(schema.assignments.organizationId, input.organizationId),
+          eq(schema.assignments.missionId, assignment.missionId),
+          ne(schema.assignments.id, assignment.id),
+        ),
+      )
+      .limit(1);
+    if (coAssignees.length > 0) continue;
+    const mission = first(
+      await tx
+        .select({ state: schema.missions.state })
+        .from(schema.missions)
+        .where(eq(schema.missions.id, assignment.missionId))
+        .limit(1),
+    );
+    if (!mission || mission.state === 'CLOSED' || mission.state === 'CANCELLED') continue;
+    await tx.delete(schema.assignments).where(eq(schema.assignments.id, assignment.id));
+    await appendAuditEvent(tx, {
+      eventType: 'MEMBER_UNASSIGNED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      missionId: assignment.missionId,
+      resourceType: 'assignment',
+      resourceId: assignment.id,
+      reason: 'sole_assignee_deactivated',
+      metadata: { organizationId: input.organizationId, memberAccountId: input.memberAccountId },
+    });
+  }
+
+  return ok(updated);
 }
 
 /**
@@ -722,4 +804,147 @@ export async function setRequireDifferentReviewer(
     metadata: { requireDifferentReviewer: input.required },
   });
   return ok(updated);
+}
+
+/**
+ * The person who applied to register an agency withdraws the application while it is still
+ * waiting for review (lifecycle lane G3).
+ *
+ * Only an active OWNER member may withdraw, and only while the organization is
+ * PENDING_VERIFICATION. The organization moves to CLOSED, the status that already means "no
+ * standing on the platform": every access check requires ACTIVE, the screens show it as Closed,
+ * and the platform review queue offers review only for PENDING_VERIFICATION. A withdrawn
+ * application is therefore indistinguishable from a closed agency in status alone; the audit
+ * event ORGANIZATION_APPLICATION_WITHDRAWN is what tells them apart.
+ *
+ * Every membership ends through `endMembershipInTx`, the same path `setMembershipActive` takes,
+ * so each carries its own MEMBERSHIP_DEACTIVATED record and its AI connections end. Team
+ * invitations that were never used are revoked, because accepting one does not check the
+ * organization's status. Client invitations need no change: they already close for any
+ * organization that is neither ACTIVE nor PENDING_VERIFICATION.
+ *
+ * Race safety: the organization row is locked first, so a concurrent withdrawal waits and then
+ * sees CLOSED; `reviewOrganization` updates only a row still PENDING_VERIFICATION, so a review
+ * that read the row before this commit cannot reopen it; `setMembershipActive` re-checks under a
+ * shared lock on the same row, so no member is switched back on afterwards. Audit metadata holds
+ * counts only.
+ */
+export async function withdrawOrganizationApplication(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly organizationId: string },
+): Promise<Result<Organization, ServiceError>> {
+  return db.transaction(async (tx) => {
+    const org = first(
+      await tx
+        .select()
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, input.organizationId))
+        .for('update'),
+    );
+    if (!org) return err(serviceError('not_found', 'organization not found'));
+
+    const actor = first(
+      await tx
+        .select({ role: schema.memberships.role, active: schema.memberships.active })
+        .from(schema.memberships)
+        .where(
+          and(
+            eq(schema.memberships.organizationId, input.organizationId),
+            eq(schema.memberships.accountId, input.actorAccountId),
+          ),
+        )
+        .limit(1),
+    );
+    if (!actor?.active || actor.role !== 'OWNER') {
+      return err(serviceError('forbidden', 'only an owner can withdraw this application'));
+    }
+    if (org.status !== 'PENDING_VERIFICATION') {
+      return err(
+        serviceError('invalid', 'only an application waiting for review can be withdrawn'),
+      );
+    }
+
+    // Every agency AI connection of this organization is locked before anything is audited, so
+    // this transaction keeps the documented order (connection rows first, the audit chain last)
+    // across the whole loop below, not only for its first member.
+    if (await agencyAiAvailable(tx)) {
+      await tx
+        .select({ id: schema.aiConnections.id })
+        .from(schema.aiConnectionAgencies)
+        .innerJoin(
+          schema.aiConnections,
+          eq(schema.aiConnections.id, schema.aiConnectionAgencies.connectionId),
+        )
+        .where(
+          and(
+            eq(schema.aiConnectionAgencies.organizationId, input.organizationId),
+            isNull(schema.aiConnections.revokedAt),
+          ),
+        )
+        .for('update', { of: schema.aiConnections });
+    }
+
+    // The row lock above makes the status check final: no other change can land in between.
+    const now = new Date();
+    const closed = required(
+      first(
+        await tx
+          .update(schema.organizations)
+          .set({ status: 'CLOSED', updatedAt: now })
+          .where(eq(schema.organizations.id, input.organizationId))
+          .returning(),
+      ),
+      'organization',
+    );
+
+    const activeMemberships = await tx
+      .select({
+        id: schema.memberships.id,
+        accountId: schema.memberships.accountId,
+        role: schema.memberships.role,
+      })
+      .from(schema.memberships)
+      .where(
+        and(
+          eq(schema.memberships.organizationId, input.organizationId),
+          eq(schema.memberships.active, true),
+        ),
+      )
+      .for('update');
+    let membershipsEnded = 0;
+    for (const membership of activeMemberships) {
+      const ended = await endMembershipInTx(tx, {
+        actorAccountId: input.actorAccountId,
+        organizationId: input.organizationId,
+        membershipId: membership.id,
+        memberAccountId: membership.accountId,
+        targetRole: membership.role,
+      });
+      if (!ended.ok) throw new Error('a locked membership could not be ended');
+      membershipsEnded += 1;
+    }
+
+    const revoked = await tx
+      .update(schema.organizationInvitations)
+      .set({ status: 'REVOKED', revokedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(schema.organizationInvitations.organizationId, input.organizationId),
+          eq(schema.organizationInvitations.status, 'PENDING'),
+        ),
+      )
+      .returning({ id: schema.organizationInvitations.id });
+
+    await appendAuditEvent(tx, {
+      eventType: 'ORGANIZATION_APPLICATION_WITHDRAWN',
+      actorAccountId: input.actorAccountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'organization',
+      resourceId: closed.id,
+      metadata: { membershipsEnded, invitationsRevoked: revoked.length },
+    });
+    return ok(closed);
+  });
 }

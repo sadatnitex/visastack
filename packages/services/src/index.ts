@@ -483,6 +483,7 @@ export {
   setRequireDifferentReviewer,
   suspendOrganization,
   terminateOrganization,
+  withdrawOrganizationApplication,
 } from './organizations';
 
 export {
