@@ -12172,9 +12172,9 @@ html:has(.sticky-action-bar) {
 
 /* WP-SB11 scroll budget exceptions: on a phone the agency Dashboard case table packs each case
    into a compact card: the case and its destination on top, then its six facts flowing together,
-   each after its own small label. The readiness ring's drawing is hidden there; its words
-   ("9 of 12 items ready") stay. Same cells, same words, so the 5 most urgent cases fit the
-   dashboard's two screens. */
+   each after its own small label. The readiness ring's drawing is out of sight there (a screen
+   reader still reads it) and its words ("9 of 12 items ready") stay. Same cells, same words, so the
+   5 most urgent cases fit the dashboard's two screens. */
 @media (max-width: 40rem) {
   .agency-case-table tbody tr {
     display: flex;
@@ -12220,7 +12220,39 @@ html:has(.sticky-action-bar) {
     display: inline-flex;
     margin: 0;
   }
+  /* Out of sight but still read: the drawing carries the spoken count ("9 of 12 items ready"). */
   .agency-case-table .progress-ring-graphic {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
+}
+/* WP-SB11 open case snapshot: each part draws its first 8 rows, then a Show All button inside the
+   part unfolds the rest, which are already on the page. The button says Show Fewer while open. */
+.snapshot-rows-more {
+  margin-top: 0.75rem;
+}
+.snapshot-rows-more > summary {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  list-style: none;
+  cursor: pointer;
+}
+.snapshot-rows-more > summary::-webkit-details-marker {
+  display: none;
+}
+.snapshot-rows-more[open] > summary {
+  margin-bottom: 0.5rem;
+}
+.snapshot-rows-more-open,
+.snapshot-rows-more[open] .snapshot-rows-more-closed {
+  display: none;
+}
+.snapshot-rows-more[open] .snapshot-rows-more-open {
+  display: inline;
 }

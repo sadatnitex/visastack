@@ -1,7 +1,6 @@
 import { isAcceptableInvitationContact, isUuid } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { CollapsibleGroup } from '../../../../../components/collapsible-group';
 import { ReferenceCode } from '../../../../../components/reference-code';
 import { EmptyState } from '../../../../../components/ui';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
@@ -171,12 +170,14 @@ export default async function AgencyClientsPage({
           organization access, never the invitation itself.
         </p>
         {invitations.total > 0 ? (
-          <CollapsibleGroup
+          // Keeps the state it first opened with across this page's own links (Show More, Back to
+          // the Newest Invitations), so a link into the list never folds it shut.
+          <FormGroup
             id="client-invitations"
             title="Pending Invitations"
             count={invitations.total}
             noun={{ one: 'pending invitation', other: 'pending invitations' }}
-            open={pagingInvitations || requests.viewCounts.all === 0}
+            openAtFirst={pagingInvitations || requests.viewCounts.all === 0}
           >
             <div className="rows u-mb-100" id="client-invitation-list">
               {invitations.items.map((invitation) => (
@@ -228,7 +229,7 @@ export default async function AgencyClientsPage({
               noun={{ one: 'pending invitation', other: 'pending invitations' }}
               newestLabel="Back to the Newest Invitations"
             />
-          </CollapsibleGroup>
+          </FormGroup>
         ) : (
           <div className="u-mb-150">
             <EmptyState

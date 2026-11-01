@@ -97,7 +97,7 @@ export default async function AgencyDashboardPage({
     assignee: assigneeFilter = '',
     quick: rawQuick = '',
   } = query;
-  // WP-SB5: the case table shows the 10 most urgent cases, then Show More; the reassignment
+  // WP-SB5: the case table shows the 5 most urgent cases (WP-SB11), then Show More; the reassignment
   // queue the same. The Cases page lists every case.
   const casesShown = parseShow(query.show, { step: DASHBOARD_TABLE_STEP });
   const queueShown = parseShow(query.queue, { step: DASHBOARD_CASE_STEP });

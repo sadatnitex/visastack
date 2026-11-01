@@ -8,16 +8,9 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { CollapsibleGroups } from '../../../../../../components/collapsible-group';
-import { type RowNoun, ShowMore } from '../../../../../../components/show-more';
 import { PageHeader } from '../../../../../../components/ui';
 import { documentTypeLabel } from '../../../../../../lib/labels';
 import { fieldLabel } from '../../../../../../lib/master-profile';
-import {
-  type SearchParamsRecord,
-  firstParam,
-  nextShow,
-  parseShow,
-} from '../../../../../../lib/paging';
 import { withSession } from '../../../../../../lib/session';
 import { AcknowledgementPanel } from './acknowledgement-panel';
 import {
@@ -100,39 +93,49 @@ const RESULT_STATE_LABELS: Record<RequirementResultState, { label: string; tone:
   NOT_APPLICABLE: { label: 'Not Applicable', tone: 'badge-neutral' },
 };
 
-/** The three parts of a snapshot; each is also its own `?<key>=` row count in the address. */
-const GROUP_KEYS = ['requirements', 'facts', 'documents'] as const;
-type GroupKey = (typeof GROUP_KEYS)[number];
-/** Which part to open, from `?open=` (set by that part's Show More). */
-const OPEN_KEY = 'open';
-
 /**
- * WP-SB11: an open part shows 8 rows, then Show More inside the part adds 8 more. A requirement
- * row with a long name and citation is about 120 px tall on a phone, so 8 keep the open snapshot
- * within two screens. The snapshot is one stored record already read in full, so this only limits
- * what is drawn; the ceiling is the part's own length, so every row stays reachable.
+ * WP-SB11: an open part draws its first 8 rows, then a Show All control inside the part reveals
+ * the rest. The other rows are already on the page (find-in-page, the browser opening the part for
+ * a search, and the confirmation below all still cover the whole snapshot); they are only folded,
+ * so the open snapshot fits two phone screens.
  */
-const SNAPSHOT_ROW_STEP = 8;
+const FIRST_ROWS = 8;
 
-function rowWindow(query: SearchParamsRecord, key: GroupKey, total: number) {
-  const sizes = {
-    step: SNAPSHOT_ROW_STEP,
-    max: Math.max(SNAPSHOT_ROW_STEP, Math.ceil(total / SNAPSHOT_ROW_STEP) * SNAPSHOT_ROW_STEP),
-  };
-  const shown = Math.min(total, parseShow(query[key], sizes));
-  const next = shown < total ? nextShow(shown, sizes) : null;
-  return { shown, next };
+function RowsWithMore<T>({
+  items,
+  label,
+  draw,
+}: {
+  readonly items: readonly T[];
+  /** Title Case, plural, for the control: "Requirements". */
+  readonly label: string;
+  readonly draw: (item: T) => ReactNode;
+}) {
+  const rest = items.slice(FIRST_ROWS);
+  return (
+    <>
+      <div className="rows u-mt-050">{items.slice(0, FIRST_ROWS).map(draw)}</div>
+      {rest.length > 0 ? (
+        <details className="snapshot-rows-more">
+          <summary className="btn btn-secondary u-btn-sm">
+            <span className="snapshot-rows-more-closed">
+              Show All {items.length} {label}
+            </span>
+            <span className="snapshot-rows-more-open">Show Fewer {label}</span>
+          </summary>
+          <div className="rows">{rest.map(draw)}</div>
+        </details>
+      ) : null}
+    </>
+  );
 }
 
 export default async function MissionSnapshotPage({
   params,
-  searchParams,
 }: {
   readonly params: Promise<{ id: string; snapshotId: string }>;
-  readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
   const { id, snapshotId } = await params;
-  const query: SearchParamsRecord = (await searchParams) ?? {};
 
   const data = await withSession(async ({ db, accountId }) => {
     const owned = await getMissionForOwner(db, accountId, id);
@@ -161,36 +164,6 @@ export default async function MissionSnapshotPage({
   const content = snapshot.content as SnapshotContent;
   const isPacket = PACKET_STATES.has(content.state);
   const facts = normalizeSnapshotFacts(content.facts);
-  const pathname = `/app/mission/${mission.id}/snapshots/${snapshot.id}`;
-  const openParam = firstParam(query[OPEN_KEY]);
-  const openKey = GROUP_KEYS.find((key) => key === openParam);
-  /** The first `shown` rows of one part, each with an id, and Show More below them. */
-  const capped = <T,>(
-    key: GroupKey,
-    items: readonly T[],
-    noun: RowNoun,
-    draw: (item: T, rowId: string) => ReactNode,
-  ) => {
-    const { shown, next } = rowWindow(query, key, items.length);
-    const rowId = (n: number) => `snapshot-${key}-row-${n}`;
-    return (
-      <>
-        <div className="rows u-mt-050">
-          {items.slice(0, shown).map((item, n) => draw(item, rowId(n)))}
-        </div>
-        <ShowMore
-          id={`snapshot-${key}-more`}
-          landOn={rowId(shown)}
-          pathname={pathname}
-          searchParams={query}
-          next={next === null ? null : { [key]: next, [OPEN_KEY]: key }}
-          shown={shown}
-          total={items.length}
-          noun={noun}
-        />
-      </>
-    );
-  };
 
   return (
     <section className="section container">
@@ -224,12 +197,10 @@ export default async function MissionSnapshotPage({
       ) : null}
 
       {/* WP-SB2: the three long parts of a snapshot open and close, each with its count; the
-          first one starts open (or the one whose Show More was used). WP-SB11: 8 rows a part,
-          then Show More inside it. */}
+          first one starts open. WP-SB11: 8 rows a part, then Show All inside it. */}
       <div className="u-mb-150">
         <CollapsibleGroups
           idPrefix="snapshot"
-          {...(openKey ? { openKey } : {})}
           groups={[
             ...(content.requirementMapping.length > 0
               ? [
@@ -246,17 +217,15 @@ export default async function MissionSnapshotPage({
                           Each pack requirement resolved to the specific evidence backing it, as of
                           this snapshot.
                         </p>
-                        {capped(
-                          'requirements',
-                          content.requirementMapping,
-                          { one: 'requirement', other: 'requirements' },
-                          (m, rowId) => {
+                        <RowsWithMore
+                          items={content.requirementMapping}
+                          label="Requirements"
+                          draw={(m) => {
                             const label = m.kind === 'FIELD' ? (fieldLabel(m.key) ?? m.key) : m.key;
                             return (
                               <div
                                 className="row"
                                 key={`${m.kind}-${m.key}`}
-                                id={rowId}
                                 style={{
                                   flexDirection: 'column',
                                   alignItems: 'stretch',
@@ -307,8 +276,8 @@ export default async function MissionSnapshotPage({
                                 ) : null}
                               </div>
                             );
-                          },
-                        )}
+                          }}
+                        />
                       </>
                     ),
                   },
@@ -323,15 +292,19 @@ export default async function MissionSnapshotPage({
                   {facts.length === 0 ? (
                     <p className="card-body">No facts recorded.</p>
                   ) : (
-                    capped('facts', facts, { one: 'fact', other: 'facts' }, (fact, rowId) => (
-                      <div className="row" key={fact.factId} id={rowId}>
-                        <span className="row-key">
-                          {fieldLabel(fact.fieldKey) ?? fact.fieldKey}
-                          {fact.repeatingRecordKey ? ` · ${fact.repeatingRecordKey}` : ''}
-                        </span>
-                        <span>{fact.value}</span>
-                      </div>
-                    ))
+                    <RowsWithMore
+                      items={facts}
+                      label="Facts"
+                      draw={(fact) => (
+                        <div className="row" key={fact.factId}>
+                          <span className="row-key">
+                            {fieldLabel(fact.fieldKey) ?? fact.fieldKey}
+                            {fact.repeatingRecordKey ? ` · ${fact.repeatingRecordKey}` : ''}
+                          </span>
+                          <span>{fact.value}</span>
+                        </div>
+                      )}
+                    />
                   )}
                 </>
               ),
@@ -345,12 +318,11 @@ export default async function MissionSnapshotPage({
                   {content.documents.length === 0 ? (
                     <p className="card-body">No documents recorded.</p>
                   ) : (
-                    capped(
-                      'documents',
-                      content.documents,
-                      { one: 'document', other: 'documents' },
-                      (doc, rowId) => (
-                        <div className="row" key={doc.documentVersionId} id={rowId}>
+                    <RowsWithMore
+                      items={content.documents}
+                      label="Documents"
+                      draw={(doc) => (
+                        <div className="row" key={doc.documentVersionId}>
                           <span className="row-key">{doc.displayName}</span>
                           {doc.docType ? (
                             <span className="badge badge-neutral">
@@ -358,8 +330,8 @@ export default async function MissionSnapshotPage({
                             </span>
                           ) : null}
                         </div>
-                      ),
-                    )
+                      )}
+                    />
                   )}
                 </>
               ),

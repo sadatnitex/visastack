@@ -65,22 +65,21 @@ test.describe('WP-SB2 case workspace', () => {
     await expect(groups).toHaveCount(3);
     await expect(page.locator('#snapshot-requirements')).toHaveAttribute('open', '');
     await expect(page.locator('#snapshot-facts')).not.toHaveAttribute('open', '');
-    // WP-SB11: as it opens, the first group draws 8 of its 60 rows and then Show More, so the
-    // open snapshot fits the phone budget too.
-    await expect(page.locator('#snapshot-requirements .row')).toHaveCount(8);
-    await expect(
-      page.locator('#snapshot-requirements').getByText('Showing 8 of 60 requirements.'),
-    ).toBeVisible();
-    await expect(
-      page.locator('#snapshot-requirements').getByRole('link', { name: 'Show More requirements' }),
-    ).toHaveAttribute(
-      'href',
-      '/app/mission/synthetic-case/snapshots/synthetic-snapshot?requirements=16&open=requirements#snapshot-requirements-row-8',
-    );
+    // WP-SB11: as it opens, the first group draws 8 of its 60 rows and folds the rest behind
+    // Show All, so the open snapshot fits the phone budget too; every row is still on the page.
+    const first = page.locator('#snapshot-requirements');
+    await expect(first.locator('.row')).toHaveCount(60);
+    await expect(first.locator('.row:visible')).toHaveCount(8);
+    const showAll = first.locator('details.snapshot-rows-more > summary');
+    await expect(showAll).toHaveText('Show All 60 Requirements', { useInnerText: true });
     for (const viewport of ['phone', 'desktop'] as const) {
       await expectWithinBudget(page, { screens: 2, viewport, mode: 'enforce' });
     }
     await page.setViewportSize(VIEWPORTS.phone);
+    await showAll.click();
+    await expect(first.locator('.row:visible')).toHaveCount(60);
+    await expect(showAll).toHaveText('Show Fewer Requirements', { useInnerText: true });
+    await showAll.click();
     // With its first group closed again, every part of the snapshot is one tap away.
     await page.locator('#snapshot-requirements > summary').click();
     for (const viewport of ['phone', 'desktop'] as const) {
