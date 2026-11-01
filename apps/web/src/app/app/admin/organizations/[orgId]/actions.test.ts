@@ -69,6 +69,13 @@ describe('recording a payment by hand', () => {
     expect(mocks.recordInvoicePayment).not.toHaveBeenCalled();
   });
 
+  it('WP-SB9: sends the fresh sign-in check back to the Invoices part of the page', async () => {
+    await recordInvoicePaymentAction(INITIAL, form());
+    expect(mocks.tryEstablishStepUp.mock.calls[0]?.[1]).toMatch(
+      /^\/app\/admin\/organizations\/[^?]+\?tab=invoices$/,
+    );
+  });
+
   it('sends the typed amount for the service to read in the stored invoice currency', async () => {
     const result = await recordInvoicePaymentAction(INITIAL, form({ invoiceCurrency: 'JPY' }));
     expect(result).toMatchObject({ ok: true });

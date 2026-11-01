@@ -151,6 +151,27 @@ describe('Plan & Usage for a traveller', () => {
     expect(text).toContain("that agency's own plan can also limit what more can be added to it");
   });
 
+  it('WP-SB9: shows a meter for the first 10 people, then Show More, still counting everyone', async () => {
+    const people = Array.from({ length: 12 }, (_, index) => ({
+      id: `person-${index}`,
+      displayName: `Person ${String(index + 1).padStart(2, '0')}`,
+    }));
+    mocks.applicants.mockResolvedValue(people);
+    for (const person of people) mocks.bytes[person.id] = MB;
+    const html = await renderServer(Page({}));
+    const text = textOf(html);
+    expect(text).toContain('Person 10 1 MB of 50 MB used');
+    expect(text).not.toContain('Person 11');
+    // The account total still counts all 12 people.
+    expect(text).toContain('Your Whole Account 12 MB of 100 MB used');
+    expect(text).toContain('Showing 10 of 12 people.');
+    expect(html).toContain('href="/app/account/plan?show=20#storage-row-10"');
+    const all = textOf(await renderServer(Page({ searchParams: Promise.resolve({ show: '20' }) })));
+    expect(all).toContain('Person 12 1 MB of 50 MB used');
+    expect(all).toContain('Showing all 12 people.');
+    for (const person of people) delete mocks.bytes[person.id];
+  });
+
   it('measures storage against this account’s own limits, which its plan can raise', async () => {
     mocks.summary.mockResolvedValue({
       plan: { key: 'traveller_plus', name: 'Traveller Plus' },

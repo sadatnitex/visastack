@@ -1,0 +1,21 @@
+# WP-SB4 Traveller tasks and forms (Scroll Budget programme, docs/upgrades/programme/SCROLL-BUDGET-PLAN.md section 6 "SB4").
+# Drafted from the SB4 seed (plan section 4 plus tests and shared files). The owner approved this allowlist
+# in advance on 31 Oct 2026 (relayed by the coordinator session).
+# documents/** is for the selected-document detail panel only. STATUS.md is not edited (only WP-SB10 writes it).
+apps/web/src/app/app/applicant/[id]/calendar/**
+apps/web/src/app/app/applicant/[id]/expiry/**
+apps/web/src/app/app/applicant/[id]/outputs/**
+apps/web/src/app/app/applicant/[id]/missions/prepare-again/**
+apps/web/src/app/app/applicant/[id]/documents/**
+apps/web/src/app/oauth/authorize/**
+apps/web/src/components/ai-access-choices.tsx
+apps/web/src/components/ai-access-choices.test.tsx
+apps/web/src/components/ai-file-choices.tsx
+apps/web/src/components/ai-file-choices.test.tsx
+apps/web/e2e/scroll-budget/WP-SB4.spec.ts
+# The package's own browser fixture, beside its spec (support.ts looks there first); test code only.
+apps/web/e2e/scroll-budget/scroll-budget-sb4.fixture.tsx
+apps/web/src/app/globals.css
+docs/commercial-v1/known-issues.md
+docs/upgrades/programme/COVERAGE-LEDGER.csv
+docs/upgrades/programme/allowlists/WP-SB4.txt

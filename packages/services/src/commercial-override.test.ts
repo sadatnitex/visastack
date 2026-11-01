@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
@@ -286,6 +287,12 @@ describe('commercial override -- grant, revoke, expiry (COM-02)', () => {
 
     const history = await listCommercialOverridesForOrganization(db, organizationId);
     expect(history).toHaveLength(2);
+    // WP-SB9: a limit keeps the newest only, for this organization only.
+    const newest = await listCommercialOverridesForOrganization(db, organizationId, { limit: 1 });
+    expect(newest.map((o) => o.reason)).toEqual(['second, independent reason']);
+    expect(
+      await listCommercialOverridesForOrganization(db, randomUUID(), { limit: 5 }),
+    ).toHaveLength(0);
 
     // Revoking the first leaves the second still active.
     if (!isOk(first)) return;

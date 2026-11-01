@@ -3,6 +3,17 @@ import { and, desc, eq } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import {
+  type Page,
+  type PageRequest,
+  clampLimit,
+  cursorOrder,
+  cursorTime,
+  decodeTimeCursor,
+  encodeTimeCursor,
+  olderThan,
+  toPage,
+} from './paging';
 
 /**
  * Separated consent lifecycle (Build Spec §13, PRD §2).
@@ -68,15 +79,39 @@ export async function hasConsent(db: Db, accountId: string, type: ConsentType): 
 export type ConsentRecord = typeof schema.consentRecords.$inferSelect;
 
 /**
- * Full consent history for an account, newest first. Records are append-only,
- * so this is the complete grant/revoke trail per purpose (Build Spec §13).
+ * Every consent change of one account, newest first (the form the data export uses). Records are
+ * append-only, so this is the complete grant and revoke trail per purpose (Build Spec §13). Given
+ * `options`, it reads one page instead: at most `limit` changes (default 50, clamped to 1 to 100),
+ * older pages through the `before` cursor. A cursor made for another account gives the first page.
  */
-export async function listConsentHistory(db: Db, accountId: string): Promise<ConsentRecord[]> {
-  return db
-    .select()
-    .from(schema.consentRecords)
-    .where(eq(schema.consentRecords.accountId, accountId))
-    .orderBy(desc(schema.consentRecords.createdAt));
+export async function listConsentHistory(db: Db, accountId: string): Promise<ConsentRecord[]>;
+export async function listConsentHistory(
+  db: Db,
+  accountId: string,
+  options: PageRequest,
+): Promise<Page<ConsentRecord>>;
+export async function listConsentHistory(
+  db: Db,
+  accountId: string,
+  options?: PageRequest,
+): Promise<ConsentRecord[] | Page<ConsentRecord>> {
+  const c = schema.consentRecords;
+  if (options === undefined) {
+    return db.select().from(c).where(eq(c.accountId, accountId)).orderBy(desc(c.createdAt));
+  }
+  const scope = `account:${accountId}:consent-history`;
+  const limit = clampLimit(options.limit);
+  const key = decodeTimeCursor(options.before, scope);
+  const rows = await db
+    .select({ record: c, cursorAt: cursorTime(c.createdAt) })
+    .from(c)
+    .where(and(eq(c.accountId, accountId), key ? olderThan(c.createdAt, c.id, key) : undefined))
+    .orderBy(...cursorOrder(c.createdAt, c.id))
+    .limit(limit + 1);
+  const page = toPage(rows, limit, (last) =>
+    encodeTimeCursor({ at: last.cursorAt, id: last.record.id }, scope),
+  );
+  return { items: page.items.map((row) => row.record), nextCursor: page.nextCursor };
 }
 
 /** Grant or revoke one consent type for the actor's own account. */
