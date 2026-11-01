@@ -26,6 +26,7 @@ import {
   safeCopyDrawingIds,
 } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import type { KeyManagementPort } from './ports';
 import type {
   PositionedText,
@@ -490,6 +491,7 @@ export async function listRedactionStates(
   }
   const ids = [...new Set(versionIds)].slice(0, MAX_LISTED_VERSIONS);
   if (ids.length === 0) return ok(new Map());
+  const lifecycle = await lifecycleTablesPresent(proof.tx);
   const versions = await proof.tx
     .select(versionFields())
     .from(schema.documentVersions)
@@ -501,6 +503,8 @@ export async function listRedactionStates(
         ...(proof.resource.kind === 'document'
           ? [eq(schema.documents.id, proof.resource.document.id)]
           : []),
+        // Safe Copy: presentDocumentCondition (archived keeps its copy, deleted is left out).
+        lifecycle ? presentDocumentCondition() : undefined,
       ),
     );
   return ok(await statesForVersions(proof.tx, versions));
@@ -533,11 +537,18 @@ export async function listSafeCopyStatesForDocuments(
   }
   const states = new Map<string, SafeCopyState>();
   if (!db || documents.size === 0) return states;
+  const lifecycle = await lifecycleTablesPresent(db);
   const rows = await db
     .select(versionFields())
     .from(schema.documentVersions)
     .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
-    .where(inArray(schema.documentVersions.documentId, [...documents.keys()]))
+    .where(
+      and(
+        inArray(schema.documentVersions.documentId, [...documents.keys()]),
+        // Safe Copy: presentDocumentCondition (a deleted document reads NOT_PREPARED).
+        lifecycle ? presentDocumentCondition() : undefined,
+      ),
+    )
     .orderBy(desc(schema.documentVersions.versionNumber));
   const latest = new Map<string, (typeof rows)[number]>();
   for (const row of rows) if (!latest.has(row.documentId)) latest.set(row.documentId, row);

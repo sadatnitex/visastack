@@ -18,6 +18,11 @@ import { aiFilesAvailable } from './ai-files-ready';
 import { type Db, schema } from './db';
 import { documentsLeavingByErasure } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import {
+  everydayDocumentCondition,
+  lifecycleTablesPresent,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
 import { isSafeCopyReady, listRedactionStates } from './redaction';
 import { referenceCodesFor } from './reference-codes';
 
@@ -128,6 +133,7 @@ export async function aiFileErasurePending(
   documentId: string,
 ): Promise<boolean> {
   if (!ownerProof(proof)) return true;
+  const lifecycle = await lifecycleTablesPresent(proof.tx);
   const own = await proof.tx
     .select({ id: schema.documents.id })
     .from(schema.documents)
@@ -135,6 +141,8 @@ export async function aiFileErasurePending(
       and(
         eq(schema.documents.id, documentId),
         eq(schema.documents.applicantId, proof.applicant.id),
+        // Serving an original file: presentDocumentCondition (a deleted one is leaving).
+        lifecycle ? presentDocumentCondition() : undefined,
       ),
     )
     .limit(1);
@@ -155,6 +163,7 @@ async function eligibleDocuments(
 ): Promise<EligibleDocument[]> {
   const applicantId = proof.applicant.id;
   if (only !== undefined && only.length === 0) return [];
+  const lifecycle = await lifecycleTablesPresent(db);
   const documents = await db
     .select({ id: schema.documents.id, docType: schema.documents.docType })
     .from(schema.documents)
@@ -164,6 +173,11 @@ async function eligibleDocuments(
         isNull(schema.documents.supersededByDocumentId),
         eq(schema.documents.walletVisible, true),
         ...(only !== undefined ? [inArray(schema.documents.id, [...only])] : []),
+        // Offered candidates: everydayDocumentCondition. Documents the person already chose
+        // (`only`): presentDocumentCondition (an archived choice stays, D6; a deleted one goes).
+        ...(lifecycle
+          ? [only === undefined ? everydayDocumentCondition() : presentDocumentCondition()]
+          : []),
       ),
     )
     .orderBy(desc(schema.documents.createdAt))

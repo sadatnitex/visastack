@@ -21,6 +21,7 @@ import { listVisibleMissionsForMember } from '../agency';
 import { agencyAiAvailable } from '../agency-ai-ready';
 import { type Db, first, schema } from '../db';
 import { resolveEntitlements } from '../entitlements';
+import { lifecycleTablesPresent, presentApplicantCondition } from '../lifecycle/foundation';
 import { findReferenceEntity, referenceCodesFor } from '../reference-codes';
 import { documentCategory, toPolicyGrant } from '../sharing';
 import { loadCaseExclusions, withCaseExclusions } from './grant-scope';
@@ -474,10 +475,17 @@ export async function listAgencyAiCases(
     byApplicant.set(mission.applicantId, list);
   }
   if (byApplicant.size === 0) return { cases: [], notShown: 0 };
+  const lifecycle = await lifecycleTablesPresent(tx);
   const owners = await tx
     .select({ id: schema.applicants.id, owner: schema.applicants.ownerAccountId })
     .from(schema.applicants)
-    .where(inArray(schema.applicants.id, [...byApplicant.keys()]));
+    .where(
+      and(
+        inArray(schema.applicants.id, [...byApplicant.keys()]),
+        // Agency view of shared cases: presentApplicantCondition (archive never revokes sharing, D6).
+        lifecycle ? presentApplicantCondition() : undefined,
+      ),
+    );
   const ownedByMember = new Set(
     owners.filter((row) => row.owner === member.accountId).map((row) => row.id),
   );

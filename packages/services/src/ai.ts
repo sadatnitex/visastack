@@ -36,6 +36,7 @@ import { documentVersionBelongsToApplicant } from './document-version-owner';
 import { getDocumentTypeOfVersion } from './documents';
 import { type ServiceError, serviceError } from './errors';
 import { getLatestExtractedText } from './intake';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { buildProposedName, extensionOf } from './naming';
 import type {
   AiOcrCacheKeyComponents,
@@ -2133,24 +2134,29 @@ export async function approveDocumentTypeProposal(
     return err(serviceError('forbidden', 'not authorized to decide this proposal'));
   }
 
-  const document = required(
-    first(
-      await db
-        .select({
-          id: schema.documents.id,
-          originalName: schema.documents.originalName,
-          docType: schema.documents.docType,
-        })
-        .from(schema.documents)
-        .innerJoin(
-          schema.documentVersions,
-          eq(schema.documentVersions.documentId, schema.documents.id),
-        )
-        .where(eq(schema.documentVersions.id, proposal.documentVersionId))
-        .limit(1),
-    ),
-    'document',
+  const lifecycle = await lifecycleTablesPresent(db);
+  const document = first(
+    await db
+      .select({
+        id: schema.documents.id,
+        originalName: schema.documents.originalName,
+        docType: schema.documents.docType,
+      })
+      .from(schema.documents)
+      .innerJoin(
+        schema.documentVersions,
+        eq(schema.documentVersions.documentId, schema.documents.id),
+      )
+      .where(
+        and(
+          eq(schema.documentVersions.id, proposal.documentVersionId),
+          // A command on one document: presentDocumentCondition (deleted answers as missing).
+          lifecycle ? presentDocumentCondition() : undefined,
+        ),
+      )
+      .limit(1),
   );
+  if (!document) return err(serviceError('not_found', 'document not found'));
 
   const extractionRun = required(
     first(
@@ -2385,6 +2391,7 @@ export async function suggestDocumentKind(
 
   // The file must be one of this applicant's own, and the very document the proof names when it
   // names one.
+  const lifecycle = await lifecycleTablesPresent(db);
   const row = first(
     await db
       .select({
@@ -2403,6 +2410,8 @@ export async function suggestDocumentKind(
           ...(proof.resource.kind === 'document'
             ? [eq(schema.documents.id, proof.resource.document.id)]
             : []),
+          // A command on one document: presentDocumentCondition (deleted answers as missing).
+          lifecycle ? presentDocumentCondition() : undefined,
         ),
       )
       .limit(1),

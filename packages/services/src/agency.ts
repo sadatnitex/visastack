@@ -23,6 +23,11 @@ import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import {
+  lifecycleTablesPresent,
+  presentApplicantCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
+import {
   cancelQueuedNotificationsForResource,
   enqueueNotificationBothChannels,
 } from './notifications';
@@ -1082,6 +1087,7 @@ export async function listMissionsForOrganization(
   organizationId: string,
 ): Promise<OrgMission[]> {
   const now = new Date();
+  const lifecycle = await lifecycleTablesPresent(db);
   const rows = await withCaseExclusions(db, (covers) =>
     db
       .selectDistinct({
@@ -1102,6 +1108,8 @@ export async function listMissionsForOrganization(
           lte(schema.grants.startAt, now),
           or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
           covers(schema.missions.id),
+          // Agency view of shared cases: presentApplicantCondition (archive never revokes sharing, D6).
+          lifecycle ? presentApplicantCondition() : undefined,
         ),
       ),
   );
@@ -1709,6 +1717,7 @@ export async function listEvidenceRequestsForOrgDetailed(
   // 1.1 seconds for the per-row version, docs/operations/capacity.md).
   const applicantIds = [...new Set(listed.value.map((request) => request.applicantId))];
   const names = new Map<string, { readonly name: string; readonly timezone: string }>();
+  const lifecycle = await lifecycleTablesPresent(db);
   if (applicantIds.length > 0) {
     const rows = await db
       .select({
@@ -1717,10 +1726,20 @@ export async function listEvidenceRequestsForOrgDetailed(
         timezone: schema.applicants.timezone,
       })
       .from(schema.applicants)
-      .where(inArray(schema.applicants.id, applicantIds));
+      .where(
+        and(
+          inArray(schema.applicants.id, applicantIds),
+          // Agency view: presentApplicantCondition (archive never revokes sharing, D6).
+          lifecycle ? presentApplicantCondition() : undefined,
+        ),
+      );
     for (const row of rows) names.set(row.id, { name: row.displayName, timezone: row.timezone });
   }
-  const result: EvidenceRequestWithApplicant[] = listed.value.map((request) => ({
+  // A traveller record in Recently Deleted takes its requests out of the agency's list.
+  const visible = lifecycle
+    ? listed.value.filter((request) => names.has(request.applicantId))
+    : listed.value;
+  const result: EvidenceRequestWithApplicant[] = visible.map((request) => ({
     ...request,
     applicantName: names.get(request.applicantId)?.name ?? 'Unknown applicant',
     applicantTimezone: names.get(request.applicantId)?.timezone ?? null,
@@ -2168,6 +2187,7 @@ export async function listApplicantsForOrganization(
   organizationId: string,
 ): Promise<OrgApplicant[]> {
   const now = new Date();
+  const lifecycle = await lifecycleTablesPresent(db);
   const rows = await db
     .selectDistinct({
       applicantId: schema.grants.applicantId,
@@ -2182,6 +2202,8 @@ export async function listApplicantsForOrganization(
         isNotNull(schema.grants.acceptedAt),
         lte(schema.grants.startAt, now),
         or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+        // Agency view: presentApplicantCondition (archive never revokes sharing, D6).
+        lifecycle ? presentApplicantCondition() : undefined,
       ),
     );
   return rows;
@@ -2338,11 +2360,18 @@ export async function submitEvidenceResponse(
         serviceError('invalid', 'a DOCUMENT request is satisfied by exactly one documentId'),
       );
     }
+    const lifecycle = await lifecycleTablesPresent(db);
     const document = first(
       await db
         .select({ applicantId: schema.documents.applicantId, docType: schema.documents.docType })
         .from(schema.documents)
-        .where(eq(schema.documents.id, input.documentId))
+        .where(
+          and(
+            eq(schema.documents.id, input.documentId),
+            // The owner's explicit answer: presentDocumentCondition (archived stays, deleted goes).
+            lifecycle ? presentDocumentCondition() : undefined,
+          ),
+        )
         .limit(1),
     );
     if (!document || document.applicantId !== request.applicantId) {

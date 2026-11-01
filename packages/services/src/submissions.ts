@@ -3,6 +3,7 @@ import { and, eq, isNotNull } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { getLiveAcknowledgement } from './material-revision';
 import { getMissionForOwner } from './missions';
 
@@ -113,6 +114,7 @@ export async function recordSubmission(
       return err(serviceError('stale', 'this case has no current live acknowledgement to submit'));
     }
 
+    const lifecycle = await lifecycleTablesPresent(tx);
     const selectedDocumentExpiries = await tx
       .select({ expiresAt: schema.documents.expiresAt })
       .from(schema.selectedEvidence)
@@ -121,6 +123,8 @@ export async function recordSubmission(
         and(
           eq(schema.selectedEvidence.missionId, input.missionId),
           isNotNull(schema.documents.expiresAt),
+          // The case's own selection: presentDocumentCondition (archived stays, deleted goes).
+          lifecycle ? presentDocumentCondition() : undefined,
         ),
       );
     const now = Date.now();
