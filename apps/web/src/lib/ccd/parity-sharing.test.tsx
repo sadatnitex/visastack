@@ -23,9 +23,29 @@ vi.mock('@visastack/services', async (importOriginal) => ({
     displayName: 'Karim Rahman',
     timezone: 'Asia/Dhaka',
   }),
-  listAccessForApplicantDetailed: async () => state.access,
+  // WP-SB3: the page reads one page of grants with counts; the fixture lists stay plain.
+  listAccessForApplicantDetailed: async () => {
+    const access = state.access as
+      | { ok: true; value: { status: string; expiryAt: Date | null }[] }
+      | { ok: false };
+    if (!access.ok) return access;
+    const holds = (grant: { status: string; expiryAt: Date | null }) =>
+      (grant.status === 'ACTIVE' || grant.status === 'PAUSED') &&
+      (grant.expiryAt === null || new Date(grant.expiryAt).getTime() > Date.now());
+    return {
+      ok: true,
+      value: {
+        items: access.value,
+        counts: {
+          total: access.value.length,
+          active: access.value.filter((grant) => grant.status === 'ACTIVE').length,
+          holdingAccess: access.value.filter(holds).length,
+        },
+      },
+    };
+  },
   listDocumentsDetailed: async () => state.documents,
-  listAuditEventsForApplicant: async () => state.audit,
+  listAuditEventsForApplicant: async () => ({ items: state.audit, nextCursor: null }),
   listApplicantProfile: async () => [],
   previewScopeExpansion: async () => ({ ok: true, value: state.expansions }),
   listSharingInvitations: async () => state.invitations,

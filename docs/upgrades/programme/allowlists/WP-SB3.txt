@@ -16,6 +16,13 @@ packages/services/src/insights-read.test.ts
 packages/services/src/agency.ts
 packages/services/src/evidence-requests-page.test.ts
 apps/web/e2e/scroll-budget/WP-SB3.spec.ts
+# Approved by the coordinator on 1 Nov 2026, the only files outside the seed:
+# audit.ts for listAuditEventsForApplicant only (the access log cursor), and the two parity tests'
+# fakes only (the new { items, counts } shape; their assertions unchanged).
+packages/services/src/audit.ts
+packages/services/src/access-log-page.test.ts
+apps/web/src/lib/ccd/parity-sharing.test.tsx
+apps/web/src/lib/ccd/parity-evidence.test.tsx
 # The spec's own fixture, in the spec's folder where WP-SB0's renderFixture looks first (a test file).
 apps/web/e2e/scroll-budget/WP-SB3.fixture.tsx
 apps/web/src/app/globals.css

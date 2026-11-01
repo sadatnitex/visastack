@@ -49,7 +49,7 @@ import { grantStatusBadge } from '../../../../../lib/grant-status';
 import { permissionActionLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
 import { categoryLabel, newCategoriesWithData } from '../../../../../lib/master-profile';
-import { nextShow, parseShow } from '../../../../../lib/paging';
+import { nextShow, pagingHref, parseCursor, parseShow } from '../../../../../lib/paging';
 import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
 import { accessDoneLine } from '../../../../../lib/success-lines';
@@ -73,8 +73,12 @@ export const metadata: Metadata = { title: 'Sharing' };
 
 export const dynamic = 'force-dynamic';
 
-/** How many access log entries the page reads, newest first. */
-const ACCESS_LOG_LIMIT = 300;
+/** How many access log entries the page reads at once, newest first (WP-SB3: then older pages). */
+const ACCESS_LOG_LIMIT = 50;
+/** The address parameter holding the access log's older-page cursor. */
+const LOG_KEY = 'log';
+/** Where Show Older Entries lands: the access log itself. */
+const LOG_ANCHOR = 'access-log';
 
 /** WP-SB3: grants shown at first, and how many more each Show More adds. */
 const GRANT_STEP = 5;
@@ -120,6 +124,8 @@ export default async function SharingPage({
   const t = createTranslator(await getLocale());
   // WP-SB3: only the first grants are read in full; Show More asks for more (`?show=`).
   const grantsShown = parseShow(search[SHOW_KEY], { step: GRANT_STEP });
+  // The access log's older page, if one was asked for; the service checks it belongs to this log.
+  const logBefore = parseCursor(search[LOG_KEY]);
 
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
@@ -236,7 +242,10 @@ export default async function SharingPage({
         listAccessForApplicantDetailed(db, accountId, id, { limit: grantsShown }),
         listDocumentsDetailed(db, accountId, id),
         // A longer history than the old list showed: it now scrolls in its own box and filters.
-        listAuditEventsForApplicant(db, accountId, id, ACCESS_LOG_LIMIT),
+        listAuditEventsForApplicant(db, accountId, id, {
+          limit: ACCESS_LOG_LIMIT,
+          ...(logBefore ? { before: logBefore } : {}),
+        }),
         listApplicantProfile(db, id),
         readAiConnections(aiListing),
         readAiSuggestions(aiListing),
@@ -316,7 +325,11 @@ export default async function SharingPage({
       documents: documents.ok ? documents.value : [],
       scopeExpansions,
       extraCategories: newCategoriesWithData(profileEntries),
-      auditEvents: auditEvents.map((e) => ({ ...e, occurredAt: e.occurredAt.toISOString() })),
+      auditEvents: auditEvents.items.map((e) => ({
+        ...e,
+        occurredAt: e.occurredAt.toISOString(),
+      })),
+      auditOlderCursor: auditEvents.nextCursor,
     };
   });
 
@@ -706,6 +719,27 @@ export default async function SharingPage({
               ) : (
                 <ActivityLog
                   label="Access Log Entries"
+                  id={LOG_ANCHOR}
+                  {...(data.auditOlderCursor
+                    ? {
+                        olderHref: pagingHref(
+                          `/app/applicant/${id}/sharing`,
+                          search,
+                          { [LOG_KEY]: data.auditOlderCursor },
+                          LOG_ANCHOR,
+                        ),
+                      }
+                    : {})}
+                  {...(logBefore
+                    ? {
+                        newestHref: pagingHref(
+                          `/app/applicant/${id}/sharing`,
+                          search,
+                          { [LOG_KEY]: null },
+                          LOG_ANCHOR,
+                        ),
+                      }
+                    : {})}
                   entries={data.auditEvents.map((e) => ({
                     id: String(e.seq),
                     what: e.agencyAi

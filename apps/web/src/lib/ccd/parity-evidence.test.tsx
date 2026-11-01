@@ -24,7 +24,24 @@ vi.mock('@visastack/services', async (importOriginal) => ({
     displayName: 'Karim Rahman',
     timezone: 'Asia/Dhaka',
   }),
-  listEvidenceRequestsForApplicant: async () => state.requests,
+  // WP-SB3: the page reads one page of requests with counts; the fixture lists stay plain.
+  listEvidenceRequestsForApplicant: async () => {
+    const requests = state.requests as { ok: true; value: { status: string }[] } | { ok: false };
+    if (!requests.ok) return requests;
+    return {
+      ok: true,
+      value: {
+        items: requests.value,
+        more: false,
+        counts: {
+          total: requests.value.length,
+          awaiting: requests.value.filter(
+            (request) => request.status === 'OPEN' || request.status === 'NEEDS_REPLACEMENT',
+          ).length,
+        },
+      },
+    };
+  },
   listApplicantProfile: async () => [
     { factId: 'f1', fieldKey: 'passport_number', value: 'A1234567' },
   ],

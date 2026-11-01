@@ -42,10 +42,21 @@ async function grantPage(...args: unknown[]) {
     },
   };
 }
+/** The access log is read one page at a time (WP-SB3): a plain fixture list becomes that page. */
+async function auditPage(...args: unknown[]) {
+  const events = (await mocks.listAuditEventsForApplicant(...args)) as unknown[];
+  const options = args[3] as { limit?: number } | undefined;
+  const limit = options?.limit ?? 50;
+  return {
+    items: events.slice(0, limit),
+    nextCursor: events.length > limit ? 'next-page-cursor' : null,
+  };
+}
 vi.mock('@visastack/services', async (original) => ({
   ...(await original<typeof import('@visastack/services')>()),
   ...mocks,
   listAccessForApplicantDetailed: grantPage,
+  listAuditEventsForApplicant: auditPage,
 }));
 vi.mock('../../../../../lib/locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('../../../../../lib/session', () => ({
@@ -692,5 +703,28 @@ describe('a long list of grants stays short (WP-SB3)', () => {
     const html = await render();
     expect(html).toContain('activity-log-scroll');
     expect(html).toContain('aria-label="Access Log Entries"');
+    expect(mocks.listAuditEventsForApplicant).toHaveBeenCalledWith({}, 'owner', 'owned', {
+      limit: 50,
+    });
+    expect(html.match(/<li class="row activity-log-row"/g)).toHaveLength(50);
+    expect(textOf(html)).toContain('Show Older Entries');
+    expect(html).toContain('href="/app/applicant/owned/sharing?log=next-page-cursor#access-log"');
+    expect(html).not.toContain('Show Newest Entries');
+  });
+
+  it('passes a well-formed older-page cursor to the service and drops a malformed one', async () => {
+    const page = (search: Record<string, string>) =>
+      renderServer(
+        Page({ params: Promise.resolve({ id: 'owned' }), searchParams: Promise.resolve(search) }),
+      );
+    await page({ log: 'eyJ2IjoxfQ' });
+    expect(mocks.listAuditEventsForApplicant).toHaveBeenLastCalledWith({}, 'owner', 'owned', {
+      limit: 50,
+      before: 'eyJ2IjoxfQ',
+    });
+    await page({ log: '"><script>' });
+    expect(mocks.listAuditEventsForApplicant).toHaveBeenLastCalledWith({}, 'owner', 'owned', {
+      limit: 50,
+    });
   });
 });
