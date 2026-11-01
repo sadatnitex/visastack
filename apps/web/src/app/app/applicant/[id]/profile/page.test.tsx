@@ -13,7 +13,9 @@ const service = vi.hoisted(() => ({
   listPendingAppSuggestions: vi.fn(),
   aiSuggestionsInUse: vi.fn(),
   requireAccess: vi.fn(),
+  listEndedRecords: vi.fn(),
 }));
+const editorProps = vi.hoisted(() => ({ last: undefined as unknown }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
@@ -28,7 +30,10 @@ vi.mock('../../../../../lib/providers', () => ({
 }));
 vi.mock('../../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('../profile-editor', () => ({
-  ProfileEditor: () => <div id="profile-editor">Versioned editor</div>,
+  ProfileEditor: (props: unknown) => {
+    editorProps.last = props;
+    return <div id="profile-editor">Versioned editor</div>;
+  },
 }));
 vi.mock('../../../../../components/profile-photo/profile-photo-control', () => ({
   ProfilePhotoControl: () => <div>Photo control</div>,
@@ -98,6 +103,18 @@ beforeEach(() => {
   service.listPendingAppSuggestions.mockResolvedValue([]);
   service.aiSuggestionsInUse.mockResolvedValue(false);
   service.requireAccess.mockResolvedValue({ ok: true, value: { proof: 'owner' } });
+  service.listEndedRecords.mockResolvedValue(new Map());
+});
+
+describe('Ended entries (LC-G1)', () => {
+  it('passes the ended entries to the editor, read through the owner gate', async () => {
+    service.listEndedRecords.mockResolvedValue(new Map([['r1', '2025-06-30T00:00:00.000Z']]));
+    await render();
+    expect(service.listEndedRecords).toHaveBeenCalledWith({ proof: 'owner' });
+    expect((editorProps.last as { endedRecords?: unknown }).endedRecords).toEqual({
+      r1: '2025-06-30T00:00:00.000Z',
+    });
+  });
 });
 
 describe('Suggestions from AI Apps on My Profile (S21)', () => {

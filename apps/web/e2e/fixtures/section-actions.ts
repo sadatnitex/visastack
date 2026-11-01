@@ -12,3 +12,9 @@ export async function setExemptionAction() {
 export async function saveOtherItemAction() {
   return refused;
 }
+export async function markNotCurrentAction() {
+  return refused;
+}
+export async function markEndedAction() {
+  return refused;
+}
