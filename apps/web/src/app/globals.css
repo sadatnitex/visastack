@@ -11419,15 +11419,6 @@ html:has(.sticky-action-bar) {
   font-size: var(--text-small);
 }
 
-<<<<<<< HEAD
-/* WP-SB6 staff operations within the scroll budget: queues (failed jobs, emails, feedback, the
-   invitation history) use the log's fixed box and scroll inside; the overview folds its specialist
-   cards into groups; complaints show status tabs with the forms behind an expander. */
-.staff-queue-panel {
-  padding: 0 0.75rem;
-}
-.staff-queue-panel > .rows {
-=======
 /* WP-SB1 traveller records and logs: the profile-part choice above Profile History, Case History
    as closed groups with each case's records in a fixed panel, and the notification panel. */
 .history-part-form {
@@ -11520,36 +11511,10 @@ html:has(.sticky-action-bar) {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
->>>>>>> origin/main
   margin: 0;
   padding: 0;
   list-style: none;
 }
-<<<<<<< HEAD
-.staff-queue-panel > .rows > .row:last-child {
-  border-bottom: 0;
-}
-.staff-queue-paging {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
-  margin-top: 0.75rem;
-}
-.staff-queue-paging .show-more {
-  margin: 0;
-}
-.failed-job-row,
-.invitation-row,
-.complaint-row {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.4rem;
-}
-.failed-job-head,
-.invitation-row-head,
-.complaint-row-head {
-=======
 .output-step {
   display: inline-flex;
   align-items: center;
@@ -11713,12 +11678,135 @@ html:has(.sticky-action-bar) {
   gap: 0.35rem;
 }
 .sb7-stack-head {
->>>>>>> origin/main
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-<<<<<<< HEAD
+  gap: var(--space-2) 0.75rem;
+}
+.sb7-break {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.sb7-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.sb7-pack-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.sb7-requirements {
+  margin-bottom: var(--space-3);
+}
+.sb7-picker {
+  position: relative;
+  display: grid;
+  gap: 0.35rem;
+}
+.sb7-picker-list {
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  max-height: 16rem;
+  overflow-y: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.sb7-picker-list[hidden] {
+  display: none;
+}
+.sb7-picker-option {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.sb7-picker-option:hover {
+  background: var(--bg-subtle);
+}
+.sb7-picker-option[aria-selected="true"] {
+  background: var(--bg-subtle);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+@media (forced-colors: active) {
+  .sb7-picker-option[aria-selected="true"] {
+    outline-color: Highlight;
+  }
+}
+
+/* WP-SB8 scroll budget for public pages and countries: the route search on the public trust page
+   (a plain form that works without script) and the end of the capped country list. */
+.trust-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+}
+.trust-search .field {
+  flex: 1 1 16rem;
+  max-width: 28rem;
+  margin: 0;
+}
+.trust-search .btn,
+.trust-search a {
+  min-height: 44px;
+}
+.trust-search a {
+  display: inline-flex;
+  align-items: center;
+}
+.country-more {
+  justify-content: flex-start;
+}
+
+/* WP-SB6 staff operations within the scroll budget: queues (failed jobs, emails, feedback, the
+   invitation history) use the log's fixed box and scroll inside; the overview folds its specialist
+   cards into groups; complaints show status tabs with the forms behind an expander. */
+.staff-queue-panel {
+  padding: 0 0.75rem;
+}
+.staff-queue-panel > .rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.staff-queue-panel > .rows > .row:last-child {
+  border-bottom: 0;
+}
+.staff-queue-paging {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.75rem;
+}
+.staff-queue-paging .show-more {
+  margin: 0;
+}
+.failed-job-row,
+.invitation-row,
+.complaint-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+.failed-job-head,
+.invitation-row-head,
+.complaint-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
   gap: 0.5rem 0.75rem;
 }
 .failed-job-name,
@@ -11863,91 +11951,4 @@ html:has(.sticky-action-bar) {
   .platform-operations .staff-queue-panel {
     max-height: 22rem;
   }
-=======
-  gap: var(--space-2) 0.75rem;
-}
-.sb7-break {
-  overflow-wrap: anywhere;
-  min-width: 0;
-}
-.sb7-mono {
-  font-family: var(--font-mono);
-  font-size: var(--text-small);
-  overflow-wrap: anywhere;
-}
-.sb7-pack-versions {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-.sb7-requirements {
-  margin-bottom: var(--space-3);
-}
-.sb7-picker {
-  position: relative;
-  display: grid;
-  gap: 0.35rem;
-}
-.sb7-picker-list {
-  margin: 0;
-  padding: var(--space-1) 0;
-  list-style: none;
-  max-height: 16rem;
-  overflow-y: auto;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
-}
-.sb7-picker-list[hidden] {
-  display: none;
-}
-.sb7-picker-option {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  min-height: 44px;
-  padding: 0 var(--space-3);
-  cursor: pointer;
-  overflow-wrap: anywhere;
-}
-.sb7-picker-option:hover {
-  background: var(--bg-subtle);
-}
-.sb7-picker-option[aria-selected="true"] {
-  background: var(--bg-subtle);
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-@media (forced-colors: active) {
-  .sb7-picker-option[aria-selected="true"] {
-    outline-color: Highlight;
-  }
-}
-
-/* WP-SB8 scroll budget for public pages and countries: the route search on the public trust page
-   (a plain form that works without script) and the end of the capped country list. */
-.trust-search {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.75rem 1rem;
-  margin-bottom: 1.5rem;
-}
-.trust-search .field {
-  flex: 1 1 16rem;
-  max-width: 28rem;
-  margin: 0;
-}
-.trust-search .btn,
-.trust-search a {
-  min-height: 44px;
-}
-.trust-search a {
-  display: inline-flex;
-  align-items: center;
-}
-.country-more {
-  justify-content: flex-start;
->>>>>>> origin/main
 }
