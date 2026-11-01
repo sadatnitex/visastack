@@ -1,0 +1,30 @@
+# WP-SB1 Traveller records and logs (Scroll Budget programme, docs/upgrades/programme/SCROLL-BUDGET-PLAN.md section 6 "SB1").
+# Drafted from the SB1 seed (plan section 4 plus tests and shared files). The owner approved this allowlist
+# in advance on 31 Oct 2026 (relayed by the coordinator session). STATUS.md is not edited (only WP-SB10 writes it).
+# Service files: only the named functions change (listFactHistory and listApplicantProfile in profile.ts,
+# getApplicationMemory in application-memory.ts, listConsentHistory in consent.ts, listNotificationsForAccount
+# in notifications.ts). packages/services/src/index.ts is not edited.
+apps/web/src/app/app/applicant/[id]/history/**
+apps/web/src/app/app/applicant/[id]/memory/**
+apps/web/src/app/app/privacy/page.tsx
+apps/web/src/app/app/privacy/page.test.tsx
+apps/web/src/app/app/notifications/**
+packages/services/src/profile.ts
+packages/services/src/profile-history.test.ts
+packages/services/src/application-memory.ts
+packages/services/src/application-memory.test.ts
+packages/services/src/consent.ts
+packages/services/src/consent-history.test.ts
+packages/services/src/notifications.ts
+packages/services/src/notifications.test.ts
+apps/web/e2e/scroll-budget/WP-SB1.spec.ts
+# The spec's own fixture (coordinator approved on 1 Nov 2026 as part of "their tests"; support.ts loads <name>.fixture.tsx).
+apps/web/e2e/scroll-budget/WP-SB1.fixture.tsx
+apps/web/src/app/globals.css
+docs/commercial-v1/known-issues.md
+docs/upgrades/programme/COVERAGE-LEDGER.csv
+docs/upgrades/programme/allowlists/WP-SB1.txt
+# Outside the seed, under the coordinator's standing approval of 1 Nov 2026: only its fake return value changes to the paged shape.
+apps/web/src/lib/ccd/parity-privacy.test.tsx
+# Outside the seed, coordinator decision (A) of 1 Nov 2026: two states follow plan section 6 (ten first, the rest on the Show More page); every other assertion unchanged.
+apps/web/src/lib/ccd/parity-notifications.test.tsx
