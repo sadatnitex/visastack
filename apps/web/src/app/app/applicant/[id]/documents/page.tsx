@@ -226,7 +226,7 @@ export default async function ApplicantDocumentsPage({
       pendingInconsistencyFlags,
       wallet,
     ] = await Promise.all([
-      listDocumentsDetailed(db, accountId, id),
+      listDocumentsDetailed(db, accountId, id, { lifecycle: 'all' }),
       hasConsent(db, accountId, 'CORE_PROCESSING'),
       hasConsent(db, accountId, 'AI_EXTRACTION'),
       hasConsent(db, accountId, 'AI_OCR'),
@@ -389,7 +389,13 @@ export default async function ApplicantDocumentsPage({
   const protectedKinds = documentGroups
     .flatMap((group) => group.choices.map((choice) => choice.key))
     .filter((key) => isRestrictedDocumentType(key, data.protection));
-  const anyProcessing = data.documents.some((doc) => isStillProcessing(doc.processingStatus));
+  // A document in Recently Deleted is never processed again (LC-A2), so it never keeps the page
+  // refreshing, whatever state it was left in.
+  const anyProcessing = data.documents.some((doc) => {
+    const state = data.lifecycle?.states.get(doc.id)?.state;
+    if (state === 'RECENTLY_DELETED' || state === 'REMOVING') return false;
+    return isStillProcessing(doc.processingStatus);
+  });
   // A queued or running AI reading keeps the page fresh too, though the file itself is ready.
   const readingInProgress = [...(data.reading?.states.values() ?? [])].some(
     (state) => state.stage === 'reading' || state.stage === 'checking',

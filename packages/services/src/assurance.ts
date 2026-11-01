@@ -7,6 +7,7 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { listMembershipsForAccount } from './organizations';
 
 /**
@@ -413,11 +414,18 @@ export async function recordIssuerVerification(
     }
   }
   if (input.documentId) {
+    const lifecycle = await lifecycleTablesPresent(db);
     const document = first(
       await db
         .select({ applicantId: schema.documents.applicantId })
         .from(schema.documents)
-        .where(eq(schema.documents.id, input.documentId))
+        .where(
+          and(
+            eq(schema.documents.id, input.documentId),
+            // A command on one named document: presentDocumentCondition (deleted answers as missing).
+            lifecycle ? presentDocumentCondition() : undefined,
+          ),
+        )
         .limit(1),
     );
     if (!document || document.applicantId !== input.applicantId) {

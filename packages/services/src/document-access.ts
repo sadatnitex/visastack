@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { type PermissionAction, type Result, err, ok } from '@visastack/core';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { AuthorizedApplicant, EACH_GRANT } from './access/require-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { hasActiveOrVerifiedErasureJob } from './erasure';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import type { StoredBytes } from './storage';
 
 /**
@@ -117,8 +118,31 @@ export type LatestUsableVersion =
   | { readonly kind: 'usable'; readonly version: VersionRow }
   | {
       readonly kind: 'refused';
-      readonly reason: 'no_stored_version' | 'bytes_already_erased' | 'not_yet_safe_to_serve';
+      readonly reason:
+        | 'no_stored_version'
+        | 'bytes_already_erased'
+        | 'not_yet_safe_to_serve'
+        | 'document_removed';
     };
+
+/**
+ * Whether a document may still be served or changed: not in Recently Deleted and not being
+ * removed (presentDocumentCondition, LC-A2). An archived document is present. A document proof
+ * loads its record whatever its lifecycle state, so every byte path asks this one question.
+ * Before migration 0113 every document is present.
+ */
+export async function documentIsPresent(proof: DocumentProof): Promise<boolean> {
+  if (proof.resource.kind !== 'document') return false;
+  const db = proof.tx;
+  const documentId = proof.resource.document.id;
+  if (!(await lifecycleTablesPresent(db))) return true;
+  const present = await db
+    .select({ id: schema.documents.id })
+    .from(schema.documents)
+    .where(and(eq(schema.documents.id, documentId), presentDocumentCondition()))
+    .limit(1);
+  return present.length > 0;
+}
 
 /**
  * The latest version of the proof's document, only when it is safe to use: scanned clean, in a
@@ -127,6 +151,12 @@ export type LatestUsableVersion =
 export async function latestUsableVersion(proof: DocumentProof): Promise<LatestUsableVersion> {
   if (proof.resource.kind !== 'document') return { kind: 'refused', reason: 'no_stored_version' };
   const db = proof.tx;
+  // The file paths built on a document proof (Safe Copy, AI original file, photo sizing) never
+  // serve a document in Recently Deleted or being removed (LC-A2); preview and download apply the
+  // same rule in documents.ts. The audit reason names the removal.
+  if (!(await documentIsPresent(proof))) {
+    return { kind: 'refused', reason: 'document_removed' };
+  }
   const version = first(
     await db
       .select()

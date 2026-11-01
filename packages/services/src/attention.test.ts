@@ -1390,3 +1390,73 @@ describe('recordCalendarExport (an audit entry per calendar file, never its cont
     HEAVY,
   );
 });
+
+describe('reminders, dates and the resource lifecycle (LC-A2)', () => {
+  async function markDocument(
+    documentId: string,
+    applicantId: string,
+    state: 'archived' | 'deleted',
+  ) {
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values(
+      state === 'archived'
+        ? { documentId, applicantId, archivedAt: now }
+        : {
+            documentId,
+            applicantId,
+            deletedAt: now,
+            deletePath: 'DUPLICATE',
+            purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+          },
+    );
+  }
+
+  async function calendarKeys(ownerId: string, applicantId: string) {
+    const proof = await proofFor(ownerId, applicantId);
+    if (!isOk(proof)) throw new Error('owner proof');
+    const listed = await listCalendarDates(proof.value, { now: NOW });
+    if (!isOk(listed)) throw new Error(`calendar: ${listed.error.message}`);
+    return listed.value.items.map((item) => item.key);
+  }
+
+  it(
+    'raises no reminder or date for an archived or deleted expiring document, and does for a current one',
+    async () => {
+      const { ownerId, applicantId } = await person('lc-attention@example.com');
+      const current = await document(ownerId, applicantId, 'PASSPORT', day('2026-11-25'));
+      const archived = await document(ownerId, applicantId, 'BANK_STATEMENT', day('2026-11-25'));
+      const deleted = await document(ownerId, applicantId, 'VISA', day('2026-11-25'));
+      await markDocument(archived, applicantId, 'archived');
+      await markDocument(deleted, applicantId, 'deleted');
+
+      const reminders = (await attention(ownerId, applicantId)).items
+        .map((item) => item.key)
+        .filter((key) => key.startsWith('document_expiry:'));
+      expect(reminders).toEqual([`document_expiry:${current}`]);
+
+      const dates = (await calendarKeys(ownerId, applicantId)).filter((key) =>
+        key.startsWith('document_expires:'),
+      );
+      expect(dates).toEqual([`document_expires:${current}`]);
+    },
+    HEAVY,
+  );
+
+  it(
+    'lists reminders and dates exactly as before when the lifecycle tables do not exist yet',
+    async () => {
+      const client = await createMigratedPglite();
+      await client.exec(
+        'drop table document_removal_requests, document_lifecycle, applicant_lifecycle, deletion_receipts cascade',
+      );
+      db = drizzle(client, { schema }) as unknown as Db;
+      const { ownerId, applicantId } = await person('lc-attention-none@example.com');
+      const expiring = await document(ownerId, applicantId, 'PASSPORT', day('2026-11-25'));
+
+      const reminders = (await attention(ownerId, applicantId)).items.map((item) => item.key);
+      expect(reminders).toContain(`document_expiry:${expiring}`);
+      expect(await calendarKeys(ownerId, applicantId)).toContain(`document_expires:${expiring}`);
+    },
+    HEAVY,
+  );
+});

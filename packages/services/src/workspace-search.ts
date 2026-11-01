@@ -24,6 +24,12 @@ import {
 import { withCaseExclusions } from './access/grant-scope';
 import { type Db, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import {
+  everydayApplicantCondition,
+  everydayDocumentCondition,
+  lifecycleTablesPresent,
+  presentApplicantCondition,
+} from './lifecycle/foundation';
 import { referenceCodesTablePresent } from './reference-codes';
 
 export interface WorkspaceSearchResult {
@@ -73,6 +79,7 @@ export async function searchWorkspaceRecords(
     if (!membership.length)
       return err(serviceError('forbidden', 'This agency workspace is unavailable.'));
     const now = new Date();
+    const lifecycle = await lifecycleTablesPresent(db);
     // Same current grant and assignment boundaries as the existing visible-case list.
     const visibleCases = (match: SQL, limit: number) =>
       withCaseExclusions(db, (covers) =>
@@ -100,6 +107,8 @@ export async function searchWorkspaceRecords(
               // The same case-scope rule as the case list, per-case exceptions included (ADR 0017).
               covers(schema.missions.id),
               eq(schema.organizations.status, 'ACTIVE'),
+              // Agency view of shared cases: presentApplicantCondition (archive never revokes sharing, D6).
+              lifecycle ? presentApplicantCondition() : undefined,
               sql`exists (select 1 from ${schema.memberships} where ${schema.memberships.organizationId} = ${scope.organizationId} and ${schema.memberships.accountId} = ${actorAccountId} and ${schema.memberships.active} = true and (${schema.memberships.role} in ('OWNER', 'ADMIN') or exists (select 1 from ${schema.assignments} where ${schema.assignments.organizationId} = ${scope.organizationId} and ${schema.assignments.memberAccountId} = ${actorAccountId} and ${schema.assignments.missionId} = ${schema.missions.id})))`,
               match,
             ),
@@ -141,9 +150,19 @@ export async function searchWorkspaceRecords(
       ]),
     );
   }
+  const lifecycle = await lifecycleTablesPresent(db);
   const owned = and(
     eq(schema.applicants.ownerAccountId, actorAccountId),
-    scope.applicantId ? eq(schema.applicants.id, scope.applicantId) : undefined,
+    scope.applicantId
+      ? // One traveller the person opened (an archived one included): presentApplicantCondition.
+        and(
+          eq(schema.applicants.id, scope.applicantId),
+          lifecycle ? presentApplicantCondition() : undefined,
+        )
+      : // Search across travellers: everydayApplicantCondition.
+        lifecycle
+        ? everydayApplicantCondition()
+        : undefined,
   );
   if (scope.applicantId) {
     const subject = await db
@@ -155,7 +174,7 @@ export async function searchWorkspaceRecords(
       return err(serviceError('forbidden', 'This traveller workspace is unavailable.'));
   }
   const code = readsAsReferenceCode(value);
-  const codeResults = code.ok ? await personalCodeResults(db, owned, code) : [];
+  const codeResults = code.ok ? await personalCodeResults(db, owned, code, lifecycle) : [];
   const [people, cases, documents] = await Promise.all([
     db
       .select({ id: schema.applicants.id, name: schema.applicants.displayName })
@@ -183,6 +202,8 @@ export async function searchWorkspaceRecords(
         and(
           owned,
           eq(schema.documents.walletVisible, true),
+          // Search results: everydayDocumentCondition.
+          lifecycle ? everydayDocumentCondition() : undefined,
           or(
             ilike(schema.documents.originalName, pattern),
             ilike(schema.documents.approvedName, pattern),
@@ -254,6 +275,7 @@ async function personalCodeResults(
   db: Db,
   owned: SQL | undefined,
   parsed: ParsedCode,
+  lifecycle: boolean,
 ): Promise<WorkspaceSearchResult[]> {
   if (!(await referenceCodesTablePresent(db))) return [];
   const reference = formatReferenceCode(parsed.kind, parsed.code);
@@ -307,6 +329,8 @@ async function personalCodeResults(
           and(
             owned,
             eq(schema.documents.walletVisible, true),
+            // A reference lookup is still a search result: everydayDocumentCondition.
+            lifecycle ? everydayDocumentCondition() : undefined,
             namedByCode(parsed, schema.documents.id),
           ),
         )

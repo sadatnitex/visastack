@@ -11,6 +11,7 @@ import { type ServiceError, serviceError } from './errors';
 import type { DocumentConverterPort } from './extraction';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { processIntake } from './intake';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import type { ObservabilityPort } from './ports';
 
 /**
@@ -60,12 +61,19 @@ export async function requestDocumentReExtraction(
     )
   )
     return err(serviceError('invalid', 'Document reference is invalid.'));
+  const lifecycle = await lifecycleTablesPresent(db);
   return db.transaction(async (tx) => {
     const document = first(
       await tx
         .select()
         .from(schema.documents)
-        .where(eq(schema.documents.id, input.documentId))
+        .where(
+          and(
+            eq(schema.documents.id, input.documentId),
+            // A command on one document: presentDocumentCondition (deleted answers as missing).
+            lifecycle ? presentDocumentCondition() : undefined,
+          ),
+        )
         .for('update'),
     );
     const person =
@@ -436,6 +444,7 @@ export interface FailedJobSummary {
 
 /** Jobs that exhausted their retries — parked, never silently dropped, admin-visible. */
 export async function listFailedJobs(db: Db, limit = 50): Promise<FailedJobSummary[]> {
+  const lifecycle = await lifecycleTablesPresent(db);
   const rows = await db
     .select({
       id: schema.processingJobs.id,
@@ -455,7 +464,13 @@ export async function listFailedJobs(db: Db, limit = 50): Promise<FailedJobSumma
       eq(schema.processingJobs.documentVersionId, schema.documentVersions.id),
     )
     .innerJoin(schema.documents, eq(schema.documentVersions.documentId, schema.documents.id))
-    .where(eq(schema.processingJobs.status, 'FAILED'))
+    .where(
+      and(
+        eq(schema.processingJobs.status, 'FAILED'),
+        // Processing jobs: presentDocumentCondition (a deleted document's failure needs no retry).
+        lifecycle ? presentDocumentCondition() : undefined,
+      ),
+    )
     .orderBy(desc(schema.processingJobs.updatedAt))
     .limit(limit);
 

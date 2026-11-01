@@ -1,18 +1,30 @@
 import {
+  type PackRequirement,
   getPack,
   listMissionsByPackVersion,
   listPackVersions,
   listRequirements,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   DocumentTypeDatalist,
   FieldKeyDatalist,
 } from '../../../../../components/catalogue-datalists';
+import { ShowMore } from '../../../../../components/show-more';
 import { PageHeader, StatusBadge } from '../../../../../components/ui';
 import { isPlatformAdmin } from '../../../../../lib/admin';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
+import {
+  type SearchParamsRecord,
+  TEAM_LIST_STEP,
+  TRAVELLER_LIST_STEP,
+  firstParam,
+  nextShow,
+  pagingHref,
+  parseShow,
+} from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
 import { formatPrice } from '../../../../../lib/usage-format';
 import {
@@ -43,32 +55,72 @@ const VERSION_STATUS: Record<string, { label: string; tone: string }> = {
   WITHDRAWN: { label: 'Withdrawn', tone: 'badge-danger' },
 };
 
+/** Requirements of the open version shown per step, and other versions listed per step. */
+const REQUIREMENTS_STEP = TEAM_LIST_STEP;
+const VERSIONS_STEP = TRAVELLER_LIST_STEP;
+/**
+ * Both lists are already read whole (the pack services have no page size), so Show More may grow
+ * past the usual 100 rows: nothing in a pack may become unreachable.
+ */
+const IN_MEMORY_MAX = 100_000;
+
+type RequirementKey = Pick<PackRequirement, 'kind' | 'fieldKey' | 'docType' | 'id'>;
+
+/** Documents first, then fields, each by key, then by id. */
+function byRequirementKey(a: RequirementKey, b: RequirementKey): number {
+  return (
+    a.kind.localeCompare(b.kind) ||
+    (a.fieldKey ?? a.docType ?? '').localeCompare(b.fieldKey ?? b.docType ?? '') ||
+    a.id.localeCompare(b.id)
+  );
+}
+
+/**
+ * One requirement pack: one version open at a time (WP-SB7), chosen by `?version=` and the newest
+ * by default, with its requirements as compact rows 25 at a time; every other version is a short
+ * row that opens it. Only the open version's requirements and attached cases are read.
+ */
 export default async function PackDetailPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ packId: string }>;
+  readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
   const { packId } = await params;
+  const query: SearchParamsRecord = (await searchParams) ?? {};
+  const { version: versionParam, show, versions: versionsParam } = query;
+  const wantedVersion = firstParam(versionParam);
+  const requirementsShown = parseShow(show, {
+    step: REQUIREMENTS_STEP,
+    max: IN_MEMORY_MAX,
+  });
+  const versionsShown = parseShow(versionsParam, { step: VERSIONS_STEP, max: IN_MEMORY_MAX });
 
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
     const pack = await getPack(db, packId);
     if (!pack) return { admin: true as const, pack: null };
     const versions = await listPackVersions(db, packId);
-    const withReqs = await Promise.all(
-      versions.map(async (version) => ({
-        version,
-        requirements: await listRequirements(db, version.id),
-        // Impact list (RUL-05) only matters once a version has ever been
-        // usable by a mission -- a DRAFT/APPROVED version can never have one
-        // attached, so skip the query rather than always paying for it.
-        missionCount:
-          version.status === 'PUBLISHED' || version.status === 'WITHDRAWN'
-            ? (await listMissionsByPackVersion(db, version.id)).length
-            : 0,
-      })),
-    );
-    return { admin: true as const, pack, versions: withReqs };
+    const open = versions.find((v) => v.id === wantedVersion) ?? versions[0];
+    if (!open) return { admin: true as const, pack, versions, open: null };
+    const [requirements, missionCount] = await Promise.all([
+      // The read has no order of its own, so the page sorts on fields an edit never changes:
+      // a requirement keeps its place (and its Show More page) after a source review is saved.
+      listRequirements(db, open.id).then((rows) => [...rows].sort(byRequirementKey)),
+      // Impact list (RUL-05) only matters once a version has ever been
+      // usable by a mission -- a DRAFT/APPROVED version can never have one
+      // attached, so skip the query rather than always paying for it.
+      open.status === 'PUBLISHED' || open.status === 'WITHDRAWN'
+        ? listMissionsByPackVersion(db, open.id).then((missions) => missions.length)
+        : Promise.resolve(0),
+    ]);
+    return {
+      admin: true as const,
+      pack,
+      versions,
+      open: { version: open, requirements, missionCount },
+    };
   });
 
   if (!data.admin) {
@@ -104,25 +156,39 @@ export default async function PackDetailPage({
         actions={<OpenVersionButton packId={packId} />}
       />
 
-      {data.versions.length === 0 ? (
+      {data.open === null ? (
         <article className="card">
           <p className="card-body">
             No versions yet. Open a draft version to start adding cited requirements.
           </p>
         </article>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {data.versions.map(({ version, requirements, missionCount }) => {
-            const badge = VERSION_STATUS[version.status] ?? {
-              label: version.status,
-              tone: 'badge-neutral',
-            };
-            const isDraft = version.status === 'DRAFT';
-            const isApproved = version.status === 'APPROVED';
-            const isPublished = version.status === 'PUBLISHED';
-            const isWithdrawn = version.status === 'WITHDRAWN';
-            return (
-              <article className="card" key={version.id}>
+        (() => {
+          const { version, missionCount } = data.open;
+          const allRequirements = data.open.requirements;
+          const requirements = allRequirements.slice(0, requirementsShown);
+          const nextRequirements =
+            allRequirements.length > requirements.length
+              ? nextShow(requirementsShown, { step: REQUIREMENTS_STEP, max: IN_MEMORY_MAX })
+              : null;
+          const others = data.versions.filter((v) => v.id !== version.id);
+          const shownOthers = others.slice(0, versionsShown);
+          const nextVersions =
+            others.length > shownOthers.length
+              ? nextShow(versionsShown, { step: VERSIONS_STEP, max: IN_MEMORY_MAX })
+              : null;
+          const pathname = `/app/admin/packs/${packId}`;
+          const badge = VERSION_STATUS[version.status] ?? {
+            label: version.status,
+            tone: 'badge-neutral',
+          };
+          const isDraft = version.status === 'DRAFT';
+          const isApproved = version.status === 'APPROVED';
+          const isPublished = version.status === 'PUBLISHED';
+          const isWithdrawn = version.status === 'WITHDRAWN';
+          return (
+            <div className="sb7-pack-versions">
+              <article className="card" key={version.id} id="pack-open-version">
                 <div className="card-head">
                   <h2 className="card-title">Version {version.version}</h2>
                   <span className={`badge ${badge.tone}`}>{badge.label}</span>
@@ -161,75 +227,85 @@ export default async function PackDetailPage({
                 {requirements.length === 0 ? (
                   <p className="card-body">No requirements yet.</p>
                 ) : (
-                  <div className="rows" style={{ marginBottom: isDraft ? '1.25rem' : 0 }}>
-                    {requirements.map((req) => (
-                      <div
-                        className="row"
-                        key={req.id}
-                        style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.3rem' }}
-                      >
+                  <>
+                    <div className="rows sb7-requirements" id="pack-requirements">
+                      {requirements.map((req, index) => (
                         <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            gap: '0.75rem',
-                          }}
+                          className="row sb7-stack-row"
+                          key={req.id}
+                          id={`pack-requirement-${index}`}
                         >
-                          <span className="row-key">
-                            {req.kind === 'FIELD' ? 'Field' : 'Document'}:{' '}
-                            {req.fieldKey ?? req.docType}
-                          </span>
-                          <span className="badge badge-neutral">
-                            {req.optional ? 'Optional' : 'Required'}
-                          </span>
-                        </div>
-                        <span className="muted u-fs-085">Cite: {req.citation}</span>
-                        {req.sourceUrl ? (
-                          <p className="muted">
-                            <a href={req.sourceUrl} target="_blank" rel="noopener noreferrer">
-                              {req.sourceTitle ?? 'Source Reference'}
-                            </a>
-                            {req.publisher ? `, ${req.publisher}` : ''}
-                            {req.observedDate
-                              ? `, checked ${formatDateOnly(req.observedDate)}`
-                              : ', checked date not recorded'}
-                          </p>
-                        ) : null}
-                        {isDraft ? (
-                          <details>
-                            <summary>Record Source Review</summary>
-                            <RequirementSourceReviewForm
-                              packId={data.pack.id}
+                          <div className="sb7-stack-head">
+                            <span className="row-key sb7-break">
+                              {req.kind === 'FIELD' ? 'Field' : 'Document'}:{' '}
+                              {req.fieldKey ?? req.docType}
+                            </span>
+                            <span className="row-end">
+                              {req.sourceInaccessibleAt ? (
+                                <span className="badge badge-danger">
+                                  Source inaccessible since{' '}
+                                  {formatTimestampDate(req.sourceInaccessibleAt)}
+                                </span>
+                              ) : null}
+                              <span className="badge badge-neutral">
+                                {req.optional ? 'Optional' : 'Required'}
+                              </span>
+                            </span>
+                          </div>
+                          <span className="muted u-fs-085 sb7-break">Cite: {req.citation}</span>
+                          <details className="sb7-fold">
+                            <summary>
+                              Source and Checks
+                              <span className="sr-only"> for {req.fieldKey ?? req.docType}</span>
+                            </summary>
+                            {req.sourceUrl ? (
+                              <p className="muted">
+                                <a href={req.sourceUrl} target="_blank" rel="noopener noreferrer">
+                                  {req.sourceTitle ?? 'Source Reference'}
+                                </a>
+                                {req.publisher ? `, ${req.publisher}` : ''}
+                                {req.observedDate
+                                  ? `, checked ${formatDateOnly(req.observedDate)}`
+                                  : ', checked date not recorded'}
+                              </p>
+                            ) : (
+                              <p className="muted u-fs-085">No source recorded yet.</p>
+                            )}
+                            {req.maxAgeDays !== null ? (
+                              <p className="muted u-fs-085">
+                                Freshness: must be dated within {req.maxAgeDays} day(s)
+                              </p>
+                            ) : null}
+                            {isDraft ? (
+                              <RequirementSourceReviewForm
+                                packId={data.pack.id}
+                                requirementId={req.id}
+                                sourceUrl={req.sourceUrl}
+                                sourceTitle={req.sourceTitle}
+                                publisher={req.publisher}
+                                observedDate={req.observedDate?.toISOString().slice(0, 10) ?? ''}
+                              />
+                            ) : null}
+                            <SourceInaccessibleButton
+                              packId={packId}
                               requirementId={req.id}
-                              sourceUrl={req.sourceUrl}
-                              sourceTitle={req.sourceTitle}
-                              publisher={req.publisher}
-                              observedDate={req.observedDate?.toISOString().slice(0, 10) ?? ''}
+                              inaccessible={req.sourceInaccessibleAt !== null}
                             />
                           </details>
-                        ) : null}
-                        {req.maxAgeDays !== null ? (
-                          <span className="muted u-fs-085">
-                            Freshness: must be dated within {req.maxAgeDays} day(s)
-                          </span>
-                        ) : null}
-                        {req.sourceInaccessibleAt ? (
-                          <span className="badge badge-danger" style={{ alignSelf: 'flex-start' }}>
-                            Source inaccessible since{' '}
-                            {formatTimestampDate(req.sourceInaccessibleAt)}
-                          </span>
-                        ) : null}
-                        <div style={{ marginTop: '0.2rem' }}>
-                          <SourceInaccessibleButton
-                            packId={packId}
-                            requirementId={req.id}
-                            inaccessible={req.sourceInaccessibleAt !== null}
-                          />
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                    <ShowMore
+                      id="pack-requirements-more"
+                      pathname={pathname}
+                      searchParams={query}
+                      next={nextRequirements === null ? null : { show: nextRequirements }}
+                      shown={requirements.length}
+                      total={allRequirements.length}
+                      noun={{ one: 'requirement', other: 'requirements' }}
+                      landOn={`pack-requirement-${requirements.length}`}
+                    />
+                  </>
                 )}
 
                 {version.checksum ? (
@@ -359,9 +435,48 @@ export default async function PackDetailPage({
                   </>
                 ) : null}
               </article>
-            );
-          })}
-        </div>
+              {others.length > 0 ? (
+                <article className="card" id="pack-other-versions">
+                  <h2 className="card-title">Other Versions</h2>
+                  <div className="rows u-mt-050">
+                    {shownOthers.map((other, index) => {
+                      const otherBadge = VERSION_STATUS[other.status] ?? {
+                        label: other.status,
+                        tone: 'badge-neutral',
+                      };
+                      return (
+                        <Link
+                          className="row row-link"
+                          key={other.id}
+                          id={`pack-version-row-${index}`}
+                          href={pagingHref(
+                            pathname,
+                            query,
+                            { version: other.id, show: null },
+                            'pack-open-version',
+                          )}
+                        >
+                          <span className="row-key">Version {other.version}</span>
+                          <span className={`badge ${otherBadge.tone}`}>{otherBadge.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                  <ShowMore
+                    id="pack-versions-more"
+                    pathname={pathname}
+                    searchParams={query}
+                    next={nextVersions === null ? null : { versions: nextVersions }}
+                    shown={shownOthers.length}
+                    total={others.length}
+                    noun={{ one: 'other version', other: 'other versions' }}
+                    landOn={`pack-version-row-${shownOthers.length}`}
+                  />
+                </article>
+              ) : null}
+            </div>
+          );
+        })()
       )}
 
       {data.versions.length >= 2 ? (
@@ -385,7 +500,7 @@ export default async function PackDetailPage({
                 <option value="" disabled>
                   Choose a version…
                 </option>
-                {data.versions.map(({ version }) => (
+                {data.versions.map((version) => (
                   <option key={version.id} value={version.id}>
                     Version {version.version} (
                     {VERSION_STATUS[version.status]?.label ?? version.status})
@@ -401,7 +516,7 @@ export default async function PackDetailPage({
                 <option value="" disabled>
                   Choose a version…
                 </option>
-                {data.versions.map(({ version }) => (
+                {data.versions.map((version) => (
                   <option key={version.id} value={version.id}>
                     Version {version.version} (
                     {VERSION_STATUS[version.status]?.label ?? version.status})

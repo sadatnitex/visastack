@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
 import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
+import { ShowMore } from '../../../../components/show-more';
 import { Checklist, EmptyState, StatusBadge } from '../../../../components/ui';
 import { depthCopy } from '../../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../lib/ccd/depth.server';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
+import { type SearchParamsRecord, nextShow, parseShow } from '../../../../lib/paging';
 import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { BillingStatusNotice, loadBillingNotice } from './billing-status-notice';
@@ -52,6 +54,9 @@ function Stat({
 
 export const metadata: Metadata = { title: 'Agency Dashboard' };
 
+/** How many cases and queued cases the Dashboard shows before Show More (WP-SB5). */
+const DASHBOARD_CASE_STEP = 10;
+
 export const dynamic = 'force-dynamic';
 
 /**
@@ -73,16 +78,23 @@ export default async function AgencyDashboardPage({
     readonly destination?: string;
     readonly assignee?: string;
     readonly quick?: string;
+    readonly show?: string;
+    readonly queue?: string;
   }>;
 }) {
   const { orgId } = await params;
+  const query = await searchParams;
   const {
     q: rawQuery = '',
     stage: stageFilter = '',
     destination: rawDestinationFilter = '',
     assignee: assigneeFilter = '',
     quick: rawQuick = '',
-  } = await searchParams;
+  } = query;
+  // WP-SB5: the case table shows the 10 most urgent cases, then Show More; the reassignment
+  // queue the same. The Cases page lists every case.
+  const casesShown = parseShow(query.show, { step: DASHBOARD_CASE_STEP });
+  const queueShown = parseShow(query.queue, { step: DASHBOARD_CASE_STEP });
 
   const data = await withSession(async ({ db, accountId }) => {
     const access = await loadOrgAccess(db, accountId, orgId);
@@ -92,7 +104,7 @@ export default async function AgencyDashboardPage({
     const [requests, caseList, unassignedQueue, clients, clientsJoined, billingStatus] =
       await Promise.all([
         loadEvidenceRequests(db, accountId, orgId, access, { withFileStates: true }),
-        loadCases(db, accountId, orgId, members),
+        loadCases(db, accountId, orgId),
         loadUnassignedQueue(db, orgId, access),
         loadApplicants(db, orgId, access),
         loadClientsJoined(db, accountId, orgId),
@@ -123,6 +135,7 @@ export default async function AgencyDashboardPage({
     summary.overdueTasks + (summary.needAssignment ?? 0) + (summary.openRequests ?? 0);
 
   const base = `/app/agency/${orgId}`;
+  const dashboardQuery: SearchParamsRecord = { ...query };
   const setupSteps = [
     {
       key: 'client',
@@ -481,8 +494,8 @@ export default async function AgencyDashboardPage({
                     <th scope="col">Traveller Confirmed</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {searched.map((row) => {
+                <tbody id="agency-case-table-rows">
+                  {searched.slice(0, casesShown).map((row) => {
                     const { mission } = row;
                     const required = mission.readiness?.requiredCount ?? 0;
                     const satisfied = mission.readiness?.satisfiedRequired ?? 0;
@@ -594,6 +607,26 @@ export default async function AgencyDashboardPage({
                 </tbody>
               </table>
             )}
+            {searched.length > 0 ? (
+              <div className="agency-case-table-end">
+                <ShowMore
+                  id="agency-case-table-more"
+                  landOn="agency-case-table-rows"
+                  pathname={base}
+                  searchParams={dashboardQuery}
+                  next={(() => {
+                    const more = nextShow(casesShown, { step: DASHBOARD_CASE_STEP });
+                    return more !== null && searched.length > casesShown ? { show: more } : null;
+                  })()}
+                  shown={Math.min(casesShown, searched.length)}
+                  total={searched.length}
+                  noun={{ one: 'case', other: 'cases' }}
+                />
+                <Link href={`${base}/cases`} className="btn btn-secondary u-btn-sm">
+                  View All Cases
+                </Link>
+              </div>
+            ) : null}
           </section>
 
           {data.admin && data.unassignedQueue.length > 0 ? (
@@ -605,8 +638,8 @@ export default async function AgencyDashboardPage({
                 assigned - most often because the only assigned member was removed. Open one to
                 assign someone in the Cases section.
               </p>
-              <div className="rows">
-                {data.unassignedQueue.map((m) => (
+              <div className="rows" id="agency-reassignment-rows">
+                {data.unassignedQueue.slice(0, queueShown).map((m) => (
                   <Link
                     key={m.missionId}
                     href={`/app/agency/${orgId}/cases#mission-${m.missionId}`}
@@ -617,6 +650,21 @@ export default async function AgencyDashboardPage({
                   </Link>
                 ))}
               </div>
+              <ShowMore
+                id="agency-reassignment-more"
+                landOn="agency-reassignment-rows"
+                pathname={base}
+                searchParams={dashboardQuery}
+                next={(() => {
+                  const more = nextShow(queueShown, { step: DASHBOARD_CASE_STEP });
+                  return more !== null && data.unassignedQueue.length > queueShown
+                    ? { queue: more }
+                    : null;
+                })()}
+                shown={Math.min(queueShown, data.unassignedQueue.length)}
+                total={data.unassignedQueue.length}
+                noun={{ one: 'case', other: 'cases' }}
+              />
             </article>
           ) : null}
         </div>

@@ -354,3 +354,48 @@ describe('OPS-04 (Commercial V1 Part 9): outcome analytics', () => {
     expect(await outcomeEvents()).toEqual([]);
   });
 });
+
+describe('case outcome and the resource lifecycle (LC-A2)', () => {
+  it('refuses evidence in Recently Deleted and accepts archived evidence', async () => {
+    const db = await freshDb();
+    const { account, applicantId, missionId } = await seed(db);
+    const register = async (originalName: string) => {
+      const doc = await registerDocument(db, {
+        actorAccountId: account.id,
+        applicantId,
+        originalName,
+        docType: 'decision_letter',
+      });
+      if (!isOk(doc)) throw new Error('document');
+      return doc.value.id;
+    };
+    const archivedId = await register('archived-letter.pdf');
+    const deletedId = await register('deleted-letter.pdf');
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values([
+      { documentId: archivedId, applicantId, archivedAt: now },
+      {
+        documentId: deletedId,
+        applicantId,
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+      },
+    ]);
+    const record = (evidenceDocumentId: string) =>
+      recordOutcome(db, {
+        actorAccountId: account.id,
+        missionId,
+        decision: 'REFUSED',
+        decisionDate: new Date('2026-01-15T00:00:00Z'),
+        evidenceDocumentId,
+        stepUpSatisfied: true,
+      });
+    const refused = await record(deletedId);
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.error.code).toBe('not_found');
+    const accepted = await record(archivedId);
+    expect(isOk(accepted)).toBe(true);
+    if (isOk(accepted)) expect(accepted.value.evidenceDocumentId).toBe(archivedId);
+  });
+});

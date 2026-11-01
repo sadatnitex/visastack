@@ -6,6 +6,7 @@ import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
+import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import type { KeyManagementPort } from './ports';
 
@@ -168,6 +169,7 @@ export async function previewContributorRequest(
   input: { readonly rawToken: string; readonly actorEmail: string },
 ): Promise<Result<ContributorRequestPreview, ServiceError>> {
   const tokenHash = hashInvitationToken(input.rawToken);
+  const lifecycle = await lifecycleTablesPresent(db);
   const row = first(
     await db
       .select({
@@ -187,7 +189,14 @@ export async function previewContributorRequest(
         eq(schema.applicants.id, schema.contributorRequests.applicantId),
       )
       .innerJoin(schema.missions, eq(schema.missions.id, schema.contributorRequests.missionId))
-      .where(eq(schema.contributorRequests.tokenHash, tokenHash))
+      .where(
+        and(
+          eq(schema.contributorRequests.tokenHash, tokenHash),
+          // A request into one named record: presentApplicantCondition (a traveller in Recently
+          // Deleted takes in nothing new; an archived one still can).
+          lifecycle ? presentApplicantCondition() : undefined,
+        ),
+      )
       .limit(1),
   );
   if (!row) return err(serviceError('not_found', 'request not found'));
@@ -265,6 +274,16 @@ export async function beginContributorSubmission(
   }
   if (request.contributorEmail !== input.actorEmail.trim().toLowerCase()) {
     return err(serviceError('forbidden', 'this request was sent to a different email address'));
+  }
+  // A traveller in Recently Deleted takes in nothing new (presentApplicantCondition, LC-A2): the
+  // same answer as the preview gives, checked again here because this is the step that uploads.
+  if (await lifecycleTablesPresent(db)) {
+    const present = await db
+      .select({ id: schema.applicants.id })
+      .from(schema.applicants)
+      .where(and(eq(schema.applicants.id, request.applicantId), presentApplicantCondition()))
+      .limit(1);
+    if (present.length === 0) return err(serviceError('not_found', 'request not found'));
   }
 
   return db.transaction(async (tx) => {

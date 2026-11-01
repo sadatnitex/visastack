@@ -4,6 +4,7 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
@@ -13,6 +14,7 @@ import {
   getLatestNameVersion,
   listNameVersions,
   proposeDocumentName,
+  renameDocument,
 } from './document-naming';
 import { registerDocument } from './documents';
 
@@ -216,5 +218,129 @@ describe('document naming — propose then decide, atomically', () => {
 
     const latest = await getLatestNameVersion(db, documentId);
     expect(latest?.proposedName).toBe('second.pdf');
+  });
+});
+
+async function lifecycleApplicantOf(db: Db, documentId: string): Promise<string> {
+  const row = (
+    await db
+      .select({ applicantId: schema.documents.applicantId })
+      .from(schema.documents)
+      .where(eq(schema.documents.id, documentId))
+  )[0];
+  if (!row) throw new Error('document');
+  return row.applicantId;
+}
+
+async function markDocumentLifecycle(
+  db: Db,
+  documentId: string,
+  state: 'archived' | 'deleted',
+): Promise<void> {
+  const applicantId = await lifecycleApplicantOf(db, documentId);
+  const now = new Date();
+  if (state === 'archived') {
+    await db.insert(schema.documentLifecycle).values({ documentId, applicantId, archivedAt: now });
+    return;
+  }
+  await db.insert(schema.documentLifecycle).values({
+    documentId,
+    applicantId,
+    deletedAt: now,
+    deletePath: 'DUPLICATE',
+    purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+  });
+}
+
+async function ownerRenameAccess(db: Db, accountId: string, documentId: string) {
+  const access = await requireAccess(
+    db,
+    accountPrincipal(accountId),
+    'MANAGE',
+    { documentId },
+    { purpose: 'owner_document_rename' },
+  );
+  if (!access.ok) throw new Error('access');
+  return access.value;
+}
+
+describe('document naming and the resource lifecycle (LC-A2)', () => {
+  it('answers a Recently Deleted document exactly like a missing one', async () => {
+    const db = await freshDb();
+    const { accountId, documentId } = await seedDocument(db, 'lc-name-del@example.com');
+    const pending = await proposeDocumentName(db, { documentId, proposedName: 'Before.pdf' });
+    if (!isOk(pending)) throw new Error('propose');
+    const access = await ownerRenameAccess(db, accountId, documentId);
+    await markDocumentLifecycle(db, documentId, 'deleted');
+
+    const proposed = await proposeDocumentName(db, { documentId, proposedName: 'After.pdf' });
+    expect(proposed.ok).toBe(false);
+    if (!proposed.ok) expect(proposed.error.code).toBe('not_found');
+
+    const decided = await decideDocumentName(db, {
+      actorAccountId: accountId,
+      nameVersionId: pending.value.id,
+      decision: 'ACCEPTED_UNCHANGED',
+      finalName: 'Before.pdf',
+    });
+    expect(decided.ok).toBe(false);
+    if (!decided.ok) expect(decided.error.code).toBe('not_found');
+
+    const renamed = await renameDocument(access, { name: 'Renamed' });
+    expect(renamed.ok).toBe(false);
+    if (!renamed.ok) expect(renamed.error.code).toBe('not_found');
+
+    const document = (
+      await db.select().from(schema.documents).where(eq(schema.documents.id, documentId))
+    )[0];
+    expect(document?.approvedName).toBeNull();
+  });
+
+  it('keeps proposing, deciding and renaming an archived document', async () => {
+    const db = await freshDb();
+    const { accountId, documentId } = await seedDocument(db, 'lc-name-arc@example.com');
+    await markDocumentLifecycle(db, documentId, 'archived');
+
+    const proposed = await proposeDocumentName(db, { documentId, proposedName: 'Kept.pdf' });
+    if (!isOk(proposed)) throw new Error('propose');
+    const decided = await decideDocumentName(db, {
+      actorAccountId: accountId,
+      nameVersionId: proposed.value.id,
+      decision: 'ACCEPTED_UNCHANGED',
+      finalName: 'Kept.pdf',
+    });
+    expect(isOk(decided)).toBe(true);
+    const renamed = await renameDocument(await ownerRenameAccess(db, accountId, documentId), {
+      name: 'Kept Again',
+    });
+    expect(isOk(renamed)).toBe(true);
+    if (isOk(renamed)) expect(renamed.value.finalName).toBe('Kept Again');
+  });
+
+  it('works exactly as before when the lifecycle tables do not exist yet', async () => {
+    const client = await createMigratedPglite();
+    await client.exec(
+      'drop table document_removal_requests, document_lifecycle, applicant_lifecycle, deletion_receipts cascade',
+    );
+    const db = drizzle(client, { schema }) as unknown as Db;
+    const { accountId, documentId } = await seedDocument(db, 'lc-name-none@example.com');
+
+    const proposed = await proposeDocumentName(db, { documentId, proposedName: 'Plain.pdf' });
+    if (!isOk(proposed)) throw new Error('propose');
+    const decided = await decideDocumentName(db, {
+      actorAccountId: accountId,
+      nameVersionId: proposed.value.id,
+      decision: 'ACCEPTED_UNCHANGED',
+      finalName: 'Plain.pdf',
+    });
+    expect(isOk(decided)).toBe(true);
+    const renamed = await renameDocument(await ownerRenameAccess(db, accountId, documentId), {
+      name: 'Plain Renamed',
+    });
+    expect(isOk(renamed)).toBe(true);
+    const document = (
+      await db.select().from(schema.documents).where(eq(schema.documents.id, documentId))
+    )[0];
+    expect(document?.approvedName).toBe('Plain Renamed');
   });
 });

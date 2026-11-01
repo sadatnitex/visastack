@@ -797,3 +797,61 @@ describe('cleanDocumentName', () => {
     expect(cleanDocumentName('a\u2066b\u2069c\u202Ad\u0085e\u009Ff')).toBe('abcdef');
   });
 });
+
+describe('document suggestions and the resource lifecycle (LC-A2)', () => {
+  async function markDocument(db: Db, s: Seeded, state: 'archived' | 'deleted') {
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values(
+      state === 'archived'
+        ? { documentId: s.documentId, applicantId: s.applicantId, archivedAt: now }
+        : {
+            documentId: s.documentId,
+            applicantId: s.applicantId,
+            deletedAt: now,
+            deletePath: 'DUPLICATE',
+            purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+          },
+    );
+  }
+
+  async function waitingName(db: Db, documentId: string) {
+    const [latest] = await listNameVersions(db, documentId);
+    if (!latest || latest.decision !== 'PENDING') throw new Error('no waiting name');
+    return latest;
+  }
+
+  it('answers a deleted document as missing and still decides for an archived one', async () => {
+    const db = await freshDb();
+    const deleted = await seed(db, { email: 'lc-suggest-deleted@example.com' });
+    const archived = await seed(db, { email: 'lc-suggest-archived@example.com' });
+    const deletedName = await waitingName(db, deleted.documentId);
+    const archivedName = await waitingName(db, archived.documentId);
+    const deletedProof = await proofFor(db, deleted.accountId, deleted.documentId);
+    await markDocument(db, deleted, 'deleted');
+    await markDocument(db, archived, 'archived');
+
+    const refused = await decideDocumentSuggestion(deletedProof, {
+      decision: 'accept',
+      nameVersionId: deletedName.id,
+      typeProposalId: null,
+      docType: 'BANK_STATEMENT',
+      name: deletedName.proposedName,
+    });
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.error.code).toBe('not_found');
+    expect((await documentRow(db, deleted.documentId)).approvedName).toBeNull();
+
+    const decided = await decideDocumentSuggestion(
+      await proofFor(db, archived.accountId, archived.documentId),
+      {
+        decision: 'accept',
+        nameVersionId: archivedName.id,
+        typeProposalId: null,
+        docType: 'BANK_STATEMENT',
+        name: archivedName.proposedName,
+      },
+    );
+    expect(isOk(decided)).toBe(true);
+    expect((await documentRow(db, archived.documentId)).docType).toBe('BANK_STATEMENT');
+  });
+});
