@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import {
+  DEFAULT_MODE,
   PANEL_MAX_PX,
   VIEWPORTS,
   expectFixedPanel,
@@ -44,13 +45,18 @@ test.describe('scroll budget guard', () => {
     ).resolves.toMatchObject({ viewport: 'phone', sideways: 0 });
   });
 
-  test('enforces by default: a check that names no mode fails an over-budget page', async ({
+  test('enforces by default, and a reported exception still fails above its ceiling', async ({
     page,
   }) => {
+    // The switch itself, read directly so a local SCROLL_BUDGET_MODE cannot hide a change to it.
+    expect(DEFAULT_MODE).toBe('enforce');
     await renderFixture(page, FIXTURE, { view: 'padded', padding: 3 * 844 });
-    await expect(expectWithinBudget(page, { screens: 2, viewport: 'phone' })).rejects.toThrow(
-      /page height at phone/,
-    );
+    await expect(
+      expectWithinBudget(page, { screens: 2, viewport: 'phone', mode: 'report', ceiling: 2.5 }),
+    ).rejects.toThrow(/exception ceiling/);
+    await expect(
+      expectWithinBudget(page, { screens: 2, viewport: 'phone', mode: 'report', ceiling: 3.5 }),
+    ).resolves.toMatchObject({ viewport: 'phone' });
   });
 
   test('fails a page that scrolls sideways', async ({ page }) => {

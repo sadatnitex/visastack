@@ -59,8 +59,14 @@ test.describe('WP-SB5 scroll budget', () => {
     await expect(page.locator('details#invite-client')).not.toHaveAttribute('open', '');
     for (const viewport of ['phone', 'desktop'] as const) {
       // Over budget (phone 4.22, desktop 3.64 screens, WP-SB10): reported, not enforced, until
-      // the two 15-row lists are settled. Recorded in docs/uiux/SCROLL-BUDGET.md.
-      await expectWithinBudget(page, { screens: 3, viewport, mode: 'report' });
+      // the two 15-row lists are settled; still fails above its ceiling. Recorded in
+      // docs/uiux/SCROLL-BUDGET.md section 2.
+      await expectWithinBudget(page, {
+        screens: 3,
+        viewport,
+        mode: 'report',
+        ceiling: viewport === 'phone' ? 4.5 : 4,
+      });
     }
     await noSeriousAxe(page);
   });
@@ -71,11 +77,13 @@ test.describe('WP-SB5 scroll budget', () => {
     await expect(page.getByRole('link', { name: 'View All Cases' })).toBeVisible();
     for (const viewport of ['phone', 'desktop'] as const) {
       // Over budget on a phone (3.1 screens, WP-SB10): reported, not enforced, until the table
-      // above the list is settled. Recorded in docs/uiux/SCROLL-BUDGET.md; desktop enforces.
+      // rows are settled; still fails above its ceiling. Recorded in docs/uiux/SCROLL-BUDGET.md
+      // section 2; a desktop enforces.
       await expectWithinBudget(page, {
         screens: 3,
         viewport,
-        ...(viewport === 'phone' ? { mode: 'report' as const } : {}),
+        mode: viewport === 'phone' ? 'report' : 'enforce',
+        ...(viewport === 'phone' ? { ceiling: 3.5 } : {}),
       });
     }
     await noSeriousAxe(page);

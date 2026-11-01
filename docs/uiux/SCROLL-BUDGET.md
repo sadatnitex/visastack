@@ -2,11 +2,12 @@
 
 WP-SB10 (Integration and enforcement), 1 November 2026. Plan: `docs/upgrades/programme/SCROLL-BUDGET-PLAN.md` sections 1 and 5.
 
-One screen is 844 px on a phone (390 by 844) and 800 px on a desktop (1280 by 800). Budgets: public landing 6 screens, dashboard or overview 2, task, form, settings or list 3, legal pages no limit.
+One screen is 844 px on a phone (390 by 844) and 800 px on a desktop (1280 by 800). Budgets (plan section 1): public landing 6 screens, dashboard or overview 2, task, form or settings 3, legal pages no limit. A plain list is held by rows (10 for travellers, 25 for agency and staff, then Show More), not by screens: the staff lists in `WP-SB7.spec.ts` (organizations 25 rows, members 20, a pack's 25 requirements) are checked against 6 screens with their row caps proven by the page tests, and measure 4.13 to 5.84 phone screens. The sweep in section 4 counts lists as 3 screens to be strict.
 
 ## 1. Where things stand
 
-- Every check in `apps/web/e2e/scroll-budget/` now enforces by default (`DEFAULT_MODE = 'enforce'` in `support.ts`). A check fails a page that is over its budget unless it names its own mode. A guard in `WP-SB0.spec.ts` ("enforces by default") proves it: with the default set back to report it went red.
+- Every check in `apps/web/e2e/scroll-budget/` now enforces by default (`DEFAULT_MODE = 'enforce'` in `support.ts`). A check fails a page that is over its budget unless it names its own mode. A guard in `WP-SB0.spec.ts` reads the switch directly, so a local `SCROLL_BUDGET_MODE` cannot hide a change to it; with the default set back to report it went red.
+- Each reported exception carries a `ceiling`: it still fails, in every mode, if the page grows past that many screens (the same guard proves a ceiling fails).
 - CI: `.github/workflows/pr-browser-checks.yml` runs the `scroll-budget/` folder in "No-secret Playwright checks" on every pull request (line 123).
 - Local run, production build of `3535437e` plus the four mode changes below: 53 passed.
 
@@ -14,15 +15,17 @@ One screen is 844 px on a phone (390 by 844) and 800 px on a desktop (1280 by 80
 
 Each is still printed with its height on every run. Fixing them is product work outside this package.
 
-| Page | Viewport | Measured | Budget | Why it is over | Check |
-|---|---|---|---|---|---|
-| Documents (12 rows a page) | phone | 2,955 px, 3.50 screens | 3 (2,532 px) | The shared list in `apps/web/src/components/document-wallet-browser.tsx` shows 12 rows a page (accepted by the coordinator, reported by WP-SB4) | `WP-SB4.spec.ts`, documents |
-| Agency Clients (15 invitations and 15 requests) | phone | 3,558 px, 4.22 screens | 3 (2,532 px) | Two 15-row lists on one page | `WP-SB5.spec.ts`, clients |
-| Agency Clients (same) | desktop | 2,913 px, 3.64 screens | 3 (2,400 px) | Same | `WP-SB5.spec.ts`, clients |
-| Agency Dashboard table (10 most urgent of 200) | phone | 2,616 px, 3.10 screens | 3 (2,532 px) | The table rows stack on a phone | `WP-SB5.spec.ts`, dashboard |
-| Case snapshot with its first group open (60 rows) | phone | 4,998 px, 5.92 screens | 2 (1,688 px) | The open group lists all its rows; folded, the same snapshot is 1 screen and enforced | `WP-SB2.spec.ts`, snapshot |
+| Page | Viewport | Measured | Budget | Ceiling | Why it is over | Check |
+|---|---|---|---|---|---|---|
+| Documents (12 rows a page) | phone | 2,955 px, 3.50 screens | 3 (2,532 px) | 3.75 | The shared list in `apps/web/src/components/document-wallet-browser.tsx` shows 12 rows a page (accepted by the coordinator, reported by WP-SB4) | `WP-SB4.spec.ts`, documents |
+| Agency Clients (15 invitations and 15 requests) | phone | 3,558 px, 4.22 screens | 3 (2,532 px) | 4.5 | Two 15-row lists on one page | `WP-SB5.spec.ts`, clients |
+| Agency Clients (same) | desktop | 2,913 px, 3.64 screens | 3 (2,400 px) | 4 | Same | `WP-SB5.spec.ts`, clients |
+| Agency Dashboard table (10 most urgent of 200) | phone | 2,616 px, 3.10 screens | 3 as checked; 2 (1,688 px) by the plan's dashboard rule, which makes it 1.55 times over | 3.5 | The table rows stack on a phone | `WP-SB5.spec.ts`, dashboard |
+| Case snapshot with its first group open (60 rows) | phone | 4,998 px, 5.92 screens | 2 (1,688 px) | 6.25 | The open group lists all its rows; folded, the same snapshot is 1 screen and enforced | `WP-SB2.spec.ts`, snapshot |
 
-The Agency Clients, Agency Dashboard and open snapshot checks were in report mode or unmeasured before WP-SB10; they were found over budget when switched to enforce. The Dashboard table enforces on a desktop (977 px, 1.22 screens).
+The Agency Clients, Agency Dashboard and open snapshot checks were in report mode or unmeasured before WP-SB10; they were found over budget when switched to enforce. The Dashboard table enforces on a desktop against 3 (977 px, 1.22 screens, also within the dashboard budget of 2). The fixture renders the dashboard's case table, not the whole dashboard, which is why WP-SB5 checks it against 3.
+
+Close to budget (under 10 percent headroom, may turn red from an unrelated style change): the landing page on a desktop (4,411 of 4,800 px), the staff organizations list on a phone (5.84 of 6 screens), AI Settings on a desktop (2.88 of 3), the admin overview on a desktop (1.92 of 2), the agency Cases list and the WP-SB4 consent page on a desktop (2.84 of 3).
 
 ## 3. Every browser budget check (worst-case data, built app)
 

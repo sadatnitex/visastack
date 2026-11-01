@@ -22,7 +22,8 @@ export type BudgetViewport = 'phone' | 'desktop';
 
 /**
  * The enforcement switch (owned by WP-SB10): every check enforces unless it names its own mode.
- * The only check left in report mode is a known, recorded exception (docs/uiux/SCROLL-BUDGET.md).
+ * A page check left in report mode is a known exception, recorded with its height in
+ * docs/uiux/SCROLL-BUDGET.md section 2, and carries a `ceiling` so it cannot grow unnoticed.
  */
 export const DEFAULT_MODE: BudgetMode = 'enforce';
 
@@ -186,6 +187,8 @@ export async function expectWithinBudget(
     readonly screens: number;
     readonly viewport: BudgetViewport;
     readonly mode?: BudgetMode;
+    /** For a reported exception: the page still fails, in every mode, above this many screens. */
+    readonly ceiling?: number;
   },
 ): Promise<BudgetMeasure> {
   const mode = modeFor(options.mode);
@@ -209,6 +212,12 @@ export async function expectWithinBudget(
     `${options.viewport} ${size.width}x${size.height}: ${height}px = ${measure.screens} screens (budget ${options.screens}, ${limit}px); sideways ${sideways}px`,
     mode,
   );
+  if (options.ceiling !== undefined) {
+    const ceiling = options.ceiling * size.height;
+    expect(height, `page height at ${options.viewport} (exception ceiling)`).toBeLessThanOrEqual(
+      ceiling,
+    );
+  }
   if (mode === 'enforce') {
     expect(height, `page height at ${options.viewport}`).toBeLessThanOrEqual(limit);
     expect(sideways, `sideways scroll at ${options.viewport}`).toBeLessThanOrEqual(0);

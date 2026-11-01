@@ -111,7 +111,9 @@ test.describe('WP-SB8 trust page', () => {
   test('fits 6 screens on a phone and a desktop', async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.phone);
     const response = await page.goto('/trust');
-    expect(response?.status()).toBeLessThan(500);
+    // Measure the real page, never a not-found or error page that would pass trivially.
+    expect(response?.status()).toBe(200);
+    await expect(page.locator('h1').first()).toBeVisible();
     await expectWithinBudget(page, { screens: 6, viewport: 'phone' });
     await expectWithinBudget(page, { screens: 6, viewport: 'desktop' });
   });

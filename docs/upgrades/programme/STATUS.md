@@ -3,7 +3,7 @@
 Keep this file between 250 and 400 words. Memory between sessions; evidence lives in `COVERAGE-LEDGER.csv`. Overwritten each time; history stays in git.
 
 - Last updated: 1 November 2026: Scroll Budget complete in code, WP-SB0 to WP-SB9 merged and live, WP-SB10 makes every scroll-budget check enforce (this PR)
-- Current main: `19ec6a15` (LC-B, #393) at WP-SB10 start; measured on `3535437e`
+- Current main: `1f2f2e9b` (LC-A1, #395), merged into WP-SB10; sweep measured on `3535437e`
 - Merged this run: WP-SB0 (#378), SB2 (#383), SB3 (#385), SB9 (#386), SB1 (#387), SB4 (#384), SB7 (#390), SB8 (#391), SB5 (#392), SB6 (#394). Earlier: CCD-0 to CCD-7 and WP-C2 (#325 to #335)
 - WP-C2: sidebar and page, card edges, control edges and the text tiers now separate by tone and edges only; status words and two text tiers are darker than Harbor on purpose (`colour-map.md`, section WP-C2)
 - Migrations: up to 0113 in the repository (Resource Lifecycle); Scroll Budget added none. Pending state not checked by WP-SB10
@@ -13,7 +13,7 @@ Keep this file between 250 and 400 words. Memory between sessions; evidence live
 - Known weakness: the live pixel-identity browser test failed once and passed on re-run on two deploys; being hardened
 - Not verified live: signed-in pages at phone and desktop widths (CCD, WP-C2, every Scroll Budget page); the platform admin console; hover, pressed and disabled states; any real AWS, payment or AI provider call
 - Blockers: none
-- Next action: a layout package for the four Scroll Budget exceptions and the triage list; owner calls from the WP-C2 review are in docs/uiux/CONTRAST-AND-SURFACES.md
+- Next action: Small Commercial order in `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md` section M; a layout package for the four Scroll Budget exceptions and the triage list
 
 ## How to update
 
