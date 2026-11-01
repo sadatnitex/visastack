@@ -981,6 +981,9 @@ export async function executeScheduledDowngrade(
   }
 
   return db.transaction(async (tx) => {
+    // The current plan first, then the downgrade: the order every plan change and an agency
+    // closing (organizations.ts) lock them in. Both are read again under the lock, so a closing,
+    // a cancellation or another run that committed meanwhile is seen here and nothing is undone.
     const current = first(
       await tx
         .select()
@@ -991,8 +994,32 @@ export async function executeScheduledDowngrade(
             isNull(schema.subscriptions.endedAt),
           ),
         )
-        .limit(1),
+        .limit(1)
+        .for('update'),
     );
+    const stillPending = first(
+      await tx
+        .select({ id: schema.scheduledDowngrades.id })
+        .from(schema.scheduledDowngrades)
+        .where(
+          and(
+            eq(schema.scheduledDowngrades.id, pending.id),
+            eq(schema.scheduledDowngrades.status, 'PENDING'),
+          ),
+        )
+        .for('update'),
+    );
+    if (!stillPending) return err(serviceError('not_found', 'no pending scheduled downgrade'));
+    // Owner decision "Founding A": a closed agency keeps no plan, so none is ever put back.
+    const organization = first(
+      await tx
+        .select({ status: schema.organizations.status })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, pending.organizationId)),
+    );
+    if (!organization || organization.status === 'CLOSED') {
+      return err(serviceError('invalid', 'this agency is closed'));
+    }
     if (!current || current.planId !== pending.fromPlanId) {
       return err(
         serviceError(
