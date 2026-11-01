@@ -31,11 +31,13 @@ Self-service duplicate delete and purge (C), Replace (B), central docs (Z).
 
 ## Status (lane fills in)
 
+- Recorded by lane Z (1 Nov 2026): merged as #399, squash commit b00a5b19 on main. Migration 0113 ran on production on the owner's word (db-migrate.yml run 41263156493, 1 Nov 2026 01:57Z; confirmed: 112 rows in the migration journal, the four lifecycle tables and the DOCUMENT_REMOVAL reason). Production is in "tables present" mode, so any "hidden until the migration" or "0113 has not run" line in this section is now out of date: those pieces are live. Gate G-D approved by the owner on 1 Nov 2026 ("G-D approved"): the Compliance Admin role reads the queue and decides (a decision needs a fresh sign-in; no new role), with the wording lanes C and D use today. The owner then said "switch on removal requests" and DOCUMENT_REMOVAL_REQUESTS=on is set in Vercel production and redeployed (by the coordinator, not lane D or Z).
+
 - Started on main: 19ec6a15 (LC-B merged, #393).
 - Access plan (accepted by the coordinator for building; the owner confirms the reviewing role at gate G-D): the staff queue is read with privacy access (`APPLICANT_DIRECTORY_VIEW`, the compliance administrator); deciding needs a fresh `RETENTION_PURGE` scope (the compliance administrator, the only `LIFECYCLE_STAFF_ACTIONS` value) plus a fresh sign-in check for both approve and decline. No new role or staff action. The page refuses by address exactly who the sidebar hides: switch off gives not found, no privacy access gives the restricted notice.
 - Approved path exceptions (coordinator, 1 Nov 2026), the only files outside `allowlists/D.txt`: `documents/page.tsx` (read and pass D's facts), `lib/a11y-forms.test.tsx` (scan entry for the decide form), `lib/workspace-chrome.ts` and `lib/workspace-navigation.ts` with their two tests (sidebar link). `documents/manage/view.ts` is unchanged (its facts parameter already carries D's facts).
-- PR / merged SHA:
+- PR / merged SHA: #399, squash commit b00a5b19 (recorded by lane Z).
 - Checks seen green:
-- Live / hidden until migration / behind switch:
+- Live / hidden until migration / behind switch: live since migration 0113 and the owner's switch (DOCUMENT_REMOVAL_REQUESTS=on, 1 Nov 2026), recorded by lane Z.
 - Not verified:
 - Blocked: none. Two allowlist needs were raised and approved by the coordinator on 1 Nov 2026: (1) one import and one scan entry for the staff decide form in `apps/web/src/lib/a11y-forms.test.tsx`; (2) the visible Removal Requests sidebar link through `lib/workspace-chrome.ts` (flag `removals` = privacy access and the switch on) and `lib/workspace-navigation.ts` (one tools entry), with their tests. The `navigation.ts` entry was dropped as instructed (`platformTabs` has no live caller).

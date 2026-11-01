@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   getMigrationStatus: vi.fn(),
   collectOperationalSignals: vi.fn(),
   getPilotScorecard: vi.fn(),
+  getLifecycleMeasures: vi.fn(),
+  staffPrincipal: vi.fn(async () => ({ ok: false, error: { code: 'forbidden', message: 'no' } })),
   getPlatformOverview: vi.fn(),
   getPlatformEvidenceBytes: vi.fn(),
   getProductAnalytics: vi.fn(),
@@ -32,6 +34,8 @@ vi.mock('../../../lib/session', () => ({
 vi.mock('../../../lib/admin', () => ({
   isPlatformAdmin: mocks.isPlatformAdmin,
   bootstrapAdminEmails: () => [],
+  // Lane Z: the lifecycle measures need the privacy directory role; refused unless a test grants it.
+  staffPrincipal: (...args: unknown[]) => mocks.staffPrincipal(...args),
 }));
 vi.mock('@visastack/db', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/db')>()),
@@ -41,6 +45,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   collectOperationalSignals: (...args: unknown[]) => mocks.collectOperationalSignals(...args),
   getPilotScorecard: (...args: unknown[]) => mocks.getPilotScorecard(...args),
+  getLifecycleMeasures: (...args: unknown[]) => mocks.getLifecycleMeasures(...args),
   getPlatformOverview: (...args: unknown[]) => mocks.getPlatformOverview(...args),
   getPlatformEvidenceBytes: (...args: unknown[]) => mocks.getPlatformEvidenceBytes(...args),
   getProductAnalytics: (...args: unknown[]) => mocks.getProductAnalytics(...args),
@@ -487,5 +492,44 @@ describe('WP-SB6 overview within the scroll budget', () => {
     expect(html.indexOf('id="admin-processing"')).toBeLessThan(
       html.indexOf('admin-overview-groups'),
     );
+  });
+});
+
+describe('Product Scorecard: archive, replace and removal measures (resource lifecycle, lane Z)', () => {
+  const measures = {
+    tablesPresent: true,
+    reminderToReplacement: { reminded: 10, replacedWithin14Days: 5, percent: 50, target: 40 },
+    duplicatesKept: { documents: 200, duplicates: 8, per100: 4, target: 3 },
+    restores: { deletionsAndArchives: 0, restores: 0, per100: null, target: 10 },
+    removalDecisions: {
+      decided: 3,
+      medianWorkingDays: 2,
+      overThirtyDays: 0,
+      targetMedian: 3,
+      targetMaxDays: 30,
+    },
+  };
+
+  it('shows each measure against its target to staff with the privacy directory role', async () => {
+    mocks.staffPrincipal.mockResolvedValueOnce({ ok: true, value: { staff: 'scope' } } as never);
+    mocks.getLifecycleMeasures.mockResolvedValueOnce({ ok: true, value: measures });
+    const text = textOf(await renderServer(Page({})));
+    expect(mocks.staffPrincipal).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ accountId: 'acct-1' }),
+      'APPLICANT_DIRECTORY_VIEW',
+    );
+    expect(mocks.getLifecycleMeasures).toHaveBeenCalledWith(expect.anything(), { staff: 'scope' });
+    expect(text).toContain('Archive, Replace and Removal');
+    expect(text).toMatch(/Within 14 Days 50% \(5 of 10\)\. Target: At least 40%\. Within Target/);
+    expect(text).toMatch(/Exact Duplicates Kept 4 per 100 \(8 of 200 documents\).*Outside Target/);
+    expect(text).toMatch(/Last 30 Days No data yet \(0 of 0\).*Too Early to Say/);
+    expect(text).toMatch(/2 working days \(3 decided, 0 over 30 days\).*Within Target/);
+  });
+
+  it('says why the figures are hidden from staff without that role, and reads nothing', async () => {
+    const text = textOf(await renderServer(Page({})));
+    expect(text).toContain('show only to staff with the privacy directory role');
+    expect(mocks.getLifecycleMeasures).not.toHaveBeenCalled();
   });
 });

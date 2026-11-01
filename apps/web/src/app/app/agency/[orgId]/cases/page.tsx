@@ -275,6 +275,12 @@ function OpenCaseWorkspace({
   const triage = caseTriageView(summary, {
     requirementLabels: new Map(open.requirements.map((r) => [r.id, r.label])),
     requestsIncluded: admin,
+    // Lane Z: an answered file that is archived, replaced or removed says so (never its name).
+    requestDocumentLabels: new Map(
+      requests.flatMap((r) =>
+        admin && r.respondingDocumentLabel ? [[r.id, r.respondingDocumentLabel] as const] : [],
+      ),
+    ),
   });
   return (
     <>

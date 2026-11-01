@@ -77,7 +77,10 @@ export async function restoreDeleted(
         )
         .for('update'),
     );
-    if (!row?.deletedAt || row.deletePath !== 'DUPLICATE' || !row.receiptId) {
+    // No lifecycle row for this traveller: a guessed id or another person's document gets the same
+    // answer as a malformed one (PROGRAMME section 8, Access row; lane Z).
+    if (!row) return err(serviceError('not_found', 'document not found'));
+    if (!row.deletedAt || row.deletePath !== 'DUPLICATE' || !row.receiptId) {
       return err(serviceError('invalid', RESTORE_REFUSALS.notDeleted));
     }
     if (!row.purgeAfter || row.purgeAfter.getTime() <= now.getTime()) {

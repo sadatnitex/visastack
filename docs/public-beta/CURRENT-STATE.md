@@ -111,3 +111,19 @@ This section supersedes the rows and sections above where they differ. Earlier s
 - **In progress, not live:** S18 refunds, credits from held payments, refunds made outside VisaStack and the monthly accounting file (platform owner only), with migration 0104 on the owner's word after the merge; live gateway refunds also need O6 and O18. Alongside it, a fix for the `/auth/reauth` production error.
 
 **31 Oct 2026, live readiness read and PDF intake (ADR 0024):** the fallback address reported `aiExtraction` available, `redactedDownload` available, `aiConnector` available, `malwareScanning` unconfigured, `payments` unconfigured, `realApplicantData` disabled and `commercialClaims` disabled. This settles the mixed lines above: AI reading and Safe Copies are configured and on; the "unconfigured" and "disabled" wording for them is older. PDFs are now admitted on the built-in checks with the scan record saying content is unverified, `PDF_UPLOADS=off` stops them, and the scanner gate can be deferred as H29. Real applicant data stays disabled until every other operational gate is true. Not verified: a PDF read and approved on the live site after this change.
+
+## Update, 2026-11-01: Resource Lifecycle Programme
+
+People can now tidy their records without losing history. Live on production (migration 0113 applied, run 41263156493):
+
+| Area | What a person can do now | What stays protected |
+|---|---|---|
+| Documents | Archive and Restore; Replace With a Newer Document (also from the expiry reminder); Delete Duplicate or Remove This New Copy at upload; Recently Deleted for 30 days with Undo and Restore; Removal Records; Tidy Up | A unique file is never self-deleted; a file a finished case, an agency request, a contributor or a live share used cannot be deleted; a legal hold always wins |
+| Removal requests | Ask Us to Remove This File; the Compliance Admin role decides with a fresh sign-in (switched on 1 Nov, gate G-D) | Destroyed only after verification; backups expire within 90 days and never bring it back |
+| Travellers | Archive and Restore a traveller; Remove Empty Record | Myself is never archived; only an empty record can be removed |
+| Profile and cases | No Longer Current and Ended details; Active and Past Cases; Withdraw Application for a pending agency | History and snapshots never change |
+| Cases and agencies | A chosen document that is archived, replaced or removed says so on the case evidence and in the agency case view, never by name | Explicit choices stay where they were made |
+| Staff | Removal Requests queue; four lifecycle measures on the admin Product Scorecard | Counts only, no names or files |
+
+Acceptance: the cross-lane journey tests in `packages/services/src/lifecycle/integration/` (PROGRAMME section 8). Not verified: a full storage-plus-database restore drill for removed documents (H32); the finished-case packet download after a removal in a real browser.
+

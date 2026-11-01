@@ -11,6 +11,7 @@ import {
   computeTripChecks,
   getAiFeatureState,
   getApplicant,
+  getDocumentLifecycles,
   getEvidenceCandidates,
   getLatestExplanationForRequirement,
   getLiveAcknowledgement,
@@ -91,6 +92,7 @@ import {
 } from './collaboration-panels';
 import { ComplaintPanel, FeedbackPanel } from './complaint-feedback-panel';
 import { ContributorRequestsPanel } from './contributor-requests-panel';
+import { evidenceDocumentIds, evidenceLifecycleLabels } from './evidence-lifecycle';
 import { composeSelectionCandidateKey } from './evidence-selection-key';
 import {
   CaseDetailsForm,
@@ -529,6 +531,28 @@ export default async function MissionPage({
           evidenceOptionsById.set(d.documentId, d.displayName);
       }
     }
+    // Resource lifecycle (lane Z, PROGRAMME 5.3): a chosen document that is archived, replaced
+    // or removed says so on the evidence lines. Read through the case's own access proof.
+    const evidenceEntries = candidates.ok ? candidates.value : [];
+    const evidenceIds = evidenceDocumentIds(evidenceEntries);
+    const evidenceGate =
+      evidenceIds.length > 0
+        ? await requireAccess(
+            db,
+            accountPrincipal(accountId),
+            'VIEW_METADATA',
+            { missionId: mission.id },
+            { purpose: 'self' },
+          )
+        : null;
+    const lifecycleNow = new Date();
+    const evidenceLifecycle = evidenceLifecycleLabels(
+      evidenceEntries,
+      evidenceGate?.ok
+        ? await getDocumentLifecycles(db, evidenceIds, evidenceGate.value, { now: lifecycleNow })
+        : new Map(),
+      lifecycleNow,
+    );
     // Composite key (finding #33, post-programme defect register) - see
     // evidence-selection-key.ts's own doc comment.
     const selectionIdsByCandidate: Record<string, string> = {};
@@ -680,6 +704,7 @@ export default async function MissionPage({
         : [],
       letters: letters.ok ? letters.value : [],
       candidates: candidates.ok ? candidates.value : [],
+      evidenceLifecycle,
       selectionIdsByCandidate,
       linkedMissions: otherLinked.map((m) => ({
         id: m.id,
@@ -859,6 +884,12 @@ export default async function MissionPage({
           </span>
         ) : null}
         {bookingReminder ? <span className="muted u-fs-085">{bookingReminder}</span> : null}
+        {data.evidenceLifecycle.chosenByRequirement[r.packRequirementId] ? (
+          <span className="muted u-fs-085">
+            Chosen document:{' '}
+            {data.evidenceLifecycle.chosenByRequirement[r.packRequirementId]?.join(', ')}
+          </span>
+        ) : null}
         {r.citation ? (
           <span className="muted u-fs-075">
             Cite: {sourceLine || r.citation}
@@ -1246,6 +1277,7 @@ export default async function MissionPage({
                         displayName: d.displayName,
                         eligible: d.eligible,
                         staleness: d.staleness.status,
+                        lifecycleLabel: data.evidenceLifecycle.byDocument[d.documentId] ?? null,
                       })),
                       selectedFactIds: c.selectedFactIds,
                       selectedDocumentIds: c.selectedDocumentIds,

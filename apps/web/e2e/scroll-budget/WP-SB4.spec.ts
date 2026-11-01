@@ -113,17 +113,11 @@ test.describe('WP-SB4 traveller tasks and forms with worst-case data', () => {
     await renderFixture(page, FIXTURE, { view: 'documents', count: 60 });
     const sheet = page.getByRole('complementary', { name: 'Selected document details' });
     for (const viewport of ['phone', 'desktop'] as const) {
-      // On a phone the paged list itself (12 rows a page, in the shared list component outside
-      // this package) is taller than the budget, so the page height there is reported, not
-      // enforced, until that list is settled; the sheet's own fixed height is enforced everywhere.
-      // A known exception recorded in docs/uiux/SCROLL-BUDGET.md section 2 (WP-SB10): measured
-      // 3.5 screens, and it still fails above its ceiling of 3.75.
-      await expectWithinBudget(page, {
-        screens: 3,
-        viewport,
-        mode: viewport === 'phone' ? 'report' : MODE,
-        ...(viewport === 'phone' ? { ceiling: 3.75 } : {}),
-      });
+      // Enforced on both screens since lane Z of the resource lifecycle programme: the shared
+      // list shows 6 rows a page on a phone and 12 on a desktop (WALLET_PAGE_SIZE in
+      // components/document-wallet-browser.tsx), with every document still reached through the
+      // pages. It was a known exception at 3.5 screens on a phone (docs/uiux/SCROLL-BUDGET.md).
+      await expectWithinBudget(page, { screens: 3, viewport, mode: MODE });
       const facts = await sheet.evaluate((element) => ({
         overflowY: getComputedStyle(element).overflowY,
         scrolls: element.scrollHeight > element.clientHeight,

@@ -3,6 +3,7 @@ import {
   type OperationalSignal,
   type ProductEventType,
   collectOperationalSignals,
+  getLifecycleMeasures,
   getPilotScorecard,
   getPlatformEvidenceBytes,
   getPlatformOverview,
@@ -17,7 +18,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../components/ui';
-import { bootstrapAdminEmails, isPlatformAdmin } from '../../../lib/admin';
+import { bootstrapAdminEmails, isPlatformAdmin, staffPrincipal } from '../../../lib/admin';
 import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
 import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/analytics-format';
 import { gateStatus } from '../../../lib/commercial-readiness';
@@ -38,6 +39,7 @@ import { AdminRestricted } from './admin-restricted';
 import { QueuePaging, QueuePastEnd } from './email/queue-paging';
 import { QueuePanel } from './email/queue-panel';
 import { FailedSectionsBanner } from './failed-sections-banner';
+import { LifecycleMeasuresCard } from './lifecycle-measures';
 import { ReconcileButtons } from './reconcile-buttons';
 
 export const metadata: Metadata = { title: 'Platform Operations' };
@@ -153,26 +155,48 @@ export default async function AdminOperationsPage({
     // created) are left empty and named in a banner. The permission check above is
     // NOT wrapped: an authorization failure must stay an error.
     const { read: t, failed: failedSections } = tolerantReader();
-    const [failedJobs, scorecard, analytics, platformEvidenceBytes, aiCostUnits, aiLimits] =
-      await Promise.all([
-        t(
-          'failed jobs',
-          () =>
-            listFailedJobs(db, {
-              limit: FAILED_JOBS_PAGE_SIZE,
-              ...(jobsBefore ? { before: jobsBefore } : {}),
-            }),
-          NO_FAILED_JOBS,
-        ),
-        t('product scorecard', () => getPilotScorecard(db), []),
-        t('learning areas', () => getProductAnalytics(db), {
-          available: false as const,
-          reason: 'schema_pending' as const,
-        }),
-        t('evidence storage', () => getPlatformEvidenceBytes(db), 0),
-        t('AI cost', () => totalAiCostUnits(db), 0),
-        t('AI limits', () => resolveAiLimits(db), defaultAiLimits()),
-      ]);
+    const [
+      failedJobs,
+      scorecard,
+      lifecycleMeasures,
+      analytics,
+      platformEvidenceBytes,
+      aiCostUnits,
+      aiLimits,
+    ] = await Promise.all([
+      t(
+        'failed jobs',
+        () =>
+          listFailedJobs(db, {
+            limit: FAILED_JOBS_PAGE_SIZE,
+            ...(jobsBefore ? { before: jobsBefore } : {}),
+          }),
+        NO_FAILED_JOBS,
+      ),
+      t('product scorecard', () => getPilotScorecard(db), []),
+      // Resource lifecycle measures (PROGRAMME section 9): staff with the privacy directory role.
+      t(
+        'lifecycle measures',
+        async () => {
+          const staff = await staffPrincipal(
+            db,
+            { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+            'APPLICANT_DIRECTORY_VIEW',
+          );
+          if (!staff.ok) return 'restricted' as const;
+          const measures = await getLifecycleMeasures(db, staff.value);
+          return measures.ok ? measures.value : ('unavailable' as const);
+        },
+        'unavailable' as const,
+      ),
+      t('learning areas', () => getProductAnalytics(db), {
+        available: false as const,
+        reason: 'schema_pending' as const,
+      }),
+      t('evidence storage', () => getPlatformEvidenceBytes(db), 0),
+      t('AI cost', () => totalAiCostUnits(db), 0),
+      t('AI limits', () => resolveAiLimits(db), defaultAiLimits()),
+    ]);
     // OPS-03: these need the AI figures above, so they run after them. Each is
     // read tolerantly; `collectOperationalSignals` also isolates its own signals.
     const migrations = await t(
@@ -248,6 +272,7 @@ export default async function AdminOperationsPage({
       overview,
       failedJobs,
       scorecard,
+      lifecycleMeasures,
       analytics,
       platformEvidenceBytes,
       aiCostUnits,
@@ -531,6 +556,7 @@ export default async function AdminOperationsPage({
                     ))}
                   </div>
                 </article>
+                <LifecycleMeasuresCard measures={data.lifecycleMeasures} />
               </div>
             </details>
             <details className="admin-overview-controls admin-overview-group">

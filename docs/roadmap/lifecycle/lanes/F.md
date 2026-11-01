@@ -36,6 +36,8 @@ Any read-site migration (A1, A2, B, E do those), any action component, any job r
 
 ## Status (lane fills in)
 
+- Recorded by lane Z (1 Nov 2026): merged as #381, squash commit 9d5bb99a on main. Migration 0113 ran on production on the owner's word (db-migrate.yml run 41263156493, 1 Nov 2026 01:57Z; confirmed: 112 rows in the migration journal, the four lifecycle tables and the DOCUMENT_REMOVAL reason). Production is in "tables present" mode, so any "hidden until the migration" or "0113 has not run" line in this section is now out of date: those pieces are live.
+
 - Started on main: ad4522378b84d3d51011f5caef0fd9eb595acca6
 - PR / merged SHA: #381 (https://github.com/sadatnitex/visastack/pull/381), squash merged from the head that carries this line; the merge SHA is the squash commit of #381 on main (it cannot be written inside the pull request it comes from)
 - Migration number: 0113 (`0113_resource_lifecycle`, journal idx 111, snapshot `meta/0111_snapshot.json`); free on main ad452237 and still free on main 3ed151fb right before merging

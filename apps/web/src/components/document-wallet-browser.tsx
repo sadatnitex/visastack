@@ -2,9 +2,11 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
+import { DEPTH_PHONE_QUERY } from '../lib/ccd/depth';
 import { isPhoneNow, raiseToShow } from '../lib/ccd/reveal';
 import { formatTimestampDate } from '../lib/format-date';
 import { agree, plural } from '../lib/plural';
+import { useMediaQuery } from '../lib/use-popover';
 import { atLevel } from './depth';
 import { EmptyState, StatusBadge } from './ui';
 
@@ -37,7 +39,13 @@ const FILTER_LABELS: Readonly<Record<Filter, string>> = {
   review: 'Needs Review',
   expiring: 'Expiring Soon',
 };
-const PAGE_SIZE = 12;
+/**
+ * Rows a page. A phone shows fewer, so the list with its Previous and Next buttons stays within
+ * three screens (docs/uiux/SCROLL-BUDGET.md, enforced by e2e/scroll-budget/WP-SB4.spec.ts); every
+ * document is still reached through the pages. The page is drawn first with the larger size, as
+ * the server cannot know the screen, then narrows once the browser reports a phone.
+ */
+export const WALLET_PAGE_SIZE = { desktop: 12, phone: 6 } as const;
 /** The filter choice for documents that no category holds yet. */
 const NOT_SORTED = '__not-sorted__';
 
@@ -64,6 +72,9 @@ export function DocumentWalletBrowser({
     if (area && scope) raiseToShow(area, scope, isPhoneNow());
   };
   const [page, setPage] = useState(0);
+  const pageSize = useMediaQuery(DEPTH_PHONE_QUERY)
+    ? WALLET_PAGE_SIZE.phone
+    : WALLET_PAGE_SIZE.desktop;
   const categories = [
     ...new Set(
       documents.map((doc) => doc.category).filter((value): value is string => Boolean(value)),
@@ -80,9 +91,9 @@ export function DocumentWalletBrowser({
         .toLocaleLowerCase()
         .includes(query.trim().toLocaleLowerCase()),
   );
-  const pageCount = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(matches.length / pageSize));
   const activePage = Math.min(page, pageCount - 1);
-  const visible = matches.slice(activePage * PAGE_SIZE, (activePage + 1) * PAGE_SIZE);
+  const visible = matches.slice(activePage * pageSize, (activePage + 1) * pageSize);
   const selected = documents.find((doc) => doc.id === selectedId);
   const counts = {
     all: documents.length,

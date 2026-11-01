@@ -6,7 +6,9 @@ import {
   type TriageDocumentState,
   accountPrincipal,
   computeReadiness,
+  documentLifecycleLabel,
   getClientsJoined,
+  getDocumentLifecycles,
   getLiveAcknowledgement,
   getOrganization,
   isActiveMember,
@@ -54,6 +56,12 @@ export type EvidenceRequestRow = OkValue<
    * the file can no longer be used. Absent means the request status alone decides.
    */
   readonly respondingDocumentState?: TriageDocumentState | null;
+  /**
+   * Resource lifecycle (lane Z, PROGRAMME 5.3): "Archived", "Replaced" or "Removed by the
+   * traveller on 3 Nov" when the answered file is no longer the traveller's everyday current one.
+   * Never the file's name. Absent for a current file, or when file states were not asked for.
+   */
+  readonly respondingDocumentLabel?: string;
   /** The request's visible code (`R-7K2Q9M`, ADR 0018); absent when it has none yet. */
   readonly referenceCode?: string;
 };
@@ -175,8 +183,10 @@ async function withRespondingDocumentStates(
     else scopes.set(`a:${r.applicantId}`, { applicantId: r.applicantId });
   }
   const states = new Map<string, TriageDocumentState | null>();
+  const labels = new Map<string, string>();
+  const now = new Date();
   await Promise.all(
-    [...scopes.values()].map(async (ref) => {
+    [...scopes.entries()].map(async ([scopeKey, ref]) => {
       const proof = await requireAccess(db, accountPrincipal(accountId), 'MANAGE', ref, {
         purpose: EACH_GRANT,
         actingFor: { organizationId: orgId },
@@ -186,11 +196,34 @@ async function withRespondingDocumentStates(
       for (const [id, state] of await listRespondingDocumentStatesForOrg(proof.value, orgId)) {
         states.set(id, state);
       }
+      // The same proof reads each answered file's lifecycle (archived, replaced, removed).
+      const inScope = answered.filter(
+        (r) => (r.missionId ? `m:${r.missionId}` : `a:${r.applicantId}`) === scopeKey,
+      );
+      const lifecycles = await getDocumentLifecycles(
+        db,
+        inScope.flatMap((r) => (r.respondingDocumentId ? [r.respondingDocumentId] : [])),
+        proof.value,
+        { now },
+      );
+      for (const r of inScope) {
+        const lifecycle = r.respondingDocumentId
+          ? lifecycles.get(r.respondingDocumentId.toLowerCase())
+          : undefined;
+        const label = lifecycle ? documentLifecycleLabel(lifecycle, now) : null;
+        if (label) labels.set(r.id, label);
+      }
     }),
   );
-  return requests.map((r) =>
-    states.has(r.id) ? { ...r, respondingDocumentState: states.get(r.id) ?? null } : r,
-  );
+  return requests.map((r) => {
+    if (!states.has(r.id) && !labels.has(r.id)) return r;
+    const label = labels.get(r.id);
+    return {
+      ...r,
+      ...(states.has(r.id) ? { respondingDocumentState: states.get(r.id) ?? null } : {}),
+      ...(label ? { respondingDocumentLabel: label } : {}),
+    };
+  });
 }
 
 /** Pending team invitations: administrator data. */

@@ -2401,6 +2401,12 @@ export {
   restoreTraveller,
   travellerIsEmpty,
 } from './lifecycle/travellers';
+
+// LC-Z exports (resource lifecycle measures for the admin scorecard, PROGRAMME section 9)
+export {
+  type LifecycleMeasures,
+  getLifecycleMeasures,
+} from './lifecycle/measures';
 export type { ApplicantListView, ListedApplicant } from './applicants';
 
 // ADR 0025 T6: the owner's traveller plan metrics and health thresholds (migration 0114).

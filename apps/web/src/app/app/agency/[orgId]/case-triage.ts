@@ -41,12 +41,25 @@ export interface CaseTriageView {
   readonly requestsLeftOut: boolean;
 }
 
+function lifecycleNote(
+  requestId: string | null,
+  labels: ReadonlyMap<string, string> | undefined,
+): readonly string[] {
+  const label = requestId ? labels?.get(requestId) : undefined;
+  return label ? [label] : [];
+}
+
 export function caseTriageView(
   summary: CaseTriageSummary,
   options: {
     /** Checklist item names by requirement id, as the case already shows them. */
     readonly requirementLabels: ReadonlyMap<string, string>;
     readonly requestsIncluded: boolean;
+    /**
+     * Lane Z: the lifecycle label of each answered request's file by request id ("Archived",
+     * "Removed by the traveller on 3 Nov"), added to that item's notes. Never a file name.
+     */
+    readonly requestDocumentLabels?: ReadonlyMap<string, string>;
   },
 ): CaseTriageView {
   const groups = TRIAGE_GROUPS.map((group) => ({
@@ -62,7 +75,10 @@ export function caseTriageView(
               ? options.requirementLabels.get(item.packRequirementId)
               : undefined) ||
             requestItemLabel({ kind: item.kind, fieldKey: item.subject, docType: item.subject }),
-          notes: item.indicators.map((indicator) => TRIAGE_INDICATOR_LABELS[indicator]),
+          notes: [
+            ...item.indicators.map((indicator) => TRIAGE_INDICATOR_LABELS[indicator]),
+            ...lifecycleNote(item.requestId, options.requestDocumentLabels),
+          ],
           due: item.dueDate ? formatDateOnly(item.dueDate) : null,
         }),
       ),

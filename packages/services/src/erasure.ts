@@ -18,6 +18,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
+import { recordProductEvent } from './product-events';
 import { redactionMasksTablePresent } from './redaction-table';
 import { documentBlockedByLegalHold, hasActiveLegalHold } from './retention';
 import type { BlobStore } from './storage';
@@ -650,6 +651,9 @@ async function completeRemovalReceipt(
     .update(schema.deletionReceipts)
     .set({ status: 'REMOVED', verifiedGoneAt: new Date(), effects })
     .where(eq(schema.deletionReceipts.id, receiptId));
+  // The registered measure (PROGRAMME 3.5): once per Removal Record that reaches Removed. No
+  // account: the erasure worker did it, and counts carry no id (lane Z found it never recorded).
+  await recordProductEvent(tx, { eventType: 'DOCUMENT_DESTROYED', accountId: null });
 }
 
 /** A legal hold stopped a `DOCUMENT_REMOVAL`: its Removal Record reads Kept (Legal Requirement). */
