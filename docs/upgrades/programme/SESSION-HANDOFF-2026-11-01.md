@@ -20,12 +20,13 @@ Every fact below was checked on main and on GitHub on 1 Nov 2026 unless it says 
 
 **Main CI on `b665fd4e`:** "Lint · Build · Typecheck · Test", "No-secret Playwright checks", "No-secret smoke check", CodeQL and the live signed-in check all succeeded; the Vercel status is success.
 
-**Switches set by the owner since 29 Oct:** `DOCUMENT_REMOVAL_REQUESTS=on` in Vercel Production, then a redeploy (deployment `dpl_CHa5srZp3PyLaDkoxaCBu9KfR8Va`, reported READY by the coordinator; this session cannot read Vercel settings). The code accepts `on`, `true`, `1` or `yes`, any case, spaces ignored (`apps/web/src/lib/env.ts`, `documentRemovalRequestsOn`).
+**Switches set by the owner since 29 Oct:** `DOCUMENT_REMOVAL_REQUESTS=on` in Vercel Production, then a redeploy (deployment `dpl_CHa5srZp3PyLaDkoxaCBu9KfR8Va`, reported READY by the coordinator; this session cannot read Vercel settings). The owner checked on screen that Ask Us to Remove This File appears (owner check, 1 Nov 2026, reported by the coordinator). The code accepts `on`, `true`, `1` or `yes`, any case, spaces ignored (`apps/web/src/lib/env.ts`, `documentRemovalRequestsOn`).
 
 ## 2. Owner decisions in force (new since 29 Oct, newest first)
 
 The full list is `docs/SESSION-START.md` section 6.
 
+- Founding A follow-up, both YES: a REJECTED application also ends Founding Access; backup reconciliation replays SUBSCRIPTION_ENDED.
 - "G-Z accepted": the Resource Lifecycle Programme is accepted.
 - "Founding A", refined to "Close the record": Founding Access is free and never invoiced, so on agency withdraw or terminate the current plan ends at that moment, a waiting downgrade and its notice are cancelled, SUBSCRIPTION_ENDED is audited, no refund. Merged as #405 (`b8bb2df4`), no migration.
 - "switch on removal requests" and "G-D approved": the Compliance Admin role reviews removal requests, each decision needs a fresh sign-in, no new role; wording approved as shipped.
@@ -34,7 +35,7 @@ The full list is `docs/SESSION-START.md` section 6.
 
 ## 3. Open work, in order
 
-1. **Owner questions from Founding A** (#405 merged): (1) a REJECTED application keeps its Founding Access subscription current; (2) backup reconciliation does not replay SUBSCRIPTION_ENDED, so after a restore a closed agency's plan reads current again (no access, never invoiced).
+1. **Founding A follow-up** (in progress, session VS-XYZ-02): the owner answered both YES (reported by the coordinator, 1 Nov 2026): a REJECTED application also ends its Founding Access subscription, and backup reconciliation must replay SUBSCRIPTION_ENDED. Session VS-XYZ-02 is building both; not merged when this was written.
 2. **PGlite speedup for tests** (next engineering item, deferred from #376): fewer database copies per test so CI gets faster. Not started.
 3. **Lifecycle cleanup** (not urgent): the per-request presence checks for the lifecycle tables can go now that 0113 is confirmed on production.
 4. **Paid plans go-live**: owner items D7, D12, O6, then "go live"; T7 (privacy and launch) and T8 (after launch) per ADR 0025.
@@ -43,14 +44,13 @@ The full list is `docs/SESSION-START.md` section 6.
 
 ## 4. Sessions still running
 
-- VS-XYZ-02 (`session_0187kU9rUiifEY59CgmeDcu4`): built Founding A (#405, merged); no open package known.
+- VS-XYZ-02 (`session_0187kU9rUiifEY59CgmeDcu4`): built Founding A (#405, merged); now building the Founding A follow-up (rejected applications, backup replay).
 - The coordinator (`session_0187kU9trzEd3LaoJQDzkYT4`) started this documentation session.
 - Old owner-held PRs #177 (open sign-up switch) and #77 (WorkOS staging, obsolete): leave them open.
 
 ## 5. Not verified
 
 - A signed-in live click-through of the new lifecycle actions (Archive, Replace, Delete Duplicate, Recently Deleted, Ask Us to Remove This File and the staff queue, traveller Archive).
-- The Ask Us to Remove This File option on screen after the switch was set.
 - The finished-case packet download after a removal in a real browser; the H32 restore drill.
 - The main domain `vs.obsidianglobal.studio` from cloud sessions: the session proxy refuses the connection, so only the fallback domain was probed.
 - Real signed-in pages at phone and desktop widths for the Scroll Budget work (the checks measure fixtures that copy each page's layout).

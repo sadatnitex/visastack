@@ -43,7 +43,8 @@ Each row's journey test is listed in `lanes/Z.md` (Status) and in `docs/commerci
 
 The programme is closed; these stay open outside it.
 
-- Founding A: merged as #405 (`b8bb2df4`). Open owner questions from Founding A: (1) a REJECTED application keeps its Founding Access subscription current; (2) backup reconciliation does not replay SUBSCRIPTION_ENDED, so after a restore a closed agency's plan reads current again (no access, never invoiced).
+- Founding A: merged as #405 (`b8bb2df4`). Founding A follow-up: the owner answered both YES (reported by the coordinator, 1 Nov 2026): a REJECTED application also ends its Founding Access subscription, and backup reconciliation must replay SUBSCRIPTION_ENDED. Session VS-XYZ-02 is building both; not merged when this was written.
 - Deferred with triggers: H30 voluntary agency closure, H31 automatic Safe Copy for the surviving copy of a deleted duplicate, H32 storage-plus-database restore drill for removed documents (`docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md`).
 - Cleanup, not urgent: the per-request presence checks for the lifecycle tables can be removed now that 0113 is confirmed on production.
-- Not verified: a signed-in live click-through of the lifecycle actions; Ask Us to Remove This File on screen after the switch was set; the finished-case packet download after a removal in a real browser. Only the fallback domain could be probed from cloud sessions (the main domain is refused by the session proxy).
+- The owner checked on screen that Ask Us to Remove This File appears (owner check, 1 Nov 2026, reported by the coordinator).
+- Not verified: a signed-in live click-through of the lifecycle actions; the finished-case packet download after a removal in a real browser. Only the fallback domain could be probed from cloud sessions (the main domain is refused by the session proxy).
