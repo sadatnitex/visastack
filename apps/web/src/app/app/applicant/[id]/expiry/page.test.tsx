@@ -241,3 +241,68 @@ describe('Dates & Expiry levels (CCD-3)', () => {
     expect(doc.querySelector('h1')?.textContent).toBe('Dates & Expiry');
   });
 });
+
+describe('long lists on the Expiry page (WP-SB4)', () => {
+  const docs = Array.from({ length: 25 }, (_, i) => ({
+    id: `doc-${i}`,
+    approvedName: `Synthetic Document ${i}`,
+    originalName: `doc-${i}.pdf`,
+    docType: 'PASSPORT',
+    expiresAt: new Date(Date.now() + (i + 1) * 86_400_000).toISOString(),
+  }));
+  const rowCount = (html: string, list: string) =>
+    html.match(new RegExp(`id="expiry-${list}-\\d+"`, 'g'))?.length ?? 0;
+  /** The markup of one element and what follows it closely: the count line of a Show More. */
+  const near = (html: string, id: string) => {
+    const start = html.indexOf(`id="${id}"`);
+    expect(start).toBeGreaterThan(-1);
+    return html.slice(start, html.indexOf('</output>', start));
+  };
+  const at = (query: Record<string, string>) =>
+    renderServer(Page({ ...params, searchParams: Promise.resolve(query) }));
+
+  beforeEach(() => {
+    service.listDocumentsDetailed.mockResolvedValue({ ok: true, value: docs });
+    service.listIssuerVerificationsForDocument.mockImplementation(async (_db, docId: string) => [
+      {
+        id: `v-${docId}`,
+        issuerIdentity: 'Synthetic Bank',
+        validUntil: new Date(Date.now() + 9e9),
+      },
+    ]);
+  });
+
+  it('shows ten rows a list, the most urgent first, with Show More for the rest', async () => {
+    const html = await at({});
+    expect(rowCount(html, 'docs')).toBe(10);
+    expect(rowCount(html, 'checks')).toBe(10);
+    expect(html).toContain('Synthetic Document 0');
+    expect(html).not.toContain('Synthetic Document 10<');
+    expect(textOf(near(html, 'expiry-docs-more'))).toContain('Showing 10 of 25 documents.');
+    expect(html).toContain('href="/app/applicant/person/expiry?docs=20#expiry-docs-10"');
+    expect(html).toContain('href="/app/applicant/person/expiry?checks=20#expiry-checks-10"');
+  });
+
+  it('grows one list by ten without changing the others, and stops at the end', async () => {
+    const html = await at({ docs: '20' });
+    expect(rowCount(html, 'docs')).toBe(20);
+    expect(rowCount(html, 'checks')).toBe(10);
+    expect(html).toContain('href="/app/applicant/person/expiry?docs=30#expiry-docs-20"');
+    const all = await at({ docs: '30' });
+    expect(rowCount(all, 'docs')).toBe(25);
+    expect(textOf(near(all, 'expiry-docs-more'))).toContain('Showing all 25 documents.');
+    expect(all).not.toContain('expiry?docs=40');
+  });
+
+  it('treats a hand-edited or huge value as safe: one step, or at most the ceiling', async () => {
+    expect(rowCount(await at({ docs: 'drop table' }), 'docs')).toBe(10);
+    expect(rowCount(await at({ docs: '999999' }), 'docs')).toBe(25);
+  });
+
+  it('adds no Show More to a short list', async () => {
+    service.listDocumentsDetailed.mockResolvedValue({ ok: true, value: docs.slice(0, 4) });
+    const html = await at({});
+    expect(rowCount(html, 'docs')).toBe(4);
+    expect(html).not.toContain('id="expiry-docs-more"');
+  });
+});

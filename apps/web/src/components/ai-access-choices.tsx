@@ -18,6 +18,13 @@ import {
   AI_SUGGEST_KEPT_NOTE,
 } from '../lib/ai-consent-labels';
 import { AiFileChoices } from './ai-file-choices';
+import { CollapsibleGroup } from './collapsible-group';
+
+/**
+ * Up to this many cases are listed as they are; a longer list sits behind "Choose One Case"
+ * (WP-SB4), so the screen stays short. It opens by itself when one of them is the choice.
+ */
+export const AI_CASES_INLINE_MAX = 3;
 
 export interface AiAccessChoicesProps {
   readonly appName: string;
@@ -84,6 +91,21 @@ export function AiAccessChoices({
   // The whole group is described by the message too, so it is read with the group's name.
   const problemGroup = (field: string) =>
     invalid?.field === field ? { 'aria-describedby': invalid.messageId } : {};
+  const caseChoices = cases.map((item) => (
+    <label key={item.id} className="check output-check" htmlFor={`${id}-ai-case-${item.id}`}>
+      <input
+        id={`${id}-ai-case-${item.id}`}
+        type="radio"
+        name="cases"
+        value={item.id}
+        defaultChecked={initial.cases === item.id}
+        {...problem('cases')}
+      />
+      <span className="output-check-text">
+        <span>Only {item.title}</span>
+      </span>
+    </label>
+  ));
   return (
     <>
       <fieldset className="fieldset">
@@ -131,25 +153,18 @@ export function AiAccessChoices({
               <span>All Current Cases</span>
             </span>
           </label>
-          {cases.map((item) => (
-            <label
-              key={item.id}
-              className="check output-check"
-              htmlFor={`${id}-ai-case-${item.id}`}
+          {cases.length > AI_CASES_INLINE_MAX ? (
+            <CollapsibleGroup
+              title="Choose One Case"
+              count={cases.length}
+              noun={{ one: 'case', other: 'cases' }}
+              open={cases.some((item) => item.id === initial.cases) || invalid?.field === 'cases'}
             >
-              <input
-                id={`${id}-ai-case-${item.id}`}
-                type="radio"
-                name="cases"
-                value={item.id}
-                defaultChecked={initial.cases === item.id}
-                {...problem('cases')}
-              />
-              <span className="output-check-text">
-                <span>Only {item.title}</span>
-              </span>
-            </label>
-          ))}
+              <div className="checks">{caseChoices}</div>
+            </CollapsibleGroup>
+          ) : (
+            caseChoices
+          )}
           <label className="check output-check" htmlFor={`${id}-ai-cases-none`}>
             <input
               id={`${id}-ai-cases-none`}

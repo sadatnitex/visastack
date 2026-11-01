@@ -67,3 +67,33 @@ describe('Suggest Changes on Change Access', () => {
     expect(box(html)[0]).not.toContain('checked');
   });
 });
+
+describe('Cases on the consent screen (WP-SB4)', () => {
+  const cases = Array.from({ length: 6 }, (_, i) => ({ id: `case-${i}`, title: `Trip ${i}` }));
+  const caseRadios = (html: string) => html.match(/<input[^>]*name="cases"[^>]*>/g) ?? [];
+  const expander = (html: string) =>
+    html.match(
+      /<details class="collapsible-group"( open="")?><summary[^>]*><span class="collapsible-group-title">Choose One Case<\/span>/,
+    );
+
+  it('lists a few cases as they are, with no expander', () => {
+    const html = render({ cases: cases.slice(0, 3) });
+    expect(expander(html)).toBeNull();
+    expect(caseRadios(html)).toHaveLength(5);
+  });
+
+  it('puts a longer list behind a closed expander, offering exactly the same choices', () => {
+    const html = render({ cases });
+    expect(expander(html)?.[1]).toBeUndefined();
+    expect(html).toContain('<span class="sr-only">, 6 cases</span>');
+    const values = caseRadios(html).map((tag) => tag.match(/value="([^"]+)"/)?.[1]);
+    expect(values).toEqual(['all', ...cases.map((c) => c.id), 'none']);
+  });
+
+  it('opens the expander when one of its cases is the choice, or the choice needs a look', () => {
+    const chosen = render({ cases, initial: { ...CONSENT_DEFAULTS, cases: 'case-4' } });
+    expect(expander(chosen)?.[1]).toBe(' open=""');
+    const invalid = render({ cases, invalid: { field: 'cases', messageId: 'msg' } });
+    expect(expander(invalid)?.[1]).toBe(' open=""');
+  });
+});

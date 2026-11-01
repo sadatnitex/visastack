@@ -100,3 +100,33 @@ describe('PrepareAgainForm', () => {
     expect(html).toContain('(Not Accepted Yet)');
   });
 });
+
+describe('PrepareAgainForm stays short (WP-SB4)', () => {
+  const group = (key: string) =>
+    html.match(
+      new RegExp(
+        `<details class="collapsible-group" id="prepare-again-${key}"( open="")?>[\\s\\S]*?<span class="collapsible-group-count" aria-hidden="true">(\\d+)</span>`,
+      ),
+    );
+
+  it('folds the three groups, each with its count, with only the first open', () => {
+    expect(group('REUSABLE')?.[1]).toBe(' open=""');
+    expect(group('NEEDS_REVIEW')?.[1]).toBeUndefined();
+    expect(group('MISSING')?.[1]).toBeUndefined();
+    expect([group('REUSABLE')?.[2], group('NEEDS_REVIEW')?.[2], group('MISSING')?.[2]]).toEqual([
+      '1',
+      '2',
+      '0',
+    ]);
+    // A folded group still holds its boxes, so what is ticked is carried either way.
+    expect(checkbox('r3|f|e1')).toContain('name="carry"');
+  });
+
+  it('keeps Create Case in a bar that stays in reach, at the end of the form', () => {
+    const bar = html.indexOf('<fieldset class="sticky-action-bar">');
+    expect(bar).toBeGreaterThan(html.indexOf('prepare-again-sharing'));
+    const end = html.slice(bar, html.indexOf('</fieldset>', bar));
+    expect(end).toContain('<legend class="sr-only">Create the New Case</legend>');
+    expect(end).toContain('Create Case');
+  });
+});

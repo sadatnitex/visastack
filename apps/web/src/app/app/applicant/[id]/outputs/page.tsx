@@ -14,7 +14,9 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { CollapsibleGroup } from '../../../../../components/collapsible-group';
 import { SelectedScopeSummary } from '../../../../../components/selected-scope-summary';
+import { StickyActionBar } from '../../../../../components/sticky-action-bar';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { resolveBaseUrl } from '../../../../../lib/base-url';
 import { plural } from '../../../../../lib/plural';
@@ -44,6 +46,67 @@ const DEPTH_CHOICES = [
 ] as const;
 
 type OutputsQuery = Record<string, string | string[] | undefined>;
+
+/** The three steps of the page (WP-SB4): pick a summary, choose what goes in, check and share. */
+type OutputStep = 1 | 2 | 3;
+const STEPS: readonly (readonly [OutputStep, string, string])[] = [
+  [1, 'Choose a Summary', 'output-step-choose'],
+  [2, 'Choose What to Include', 'output-step-options'],
+  [3, 'Preview and Share', 'output-preview'],
+];
+
+/** Where the person is: no summary picked yet, choices not previewed yet, or previewed. */
+function currentStep(query: OutputsQuery, previewed: boolean): OutputStep {
+  if (previewed) return 3;
+  const { output } = query;
+  return output === undefined ? 1 : 2;
+}
+
+function StepList({
+  step,
+  hasPreview,
+}: { readonly step: OutputStep; readonly hasPreview: boolean }) {
+  return (
+    <nav aria-label="Steps" className="u-mb-150 output-noprint">
+      <ol className="output-steps">
+        {STEPS.map(([number, label, target]) => {
+          const linked = number !== 3 || hasPreview;
+          const content = (
+            <>
+              <span className="output-step-number" aria-hidden="true">
+                {number}
+              </span>
+              <span>
+                <span className="sr-only">Step {number}: </span>
+                {label}
+              </span>
+            </>
+          );
+          return (
+            <li key={number} className="output-step">
+              {linked ? (
+                <a
+                  href={`#${target}`}
+                  className="output-step-link"
+                  aria-current={number === step ? 'step' : undefined}
+                >
+                  {content}
+                </a>
+              ) : (
+                <span
+                  className="output-step-link"
+                  aria-current={number === step ? 'step' : undefined}
+                >
+                  {content}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
 
 function ViewSections({ view }: { readonly view: OutputView }) {
   return (
@@ -177,6 +240,7 @@ export default async function OutputsPage({
     choice: { ...choice, missionId: ready.missionId },
   });
   const showCasePicker = template.needsCase || request.template === 'ai_context';
+  const step = currentStep(query, request.previewed);
 
   return (
     <>
@@ -206,256 +270,282 @@ export default async function OutputsPage({
         </p>
       ) : null}
 
-      <nav aria-label="Kinds of Summary" className="u-mb-150 output-noprint">
-        <ul className="output-templates">
-          {OUTPUT_TEMPLATE_IDS.map((templateId) => {
-            const item = OUTPUT_TEMPLATES[templateId];
-            const href = `${pageHref}?output=${templateId}${ready.missionId ? `&case=${ready.missionId}` : ''}`;
-            return (
-              <li key={templateId}>
-                <Link
-                  href={href}
-                  className="output-template"
-                  aria-current={templateId === request.template ? 'page' : undefined}
-                >
-                  <span className="output-template-name">{item.label}</span>
-                  <span className="output-template-note">{item.description}</span>
-                  {/* Seen, not only coloured: the chosen card says so. Read aloud as the current page. */}
-                  {templateId === request.template ? (
-                    <span
-                      className="badge badge-neutral output-template-selected"
-                      aria-hidden="true"
-                    >
-                      Selected
-                    </span>
-                  ) : null}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+      <StepList step={step} hasPreview={Boolean(output && text)} />
 
-      <section className="card u-mb-150 output-noprint" aria-labelledby="output-choose-heading">
+      {/* Step 1. Open until a summary is picked; afterwards one line says which, and opens again. */}
+      <div className="u-mb-150 output-noprint">
+        <CollapsibleGroup
+          id="output-step-choose"
+          title={`Summary: ${template.label}`}
+          open={step === 1}
+        >
+          <nav aria-label="Kinds of Summary">
+            <ul className="output-templates">
+              {OUTPUT_TEMPLATE_IDS.map((templateId) => {
+                const item = OUTPUT_TEMPLATES[templateId];
+                const href = `${pageHref}?output=${templateId}${ready.missionId ? `&case=${ready.missionId}` : ''}`;
+                return (
+                  <li key={templateId}>
+                    <Link
+                      href={href}
+                      className="output-template"
+                      aria-current={templateId === request.template ? 'page' : undefined}
+                    >
+                      <span className="output-template-name">{item.label}</span>
+                      <span className="output-template-note">{item.description}</span>
+                      {/* Seen, not only coloured: the chosen card says so. Read aloud as the current page. */}
+                      {templateId === request.template ? (
+                        <span
+                          className="badge badge-neutral output-template-selected"
+                          aria-hidden="true"
+                        >
+                          Selected
+                        </span>
+                      ) : null}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        </CollapsibleGroup>
+      </div>
+
+      <section
+        id="output-step-options"
+        className="card u-mb-150 output-noprint"
+        aria-labelledby="output-choose-heading"
+      >
         <h3 className="card-title" id="output-choose-heading">
           Choose What to Include
         </h3>
-        <form method="get" action={`${pageHref}#output-preview`} className="output-form">
-          <input type="hidden" name="output" value={request.template} />
-          <input type="hidden" name="preview" value="1" />
-          {showCasePicker ? (
-            <div className="field-row">
-              <label className="field-label" htmlFor="output-case">
-                Case
-              </label>
-              <select
-                id="output-case"
-                name="case"
-                className="input"
-                defaultValue={ready.missionId ?? ''}
-              >
-                {template.needsCase ? null : <option value="">No Case</option>}
-                {ready.cases.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title}
-                    {item.referenceCode ? ` (${item.referenceCode})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-
-          <fieldset className="fieldset">
-            <legend className="field-label">Parts of Your Record</legend>
-            <div className="checks">
-              {CATALOGUE_LAYERS.filter((layer) => template.layersOffered.includes(layer.key)).map(
-                (layer) => (
-                  <label
-                    key={layer.key}
-                    className="check output-check"
-                    htmlFor={`output-layer-${layer.key}`}
-                  >
-                    <input
-                      id={`output-layer-${layer.key}`}
-                      type="checkbox"
-                      name="layer"
-                      value={layer.key}
-                      defaultChecked={choice.layers.includes(layer.key)}
-                    />
-                    <span className="output-check-text">
-                      <span>{layer.label}</span>
-                      <span className="muted u-fs-075">
-                        {CAREFUL_LAYERS.has(layer.key)
-                          ? `${layer.description} Sensitive: include it only if the reader needs it.`
-                          : layer.description}
-                      </span>
-                    </span>
-                  </label>
-                ),
-              )}
-            </div>
-          </fieldset>
-
-          {template.offersDocumentList ? (
-            <fieldset className="fieldset">
-              <legend className="field-label">Documents</legend>
-              <label className="check output-check" htmlFor="output-docs">
-                <input
-                  id="output-docs"
-                  type="checkbox"
-                  name="docs"
-                  value="1"
-                  defaultChecked={choice.documentList}
-                />
-                <span className="output-check-text">
-                  <span>Include the List of My Documents</span>
-                  <span className="muted u-fs-075">
-                    Kind, dates and status only. No file is ever included.
-                  </span>
-                </span>
-              </label>
-            </fieldset>
-          ) : null}
-
-          {template.offersDocumentText ? (
-            <fieldset className="fieldset">
-              <legend className="field-label">Text Read from My Documents</legend>
-              <p className="muted u-fs-075 u-m-0" id="output-text-note">
-                Adds the words read from your documents in the groups you tick. Passports, ID, money
-                and health documents are never included. Choose this only if the AI app needs the
-                words themselves.
-              </p>
-              <div className="checks">
-                {CATALOGUE_DOCUMENT_GROUPS.map((group) => (
-                  <label
-                    key={group.key}
-                    className="check output-check"
-                    htmlFor={`output-text-${group.key}`}
-                  >
-                    <input
-                      id={`output-text-${group.key}`}
-                      type="checkbox"
-                      name="text"
-                      value={group.key}
-                      aria-describedby="output-text-note"
-                      defaultChecked={choice.documentText.includes(group.key)}
-                    />
-                    <span>{group.label}</span>
-                  </label>
-                ))}
+        {/* Step 2. Folded once a preview shows, so the preview is near the top; it opens again. */}
+        <CollapsibleGroup id="output-choices" title="Your Choices" open={step !== 3}>
+          <form method="get" action={`${pageHref}#output-preview`} className="output-form">
+            <input type="hidden" name="output" value={request.template} />
+            <input type="hidden" name="preview" value="1" />
+            {showCasePicker ? (
+              <div className="field-row">
+                <label className="field-label" htmlFor="output-case">
+                  Case
+                </label>
+                <select
+                  id="output-case"
+                  name="case"
+                  className="input"
+                  defaultValue={ready.missionId ?? ''}
+                >
+                  {template.needsCase ? null : <option value="">No Case</option>}
+                  {ready.cases.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.title}
+                      {item.referenceCode ? ` (${item.referenceCode})` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </fieldset>
-          ) : null}
-
-          {template.offersDepth ? (
-            <fieldset className="fieldset">
-              <legend className="field-label">How Much Detail</legend>
-              <div className="checks">
-                {DEPTH_CHOICES.map(([value, label, note]) => (
-                  <label
-                    key={value}
-                    className="check output-check"
-                    htmlFor={`output-depth-${value}`}
-                  >
-                    <input
-                      id={`output-depth-${value}`}
-                      type="radio"
-                      name="depth"
-                      value={value}
-                      defaultChecked={choice.depth === value}
-                    />
-                    <span className="output-check-text">
-                      <span>{label}</span>
-                      <span className="muted u-fs-075">{note}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          ) : null}
-
-          {template.offersFullNumbers ? (
-            <fieldset className="fieldset">
-              <legend className="field-label">Numbers</legend>
-              <label className="check output-check" htmlFor="output-numbers">
-                <input
-                  id="output-numbers"
-                  type="checkbox"
-                  name="numbers"
-                  value="1"
-                  defaultChecked={choice.revealIdentifiers}
-                  aria-describedby="output-numbers-note"
-                />
-                <span className="output-check-text">
-                  <span>Show Full Document Numbers</span>
-                  <span className="muted u-fs-075" id="output-numbers-note">
-                    Passport and ID numbers show only their last three characters unless you tick
-                    this. You will be asked to confirm it is you.
-                  </span>
-                </span>
-              </label>
-            </fieldset>
-          ) : null}
-
-          {template.offersQuestion ? (
-            <div className="field-row">
-              <label className="field-label" htmlFor="output-question">
-                What You Want Help with (Optional)
-              </label>
-              <input
-                id="output-question"
-                name="q"
-                type="text"
-                className="input"
-                maxLength={600}
-                defaultValue={choice.question}
-                autoComplete="off"
-              />
-            </div>
-          ) : null}
-
-          {template.offersFieldPicker && ready.candidates.length > 0 ? (
-            <fieldset className="fieldset">
-              <legend className="field-label">Details to Include</legend>
-              <input type="hidden" name="picked" value="1" />
-              <p className="muted u-fs-075 u-m-0">
-                These are the confirmed details in the parts you chose. Untick any you do not want
-                in the sheet.
-              </p>
-              <div className="checks">
-                {ready.candidates.map((candidate, index) => (
-                  <label
-                    key={candidate.key}
-                    className="check output-check"
-                    htmlFor={`output-field-${index}`}
-                  >
-                    <input
-                      id={`output-field-${index}`}
-                      type="checkbox"
-                      name="field"
-                      value={candidate.key}
-                      defaultChecked={
-                        choice.fieldKeys === null || choice.fieldKeys.includes(candidate.key)
-                      }
-                    />
-                    <span>{candidate.label}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          ) : null}
-
-          <div className="output-actions">
-            <button type="submit" className="btn btn-primary">
-              Preview
-            </button>
-            {request.previewed ? (
-              <Link href={`${pageHref}?output=${request.template}`} className="btn btn-secondary">
-                Start Again
-              </Link>
             ) : null}
-          </div>
-        </form>
+
+            <fieldset className="fieldset">
+              <legend className="field-label">Parts of Your Record</legend>
+              <div className="checks">
+                {CATALOGUE_LAYERS.filter((layer) => template.layersOffered.includes(layer.key)).map(
+                  (layer) => (
+                    <label
+                      key={layer.key}
+                      className="check output-check"
+                      htmlFor={`output-layer-${layer.key}`}
+                    >
+                      <input
+                        id={`output-layer-${layer.key}`}
+                        type="checkbox"
+                        name="layer"
+                        value={layer.key}
+                        defaultChecked={choice.layers.includes(layer.key)}
+                      />
+                      <span className="output-check-text">
+                        <span>{layer.label}</span>
+                        <span className="muted u-fs-075">
+                          {CAREFUL_LAYERS.has(layer.key)
+                            ? `${layer.description} Sensitive: include it only if the reader needs it.`
+                            : layer.description}
+                        </span>
+                      </span>
+                    </label>
+                  ),
+                )}
+              </div>
+            </fieldset>
+
+            {template.offersDocumentList ? (
+              <fieldset className="fieldset">
+                <legend className="field-label">Documents</legend>
+                <label className="check output-check" htmlFor="output-docs">
+                  <input
+                    id="output-docs"
+                    type="checkbox"
+                    name="docs"
+                    value="1"
+                    defaultChecked={choice.documentList}
+                  />
+                  <span className="output-check-text">
+                    <span>Include the List of My Documents</span>
+                    <span className="muted u-fs-075">
+                      Kind, dates and status only. No file is ever included.
+                    </span>
+                  </span>
+                </label>
+              </fieldset>
+            ) : null}
+
+            {template.offersDocumentText ? (
+              <fieldset className="fieldset">
+                <legend className="field-label">Text Read from My Documents</legend>
+                <p className="muted u-fs-075 u-m-0" id="output-text-note">
+                  Adds the words read from your documents in the groups you tick. Passports, ID,
+                  money and health documents are never included. Choose this only if the AI app
+                  needs the words themselves.
+                </p>
+                <div className="checks">
+                  {CATALOGUE_DOCUMENT_GROUPS.map((group) => (
+                    <label
+                      key={group.key}
+                      className="check output-check"
+                      htmlFor={`output-text-${group.key}`}
+                    >
+                      <input
+                        id={`output-text-${group.key}`}
+                        type="checkbox"
+                        name="text"
+                        value={group.key}
+                        aria-describedby="output-text-note"
+                        defaultChecked={choice.documentText.includes(group.key)}
+                      />
+                      <span>{group.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
+
+            {template.offersDepth ? (
+              <fieldset className="fieldset">
+                <legend className="field-label">How Much Detail</legend>
+                <div className="checks">
+                  {DEPTH_CHOICES.map(([value, label, note]) => (
+                    <label
+                      key={value}
+                      className="check output-check"
+                      htmlFor={`output-depth-${value}`}
+                    >
+                      <input
+                        id={`output-depth-${value}`}
+                        type="radio"
+                        name="depth"
+                        value={value}
+                        defaultChecked={choice.depth === value}
+                      />
+                      <span className="output-check-text">
+                        <span>{label}</span>
+                        <span className="muted u-fs-075">{note}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
+
+            {template.offersFullNumbers ? (
+              <fieldset className="fieldset">
+                <legend className="field-label">Numbers</legend>
+                <label className="check output-check" htmlFor="output-numbers">
+                  <input
+                    id="output-numbers"
+                    type="checkbox"
+                    name="numbers"
+                    value="1"
+                    defaultChecked={choice.revealIdentifiers}
+                    aria-describedby="output-numbers-note"
+                  />
+                  <span className="output-check-text">
+                    <span>Show Full Document Numbers</span>
+                    <span className="muted u-fs-075" id="output-numbers-note">
+                      Passport and ID numbers show only their last three characters unless you tick
+                      this. You will be asked to confirm it is you.
+                    </span>
+                  </span>
+                </label>
+              </fieldset>
+            ) : null}
+
+            {template.offersQuestion ? (
+              <div className="field-row">
+                <label className="field-label" htmlFor="output-question">
+                  What You Want Help with (Optional)
+                </label>
+                <input
+                  id="output-question"
+                  name="q"
+                  type="text"
+                  className="input"
+                  maxLength={600}
+                  defaultValue={choice.question}
+                  autoComplete="off"
+                />
+              </div>
+            ) : null}
+
+            {template.offersFieldPicker && ready.candidates.length > 0 ? (
+              <fieldset className="fieldset">
+                <legend className="field-label">Details to Include</legend>
+                <input type="hidden" name="picked" value="1" />
+                <p className="muted u-fs-075 u-m-0">
+                  These are the confirmed details in the parts you chose. Untick any you do not want
+                  in the sheet.
+                </p>
+                {/* Folded away by default (WP-SB4): every box keeps its tick and is sent either way. */}
+                <CollapsibleGroup
+                  id="output-fields"
+                  title="Choose Details"
+                  count={ready.candidates.length}
+                  noun={{ one: 'detail', other: 'details' }}
+                >
+                  <div className="checks">
+                    {ready.candidates.map((candidate, index) => (
+                      <label
+                        key={candidate.key}
+                        className="check output-check"
+                        htmlFor={`output-field-${index}`}
+                      >
+                        <input
+                          id={`output-field-${index}`}
+                          type="checkbox"
+                          name="field"
+                          value={candidate.key}
+                          defaultChecked={
+                            choice.fieldKeys === null || choice.fieldKeys.includes(candidate.key)
+                          }
+                        />
+                        <span>{candidate.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </CollapsibleGroup>
+              </fieldset>
+            ) : null}
+
+            <StickyActionBar label="Preview Your Summary">
+              <button type="submit" className="btn btn-primary">
+                Preview
+              </button>
+              {request.previewed ? (
+                <Link href={`${pageHref}?output=${request.template}`} className="btn btn-secondary">
+                  Start Again
+                </Link>
+              ) : null}
+            </StickyActionBar>
+          </form>
+        </CollapsibleGroup>
       </section>
 
       {ready.needsCase ? (

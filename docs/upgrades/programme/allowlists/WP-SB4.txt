@@ -13,6 +13,8 @@ apps/web/src/components/ai-access-choices.test.tsx
 apps/web/src/components/ai-file-choices.tsx
 apps/web/src/components/ai-file-choices.test.tsx
 apps/web/e2e/scroll-budget/WP-SB4.spec.ts
+# The package's own browser fixture, beside its spec (support.ts looks there first); test code only.
+apps/web/e2e/scroll-budget/scroll-budget-sb4.fixture.tsx
 apps/web/src/app/globals.css
 docs/commercial-v1/known-issues.md
 docs/upgrades/programme/COVERAGE-LEDGER.csv

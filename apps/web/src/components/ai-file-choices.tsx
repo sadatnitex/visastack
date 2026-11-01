@@ -23,6 +23,7 @@ import {
   AI_SHARE_FILE_FIRST,
   AI_SHARE_FILE_LABEL,
 } from '../lib/ai-consent-labels';
+import { CollapsibleGroup } from './collapsible-group';
 
 export interface AiFileChoicesProps {
   /** The record's documents that may be given as files, grouped as the Documents screen groups them. */
@@ -123,99 +124,112 @@ export function AiFileChoices({
       {candidates.length === 0 ? (
         <p className="muted u-fs-075 u-m-0">{AI_ORIGINAL_FILES_NONE}</p>
       ) : (
+        // Each group sits behind its own expander (WP-SB4), so a long list of documents keeps the
+        // screen short. A group opens by itself when one of its files is ticked or needs a look.
         groups.map((group, groupIndex) => (
-          <fieldset key={group.label} className="fieldset ai-file-group">
-            <legend className="field-label">{group.label}</legend>
-            {group.documents.map((document, index) => {
-              const rowId = `${id}-file-${groupIndex}-${index}`;
-              const was = storedVariant.get(document.documentId);
-              const chosen = ticked.get(document.documentId);
-              // Off: only what is stored stays open; an Original only where one is stored.
-              const boxOpen = available || was !== undefined;
-              const originalOpen = available || was === 'ORIGINAL';
-              const startsTicked = chosen !== undefined && boxOpen;
-              const startsOriginal = chosen === 'ORIGINAL' && originalOpen;
-              const isShared = boxOpen && (!running || shared.has(document.documentId));
-              const name = document.referenceCode
-                ? `${document.kind} (${document.referenceCode})`
-                : document.kind;
-              const notReadyId = document.safeCopyReady ? undefined : `${rowId}-not-ready`;
-              const firstId = boxOpen && !isShared ? `${rowId}-first` : undefined;
-              return (
-                <fieldset key={document.documentId} className="fieldset ai-file-choice">
-                  <legend className="ai-file-name">{name}</legend>
-                  <label className="check output-check" htmlFor={`${rowId}-share`}>
-                    <input
-                      id={`${rowId}-share`}
-                      type="checkbox"
-                      name={AI_FILE_FIELD}
-                      value={document.documentId}
-                      defaultChecked={startsTicked}
-                      disabled={!boxOpen}
-                      onChange={(event) => {
-                        const checked = event.currentTarget.checked;
-                        setShared((current) => {
-                          const next = new Set(current);
-                          if (checked) next.add(document.documentId);
-                          else next.delete(document.documentId);
-                          return next;
-                        });
-                      }}
-                      aria-describedby={ids(notReadyId, !boxOpen && offId, fileError)}
-                      {...(fileError ? { 'aria-invalid': true as const } : {})}
-                    />
-                    <span className="output-check-text">
-                      <span>{AI_SHARE_FILE_LABEL}</span>
-                    </span>
-                  </label>
-                  <div className="ai-file-ways">
-                    <label className="check output-check" htmlFor={`${rowId}-safe`}>
+          <CollapsibleGroup
+            key={group.label}
+            title={group.label}
+            count={group.documents.length}
+            noun={{ one: 'document', other: 'documents' }}
+            open={
+              fileError !== undefined ||
+              group.documents.some((document) => ticked.has(document.documentId))
+            }
+          >
+            <fieldset className="fieldset ai-file-group">
+              <legend className="sr-only">{group.label}</legend>
+              {group.documents.map((document, index) => {
+                const rowId = `${id}-file-${groupIndex}-${index}`;
+                const was = storedVariant.get(document.documentId);
+                const chosen = ticked.get(document.documentId);
+                // Off: only what is stored stays open; an Original only where one is stored.
+                const boxOpen = available || was !== undefined;
+                const originalOpen = available || was === 'ORIGINAL';
+                const startsTicked = chosen !== undefined && boxOpen;
+                const startsOriginal = chosen === 'ORIGINAL' && originalOpen;
+                const isShared = boxOpen && (!running || shared.has(document.documentId));
+                const name = document.referenceCode
+                  ? `${document.kind} (${document.referenceCode})`
+                  : document.kind;
+                const notReadyId = document.safeCopyReady ? undefined : `${rowId}-not-ready`;
+                const firstId = boxOpen && !isShared ? `${rowId}-first` : undefined;
+                return (
+                  <fieldset key={document.documentId} className="fieldset ai-file-choice">
+                    <legend className="ai-file-name">{name}</legend>
+                    <label className="check output-check" htmlFor={`${rowId}-share`}>
                       <input
-                        id={`${rowId}-safe`}
-                        type="radio"
-                        name={aiFileVariantField(document.documentId)}
-                        value="SAFE_COPY"
-                        defaultChecked={!startsOriginal}
-                        disabled={!isShared}
-                        aria-describedby={ids(notReadyId, firstId, !boxOpen && offId)}
+                        id={`${rowId}-share`}
+                        type="checkbox"
+                        name={AI_FILE_FIELD}
+                        value={document.documentId}
+                        defaultChecked={startsTicked}
+                        disabled={!boxOpen}
+                        onChange={(event) => {
+                          const checked = event.currentTarget.checked;
+                          setShared((current) => {
+                            const next = new Set(current);
+                            if (checked) next.add(document.documentId);
+                            else next.delete(document.documentId);
+                            return next;
+                          });
+                        }}
+                        aria-describedby={ids(notReadyId, !boxOpen && offId, fileError)}
+                        {...(fileError ? { 'aria-invalid': true as const } : {})}
                       />
                       <span className="output-check-text">
-                        <span>{AI_SAFE_COPY_LABEL}</span>
+                        <span>{AI_SHARE_FILE_LABEL}</span>
                       </span>
                     </label>
-                    <label className="check output-check" htmlFor={`${rowId}-original`}>
-                      <input
-                        id={`${rowId}-original`}
-                        type="radio"
-                        name={aiFileVariantField(document.documentId)}
-                        value="ORIGINAL"
-                        defaultChecked={startsOriginal}
-                        disabled={!isShared || !originalOpen}
-                        aria-describedby={ids(
-                          originalNoteId,
-                          originalOpen && firstId,
-                          !originalOpen && offId,
-                        )}
-                      />
-                      <span className="output-check-text">
-                        <span>{AI_ORIGINAL_LABEL}</span>
-                      </span>
-                    </label>
-                  </div>
-                  {firstId ? (
-                    <p className="muted u-fs-075 u-m-0" id={firstId}>
-                      {AI_SHARE_FILE_FIRST}
-                    </p>
-                  ) : null}
-                  {notReadyId ? (
-                    <p className="muted u-fs-075 u-m-0" id={notReadyId}>
-                      {AI_SAFE_COPY_NOT_READY}
-                    </p>
-                  ) : null}
-                </fieldset>
-              );
-            })}
-          </fieldset>
+                    <div className="ai-file-ways">
+                      <label className="check output-check" htmlFor={`${rowId}-safe`}>
+                        <input
+                          id={`${rowId}-safe`}
+                          type="radio"
+                          name={aiFileVariantField(document.documentId)}
+                          value="SAFE_COPY"
+                          defaultChecked={!startsOriginal}
+                          disabled={!isShared}
+                          aria-describedby={ids(notReadyId, firstId, !boxOpen && offId)}
+                        />
+                        <span className="output-check-text">
+                          <span>{AI_SAFE_COPY_LABEL}</span>
+                        </span>
+                      </label>
+                      <label className="check output-check" htmlFor={`${rowId}-original`}>
+                        <input
+                          id={`${rowId}-original`}
+                          type="radio"
+                          name={aiFileVariantField(document.documentId)}
+                          value="ORIGINAL"
+                          defaultChecked={startsOriginal}
+                          disabled={!isShared || !originalOpen}
+                          aria-describedby={ids(
+                            originalNoteId,
+                            originalOpen && firstId,
+                            !originalOpen && offId,
+                          )}
+                        />
+                        <span className="output-check-text">
+                          <span>{AI_ORIGINAL_LABEL}</span>
+                        </span>
+                      </label>
+                    </div>
+                    {firstId ? (
+                      <p className="muted u-fs-075 u-m-0" id={firstId}>
+                        {AI_SHARE_FILE_FIRST}
+                      </p>
+                    ) : null}
+                    {notReadyId ? (
+                      <p className="muted u-fs-075 u-m-0" id={notReadyId}>
+                        {AI_SAFE_COPY_NOT_READY}
+                      </p>
+                    ) : null}
+                  </fieldset>
+                );
+              })}
+            </fieldset>
+          </CollapsibleGroup>
         ))
       )}
     </fieldset>
