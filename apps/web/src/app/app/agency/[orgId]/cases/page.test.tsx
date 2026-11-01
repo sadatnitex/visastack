@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   navigationState,
@@ -33,7 +34,16 @@ vi.mock('../console-data', async (importOriginal) => {
 vi.mock('../../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('../mission-collaboration', async () => {
   const { stub } = await import('../../../../../lib/next-mocks.test-support');
-  return { MissionCollaboration: stub('MissionCollaboration') };
+  const Workspace = stub('MissionCollaboration');
+  // The workspace places `notesMore` right under its notes; the stub shows it next to its props.
+  return {
+    MissionCollaboration: ({ notesMore, ...rest }: { notesMore?: ReactNode }) => (
+      <>
+        <Workspace {...rest} />
+        <div data-notes-more="">{notesMore}</div>
+      </>
+    ),
+  };
 });
 
 const { default: Page } = await import('./page');

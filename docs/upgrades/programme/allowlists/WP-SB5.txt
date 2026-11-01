@@ -25,3 +25,10 @@ apps/web/src/app/globals.css
 docs/commercial-v1/known-issues.md
 docs/upgrades/programme/COVERAGE-LEDGER.csv
 docs/upgrades/programme/allowlists/WP-SB5.txt
+# Owner-approved additions (1 Nov 2026): the Agency Cases parity check, its baseline and the approved
+# changes list, so the check proves nothing is lost when only one case is open; and the case workspace,
+# so the notes' Show More sits right under the notes.
+apps/web/src/lib/ccd/parity-agency-cases.test.tsx
+apps/web/src/lib/ccd/baseline/agency-cases.json
+apps/web/src/lib/ccd/approved-changes.ts
+apps/web/src/app/app/agency/[orgId]/mission-collaboration.tsx

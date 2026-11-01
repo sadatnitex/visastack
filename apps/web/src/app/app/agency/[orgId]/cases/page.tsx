@@ -1,7 +1,7 @@
 import { isUuid, summarizeCaseTriage } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { DepthScope, atLevel } from '../../../../../components/depth';
+import { DepthScope } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import { EmptyState } from '../../../../../components/ui';
 import { depthCopy } from '../../../../../lib/ccd/depth-copy';
@@ -304,6 +304,23 @@ function OpenCaseWorkspace({
         issuerVerifications={open.issuerVerifications}
         viewerAssigned={open.viewerAssigned}
         triage={triage}
+        // Right under the notes: how many show, and Show More 10 at a time.
+        notesMore={
+          <ListPager
+            id={`notes-more-${open.missionId}`}
+            landOn={`notes-${open.missionId}`}
+            pathname={pathname}
+            query={query}
+            keys={NOTES_KEYS}
+            sizes={NOTES_SIZES}
+            window={notesPage}
+            shown={open.notes.length}
+            total={open.notesTotal}
+            nextCursor={open.notesNextCursor}
+            noun={{ one: 'note', other: 'notes' }}
+            newestLabel="Back to the Newest Notes"
+          />
+        }
         needsYou={caseNeedsYou({
           viewerAccountId,
           admin,
@@ -314,23 +331,6 @@ function OpenCaseWorkspace({
           triage: summary,
         })}
       />
-      {/* The notes list ends inside the workspace (#notes-<id>); this grows it 10 at a time. */}
-      <div className="agency-case-notes-more" {...atLevel('everything')}>
-        <ListPager
-          id={`notes-more-${open.missionId}`}
-          landOn={`notes-${open.missionId}`}
-          pathname={pathname}
-          query={query}
-          keys={NOTES_KEYS}
-          sizes={NOTES_SIZES}
-          window={notesPage}
-          shown={open.notes.length}
-          total={open.notesTotal}
-          nextCursor={open.notesNextCursor}
-          noun={{ one: 'note', other: 'notes' }}
-          newestLabel="Back to the Newest Notes"
-        />
-      </div>
     </>
   );
 }

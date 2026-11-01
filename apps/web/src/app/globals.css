@@ -11483,9 +11483,6 @@ html:has(.sticky-action-bar) {
   gap: 0.75rem;
   margin-top: 0.75rem;
 }
-.agency-case-notes-more {
-  margin-top: 0.5rem;
-}
 .agency-activity-cases {
   display: flex;
   flex-wrap: wrap;
