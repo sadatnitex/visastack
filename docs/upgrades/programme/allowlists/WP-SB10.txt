@@ -1,0 +1,9 @@
+# WP-SB10 Integration and enforcement (docs/upgrades/programme/SCROLL-BUDGET-PLAN.md section 6 "SB10").
+# Seed from the plan's 10.12 prompt; approved in advance by the owner (31 Oct 2026, relayed by the coordinator).
+# apps/web/e2e/scroll-budget/** is for the enforcement switch only (mode values, no product code).
+apps/web/e2e/scroll-budget/**
+docs/uiux/SCROLL-BUDGET.md
+docs/upgrades/programme/STATUS.md
+docs/upgrades/programme/COVERAGE-LEDGER.csv
+docs/commercial-v1/known-issues.md
+docs/upgrades/programme/allowlists/WP-SB10.txt

@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { formatFileSize } from '../../../../lib/format-size';
@@ -8,6 +11,13 @@ const { DocumentUploader, UPLOAD_UNKNOWN_OUTCOME, uploadSummary } = await import
 );
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }));
+
+const copy = vi.hoisted(() => ({ send: vi.fn(), remove: vi.fn(), restore: vi.fn() }));
+vi.mock('../../../../lib/document-upload-client', () => ({ sendDocumentFile: copy.send }));
+vi.mock('./documents/manage/delete/actions', () => ({
+  deleteDuplicateAction: copy.remove,
+  restoreDeletedAction: copy.restore,
+}));
 
 describe('the upload form before anything is chosen', () => {
   const html = renderToStaticMarkup(
@@ -106,5 +116,78 @@ describe('what the upload form claims about checking', () => {
     expect(formatFileSize(310_000)).toBe('310 KB');
     expect(formatFileSize(2_400_000)).toBe('2.4 MB');
     expect(formatFileSize(512)).toBe('512 bytes');
+  });
+});
+
+describe('Remove This New Copy after an upload (LC-C)', () => {
+  const COPY = '11111111-1111-4111-8111-111111111111';
+
+  async function uploadOne(outcome: Record<string, unknown>) {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    copy.send.mockResolvedValue(outcome);
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(<DocumentUploader applicantId="a1" />);
+    });
+    const picker = host.querySelector('input[aria-label="Document Files"]') as HTMLInputElement;
+    const file = new File(['x'], 'passport.jpg', { type: 'image/jpeg' });
+    Object.defineProperty(picker, 'files', { value: [file], configurable: true });
+    await act(async () => {
+      picker.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    return host;
+  }
+  const removeButton = (host: HTMLElement) =>
+    [...host.querySelectorAll('button')].find((b) => b.textContent === 'Remove This New Copy');
+
+  it('is not offered for an ordinary upload', async () => {
+    const host = await uploadOne({ kind: 'added', message: 'Passport added.', title: null });
+    expect(host.textContent).toContain('Passport added.');
+    expect(removeButton(host)).toBeUndefined();
+  });
+
+  it('removes the new copy through Delete Duplicate, with Undo', async () => {
+    copy.remove.mockReset().mockResolvedValue({ ok: true, days: 30 });
+    copy.restore.mockReset().mockResolvedValue({ ok: true });
+    const host = await uploadOne({
+      kind: 'added',
+      message: 'Passport added.',
+      title: null,
+      removableCopyId: COPY,
+    });
+    expect(host.textContent).toContain('You already keep an identical copy of this file.');
+    await act(async () => {
+      removeButton(host)?.click();
+    });
+    expect(copy.remove).toHaveBeenCalledWith('a1', COPY, true);
+    expect(host.querySelector('output.lc-undo')?.textContent).toContain(
+      'Moved to Recently Deleted. Removed in 30 Days.',
+    );
+    const undo = [...host.querySelectorAll('button')].find((b) => b.textContent === 'Undo');
+    await act(async () => {
+      undo?.click();
+    });
+    expect(copy.restore).toHaveBeenCalledWith('a1', COPY, 'UNDO');
+  });
+
+  it('says why when the server refuses it', async () => {
+    copy.remove
+      .mockReset()
+      .mockResolvedValue({ ok: false, message: 'This copy cannot be deleted right now.' });
+    const host = await uploadOne({
+      kind: 'added',
+      message: 'Passport added.',
+      title: null,
+      removableCopyId: COPY,
+    });
+    await act(async () => {
+      removeButton(host)?.click();
+    });
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('cannot be deleted');
   });
 });

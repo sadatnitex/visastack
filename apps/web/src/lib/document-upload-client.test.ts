@@ -98,6 +98,19 @@ describe('reading the answer', () => {
     expect(readAnswer(201, 'null')).toEqual({ kind: 'unknown' });
   });
 
+  it('keeps an exact copy to remove only when it is a document id (LC-C)', () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    expect(readAnswer(201, JSON.stringify({ message: 'Added.', removableCopyId: id }))).toEqual({
+      kind: 'added',
+      message: 'Added.',
+      title: null,
+      removableCopyId: id,
+    });
+    expect(
+      readAnswer(201, JSON.stringify({ message: 'Added.', removableCopyId: 'Passport, Nazmus' })),
+    ).toEqual({ kind: 'added', message: 'Added.', title: null });
+  });
+
   it('carries the upgrade line with a refusal, and only a line it knows (ADR 0025)', () => {
     expect(readAnswer(400, JSON.stringify({ message: 'Full.', upgrade: 'storage' }))).toEqual({
       kind: 'refused',

@@ -64,8 +64,16 @@ test.describe('WP-SB2 case workspace', () => {
     await expect(groups).toHaveCount(3);
     await expect(page.locator('#snapshot-requirements')).toHaveAttribute('open', '');
     await expect(page.locator('#snapshot-facts')).not.toHaveAttribute('open', '');
-    // As it opens: measured and printed only, the 60 open rows are the reason to open it.
-    await expectWithinBudget(page, { screens: 2, viewport: 'phone', mode: 'report' });
+    // As it opens, with its 60 open rows, it is over budget on a phone (5.92 screens, WP-SB10):
+    // reported, not enforced; the open rows are the reason to open it. Recorded in
+    // docs/uiux/SCROLL-BUDGET.md section 2; it still fails above its ceiling. Folded again,
+    // every part is enforced below.
+    await expectWithinBudget(page, {
+      screens: 2,
+      viewport: 'phone',
+      mode: 'report',
+      ceiling: 6.25,
+    });
     // With its first group closed again, every part of the snapshot is one tap away.
     await page.locator('#snapshot-requirements > summary').click();
     for (const viewport of ['phone', 'desktop'] as const) {
