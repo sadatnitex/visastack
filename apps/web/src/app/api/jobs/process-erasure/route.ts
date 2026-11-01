@@ -1,5 +1,7 @@
+import { systemPrincipal } from '@visastack/services';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
 import { triggerErasureWorker } from '../../../../lib/jobs';
+import { runRecentlyDeletedPurge } from '../../../../lib/lifecycle-jobs/purge';
 
 /**
  * Periodic sweep for the erasure outbox (master directive §7 "PR 4").
@@ -28,6 +30,10 @@ export async function GET(request: Request): Promise<Response> {
   const denied = rejectUnauthorizedCron(request);
   if (denied) return denied;
 
+  // Deleted duplicates whose 30 days are over start their verified removal first, so the worker
+  // below destroys them in this same run (LC-C). A legal hold keeps them; nothing is queued then.
+  const recentlyDeleted = await runRecentlyDeletedPurge(systemPrincipal('process-erasure'));
+
   let totalProcessed = 0;
   let totalBlocked = 0;
   let totalFailed = 0;
@@ -39,5 +45,10 @@ export async function GET(request: Request): Promise<Response> {
     if (result.processed + result.blocked + result.failed < BATCH_SIZE) break; // caught up
   }
 
-  return Response.json({ processed: totalProcessed, blocked: totalBlocked, failed: totalFailed });
+  return Response.json({
+    processed: totalProcessed,
+    blocked: totalBlocked,
+    failed: totalFailed,
+    recentlyDeleted,
+  });
 }

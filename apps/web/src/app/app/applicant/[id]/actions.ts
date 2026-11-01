@@ -14,6 +14,7 @@ import {
   decideDocumentName,
   decideDocumentSuggestion,
   dismissInconsistencyFlag,
+  duplicateStatus,
   editFact,
   enqueueIntakeJob,
   failUpload,
@@ -90,11 +91,41 @@ export interface ActionState {
   readonly title?: string;
   /** The plain line after a refusal a paid plan would help with (ADR 0025 section 12.2). */
   readonly upgrade?: UpgradeLineKind;
+  /**
+   * The just-added document, when it is an exact copy of one already kept that may be deleted
+   * (LC-C): the upload result then offers Remove This New Copy. Absent before migration 0113.
+   */
+  readonly removableCopyId?: string;
 }
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
 function readEnv(name: string): string | undefined {
   return process.env[name];
+}
+
+/**
+ * The id of a just-added document when it may be removed again as an exact copy (LC-C), or null.
+ * Read through the owner's own proof; any refusal or failure simply offers nothing.
+ */
+async function removableNewCopy(
+  db: Db,
+  accountId: string,
+  documentId: string,
+): Promise<string | null> {
+  try {
+    const proof = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'VIEW_METADATA',
+      { documentId },
+      { purpose: 'self' },
+    );
+    if (!proof.ok) return null;
+    const status = await duplicateStatus(db, documentId, proof.value);
+    return status?.isDuplicate && status.blockReason === null ? documentId : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Guard: the applicant must be owned by the signed-in account. */
@@ -402,6 +433,10 @@ export async function uploadDocumentAction(
     // a log. The vault list on the page shows every document by its name.
     const duplicateNote =
       duplicates.length > 0 ? ' This looks identical to a document already in the vault.' : '';
+    // Remove This New Copy (LC-C): offered only when the copy already kept is usable and nothing
+    // stops the new one from being deleted. Before migration 0113 this reads "not a duplicate".
+    const removableCopyId =
+      duplicates.length > 0 ? await removableNewCopy(db, accountId, uploadedDocumentId) : null;
 
     return {
       ok: true,
@@ -414,6 +449,7 @@ export async function uploadDocumentAction(
       ...(outcome.version.document.approvedName
         ? { title: outcome.version.document.approvedName }
         : {}),
+      ...(removableCopyId ? { removableCopyId } : {}),
     } satisfies ActionState;
   });
 

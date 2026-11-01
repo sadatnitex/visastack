@@ -95,6 +95,21 @@ describe('authenticated raw document upload', () => {
     });
   });
 
+  it('passes on an exact copy to remove only when the upload says so (LC-C)', async () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    upload.mockResolvedValue({ ok: true, message: 'Passport added.', removableCopyId: id });
+    expect(await (await POST(request())).json()).toEqual({
+      message: 'Passport added.',
+      removableCopyId: id,
+    });
+    // An ordinary upload answers exactly as before.
+    upload.mockResolvedValue({ ok: true, message: 'Passport added.' });
+    expect(await (await POST(request())).json()).toEqual({ message: 'Passport added.' });
+    // A refusal never carries it.
+    upload.mockResolvedValue({ ok: false, message: 'No.', removableCopyId: id });
+    expect(await (await POST(request())).json()).toEqual({ message: 'No.' });
+  });
+
   it('admits an iPhone photo for conversion, but not anything merely called one', async () => {
     const heic = Buffer.from(MADE_UP_HEIC_SMALL);
     expect((await POST(request('https://app.example', heic, 'image/heic'))).status).toBe(201);

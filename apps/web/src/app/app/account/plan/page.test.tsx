@@ -11,11 +11,13 @@ const mocks = vi.hoisted(() => ({
   summary: vi.fn(),
   aiUsage: vi.fn(),
   applicants: vi.fn(),
+  parked: vi.fn(),
   bytes: {} as Record<string, number>,
   catalogue: vi.fn(),
   purchase: vi.fn(),
   renewal: vi.fn(),
   billing: vi.fn(),
+  count: vi.fn(),
 }));
 
 vi.mock('../../../../lib/session', () => ({
@@ -25,12 +27,15 @@ vi.mock('../../../../lib/session', () => ({
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   getTravellerPlanSummary: (...args: unknown[]) => mocks.summary(...args),
-  listApplicants: (...args: unknown[]) => mocks.applicants(...args),
+  // The everyday list, or (LC-E) the archived and Recently Deleted lists.
+  listApplicants: (db: unknown, accountId: string, options?: { view?: string }) =>
+    options?.view ? mocks.parked(options.view, accountId) : mocks.applicants(db, accountId),
   getApplicantEvidenceBytes: async (_db: unknown, id: string) => mocks.bytes[id] ?? 0,
   listTravellerPlansForSale: (...args: unknown[]) => mocks.catalogue(...args),
   getOwnPurchase: (...args: unknown[]) => mocks.purchase(...args),
   getOwnRenewal: (...args: unknown[]) => mocks.renewal(...args),
   hasOwnBilling: (...args: unknown[]) => mocks.billing(...args),
+  countTravellerPlanEvent: (...args: unknown[]) => mocks.count(...args),
 }));
 vi.mock('./plan-forms', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
@@ -62,6 +67,8 @@ const feature = (overrides: Record<string, unknown>) => ({
 
 beforeEach(() => {
   navigationState.pathname = '/app/account/plan';
+  mocks.count.mockReset();
+  mocks.count.mockResolvedValue(undefined);
   mocks.renewal.mockResolvedValue(null);
   mocks.billing.mockResolvedValue(false);
   mocks.summary.mockResolvedValue({
@@ -82,6 +89,7 @@ beforeEach(() => {
     { id: 'a1', displayName: 'Rahim Uddin' },
     { id: 'a2', displayName: 'Ayesha Uddin' },
   ]);
+  mocks.parked.mockResolvedValue([]);
   mocks.bytes = { a1: 10 * MB, a2: 2 * MB };
   mocks.aiUsage.mockResolvedValue([
     feature({}),
@@ -149,6 +157,21 @@ describe('Plan & Usage for a traveller', () => {
     expect(text).toContain('Ayesha Uddin 2 MB of 50 MB used');
     expect(text).toContain('Each file can be up to 20 MB.');
     expect(text).toContain("that agency's own plan can also limit what more can be added to it");
+  });
+
+  it('LC-E: counts archived travellers and those in Recently Deleted, as the upload limits do', async () => {
+    mocks.parked.mockImplementation(async (view: string, accountId: string) => {
+      expect(accountId).toBe('acct-1');
+      return view === 'archived'
+        ? [{ id: 'a3', displayName: 'Karim Uddin' }]
+        : [{ id: 'a4', displayName: 'Nadia Uddin' }];
+    });
+    mocks.bytes = { a1: 10 * MB, a2: 2 * MB, a3: 5 * MB, a4: 0 };
+    const text = textOf(await renderServer(Page({})));
+    expect(text).toContain('Your Whole Account 17 MB of 100 MB used');
+    expect(text).toContain('Karim Uddin 5 MB of 50 MB used');
+    expect(mocks.parked).toHaveBeenCalledWith('archived', 'acct-1');
+    expect(mocks.parked).toHaveBeenCalledWith('recentlyDeleted', 'acct-1');
   });
 
   it('WP-SB9: shows a meter for the first 10 people, then Show More, still counting everyone', async () => {
@@ -396,6 +419,32 @@ describe('buying a paid plan on Plan & Usage (ADR 0025 T3c)', () => {
     expect(mocks.purchase).not.toHaveBeenCalled();
   });
 
+  it('counts one Plan & Usage view while selling is on, a number and never who (T6)', async () => {
+    await renderServer(Page({}));
+    expect(mocks.count).toHaveBeenCalledTimes(1);
+    expect(mocks.count.mock.calls[0]).toEqual([{}, 'PLAN_VIEWED']);
+    // Started beside the page's own reads, not after them: it is already counting by the time
+    // the plan summary comes back.
+    mocks.count.mockClear();
+    const summary: unknown = await mocks.summary();
+    let countingAlready = false;
+    mocks.summary.mockImplementationOnce(() =>
+      Promise.resolve().then(() => {
+        countingAlready = mocks.count.mock.calls.length > 0;
+        return summary;
+      }),
+    );
+    await renderServer(Page({}));
+    expect(countingAlready).toBe(true);
+  });
+
+  it('does not count the page shown after Get to confirm the purchase as another view (T6)', async () => {
+    await renderServer(
+      Page({ searchParams: Promise.resolve({ purchase: '00000000-0000-4000-8000-0000000000bb' }) }),
+    );
+    expect(mocks.count).not.toHaveBeenCalled();
+  });
+
   it('shows nothing to buy, and reads no plans, while selling is switched off', async () => {
     vi.stubEnv('TRAVELLER_PLANS_ENABLED', 'false');
     mocks.catalogue.mockClear();
@@ -409,6 +458,8 @@ describe('buying a paid plan on Plan & Usage (ADR 0025 T3c)', () => {
     expect(text).toContain('Paid plans for travellers are not offered yet');
     expect(mocks.catalogue).not.toHaveBeenCalled();
     expect(mocks.purchase).not.toHaveBeenCalled();
+    // Nothing is counted while nothing is sold.
+    expect(mocks.count).not.toHaveBeenCalled();
   });
 
   it('passes the automated accessibility rules with the comparison and the confirmation', async () => {

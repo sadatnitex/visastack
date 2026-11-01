@@ -5,6 +5,7 @@ import {
   type Db,
   type DeadlineEntry,
   type NeedsAttention,
+  type TidyUpCounts,
   computeReadiness,
   getConsents,
   listApplicants,
@@ -14,6 +15,7 @@ import {
   listNeedsAttention,
   rankAttentionItems,
   rankDeadlines,
+  tidyUpCounts,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -58,6 +60,7 @@ import {
   FirstRunTask,
   SETUP_LATER_HREF,
 } from '../first-run';
+import { TidyUpCard, tidyUpLine } from './tidy-up';
 
 export const metadata: Metadata = { title: 'Account Overview' };
 
@@ -113,14 +116,20 @@ async function loadPersonReads(
 ): Promise<{
   readonly attention: NeedsAttention | null;
   readonly deadlines: readonly DeadlineEntry[] | null;
+  readonly tidy: TidyUpCounts | null;
 }> {
   const access = await openOwnerGate(db, accountId, applicantId);
-  if (!access) return { attention: null, deadlines: null };
-  const [listed, deadlines] = await Promise.all([
+  if (!access) return { attention: null, deadlines: null, tidy: null };
+  const [listed, deadlines, tidy] = await Promise.all([
     listNeedsAttention(access, { now }),
     readDeadlineEntries(access, now, CLOCK_HOME_LIMIT),
+    // Tidy Up (LC-C): any failure, even one thrown before the read starts, hides the card
+    // rather than failing Home.
+    Promise.resolve()
+      .then(() => tidyUpCounts(db, applicantId, access, { now }))
+      .catch(() => null),
   ]);
-  return { attention: listed.ok ? listed.value : null, deadlines };
+  return { attention: listed.ok ? listed.value : null, deadlines, tidy };
 }
 
 /** Sharing invitations waiting for an answer: one account-level item in the same shape. */
@@ -152,6 +161,27 @@ function sharingInvitationItem(grants: Basics['incomingGrants'], now: Date): Att
   };
 }
 
+/**
+ * Tidy Up across the people Home reads: the first record with something to tidy, its own counts
+ * (so the line matches what its one button opens) and how many other records have some too.
+ */
+function tidyUpSummary(
+  rows: readonly {
+    readonly applicant: { readonly id: string };
+    readonly tidy: TidyUpCounts | null;
+  }[],
+): { readonly line: string; readonly href: string } | null {
+  const withItems = rows.filter(
+    (row) => row.tidy && row.tidy.duplicates + row.tidy.expired + row.tidy.replaced > 0,
+  );
+  const first = withItems[0];
+  if (!first?.tidy) return null;
+  return {
+    line: tidyUpLine(first.tidy, withItems.length - 1),
+    href: `/app/applicant/${first.applicant.id}/documents`,
+  };
+}
+
 async function loadDashboard(db: Db, accountId: string, email: string, basics: Basics) {
   const { consents, incomingGrants, applicants } = basics;
   const now = new Date();
@@ -165,7 +195,7 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
       )
       .slice(0, HOME_APPLICANT_LIMIT)
       .map(async (applicant) => {
-        const [docs, { attention, deadlines }] = await Promise.all([
+        const [docs, { attention, deadlines, tidy }] = await Promise.all([
           listDocuments(db, accountId, applicant.id),
           loadPersonReads(db, accountId, applicant.id, now),
         ]);
@@ -174,6 +204,7 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
           documentCount: docs.ok ? docs.value.length : 0,
           attention,
           deadlines,
+          tidy,
           itemCount: attention?.items.length ?? 0,
           activeMissions: attention?.activeCaseCount ?? 0,
           // Open or sent back for a fix (ADR 0015 section 5), so a replacement request counts.
@@ -220,6 +251,7 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     consents,
     applicants,
     perApplicant,
+    tidyUp: tidyUpSummary(perApplicant),
     clock,
     readinessByCase,
     unreadableCases,
@@ -555,6 +587,8 @@ export default async function AppPage({
             <a href="#home-attention-heading">See what is waiting</a>
           </p>
         ) : null}
+
+        {coreGranted && data.tidyUp ? <TidyUpCard {...data.tidyUp} /> : null}
 
         {coreGranted && rest.length > 0 ? (
           <section

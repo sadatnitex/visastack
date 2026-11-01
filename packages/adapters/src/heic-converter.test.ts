@@ -328,6 +328,8 @@ describe('the decoder memory ceiling', () => {
     readFileSync(require.resolve('libheif-js/libheif-wasm/libheif.wasm')),
   );
 
+  // Compiling the whole decoder twice is CPU-bound and slow while other suites run beside it: an
+  // explicit timeout (CLAUDE.md, heavy tests). The assertions are unchanged.
   it('rewrites only the memory maximum, and the module still loads with the lower ceiling', () => {
     const initial = initialMemoryPages(binary);
     expect(initial).toBeGreaterThan(0);
@@ -342,7 +344,7 @@ describe('the decoder memory ceiling', () => {
     expect(limitModuleMemory(limited, initial + 50)).not.toEqual(limited);
     // The original is left as it was.
     expect(limitModuleMemory(binary, 65_536)).toEqual(binary);
-  });
+  }, 180_000);
 
   it('never sets a ceiling below what the module starts with, or outside WebAssembly limits', () => {
     const initial = initialMemoryPages(binary);

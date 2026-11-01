@@ -45,3 +45,13 @@ export function pdfUploadsSwitchedOff(): boolean {
   const value = (readEnv('PDF_UPLOADS') ?? '').trim().toLowerCase();
   return value === 'off' || value === 'false' || value === '0' || value === 'no';
 }
+
+/**
+ * The owner's `DOCUMENT_REMOVAL_REQUESTS` switch (resource lifecycle lane D, gate G-D). Off unless
+ * it says on, in any of the usual spellings: Ask Us to Remove This File, the staff queue and its
+ * alerts stay hidden until the owner switches it on.
+ */
+export function documentRemovalRequestsOn(): boolean {
+  const value = (readEnv('DOCUMENT_REMOVAL_REQUESTS') ?? '').trim().toLowerCase();
+  return value === 'on' || value === 'true' || value === '1' || value === 'yes';
+}

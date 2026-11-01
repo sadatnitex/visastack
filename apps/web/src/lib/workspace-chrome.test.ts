@@ -74,8 +74,27 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
       complaints: false,
       audit: false,
       privacy: false,
+      removals: false,
     });
     expect(mocks.isPlatformOwnerAccount).toHaveBeenCalledWith({}, actor);
+  });
+  it('offers the removal queue only with privacy access and the removal switch on', async () => {
+    try {
+      mocks.holdsPlatformRole.mockResolvedValue(true);
+      mocks.isPlatformOwnerAccount.mockResolvedValue(false);
+      let privacy = true;
+      mocks.hasPlatformPermission.mockImplementation(
+        async (_db, _actor, permission) => privacy && permission === 'APPLICANT_DIRECTORY_VIEW',
+      );
+      vi.stubEnv('DOCUMENT_REMOVAL_REQUESTS', '');
+      expect((await loadWorkspaceChrome({} as never, actor)).platform?.removals).toBe(false);
+      vi.stubEnv('DOCUMENT_REMOVAL_REQUESTS', 'on');
+      expect((await loadWorkspaceChrome({} as never, actor)).platform?.removals).toBe(true);
+      privacy = false;
+      expect((await loadWorkspaceChrome({} as never, actor)).platform?.removals).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
   it('does not fabricate empty successful contexts when their reads fail', async () => {
     mocks.listMembershipsForAccount.mockRejectedValue(new Error('Unavailable'));

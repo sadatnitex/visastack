@@ -596,6 +596,13 @@ export default async function TravellerBillingPage({
         eyebrow="Platform Settings"
         title="Traveller Billing"
         description="A traveller's own purchases, payments and refunds, found by the reference code on their invoices. A traveller is shown only by that code."
+        actions={
+          data.kind === 'restricted' ? null : (
+            <Link href="/app/admin/billing/travellers/metrics" className="btn btn-secondary">
+              Metrics and Alerts
+            </Link>
+          )
+        }
       />
       {data.kind === 'restricted' ? (
         <AdminRestricted />

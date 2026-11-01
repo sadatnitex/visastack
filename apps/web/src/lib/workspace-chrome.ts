@@ -6,6 +6,7 @@ import {
   loadWorkspaceToolbarState,
 } from '@visastack/services';
 import { hasPlatformPermission, holdsPlatformRole, isPlatformOwnerAccount } from './admin';
+import { documentRemovalRequestsOn } from './env';
 import { loadOwnedTravellers } from './profile-photos';
 import type { WorkspaceAccess } from './workspace-navigation';
 
@@ -18,7 +19,7 @@ export async function loadWorkspaceChrome(
 > {
   // The owner's travellers and, in one batched read, their photos (WP-PH1); a photo failure
   // only hides photos.
-  const [{ people, photos }, memberships, platform, toolbar] = await Promise.all([
+  const [{ people, archived, photos }, memberships, platform, toolbar] = await Promise.all([
     loadOwnedTravellers(db, actor.accountId),
     listMembershipsForAccount(db, actor.accountId),
     holdsPlatformRole(db, actor),
@@ -45,6 +46,13 @@ export async function loadWorkspaceChrome(
       relationship: person.relationship,
       photo: photos.get(person.id) ?? null,
     })),
+    // Not offered in the switcher; only keeps an archived traveller's page in its frame (LC-E).
+    archivedTravellers: archived.map((person) => ({
+      id: person.id,
+      name: person.displayName,
+      relationship: person.relationship,
+      photo: photos.get(person.id) ?? null,
+    })),
     agencies: memberships
       .filter((membership) => membership.active)
       .map((membership) => ({
@@ -59,6 +67,8 @@ export async function loadWorkspaceChrome(
           complaints: permissions[2] === true,
           audit: permissions[3] === true,
           privacy: permissions[4] === true,
+          // The removal queue needs privacy access and the owner's switch (lifecycle lane D).
+          removals: permissions[4] === true && documentRemovalRequestsOn(),
         }
       : null,
   };

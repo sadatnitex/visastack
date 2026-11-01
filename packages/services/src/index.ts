@@ -2323,7 +2323,103 @@ export {
 } from './lifecycle/replace';
 
 // LC-C exports
+export {
+  type DuplicateStatus,
+  NOT_A_DUPLICATE,
+  duplicateStatus,
+  duplicateStatuses,
+  type TidyUpCounts,
+  tidyUpCounts,
+} from './lifecycle/duplicates';
+export {
+  DELETE_DUPLICATE_REFUSALS,
+  type DeleteDuplicateOutcome,
+  type DeleteDuplicatePreview,
+  PURGE_BATCH_LIMIT,
+  type PurgeDueDocumentsResult,
+  RECENTLY_DELETED_DAYS,
+  RESTORE_REFUSALS,
+  type RestoreSource,
+  type SwitchedCase,
+  deleteDuplicate,
+  previewDeleteDuplicate,
+  purgeDueDocuments,
+  restoreDeleted,
+  undoDelete,
+} from './lifecycle/recently-deleted';
 
 // LC-D exports
+export {
+  DECLINE_REASON_WORDS,
+  FINISHED_CASE_STATES_FOR_REMOVAL,
+  REMOVAL_ALERT_WORKING_DAYS,
+  REMOVAL_DECLINE_CODES,
+  REMOVAL_QUEUE_PAGE,
+  REMOVAL_REQUEST_REASONS,
+  REMOVAL_REQUEST_REFUSALS,
+  type RemovalDecisionInput,
+  type RemovalDecisionOutcome,
+  type RemovalDeclineCode,
+  type RemovalImpact,
+  type RemovalQueuePage,
+  type RemovalQueueRow,
+  type RemovalRequestReason,
+  type RemovalSweepResult,
+  type RequestRemovalOutcome,
+  addWorkingDays,
+  cancelRemovalRequest,
+  decideRemovalRequest,
+  listRemovalQueue,
+  pendingRemovalRequests,
+  requestRemoval,
+  sweepRemovalRequests,
+  workingDaysBetween,
+} from './lifecycle/removal-requests';
 
 // LC-E exports
+export {
+  APPLICANT_REFERENCES,
+  type ApplicantReference,
+  type ApplicantReferenceKind,
+  TRAVELLER_ACTIONS,
+  TRAVELLER_RECENTLY_DELETED_DAYS,
+  TRAVELLER_REFUSALS,
+  type TravellerAction,
+  type TravellerActionView,
+  type TravellerLifecycle,
+  type TravellerLifecycleState,
+  type TravellerManageView,
+  type TravellerPurgeOutcome,
+  type TravellerRemovalBlock,
+  type TravellerRemovalOutcome,
+  archiveTraveller,
+  availableTravellerActions,
+  deleteEmptyTraveller,
+  getTravellerManageView,
+  purgeDueTravellers,
+  restoreDeletedTraveller,
+  restoreTraveller,
+  travellerIsEmpty,
+} from './lifecycle/travellers';
+export type { ApplicantListView, ListedApplicant } from './applicants';
+
+// ADR 0025 T6: the owner's traveller plan metrics and health thresholds (migration 0114).
+export {
+  STANDARD_TRAVELLER_THRESHOLDS,
+  TRAVELLER_HEALTH_UNAVAILABLE,
+  TRAVELLER_METRICS_MAX_DAYS,
+  type TravellerHealth,
+  type TravellerHealthSettings,
+  type TravellerHealthSignal,
+  type TravellerHealthThresholds,
+  type TravellerPlanDay,
+  type TravellerPlanEvent,
+  type TravellerPlanMetrics,
+  type TravellerSignalStatus,
+  countTravellerPlanEvent,
+  getTravellerHealthSettings,
+  travellerPlanHealth,
+  travellerPlanMetrics,
+  travellerThresholdsProblem,
+  updateTravellerHealthSettings,
+} from './traveller-plan-metrics';

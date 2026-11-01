@@ -1,6 +1,8 @@
+import { systemPrincipal } from '@visastack/services';
 import { after } from 'next/server';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
 import { triggerNotificationSweeps, triggerNotificationWorker } from '../../../../lib/jobs';
+import { runRemovalAlerts } from '../../../../lib/lifecycle-jobs/removal-alerts';
 
 /**
  * NTF-04 (Part 5 §4) date-threshold sweeps: task deadlines (7 days before;
@@ -36,7 +38,10 @@ export async function GET(request: Request): Promise<Response> {
 
   const result = await triggerNotificationSweeps({ limit: 200 });
   if (result.unavailable) return Response.json({ status: 'unavailable' }, { status: 503 });
+  // Removal requests (resource lifecycle lane D): completed removals and staff alerts. Its own
+  // failure is reported inside and never fails the reminder sweep above.
+  const removals = await runRemovalAlerts(systemPrincipal('process-notification-sweeps'));
   // Emails this run queued go out now, not at the next day's sending run.
   after(() => triggerNotificationWorker().then(() => undefined));
-  return Response.json(result);
+  return Response.json({ ...result, removals });
 }

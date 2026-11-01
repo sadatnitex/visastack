@@ -111,6 +111,25 @@ describe('current contextual navigation contract', () => {
       'Complaints',
     ]);
   });
+  it('shows Removal Requests after Privacy Operations only when the removal flag is on', () => {
+    const tools = (removals: boolean | undefined) =>
+      workspaceNavigation('/app/admin', {
+        ...access,
+        platform: {
+          owner: true,
+          ai: true,
+          complaints: true,
+          audit: true,
+          privacy: true,
+          ...(removals === undefined ? {} : { removals }),
+        },
+      }).tools.map((link) => [link.label, link.href]);
+    expect(tools(undefined).map(([label]) => label)).not.toContain('Removal Requests');
+    expect(tools(false).map(([label]) => label)).not.toContain('Removal Requests');
+    const on = tools(true);
+    const at = on.findIndex(([label]) => label === 'Privacy Operations');
+    expect(on[at + 1]).toEqual(['Removal Requests', '/app/admin/removals']);
+  });
   it('hides the private account directory and restricted configuration for limited platform staff', () => {
     const limited = {
       ...access,
@@ -377,5 +396,37 @@ describe('no destination is lost by the four-tab change', () => {
         who,
       ).toEqual(['Account Overview']);
     }
+  });
+});
+
+describe('archived travellers (LC-E)', () => {
+  const p3 = '10000000-0000-4000-8000-000000000003';
+  const p4 = '10000000-0000-4000-8000-000000000004';
+  const withArchived: WorkspaceAccess = {
+    ...access,
+    archivedTravellers: [{ id: p3, name: 'Synthetic Archived', relationship: 'FAMILY_MEMBER' }],
+  };
+
+  it('keeps the frame and tabs of an archived traveller page opened by link', () => {
+    const nav = workspaceNavigation(`/app/applicant/${p3}`, withArchived);
+    expect(nav.kind).toBe('personal');
+    expect(nav.name).toBe('Synthetic Archived');
+    expect(nav.primary.slice(0, 4).map((link) => link.label)).toEqual([
+      'Home',
+      'Record',
+      'Cases',
+      'Sharing',
+    ]);
+    expect(nav.primary.every((link) => !link.href.includes(p1))).toBe(true);
+  });
+
+  it('never chooses an archived traveller by default, and the switcher list holds only everyday ones', () => {
+    const onlyArchived: WorkspaceAccess = { ...withArchived, travellers: [] };
+    expect(workspaceNavigation('/app', onlyArchived).name).toBe('Personal Space');
+    expect(withArchived.travellers.map((t) => t.id)).toEqual([p1, p2]);
+  });
+
+  it('still refuses a traveller in neither list (Recently Deleted, being removed, or not owned)', () => {
+    expect(workspaceNavigation(`/app/applicant/${p4}`, withArchived).kind).toBe('unavailable');
   });
 });
