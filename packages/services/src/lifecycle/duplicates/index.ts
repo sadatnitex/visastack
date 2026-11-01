@@ -6,3 +6,4 @@ export {
   duplicateStatus,
   duplicateStatuses,
 } from './status';
+export { type TidyUpCounts, tidyUpCounts } from './tidy';

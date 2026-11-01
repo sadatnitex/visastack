@@ -21,7 +21,7 @@ import {
   createPack,
   publishPackVersion,
 } from '../../packs';
-import { duplicateStatus, duplicateStatuses } from '../duplicates';
+import { duplicateStatus, duplicateStatuses, tidyUpCounts } from '../duplicates';
 import {
   DELETE_DUPLICATE_REFUSALS,
   RESTORE_REFUSALS,
@@ -241,6 +241,7 @@ describe('Delete Duplicate with the lifecycle tables missing', () => {
       if (!deleted.ok) expect(deleted.error.code).toBe('not_found');
       expect((await previewDeleteDuplicate(proof, { documentId: newer })).ok).toBe(false);
       expect((await restoreDeleted(proof, { documentId: newer })).ok).toBe(false);
+      expect(await tidyUpCounts(db, owner.applicantId, proof)).toBeNull();
       expect(await purgeDueDocuments(db, erasureScope())).toEqual({
         queued: 0,
         removed: 0,
@@ -337,6 +338,7 @@ describe('Delete Duplicate with the lifecycle tables present', () => {
       const preview = await previewDeleteDuplicate(proof, { documentId: older });
       expect(preview.ok && preview.value.cases.map((c) => c.missionId)).toEqual([open]);
       expect(preview.ok && preview.value.survivorDocumentId).toBe(newer);
+      expect(preview.ok && preview.value.survivorName).toBe('synthetic.pdf');
       const deleted = await deleteDuplicate(proof, { documentId: older });
       expect(deleted.ok).toBe(true);
       expect(await selectedDocumentsOf(db, open)).toEqual([newer]);
@@ -575,6 +577,34 @@ describe('Delete Duplicate with the lifecycle tables present', () => {
           ),
         );
       expect(job?.status).toBe('PENDING');
+    },
+    HEAVY,
+  );
+
+  it(
+    'counts what Tidy Up could tidy: one of two identical copies, expired and replaced',
+    async () => {
+      const proof = await manage(db, owner);
+      expect(await tidyUpCounts(db, owner.applicantId, proof)).toEqual({
+        duplicates: 0,
+        expired: 0,
+        replaced: 0,
+      });
+      const a = await addDocument(db, owner, SHA_A);
+      await addDocument(db, owner, SHA_A);
+      await addDocument(db, owner, SHA_A);
+      const old = await addDocument(db, owner, SHA_B);
+      await db
+        .update(schema.documents)
+        .set({ expiresAt: new Date(Date.now() - DAY_MS), supersededByDocumentId: a })
+        .where(eq(schema.documents.id, old));
+      expect(await tidyUpCounts(db, owner.applicantId, proof)).toEqual({
+        duplicates: 2,
+        expired: 1,
+        replaced: 1,
+      });
+      const stranger = await seedOwner(db, 'lcc-stranger@example.com');
+      expect(await tidyUpCounts(db, stranger.applicantId, proof)).toBeNull();
     },
     HEAVY,
   );

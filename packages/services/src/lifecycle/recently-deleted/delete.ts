@@ -52,12 +52,14 @@ export interface SwitchedCase {
 
 export interface DeleteDuplicatePreview {
   readonly survivorDocumentId: string;
+  /** The copy that stays, as the person's own list names it (for their screen only, never stored). */
+  readonly survivorName: string;
   readonly cases: readonly SwitchedCase[];
   /** When it would be removed for good if not restored. */
   readonly purgeAfter: Date;
 }
 
-export interface DeleteDuplicateOutcome extends DeleteDuplicatePreview {
+export interface DeleteDuplicateOutcome extends Omit<DeleteDuplicatePreview, 'survivorName'> {
   readonly receiptId: string;
 }
 
@@ -115,8 +117,25 @@ export async function previewDeleteDuplicate(
   const now = options.now ?? new Date();
   const decided = refusalFor(await duplicateStatus(access.tx, documentId, access, { now }));
   if ('code' in decided) return err(decided);
+  const survivor = first(
+    await access.tx
+      .select({
+        approvedName: schema.documents.approvedName,
+        originalName: schema.documents.originalName,
+      })
+      .from(schema.documents)
+      .where(
+        and(
+          eq(schema.documents.id, decided.survivorDocumentId),
+          eq(schema.documents.applicantId, applicantId),
+          presentDocumentCondition(),
+        ),
+      ),
+  );
+  if (!survivor) return err(serviceError('invalid', DELETE_DUPLICATE_REFUSALS.notDuplicate));
   return ok({
     survivorDocumentId: decided.survivorDocumentId,
+    survivorName: survivor.approvedName ?? survivor.originalName,
     cases: await openCasesSelecting(access.tx, documentId),
     purgeAfter: new Date(now.getTime() + RECENTLY_DELETED_DAYS * DAY_MS),
   });

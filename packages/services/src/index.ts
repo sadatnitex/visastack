@@ -2323,6 +2323,8 @@ export {
   NOT_A_DUPLICATE,
   duplicateStatus,
   duplicateStatuses,
+  type TidyUpCounts,
+  tidyUpCounts,
 } from './lifecycle/duplicates';
 export {
   DELETE_DUPLICATE_REFUSALS,

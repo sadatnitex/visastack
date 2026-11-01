@@ -1,5 +1,7 @@
 import type { DocumentAction } from '@visastack/services';
 import type { ComponentType } from 'react';
+import { DeleteDuplicateAction } from './delete/delete-action';
+import { RestoreDeletedAction } from './delete/restore-action';
 import { ReplaceAction } from './replace/replace-action';
 
 /** What every Manage action component receives (PROGRAMME section 3.4). */
@@ -29,6 +31,8 @@ export const MANAGE_ACTIONS: Readonly<Partial<Record<DocumentAction, ManageActio
   // LC-B actions
   REPLACE: { label: 'Replace with a Newer Document', Component: ReplaceAction },
   // LC-C actions
+  DELETE_DUPLICATE: { label: 'Delete Duplicate', Component: DeleteDuplicateAction },
+  RESTORE_DELETED: { label: 'Restore', Component: RestoreDeletedAction },
   // LC-D actions
 };
 

@@ -3,11 +3,14 @@
 import { isOtherDocumentType } from '@visastack/core';
 import { useRouter } from 'next/navigation';
 import { type DragEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
+import { UndoStatus } from '../../../../components/lifecycle/undo-status';
 import { UpgradeLine, type UpgradeLineKind } from '../../../../components/upgrade-line';
 import { type UploadOutcome, sendDocumentFile } from '../../../../lib/document-upload-client';
 import { formatFileSize } from '../../../../lib/format-size';
 import type { ChoiceGroup } from '../../../../lib/master-profile-types';
 import { acceptAttribute, checkChosenFile, uploadLimitsText } from '../../../../lib/upload-rules';
+import { deleteDuplicateAction, restoreDeletedAction } from './documents/manage/delete/actions';
+import { deletedLine } from './documents/manage/delete/messages';
 
 /**
  * What a file's line says when its request never got an answer (a dropped connection, a tunnel,
@@ -42,6 +45,12 @@ interface UploadItem {
   readonly title: string | null;
   /** The line after a refusal a paid plan would help with (ADR 0025 section 12.2). */
   readonly upgrade: UpgradeLineKind | null;
+  /** The added document, when it is an exact copy that may be removed again (LC-C). */
+  readonly removableCopyId: string | null;
+  /** Remove This New Copy: not asked, running, done (with Undo), or why it was refused. */
+  readonly removal: 'none' | 'busy' | 'removed' | { readonly problem: string };
+  /** Days the removed copy stays in Recently Deleted. */
+  readonly removedDays: number;
 }
 
 const ACTIVE: ReadonlySet<ItemStatus> = new Set(['waiting', 'sending', 'checking']);
@@ -86,7 +95,12 @@ function statusLine(item: UploadItem): string {
 
 function outcomeToItem(outcome: UploadOutcome): Partial<UploadItem> {
   if (outcome.kind === 'added') {
-    return { status: 'added', message: outcome.message, title: outcome.title };
+    return {
+      status: 'added',
+      message: outcome.message,
+      title: outcome.title,
+      removableCopyId: outcome.removableCopyId ?? null,
+    };
   }
   if (outcome.kind === 'refused') {
     return { status: 'refused', message: outcome.message, upgrade: outcome.upgrade ?? null };
@@ -160,6 +174,9 @@ export function DocumentUploader({
         progress: 0,
         title: null,
         upgrade: null,
+        removableCopyId: null,
+        removal: 'none' as const,
+        removedDays: 0,
       };
       if (index >= MAX_FILES_AT_ONCE) {
         return {
@@ -411,6 +428,38 @@ export function DocumentUploader({
                     </>
                   ) : null}
                 </p>
+                {item.status === 'added' && item.removableCopyId ? (
+                  <NewCopyRemoval
+                    item={item}
+                    onRemove={async () => {
+                      const id = item.removableCopyId;
+                      if (!id || item.removal === 'busy') return;
+                      update(item.id, { removal: 'busy' });
+                      try {
+                        const removed = await deleteDuplicateAction(applicantId, id, true);
+                        if (!removed.ok) {
+                          update(item.id, { removal: { problem: removed.message } });
+                          return;
+                        }
+                        update(item.id, { removal: 'removed', removedDays: removed.days });
+                        router.refresh();
+                      } catch {
+                        update(item.id, {
+                          removal: {
+                            problem: 'We could not remove it. Check your connection and try again.',
+                          },
+                        });
+                      }
+                    }}
+                    onUndo={async () => {
+                      const id = item.removableCopyId;
+                      if (!id) return;
+                      const restored = await restoreDeletedAction(applicantId, id, 'UNDO');
+                      if (!restored.ok) throw new Error(restored.message);
+                      router.refresh();
+                    }}
+                  />
+                ) : null}
                 {RETRYABLE.has(item.status) ? (
                   <button
                     type="button"
@@ -451,6 +500,51 @@ export function DocumentUploader({
       <p className="muted uploader-note">
         Stored privately. Only you and the people you choose to share with can open it.
       </p>
+    </div>
+  );
+}
+
+/**
+ * Remove This New Copy (LC-C): offered on an added file that is an exact copy of a document
+ * already kept. It goes to Recently Deleted (restorable for 30 days), with Undo for ten seconds.
+ * The server checks again that it is a copy and that it may go; the id alone grants nothing.
+ */
+function NewCopyRemoval({
+  item,
+  onRemove,
+  onUndo,
+}: {
+  readonly item: UploadItem;
+  readonly onRemove: () => Promise<void>;
+  readonly onUndo: () => Promise<void>;
+}) {
+  if (item.removal === 'removed') {
+    return (
+      <UndoStatus
+        message={deletedLine(item.removedDays)}
+        onUndo={onUndo}
+        undoneMessage="Restored. The new copy is back in your documents."
+      />
+    );
+  }
+  const busy = item.removal === 'busy';
+  return (
+    <div className="lc-new-copy">
+      <p className="lc-new-copy-line">You already keep an identical copy of this file.</p>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        aria-disabled={busy || undefined}
+        aria-label={`Remove This New Copy: ${item.name}`}
+        onClick={busy ? undefined : () => void onRemove()}
+      >
+        {busy ? 'Removing' : 'Remove This New Copy'}
+      </button>
+      {typeof item.removal === 'object' ? (
+        <p className="field-msg-err" role="alert">
+          {item.removal.problem}
+        </p>
+      ) : null}
     </div>
   );
 }
