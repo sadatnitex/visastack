@@ -297,6 +297,18 @@ export async function reviewOrganization(
     if (!updated) {
       return err(serviceError('invalid', 'This application is no longer waiting for review.'));
     }
+    // Owner decision "Founding A" (rejection, 1 Nov 2026): a rejected application keeps no plan,
+    // the same as a withdrawn one; nothing is refunded automatically (endPlanOfClosingAgency).
+    const plan =
+      input.decision === 'REJECTED'
+        ? await endPlanOfClosingAgency(tx, {
+            organizationId: input.organizationId,
+            actorAccountId: input.reviewerAccountId,
+            cause: 'application_rejected',
+            now: updated.updatedAt,
+            lockedSubscriptionId: await lockPlanOfClosingAgency(tx, input.organizationId),
+          })
+        : null;
     await appendAuditEvent(tx, {
       eventType: 'ORGANIZATION_REVIEWED',
       actorAccountId: input.reviewerAccountId,
@@ -305,7 +317,10 @@ export async function reviewOrganization(
       result: 'ALLOWED',
       resourceType: 'organization',
       resourceId: updated.id,
-      metadata: { decision: input.decision },
+      metadata: {
+        decision: input.decision,
+        ...(plan ? { subscriptionEnded: plan.ended } : {}),
+      },
     });
     return ok(updated);
   });
@@ -988,8 +1003,8 @@ export async function withdrawOrganizationApplication(
 }
 
 /**
- * Owner decision "Founding A" (1 Nov 2026): an agency that withdraws its application or is
- * terminated keeps no plan. Its current subscription ends at the moment the agency closes, so it
+ * Owner decision "Founding A" (1 Nov 2026): an agency that withdraws its application, is rejected
+ * or is terminated keeps no plan. Its current subscription ends at the moment the agency closes, so it
  * can never renew: agency invoicing reads only current subscriptions of ACTIVE agencies, and
  * Founding Access is free, so no paid period is left to honour (closing already ends every
  * access). Nothing is refunded here; the owner refunds case by case with the existing refund
@@ -1000,7 +1015,7 @@ export async function withdrawOrganizationApplication(
  * transaction after the organization row. `lockPlanOfClosingAgency` audits nothing, so a closing
  * transaction that audits other things first can still take these rows ahead of the audit chain.
  */
-type ClosingCause = 'application_withdrawn' | 'organization_terminated';
+type ClosingCause = 'application_withdrawn' | 'application_rejected' | 'organization_terminated';
 
 /**
  * Row locks on the agency's current subscription, then its waiting downgrade (the order every plan
@@ -1032,6 +1047,12 @@ async function lockPlanOfClosingAgency(tx: Db, organizationId: string): Promise<
   return current?.id ?? null;
 }
 
+const CLOSING_REASONS: Readonly<Record<ClosingCause, string>> = {
+  application_withdrawn: 'the agency withdrew its application',
+  application_rejected: 'the application was rejected',
+  organization_terminated: 'the agency was terminated',
+};
+
 /** Ends the closing agency's plan and its waiting downgrade, audited. A no-op without a plan. */
 async function endPlanOfClosingAgency(
   tx: Db,
@@ -1046,10 +1067,7 @@ async function endPlanOfClosingAgency(
 ): Promise<{ readonly ended: boolean }> {
   const subscriptionId = input.lockedSubscriptionId;
   if (subscriptionId === null) return { ended: false };
-  const reason =
-    input.cause === 'application_withdrawn'
-      ? 'the agency withdrew its application'
-      : 'the agency was terminated';
+  const reason = CLOSING_REASONS[input.cause];
   await tx
     .update(schema.subscriptions)
     .set({ endedAt: input.now })

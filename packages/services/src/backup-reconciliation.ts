@@ -114,6 +114,11 @@ const RECONCILED_EVENT_TYPES = [
   // for review, and its unused team invitations stay revoked. Its memberships end through their
   // own MEMBERSHIP_DEACTIVATED events, replayed above.
   'ORGANIZATION_APPLICATION_WITHDRAWN',
+  // Owner decision "Founding A": a subscription ended after the restore point never comes back
+  // (an agency's plan when it closes, or one the owner ended), and an application rejected after
+  // it never comes back to waiting for review. Only a REJECTED review is replayed.
+  'SUBSCRIPTION_ENDED',
+  'ORGANIZATION_REVIEWED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -143,6 +148,8 @@ export interface ReconciliationCounts {
   readonly aiAssistRemoved: number;
   /** Agencies that turned their AI connections off after the restore point, again (S22). */
   readonly agencyAiSettingsOff: number;
+  /** Subscriptions ended after the restore point, ended again (owner decision "Founding A"). */
+  readonly subscriptionsEnded: number;
 }
 
 export interface ReconciliationError {
@@ -259,12 +266,21 @@ async function forceOrganizationStatus(
       .where(eq(schema.organizations.id, resourceId))
       .limit(1),
   );
-  if (!org || org.status === 'CLOSED' || org.status === targetStatus) return false;
-  await newDb
-    .update(schema.organizations)
-    .set({ status: targetStatus, updatedAt: new Date() })
-    .where(eq(schema.organizations.id, resourceId));
-  return true;
+  if (!org) return false;
+  if (org.status === 'CLOSED' || org.status === targetStatus) {
+    // Owner decision "Founding A": a closed agency keeps no plan on the restored branch either.
+    return org.status === 'CLOSED' && targetStatus === 'CLOSED'
+      ? newDb.transaction((tx) => forceAgencyKeepsNoPlan(tx, resourceId, new Date()))
+      : false;
+  }
+  return newDb.transaction(async (tx) => {
+    await tx
+      .update(schema.organizations)
+      .set({ status: targetStatus, updatedAt: new Date() })
+      .where(eq(schema.organizations.id, resourceId));
+    if (targetStatus === 'CLOSED') await forceAgencyKeepsNoPlan(tx, resourceId, new Date());
+    return true;
+  });
 }
 
 /**
@@ -305,7 +321,125 @@ async function forceOrganizationApplicationWithdrawn(
         ),
       )
       .returning({ id: schema.organizationInvitations.id });
-    return closed || revoked.length > 0;
+    // Owner decision "Founding A": the withdrawn agency keeps no plan on the restored branch.
+    const planEnded = await forceAgencyKeepsNoPlan(tx, organizationId, now);
+    return closed || revoked.length > 0 || planEnded;
+  });
+}
+
+/**
+ * Owner decision "Founding A": an agency that keeps no plan (closed or rejected) has none on the
+ * restored branch either. Ends whatever subscription is current there (a plan changed after the
+ * restore point may be a different row from the one the old branch ended), and cancels a downgrade
+ * still waiting, with its queued notice, as the closing did. Runs inside the caller's transaction,
+ * after the organization row. True when anything changed.
+ */
+async function forceAgencyKeepsNoPlan(tx: Db, organizationId: string, at: Date): Promise<boolean> {
+  const ended = await tx
+    .update(schema.subscriptions)
+    .set({ endedAt: at })
+    .where(
+      and(
+        eq(schema.subscriptions.organizationId, organizationId),
+        isNull(schema.subscriptions.endedAt),
+      ),
+    )
+    .returning({ id: schema.subscriptions.id });
+  const cancelled = await cancelWaitingDowngrades(tx, organizationId, at);
+  return ended.length > 0 || cancelled;
+}
+
+/** Cancels the agency's downgrades still waiting on the restored branch, and their queued notices. */
+async function cancelWaitingDowngrades(tx: Db, organizationId: string, at: Date): Promise<boolean> {
+  const cancelled = await tx
+    .update(schema.scheduledDowngrades)
+    .set({
+      status: 'CANCELLED',
+      cancelledAt: at,
+      cancelledReason: 'backup_resurrection_reconciliation',
+      updatedAt: at,
+    })
+    .where(
+      and(
+        eq(schema.scheduledDowngrades.organizationId, organizationId),
+        eq(schema.scheduledDowngrades.status, 'PENDING'),
+      ),
+    )
+    .returning({ id: schema.scheduledDowngrades.id });
+  if (cancelled.length > 0) {
+    await tx
+      .update(schema.notifications)
+      .set({ status: 'CANCELLED' })
+      .where(
+        and(
+          inArray(
+            schema.notifications.resourceId,
+            cancelled.map((row) => row.id),
+          ),
+          eq(schema.notifications.status, 'QUEUED'),
+        ),
+      );
+  }
+  return cancelled.length > 0;
+}
+
+/**
+ * Replays an ended subscription (owner decision "Founding A"): still current on the restored
+ * branch, it ends again at the moment it ended, and a downgrade the agency still has waiting there
+ * is cancelled with its notice (the old branch cancelled it in the same transaction). A no-op once
+ * the restored branch already matches, or when the subscription was created after the restore
+ * point.
+ */
+async function forceSubscriptionEnded(
+  newDb: Db,
+  subscriptionId: string,
+  endedAt: Date,
+  metadata: unknown,
+): Promise<boolean> {
+  return newDb.transaction(async (tx) => {
+    const ended = await tx
+      .update(schema.subscriptions)
+      .set({ endedAt })
+      .where(and(eq(schema.subscriptions.id, subscriptionId), isNull(schema.subscriptions.endedAt)))
+      .returning({ organizationId: schema.subscriptions.organizationId });
+    const organizationId = ended[0]?.organizationId ?? metadataValue(metadata, 'organizationId');
+    const cancelled =
+      typeof organizationId === 'string'
+        ? await cancelWaitingDowngrades(tx, organizationId, endedAt)
+        : false;
+    return ended.length > 0 || cancelled;
+  });
+}
+
+/**
+ * Replays a rejected agency application: still waiting for review on the restored branch, it is
+ * REJECTED again, and it keeps no plan there (`forceAgencyKeepsNoPlan`). An application already
+ * decided or closed there keeps its status. The organization row is locked first, the order
+ * `reviewOrganization` takes.
+ */
+async function forceApplicationRejected(newDb: Db, organizationId: string): Promise<boolean> {
+  return newDb.transaction(async (tx) => {
+    const org = first(
+      await tx
+        .select({ status: schema.organizations.status })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, organizationId))
+        .for('update'),
+    );
+    if (!org) return false;
+    const now = new Date();
+    const rejected = org.status === 'PENDING_VERIFICATION';
+    if (rejected) {
+      await tx
+        .update(schema.organizations)
+        .set({ status: 'REJECTED', updatedAt: now })
+        .where(eq(schema.organizations.id, organizationId));
+    }
+    const keepsNone =
+      rejected || org.status === 'REJECTED' || org.status === 'CLOSED'
+        ? await forceAgencyKeepsNoPlan(tx, organizationId, now)
+        : false;
+    return rejected || keepsNone;
   });
 }
 
@@ -356,9 +490,14 @@ async function forceAiConnectionRevoked(
 }
 
 /** A boolean in an audit record's metadata, or undefined. */
-function metadataFlag(metadata: unknown, key: string): boolean | undefined {
+/** One value of an audit event's metadata, or undefined when there is none. */
+function metadataValue(metadata: unknown, key: string): unknown {
   if (typeof metadata !== 'object' || metadata === null) return undefined;
-  const value = Reflect.get(metadata, key);
+  return Reflect.get(metadata, key);
+}
+
+function metadataFlag(metadata: unknown, key: string): boolean | undefined {
+  const value = metadataValue(metadata, key);
   return typeof value === 'boolean' ? value : undefined;
 }
 
@@ -1181,6 +1320,8 @@ const EVENT_META: Readonly<
     counter: 'organizationsForced',
     resourceType: 'organization',
   },
+  SUBSCRIPTION_ENDED: { counter: 'subscriptionsEnded', resourceType: 'subscription' },
+  ORGANIZATION_REVIEWED: { counter: 'organizationsForced', resourceType: 'organization' },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -1236,6 +1377,13 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
         : false;
     case 'ORGANIZATION_APPLICATION_WITHDRAWN':
       return forceOrganizationApplicationWithdrawn(newDb, resourceId);
+    case 'SUBSCRIPTION_ENDED':
+      return forceSubscriptionEnded(newDb, resourceId, event.occurredAt, event.metadata);
+    case 'ORGANIZATION_REVIEWED':
+      // Only a rejection narrows; an approval is the platform's to make again.
+      return metadataValue(event.metadata, 'decision') === 'REJECTED'
+        ? forceApplicationRejected(newDb, resourceId)
+        : false;
     default:
       return false;
   }
@@ -1276,6 +1424,7 @@ export async function reconcileRestoredBranch(
     redactionMasksReconciled: 0,
     aiAssistRemoved: 0,
     agencyAiSettingsOff: 0,
+    subscriptionsEnded: 0,
   };
   const errors: ReconciliationError[] = [];
   const mutableCounts = counts as {
