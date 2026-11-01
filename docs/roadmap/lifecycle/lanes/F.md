@@ -54,13 +54,15 @@ Any read-site migration (A1, A2, B, E do those), any action component, any job r
   - `apps/web/src/app/app/admin/privacy/page.tsx`: one label line, `DOCUMENT_REMOVAL: 'Document Removal',` (WP-SB7 told to keep it).
   - `apps/web/src/app/app/admin/page.tsx`: 12 `SCORECARD_LABELS` lines for the new product events (WP-SB6 told to keep them).
   - `apps/web/src/components/document-wallet-browser.tsx`: optional `manage?: ReactNode` on `WalletBrowserDocument`, drawn in the row after its select button, never in the selected details; a row without it renders as before (`manage/wallet-row-manage.test.tsx`).
-  - Exact output of `node scripts/programme/check-allowed-paths.mjs docs/roadmap/lifecycle/allowlists/F.txt --no-emdash --exclude docs/design/harbor-v2` before this commit:
+  - `apps/web/src/lib/ccd/parity-documents.test.tsx`: one line in its services mock, `lifecycleTablesPresent: async () => false,` (the page before migration 0113, which is what that parity test protects; approved 1 Nov 2026). The tables-present case is covered by `documents/page.test.tsx`.
+  - Exact output of `node scripts/programme/check-allowed-paths.mjs docs/roadmap/lifecycle/allowlists/F.txt --no-emdash --exclude docs/design/harbor-v2` before the last commit:
 
     ```
-    3 changed file(s) are outside docs/roadmap/lifecycle/allowlists/F.txt:
+    4 changed file(s) are outside docs/roadmap/lifecycle/allowlists/F.txt:
       apps/web/src/app/app/admin/page.tsx
       apps/web/src/app/app/admin/privacy/page.tsx
       apps/web/src/components/document-wallet-browser.tsx
+      apps/web/src/lib/ccd/parity-documents.test.tsx
     Stop. Ask the owner to approve an allowlist change before editing these files.
     OK: no long dashes in added lines (excluding docs/design/harbor-v2).
     ```
