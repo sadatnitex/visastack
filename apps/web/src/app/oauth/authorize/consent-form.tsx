@@ -9,6 +9,7 @@ import {
   isFailure,
   useFocusInvalidField,
 } from '../../../components/form-feedback';
+import { StickyActionBar } from '../../../components/sticky-action-bar';
 import {
   AI_CONNECTION_DURATIONS,
   type AiFileChoice,
@@ -109,7 +110,8 @@ export function ConsentForm({
 
       <p className="card-body">{aiConsentSentence(suggestionsAvailable && suggest)}</p>
       <FormMessage id={messageId} result={state} pending={pending} pendingText="Connecting…" />
-      <div className="page-actions">
+      {/* The answer stays in reach while the person reads the choices (WP-SB4). */}
+      <StickyActionBar label={`Answer ${appName}`}>
         <SubmitButton
           pending={pending}
           name="decision"
@@ -125,7 +127,7 @@ export function ConsentForm({
           busy="Do Not Allow"
           className="btn btn-secondary"
         />
-      </div>
+      </StickyActionBar>
     </form>
   );
 }

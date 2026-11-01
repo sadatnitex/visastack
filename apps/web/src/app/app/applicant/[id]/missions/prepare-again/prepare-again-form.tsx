@@ -1,12 +1,14 @@
 'use client';
 
 import { useActionState, useRef } from 'react';
+import { CollapsibleGroup } from '../../../../../../components/collapsible-group';
 import {
   FormMessage,
   SubmitButton,
   useFocusInvalidField,
 } from '../../../../../../components/form-feedback';
-import { StatusBadge, type Tone } from '../../../../../../components/ui';
+import { StickyActionBar } from '../../../../../../components/sticky-action-bar';
+import type { Tone } from '../../../../../../components/ui';
 import { CASE_DATE_FIELDS } from '../../../../../../lib/form-dates';
 import { usePartTypedDateCheck } from '../../../../../../lib/use-part-typed-date-check';
 import type { ActionState } from '../actions';
@@ -81,6 +83,11 @@ export function PrepareAgainForm({
     ...dateCheck.errors,
   };
   const values = state.values ?? {};
+  // The first group with something in it opens, and so does any group asking for a look (its
+  // tone says so), so nothing that needs checking starts out of sight.
+  const firstFilled = groups.find((group) => group.items.length > 0)?.key;
+  const startsOpen = (group: PrepareAgainGroupView) =>
+    group.items.length > 0 && (group.key === firstFilled || group.tone === 'warning');
 
   /** The attributes and message that tie one box to its own problem, as on Start a Case. */
   const problem = (name: CaseFormField, describedBy?: string) => {
@@ -178,52 +185,68 @@ export function PrepareAgainForm({
         <p className="muted u-m-0">{checklistNote}</p>
       </section>
 
-      {groups.map((group) => (
-        <section key={group.key} className="card" aria-labelledby={`prepare-again-${group.key}`}>
-          <h2 className="card-title" id={`prepare-again-${group.key}`}>
-            {group.title} <StatusBadge tone={group.tone}>{group.items.length}</StatusBadge>
-          </h2>
-          <p className="muted">{group.hint}</p>
-          {group.items.length === 0 ? (
-            <p className="muted u-m-0">Nothing here.</p>
-          ) : (
-            <ul className="rows u-mt-050">
-              {group.items.map((item) => (
-                <li className="row" key={item.id}>
-                  <fieldset className="fieldset u-m-0">
-                    <legend className="row-key">
-                      {item.label}
-                      {item.optional ? ' (Optional)' : ''}
-                    </legend>
-                    <p className="muted u-fs-075 u-m-0">{item.reason}</p>
-                    {item.records.length > 0 ? (
-                      <div className="checks">
-                        {item.records.map((record) =>
-                          record.carriable ? (
-                            <label className="check" key={record.value}>
-                              <input
-                                type="checkbox"
-                                name="carry"
-                                value={record.value}
-                                defaultChecked={record.preselected}
-                              />
-                              <span>{record.label}</span>
-                            </label>
-                          ) : (
-                            <p className="u-m-0" key={record.value}>
-                              {record.label}
-                            </p>
-                          ),
-                        )}
-                      </div>
-                    ) : null}
-                  </fieldset>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+      {/* The three groups fold away (WP-SB4), so the page starts short; the first group with
+          something in it, and any group that needs a look, are open. Every tick box is sent
+          whether its group is open or not. */}
+      <section className="card" aria-labelledby="prepare-again-records">
+        <h2 className="card-title" id="prepare-again-records">
+          Records from the Last Case
+        </h2>
+        <div className="collapsible-groups">
+          {groups.map((group) => (
+            <CollapsibleGroup
+              key={group.key}
+              id={`prepare-again-${group.key}`}
+              title={group.title}
+              count={group.items.length}
+              noun={{ one: 'item', other: 'items' }}
+              open={startsOpen(group)}
+            >
+              <>
+                <p className="muted">{group.hint}</p>
+                {group.items.length === 0 ? (
+                  <p className="muted u-m-0">Nothing here.</p>
+                ) : (
+                  <ul className="rows u-mt-050">
+                    {group.items.map((item) => (
+                      <li className="row" key={item.id}>
+                        <fieldset className="fieldset u-m-0">
+                          <legend className="row-key">
+                            {item.label}
+                            {item.optional ? ' (Optional)' : ''}
+                          </legend>
+                          <p className="muted u-fs-075 u-m-0">{item.reason}</p>
+                          {item.records.length > 0 ? (
+                            <div className="checks">
+                              {item.records.map((record) =>
+                                record.carriable ? (
+                                  <label className="check" key={record.value}>
+                                    <input
+                                      type="checkbox"
+                                      name="carry"
+                                      value={record.value}
+                                      defaultChecked={record.preselected}
+                                    />
+                                    <span>{record.label}</span>
+                                  </label>
+                                ) : (
+                                  <p className="u-m-0" key={record.value}>
+                                    {record.label}
+                                  </p>
+                                ),
+                              )}
+                            </div>
+                          ) : null}
+                        </fieldset>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            </CollapsibleGroup>
+          ))}
+        </div>
+      </section>
 
       <section className="card" aria-labelledby="prepare-again-sharing">
         <h2 className="card-title" id="prepare-again-sharing">
@@ -259,15 +282,15 @@ export function PrepareAgainForm({
         )}
       </section>
 
-      <div>
+      <FormMessage result={state} />
+      <StickyActionBar label="Create the New Case">
         <SubmitButton
           pending={pending}
           idle="Create Case"
           busy="Creating…"
           className="btn btn-primary"
         />
-        <FormMessage result={state} />
-      </div>
+      </StickyActionBar>
     </form>
   );
 }
