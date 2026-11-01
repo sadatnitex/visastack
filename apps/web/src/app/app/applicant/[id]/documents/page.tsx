@@ -10,6 +10,7 @@ import {
   availableDocumentActions,
   classifyExpiry,
   documentCategory,
+  duplicateStatuses,
   getAiFeatureStates,
   getApplicant,
   getApplicantEvidenceBytes,
@@ -317,10 +318,24 @@ export default async function ApplicantDocumentsPage({
               readingAccess.value,
             );
             const receipts = await listDeletionReceipts(readingAccess.value, { limit: 1 });
+            // LC-C: whether each document is an exact copy that may be deleted (D2, D5).
+            const duplicates = await duplicateStatuses(
+              db,
+              documentRows.map((doc) => doc.id),
+              readingAccess.value,
+            );
             const actions = new Map<string, readonly DocumentAction[]>(
               documentRows.map((doc) => {
                 const state = states.get(doc.id);
-                return [doc.id, state ? availableDocumentActions(documentActionView(state)) : []];
+                const duplicate = duplicates.get(doc.id);
+                const facts = {
+                  isDuplicate: duplicate?.isDuplicate ?? false,
+                  duplicateBlockReason: duplicate?.blockReason ?? null,
+                };
+                return [
+                  doc.id,
+                  state ? availableDocumentActions(documentActionView(state, facts)) : [],
+                ];
               }),
             );
             return {

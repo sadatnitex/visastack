@@ -14,9 +14,21 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const json = (message: string, status: number, title?: string, upgrade?: UpgradeLineKind) =>
+const json = (
+  message: string,
+  status: number,
+  title?: string,
+  upgrade?: UpgradeLineKind,
+  removableCopyId?: string,
+) =>
   Response.json(
-    { message, ...(title ? { title } : {}), ...(upgrade ? { upgrade } : {}) },
+    {
+      message,
+      ...(title ? { title } : {}),
+      ...(upgrade ? { upgrade } : {}),
+      // LC-C: the new document's id, only when it is an exact copy the uploader may remove again.
+      ...(removableCopyId ? { removableCopyId } : {}),
+    },
     {
       status,
       headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
@@ -82,6 +94,7 @@ export async function POST(request: Request): Promise<Response> {
       result.ok ? 201 : 400,
       result.ok ? result.title : undefined,
       result.ok ? undefined : result.upgrade,
+      result.ok ? result.removableCopyId : undefined,
     );
   });
 }

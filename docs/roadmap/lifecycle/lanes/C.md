@@ -31,9 +31,13 @@ Support requests (D), any other read site (A2), Replace (B), travellers (E).
 
 ## Status (lane fills in)
 
-- Started on main:
-- PR / merged SHA:
-- Checks seen green:
-- Live / hidden until migration:
-- Not verified:
-- Blocked:
+- Started on main: 19ec6a15ec99e0ea7877454560b51bbf3ba1be46 (1 Nov 2026).
+- PR / merged SHA: (filled at merge)
+- Checks seen green: (filled at merge)
+- Tests added:
+  - `packages/services/src/lifecycle/recently-deleted/recently-deleted.test.ts`: tables missing (nothing offered, deleted or purged); the D2 rule (usable copy, no fingerprint, other person); red first: a survivor in Recently Deleted refuses, a finished case blocks, a hold placed during the 30 days stops the purge (each proven able to fail by breaking the real code once); the other D5 blocks; open cases and AI app choices switch, one material revision bump, no switch back on Undo; purge only after 30 days through verified erasure; owner only; reading queued again on restore (A2 follow-up); Tidy Up counts.
+  - Web: `manage/delete/delete-action.test.tsx`, `(home)/tidy-up.test.tsx`, `lib/lifecycle-jobs/purge.test.ts`, upload route, upload client and uploader tests for Remove This New Copy.
+- Live / hidden until migration: migration 0113 has run on production, so Delete Duplicate, Restore, Remove This New Copy, Removal Records and Tidy Up are live after merge. With the tables missing every piece reads "not a duplicate", refuses commands and purges nothing (tested).
+- Not verified: the finished-case packet download after a deletion (PROGRAMME section 12) is not run in a browser; a safe copy (redaction) for the surviving copy is not prepared automatically when an AI app choice moves to it (the AI gate then serves nothing for that choice until one is prepared); intake's own deterministic extraction skipped while deleted is not re-run on restore (only the AI reading is re-queued).
+- Path check: coordinator-approved exceptions (1 Nov): `documents/page.tsx` (reads and passes `isDuplicate` and `duplicateBlockReason` only; `view.ts` needed no change), and `api/documents/upload/route.ts`, `lib/document-upload-client.ts` plus their tests (one optional `removableCopyId`). Output: "5 changed file(s) are outside docs/roadmap/lifecycle/allowlists/C.txt: apps/web/src/app/api/documents/upload/route.test.ts, apps/web/src/app/api/documents/upload/route.ts, apps/web/src/app/app/applicant/[id]/documents/page.tsx, apps/web/src/lib/document-upload-client.test.ts, apps/web/src/lib/document-upload-client.ts" and "OK: no long dashes in added lines". Every other file is inside the allowlist.
+- Blocked: none (the upload-path files were approved by the coordinator on 1 Nov).
