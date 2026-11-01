@@ -10934,6 +10934,123 @@ summary.safe-copy-title {
   gap: 0.35rem 0.75rem;
 }
 
+/* WP-SB0 scroll budget foundations: the end of a capped list (Show More), the older-entries
+   links under a log, a bar that keeps the main buttons in reach, and groups that open and close. */
+.show-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
+  scroll-margin-top: 6rem;
+}
+.show-more-link {
+  min-height: 44px;
+}
+.activity-log-more {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.activity-log-more .btn {
+  min-height: 44px;
+}
+.activity-log[id] {
+  scroll-margin-top: 6rem;
+}
+.sticky-action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  min-inline-size: 0;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  border: 0;
+  border-top: 1px solid var(--hairline);
+  background: var(--bg-elevated);
+}
+.sticky-action-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+.sticky-action-bar-actions .btn {
+  min-height: 44px;
+}
+/* A field the keyboard moves to is never scrolled in behind the bar. */
+html:has(.sticky-action-bar) {
+  scroll-padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+@media (max-width: 640px) {
+  /* On a phone the note and the full-width buttons stack, so the bar is taller. */
+  html:has(.sticky-action-bar) {
+    scroll-padding-bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+  }
+  .sticky-action-bar-actions {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+}
+.collapsible-groups {
+  display: grid;
+  gap: var(--space-2);
+}
+.collapsible-group {
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.collapsible-group-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+}
+.collapsible-group-summary::-webkit-details-marker {
+  display: none;
+}
+.collapsible-group-summary::after {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-inline-start: auto;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+.collapsible-group[open] > .collapsible-group-summary::after {
+  transform: rotate(-135deg);
+}
+.collapsible-group-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.collapsible-group-count {
+  padding: 0 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--hairline-soft);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+.collapsible-group-body {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
 /* WP-LC-F resource lifecycle: Manage menu, Current / Archived / Recently Deleted links, Undo status and Removal Records (44 px targets) */
 .lc-manage {
   position: relative;

@@ -2246,6 +2246,8 @@ export {
   ownInvoiceDocument,
   ownReceiptDocument,
 } from './person-billing-history';
+// WP-SB0: shared paging (page sizes, scoped list cursors and the matching query helpers).
+export * from './paging';
 
 // --- Resource lifecycle programme (docs/roadmap/lifecycle/PROGRAMME.md section 5.2) ---
 // One anchor per lane: each lane inserts its exports only directly below its own anchor.
