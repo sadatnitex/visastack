@@ -53,7 +53,7 @@ beforeEach(() => {
       id: 'ci1',
       displayName: 'Karim Hossain',
       contactDestination: 'karim@example.com',
-      expiresAt: '2026-11-01T00:00:00Z',
+      expiresAt: '2099-11-01T00:00:00Z',
     },
   ]);
   mocks.loadEvidenceRequests.mockResolvedValue([
@@ -108,13 +108,13 @@ describe('agency Clients', () => {
         id: 'ci1',
         displayName: 'Karim Hossain',
         contactDestination: 'karim@example.com',
-        expiresAt: '2026-11-01T00:00:00Z',
+        expiresAt: '2099-11-01T00:00:00Z',
       },
       {
         id: 'ci2',
         displayName: 'Rina Akter',
         contactDestination: '+880 1711 000000',
-        expiresAt: '2026-11-01T00:00:00Z',
+        expiresAt: '2099-11-01T00:00:00Z',
       },
     ]);
     const text = textOf(await renderServer(Page(props)));
