@@ -3,7 +3,7 @@
 Keep this file between 250 and 400 words. Memory between sessions; evidence lives in `COVERAGE-LEDGER.csv`. Overwritten each time; history stays in git.
 
 - Last updated: 1 November 2026 (documentation handover): Scroll Budget complete, WP-SB0 to WP-SB11 merged and live
-- Current main: `b665fd4e` (#404); main CI, CodeQL and the Vercel status succeeded on it
+- Current main: `b8bb2df4` (#405); main CI, CodeQL and the Vercel status succeeded on `b665fd4e` (#404)
 - Merged this run: WP-SB0 (#378), SB1 (#387), SB2 (#383), SB3 (#385), SB4 (#384), SB5 (#392), SB6 (#394), SB7 (#390), SB8 (#391), SB9 (#386), SB10 (#397, every check enforces), SB11 (#402, three exceptions fixed). Earlier: CCD-0 to CCD-7 and WP-C2 (#325 to #335)
 - WP-C2: sidebar and page, card edges, control edges and the text tiers separate by tone and edges only; status words and two text tiers are darker than Harbor on purpose (`colour-map.md`, section WP-C2)
 - Migrations: Scroll Budget added none. Production has every migration through 0114 applied; none pending (readiness `ready`, 1 Nov)

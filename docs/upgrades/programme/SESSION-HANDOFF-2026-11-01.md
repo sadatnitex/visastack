@@ -1,6 +1,6 @@
 # Session handoff, 1 November 2026
 
-Supersedes `SESSION-HANDOFF-2026-10-29.md` for current state (older handoffs stay as history). Read `CLAUDE.md`, then `docs/SESSION-START.md`, then this. Main was `b665fd4e` (#404) when this was written; check the head SHA before acting.
+Supersedes `SESSION-HANDOFF-2026-10-29.md` for current state (older handoffs stay as history). Read `CLAUDE.md`, then `docs/SESSION-START.md`, then this. Main was `b8bb2df4` (#405) when this was written; check the head SHA before acting.
 
 Every fact below was checked on main and on GitHub on 1 Nov 2026 unless it says "not verified".
 
@@ -27,14 +27,14 @@ Every fact below was checked on main and on GitHub on 1 Nov 2026 unless it says 
 The full list is `docs/SESSION-START.md` section 6.
 
 - "G-Z accepted": the Resource Lifecycle Programme is accepted.
-- "Founding A": on agency withdraw or terminate, Founding Access stops renewing at once, access lasts to the end of the paid period, no automatic refund.
+- "Founding A", refined to "Close the record": Founding Access is free and never invoiced, so on agency withdraw or terminate the current plan ends at that moment, a waiting downgrade and its notice are cancelled, SUBSCRIPTION_ENDED is audited, no refund. Merged as #405 (`b8bb2df4`), no migration.
 - "switch on removal requests" and "G-D approved": the Compliance Admin role reviews removal requests, each decision needs a fresh sign-in, no new role; wording approved as shipped.
 - "migrate 0114" and "migrate 0113": each run once, as above.
 - "G3 A": one written access-ratchet exception for `organizations#withdrawOrganizationApplication`.
 
 ## 3. Open work, in order
 
-1. **Founding A** (in progress): draft PR #405 (`claude/happy-pascal-oj4pq1`, head `25085519` when checked), built by session VS-XYZ-02 (`session_0187kU9rUiifEY59CgmeDcu4`). Not merged, not live.
+1. **Owner questions from Founding A** (#405 merged): (1) a REJECTED application keeps its Founding Access subscription current; (2) backup reconciliation does not replay SUBSCRIPTION_ENDED, so after a restore a closed agency's plan reads current again (no access, never invoiced).
 2. **PGlite speedup for tests** (next engineering item, deferred from #376): fewer database copies per test so CI gets faster. Not started.
 3. **Lifecycle cleanup** (not urgent): the per-request presence checks for the lifecycle tables can go now that 0113 is confirmed on production.
 4. **Paid plans go-live**: owner items D7, D12, O6, then "go live"; T7 (privacy and launch) and T8 (after launch) per ADR 0025.
@@ -43,7 +43,7 @@ The full list is `docs/SESSION-START.md` section 6.
 
 ## 4. Sessions still running
 
-- VS-XYZ-02 (`session_0187kU9rUiifEY59CgmeDcu4`): Founding A, PR #405.
+- VS-XYZ-02 (`session_0187kU9rUiifEY59CgmeDcu4`): built Founding A (#405, merged); no open package known.
 - The coordinator (`session_0187kU9trzEd3LaoJQDzkYT4`) started this documentation session.
 - Old owner-held PRs #177 (open sign-up switch) and #77 (WorkOS staging, obsolete): leave them open.
 

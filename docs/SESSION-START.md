@@ -64,7 +64,7 @@ The rule itself is in `CLAUDE.md` (sections 5 and 7). Two practical notes: write
 ## 6. Owner decisions in force (newest first)
 
 - 1 Nov: "G-Z accepted": the Resource Lifecycle Programme is accepted (`docs/roadmap/lifecycle/STATUS.md`).
-- 1 Nov: "Founding A": when an agency withdraws or is terminated, Founding Access stops renewing at once, access lasts to the end of the paid period, and there is no automatic refund. Being built in draft PR #405 (not merged when this was written).
+- 1 Nov: "Founding A": when an agency withdraws or is terminated, Founding Access stops renewing at once, no automatic refund. Refined the same day to "Close the record": Founding Access is free and never invoiced, so the plan ends at that moment. Merged as #405 (`b8bb2df4`).
 - 1 Nov: "switch on removal requests": `DOCUMENT_REMOVAL_REQUESTS=on` in Vercel Production. "G-D approved": the Compliance Admin role reviews removal requests, each decision needs a fresh sign-in, no new role, wording approved as shipped.
 - 1 Nov: "migrate 0113" and "migrate 0114": each ran once (runs 41263156493 and 41289963351). A word covers only the number it names.
 - 1 Nov: "G3 A": one written access-ratchet exception for `organizations#withdrawOrganizationApplication`.
@@ -89,9 +89,9 @@ The rule itself is in `CLAUDE.md` (sections 5 and 7). Two practical notes: write
 
 ## 7. Open work, in order
 
-State on 1 Nov 2026 (main `b665fd4e`). Done since 29 Oct: the Resource Lifecycle Programme (accepted, `docs/roadmap/lifecycle/STATUS.md`), the Scroll Budget programme (every check enforces, `docs/uiux/SCROLL-BUDGET.md`), paid traveller plans T1 to T6 (selling off), Small Commercial S18 to S22, S28, S29 and S19 step 0. Migrations through 0114 are applied in production; none is pending. Interface work (Programme X, Calm Core With Depths, Scroll Budget): `docs/upgrades/programme/STATUS.md`.
+State on 1 Nov 2026 (main `b8bb2df4`). Done since 29 Oct: the Resource Lifecycle Programme (accepted, `docs/roadmap/lifecycle/STATUS.md`), the Scroll Budget programme (every check enforces, `docs/uiux/SCROLL-BUDGET.md`), paid traveller plans T1 to T6 (selling off), Founding A (#405), Small Commercial S18 to S22, S28, S29 and S19 step 0. Migrations through 0114 are applied in production; none is pending. Interface work (Programme X, Calm Core With Depths, Scroll Budget): `docs/upgrades/programme/STATUS.md`.
 
-1. **Founding A** (in progress, draft PR #405, session VS-XYZ-02): Founding Access ends cleanly when an agency withdraws or is terminated.
+1. **Owner questions from Founding A** (#405): (1) should a REJECTED application also end its Founding Access subscription (today it stays current); (2) should backup reconciliation replay SUBSCRIPTION_ENDED (today a restore shows a closed agency's plan as current again, with no access and no invoice).
 2. **Faster tests** (next engineering item): the PGlite-per-test speedup deferred from #376.
 3. **Lifecycle cleanup** (not urgent): remove the per-request presence checks for the lifecycle tables now that 0113 is on production.
 4. **Paid plans go-live**, on the owner's items D7, D12, O6 and "go live"; then T7 and T8 (ADR 0025).
