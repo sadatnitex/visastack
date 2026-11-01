@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { DOCUMENT_ACTIONS } from '@visastack/services';
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -49,8 +50,8 @@ const trigger = () => container.querySelector<HTMLButtonElement>('button[aria-ha
 const items = () => [...container.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
 
 describe('the action registry', () => {
-  it('ships empty: no lane has registered an action yet', () => {
-    expect(Object.keys(MANAGE_ACTIONS)).toEqual([]);
+  it('lists only frozen actions', () => {
+    for (const key of Object.keys(MANAGE_ACTIONS)) expect(DOCUMENT_ACTIONS).toContain(key);
   });
   it('keeps only registered actions, in the given order', () => {
     expect(
@@ -68,6 +69,7 @@ describe('ManageMenu', () => {
           documentId="d1"
           documentName="Passport"
           actions={['ARCHIVE', 'REPLACE']}
+          registry={{}}
         />,
       ),
     );
