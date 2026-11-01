@@ -81,6 +81,16 @@ const PERSON_TRUSTED: Readonly<Record<string, string>> = {
     "the one recording function (ADR 0020): its person steps are private to it and act only on the locked invoice's own payer; its agency callers prove the money (gateway validation, staff, claims) as before",
 };
 /**
+ * Exported functions that touch applicant-owned tables without a gate and are trusted not to
+ * spread to their callers, each with why. Fixed, not a baseline: an entry needs a reason a
+ * reviewer reads, and an entry that no longer exists fails the test (owner decision "G3 A",
+ * 1 Nov 2026).
+ */
+const APPLICANT_TRUSTED: Readonly<Record<string, string>> = {
+  'organizations#withdrawOrganizationApplication':
+    "only takes access away: only for an agency still pending verification, only when the actor is that agency's own active owner, and it never reads or grants anyone's records (it ends the agency's memberships, their AI connections and case assignments). Its membership helper is private to organizations.ts, so this cannot spread. Tests: lifecycle/agency/withdraw-application.test.ts",
+};
+/**
  * ADR 0025: a `SelfScope` also gates the applicant ratchet, but only for a function that reaches
  * applicant-owned tables through these calls alone (an audit record is written, nothing of anyone's
  * record is read). A function taking only a `SelfScope` that touches an applicant-owned table
@@ -635,6 +645,7 @@ function analyse(): Analysis {
   const gateDecls = gateDeclarations(program, checker);
   return {
     ...ratchet(program, checker, tables, gateDecls, {
+      trusted: new Set(Object.keys(APPLICANT_TRUSTED)),
       selfGate: {
         decls: gateDeclarations(program, checker, ['SelfScope']),
         safe: SELF_SAFE_CALLS,
@@ -822,6 +833,35 @@ function readBaseline(): string[] {
 }
 
 describe('access gate enforcement ratchet', () => {
+  it('trusts the withdrawal alone: caught without its entry, and nothing else is spared', () => {
+    const { program } = programOnce();
+    const checker = program.getTypeChecker();
+    const tables = ownedTables(sourceFileAt(program, schemaFile));
+    const gates = gateDeclarations(program, checker);
+    const withdrawal = 'organizations#withdrawOrganizationApplication';
+    const untrusted = ratchet(program, checker, tables, gates);
+    // Without its entry the withdrawal is caught, so the entry is what lets it through.
+    expect(untrusted.violations.has(withdrawal)).toBe(true);
+    const trusted = ratchet(program, checker, tables, gates, {
+      trusted: new Set(Object.keys(APPLICANT_TRUSTED)),
+    });
+    expect(trusted.violations.has(withdrawal)).toBe(false);
+    // Another ungated function touching the same tables is still caught: the trust is by name.
+    expect(trusted.violations.has('organizations#setMembershipActive')).toBe(true);
+    // The shared membership helper stays private, so no new caller can reach the tables through it.
+    expect(trusted.exportedFunctionIds.has('organizations#endMembershipInTx')).toBe(false);
+    // Trusting one name spares exactly that name.
+    expect([...untrusted.violations].filter((id) => !trusted.violations.has(id))).toEqual([
+      withdrawal,
+    ]);
+    // A trusted name with no function behind it spares nothing and is reported by the check above.
+    const ghost = ratchet(program, checker, tables, gates, {
+      trusted: new Set(['organizations#noSuchFunction']),
+    });
+    expect(ghost.exportedFunctionIds.has('organizations#noSuchFunction')).toBe(false);
+    expect(ghost.violations.has(withdrawal)).toBe(true);
+  });
+
   it('every exported function touching an applicant-owned table takes a gate type or is baselined', () => {
     const analysis = analyse();
     const baseline = readBaseline();
@@ -850,6 +890,12 @@ describe('access gate enforcement ratchet', () => {
       expect(analysis.exportedFunctionIds.has(id), `${id} is listed but no longer exists`).toBe(
         true,
       );
+    }
+    for (const id of Object.keys(APPLICANT_TRUSTED)) {
+      expect(analysis.exportedFunctionIds.has(id), `${id} is trusted but no longer exists`).toBe(
+        true,
+      );
+      expect(analysis.violations.has(id), `${id} is trusted`).toBe(false);
     }
 
     const duplicates = baseline.filter((entry, i) => baseline.indexOf(entry) !== i);

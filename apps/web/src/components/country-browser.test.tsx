@@ -114,6 +114,8 @@ describe('the country list controls', () => {
     expect(names()).toEqual(['Vietnam']);
     type('zzz');
     expect(container.textContent).toContain('No Countries Match');
+    // The polite count says so too, so a screen reader hears that the list is now empty.
+    expect(container.querySelector('output')?.textContent).toBe('No countries match.');
   });
 
   it('flags a country that needs checking on its row', () => {
@@ -133,5 +135,62 @@ describe('where each country opens', () => {
     act(() => root.render(<CountryBrowser items={agency} filters={filters} />));
     expect(container.querySelector('a[href="/app/agency/org-1/countries/gb"]')).not.toBeNull();
     expect(container.querySelector('a[href="/app/countries/gb"]')).toBeNull();
+  });
+});
+
+describe('a long country list (WP-SB8 scroll budget)', () => {
+  const many: CountryBrowserItem[] = Array.from({ length: 156 }, (_, n) => ({
+    iso2: `C${n}`,
+    href: `/app/countries/c${n}`,
+    name: `Country ${String(n).padStart(3, '0')}`,
+    status: n % 3 === 0 ? 'E_VISA' : 'VISA_REQUIRED',
+    stay: null,
+    fee: null,
+    unconfirmed: false,
+  }));
+  const more = () =>
+    [...container.querySelectorAll('button')].find((b) => b.textContent === 'Show More countries');
+  const count = () => container.querySelector('output.country-count')?.textContent;
+  const typeSearch = (value: string) => {
+    const input = container.querySelector('input[type="search"]') as HTMLInputElement;
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      setter?.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+  beforeEach(() => {
+    act(() => root.render(<CountryBrowser items={many} filters={filters} />));
+  });
+
+  it('shows 12 countries with the total, then Show More adds 12 and focuses the first new one', () => {
+    expect(names()).toHaveLength(12);
+    expect(count()).toBe('Showing 12 of 156 countries.');
+    // The filter counts still cover every country, not just the ones on screen.
+    expect(container.querySelector('button[aria-pressed="true"]')?.textContent).toContain('156');
+    act(() => more()?.click());
+    expect(names()).toHaveLength(24);
+    expect(count()).toBe('Showing 24 of 156 countries.');
+    expect(document.activeElement?.getAttribute('href')).toBe('/app/countries/c12');
+  });
+
+  it('reaches every country by Show More alone, and the control goes away at the end', () => {
+    for (let n = 0; n < 12 && more(); n += 1) act(() => more()?.click());
+    expect(names()).toHaveLength(156);
+    expect(more()).toBeUndefined();
+    expect(count()).toBe('Showing all 156 countries.');
+  });
+
+  it('starts again from 12 after a new filter or search, and searches the whole list', () => {
+    act(() => more()?.click());
+    press('E-Visa');
+    expect(names()).toHaveLength(12);
+    expect(count()).toBe('Showing 12 of 52 countries.');
+    press('All Countries');
+    typeSearch('country 155');
+    // Country 155 is far past the first 12, and the search still finds it.
+    expect(names()).toEqual(['Country 155']);
+    expect(count()).toBe('Showing the only country.');
+    expect(more()).toBeUndefined();
   });
 });

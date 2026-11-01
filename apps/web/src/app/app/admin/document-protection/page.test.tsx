@@ -134,10 +134,36 @@ beforeEach(() => {
   mocks.getDocumentProtectionOverview.mockResolvedValue({ ok: true, value: overview(true) });
 });
 
+const financialTab = () => Page({ searchParams: Promise.resolve({ category: 'financial' }) });
+
 describe('Platform > Settings > Document Protection', () => {
+  it('shows the categories as tabs, the first open, and an unknown category falls back to it', async () => {
+    const html = await renderServer(Page({}));
+    expect(html).toContain('aria-label="Document Categories"');
+    expect(html).toMatch(
+      /href="\/app\/admin\/document-protection#document-categories" aria-current="page"/,
+    );
+    expect(html).toContain(
+      'href="/app/admin/document-protection?category=financial#document-categories"',
+    );
+    expect(textOf(html)).toContain('Financial (2)');
+    expect(textOf(html)).not.toContain('Bank, tax, income');
+    const unknown = await renderServer(
+      Page({ searchParams: Promise.resolve({ category: 'constructor' }) }),
+    );
+    expect(textOf(unknown)).toContain('Health reports, vaccination');
+    // Each switch on a tab names its tab, so a fresh sign-in check returns there.
+    expect(
+      stubProps<{ category?: string }>(html, 'ProtectionSwitch').map((s) => s.category ?? null),
+    ).toEqual([null, 'medical', 'medical', 'medical']);
+    const financial = await renderServer(financialTab());
+    expect(financial).toMatch(/category=financial#document-categories" aria-current="page"/);
+    expect(textOf(financial)).not.toContain('Health reports, vaccination');
+  });
+
   it('shows only the restricted notice to someone without the permission', async () => {
     mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(textOf(html)).toContain('This area is restricted to platform administrators');
     expect(mocks.staffPrincipal.mock.calls[0]?.[2]).toBe('DOCUMENT_PROTECTION_MANAGE');
     expect(mocks.getDocumentProtectionOverview).not.toHaveBeenCalled();
@@ -145,7 +171,7 @@ describe('Platform > Settings > Document Protection', () => {
   });
 
   it('says in plain words what each switch does for travellers', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Document Protection');
     expect(text).toContain(
       'Ask for a fresh sign-in check before anyone previews or downloads these documents.',
@@ -170,15 +196,15 @@ describe('Platform > Settings > Document Protection', () => {
   });
 
   it('shows who changed a switch, when, why, and the standard setting', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Changed by security@example.com on');
     expect(text).toContain('Standard setting: On.');
     expect(text).toContain('Reason: Agencies said vaccination cards are routine');
     expect(text).toContain('Standard setting, never changed.');
   });
 
-  it('gives every category, document and the unsorted rule its own switch', async () => {
-    const html = await renderServer(Page());
+  it('gives every category, document and the unsorted rule its own switch, one category tab at a time', async () => {
+    const html = await renderServer(Page({}));
     const switches = stubProps<{ scope: string; switchKey: string; offWarning?: string }>(
       html,
       'ProtectionSwitch',
@@ -188,6 +214,13 @@ describe('Platform > Settings > Document Protection', () => {
       'CATEGORY:medical',
       'DOCUMENT_TYPE:VACCINATION_CERTIFICATE',
       'DOCUMENT_TYPE:OTHER_MEDICAL_DOCUMENT',
+    ]);
+    const financial = stubProps<{ scope: string; switchKey: string }>(
+      await renderServer(financialTab()),
+      'ProtectionSwitch',
+    );
+    expect(financial.map((s) => `${s.scope}:${s.switchKey}`)).toEqual([
+      'UNKNOWN_TYPE:unknown',
       'CATEGORY:financial',
       'DOCUMENT_TYPE:SALARY_SLIP',
       'DOCUMENT_TYPE:BANK_STATEMENT',
@@ -199,21 +232,21 @@ describe('Platform > Settings > Document Protection', () => {
   });
 
   it('says when a group is on but some documents in it were switched off one by one', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(financialTab()));
     expect(text).toContain(
       'Asks for a fresh sign-in check, except 1 document switched off one by one.',
     );
   });
 
   it('says when a group is off but some documents in it are still protected', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain(
       'These documents open without a fresh sign-in check. 1 document in this group is still protected.',
     );
   });
 
   it('labels what a document switch does once reset, which depends on its group', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(financialTab()));
     expect(text).toContain('Changed by security@example.com on');
     expect(text).toContain('If reset: On. Reason: Agencies see these every day');
   });
@@ -223,7 +256,7 @@ describe('Platform > Settings > Document Protection', () => {
       ok: false,
       error: { code: 'upstream_error', message: 'x' },
     });
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(textOf(html)).toContain(
       'Document protection settings are not available yet. Until they are, every document needs a fresh sign-in check before anyone previews or downloads it.',
     );
@@ -232,9 +265,9 @@ describe('Platform > Settings > Document Protection', () => {
   });
 
   it('warns clearly while the unsorted-documents check is off', async () => {
-    expect(textOf(await renderServer(Page()))).not.toContain('can expose them without a check');
+    expect(textOf(await renderServer(Page({})))).not.toContain('can expose them without a check');
     mocks.getDocumentProtectionOverview.mockResolvedValue({ ok: true, value: overview(false) });
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain(
       'Documents that are not sorted yet could be passports, bank statements or medical records, so turning this off can expose them without a check.',
     );

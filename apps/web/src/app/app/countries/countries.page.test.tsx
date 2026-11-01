@@ -61,7 +61,8 @@ describe('a country page', () => {
 describe('the traveller space links', () => {
   it('opens countries and goes back inside the traveller space', async () => {
     const list = await renderServer(CountriesPage());
-    expect(list).toContain('href="/app/countries/gb"');
+    // The UK sits behind Show More since WP-SB8 (12 countries first); Australia is in the first 12.
+    expect(list).toContain('href="/app/countries/au"');
     expect(await detail('gb')).toContain('href="/app/countries"');
   });
 });

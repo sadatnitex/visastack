@@ -291,3 +291,61 @@ describe('subscribing in a calendar app', () => {
     expect(mocks.requireAccess).toHaveBeenCalledOnce();
   });
 });
+
+describe('a long list of dates stays short on screen (WP-SB4)', () => {
+  const groupsOf = (html: string) =>
+    [
+      ...html.matchAll(
+        /<details class="collapsible-group" id="calendar-group-([a-z_]+)"( open="")?>.*?<span class="collapsible-group-count" aria-hidden="true">(\d+)<\/span>/g,
+      ),
+    ].map((m) => ({ kind: m[1], open: Boolean(m[2]), count: Number(m[3]) }));
+
+  it('groups the dates by kind, each with its count, and opens only the first', async () => {
+    const groups = groupsOf(await render());
+    expect(groups.map((g) => g.kind)).toEqual([
+      'appointment',
+      'task_due',
+      'request_due',
+      'document_expires',
+    ]);
+    expect(groups.map((g) => g.open)).toEqual([true, false, false, false]);
+    expect(groups.reduce((total, g) => total + g.count, 0)).toBe(CALENDAR_ITEMS.length);
+  });
+
+  it('opens the groups holding a chosen date, so nothing ticked is out of sight', async () => {
+    const groups = groupsOf(await render({ key: [TASK_KEY, DOCUMENT_KEY] }));
+    expect(groups.filter((g) => g.open).map((g) => g.kind)).toEqual([
+      'task_due',
+      'document_expires',
+    ]);
+  });
+
+  it('keeps 200 dates in closed groups and a 100-row preview in a fixed panel, Download right after', async () => {
+    const many = Array.from({ length: 200 }, (_, i) => ({
+      ...(CALENDAR_ITEMS[i % CALENDAR_ITEMS.length] as (typeof CALENDAR_ITEMS)[number]),
+      key: `task_due:0b6f1c2e-2222-4a8e-9d0c-${String(i).padStart(12, '0')}`,
+      kind: 'task_due' as const,
+    }));
+    mocks.listCalendarDates.mockResolvedValue(listing(many));
+    const html = await render({ preview: '1', key: many.slice(0, 100).map((item) => item.key) });
+    expect(html.match(/data-calendar-date="1"/g)).toHaveLength(200);
+    expect(previewRows(html).length).toBeGreaterThan(0);
+    const panel = html.indexOf('class="activity-log-scroll calendar-preview-scroll"');
+    expect(panel).toBeGreaterThan(-1);
+    expect(html.slice(panel - 200, panel + 200)).toContain('tabindex="0"');
+    expect(html.slice(panel, panel + 200)).toContain('aria-label="Events in the File"');
+    // The rows sit inside the panel, and the Download form follows it.
+    const listStart = html.indexOf('<ol class="calendar-preview-list">');
+    expect(listStart).toBeGreaterThan(panel);
+    expect(html.indexOf('/calendar/download"')).toBeGreaterThan(listStart);
+  });
+
+  it('keeps Preview in a bar that stays in reach, with Select All only once scripts run', async () => {
+    const html = await render({ preview: '1', key: TASK_KEY });
+    const bar = html.slice(html.indexOf('<fieldset class="sticky-action-bar">'));
+    expect(bar).toContain('<legend class="sr-only">Preview Your Dates</legend>');
+    expect(bar.slice(0, bar.indexOf('</fieldset>'))).toMatch(/>Preview<\/button>.*Clear Choices/);
+    // Without scripts a box that would do nothing is never shown.
+    expect(html).not.toContain('calendar-select-all');
+  });
+});

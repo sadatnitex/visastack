@@ -40,7 +40,12 @@ describe('Original Files', () => {
   it('lists each document under its group, with Share This File and Safe Copy chosen by default', () => {
     const html = render();
     expect(html).toContain('<legend class="field-label">Original Files</legend>');
-    expect(html).toContain('<legend class="field-label">Travel and Immigration</legend>');
+    // Each group sits behind its own expander, named and counted, and closed while nothing in it
+    // is ticked (WP-SB4); the group keeps its name for screen readers inside.
+    expect(html).toContain(
+      '<details class="collapsible-group"><summary class="collapsible-group-summary"><span class="collapsible-group-title">Travel and Immigration</span>',
+    );
+    expect(html).toContain('<legend class="sr-only">Travel and Immigration</legend>');
     expect(html).toContain('Visa (D-7K2Q9M)');
     expect(html.match(/<span>Share This File<\/span>/g)).toHaveLength(2);
     expect(box(html, VISA)).not.toContain('checked');
@@ -126,5 +131,26 @@ describe('Original Files: what assistive technology hears (S20 round 2)', () => 
     expect(note).toBeDefined();
     expect(textOf(html, note ?? '')).toContain('Prepare a Safe Copy');
     expect(box(render(), VISA)).not.toContain('aria-invalid');
+  });
+
+  it('opens only the group holding a ticked file, and every group on a file error (WP-SB4)', () => {
+    const opened = (html: string) =>
+      [
+        ...html.matchAll(
+          /<details class="collapsible-group"( open="")?><summary[^>]*><span class="collapsible-group-title">([^<]+)</g,
+        ),
+      ]
+        .filter((m) => m[1])
+        .map((m) => m[2]);
+    expect(opened(render())).toEqual([]);
+    expect(opened(render({ initial: [{ documentId: VISA, variant: 'SAFE_COPY' }] }))).toEqual([
+      'Travel and Immigration',
+    ]);
+    expect(opened(render({ invalid: { field: 'file', messageId: 'msg' } }))).toEqual([
+      'Travel and Immigration',
+      'Accommodation and Host',
+    ]);
+    // A closed group still holds every control, so nothing ticked is ever lost on submit.
+    expect(box(render(), LETTER)).toContain('name="file"');
   });
 });

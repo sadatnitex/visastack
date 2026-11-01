@@ -15,10 +15,17 @@ import { notFound } from 'next/navigation';
 import { DeadlineClock } from '../../../../../components/deadline-clock';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
+import { ShowMore } from '../../../../../components/show-more';
 import { EmptyState, PageHeader, StatusBadge, type Tone } from '../../../../../components/ui';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { formatTimestampDate } from '../../../../../lib/format-date';
+import {
+  type SearchParamsRecord,
+  TRAVELLER_LIST_STEP,
+  nextShow,
+  parseShow,
+} from '../../../../../lib/paging';
 import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
 import {
@@ -71,12 +78,68 @@ function missingExpiryNote(docType: string | null): string {
   return 'No expiry date is on file. For now, expiry dates are read only from passports, so check the date printed on this document yourself.';
 }
 
+/** The three lists, each with its own Show More (WP-SB4): `?docs=`, `?rules=`, `?checks=`. */
+type ExpiryList = 'docs' | 'rules' | 'checks';
+
+const ROW_NOUNS: Readonly<Record<ExpiryList, { one: string; other: string }>> = {
+  docs: { one: 'document', other: 'documents' },
+  rules: { one: 'date rule', other: 'date rules' },
+  checks: { one: 'confirmation', other: 'confirmations' },
+};
+
+/**
+ * The steps of one list. The page already holds every row (these lists are read whole for the
+ * urgency sort), so Show More can reach the last row, however long the list is.
+ */
+function listPaging(total: number): { readonly step: number; readonly max: number } {
+  const step = TRAVELLER_LIST_STEP;
+  return { step, max: Math.max(step, Math.ceil(total / step) * step) };
+}
+
+/**
+ * The end of one capped list: the count, and Show More while rows are left. Focus lands on the
+ * first row that was added.
+ */
+function ListEnd({
+  list,
+  pathname,
+  query,
+  shown,
+  total,
+}: {
+  readonly list: ExpiryList;
+  readonly pathname: string;
+  readonly query: SearchParamsRecord;
+  readonly shown: number;
+  readonly total: number;
+}) {
+  if (total <= TRAVELLER_LIST_STEP) return null;
+  const next = shown < total ? nextShow(shown, listPaging(total)) : null;
+  return (
+    <ShowMore
+      id={`expiry-${list}-more`}
+      landOn={`expiry-${list}-${shown}`}
+      pathname={pathname}
+      searchParams={query}
+      next={next === null ? null : { [list]: next }}
+      shown={Math.min(shown, total)}
+      total={total}
+      noun={ROW_NOUNS[list]}
+    />
+  );
+}
+
 export default async function ExpiryCentrePage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
+  readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
   const { id } = await params;
+  const query: SearchParamsRecord = (await searchParams) ?? {};
+  const pathname = `/app/applicant/${id}/expiry`;
+  const showing = (list: ExpiryList, total: number) => parseShow(query[list], listPaging(total));
   const now = new Date();
 
   const data = await withSession(async ({ db, accountId }) => {
@@ -123,6 +186,9 @@ export default async function ExpiryCentrePage({
   });
 
   if (!data) notFound();
+  const shownDocs = showing('docs', data.intrinsic.length);
+  const shownRules = showing('rules', data.freshnessRows.length);
+  const shownChecks = showing('checks', data.verifications.length);
   const depth = await readDepth('expiry');
   const depthWords = depthCopyFor('expiry');
 
@@ -166,49 +232,59 @@ export default async function ExpiryCentrePage({
                 them before they run out.
               </EmptyState>
             ) : (
-              <div className="rows u-mt-050">
-                {data.intrinsic
-                  .map(({ doc, thresholds }) => ({
-                    doc,
-                    classification: classifyExpiry(
-                      doc.expiresAt ? new Date(doc.expiresAt) : null,
-                      now,
-                      thresholds,
-                    ),
-                  }))
-                  // Most urgent first: already expired, then soonest to expire; no date last.
-                  .sort(
-                    (a, b) =>
-                      (a.classification.daysRemaining ?? Number.POSITIVE_INFINITY) -
-                      (b.classification.daysRemaining ?? Number.POSITIVE_INFINITY),
-                  )
-                  .map(({ doc, classification }) => {
-                    const badge = URGENCY_BADGE[classification.urgency];
-                    return (
-                      <div className="row" key={doc.id}>
-                        <span className="attention-text">
-                          <span className="row-key">{doc.approvedName ?? doc.originalName}</span>
-                          {classification.daysRemaining !== null && doc.expiresAt ? (
-                            <span className="attention-detail">
-                              {classification.daysRemaining >= 0
-                                ? `Expires in ${plural(classification.daysRemaining, 'day')}`
-                                : `Expired ${plural(Math.abs(classification.daysRemaining), 'day')} ago`}
-                              {' · '}
-                              {formatTimestampDate(doc.expiresAt)}
-                            </span>
-                          ) : classification.urgency === 'unknown' ? (
-                            <span className="attention-detail">
-                              {missingExpiryNote(doc.docType)}
-                            </span>
-                          ) : null}
-                        </span>
-                        <StatusBadge tone={badge.tone.replace('badge-', '') as Tone}>
-                          {badge.label}
-                        </StatusBadge>
-                      </div>
-                    );
-                  })}
-              </div>
+              <>
+                <div className="rows u-mt-050">
+                  {data.intrinsic
+                    .map(({ doc, thresholds }) => ({
+                      doc,
+                      classification: classifyExpiry(
+                        doc.expiresAt ? new Date(doc.expiresAt) : null,
+                        now,
+                        thresholds,
+                      ),
+                    }))
+                    // Most urgent first: already expired, then soonest to expire; no date last.
+                    .sort(
+                      (a, b) =>
+                        (a.classification.daysRemaining ?? Number.POSITIVE_INFINITY) -
+                        (b.classification.daysRemaining ?? Number.POSITIVE_INFINITY),
+                    )
+                    .slice(0, shownDocs)
+                    .map(({ doc, classification }, index) => {
+                      const badge = URGENCY_BADGE[classification.urgency];
+                      return (
+                        <div className="row" key={doc.id} id={`expiry-docs-${index}`}>
+                          <span className="attention-text">
+                            <span className="row-key">{doc.approvedName ?? doc.originalName}</span>
+                            {classification.daysRemaining !== null && doc.expiresAt ? (
+                              <span className="attention-detail">
+                                {classification.daysRemaining >= 0
+                                  ? `Expires in ${plural(classification.daysRemaining, 'day')}`
+                                  : `Expired ${plural(Math.abs(classification.daysRemaining), 'day')} ago`}
+                                {' · '}
+                                {formatTimestampDate(doc.expiresAt)}
+                              </span>
+                            ) : classification.urgency === 'unknown' ? (
+                              <span className="attention-detail">
+                                {missingExpiryNote(doc.docType)}
+                              </span>
+                            ) : null}
+                          </span>
+                          <StatusBadge tone={badge.tone.replace('badge-', '') as Tone}>
+                            {badge.label}
+                          </StatusBadge>
+                        </div>
+                      );
+                    })}
+                </div>
+                <ListEnd
+                  list="docs"
+                  pathname={pathname}
+                  query={query}
+                  shown={shownDocs}
+                  total={data.intrinsic.length}
+                />
+              </>
             )}
           </article>
 
@@ -225,38 +301,50 @@ export default async function ExpiryCentrePage({
                 from the last 30 days. They appear here once a case uses such a route.
               </EmptyState>
             ) : (
-              <div className="rows u-mt-050">
-                {data.freshnessRows.map(({ mission, requirementKey, document }) => {
-                  const badge = STALENESS_BADGE[document.staleness.status];
-                  return (
-                    <div
-                      className="row"
-                      key={`${mission.id}-${requirementKey}-${document.documentId}`}
-                    >
-                      <span className="attention-text">
-                        <span className="row-key">
-                          {requirementKey}
-                          <span
-                            className="muted"
-                            style={{ fontSize: 'var(--text-caption)', marginLeft: '0.5rem' }}
-                          >
-                            {mission.title}
+              <>
+                <div className="rows u-mt-050">
+                  {data.freshnessRows
+                    .slice(0, shownRules)
+                    .map(({ mission, requirementKey, document }, index) => {
+                      const badge = STALENESS_BADGE[document.staleness.status];
+                      return (
+                        <div
+                          className="row"
+                          key={`${mission.id}-${requirementKey}-${document.documentId}`}
+                          id={`expiry-rules-${index}`}
+                        >
+                          <span className="attention-text">
+                            <span className="row-key">
+                              {requirementKey}
+                              <span
+                                className="muted"
+                                style={{ fontSize: 'var(--text-caption)', marginLeft: '0.5rem' }}
+                              >
+                                {mission.title}
+                              </span>
+                            </span>
+                            {document.staleness.status === 'unknown' ? (
+                              <span className="attention-detail">
+                                This route needs a recently dated document, and no date has been
+                                entered for this one, so it cannot be checked. Enter the date
+                                printed on it under Document Date on{' '}
+                                <Link href={`/app/applicant/${id}/documents`}>Documents</Link>.
+                              </span>
+                            ) : null}
                           </span>
-                        </span>
-                        {document.staleness.status === 'unknown' ? (
-                          <span className="attention-detail">
-                            This route needs a recently dated document, and no date has been entered
-                            for this one, so it cannot be checked. Enter the date printed on it
-                            under Document Date on{' '}
-                            <Link href={`/app/applicant/${id}/documents`}>Documents</Link>.
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className={`badge ${badge.tone}`}>{badge.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
+                          <span className={`badge ${badge.tone}`}>{badge.label}</span>
+                        </div>
+                      );
+                    })}
+                </div>
+                <ListEnd
+                  list="rules"
+                  pathname={pathname}
+                  query={query}
+                  shown={shownRules}
+                  total={data.freshnessRows.length}
+                />
+              </>
             )}
           </article>
 
@@ -269,26 +357,35 @@ export default async function ExpiryCentrePage({
                 and how long it stays valid appear here.
               </EmptyState>
             ) : (
-              <div className="rows u-mt-050">
-                {data.verifications.map(({ doc, verification }) => {
-                  const classification = classifyExpiry(verification.validUntil, now);
-                  const badge = URGENCY_BADGE[classification.urgency];
-                  return (
-                    <div className="row" key={verification.id}>
-                      <span className="row-key">
-                        {verification.issuerIdentity}
-                        <span
-                          className="muted"
-                          style={{ fontSize: 'var(--text-caption)', marginLeft: '0.5rem' }}
-                        >
-                          {doc.approvedName ?? doc.originalName}
+              <>
+                <div className="rows u-mt-050">
+                  {data.verifications.slice(0, shownChecks).map(({ doc, verification }, index) => {
+                    const classification = classifyExpiry(verification.validUntil, now);
+                    const badge = URGENCY_BADGE[classification.urgency];
+                    return (
+                      <div className="row" key={verification.id} id={`expiry-checks-${index}`}>
+                        <span className="row-key">
+                          {verification.issuerIdentity}
+                          <span
+                            className="muted"
+                            style={{ fontSize: 'var(--text-caption)', marginLeft: '0.5rem' }}
+                          >
+                            {doc.approvedName ?? doc.originalName}
+                          </span>
                         </span>
-                      </span>
-                      <span className={`badge ${badge.tone}`}>{badge.label}</span>
-                    </div>
-                  );
-                })}
-              </div>
+                        <span className={`badge ${badge.tone}`}>{badge.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <ListEnd
+                  list="checks"
+                  pathname={pathname}
+                  query={query}
+                  shown={shownChecks}
+                  total={data.verifications.length}
+                />
+              </>
             )}
           </article>
         </div>

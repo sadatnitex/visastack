@@ -1,5 +1,4 @@
 import {
-  CALENDAR_KINDS,
   CALENDAR_OPTION_FIELDS,
   calendarOptionFields,
   parseCalendarExportOptions,
@@ -8,6 +7,7 @@ import { CALENDAR_PAST_DAYS, CALENDAR_SOURCE_LIMIT } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { StickyActionBar } from '../../../../../components/sticky-action-bar';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import {
   CALENDAR_EXPORT_LIMIT,
@@ -18,6 +18,7 @@ import {
 import { CALENDAR_REMINDER_LABELS, CALENDAR_REMINDER_ORDER } from '../../../../../lib/labels';
 import { plural } from '../../../../../lib/plural';
 import { formatMoment } from '../../../../../lib/save-status';
+import { CalendarDateGroups, CalendarPreviewPanel } from './calendar-date-groups';
 import { CalendarFeedPanel, type CalendarFeedPanelStatus } from './calendar-feed-panel';
 import { CALENDAR_KEY_FIELD, loadCalendarDates, readCalendarKeys } from './load';
 
@@ -165,14 +166,13 @@ export default async function CalendarExportPage({
             again when you download it: anything finished or removed since this preview is left out,
             and anything changed comes in as it is then.
           </p>
-          <ol className="calendar-preview-list">
-            {preview.events.map((event) => (
-              <li key={event.source.key} className="calendar-preview-item">
-                <span className="calendar-preview-title">{event.title}</span>
-                <span className="calendar-preview-when">{describeCalendarStart(event)}</span>
-              </li>
-            ))}
-          </ol>
+          <CalendarPreviewPanel
+            events={preview.events.map((event) => ({
+              key: event.source.key,
+              title: event.title,
+              when: describeCalendarStart(event),
+            }))}
+          />
           <p className="muted">
             Reminder: {reminderWords}.
             {options.alarms.length > 0
@@ -213,33 +213,16 @@ export default async function CalendarExportPage({
           <input type="hidden" name="preview" value="1" />
           <fieldset className="fieldset">
             <legend className="field-label">Dates to Add</legend>
-            <ul className="calendar-dates">
-              {items.map((item, index) => {
-                const inputId = `calendar-date-${index}`;
-                return (
-                  <li key={item.key}>
-                    <label className="check calendar-date" htmlFor={inputId}>
-                      <input
-                        id={inputId}
-                        type="checkbox"
-                        name={CALENDAR_KEY_FIELD}
-                        value={item.key}
-                        defaultChecked={chosen.has(item.key)}
-                      />
-                      <span className="calendar-date-text">
-                        <span className="calendar-date-title">
-                          {CALENDAR_KINDS[item.kind].title}
-                        </span>
-                        <span className="calendar-date-when">
-                          {describeCalendarItem(item)}
-                          {item.caseTitle ? ` · ${item.caseTitle}` : ''}
-                        </span>
-                      </span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
+            <CalendarDateGroups
+              items={items.map((item) => ({
+                key: item.key,
+                kind: item.kind,
+                when: describeCalendarItem(item),
+                caseTitle: item.caseTitle,
+              }))}
+              chosen={chosen}
+              fieldName={CALENDAR_KEY_FIELD}
+            />
             {truncated ? (
               <p className="muted u-m-0">
                 Only the earliest {CALENDAR_SOURCE_LIMIT} of each kind of date are listed.
@@ -286,7 +269,7 @@ export default async function CalendarExportPage({
               ))}
             </div>
           </fieldset>
-          <div className="calendar-actions">
+          <StickyActionBar label="Preview Your Dates">
             <button
               type="submit"
               className={`btn ${preview && preview.events.length > 0 ? 'btn-secondary' : 'btn-primary'}`}
@@ -298,7 +281,7 @@ export default async function CalendarExportPage({
                 Clear Choices
               </Link>
             ) : null}
-          </div>
+          </StickyActionBar>
         </form>
       </section>
       {subscribe}
