@@ -147,7 +147,8 @@ describe('Active Cases and Past Cases (LC-G2)', () => {
     const fold = past?.querySelector('details');
     expect(fold).not.toBeNull();
     expect(fold?.hasAttribute('open')).toBe(false);
-    expect(fold?.querySelector('summary')?.textContent).toBe('4 Past Cases');
+    expect(fold?.querySelector('.collapsible-group-title')?.textContent).toBe('All Past Cases');
+    expect(fold?.querySelector('summary')?.textContent).toContain('4 cases');
     // Each past row keeps its stage badge.
     const badges = [...(past?.querySelectorAll('.row-end') ?? [])].map((n) => n.textContent ?? '');
     expect(badges[0]).toContain('Cancelled');

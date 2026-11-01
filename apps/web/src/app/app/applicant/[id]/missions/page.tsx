@@ -6,6 +6,7 @@ import {
   CaseReadinessRing,
   type ReadinessCounts,
 } from '../../../../../components/case-readiness-ring';
+import { CollapsibleGroup } from '../../../../../components/collapsible-group';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import { PROGRESS_IN_CASE_LINE } from '../../../../../components/progress-ring';
@@ -182,14 +183,13 @@ export default async function MissionsPage({
                 <h2 className="card-title">Past Cases</h2>
                 <p className="muted">Closed and cancelled cases. You can still open them.</p>
                 {pastCases.length > PAST_OPEN_LIMIT ? (
-                  <details className="disclosure u-mt-050">
-                    <summary>
-                      <span className="disclosure-title">{pastCases.length} Past Cases</span>
-                    </summary>
-                    <div className="disclosure-body">
-                      <CaseRows cases={pastCases} readiness={data.readiness} />
-                    </div>
-                  </details>
+                  <CollapsibleGroup
+                    title="All Past Cases"
+                    count={pastCases.length}
+                    noun={{ one: 'case', other: 'cases' }}
+                  >
+                    <CaseRows cases={pastCases} readiness={data.readiness} />
+                  </CollapsibleGroup>
                 ) : (
                   <CaseRows cases={pastCases} readiness={data.readiness} />
                 )}
