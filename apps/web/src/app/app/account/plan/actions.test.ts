@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   pay: vi.fn(),
   renewal: vi.fn(),
   revalidate: vi.fn(),
+  count: vi.fn(),
 }));
 const SELF = { kind: 'self', accountId: 'acct-1' };
 vi.mock('@visastack/services', async (load) => ({
@@ -12,6 +13,7 @@ vi.mock('@visastack/services', async (load) => ({
   startPersonCheckout: mocks.checkout,
   startPersonPayment: mocks.pay,
   setPlanRenewal: mocks.renewal,
+  countTravellerPlanEvent: mocks.count,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('../../../../lib/session', () => ({
@@ -51,6 +53,26 @@ describe('buying a paid plan (ADR 0025 T3c)', () => {
     );
     expect(mocks.checkout.mock.calls[0]?.[1]).toBe(SELF);
     expect(mocks.checkout.mock.calls[0]?.[2]).toEqual({ planId: PLAN });
+  });
+
+  it('counts one Get tap for a real plan id, only while selling is on (T6)', async () => {
+    mocks.checkout.mockResolvedValue({ ok: true, value: { invoiceId: INVOICE } });
+    vi.stubEnv('TRAVELLER_PLANS_ENABLED', 'true');
+    try {
+      await expect(buyPlanAction(INITIAL, form({ planId: PLAN }))).rejects.toThrow('NEXT_REDIRECT');
+      expect(mocks.count.mock.calls).toEqual([[{}, 'GET_TAPPED']]);
+      // An address that is not a plan id is refused before anything is counted.
+      mocks.count.mockClear();
+      expect(await buyPlanAction(INITIAL, form({ planId: 'nope' }))).toMatchObject({ ok: false });
+      expect(await buyPlanAction(INITIAL, form({}))).toMatchObject({ ok: false });
+      expect(mocks.count).not.toHaveBeenCalled();
+      // Selling off: the tap is not counted, and the checkout still answers as before.
+      vi.stubEnv('TRAVELLER_PLANS_ENABLED', 'false');
+      await expect(buyPlanAction(INITIAL, form({ planId: PLAN }))).rejects.toThrow('NEXT_REDIRECT');
+      expect(mocks.count).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('says why a purchase was refused, and refuses an address that is not a plan id', async () => {
