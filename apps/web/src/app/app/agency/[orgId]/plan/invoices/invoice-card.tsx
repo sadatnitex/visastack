@@ -59,6 +59,34 @@ export function dueMarker(
   return null;
 }
 
+/** The invoice's state and, while money is owed, Overdue or Due Today. */
+export function InvoiceBadges({
+  invoice,
+  due,
+}: {
+  readonly invoice: Pick<AgencyInvoiceView, 'state'>;
+  readonly due: ReturnType<typeof dueMarker>;
+}) {
+  return (
+    <span className="billing-badges">
+      <StatusBadge tone={INVOICE_STATE_TONES[invoice.state]}>
+        {INVOICE_STATE_LABELS[invoice.state]}
+      </StatusBadge>
+      {due ? <StatusBadge tone={due.tone}>{due.label}</StatusBadge> : null}
+    </span>
+  );
+}
+
+/**
+ * Whether money can still be asked for on this invoice: not paid, not cancelled, never refunded
+ * (the same rule the card uses for its Pay and report choices).
+ */
+export function invoiceStillOwed(
+  invoice: Pick<AgencyInvoiceView, 'status' | 'refundedMinorUnits'>,
+): boolean {
+  return invoice.status !== 'PAID' && invoice.status !== 'VOID' && invoice.refundedMinorUnits <= 0;
+}
+
 export function InvoiceCard({
   invoice,
   organizationId,
@@ -66,6 +94,7 @@ export function InvoiceCard({
   testModeHint = null,
   latestDate,
   now = new Date(),
+  inRow = false,
 }: {
   readonly invoice: AgencyInvoiceView;
   readonly organizationId: string;
@@ -80,12 +109,17 @@ export function InvoiceCard({
   readonly latestDate: string;
   /** The moment the page is drawn, for Overdue and Due Today. */
   readonly now?: Date;
+  /**
+   * WP-SB9: drawn inside a compact row that already shows the reference and badges, so the card
+   * keeps its heading for screen readers only and drops its own frame.
+   */
+  readonly inRow?: boolean;
 }) {
   // A refunded invoice is never owed again (S18, D2): it has no Pay button and no report form.
   // Decided from the money itself, not from the state, so a payment held for a check (which
   // outranks the refunded states) can never bring back a way to pay a refunded invoice.
   const refunded = invoice.refundedMinorUnits > 0;
-  const open = invoice.status !== 'PAID' && invoice.status !== 'VOID' && !refunded;
+  const open = invoiceStillOwed(invoice);
   const reported = invoice.state === 'PAYMENT_REPORTED';
   // A stranded payment (S19 step 0, decided once in the service): no new online payment.
   const stranded = invoice.strandedPayment;
@@ -110,18 +144,22 @@ export function InvoiceCard({
   const hasOldPayment = invoice.attempts.some((a) => a.status === 'REDIRECTED');
 
   return (
-    <article className="card invoice-card" aria-labelledby={headingId}>
-      <div className="invoice-head">
-        <h3 id={headingId} className="invoice-ref">
+    <article
+      className={inRow ? 'invoice-card invoice-card-in-row' : 'card invoice-card'}
+      aria-labelledby={headingId}
+    >
+      {inRow ? (
+        <h3 id={headingId} className="sr-only">
           {invoice.invoiceRef}
         </h3>
-        <span className="billing-badges">
-          <StatusBadge tone={INVOICE_STATE_TONES[invoice.state]}>
-            {INVOICE_STATE_LABELS[invoice.state]}
-          </StatusBadge>
-          {due ? <StatusBadge tone={due.tone}>{due.label}</StatusBadge> : null}
-        </span>
-      </div>
+      ) : (
+        <div className="invoice-head">
+          <h3 id={headingId} className="invoice-ref">
+            {invoice.invoiceRef}
+          </h3>
+          <InvoiceBadges invoice={invoice} due={due} />
+        </div>
+      )}
       <p className="invoice-note">
         {INVOICE_STATE_HINTS[invoice.state]}
         {invoice.partlyPaid && invoice.state === 'OPEN' ? ' Part of it has been paid.' : ''}

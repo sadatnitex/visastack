@@ -340,7 +340,8 @@ export default async function TravellerPlanPage({
   const usedBytes = profiles.reduce((total, profile) => total + profile.usedBytes, 0);
   // Scroll Budget (WP-SB9): a meter for the first 10 people, then Show More. Every person is still
   // counted in the account total and the storage hint above, so nothing about limits changes.
-  const profilesShown = parseShow(query['show'], { step: BILLING_ROWS_STEP, max: SHOW_MAX });
+  const { show } = query;
+  const profilesShown = parseShow(show, { step: BILLING_ROWS_STEP, max: SHOW_MAX });
   const shownProfiles = profiles.slice(0, profilesShown);
   const profilesNext =
     profiles.length > profilesShown

@@ -1,3 +1,4 @@
+import { formatBillingDate, formatMoney } from '@visastack/core';
 import {
   type AgencyInvoiceView,
   type Db,
@@ -7,14 +8,28 @@ import {
   refreshInvoicePaymentAttempts,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import { ShowMore } from '../../../../../../components/show-more';
 import { PageHeader } from '../../../../../../components/ui';
 import { isPlatformOwnerAccount } from '../../../../../../lib/admin';
+import { type SearchParamsRecord, nextShow, parseShow } from '../../../../../../lib/paging';
 import { type OnlineOffers, onlineOffers } from '../../../../../../lib/payment-providers';
 import { paymentPorts } from '../../../../../../lib/providers';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
+import {
+  BILLING_ROWS_MAX,
+  BILLING_ROWS_STEP,
+  BillingRow,
+  billingRowId,
+} from '../../../../account/plan/billing/billing-row';
 import { BillingStatusNotice, loadBillingNotice } from '../../billing-status-notice';
-import { InvoiceCard, type OnlineOffer } from './invoice-card';
+import {
+  InvoiceBadges,
+  InvoiceCard,
+  type OnlineOffer,
+  dueMarker,
+  invoiceStillOwed,
+} from './invoice-card';
 
 export const metadata: Metadata = { title: 'Agency Invoices' };
 
@@ -88,10 +103,17 @@ function viewerOffers(offers: OnlineOffers, owner: boolean): Readonly<Record<str
  */
 export default async function AgencyInvoicesPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ orgId: string }>;
+  readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
   const { orgId } = await params;
+  const query = (await searchParams) ?? {};
+  // Scroll Budget (WP-SB9): the newest 10 invoices, then Show More. One extra row is read only to
+  // know whether more exist; who may read them is unchanged (owners and admins).
+  const { show } = query;
+  const shown = parseShow(show, { step: BILLING_ROWS_STEP, max: BILLING_ROWS_MAX });
   const offers = onlineOffers(process.env);
   // One resolver for the whole page (S19 step 0 round 4): the open-payment check and the stranded
   // answer on each card both come from it, as they do in the services.
@@ -103,6 +125,7 @@ export default async function AgencyInvoicesPage({
         actorAccountId: accountId,
         organizationId: orgId,
         payments,
+        limit: shown + 1,
       });
     let listed = await list();
     if (listed.ok && (await checkOpenPayments(db, payments, accountId, orgId, listed.value))) {
@@ -118,6 +141,12 @@ export default async function AgencyInvoicesPage({
   });
   const now = new Date();
   const online = viewerOffers(offers, data.owner);
+  const invoices = data.invoices.slice(0, shown);
+  const more = data.invoices.length > shown;
+  const next = more ? nextShow(shown, { step: BILLING_ROWS_STEP, max: BILLING_ROWS_MAX }) : null;
+  // One row starts open: the newest invoice that still asks for money, else the newest.
+  const owedIndex = invoices.findIndex(invoiceStillOwed);
+  const openIndex = owedIndex === -1 ? 0 : owedIndex;
   // The newest calendar day anywhere on earth (UTC+14), so nobody is stopped from choosing their own today.
   const latestDate = new Date(Date.now() + 14 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
@@ -135,25 +164,48 @@ export default async function AgencyInvoicesPage({
         <article className="card">
           <p className="card-body">Only owners and admins can see and pay invoices.</p>
         </article>
-      ) : data.invoices.length === 0 ? (
+      ) : invoices.length === 0 ? (
         <article className="card">
           <p className="card-body">
             No invoices yet. When VisaStack issues an invoice for your plan it appears here.
           </p>
         </article>
       ) : (
-        <div className="invoice-stack">
-          {data.invoices.map((invoice) => (
-            <InvoiceCard
+        <div className="billing-rows">
+          {invoices.map((invoice, index) => (
+            <BillingRow
               key={invoice.id}
-              invoice={invoice}
-              organizationId={orgId}
-              online={online}
-              testModeHint={TEST_PAYMENTS_ONLY}
-              latestDate={latestDate}
-              now={now}
-            />
+              id={billingRowId('invoice', index)}
+              open={index === openIndex}
+              title={invoice.invoiceRef}
+              line={`${formatMoney(invoice.invoicedAmountMinorUnits, invoice.currency)}, due ${formatBillingDate(invoice.dueDate)}`}
+              badges={
+                <InvoiceBadges
+                  invoice={invoice}
+                  due={invoiceStillOwed(invoice) ? dueMarker(invoice, now) : null}
+                />
+              }
+            >
+              <InvoiceCard
+                invoice={invoice}
+                organizationId={orgId}
+                online={online}
+                testModeHint={TEST_PAYMENTS_ONLY}
+                latestDate={latestDate}
+                now={now}
+                inRow
+              />
+            </BillingRow>
           ))}
+          <ShowMore
+            id="invoices-more"
+            pathname={`/app/agency/${encodeURIComponent(orgId)}/plan/invoices`}
+            searchParams={query}
+            next={next === null ? null : { show: next }}
+            landOn={billingRowId('invoice', shown)}
+            shown={invoices.length}
+            noun={{ one: 'invoice', other: 'invoices' }}
+          />
         </div>
       )}
     </>

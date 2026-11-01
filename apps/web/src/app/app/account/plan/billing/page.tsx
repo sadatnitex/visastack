@@ -48,7 +48,8 @@ export default async function BillingHistoryPage({
   const query = (await searchParams) ?? {};
   // Scroll Budget (WP-SB9): the newest 10 purchases, then Show More; one extra row is read only to
   // know whether more exist. Still only this person's own rows (their SelfScope).
-  const shown = parseShow(query['show'], { step: BILLING_ROWS_STEP, max: BILLING_ROWS_MAX });
+  const { show } = query;
+  const shown = parseShow(show, { step: BILLING_ROWS_STEP, max: BILLING_ROWS_MAX });
   const listed = await withSession(async ({ db, self }) => {
     if (!travellerPlansEnabled() && !(await hasOwnBilling(db, self))) return null;
     const read = await listOwnBilling(db, self, { limit: shown + 1 });
