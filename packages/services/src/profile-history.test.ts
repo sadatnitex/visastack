@@ -5,15 +5,22 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import type { KeyManagementPort } from './ports';
-import { editFact, listFactHistory, registerFieldDefinition } from './profile';
+import {
+  type FactHistoryOptions,
+  editFact,
+  listApplicantProfile,
+  listFactHistory,
+  registerFieldDefinition,
+} from './profile';
 import { resetProtectedFieldKeyCacheForTests } from './protected-fields';
 
-/** WP-SB1: one person's whole profile history, read a page at a time. */
+/** WP-SB1: one person's whole profile history, read a page at a time, owner only. */
 
 async function freshDb(): Promise<Db> {
   const client = await createMigratedPglite();
@@ -34,7 +41,7 @@ function fakeKeyManagementPort(keyVersion = 'test-v1'): KeyManagementPort {
   };
 }
 
-describe('listFactHistory for a whole profile (WP-SB1)', () => {
+describe('listApplicantProfile history for a whole profile (WP-SB1)', () => {
   let db: Db;
 
   beforeEach(async () => {
@@ -72,6 +79,24 @@ describe('listFactHistory for a whole profile (WP-SB1)', () => {
     return { accountId, applicantId: applicant.value.id };
   }
 
+  /** The owner's proof for their own record, then one page of its history. */
+  async function history(
+    who: { accountId: string; applicantId: string },
+    options: FactHistoryOptions = {},
+  ) {
+    const proof = await requireAccess(
+      db,
+      accountPrincipal(who.accountId),
+      'VIEW_METADATA',
+      { applicantId: who.applicantId },
+      { purpose: 'profile_view' },
+    );
+    if (!isOk(proof)) throw new Error('gate refused');
+    const page = await listApplicantProfile(db, proof.value, { history: options });
+    if (!isOk(page)) throw new Error(`history refused: ${JSON.stringify(page.error)}`);
+    return page.value;
+  }
+
   async function save(who: { accountId: string; applicantId: string }, key: string, value: string) {
     const saved = await editFact(db, {
       actorAccountId: who.accountId,
@@ -95,6 +120,14 @@ describe('listFactHistory for a whole profile (WP-SB1)', () => {
     await db.insert(schema.factVersions).values(rows);
   }
 
+  it('refuses anything but a genuine owner proof', async () => {
+    const ana = await person('ana-forged@example.test');
+    await save(ana, 'given_name', 'Ana');
+    const forged = { applicant: { id: ana.applicantId }, actor: { kind: 'applicant_owner' } };
+    const refused = await listApplicantProfile(db, forged as never, { history: {} });
+    expect(isOk(refused)).toBe(false);
+  });
+
   it('keeps the one-fact form unchanged', async () => {
     const ana = await person('ana-hist@example.test');
     const first = await save(ana, 'given_name', 'Ana');
@@ -112,11 +145,7 @@ describe('listFactHistory for a whole profile (WP-SB1)', () => {
     let before: string | undefined;
     const sizes: number[] = [];
     for (let i = 0; i < 5; i += 1) {
-      const page = await listFactHistory(
-        db,
-        { applicantId: ana.applicantId },
-        { limit: 50, ...(before ? { before } : {}) },
-      );
+      const page = await history(ana, { limit: 50, ...(before ? { before } : {}) });
       expect(page.total).toBe(120);
       sizes.push(page.items.length);
       seen.push(...page.items.map((item) => item.id));
@@ -152,7 +181,7 @@ describe('listFactHistory for a whole profile (WP-SB1)', () => {
       .set({ actorAccountId: null })
       .where(eq(schema.factVersions.id, unrecorded.version.id));
 
-    const page = await listFactHistory(db, { applicantId: ana.applicantId });
+    const page = await history(ana);
     const byValue = new Map(page.items.map((item) => [item.value ?? 'locked', item]));
     expect(byValue.get('Anna')).toMatchObject({ isCurrent: true, actor: 'someone_else' });
     expect(byValue.get('Ana')).toMatchObject({ isCurrent: false, actor: 'owner' });
@@ -174,33 +203,25 @@ describe('listFactHistory for a whole profile (WP-SB1)', () => {
     await save(ana, 'employer_name', 'Harbor Ltd');
     await save(ben, 'given_name', 'Ben');
 
-    const professional = await listFactHistory(
-      db,
-      { applicantId: ana.applicantId },
-      { pack: 'professional' },
-    );
+    const professional = await history(ana, { pack: 'professional' });
     expect(professional.items.map((item) => item.value)).toEqual(['Harbor Ltd']);
     expect(professional.total).toBe(1);
 
-    const first = await listFactHistory(db, { applicantId: ana.applicantId }, { limit: 2 });
+    const first = await history(ana, { limit: 2 });
     expect(first.nextCursor).not.toBeNull();
     const cursor = first.nextCursor ?? '';
 
     // Ana's cursor on Ben's history, or on another filter, gives that view's first page.
-    const benPage = await listFactHistory(db, { applicantId: ben.applicantId }, { before: cursor });
+    const benPage = await history(ben, { before: cursor });
     expect(benPage.items.map((item) => item.value)).toEqual(['Ben']);
-    const otherFilter = await listFactHistory(
-      db,
-      { applicantId: ana.applicantId },
-      { pack: 'professional', before: cursor },
-    );
+    const otherFilter = await history(ana, { pack: 'professional', before: cursor });
     expect(otherFilter.items.map((item) => item.value)).toEqual(['Harbor Ltd']);
     // A malformed cursor or filter never errors: first page, every part.
-    const junk = await listFactHistory(
-      db,
-      { applicantId: ana.applicantId },
-      { before: 'not a cursor', pack: "x'; drop table facts; --", limit: 2 },
-    );
+    const junk = await history(ana, {
+      before: 'not a cursor',
+      pack: "x'; drop table facts; --",
+      limit: 2,
+    });
     expect(junk.items.map((item) => item.id)).toEqual(first.items.map((item) => item.id));
     expect(junk.total).toBe(7);
   });

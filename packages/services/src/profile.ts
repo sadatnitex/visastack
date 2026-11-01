@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { type ApplicantId, type FactStatus, type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
 import { and, asc, count, eq, isNull, sql } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
@@ -435,33 +436,13 @@ function factHistoryScope(applicantId: string, pack: string | undefined): string
   return `applicant:${applicantId}:fact-history:${pack ?? 'all'}`;
 }
 
-/**
- * Every saved version of one fact, oldest first: its provenance trail (the form most callers use). Given a person
- * (`{ applicantId }`) instead, it reads that person's whole profile history one page at a time:
- * newest first, at most `limit` versions (default 50, clamped to 1 to 100), older pages through the
- * `before` cursor, optionally one part of the profile only. A cursor made for another person or
- * another filter gives the first page. The caller must already have checked the reader may see the
- * person's profile; this read adds no access of its own and never unlocks a protected value.
- */
-export async function listFactHistory(db: Db, factId: string): Promise<FactVersion[]>;
-export async function listFactHistory(
-  db: Db,
-  subject: { readonly applicantId: string },
-  options?: FactHistoryOptions,
-): Promise<FactHistoryPage>;
-export async function listFactHistory(
-  db: Db,
-  subject: string | { readonly applicantId: string },
-  options: FactHistoryOptions = {},
-): Promise<FactVersion[] | FactHistoryPage> {
-  if (typeof subject === 'string') {
-    return db
-      .select()
-      .from(schema.factVersions)
-      .where(eq(schema.factVersions.factId, subject))
-      .orderBy(asc(schema.factVersions.createdAt));
-  }
-  return listApplicantFactHistory(db, subject.applicantId, options);
+/** Full, ordered version history for a fact (oldest first) — provenance trail. */
+export async function listFactHistory(db: Db, factId: string): Promise<FactVersion[]> {
+  return db
+    .select()
+    .from(schema.factVersions)
+    .where(eq(schema.factVersions.factId, factId))
+    .orderBy(asc(schema.factVersions.createdAt));
 }
 
 async function listApplicantFactHistory(
@@ -636,7 +617,37 @@ export async function listApplicantProfile(
   db: Db,
   applicantId: string,
   encryption?: KeyManagementPort,
-): Promise<ProfileEntry[]> {
+): Promise<ProfileEntry[]>;
+/**
+ * Profile History (WP-SB1): given the owner's access proof and `{ history }`, every saved version
+ * of every detail of that person, one page at a time: newest first, at most `limit` versions
+ * (default 50, clamped to 1 to 100), older pages through the `before` cursor, optionally one part of
+ * the profile only. A cursor made for another person or another filter gives the first page. Only
+ * the owner of the record may read it (anyone else gets `forbidden`), and a protected value is
+ * never unlocked here.
+ */
+export async function listApplicantProfile(
+  db: Db,
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+  options: { readonly history: FactHistoryOptions },
+): Promise<Result<FactHistoryPage, ServiceError>>;
+export async function listApplicantProfile(
+  db: Db,
+  subject: string | AuthorizedApplicant<'VIEW_METADATA'>,
+  third?: KeyManagementPort | { readonly history: FactHistoryOptions },
+): Promise<ProfileEntry[] | Result<FactHistoryPage, ServiceError>> {
+  if (typeof subject !== 'string') {
+    if (
+      !AuthorizedApplicant.isGenuine(subject, 'VIEW_METADATA') ||
+      subject.actor.kind !== 'applicant_owner'
+    ) {
+      return err(serviceError('forbidden', 'Only the owner of this record can see its history.'));
+    }
+    const history = third && 'history' in third ? third.history : {};
+    return ok(await listApplicantFactHistory(subject.tx, subject.applicant.id, history));
+  }
+  const applicantId = subject;
+  const encryption = third && !('history' in third) ? third : undefined;
   const rows = await db
     .select({
       factId: schema.facts.id,

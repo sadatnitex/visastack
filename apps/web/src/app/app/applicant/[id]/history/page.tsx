@@ -1,4 +1,9 @@
-import { getApplicant, listFactHistory, listMissionsUsingField } from '@visastack/services';
+import {
+  accountPrincipal,
+  listApplicantProfile,
+  listMissionsUsingField,
+  requireAccess,
+} from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type { ActivityLogEntry } from '../../../../../components/activity-log';
@@ -85,17 +90,24 @@ export default async function HistoryPage({
   const before = parseCursor(query.before);
 
   const data = await withSession(async ({ db, accountId }) => {
-    const applicant = await getApplicant(db, id);
-    if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const page = await listFactHistory(
+    const gate = await requireAccess(
       db,
+      accountPrincipal(accountId),
+      'VIEW_METADATA',
       { applicantId: id },
-      {
+      { purpose: 'profile_view' },
+    );
+    if (!gate.ok) return null;
+    // The service lets only the owner read the history; anyone else is refused.
+    const read = await listApplicantProfile(db, gate.value, {
+      history: {
         limit: HISTORY_PAGE_SIZE,
         ...(before ? { before } : {}),
         ...(section ? { pack: section } : {}),
       },
-    );
+    });
+    if (!read.ok) return null;
+    const page = read.value;
 
     // Where each detail that is in use now is used, read once per detail on this page.
     const currentKeys = [...new Set(page.items.filter((v) => v.isCurrent).map((v) => v.fieldKey))];
