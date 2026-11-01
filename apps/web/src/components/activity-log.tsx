@@ -1,6 +1,7 @@
 'use client';
 
-import { useId, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { StatusBadge } from './ui';
 
 export interface ActivityLogEntry {
@@ -44,16 +45,46 @@ function stillOffered(value: string, options: readonly string[]): string {
  * box, and a search and a few filters find one activity among many. Filtering happens here, over
  * the entries the page already loaded (newest first); the summary line says how far back they go,
  * so a period filter never seems to cover more than was loaded.
+ *
+ * Long logs load from the server one page at a time (WP-SB0): `olderHref` adds a Show Older
+ * Entries link under the box (the page builds it with `pagingHref` and a server cursor), and
+ * `newestHref` a way back to the newest page. When another page of entries arrives, the box
+ * scrolls back to its top and, if the address points at this log, takes keyboard focus, so the
+ * new page starts where people read from. Without those props the log looks and behaves as it
+ * always has.
  */
 export function ActivityLog({
   entries,
   label,
+  id: anchorId,
+  olderHref,
+  newestHref,
+  totalLabel,
 }: {
   readonly entries: readonly ActivityLogEntry[];
   /** The accessible name of the scrolling box, for example "Access Log Entries". */
   readonly label: string;
+  /** An id for the whole log, so a Show Older Entries address can land back on it. */
+  readonly id?: string;
+  /** The address of the next, older page of entries; left out when nothing older exists. */
+  readonly olderHref?: string;
+  /** The address of the newest page, shown while an older page is open. */
+  readonly newestHref?: string;
+  /** A closing sentence for the summary line, for example "1,240 entries in all." */
+  readonly totalLabel?: string;
 }) {
   const id = useId();
+  const box = useRef<HTMLElement>(null);
+  const paged = Boolean(olderHref || newestHref);
+  const pageKey = `${entries[0]?.id ?? ''}:${entries.at(-1)?.id ?? ''}`;
+  useEffect(() => {
+    void pageKey;
+    if (!paged || !box.current) return;
+    box.current.scrollTop = 0;
+    if (anchorId && window.location.hash === `#${encodeURIComponent(anchorId)}`) {
+      box.current.focus({ preventScroll: true });
+    }
+  }, [paged, pageKey, anchorId]);
   const [query, setQuery] = useState('');
   const [whatChoice, setWhat] = useState('');
   const [whoChoice, setWho] = useState('');
@@ -94,6 +125,9 @@ export function ActivityLog({
   const filtered = Boolean(query.trim() || what || who || outcome || period !== 'any');
   const oldest = entries.at(-1);
   const reach = oldest ? `, back to ${oldest.when}` : '';
+  // On an older page the entries are not the newest any more, so the summary says "older".
+  const which = newestHref ? 'older' : 'newest';
+  const total = totalLabel ? ` ${totalLabel}` : '';
   const clear = () => {
     setQuery('');
     setWhat('');
@@ -103,7 +137,7 @@ export function ActivityLog({
   };
 
   return (
-    <div className="activity-log">
+    <div className="activity-log" id={anchorId}>
       <fieldset className="activity-log-filters">
         <legend className="sr-only">Find an Activity</legend>
         <label className="activity-log-field activity-log-search" htmlFor={`${id}-q`}>
@@ -188,8 +222,8 @@ export function ActivityLog({
       <div className="activity-log-summary">
         <output className="muted u-fs-085">
           {filtered
-            ? `Showing ${shown.length} of the ${entries.length} newest entries${reach}.`
-            : `The ${entries.length} newest ${entries.length === 1 ? 'entry' : 'entries'}${reach}.`}
+            ? `Showing ${shown.length} of the ${entries.length} ${which} entries${reach}.${total}`
+            : `The ${entries.length} ${which} ${entries.length === 1 ? 'entry' : 'entries'}${reach}.${total}`}
         </output>
         {filtered ? (
           <button type="button" className="btn btn-secondary u-btn-sm" onClick={clear}>
@@ -198,7 +232,7 @@ export function ActivityLog({
         ) : null}
       </div>
       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it */}
-      <section className="activity-log-scroll" aria-label={label} tabIndex={0}>
+      <section className="activity-log-scroll" aria-label={label} tabIndex={0} ref={box}>
         {shown.length === 0 ? (
           <p className="muted activity-log-none">Nothing matches these filters.</p>
         ) : (
@@ -225,6 +259,20 @@ export function ActivityLog({
           </ol>
         )}
       </section>
+      {olderHref || newestHref ? (
+        <nav className="activity-log-more" aria-label={`More of ${label}`}>
+          {newestHref ? (
+            <Link className="btn btn-secondary u-btn-sm" href={newestHref}>
+              Show Newest Entries
+            </Link>
+          ) : null}
+          {olderHref ? (
+            <Link className="btn btn-secondary u-btn-sm" href={olderHref}>
+              Show Older Entries
+            </Link>
+          ) : null}
+        </nav>
+      ) : null}
     </div>
   );
 }

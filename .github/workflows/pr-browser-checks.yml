@@ -120,7 +120,7 @@ jobs:
         working-directory: apps/web
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3100
-        run: npx playwright test no-secret-auth.spec.ts ux-public.spec.ts browser-security.spec.ts pwa.spec.ts
+        run: npx playwright test no-secret-auth.spec.ts ux-public.spec.ts browser-security.spec.ts pwa.spec.ts scroll-budget/
 
       - name: Show the app log
         if: failure() || steps.smoke.outcome == 'failure'
