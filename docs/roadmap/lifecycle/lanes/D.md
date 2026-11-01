@@ -31,7 +31,7 @@ Self-service duplicate delete and purge (C), Replace (B), central docs (Z).
 
 ## Status (lane fills in)
 
-- Started on main:
+- Started on main: 19ec6a15 (LC-B merged, #393).
 - PR / merged SHA:
 - Checks seen green:
 - Live / hidden until migration / behind switch:
