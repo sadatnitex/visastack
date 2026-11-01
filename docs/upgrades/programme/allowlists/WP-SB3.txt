@@ -1,0 +1,22 @@
+# WP-SB3 Sharing, insights, evidence, shared view (Scroll Budget programme,
+# docs/upgrades/programme/SCROLL-BUDGET-PLAN.md section 6 "SB3").
+# Drafted from the SB3 seed (plan section 4 plus tests and shared files). The owner approved this
+# allowlist in advance on 31 Oct 2026 (relayed by the coordinator session).
+# In packages/services/src/sharing.ts only listAccessForApplicantDetailed is edited; in
+# packages/services/src/agency.ts only listEvidenceRequestsForApplicant. STATUS.md is not edited
+# by this package (only WP-SB10 writes it).
+apps/web/src/app/app/applicant/[id]/sharing/**
+apps/web/src/app/app/applicant/[id]/insights/**
+apps/web/src/app/app/applicant/[id]/evidence/**
+apps/web/src/app/app/shared/[grantId]/**
+packages/services/src/sharing.ts
+packages/services/src/sharing-access-page.test.ts
+packages/services/src/insights-read.ts
+packages/services/src/insights-read.test.ts
+packages/services/src/agency.ts
+packages/services/src/evidence-requests-page.test.ts
+apps/web/e2e/scroll-budget/WP-SB3.spec.ts
+apps/web/src/app/globals.css
+docs/commercial-v1/known-issues.md
+docs/upgrades/programme/COVERAGE-LEDGER.csv
+docs/upgrades/programme/allowlists/WP-SB3.txt
