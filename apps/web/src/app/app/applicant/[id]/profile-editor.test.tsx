@@ -12,6 +12,8 @@ import {
 import type { MasterProfileView } from '../../../../lib/master-profile-types';
 vi.mock('./actions', () => ({ saveFactAction: vi.fn() }));
 vi.mock('./section-actions', () => ({
+  markEndedAction: vi.fn(),
+  markNotCurrentAction: vi.fn(),
   openSuggestedSectionsAction: vi.fn(),
   saveOtherItemAction: vi.fn(),
   setExemptionAction: vi.fn(),
@@ -33,6 +35,7 @@ function render(
     repeatingValues?: Record<string, Record<string, Values[string]>>;
     view?: MasterProfileView;
     startWithAll?: boolean;
+    endedRecords?: Record<string, string>;
   } = {},
 ) {
   act(() =>
@@ -44,6 +47,7 @@ function render(
         assurance={new Map()}
         view={options.view ?? fixtureView()}
         startWithAll={options.startWithAll ?? false}
+        {...(options.endedRecords ? { endedRecords: options.endedRecords } : {})}
       />,
     ),
   );
@@ -681,5 +685,98 @@ describe('Essentials First (owner finding 5)', () => {
       node.textContent?.includes('This does not apply to me'),
     );
     expect(undo?.querySelector<HTMLInputElement>('input')?.checked).toBe(true);
+  });
+});
+
+describe('No Longer Current and Ended (LC-G1)', () => {
+  const key = FIXTURE_OPEN_SECTION.singles[0]?.key as string;
+
+  function notCurrentForms() {
+    return [
+      ...container.querySelectorAll<HTMLFormElement>(
+        '#section-identity_basics .profile-lifecycle-mark form',
+      ),
+    ];
+  }
+
+  it('offers No Longer Current on a saved value, naming the detail, and posts that fact', () => {
+    render({ values: { [key]: { factId: 'f1', value: 'Ayesha', status: 'APPLICANT_CONFIRMED' } } });
+    const forms = notCurrentForms();
+    expect(forms).toHaveLength(1);
+    const data = new FormData(forms[0]);
+    expect(data.get('applicantId')).toBe('synthetic-person');
+    expect(data.get('factId')).toBe('f1');
+    const button = forms[0]?.querySelector('button');
+    expect(button?.textContent).toBe('No Longer Current');
+    expect(button?.getAttribute('aria-label')).toBe('No Longer Current: Given Name');
+  });
+
+  it('shows a value marked no longer current as such, offers "does not apply" again, and no second mark', () => {
+    render({ values: { [key]: { factId: 'f1', value: null, status: 'STALE' } } });
+    const section = container.querySelector('#section-identity_basics');
+    expect(section?.querySelector('.profile-read-summary dd')?.textContent).toBe(
+      'No Longer Current',
+    );
+    expect(section?.textContent).toContain(
+      'You marked this No Longer Current. Enter a new value above when you have one.',
+    );
+    expect(section?.textContent).not.toContain('Protected detail');
+    expect(notCurrentForms()).toHaveLength(0);
+    const exempt = [...(section?.querySelectorAll<HTMLFormElement>('.profile-exempt') ?? [])].map(
+      (form) => new FormData(form).get('targetKey'),
+    );
+    expect(exempt).toContain(key);
+  });
+
+  it('offers Ended on a saved list entry, with a date, for that entry only', () => {
+    act(() => tab('Travel Documents').click());
+    const forms = [
+      ...container.querySelectorAll<HTMLFormElement>(
+        '#profile-panel-travel_documents .profile-record-end form',
+      ),
+    ];
+    expect(forms).toHaveLength(1);
+    const data = new FormData(forms[0]);
+    expect(data.get('recordGroupKey')).toBe('historical_passport');
+    expect(data.get('repeatingRecordKey')).toBe('existing-record');
+    const date = forms[0]?.querySelector<HTMLInputElement>('input[name="endedOn"]');
+    expect(date?.type).toBe('date');
+    expect(date?.max).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const button = forms[0]?.querySelector('button');
+    expect(button?.getAttribute('aria-label')).toBe(
+      'Mark as Ended: Historical / Additional Passport 1',
+    );
+    expect(date?.id && forms[0]?.querySelector(`label[for="${date.id}"]`)?.textContent).toBe(
+      'Date It Ended',
+    );
+    // A new, unsaved entry has nothing to end yet.
+    const add = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Add Historical / Additional Passport'),
+    );
+    act(() => add?.click());
+    expect(
+      container.querySelectorAll('#profile-panel-travel_documents .profile-record-end form'),
+    ).toHaveLength(1);
+  });
+
+  it('shows an ended entry as Ended with its date, keeps its details editable, and offers no second end', () => {
+    render({
+      repeatingValues: {
+        historical_passport_number: {
+          'existing-record': { factId: 'fact', value: 'SYNTHETIC', status: 'DECLARED' },
+        },
+      },
+      endedRecords: { 'existing-record': '2025-06-30T00:00:00.000Z' },
+    });
+    act(() => tab('Travel Documents').click());
+    const panel = container.querySelector('#profile-panel-travel_documents');
+    expect(panel?.querySelector('.profile-record-ended .badge')?.textContent).toBe('Ended');
+    expect(panel?.textContent).toMatch(/Ended on [^.]*2025\./);
+    expect(panel?.textContent).toContain('Save a change below to make it current again.');
+    expect(panel?.querySelector('.profile-record-end')).toBeNull();
+    expect(
+      panel?.querySelector<HTMLInputElement>('#f-historical_passport_number-existing-record')
+        ?.value,
+    ).toBe('SYNTHETIC');
   });
 });
