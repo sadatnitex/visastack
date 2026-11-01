@@ -2,9 +2,10 @@ import { type Result, err, ok } from '@visastack/core';
 import { eq, sql } from 'drizzle-orm';
 import { type StaffScope, staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
-import { BILLING_TIME_ZONE } from './billing-standing';
+import { BILLING_TIME_ZONE, billingDay } from './billing-standing';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { cacheOwner, connectionKey } from './plans-schema';
 import { personBillingPresent } from './traveller-billing';
 
 /**
@@ -43,28 +44,30 @@ function rowsOf<T>(result: unknown): T[] {
   return ((result as { rows?: T[] }).rows ?? []) as T[];
 }
 
-/** Whether migration 0114 has run. Only a "yes" is cached, per handle. */
+/** Database handles and connections already seen with migration 0114 in place (only a yes). */
 const metricsReady = new WeakMap<object, true>();
+const metricsReadyConnections = new Set<string>();
 async function metricsTablesPresent(db: Db): Promise<boolean> {
-  if (metricsReady.has(db)) return true;
+  const owner = cacheOwner(db);
+  if (metricsReady.has(owner)) return true;
+  const key = connectionKey(db);
+  if (key !== null && metricsReadyConnections.has(key)) return true;
   const rows = await db
     .select({
       present: sql<boolean>`to_regclass('traveller_plan_daily_counts') is not null and to_regclass('traveller_plan_health_settings') is not null`,
     })
     .from(sql`(select 1) as probe`);
   const present = rows[0]?.present === true;
-  if (present) metricsReady.set(db, true);
+  if (present) {
+    metricsReady.set(owner, true);
+    if (key !== null) metricsReadyConnections.add(key);
+  }
   return present;
 }
 
-/** The Bangladesh day of `at`, as "2026-11-01". */
+/** The Bangladesh day of `at`, as "2026-11-01", built from its parts (never a locale's pattern). */
 function dayOf(at: Date): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: BILLING_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(at);
+  return billingDay(at).toISOString().slice(0, 10);
 }
 
 /**
@@ -107,7 +110,10 @@ export interface TravellerPlanDay {
 export interface TravellerPlanMetrics {
   readonly days: readonly TravellerPlanDay[];
   readonly totals: Omit<TravellerPlanDay, 'day'>;
-  /** Payments per checkout started, renewals paid per renewal made, refunds per payment: 0 to 1, or null with nothing to divide by. */
+  /**
+   * Of the purchases started in the window, the share paid; of the renewals made in it, the share
+   * paid; refunds per real payment. 0 to 1, or null with nothing to divide by. Real money only.
+   */
   readonly rates: {
     readonly conversion: number | null;
     readonly renewal: number | null;
@@ -141,7 +147,10 @@ export async function travellerPlanMetrics(
 ): Promise<Result<TravellerPlanMetrics, ServiceError>> {
   const forbidden = denied(staff);
   if (forbidden) return err(forbidden);
-  const span = Math.max(1, Math.min(input.days ?? 14, TRAVELLER_METRICS_MAX_DAYS));
+  const asked = input.days ?? 14;
+  const span = Number.isInteger(asked)
+    ? Math.max(1, Math.min(asked, TRAVELLER_METRICS_MAX_DAYS))
+    : 14;
   const now = input.now ?? new Date();
   const keys: string[] = [];
   for (let back = 0; back < span; back++) keys.push(dayOf(new Date(now.getTime() - back * DAY_MS)));
@@ -208,7 +217,43 @@ export async function travellerPlanMetrics(
   );
 
   let testPayments = 0;
+  // The rates follow one group each (a cohort): the purchases and renewals made in the window,
+  // and how many of those were paid with real money (test-mode ones are left out).
+  let cohort = { purchases: 0, purchasesPaid: 0, renewals: 0, renewalsPaid: 0 };
   if (await personBillingPresent(db)) {
+    const [made] = rowsOf<{
+      purchases: number | string;
+      purchases_paid: number | string;
+      renewals: number | string;
+      renewals_paid: number | string;
+    }>(
+      await db.execute(sql`
+        select
+          count(*) filter (where not x.renewal)::int as purchases,
+          count(*) filter (where not x.renewal and x.paid)::int as purchases_paid,
+          count(*) filter (where x.renewal)::int as renewals,
+          count(*) filter (where x.renewal and x.paid)::int as renewals_paid
+        from (
+          select
+            exists (select 1 from invoices prior where prior.subscription_id = i.subscription_id
+              and prior.payer_account_id = i.payer_account_id and prior.period_end = i.period_start
+              and prior.id <> i.id) as renewal,
+            exists (select 1 from invoice_payments p where p.invoice_id = i.id and p.kind = 'ONLINE'
+              and p.mode = 'LIVE') as paid,
+            exists (select 1 from invoice_payments p where p.invoice_id = i.id and p.mode = 'TEST') as test
+          from invoices i
+          where i.payer_account_id is not null and i.created_at >= ${since}
+        ) x
+        where not x.test`),
+    );
+    if (made) {
+      cohort = {
+        purchases: Number(made.purchases),
+        purchasesPaid: Number(made.purchases_paid),
+        renewals: Number(made.renewals),
+        renewalsPaid: Number(made.renewals_paid),
+      };
+    }
     // Money on a traveller's own invoice: real payments, and which were renewals (a period that
     // follows on from an earlier one of the same plan).
     const payments = rowsOf<{ day: string; mode: string; renewal: boolean; n: string | number }>(
@@ -238,6 +283,7 @@ export async function travellerPlanMetrics(
       await db.execute(sql`
         select ${localDay(sql`r.confirmed_at`)} as day, count(*)::int as n
         from refund_requests r
+        join invoice_payments p on p.id = r.invoice_payment_id and p.mode = 'LIVE'
         where r.payer_account_id is not null and r.status = 'CONFIRMED'
           and r.confirmed_at >= ${since}
         group by 1`),
@@ -264,8 +310,8 @@ export async function travellerPlanMetrics(
     days,
     totals,
     rates: {
-      conversion: ratio(totals.payments, totals.checkouts),
-      renewal: ratio(totals.renewalsPaid, totals.renewalsMade),
+      conversion: ratio(cohort.purchasesPaid, cohort.purchases),
+      renewal: ratio(cohort.renewalsPaid, cohort.renewals),
       refund: ratio(totals.refunds, totals.payments),
     },
     testPayments,
@@ -368,6 +414,12 @@ export async function updateTravellerHealthSettings(
     return err(serviceError('invalid', TRAVELLER_HEALTH_UNAVAILABLE));
   }
   return db.transaction(async (tx) => {
+    // Two saves at once take turns, so each audit row has the true "before".
+    await tx
+      .select({ id: schema.travellerPlanHealthSettings.id })
+      .from(schema.travellerPlanHealthSettings)
+      .where(eq(schema.travellerPlanHealthSettings.id, true))
+      .for('update');
     const before = await readThresholds(tx);
     const values = {
       checkoutSuccessMinPercent: input.checkoutSuccessMinPercent,
@@ -456,22 +508,26 @@ export async function travellerPlanHealth(
             filter (where a.status = 'RECORDED' and a.recorded_at >= ${weekAgo}::timestamptz) as median_minutes,
           count(*) filter (where a.status in ('REDIRECTED', 'VALIDATED') and a.created_at < ${stuckSince}::timestamptz
             and a.created_at >= ${weekAgo}::timestamptz)::int as stuck,
-          count(*) filter (where a.status = 'HELD_FOR_REVIEW')::int as held
+          count(*) filter (where a.status = 'HELD_FOR_REVIEW' and a.amount_minor_units > coalesce((
+            select sum(rr.amount_minor_units) from refund_requests rr where rr.payment_attempt_id = a.id
+              and rr.status in ('REQUESTED', 'SUBMITTED', 'CONFIRMED')), 0))::int as held
         from payment_attempts a
         where a.payer_account_id is not null and a.mode = 'LIVE'`),
     );
     if (row) {
       const finished = Number(row.finished);
-      success = finished > 0 ? Math.round((Number(row.paid) / finished) * 100) : null;
-      minutes = row.median_minutes === null ? null : Math.round(Number(row.median_minutes));
+      success = finished > 0 ? (Number(row.paid) / finished) * 100 : null;
+      minutes = row.median_minutes === null ? null : Number(row.median_minutes);
       stuck = Number(row.stuck);
       needsCheck = Number(row.held);
     }
   }
+  // Judged on the measured values; only what is shown is rounded.
+  const shown = (n: number | null) => (n === null ? null : Math.round(n));
   const signals: TravellerHealthSignal[] = [
     {
       key: 'checkout_success',
-      value: success,
+      value: shown(success),
       threshold: thresholds.checkoutSuccessMinPercent,
       status:
         success === null
@@ -482,7 +538,7 @@ export async function travellerPlanHealth(
     },
     {
       key: 'confirmation_time',
-      value: minutes,
+      value: shown(minutes),
       threshold: thresholds.confirmationMaxMinutes,
       status:
         minutes === null

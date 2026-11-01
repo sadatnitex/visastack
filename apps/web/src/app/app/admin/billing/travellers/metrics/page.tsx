@@ -2,6 +2,7 @@ import { formatBillingDate } from '@visastack/core';
 import {
   TRAVELLER_HEALTH_UNAVAILABLE,
   type TravellerHealth,
+  type TravellerHealthThresholds,
   type TravellerPlanDay,
   type TravellerPlanMetrics,
   travellerPlanHealth,
@@ -179,7 +180,31 @@ function Health({ health }: { readonly health: TravellerHealth }) {
 }
 
 /** The platform owner's traveller plan counts, rates, health signals and alert thresholds. */
-export default async function TravellerPlanMetricsPage() {
+/** Thresholds typed before a sign-in check, back in the address: used only when all four are whole numbers. */
+function typedThresholds(
+  query: Record<string, string | string[] | undefined>,
+): TravellerHealthThresholds | null {
+  const read = (name: string) => {
+    const value = query[name];
+    return typeof value === 'string' && /^\d{1,4}$/.test(value) ? Number(value) : null;
+  };
+  const typed = {
+    checkoutSuccessMinPercent: read('success'),
+    confirmationMaxMinutes: read('minutes'),
+    stuckConfirmingMax: read('stuck'),
+    needsCheckMax: read('check'),
+  };
+  return Object.values(typed).every((n) => n !== null)
+    ? (typed as unknown as TravellerHealthThresholds)
+    : null;
+}
+
+export default async function TravellerPlanMetricsPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
+} = {}) {
+  const typed = typedThresholds((await searchParams) ?? {});
   const now = new Date();
   const data = await withSession(async ({ db, accountId, email }) => {
     const staff = await staffPrincipal(
@@ -232,12 +257,14 @@ export default async function TravellerPlanMetricsPage() {
               confirm it is you.
             </p>
             <TravellerThresholdsForm
-              thresholds={{
-                checkoutSuccessMinPercent: data.health.thresholds.checkoutSuccessMinPercent,
-                confirmationMaxMinutes: data.health.thresholds.confirmationMaxMinutes,
-                stuckConfirmingMax: data.health.thresholds.stuckConfirmingMax,
-                needsCheckMax: data.health.thresholds.needsCheckMax,
-              }}
+              thresholds={
+                typed ?? {
+                  checkoutSuccessMinPercent: data.health.thresholds.checkoutSuccessMinPercent,
+                  confirmationMaxMinutes: data.health.thresholds.confirmationMaxMinutes,
+                  stuckConfirmingMax: data.health.thresholds.stuckConfirmingMax,
+                  needsCheckMax: data.health.thresholds.needsCheckMax,
+                }
+              }
               available={data.health.thresholds.available}
               unavailableMessage={TRAVELLER_HEALTH_UNAVAILABLE}
             />

@@ -55,23 +55,24 @@ describe('buying a paid plan (ADR 0025 T3c)', () => {
     expect(mocks.checkout.mock.calls[0]?.[2]).toEqual({ planId: PLAN });
   });
 
-  it('counts one Get tap for a real plan id, before the checkout starts (T6)', async () => {
-    const order: string[] = [];
-    mocks.count.mockImplementation(async () => {
-      order.push('count');
-    });
-    mocks.checkout.mockImplementation(async () => {
-      order.push('checkout');
-      return { ok: true, value: { invoiceId: INVOICE } };
-    });
-    await expect(buyPlanAction(INITIAL, form({ planId: PLAN }))).rejects.toThrow('NEXT_REDIRECT');
-    expect(mocks.count.mock.calls).toEqual([[{}, 'GET_TAPPED']]);
-    expect(order).toEqual(['count', 'checkout']);
-    // An address that is not a plan id is refused before anything is counted.
-    mocks.count.mockClear();
-    expect(await buyPlanAction(INITIAL, form({ planId: 'nope' }))).toMatchObject({ ok: false });
-    expect(await buyPlanAction(INITIAL, form({}))).toMatchObject({ ok: false });
-    expect(mocks.count).not.toHaveBeenCalled();
+  it('counts one Get tap for a real plan id, only while selling is on (T6)', async () => {
+    mocks.checkout.mockResolvedValue({ ok: true, value: { invoiceId: INVOICE } });
+    vi.stubEnv('TRAVELLER_PLANS_ENABLED', 'true');
+    try {
+      await expect(buyPlanAction(INITIAL, form({ planId: PLAN }))).rejects.toThrow('NEXT_REDIRECT');
+      expect(mocks.count.mock.calls).toEqual([[{}, 'GET_TAPPED']]);
+      // An address that is not a plan id is refused before anything is counted.
+      mocks.count.mockClear();
+      expect(await buyPlanAction(INITIAL, form({ planId: 'nope' }))).toMatchObject({ ok: false });
+      expect(await buyPlanAction(INITIAL, form({}))).toMatchObject({ ok: false });
+      expect(mocks.count).not.toHaveBeenCalled();
+      // Selling off: the tap is not counted, and the checkout still answers as before.
+      vi.stubEnv('TRAVELLER_PLANS_ENABLED', 'false');
+      await expect(buyPlanAction(INITIAL, form({ planId: PLAN }))).rejects.toThrow('NEXT_REDIRECT');
+      expect(mocks.count).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('says why a purchase was refused, and refuses an address that is not a plan id', async () => {

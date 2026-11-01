@@ -219,7 +219,7 @@ describe('Platform > Traveller Plan Metrics', () => {
     expect(text).toContain('Refund: 25%');
     expect(text).toContain('Of the payments, the share that was refunded.');
     expect(text).toContain(
-      'Test payments are counted apart and left out of every number above: 2 payments in the last 14 days.',
+      'Test payments are counted apart and left out of Payments, Renewals Paid, Refunds and the rates: 2 payments in the last 14 days. Views, Get taps and the other counts include tests.',
     );
     expect(text).not.toContain('Not enough data yet');
   });
@@ -232,7 +232,7 @@ describe('Platform > Traveller Plan Metrics', () => {
     expect(text).toContain('Conversion: 12%');
     expect(text).toContain('Renewal: Not enough data yet');
     expect(text).toContain('Refund: Not enough data yet');
-    expect(text).toContain('left out of every number above: none in the last 14 days.');
+    expect(text).toContain('Refunds and the rates: none in the last 14 days.');
   });
 
   it('says once that views and taps are counted after the database is updated', async () => {
@@ -302,6 +302,31 @@ describe('Platform > Traveller Plan Metrics', () => {
     expect(form).not.toContain('disabled');
     expect(textOf(form)).not.toContain(TRAVELLER_HEALTH_UNAVAILABLE);
     expect(await axeViolations(html)).toEqual([]);
+  });
+
+  it('shows the thresholds typed before a sign-in check again, but only four whole numbers', async () => {
+    const typed = { success: '70', minutes: '30', stuck: '3', check: '4' };
+    const html = await renderServer(Page({ searchParams: Promise.resolve(typed) }));
+    const form = html.split('id="thresholds-title"')[1] ?? '';
+    const valueOf = (name: string) =>
+      form.match(new RegExp(`<input[^>]*name="${name}"[^>]*value="([^"]*)"`))?.[1];
+    expect(valueOf('checkoutSuccessMinPercent')).toBe('70');
+    expect(valueOf('confirmationMaxMinutes')).toBe('30');
+    expect(valueOf('stuckConfirmingMax')).toBe('3');
+    expect(valueOf('needsCheckMax')).toBe('4');
+    // Anything odd in the address, or one missing, and the saved thresholds show instead.
+    for (const odd of [
+      { ...typed, stuck: '1.5' },
+      { ...typed, check: '<b>' },
+      { success: '70', minutes: '30', stuck: '3' },
+      { ...typed, minutes: ['30', '31'] },
+    ]) {
+      const again = await renderServer(Page({ searchParams: Promise.resolve(odd) }));
+      const saved = again.split('id="thresholds-title"')[1] ?? '';
+      expect(
+        saved.match(/<input[^>]*name="checkoutSuccessMinPercent"[^>]*value="([^"]*)"/)?.[1],
+      ).toBe(String(THRESHOLDS.checkoutSuccessMinPercent));
+    }
   });
 
   it('shows the thresholds but cannot save them before the database is updated, and says why', async () => {

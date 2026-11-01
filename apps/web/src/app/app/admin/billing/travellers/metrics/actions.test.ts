@@ -170,7 +170,8 @@ describe('saveTravellerThresholdsAction', () => {
         action: 'TRAVELLER_THRESHOLDS_UPDATE',
         resourceId: 'traveller-thresholds',
       },
-      PATH,
+      // What was typed rides along, so the form shows it again after the sign-in check.
+      `${PATH}?success=60&minutes=20&stuck=1&check=2#thresholds-title`,
     ]);
     expect(mocks.updateTravellerHealthSettings.mock.calls[1]?.[2]).toEqual({
       ...NUMBERS,

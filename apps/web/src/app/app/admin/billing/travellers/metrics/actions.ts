@@ -114,9 +114,16 @@ export async function saveTravellerThresholdsAction(
       stepUpSatisfied: false,
     });
     if (!result.ok && result.error.code === 'step_up_required') {
+      // What was typed comes back after the sign-in check (four whole numbers, nothing else).
+      const typed = new URLSearchParams({
+        success: String(thresholds.checkoutSuccessMinPercent),
+        minutes: String(thresholds.confirmationMaxMinutes),
+        stuck: String(thresholds.stuckConfirmingMax),
+        check: String(thresholds.needsCheckMax),
+      });
       const stepUp = await tryEstablishStepUp(
         { accountId, action: 'TRAVELLER_THRESHOLDS_UPDATE', resourceId: 'traveller-thresholds' },
-        METRICS_PATH,
+        `${METRICS_PATH}?${typed.toString()}#thresholds-title`,
       );
       if (stepUp.kind === 'not_configured') {
         return reply({ ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE });

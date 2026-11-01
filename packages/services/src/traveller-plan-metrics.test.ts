@@ -131,12 +131,18 @@ describe('traveller plan metrics for the platform owner (ADR 0025 T6)', () => {
     expect(metrics.value.days).toHaveLength(7);
     expect(metrics.value.totals).toMatchObject({ views: 3, getTaps: 1, checkouts: 2, payments: 1 });
     expect(metrics.value.testPayments).toBe(1);
-    expect(metrics.value.rates.conversion).toBe(0.5);
+    // Of the real purchases started (the test one is left out), one was paid.
+    expect(metrics.value.rates.conversion).toBe(1);
     expect(metrics.value.rates.refund).toBe(0);
     expect(metrics.value.rates.renewal).toBeNull();
     expect(metrics.value.countsAvailable).toBe(true);
     const today = metrics.value.days[0];
     expect(today?.views).toBe(3);
+    // A purchase started and never paid halves it.
+    const bob = await account('bob-metrics@example.com');
+    expect(isOk(await startPersonCheckout(db, selfPrincipal(bob), { planId }))).toBe(true);
+    const later = await travellerPlanMetrics(db, staff, { days: 7 });
+    expect(isOk(later) && later.value.rates.conversion).toBe(0.5);
     // Numbers and days only: no id, no email.
     const text = JSON.stringify(metrics.value);
     expect(text).not.toMatch(UUID);

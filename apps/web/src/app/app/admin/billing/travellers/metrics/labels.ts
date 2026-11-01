@@ -98,5 +98,5 @@ export function rateWords(rate: number | null): string {
 /** The one sentence about test payments, which are never in the other numbers. */
 export function testPaymentsSentence(count: number, days: number): string {
   const counted = count === 0 ? 'none' : count === 1 ? '1 payment' : `${count} payments`;
-  return `Test payments are counted apart and left out of every number above: ${counted} in the last ${days} days.`;
+  return `Test payments are counted apart and left out of Payments, Renewals Paid, Refunds and the rates: ${counted} in the last ${days} days. Views, Get taps and the other counts include tests.`;
 }
