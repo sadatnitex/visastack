@@ -4,4 +4,3 @@ apps/web/src/app/app/applicant/[id]/missions/page.test.tsx
 apps/web/src/app/globals.css
 docs/roadmap/lifecycle/lanes/G2.md
 apps/web/src/lib/ccd/approved-changes.ts
-docs/roadmap/lifecycle/allowlists/G2.txt
