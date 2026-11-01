@@ -830,22 +830,16 @@ export async function listInvoicesForOrganization(
   if (!(await canReadOrganizationBilling(db, input))) {
     return err(serviceError('forbidden', 'not an active member of this organization'));
   }
-  if (options.limit !== undefined) {
-    // Same organization filter and order as below, cut in the database (newest first, then id).
-    return ok(
-      await db
-        .select()
-        .from(schema.invoices)
-        .where(eq(schema.invoices.organizationId, input.organizationId))
-        .orderBy(desc(schema.invoices.createdAt), desc(schema.invoices.id))
-        .limit(clampLimit(options.limit)),
-    );
-  }
-  const rows = await db
+  // Newest first in the database (time, then id, so equal times keep one order), cut only when a
+  // page asks for a limit.
+  const query = db
     .select()
     .from(schema.invoices)
-    .where(eq(schema.invoices.organizationId, input.organizationId));
-  return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+    .where(eq(schema.invoices.organizationId, input.organizationId))
+    .orderBy(desc(schema.invoices.createdAt), desc(schema.invoices.id));
+  return ok(
+    options.limit === undefined ? await query : await query.limit(clampLimit(options.limit)),
+  );
 }
 
 export interface InvoiceLedger {

@@ -139,7 +139,6 @@ describe('the organization page within the scroll budget (WP-SB9)', () => {
     expect(text).toContain('Plan & Subscription');
     expect(mocks.history).toHaveBeenCalledWith({}, expect.anything(), { limit: 11 });
     expect(mocks.invoices).not.toHaveBeenCalled();
-    expect(mocks.claims).not.toHaveBeenCalled();
     expect(mocks.overrides).not.toHaveBeenCalled();
     expect(mocks.staff).not.toHaveBeenCalled();
     expect(text).toContain('Showing the first 10 changes.');
@@ -182,9 +181,42 @@ describe('the organization page within the scroll budget (WP-SB9)', () => {
     expect(textOf(html)).toContain('Refunds and credits need your authenticator code first.');
   });
 
-  it('opens Payment Reports with its own read, and an unknown part opens Plan & Billing', async () => {
+  it('never hides a payment report waiting for a decision behind a closed part', async () => {
+    mocks.claims.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          id: 'claim-1',
+          invoiceId: 'inv-1',
+          invoiceRef: 'INV-099',
+          invoiceOutstandingMinorUnits: 500000,
+          method: 'BANK_TRANSFER',
+          reference: 'TRX-1',
+          amountMinorUnits: 500000,
+          currency: 'BDT',
+          paidOn: new Date('2026-10-25T00:00:00Z'),
+          note: null,
+          status: 'SUBMITTED',
+          decidedAt: null,
+          decisionReason: null,
+          createdAt: new Date('2026-10-25T08:00:00Z'),
+          hasProofFile: false,
+          submittedByAccountId: null,
+          decidedByAccountId: null,
+        },
+      ],
+    });
+    const html = await render();
+    expect(textOf(html)).toContain('1 payment report is waiting for you. Open Payment Reports');
+    expect(html).toContain(`href="/app/admin/organizations/${ORG}?tab=reports"`);
+    expect(textOf(html)).toMatch(/Payment Reports\s*\(1\)\s*, 1 waiting/);
     const reports = await render({ tab: 'reports' });
-    expect(mocks.claims).toHaveBeenCalledTimes(1);
+    expect(textOf(reports)).not.toContain('is waiting for you.');
+    expect(textOf(reports)).toContain('Waiting for You');
+  });
+
+  it('opens Payment Reports, and an unknown part opens Plan & Billing', async () => {
+    const reports = await render({ tab: 'reports' });
     expect(textOf(reports)).toContain('No payment reports yet.');
     const unknown = await render({ tab: '<script>' });
     expect(unknown).toMatch(/aria-current="page"[^>]*>Plan &amp; Billing</);

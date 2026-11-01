@@ -362,33 +362,30 @@ function RefundForms({
   readonly now: Date;
   readonly latestDate: string;
 }) {
+  const left = refundable(person);
   const forms = [
-    ...person.payments
-      .filter((payment) => payment.refundableMinorUnits > 0)
-      .map((payment, index) => ({
-        formId: `traveller-refund-${person.code}-payment-${index}`,
-        source: { kind: 'entry' as const, id: payment.id },
-        invoiceRef: payment.invoiceRef,
-        amountMinorUnits: payment.refundableMinorUnits,
-        amountText: formatMoney(payment.refundableMinorUnits, payment.currency),
-        earliestDate: dayField(payment.collectedDate),
-        outsideWindow: now.getTime() > payment.refundWindowEndsAt.getTime(),
-        testPayment: payment.mode === 'TEST',
-        title: `Record Refund (${payment.invoiceRef}${payment.mode === 'TEST' ? `, ${TEST_PAYMENT_LABEL}` : ''})`,
-      })),
-    ...person.held
-      .filter((held) => held.remainingMinorUnits > 0)
-      .map((held, index) => ({
-        formId: `traveller-refund-${person.code}-held-${index}`,
-        source: { kind: 'held' as const, id: held.id },
-        invoiceRef: held.invoiceRef,
-        amountMinorUnits: held.remainingMinorUnits,
-        amountText: formatMoney(held.remainingMinorUnits, held.currency),
-        earliestDate: dayField(held.paidOn),
-        outsideWindow: now.getTime() > held.refundWindowEndsAt.getTime(),
-        testPayment: false,
-        title: `Record Refund (${held.invoiceRef}, Held Payment)`,
-      })),
+    ...left.payments.map((payment, index) => ({
+      formId: `traveller-refund-${person.code}-payment-${index}`,
+      source: { kind: 'entry' as const, id: payment.id },
+      invoiceRef: payment.invoiceRef,
+      amountMinorUnits: payment.refundableMinorUnits,
+      amountText: formatMoney(payment.refundableMinorUnits, payment.currency),
+      earliestDate: dayField(payment.collectedDate),
+      outsideWindow: now.getTime() > payment.refundWindowEndsAt.getTime(),
+      testPayment: payment.mode === 'TEST',
+      title: `Record Refund (${payment.invoiceRef}${payment.mode === 'TEST' ? `, ${TEST_PAYMENT_LABEL}` : ''})`,
+    })),
+    ...left.held.map((held, index) => ({
+      formId: `traveller-refund-${person.code}-held-${index}`,
+      source: { kind: 'held' as const, id: held.id },
+      invoiceRef: held.invoiceRef,
+      amountMinorUnits: held.remainingMinorUnits,
+      amountText: formatMoney(held.remainingMinorUnits, held.currency),
+      earliestDate: dayField(held.paidOn),
+      outsideWindow: now.getTime() > held.refundWindowEndsAt.getTime(),
+      testPayment: false,
+      title: `Record Refund (${held.invoiceRef}, Held Payment)`,
+    })),
   ];
   if (forms.length === 0) {
     return <p className="card-body">Nothing is left to refund for this traveller.</p>;
@@ -437,6 +434,8 @@ function Person({
           traveller with a long history still fits; the plan starts open. */}
       <CollapsibleGroups
         idPrefix={`traveller-${person.code}`}
+        // A held payment is what Needs a Check sends the owner here for, so it opens first.
+        openKey={person.held.length > 0 ? 'held' : 'plan'}
         groups={[
           { key: 'plan', title: 'Plan', content: <PlanFacts person={person} /> },
           {
@@ -468,7 +467,7 @@ function Person({
                 {
                   key: 'record',
                   title: 'Record a Refund',
-                  count: refundableCount(person),
+                  count: refundable(person).payments.length + refundable(person).held.length,
                   content: (
                     <>
                       <p className="card-body u-mb-100">
@@ -489,12 +488,12 @@ function Person({
   );
 }
 
-/** How many payments and held payments of this traveller still have something to refund. */
-function refundableCount(person: TravellerBilling): number {
-  return (
-    person.payments.filter((payment) => payment.refundableMinorUnits > 0).length +
-    person.held.filter((held) => held.remainingMinorUnits > 0).length
-  );
+/** The payments and held payments of this traveller that still have something to refund. */
+function refundable(person: TravellerBilling) {
+  return {
+    payments: person.payments.filter((payment) => payment.refundableMinorUnits > 0),
+    held: person.held.filter((held) => held.remainingMinorUnits > 0),
+  };
 }
 
 /** The traveller's plan now: which, whether it renews, and until when it is paid. */

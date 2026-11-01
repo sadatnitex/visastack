@@ -1,6 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import { type Page, expect, test } from '@playwright/test';
-import { Fragment, type ReactElement, createElement as h } from 'react';
+import {
+  type ComponentProps,
+  type FunctionComponent,
+  type ReactElement,
+  createElement as h,
+} from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { BillingRow } from '../../src/app/app/account/plan/billing/billing-row';
 import { expectWithinBudget } from './support';
@@ -14,6 +19,11 @@ import { expectWithinBudget } from './support';
  */
 
 const TASK_SCREENS = 3;
+
+/** The real row, typed so its children can be passed the way createElement passes them. */
+const Row = BillingRow as unknown as FunctionComponent<
+  Omit<ComponentProps<typeof BillingRow>, 'children'>
+>;
 
 const facts = (pairs: readonly (readonly [string, string])[]) =>
   h(
@@ -119,17 +129,16 @@ function list(
         { className: 'billing-rows' },
         ...Array.from({ length: count }, (_, index) =>
           h(
-            Fragment,
-            { key: index },
-            // Called as a function: the row has no state, and this keeps its real markup.
-            BillingRow({
+            Row,
+            {
+              key: index,
               id: `row-${index}`,
               open: index === 0,
               title: `REFERENCE-WITH-A-LONG-CODE-${2026_000 + index}`,
               line: 'BDT 12,500.50, due 1 Dec 2026',
               badges: h('span', null, badge('Waiting for Payment'), ' ', badge('Overdue')),
-              children: body(index),
-            }),
+            },
+            body(index),
           ),
         ),
         count >= 10 ? showMore(noun) : null,

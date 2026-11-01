@@ -229,17 +229,11 @@ export async function listCommercialOverridesForOrganization(
   /** WP-SB9: only the newest `limit` overrides (1 to 100); the full history when left out. */
   options: { readonly limit?: number } = {},
 ): Promise<CommercialOverride[]> {
-  if (options.limit !== undefined) {
-    return db
-      .select()
-      .from(schema.commercialOverrides)
-      .where(eq(schema.commercialOverrides.organizationId, organizationId))
-      .orderBy(desc(schema.commercialOverrides.createdAt), desc(schema.commercialOverrides.id))
-      .limit(clampLimit(options.limit));
-  }
-  const rows = await db
+  // Newest first in the database (time, then id), cut only when a page asks for a limit.
+  const query = db
     .select()
     .from(schema.commercialOverrides)
-    .where(eq(schema.commercialOverrides.organizationId, organizationId));
-  return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    .where(eq(schema.commercialOverrides.organizationId, organizationId))
+    .orderBy(desc(schema.commercialOverrides.createdAt), desc(schema.commercialOverrides.id));
+  return options.limit === undefined ? query : query.limit(clampLimit(options.limit));
 }

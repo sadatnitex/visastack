@@ -184,7 +184,9 @@ export async function listOwnBilling(
     .where(eq(i.payerAccountId, accountId))
     .orderBy(desc(i.createdAt), desc(i.periodStart), desc(i.id));
   const invoices =
-    input.limit === undefined ? await invoiceQuery : await invoiceQuery.limit(clampLimit(input.limit));
+    input.limit === undefined
+      ? await invoiceQuery
+      : await invoiceQuery.limit(clampLimit(input.limit));
   if (invoices.length === 0) return ok([]);
   const ids = invoices.map((row) => row.id);
   const payable = await stillPayable(db, accountId, invoices, now);

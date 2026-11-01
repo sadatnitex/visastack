@@ -11147,8 +11147,15 @@ html:has(.sticky-action-bar) {
 .billing-row-body > .rows-grid {
   margin: 0;
 }
-.invoice-card-in-row {
+.billing-row-card {
   padding: 0;
+}
+/* The organization page's parts wrap onto a second line on a phone instead of scrolling
+   sideways, so the open part is never hidden off the edge. */
+.subnav.org-admin-tabs {
+  flex-wrap: wrap;
+  row-gap: 0;
+  overflow-x: visible;
 }
 .org-admin-downgrade {
   margin-bottom: 1.25rem;

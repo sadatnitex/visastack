@@ -31,7 +31,7 @@ import { planFeatureView, readAiUsage } from '../../../../lib/ai-usage';
 import { SHOW_MAX, nextShow, parseShow } from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
 import { UsageMeter } from '../../applicant/[id]/usage-meter';
-import { BILLING_ROWS_STEP, billingRowId } from './billing/billing-row';
+import { BILLING_ROWS_STEP, billingRowId } from './billing/billing-list';
 import { BuyPlanForm, PayPurchaseForm, RenewalForm } from './plan-forms';
 
 export const metadata: Metadata = { title: 'Plan & Usage' };

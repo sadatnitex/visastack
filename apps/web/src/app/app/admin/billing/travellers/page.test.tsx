@@ -329,12 +329,13 @@ describe('Platform > Traveller Billing (ADR 0025 T6b)', () => {
     expect(await axeViolations(html)).toEqual([]);
   });
 
-  it('WP-SB9: folds each part of a traveller with its count, the plan open first', async () => {
+  it('WP-SB9: folds each part of a traveller with its count, held payments open first', async () => {
     const html = await render('tp-9d1e2f3a-2');
     const groups = html.match(/<details class="collapsible-group"[^>]*>/g) ?? [];
     expect(groups.length).toBeGreaterThanOrEqual(5);
     expect(groups.filter((group) => /\sopen/.test(group))).toHaveLength(1);
-    expect(groups[0]).toMatch(/\sopen/);
+    // This traveller has a held payment, which is what Needs a Check sends the owner here for.
+    expect(groups.find((group) => /\sopen/.test(group))).toMatch(/id="traveller-[^"]+-held"/);
     for (const title of ['Plan', 'Purchases', 'Payments', 'Held Payments', 'Refunds Made']) {
       expect(html).toContain(`<span class="collapsible-group-title">${title}</span>`);
     }

@@ -8,20 +8,20 @@ import {
   refreshInvoicePaymentAttempts,
 } from '@visastack/services';
 import type { Metadata } from 'next';
-import { ShowMore } from '../../../../../../components/show-more';
 import { PageHeader } from '../../../../../../components/ui';
 import { isPlatformOwnerAccount } from '../../../../../../lib/admin';
-import { type SearchParamsRecord, nextShow, parseShow } from '../../../../../../lib/paging';
+import type { SearchParamsRecord } from '../../../../../../lib/paging';
 import { type OnlineOffers, onlineOffers } from '../../../../../../lib/payment-providers';
 import { paymentPorts } from '../../../../../../lib/providers';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
 import {
-  BILLING_ROWS_MAX,
-  BILLING_ROWS_STEP,
-  BillingRow,
+  BillingListEnd,
   billingRowId,
-} from '../../../../account/plan/billing/billing-row';
+  billingRowsShown,
+  capRows,
+} from '../../../../account/plan/billing/billing-list';
+import { BillingRow } from '../../../../account/plan/billing/billing-row';
 import { BillingStatusNotice, loadBillingNotice } from '../../billing-status-notice';
 import {
   InvoiceBadges,
@@ -34,6 +34,20 @@ import {
 export const metadata: Metadata = { title: 'Agency Invoices' };
 
 export const dynamic = 'force-dynamic';
+
+/** How many of the newest invoices the page reads at least (the service's own default). */
+const AGENCY_INVOICES_READ = 50;
+
+/**
+ * The closed row's line: the amount, and the due date while one means something. A refunded
+ * invoice is never owed again, so, as on its card, it shows no due date.
+ */
+function invoiceLine(invoice: AgencyInvoiceView): string {
+  const amount = formatMoney(invoice.invoicedAmountMinorUnits, invoice.currency);
+  return invoice.refundedMinorUnits > 0
+    ? amount
+    : `${amount}, due ${formatBillingDate(invoice.dueDate)}`;
+}
 
 /** At most this many invoices are checked with the payment gateway when the page opens. */
 const REFRESH_LIMIT = 3;
@@ -112,8 +126,7 @@ export default async function AgencyInvoicesPage({
   const query = (await searchParams) ?? {};
   // Scroll Budget (WP-SB9): the newest 10 invoices, then Show More. One extra row is read only to
   // know whether more exist; who may read them is unchanged (owners and admins).
-  const { show } = query;
-  const shown = parseShow(show, { step: BILLING_ROWS_STEP, max: BILLING_ROWS_MAX });
+  const shown = billingRowsShown(query);
   const offers = onlineOffers(process.env);
   // One resolver for the whole page (S19 step 0 round 4): the open-payment check and the stranded
   // answer on each card both come from it, as they do in the services.
@@ -125,7 +138,9 @@ export default async function AgencyInvoicesPage({
         actorAccountId: accountId,
         organizationId: orgId,
         payments,
-        limit: shown + 1,
+        // The newest 50 at least, as before: the open-payment check below looks among them, so
+        // showing fewer rows never changes which payments are checked with the gateway.
+        limit: Math.max(shown + 1, AGENCY_INVOICES_READ),
       });
     let listed = await list();
     if (listed.ok && (await checkOpenPayments(db, payments, accountId, orgId, listed.value))) {
@@ -141,9 +156,8 @@ export default async function AgencyInvoicesPage({
   });
   const now = new Date();
   const online = viewerOffers(offers, data.owner);
-  const invoices = data.invoices.slice(0, shown);
-  const more = data.invoices.length > shown;
-  const next = more ? nextShow(shown, { step: BILLING_ROWS_STEP, max: BILLING_ROWS_MAX }) : null;
+  const capped = capRows(data.invoices, shown);
+  const invoices = capped.rows;
   // One row starts open: the newest invoice that still asks for money, else the newest.
   const owedIndex = invoices.findIndex(invoiceStillOwed);
   const openIndex = owedIndex === -1 ? 0 : owedIndex;
@@ -178,7 +192,7 @@ export default async function AgencyInvoicesPage({
               id={billingRowId('invoice', index)}
               open={index === openIndex}
               title={invoice.invoiceRef}
-              line={`${formatMoney(invoice.invoicedAmountMinorUnits, invoice.currency)}, due ${formatBillingDate(invoice.dueDate)}`}
+              line={invoiceLine(invoice)}
               badges={
                 <InvoiceBadges
                   invoice={invoice}
@@ -197,13 +211,12 @@ export default async function AgencyInvoicesPage({
               />
             </BillingRow>
           ))}
-          <ShowMore
-            id="invoices-more"
+          <BillingListEnd
+            prefix="invoice"
             pathname={`/app/agency/${encodeURIComponent(orgId)}/plan/invoices`}
             searchParams={query}
-            next={next === null ? null : { show: next }}
-            landOn={billingRowId('invoice', shown)}
-            shown={invoices.length}
+            capped={capped}
+            shown={shown}
             noun={{ one: 'invoice', other: 'invoices' }}
           />
         </div>

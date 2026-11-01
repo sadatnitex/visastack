@@ -121,7 +121,8 @@ export async function readBillingStatusHistory(
     .where(eq(h.billingAccountId, billingAccountId))
     .orderBy(desc(h.createdAt), asc(h.id));
   // WP-SB9: a page that shows only the newest changes reads only those (1 to 100 rows).
-  const rows = options.limit === undefined ? await query : await query.limit(clampLimit(options.limit));
+  const rows =
+    options.limit === undefined ? await query : await query.limit(clampLimit(options.limit));
   return rows.map(toEntry);
 }
 

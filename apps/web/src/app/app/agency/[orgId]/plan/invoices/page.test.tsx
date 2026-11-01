@@ -89,7 +89,8 @@ describe('the agency Invoices page within the scroll budget (WP-SB9)', () => {
     const html = await render();
     expect(mocks.list).toHaveBeenCalledWith(
       {},
-      expect.objectContaining({ actorAccountId: 'acct-1', organizationId: ORG, limit: 11 }),
+      // The newest 50 at least, as before, so the open-payment check sees the same invoices.
+      expect.objectContaining({ actorAccountId: 'acct-1', organizationId: ORG, limit: 50 }),
     );
     expect(rows(html)).toHaveLength(10);
     expect(html).toContain(`href="/app/agency/${ORG}/plan/invoices?show=20#invoice-row-10"`);
@@ -124,12 +125,30 @@ describe('the agency Invoices page within the scroll budget (WP-SB9)', () => {
   it('opens the newest when nothing is owed, and grows by the address step', async () => {
     mocks.list.mockResolvedValue({ ok: true, value: many(13) });
     const html = await render('20');
-    expect(mocks.list).toHaveBeenLastCalledWith({}, expect.objectContaining({ limit: 21 }));
+    expect(mocks.list).toHaveBeenLastCalledWith({}, expect.objectContaining({ limit: 50 }));
     expect(rows(html)).toHaveLength(13);
     expect(html).toContain('id="invoice-row-0" open');
     expect(html).not.toContain('?show=');
     await render('junk');
-    expect(mocks.list).toHaveBeenLastCalledWith({}, expect.objectContaining({ limit: 11 }));
+    expect(mocks.list).toHaveBeenLastCalledWith({}, expect.objectContaining({ limit: 50 }));
+    await render('60');
+    expect(mocks.list).toHaveBeenLastCalledWith({}, expect.objectContaining({ limit: 61 }));
+  });
+
+  it('shows no due date on the closed row of a refunded invoice, as its card does', async () => {
+    mocks.list.mockResolvedValue({
+      ok: true,
+      value: [invoice(0, { refundedMinorUnits: 125050, state: 'REFUNDED' })],
+    });
+    const html = await render();
+    expect(html).toMatch(/billing-row-line">BDT\s1,250\.50<\/span>/);
+  });
+
+  it('says plainly when older invoices are past the 90 it lists, never that all are showing', async () => {
+    mocks.list.mockResolvedValue({ ok: true, value: many(91) });
+    const text = textOf(await render('90'));
+    expect(text).toContain('Showing the newest 90 invoices. Older invoices are not listed here.');
+    expect(text).not.toContain('Showing all');
   });
 
   it('still tells members who are not owners or admins that invoices are not for them', async () => {

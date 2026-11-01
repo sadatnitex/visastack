@@ -21,7 +21,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { type RowNoun, ShowMore } from '../../../../../components/show-more';
+import type { RowNoun } from '../../../../../components/show-more';
 import { PageHeader } from '../../../../../components/ui';
 import {
   bootstrapAdminEmails,
@@ -38,21 +38,18 @@ import {
   invoiceStatusLabel,
   organizationStatusLabel,
 } from '../../../../../lib/labels';
-import {
-  type SearchParamsRecord,
-  firstParam,
-  nextShow,
-  parseShow,
-} from '../../../../../lib/paging';
+import { type SearchParamsRecord, firstParam } from '../../../../../lib/paging';
 import { refundGatewayViews, refundPorts } from '../../../../../lib/refund-gateway';
 import { withSession } from '../../../../../lib/session';
 import { formatMeterValue, meterFraction, meterTone } from '../../../../../lib/usage-format';
 import {
-  BILLING_ROWS_MAX,
-  BILLING_ROWS_STEP,
-  BillingRow,
+  BillingListEnd,
+  type CappedRows,
   billingRowId,
-} from '../../../account/plan/billing/billing-row';
+  billingRowsShown,
+  capRows,
+} from '../../../account/plan/billing/billing-list';
+import { BillingRow } from '../../../account/plan/billing/billing-row';
 import {
   ActivatePlanForm,
   ApproveClaimButton,
@@ -200,9 +197,12 @@ function tabFrom(query: SearchParamsRecord): OrganizationTab {
 function OrganizationTabs({
   organizationId,
   current,
+  waitingReports,
 }: {
   readonly organizationId: string;
   readonly current: OrganizationTab;
+  /** Payment reports waiting for a decision, counted on their tab. */
+  readonly waitingReports: number;
 }) {
   const base = `/app/admin/organizations/${encodeURIComponent(organizationId)}`;
   return (
@@ -214,24 +214,16 @@ function OrganizationTabs({
           aria-current={tab.key === current ? 'page' : undefined}
         >
           {tab.label}
+          {tab.key === 'reports' && waitingReports > 0 ? (
+            <>
+              <span aria-hidden="true">{` (${waitingReports})`}</span>
+              <span className="sr-only">{`, ${waitingReports} waiting`}</span>
+            </>
+          ) : null}
         </Link>
       ))}
     </nav>
   );
-}
-
-/** Rows of one list on this page: 10, then Show More (the staff pages use the billing step). */
-function listStep(query: SearchParamsRecord): number {
-  const { show } = query;
-  return parseShow(show, { step: BILLING_ROWS_STEP, max: BILLING_ROWS_MAX });
-}
-
-/** The newest `shown` rows read with one more, cut back, and whether more exist. */
-function capped<T>(
-  rows: readonly T[],
-  shown: number,
-): { readonly rows: readonly T[]; readonly more: boolean } {
-  return { rows: rows.slice(0, shown), more: rows.length > shown };
 }
 
 export default async function AdminOrganizationPage({
@@ -244,7 +236,7 @@ export default async function AdminOrganizationPage({
   const { orgId } = await params;
   const query = (await searchParams) ?? {};
   const tab = tabFrom(query);
-  const shown = listStep(query);
+  const shown = billingRowsShown(query);
   const { refundPage: refundPageParam, refundInvoice } = query;
   const refundPage = Number.parseInt(firstParam(refundPageParam) ?? '1', 10);
 
@@ -282,7 +274,9 @@ export default async function AdminOrganizationPage({
       tab === 'invoices'
         ? listInvoicesForOrganization(db, actorRead, { limit: shown + 1 })
         : undefined,
-      tab === 'reports' ? listManualClaims(db, actorRead) : undefined,
+      // Read on every part (at most 200, as before), so a report waiting for a decision is never
+      // hidden behind a closed part: its count shows on the bar and in a notice.
+      listManualClaims(db, actorRead),
       tab === 'overrides'
         ? listCommercialOverridesForOrganization(db, orgId, { limit: shown + 1 })
         : [],
@@ -321,10 +315,10 @@ export default async function AdminOrganizationPage({
       pendingDowngrade,
       usage: usage?.ok ? usage.value : undefined,
       billing: billing?.ok ? billing.value : undefined,
-      billingHistory: capped(billingHistory?.ok ? billingHistory.value : [], shown),
-      invoices: capped(invoices?.ok ? invoices.value : [], shown),
-      claims: claims?.ok ? claims.value : [],
-      overrides: capped(overrides, shown),
+      billingHistory: capRows(billingHistory?.ok ? billingHistory.value : [], shown),
+      invoices: capRows(invoices?.ok ? invoices.value : [], shown),
+      claims: claims.ok ? claims.value : [],
+      overrides: capRows(overrides, shown),
       refundWork: refundWork?.ok ? refundWork.value : undefined,
       // The page is the platform owner's already, so the refund scope fails only while this
       // sign-in has not entered its authenticator code.
@@ -353,22 +347,17 @@ export default async function AdminOrganizationPage({
 
   const now = Date.now();
   const pathname = `/app/admin/organizations/${encodeURIComponent(orgId)}`;
-  const nextStep = (more: boolean) =>
-    more ? nextShow(shown, { step: BILLING_ROWS_STEP, max: BILLING_ROWS_MAX }) : null;
-  const showMore = (id: string, more: boolean, count: number, noun: RowNoun) => {
-    const next = nextStep(more);
-    return (
-      <ShowMore
-        id={`${id}-more`}
-        pathname={pathname}
-        searchParams={query}
-        next={next === null ? null : { show: next }}
-        landOn={billingRowId(id, shown)}
-        shown={count}
-        noun={noun}
-      />
-    );
-  };
+  const listEnd = (prefix: string, capped: CappedRows<unknown>, noun: RowNoun) => (
+    <BillingListEnd
+      prefix={prefix}
+      pathname={pathname}
+      searchParams={query}
+      capped={capped}
+      shown={shown}
+      noun={noun}
+    />
+  );
+  const waitingReports = data.claims.filter((claim) => claim.status === 'SUBMITTED').length;
   // One invoice starts open: the newest that still owes money, else the newest.
   const owedIndex = data.invoices.rows.findIndex(
     (invoice) => invoice.status === 'OPEN' || invoice.status === 'PARTIALLY_PAID',
@@ -386,7 +375,15 @@ export default async function AdminOrganizationPage({
         title={data.org.name}
         description={<>Status: {organizationStatusLabel(data.org.status)}</>}
       />
-      <OrganizationTabs organizationId={orgId} current={tab} />
+      <OrganizationTabs organizationId={orgId} current={tab} waitingReports={waitingReports} />
+      {waitingReports > 0 && tab !== 'reports' ? (
+        <p className="notice notice-warn u-mb-150">
+          {waitingReports === 1
+            ? '1 payment report is waiting for you.'
+            : `${waitingReports} payment reports are waiting for you.`}{' '}
+          <Link href={`${pathname}?tab=reports`}>Open Payment Reports</Link>
+        </p>
+      ) : null}
 
       {tab === 'plan' ? (
         <>
@@ -496,15 +493,10 @@ export default async function AdminOrganizationPage({
                         </div>
                       ))}
                     </div>
-                    {showMore(
-                      'billing-history',
-                      data.billingHistory.more,
-                      data.billingHistory.rows.length,
-                      {
-                        one: 'change',
-                        other: 'changes',
-                      },
-                    )}
+                    {listEnd('billing-history', data.billingHistory, {
+                      one: 'change',
+                      other: 'changes',
+                    })}
                   </div>
                 ) : null}
                 <TransitionBillingStatusForm
@@ -567,10 +559,7 @@ export default async function AdminOrganizationPage({
                   </BillingRow>
                 );
               })}
-              {showMore('invoice', data.invoices.more, data.invoices.rows.length, {
-                one: 'invoice',
-                other: 'invoices',
-              })}
+              {listEnd('invoice', data.invoices, { one: 'invoice', other: 'invoices' })}
             </div>
           )}
           <h3 className="org-admin-form-title">Create an Invoice</h3>
@@ -643,10 +632,7 @@ export default async function AdminOrganizationPage({
                   );
                 })}
               </div>
-              {showMore('override', data.overrides.more, data.overrides.rows.length, {
-                one: 'override',
-                other: 'overrides',
-              })}
+              {listEnd('override', data.overrides, { one: 'override', other: 'overrides' })}
             </div>
           )}
           <h3 className="org-admin-form-title">Grant an Override</h3>

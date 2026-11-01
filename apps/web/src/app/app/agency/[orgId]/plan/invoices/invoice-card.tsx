@@ -145,7 +145,7 @@ export function InvoiceCard({
 
   return (
     <article
-      className={inRow ? 'invoice-card invoice-card-in-row' : 'card invoice-card'}
+      className={inRow ? 'invoice-card billing-row-card' : 'card invoice-card'}
       aria-labelledby={headingId}
     >
       {inRow ? (

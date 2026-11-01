@@ -15,12 +15,12 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ShowMore } from '../../../../../components/show-more';
 import { PageHeader, StatusBadge } from '../../../../../components/ui';
-import { type SearchParamsRecord, nextShow, parseShow } from '../../../../../lib/paging';
+import type { SearchParamsRecord } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
 import { supportEmail } from '../../../../../lib/support-email';
-import { BILLING_ROWS_MAX, BILLING_ROWS_STEP, BillingRow, billingRowId } from './billing-row';
+import { BillingListEnd, billingRowId, billingRowsShown, capRows } from './billing-list';
+import { BillingRow } from './billing-row';
 
 export const metadata: Metadata = { title: 'Billing History' };
 
@@ -44,21 +44,19 @@ export default async function BillingHistoryPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<SearchParamsRecord>;
-} = {}) {
+}) {
   const query = (await searchParams) ?? {};
   // Scroll Budget (WP-SB9): the newest 10 purchases, then Show More; one extra row is read only to
   // know whether more exist. Still only this person's own rows (their SelfScope).
-  const { show } = query;
-  const shown = parseShow(show, { step: BILLING_ROWS_STEP, max: BILLING_ROWS_MAX });
+  const shown = billingRowsShown(query);
   const listed = await withSession(async ({ db, self }) => {
     if (!travellerPlansEnabled() && !(await hasOwnBilling(db, self))) return null;
     const read = await listOwnBilling(db, self, { limit: shown + 1 });
     return read.ok ? read.value : null;
   });
   if (listed === null) notFound();
-  const purchases = listed.slice(0, shown);
-  const more = listed.length > shown;
-  const next = more ? nextShow(shown, { step: BILLING_ROWS_STEP, max: BILLING_ROWS_MAX }) : null;
+  const capped = capRows(listed, shown);
+  const purchases = capped.rows;
   const email = supportEmail();
 
   return (
@@ -95,13 +93,12 @@ export default async function BillingHistoryPage({
               supportEmail={email}
             />
           ))}
-          <ShowMore
-            id="purchases-more"
+          <BillingListEnd
+            prefix="purchase"
             pathname="/app/account/plan/billing"
             searchParams={query}
-            next={next === null ? null : { show: next }}
-            landOn={billingRowId('purchase', shown)}
-            shown={purchases.length}
+            capped={capped}
+            shown={shown}
             noun={{ one: 'purchase', other: 'purchases' }}
           />
         </div>
