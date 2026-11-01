@@ -28,6 +28,7 @@ const rowAnchor = (position: number) => `notification-${position}`;
 export function NotificationList({
   notifications,
   next,
+  total,
   searchParams,
   markReadAction,
   markAllReadAction,
@@ -35,6 +36,8 @@ export function NotificationList({
   readonly notifications: readonly NotificationRow[];
   /** The `show` value for the next load; null when nothing more exists. */
   readonly next: number | null;
+  /** Every notification there is, when known (up to 100). */
+  readonly total?: number;
   readonly searchParams: SearchParamsRecord;
   readonly markReadAction: FormAction;
   readonly markAllReadAction: FormAction;
@@ -97,6 +100,7 @@ export function NotificationList({
         searchParams={searchParams}
         next={next === null ? null : { show: next }}
         shown={notifications.length}
+        {...(total === undefined ? {} : { total })}
         noun={{ one: 'notification', other: 'notifications' }}
       />
     </>

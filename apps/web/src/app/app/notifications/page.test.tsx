@@ -44,14 +44,14 @@ describe('Notifications within the scroll budget (WP-SB1)', () => {
     const html = await page();
     expect(service.listNotificationsForAccount).toHaveBeenCalledWith({}, 'owner', {
       unreadFirst: true,
-      limit: 11,
+      limit: 101,
     });
     expect(html).toContain('class="activity-log-scroll notifications-scroll"');
     expect(html).toContain('aria-label="Notification List"');
     expect(html.match(/id="notification-\d+"/g)).toHaveLength(10);
     const text = textOf(html);
     expect(text).toContain('Mark All Read');
-    expect(text).toContain('Showing the first 10 notifications.');
+    expect(text).toContain('Showing 10 of 11 notifications.');
     expect(html).toContain('href="/app/notifications?show=20#notification-11"');
   });
 
@@ -60,7 +60,7 @@ describe('Notifications within the scroll budget (WP-SB1)', () => {
     const html = await page({ show: '20' });
     expect(service.listNotificationsForAccount).toHaveBeenCalledWith({}, 'owner', {
       unreadFirst: true,
-      limit: 21,
+      limit: 101,
     });
     expect(html.match(/id="notification-\d+"/g)).toHaveLength(14);
     const text = textOf(html);
@@ -70,6 +70,9 @@ describe('Notifications within the scroll budget (WP-SB1)', () => {
   });
 
   it('never reads more than the ceiling, whatever the address says', async () => {
+    // Past the ceiling the total is unknown, so the count says only what shows.
+    service.listNotificationsForAccount.mockResolvedValue(list(101, 101));
+    expect(textOf(await page())).toContain('Showing the first 10 notifications.');
     await page({ show: '100000' });
     expect(service.listNotificationsForAccount).toHaveBeenCalledWith({}, 'owner', {
       unreadFirst: true,

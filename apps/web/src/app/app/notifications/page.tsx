@@ -7,6 +7,7 @@ import type { DepthLevel } from '../../../lib/ccd/depth';
 import { depthCopyFor } from '../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../lib/ccd/depth.server';
 import {
+  SHOW_MAX,
   type SearchParamsRecord,
   TRAVELLER_LIST_STEP,
   nextShow,
@@ -46,9 +47,10 @@ export default async function NotificationsPage({
 }: NotificationsPageProps = {}): Promise<React.JSX.Element> {
   const query = (await searchParams) ?? {};
   const shown = parseShow(query.show, { step: TRAVELLER_LIST_STEP });
-  // One more than shown proves whether another step exists.
+  // Read as far as Show More can ever reach, plus one: the page then knows how many more there
+  // are (up to 100), and the extra row proves more exist past that. Only `shown` rows render.
   const read = await withSession(({ db, accountId }) =>
-    listNotificationsForAccount(db, accountId, { unreadFirst: true, limit: shown + 1 }),
+    listNotificationsForAccount(db, accountId, { unreadFirst: true, limit: SHOW_MAX + 1 }),
   );
   const notifications = read.slice(0, shown);
   const next =
@@ -95,6 +97,7 @@ export default async function NotificationsPage({
             <NotificationList
               notifications={notifications.map((n) => ({ ...n, level: levelOf(n) }))}
               next={next}
+              {...(read.length <= SHOW_MAX ? { total: read.length } : {})}
               searchParams={query}
               markReadAction={markNotificationReadAction}
               markAllReadAction={markAllNotificationsReadAction}
