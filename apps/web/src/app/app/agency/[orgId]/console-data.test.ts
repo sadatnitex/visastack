@@ -49,7 +49,6 @@ const {
   loadOpenCase,
   loadOrgAccess,
   loadPendingClientInvitationPage,
-  loadPendingClientInvitations,
   loadPendingTeamInvitations,
   loadUnassignedQueue,
   loadVisibleCaseList,
@@ -111,7 +110,9 @@ describe('administrator-only reads', () => {
     expect(await loadMembers(db, 'acct', 'o1', notAdmin)).toEqual([]);
     expect(await loadEvidenceRequests(db, 'acct', 'o1', notAdmin)).toEqual([]);
     expect(await loadPendingTeamInvitations(db, 'acct', 'o1', notAdmin)).toEqual([]);
-    expect(await loadPendingClientInvitations(db, 'acct', 'o1', notAdmin)).toEqual([]);
+    expect(
+      (await loadPendingClientInvitationPage(db, 'acct', 'o1', notAdmin, { limit: 15 })).items,
+    ).toEqual([]);
     expect(await loadApplicants(db, 'o1', notAdmin)).toEqual([]);
     expect(await loadUnassignedQueue(db, 'o1', notAdmin)).toEqual([]);
     for (const read of [
@@ -149,7 +150,11 @@ describe('administrator-only reads', () => {
     expect(await loadMembers(db, 'acct', 'o1', admin)).toEqual([]);
     expect(await loadEvidenceRequests(db, 'acct', 'o1', admin)).toEqual([]);
     expect(await loadPendingTeamInvitations(db, 'acct', 'o1', admin)).toEqual([]);
-    expect(await loadPendingClientInvitations(db, 'acct', 'o1', admin)).toEqual([]);
+    expect(await loadPendingClientInvitationPage(db, 'acct', 'o1', admin, { limit: 15 })).toEqual({
+      items: [],
+      nextCursor: null,
+      total: 0,
+    });
   });
 
   it('keep only the invitations still waiting for an answer', async () => {
@@ -160,20 +165,11 @@ describe('administrator-only reads', () => {
       { id: 'i4', status: 'PENDING' },
     ];
     svc.listOrganizationInvitations.mockResolvedValue(ok(rows));
-    svc.listClientInvitations.mockResolvedValue(ok(rows));
     expect((await loadPendingTeamInvitations(db, 'acct', 'o1', admin)).map((i) => i.id)).toEqual([
       'i1',
       'i4',
     ]);
-    expect((await loadPendingClientInvitations(db, 'acct', 'o1', admin)).map((i) => i.id)).toEqual([
-      'i1',
-      'i4',
-    ]);
     expect(svc.listOrganizationInvitations).toHaveBeenCalledWith(db, {
-      actorAccountId: 'acct',
-      organizationId: 'o1',
-    });
-    expect(svc.listClientInvitations).toHaveBeenCalledWith(db, {
       actorAccountId: 'acct',
       organizationId: 'o1',
     });
@@ -533,7 +529,7 @@ describe('loadCaseListPage (WP-SB5)', () => {
       total: 40,
     });
     svc.referenceCodesFor.mockResolvedValue(new Map([['m2', 'C-2']]));
-    const page = await loadCaseListPage(db, 'acct', 'o1', { before: 'c1' });
+    const page = await loadCaseListPage(db, 'acct', 'o1', { limit: 15, before: 'c1' });
     expect(svc.listVisibleMissionsForMember).toHaveBeenCalledWith(db, 'o1', 'acct', {
       limit: 15,
       before: 'c1',
@@ -620,7 +616,9 @@ describe('loadCaseActivity (WP-SB5)', () => {
 
 describe('loadPendingClientInvitationPage (WP-SB5)', () => {
   it('is not even attempted for a non-administrator', async () => {
-    expect(await loadPendingClientInvitationPage(db, 'acct', 'o1', notAdmin)).toEqual({
+    expect(
+      await loadPendingClientInvitationPage(db, 'acct', 'o1', notAdmin, { limit: 15 }),
+    ).toEqual({
       items: [],
       nextCursor: null,
       total: 0,
@@ -632,7 +630,7 @@ describe('loadPendingClientInvitationPage (WP-SB5)', () => {
     svc.listClientInvitations.mockResolvedValue(
       ok({ items: [{ id: 'i1' }], nextCursor: null, total: 1 }),
     );
-    await loadPendingClientInvitationPage(db, 'acct', 'o1', admin, { before: 'c1' });
+    await loadPendingClientInvitationPage(db, 'acct', 'o1', admin, { limit: 15, before: 'c1' });
     expect(svc.listClientInvitations).toHaveBeenCalledWith(
       db,
       { actorAccountId: 'acct', organizationId: 'o1' },
@@ -643,7 +641,7 @@ describe('loadPendingClientInvitationPage (WP-SB5)', () => {
 
 describe('loadEvidenceRequestPage (WP-SB5)', () => {
   it('is not even attempted for a non-administrator', async () => {
-    const page = await loadEvidenceRequestPage(db, 'acct', 'o1', notAdmin);
+    const page = await loadEvidenceRequestPage(db, 'acct', 'o1', notAdmin, { limit: 15 });
     expect(page.items).toEqual([]);
     expect(svc.listEvidenceRequestsForOrgDetailed).not.toHaveBeenCalled();
   });
@@ -658,7 +656,10 @@ describe('loadEvidenceRequestPage (WP-SB5)', () => {
       }),
     );
     svc.referenceCodesFor.mockResolvedValue(new Map([['r1', 'R-1']]));
-    const page = await loadEvidenceRequestPage(db, 'acct', 'o1', admin, { view: 'review' });
+    const page = await loadEvidenceRequestPage(db, 'acct', 'o1', admin, {
+      view: 'review',
+      limit: 15,
+    });
     expect(svc.listEvidenceRequestsForOrgDetailed).toHaveBeenCalledWith(db, 'acct', 'o1', {
       limit: 15,
       statuses: ['RECEIVED', 'UNDER_REVIEW'],
@@ -670,7 +671,7 @@ describe('loadEvidenceRequestPage (WP-SB5)', () => {
 });
 
 describe('loadEvidenceRequests for one case (WP-SB5)', () => {
-  it('keeps only the requests that count on the case before reading any code', async () => {
+  it('keeps only the requests that name the case before reading any code', async () => {
     svc.listEvidenceRequestsForOrgDetailed.mockResolvedValue(
       ok([
         { id: 'named', missionId: 'm1', applicantId: 'ap1' },
@@ -682,7 +683,8 @@ describe('loadEvidenceRequests for one case (WP-SB5)', () => {
     const rows = await loadEvidenceRequests(db, 'acct', 'o1', admin, {
       forCase: { missionId: 'm1', applicantId: 'ap1' },
     });
-    expect(rows.map((r) => r.id)).toEqual(['named', 'traveller-wide']);
-    expect(svc.referenceCodesFor).toHaveBeenCalledWith(db, 'R', ['named', 'traveller-wide']);
+    // A traveller-wide request is never counted on one case (W0 structural flag 2).
+    expect(rows.map((r) => r.id)).toEqual(['named']);
+    expect(svc.referenceCodesFor).toHaveBeenCalledWith(db, 'R', ['named']);
   });
 });

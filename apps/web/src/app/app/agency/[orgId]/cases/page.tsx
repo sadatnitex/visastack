@@ -1,9 +1,8 @@
-import { summarizeCaseTriage } from '@visastack/services';
+import { isUuid, summarizeCaseTriage } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
-import { ShowMore } from '../../../../../components/show-more';
 import { EmptyState } from '../../../../../components/ui';
 import { depthCopy } from '../../../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../../../lib/ccd/depth-words';
@@ -13,17 +12,16 @@ import {
   SHOW_MAX,
   type SearchParamsRecord,
   firstParam,
-  nextShow,
   pagingHref,
-  parseCursor,
-  parseShow,
 } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
 import { caseNeedsYou } from '../case-needs';
 import { STAGE_LABELS } from '../case-search-form';
 import { caseTriageView } from '../case-triage';
 import {
+  AGENCY_LIST_SIZES,
   CASE_NOTES_STEP,
+  type OpenCase,
   loadCaseListPage,
   loadEvidenceRequests,
   loadMembers,
@@ -31,7 +29,9 @@ import {
   loadOrgAccess,
 } from '../console-data';
 import { MissionCollaboration } from '../mission-collaboration';
-import { OpenCaseFromLink } from './open-case-from-link';
+import { ListPager } from './list-pager';
+import { type ListKeys, type ListWindow, listWindow } from './list-window';
+import { CASE_ANCHOR, OpenCaseFromLink } from './open-case-from-link';
 
 export const metadata: Metadata = { title: 'Agency Cases' };
 
@@ -39,20 +39,22 @@ export const dynamic = 'force-dynamic';
 
 /** The address parameters this page reads. */
 const CASE_KEY = 'case';
-const BEFORE_KEY = 'before';
-const NOTES_KEY = 'notes';
-const NOTES_BEFORE_KEY = 'notesBefore';
-
-/** A case id as the address may carry it; anything else opens nothing and reads nothing. */
-const CASE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const LIST_KEYS: ListKeys = { show: 'show', before: 'before', from: 'from' };
+const NOTES_KEYS: ListKeys = { show: 'notes', before: 'notesBefore', from: 'notesFrom' };
+const NOTES_SIZES = { step: CASE_NOTES_STEP, max: SHOW_MAX } as const;
 
 /** Where a case's workspace opens on this page; the list and every other screen link here. */
 function caseHref(pathname: string, query: SearchParamsRecord, missionId: string): string {
   return pagingHref(
     pathname,
     query,
-    { case: missionId, notes: null, notesBefore: null },
-    `mission-${missionId}`,
+    {
+      [CASE_KEY]: missionId,
+      [NOTES_KEYS.show]: null,
+      [NOTES_KEYS.before]: null,
+      [NOTES_KEYS.from]: null,
+    },
+    `${CASE_ANCHOR}${missionId}`,
   );
 }
 
@@ -77,13 +79,11 @@ export default async function AgencyCasesPage({
   const { orgId } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
   const pathname = `/app/agency/${orgId}/cases`;
-  const before = parseCursor(query[BEFORE_KEY]);
+  const listPage = listWindow(query, LIST_KEYS, AGENCY_LIST_SIZES);
   const requested = firstParam(query[CASE_KEY]);
-  const openId = requested && CASE_ID.test(requested) ? requested.toLowerCase() : undefined;
-  const notesBefore = parseCursor(query[NOTES_BEFORE_KEY]);
-  const notesShown = notesBefore
-    ? SHOW_MAX
-    : parseShow(query[NOTES_KEY], { step: CASE_NOTES_STEP });
+  // A case id or nothing: anything else opens nothing and reads nothing.
+  const openId = requested && isUuid(requested) ? requested.toLowerCase() : undefined;
+  const notesPage = listWindow(query, NOTES_KEYS, NOTES_SIZES);
 
   const data = await withSession(async ({ db, accountId }) => {
     const access = await loadOrgAccess(db, accountId, orgId);
@@ -91,11 +91,14 @@ export default async function AgencyCasesPage({
     if (!access?.member) return null;
     const members = await loadMembers(db, accountId, orgId, access);
     const [list, open] = await Promise.all([
-      loadCaseListPage(db, accountId, orgId, { before }),
+      loadCaseListPage(db, accountId, orgId, {
+        limit: listPage.limit,
+        before: listPage.before,
+      }),
       openId
         ? loadOpenCase(db, accountId, orgId, members, openId, {
-            notesLimit: notesShown,
-            notesBefore,
+            notesLimit: notesPage.limit,
+            notesBefore: notesPage.before,
           })
         : Promise.resolve(null),
     ]);
@@ -121,11 +124,10 @@ export default async function AgencyCasesPage({
   });
 
   const open = data.open;
-  const listQuery: SearchParamsRecord = { ...query };
 
   return (
     <DepthScope family="agency-cases" depth={depth}>
-      {openId ? null : <OpenCaseFromLink />}
+      <OpenCaseFromLink />
       <DepthSwitch family="agency-cases" initial={depth} copy={depthWords} />
       <article className="card">
         <p className="card-kicker">Collaborate</p>
@@ -156,7 +158,7 @@ export default async function AgencyCasesPage({
                 return (
                   <li key={row.missionId} className="agency-case-list-row">
                     <Link
-                      href={caseHref(pathname, listQuery, row.missionId)}
+                      href={caseHref(pathname, query, row.missionId)}
                       className={`agency-case-list-link${isOpen ? ' agency-case-list-open' : ''}`}
                       aria-current={isOpen ? 'true' : undefined}
                     >
@@ -184,23 +186,20 @@ export default async function AgencyCasesPage({
                 );
               })}
             </ul>
-            <ShowMore
+            <ListPager
               id="agency-case-list-more"
               landOn="agency-case-list"
               pathname={pathname}
-              searchParams={listQuery}
-              next={data.list.nextCursor ? { before: data.list.nextCursor } : null}
+              query={query}
+              keys={LIST_KEYS}
+              sizes={AGENCY_LIST_SIZES}
+              window={listPage}
               shown={data.list.cases.length}
               total={data.list.total}
+              nextCursor={data.list.nextCursor}
               noun={{ one: 'case', other: 'cases' }}
+              newestLabel="Back to the Newest Cases"
             />
-            {before ? (
-              <p className="u-mt-050">
-                <Link href={pagingHref(pathname, listQuery, { before: null }, 'agency-case-list')}>
-                  Back to the Newest Cases
-                </Link>
-              </p>
-            ) : null}
           </>
         )}
       </article>
@@ -225,8 +224,7 @@ export default async function AgencyCasesPage({
             members={data.members}
             open={open}
             requests={data.requests}
-            notesShown={notesShown}
-            notesBefore={notesBefore}
+            notesPage={notesPage}
           />
         </article>
       ) : !empty && !openId ? (
@@ -238,8 +236,6 @@ export default async function AgencyCasesPage({
   );
 }
 
-type PageData = NonNullable<Awaited<ReturnType<typeof loadOpenCase>>>;
-
 function OpenCaseWorkspace({
   orgId,
   pathname,
@@ -249,8 +245,7 @@ function OpenCaseWorkspace({
   members,
   open,
   requests,
-  notesShown,
-  notesBefore,
+  notesPage,
 }: {
   readonly orgId: string;
   readonly pathname: string;
@@ -258,10 +253,9 @@ function OpenCaseWorkspace({
   readonly admin: boolean;
   readonly viewerAccountId: string;
   readonly members: readonly { readonly accountId: string; readonly email: string }[];
-  readonly open: PageData;
+  readonly open: OpenCase;
   readonly requests: Awaited<ReturnType<typeof loadEvidenceRequests>>;
-  readonly notesShown: number;
-  readonly notesBefore: string | undefined;
+  readonly notesPage: ListWindow;
 }) {
   const summary = summarizeCaseTriage({
     missionId: open.missionId,
@@ -282,13 +276,6 @@ function OpenCaseWorkspace({
     requirementLabels: new Map(open.requirements.map((r) => [r.id, r.label])),
     requestsIncluded: admin,
   });
-  // Show More grows the notes 10 at a time up to the largest page; past that, older pages follow.
-  const grown = notesBefore ? null : nextShow(notesShown, { step: CASE_NOTES_STEP });
-  const notesNext = open.notesNextCursor
-    ? grown !== null
-      ? { notes: grown }
-      : { notesBefore: open.notesNextCursor, notes: null }
-    : null;
   return (
     <>
       <MissionCollaboration
@@ -327,36 +314,22 @@ function OpenCaseWorkspace({
           triage: summary,
         })}
       />
+      {/* The notes list ends inside the workspace (#notes-<id>); this grows it 10 at a time. */}
       <div className="agency-case-notes-more" {...atLevel('everything')}>
-        <ShowMore
+        <ListPager
           id={`notes-more-${open.missionId}`}
           landOn={`notes-${open.missionId}`}
           pathname={pathname}
-          searchParams={query}
-          next={notesNext}
+          query={query}
+          keys={NOTES_KEYS}
+          sizes={NOTES_SIZES}
+          window={notesPage}
           shown={open.notes.length}
           total={open.notesTotal}
+          nextCursor={open.notesNextCursor}
           noun={{ one: 'note', other: 'notes' }}
-          label={
-            notesBefore || (notesNext && 'notesBefore' in notesNext)
-              ? 'Show Older Entries'
-              : 'Show More'
-          }
+          newestLabel="Back to the Newest Notes"
         />
-        {notesBefore ? (
-          <p className="u-mt-050">
-            <Link
-              href={pagingHref(
-                pathname,
-                query,
-                { notesBefore: null, notes: null },
-                `notes-${open.missionId}`,
-              )}
-            >
-              Back to the Newest Notes
-            </Link>
-          </p>
-        ) : null}
       </div>
     </>
   );

@@ -1,22 +1,19 @@
-import { isAcceptableInvitationContact } from '@visastack/services';
+import { isAcceptableInvitationContact, isUuid } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { CollapsibleGroup } from '../../../../../components/collapsible-group';
 import { ReferenceCode } from '../../../../../components/reference-code';
-import { ShowMore } from '../../../../../components/show-more';
 import { EmptyState } from '../../../../../components/ui';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { evidenceDocumentGroups, evidenceFieldGroups } from '../../../../../lib/master-profile';
-import {
-  type SearchParamsRecord,
-  firstParam,
-  pagingHref,
-  parseCursor,
-} from '../../../../../lib/paging';
+import { type SearchParamsRecord, firstParam, pagingHref } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
+import { ListPager } from '../cases/list-pager';
+import { type ListKeys, listWindow } from '../cases/list-window';
 import { ClientInvitationForm } from '../client-invitation-form';
 import { ClientInvitationRevokeButton } from '../client-invitation-revoke-button';
 import {
+  AGENCY_LIST_SIZES,
+  type EvidenceRequestRow,
   REQUEST_VIEWS,
   type RequestViewKey,
   loadApplicants,
@@ -30,15 +27,23 @@ import { EVIDENCE_DECIDABLE_STATUSES, REQ_STATUS } from '../console-format';
 import { requestItemLabel } from '../do-next';
 import { EvidenceRequestActions } from '../evidence-request-actions';
 import { RequestEvidenceForm } from '../request-evidence-form';
+import { FormGroup } from './form-group';
+import { OpenRequestFromLink } from './open-request-from-link';
 
 export const metadata: Metadata = { title: 'Agency Clients' };
 
 export const dynamic = 'force-dynamic';
 
 /** The address parameters this page reads. */
-const INVITES_BEFORE_KEY = 'invitesBefore';
-const REQUESTS_BEFORE_KEY = 'requestsBefore';
+const INVITE_KEYS: ListKeys = { show: 'invites', before: 'invitesBefore', from: 'invitesFrom' };
+const REQUEST_KEYS: ListKeys = {
+  show: 'requests',
+  before: 'requestsBefore',
+  from: 'requestsFrom',
+};
 const STATUS_KEY = 'status';
+/** One request a link points at (Do Next, the workspace search), shown first when off the page. */
+const REQUEST_KEY = 'request';
 
 /**
  * Clients: inviting a traveller as a client, asking an applicant for evidence,
@@ -57,23 +62,60 @@ export default async function AgencyClientsPage({
 }) {
   const { orgId } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
-  const invitesBefore = parseCursor(query[INVITES_BEFORE_KEY]);
-  const requestsBefore = parseCursor(query[REQUESTS_BEFORE_KEY]);
+  const invitePage = listWindow(query, INVITE_KEYS, AGENCY_LIST_SIZES);
+  const requestPage = listWindow(query, REQUEST_KEYS, AGENCY_LIST_SIZES);
   const statusParam = firstParam(query[STATUS_KEY]);
   const view: RequestViewKey | undefined = REQUEST_VIEWS.find((v) => v.key === statusParam)?.key;
+  const linked = firstParam(query[REQUEST_KEY]);
+  const linkedId = linked && isUuid(linked) ? linked.toLowerCase() : undefined;
 
   const data = await withSession(async ({ db, accountId }) => {
     const access = await loadOrgAccess(db, accountId, orgId);
     if (!access?.member) return null;
     if (!access.admin) return { admin: false as const };
     const members = await loadMembers(db, accountId, orgId, access);
-    const [clientInvitations, requests, applicants, cases] = await Promise.all([
-      loadPendingClientInvitationPage(db, accountId, orgId, access, { before: invitesBefore }),
-      loadEvidenceRequestPage(db, accountId, orgId, access, { view, before: requestsBefore }),
-      loadApplicants(db, orgId, access),
-      loadVisibleCaseList(db, accountId, orgId),
-    ]);
-    return { admin: true as const, members, clientInvitations, requests, applicants, cases };
+    const [clientInvitations, newestInvitations, requests, linkedRequest, applicants, cases] =
+      await Promise.all([
+        loadPendingClientInvitationPage(db, accountId, orgId, access, {
+          limit: invitePage.limit,
+          before: invitePage.before,
+        }),
+        // On an older page, the newest invitations are read too: an invitation just created is
+        // among them, so the form keeps showing its link while it is still pending.
+        invitePage.before
+          ? loadPendingClientInvitationPage(db, accountId, orgId, access, {
+              limit: AGENCY_LIST_SIZES.step,
+            })
+          : Promise.resolve(null),
+        loadEvidenceRequestPage(db, accountId, orgId, access, {
+          view,
+          limit: requestPage.limit,
+          before: requestPage.before,
+        }),
+        linkedId
+          ? loadEvidenceRequestPage(db, accountId, orgId, access, { limit: 1, only: linkedId })
+          : Promise.resolve(null),
+        loadApplicants(db, orgId, access),
+        loadVisibleCaseList(db, accountId, orgId),
+      ]);
+    const pendingInvitationIds = [
+      ...new Set(
+        [...clientInvitations.items, ...(newestInvitations?.items ?? [])].map((i) => i.id),
+      ),
+    ];
+    return {
+      admin: true as const,
+      members,
+      clientInvitations,
+      pendingInvitationIds,
+      requests,
+      // Shown first only when the list on this page does not already hold it.
+      linkedRequest: requests.items.some((r) => r.id === linkedRequest?.items[0]?.id)
+        ? null
+        : (linkedRequest?.items[0] ?? null),
+      applicants,
+      cases,
+    };
   });
   if (!data) return null;
 
@@ -95,12 +137,18 @@ export default async function AgencyClientsPage({
     pagingHref(
       pathname,
       query,
-      { [STATUS_KEY]: key, [REQUESTS_BEFORE_KEY]: null },
+      {
+        [STATUS_KEY]: key,
+        [REQUEST_KEYS.show]: null,
+        [REQUEST_KEYS.before]: null,
+        [REQUEST_KEYS.from]: null,
+      },
       'agency-evidence-requests',
     );
 
   return (
     <>
+      <OpenRequestFromLink />
       <article className="card u-mb-150">
         <p className="card-kicker">Intake</p>
         <h2 className="card-title">Clients</h2>
@@ -147,32 +195,20 @@ export default async function AgencyClientsPage({
                 </div>
               ))}
             </div>
-            <ShowMore
+            <ListPager
               id="client-invitation-more"
               landOn="client-invitation-list"
               pathname={pathname}
-              searchParams={query}
-              next={
-                invitations.nextCursor ? { [INVITES_BEFORE_KEY]: invitations.nextCursor } : null
-              }
+              query={query}
+              keys={INVITE_KEYS}
+              sizes={AGENCY_LIST_SIZES}
+              window={invitePage}
               shown={invitations.items.length}
               total={invitations.total}
+              nextCursor={invitations.nextCursor}
               noun={{ one: 'pending invitation', other: 'pending invitations' }}
+              newestLabel="Back to the Newest Invitations"
             />
-            {invitesBefore ? (
-              <p className="u-mt-050">
-                <Link
-                  href={pagingHref(
-                    pathname,
-                    query,
-                    { [INVITES_BEFORE_KEY]: null },
-                    'client-invitation-list',
-                  )}
-                >
-                  Back to the Newest Invitations
-                </Link>
-              </p>
-            ) : null}
           </>
         ) : (
           <div className="u-mb-150">
@@ -188,9 +224,9 @@ export default async function AgencyClientsPage({
           </div>
         )}
         {/* Opens on its own while nobody is invited yet, and for a link to #invite-client. */}
-        <CollapsibleGroup id="invite-client" title="Invite a Client" open={invitations.total === 0}>
+        <FormGroup id="invite-client" title="Invite a Client" openAtFirst={invitations.total === 0}>
           <ClientInvitationForm
-            pendingInvitationIds={invitations.items.map((invitation) => invitation.id)}
+            pendingInvitationIds={data.pendingInvitationIds}
             organizationId={orgId}
             members={data.members.map((m) => ({
               accountId: m.accountId,
@@ -198,7 +234,7 @@ export default async function AgencyClientsPage({
               active: m.active,
             }))}
           />
-        </CollapsibleGroup>
+        </FormGroup>
       </article>
 
       <article className="card u-mb-150">
@@ -208,10 +244,10 @@ export default async function AgencyClientsPage({
           Ask a traveller for a specific field or document. They decide whether to fulfil it.
         </p>
         {/* Opens on its own while no request exists yet, and for a link to #ask-for-evidence. */}
-        <CollapsibleGroup
+        <FormGroup
           id="ask-for-evidence"
           title="Ask for a Field or Document"
-          open={requests.viewCounts.all === 0}
+          openAtFirst={requests.viewCounts.all === 0}
         >
           <RequestEvidenceForm
             organizationId={orgId}
@@ -224,7 +260,7 @@ export default async function AgencyClientsPage({
               applicantName: m.applicantName,
             }))}
           />
-        </CollapsibleGroup>
+        </FormGroup>
       </article>
 
       <article className="card">
@@ -263,77 +299,36 @@ export default async function AgencyClientsPage({
                 </Link>
               ))}
             </nav>
+            {data.linkedRequest ? (
+              <div className="rows u-mt-050" aria-label="The request you followed a link to">
+                <RequestRow orgId={orgId} req={data.linkedRequest} />
+              </div>
+            ) : null}
             {requests.items.length === 0 ? (
               <p className="card-body u-mt-100">No requests in this view.</p>
             ) : (
-              <div className="rows u-mt-050" id="agency-evidence-request-list">
-                {requests.items.map((req) => {
-                  const rb = REQ_STATUS[req.status] ?? {
-                    label: req.status,
-                    tone: 'badge-neutral',
-                  };
-                  const target = requestItemLabel(req);
-                  return (
-                    <div
-                      className="row"
-                      key={req.id}
-                      // Do Next links straight to a request waiting for review.
-                      id={`request-${req.id}`}
-                      style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          gap: '0.75rem',
-                        }}
-                      >
-                        <span className="row-key">
-                          {req.kind === 'FIELD' ? 'Field' : 'Document'}: {target}
-                        </span>
-                        <span className={`badge ${rb.tone}`}>{rb.label}</span>
-                      </div>
-                      <span className="muted u-fs-085">
-                        {req.applicantName}
-                        {req.dueDate ? ` · due ${formatDateOnly(req.dueDate)}` : ''}
-                      </span>
-                      <ReferenceCode code={req.referenceCode} label="Request Reference" />
-                      {EVIDENCE_DECIDABLE_STATUSES.has(req.status) ? (
-                        <EvidenceRequestActions
-                          organizationId={orgId}
-                          requestId={req.id}
-                          status={req.status}
-                        />
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
+              <>
+                <div className="rows u-mt-050" id="agency-evidence-request-list">
+                  {requests.items.map((req) => (
+                    <RequestRow key={req.id} orgId={orgId} req={req} />
+                  ))}
+                </div>
+                <ListPager
+                  id="agency-evidence-request-more"
+                  landOn="agency-evidence-request-list"
+                  pathname={pathname}
+                  query={query}
+                  keys={REQUEST_KEYS}
+                  sizes={AGENCY_LIST_SIZES}
+                  window={requestPage}
+                  shown={requests.items.length}
+                  total={requests.total}
+                  nextCursor={requests.nextCursor}
+                  noun={{ one: 'request', other: 'requests' }}
+                  newestLabel="Back to the Newest Requests"
+                />
+              </>
             )}
-            <ShowMore
-              id="agency-evidence-request-more"
-              landOn="agency-evidence-request-list"
-              pathname={pathname}
-              searchParams={query}
-              next={requests.nextCursor ? { [REQUESTS_BEFORE_KEY]: requests.nextCursor } : null}
-              shown={requests.items.length}
-              total={requests.total}
-              noun={{ one: 'request', other: 'requests' }}
-            />
-            {requestsBefore ? (
-              <p className="u-mt-050">
-                <Link
-                  href={pagingHref(
-                    pathname,
-                    query,
-                    { [REQUESTS_BEFORE_KEY]: null },
-                    'agency-evidence-requests',
-                  )}
-                >
-                  Back to the Newest Requests
-                </Link>
-              </p>
-            ) : null}
           </>
         )}
         <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '1rem' }}>
@@ -342,5 +337,34 @@ export default async function AgencyClientsPage({
         </p>
       </article>
     </>
+  );
+}
+
+/** One evidence request: what is asked, its status, who for, its code and any decision due. */
+function RequestRow({ orgId, req }: { readonly orgId: string; readonly req: EvidenceRequestRow }) {
+  const rb = REQ_STATUS[req.status] ?? { label: req.status, tone: 'badge-neutral' };
+  const target = requestItemLabel(req);
+  return (
+    <div
+      className="row"
+      // Do Next links straight to a request waiting for review.
+      id={`request-${req.id}`}
+      style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+        <span className="row-key">
+          {req.kind === 'FIELD' ? 'Field' : 'Document'}: {target}
+        </span>
+        <span className={`badge ${rb.tone}`}>{rb.label}</span>
+      </div>
+      <span className="muted u-fs-085">
+        {req.applicantName}
+        {req.dueDate ? ` · due ${formatDateOnly(req.dueDate)}` : ''}
+      </span>
+      <ReferenceCode code={req.referenceCode} label="Request Reference" />
+      {EVIDENCE_DECIDABLE_STATUSES.has(req.status) ? (
+        <EvidenceRequestActions organizationId={orgId} requestId={req.id} status={req.status} />
+      ) : null}
+    </div>
   );
 }

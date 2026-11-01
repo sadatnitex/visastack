@@ -799,10 +799,11 @@ export async function revokeClientInvitation(
 }
 
 /**
- * WP-SB5: one page of the invitations the full read below returns, newest first (time, then id), at most `limit`
- * (clamped to 1 to 100), optionally in one status only, with how many match in all. The same
- * OWNER/ADMIN check and the same organization filter apply on every page; `before` is the previous
- * page's `nextCursor`, and one made for another organization, or malformed, gives the first page.
+ * WP-SB5: one page of the invitations the full read below returns, newest first (time, then id),
+ * at most `limit` (clamped to 1 to 100), optionally in one status only, with how many match in
+ * all. The same OWNER/ADMIN check and the same organization filter apply on every page; `before`
+ * is the previous page's `nextCursor`, and one made for another organization, or malformed, gives
+ * the first page.
  */
 export async function listClientInvitations(
   db: Db,

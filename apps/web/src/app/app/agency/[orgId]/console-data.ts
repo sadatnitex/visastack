@@ -122,8 +122,9 @@ export async function loadEvidenceRequests(
   options: {
     readonly withFileStates?: boolean;
     /**
-     * WP-SB5: only the requests that count on this one case (those naming it, and those made for
-     * its traveller with no case), narrowed before any file or reference code is read.
+     * WP-SB5: only the requests that name this one case, narrowed before any file or reference
+     * code is read. A request made for the traveller with no case is left out: the case summary
+     * never counts one (W0 structural flag 2).
      */
     readonly forCase?: { readonly missionId: string; readonly applicantId: string };
   } = {},
@@ -133,8 +134,8 @@ export async function loadEvidenceRequests(
   if (!result.ok) return [];
   const forCase = options.forCase;
   const listed = forCase
-    ? result.value.filter((r) =>
-        r.missionId ? r.missionId === forCase.missionId : r.applicantId === forCase.applicantId,
+    ? result.value.filter(
+        (r) => r.missionId === forCase.missionId && r.applicantId === forCase.applicantId,
       )
     : result.value;
   // One registry read for the whole list (ADR 0018), alongside the file states.
@@ -207,21 +208,6 @@ export async function loadPendingTeamInvitations(
   return result.ok ? result.value.filter((i) => i.status === 'PENDING') : [];
 }
 
-/** Pending client invitations: administrator data. */
-export async function loadPendingClientInvitations(
-  db: Db,
-  accountId: string,
-  orgId: string,
-  access: Pick<OrgAccess, 'admin'>,
-) {
-  if (!access.admin) return [];
-  const result = await listClientInvitations(db, {
-    actorAccountId: accountId,
-    organizationId: orgId,
-  });
-  return result.ok ? result.value.filter((i) => i.status === 'PENDING') : [];
-}
-
 /** The applicants the "Request Evidence" form can target: only ever shown to an administrator. */
 export async function loadApplicants(db: Db, orgId: string, access: Pick<OrgAccess, 'admin'>) {
   return access.admin ? listApplicantsForOrganization(db, orgId) : [];
@@ -286,8 +272,11 @@ export async function loadCases(db: Db, accountId: string, orgId: string) {
   };
 }
 
-/** The Cases page's list step (WP-SB5): agency lists show 15 rows, then the next page. */
-export const CASE_LIST_STEP = 15;
+/**
+ * Agency list sizes (WP-SB5): a list shows 15 rows and grows 15 at a time up to 90, then older
+ * pages of 90 follow (the largest step under the 100-row server cap).
+ */
+export const AGENCY_LIST_SIZES = { step: 15, max: 90 } as const;
 /** The Cases page shows this many notes on the open case, then Show More (WP-SB5). */
 export const CASE_NOTES_STEP = 10;
 
@@ -301,10 +290,10 @@ export async function loadCaseListPage(
   db: Db,
   accountId: string,
   orgId: string,
-  page: { readonly before?: string | undefined } = {},
+  page: { readonly limit: number; readonly before?: string | undefined },
 ) {
   const visible = await listVisibleMissionsForMember(db, orgId, accountId, {
-    limit: CASE_LIST_STEP,
+    limit: page.limit,
     ...(page.before ? { before: page.before } : {}),
   });
   const codes = await referenceCodesFor(
@@ -546,22 +535,24 @@ export async function loadCaseActivity(
   const more = merged.length > kept.length || perCase.some((c) => c.more);
   const last = kept.at(-1);
   return {
-    cases: selected.map((m) => ({ missionId: m.missionId, title: m.title })),
+    cases: selected.map((m) => ({ missionId: m.missionId, title: caseName(m) })),
     caseLimitReached: visible.length > ACTIVITY_CASE_LIMIT,
     nextCursor: more && last ? last.note.cursor : null,
     notes: kept.map(({ note, mission }) => ({
       id: note.id,
       createdAt: note.createdAt,
       body: note.body,
-      caseTitle: mission.title,
+      // The traveller's name too, so two cases with the same title stay apart.
+      caseTitle: caseName(mission),
       missionId: mission.missionId,
       authorEmail: members.find((m) => m.accountId === note.authorAccountId)?.email ?? null,
     })),
   };
 }
 
-/** The Clients page's list step (WP-SB5). */
-export const CLIENT_LIST_STEP = 15;
+function caseName(m: { readonly applicantName: string; readonly title: string }): string {
+  return `${m.applicantName} · ${m.title}`;
+}
 
 /** One page of pending client invitations (WP-SB5): administrator data, empty for anyone else. */
 export async function loadPendingClientInvitationPage(
@@ -569,7 +560,7 @@ export async function loadPendingClientInvitationPage(
   accountId: string,
   orgId: string,
   access: Pick<OrgAccess, 'admin'>,
-  page: { readonly before?: string | undefined } = {},
+  page: { readonly limit: number; readonly before?: string | undefined },
 ): Promise<{
   readonly items: readonly ClientInvitation[];
   readonly nextCursor: string | null;
@@ -580,7 +571,7 @@ export async function loadPendingClientInvitationPage(
   const result = await listClientInvitations(
     db,
     { actorAccountId: accountId, organizationId: orgId },
-    { limit: CLIENT_LIST_STEP, status: 'PENDING', ...(page.before ? { before: page.before } : {}) },
+    { limit: page.limit, status: 'PENDING', ...(page.before ? { before: page.before } : {}) },
   );
   return result.ok ? result.value : none;
 }
@@ -608,7 +599,13 @@ export async function loadEvidenceRequestPage(
   accountId: string,
   orgId: string,
   access: Pick<OrgAccess, 'admin'>,
-  page: { readonly view?: RequestViewKey | undefined; readonly before?: string | undefined } = {},
+  page: {
+    readonly view?: RequestViewKey | undefined;
+    readonly limit: number;
+    readonly before?: string | undefined;
+    /** One request id: the page holds that request alone, when it is this organization's. */
+    readonly only?: string | undefined;
+  },
 ): Promise<{
   readonly items: EvidenceRequestRow[];
   readonly nextCursor: string | null;
@@ -620,9 +617,10 @@ export async function loadEvidenceRequestPage(
   if (!access.admin) return none;
   const view = REQUEST_VIEWS.find((v) => v.key === page.view);
   const result = await listEvidenceRequestsForOrgDetailed(db, accountId, orgId, {
-    limit: CLIENT_LIST_STEP,
+    limit: page.limit,
     ...(view ? { statuses: view.statuses } : {}),
     ...(page.before ? { before: page.before } : {}),
+    ...(page.only ? { only: page.only } : {}),
   });
   if (!result.ok) return none;
   for (const [status, count] of Object.entries(result.value.statusCounts)) {
@@ -647,5 +645,4 @@ export async function loadEvidenceRequestPage(
 }
 
 export type CaseDetail = Awaited<ReturnType<typeof loadCases>>['cases'][number];
-export type CaseListRow = Awaited<ReturnType<typeof loadCaseListPage>>['cases'][number];
 export type OpenCase = NonNullable<Awaited<ReturnType<typeof loadOpenCase>>>;

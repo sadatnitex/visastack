@@ -22,10 +22,14 @@ vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'member@example.com' }),
 }));
-vi.mock('../console-data', async (importOriginal) => ({
-  ...mocks,
-  CASE_NOTES_STEP: (await importOriginal<typeof import('../console-data')>()).CASE_NOTES_STEP,
-}));
+vi.mock('../console-data', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../console-data')>();
+  return {
+    ...mocks,
+    AGENCY_LIST_SIZES: actual.AGENCY_LIST_SIZES,
+    CASE_NOTES_STEP: actual.CASE_NOTES_STEP,
+  };
+});
 vi.mock('../../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('../mission-collaboration', async () => {
   const { stub } = await import('../../../../../lib/next-mocks.test-support');
@@ -154,7 +158,10 @@ describe('agency Cases', () => {
       M1,
       { notesLimit: 10, notesBefore: undefined },
     );
-    expect(mocks.loadCaseListPage).toHaveBeenCalledWith({}, 'acct-1', 'o1', { before: undefined });
+    expect(mocks.loadCaseListPage).toHaveBeenCalledWith({}, 'acct-1', 'o1', {
+      limit: 15,
+      before: undefined,
+    });
     expect(mocks.loadCases).not.toHaveBeenCalled();
     expect(mocks.loadEvidenceRequests).toHaveBeenCalledWith(
       {},
@@ -230,7 +237,7 @@ describe('agency Cases', () => {
 });
 
 describe('agency Cases: within the scroll budget (WP-SB5)', () => {
-  it('shows 15 cases of 200 with Show More to the next page, keeping the open case', async () => {
+  it('shows 15 cases of 200 with Show More that grows by 15, keeping the open case', async () => {
     const rows = Array.from({ length: 15 }, (_, i) => ({
       missionId: `${String(i).padStart(8, '0')}-0000-4000-8000-000000000000`,
       applicantName: `Traveller ${i}`,
@@ -241,15 +248,38 @@ describe('agency Cases: within the scroll budget (WP-SB5)', () => {
     const html = await renderServer(Page(opening({ case: M1 })));
     expect(html.match(/class="agency-case-list-row"/g)).toHaveLength(15);
     expect(textOf(html)).toContain('Showing 15 of 200 cases.');
-    expect(html).toContain(
-      `href="/app/agency/o1/cases?case=${M1}&amp;before=list-next#agency-case-list"`,
-    );
+    expect(html).toContain(`href="/app/agency/o1/cases?case=${M1}&amp;show=30#agency-case-list"`);
   });
 
-  it('passes the list cursor on and offers a way back to the newest cases', async () => {
-    const html = await renderServer(Page(opening({ before: 'abc_123' })));
-    expect(mocks.loadCaseListPage).toHaveBeenCalledWith({}, 'acct-1', 'o1', { before: 'abc_123' });
-    expect(textOf(html)).toContain('Back to the Newest Cases');
+  it('past 90 cases continues with older pages of 90, saying exactly which cases show', async () => {
+    const rows = Array.from({ length: 90 }, (_, i) => ({
+      missionId: `${String(i).padStart(8, '0')}-0000-4000-8000-000000000000`,
+      applicantName: `Traveller ${i}`,
+    }));
+    mocks.loadCaseListPage.mockResolvedValue(listOf(true, rows, { nextCursor: 'c90', total: 200 }));
+    const first = await renderServer(Page(opening({ show: '90' })));
+    expect(mocks.loadCaseListPage).toHaveBeenCalledWith({}, 'acct-1', 'o1', {
+      limit: 90,
+      before: undefined,
+    });
+    expect(textOf(first)).toContain('Show Older Entries');
+    expect(first).toContain('href="/app/agency/o1/cases?before=c90&amp;from=91#agency-case-list"');
+
+    mocks.loadCaseListPage.mockResolvedValue(
+      listOf(true, rows, { nextCursor: 'c180', total: 200 }),
+    );
+    const older = await renderServer(Page(opening({ before: 'c90', from: '91' })));
+    expect(mocks.loadCaseListPage).toHaveBeenLastCalledWith({}, 'acct-1', 'o1', {
+      limit: 90,
+      before: 'c90',
+    });
+    const text = textOf(older);
+    expect(text).toContain('Showing cases 91 to 180 of 200.');
+    expect(text).toContain('Back to the Newest Cases');
+    expect(older).toContain(
+      'href="/app/agency/o1/cases?before=c180&amp;from=181#agency-case-list"',
+    );
+    expect(older).toContain('href="/app/agency/o1/cases#agency-case-list"');
   });
 
   it('caps the open case at 10 notes, with Show More that grows by 10', async () => {
@@ -270,7 +300,13 @@ describe('agency Cases: within the scroll budget (WP-SB5)', () => {
 
   it('reads more notes when asked, and past 100 continues with older pages', async () => {
     mocks.loadOpenCase.mockResolvedValue(
-      openOf(aCase(M1, 'Rahim Uddin'), { notesTotal: 400, notesNextCursor: 'older' }),
+      openOf(
+        {
+          ...aCase(M1, 'Rahim Uddin'),
+          notes: Array.from({ length: 100 }, (_, i) => ({ id: `n${i}` })),
+        } as never,
+        { notesTotal: 400, notesNextCursor: 'older' },
+      ),
     );
     const html = await renderServer(Page(opening({ case: M1, notes: '100' })));
     expect(mocks.loadOpenCase.mock.calls[0]?.[5]).toEqual({
@@ -278,7 +314,7 @@ describe('agency Cases: within the scroll budget (WP-SB5)', () => {
       notesBefore: undefined,
     });
     expect(html).toContain(
-      `href="/app/agency/o1/cases?case=${M1}&amp;notesBefore=older#notes-${M1}"`,
+      `href="/app/agency/o1/cases?case=${M1}&amp;notesBefore=older&amp;notesFrom=101#notes-${M1}"`,
     );
     expect(textOf(html)).toContain('Show Older Entries');
     await renderServer(Page(opening({ case: M1, notesBefore: 'older' })));

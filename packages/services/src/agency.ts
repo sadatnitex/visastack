@@ -1144,12 +1144,13 @@ export interface OrgCaseSummary {
 }
 
 /**
- * WP-SB5: one page of the cases the full read below returns, newest opened first (opening time, then id), at most
- * `limit` (clamped to 1 to 100), with how many cases this actor may see in all. `before` is the
- * previous page's `nextCursor`; one made for another organization, or malformed, gives the first
- * page. `only` narrows the page to one case, and only when that case is already in the actor's
- * visible set: the way the Cases page opens a single case without reading any other. The
- * visibility rule is exactly the full read's; the cursor only says where the last page stopped.
+ * WP-SB5: one page of the cases the full read below returns, newest opened first (opening time,
+ * then id), at most `limit` (clamped to 1 to 100), with how many cases this actor may see in all.
+ * `before` is the previous page's `nextCursor`; one made for another organization, or malformed,
+ * gives the first page. `only` narrows the page to one case, and only when that case is already
+ * in the actor's visible set: the way the Cases page opens a single case without reading any
+ * other. The visibility rule is exactly the full read's; the cursor only says where the last page
+ * stopped.
  */
 export async function listVisibleMissionsForMember(
   db: Db,
@@ -1461,13 +1462,13 @@ export async function addNote(
 }
 
 /**
- * WP-SB5: one page of the notes the full read below returns, newest first (time, then id), at most `limit` (clamped to
- * 1 to 100), under the same read check and the same visibility rule. `before` is the previous
- * page's `nextCursor`. The cursor belongs to this organization's notes, not one case, so the
- * Activity page can page several cases' notes as one list (each note carries its own cursor for
- * that); one made for another organization, or
- * malformed, gives the first page. `withTotal` also counts the notes this organization may read on
- * the case. A reader without access gets an empty page.
+ * WP-SB5: one page of the notes the full read below returns, newest first (time, then id), at
+ * most `limit` (clamped to 1 to 100), under the same read check and the same visibility rule.
+ * `before` is the previous page's `nextCursor`. The cursor belongs to this organization's notes,
+ * not one case, so the Activity page can page several cases' notes as one list (each note carries
+ * its own cursor for that); one made for another organization, or malformed, gives the first
+ * page. `withTotal` also counts the notes this organization may read on the case. A reader without
+ * access gets an empty page.
  */
 export async function listNotes(
   db: Db,
@@ -1954,12 +1955,12 @@ export interface EvidenceRequestWithApplicant extends EvidenceRequest {
 }
 
 /**
- * WP-SB5: one page of the requests the full read below returns, newest first (time, then id), at most `limit` (clamped
- * to 1 to 100), optionally only the given statuses, with how many match and how many of each
- * status the organization holds. The same administrator check and the same case rules decide
- * which requests exist at all; names are read only for the requests on the page. `before` is the
- * previous page's `nextCursor`; one made for another organization, or malformed, gives the first
- * page.
+ * WP-SB5: one page of the requests the full read below returns, newest first (time, then id), at
+ * most `limit` (clamped to 1 to 100), optionally only the given statuses (or the one request
+ * `only` names), with how many match and how many of each status the organization holds. The same
+ * administrator check and the same case rules decide which requests exist at all; names are read
+ * only for the requests on the page. `before` is the previous page's `nextCursor`; one made for
+ * another organization, or malformed, gives the first page.
  */
 export async function listEvidenceRequestsForOrgDetailed(
   db: Db,
@@ -1989,6 +1990,7 @@ export async function listEvidenceRequestsForOrgDetailed(
   const wanted = options.statuses?.length ? new Set<string>(options.statuses) : null;
   const matching = listed.value
     .filter((request) => wanted === null || wanted.has(request.status))
+    .filter((request) => options.only === undefined || request.id === options.only)
     .map((request) => ({ request, at: request.createdAt.toISOString() }))
     // The same order the cursor compares in: time, then id, both newest first.
     .sort((a, b) =>
@@ -2020,6 +2022,8 @@ export async function listEvidenceRequestsForOrgDetailed(
 export interface EvidenceRequestsPageRequest extends PageRequest {
   /** Only requests in these statuses; empty or left out means every status. */
   readonly statuses?: readonly EvidenceRequest['status'][];
+  /** One request id: the page holds that request alone, when it is among the organization's. */
+  readonly only?: string;
 }
 
 /** WP-SB5: one page of an organization's evidence requests. */

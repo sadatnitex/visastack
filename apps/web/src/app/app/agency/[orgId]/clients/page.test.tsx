@@ -19,10 +19,14 @@ vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'admin@example.com' }),
 }));
-vi.mock('../console-data', async (importOriginal) => ({
-  ...mocks,
-  REQUEST_VIEWS: (await importOriginal<typeof import('../console-data')>()).REQUEST_VIEWS,
-}));
+vi.mock('../console-data', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../console-data')>();
+  return {
+    ...mocks,
+    AGENCY_LIST_SIZES: actual.AGENCY_LIST_SIZES,
+    REQUEST_VIEWS: actual.REQUEST_VIEWS,
+  };
+});
 vi.mock('../client-invitation-form', async () => {
   const { stub } = await import('../../../../../lib/next-mocks.test-support');
   return { ClientInvitationForm: stub('ClientInvitationForm') };
@@ -281,44 +285,56 @@ describe('agency Clients: within the scroll budget (WP-SB5)', () => {
     expiresAt: '2099-11-01T00:00:00Z',
   });
 
-  it('shows 15 pending invitations, the total and a Show More link to the next page', async () => {
+  it('shows 15 pending invitations, the total and Show More that grows by 15', async () => {
     mocks.loadPendingClientInvitationPage.mockResolvedValue(
       invitationPage(
         Array.from({ length: 15 }, (_, i) => invitation(i)),
-        {
-          nextCursor: 'inv-next',
-          total: 400,
-        },
+        { nextCursor: 'inv-next', total: 400 },
       ),
     );
     const html = await renderServer(Page(props));
     expect(stubProps(html, 'ClientInvitationRevokeButton')).toHaveLength(15);
     expect(textOf(html)).toContain('Showing 15 of 400 pending invitations.');
-    expect(html).toContain(
-      'href="/app/agency/o1/clients?invitesBefore=inv-next#client-invitation-list"',
-    );
-    expect(mocks.loadPendingClientInvitationPage).toHaveBeenCalledWith(
-      {},
-      'acct-1',
-      'o1',
-      expect.objectContaining({ admin: true }),
-      { before: undefined },
-    );
-  });
-
-  it('passes the page cursor and offers a way back to the newest invitations', async () => {
-    const html = await renderServer(Page(withQuery({ invitesBefore: 'abc_DEF-1' })));
+    expect(html).toContain('href="/app/agency/o1/clients?invites=30#client-invitation-list"');
+    expect(mocks.loadPendingClientInvitationPage).toHaveBeenCalledTimes(1);
     expect(mocks.loadPendingClientInvitationPage.mock.calls[0]?.[4]).toEqual({
-      before: 'abc_DEF-1',
+      limit: 15,
+      before: undefined,
     });
-    expect(textOf(html)).toContain('Back to the Newest Invitations');
   });
 
-  it('ignores a cursor that is not shaped like one', async () => {
-    await renderServer(Page(withQuery({ invitesBefore: '<script>', requestsBefore: 'a b' })));
-    expect(mocks.loadPendingClientInvitationPage.mock.calls[0]?.[4]).toEqual({ before: undefined });
+  it('on an older page, keeps the newest invitations known to the form and offers the way back', async () => {
+    mocks.loadPendingClientInvitationPage.mockImplementation(async (...args: unknown[]) =>
+      (args[4] as { before?: string }).before
+        ? invitationPage([invitation(91)], { total: 400 })
+        : invitationPage([invitation(0), invitation(1)], { nextCursor: 'x', total: 400 }),
+    );
+    const html = await renderServer(
+      Page(withQuery({ invitesBefore: 'abc_DEF-1', invitesFrom: '91' })),
+    );
+    expect(mocks.loadPendingClientInvitationPage.mock.calls.map((c) => c[4])).toEqual([
+      { limit: 90, before: 'abc_DEF-1' },
+      { limit: 15 },
+    ]);
+    const [form] = stubProps<{ pendingInvitationIds: string[] }>(html, 'ClientInvitationForm');
+    expect(form?.pendingInvitationIds).toEqual(['ci91', 'ci0', 'ci1']);
+    const text = textOf(html);
+    expect(text).toContain('Showing pending invitations 91 to 91 of 400.');
+    expect(text).toContain('Back to the Newest Invitations');
+  });
+
+  it('ignores a cursor or a linked request that is not shaped like one', async () => {
+    await renderServer(
+      Page(withQuery({ invitesBefore: '<script>', requestsBefore: 'a b', request: 'r1' })),
+    );
+    expect(mocks.loadPendingClientInvitationPage.mock.calls[0]?.[4]).toEqual({
+      limit: 15,
+      before: undefined,
+    });
+    expect(mocks.loadEvidenceRequestPage).toHaveBeenCalledTimes(1);
     expect(mocks.loadEvidenceRequestPage.mock.calls[0]?.[4]).toEqual({
       view: undefined,
+      limit: 15,
       before: undefined,
     });
   });
@@ -349,10 +365,11 @@ describe('agency Clients: within the scroll budget (WP-SB5)', () => {
     }
     expect(mocks.loadEvidenceRequestPage.mock.calls[0]?.[4]).toEqual({
       view: 'open',
+      limit: 15,
       before: undefined,
     });
     expect(html).toContain(
-      'href="/app/agency/o1/clients?status=open&amp;requestsBefore=req-next#agency-evidence-request-list"',
+      'href="/app/agency/o1/clients?status=open&amp;requests=30#agency-evidence-request-list"',
     );
     expect(html).toMatch(/aria-label="Evidence requests by status"/);
     expect(html).toMatch(
@@ -360,12 +377,32 @@ describe('agency Clients: within the scroll budget (WP-SB5)', () => {
     );
   });
 
-  it('treats an unknown status as All', async () => {
-    await renderServer(Page(withQuery({ status: 'everything' })));
+  it('treats an unknown status as All, and an empty view has no count line', async () => {
+    mocks.loadEvidenceRequestPage.mockResolvedValue(
+      requestPage([], { viewCounts: { all: 4, open: 4, review: 0, replacement: 0, closed: 0 } }),
+    );
+    const html = await renderServer(Page(withQuery({ status: 'everything' })));
     expect(mocks.loadEvidenceRequestPage.mock.calls[0]?.[4]).toEqual({
       view: undefined,
+      limit: 15,
       before: undefined,
     });
+    const text = textOf(html);
+    expect(text).toContain('No requests in this view.');
+    expect(text).not.toContain('Showing all 0');
+  });
+
+  it('shows a linked request first when it is not on this page, and reads it as one request', async () => {
+    const id = '33333333-3333-4333-8333-333333333333';
+    mocks.loadEvidenceRequestPage.mockImplementation(async (...args: unknown[]) =>
+      (args[4] as { only?: string }).only
+        ? requestPage([{ ...request(99), id }])
+        : requestPage([request(1)]),
+    );
+    const html = await renderServer(Page(withQuery({ request: id.toUpperCase() })));
+    expect(mocks.loadEvidenceRequestPage.mock.calls[1]?.[4]).toEqual({ limit: 1, only: id });
+    expect(html).toContain(`id="request-${id}"`);
+    expect(html.indexOf(`id="request-${id}"`)).toBeLessThan(html.indexOf('id="request-r1"'));
   });
 
   it('keeps both forms behind their own headings, open only while there is nothing yet', async () => {
