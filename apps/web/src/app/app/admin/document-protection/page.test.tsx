@@ -134,7 +134,29 @@ beforeEach(() => {
   mocks.getDocumentProtectionOverview.mockResolvedValue({ ok: true, value: overview(true) });
 });
 
+const financialTab = () => Page({ searchParams: Promise.resolve({ category: 'financial' }) });
+
 describe('Platform > Settings > Document Protection', () => {
+  it('shows the categories as tabs, the first open, and an unknown category falls back to it', async () => {
+    const html = await renderServer(Page());
+    expect(html).toContain('aria-label="Document categories"');
+    expect(html).toMatch(
+      /href="\/app\/admin\/document-protection#document-categories" aria-current="page"/,
+    );
+    expect(html).toContain(
+      'href="/app/admin/document-protection?category=financial#document-categories"',
+    );
+    expect(textOf(html)).toContain('Financial (2)');
+    expect(textOf(html)).not.toContain('Bank, tax, income');
+    const unknown = await renderServer(
+      Page({ searchParams: Promise.resolve({ category: 'constructor' }) }),
+    );
+    expect(textOf(unknown)).toContain('Health reports, vaccination');
+    const financial = await renderServer(financialTab());
+    expect(financial).toMatch(/category=financial#document-categories" aria-current="page"/);
+    expect(textOf(financial)).not.toContain('Health reports, vaccination');
+  });
+
   it('shows only the restricted notice to someone without the permission', async () => {
     mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     const html = await renderServer(Page());
@@ -177,7 +199,7 @@ describe('Platform > Settings > Document Protection', () => {
     expect(text).toContain('Standard setting, never changed.');
   });
 
-  it('gives every category, document and the unsorted rule its own switch', async () => {
+  it('gives every category, document and the unsorted rule its own switch, one category tab at a time', async () => {
     const html = await renderServer(Page());
     const switches = stubProps<{ scope: string; switchKey: string; offWarning?: string }>(
       html,
@@ -188,6 +210,13 @@ describe('Platform > Settings > Document Protection', () => {
       'CATEGORY:medical',
       'DOCUMENT_TYPE:VACCINATION_CERTIFICATE',
       'DOCUMENT_TYPE:OTHER_MEDICAL_DOCUMENT',
+    ]);
+    const financial = stubProps<{ scope: string; switchKey: string }>(
+      await renderServer(financialTab()),
+      'ProtectionSwitch',
+    );
+    expect(financial.map((s) => `${s.scope}:${s.switchKey}`)).toEqual([
+      'UNKNOWN_TYPE:unknown',
       'CATEGORY:financial',
       'DOCUMENT_TYPE:SALARY_SLIP',
       'DOCUMENT_TYPE:BANK_STATEMENT',
@@ -199,7 +228,7 @@ describe('Platform > Settings > Document Protection', () => {
   });
 
   it('says when a group is on but some documents in it were switched off one by one', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(financialTab()));
     expect(text).toContain(
       'Asks for a fresh sign-in check, except 1 document switched off one by one.',
     );
@@ -213,7 +242,7 @@ describe('Platform > Settings > Document Protection', () => {
   });
 
   it('labels what a document switch does once reset, which depends on its group', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(financialTab()));
     expect(text).toContain('Changed by security@example.com on');
     expect(text).toContain('If reset: On. Reason: Agencies see these every day');
   });
