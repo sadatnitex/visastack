@@ -11050,3 +11050,33 @@ html:has(.sticky-action-bar) {
 .collapsible-group-body {
   padding: 0 var(--space-3) var(--space-3);
 }
+
+/* WP-LC-G1 profile: "No Longer Current" on one value and "Ended" on one list entry, with 44 px targets */
+.profile-lifecycle-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+.profile-lifecycle-mark .btn,
+.profile-record-end .btn {
+  min-height: 44px;
+}
+.profile-record-ended {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+}
+.profile-record-end > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--text-small);
+  cursor: pointer;
+}
+.profile-record-end .field-control {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
