@@ -42,7 +42,8 @@ export default async function ApplicantRecordPage({
       listApplicantProfile(db, id),
       getProfileSectionState(db, id),
       getWalletView(db, { actorAccountId: accountId, applicantId: id }),
-      listDocumentsDetailed(db, accountId, id),
+      // Present, like the wallet rows it describes: an archived document keeps its details (D6).
+      listDocumentsDetailed(db, accountId, id, { lifecycle: 'present' }),
     ]);
     return { applicant, profile, sectionChoices, wallet, detailed };
   });

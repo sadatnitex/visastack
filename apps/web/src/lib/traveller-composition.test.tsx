@@ -477,3 +477,15 @@ describe("the deadline clock on a person's overview (Growth G5)", () => {
     expect(alert?.closest('[data-level]')).toBeNull();
   });
 });
+
+describe('which documents the traveller overview counts (resource lifecycle, LC-Z)', () => {
+  it('counts and flags only everyday documents, matching the Current list it links to', async () => {
+    renderToStaticMarkup(await overview(params));
+    expect(service.listDocumentsDetailed).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'person',
+      { lifecycle: 'everyday' },
+    );
+  });
+});

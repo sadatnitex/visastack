@@ -1,5 +1,5 @@
 import { type PermissionAction, type Result, err, ok } from '@visastack/core';
-import { type SQL, and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { type SQL, and, asc, count, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import {
   isLiveGrant,
@@ -10,6 +10,7 @@ import {
 import { type DeclarationComparison, compareAuthorizedFactVersions } from './consistency';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { listCaseEvidenceIds } from './missions';
 import { clampLimit } from './paging';
 import type { KeyManagementPort } from './ports';
@@ -590,8 +591,14 @@ export type MemoryChange =
     }
   | {
       readonly kind: 'document';
-      /** `removed`: deleted, or its latest version failed, was refused or is not safe. */
-      readonly change: 'new_version' | 'replaced' | 'removed' | 'added' | 'not_used';
+      /**
+       * `deleted`: taken out of the record, so the screen says Removed and nothing else about it:
+       * in Recently Deleted, being removed securely, or gone for good. Only once the lifecycle
+       * tables exist (migration 0113); before, a document gone for good reads `removed`.
+       * `removed`: gone (before migration 0113), or its latest version failed, was refused or is
+       * not safe.
+       */
+      readonly change: 'new_version' | 'replaced' | 'deleted' | 'removed' | 'added' | 'not_used';
       readonly documentId: string;
       readonly docType: string | null;
     }
@@ -840,6 +847,25 @@ async function changesSince(
       latestByDocument.set(v.documentId, v);
   }
   const storedById = new Map(storedDocuments.map((d) => [d.id, d]));
+  // Deleted from the record (resource lifecycle): in Recently Deleted or being removed. Asked only
+  // once the lifecycle tables exist; before that nothing can be deleted this way.
+  const lifecycle = snapshotDocumentIds.size > 0 && (await lifecycleTablesPresent(db));
+  const deletedIds = lifecycle
+    ? new Set(
+        (
+          await db
+            .select({ documentId: schema.documentLifecycle.documentId })
+            .from(schema.documentLifecycle)
+            .where(
+              and(
+                eq(schema.documentLifecycle.applicantId, applicantId),
+                inArray(schema.documentLifecycle.documentId, [...snapshotDocumentIds]),
+                isNotNull(schema.documentLifecycle.deletedAt),
+              ),
+            )
+        ).map((row) => row.documentId),
+      )
+    : new Set<string>();
   const replacementIds = new Set<string>();
   for (const doc of parsed.documents) {
     const stored = storedById.get(doc.documentId);
@@ -851,15 +877,18 @@ async function changesSince(
       UNUSABLE_PROCESSING.has(latest.processingStatus) ||
       UNUSABLE_SAFETY.has(latest.safetyStatus);
     const inCase = todayDocuments.get(doc.documentId);
-    const change: Extract<MemoryChange, { kind: 'document' }>['change'] | null = unusable
-      ? 'removed'
-      : stored.supersededByDocumentId
-        ? 'replaced'
-        : !inCase
-          ? 'not_used'
-          : latest.id !== doc.documentVersionId
-            ? 'new_version'
-            : null;
+    const deleted = lifecycle && (!stored || deletedIds.has(doc.documentId));
+    const change: Extract<MemoryChange, { kind: 'document' }>['change'] | null = deleted
+      ? 'deleted'
+      : unusable
+        ? 'removed'
+        : stored.supersededByDocumentId
+          ? 'replaced'
+          : !inCase
+            ? 'not_used'
+            : latest.id !== doc.documentVersionId
+              ? 'new_version'
+              : null;
     if (change) {
       changes.push({ kind: 'document', change, documentId: doc.documentId, docType: doc.docType });
     }

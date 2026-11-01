@@ -176,3 +176,15 @@ describe('the section after the last decision (S21 review A2)', () => {
     expect(html).toContain('id="ai-app-suggestions-title" tabindex="-1"');
   });
 });
+
+describe('which documents back each section (resource lifecycle, LC-Z)', () => {
+  it('counts only everyday documents, so an archived copy never makes a section look covered', async () => {
+    await render();
+    expect(service.listDocumentsDetailed).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      { lifecycle: 'everyday' },
+    );
+  });
+});

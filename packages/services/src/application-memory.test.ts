@@ -769,8 +769,9 @@ describe('Application Memory and prior versus current (WP-V3 part 3)', () => {
     expect(changes).toContainEqual(
       expect.objectContaining({ kind: 'document', change: 'replaced', documentId: replaced }),
     );
+    // Gone for good reads as deleted once the lifecycle tables exist (LC-Z); before, as removed.
     expect(changes).toContainEqual(
-      expect.objectContaining({ kind: 'document', change: 'removed', documentId: deleted }),
+      expect.objectContaining({ kind: 'document', change: 'deleted', documentId: deleted }),
     );
     expect(changes).toContainEqual(
       expect.objectContaining({ kind: 'document', change: 'removed', documentId: refused }),
@@ -780,6 +781,78 @@ describe('Application Memory and prior versus current (WP-V3 part 3)', () => {
     expect(changes).toContainEqual({ kind: 'case', change: 'changed', caseField: 'jurisdiction' });
     expect(changes).toContainEqual({ kind: 'case', change: 'changed', caseField: 'manualMode' });
     expect(changes).not.toContainEqual(expect.objectContaining({ caseField: 'travelStartDate' }));
+  }, 60_000);
+
+  it('says a document in Recently Deleted, being removed or gone for good was deleted, and never says so of an archived one (LC-Z)', async () => {
+    const me = await person('deleted-history@example.com');
+    const binned = await addDocument(me, 'binned.pdf', 'payslip');
+    const going = await addDocument(me, 'going.pdf', 'tax_return');
+    const gone = await addDocument(me, 'gone.pdf', 'bank_statement');
+    const shelved = await addDocument(me, 'shelved.pdf', 'utility_bill');
+    const missionId = await caseFor(me);
+    const snap = await snapshot(me, missionId);
+    const quiet = await listChangesSinceSnapshot(await view(me, { missionId }), snap.id);
+    expect(isOk(quiet) && quiet.value.changes).toEqual([]);
+
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values([
+      {
+        documentId: binned,
+        applicantId: me.applicantId,
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      },
+      {
+        documentId: going,
+        applicantId: me.applicantId,
+        deletedAt: now,
+        deletePath: 'REQUEST',
+        purgeAfter: now,
+      },
+      { documentId: shelved, applicantId: me.applicantId, archivedAt: now },
+    ]);
+    await db.delete(schema.documents).where(eq(schema.documents.id, gone));
+
+    const listed = await listChangesSinceSnapshot(await view(me, { missionId }), snap.id);
+    expect(isOk(listed)).toBe(true);
+    if (!isOk(listed)) return;
+    const documentChanges = listed.value.changes.filter((c) => c.kind === 'document');
+    expect(documentChanges).toEqual(
+      expect.arrayContaining([
+        { kind: 'document', change: 'deleted', documentId: binned, docType: 'payslip' },
+        { kind: 'document', change: 'deleted', documentId: going, docType: 'tax_return' },
+        { kind: 'document', change: 'deleted', documentId: gone, docType: 'bank_statement' },
+      ]),
+    );
+    // An archived document is never called deleted: it simply stops being matched automatically
+    // (it was not chosen by hand), so it reads as no longer used, as before.
+    expect(documentChanges).toContainEqual({
+      kind: 'document',
+      change: 'not_used',
+      documentId: shelved,
+      docType: 'utility_bill',
+    });
+    expect(documentChanges).toHaveLength(4);
+  }, 60_000);
+
+  it('works exactly as before with the lifecycle tables missing: a gone document is no longer available (LC-Z)', async () => {
+    const client = await createMigratedPglite();
+    await client.exec(
+      'drop table document_removal_requests, document_lifecycle, applicant_lifecycle, deletion_receipts cascade',
+    );
+    db = drizzle(client, { schema }) as unknown as Db;
+    const me = await person('deleted-history-before@example.com');
+    const gone = await addDocument(me, 'gone.pdf', 'payslip');
+    const kept = await addDocument(me, 'kept.pdf');
+    const missionId = await caseFor(me);
+    const snap = await snapshot(me, missionId);
+    await db.delete(schema.documents).where(eq(schema.documents.id, gone));
+    const listed = await listChangesSinceSnapshot(await view(me, { missionId }), snap.id);
+    expect(isOk(listed) && listed.value.changes).toEqual([
+      { kind: 'document', change: 'removed', documentId: gone, docType: 'payslip' },
+    ]);
+    expect(kept).toBeTruthy();
   }, 60_000);
 });
 

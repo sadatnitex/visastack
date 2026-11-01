@@ -578,7 +578,14 @@ export default async function ApplicantDocumentsPage({
             const processingKey = doc.processingStatus
               ? PROCESSING_STATE_KEYS[doc.processingStatus]
               : undefined;
+            // A document in Recently Deleted or being removed is never opened, downloaded or read
+            // again (the server refuses each), so none of those buttons is offered. An archived
+            // document is still the person's own file and keeps them.
+            const binned =
+              lifecycleStateOf(doc.id) === 'RECENTLY_DELETED' ||
+              lifecycleStateOf(doc.id) === 'REMOVING';
             const previewable =
+              !binned &&
               doc.safetyStatus === 'CLEAN' &&
               doc.processingStatus !== null &&
               isServableProcessingState(doc.processingStatus);
@@ -618,6 +625,7 @@ export default async function ApplicantDocumentsPage({
             // Read Again needs the switch for what it would do: text, or a scan first and then text.
             const readingOn = data.aiFeatures?.ai_document_reading.available !== false;
             const couldReadAgain =
+              !binned &&
               data.coreGranted &&
               ((data.detailsAvailable && data.aiGranted) ||
                 (data.ocrConfigured && data.ocrGranted));
@@ -772,6 +780,7 @@ export default async function ApplicantDocumentsPage({
                     {(doc.classification?.reviewRequired === true ||
                       !doc.classification ||
                       (doc.docType === 'PASSPORT' && !doc.expiresAt)) &&
+                    !binned &&
                     doc.safetyStatus === 'CLEAN' &&
                     doc.latestVersionId &&
                     ['AWAITING_REVIEW', 'APPROVED'].includes(doc.processingStatus ?? '') ? (

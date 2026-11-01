@@ -268,6 +268,7 @@ describe('the upload form', () => {
       expect(off?.pdfAccepted).toBe(false);
     } finally {
       vi.unstubAllEnvs();
+      mocks.detailsAvailable.mockResolvedValue('unconfigured');
     }
   });
 
@@ -944,6 +945,57 @@ describe('archive, Recently Deleted and the Manage menu (resource lifecycle, mig
     const html = await render();
     expect(stubProps<{ active: boolean }>(html, 'AutoRefresh')).toEqual([{ active: false }]);
     expect(textOf(html)).not.toContain('Some documents are still being checked');
+  });
+
+  it('offers no Preview, Download Original or Read Again for a document in Recently Deleted or being removed, which the server refuses', async () => {
+    vi.stubEnv('BLOB_READ_WRITE_TOKEN', 'test-only');
+    vi.stubEnv('BLOB_SIGNING_SECRET', 'test-only');
+    vi.stubEnv('STEP_UP_SIGNING_SECRET', 'test-only');
+    mocks.detailsAvailable.mockResolvedValue('available');
+    try {
+      grants(['CORE_PROCESSING', 'AI_EXTRACTION']);
+      mocks.lifecycleTablesPresent.mockResolvedValue(false);
+      const ids = ['kept', 'shelved', 'binned', 'going'];
+      mocks.listDocumentsDetailed.mockResolvedValue({
+        ok: true,
+        value: ids.map((docId) => read(docId, 'APPROVED')),
+      });
+      mocks.listDocumentReadingStates.mockResolvedValue(
+        statesOf(Object.fromEntries(ids.map((docId) => [docId, { stage: 'found' }]))),
+      );
+      const offers = (html: string) => ({
+        preview: html.includes('>Preview</button>'),
+        download: html.includes('>Download Original</button>'),
+        readAgain: stubProps(html, 'ReadAgainButton').length > 0,
+      });
+      const all = { preview: true, download: true, readAgain: true };
+      const none = { preview: false, download: false, readAgain: false };
+
+      // Tables missing: every document is offered everything, exactly as before.
+      for (const docId of ids) expect(offers(await render(docId))).toEqual(all);
+
+      mocks.lifecycleTablesPresent.mockResolvedValue(true);
+      mocks.getDocumentLifecycles.mockResolvedValue(
+        new Map([
+          ['kept', state('CURRENT')],
+          ['shelved', state('ARCHIVED')],
+          ['binned', state('RECENTLY_DELETED')],
+          ['going', state('REMOVING')],
+        ]),
+      );
+      expect(offers(await render('kept'))).toEqual(all);
+      // An archived document is still the person's own file: it keeps every button.
+      expect(offers(await render('shelved', { view: 'archived' }))).toEqual(all);
+      const binned = await render('binned', { view: 'deleted' });
+      expect(textOf(binned)).toContain('binned.pdf');
+      expect(offers(binned)).toEqual(none);
+      expect(textOf(binned)).toContain('Preview is blocked');
+      const going = await render('going', { view: 'deleted' });
+      expect(textOf(going)).toContain('going.pdf');
+      expect(offers(going)).toEqual(none);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('links to the Removal Records only when there are some', async () => {

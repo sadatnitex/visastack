@@ -75,7 +75,8 @@ export default async function ApplicantOverviewPage({
     const [profile, documents, coreGranted, proposals, missions, requests, access, sectionChoices] =
       await Promise.all([
         listApplicantProfile(db, id),
-        listDocumentsDetailed(db, accountId, id),
+        // Counted and flagged as the Documents page's Current list is: everyday documents (LC-Z).
+        listDocumentsDetailed(db, accountId, id, { lifecycle: 'everyday' }),
         hasConsent(db, accountId, 'CORE_PROCESSING'),
         listPendingProposals(db, id),
         listMissions(db, accountId, id),

@@ -44,6 +44,13 @@ describe('Application Memory wording (WP-V3 part 3)', () => {
     expect(
       changeLine({ kind: 'document', change: 'not_used', documentId: 'd', docType: null }).what,
     ).toBe('no longer used in this case');
+    // A document deleted from the record reads Removed; a failed or unsafe one is no longer available.
+    expect(
+      changeLine({ kind: 'document', change: 'deleted', documentId: 'd', docType: null }).what,
+    ).toBe('removed');
+    expect(
+      changeLine({ kind: 'document', change: 'removed', documentId: 'd', docType: null }).what,
+    ).toBe('no longer available');
     expect(changeLine({ kind: 'case', change: 'changed', caseField: 'travelStartDate' })).toEqual({
       name: 'Travel Start Date',
       what: 'changed',

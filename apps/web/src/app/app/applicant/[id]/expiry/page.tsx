@@ -148,7 +148,8 @@ export default async function ExpiryCentrePage({
     // Started now so it runs beside the reads below; it never throws (a failed read is null).
     const deadlinesRead = loadDeadlineEntries(db, accountId, id, now, CLOCK_EXPIRY_PAGE_LIMIT);
 
-    const documents = await listDocumentsDetailed(db, accountId, id);
+    // Only everyday documents are watched for expiry: an archived file raises no reminder (LC-Z).
+    const documents = await listDocumentsDetailed(db, accountId, id, { lifecycle: 'everyday' });
     const documentRows = documents.ok ? documents.value : [];
 
     const intrinsic = await Promise.all(

@@ -97,7 +97,8 @@ export default async function ApplicantProfilePage({
       getProfileSectionState(db, id),
       Promise.all([
         getWalletView(db, { actorAccountId: accountId, applicantId: id }),
-        listDocumentsDetailed(db, accountId, id),
+        // Only everyday documents back a section: an archived copy is put away (LC-Z).
+        listDocumentsDetailed(db, accountId, id, { lifecycle: 'everyday' }),
       ]),
       ownedPhotoUrl(db, accountId, id),
       // Suggestions the person's own AI apps made about the profile itself, with no document
