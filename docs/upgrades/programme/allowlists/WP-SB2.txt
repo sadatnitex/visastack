@@ -3,6 +3,7 @@
 # in advance on 31 Oct 2026 (relayed by the coordinator session).
 # In packages/services/src/agency.ts only listNotesForOwner may change; in missions.ts only listMissionSnapshots
 # and listTasks; in complaints.ts only listComplaintsForMission; in feedback.ts only listFeedbackForMission.
+# The browser fixture next to the spec was approved by the coordinator on 1 Nov 2026.
 # globals.css takes only an appended block starting with "/* WP-SB2". STATUS.md is not edited (only WP-SB10).
 apps/web/src/app/app/mission/[id]/**
 packages/services/src/missions.ts
@@ -19,3 +20,4 @@ apps/web/src/app/globals.css
 docs/commercial-v1/known-issues.md
 docs/upgrades/programme/COVERAGE-LEDGER.csv
 docs/upgrades/programme/allowlists/WP-SB2.txt
+apps/web/e2e/scroll-budget/WP-SB2.fixture.tsx
