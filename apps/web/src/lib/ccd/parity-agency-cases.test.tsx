@@ -19,29 +19,51 @@ vi.mock('../session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'member@example.com' }),
 }));
-vi.mock('../../app/app/agency/[orgId]/console-data', () => ({
-  loadOrgAccess: async () => ({
-    org: { id: 'o1', name: 'Atlas Visa' },
-    admin: state.admin,
-    member: true,
-  }),
-  loadMembers: async () => state.members,
-  loadEvidenceRequests: async () => state.requests,
-  loadCases: async () => ({ admin: state.admin, cases: state.cases }),
-}));
+vi.mock('../../app/app/agency/[orgId]/console-data', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../app/app/agency/[orgId]/console-data')>();
+  return {
+    AGENCY_LIST_SIZES: actual.AGENCY_LIST_SIZES,
+    CASE_NOTES_STEP: actual.CASE_NOTES_STEP,
+    loadOrgAccess: async () => ({
+      org: { id: 'o1', name: 'Atlas Visa' },
+      admin: state.admin,
+      member: true,
+    }),
+    loadMembers: async () => state.members,
+    loadEvidenceRequests: async () => state.requests,
+    // WP-SB5: the list reads light rows; the one open case is read in full.
+    loadCaseListPage: async () => ({
+      admin: state.admin,
+      total: state.cases.length,
+      nextCursor: null,
+      cases: state.cases,
+    }),
+    loadOpenCase: async (...args: unknown[]) => {
+      const found = (state.cases as { missionId: string; notes: unknown[] }[]).find(
+        (c) => c.missionId === args[4],
+      );
+      return found ? { ...found, notesTotal: found.notes.length, notesNextCursor: null } : null;
+    },
+  };
+});
 vi.mock('./depth.server', () => ({ readDepth: async () => state.depth }));
 
 const { default: Page } = await import('../../app/app/agency/[orgId]/cases/page');
 const { AgencyWorkspaceHeading } = await import('../../app/app/agency/[orgId]/workspace-heading');
 
 const LATER = '2030-01-01T00:00:00.000Z';
+// Case ids in the shape the page accepts in its address. The reference codes stay the ones the
+// baseline was captured with (C-M17K2Q, C-M27K2Q).
+const M1 = '11111111-1111-4111-8111-111111111111';
+const M2 = '22222222-2222-4222-8222-222222222222';
+const CODES: Record<string, string> = { [M1]: 'C-M17K2Q', [M2]: 'C-M27K2Q' };
 
 const kase = (id: string, over: Record<string, unknown> = {}) => ({
   missionId: id,
   applicantId: `ap-${id}`,
   applicantName: `Traveller ${id}`,
   title: `Case ${id}`,
-  referenceCode: `C-${id.toUpperCase()}7K2Q`,
+  referenceCode: CODES[id] ?? `C-${id.toUpperCase()}7K2Q`,
   state: 'DRAFT',
   manualMode: false,
   readiness: { ready: false, requiredCount: 2, satisfiedRequired: 1 },
@@ -67,7 +89,7 @@ const colleague = {
 const busy = () => {
   state.members = [me, colleague];
   state.cases = [
-    kase('m1', {
+    kase(M1, {
       assignments: [{ id: 'as1', memberAccountId: 'acct-1', memberEmail: 'me@example.com' }],
       viewerAssigned: true,
       notes: [
@@ -133,13 +155,13 @@ const busy = () => {
         },
       ],
     }),
-    kase('m2', { requirements: [{ id: 'q3', label: 'Photo' }] }),
+    kase(M2, { requirements: [{ id: 'q3', label: 'Photo' }] }),
   ];
   state.requests = [
     {
       id: 'r1',
-      applicantId: 'ap-m2',
-      missionId: 'm2',
+      applicantId: `ap-${M2}`,
+      missionId: M2,
       packRequirementId: 'q3',
       kind: 'DOCUMENT',
       status: 'RECEIVED',
@@ -150,9 +172,23 @@ const busy = () => {
   ];
 };
 
-const render = async () =>
-  await renderServer(
-    Page({ params: Promise.resolve({ orgId: 'o1' }) }).then((page) => (
+/**
+ * WP-SB5: the Cases screen lists every case and opens one at a time (`?case=<id>`). Nothing may be
+ * lost, so the screen is rendered as the list, then with each case opened in turn, and every
+ * element the old screen showed at once must be found across those views.
+ */
+const render = async () => {
+  const views = [
+    {},
+    ...(state.cases as { missionId: string }[]).map((c) => ({ case: c.missionId })),
+  ];
+  const pages = await Promise.all(
+    views.map((query) =>
+      Page({ params: Promise.resolve({ orgId: 'o1' }), searchParams: Promise.resolve(query) }),
+    ),
+  );
+  return await renderServer(
+    Promise.resolve(
       <>
         <AgencyWorkspaceHeading
           organizationId="o1"
@@ -160,10 +196,11 @@ const render = async () =>
           admin={state.admin}
           status={null}
         />
-        {page}
-      </>
-    )),
+        {pages}
+      </>,
+    ),
   );
+};
 
 registerParity({
   name: 'agency-cases',
@@ -222,14 +259,14 @@ describe('agency cases levels', () => {
 
   it('keeps where things stand and who is assigned at Browse', async () => {
     const doc = await page();
-    const row = doc.querySelector('#mission-m1');
-    expect(levelOf(row?.querySelector('#triage-m1'))).toBe('browse');
+    const row = doc.querySelector(`#mission-${M1}`);
+    expect(levelOf(row?.querySelector(`#triage-${M1}`))).toBe('browse');
     expect(levelOf(row?.querySelector('[aria-label="Member to assign"]'))).toBe('browse');
   });
 
   it('keeps the working sections at Everything, and opens them for a link to the case', async () => {
     const doc = await page();
-    const row = doc.querySelector('#mission-m1');
+    const row = doc.querySelector(`#mission-${M1}`);
     for (const label of [
       'Task description',
       'Appointment title',
@@ -243,6 +280,17 @@ describe('agency cases levels', () => {
     expect(levelForLink(row as HTMLElement, doc.body)).toBe('everything');
   });
 
+  it('ends the notes with their count right under them, before the note form (WP-SB5)', async () => {
+    const notes = (await page()).querySelector(`#notes-${M1}`);
+    const count = notes?.querySelector('.show-more-count');
+    expect(count?.textContent).toBe('Showing the only note.');
+    const form = notes?.querySelector('form');
+    expect(form).not.toBeNull();
+    expect(
+      count && form ? count.compareDocumentPosition(form) & count.DOCUMENT_POSITION_FOLLOWING : 0,
+    ).toBeTruthy();
+  });
+
   it('names the confirmations without a reference code', async () => {
     const text = (await page()).body.textContent ?? '';
     expect(text).toContain('Issuer Confirmations');
@@ -253,12 +301,12 @@ describe('agency cases levels', () => {
     state.admin = false; // busy() left the request on m2 in place
     // Assigned, so a request reaching this member's summary would be counted.
     state.cases = state.cases.map((c) =>
-      (c as { missionId: string }).missionId === 'm2'
+      (c as { missionId: string }).missionId === M2
         ? { ...(c as object), viewerAssigned: true }
         : c,
     );
     const doc = await page();
-    expect(doc.querySelector('#mission-m2 [data-only="glance"]')?.textContent).toBe(
+    expect(doc.querySelector(`#mission-${M2} [data-only="glance"]`)?.textContent).toBe(
       'Nothing needs you on this case right now.',
     );
   });
