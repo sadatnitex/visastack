@@ -1,4 +1,5 @@
 import {
+  type PackRequirement,
   getPack,
   listMissionsByPackVersion,
   listPackVersions,
@@ -63,6 +64,17 @@ const VERSIONS_STEP = TRAVELLER_LIST_STEP;
  */
 const IN_MEMORY_MAX = 100_000;
 
+type RequirementKey = Pick<PackRequirement, 'kind' | 'fieldKey' | 'docType' | 'id'>;
+
+/** Documents first, then fields, each by key, then by id. */
+function byRequirementKey(a: RequirementKey, b: RequirementKey): number {
+  return (
+    a.kind.localeCompare(b.kind) ||
+    (a.fieldKey ?? a.docType ?? '').localeCompare(b.fieldKey ?? b.docType ?? '') ||
+    a.id.localeCompare(b.id)
+  );
+}
+
 /**
  * One requirement pack: one version open at a time (WP-SB7), chosen by `?version=` and the newest
  * by default, with its requirements as compact rows 25 at a time; every other version is a short
@@ -93,7 +105,9 @@ export default async function PackDetailPage({
     const open = versions.find((v) => v.id === wantedVersion) ?? versions[0];
     if (!open) return { admin: true as const, pack, versions, open: null };
     const [requirements, missionCount] = await Promise.all([
-      listRequirements(db, open.id),
+      // The read has no order of its own, so the page sorts on fields an edit never changes:
+      // a requirement keeps its place (and its Show More page) after a source review is saved.
+      listRequirements(db, open.id).then((rows) => [...rows].sort(byRequirementKey)),
       // Impact list (RUL-05) only matters once a version has ever been
       // usable by a mission -- a DRAFT/APPROVED version can never have one
       // attached, so skip the query rather than always paying for it.

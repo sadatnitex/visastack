@@ -34,10 +34,14 @@ const UNAVAILABLE =
   'AI features cannot be changed yet. Until they can, each AI feature keeps its standard setting, and everything else works as usual.';
 
 /** The feature groups, by whose plan and daily count a feature uses (WP-SB7). */
-const AUDIENCES: readonly { readonly key: AiFeatureAudience; readonly title: string }[] = [
-  { key: 'traveller', title: 'For Travellers' },
-  { key: 'agency', title: 'For Agencies' },
-];
+const AUDIENCE_TITLES = {
+  traveller: 'For Travellers',
+  agency: 'For Agencies',
+} as const satisfies Record<AiFeatureAudience, string>;
+const AUDIENCES = (Object.keys(AUDIENCE_TITLES) as AiFeatureAudience[]).map((key) => ({
+  key,
+  title: AUDIENCE_TITLES[key],
+}));
 
 /**
  * One feature: its state and limit always showing, the description, history and form folded

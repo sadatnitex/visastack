@@ -7,6 +7,10 @@ import type { ApplicantMatch, ApplicantSearchResult } from './actions';
 export const PICKER_MIN_CHARS = 2;
 /** How long typing must pause before a search is sent, in milliseconds. */
 export const PICKER_DELAY_MS = 250;
+/** The most matches the server sends for one search. */
+const PICKER_MAX_MATCHES = 20;
+/** Said by the browser when the form is sent before an applicant is chosen from the list. */
+export const PICKER_CHOOSE_FIRST = 'Choose an applicant from the list.';
 
 type Status =
   | { readonly kind: 'idle' }
@@ -20,10 +24,12 @@ function statusText(status: Status, typed: string, chosen: ApplicantMatch | null
   if (status.kind === 'failed') return status.message;
   if (status.kind === 'done') {
     if (status.count === 0) return 'No applicants match. Try another part of the name.';
+    // The server sends at most 20, so 20 may mean more: say so instead of a number.
+    if (status.count >= PICKER_MAX_MATCHES) {
+      return `${PICKER_MAX_MATCHES} or more applicants match. Type more of the name to narrow it, or use the arrow keys to choose.`;
+    }
     const shown = status.count === 1 ? '1 applicant matches.' : `${status.count} applicants match.`;
-    return status.count >= 20
-      ? `${shown} Showing the first 20: type more of the name to narrow it.`
-      : `${shown} Use the arrow keys to choose.`;
+    return `${shown} Use the arrow keys to choose.`;
   }
   return typed.trim().length > 0 && typed.trim().length < PICKER_MIN_CHARS
     ? `Type at least ${PICKER_MIN_CHARS} letters.`
@@ -77,6 +83,12 @@ export function ApplicantPicker({
     return () => form.removeEventListener('reset', clear);
   }, []);
 
+  // Until an applicant is chosen, the browser refuses to send the form and says why, so nothing
+  // typed in the other fields is lost to a server reply (React clears the form after each send).
+  useEffect(() => {
+    input.current?.setCustomValidity(chosen ? '' : PICKER_CHOOSE_FIRST);
+  }, [chosen]);
+
   useEffect(() => {
     const text = typed.trim();
     if (chosen || text.length < PICKER_MIN_CHARS) return;
@@ -91,6 +103,17 @@ export function ApplicantPicker({
             setMatches([]);
             setOpen(false);
             setStatus({ kind: 'failed', message: result.message });
+            return;
+          }
+          // A pasted applicant ID that names exactly one applicant is chosen straight away.
+          const only = result.matches.length === 1 ? result.matches[0] : undefined;
+          if (only && only.id.toLowerCase() === text.toLowerCase()) {
+            latest.current += 1;
+            setChosen(only);
+            setTyped(only.displayName);
+            setMatches([]);
+            setOpen(false);
+            setActive(-1);
             return;
           }
           setMatches(result.matches);
@@ -162,6 +185,7 @@ export function ApplicantPicker({
         {...(activeId ? { 'aria-activedescendant': activeId } : {})}
         autoComplete="off"
         spellCheck={false}
+        required
         maxLength={100}
         value={typed}
         onChange={(event) => {
@@ -184,6 +208,8 @@ export function ApplicantPicker({
         // biome-ignore lint/a11y/useSemanticElements: a native select cannot filter as you type; this is the WAI-ARIA combobox list.
         role="listbox"
         tabIndex={-1}
+        // Pressing on the list itself (its scroll bar or edges) must not take focus from the text box.
+        onMouseDown={(event) => event.preventDefault()}
         aria-label={`${label} matches`}
         hidden={!open}
       >

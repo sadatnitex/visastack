@@ -159,7 +159,7 @@ export default async function DocumentProtectionPage({
           {category ? (
             <>
               <SectionTabs
-                label="Document categories"
+                label="Document Categories"
                 active={category.key}
                 tabs={data.overview.categories.map((c, index) => ({
                   key: c.key,
@@ -183,6 +183,7 @@ export default async function DocumentProtectionPage({
                 <LastChange view={category} />
                 <ProtectionSwitch
                   scope="CATEGORY"
+                  category={category.key}
                   switchKey={category.key}
                   name={category.label}
                   restricted={category.restricted}
@@ -212,6 +213,7 @@ export default async function DocumentProtectionPage({
                         {type.overridden ? <LastChange view={type} resetLabel="If reset" /> : null}
                         <ProtectionSwitch
                           scope="DOCUMENT_TYPE"
+                          category={category.key}
                           switchKey={type.key}
                           name={type.label}
                           restricted={type.restricted}

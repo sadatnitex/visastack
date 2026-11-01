@@ -155,20 +155,14 @@ const PRIVACY_TABS = [
   { key: 'retention', label: 'Retention', href: '/app/admin/privacy' },
   { key: 'holds', label: 'Legal Holds', href: '/app/admin/privacy?tab=holds' },
   { key: 'erasure', label: 'Erasure', href: '/app/admin/privacy?tab=erasure', count: 40 },
-  { key: 'purge', label: 'Purge', href: '/app/admin/privacy?tab=purge', count: 300 },
+  { key: 'purge', label: 'Purge', href: '/app/admin/privacy?tab=purge' },
 ] as const;
 
-function Holds({ shown, total }: { shown: number; total: number }) {
+function Holds({ shown }: { shown: number }) {
   return (
     <section className="section container">
       <Header title="Privacy" description="Retention policies, legal holds, erasure and purge." />
-      <SectionTabs
-        label="Privacy sections"
-        active="holds"
-        tabs={PRIVACY_TABS.map((tab) =>
-          tab.key === 'holds' ? { ...tab, count: shown, more: total > shown } : tab,
-        )}
-      />
+      <SectionTabs label="Privacy Sections" active="holds" tabs={PRIVACY_TABS} />
       <article className="card" id="admin-holds">
         <p className="card-kicker">Legal Holds</p>
         <h2 className="card-title">Active Holds</h2>
@@ -259,7 +253,7 @@ function Protection({ shown, total }: { shown: number; total: number }) {
         A category switch covers every document in it, including ones added later.
       </p>
       <SectionTabs
-        label="Document categories"
+        label="Document Categories"
         active="c0"
         tabs={rows(total).map((n) => ({
           key: `c${n}`,
@@ -398,7 +392,7 @@ function Pack({ shown, total }: { shown: number; total: number }) {
 export default function Sb7Fixture({ view, shown, total }: Sb7FixtureProps) {
   if (view === 'organizations') return <Organizations shown={shown} />;
   if (view === 'members') return <Members shown={shown} />;
-  if (view === 'holds') return <Holds shown={shown} total={total} />;
+  if (view === 'holds') return <Holds shown={shown} />;
   if (view === 'protection') return <Protection shown={shown} total={total} />;
   if (view === 'ai') return <Ai shown={shown} />;
   return <Pack shown={shown} total={total} />;

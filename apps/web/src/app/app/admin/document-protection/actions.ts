@@ -14,6 +14,18 @@ import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 
 const DOCUMENT_PROTECTION_PATH = '/app/admin/document-protection';
+/** A category tab key as the page sends it; anything else returns to the first tab. */
+const CATEGORY_KEY = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * Where a fresh sign-in check returns to: the category tab the switch is on (WP-SB7), so the
+ * person lands next to the change they were making instead of on the first tab.
+ */
+function returnPath(category: string): string {
+  return CATEGORY_KEY.test(category)
+    ? `${DOCUMENT_PROTECTION_PATH}?category=${category}#document-categories`
+    : DOCUMENT_PROTECTION_PATH;
+}
 
 const SCOPES: readonly DocumentProtectionScope[] = ['CATEGORY', 'DOCUMENT_TYPE', 'UNKNOWN_TYPE'];
 const CHOICES = ['on', 'off', 'default'] as const;
@@ -66,6 +78,7 @@ export async function setDocumentProtectionAction(
   const key = String(formData.get('key') ?? '').trim();
   const choice = String(formData.get('choice') ?? '') as Choice;
   const reason = String(formData.get('reason') ?? '').trim();
+  const category = String(formData.get('category') ?? '');
   if (!SCOPES.includes(scope) || key.length === 0 || !CHOICES.includes(choice)) {
     return { ok: false, message: 'That switch could not be found. Reload the page and try again.' };
   }
@@ -97,7 +110,7 @@ export async function setDocumentProtectionAction(
     if (!result.ok && result.error.code === 'step_up_required') {
       const stepUp = await tryEstablishStepUp(
         { accountId, action: 'DOCUMENT_PROTECTION_CHANGE', resourceId: `${scope}:${key}` },
-        DOCUMENT_PROTECTION_PATH,
+        returnPath(category),
       );
       if (stepUp.kind === 'not_configured') {
         return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies FormResult;

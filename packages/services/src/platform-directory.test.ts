@@ -162,6 +162,15 @@ describe('member directory read with options (WP-SB7)', () => {
     }
   });
 
+  it('never returns more than 20, whatever limit is asked for', async () => {
+    for (const limit of [Number.NaN, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY, 500, 0]) {
+      const page = await listPlatformMembers(db, owner, undefined, { limit });
+      if (!page.ok) throw new Error('page');
+      expect(page.value.members.length).toBeLessThanOrEqual(20);
+      expect(page.value.members.length).toBeGreaterThan(0);
+    }
+  });
+
   it('still refuses anyone who is not a platform owner', async () => {
     const denied = await listPlatformMembers(db, staff, undefined, { emailSearch: 'example' });
     expect(denied.ok).toBe(false);

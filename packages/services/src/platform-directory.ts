@@ -82,7 +82,7 @@ async function readMemberPage(
   options: PlatformMemberListOptions,
 ): Promise<{ readonly members: readonly PlatformMember[]; readonly next: string | null }> {
   const search = (options.emailSearch ?? '').trim().slice(0, MEMBER_SEARCH_MAX_CHARS);
-  const limit = clampLimit(Math.min(options.limit ?? MEMBER_PAGE_MAX, MEMBER_PAGE_MAX));
+  const limit = Math.min(clampLimit(options.limit, MEMBER_PAGE_MAX), MEMBER_PAGE_MAX);
   const scope = memberCursorScope(search);
   const cursor = decodeTimeCursor(options.before, scope);
   const table = schema.accounts;

@@ -3,7 +3,7 @@ import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ApplicantSearchResult } from './actions';
-import { ApplicantPicker, PICKER_DELAY_MS } from './applicant-picker';
+import { ApplicantPicker, PICKER_CHOOSE_FIRST, PICKER_DELAY_MS } from './applicant-picker';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -160,5 +160,51 @@ describe('ApplicantPicker', () => {
     act(() => form.reset());
     expect(hidden().value).toBe('');
     expect(box().value).toBe('');
+  });
+
+  it('stops the form from being sent until an applicant is chosen from the list', async () => {
+    expect(box().required).toBe(true);
+    expect(box().validationMessage).toBe(PICKER_CHOOSE_FIRST);
+    expect(form.checkValidity()).toBe(false);
+    type('Rah');
+    await settle();
+    key('ArrowDown');
+    key('Enter');
+    expect(box().validationMessage).toBe('');
+    type('Rahim U');
+    expect(box().validationMessage).toBe(PICKER_CHOOSE_FIRST);
+  });
+
+  it('chooses a pasted applicant ID straight away when it names exactly one applicant', async () => {
+    search.mockResolvedValueOnce({ ok: true, matches: [RAHIMA] });
+    type(RAHIMA.id.toUpperCase());
+    await settle();
+    expect(hidden().value).toBe(RAHIMA.id);
+    expect(box().value).toBe('Rahima Akter');
+    expect(status()).toBe('Chosen: Rahima Akter.');
+  });
+
+  it('says 20 or more when the server sends its most, never an exact count it cannot know', async () => {
+    search.mockResolvedValueOnce({
+      ok: true,
+      matches: Array.from({ length: 20 }, (_, i) => ({
+        id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+        displayName: `Rahim ${i}`,
+      })),
+    });
+    type('Rah');
+    await settle();
+    expect(status()).toContain('20 or more applicants match');
+  });
+
+  it('keeps focus in the text box when the list itself is pressed', async () => {
+    type('Rah');
+    await settle();
+    const list = form.querySelector('[role="listbox"]') as HTMLElement;
+    const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    act(() => {
+      list.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(true);
   });
 });

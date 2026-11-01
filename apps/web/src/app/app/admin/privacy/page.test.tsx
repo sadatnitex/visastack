@@ -125,19 +125,20 @@ describe('Platform > Privacy', () => {
     expect(text).toContain('Passport');
     expect(text).not.toContain('PASSPORT');
     expect(text).toContain('365 days');
-    expect(html).toContain('aria-label="Privacy sections"');
+    expect(html).toContain('aria-label="Privacy Sections"');
     expect(html).toMatch(/href="\/app\/admin\/privacy" aria-current="page"/);
     for (const name of ['holds', 'erasure', 'purge']) {
       expect(html).toContain(`href="/app/admin/privacy?tab=${name}"`);
     }
-    // Counts on the tabs, so nothing waiting is hidden behind them.
-    expect(text).toContain('Legal Holds (3)');
+    // Waiting erasure work is counted on every tab, so it is never hidden behind one.
     expect(text).toContain('Erasure (3)');
-    expect(text).toContain('Purge (1)');
     expect(text).not.toContain('Court order');
     expect(text).not.toContain('obj-1');
-    // No applicant is named on Retention, so no name is looked up.
+    // Only the open tab's list is read; no applicant is named on Retention, so no name either.
+    expect(mocks.listActiveLegalHolds).not.toHaveBeenCalled();
+    expect(mocks.documentsPastRetention).not.toHaveBeenCalled();
     expect(mocks.listAllApplicants).not.toHaveBeenCalled();
+    expect(mocks.listErasureJobsNeedingAttention).toHaveBeenCalledWith({}, 50);
   });
 
   it('shows every active legal hold with the applicant named, in a fixed scrolling panel', async () => {
@@ -175,12 +176,31 @@ describe('Platform > Privacy', () => {
     expect(html).toContain('href="/app/admin/privacy?tab=holds&amp;before=next_holds#admin-holds"');
     expect(textOf(html)).toContain('Show Older Holds');
     expect(html).toContain('href="/app/admin/privacy?tab=holds#admin-holds"');
-    expect(textOf(html)).toContain('Legal Holds (1+)');
+    expect(mocks.getRetentionPolicies).not.toHaveBeenCalled();
+    expect(mocks.documentsPastRetention).not.toHaveBeenCalled();
   });
 
-  it('ignores a cursor outside the holds tab and an unknown tab', async () => {
-    await renderServer(Page({ searchParams: Promise.resolve({ tab: 'nope', before: 'abc' }) }));
-    expect(mocks.listActiveLegalHolds).toHaveBeenCalledWith({}, { limit: 25 });
+  it('treats an unknown tab as Retention and ignores a cursor outside the holds tab', async () => {
+    const html = await renderServer(
+      Page({ searchParams: Promise.resolve({ tab: 'nope', before: 'abc' }) }),
+    );
+    expect(textOf(html)).toContain('Document Retention Policies');
+    expect(mocks.listActiveLegalHolds).not.toHaveBeenCalled();
+  });
+
+  it('says 50+ on the Erasure tab when the bounded read is full', async () => {
+    mocks.listErasureJobsNeedingAttention.mockResolvedValue(
+      Array.from({ length: 50 }, (_, i) => ({
+        id: `e${i}`,
+        objectKey: `obj-${i}`,
+        status: 'FAILED',
+        attempts: 5,
+        maxAttempts: 5,
+        reason: 'RETENTION_PURGE',
+        lastError: null,
+      })),
+    );
+    expect(textOf(await renderServer(Page()))).toContain('Erasure (50+)');
   });
 
   it('flags a hold with no review date and one whose review is overdue', async () => {

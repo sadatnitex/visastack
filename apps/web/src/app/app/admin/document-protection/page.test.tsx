@@ -139,7 +139,7 @@ const financialTab = () => Page({ searchParams: Promise.resolve({ category: 'fin
 describe('Platform > Settings > Document Protection', () => {
   it('shows the categories as tabs, the first open, and an unknown category falls back to it', async () => {
     const html = await renderServer(Page());
-    expect(html).toContain('aria-label="Document categories"');
+    expect(html).toContain('aria-label="Document Categories"');
     expect(html).toMatch(
       /href="\/app\/admin\/document-protection#document-categories" aria-current="page"/,
     );
@@ -152,6 +152,10 @@ describe('Platform > Settings > Document Protection', () => {
       Page({ searchParams: Promise.resolve({ category: 'constructor' }) }),
     );
     expect(textOf(unknown)).toContain('Health reports, vaccination');
+    // Each switch on a tab names its tab, so a fresh sign-in check returns there.
+    expect(
+      stubProps<{ category?: string }>(html, 'ProtectionSwitch').map((s) => s.category ?? null),
+    ).toEqual([null, 'medical', 'medical', 'medical']);
     const financial = await renderServer(financialTab());
     expect(financial).toMatch(/category=financial#document-categories" aria-current="page"/);
     expect(textOf(financial)).not.toContain('Health reports, vaccination');

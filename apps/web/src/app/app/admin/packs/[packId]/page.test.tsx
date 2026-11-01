@@ -166,6 +166,15 @@ describe('Platform > Rules > one pack', () => {
     expect(html).toContain('href="/app/admin/packs/pk1?version=v14#pack-open-version"');
   });
 
+  it('keeps each requirement in a fixed place whatever order the read returns', async () => {
+    mocks.listRequirements.mockResolvedValue(
+      Array.from({ length: 140 }, (_, i) => requirement(i)).reverse(),
+    );
+    const html = await render();
+    expect(textOf(html).indexOf('DOC_000')).toBeLessThan(textOf(html).indexOf('DOC_001'));
+    expect(textOf(html)).not.toContain('DOC_139');
+  });
+
   it('falls back to the newest version for an unknown one', async () => {
     await render({ version: 'not-here' });
     expect(mocks.listRequirements).toHaveBeenCalledWith({}, 'v14');

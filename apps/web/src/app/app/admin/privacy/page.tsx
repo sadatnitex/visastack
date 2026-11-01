@@ -57,6 +57,8 @@ function tabOf(value: string | undefined): Tab {
 
 /** Legal holds per load: the staff list step. */
 const HOLDS_PER_LOAD = TEAM_LIST_STEP;
+/** The erasure read's own ceiling; a full read is shown as "50+". */
+const ERASURE_READ_MAX = 50;
 
 export const metadata: Metadata = { title: 'Platform Privacy' };
 
@@ -89,15 +91,21 @@ export default async function AdminPrivacyPage({
       'APPLICANT_DIRECTORY_VIEW',
     );
     if (!staff.ok) return { admin: true as const, allowed: false as const };
+    // Only the open tab's list is read. Erasure jobs needing a person are read on every tab (a
+    // bounded read of at most 50), so the tab count shows waiting work wherever the admin is.
+    const noHolds = { items: [], nextCursor: null };
     const [policies, holds, erasureJobs, purgeEligible] = await Promise.all([
-      t('retention policies', () => getRetentionPolicies(db), []),
-      t(
-        'legal holds',
-        () => listActiveLegalHolds(db, { limit: HOLDS_PER_LOAD, ...(before ? { before } : {}) }),
-        { items: [], nextCursor: null },
-      ),
-      t('erasure jobs', () => listErasureJobsNeedingAttention(db), []),
-      t('documents past retention', () => documentsPastRetention(db), []),
+      tab === 'retention' ? t('retention policies', () => getRetentionPolicies(db), []) : [],
+      tab === 'holds'
+        ? t(
+            'legal holds',
+            () =>
+              listActiveLegalHolds(db, { limit: HOLDS_PER_LOAD, ...(before ? { before } : {}) }),
+            noHolds,
+          )
+        : noHolds,
+      t('erasure jobs', () => listErasureJobsNeedingAttention(db, ERASURE_READ_MAX), []),
+      tab === 'purge' ? t('documents past retention', () => documentsPastRetention(db), []) : [],
     ]);
     // Only the names the open tab shows are looked up.
     const shownApplicantIds =
@@ -149,19 +157,18 @@ export default async function AdminPrivacyPage({
           <FailedSectionsBanner sections={data.failedSections} />
 
           <SectionTabs
-            label="Privacy sections"
+            label="Privacy Sections"
             active={tab}
             tabs={(Object.keys(TABS) as Tab[]).map((key) => ({
               key,
               label: TABS[key].label,
               href: key === 'retention' ? PATHNAME : `${PATHNAME}?tab=${key}`,
-              ...(key === 'holds'
-                ? { count: data.holds.length, more: data.holdsNextCursor !== null }
-                : key === 'erasure'
-                  ? { count: data.erasureJobs.length }
-                  : key === 'purge'
-                    ? { count: data.purgeEligible.length }
-                    : {}),
+              ...(key === 'erasure'
+                ? {
+                    count: data.erasureJobs.length,
+                    more: data.erasureJobs.length >= ERASURE_READ_MAX,
+                  }
+                : {}),
             }))}
           />
 

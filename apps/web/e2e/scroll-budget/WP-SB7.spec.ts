@@ -28,7 +28,7 @@ test.describe('WP-SB7 scroll budget', () => {
     page,
   }) => {
     await renderFixture(page, FIXTURE, { view: 'holds', shown: 25, total: 300 });
-    await expect(page.getByRole('link', { name: 'Legal Holds (25+)' })).toHaveAttribute(
+    await expect(page.getByRole('link', { name: 'Legal Holds' })).toHaveAttribute(
       'aria-current',
       'page',
     );
@@ -45,7 +45,7 @@ test.describe('WP-SB7 scroll budget', () => {
   test('document protection: one category tab open of 12, within 3 screens', async ({ page }) => {
     await renderFixture(page, FIXTURE, { view: 'protection', shown: 20, total: 12 });
     await expect(
-      page.getByRole('navigation', { name: 'Document categories' }).getByRole('link'),
+      page.getByRole('navigation', { name: 'Document Categories' }).getByRole('link'),
     ).toHaveCount(12);
     for (const viewport of ['phone', 'desktop'] as const) {
       await expectWithinBudget(page, { screens: 3, viewport, mode: 'enforce' });
