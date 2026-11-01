@@ -212,7 +212,7 @@ export default async function TravellerPlanMetricsPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
-} = {}) {
+}) {
   const typed = typedThresholds((await searchParams) ?? {});
   const now = new Date();
   const data = await withSession(async ({ db, accountId, email }) => {

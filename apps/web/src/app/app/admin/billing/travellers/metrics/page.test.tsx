@@ -157,7 +157,7 @@ function tableRows(html: string, section: 'tbody' | 'tfoot'): string[][] {
 describe('Platform > Traveller Plan Metrics', () => {
   it('is for the platform owner only, and reads nothing for anyone else', async () => {
     mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(mocks.staffPrincipal.mock.calls[0]?.[2]).toBe('PLANS_MANAGE');
     expect(text).toContain('This area is restricted to platform administrators.');
@@ -170,14 +170,14 @@ describe('Platform > Traveller Plan Metrics', () => {
   });
 
   it("reads 14 days and the health signals with the owner's scope", async () => {
-    await renderServer(Page());
+    await renderServer(Page({}));
     expect(mocks.travellerPlanMetrics.mock.calls[0]?.[1]).toBe(SCOPE);
     expect(mocks.travellerPlanMetrics.mock.calls[0]?.[2]).toMatchObject({ days: 14, now: NOW });
     expect(mocks.travellerPlanHealth.mock.calls[0]?.[1]).toBe(SCOPE);
   });
 
   it('shows the last 14 days in a real table, newest first, with a totals row and a caption', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(html.match(/<h1/g)).toHaveLength(1);
     expect(textOf(html)).toContain('Traveller Plan Metrics');
     expect(html).toContain('<caption');
@@ -211,7 +211,7 @@ describe('Platform > Traveller Plan Metrics', () => {
   });
 
   it('gives the three rates as plain percentages with what each means, and counts test payments apart', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Conversion: 50%');
     expect(text).toContain('Of the purchases started in these days, the share that was paid.');
     expect(text).toContain('Renewal: 50%');
@@ -228,7 +228,7 @@ describe('Platform > Traveller Plan Metrics', () => {
     mocks.travellerPlanMetrics.mockResolvedValue(
       metrics({ rates: { conversion: 0.123, renewal: null, refund: null }, testPayments: 0 }),
     );
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Conversion: 12%');
     expect(text).toContain('Renewal: Not enough data yet');
     expect(text).toContain('Refund: Not enough data yet');
@@ -236,10 +236,10 @@ describe('Platform > Traveller Plan Metrics', () => {
   });
 
   it('says once that views and taps are counted after the database is updated', async () => {
-    const counted = textOf(await renderServer(Page()));
+    const counted = textOf(await renderServer(Page({})));
     expect(counted).not.toContain('are counted once the database is updated');
     mocks.travellerPlanMetrics.mockResolvedValue(metrics({ countsAvailable: false }));
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(
       text.match(/Plan & Usage views and Get taps are counted once the database is updated\./g),
@@ -251,7 +251,7 @@ describe('Platform > Traveller Plan Metrics', () => {
   });
 
   it('names each health signal plainly, with its value, its threshold and a status in words', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     const section = html.split('id="health-title"')[1]?.split('id="thresholds-title"')[0] ?? '';
     const rows = tableRows(section, 'tbody');
@@ -276,7 +276,7 @@ describe('Platform > Traveller Plan Metrics', () => {
         { key: 'needs_check', value: 0, threshold: 0, status: 'ok' },
       ]),
     );
-    const empty = await renderServer(Page());
+    const empty = await renderServer(Page({}));
     const emptyRows = tableRows(
       empty.split('id="health-title"')[1]?.split('id="thresholds-title"')[0] ?? '',
       'tbody',
@@ -291,7 +291,7 @@ describe('Platform > Traveller Plan Metrics', () => {
   });
 
   it('offers the four thresholds as whole numbers, saved with Save Thresholds', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const form = html.split('id="thresholds-title"')[1] ?? '';
     for (const [name, value] of Object.entries(THRESHOLDS)) {
       const input = form.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0] ?? '';
@@ -342,7 +342,7 @@ describe('Platform > Traveller Plan Metrics', () => {
 
   it('shows the thresholds but cannot save them before the database is updated, and says why', async () => {
     mocks.travellerPlanHealth.mockResolvedValue(health(undefined, false));
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const form = html.split('id="thresholds-title"')[1] ?? '';
     expect(textOf(form)).toContain(TRAVELLER_HEALTH_UNAVAILABLE);
     expect(form).toMatch(/<fieldset[^>]*disabled=""/);
@@ -360,7 +360,7 @@ describe('Platform > Traveller Plan Metrics', () => {
     ];
     for (const set of states) {
       set();
-      const html = await renderServer(Page());
+      const html = await renderServer(Page({}));
       expect(html).not.toMatch(UUID);
       expect(html).not.toContain('@');
     }
