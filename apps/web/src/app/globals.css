@@ -11573,5 +11573,17 @@ html:has(.sticky-action-bar) {
   .staff-queue-filters {
     grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
     gap: 0.5rem;
+  }  /* Two group headings per row; an opened group takes the whole width for its cards. */
+  .platform-operations .admin-overview-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .platform-operations .admin-overview-groups > .admin-overview-group {
+    padding: 0 0.75rem;
+  }
+  .platform-operations .admin-overview-groups > .admin-overview-group[open] {
+    grid-column: 1 / -1;
+  }
+  .platform-operations .admin-overview-group > summary {
+    font-size: var(--text-small);
   }
 }
