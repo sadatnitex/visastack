@@ -1,6 +1,6 @@
 import type { MembershipRole, OrganizationStatus } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, ilike, isNull, ne } from 'drizzle-orm';
+import { and, eq, ilike, inArray, isNull, ne } from 'drizzle-orm';
 import { endAgencyAiConnectionsOfMember } from './access/agency-ai-connections';
 import { agencyAiAvailable } from './agency-ai-ready';
 import { appendAuditEvent } from './audit';
@@ -8,6 +8,7 @@ import { type Db, first, required, schema } from './db';
 import { checkSeatEntitlement } from './entitlement-enforcement';
 import { type ServiceError, serviceError } from './errors';
 import { assignFoundingAccess } from './founding-access';
+import { cancelQueuedNotificationsForResource } from './notifications';
 import {
   type Page,
   type PageRequest,
@@ -381,11 +382,13 @@ export async function suspendOrganization(
  * entire access-removal mechanism. Nothing else needs to change for that
  * half of the requirement.
  *
- * "Traveller retains wallet": this function touches only the `organizations`
- * row. It never reads or writes `applicants`, `facts`, or `documents` --
- * traveller-owned tables that were never owned by the organization in the
- * first place, so there is nothing here that could revoke them even by
- * accident.
+ * "Traveller retains wallet": this function changes the `organizations` row
+ * and, under owner decision "Founding A", the agency's own plan (its current
+ * subscription ends, its waiting downgrade and that downgrade's queued notice
+ * are cancelled; see `endPlanOfClosingAgency`). It never reads or writes
+ * `applicants`, `facts`, or `documents` -- traveller-owned tables that were
+ * never owned by the organization in the first place, so there is nothing here
+ * that could revoke them even by accident.
  *
  * Step-up gated like `suspendOrganization`/`reviewOrganization` -- a
  * permanent, irreversible action deserves at least the same defense-in-depth
@@ -417,16 +420,24 @@ export async function terminateOrganization(
   }
   return db.transaction(async (tx) => {
     const now = new Date();
-    const updated = required(
-      first(
-        await tx
-          .update(schema.organizations)
-          .set({ status: 'CLOSED', updatedAt: now })
-          .where(eq(schema.organizations.id, input.organizationId))
-          .returning(),
-      ),
-      'organization',
+    // Only a row still ACTIVE or SUSPENDED is closed: a second termination that read the row
+    // before the first one committed changes nothing and records nothing.
+    const updated = first(
+      await tx
+        .update(schema.organizations)
+        .set({ status: 'CLOSED', updatedAt: now })
+        .where(
+          and(
+            eq(schema.organizations.id, input.organizationId),
+            inArray(schema.organizations.status, ['ACTIVE', 'SUSPENDED']),
+          ),
+        )
+        .returning(),
     );
+    if (!updated) {
+      return err(serviceError('invalid', 'only an ACTIVE or SUSPENDED org can be terminated'));
+    }
+    const lockedSubscriptionId = await lockPlanOfClosingAgency(tx, input.organizationId);
     // Owner decision "Founding A": the closed agency's plan stops renewing and ends now; nothing
     // is refunded automatically (endPlanOfClosingAgency below).
     const plan = await endPlanOfClosingAgency(tx, {
@@ -434,6 +445,7 @@ export async function terminateOrganization(
       actorAccountId: input.reviewerAccountId,
       cause: 'organization_terminated',
       now,
+      lockedSubscriptionId,
     });
     await appendAuditEvent(tx, {
       eventType: 'ORGANIZATION_TERMINATED',
@@ -894,7 +906,7 @@ export async function withdrawOrganizationApplication(
     }
 
     // The agency's plan rows are locked before anything is audited, the same order as above.
-    await lockPlanOfClosingAgency(tx, input.organizationId);
+    const lockedSubscriptionId = await lockPlanOfClosingAgency(tx, input.organizationId);
 
     // The row lock above makes the status check final: no other change can land in between.
     const now = new Date();
@@ -954,6 +966,7 @@ export async function withdrawOrganizationApplication(
       actorAccountId: input.actorAccountId,
       cause: 'application_withdrawn',
       now,
+      lockedSubscriptionId,
     });
 
     await appendAuditEvent(tx, {
@@ -989,18 +1002,11 @@ export async function withdrawOrganizationApplication(
  */
 type ClosingCause = 'application_withdrawn' | 'organization_terminated';
 
-/** Row locks on the agency's waiting downgrade and current subscription; returns the latter's id. */
+/**
+ * Row locks on the agency's current subscription, then its waiting downgrade (the order every plan
+ * change in plans.ts takes them); returns the subscription's id.
+ */
 async function lockPlanOfClosingAgency(tx: Db, organizationId: string): Promise<string | null> {
-  await tx
-    .select({ id: schema.scheduledDowngrades.id })
-    .from(schema.scheduledDowngrades)
-    .where(
-      and(
-        eq(schema.scheduledDowngrades.organizationId, organizationId),
-        eq(schema.scheduledDowngrades.status, 'PENDING'),
-      ),
-    )
-    .for('update');
   const current = first(
     await tx
       .select({ id: schema.subscriptions.id })
@@ -1013,6 +1019,16 @@ async function lockPlanOfClosingAgency(tx: Db, organizationId: string): Promise<
       )
       .for('update'),
   );
+  await tx
+    .select({ id: schema.scheduledDowngrades.id })
+    .from(schema.scheduledDowngrades)
+    .where(
+      and(
+        eq(schema.scheduledDowngrades.organizationId, organizationId),
+        eq(schema.scheduledDowngrades.status, 'PENDING'),
+      ),
+    )
+    .for('update');
   return current?.id ?? null;
 }
 
@@ -1024,9 +1040,11 @@ async function endPlanOfClosingAgency(
     readonly actorAccountId: string;
     readonly cause: ClosingCause;
     readonly now: Date;
+    /** The subscription the caller already locked with `lockPlanOfClosingAgency`. */
+    readonly lockedSubscriptionId: string | null;
   },
 ): Promise<{ readonly ended: boolean }> {
-  const subscriptionId = await lockPlanOfClosingAgency(tx, input.organizationId);
+  const subscriptionId = input.lockedSubscriptionId;
   if (subscriptionId === null) return { ended: false };
   const reason =
     input.cause === 'application_withdrawn'
@@ -1054,15 +1072,7 @@ async function endPlanOfClosingAgency(
     .returning({ id: schema.scheduledDowngrades.id });
   for (const downgrade of downgrades) {
     // Its notice still waiting to go out is withdrawn too, as plans.ts does for a superseded one.
-    await tx
-      .update(schema.notifications)
-      .set({ status: 'CANCELLED' })
-      .where(
-        and(
-          eq(schema.notifications.resourceId, downgrade.id),
-          eq(schema.notifications.status, 'QUEUED'),
-        ),
-      );
+    await cancelQueuedNotificationsForResource(tx, downgrade.id);
   }
   for (const downgrade of downgrades) {
     await appendAuditEvent(tx, {

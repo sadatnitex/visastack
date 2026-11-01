@@ -13,6 +13,7 @@ import {
   terminateOrganization,
   withdrawOrganizationApplication,
 } from './organizations';
+import { executeScheduledDowngrade } from './plans';
 
 /**
  * Owner decision "Founding A" (1 Nov 2026): when an agency withdraws its application or is
@@ -73,8 +74,11 @@ async function auditsOf(eventType: string) {
   return db.select().from(schema.auditEvents).where(eq(schema.auditEvents.eventType, eventType));
 }
 
-/** A downgrade still waiting for this agency, to a second agency plan. */
-async function waitingDowngrade(organizationId: string): Promise<string> {
+/**
+ * A downgrade still waiting for this agency, to a second agency plan, with its notice to the
+ * owner still queued. `due` puts its date in the past, ready for the daily run.
+ */
+async function waitingDowngrade(organizationId: string, due = false): Promise<string> {
   const [founding] = await db
     .select({ id: schema.plans.id })
     .from(schema.plans)
@@ -90,13 +94,31 @@ async function waitingDowngrade(organizationId: string): Promise<string> {
       organizationId,
       fromPlanId: founding.id,
       toPlanId: smaller.id,
-      effectiveAt: new Date(Date.now() + 7 * 86_400_000),
+      requestedAt: new Date(Date.now() - 2 * 86_400_000),
+      effectiveAt: new Date(Date.now() + (due ? -1 : 7) * 86_400_000),
       requestedByAccountId: reviewer,
       reason: 'test',
     })
     .returning({ id: schema.scheduledDowngrades.id });
   if (!row) throw new Error('downgrade');
+  await db.insert(schema.notifications).values({
+    eventType: 'DOWNGRADE_SCHEDULED',
+    channel: 'IN_APP',
+    idempotencyKey: `downgrade-notice-${row.id}`,
+    recipientAccountId: owner,
+    organizationId,
+    resourceId: row.id,
+    payload: {},
+  });
   return row.id;
+}
+
+async function noticeStatus(downgradeId: string): Promise<string | undefined> {
+  const [notice] = await db
+    .select({ status: schema.notifications.status })
+    .from(schema.notifications)
+    .where(eq(schema.notifications.resourceId, downgradeId));
+  return notice?.status;
 }
 
 async function billingCounts(): Promise<Record<string, number>> {
@@ -134,6 +156,8 @@ describe('a closing agency keeps no plan (owner decision Founding A)', () => {
       cancelledByAccountId: owner,
       cancelledReason: 'the agency withdrew its application',
     });
+    // Its notice still waiting to go out is withdrawn with it.
+    expect(await noticeStatus(downgradeId)).toBe('CANCELLED');
     // Nothing else in billing moves: no invoice, payment or refund is made.
     expect(await billingCounts()).toEqual(money);
 
@@ -205,6 +229,31 @@ describe('a closing agency keeps no plan (owner decision Founding A)', () => {
     expect(withdrawAudit?.metadata).toMatchObject({ subscriptionEnded: false });
     const [terminateAudit] = await auditsOf('ORGANIZATION_TERMINATED');
     expect(terminateAudit?.metadata).toMatchObject({ subscriptionEnded: false });
+  });
+
+  it('the daily downgrade run never puts a plan back on a closed agency (for example after a restore)', async () => {
+    const organizationId = await newAgency();
+    await activate(organizationId);
+    const downgradeId = await waitingDowngrade(organizationId, true);
+    // A restore can bring back a closed agency's plan and its waiting downgrade.
+    await db.execute(
+      sql`update organizations set status = 'CLOSED' where id = ${organizationId}::uuid`,
+    );
+    const run = await executeScheduledDowngrade(db, { downgradeId });
+    expect(isOk(run)).toBe(false);
+    const plans = await plansOf(organizationId);
+    expect(plans).toHaveLength(1);
+    expect(plans[0]?.plan_key).toBe(AGENCY_FOUNDING_PLAN_KEY);
+    const [downgrade] = await db
+      .select({ status: schema.scheduledDowngrades.status })
+      .from(schema.scheduledDowngrades)
+      .where(eq(schema.scheduledDowngrades.id, downgradeId));
+    expect(downgrade?.status).toBe('PENDING');
+    // The same downgrade on an agency still open is applied as before.
+    await db.execute(
+      sql`update organizations set status = 'ACTIVE' where id = ${organizationId}::uuid`,
+    );
+    expect(isOk(await executeScheduledDowngrade(db, { downgradeId }))).toBe(true);
   });
 
   it('a refused withdrawal or termination leaves the plan as it was', async () => {
