@@ -16,6 +16,12 @@ import { checkCaseCreationEntitlement } from './entitlement-enforcement';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
+import {
+  everydayDocumentCondition,
+  lifecycleTablesPresent,
+  presentApplicantCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
 import { getLiveAcknowledgement, incrementMaterialRevision } from './material-revision';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import { type PackRequirement, listRequirements } from './packs';
@@ -476,6 +482,8 @@ export async function listMissionsByItineraryRef(
       and(
         eq(schema.applicants.ownerAccountId, input.actorAccountId),
         eq(schema.missions.itineraryRef, ref),
+        // A traveller record in Recently Deleted or being removed links no trips (LC-A1).
+        (await lifecycleTablesPresent(db)) ? presentApplicantCondition() : undefined,
       ),
     );
   return rows.map((r) => r.mission);
@@ -569,6 +577,12 @@ export interface RequirementResultSummary {
   readonly key: string;
   readonly optional: boolean;
   readonly state: RequirementResultState;
+  /**
+   * LC-A1 (owner decision D6): the case counts a document chosen on purpose that has since been
+   * replaced by a newer one or archived. It still counts, and is flagged so the person can review
+   * it. Present only when true, so every other result keeps its shape.
+   */
+  readonly selectedButReplacedOrArchived?: true;
 }
 
 export interface Readiness {
@@ -814,6 +828,17 @@ const UNCLASSIFIED_DOCUMENT_GROUP = Symbol('unclassified-document-group');
 type DocumentGroupKey = string | typeof UNCLASSIFIED_DOCUMENT_GROUP;
 
 /**
+ * Every present document of one person, grouped by type, plus the ones automatic matching leaves
+ * out (LC-A1): replaced by a newer document that is here and usable, or archived. Those still count where a case chose
+ * them on purpose (owner decision D6), flagged. Kept beside the instances, never inside them, so
+ * a snapshot's document entries keep exactly their shape.
+ */
+interface DocumentPool {
+  readonly byType: ReadonlyMap<DocumentGroupKey, readonly DocumentInstance[]>;
+  readonly setAside: ReadonlySet<string>;
+}
+
+/**
  * Load the latest version of every document, grouped by docType. Only the
  * latest version of each document is considered — an older, superseded
  * version can never satisfy a requirement. `eligible` folds together every
@@ -836,10 +861,12 @@ type DocumentGroupKey = string | typeof UNCLASSIFIED_DOCUMENT_GROUP;
  * future snapshot, permanently absent from the immutable evidentiary record
  * even though its bytes and metadata were never actually lost.
  */
-async function loadDocumentInstancesByType(
-  db: Db,
-  applicantId: string,
-): Promise<Map<DocumentGroupKey, DocumentInstance[]>> {
+async function loadDocumentInstancesByType(db: Db, applicantId: string): Promise<DocumentPool> {
+  // Resource lifecycle (LC-A1): a document in Recently Deleted or being removed is never read
+  // here, so it can never count, even when a case selected it. Archived (and replaced, below)
+  // documents are read but set aside from automatic matching. Before migration 0113 nothing can
+  // be archived or deleted, so both conditions are left out and every document is everyday.
+  const lifecycle = await lifecycleTablesPresent(db);
   const rows = await db
     .select({
       documentId: schema.documents.id,
@@ -854,10 +881,17 @@ async function loadDocumentInstancesByType(
       safetyStatus: schema.documentVersions.safetyStatus,
       processingStatus: schema.documentVersions.processingStatus,
       storageObjectId: schema.documentVersions.storageObjectId,
+      supersededByDocumentId: schema.documents.supersededByDocumentId,
+      everyday: lifecycle ? sql<boolean>`${everydayDocumentCondition()}` : sql<boolean>`true`,
     })
     .from(schema.documents)
     .innerJoin(schema.documentVersions, eq(schema.documentVersions.documentId, schema.documents.id))
-    .where(eq(schema.documents.applicantId, applicantId));
+    .where(
+      and(
+        eq(schema.documents.applicantId, applicantId),
+        lifecycle ? presentDocumentCondition() : undefined,
+      ),
+    );
 
   const latestByDocument = new Map<string, (typeof rows)[number]>();
   for (const row of rows) {
@@ -878,7 +912,9 @@ async function loadDocumentInstancesByType(
 
   const now = Date.now();
   const map = new Map<DocumentGroupKey, DocumentInstance[]>();
+  const setAside = new Set<string>();
   for (const row of latestByDocument.values()) {
+    if (row.everyday !== true) setAside.add(row.documentId);
     const groupKey = row.docType ?? UNCLASSIFIED_DOCUMENT_GROUP;
     const eligible =
       isDocumentVersionUsable({
@@ -901,7 +937,26 @@ async function loadDocumentInstancesByType(
     });
     map.set(groupKey, list);
   }
-  return map;
+  // A replaced document steps aside only while its replacement is here and usable: if the newer
+  // one is in Recently Deleted, removed, unsafe or still processing, the older one counts again
+  // rather than leaving the person with nothing that matches.
+  const usable = new Set(
+    [...map.values()]
+      .flat()
+      .filter((d) => d.eligible)
+      .map((d) => d.documentId),
+  );
+  for (const row of latestByDocument.values()) {
+    if (row.supersededByDocumentId !== null && usable.has(row.supersededByDocumentId)) {
+      setAside.add(row.documentId);
+    }
+  }
+  return { byType: map, setAside };
+}
+
+/** A document group's instances that automatic matching may use: neither replaced nor archived. */
+function everydayInstances(pool: DocumentPool, key: DocumentGroupKey): readonly DocumentInstance[] {
+  return (pool.byType.get(key) ?? []).filter((d) => !pool.setAside.has(d.documentId));
 }
 
 /**
@@ -964,13 +1019,13 @@ export async function computeReadiness(
 
   const requirements = await listRequirements(db, mission.packVersionId);
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
-  const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
+  const documentPool = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, missionId);
   const context = buildFactEvaluationContext(factsByKey, now, mission);
   const mapping = buildRequirementMapping(
     requirements,
     factsByKey,
-    documentsByType,
+    documentPool,
     selections,
     now,
     context,
@@ -987,6 +1042,7 @@ export async function computeReadiness(
       key: entry.key,
       optional: entry.optional,
       state: entry.resultState,
+      ...(entry.selectedButReplacedOrArchived ? { selectedButReplacedOrArchived: true } : {}),
     });
     // A NOT_APPLICABLE requirement never counts toward "what must still be
     // done": it is not required, not missing, not satisfied; it simply
@@ -1064,25 +1120,35 @@ export async function getEvidenceCandidates(
 
   const requirements = await listRequirements(db, mission.packVersionId);
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
-  const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
+  const documentPool = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, missionId);
   const now = new Date();
 
   return ok(
-    requirements.map((req) => ({
-      packRequirementId: req.id,
-      kind: req.kind,
-      key: req.kind === 'FIELD' ? (req.fieldKey ?? '') : (req.docType ?? ''),
-      citation: req.citation,
-      optional: req.optional,
-      factCandidates: factsByKey.get(req.fieldKey ?? '') ?? [],
-      documentCandidates: (documentsByType.get(req.docType ?? '') ?? []).map((d) => ({
-        ...d,
-        staleness: classifyStaleness(parseDocumentDate(d.documentDate), req.maxAgeDays, now),
-      })),
-      selectedFactIds: [...(selections.factIdsByRequirement.get(req.id) ?? [])],
-      selectedDocumentIds: [...(selections.documentIdsByRequirement.get(req.id) ?? [])],
-    })),
+    requirements.map((req) => {
+      const selectedDocumentIds = selections.documentIdsByRequirement.get(req.id);
+      return {
+        packRequirementId: req.id,
+        kind: req.kind,
+        key: req.kind === 'FIELD' ? (req.fieldKey ?? '') : (req.docType ?? ''),
+        citation: req.citation,
+        optional: req.optional,
+        factCandidates: factsByKey.get(req.fieldKey ?? '') ?? [],
+        // A replaced or archived document is offered only where this case already chose it (D6).
+        documentCandidates: (documentPool.byType.get(req.docType ?? '') ?? [])
+          .filter(
+            (d) =>
+              !documentPool.setAside.has(d.documentId) ||
+              selectedDocumentIds?.has(d.documentId) === true,
+          )
+          .map((d) => ({
+            ...d,
+            staleness: classifyStaleness(parseDocumentDate(d.documentDate), req.maxAgeDays, now),
+          })),
+        selectedFactIds: [...(selections.factIdsByRequirement.get(req.id) ?? [])],
+        selectedDocumentIds: [...(selectedDocumentIds ?? [])],
+      };
+    }),
   );
 }
 
@@ -1209,6 +1275,8 @@ export interface RequirementMappingEntry {
     /** NTF-01: this requirement's `maxAgeDays` rule applied to this document's own date, kept separate from `eligible` (intrinsic-only). */
     readonly staleness: StalenessClassification;
   }>;
+  /** LC-A1: a selected document has been replaced or archived since it was chosen (see `RequirementResultSummary`). */
+  readonly selectedButReplacedOrArchived?: true;
 }
 
 /**
@@ -1366,7 +1434,7 @@ function evaluateRequirementCondition(
 function buildRequirementMapping(
   requirements: readonly PackRequirement[],
   factsByKey: ReadonlyMap<string, readonly FactInstance[]>,
-  documentsByType: ReadonlyMap<DocumentGroupKey, readonly DocumentInstance[]>,
+  documentPool: DocumentPool,
   selections: SelectionSets,
   now: Date,
   context: EvaluationContext,
@@ -1408,11 +1476,14 @@ function buildRequirementMapping(
       };
     }
     const key = req.docType ?? '';
-    let instances = documentsByType.get(key) ?? [];
     const selectedDocumentIds = selections.documentIdsByRequirement.get(req.id);
-    if (selectedDocumentIds && selectedDocumentIds.size > 0) {
-      instances = instances.filter((d) => selectedDocumentIds.has(d.documentId));
-    }
+    const chosen = selectedDocumentIds !== undefined && selectedDocumentIds.size > 0;
+    // An explicit selection counts what was chosen, even replaced or archived since (D6, flagged
+    // below); automatic matching never uses a replaced or archived document (LC-A1).
+    const instances = chosen
+      ? (documentPool.byType.get(key) ?? []).filter((d) => selectedDocumentIds.has(d.documentId))
+      : everydayInstances(documentPool, key);
+    const flagged = chosen && instances.some((d) => documentPool.setAside.has(d.documentId));
     const documents = instances.map((d) => ({
       documentId: d.documentId,
       documentVersionId: d.documentVersionId,
@@ -1438,6 +1509,7 @@ function buildRequirementMapping(
         hasStale: documents.some((d) => d.eligible && d.staleness.status === 'stale'),
       }),
       documents,
+      ...(flagged ? { selectedButReplacedOrArchived: true } : {}),
     };
   });
 }
@@ -1450,7 +1522,7 @@ function buildRequirementMapping(
  */
 async function loadCaseEvidence(db: Db, mission: Mission) {
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
-  const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
+  const documentPool = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, mission.id);
 
   let requirementMapping: RequirementMappingEntry[] = [];
@@ -1472,7 +1544,7 @@ async function loadCaseEvidence(db: Db, mission: Mission) {
     requirementMapping = buildRequirementMapping(
       requirements,
       factsByKey,
-      documentsByType,
+      documentPool,
       selections,
       snapshotNow,
       buildFactEvaluationContext(factsByKey, snapshotNow, mission),
@@ -1532,13 +1604,15 @@ async function loadCaseEvidence(db: Db, mission: Mission) {
   const facts = [...factsByKey.entries()]
     .flatMap(([fieldKey, instances]) => instances.map((i) => ({ fieldKey, ...i })))
     .filter((f) => evidenceScope === 'all_applicant_evidence' || usedFactIds.has(f.factId));
-  const documents = [...documentsByType.values()]
+  // A replaced or archived document is in the case only where the case uses it (LC-A1).
+  const documents = [...documentPool.byType.values()]
     .flat()
     .filter(
       (d) =>
-        evidenceScope === 'all_applicant_evidence' ||
         usedDocumentVersionIds.has(d.documentVersionId) ||
-        (d.docType === null && packNeedsDocuments),
+        (!documentPool.setAside.has(d.documentId) &&
+          (evidenceScope === 'all_applicant_evidence' ||
+            (d.docType === null && packNeedsDocuments))),
     );
 
   return { requirementMapping, packVersionSnapshot, facts, documents, evidenceScope };
@@ -1819,7 +1893,13 @@ export async function selectEvidence(
       await db
         .select({ applicantId: schema.documents.applicantId, docType: schema.documents.docType })
         .from(schema.documents)
-        .where(eq(schema.documents.id, input.documentId))
+        .where(
+          and(
+            eq(schema.documents.id, input.documentId),
+            // An archived document can still be chosen on purpose; a deleted one cannot (LC-A1).
+            (await lifecycleTablesPresent(db)) ? presentDocumentCondition() : undefined,
+          ),
+        )
         .limit(1),
     );
     if (!document || document.applicantId !== mission.applicantId) {
@@ -2648,13 +2728,13 @@ export async function generateCoverLetter(
 
   const requirements = await listRequirements(db, mission.packVersionId);
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
-  const documentsByType = await loadDocumentInstancesByType(db, mission.applicantId);
+  const documentPool = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, mission.id);
   const letterNow = new Date();
   const mapping = buildRequirementMapping(
     requirements,
     factsByKey,
-    documentsByType,
+    documentPool,
     selections,
     letterNow,
     buildFactEvaluationContext(factsByKey, letterNow, mission),
@@ -3056,7 +3136,7 @@ async function buildPrepareAgainPlan(
   }
   const requirements = await listRequirements(tx, latest.id);
   const factsByKey = await loadFactInstancesByKey(tx, source.applicantId);
-  const documentsByType = await loadDocumentInstancesByType(tx, source.applicantId);
+  const documentPool = await loadDocumentInstancesByType(tx, source.applicantId);
   const previous = await previousChoicesByKey(tx, source.id, source.packVersionId);
   const context = buildFactEvaluationContext(factsByKey, now);
   let notApplicableCount = 0;
@@ -3070,7 +3150,8 @@ async function buildPrepareAgainPlan(
       classifyPrepareAgainRequirement(
         req,
         req.kind === 'FIELD' ? (factsByKey.get(req.fieldKey ?? '') ?? []) : [],
-        req.kind === 'DOCUMENT' ? (documentsByType.get(req.docType ?? '') ?? []) : [],
+        // A new case is offered only everyday documents, never a replaced or archived one.
+        req.kind === 'DOCUMENT' ? everydayInstances(documentPool, req.docType ?? '') : [],
         previous.get(choiceKey(req.kind, req.kind === 'FIELD' ? req.fieldKey : req.docType)),
         now,
       ),

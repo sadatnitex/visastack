@@ -12145,3 +12145,27 @@ html:has(.sticky-action-bar) {
   background: var(--danger-bg);
   color: var(--danger);
 }
+
+/* WP-LC-A1 archive: the Archive and Restore panels inside the Manage menu (status line, failure reason, 44 px buttons) */
+.lc-archive-working {
+  display: block;
+  min-height: 44px;
+  padding: var(--space-2) 0;
+}
+.lc-archive-failed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lc-archive-failed p {
+  margin: 0;
+  font-weight: 600;
+}
+.lc-archive-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.lc-archive-buttons .btn {
+  min-height: 44px;
+}
