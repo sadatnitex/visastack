@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { UndoStatus } from '../../../../../../../components/lifecycle/undo-status';
@@ -17,8 +18,10 @@ type Preview = Extract<DeletePreviewResult, { ok: true }>;
 /**
  * Delete Duplicate (lane LC-C), opened from the Manage menu. One confirmation that names the copy
  * that stays and the open cases that will switch to it, then a status line with Undo for ten
- * seconds. The page is redrawn only when the person presses Done (or after Undo), so the result
- * is read before anything moves. Buttons stay focusable while work runs (aria-disabled).
+ * seconds. This panel does not redraw the page itself until Done or Undo, but a page that is
+ * still refreshing for a file being checked can move the copy to Recently Deleted sooner and
+ * close it: the line therefore also says where to restore it from. Buttons stay focusable while
+ * work runs (aria-disabled).
  */
 export function DeleteDuplicateAction({
   applicantId,
@@ -98,6 +101,10 @@ export function DeleteDuplicateAction({
           onUndo={undo}
           undoneMessage="Restored. The copy is back in your documents."
         />
+        <p className="lc-delete-note">
+          You can restore it from Recently Deleted until then. Each removal is listed in your{' '}
+          <Link href={`/app/applicant/${applicantId}/removal-records`}>Removal Records</Link>.
+        </p>
         <div className="lc-delete-actions">
           <button
             type="button"

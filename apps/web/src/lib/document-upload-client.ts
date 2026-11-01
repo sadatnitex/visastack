@@ -7,8 +7,7 @@
  */
 
 import { type UpgradeLineKind, isUpgradeLineKind } from '../components/upgrade-line';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { isRecordId } from './record-id';
 
 export type UploadOutcome =
   /**
@@ -108,7 +107,7 @@ export function readAnswer(status: number, body: string): UploadOutcome {
       kind: 'added',
       message,
       title: typeof title === 'string' ? title : null,
-      ...(typeof removableCopyId === 'string' && UUID.test(removableCopyId)
+      ...(typeof removableCopyId === 'string' && isRecordId(removableCopyId)
         ? { removableCopyId }
         : {}),
     };

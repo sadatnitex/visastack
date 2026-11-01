@@ -5,13 +5,13 @@ import { TidyUpCard, tidyUpLine } from './tidy-up';
 describe('Tidy Up', () => {
   it('says what could be tidied, in plain words', () => {
     expect(tidyUpLine({ duplicates: 1, expired: 0, replaced: 0 })).toBe(
-      '1 exact copy could be tidied away. Nothing changes until you choose.',
+      '1 exact copy could be tidied away in one record. Nothing changes until you choose.',
     );
     expect(tidyUpLine({ duplicates: 2, expired: 1, replaced: 3 })).toBe(
-      '2 exact copies, 1 expired document and 3 replaced documents could be tidied away. Nothing changes until you choose.',
+      '2 exact copies, 1 expired document and 3 replaced documents could be tidied away in one record. Nothing changes until you choose.',
     );
-    expect(tidyUpLine({ duplicates: 0, expired: 2, replaced: 0 })).toBe(
-      '2 expired documents could be tidied away. Nothing changes until you choose.',
+    expect(tidyUpLine({ duplicates: 0, expired: 2, replaced: 0 }, 2)).toBe(
+      '2 expired documents could be tidied away in one record. 2 other travellers have some too. Nothing changes until you choose.',
     );
   });
 

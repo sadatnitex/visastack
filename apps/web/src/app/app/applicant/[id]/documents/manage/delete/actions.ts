@@ -11,6 +11,7 @@ import {
   requireAccess,
   restoreDeleted,
 } from '@visastack/services';
+import { isRecordId } from '../../../../../../../lib/record-id';
 import { withSession } from '../../../../../../../lib/session';
 import { ARCHIVE_INSTEAD, BLOCK_REASON_WORDS, daysLeft } from './messages';
 
@@ -116,12 +117,15 @@ export async function deletePreviewAction(
 export async function deleteDuplicateAction(
   applicantId: string,
   documentId: string,
-  atUpload = false,
+  atUpload?: boolean,
 ): Promise<DeleteResult> {
+  // A server action's arguments come from the browser: only exactly `true` marks an upload.
+  const fromUpload = atUpload === true;
+  if (!isRecordId(applicantId) || !isRecordId(documentId)) return { ok: false, message: GONE };
   return withSession(async ({ db, accountId }): Promise<DeleteResult> => {
     const access = await manageProof(db, accountId, applicantId);
     if (!access) return { ok: false, message: NOT_ALLOWED };
-    const deleted = await deleteDuplicate(access, { documentId, atUpload });
+    const deleted = await deleteDuplicate(access, { documentId, atUpload: fromUpload });
     if (!deleted.ok) {
       return { ok: false, message: deleteRefusal(deleted.error.code, deleted.error.message) };
     }
@@ -151,6 +155,9 @@ export async function restoreDeletedAction(
   documentId: string,
   source: 'UNDO' | 'RECENTLY_DELETED',
 ): Promise<RestoreResult> {
+  // Recorded on the audit trail, so only the two known words are accepted from the browser.
+  if (source !== 'UNDO' && source !== 'RECENTLY_DELETED') return { ok: false, message: GONE };
+  if (!isRecordId(applicantId) || !isRecordId(documentId)) return { ok: false, message: GONE };
   return withSession(async ({ db, accountId }): Promise<RestoreResult> => {
     const access = await manageProof(db, accountId, applicantId);
     if (!access) return { ok: false, message: NOT_ALLOWED };

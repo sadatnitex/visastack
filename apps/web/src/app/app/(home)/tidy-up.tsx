@@ -13,8 +13,11 @@ export interface TidyUpTotals {
   readonly replaced: number;
 }
 
-/** "2 exact copies, 1 expired document and 1 replaced document could be tidied away." */
-export function tidyUpLine(totals: TidyUpTotals): string {
+/**
+ * "2 exact copies, 1 expired document and 1 replaced document could be tidied away." Counts for
+ * one record; `otherRecords` says how many more records have something too.
+ */
+export function tidyUpLine(totals: TidyUpTotals, otherRecords = 0): string {
   const parts = [
     totals.duplicates > 0 ? plural(totals.duplicates, 'exact copy', 'exact copies') : null,
     totals.expired > 0 ? plural(totals.expired, 'expired document') : null,
@@ -24,7 +27,11 @@ export function tidyUpLine(totals: TidyUpTotals): string {
     parts.length <= 1
       ? (parts[0] ?? '')
       : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
-  return `${listed.charAt(0).toUpperCase()}${listed.slice(1)} could be tidied away. Nothing changes until you choose.`;
+  const others =
+    otherRecords > 0
+      ? ` ${otherRecords === 1 ? 'One other traveller has' : `${otherRecords} other travellers have`} some too.`
+      : '';
+  return `${listed.charAt(0).toUpperCase()}${listed.slice(1)} could be tidied away in one record.${others} Nothing changes until you choose.`;
 }
 
 export function TidyUpCard({ line, href }: { readonly line: string; readonly href: string }) {

@@ -28,7 +28,15 @@ export async function runRecentlyDeletedPurge(
     return NOTHING;
   }
   try {
-    return await (options.purge ?? purgeDueDocuments)(connection.db, scope);
+    const result = await (options.purge ?? purgeDueDocuments)(connection.db, scope);
+    if (result.failed > 0) {
+      // Counts only: which documents failed stays in the database, never in a log line.
+      reportServerError('runRecentlyDeletedPurge', new Error('some removals could not start'), {
+        step: 'purge pass',
+        failed: String(result.failed),
+      });
+    }
+    return result;
   } catch (error) {
     reportServerError('runRecentlyDeletedPurge', error, { step: 'purge pass failed' });
     return NOTHING;

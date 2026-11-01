@@ -3,7 +3,6 @@ import { LIVE_GRANT_STATUSES } from '../../access/grant-scope';
 import { type Db, schema } from '../../db';
 import { isDocumentVersionUsable } from '../../documents';
 import { activeOrVerifiedErasureStorageObjectIds } from '../../erasure';
-import { documentBlockedByLegalHold } from '../../legal-hold';
 // Imported by the foundation's path, which the read-path guard recognises.
 import { presentDocumentCondition } from '../../lifecycle/foundation/conditions';
 import { type LifecycleAccess, lifecycleScope } from '../foundation/access';
@@ -56,6 +55,8 @@ interface Candidate {
   readonly createdAt: Date;
   readonly archived: boolean;
   readonly replaced: boolean;
+  readonly docType: string | null;
+  readonly expired: boolean;
   readonly latestSha: string | null;
   readonly usableShas: ReadonlySet<string>;
 }
@@ -100,7 +101,13 @@ export async function duplicateStatuses(
   const documents = schema.documents;
 
   const subjects = await db
-    .select({ id: documents.id, applicantId: documents.applicantId })
+    .select({
+      id: documents.id,
+      applicantId: documents.applicantId,
+      docType: documents.docType,
+      expiresAt: documents.expiresAt,
+      supersededBy: documents.supersededByDocumentId,
+    })
     .from(documents)
     .where(
       and(
@@ -117,6 +124,7 @@ export async function duplicateStatuses(
   // Every version of every subject, oldest first, so the last one seen is the latest.
   const subjectVersions = await db
     .select({
+      id: schema.documentVersions.id,
       documentId: schema.documentVersions.documentId,
       sha256: schema.documentVersions.sha256,
     })
@@ -128,6 +136,26 @@ export async function duplicateStatuses(
       ),
     )
     .orderBy(asc(schema.documentVersions.versionNumber));
+  // A copy the profile's confirmed details were read from stays, so that evidence is never lost
+  // when its file is destroyed; its identical twin is the one that can go.
+  const citedVersions = new Set(
+    subjectVersions.length === 0
+      ? []
+      : (
+          await db
+            .selectDistinct({ versionId: schema.factVersions.sourceDocumentVersionId })
+            .from(schema.factVersions)
+            .where(
+              inArray(
+                schema.factVersions.sourceDocumentVersionId,
+                subjectVersions.map((v) => v.id),
+              ),
+            )
+        ).map((row) => row.versionId),
+  );
+  const citedDocuments = new Set(
+    subjectVersions.filter((v) => citedVersions.has(v.id)).map((v) => v.documentId),
+  );
   const versionsOf = new Map<string, (string | null)[]>();
   for (const version of subjectVersions) {
     const list = versionsOf.get(version.documentId) ?? [];
@@ -149,6 +177,8 @@ export async function duplicateStatuses(
       applicantId: documents.applicantId,
       createdAt: documents.createdAt,
       supersededBy: documents.supersededByDocumentId,
+      docType: documents.docType,
+      expiresAt: documents.expiresAt,
       archivedAt: lc.archivedAt,
       versionNumber: schema.documentVersions.versionNumber,
       sha256: schema.documentVersions.sha256,
@@ -211,6 +241,8 @@ export async function duplicateStatuses(
       createdAt: row.createdAt,
       archived: row.archivedAt !== null,
       replaced: row.supersededBy !== null,
+      docType: row.docType,
+      expired: row.expiresAt !== null && row.expiresAt.getTime() <= now.getTime(),
       latestSha: latestOf.get(row.documentId) ?? null,
       usableShas: new Set<string>(),
     };
@@ -222,14 +254,25 @@ export async function duplicateStatuses(
   for (const subject of subjects) {
     const shas = versionsOf.get(subject.id) ?? [];
     if (shas.length === 0 || shas.some((sha) => sha === null)) continue; // no fingerprint
+    if (citedDocuments.has(subject.id)) continue; // the profile's evidence
     const others = [...candidates.values()].filter(
       (c) => c.documentId !== subject.id && c.applicantId === subject.applicantId,
     );
     const covered = shas.every((sha) => others.some((c) => sha !== null && c.usableShas.has(sha)));
     if (!covered) continue;
     const latest = shas[shas.length - 1] as string;
+    // The copy cases and AI app choices switch to must serve them as well as this one did: the
+    // same kind, not replaced or expired unless this one is too (D4).
+    const subjectExpired =
+      subject.expiresAt !== null && subject.expiresAt.getTime() <= now.getTime();
     const survivor = others
-      .filter((c) => c.usableShas.has(latest))
+      .filter(
+        (c) =>
+          c.usableShas.has(latest) &&
+          (subject.docType === null || c.docType === subject.docType) &&
+          (!c.replaced || subject.supersededBy !== null) &&
+          (!c.expired || subjectExpired),
+      )
       .sort((a, b) => better(a, b, latest))[0];
     if (!survivor) continue;
     duplicates.set(subject.id, {
@@ -281,9 +324,39 @@ async function blockReasons(
     found.set(documentId, set);
   };
 
-  for (const [documentId, { applicantId }] of duplicates) {
-    if (await documentBlockedByLegalHold(db, { applicantId, documentId })) {
-      add(documentId, 'LEGAL_HOLD');
+  // Legal holds in one read (the rule of documentBlockedByLegalHold): applicant-wide, on the
+  // document, or on a case that selects it.
+  const applicantIds = [...new Set([...duplicates.values()].map((d) => d.applicantId))];
+  const holds = await db
+    .select({
+      applicantId: schema.legalHolds.applicantId,
+      missionId: schema.legalHolds.missionId,
+      documentId: schema.legalHolds.documentId,
+    })
+    .from(schema.legalHolds)
+    .where(
+      and(inArray(schema.legalHolds.applicantId, applicantIds), eq(schema.legalHolds.active, true)),
+    );
+  if (holds.length > 0) {
+    const selections = await db
+      .select({
+        documentId: schema.selectedEvidence.documentId,
+        missionId: schema.selectedEvidence.missionId,
+      })
+      .from(schema.selectedEvidence)
+      .where(inArray(schema.selectedEvidence.documentId, ids));
+    for (const [documentId, { applicantId }] of duplicates) {
+      const missions = new Set(
+        selections.filter((s) => s.documentId === documentId).map((s) => s.missionId),
+      );
+      const held = holds.some(
+        (hold) =>
+          hold.applicantId === applicantId &&
+          ((hold.missionId === null && hold.documentId === null) ||
+            hold.documentId === documentId ||
+            (hold.missionId !== null && missions.has(hold.missionId))),
+      );
+      if (held) add(documentId, 'LEGAL_HOLD');
     }
   }
 
@@ -316,7 +389,6 @@ async function blockReasons(
     .where(inArray(schema.contributorRequests.submittedDocumentId, ids));
   for (const row of handedOver) add(row.documentId, 'CONTRIBUTOR_HANDOVER');
 
-  const applicantIds = [...new Set([...duplicates.values()].map((d) => d.applicantId))];
   const grants = await db
     .select({ documentIds: schema.grants.documentIds })
     .from(schema.grants)

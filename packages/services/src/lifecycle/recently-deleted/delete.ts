@@ -27,8 +27,42 @@ import { openDeletionReceipt } from '../foundation/receipts';
 /** How long a deleted duplicate stays restorable (D3). */
 export const RECENTLY_DELETED_DAYS = 30;
 const DAY_MS = 86_400_000;
-/** The receipt's own rule for a document kind (receipts.ts). */
+/** The receipt's own rule for a document kind (receipts.ts): a lowercase catalogue key. */
 const CATALOGUE_KEY = /^[a-z][a-z0-9_.-]{0,79}$/;
+
+/**
+ * The document kind as a Removal Record keeps it: the catalogue key in lowercase ("PASSPORT" is
+ * kept as "passport", which every label reader turns back into "Passport"). Anything that is not
+ * a catalogue key (an older free label) is left out, never stored as a title.
+ */
+export function receiptKindOf(docType: string | null): string | null {
+  const key = docType?.toLowerCase() ?? '';
+  return CATALOGUE_KEY.test(key) ? key : null;
+}
+
+/** Who added the document, as a Removal Record keeps it (a role, never a name). */
+async function uploaderRoleOf(
+  tx: Db,
+  applicantId: string,
+  ownerAccountId: string,
+  document: { readonly uploaderAccountId: string | null },
+): Promise<'OWNER' | 'AGENCY_MEMBER' | 'CONTRIBUTOR' | 'SYSTEM'> {
+  if (document.uploaderAccountId === null) return 'SYSTEM';
+  if (document.uploaderAccountId === ownerAccountId) return 'OWNER';
+  const contributor = first(
+    await tx
+      .select({ id: schema.contributorRequests.id })
+      .from(schema.contributorRequests)
+      .where(
+        and(
+          eq(schema.contributorRequests.applicantId, applicantId),
+          eq(schema.contributorRequests.contributorAccountId, document.uploaderAccountId),
+        ),
+      )
+      .limit(1),
+  );
+  return contributor ? 'CONTRIBUTOR' : 'AGENCY_MEMBER';
+}
 
 /** Why a deletion is refused. The web layer maps these exact messages to its own words. */
 export const DELETE_DUPLICATE_REFUSALS = {
@@ -328,15 +362,9 @@ export async function deleteDuplicate(
         applicantId,
         subjectKind: 'DOCUMENT',
         subjectCode: documentCode,
-        // A catalogue key only; anything else (an older free label) is left out, never a title.
-        documentKind: CATALOGUE_KEY.test(document.docType ?? '') ? document.docType : null,
+        documentKind: receiptKindOf(document.docType),
         uploadedAt: document.createdAt,
-        uploadedByRole:
-          document.uploaderAccountId === null
-            ? 'SYSTEM'
-            : document.uploaderAccountId === ownerAccountId
-              ? 'OWNER'
-              : 'AGENCY_MEMBER',
+        uploadedByRole: await uploaderRoleOf(tx, applicantId, ownerAccountId, document),
         path: 'DUPLICATE',
         requestedByAccountId: ownerAccountId,
         requestedAt: now,

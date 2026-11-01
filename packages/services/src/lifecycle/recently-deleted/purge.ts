@@ -1,6 +1,7 @@
-import { and, asc, eq, inArray, isNotNull, lte } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, lte } from 'drizzle-orm';
 import { SystemScope } from '../../access/principal';
 import { type Db, schema } from '../../db';
+import { documentBlockedByLegalHold } from '../../legal-hold';
 import { lifecycleTablesPresent } from '../foundation/presence';
 import { enqueueDocumentRemoval } from '../foundation/removal';
 
@@ -9,7 +10,8 @@ import { enqueueDocumentRemoval } from '../foundation/removal';
  * over starts its verified removal through the foundation's `enqueueDocumentRemoval`, which
  * re-checks legal holds under the traveller and document locks: a hold placed during the 30 days
  * keeps the document (its Removal Record reads Kept (Legal Requirement)) and nothing is queued. A
- * kept document is tried again on a later run, so it goes once the hold is released. The erasure
+ * kept document is tried again once the hold is released (checked first, so a standing hold adds
+ * nothing to the audit trail on every run). The erasure
  * worker then destroys every file, verifies it is gone and only then deletes the document row,
  * so the storage figure drops only after verification.
  */
@@ -46,23 +48,33 @@ export async function purgeDueDocuments(
   }
   if (!(await lifecycleTablesPresent(db))) return NOTHING;
   const now = options.now ?? new Date();
+  const limit = options.limit ?? PURGE_BATCH_LIMIT;
   const lc = schema.documentLifecycle;
   const receipts = schema.deletionReceipts;
-  const due = await db
-    .select({ documentId: lc.documentId, applicantId: lc.applicantId, receiptId: lc.receiptId })
-    .from(lc)
-    .innerJoin(receipts, eq(receipts.id, lc.receiptId))
-    .where(
-      and(
-        isNotNull(lc.deletedAt),
-        eq(lc.deletePath, 'DUPLICATE'),
-        lte(lc.purgeAfter, now),
-        // Already removing: the erasure worker has it. Kept for a hold: tried again.
-        inArray(receipts.status, ['SCHEDULED', 'BLOCKED']),
-      ),
-    )
-    .orderBy(asc(lc.purgeAfter), asc(lc.documentId))
-    .limit(options.limit ?? PURGE_BATCH_LIMIT);
+  const dueWith = (status: 'SCHEDULED' | 'BLOCKED', take: number) =>
+    db
+      .select({ documentId: lc.documentId, applicantId: lc.applicantId, receiptId: lc.receiptId })
+      .from(lc)
+      .innerJoin(receipts, eq(receipts.id, lc.receiptId))
+      .where(
+        and(
+          isNotNull(lc.deletedAt),
+          eq(lc.deletePath, 'DUPLICATE'),
+          lte(lc.purgeAfter, now),
+          eq(receipts.status, status),
+        ),
+      )
+      .orderBy(asc(lc.purgeAfter), asc(lc.documentId))
+      .limit(take);
+  // New removals first, so documents kept for a hold can never crowd them out of a run.
+  const scheduled = await dueWith('SCHEDULED', limit);
+  // A kept document is tried again only once nothing holds it any more: while a hold stands it
+  // is skipped quietly (no new audit row every run).
+  const kept = [];
+  for (const row of await dueWith('BLOCKED', limit)) {
+    if (!(await documentBlockedByLegalHold(db, row))) kept.push(row);
+  }
+  const due = [...scheduled, ...kept].slice(0, limit);
 
   let queued = 0;
   let removed = 0;

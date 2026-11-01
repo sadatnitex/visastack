@@ -123,8 +123,11 @@ async function loadPersonReads(
   const [listed, deadlines, tidy] = await Promise.all([
     listNeedsAttention(access, { now }),
     readDeadlineEntries(access, now, CLOCK_HOME_LIMIT),
-    // Tidy Up (LC-C): a failed read hides the card rather than failing Home.
-    tidyUpCounts(db, applicantId, access, { now }).catch(() => null),
+    // Tidy Up (LC-C): any failure, even one thrown before the read starts, hides the card
+    // rather than failing Home.
+    Promise.resolve()
+      .then(() => tidyUpCounts(db, applicantId, access, { now }))
+      .catch(() => null),
   ]);
   return { attention: listed.ok ? listed.value : null, deadlines, tidy };
 }
@@ -158,29 +161,24 @@ function sharingInvitationItem(grants: Basics['incomingGrants'], now: Date): Att
   };
 }
 
-/** Tidy Up across the people Home reads: totals and the first record with something to tidy. */
+/**
+ * Tidy Up across the people Home reads: the first record with something to tidy, its own counts
+ * (so the line matches what its one button opens) and how many other records have some too.
+ */
 function tidyUpSummary(
   rows: readonly {
     readonly applicant: { readonly id: string };
     readonly tidy: TidyUpCounts | null;
   }[],
 ): { readonly line: string; readonly href: string } | null {
-  let duplicates = 0;
-  let expired = 0;
-  let replaced = 0;
-  let first: string | null = null;
-  for (const row of rows) {
-    if (!row.tidy) continue;
-    const { duplicates: d, expired: e, replaced: r } = row.tidy;
-    duplicates += d;
-    expired += e;
-    replaced += r;
-    if (first === null && d + e + r > 0) first = row.applicant.id;
-  }
-  if (first === null) return null;
+  const withItems = rows.filter(
+    (row) => row.tidy && row.tidy.duplicates + row.tidy.expired + row.tidy.replaced > 0,
+  );
+  const first = withItems[0];
+  if (!first?.tidy) return null;
   return {
-    line: tidyUpLine({ duplicates, expired, replaced }),
-    href: `/app/applicant/${first}/documents`,
+    line: tidyUpLine(first.tidy, withItems.length - 1),
+    href: `/app/applicant/${first.applicant.id}/documents`,
   };
 }
 

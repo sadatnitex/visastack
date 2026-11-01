@@ -598,6 +598,12 @@ describe('Delete Duplicate with the lifecycle tables present', () => {
         .update(schema.documents)
         .set({ expiresAt: new Date(Date.now() - DAY_MS), supersededByDocumentId: a })
         .where(eq(schema.documents.id, old));
+      const lapsed = await addDocument(db, owner, null);
+      await db
+        .update(schema.documents)
+        .set({ expiresAt: new Date(Date.now() - DAY_MS) })
+        .where(eq(schema.documents.id, lapsed));
+      // The replaced passport is also expired: it counts once, as replaced.
       expect(await tidyUpCounts(db, owner.applicantId, proof)).toEqual({
         duplicates: 2,
         expired: 1,
@@ -605,6 +611,92 @@ describe('Delete Duplicate with the lifecycle tables present', () => {
       });
       const stranger = await seedOwner(db, 'lcc-stranger@example.com');
       expect(await tidyUpCounts(db, stranger.applicantId, proof)).toBeNull();
+    },
+    HEAVY,
+  );
+
+  it(
+    'switches only to a copy of the same kind, and keeps a copy the profile was read from',
+    async () => {
+      // An identical file kept without a kind cannot stand in for a passport a case relies on.
+      const untyped = await addDocument(db, owner, SHA_A);
+      await db
+        .update(schema.documents)
+        .set({ docType: null })
+        .where(eq(schema.documents.id, untyped));
+      const passport = await addDocument(db, owner, SHA_A);
+      const proof = await manage(db, owner);
+      expect((await duplicateStatus(db, passport, proof))?.isDuplicate).toBe(false);
+      // The other way round is fine: the passport serves anything the untyped copy did.
+      expect((await duplicateStatus(db, untyped, proof))?.survivorDocumentId).toBe(passport);
+
+      // Details confirmed from a copy keep that copy; its identical twin is the one that can go.
+      const twin = await addDocument(db, owner, SHA_A);
+      const [version] = await db
+        .select({ id: schema.documentVersions.id })
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.documentId, passport));
+      const [field] = await db
+        .insert(schema.fieldDefinitions)
+        .values({ key: 'lcc.synthetic.field', dataType: 'text' })
+        .returning({ id: schema.fieldDefinitions.id });
+      if (!version || !field) throw new Error('seed');
+      const [fact] = await db
+        .insert(schema.facts)
+        .values({ applicantId: owner.applicantId, fieldDefinitionId: field.id })
+        .returning({ id: schema.facts.id });
+      if (!fact) throw new Error('fact');
+      await db
+        .insert(schema.factVersions)
+        .values({ factId: fact.id, value: 'synthetic', sourceDocumentVersionId: version.id });
+      expect((await duplicateStatus(db, passport, proof))?.isDuplicate).toBe(false);
+      expect((await duplicateStatus(db, twin, proof))?.survivorDocumentId).toBe(passport);
+
+      // The Removal Record keeps the kind as a catalogue key, never a title.
+      const deleted = await deleteDuplicate(proof, { documentId: twin });
+      if (!deleted.ok) throw new Error('delete');
+      const receipt = await receiptOf(db, deleted.value.receiptId);
+      expect(receipt?.documentKind).toBe('passport');
+      expect(receipt?.uploadedByRole).toBe('OWNER');
+    },
+    HEAVY,
+  );
+
+  it(
+    'never lets documents kept for a hold crowd out new removals, and adds no audit row while held',
+    async () => {
+      await addDocument(db, owner, SHA_A);
+      const held = await addDocument(db, owner, SHA_A);
+      const proof = await manage(db, owner);
+      const first = await deleteDuplicate(proof, { documentId: held });
+      if (!first.ok) throw new Error('delete');
+      await db
+        .insert(schema.legalHolds)
+        .values({ applicantId: owner.applicantId, documentId: held, reason: 'synthetic' });
+      const later = new Date(Date.now() + 31 * DAY_MS);
+      expect((await purgeDueDocuments(db, erasureScope(), { now: later })).blocked).toBe(1);
+
+      await addDocument(db, owner, SHA_B);
+      const fresh = await addDocument(db, owner, SHA_B);
+      const second = await deleteDuplicate(proof, { documentId: fresh });
+      if (!second.ok) throw new Error('delete');
+      const audits = async () =>
+        (
+          await db
+            .select({ seq: schema.auditEvents.seq })
+            .from(schema.auditEvents)
+            .where(eq(schema.auditEvents.eventType, 'DOCUMENT_REMOVAL_BLOCKED'))
+        ).length;
+      const before = await audits();
+      const evenLater = new Date(Date.now() + 32 * DAY_MS);
+      expect(await purgeDueDocuments(db, erasureScope(), { now: evenLater, limit: 1 })).toEqual({
+        queued: 1,
+        removed: 0,
+        blocked: 0,
+        failed: 0,
+      });
+      expect(await erasureJobsFor(db, fresh)).toBe(1);
+      expect(await audits()).toBe(before);
     },
     HEAVY,
   );
