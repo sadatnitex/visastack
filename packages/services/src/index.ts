@@ -2318,6 +2318,28 @@ export {
 } from './lifecycle/replace';
 
 // LC-C exports
+export {
+  type DuplicateStatus,
+  NOT_A_DUPLICATE,
+  duplicateStatus,
+  duplicateStatuses,
+} from './lifecycle/duplicates';
+export {
+  DELETE_DUPLICATE_REFUSALS,
+  type DeleteDuplicateOutcome,
+  type DeleteDuplicatePreview,
+  PURGE_BATCH_LIMIT,
+  type PurgeDueDocumentsResult,
+  RECENTLY_DELETED_DAYS,
+  RESTORE_REFUSALS,
+  type RestoreSource,
+  type SwitchedCase,
+  deleteDuplicate,
+  previewDeleteDuplicate,
+  purgeDueDocuments,
+  restoreDeleted,
+  undoDelete,
+} from './lifecycle/recently-deleted';
 
 // LC-D exports
 
