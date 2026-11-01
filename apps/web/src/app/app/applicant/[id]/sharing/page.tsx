@@ -82,6 +82,13 @@ const LOG_ANCHOR = 'access-log';
 
 /** WP-SB3: grants shown at first, and how many more each Show More adds. */
 const GRANT_STEP = 5;
+/** Every grant stays reachable (each has its own Pause and Revoke), so the list may grow this far. */
+const GRANT_SHOW_MAX = 500;
+/**
+ * Address parameters that report a one-time result or carry a sign-in return. A Show More or
+ * older-entries link drops them, so loading more never replays a notice or a returning choice.
+ */
+const ONE_TIME_PARAMS = ['done', 'ai', 'ai_change', 'document'];
 /** The address parameter for how many grants show. */
 const SHOW_KEY = 'show';
 const GRANT_NOUN = { one: 'grant', other: 'grants' } as const;
@@ -123,7 +130,13 @@ export default async function SharingPage({
       : undefined;
   const t = createTranslator(await getLocale());
   // WP-SB3: only the first grants are read in full; Show More asks for more (`?show=`).
-  const grantsShown = parseShow(search[SHOW_KEY], { step: GRANT_STEP });
+  const grantsShown = parseShow(search[SHOW_KEY], { step: GRANT_STEP, max: GRANT_SHOW_MAX });
+  // What paging links keep of this address: filters and other pages, never one-time results.
+  const pagingSearch = Object.fromEntries(
+    Object.entries(search).filter(
+      ([key]) => !ONE_TIME_PARAMS.includes(key) && !key.startsWith('choice_'),
+    ),
+  );
   // The access log's older page, if one was asked for; the service checks it belongs to this log.
   const logBefore = parseCursor(search[LOG_KEY]);
 
@@ -251,7 +264,9 @@ export default async function SharingPage({
         readAiSuggestions(aiListing),
       ]);
     const grants = access.ok ? access.value.items : [];
-    const grantCounts = access.ok ? access.value.counts : { total: 0, active: 0, holdingAccess: 0 };
+    const grantCounts = access.ok
+      ? access.value.counts
+      : { total: 0, active: 0, holdingAccess: 0, holdingAccessShown: 0 };
 
     // PRD SHR-01: for every still-live category grant, find whatever now
     // matches its categories but isn't in scope yet, so the page can show
@@ -352,9 +367,9 @@ export default async function SharingPage({
   // Show More adds nothing visible at Glance once every grant holding access is on the page.
   const grantsNext =
     data.grantCounts.total > data.grants.length
-      ? nextShow(data.grants.length, { step: GRANT_STEP })
+      ? nextShow(data.grants.length, { step: GRANT_STEP, max: GRANT_SHOW_MAX })
       : null;
-  const moreAtGlance = data.grantCounts.holdingAccess > data.grants.filter(holdsAccess).length;
+  const moreAtGlance = data.grantCounts.holdingAccess > data.grantCounts.holdingAccessShown;
   // Started from Share on a document: the form is what the person came for.
   const startsWithDocument =
     typeof documentParam === 'string' && data.documents.some((d) => d.id === documentParam);
@@ -521,25 +536,25 @@ export default async function SharingPage({
                                 />
                               </div>
                             ) : null}
-                            {grant.missionId === null &&
-                            canRevoke &&
-                            grant.caseExceptions.length > 0 &&
-                            (grant.expiryAt === null ||
-                              new Date(grant.expiryAt).getTime() > Date.now()) ? (
-                              <div className="depth-item" {...atLevel('browse')}>
-                                <CaseExceptions
-                                  applicantId={id}
-                                  grantId={grant.id}
-                                  recipientLabel={grant.recipient.label}
-                                  exceptions={grant.caseExceptions.map((exception) => ({
-                                    missionId: exception.missionId,
-                                    title: exception.missionTitle,
-                                    sharedSeparately: exception.reachedByAnotherGrant,
-                                  }))}
-                                />
-                              </div>
-                            ) : null}
                           </details>
+                          {grant.missionId === null &&
+                          canRevoke &&
+                          grant.caseExceptions.length > 0 &&
+                          (grant.expiryAt === null ||
+                            new Date(grant.expiryAt).getTime() > Date.now()) ? (
+                            <div className="depth-item" {...atLevel('browse')}>
+                              <CaseExceptions
+                                applicantId={id}
+                                grantId={grant.id}
+                                recipientLabel={grant.recipient.label}
+                                exceptions={grant.caseExceptions.map((exception) => ({
+                                  missionId: exception.missionId,
+                                  title: exception.missionTitle,
+                                  sharedSeparately: exception.reachedByAnotherGrant,
+                                }))}
+                              />
+                            </div>
+                          ) : null}
                           {grant.actions.includes('AI_ASSIST') && !ended ? (
                             <p className="u-m-0">
                               <span className="badge badge-neutral">{AGENCY_AI_ALLOWED_LINE}</span>
@@ -609,7 +624,7 @@ export default async function SharingPage({
                     <ShowMore
                       id="sharing-grants-more"
                       pathname={`/app/applicant/${id}/sharing`}
-                      searchParams={search}
+                      searchParams={pagingSearch}
                       next={grantsNext === null ? null : { [SHOW_KEY]: grantsNext }}
                       shown={data.grants.length}
                       total={data.grantCounts.total}
@@ -724,7 +739,7 @@ export default async function SharingPage({
                     ? {
                         olderHref: pagingHref(
                           `/app/applicant/${id}/sharing`,
-                          search,
+                          pagingSearch,
                           { [LOG_KEY]: data.auditOlderCursor },
                           LOG_ANCHOR,
                         ),
@@ -734,7 +749,7 @@ export default async function SharingPage({
                     ? {
                         newestHref: pagingHref(
                           `/app/applicant/${id}/sharing`,
-                          search,
+                          pagingSearch,
                           { [LOG_KEY]: null },
                           LOG_ANCHOR,
                         ),

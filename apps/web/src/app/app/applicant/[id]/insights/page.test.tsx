@@ -320,8 +320,9 @@ describe('a traveller with 100 documents (WP-SB3)', () => {
     expect(html.match(/<details class="insights-card-fold"/g)).toHaveLength(6);
     // Dates run out soon, so the timeline opens; nothing differs, so Details to Check stays shut.
     expect(html.match(/<details class="insights-card-fold" open/g)).toHaveLength(1);
-    expect(html).toMatch(
-      /<details class="insights-card-fold" open=""><summary[^>]*>.*?Expiry Timeline/,
-    );
+    expect(html).toMatch(/Expiry Timeline<\/h3><details class="insights-card-fold" open="">/);
+    // Each card is still found by its heading, outside the toggle.
+    expect(html.match(/<h3 class="card-title" id="insights-[a-z]+">/g)).toHaveLength(6);
+    expect(html).not.toMatch(/<summary[^>]*>(?:(?!<\/summary>).)*<h3/);
   });
 });

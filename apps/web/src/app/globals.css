@@ -11082,8 +11082,8 @@ html:has(.sticky-action-bar) {
 }
 
 /* WP-SB3 scroll budget for sharing, insights, evidence and the shared view: each grant's details
-   behind its own expander, and each insights card opens and closes with its count beside the
-   heading. Show More itself comes from WP-SB0. */
+   behind its own expander, and each insights card's list opens and closes under its heading,
+   with its count. Show More itself comes from WP-SB0. */
 .sharing-grant-details {
   border-top: 1px solid var(--hairline-soft);
   padding-top: var(--space-2);
@@ -11122,14 +11122,11 @@ html:has(.sticky-action-bar) {
 .insights-card-fold[open] > .insights-card-summary::after {
   transform: rotate(-135deg);
 }
-.insights-card-heading {
-  display: grid;
+.insights-card-list {
   min-width: 0;
   margin-inline-end: auto;
-}
-.insights-card-heading > .card-title {
-  margin: 0;
-  overflow-wrap: anywhere;
+  font-weight: 600;
+  font-size: var(--text-small);
 }
 .insights-card-count {
   padding: 0 0.5rem;

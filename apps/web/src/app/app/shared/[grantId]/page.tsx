@@ -21,6 +21,8 @@ export const dynamic = 'force-dynamic';
 /** The address parameters for how many details and documents show. */
 const FIELDS_KEY = 'fields';
 const DOCS_KEY = 'docs';
+/** Everything the grant covers stays reachable, so each list may grow this far. */
+const SHARED_SHOW_MAX = 500;
 const FIELD_NOUN = { one: 'detail', other: 'details' } as const;
 const DOCUMENT_NOUN = { one: 'document', other: 'documents' } as const;
 
@@ -34,8 +36,14 @@ export default async function SharedWorkspacePage({
 }) {
   const { grantId } = await params;
   const search = (await searchParams) ?? {};
-  const fieldsShown = parseShow(search[FIELDS_KEY], { step: TRAVELLER_LIST_STEP });
-  const documentsShown = parseShow(search[DOCS_KEY], { step: TRAVELLER_LIST_STEP });
+  const fieldsShown = parseShow(search[FIELDS_KEY], {
+    step: TRAVELLER_LIST_STEP,
+    max: SHARED_SHOW_MAX,
+  });
+  const documentsShown = parseShow(search[DOCS_KEY], {
+    step: TRAVELLER_LIST_STEP,
+    max: SHARED_SHOW_MAX,
+  });
 
   const loaded = await withSession(async ({ db, accountId }) => {
     const result = await getRecipientWorkspace(db, { actorAccountId: accountId, grantId });
@@ -75,11 +83,11 @@ export default async function SharedWorkspacePage({
   const shownFields = workspace.fields.slice(0, fieldsShown);
   const fieldsNext =
     workspace.fields.length > shownFields.length
-      ? nextShow(shownFields.length, { step: TRAVELLER_LIST_STEP })
+      ? nextShow(shownFields.length, { step: TRAVELLER_LIST_STEP, max: SHARED_SHOW_MAX })
       : null;
   const documentsNext =
     workspace.documents.length > shownDocuments.length
-      ? nextShow(shownDocuments.length, { step: TRAVELLER_LIST_STEP })
+      ? nextShow(shownDocuments.length, { step: TRAVELLER_LIST_STEP, max: SHARED_SHOW_MAX })
       : null;
 
   return (

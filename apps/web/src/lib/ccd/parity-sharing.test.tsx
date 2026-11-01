@@ -40,6 +40,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
           total: access.value.length,
           active: access.value.filter((grant) => grant.status === 'ACTIVE').length,
           holdingAccess: access.value.filter(holds).length,
+          holdingAccessShown: access.value.filter(holds).length,
         },
       },
     };

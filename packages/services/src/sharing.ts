@@ -36,7 +36,6 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
-import { clampLimit } from './paging';
 import { recordProductEvent } from './product-events';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
@@ -669,7 +668,7 @@ export interface GrantWithRecipient extends GrantWithExceptions {
   readonly recipient: GrantRecipient;
 }
 
-/** WP-SB3: how many grants the sharing page asks for at once (`limit`, clamped 1 to 100). */
+/** WP-SB3: how many grants the sharing page asks for at once (`limit`, clamped 1 to 500). */
 export interface GrantListOptions {
   readonly limit?: number;
 }
@@ -687,10 +686,16 @@ export interface GrantListPage {
     readonly active: number;
     /** Active or paused grants that have not ended (the sharing page's Glance list). */
     readonly holdingAccess: number;
+    /** How many of the returned grants hold access, judged at the same moment as the above. */
+    readonly holdingAccessShown: number;
   };
 }
 
-const GRANT_LIST_LIMIT_MAX = 100;
+/**
+ * Every grant must stay reachable, because each one carries its own Pause and Revoke: the list
+ * grows past the usual 100-row page, up to this many. Every grant row is read anyway (see below).
+ */
+const GRANT_LIST_LIMIT_MAX = 500;
 
 /** A grant that has been revoked, has expired, or whose end date has passed. */
 function grantHasEnded(grant: Pick<Grant, 'status' | 'expiryAt'>, now: number): boolean {
@@ -745,7 +750,11 @@ export async function listAccessForApplicantDetailed(
   }
 
   const now = Date.now();
-  const limit = clampLimit(options.limit, GRANT_LIST_LIMIT_MAX);
+  const wanted = options.limit;
+  const limit =
+    wanted === undefined || !Number.isFinite(wanted)
+      ? GRANT_LIST_LIMIT_MAX
+      : Math.min(GRANT_LIST_LIMIT_MAX, Math.max(1, Math.floor(wanted)));
   const ordered = [...listed.value].sort(
     (a, b) =>
       grantListRank(a, now) - grantListRank(b, now) ||
@@ -762,6 +771,7 @@ export async function listAccessForApplicantDetailed(
       total: listed.value.length,
       active: listed.value.filter((grant) => grant.status === 'ACTIVE').length,
       holdingAccess: listed.value.filter((grant) => grantListRank(grant, now) === 0).length,
+      holdingAccessShown: items.filter((grant) => grantListRank(grant, now) === 0).length,
     },
   });
 }

@@ -114,7 +114,7 @@ describe('listEvidenceRequestsForApplicant with a page size (WP-SB3)', () => {
   });
 
   it('says when nothing more exists and clamps the page size', async () => {
-    const all = await listEvidenceRequestsForApplicant(db, ownerId, applicantId, { limit: 500 });
+    const all = await listEvidenceRequestsForApplicant(db, ownerId, applicantId, { limit: 5000 });
     const one = await listEvidenceRequestsForApplicant(db, ownerId, applicantId, { limit: -3 });
     if (!isOk(all) || !isOk(one)) throw new Error('read');
     expect(all.value.items).toHaveLength(30);

@@ -84,6 +84,8 @@ const DECISION_PREFIX: Record<string, string> = {
 
 /** The address parameter for how many requests show. */
 const SHOW_KEY = 'show';
+/** Every request stays reachable (each may need a reply), so the list may grow this far. */
+const REQUEST_SHOW_MAX = 500;
 const REQUEST_NOUN = { one: 'request', other: 'requests' } as const;
 
 export default async function EvidencePage({
@@ -96,7 +98,10 @@ export default async function EvidencePage({
 }) {
   const { id } = await params;
   const search = (await searchParams) ?? {};
-  const requestsShown = parseShow(search[SHOW_KEY], { step: TRAVELLER_LIST_STEP });
+  const requestsShown = parseShow(search[SHOW_KEY], {
+    step: TRAVELLER_LIST_STEP,
+    max: REQUEST_SHOW_MAX,
+  });
 
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
@@ -163,11 +168,8 @@ export default async function EvidencePage({
   });
   // Counted over every request, not only the ones on this page.
   const awaitingCount = data.requestCounts.awaiting;
-  // Show More adds nothing visible at Glance once every waiting request is on the page.
-  const moreAtGlance =
-    awaitingCount > data.requests.filter((r) => AWAITING_SUBMISSION.has(r.status)).length;
   const requestsNext = data.moreRequests
-    ? nextShow(data.requests.length, { step: TRAVELLER_LIST_STEP })
+    ? nextShow(data.requests.length, { step: TRAVELLER_LIST_STEP, max: REQUEST_SHOW_MAX })
     : null;
   const timeZone = data.applicant.timezone;
   const depth = await readDepth('evidence-requests');
@@ -404,18 +406,16 @@ export default async function EvidencePage({
                   );
                 })}
               </div>
-              <div {...(moreAtGlance ? {} : atLevel('browse'))}>
-                <ShowMore
-                  id="evidence-requests-more"
-                  pathname={`/app/applicant/${id}/evidence`}
-                  searchParams={search}
-                  next={requestsNext === null ? null : { [SHOW_KEY]: requestsNext }}
-                  shown={data.requests.length}
-                  total={data.requestCounts.total}
-                  noun={REQUEST_NOUN}
-                  landOn={`evidence-row-${data.requests.length + 1}`}
-                />
-              </div>
+              <ShowMore
+                id="evidence-requests-more"
+                pathname={`/app/applicant/${id}/evidence`}
+                searchParams={search}
+                next={requestsNext === null ? null : { [SHOW_KEY]: requestsNext }}
+                shown={data.requests.length}
+                total={data.requestCounts.total}
+                noun={REQUEST_NOUN}
+                landOn={`evidence-row-${data.requests.length + 1}`}
+              />
             </>
           )}
         </article>

@@ -30,39 +30,52 @@ export const metadata: Metadata = { title: 'Document Insights' };
 /** WP-SB3: each card lists at most this many rows; the rest are on the card's own page. */
 const CARD_ROWS = 5;
 
-/** Under a capped card list: how many rows show, and the page that lists them all. */
+/** A page that lists the rest of a capped card. */
+interface MorePage {
+  readonly href: string;
+  readonly label: string;
+}
+
+/** Under a capped card list: how many rows show, and the page or pages that list them all. */
 function MoreOnItsPage({
   shown,
   total,
   noun,
   href,
   label,
+  pages,
 }: {
   readonly shown: number;
   readonly total: number;
   readonly noun: string;
-  readonly href: string;
-  readonly label: string;
+  readonly href?: string;
+  readonly label?: string;
+  /** More than one page, when the rows that are not shown are resolved in different places. */
+  readonly pages?: readonly MorePage[];
 }) {
   if (total <= shown) return null;
+  const links = pages ?? (href && label ? [{ href, label }] : []);
   return (
     <p className="insights-more">
       <span className="insights-note">{`Showing ${shown} of ${total} ${noun}.`}</span>{' '}
-      <Link className="btn btn-secondary insights-action" href={href}>
-        {label}
-      </Link>
+      {links.map((link) => (
+        <Link key={link.href} className="btn btn-secondary insights-action" href={link.href}>
+          {link.label}
+        </Link>
+      ))}
     </p>
   );
 }
 
 /**
- * One insights card that opens and closes (WP-SB3). The heading stays the card's name and sits in
- * the summary, so the card is still found by its heading and the count is read with it.
+ * One insights card that opens and closes (WP-SB3). The kicker and heading stay above the toggle,
+ * so the card is still found by its heading; the toggle names what it holds and how many.
  */
 function InsightsCard({
   id,
   kicker,
   title,
+  listName,
   count,
   open,
   children,
@@ -70,20 +83,21 @@ function InsightsCard({
   readonly id: string;
   readonly kicker: string;
   readonly title: string;
+  /** What the card lists, as the toggle names it ("Dates", "Cases"). */
+  readonly listName: string;
   readonly count: number;
   readonly open: boolean;
   readonly children: ReactNode;
 }) {
   return (
     <section className="card insights-card" aria-labelledby={id}>
+      <p className="card-kicker">{kicker}</p>
+      <h3 className="card-title" id={id}>
+        {title}
+      </h3>
       <details className="insights-card-fold" open={open || undefined}>
         <summary className="insights-card-summary">
-          <span className="insights-card-heading">
-            <span className="card-kicker">{kicker}</span>
-            <h3 className="card-title" id={id}>
-              {title}
-            </h3>
-          </span>
+          <span className="insights-card-list">{listName}</span>
           <span className="insights-card-count" aria-hidden="true">
             {count}
           </span>
@@ -94,8 +108,6 @@ function InsightsCard({
     </section>
   );
 }
-
-export const dynamic = 'force-dynamic';
 
 /**
  * Document Insights (AI data plan Phase 2, deterministic first slice): one summary page per
@@ -146,6 +158,7 @@ export default async function DocumentInsightsPage({
     );
   }
   const insights = loaded.value;
+  const profileHref = `/app/applicant/${id}/profile`;
   const documentHref = (documentId: string) =>
     `${documentsHref}?document=${encodeURIComponent(documentId)}`;
   const uploadHref = (kind: string) =>
@@ -177,7 +190,7 @@ export default async function DocumentInsightsPage({
           }
         : {
             key: mismatch.key,
-            href: `/app/applicant/${id}/profile`,
+            href: profileHref,
             label: `Two values for ${detail}`,
             detail: `${where ? `One came from ${where}. ` : ''}Pick the right one on your profile.`,
             tone: 'danger' as const,
@@ -208,11 +221,21 @@ export default async function DocumentInsightsPage({
   ];
   const missingSections = insights.coverage.sections.filter((section) => !section.covered);
   const coveredSections = insights.coverage.sections.filter((section) => section.covered);
-  const profileHref = `/app/applicant/${id}/profile`;
   // The cards that need the person start open; with nothing to act on, the first one does.
   const expiringNow = insights.summary.expired + insights.summary.expiringSoon > 0;
   const checkOpen = toCheck.length > 0 || !expiringNow;
   const originalCases = insights.originals.cases.slice(0, CARD_ROWS);
+  // A difference not shown is settled on the profile (two saved values) or the documents page
+  // (a reading or a check), so the card links to whichever pages hold the rest.
+  const unseenChecks = toCheck.slice(CARD_ROWS);
+  const checkPages: MorePage[] = [
+    ...(unseenChecks.some((entry) => entry.href !== profileHref)
+      ? [{ href: documentsHref, label: 'Open Documents' }]
+      : []),
+    ...(unseenChecks.some((entry) => entry.href === profileHref)
+      ? [{ href: profileHref, label: 'Open Profile' }]
+      : []),
+  ];
 
   return (
     <>
@@ -232,6 +255,7 @@ export default async function DocumentInsightsPage({
           id="insights-check"
           kicker="Differences"
           title="Details to Check"
+          listName="Details"
           count={toCheck.length}
           open={checkOpen}
         >
@@ -249,8 +273,7 @@ export default async function DocumentInsightsPage({
                 shown={Math.min(CARD_ROWS, toCheck.length)}
                 total={toCheck.length}
                 noun="details to check"
-                href={documentsHref}
-                label="Open Documents"
+                pages={checkPages}
               />
             </>
           )}
@@ -267,6 +290,7 @@ export default async function DocumentInsightsPage({
           id="insights-expiry"
           kicker="Coming Up"
           title="Expiry Timeline"
+          listName="Dates"
           count={insights.expiry.length}
           open={expiringNow}
         >
@@ -305,6 +329,7 @@ export default async function DocumentInsightsPage({
           id="insights-cases"
           kicker="Cases"
           title="Readiness by Case"
+          listName="Cases"
           count={insights.cases.length}
           open={false}
         >
@@ -350,6 +375,7 @@ export default async function DocumentInsightsPage({
           id="insights-originals"
           kicker="Paper Copies"
           title="Originals to Bring"
+          listName="Originals"
           count={
             insights.originals.cases.length > 0
               ? insights.originals.cases.length
@@ -455,6 +481,7 @@ export default async function DocumentInsightsPage({
           id="insights-coverage"
           kicker="Profile Coverage"
           title="Sections Backed by a Document"
+          listName="Sections"
           count={insights.coverage.sections.length}
           open={false}
         >
@@ -544,6 +571,7 @@ export default async function DocumentInsightsPage({
           id="insights-evidence"
           kicker="Evidence Map"
           title="Documents Behind Your Details"
+          listName="Documents"
           count={insights.evidence.length}
           open={false}
         >

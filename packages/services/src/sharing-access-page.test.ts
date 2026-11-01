@@ -85,7 +85,12 @@ describe('listAccessForApplicantDetailed with a page size (WP-SB3)', () => {
     const page = await listAccessForApplicantDetailed(db, ownerId, applicantId, { limit: 5 });
     if (!isOk(page)) throw new Error('read');
     expect(page.value.items).toHaveLength(5);
-    expect(page.value.counts).toEqual({ total: 40, active: 20, holdingAccess: 10 });
+    expect(page.value.counts).toEqual({
+      total: 40,
+      active: 20,
+      holdingAccess: 10,
+      holdingAccessShown: 5,
+    });
     expect(page.value.items.every((grant) => grant.status === 'ACTIVE' && !grant.expiryAt)).toBe(
       true,
     );
@@ -110,7 +115,7 @@ describe('listAccessForApplicantDetailed with a page size (WP-SB3)', () => {
     expect(ranks.at(-1)).toBe(2);
   });
 
-  it('clamps the page size between 1 and 100', async () => {
+  it('clamps the page size between 1 and 500', async () => {
     const tiny = await listAccessForApplicantDetailed(db, ownerId, applicantId, { limit: 0 });
     const huge = await listAccessForApplicantDetailed(db, ownerId, applicantId, { limit: 10_000 });
     const none = await listAccessForApplicantDetailed(db, ownerId, applicantId, {});

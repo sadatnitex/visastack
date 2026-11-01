@@ -38,6 +38,7 @@ async function grantPage(...args: unknown[]) {
         total: listed.value.length,
         active: listed.value.filter((grant) => grant.status === 'ACTIVE').length,
         holdingAccess: listed.value.filter(holds).length,
+        holdingAccessShown: listed.value.slice(0, options.limit ?? 100).filter(holds).length,
       },
     },
   };
@@ -659,13 +660,26 @@ describe('a long list of grants stays short (WP-SB3)', () => {
     });
     await renderAt({ show: '99999' });
     expect(mocks.listAccessForApplicantDetailed).toHaveBeenLastCalledWith({}, 'owner', 'owned', {
-      limit: 100,
+      limit: 500,
     });
     const html = await renderAt({ show: '<script>' });
     expect(mocks.listAccessForApplicantDetailed).toHaveBeenLastCalledWith({}, 'owner', 'owned', {
       limit: 5,
     });
     expect(html).not.toContain('<script>');
+  });
+
+  it('never carries a one-time notice or a sign-in return into Show More', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: true, value: many() });
+    const html = await renderAt({
+      done: 'paused',
+      ai: 'off',
+      ai_change: 'c1',
+      choice_layers: 'all',
+      document: 'passport',
+      show: '5',
+    });
+    expect(html).toContain('href="/app/applicant/owned/sharing?show=10#sharing-grant-6"');
   });
 
   it('says every grant shows, with no link, once they all fit', async () => {

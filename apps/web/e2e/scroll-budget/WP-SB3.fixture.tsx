@@ -128,14 +128,13 @@ function InsightsCard({
 }) {
   return (
     <section className="card insights-card" aria-labelledby={id}>
+      <p className="card-kicker">Insights</p>
+      <h3 className="card-title" id={id}>
+        {title}
+      </h3>
       <details className="insights-card-fold" open={open || undefined}>
         <summary className="insights-card-summary">
-          <span className="insights-card-heading">
-            <span className="card-kicker">Insights</span>
-            <h3 className="card-title" id={id}>
-              {title}
-            </h3>
-          </span>
+          <span className="insights-card-list">Documents</span>
           <span className="insights-card-count" aria-hidden="true">
             {count}
           </span>

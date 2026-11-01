@@ -1641,7 +1641,7 @@ export interface EvidenceRequestListPage {
 /**
  * Evidence requests directed at an applicant (owner-scoped), newest first.
  *
- * With `options` (WP-SB3) it reads at most `limit` requests (clamped 1 to 100) in the order the
+ * With `options` (WP-SB3) it reads at most `limit` requests (clamped 1 to 500) in the order the
  * evidence page shows them: waiting on the person first, then the soonest due date (none last),
  * then newest, then by id, plus counts over every request. The owner check is the same.
  */
@@ -1675,11 +1675,13 @@ export async function listEvidenceRequestsForApplicant(
     const sorted = [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     return ok(sorted);
   }
+  // Every request must stay reachable from the page (each may need a reply), so the list grows
+  // past the usual 100-row page, up to 500.
   const wanted = options.limit;
   const limit =
     wanted === undefined || !Number.isFinite(wanted)
-      ? 100
-      : Math.min(100, Math.max(1, Math.floor(wanted)));
+      ? 500
+      : Math.min(500, Math.max(1, Math.floor(wanted)));
   const awaitingSql = inArray(requests.status, ['OPEN', 'NEEDS_REPLACEMENT']);
   const [rows, totals] = await Promise.all([
     db

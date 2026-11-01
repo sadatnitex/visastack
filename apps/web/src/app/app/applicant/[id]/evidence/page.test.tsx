@@ -374,5 +374,11 @@ describe('a long list of requests stays short (WP-SB3)', () => {
     });
     expect(html.match(/class="case-row request-item /g)).toHaveLength(20);
     expect(textOf(html)).not.toContain('Nothing is waiting for you.');
+    // The way to the rest shows at every level, so Glance is never an empty card.
+    expect(html).toMatch(/<div class="show-more" id="evidence-requests-more">/);
+    const before = html.slice(0, html.indexOf('id="evidence-requests-more"'));
+    expect(before.lastIndexOf('<div data-level="browse">')).toBeLessThan(
+      before.lastIndexOf('class="rows"'),
+    );
   });
 });
