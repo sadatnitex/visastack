@@ -90,7 +90,7 @@ const PERSON_TRUSTED: Readonly<Record<string, string>> = {
  */
 const APPLICANT_TRUSTED: Readonly<Record<string, string>> = {
   'organizations#withdrawOrganizationApplication':
-    "only takes access away: only for an agency still pending verification, only when the actor is that agency's own active owner, and it never reads or grants anyone's records (it ends the agency's memberships, their AI connections and case assignments). Its membership helper is private to organizations.ts, so this cannot spread. Tests: lifecycle/agency/withdraw-application.test.ts",
+    "only takes access away: only for an agency still pending verification, only when the actor is that agency's own active owner, and it never reads or grants anyone's records (it ends the agency's memberships, their AI connections and case assignments, and under owner decision 'Founding A' the agency's own plan: its subscription ends and its waiting downgrade and that downgrade's queued notice are cancelled). Its membership and plan helpers are private to organizations.ts, so this cannot spread. Tests: lifecycle/agency/withdraw-application.test.ts",
 };
 /**
  * ADR 0025: a `SelfScope` also gates the applicant ratchet, but only for a function that reaches

@@ -1,6 +1,6 @@
 import type { MembershipRole, OrganizationStatus } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, ilike, isNull, ne } from 'drizzle-orm';
+import { and, eq, ilike, inArray, isNull, ne } from 'drizzle-orm';
 import { endAgencyAiConnectionsOfMember } from './access/agency-ai-connections';
 import { agencyAiAvailable } from './agency-ai-ready';
 import { appendAuditEvent } from './audit';
@@ -8,6 +8,7 @@ import { type Db, first, required, schema } from './db';
 import { checkSeatEntitlement } from './entitlement-enforcement';
 import { type ServiceError, serviceError } from './errors';
 import { assignFoundingAccess } from './founding-access';
+import { cancelQueuedNotificationsForResource } from './notifications';
 import {
   type Page,
   type PageRequest,
@@ -381,11 +382,13 @@ export async function suspendOrganization(
  * entire access-removal mechanism. Nothing else needs to change for that
  * half of the requirement.
  *
- * "Traveller retains wallet": this function touches only the `organizations`
- * row. It never reads or writes `applicants`, `facts`, or `documents` --
- * traveller-owned tables that were never owned by the organization in the
- * first place, so there is nothing here that could revoke them even by
- * accident.
+ * "Traveller retains wallet": this function changes the `organizations` row
+ * and, under owner decision "Founding A", the agency's own plan (its current
+ * subscription ends, its waiting downgrade and that downgrade's queued notice
+ * are cancelled; see `endPlanOfClosingAgency`). It never reads or writes
+ * `applicants`, `facts`, or `documents` -- traveller-owned tables that were
+ * never owned by the organization in the first place, so there is nothing here
+ * that could revoke them even by accident.
  *
  * Step-up gated like `suspendOrganization`/`reviewOrganization` -- a
  * permanent, irreversible action deserves at least the same defense-in-depth
@@ -416,16 +419,34 @@ export async function terminateOrganization(
     return err(serviceError('invalid', 'only an ACTIVE or SUSPENDED org can be terminated'));
   }
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.organizations)
-          .set({ status: 'CLOSED', updatedAt: new Date() })
-          .where(eq(schema.organizations.id, input.organizationId))
-          .returning(),
-      ),
-      'organization',
+    const now = new Date();
+    // Only a row still ACTIVE or SUSPENDED is closed: a second termination that read the row
+    // before the first one committed changes nothing and records nothing.
+    const updated = first(
+      await tx
+        .update(schema.organizations)
+        .set({ status: 'CLOSED', updatedAt: now })
+        .where(
+          and(
+            eq(schema.organizations.id, input.organizationId),
+            inArray(schema.organizations.status, ['ACTIVE', 'SUSPENDED']),
+          ),
+        )
+        .returning(),
     );
+    if (!updated) {
+      return err(serviceError('invalid', 'only an ACTIVE or SUSPENDED org can be terminated'));
+    }
+    const lockedSubscriptionId = await lockPlanOfClosingAgency(tx, input.organizationId);
+    // Owner decision "Founding A": the closed agency's plan stops renewing and ends now; nothing
+    // is refunded automatically (endPlanOfClosingAgency below).
+    const plan = await endPlanOfClosingAgency(tx, {
+      organizationId: input.organizationId,
+      actorAccountId: input.reviewerAccountId,
+      cause: 'organization_terminated',
+      now,
+      lockedSubscriptionId,
+    });
     await appendAuditEvent(tx, {
       eventType: 'ORGANIZATION_TERMINATED',
       actorAccountId: input.reviewerAccountId,
@@ -434,7 +455,7 @@ export async function terminateOrganization(
       result: 'ALLOWED',
       resourceType: 'organization',
       resourceId: updated.id,
-      metadata: { previousStatus: org.status },
+      metadata: { previousStatus: org.status, subscriptionEnded: plan.ended },
     });
     return ok(updated);
   });
@@ -884,6 +905,9 @@ export async function withdrawOrganizationApplication(
         .for('update', { of: schema.aiConnections });
     }
 
+    // The agency's plan rows are locked before anything is audited, the same order as above.
+    const lockedSubscriptionId = await lockPlanOfClosingAgency(tx, input.organizationId);
+
     // The row lock above makes the status check final: no other change can land in between.
     const now = new Date();
     const closed = required(
@@ -935,6 +959,16 @@ export async function withdrawOrganizationApplication(
       )
       .returning({ id: schema.organizationInvitations.id });
 
+    // Owner decision "Founding A": the plan stops renewing and ends with the application; nothing
+    // is refunded automatically (endPlanOfClosingAgency below).
+    const plan = await endPlanOfClosingAgency(tx, {
+      organizationId: input.organizationId,
+      actorAccountId: input.actorAccountId,
+      cause: 'application_withdrawn',
+      now,
+      lockedSubscriptionId,
+    });
+
     await appendAuditEvent(tx, {
       eventType: 'ORGANIZATION_APPLICATION_WITHDRAWN',
       actorAccountId: input.actorAccountId,
@@ -943,8 +977,131 @@ export async function withdrawOrganizationApplication(
       result: 'ALLOWED',
       resourceType: 'organization',
       resourceId: closed.id,
-      metadata: { membershipsEnded, invitationsRevoked: revoked.length },
+      metadata: {
+        membershipsEnded,
+        invitationsRevoked: revoked.length,
+        subscriptionEnded: plan.ended,
+      },
     });
     return ok(closed);
   });
+}
+
+/**
+ * Owner decision "Founding A" (1 Nov 2026): an agency that withdraws its application or is
+ * terminated keeps no plan. Its current subscription ends at the moment the agency closes, so it
+ * can never renew: agency invoicing reads only current subscriptions of ACTIVE agencies, and
+ * Founding Access is free, so no paid period is left to honour (closing already ends every
+ * access). Nothing is refunded here; the owner refunds case by case with the existing refund
+ * tool. A scheduled downgrade still waiting is cancelled, so it can never put a plan back on a
+ * closed agency.
+ *
+ * Both helpers are private to this file (they spread to no caller), and run inside the closing
+ * transaction after the organization row. `lockPlanOfClosingAgency` audits nothing, so a closing
+ * transaction that audits other things first can still take these rows ahead of the audit chain.
+ */
+type ClosingCause = 'application_withdrawn' | 'organization_terminated';
+
+/**
+ * Row locks on the agency's current subscription, then its waiting downgrade (the order every plan
+ * change in plans.ts takes them); returns the subscription's id.
+ */
+async function lockPlanOfClosingAgency(tx: Db, organizationId: string): Promise<string | null> {
+  const current = first(
+    await tx
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.organizationId, organizationId),
+          isNull(schema.subscriptions.endedAt),
+        ),
+      )
+      .for('update'),
+  );
+  await tx
+    .select({ id: schema.scheduledDowngrades.id })
+    .from(schema.scheduledDowngrades)
+    .where(
+      and(
+        eq(schema.scheduledDowngrades.organizationId, organizationId),
+        eq(schema.scheduledDowngrades.status, 'PENDING'),
+      ),
+    )
+    .for('update');
+  return current?.id ?? null;
+}
+
+/** Ends the closing agency's plan and its waiting downgrade, audited. A no-op without a plan. */
+async function endPlanOfClosingAgency(
+  tx: Db,
+  input: {
+    readonly organizationId: string;
+    readonly actorAccountId: string;
+    readonly cause: ClosingCause;
+    readonly now: Date;
+    /** The subscription the caller already locked with `lockPlanOfClosingAgency`. */
+    readonly lockedSubscriptionId: string | null;
+  },
+): Promise<{ readonly ended: boolean }> {
+  const subscriptionId = input.lockedSubscriptionId;
+  if (subscriptionId === null) return { ended: false };
+  const reason =
+    input.cause === 'application_withdrawn'
+      ? 'the agency withdrew its application'
+      : 'the agency was terminated';
+  await tx
+    .update(schema.subscriptions)
+    .set({ endedAt: input.now })
+    .where(eq(schema.subscriptions.id, subscriptionId));
+  const downgrades = await tx
+    .update(schema.scheduledDowngrades)
+    .set({
+      status: 'CANCELLED',
+      cancelledAt: input.now,
+      cancelledByAccountId: input.actorAccountId,
+      cancelledReason: reason,
+      updatedAt: input.now,
+    })
+    .where(
+      and(
+        eq(schema.scheduledDowngrades.organizationId, input.organizationId),
+        eq(schema.scheduledDowngrades.status, 'PENDING'),
+      ),
+    )
+    .returning({ id: schema.scheduledDowngrades.id });
+  for (const downgrade of downgrades) {
+    // Its notice still waiting to go out is withdrawn too, as plans.ts does for a superseded one.
+    await cancelQueuedNotificationsForResource(tx, downgrade.id);
+  }
+  for (const downgrade of downgrades) {
+    await appendAuditEvent(tx, {
+      eventType: 'DOWNGRADE_CANCELLED',
+      actorAccountId: input.actorAccountId,
+      action: 'MANAGE',
+      method: 'SYSTEM',
+      result: 'ALLOWED',
+      resourceType: 'scheduled_downgrade',
+      resourceId: downgrade.id,
+      reason,
+      metadata: { organizationId: input.organizationId },
+    });
+  }
+  await appendAuditEvent(tx, {
+    eventType: 'SUBSCRIPTION_ENDED',
+    actorAccountId: input.actorAccountId,
+    action: 'MANAGE',
+    method: 'SYSTEM',
+    result: 'ALLOWED',
+    resourceType: 'subscription',
+    resourceId: subscriptionId,
+    reason: input.cause,
+    metadata: {
+      organizationId: input.organizationId,
+      renewalStopped: true,
+      refunded: false,
+      downgradeCancelled: downgrades.length > 0,
+    },
+  });
+  return { ended: true };
 }
