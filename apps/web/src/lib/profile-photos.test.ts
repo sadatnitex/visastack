@@ -91,6 +91,38 @@ describe('profile photo loading for pages', () => {
   });
 });
 
+describe('photos with archived travellers (LC-E)', () => {
+  const P3 = '10000000-0000-4000-8000-000000000003';
+
+  it('still finds the photo of an archived traveller opened by link, through the gate', async () => {
+    // The everyday list leaves the archived traveller (P3) out.
+    mocks.listApplicants.mockResolvedValue([SELF, FAMILY]);
+    mocks.listApplicantPhotoVersions.mockImplementation(
+      async (...proofs: { proofFor: string }[]) => ({
+        ok: true,
+        value: new Map(proofs.map((proof) => [proof.proofFor, 'v3'] as const)),
+      }),
+    );
+    expect(await ownedPhotoUrl(DB, 'acct-1', P3)).toBe(`/api/photos/applicant/${P3}?v=v3`);
+    expect(mocks.requireAccess.mock.calls.map((call) => call[3])).toContainEqual({
+      applicantId: P3,
+    });
+    // Refused by the gate: initials, never another person's photo.
+    mocks.requireAccess.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
+    expect(await ownedPhotoUrl(DB, 'acct-2', P3)).toBeNull();
+  });
+
+  it('resolves the account photo to the Myself record that stays when another Myself is in Recently Deleted', async () => {
+    // Only everyday records are listed: the remaining Myself is P2 here.
+    const remaining = { id: P2, displayName: 'Rahima Akter', relationship: 'SELF' };
+    mocks.listApplicants.mockResolvedValue([remaining]);
+    mocks.listApplicantPhotoVersions.mockResolvedValue({ ok: true, value: new Map([[P2, 'p2']]) });
+    expect(await loadOwnPhoto(DB, 'acct-3')).toEqual({
+      self: { id: P2, name: 'Rahima Akter', photoUrl: `/api/photos/applicant/${P2}?v=p2` },
+    });
+  });
+});
+
 describe('the workspace avatar photo', () => {
   const access: WorkspaceAccess = {
     travellers: [

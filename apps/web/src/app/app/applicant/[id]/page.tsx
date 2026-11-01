@@ -36,16 +36,22 @@ import {
   loadDeadlineEntries,
   validUntilLine,
 } from '../../deadline-clock-data';
+import { TravellerLifecycleBar } from './traveller-manage/lifecycle-bar';
+import { loadTravellerManage } from './traveller-manage/load';
+import { OUTCOME_PARAM } from './traveller-manage/messages';
 
 export const metadata: Metadata = { title: 'Traveller Home' };
 export const dynamic = 'force-dynamic';
 
 export default async function ApplicantOverviewPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
+  readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const outcome = (await searchParams)?.[OUTCOME_PARAM];
   const data = await withSession(async ({ db, accountId }) => {
     // The page is independently guarded: parent layouts may render concurrently.
     const applicant = await getApplicant(db, id);
@@ -64,6 +70,8 @@ export default async function ApplicantOverviewPage({
         return null;
       }
     })();
+    // Archive, Restore and Remove Empty Record (LC-E); null hides them. Never throws.
+    const manageReading = loadTravellerManage(db, accountId, id);
     const [profile, documents, coreGranted, proposals, missions, requests, access, sectionChoices] =
       await Promise.all([
         listApplicantProfile(db, id),
@@ -94,6 +102,7 @@ export default async function ApplicantOverviewPage({
       attentionRead: await attentionReading,
       readiness,
       sectionChoices,
+      manage: await manageReading,
     };
   });
   if (!data) notFound();
@@ -274,10 +283,18 @@ export default async function ApplicantOverviewPage({
               : 'Your next steps, documents and cases in one place.'
         }
         actions={
-          <Link className="btn btn-secondary" href={`/app/applicant/${id}/missions#start-case`}>
-            Start a Case
-          </Link>
+          data.manage?.lifecycle.state === 'RECENTLY_DELETED' ? undefined : (
+            <Link className="btn btn-secondary" href={`/app/applicant/${id}/missions#start-case`}>
+              Start a Case
+            </Link>
+          )
         }
+      />
+      <TravellerLifecycleBar
+        applicantId={id}
+        name={data.applicant.displayName}
+        view={data.manage}
+        outcome={outcome}
       />
       <DepthScope family="traveller-home" depth={depth}>
         <DepthSwitch family="traveller-home" initial={depth} copy={depthWords} />

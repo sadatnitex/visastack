@@ -108,14 +108,20 @@ export function loadOwnedTravellers(db: Db, accountId: string): Promise<OwnedTra
   return loading;
 }
 
-/** One traveller's photo address for this account, or null. Never fails. */
+/**
+ * One traveller's photo address for this account, or null. Never fails. An archived traveller is
+ * not in the everyday list, but their own pages still open by link (LC-E), so their photo is asked
+ * for on its own, through the same gate.
+ */
 export async function ownedPhotoUrl(
   db: Db,
   accountId: string,
   applicantId: string,
 ): Promise<string | null> {
   try {
-    return (await loadOwnedTravellers(db, accountId)).photos.get(applicantId) ?? null;
+    const { people, photos } = await loadOwnedTravellers(db, accountId);
+    if (people.some((person) => person.id === applicantId)) return photos.get(applicantId) ?? null;
+    return (await ownedPhotoUrls(db, accountId, [applicantId])).get(applicantId) ?? null;
   } catch (error) {
     logPhotoFailure('photo', error);
     return null;
@@ -131,7 +137,12 @@ export interface OwnPhoto {
   } | null;
 }
 
-/** For the account page: the person's own traveller record and its photo. Null when it cannot be read, so the card is left out rather than the page failing. */
+/**
+ * For the account page: the person's own traveller record and its photo. Null when it cannot be
+ * read, so the card is left out rather than the page failing. Myself is never archived (LC-E), so
+ * the everyday list always holds it; a Myself in Recently Deleted is left out, and the account
+ * photo then comes from the Myself record that stays.
+ */
 export async function loadOwnPhoto(db: Db, accountId: string): Promise<OwnPhoto | null> {
   try {
     const { people, photos } = await loadOwnedTravellers(db, accountId);
