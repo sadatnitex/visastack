@@ -1,0 +1,18 @@
+# WP-SB11 Scroll budget exceptions follow-up: Agency Clients, the Agency Dashboard case table on a
+# phone and an open case snapshot (docs/uiux/SCROLL-BUDGET.md section 2). Approved in advance by
+# the owner (relayed by the coordinator, 1 Nov 2026). Documents on a phone stays with lane Z.
+# The two fixtures are the measured layouts of the two spec files and must follow the pages.
+apps/web/src/app/app/agency/[orgId]/clients/**
+apps/web/src/app/app/agency/[orgId]/page.tsx
+apps/web/src/app/app/agency/[orgId]/page.test.tsx
+apps/web/src/app/app/mission/[id]/snapshots/**
+apps/web/e2e/scroll-budget/WP-SB2.spec.ts
+apps/web/e2e/scroll-budget/WP-SB2.fixture.tsx
+apps/web/e2e/scroll-budget/WP-SB5.spec.ts
+apps/web/e2e/scroll-budget/WP-SB5.fixture.tsx
+apps/web/src/app/globals.css
+docs/uiux/SCROLL-BUDGET.md
+docs/commercial-v1/known-issues.md
+docs/upgrades/programme/COVERAGE-LEDGER.csv
+docs/upgrades/programme/STATUS.md
+docs/upgrades/programme/allowlists/WP-SB11.txt
