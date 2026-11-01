@@ -128,3 +128,11 @@ describe('Removal Requests (staff queue)', () => {
     expect(textOf(await renderServer(Page({})))).toContain('No removal requests are waiting.');
   });
 });
+
+describe('the decline list', () => {
+  it('offers exactly the decline codes the service accepts, in its order', async () => {
+    const { DECLINE_CODES } = await import('./labels');
+    const { REMOVAL_DECLINE_CODES } = await import('@visastack/services');
+    expect(DECLINE_CODES).toEqual([...REMOVAL_DECLINE_CODES]);
+  });
+});

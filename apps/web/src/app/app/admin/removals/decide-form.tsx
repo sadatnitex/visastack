@@ -1,6 +1,5 @@
 'use client';
 
-import { REMOVAL_DECLINE_CODES } from '@visastack/services';
 import { useActionState, useId, useRef } from 'react';
 import {
   FormMessage,
@@ -10,7 +9,7 @@ import {
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
 import { decideRemovalAction } from './actions';
-import { DECLINE_LABELS } from './labels';
+import { DECLINE_CODES, DECLINE_LABELS } from './labels';
 
 /**
  * Approve, or decline with a reason, one removal request. Approve is not offered while a legal
@@ -44,7 +43,7 @@ export function DecideRemovalForm({
           {...fieldProblem(state, 'decisionCode', messageId, hintId)}
         >
           <option value="">Choose a Reason</option>
-          {REMOVAL_DECLINE_CODES.map((code) => (
+          {DECLINE_CODES.map((code) => (
             <option key={code} value={code}>
               {DECLINE_LABELS[code]}
             </option>

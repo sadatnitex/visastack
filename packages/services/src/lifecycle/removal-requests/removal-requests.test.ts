@@ -674,18 +674,14 @@ describe('removal requests with the lifecycle tables', () => {
           ),
         ).toHaveLength(0);
       }
-      // The case task is recorded as the staff member's action, not the traveller's.
-      const [taskAudit] = await db
-        .select({ actor: schema.auditEvents.actorAccountId })
+      // The staff member who caused the case task is named on the decision, with the case.
+      const [decisionAudit] = await db
+        .select({ actor: schema.auditEvents.actorAccountId, metadata: schema.auditEvents.metadata })
         .from(schema.auditEvents)
-        .where(
-          and(
-            eq(schema.auditEvents.eventType, 'MISSION_TASK_CREATED'),
-            eq(schema.auditEvents.missionId, open),
-            eq(schema.auditEvents.actorAccountId, staffId),
-          ),
-        );
-      expect(taskAudit?.actor).toBe(staffId);
+        .where(eq(schema.auditEvents.eventType, 'DOCUMENT_REMOVAL_DECIDED'));
+      expect(decisionAudit?.actor).toBe(staffId);
+      expect(JSON.stringify(decisionAudit?.metadata)).toContain(open);
+      expect(JSON.stringify(decisionAudit?.metadata)).not.toContain('Private Name');
       const ownerNotices = await notificationsFor(db, owner.accountId);
       expect(
         ownerNotices.filter((n) => n.eventType === 'DOCUMENT_REMOVAL_DECIDED').length,

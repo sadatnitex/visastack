@@ -18,6 +18,13 @@ export const DECLINE_LABELS: Readonly<Record<RemovalDeclineCode, string>> = {
   OTHER: 'Another Reason',
 };
 
+/**
+ * The decline reasons in the order the list shows them. Kept here (type-only import above)
+ * because this file reaches the browser and the services package must not; a test pins it to
+ * REMOVAL_DECLINE_CODES.
+ */
+export const DECLINE_CODES = Object.keys(DECLINE_LABELS) as RemovalDeclineCode[];
+
 /** "1 open case", "2 open cases". */
 export function count(n: number, one: string, other: string): string {
   return `${n} ${n === 1 ? one : other}`;

@@ -10,6 +10,7 @@ import { documentBlockedByLegalHold } from '../../legal-hold';
 // Imported by the foundation's path, which the read-path guard recognises.
 import { presentDocumentCondition } from '../../lifecycle/foundation/conditions';
 import { incrementMaterialRevision } from '../../material-revision';
+import { createTask } from '../../missions';
 import { enqueueNotification, enqueueNotificationBothChannels } from '../../notifications';
 import { listActivePlatformRoles } from '../../platform-roles';
 import { recordProductEvent } from '../../product-events';
@@ -663,26 +664,15 @@ export async function decideRemovalRequest(
           ),
         );
       await incrementMaterialRevision(tx, missionId);
-      // Written here rather than through createTask (an owner-only command) so the audit trail
-      // names the staff member who approved, not the traveller.
-      const task = first(
-        await tx
-          .insert(schema.missionTasks)
-          .values({ missionId, description: OPEN_CASE_TASK })
-          .returning({ id: schema.missionTasks.id }),
-      );
-      if (!task) throw new Error('removal request: case task not written');
-      await appendAuditEvent(tx, {
-        eventType: 'MISSION_TASK_CREATED',
-        actorAccountId: staffAccountId,
-        method: 'MANUAL',
-        result: 'ALLOWED',
-        applicantId,
+      // createTask is the one writer of case tasks (ai-tools/tool-guard.test.ts). It records the
+      // record owner as the task's author; the staff member who caused it is named on the
+      // DOCUMENT_REMOVAL_DECIDED event below, with the cases it touched.
+      const task = await createTask(tx, {
+        actorAccountId: ownerAccountId,
         missionId,
-        resourceType: 'mission_task',
-        resourceId: task.id,
-        metadata: { cause: 'DOCUMENT_REMOVAL_REQUEST', requestId: request.id },
+        description: OPEN_CASE_TASK,
       });
+      if (!task.ok) throw new Error(`removal request: case task refused (${task.error.code})`);
     }
 
     const casesFlagged = impact.openCaseIds.flatMap((id) => {
@@ -860,6 +850,7 @@ export async function decideRemovalRequest(
       decision: 'APPROVED',
       receiptId: receipt.value.id,
       openCases: impact.openCaseIds.length,
+      caseTasksFor: impact.openCaseIds,
       finishedCases: impact.finishedCases,
       agenciesTold: told.size,
     });
