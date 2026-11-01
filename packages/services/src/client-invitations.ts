@@ -12,6 +12,17 @@ import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { createMission } from './missions';
 import { isOrgAdmin } from './organizations';
+import {
+  type Page,
+  type PageRequest,
+  clampLimit,
+  cursorOrder,
+  cursorTime,
+  decodeTimeCursor,
+  encodeTimeCursor,
+  olderThan,
+  toPage,
+} from './paging';
 import type { KeyManagementPort } from './ports';
 import { elapsedSeconds, recordProductEvent } from './product-events';
 import { RATE_LIMITS, checkRateLimits } from './rate-limit';
@@ -791,16 +802,80 @@ export async function revokeClientInvitation(
 export async function listClientInvitations(
   db: Db,
   input: { readonly actorAccountId: string; readonly organizationId: string },
-): Promise<Result<readonly ClientInvitation[], ServiceError>> {
+): Promise<Result<readonly ClientInvitation[], ServiceError>>;
+/**
+ * WP-SB5: one page of the same invitations, newest first (time, then id), at most `limit`
+ * (clamped to 1 to 100), optionally in one status only, with how many match in all. The same
+ * OWNER/ADMIN check and the same organization filter apply on every page; `before` is the previous
+ * page's `nextCursor`, and one made for another organization, or malformed, gives the first page.
+ */
+export async function listClientInvitations(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly organizationId: string },
+  options: ClientInvitationsPageRequest,
+): Promise<Result<ClientInvitationsPage, ServiceError>>;
+export async function listClientInvitations(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly organizationId: string },
+  options?: ClientInvitationsPageRequest,
+): Promise<Result<readonly ClientInvitation[] | ClientInvitationsPage, ServiceError>> {
   if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
     return err(serviceError('forbidden', 'only an org OWNER/ADMIN can view invitations'));
   }
-  const rows = await db
-    .select()
-    .from(schema.clientInvitations)
-    .where(eq(schema.clientInvitations.organizationId, input.organizationId))
-    .orderBy(desc(schema.clientInvitations.createdAt));
-  return ok(rows);
+  const ofOrganization = eq(schema.clientInvitations.organizationId, input.organizationId);
+  if (!options) {
+    const rows = await db
+      .select()
+      .from(schema.clientInvitations)
+      .where(ofOrganization)
+      .orderBy(desc(schema.clientInvitations.createdAt));
+    return ok(rows);
+  }
+  const matching = options.status
+    ? and(ofOrganization, eq(schema.clientInvitations.status, options.status))
+    : ofOrganization;
+  const limit = clampLimit(options.limit);
+  const cursorScope = `org:${input.organizationId}:client-invitations`;
+  const after = decodeTimeCursor(options.before, cursorScope);
+  const [rows, counts] = await Promise.all([
+    db
+      .select({
+        invitation: schema.clientInvitations,
+        cursorAt: cursorTime(schema.clientInvitations.createdAt),
+      })
+      .from(schema.clientInvitations)
+      .where(
+        after
+          ? and(
+              matching,
+              olderThan(schema.clientInvitations.createdAt, schema.clientInvitations.id, after),
+            )
+          : matching,
+      )
+      .orderBy(...cursorOrder(schema.clientInvitations.createdAt, schema.clientInvitations.id))
+      .limit(limit + 1),
+    db.select({ total: sql<number>`count(*)::int` }).from(schema.clientInvitations).where(matching),
+  ]);
+  const page = toPage(rows, limit, (last) =>
+    encodeTimeCursor({ at: last.cursorAt, id: last.invitation.id }, cursorScope),
+  );
+  return ok({
+    items: page.items.map((row) => row.invitation),
+    nextCursor: page.nextCursor,
+    total: Number(counts[0]?.total ?? 0),
+  });
+}
+
+/** WP-SB5: what one page of an organization's client invitations asks for. */
+export interface ClientInvitationsPageRequest extends PageRequest {
+  /** Only invitations in this status; left out means every status. */
+  readonly status?: ClientInvitation['status'];
+}
+
+/** WP-SB5: one page of an organization's client invitations. */
+export interface ClientInvitationsPage extends Page<ClientInvitation> {
+  /** How many invitations match in all. */
+  readonly total: number;
 }
 
 /**

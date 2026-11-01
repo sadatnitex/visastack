@@ -184,13 +184,13 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     });
     if (!isOk(later)) throw new Error('later note');
     const recent = await listNotes(db, org.value.id, applicantId, mission.value.id, { limit: 1 });
-    expect(recent.map((item) => item.id)).toEqual([later.value.id]);
+    expect(recent.items.map((item) => item.id)).toEqual([later.value.id]);
     expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(2);
     expect(
       await listNotes(db, '00000000-0000-4000-8000-000000000001', applicantId, mission.value.id, {
         limit: 50,
       }),
-    ).toEqual([]);
+    ).toEqual({ items: [], nextCursor: null, total: 0 });
 
     // A non-admin cannot assign.
     const stranger = await provisionAccount(db, { email: 'stranger-coll@example.com' });

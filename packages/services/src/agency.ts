@@ -28,6 +28,17 @@ import {
 } from './notifications';
 import { getOrganization, isOrgAdmin } from './organizations';
 import { type PackRequirement, listRequirements } from './packs';
+import {
+  type Page,
+  type PageRequest,
+  clampLimit,
+  cursorOrder,
+  cursorTime,
+  decodeTimeCursor,
+  encodeTimeCursor,
+  olderThan,
+  toPage,
+} from './paging';
 import { recordProductEvent } from './product-events';
 import { RATE_LIMITS, checkRateLimit, checkRateLimits } from './rate-limit';
 import { assignReferenceCode } from './reference-codes';
@@ -1152,7 +1163,27 @@ export async function listVisibleMissionsForMember(
   db: Db,
   organizationId: string,
   actorAccountId: string,
-): Promise<{ readonly admin: boolean; readonly missions: OrgCaseSummary[] }> {
+): Promise<{ readonly admin: boolean; readonly missions: OrgCaseSummary[] }>;
+/**
+ * WP-SB5: one page of the same cases, newest opened first (opening time, then id), at most
+ * `limit` (clamped to 1 to 100), with how many cases this actor may see in all. `before` is the
+ * previous page's `nextCursor`; one made for another organization, or malformed, gives the first
+ * page. `only` narrows the page to one case, and only when that case is already in the actor's
+ * visible set: the way the Cases page opens a single case without reading any other. The
+ * visibility rule is exactly the one above; the cursor only says where the last page stopped.
+ */
+export async function listVisibleMissionsForMember(
+  db: Db,
+  organizationId: string,
+  actorAccountId: string,
+  options: VisibleCasesPageRequest,
+): Promise<VisibleCasesPage>;
+export async function listVisibleMissionsForMember(
+  db: Db,
+  organizationId: string,
+  actorAccountId: string,
+  options?: VisibleCasesPageRequest,
+): Promise<{ readonly admin: boolean; readonly missions: OrgCaseSummary[] } | VisibleCasesPage> {
   const admin = await isOrgAdmin(db, actorAccountId, organizationId);
   const base = await listMissionsForOrganization(db, organizationId);
   let scoped = base;
@@ -1160,54 +1191,112 @@ export async function listVisibleMissionsForMember(
     const assignedIds = await listAssignedMissionIds(db, organizationId, actorAccountId);
     scoped = base.filter((m) => assignedIds.has(m.missionId));
   }
-  if (scoped.length === 0) return { admin, missions: [] };
+  if (options?.only !== undefined) scoped = scoped.filter((m) => m.missionId === options.only);
+  if (scoped.length === 0) {
+    return options ? { admin, missions: [], nextCursor: null, total: 0 } : { admin, missions: [] };
+  }
 
-  const rows = await db
-    .select({
-      id: schema.missions.id,
-      state: schema.missions.state,
-      destination: schema.missions.destination,
-      jurisdiction: schema.missions.jurisdiction,
-      manualMode: schema.missions.manualMode,
-      packVersionId: schema.missions.packVersionId,
-      targetDeadline: schema.missions.targetDeadline,
-      travelStartDate: schema.missions.travelStartDate,
-      createdAt: schema.missions.createdAt,
-      updatedAt: schema.missions.updatedAt,
-    })
-    .from(schema.missions)
-    .where(
-      inArray(
-        schema.missions.id,
-        scoped.map((m) => m.missionId),
-      ),
-    );
+  const limit = options ? clampLimit(options.limit) : 0;
+  const cursorScope = `org:${organizationId}:visible-cases`;
+  const after = options ? decodeTimeCursor(options.before, cursorScope) : null;
+  const ids = inArray(
+    schema.missions.id,
+    scoped.map((m) => m.missionId),
+  );
+  const columns = {
+    id: schema.missions.id,
+    state: schema.missions.state,
+    destination: schema.missions.destination,
+    jurisdiction: schema.missions.jurisdiction,
+    manualMode: schema.missions.manualMode,
+    packVersionId: schema.missions.packVersionId,
+    targetDeadline: schema.missions.targetDeadline,
+    travelStartDate: schema.missions.travelStartDate,
+    createdAt: schema.missions.createdAt,
+    updatedAt: schema.missions.updatedAt,
+    cursorAt: cursorTime(schema.missions.createdAt),
+  };
+  const rows = options
+    ? await db
+        .select(columns)
+        .from(schema.missions)
+        .where(
+          after ? and(ids, olderThan(schema.missions.createdAt, schema.missions.id, after)) : ids,
+        )
+        .orderBy(...cursorOrder(schema.missions.createdAt, schema.missions.id))
+        .limit(limit + 1)
+    : await db.select(columns).from(schema.missions).where(ids);
   const detailById = new Map(rows.map((r) => [r.id, r]));
 
-  const missions = scoped.map((m): OrgCaseSummary => {
-    // scoped is derived from missions.ts's own missions table moments ago,
-    // inside the same request, so a missing detail row here would mean the
-    // mission was deleted mid-request -- never actually possible (missions
-    // are never deleted, only state-transitioned) -- not a real omission.
-    const detail = detailById.get(m.missionId);
-    return {
-      missionId: m.missionId,
-      applicantId: m.applicantId,
-      applicantName: m.applicantName,
-      applicantTimezone: m.applicantTimezone,
-      title: m.title,
-      state: detail?.state ?? 'DRAFT',
-      destination: detail?.destination ?? null,
-      jurisdiction: detail?.jurisdiction ?? null,
-      manualMode: detail?.manualMode ?? false,
-      packVersionId: detail?.packVersionId ?? null,
-      targetDeadline: detail?.targetDeadline?.toISOString() ?? null,
-      travelStartDate: detail?.travelStartDate?.toISOString() ?? null,
-      createdAt: detail?.createdAt.toISOString() ?? new Date(0).toISOString(),
-      updatedAt: detail?.updatedAt.toISOString() ?? new Date(0).toISOString(),
-    };
-  });
+  if (options) {
+    const summaryById = new Map(scoped.map((m) => [m.missionId, m]));
+    const page = toPage(rows, limit, (last) =>
+      encodeTimeCursor({ at: last.cursorAt, id: last.id }, cursorScope),
+    );
+    const missions = page.items.flatMap((detail): OrgCaseSummary[] => {
+      const m = summaryById.get(detail.id);
+      return m ? [toOrgCaseSummary(m, detail)] : [];
+    });
+    return { admin, missions, nextCursor: page.nextCursor, total: scoped.length };
+  }
+
+  const missions = scoped.map(
+    (m): OrgCaseSummary => toOrgCaseSummary(m, detailById.get(m.missionId)),
+  );
   return { admin, missions };
+}
+
+/** WP-SB5: what one page of an actor's visible cases asks for. */
+export interface VisibleCasesPageRequest extends PageRequest {
+  /** One case id: the page holds that case alone, and only if the actor may already see it. */
+  readonly only?: string;
+}
+
+/** WP-SB5: one page of an actor's visible cases. */
+export interface VisibleCasesPage {
+  readonly admin: boolean;
+  readonly missions: OrgCaseSummary[];
+  /** Pass back as `before` for the next page; null when this is the last. */
+  readonly nextCursor: string | null;
+  /** How many cases the actor may see in all (after `only`). */
+  readonly total: number;
+}
+
+function toOrgCaseSummary(
+  m: OrgMission,
+  detail:
+    | {
+        readonly state: MissionState;
+        readonly destination: string | null;
+        readonly jurisdiction: string | null;
+        readonly manualMode: boolean;
+        readonly packVersionId: string | null;
+        readonly targetDeadline: Date | null;
+        readonly travelStartDate: Date | null;
+        readonly createdAt: Date;
+        readonly updatedAt: Date;
+      }
+    | undefined,
+): OrgCaseSummary {
+  // The mission list comes from the missions table moments ago, inside the same request, so a
+  // missing detail row here would mean the mission was deleted mid-request -- never actually
+  // possible (missions are never deleted, only state-transitioned) -- not a real omission.
+  return {
+    missionId: m.missionId,
+    applicantId: m.applicantId,
+    applicantName: m.applicantName,
+    applicantTimezone: m.applicantTimezone,
+    title: m.title,
+    state: detail?.state ?? 'DRAFT',
+    destination: detail?.destination ?? null,
+    jurisdiction: detail?.jurisdiction ?? null,
+    manualMode: detail?.manualMode ?? false,
+    packVersionId: detail?.packVersionId ?? null,
+    targetDeadline: detail?.targetDeadline?.toISOString() ?? null,
+    travelStartDate: detail?.travelStartDate?.toISOString() ?? null,
+    createdAt: detail?.createdAt.toISOString() ?? new Date(0).toISOString(),
+    updatedAt: detail?.updatedAt.toISOString() ?? new Date(0).toISOString(),
+  };
 }
 
 const NOTE_MAX_LENGTH = 2000;
@@ -1388,28 +1477,92 @@ export async function listNotes(
   organizationId: string,
   applicantId: string,
   missionId: string,
-  options?: { readonly limit: number },
-): Promise<MissionNote[]> {
-  if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) return [];
-  const query = db
-    .select()
-    .from(schema.missionNotes)
-    .where(
-      and(
-        eq(schema.missionNotes.missionId, missionId),
-        or(
-          eq(schema.missionNotes.visibility, 'TRAVELLER_SHARED'),
-          eq(schema.missionNotes.authorOrganizationId, organizationId),
-        ),
-      ),
-    );
-  if (!options) return query;
-  const limit = Number.isFinite(options.limit)
-    ? Math.max(1, Math.min(50, Math.floor(options.limit)))
-    : 50;
-  return query
-    .orderBy(desc(schema.missionNotes.createdAt), desc(schema.missionNotes.id))
-    .limit(limit);
+): Promise<MissionNote[]>;
+/**
+ * WP-SB5: one page of the same notes, newest first (time, then id), at most `limit` (clamped to
+ * 1 to 100), under the same read check and the same visibility rule. `before` is the previous
+ * page's `nextCursor`. The cursor belongs to this organization's notes, not one case, so the
+ * Activity page can page several cases' notes as one list (each note carries its own cursor for
+ * that); one made for another organization, or
+ * malformed, gives the first page. `withTotal` also counts the notes this organization may read on
+ * the case. A reader without access gets an empty page.
+ */
+export async function listNotes(
+  db: Db,
+  organizationId: string,
+  applicantId: string,
+  missionId: string,
+  options: NotesPageRequest,
+): Promise<NotesPage>;
+export async function listNotes(
+  db: Db,
+  organizationId: string,
+  applicantId: string,
+  missionId: string,
+  options?: NotesPageRequest,
+): Promise<MissionNote[] | NotesPage> {
+  if (!(await canReadMissionCollaboration(db, organizationId, applicantId, missionId))) {
+    return options ? { items: [], nextCursor: null, total: 0 } : [];
+  }
+  const readable = and(
+    eq(schema.missionNotes.missionId, missionId),
+    or(
+      eq(schema.missionNotes.visibility, 'TRAVELLER_SHARED'),
+      eq(schema.missionNotes.authorOrganizationId, organizationId),
+    ),
+  );
+  if (!options) return db.select().from(schema.missionNotes).where(readable);
+  const limit = clampLimit(options.limit);
+  const cursorScope = `org:${organizationId}:notes`;
+  const after = decodeTimeCursor(options.before, cursorScope);
+  const [rows, counts] = await Promise.all([
+    db
+      .select({
+        note: schema.missionNotes,
+        cursorAt: cursorTime(schema.missionNotes.createdAt),
+      })
+      .from(schema.missionNotes)
+      .where(
+        after
+          ? and(readable, olderThan(schema.missionNotes.createdAt, schema.missionNotes.id, after))
+          : readable,
+      )
+      .orderBy(...cursorOrder(schema.missionNotes.createdAt, schema.missionNotes.id))
+      .limit(limit + 1),
+    options.withTotal
+      ? db.select({ total: sql<number>`count(*)::int` }).from(schema.missionNotes).where(readable)
+      : Promise.resolve(null),
+  ]);
+  const page = toPage(rows, limit, (last) =>
+    encodeTimeCursor({ at: last.cursorAt, id: last.note.id }, cursorScope),
+  );
+  return {
+    items: page.items.map((row) => ({
+      ...row.note,
+      cursor: encodeTimeCursor({ at: row.cursorAt, id: row.note.id }, cursorScope),
+    })),
+    nextCursor: page.nextCursor,
+    ...(counts ? { total: Number(counts[0]?.total ?? 0) } : {}),
+  };
+}
+
+/** WP-SB5: what one page of a case's notes asks for. */
+export interface NotesPageRequest extends PageRequest {
+  /** Also count every note the organization may read on the case. */
+  readonly withTotal?: boolean;
+}
+
+/**
+ * A note on a page, with the cursor that continues after it: a caller that merges several cases'
+ * notes into one newest-first list (the Activity page) passes the last kept note's cursor as
+ * `before` to every case, so each case's next read starts strictly after that position.
+ */
+export type PagedMissionNote = MissionNote & { readonly cursor: string };
+
+/** WP-SB5: one page of a case's notes. */
+export interface NotesPage extends Page<PagedMissionNote> {
+  /** Present when the request asked `withTotal`. */
+  readonly total?: number;
 }
 
 /** A note as the applicant owner sees it - author already resolved to an email, never a raw account id. */
@@ -1800,12 +1953,85 @@ export async function listEvidenceRequestsForOrgDetailed(
   db: Db,
   actorAccountId: string,
   organizationId: string,
-): Promise<Result<EvidenceRequestWithApplicant[], ServiceError>> {
+): Promise<Result<EvidenceRequestWithApplicant[], ServiceError>>;
+/**
+ * WP-SB5: one page of the same requests, newest first (time, then id), at most `limit` (clamped
+ * to 1 to 100), optionally only the given statuses, with how many match and how many of each
+ * status the organization holds. The same administrator check and the same case rules decide
+ * which requests exist at all; names are read only for the requests on the page. `before` is the
+ * previous page's `nextCursor`; one made for another organization, or malformed, gives the first
+ * page.
+ */
+export async function listEvidenceRequestsForOrgDetailed(
+  db: Db,
+  actorAccountId: string,
+  organizationId: string,
+  options: EvidenceRequestsPageRequest,
+): Promise<Result<EvidenceRequestsPage, ServiceError>>;
+export async function listEvidenceRequestsForOrgDetailed(
+  db: Db,
+  actorAccountId: string,
+  organizationId: string,
+  options?: EvidenceRequestsPageRequest,
+): Promise<Result<EvidenceRequestWithApplicant[] | EvidenceRequestsPage, ServiceError>> {
   const listed = await listEvidenceRequestsForOrg(db, actorAccountId, organizationId);
   if (!listed.ok) return listed;
+  if (!options) return ok(await withApplicantNames(db, listed.value));
+  const statusCounts: Record<string, number> = {};
+  for (const request of listed.value) {
+    statusCounts[request.status] = (statusCounts[request.status] ?? 0) + 1;
+  }
+  const wanted = options.statuses?.length ? new Set<string>(options.statuses) : null;
+  const matching = listed.value
+    .filter((request) => wanted === null || wanted.has(request.status))
+    .map((request) => ({ request, at: request.createdAt.toISOString() }))
+    // The same order the cursor compares in: time, then id, both newest first.
+    .sort((a, b) =>
+      a.at === b.at ? b.request.id.localeCompare(a.request.id) : b.at.localeCompare(a.at),
+    );
+  const cursorScope = `org:${organizationId}:evidence-requests`;
+  const after = decodeTimeCursor(options.before, cursorScope);
+  const remaining = after
+    ? matching.filter(
+        (row) => row.at < after.at || (row.at === after.at && row.request.id < after.id),
+      )
+    : matching;
+  const limit = clampLimit(options.limit);
+  const page = toPage(remaining.slice(0, limit + 1), limit, (last) =>
+    encodeTimeCursor({ at: last.at, id: last.request.id }, cursorScope),
+  );
+  return ok({
+    items: await withApplicantNames(
+      db,
+      page.items.map((row) => row.request),
+    ),
+    nextCursor: page.nextCursor,
+    total: matching.length,
+    statusCounts,
+  });
+}
+
+/** WP-SB5: what one page of an organization's evidence requests asks for. */
+export interface EvidenceRequestsPageRequest extends PageRequest {
+  /** Only requests in these statuses; empty or left out means every status. */
+  readonly statuses?: readonly EvidenceRequest['status'][];
+}
+
+/** WP-SB5: one page of an organization's evidence requests. */
+export interface EvidenceRequestsPage extends Page<EvidenceRequestWithApplicant> {
+  /** How many requests match the status filter in all. */
+  readonly total: number;
+  /** How many requests the organization holds in each status, before the filter. */
+  readonly statusCounts: Readonly<Record<string, number>>;
+}
+
+async function withApplicantNames(
+  db: Db,
+  requests: readonly EvidenceRequest[],
+): Promise<EvidenceRequestWithApplicant[]> {
   // One query for every distinct applicant, not one per request (measured at 639 requests: about
   // 1.1 seconds for the per-row version, docs/operations/capacity.md).
-  const applicantIds = [...new Set(listed.value.map((request) => request.applicantId))];
+  const applicantIds = [...new Set(requests.map((request) => request.applicantId))];
   const names = new Map<string, { readonly name: string; readonly timezone: string }>();
   if (applicantIds.length > 0) {
     const rows = await db
@@ -1818,12 +2044,11 @@ export async function listEvidenceRequestsForOrgDetailed(
       .where(inArray(schema.applicants.id, applicantIds));
     for (const row of rows) names.set(row.id, { name: row.displayName, timezone: row.timezone });
   }
-  const result: EvidenceRequestWithApplicant[] = listed.value.map((request) => ({
+  return requests.map((request) => ({
     ...request,
     applicantName: names.get(request.applicantId)?.name ?? 'Unknown applicant',
     applicantTimezone: names.get(request.applicantId)?.timezone ?? null,
   }));
-  return ok(result);
 }
 
 // ---------------------------------------------------------------------------
