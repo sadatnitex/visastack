@@ -1,8 +1,9 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { getLiveAcknowledgement } from './material-revision';
 import { getMissionForOwner } from './missions';
 
@@ -113,16 +114,25 @@ export async function recordSubmission(
       return err(serviceError('stale', 'this case has no current live acknowledgement to submit'));
     }
 
+    const lifecycle = await lifecycleTablesPresent(tx);
     const selectedDocumentExpiries = await tx
-      .select({ expiresAt: schema.documents.expiresAt })
+      .select({
+        expiresAt: schema.documents.expiresAt,
+        // The case's own selection: presentDocumentCondition as a flag. An archived selection
+        // stays usable; a deleted one blocks submitting until it is replaced.
+        present: lifecycle ? sql<boolean>`${presentDocumentCondition()}` : sql<boolean>`true`,
+      })
       .from(schema.selectedEvidence)
       .innerJoin(schema.documents, eq(schema.documents.id, schema.selectedEvidence.documentId))
-      .where(
-        and(
-          eq(schema.selectedEvidence.missionId, input.missionId),
-          isNotNull(schema.documents.expiresAt),
+      .where(eq(schema.selectedEvidence.missionId, input.missionId));
+    if (selectedDocumentExpiries.some((row) => !row.present)) {
+      return err(
+        serviceError(
+          'stale',
+          'selected evidence was deleted and must be replaced before this case can be submitted',
         ),
       );
+    }
     const now = Date.now();
     if (selectedDocumentExpiries.some((row) => row.expiresAt && row.expiresAt.getTime() <= now)) {
       return err(

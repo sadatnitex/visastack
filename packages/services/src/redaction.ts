@@ -15,6 +15,7 @@ import {
   type DocumentProof,
   type DocumentPurposes,
   documentAuditActor,
+  documentIsPresent,
   latestUsableVersion,
   writeDocumentAccessAudit,
 } from './document-access';
@@ -26,6 +27,7 @@ import {
   safeCopyDrawingIds,
 } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import type { KeyManagementPort } from './ports';
 import type {
   PositionedText,
@@ -190,6 +192,11 @@ function ownerDocument(proof: AnyProof, action: 'PREVIEW' | 'MANAGE'): DocumentR
   const document = proof.resource.document;
   if (document.applicantId !== proof.applicant.id) return undefined;
   return document;
+}
+
+/** The same answer as for a document that does not exist. */
+function notFound(): ServiceError {
+  return serviceError('not_found', 'document not found');
 }
 
 async function audit(
@@ -490,6 +497,7 @@ export async function listRedactionStates(
   }
   const ids = [...new Set(versionIds)].slice(0, MAX_LISTED_VERSIONS);
   if (ids.length === 0) return ok(new Map());
+  const lifecycle = await lifecycleTablesPresent(proof.tx);
   const versions = await proof.tx
     .select(versionFields())
     .from(schema.documentVersions)
@@ -501,6 +509,8 @@ export async function listRedactionStates(
         ...(proof.resource.kind === 'document'
           ? [eq(schema.documents.id, proof.resource.document.id)]
           : []),
+        // Safe Copy: presentDocumentCondition (archived keeps its copy, deleted is left out).
+        lifecycle ? presentDocumentCondition() : undefined,
       ),
     );
   return ok(await statesForVersions(proof.tx, versions));
@@ -533,11 +543,18 @@ export async function listSafeCopyStatesForDocuments(
   }
   const states = new Map<string, SafeCopyState>();
   if (!db || documents.size === 0) return states;
+  const lifecycle = await lifecycleTablesPresent(db);
   const rows = await db
     .select(versionFields())
     .from(schema.documentVersions)
     .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
-    .where(inArray(schema.documentVersions.documentId, [...documents.keys()]))
+    .where(
+      and(
+        inArray(schema.documentVersions.documentId, [...documents.keys()]),
+        // Safe Copy: presentDocumentCondition (a deleted document reads NOT_PREPARED).
+        lifecycle ? presentDocumentCondition() : undefined,
+      ),
+    )
     .orderBy(desc(schema.documentVersions.versionNumber));
   const latest = new Map<string, (typeof rows)[number]>();
   for (const row of rows) if (!latest.has(row.documentId)) latest.set(row.documentId, row);
@@ -687,6 +704,7 @@ export async function openRedactionEditor(
 ): Promise<Result<RedactionEditorView, SafeCopyError>> {
   const document = ownerDocument(proof, 'PREVIEW');
   if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
+  if (!(await documentIsPresent(proof))) return err(notFound());
   const metadata = { variant: 'redaction_editor', disposition: 'preview' };
   const loaded = await loadForOwner(proof, document, deps, 'REDACTION_PAGE', metadata, undefined);
   if (!loaded.ok) return loaded;
@@ -727,6 +745,7 @@ export async function renderRedactionPage(
 ): Promise<Result<RenderedRedactionPage, SafeCopyError>> {
   const document = ownerDocument(proof, 'PREVIEW');
   if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
+  if (!(await documentIsPresent(proof))) return err(notFound());
   if (
     !Number.isSafeInteger(input.page) ||
     input.page < 1 ||
@@ -1096,6 +1115,7 @@ export async function suggestRedactions(
 ): Promise<Result<readonly RedactionSuggestion[], SafeCopyError>> {
   const document = ownerDocument(proof, 'PREVIEW');
   if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
+  if (!(await documentIsPresent(proof))) return err(notFound());
   const metadata = { variant: 'redaction_suggestions', disposition: 'preview' };
   const loaded = await loadForOwner(
     proof,
@@ -1188,6 +1208,7 @@ export async function saveRedactionMasks(
 ): Promise<Result<SavedRedaction, SafeCopyError>> {
   const document = ownerDocument(proof, 'MANAGE');
   if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
+  if (!(await documentIsPresent(proof))) return err(notFound());
   if (input.pages.length < 1 || input.pages.length > REDACTION_LIMITS.maxPages) {
     return err(serviceError('invalid', 'mark every page of the document'));
   }
@@ -1317,6 +1338,7 @@ export async function clearRedactionMasks(
 ): Promise<Result<{ readonly pagesCleared: number }, SafeCopyError>> {
   const document = ownerDocument(proof, 'MANAGE');
   if (!document) return err(serviceError('forbidden', 'only the owner can change a safe copy'));
+  if (!(await documentIsPresent(proof))) return err(notFound());
   const db = proof.tx;
   if (!(await redactionMasksTablePresent(db))) return err(refusalError('not_ready_yet'));
   const version = first(
@@ -1390,6 +1412,7 @@ export async function prepareSafeCopyPage(
 ): Promise<Result<PreparedSafeCopyPage, SafeCopyError>> {
   const document = ownerDocument(proof, 'MANAGE');
   if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
+  if (!(await documentIsPresent(proof))) return err(notFound());
   if (
     !Number.isSafeInteger(input.page) ||
     input.page < 1 ||
@@ -1603,6 +1626,7 @@ export async function produceSafeCopy(
   if (document.applicantId !== proof.applicant.id) {
     return err(serviceError('forbidden', 'access denied'));
   }
+  if (!(await documentIsPresent(proof))) return err(notFound());
   const requested = { variant: 'redacted', disposition: options.disposition ?? 'download' };
   const refuse = async (
     reason: string,

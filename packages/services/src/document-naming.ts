@@ -4,6 +4,7 @@ import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { cleanDocumentName } from './naming';
 
 /**
@@ -56,12 +57,19 @@ export async function proposeDocumentName(
     return err(serviceError('invalid', 'a proposed name is required'));
   }
 
+  const lifecycle = await lifecycleTablesPresent(db);
   return db.transaction(async (tx) => {
     const document = first(
       await tx
         .select()
         .from(schema.documents)
-        .where(eq(schema.documents.id, input.documentId))
+        .where(
+          and(
+            eq(schema.documents.id, input.documentId),
+            // A command on one document: presentDocumentCondition (deleted answers as missing).
+            lifecycle ? presentDocumentCondition() : undefined,
+          ),
+        )
         .limit(1)
         .for('update'),
     );
@@ -131,11 +139,18 @@ export async function decideDocumentName(
     return err(serviceError('invalid', 'this naming proposal has already been decided'));
   }
 
+  const lifecycle = await lifecycleTablesPresent(db);
   const document = first(
     await db
       .select()
       .from(schema.documents)
-      .where(eq(schema.documents.id, version.documentId))
+      .where(
+        and(
+          eq(schema.documents.id, version.documentId),
+          // A command on one document: presentDocumentCondition (deleted answers as missing).
+          lifecycle ? presentDocumentCondition() : undefined,
+        ),
+      )
       .limit(1),
   );
   if (!document) return err(serviceError('not_found', 'document not found'));
@@ -258,6 +273,7 @@ export async function renameDocument(
   const documentId = proof.resource.document.id;
   const actorAccountId = proof.applicant.ownerAccountId;
 
+  const lifecycle = await lifecycleTablesPresent(proof.tx);
   return proof.tx.transaction(async (tx) => {
     const document = first(
       await tx
@@ -267,6 +283,8 @@ export async function renameDocument(
           and(
             eq(schema.documents.id, documentId),
             eq(schema.documents.applicantId, proof.applicant.id),
+            // A command on one document: presentDocumentCondition (deleted answers as missing).
+            lifecycle ? presentDocumentCondition() : undefined,
           ),
         )
         .limit(1)

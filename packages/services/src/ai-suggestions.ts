@@ -16,6 +16,7 @@ import { FINISHED_CASE_STATES, latestTimeZoneName } from './attention';
 import { type AuditEventInput, appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { registerFieldDefinition } from './profile';
 import { findReferenceEntity } from './reference-codes';
 
@@ -239,6 +240,7 @@ export async function recordProfileSuggestion(
   if (input.documentReference !== null) {
     const parsed = parseReferenceCode(input.documentReference, 'D');
     const documentId = parsed.ok ? await findReferenceEntity(tx, 'D', parsed.code) : null;
+    const lifecycle = documentId !== null && (await lifecycleTablesPresent(tx));
     const latest = documentId
       ? first(
           await tx
@@ -252,6 +254,8 @@ export async function recordProfileSuggestion(
               and(
                 eq(schema.documents.id, documentId),
                 eq(schema.documents.applicantId, applicantId),
+                // A source the app names: presentDocumentCondition (a deleted one is not shared).
+                lifecycle ? presentDocumentCondition() : undefined,
               ),
             )
             .orderBy(desc(schema.documentVersions.versionNumber))

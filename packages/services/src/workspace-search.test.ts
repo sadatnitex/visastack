@@ -346,3 +346,65 @@ describe('looking a record up by its visible reference code (ADR 0018)', () => {
     expect(await found(id('owner'), personal, typo)).toEqual([]);
   });
 });
+
+describe('search and the resource lifecycle (LC-A2)', () => {
+  it('never finds a Recently Deleted or archived document, by words or by reference', async () => {
+    const [deleted, archived] = await db
+      .insert(schema.documents)
+      .values([
+        { applicantId: id('self'), originalName: 'Synthetic removed copy.pdf' },
+        { applicantId: id('self'), originalName: 'Synthetic shelved copy.pdf' },
+      ])
+      .returning({ id: schema.documents.id });
+    if (!deleted || !archived) throw new Error('Synthetic documents');
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values([
+      {
+        documentId: deleted.id,
+        applicantId: id('self'),
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+      },
+      { documentId: archived.id, applicantId: id('self'), archivedAt: now },
+    ]);
+    const byWords = await searchWorkspaceRecords(db, id('owner'), { kind: 'personal' }, 'copy');
+    if (!byWords.ok) throw new Error('Search failed');
+    expect(byWords.value).toEqual([]);
+    const stored = await assignReferenceCode(db, 'D', deleted.id);
+    if (!stored) throw new Error('registry missing');
+    const byCode = await searchWorkspaceRecords(
+      db,
+      id('owner'),
+      { kind: 'personal' },
+      formatReferenceCode('D', stored),
+    );
+    if (!byCode.ok) throw new Error('Search failed');
+    expect(byCode.value).toEqual([]);
+    await db
+      .delete(schema.documentLifecycle)
+      .where(eq(schema.documentLifecycle.applicantId, id('self')));
+    await db.delete(schema.documents).where(eq(schema.documents.id, deleted.id));
+    await db.delete(schema.documents).where(eq(schema.documents.id, archived.id));
+  });
+
+  it('leaves an archived traveller out of a search across travellers, and keeps it when opened', async () => {
+    await db
+      .insert(schema.applicantLifecycle)
+      .values({ applicantId: id('family'), archivedAt: new Date() });
+    const across = await searchWorkspaceRecords(db, id('owner'), { kind: 'personal' }, 'family');
+    if (!across.ok) throw new Error('Search failed');
+    expect(across.value).toEqual([]);
+    const opened = await searchWorkspaceRecords(
+      db,
+      id('owner'),
+      { kind: 'personal', applicantId: id('family') },
+      'family',
+    );
+    if (!opened.ok) throw new Error('Search failed');
+    expect(opened.value.map((row) => row.id)).toEqual([id('family')]);
+    await db
+      .delete(schema.applicantLifecycle)
+      .where(eq(schema.applicantLifecycle.applicantId, id('family')));
+  });
+});

@@ -607,3 +607,86 @@ describe('the contributor is emailed the link', () => {
     expect(sent).toEqual([]);
   });
 });
+
+describe('contributor request previews and the resource lifecycle (LC-A2)', () => {
+  const DAY_MS = 86_400_000;
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function pendingRequest(emailSeed: string) {
+    const { account, applicantId, missionId } = await setUp(db, emailSeed);
+    const created = await createContributorRequest(db, {
+      actorAccountId: account.id,
+      missionId,
+      contributorEmail: 'sponsor@example.com',
+      docType: 'bank_statement',
+      purpose: 'Financial sponsorship evidence.',
+    });
+    if (!isOk(created)) throw new Error('create');
+    return { applicantId, rawToken: created.value.rawToken };
+  }
+
+  it('answers not found for a request into a traveller in Recently Deleted', async () => {
+    const { applicantId, rawToken } = await pendingRequest('lc-a2-deleted');
+    const now = new Date();
+    await db.insert(schema.applicantLifecycle).values({
+      applicantId,
+      deletedAt: now,
+      purgeAfter: new Date(now.getTime() + 30 * DAY_MS),
+    });
+    const preview = await previewContributorRequest(db, {
+      rawToken,
+      actorEmail: 'sponsor@example.com',
+    });
+    expect(isErr(preview) && preview.error.code).toBe('not_found');
+  });
+
+  it('still previews a request into an archived traveller', async () => {
+    const { applicantId, rawToken } = await pendingRequest('lc-a2-archived');
+    await db.insert(schema.applicantLifecycle).values({ applicantId, archivedAt: new Date() });
+    const preview = await previewContributorRequest(db, {
+      rawToken,
+      actorEmail: 'sponsor@example.com',
+    });
+    expect(isOk(preview)).toBe(true);
+    if (isOk(preview)) {
+      expect(preview.value.applicantName).toBe('Owner');
+      expect(preview.value.emailMatches).toBe(true);
+    }
+  });
+
+  it('refuses to start an upload into a traveller in Recently Deleted, and still starts one for an archived traveller', async () => {
+    const begin = (rawToken: string, accountId: string) =>
+      beginContributorSubmission(db, {
+        rawToken,
+        actorAccountId: accountId,
+        actorEmail: 'sponsor@example.com',
+        allowWalletReuse: false,
+      });
+    const deleted = await pendingRequest('lc-a2-begin-deleted');
+    const now = new Date();
+    await db.insert(schema.applicantLifecycle).values({
+      applicantId: deleted.applicantId,
+      deletedAt: now,
+      purgeAfter: new Date(now.getTime() + 30 * DAY_MS),
+    });
+    const contributor = await provisionAccount(db, { email: 'sponsor@example.com' });
+    if (!isOk(contributor)) throw new Error('contributor');
+    const refused = await begin(deleted.rawToken, contributor.value.id);
+    expect(isErr(refused) && refused.error.code).toBe('not_found');
+    // Nothing was claimed: the request is still pending.
+    const [row] = await db
+      .select({ status: schema.contributorRequests.status })
+      .from(schema.contributorRequests)
+      .where(eq(schema.contributorRequests.applicantId, deleted.applicantId));
+    expect(row?.status).toBe('PENDING');
+
+    const archived = await pendingRequest('lc-a2-begin-archived');
+    await db
+      .insert(schema.applicantLifecycle)
+      .values({ applicantId: archived.applicantId, archivedAt: new Date() });
+    expect(isOk(await begin(archived.rawToken, contributor.value.id))).toBe(true);
+  });
+});

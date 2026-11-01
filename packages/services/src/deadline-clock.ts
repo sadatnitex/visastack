@@ -16,6 +16,7 @@ import {
 import { schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { parseDocumentDate } from './expiry';
+import { everydayDocumentCondition, lifecycleTablesPresent } from './lifecycle/foundation';
 
 /**
  * The deadline clock (Growth G5): the next few dates that matter for one person, soonest first,
@@ -224,6 +225,7 @@ export async function listDeadlineClock(
     .where(eq(schema.missions.applicantId, applicantId));
   const activeIds = missions.filter((m) => !FINISHED_CASE_STATES.has(m.state)).map((m) => m.id);
 
+  const lifecycle = await lifecycleTablesPresent(db);
   const [appointments, tasks, requests, documents] = await Promise.all([
     activeIds.length === 0
       ? []
@@ -311,6 +313,8 @@ export async function listDeadlineClock(
           eq(schema.documents.applicantId, applicantId),
           isNull(schema.documents.supersededByDocumentId),
           gte(schema.documents.expiresAt, earliest),
+          // Reminders and dates: everydayDocumentCondition.
+          lifecycle ? everydayDocumentCondition() : undefined,
         ),
       )
       .orderBy(asc(schema.documents.expiresAt), asc(schema.documents.id))

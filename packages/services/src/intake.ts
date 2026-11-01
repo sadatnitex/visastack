@@ -13,6 +13,11 @@ import { proposeDocumentName } from './document-naming';
 import { documentVersionBelongsToApplicant } from './document-version-owner';
 import { type ServiceError, serviceError } from './errors';
 import type { DocumentConverterPort } from './extraction';
+import {
+  lifecycleTablesPresent,
+  presentApplicantCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
 import { type MrzReading, mrzFieldDefinitions, mrzFieldReadings } from './mrz-suggestions';
 import { buildProposedName, extensionOf } from './naming';
 import { registerFieldDefinitions } from './profile';
@@ -296,12 +301,20 @@ async function commitTransition(
  */
 async function queueAiReadingIfUseful(tx: Db, version: DocumentVersion): Promise<void> {
   if (version.safetyStatus !== 'CLEAN') return;
+  const lifecycle = await lifecycleTablesPresent(tx);
   const owner = first(
     await tx
       .select({ accountId: schema.applicants.ownerAccountId })
       .from(schema.documents)
       .innerJoin(schema.applicants, eq(schema.applicants.id, schema.documents.applicantId))
-      .where(eq(schema.documents.id, version.documentId))
+      .where(
+        and(
+          eq(schema.documents.id, version.documentId),
+          // Processing job: presentDocumentCondition and presentApplicantCondition; skip quietly.
+          lifecycle ? presentDocumentCondition() : undefined,
+          lifecycle ? presentApplicantCondition() : undefined,
+        ),
+      )
       .limit(1),
   );
   if (!owner) return;
@@ -422,6 +435,7 @@ async function runExtractionStep(
   version: DocumentVersion,
   fencing?: IntakeFencing,
 ): Promise<'ok' | 'lost-lease'> {
+  const lifecycle = await lifecycleTablesPresent(db);
   const document = first(
     await db
       .select({
@@ -436,10 +450,16 @@ async function runExtractionStep(
         schema.documentVersions,
         eq(schema.documentVersions.documentId, schema.documents.id),
       )
-      .where(eq(schema.documentVersions.id, version.id))
+      .where(
+        and(
+          eq(schema.documentVersions.id, version.id),
+          // Processing job: presentDocumentCondition; a deleted document is skipped quietly.
+          lifecycle ? presentDocumentCondition() : undefined,
+        ),
+      )
       .limit(1),
   );
-  if (!document) return 'ok'; // orphaned version; nothing to extract against
+  if (!document) return 'ok'; // orphaned or deleted version; nothing to extract against
 
   const storageObject = first(
     await db

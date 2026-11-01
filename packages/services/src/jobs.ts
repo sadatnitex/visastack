@@ -11,6 +11,7 @@ import { type ServiceError, serviceError } from './errors';
 import type { DocumentConverterPort } from './extraction';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { processIntake } from './intake';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import {
   type Page,
   type PageRequest,
@@ -71,12 +72,19 @@ export async function requestDocumentReExtraction(
     )
   )
     return err(serviceError('invalid', 'Document reference is invalid.'));
+  const lifecycle = await lifecycleTablesPresent(db);
   return db.transaction(async (tx) => {
     const document = first(
       await tx
         .select()
         .from(schema.documents)
-        .where(eq(schema.documents.id, input.documentId))
+        .where(
+          and(
+            eq(schema.documents.id, input.documentId),
+            // A command on one document: presentDocumentCondition (deleted answers as missing).
+            lifecycle ? presentDocumentCondition() : undefined,
+          ),
+        )
         .for('update'),
     );
     const person =
@@ -464,7 +472,12 @@ export async function listFailedJobs(
   const scope = 'platform:failed-jobs';
   const limit = paged ? clampLimit(limitOrOptions.limit) : limitOrOptions;
   const before = paged ? decodeTimeCursor(limitOrOptions.before, scope) : null;
-  const failed = eq(schema.processingJobs.status, 'FAILED');
+  const lifecycle = await lifecycleTablesPresent(db);
+  const failed = and(
+    eq(schema.processingJobs.status, 'FAILED'),
+    // Processing jobs: presentDocumentCondition (a deleted document's failure needs no retry).
+    lifecycle ? presentDocumentCondition() : undefined,
+  );
   const rowsRead = db
     .select({
       id: schema.processingJobs.id,

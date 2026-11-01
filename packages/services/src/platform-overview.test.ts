@@ -76,3 +76,30 @@ describe('authorized global aggregates and bounded daily event series', () => {
     expect((await getPlatformOverview(db, owner, now)).ok).toBe(false);
   });
 });
+describe('platform overview and the resource lifecycle (LC-A2)', () => {
+  it('leaves a traveller in Recently Deleted out of the count and keeps an archived one', async () => {
+    // The earlier block moved the owner role to the second account.
+    const before = await getPlatformOverview(db, outsider, now);
+    if (!before.ok) throw new Error('Authorized overview');
+    const [archived, deleted] = await db
+      .insert(schema.applicants)
+      .values([
+        { ownerAccountId: owner.accountId, displayName: 'Synthetic archived traveller' },
+        { ownerAccountId: owner.accountId, displayName: 'Synthetic deleted traveller' },
+      ])
+      .returning({ id: schema.applicants.id });
+    if (!archived || !deleted) throw new Error('Synthetic travellers');
+    const at = new Date();
+    await db.insert(schema.applicantLifecycle).values([
+      { applicantId: archived.id, archivedAt: at },
+      {
+        applicantId: deleted.id,
+        deletedAt: at,
+        purgeAfter: new Date(at.getTime() + 30 * 86_400_000),
+      },
+    ]);
+    const after = await getPlatformOverview(db, outsider, now);
+    if (!after.ok) throw new Error('Authorized overview');
+    expect(after.value.travellers).toBe(before.value.travellers + 1);
+  });
+});

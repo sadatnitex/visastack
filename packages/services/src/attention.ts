@@ -10,6 +10,7 @@ import {
   WAITING_ON_TRAVELLER_REQUEST_STATUSES,
 } from './evidence-request-groups';
 import { DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS, getReminderThresholds } from './expiry';
+import { everydayDocumentCondition, lifecycleTablesPresent } from './lifecycle/foundation';
 import { toLocalDateParts } from './notification-sweep';
 import { referenceCodesFor } from './reference-codes';
 
@@ -282,6 +283,7 @@ export async function listNeedsAttention(
   const now = options.now ?? new Date();
   const evidenceHref = `/app/applicant/${applicantId}/evidence`;
 
+  const lifecycle = await lifecycleTablesPresent(db);
   const [requests, missions, documents, pending] = await Promise.all([
     db
       .select({
@@ -326,6 +328,8 @@ export async function listNeedsAttention(
           eq(schema.documents.applicantId, applicantId),
           isNull(schema.documents.supersededByDocumentId),
           isNotNull(schema.documents.expiresAt),
+          // Reminders: everydayDocumentCondition (archived and deleted documents ask for nothing).
+          lifecycle ? everydayDocumentCondition() : undefined,
         ),
       )
       .orderBy(asc(schema.documents.expiresAt), asc(schema.documents.id))
@@ -749,6 +753,7 @@ export async function listCalendarDates(
   );
   const activeIds = missions.filter((m) => !FINISHED_CASE_STATES.has(m.state)).map((m) => m.id);
 
+  const lifecycle = await lifecycleTablesPresent(db);
   const [appointments, tasks, requests, documents] = await Promise.all([
     activeIds.length === 0
       ? []
@@ -832,6 +837,8 @@ export async function listCalendarDates(
           eq(schema.documents.applicantId, applicantId),
           isNull(schema.documents.supersededByDocumentId),
           gte(schema.documents.expiresAt, earliest),
+          // Reminders and dates: everydayDocumentCondition.
+          lifecycle ? everydayDocumentCondition() : undefined,
         ),
       )
       .orderBy(asc(schema.documents.expiresAt), asc(schema.documents.id))

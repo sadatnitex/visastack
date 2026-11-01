@@ -44,6 +44,7 @@ import { hasConsent } from '../consent';
 import { type Db, first, schema } from '../db';
 import { readOriginalDocumentFile, writeDocumentAccessAudit } from '../document-access';
 import { serverErrorEvent } from '../error-report';
+import { lifecycleTablesPresent, presentDocumentCondition } from '../lifecycle/foundation';
 import { formatObservabilityLine } from '../observability-format';
 import type { KeyManagementPort } from '../ports';
 import {
@@ -1437,6 +1438,7 @@ function fileReader(context: FileContext): AiFileGateway['file'] {
     const parsed = parseReferenceCode(documentReference, 'D');
     if (!parsed.ok) return fail('file_not_chosen');
     const reference = formatReferenceCode('D', parsed.code);
+    const lifecycle = await lifecycleTablesPresent(tx);
     const chosen = first(
       await tx
         .select({
@@ -1459,6 +1461,9 @@ function fileReader(context: FileContext): AiFileGateway['file'] {
             eq(schema.documents.applicantId, connection.applicantId),
             isNull(schema.documents.supersededByDocumentId),
             eq(schema.documents.walletVisible, true),
+            // A file the person chose for this app: presentDocumentCondition (an archived choice
+            // stays, D6; a deleted one answers as not chosen).
+            lifecycle ? presentDocumentCondition() : undefined,
           ),
         )
         .where(
