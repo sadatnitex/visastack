@@ -169,9 +169,12 @@ describe('after a fresh sign-in check (S21 round 3: never from the address)', ()
 
   it('a valid cookie signed for this account hands the typed values back, unsaved', async () => {
     requestCookies.set(AI_FEATURE_RETRY_COOKIE, encodeAiFeatureRetry(typed, 'acct-1') ?? '');
-    expect(stubProps(await renderServer(Page()), 'AiFeatureForm')[0]).toMatchObject({
+    const html = await renderServer(Page());
+    expect(stubProps(html, 'AiFeatureForm')[0]).toMatchObject({
       retry: { enabled: true, dailyLimit: '10' },
     });
+    // The fold with the typed values starts open, so they are not hidden.
+    expect(html).toMatch(/<details class="sb7-fold" open="">/);
   });
 
   it('ignores a cookie for another account, a forged one or an expired one', async () => {
@@ -183,5 +186,36 @@ describe('after a fresh sign-in check (S21 round 3: never from the address)', ()
       requestCookies.set(AI_FEATURE_RETRY_COOKIE, value);
       expect(stubProps(await renderServer(Page()), 'AiFeatureForm')[0]).not.toHaveProperty('retry');
     }
+  });
+});
+
+describe('Platform > AI Features grouped and folded (WP-SB7)', () => {
+  const agencyFeature = {
+    ...feature,
+    feature: 'ai_agency_tools',
+    name: 'Agency AI Tools',
+    description: 'Lets agency owners connect an AI app.',
+  };
+
+  it('groups features by audience, travellers first, and folds each form under Change', async () => {
+    mocks.listAiFeatureSettings.mockResolvedValue({
+      ok: true,
+      value: { available: true, features: [agencyFeature, feature] },
+    });
+    const html = await renderServer(Page());
+    const text = textOf(html);
+    expect(text.indexOf('For Travellers')).toBeGreaterThan(-1);
+    expect(text.indexOf('For Agencies')).toBeGreaterThan(text.indexOf('AI App Suggestions'));
+    expect(text.indexOf('Agency AI Tools')).toBeGreaterThan(text.indexOf('For Agencies'));
+    expect(html.match(/<details class="sb7-fold">/g)).toHaveLength(2);
+    expect(text).toContain('Change AI App Suggestions');
+    expect(text).toContain('Change Agency AI Tools');
+    expect(stubProps(html, 'AiFeatureForm')).toHaveLength(2);
+  });
+
+  it('leaves out a group with no features', async () => {
+    const text = textOf(await renderServer(Page()));
+    expect(text).toContain('For Travellers');
+    expect(text).not.toContain('For Agencies');
   });
 });

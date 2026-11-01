@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { type ReactNode, useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../components/form-feedback';
 import {
   type ActionState,
@@ -171,10 +171,14 @@ export function RetentionPolicyForm() {
 }
 
 interface LegalHoldFormProps {
-  readonly applicants: readonly { readonly id: string; readonly displayName: string }[];
+  /**
+   * The applicant chooser. It must submit the chosen id as `applicantId`; on Privacy it is the
+   * search-as-you-type picker (WP-SB7), so no page sends every applicant to the browser.
+   */
+  readonly applicantPicker: ReactNode;
 }
 
-export function LegalHoldForm({ applicants }: LegalHoldFormProps) {
+export function LegalHoldForm({ applicantPicker }: LegalHoldFormProps) {
   const [state, formAction, pending] = useActionState(placeLegalHoldAction, INITIAL);
   const [scope, setScope] = useState<'applicant' | 'mission' | 'document'>('applicant');
   return (
@@ -186,25 +190,7 @@ export function LegalHoldForm({ applicants }: LegalHoldFormProps) {
       onReset={() => setScope('applicant')}
     >
       <div className="form-grid">
-        <div className="field-row">
-          <label className="field-label" htmlFor="applicantId">
-            Applicant
-          </label>
-          {applicants.length === 0 ? (
-            <p className="muted u-fs-085">No applicants exist yet.</p>
-          ) : (
-            <select id="applicantId" name="applicantId" required className="input" defaultValue="">
-              <option value="" disabled>
-                Choose an applicant…
-              </option>
-              {applicants.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.displayName}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+        <div className="field-row field-wide">{applicantPicker}</div>
         <div className="field-row">
           <label className="field-label" htmlFor="reason">
             Reason

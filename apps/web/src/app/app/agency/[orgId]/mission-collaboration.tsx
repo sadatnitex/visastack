@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useId } from 'react';
+import { type ReactNode, useActionState, useId } from 'react';
 import { atLevel, revealAt } from '../../../../components/depth';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
 import { useLatestOf } from '../../../../components/latest-result';
@@ -117,6 +117,8 @@ interface MissionCollaborationProps {
   readonly triage?: CaseTriageView;
   /** What on this case waits for the viewer, in words (CCD-6): shown only at Glance. */
   readonly needsYou?: string;
+  /** WP-SB5: the end of the notes list (how many show, Show More), placed right under the notes. */
+  readonly notesMore?: ReactNode;
 }
 
 export function MissionCollaboration({
@@ -129,6 +131,7 @@ export function MissionCollaboration({
   members,
   assignments,
   notes,
+  notesMore,
   tasks,
   appointments,
   requirements,
@@ -644,6 +647,7 @@ export function MissionCollaboration({
             ))}
           </div>
         )}
+        {notesMore}
         <form action={noteAction} className="field-list form-narrow">
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="missionId" value={missionId} />

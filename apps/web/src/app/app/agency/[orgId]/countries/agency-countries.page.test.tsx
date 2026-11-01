@@ -12,8 +12,9 @@ describe('country rules inside the agency workspace', () => {
   it('shows the same list, with every country linking to its page in the agency workspace', async () => {
     const html = await list();
     expect(textOf(html)).toContain('Visa Rules for a Bangladeshi Passport');
-    expect(html).toContain('href="/app/agency/org-1/countries/gb"');
-    expect(html).not.toContain('href="/app/countries/gb"');
+    // The UK sits behind Show More since WP-SB8 (12 countries first); Australia is in the first 12.
+    expect(html).toContain('href="/app/agency/org-1/countries/au"');
+    expect(html).not.toContain('href="/app/countries/au"');
   });
 
   it('shows a country with the way back staying in the agency workspace', async () => {

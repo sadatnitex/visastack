@@ -180,9 +180,59 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
   it('gives every section a name for screen readers and keeps one top heading', async () => {
     const html = await render();
     expect(html.match(/<h1[ >]/g)?.length).toBe(1);
-    // Nine story sections plus the country picker under the hero (Growth G2).
+    // Nine story sections plus the country picker under the hero (Growth G2). Since WP-SB8 six of
+    // them are groups that open in place, each still a named region with its own heading.
     expect(html.match(/<section[^>]*aria-labelledby="land-[a-z-]+"/g)?.length).toBe(10);
+    expect(html.match(/<h2[ >]/g)?.length).toBe(9);
     expect(html).toContain('id="land-hero-title"');
+  });
+
+  it('folds the six story sections into closed groups that open in place (WP-SB8)', async () => {
+    const html = await render();
+    const groups = [
+      ...html.matchAll(/<details class="land-group[^"]*" id="([a-z-]+)"( open="")?>/g),
+    ];
+    expect(groups.map((g) => g[1])).toEqual([
+      'problem',
+      'how-it-works',
+      'capabilities',
+      'for-agencies',
+      'trust',
+      'road-ahead',
+    ]);
+    expect(groups.map((g) => g[2] !== undefined)).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    // Each group names itself in its summary row with its own heading, so a closed group still
+    // reads as a heading and the menu links land on it.
+    const summaries = html.match(/<summary class="land-group-summary">[\s\S]*?<\/summary>/g) ?? [];
+    expect(summaries).toHaveLength(6);
+    for (const summary of summaries)
+      expect(summary).toMatch(/<h2 class="land-h2" id="land-[a-z]+-title">/);
+    // Every word is still in the page: closed groups hide nothing from search or from the tests above.
+    const text = textOf(html);
+    for (const words of [
+      'Without One Profile',
+      'Add Your Details Once',
+      'never a guess at your chances of approval',
+      'Stop Chasing Documents by Message',
+      'AI never changes your profile on its own',
+      'We are working toward',
+    ])
+      expect(text).toContain(words);
+  });
+
+  it('puts the product cards in one sideways row a keyboard can reach, named by its heading (WP-SB8)', async () => {
+    const html = await render();
+    expect(html).toMatch(
+      /<div class="c1-bento" role="group" aria-labelledby="land-product-title" tabindex="0">/,
+    );
+    expect(html.match(/<article class="c1-feature/g)?.length).toBe(4);
   });
 
   it('puts a country picker straight under the hero, with no checklist until a country is chosen', async () => {

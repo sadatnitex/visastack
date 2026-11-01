@@ -45,6 +45,11 @@ vi.mock('../admin-forms', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
   return { LegalHoldForm: stub('LegalHoldForm'), RetentionPolicyForm: stub('RetentionPolicyForm') };
 });
+vi.mock('./actions', () => ({ searchApplicantsAction: vi.fn() }));
+vi.mock('./applicant-picker', async () => {
+  const { stub } = await import('../../../../lib/next-mocks.test-support');
+  return { ApplicantPicker: stub('ApplicantPicker') };
+});
 vi.mock('../purge-button', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
   return { PurgeButton: stub('PurgeButton') };
@@ -59,11 +64,14 @@ beforeEach(() => {
   mocks.getRetentionPolicies.mockResolvedValue([
     { id: 'p1', docType: 'PASSPORT', retentionDays: 365 },
   ]);
-  mocks.listActiveLegalHolds.mockResolvedValue([
-    { id: 'h1', applicantId: 'ap1', reason: 'Court order', reviewAt: new Date('2099-01-01') },
-    { id: 'h2', applicantId: 'ap2', reason: 'Dispute', reviewAt: new Date('2020-01-01') },
-    { id: 'h3', applicantId: 'ap1', reason: 'Audit', reviewAt: null },
-  ]);
+  mocks.listActiveLegalHolds.mockResolvedValue({
+    items: [
+      { id: 'h1', applicantId: 'ap1', reason: 'Court order', reviewAt: new Date('2099-01-01') },
+      { id: 'h2', applicantId: 'ap2', reason: 'Dispute', reviewAt: new Date('2020-01-01') },
+      { id: 'h3', applicantId: 'ap1', reason: 'Audit', reviewAt: null },
+    ],
+    nextCursor: null,
+  });
   mocks.listErasureJobsNeedingAttention.mockResolvedValue([
     {
       id: 'e1',
@@ -106,42 +114,114 @@ beforeEach(() => {
   ]);
 });
 
+const tab = (name: string, extra: Record<string, string> = {}) =>
+  Page({ searchParams: Promise.resolve({ tab: name, ...extra }) });
+
 describe('Platform > Privacy', () => {
-  it('shows retention policies and every active legal hold with the applicant named', async () => {
-    const html = await renderServer(Page());
+  it('opens on Retention with the four sections as tabs, and only the policies showing', async () => {
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(text).toContain('Document Retention Policies');
     expect(text).toContain('Passport');
     expect(text).not.toContain('PASSPORT');
     expect(text).toContain('365 days');
+    expect(html).toContain('aria-label="Privacy Sections"');
+    expect(html).toMatch(/href="\/app\/admin\/privacy" aria-current="page"/);
+    for (const name of ['holds', 'erasure', 'purge']) {
+      expect(html).toContain(`href="/app/admin/privacy?tab=${name}"`);
+    }
+    // Waiting erasure work is counted on every tab, so it is never hidden behind one.
+    expect(text).toContain('Erasure (3)');
+    expect(text).not.toContain('Court order');
+    expect(text).not.toContain('obj-1');
+    // Only the open tab's list is read; no applicant is named on Retention, so no name either.
+    expect(mocks.listActiveLegalHolds).not.toHaveBeenCalled();
+    expect(mocks.documentsPastRetention).not.toHaveBeenCalled();
+    expect(mocks.listAllApplicants).not.toHaveBeenCalled();
+    expect(mocks.listErasureJobsNeedingAttention).toHaveBeenCalledWith({}, 50);
+  });
+
+  it('shows every active legal hold with the applicant named, in a fixed scrolling panel', async () => {
+    const html = await renderServer(tab('holds'));
+    const text = textOf(html);
     expect(text).toContain('Rahim Uddin');
     expect(text).toContain('Nusrat Jahan');
     expect(text).toContain('Court order');
+    expect(html).toMatch(/class="activity-log-scroll[^"]*" aria-label="Active holds" tabindex="0"/);
     expect(stubProps<{ holdId: string }>(html, 'ReleaseHoldButton').map((p) => p.holdId)).toEqual([
       'h1',
       'h2',
       'h3',
     ]);
+    expect(mocks.listActiveLegalHolds).toHaveBeenCalledWith({}, { limit: 25 });
+    expect(mocks.listAllApplicants).toHaveBeenCalledWith(
+      {},
+      { kind: 'staff' },
+      {
+        ids: ['ap1', 'ap2', 'ap1'],
+      },
+    );
+  });
+
+  it('reads holds 25 at a time and offers older ones, with a way back to the newest', async () => {
+    mocks.listActiveLegalHolds.mockResolvedValue({
+      items: [{ id: 'h9', applicantId: 'ap2', reason: 'Older', reviewAt: null }],
+      nextCursor: 'next_holds',
+    });
+    const html = await renderServer(tab('holds', { before: 'prev_holds' }));
+    expect(mocks.listActiveLegalHolds).toHaveBeenCalledWith(
+      {},
+      { limit: 25, before: 'prev_holds' },
+    );
+    expect(html).toContain('href="/app/admin/privacy?tab=holds&amp;before=next_holds#admin-holds"');
+    expect(textOf(html)).toContain('Show Older Holds');
+    expect(html).toContain('href="/app/admin/privacy?tab=holds#admin-holds"');
+    expect(mocks.getRetentionPolicies).not.toHaveBeenCalled();
+    expect(mocks.documentsPastRetention).not.toHaveBeenCalled();
+  });
+
+  it('treats an unknown tab as Retention and ignores a cursor outside the holds tab', async () => {
+    const html = await renderServer(
+      Page({ searchParams: Promise.resolve({ tab: 'nope', before: 'abc' }) }),
+    );
+    expect(textOf(html)).toContain('Document Retention Policies');
+    expect(mocks.listActiveLegalHolds).not.toHaveBeenCalled();
+  });
+
+  it('says 50+ on the Erasure tab when the bounded read is full', async () => {
+    mocks.listErasureJobsNeedingAttention.mockResolvedValue(
+      Array.from({ length: 50 }, (_, i) => ({
+        id: `e${i}`,
+        objectKey: `obj-${i}`,
+        status: 'FAILED',
+        attempts: 5,
+        maxAttempts: 5,
+        reason: 'RETENTION_PURGE',
+        lastError: null,
+      })),
+    );
+    expect(textOf(await renderServer(Page({})))).toContain('Erasure (50+)');
   });
 
   it('flags a hold with no review date and one whose review is overdue', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(tab('holds')));
     expect(text).toContain('no review date set');
     expect(text).toContain('review overdue since');
     expect(text).toContain('review by');
   });
 
-  it('hands the legal hold form the applicants it can target', async () => {
-    const html = await renderServer(Page());
-    const [form] = stubProps<{ applicants: unknown }>(html, 'LegalHoldForm');
-    expect(form?.applicants).toEqual([
-      { id: 'ap1', displayName: 'Rahim Uddin' },
-      { id: 'ap2', displayName: 'Nusrat Jahan' },
-    ]);
+  it('gives the legal hold form the search-as-you-type picker, never a list of applicants', async () => {
+    const html = await renderServer(tab('holds'));
+    const [form] = stubProps<Record<string, unknown>>(html, 'LegalHoldForm');
+    expect(form).toBeDefined();
+    expect(form).not.toHaveProperty('applicants');
+    expect(form).toHaveProperty('applicantPicker');
+    // The page itself never reads the whole directory.
+    for (const call of mocks.listAllApplicants.mock.calls) expect(call).toHaveLength(3);
   });
 
   it('separates a job blocked by a hold from one that failed', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(tab('erasure'));
     const text = textOf(html);
     expect(text).toContain('Blocked by Hold');
     expect(text).toContain('5/5 attempts');
@@ -149,27 +229,31 @@ describe('Platform > Privacy', () => {
     expect(text).toContain('Retention Purge');
     expect(text).toContain('Photo Removal');
     expect(text).toContain('storage unreachable');
+    expect(html).toContain('id="admin-deletion"');
+    expect(html).toContain('aria-label="Erasure jobs needing attention"');
     expect(stubProps<{ jobId: string }>(html, 'RetryErasureJobButton').map((p) => p.jobId)).toEqual(
       ['e1', 'e2', 'e3'],
     );
   });
 
   it('lists documents past retention with the applicant, and offers the purge', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(tab('purge'));
     expect(textOf(html)).toContain('old-passport.pdf');
+    expect(textOf(html)).toContain('Rahim Uddin');
+    expect(html).toContain('aria-label="Documents eligible for purge"');
     expect(stubProps(html, 'PurgeButton')).toEqual([{ eligibleCount: 1 }]);
   });
 
   it('says so, and offers no purge, when nothing is past retention', async () => {
     mocks.documentsPastRetention.mockResolvedValue([]);
-    const html = await renderServer(Page());
+    const html = await renderServer(tab('purge'));
     expect(textOf(html)).toContain('No documents are currently past their retention policy');
     expect(stubProps(html, 'PurgeButton')).toHaveLength(0);
   });
 
   it('refuses anyone who is not a platform administrator, without reading any of it', async () => {
     mocks.isPlatformAdmin.mockResolvedValue(false);
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(tab('holds')));
     expect(text).toContain('restricted to platform administrators');
     expect(mocks.listAllApplicants).not.toHaveBeenCalled();
     expect(mocks.listActiveLegalHolds).not.toHaveBeenCalled();
@@ -180,7 +264,7 @@ describe('Platform > Privacy', () => {
       ok: false,
       error: { code: 'forbidden', message: 'no role' },
     });
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(tab('purge')));
     expect(text).toContain('Not available for your role');
     expect(text).not.toContain('Rahim Uddin');
     expect(text).not.toContain('old-passport.pdf');
@@ -192,9 +276,21 @@ describe('Platform > Privacy', () => {
   it('keeps going and names the section when one read fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     mocks.listErasureJobsNeedingAttention.mockRejectedValue(new Error('relation does not exist'));
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(tab('holds')));
     expect(text).toContain('Some Sections Could Not Be Loaded');
     expect(text).toContain('erasure jobs');
+    expect(text).toContain('Court order');
+  });
+
+  it('falls back to the applicant id when a name cannot be looked up', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mocks.listAllApplicants.mockResolvedValue({
+      ok: false,
+      error: { code: 'forbidden', message: 'no' },
+    });
+    const text = textOf(await renderServer(tab('holds')));
+    expect(text).toContain('applicant names');
+    expect(text).toContain('ap1');
     expect(text).toContain('Court order');
   });
 });
