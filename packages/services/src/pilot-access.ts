@@ -419,12 +419,14 @@ export type InvitationView = 'pending' | 'history';
 export interface InvitationPageRequest extends PageRequest {
   /** `pending` (not accepted, not revoked) unless `history` is asked for. */
   readonly view?: string;
+  /** False skips counting both views, for a page that already has the counts from its other read. */
+  readonly withCounts?: boolean;
 }
 
-/** One page of one view, with how many invitations each view holds. */
+/** One page of one view, with how many invitations each view holds (null when not asked for). */
 export interface InvitationPage extends Page<PilotInvitation> {
   readonly view: InvitationView;
-  readonly counts: { readonly pending: number; readonly history: number };
+  readonly counts: { readonly pending: number; readonly history: number } | null;
 }
 
 /** All invitations, newest first (platform-admin overview). */
@@ -463,21 +465,23 @@ export async function listInvitations(
       .where(before ? and(inView, olderThan(p.invitedAt, p.id, before)) : inView)
       .orderBy(...cursorOrder(p.invitedAt, p.id))
       .limit(limit + 1),
-    db
-      .select({
-        pending: sql<number>`count(*) filter (where ${p.acceptedAt} is null and ${p.revokedAt} is null)::int`,
-        total: sql<number>`count(*)::int`,
-      })
-      .from(p),
+    options.withCounts === false
+      ? Promise.resolve(null)
+      : db
+          .select({
+            pending: sql<number>`count(*) filter (where ${p.acceptedAt} is null and ${p.revokedAt} is null)::int`,
+            total: sql<number>`count(*)::int`,
+          })
+          .from(p),
   ]);
   const page = toPage(rows, limit, (last) =>
     encodeTimeCursor({ at: last.cursorAt, id: last.invitation.id }, scope),
   );
-  const pending = Number(counted[0]?.pending ?? 0);
+  const pending = Number(counted?.[0]?.pending ?? 0);
   return {
     items: page.items.map((row) => row.invitation),
     nextCursor: page.nextCursor,
     view,
-    counts: { pending, history: Number(counted[0]?.total ?? 0) - pending },
+    counts: counted ? { pending, history: Number(counted[0]?.total ?? 0) - pending } : null,
   };
 }

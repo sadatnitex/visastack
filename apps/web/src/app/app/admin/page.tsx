@@ -16,7 +16,6 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ShowMore } from '../../../components/show-more';
 import { PageHeader } from '../../../components/ui';
 import { bootstrapAdminEmails, isPlatformAdmin } from '../../../lib/admin';
 import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
@@ -24,7 +23,7 @@ import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/an
 import { gateStatus } from '../../../lib/commercial-readiness';
 import { getDeploymentMode } from '../../../lib/deployment-mode';
 import { SHIPPED_MIGRATIONS } from '../../../lib/migration-journal';
-import { type SearchParamsRecord, pagingHref, parseCursor } from '../../../lib/paging';
+import { type SearchParamsRecord, parseCursor } from '../../../lib/paging';
 import { type ProviderStatus, describeProviderOperations } from '../../../lib/provider-operations';
 import { paymentMode } from '../../../lib/providers';
 import { evaluateReadiness } from '../../../lib/readiness';
@@ -33,8 +32,11 @@ import { staffFactorMode } from '../../../lib/staff-factor';
 import { tolerantReader } from '../../../lib/tolerate';
 import { travellerPlansRow } from '../../../lib/traveller-plans-readiness';
 import { UsageMeter } from '../applicant/[id]/usage-meter';
+import { OpenGroupOnLink } from '../mission/[id]/open-group-on-link';
 import { RetryJobButton } from './action-buttons';
 import { AdminRestricted } from './admin-restricted';
+import { QueuePaging, QueuePastEnd } from './email/queue-paging';
+import { QueuePanel } from './email/queue-panel';
 import { FailedSectionsBanner } from './failed-sections-banner';
 import { ReconcileButtons } from './reconcile-buttons';
 
@@ -126,6 +128,7 @@ const PROVIDER_STATUS_TONE: Record<ProviderStatus, string> = {
 
 const OVERVIEW_PATH = '/app/admin';
 const JOBS_PANEL = 'admin-failed-jobs-panel';
+const GROUPS_SCOPE = 'admin-overview-groups';
 /** Failed jobs per load into the fixed box (the scroll budget's server limit for a queue). */
 const FAILED_JOBS_PAGE_SIZE = 50;
 const NO_FAILED_JOBS = { items: [], nextCursor: null, total: 0 } as const;
@@ -378,30 +381,33 @@ export default async function AdminOperationsPage({
               <Link href="/app/admin/email">Open Email Delivery</Link>
             </p>
             {data.failedJobs.items.length === 0 ? (
-              <p className="card-body">
-                {jobsBefore ? (
-                  <>
-                    No older failed jobs.{' '}
-                    <a href={pagingHref(OVERVIEW_PATH, search, { jobsBefore: null }, JOBS_PANEL)}>
-                      Show Newest Entries
-                    </a>
-                  </>
-                ) : (
-                  'No failed jobs. A job is parked here only after it exhausts every retry attempt.'
-                )}
-              </p>
+              jobsBefore ? (
+                <QueuePastEnd
+                  pathname={OVERVIEW_PATH}
+                  search={search}
+                  param="jobsBefore"
+                  landOn={JOBS_PANEL}
+                  what="No older failed jobs."
+                />
+              ) : (
+                <p className="card-body">
+                  No failed jobs. A job is parked here only after it exhausts every retry attempt.
+                </p>
+              )
             ) : (
               <>
-                <section
-                  className="activity-log-scroll staff-queue-panel"
+                <QueuePanel
                   id={JOBS_PANEL}
-                  aria-label="Failed Intake Jobs"
-                  // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it
-                  tabIndex={0}
-                >
-                  <ul className="rows">
-                    {data.failedJobs.items.map((job) => (
-                      <li className="row failed-job-row" key={job.id}>
+                  label="Failed Intake Jobs"
+                  kindLabel="Error"
+                  pageKey={jobsBefore ?? 'first'}
+                  items={data.failedJobs.items.map((job) => ({
+                    id: job.id,
+                    className: 'failed-job-row',
+                    ...(job.errorCode ? { kind: job.errorCode } : {}),
+                    find: `${job.documentName} ${job.lastError ?? ''}`,
+                    node: (
+                      <>
                         <div className="failed-job-head">
                           <span className="row-key failed-job-name">{job.documentName}</span>
                           <span className="row-end">
@@ -417,37 +423,27 @@ export default async function AdminOperationsPage({
                         {job.lastError ? (
                           <span className="muted failed-job-error">{job.lastError}</span>
                         ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-                <div className="staff-queue-paging">
-                  <ShowMore
-                    id="failed-jobs-more"
-                    landOn={JOBS_PANEL}
-                    pathname={OVERVIEW_PATH}
-                    searchParams={search}
-                    next={
-                      data.failedJobs.nextCursor ? { jobsBefore: data.failedJobs.nextCursor } : null
-                    }
-                    shown={data.failedJobs.items.length}
-                    total={data.failedJobs.total}
-                    noun={{ one: 'failed job', other: 'failed jobs' }}
-                    label="Show Older Entries"
-                  />
-                  {jobsBefore ? (
-                    <a
-                      className="btn btn-secondary u-btn-sm"
-                      href={pagingHref(OVERVIEW_PATH, search, { jobsBefore: null }, JOBS_PANEL)}
-                    >
-                      Show Newest Entries
-                    </a>
-                  ) : null}
-                </div>
+                      </>
+                    ),
+                  }))}
+                />
+                <QueuePaging
+                  pathname={OVERVIEW_PATH}
+                  search={search}
+                  param="jobsBefore"
+                  cursor={data.failedJobs.nextCursor}
+                  later={jobsBefore !== undefined}
+                  landOn={JOBS_PANEL}
+                  shown={data.failedJobs.items.length}
+                  total={data.failedJobs.total}
+                  noun={{ one: 'failed job', other: 'failed jobs' }}
+                />
               </>
             )}
           </article>
-          <div className="admin-overview-groups">
+          <div className="admin-overview-groups" id={GROUPS_SCOPE}>
+            {/* A section link (View Alerts, Platform Readiness, Jump to a Section) opens its group. */}
+            <OpenGroupOnLink scopeId={GROUPS_SCOPE} />
             <h2 className="sr-only">More Operational Details and Tools</h2>
             <details className="admin-overview-controls admin-overview-group">
               <summary>Activity and Adoption</summary>

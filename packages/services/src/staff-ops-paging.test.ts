@@ -1,6 +1,7 @@
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
@@ -119,17 +120,40 @@ describe('WP-SB6 staff operations paging', () => {
     it('filters by who, case-insensitively, and binds the cursor to that filter', async () => {
       const admin = await seedStaffAccount(db, 'SECURITY_ADMIN', 'security-2@example.com');
       const scope = await staffScopeFor(db, admin, 'AUDIT_TRAIL_VIEW');
-      const mine = await walk(async (before) =>
-        unwrap(
+      // This test writes its own entries, so it holds on its own or in any order.
+      const actor = await provisionAccount(db, { email: 'who-filter@example.com' });
+      if (!isOk(actor)) throw new Error('provision');
+      for (let n = 0; n < 11; n += 1) {
+        await appendAuditEvent(db, {
+          eventType: 'SB6_WHO_TEST',
+          actorAccountId: n % 3 === 0 ? null : actor.value.id,
+          method: 'MANUAL',
+          result: 'ALLOWED',
+        });
+      }
+      const mine = await walk(async (before) => {
+        const page = unwrap(
           await listRecentAuditEvents(db, scope, {
             limit: 4,
-            who: '  Traveller@Example.COM ',
+            who: '  Who-Filter@Example.COM ',
             ...(before ? { before } : {}),
           }),
-        ),
+        );
+        expect(page.whoMatched).toBe(true);
+        return page;
+      });
+      // Every entry this account made (its own sign-up entry and seven of the eleven above), and
+      // none of the four system entries.
+      const made = await db
+        .select({ seq: schema.auditEvents.seq })
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.actorAccountId, actor.value.id));
+      expect(made.length).toBeGreaterThanOrEqual(7);
+      expect(mine.map((e) => e.seq).sort((a, b) => a - b)).toEqual(
+        made.map((e) => e.seq).sort((a, b) => a - b),
       );
-      expect(mine.length).toBeGreaterThan(4);
-      expect(mine.every((e) => e.actorAccountId === traveller.account.id)).toBe(true);
+      expect(mine.every((e) => e.actorAccountId === actor.value.id)).toBe(true);
+      expect(mine.every((e) => e.actorEmail === 'who-filter@example.com')).toBe(true);
       // A cursor from the filtered view does not move the unfiltered one, and the reverse.
       const filteredFirst = unwrap(
         await listRecentAuditEvents(db, scope, { limit: 2, who: 'traveller@example.com' }),
@@ -144,9 +168,10 @@ describe('WP-SB6 staff operations paging', () => {
       );
       expect(crossed.items.map((e) => e.seq)).toEqual(unfilteredFirst.items.map((e) => e.seq));
       // Someone with no account shows nothing; something that is not an email shows everything.
-      expect(
-        unwrap(await listRecentAuditEvents(db, scope, { who: 'nobody@example.com' })).items,
-      ).toEqual([]);
+      const nobody = unwrap(await listRecentAuditEvents(db, scope, { who: 'nobody@example.com' }));
+      expect(nobody.items).toEqual([]);
+      expect(nobody.whoMatched).toBe(false);
+      expect(unwrap(await listRecentAuditEvents(db, scope, { limit: 2 })).whoMatched).toBeNull();
       expect(
         unwrap(await listRecentAuditEvents(db, scope, { limit: 2, who: "x' or 1=1 --" })).items.map(
           (e) => e.seq,
@@ -285,6 +310,8 @@ describe('WP-SB6 staff operations paging', () => {
       const pendingFirst = await listInvitations(db, { limit: 6 });
       expect(pendingFirst.view).toBe('pending');
       expect(pendingFirst.counts).toEqual({ pending: 20, history: 20 });
+      // A page that already has the counts can skip them on its second read.
+      expect((await listInvitations(db, { view: 'history', withCounts: false })).counts).toBeNull();
       const pending = await walk((before) =>
         listInvitations(db, { limit: 6, ...(before ? { before } : {}) }),
       );

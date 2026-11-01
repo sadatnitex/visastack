@@ -434,7 +434,7 @@ describe('WP-SB6 overview within the scroll budget', () => {
     expect(html.match(/class="row failed-job-row"/g) ?? []).toHaveLength(50);
     expect(html).toContain('href="/app/admin?jobsBefore=JOBS_NEXT#admin-failed-jobs-panel"');
     const text = textOf(html);
-    expect(text).toContain('Showing 50 of 1000 failed jobs.');
+    expect(text).toContain('Showing the newest 50 of 1000 failed jobs.');
     expect(text).toContain('Show Older Entries');
     // The attention count says every failed job, not only the ones loaded.
     expect(text).toMatch(/Failed Intake Jobs\s*1000/);

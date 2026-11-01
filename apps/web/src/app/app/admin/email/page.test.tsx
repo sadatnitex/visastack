@@ -71,7 +71,7 @@ describe('Platform > Email Delivery (WP-SB6)', () => {
     expect(html).toContain('href="/app/admin/email?waitingAfter=WAITING_NEXT#email-waiting-panel"');
     expect(stubProps(html, 'ResendEmailButton')).toHaveLength(40);
     const text = textOf(html);
-    expect(text).toContain('Showing 50 of 1000 emails.');
+    expect(text).toContain('Showing the newest 50 of 1000 emails.');
     expect(text).toContain('Address Refused It');
   });
 

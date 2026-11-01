@@ -61,7 +61,7 @@ test.describe('WP-SB6 scroll budget', () => {
       'href',
       '/app/admin/audit?before=CURSOR#admin-audit-log',
     );
-    await expect(page.getByLabel('Who', { exact: true }).first()).toBeVisible();
+    await expect(page.getByLabel('Find by Email')).toBeVisible();
     for (const viewport of ['phone', 'desktop'] as const) {
       await expectWithinBudget(page, { screens: 3, viewport, mode: 'enforce' });
     }

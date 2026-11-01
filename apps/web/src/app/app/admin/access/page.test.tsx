@@ -207,7 +207,10 @@ describe('WP-SB6 access within the scroll budget', () => {
     );
     const html = await renderServer(Page({ searchParams: Promise.resolve({}) }));
     expect(mocks.listInvitations).toHaveBeenCalledWith({}, { view: 'pending', limit: 25 });
-    expect(mocks.listInvitations).toHaveBeenCalledWith({}, { view: 'history', limit: 25 });
+    expect(mocks.listInvitations).toHaveBeenCalledWith(
+      {},
+      { view: 'history', limit: 25, withCounts: false },
+    );
     expect(html.match(/class="row invitation-row"/g) ?? []).toHaveLength(50);
     // Pending first, then the history inside its own scrolling box.
     expect(html.indexOf('pending-0@example.com')).toBeLessThan(
@@ -222,7 +225,7 @@ describe('WP-SB6 access within the scroll budget', () => {
     expect(html).toContain(
       'href="/app/admin/access?historyBefore=HISTORY_NEXT#pilot-history-panel"',
     );
-    expect(textOf(html)).toContain('Showing 25 of 500 invitations.');
+    expect(textOf(html)).toContain('Showing the newest 25 of 500 invitations.');
   });
 
   it('keeps the other list where it was while one pages, and offers the way back', async () => {
@@ -235,7 +238,7 @@ describe('WP-SB6 access within the scroll budget', () => {
     );
     expect(mocks.listInvitations).toHaveBeenCalledWith(
       {},
-      { view: 'history', limit: 25, before: 'H2' },
+      { view: 'history', limit: 25, withCounts: false, before: 'H2' },
     );
   });
 });

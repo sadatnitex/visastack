@@ -97,7 +97,7 @@ describe('Platform > Complaints (WP-SB6)', () => {
       html.match(/<details class="complaint-actions"><summary>Assign or Update<\/summary>/g) ?? [],
     ).toHaveLength(20);
     expect(stubProps(html, 'AssignComplaintForm')).toHaveLength(20);
-    expect(text).toContain('Showing 20 of 600 complaints.');
+    expect(text).toContain('Showing the newest 20 of 600 complaints.');
     expect(html).toContain('href="/app/admin/complaints?before=C_NEXT#complaints-list"');
     expect(html).toContain('href="/app/admin/complaints?status=resolved"');
   });
@@ -116,6 +116,32 @@ describe('Platform > Complaints (WP-SB6)', () => {
     expect(textOf(html)).toContain('Show Newest Entries');
   });
 
+  it('names a move on the tab the complaint moved to, and only there', async () => {
+    const moved = textOf(
+      await renderServer(
+        Page({ searchParams: Promise.resolve({ status: 'in-progress', moved: 'in-progress' }) }),
+      ),
+    );
+    expect(moved).toContain('Complaint moved to Being Handled. It is listed on this tab now.');
+    const elsewhere = textOf(
+      await renderServer(
+        Page({ searchParams: Promise.resolve({ status: 'open', moved: 'closed' }) }),
+      ),
+    );
+    expect(elsewhere).not.toContain('Complaint moved to');
+  });
+
+  it('gives every empty tab its own sentence', async () => {
+    mocks.listComplaintsForQualityReview.mockResolvedValue({
+      ok: true,
+      value: { items: [], nextCursor: null, status: 'IN_PROGRESS', counts: COUNTS },
+    });
+    const text = textOf(
+      await renderServer(Page({ searchParams: Promise.resolve({ status: 'in-progress' }) })),
+    );
+    expect(text).toContain('No complaints are being handled right now.');
+  });
+
   it('treats an unknown tab as Open', async () => {
     await renderServer(Page({ searchParams: Promise.resolve({ status: 'everything' }) }));
     expect(mocks.listComplaintsForQualityReview).toHaveBeenCalledWith({}, ACTOR, {
@@ -132,7 +158,7 @@ describe('Platform > Complaints (WP-SB6)', () => {
     expect(html).toContain(
       'href="/app/admin/complaints?status=closed&amp;feedbackBefore=F_NEXT#feedback-panel"',
     );
-    expect(textOf(html)).toContain('Showing 50 of 1000 feedback entries.');
+    expect(textOf(html)).toContain('Showing the newest 50 of 1000 feedback entries.');
   });
 
   it('keeps its role checks: no quality role, no read; no feedback role, no feedback read', async () => {

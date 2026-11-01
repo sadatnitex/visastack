@@ -1,9 +1,10 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { type StaffScope, staffScopeProblem } from './access/principal';
+import { getAccountByEmail } from './accounts';
 import type { Applicant } from './applicants';
 import type { AuditEventRow } from './audit';
-import { type Db, first, schema } from './db';
+import { type Db, schema } from './db';
 import type { ServiceError } from './errors';
 import {
   type Page,
@@ -50,6 +51,12 @@ export interface AuditTrailRequest extends PageRequest {
   readonly who?: string;
 }
 
+/** One page of the trail. `whoMatched` says whether the Who filter named a current account. */
+export interface AuditTrailPage extends Page<AuditTrailEntry> {
+  /** Null without a Who filter; false when no current account signs in with that email. */
+  readonly whoMatched: boolean | null;
+}
+
 /** The longest email the Who filter accepts (the address standard's own limit). */
 const WHO_MAX_LENGTH = 254;
 
@@ -78,12 +85,12 @@ export async function listRecentAuditEvents(
   db: Db,
   staff: StaffScope<'AUDIT_TRAIL_VIEW'>,
   options: AuditTrailRequest,
-): Promise<Result<Page<AuditTrailEntry>, ServiceError>>;
+): Promise<Result<AuditTrailPage, ServiceError>>;
 export async function listRecentAuditEvents(
   db: Db,
   staff: StaffScope<'AUDIT_TRAIL_VIEW'>,
   limitOrOptions: number | AuditTrailRequest = 100,
-): Promise<Result<AuditEventRow[] | Page<AuditTrailEntry>, ServiceError>> {
+): Promise<Result<AuditEventRow[] | AuditTrailPage, ServiceError>> {
   const problem = staffScopeProblem(staff, 'AUDIT_TRAIL_VIEW');
   if (problem) return err(problem);
   if (typeof limitOrOptions === 'object') return ok(await auditTrailPage(db, limitOrOptions));
@@ -96,24 +103,19 @@ export async function listRecentAuditEvents(
   );
 }
 
-async function auditTrailPage(db: Db, request: AuditTrailRequest): Promise<Page<AuditTrailEntry>> {
+async function auditTrailPage(db: Db, request: AuditTrailRequest): Promise<AuditTrailPage> {
   const who = auditTrailWho(request.who);
   const scope = who ? `platform:audit:who:${who}` : 'platform:audit';
   const limit = clampLimit(request.limit);
   const before = decodeSeqCursor(request.before, scope);
   const a = schema.auditEvents;
   // The Who filter names an account by email; the trail itself stores only the account id, so
-  // the id is found first and the trail is filtered on it. No such account: nothing to show.
+  // the id is found first (through the accounts email index) and the trail is filtered on it. No
+  // current account has that email: nothing to show, and the page says why.
   let actorId: string | null = null;
   if (who) {
-    const account = first(
-      await db
-        .select({ id: schema.accounts.id })
-        .from(schema.accounts)
-        .where(sql`lower(${schema.accounts.email}) = ${who}`)
-        .limit(1),
-    );
-    if (!account) return { items: [], nextCursor: null };
+    const account = await getAccountByEmail(db, who);
+    if (!account) return { items: [], nextCursor: null, whoMatched: false };
     actorId = account.id;
   }
   const conditions = [
@@ -131,5 +133,6 @@ async function auditTrailPage(db: Db, request: AuditTrailRequest): Promise<Page<
     ...event,
     actorEmail: actorEmail ?? null,
   }));
-  return toPage(entries, limit, (last) => encodeSeqCursor(last.seq, scope));
+  const page = toPage(entries, limit, (last) => encodeSeqCursor(last.seq, scope));
+  return { ...page, whoMatched: who ? true : null };
 }

@@ -1,5 +1,6 @@
+import { QueuePaging } from '../../src/app/app/admin/email/queue-paging';
+import { QueuePanel } from '../../src/app/app/admin/email/queue-panel';
 import { ActivityLog, type ActivityLogEntry } from '../../src/components/activity-log';
-import { ShowMore } from '../../src/components/show-more';
 
 /**
  * WP-SB6 scroll budget fixture: the staff operations pages (overview, audit, email delivery,
@@ -34,7 +35,10 @@ function Header({ title, description }: { readonly title: string; readonly descr
   );
 }
 
-/** A fixed box that scrolls inside, as every staff queue uses it. */
+/**
+ * A staff queue, drawn with the pages' own QueuePanel (search, kind filter and the fixed box) and
+ * QueuePaging. `unboxed` draws the same rows as a plain list, to prove the budget fails without it.
+ */
 function Panel({
   id,
   label,
@@ -44,47 +48,52 @@ function Panel({
   readonly id: string;
   readonly label: string;
   readonly unboxed: boolean | undefined;
-  readonly children: React.ReactNode;
+  readonly children: React.ReactElement[];
 }) {
+  if (unboxed) return <ul className="rows">{children}</ul>;
   return (
-    <section
-      className={unboxed ? 'staff-queue-unboxed' : 'activity-log-scroll staff-queue-panel'}
+    <QueuePanel
       id={id}
-      aria-label={label}
-      // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it
-      tabIndex={0}
-    >
-      <ul className="rows">{children}</ul>
-    </section>
+      label={label}
+      pageKey="first"
+      items={children.map((child, n) => {
+        const props = child.props as { className?: string; children?: React.ReactNode };
+        return {
+          id: `${id}-${n}`,
+          find: `row ${n}`,
+          kind: n % 2 === 0 ? 'First Kind' : 'Second Kind',
+          ...(props.className ? { className: props.className.replace(/^row\s*/, '') } : {}),
+          node: props.children,
+        };
+      })}
+    />
   );
 }
 
 function Paging({
-  id,
   landOn,
   shown,
   total,
   noun,
 }: {
-  readonly id: string;
+  readonly id?: string;
   readonly landOn: string;
   readonly shown: number;
   readonly total: number;
   readonly noun: { one: string; other: string };
 }) {
   return (
-    <div className="staff-queue-paging">
-      <ShowMore
-        id={id}
-        landOn={landOn}
-        pathname="/app/admin"
-        next={shown < total ? { before: 'CURSOR' } : null}
-        shown={shown}
-        total={total}
-        noun={noun}
-        label="Show Older Entries"
-      />
-    </div>
+    <QueuePaging
+      pathname="/app/admin"
+      search={{}}
+      param="before"
+      cursor={shown < total ? 'CURSOR' : null}
+      later={false}
+      landOn={landOn}
+      shown={shown}
+      total={total}
+      noun={noun}
+    />
   );
 }
 
@@ -98,7 +107,11 @@ function Metric({ label, value, hint }: { label: string; value: string; hint: st
   );
 }
 
-function Overview({ total, shown, unboxed }: { total: number; shown: number; unboxed?: boolean }) {
+function Overview({
+  total,
+  shown,
+  unboxed,
+}: { total: number; shown: number; unboxed?: boolean | undefined }) {
   return (
     <section className="section container platform-operations">
       <Header
@@ -213,7 +226,7 @@ function Audit({ shown }: { shown: number }) {
         </p>
         <form method="get" action="/app/admin/audit" className="audit-who-search u-mb-100">
           <label className="field-label" htmlFor="audit-who">
-            Who
+            Find by Email
           </label>
           <input
             id="audit-who"
@@ -242,35 +255,33 @@ function Audit({ shown }: { shown: number }) {
 }
 
 function EmailRows({ shown, failed }: { shown: number; failed: boolean }) {
-  return (
-    <>
-      {rows(shown).map((n) => (
-        <li className="row" key={n}>
-          <div>
-            <p className="row-key">Client Invitation</p>
-            <p className="muted u-fs-085">
-              To an address at example.org. Made 1 Oct 2026, 09:00. 5 tries.
-            </p>
-            <p className="card-body">
-              {failed
-                ? 'The mail service could not send it. It can be sent again.'
-                : 'Not tried yet.'}
-            </p>
-          </div>
-          {failed ? (
-            <div className="row-end">
-              <button className="btn btn-secondary" type="button">
-                Send Again
-              </button>
-            </div>
-          ) : null}
-        </li>
-      ))}
-    </>
-  );
+  return rows(shown).map((n) => (
+    <li className="row" key={n}>
+      <div>
+        <p className="row-key">Client Invitation</p>
+        <p className="muted u-fs-085">
+          To an address at example.org. Made 1 Oct 2026, 09:00. 5 tries.
+        </p>
+        <p className="card-body">
+          {failed ? 'The mail service could not send it. It can be sent again.' : 'Not tried yet.'}
+        </p>
+      </div>
+      {failed ? (
+        <div className="row-end">
+          <button className="btn btn-secondary" type="button">
+            Send Again
+          </button>
+        </div>
+      ) : null}
+    </li>
+  ));
 }
 
-function Email({ total, shown, unboxed }: { total: number; shown: number; unboxed?: boolean }) {
+function Email({
+  total,
+  shown,
+  unboxed,
+}: { total: number; shown: number; unboxed?: boolean | undefined }) {
   return (
     <section className="section container">
       <Header
@@ -286,7 +297,7 @@ function Email({ total, shown, unboxed }: { total: number; shown: number; unboxe
       <article className="card u-mt-150">
         <h2 className="card-title">Emails That Did Not Arrive</h2>
         <Panel id="email-failed-panel" label="Emails That Did Not Arrive" unboxed={unboxed}>
-          <EmailRows shown={shown} failed />
+          {EmailRows({ shown, failed: true })}
         </Panel>
         <Paging
           id="email-failed-more"
@@ -303,7 +314,7 @@ function Email({ total, shown, unboxed }: { total: number; shown: number; unboxe
           own.
         </p>
         <Panel id="email-waiting-panel" label="Emails Still Waiting" unboxed={unboxed}>
-          <EmailRows shown={shown} failed={false} />
+          {EmailRows({ shown, failed: false })}
         </Panel>
         <Paging
           id="email-waiting-more"
@@ -321,7 +332,7 @@ function Complaints({
   total,
   shown,
   unboxed,
-}: { total: number; shown: number; unboxed?: boolean }) {
+}: { total: number; shown: number; unboxed?: boolean | undefined }) {
   return (
     <section className="section container">
       <Header title="Complaint & Feedback Triage" description="Quality oversight." />
@@ -394,29 +405,29 @@ function Complaints({
 }
 
 function InvitationRows({ shown, state }: { shown: number; state: 'Pending' | 'Accepted' }) {
-  return (
-    <>
-      {rows(shown).map((n) => (
-        <li className="row invitation-row" key={n}>
-          <div className="invitation-row-head">
-            <span className="row-key invitation-email">{`invitee-${n}@example.test`}</span>
-            <span className="row-end">
-              <span className={`badge ${state === 'Pending' ? 'badge-neutral' : 'badge-success'}`}>
-                {state}
-              </span>
-              <button className="btn btn-danger" type="button">
-                Revoke
-              </button>
-            </span>
-          </div>
-          <span className="muted u-fs-085">Pilot tester · invited 1 Oct 2026</span>
-        </li>
-      ))}
-    </>
-  );
+  return rows(shown).map((n) => (
+    <li className="row invitation-row" key={n}>
+      <div className="invitation-row-head">
+        <span className="row-key invitation-email">{`invitee-${n}@example.test`}</span>
+        <span className="row-end">
+          <span className={`badge ${state === 'Pending' ? 'badge-neutral' : 'badge-success'}`}>
+            {state}
+          </span>
+          <button className="btn btn-danger" type="button">
+            Revoke
+          </button>
+        </span>
+      </div>
+      <span className="muted u-fs-085">Pilot tester · invited 1 Oct 2026</span>
+    </li>
+  ));
 }
 
-function Access({ total, shown, unboxed }: { total: number; shown: number; unboxed?: boolean }) {
+function Access({
+  total,
+  shown,
+  unboxed,
+}: { total: number; shown: number; unboxed?: boolean | undefined }) {
   return (
     <section className="section container">
       <Header
@@ -449,7 +460,7 @@ function Access({ total, shown, unboxed }: { total: number; shown: number; unbox
           </p>
           <h3 className="pilot-list-title">Waiting to Be Used</h3>
           <Panel id="pilot-pending-list" label="Invitations Waiting to Be Used" unboxed={unboxed}>
-            <InvitationRows shown={shown} state="Pending" />
+            {InvitationRows({ shown, state: 'Pending' })}
           </Panel>
           <Paging
             id="pilot-pending-more"
@@ -464,7 +475,7 @@ function Access({ total, shown, unboxed }: { total: number; shown: number; unbox
             label="Accepted and Revoked Invitations"
             unboxed={unboxed}
           >
-            <InvitationRows shown={shown} state="Accepted" />
+            {InvitationRows({ shown, state: 'Accepted' })}
           </Panel>
           <Paging
             id="pilot-history-more"

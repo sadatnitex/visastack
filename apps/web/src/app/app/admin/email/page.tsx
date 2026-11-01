@@ -1,14 +1,15 @@
 import { type EmailDeliveryRow, listEmailDeliveryProblems } from '@visastack/services';
 import type { Metadata } from 'next';
-import { ShowMore } from '../../../../components/show-more';
 import { PageHeader } from '../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { formatTimestamp, formatTimestampDate } from '../../../../lib/format-date';
-import { type SearchParamsRecord, pagingHref, parseCursor } from '../../../../lib/paging';
+import { type SearchParamsRecord, parseCursor } from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
 import { AdminRestricted } from '../admin-restricted';
 import { ResendEmailButton } from './forms';
 import { emailKindLabel, emailProblemReason } from './labels';
+import { QueuePaging, QueuePastEnd } from './queue-paging';
+import { QueuePanel } from './queue-panel';
 
 export const metadata: Metadata = { title: 'Email Delivery' };
 
@@ -99,39 +100,39 @@ export default async function EmailDeliveryPage({
             <h2 className="card-title">Emails That Did Not Arrive</h2>
             {result.value.failed.length === 0 ? (
               failedBefore ? (
-                <p className="card-body">
-                  No older emails to show.{' '}
-                  <a href={pagingHref(EMAIL_PATH, search, { failedBefore: null }, FAILED_PANEL)}>
-                    Show Newest Entries
-                  </a>
-                </p>
+                <QueuePastEnd
+                  pathname={EMAIL_PATH}
+                  search={search}
+                  param="failedBefore"
+                  landOn={FAILED_PANEL}
+                  what="No older emails to show."
+                />
               ) : (
                 <p className="card-body">Every recent email arrived or is on its way.</p>
               )
             ) : (
               <>
-                <section
-                  className="activity-log-scroll staff-queue-panel"
+                <QueuePanel
                   id={FAILED_PANEL}
-                  aria-label="Emails That Did Not Arrive"
-                  // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it
-                  tabIndex={0}
-                >
-                  <ul className="rows">
-                    {result.value.failed.map((row) => {
-                      const kind = emailKindLabel(row.eventType);
-                      const date = formatTimestampDate(row.createdAt);
-                      return (
-                        <li className="row" key={row.id}>
+                  label="Emails That Did Not Arrive"
+                  pageKey={failedBefore ?? 'first'}
+                  items={result.value.failed.map((row) => {
+                    const kind = emailKindLabel(row.eventType);
+                    const date = formatTimestampDate(row.createdAt);
+                    const reason = emailProblemReason(row.status, row.lastError);
+                    return {
+                      id: row.id,
+                      kind,
+                      find: `${sentTo(row)} ${reason}`,
+                      node: (
+                        <>
                           <div>
                             <p className="row-key">{kind}</p>
                             <p className="muted u-fs-085">
                               {sentTo(row)}. Made {formatTimestamp(row.createdAt)}.{' '}
                               {tries(row.attempts)}.
                             </p>
-                            <p className="card-body">
-                              {emailProblemReason(row.status, row.lastError)}
-                            </p>
+                            <p className="card-body">{reason}</p>
                           </div>
                           <div className="row-end">
                             {row.status === 'BOUNCED' ? (
@@ -140,20 +141,21 @@ export default async function EmailDeliveryPage({
                               <ResendEmailButton notificationId={row.id} kind={kind} date={date} />
                             )}
                           </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </section>
-                <ListPaging
-                  id="email-failed-more"
-                  panel={FAILED_PANEL}
+                        </>
+                      ),
+                    };
+                  })}
+                />
+                <QueuePaging
+                  pathname={EMAIL_PATH}
                   search={search}
                   param="failedBefore"
                   cursor={result.value.failedNext}
-                  paged={failedBefore !== undefined}
+                  later={failedBefore !== undefined}
+                  landOn={FAILED_PANEL}
                   shown={result.value.failed.length}
                   total={result.value.failedTotal}
+                  noun={EMAIL_NOUN}
                 />
               </>
             )}
@@ -167,52 +169,57 @@ export default async function EmailDeliveryPage({
             </p>
             {result.value.waiting.length === 0 ? (
               waitingAfter ? (
-                <p className="card-body">
-                  No more waiting emails to show.{' '}
-                  <a href={pagingHref(EMAIL_PATH, search, { waitingAfter: null }, WAITING_PANEL)}>
-                    Back to the First Emails
-                  </a>
-                </p>
+                <QueuePastEnd
+                  pathname={EMAIL_PATH}
+                  search={search}
+                  param="waitingAfter"
+                  landOn={WAITING_PANEL}
+                  what="No more waiting emails to show."
+                  direction="next"
+                />
               ) : (
                 <p className="card-body">Nothing has been waiting longer than 10 minutes.</p>
               )
             ) : (
               <>
-                <section
-                  className="activity-log-scroll staff-queue-panel"
+                <QueuePanel
                   id={WAITING_PANEL}
-                  aria-label="Emails Still Waiting"
-                  // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it
-                  tabIndex={0}
-                >
-                  <ul className="rows">
-                    {result.value.waiting.map((row) => (
-                      <li className="row" key={row.id}>
+                  label="Emails Still Waiting"
+                  pageKey={waitingAfter ?? 'first'}
+                  items={result.value.waiting.map((row) => {
+                    const kind = emailKindLabel(row.eventType);
+                    const state =
+                      row.attempts === 0
+                        ? 'Not tried yet.'
+                        : `${tries(row.attempts)} so far. ${emailProblemReason(row.status, row.lastError)}`;
+                    return {
+                      id: row.id,
+                      kind,
+                      find: `${sentTo(row)} ${state}`,
+                      node: (
                         <div>
-                          <p className="row-key">{emailKindLabel(row.eventType)}</p>
+                          <p className="row-key">{kind}</p>
                           <p className="muted u-fs-085">
                             {sentTo(row)}. Made {formatTimestamp(row.createdAt)}. Next try{' '}
                             {formatTimestamp(row.nextAttemptAt)}.
                           </p>
-                          <p className="card-body">
-                            {row.attempts === 0
-                              ? 'Not tried yet.'
-                              : `${tries(row.attempts)} so far. ${emailProblemReason(row.status, row.lastError)}`}
-                          </p>
+                          <p className="card-body">{state}</p>
                         </div>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-                <ListPaging
-                  id="email-waiting-more"
-                  panel={WAITING_PANEL}
+                      ),
+                    };
+                  })}
+                />
+                <QueuePaging
+                  pathname={EMAIL_PATH}
                   search={search}
                   param="waitingAfter"
                   cursor={result.value.waitingNext}
-                  paged={waitingAfter !== undefined}
+                  later={waitingAfter !== undefined}
+                  landOn={WAITING_PANEL}
                   shown={result.value.waiting.length}
                   total={result.value.waitingTotal}
+                  noun={EMAIL_NOUN}
+                  direction="next"
                 />
               </>
             )}
@@ -220,53 +227,5 @@ export default async function EmailDeliveryPage({
         </>
       )}
     </section>
-  );
-}
-
-/**
- * The end of one email list: how many are showing, the next 50 from the server, and a way back to
- * the first 50 once a later load is open. The other list's position is kept in the address.
- */
-function ListPaging({
-  id,
-  panel,
-  search,
-  param,
-  cursor,
-  paged,
-  shown,
-  total,
-}: {
-  readonly id: string;
-  readonly panel: string;
-  readonly search: SearchParamsRecord;
-  readonly param: 'failedBefore' | 'waitingAfter';
-  readonly cursor: string | null;
-  readonly paged: boolean;
-  readonly shown: number;
-  readonly total: number;
-}) {
-  return (
-    <div className="staff-queue-paging">
-      <ShowMore
-        id={id}
-        landOn={panel}
-        pathname={EMAIL_PATH}
-        searchParams={search}
-        next={cursor ? { [param]: cursor } : null}
-        shown={shown}
-        total={total}
-        noun={EMAIL_NOUN}
-        label={param === 'failedBefore' ? 'Show Older Entries' : 'Show More'}
-      />
-      {paged ? (
-        <a
-          className="btn btn-secondary u-btn-sm"
-          href={pagingHref(EMAIL_PATH, search, { [param]: null }, panel)}
-        >
-          {param === 'failedBefore' ? 'Show Newest Entries' : 'Back to the First Emails'}
-        </a>
-      ) : null}
-    </div>
   );
 }

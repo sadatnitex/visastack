@@ -74,13 +74,14 @@ export default async function AdminAuditPage({
         if (!listed.ok) throw new Error(listed.error.message);
         return listed.value;
       },
-      { items: [], nextCursor: null },
+      { items: [], nextCursor: null, whoMatched: null as boolean | null },
     );
     return {
       admin: true as const,
       allowed: true as const,
       auditEvents: page.items,
       olderCursor: page.nextCursor,
+      whoMatched: page.whoMatched,
       failedSections,
     };
   });
@@ -112,7 +113,7 @@ export default async function AdminAuditPage({
             </p>
             <form method="get" action={AUDIT_PATH} className="audit-who-search u-mb-100">
               <label className="field-label" htmlFor="audit-who">
-                Who
+                Find by Email
               </label>
               <input
                 id="audit-who"
@@ -140,7 +141,13 @@ export default async function AdminAuditPage({
               </p>
             </form>
             {data.auditEvents.length === 0 ? (
-              who ? (
+              who && data.whoMatched === false ? (
+                <EmptyState title="No Account with This Email" icon="activity">
+                  No account signs in with {who} now, so the trail cannot be searched by it. Entries
+                  by an account that has since been removed show as Removed Account; show everyone
+                  to find them.
+                </EmptyState>
+              ) : who ? (
                 <EmptyState title="No Entries for This Person" icon="activity">
                   Nothing in the audit trail was done by {who}. Check the email, or show everyone.
                 </EmptyState>

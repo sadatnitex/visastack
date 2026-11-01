@@ -39,9 +39,13 @@ const event = (
   actorEmail: actor.actorEmail ?? null,
 });
 
-const page = (items: unknown[], nextCursor: string | null = null) => ({
+const page = (
+  items: unknown[],
+  nextCursor: string | null = null,
+  whoMatched: boolean | null = null,
+) => ({
   ok: true,
-  value: { items, nextCursor },
+  value: { items, nextCursor, whoMatched },
 });
 
 const STAFF = { kind: 'staff' };
@@ -114,8 +118,23 @@ describe('Platform > Audit', () => {
     expect(mocks.listRecentAuditEvents).toHaveBeenCalledWith({}, STAFF, { limit: 50 });
   });
 
+  it('says when no current account has the email, apart from an account with no entries', async () => {
+    mocks.listRecentAuditEvents.mockResolvedValue(page([], null, false));
+    const text = textOf(
+      await renderServer(Page({ searchParams: Promise.resolve({ who: 'gone@example.test' }) })),
+    );
+    expect(text).toContain('No Account with This Email');
+    expect(text).toContain('Removed Account');
+    expect(text).not.toContain('Nothing in the audit trail was done by');
+  });
+
+  it('names its email search for its own job, apart from the log Who filter', async () => {
+    const html = await renderServer(Page({ searchParams: Promise.resolve({}) }));
+    expect(html).toMatch(/<label class="field-label" for="audit-who">Find by Email<\/label>/);
+  });
+
   it('says when one person has no entries', async () => {
-    mocks.listRecentAuditEvents.mockResolvedValue(page([]));
+    mocks.listRecentAuditEvents.mockResolvedValue(page([], null, true));
     const text = textOf(
       await renderServer(Page({ searchParams: Promise.resolve({ who: 'x@example.test' }) })),
     );
