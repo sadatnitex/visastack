@@ -2377,6 +2377,32 @@ export {
 } from './lifecycle/removal-requests';
 
 // LC-E exports
+export {
+  APPLICANT_REFERENCES,
+  type ApplicantReference,
+  type ApplicantReferenceKind,
+  TRAVELLER_ACTIONS,
+  TRAVELLER_RECENTLY_DELETED_DAYS,
+  TRAVELLER_REFUSALS,
+  type TravellerAction,
+  type TravellerActionView,
+  type TravellerLifecycle,
+  type TravellerLifecycleState,
+  type TravellerManageView,
+  type TravellerPurgeOutcome,
+  type TravellerRemovalBlock,
+  type TravellerRemovalOutcome,
+  archiveTraveller,
+  availableTravellerActions,
+  deleteEmptyTraveller,
+  getTravellerManageView,
+  purgeDueTravellers,
+  restoreDeletedTraveller,
+  restoreTraveller,
+  travellerIsEmpty,
+} from './lifecycle/travellers';
+export type { ApplicantListView, ListedApplicant } from './applicants';
+
 // ADR 0025 T6: the owner's traveller plan metrics and health thresholds (migration 0114).
 export {
   STANDARD_TRAVELLER_THRESHOLDS,

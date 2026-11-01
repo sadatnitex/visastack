@@ -79,7 +79,10 @@ async function ownedPhotoUrls(
 }
 
 export interface OwnedTravellers {
+  /** The travellers in everyday use. */
   readonly people: readonly Applicant[];
+  /** Archived travellers (LC-E): left out of every list, but their own pages still open by link. */
+  readonly archived: readonly Applicant[];
   /** Photo address by traveller id; a traveller without a photo is absent. */
   readonly photos: ReadonlyMap<string, string>;
 }
@@ -95,20 +98,26 @@ export function loadOwnedTravellers(db: Db, accountId: string): Promise<OwnedTra
   const cached = memo.get(accountId);
   if (cached) return cached;
   const loading = (async () => {
-    const people = await listApplicants(db, accountId);
+    const [people, archived] = await Promise.all([
+      listApplicants(db, accountId),
+      listApplicants(db, accountId, { view: 'archived' }),
+    ]);
     const photos = await ownedPhotoUrls(
       db,
       accountId,
-      people.map((person) => person.id),
+      [...people, ...archived].map((person) => person.id),
     );
-    return { people, photos };
+    return { people, archived, photos };
   })();
   memo.set(accountId, loading);
   loading.catch(() => memo.delete(accountId));
   return loading;
 }
 
-/** One traveller's photo address for this account, or null. Never fails. */
+/**
+ * One traveller's photo address for this account, or null. Never fails. Archived travellers are
+ * included (LC-E): their own pages still open by link.
+ */
 export async function ownedPhotoUrl(
   db: Db,
   accountId: string,
@@ -131,7 +140,12 @@ export interface OwnPhoto {
   } | null;
 }
 
-/** For the account page: the person's own traveller record and its photo. Null when it cannot be read, so the card is left out rather than the page failing. */
+/**
+ * For the account page: the person's own traveller record and its photo. Null when it cannot be
+ * read, so the card is left out rather than the page failing. Myself is never archived (LC-E), so
+ * the everyday list always holds it; a Myself in Recently Deleted is left out, and the account
+ * photo then comes from the Myself record that stays.
+ */
 export async function loadOwnPhoto(db: Db, accountId: string): Promise<OwnPhoto | null> {
   try {
     const { people, photos } = await loadOwnedTravellers(db, accountId);

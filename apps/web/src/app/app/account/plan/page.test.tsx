@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   summary: vi.fn(),
   aiUsage: vi.fn(),
   applicants: vi.fn(),
+  parked: vi.fn(),
   bytes: {} as Record<string, number>,
   catalogue: vi.fn(),
   purchase: vi.fn(),
@@ -26,7 +27,9 @@ vi.mock('../../../../lib/session', () => ({
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   getTravellerPlanSummary: (...args: unknown[]) => mocks.summary(...args),
-  listApplicants: (...args: unknown[]) => mocks.applicants(...args),
+  // The everyday list, or (LC-E) the archived and Recently Deleted lists.
+  listApplicants: (db: unknown, accountId: string, options?: { view?: string }) =>
+    options?.view ? mocks.parked(options.view, accountId) : mocks.applicants(db, accountId),
   getApplicantEvidenceBytes: async (_db: unknown, id: string) => mocks.bytes[id] ?? 0,
   listTravellerPlansForSale: (...args: unknown[]) => mocks.catalogue(...args),
   getOwnPurchase: (...args: unknown[]) => mocks.purchase(...args),
@@ -86,6 +89,7 @@ beforeEach(() => {
     { id: 'a1', displayName: 'Rahim Uddin' },
     { id: 'a2', displayName: 'Ayesha Uddin' },
   ]);
+  mocks.parked.mockResolvedValue([]);
   mocks.bytes = { a1: 10 * MB, a2: 2 * MB };
   mocks.aiUsage.mockResolvedValue([
     feature({}),
@@ -153,6 +157,21 @@ describe('Plan & Usage for a traveller', () => {
     expect(text).toContain('Ayesha Uddin 2 MB of 50 MB used');
     expect(text).toContain('Each file can be up to 20 MB.');
     expect(text).toContain("that agency's own plan can also limit what more can be added to it");
+  });
+
+  it('LC-E: counts archived travellers and those in Recently Deleted, as the upload limits do', async () => {
+    mocks.parked.mockImplementation(async (view: string, accountId: string) => {
+      expect(accountId).toBe('acct-1');
+      return view === 'archived'
+        ? [{ id: 'a3', displayName: 'Karim Uddin' }]
+        : [{ id: 'a4', displayName: 'Nadia Uddin' }];
+    });
+    mocks.bytes = { a1: 10 * MB, a2: 2 * MB, a3: 5 * MB, a4: 0 };
+    const text = textOf(await renderServer(Page({})));
+    expect(text).toContain('Your Whole Account 17 MB of 100 MB used');
+    expect(text).toContain('Karim Uddin 5 MB of 50 MB used');
+    expect(mocks.parked).toHaveBeenCalledWith('archived', 'acct-1');
+    expect(mocks.parked).toHaveBeenCalledWith('recentlyDeleted', 'acct-1');
   });
 
   it('WP-SB9: shows a meter for the first 10 people, then Show More, still counting everyone', async () => {

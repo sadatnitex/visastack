@@ -28,6 +28,13 @@ const P2 = '10000000-0000-4000-8000-000000000002';
 const SELF = { id: P1, displayName: 'Rahima Akter', relationship: 'SELF' };
 const FAMILY = { id: P2, displayName: 'Family Member', relationship: 'FAMILY_MEMBER' };
 
+/** The everyday list, and the archived list (empty unless given). */
+function everyday(people: readonly unknown[], archived: readonly unknown[] = []) {
+  mocks.listApplicants.mockImplementation(async (_db, _account, options?: { view?: string }) =>
+    options?.view === 'archived' ? archived : people,
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -35,7 +42,7 @@ beforeEach(() => {
     ok: true,
     value: { proofFor: ref.applicantId },
   }));
-  mocks.listApplicants.mockResolvedValue([SELF, FAMILY]);
+  everyday([SELF, FAMILY]);
   mocks.listApplicantPhotoVersions.mockResolvedValue({ ok: true, value: new Map([[P1, 'abcd']]) });
 });
 
@@ -84,10 +91,45 @@ describe('profile photo loading for pages', () => {
     expect(await loadOwnPhoto(DB, 'acct-1')).toEqual({
       self: { id: P1, name: 'Rahima Akter', photoUrl: `/api/photos/applicant/${P1}?v=abcd` },
     });
-    mocks.listApplicants.mockResolvedValue([FAMILY]);
+    everyday([FAMILY]);
     expect(await loadOwnPhoto(DB, 'acct-1')).toEqual({ self: null });
     mocks.listApplicants.mockRejectedValue(new Error('down'));
     expect(await loadOwnPhoto(DB, 'acct-1')).toBeNull();
+  });
+});
+
+describe('photos with archived travellers (LC-E)', () => {
+  const P3 = '10000000-0000-4000-8000-000000000003';
+
+  it('loads archived travellers apart, with their photos through the gate, so their own pages keep them', async () => {
+    const archived = { id: P3, displayName: 'Archived Member', relationship: 'FAMILY_MEMBER' };
+    everyday([SELF, FAMILY], [archived]);
+    mocks.listApplicantPhotoVersions.mockImplementation(
+      async (...proofs: { proofFor: string }[]) => ({
+        ok: true,
+        value: new Map(proofs.map((proof) => [proof.proofFor, 'v3'] as const)),
+      }),
+    );
+    const owned = await loadOwnedTravellers(DB, 'acct-1');
+    expect(owned.people).toEqual([SELF, FAMILY]);
+    expect(owned.archived).toEqual([archived]);
+    expect(await ownedPhotoUrl(DB, 'acct-1', P3)).toBe(`/api/photos/applicant/${P3}?v=v3`);
+    expect(mocks.requireAccess.mock.calls.map((call) => call[3])).toContainEqual({
+      applicantId: P3,
+    });
+    // Refused by the gate: initials, never another person's photo.
+    mocks.requireAccess.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
+    expect(await ownedPhotoUrl(DB, 'acct-2', P3)).toBeNull();
+  });
+
+  it('resolves the account photo to the Myself record that stays when another Myself is in Recently Deleted', async () => {
+    // Only everyday records are listed: the remaining Myself is P2 here.
+    const remaining = { id: P2, displayName: 'Rahima Akter', relationship: 'SELF' };
+    everyday([remaining]);
+    mocks.listApplicantPhotoVersions.mockResolvedValue({ ok: true, value: new Map([[P2, 'p2']]) });
+    expect(await loadOwnPhoto(DB, 'acct-3')).toEqual({
+      self: { id: P2, name: 'Rahima Akter', photoUrl: `/api/photos/applicant/${P2}?v=p2` },
+    });
   });
 });
 

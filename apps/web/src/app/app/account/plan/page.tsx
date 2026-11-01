@@ -304,12 +304,17 @@ export default async function TravellerPlanPage({
     // ADR 0025 section 12.6 (T6): one view counted, a number and never who, only while selling is
     // on, and not again for the page shown after Get to confirm the purchase. Run beside the
     // reads; it never fails the page.
-    const [summary, aiUsage, owned] = await Promise.all([
+    const [summary, aiUsage, everyday, archived, recentlyDeleted] = await Promise.all([
       getTravellerPlanSummary(db, { actorAccountId: accountId }),
       readAiUsage(db, accountId),
       listApplicants(db, accountId),
+      // Archived travellers and those in Recently Deleted still hold stored files, and the upload
+      // limits count them, so the meter does too (LC-E).
+      listApplicants(db, accountId, { view: 'archived' }),
+      listApplicants(db, accountId, { view: 'recentlyDeleted' }),
       selling && purchaseParam === null ? countTravellerPlanEvent(db, 'PLAN_VIEWED') : null,
     ]);
+    const owned = [...everyday, ...archived, ...recentlyDeleted];
     // Only the profiles this account owns, counted exactly as the upload limits count them.
     const profiles = await Promise.all(
       owned.map(async (applicant) => ({

@@ -19,7 +19,7 @@ export async function loadWorkspaceChrome(
 > {
   // The owner's travellers and, in one batched read, their photos (WP-PH1); a photo failure
   // only hides photos.
-  const [{ people, photos }, memberships, platform, toolbar] = await Promise.all([
+  const [{ people, archived, photos }, memberships, platform, toolbar] = await Promise.all([
     loadOwnedTravellers(db, actor.accountId),
     listMembershipsForAccount(db, actor.accountId),
     holdsPlatformRole(db, actor),
@@ -41,6 +41,13 @@ export async function loadWorkspaceChrome(
       people.find((person) => person.relationship === 'SELF')?.displayName ||
       'Your Account',
     travellers: people.map((person) => ({
+      id: person.id,
+      name: person.displayName,
+      relationship: person.relationship,
+      photo: photos.get(person.id) ?? null,
+    })),
+    // Not offered in the switcher; only keeps an archived traveller's page in its frame (LC-E).
+    archivedTravellers: archived.map((person) => ({
       id: person.id,
       name: person.displayName,
       relationship: person.relationship,

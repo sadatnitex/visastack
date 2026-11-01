@@ -1,9 +1,14 @@
 import { type Result, err, ok } from '@visastack/core';
-import { eq } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, not } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import {
+  everydayApplicantCondition,
+  presentApplicantCondition,
+} from './lifecycle/foundation/conditions';
+import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { recordProductEvent } from './product-events';
 import { assignReferenceCode } from './reference-codes';
 
@@ -45,12 +50,79 @@ export interface CreateApplicantInput {
   readonly authorityConfirmed?: boolean;
 }
 
-/** List every applicant record owned by the account. */
-export async function listApplicants(db: Db, actorAccountId: string): Promise<Applicant[]> {
+/**
+ * Which of the account's traveller records to list (LC-E): `everyday` (the default) is every
+ * record that is neither archived nor in Recently Deleted, the list every place shows; `archived`
+ * and `recentlyDeleted` are the two lists on the travellers page.
+ */
+export type ApplicantListView = 'everyday' | 'archived' | 'recentlyDeleted';
+
+/** A record in the archived or Recently Deleted list, with its lifecycle dates. */
+export interface ListedApplicant extends Applicant {
+  readonly archivedAt: Date | null;
+  readonly deletedAt: Date | null;
+  /** When a record in Recently Deleted is deleted for good. */
+  readonly purgeAfter: Date | null;
+}
+
+/**
+ * List the account's traveller records. By default only everyday records: archived records and
+ * records in Recently Deleted are left out, so Home, the travellers page, AI app sign-in, client
+ * invitations, profile photos and the WhatsApp inbox show only the people in use. A record opened
+ * by its id (`getApplicant`) is still found whatever its state. Before migration 0113 nothing can
+ * be archived or deleted, so the everyday list is every record and the other two are empty.
+ */
+export async function listApplicants(db: Db, actorAccountId: string): Promise<Applicant[]>;
+export async function listApplicants(
+  db: Db,
+  actorAccountId: string,
+  options: { readonly view: 'everyday' },
+): Promise<Applicant[]>;
+export async function listApplicants(
+  db: Db,
+  actorAccountId: string,
+  options: { readonly view: 'archived' | 'recentlyDeleted' },
+): Promise<ListedApplicant[]>;
+export async function listApplicants(
+  db: Db,
+  actorAccountId: string,
+  options: { readonly view?: ApplicantListView } = {},
+): Promise<Applicant[] | ListedApplicant[]> {
+  const view = options.view ?? 'everyday';
+  const lifecycle = await lifecycleTablesPresent(db);
+  const applicants = schema.applicants;
+  const owned = eq(applicants.ownerAccountId, actorAccountId);
+  if (view === 'everyday') {
+    return db
+      .select()
+      .from(applicants)
+      .where(and(owned, lifecycle ? everydayApplicantCondition() : undefined));
+  }
+  if (!lifecycle) return [];
+  const state = schema.applicantLifecycle;
+  const deleted = view === 'recentlyDeleted';
   return db
-    .select()
-    .from(schema.applicants)
-    .where(eq(schema.applicants.ownerAccountId, actorAccountId));
+    .select({
+      ...getTableColumns(applicants),
+      archivedAt: state.archivedAt,
+      deletedAt: state.deletedAt,
+      purgeAfter: state.purgeAfter,
+    })
+    .from(applicants)
+    .innerJoin(state, eq(state.applicantId, applicants.id))
+    .where(
+      and(
+        owned,
+        deleted
+          ? not(presentApplicantCondition())
+          : and(presentApplicantCondition(), not(everydayApplicantCondition())),
+      ),
+    )
+    .orderBy(
+      deleted ? asc(state.purgeAfter) : desc(state.archivedAt),
+      asc(applicants.displayName),
+      asc(applicants.id),
+    );
 }
 
 /** Load a single applicant by id (no ownership check — callers enforce that). */
