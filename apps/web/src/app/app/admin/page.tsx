@@ -78,6 +78,18 @@ const SCORECARD_LABELS: Record<ProductEventType, string> = {
   AI_CONTEXT_DENIED: 'AI Connection Days with Refusals',
   AI_CONNECTOR_REVOKED: 'AI Connections Turned Off',
   AI_FILE_SERVED: 'AI Connection Days with Files Given',
+  DOCUMENT_ARCHIVED: 'Documents Archived',
+  DOCUMENT_RESTORED: 'Documents Restored',
+  DOCUMENT_REPLACED: 'Documents Replaced',
+  DUPLICATE_REMOVED_AT_UPLOAD: 'Duplicates Removed at Upload',
+  DOCUMENT_DELETED: 'Duplicates Deleted',
+  DOCUMENT_DELETE_UNDONE: 'Deletes Undone',
+  DOCUMENT_DESTROYED: 'Documents Removed for Good',
+  REMOVAL_REQUESTED: 'Removal Requests',
+  REMOVAL_DECIDED: 'Removal Requests Decided',
+  TRAVELLER_ARCHIVED: 'Travellers Archived',
+  TRAVELLER_RESTORED: 'Travellers Restored',
+  TRAVELLER_REMOVED: 'Empty Travellers Removed',
 };
 
 const SIGNAL_STATUS_LABEL: Record<OperationalSignal['status'], string> = {
