@@ -945,7 +945,9 @@ export default async function ApplicantDocumentsPage({
                       // gap (no classification yet reached, or one reached but not
                       // confident) -- never offered once a confident deterministic
                       // (or already-approved AI) classification already exists.
+                      // Lane Z: a file in Recently Deleted or being removed is never read again.
                       if (
+                        binned ||
                         !data.classificationConfigured ||
                         !data.aiGranted ||
                         !doc.classification
@@ -987,7 +989,12 @@ export default async function ApplicantDocumentsPage({
                       // extraction/classification above -- the check sends the
                       // document's own text plus the applicant's already-
                       // confirmed TRUSTED profile facts, never a second document.
-                      if (!data.inconsistencyConfigured || !data.aiGranted || !doc.classification) {
+                      if (
+                        binned ||
+                        !data.inconsistencyConfigured ||
+                        !data.aiGranted ||
+                        !doc.classification
+                      ) {
                         return null;
                       }
                       const versionId = doc.latestVersionId;

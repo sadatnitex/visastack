@@ -12,7 +12,10 @@ const mocks = vi.hoisted(() => ({
   collectOperationalSignals: vi.fn(),
   getPilotScorecard: vi.fn(),
   getLifecycleMeasures: vi.fn(),
-  staffPrincipal: vi.fn(async () => ({ ok: false, error: { code: 'forbidden', message: 'no' } })),
+  staffPrincipal: vi.fn(async (..._args: unknown[]) => ({
+    ok: false,
+    error: { code: 'forbidden', message: 'no' },
+  })),
   getPlatformOverview: vi.fn(),
   getPlatformEvidenceBytes: vi.fn(),
   getProductAnalytics: vi.fn(),
