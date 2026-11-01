@@ -22,6 +22,7 @@ export function RequestRemovalAction({
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const root = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const headingId = useId();
   const hintId = useId();
@@ -30,6 +31,14 @@ export function RequestRemovalAction({
   useEffect(() => {
     if (result) heading.current?.focus();
   }, [result]);
+
+  // Opened straight from a link (?manage=&action=), nothing has focus here yet: take it and come
+  // into view. Opened from the Manage menu, the menu has already moved focus into the panel.
+  useEffect(() => {
+    if (root.current?.contains(document.activeElement)) return;
+    heading.current?.focus();
+    heading.current?.scrollIntoView?.({ block: 'center' });
+  }, []);
 
   const send = async () => {
     if (busy) return;
@@ -52,7 +61,7 @@ export function RequestRemovalAction({
 
   if (result) {
     return (
-      <div className="lc-request" aria-labelledby={headingId}>
+      <div ref={root} className="lc-request">
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-request-heading">
           Removal Requested
         </h3>
@@ -74,12 +83,15 @@ export function RequestRemovalAction({
   }
 
   return (
-    <div className="lc-request" aria-labelledby={headingId}>
+    <div ref={root} className="lc-request">
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-request-heading">
         Ask Us to Remove This File
       </h3>
       <p id={hintId} className="lc-request-note">
-        {WHAT_HAPPENS} {BACKUP_NOTE}
+        {WHAT_HAPPENS}
+      </p>
+      <p className="lc-request-note">
+        <strong>What Removed Means:</strong> {BACKUP_NOTE}
       </p>
       <fieldset
         className="lc-request-choices"

@@ -18,12 +18,21 @@ export function CancelRemovalRequestAction({
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const root = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const headingId = useId();
 
   useEffect(() => {
     if (result) heading.current?.focus();
   }, [result]);
+
+  // Opened straight from a link (?manage=&action=), nothing has focus here yet: take it and come
+  // into view. Opened from the Manage menu, the menu has already moved focus into the panel.
+  useEffect(() => {
+    if (root.current?.contains(document.activeElement)) return;
+    heading.current?.focus();
+    heading.current?.scrollIntoView?.({ block: 'center' });
+  }, []);
 
   const cancel = async () => {
     if (busy) return;
@@ -42,7 +51,7 @@ export function CancelRemovalRequestAction({
 
   if (result) {
     return (
-      <div className="lc-request" aria-labelledby={headingId}>
+      <div ref={root} className="lc-request">
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-request-heading">
           Request Cancelled
         </h3>
@@ -64,7 +73,7 @@ export function CancelRemovalRequestAction({
   }
 
   return (
-    <div className="lc-request" aria-labelledby={headingId}>
+    <div ref={root} className="lc-request">
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-request-heading">
         Removal Requested
       </h3>

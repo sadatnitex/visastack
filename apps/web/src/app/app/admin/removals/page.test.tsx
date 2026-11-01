@@ -24,6 +24,10 @@ vi.mock('./decide-form', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
   return { DecideRemovalForm: stub('DecideRemovalForm') };
 });
+vi.mock('./decision-status', async () => {
+  const { stub } = await import('../../../../lib/next-mocks.test-support');
+  return { DecisionStatus: stub('DecisionStatus') };
+});
 vi.mock('../../../../components/show-more', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
   return { ShowMore: stub('ShowMore') };
@@ -79,6 +83,8 @@ describe('Removal Requests (staff queue)', () => {
     expect(text).toContain('Overdue');
     expect(text).toContain('2 open cases will ask for another document');
     expect(text).toContain('1 finished case keeps its record');
+    expect(text).toContain('Reason: Privacy Concern.');
+    expect(text).toContain('0 shares include it');
     expect(text).toContain('1 agency told without the document name');
     expect(text).toContain('frees 2.0 MB');
     expect(stubProps(html, 'DecideRemovalForm')).toEqual([
@@ -98,14 +104,13 @@ describe('Removal Requests (staff queue)', () => {
   });
 
   it('says what happened after a decision, and nothing for an unknown value', async () => {
-    const text = textOf(
-      await renderServer(Page({ searchParams: Promise.resolve({ done: 'declined' }) })),
-    );
-    expect(text).toContain('Declined. The person has been told why.');
-    const odd = textOf(
-      await renderServer(Page({ searchParams: Promise.resolve({ done: '<script>' }) })),
-    );
-    expect(odd).not.toContain('Declined');
+    const status = async (done: string) =>
+      stubProps<{ message?: string }>(
+        await renderServer(Page({ searchParams: Promise.resolve({ done }) })),
+        'DecisionStatus',
+      )[0]?.message;
+    expect(await status('declined')).toBe('Declined. The person has been told why.');
+    expect(await status('<script>')).toBeUndefined();
   });
 
   it('offers no decision for a request whose document already left', async () => {

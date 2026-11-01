@@ -33,7 +33,10 @@ export const MANAGE_ACTIONS: Readonly<Partial<Record<DocumentAction, ManageActio
   // LC-C actions
   // LC-D actions
   REQUEST_REMOVAL: { label: 'Ask Us to Remove This File', Component: RequestRemovalAction },
-  CANCEL_REMOVAL_REQUEST: { label: 'Removal Requested', Component: CancelRemovalRequestAction },
+  CANCEL_REMOVAL_REQUEST: {
+    label: 'Cancel Removal Request',
+    Component: CancelRemovalRequestAction,
+  },
 };
 
 /** The registered entries for `actions`, in the order given (availableDocumentActions order). */

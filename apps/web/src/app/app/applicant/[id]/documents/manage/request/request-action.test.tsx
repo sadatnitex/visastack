@@ -52,7 +52,7 @@ function button(name: string): HTMLButtonElement {
 describe('Ask Us to Remove This File', () => {
   it('is registered for REQUEST_REMOVAL and CANCEL_REMOVAL_REQUEST under the D anchor', () => {
     expect(MANAGE_ACTIONS.REQUEST_REMOVAL?.label).toBe('Ask Us to Remove This File');
-    expect(MANAGE_ACTIONS.CANCEL_REMOVAL_REQUEST?.label).toBe('Removal Requested');
+    expect(MANAGE_ACTIONS.CANCEL_REMOVAL_REQUEST?.label).toBe('Cancel Removal Request');
   });
 
   it('asks for a reason from the list, with no typed text, then sends the request', async () => {

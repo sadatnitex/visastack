@@ -70,6 +70,7 @@ export function DecideRemovalForm({
           name="decision"
           value="DECLINE"
           idle="Decline"
+          label={`Decline Request for Document ${documentCode}`}
           busy="Saving"
         />
       </div>

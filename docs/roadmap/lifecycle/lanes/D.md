@@ -32,6 +32,8 @@ Self-service duplicate delete and purge (C), Replace (B), central docs (Z).
 ## Status (lane fills in)
 
 - Started on main: 19ec6a15 (LC-B merged, #393).
+- Access plan (accepted by the coordinator for building; the owner confirms the reviewing role at gate G-D): the staff queue is read with privacy access (`APPLICANT_DIRECTORY_VIEW`, the compliance administrator); deciding needs a fresh `RETENTION_PURGE` scope (the compliance administrator, the only `LIFECYCLE_STAFF_ACTIONS` value) plus a fresh sign-in check for both approve and decline. No new role or staff action. The page refuses by address exactly who the sidebar hides: switch off gives not found, no privacy access gives the restricted notice.
+- Approved path exceptions (coordinator, 1 Nov 2026), the only files outside `allowlists/D.txt`: `documents/page.tsx` (read and pass D's facts), `lib/a11y-forms.test.tsx` (scan entry for the decide form), `lib/workspace-chrome.ts` and `lib/workspace-navigation.ts` with their two tests (sidebar link). `documents/manage/view.ts` is unchanged (its facts parameter already carries D's facts).
 - PR / merged SHA:
 - Checks seen green:
 - Live / hidden until migration / behind switch:

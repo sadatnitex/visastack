@@ -32,6 +32,6 @@ export function sizeLabel(bytes: number): string {
 
 /** "Waiting 4 working days", with today's requests read plainly. */
 export function waitingLabel(days: number): string {
-  if (days === 0) return 'Asked today or on the last working day';
+  if (days === 0) return 'Waiting less than 1 working day';
   return `Waiting ${count(days, 'working day', 'working days')}`;
 }

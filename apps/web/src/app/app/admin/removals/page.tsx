@@ -19,6 +19,7 @@ import {
 import { withSession } from '../../../../lib/session';
 import { AdminRestricted } from '../admin-restricted';
 import { DecideRemovalForm } from './decide-form';
+import { DecisionStatus } from './decision-status';
 import { REASON_LABELS, count, sizeLabel, waitingLabel } from './labels';
 
 const PATHNAME = '/app/admin/removals';
@@ -39,9 +40,9 @@ function impactLine(row: RemovalQueueRow): string {
     row.openCases === 0
       ? 'No open case uses it'
       : `${count(row.openCases, 'open case', 'open cases')} will ask for another document`,
-    `${count(row.finishedCases, 'finished case keeps', 'finished cases keep')} its record`,
+    count(row.finishedCases, 'finished case keeps its record', 'finished cases keep their records'),
     `${count(row.agencies, 'agency', 'agencies')} told without the document name`,
-    `${count(row.sharesAffected, 'share names', 'shares name')} it`,
+    count(row.sharesAffected, 'share includes it', 'shares include it'),
     `frees ${sizeLabel(row.storageBytes)}`,
   ];
   return `${parts.join('. ')}.`;
@@ -81,11 +82,10 @@ export default async function RemovalRequestsPage({
         title="Removal Requests"
         description="Travellers ask us to remove a file for good. Check what approving would change, then approve or decline. Try to decide within 3 working days."
       />
-      <div id="removal-requests-status" tabIndex={-1}>
-        {done && data.kind === 'ready' ? (
-          <output className="notice notice-ok">{done}</output>
-        ) : null}
-      </div>
+      <DecisionStatus
+        id="removal-requests-status"
+        message={data.kind === 'ready' ? done : undefined}
+      />
       {data.kind === 'restricted' ? (
         <AdminRestricted />
       ) : data.queue.rows.length === 0 ? (
@@ -105,8 +105,8 @@ export default async function RemovalRequestsPage({
                   ) : null}
                 </div>
                 <p className="lc-removal-meta">
-                  {REASON_LABELS[row.reason]}. Asked on {formatTimestampDate(row.requestedAt)}.{' '}
-                  {waitingLabel(row.waitingWorkingDays)}.
+                  Reason: {REASON_LABELS[row.reason]}. Asked on{' '}
+                  {formatTimestampDate(row.requestedAt)}. {waitingLabel(row.waitingWorkingDays)}.
                 </p>
                 <p className="lc-removal-impact">
                   {row.documentGone
