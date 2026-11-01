@@ -11418,3 +11418,128 @@ html:has(.sticky-action-bar) {
   margin-bottom: 0.5rem;
   font-size: var(--text-small);
 }
+
+/* WP-SB6 staff operations within the scroll budget: queues (failed jobs, emails, feedback, the
+   invitation history) use the log's fixed box and scroll inside; the overview folds its specialist
+   cards into groups; complaints show status tabs with the forms behind an expander. */
+.staff-queue-panel {
+  padding: 0 0.75rem;
+}
+.staff-queue-panel > .rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.staff-queue-panel > .rows > .row:last-child {
+  border-bottom: 0;
+}
+.staff-queue-paging {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.75rem;
+}
+.staff-queue-paging .show-more {
+  margin: 0;
+}
+.failed-job-row,
+.invitation-row,
+.complaint-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+.failed-job-head,
+.invitation-row-head,
+.complaint-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+.failed-job-name,
+.invitation-email {
+  overflow-wrap: anywhere;
+}
+.failed-job-error {
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+}
+.feedback-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+.complaint-row-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-small);
+}
+.complaint-actions > summary {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--selected-text);
+}
+.complaint-actions[open] > summary {
+  margin-bottom: 0.5rem;
+}
+.complaint-tabs .pill {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.complaint-tabs .pill[aria-current="page"] {
+  color: var(--selected-text);
+  border-color: currentColor;
+  font-weight: 600;
+}
+.pilot-list-title {
+  margin: 0 0 0.5rem;
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+.audit-who-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+.audit-who-search .input {
+  flex: 1 1 16rem;
+  min-width: 0;
+  max-width: 28rem;
+}
+.audit-who-help {
+  flex-basis: 100%;
+  margin: 0;
+}
+.admin-failed-jobs {
+  margin-bottom: 1.5rem;
+}
+.admin-overview-groups {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.admin-overview-groups > .admin-overview-group {
+  margin-block: 0;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  padding: 0 1rem;
+  background: var(--bg-elevated);
+}
+.admin-overview-group-body {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 1rem;
+}
+.admin-overview-group-body > .card {
+  margin: 0 !important;
+}

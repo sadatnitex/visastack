@@ -62,7 +62,7 @@ beforeEach(() => {
   mocks.listActivePlatformRoles.mockResolvedValue([
     { id: 'r1', role: 'PLATFORM_OWNER', assignedAt: new Date('2026-09-01'), reason: 'Founder' },
   ]);
-  mocks.listInvitations.mockResolvedValue([
+  const invitations = [
     {
       id: 'i1',
       email: 'pending@example.com',
@@ -87,7 +87,18 @@ beforeEach(() => {
       acceptedAt: null,
       revokedAt: new Date('2026-09-06'),
     },
-  ]);
+  ];
+  // WP-SB6: the page reads pending invitations and the history as two pages.
+  mocks.listInvitations.mockImplementation(async (_db: unknown, options: { view: string }) => {
+    const isPending = (inv: (typeof invitations)[number]) => !inv.acceptedAt && !inv.revokedAt;
+    const pending = invitations.filter(isPending);
+    return {
+      items: options.view === 'history' ? invitations.filter((inv) => !isPending(inv)) : pending,
+      nextCursor: null,
+      view: options.view,
+      counts: { pending: pending.length, history: invitations.length - pending.length },
+    };
+  });
   mocks.reportUnboundAccounts.mockResolvedValue([]);
 });
 
@@ -165,5 +176,66 @@ describe('Platform > Access', () => {
     expect(text).toContain('Some Sections Could Not Be Loaded');
     expect(text).toContain('invitations');
     expect(text).toContain('Platform Owner');
+  });
+});
+
+describe('WP-SB6 access within the scroll budget', () => {
+  const inv = (n: number, state: 'pending' | 'accepted' | 'revoked') => ({
+    id: `${state}-${n}`,
+    email: `${state}-${n}@example.com`,
+    reason: 'Pilot tester',
+    invitedAt: new Date(Date.UTC(2026, 8, 1) - n * 60_000),
+    acceptedAt: state === 'accepted' ? new Date('2026-09-10') : null,
+    revokedAt: state === 'revoked' ? new Date('2026-09-11') : null,
+  });
+
+  it('lists 25 pending invitations first and the history in a fixed box, each paged by the server', async () => {
+    mocks.listInvitations.mockImplementation(async (_db: unknown, options: { view: string }) =>
+      options.view === 'history'
+        ? {
+            items: Array.from({ length: 25 }, (_, n) => inv(n, n % 2 ? 'accepted' : 'revoked')),
+            nextCursor: 'HISTORY_NEXT',
+            view: 'history',
+            counts: { pending: 500, history: 500 },
+          }
+        : {
+            items: Array.from({ length: 25 }, (_, n) => inv(n, 'pending')),
+            nextCursor: 'PENDING_NEXT',
+            view: 'pending',
+            counts: { pending: 500, history: 500 },
+          },
+    );
+    const html = await renderServer(Page({ searchParams: Promise.resolve({}) }));
+    expect(mocks.listInvitations).toHaveBeenCalledWith({}, { view: 'pending', limit: 25 });
+    expect(mocks.listInvitations).toHaveBeenCalledWith({}, { view: 'history', limit: 25 });
+    expect(html.match(/class="row invitation-row"/g) ?? []).toHaveLength(50);
+    // Pending first, then the history inside its own scrolling box.
+    expect(html.indexOf('pending-0@example.com')).toBeLessThan(
+      html.indexOf('aria-label="Accepted and Revoked Invitations"'),
+    );
+    expect(html).toContain(
+      'class="activity-log-scroll staff-queue-panel" id="pilot-history-panel"',
+    );
+    expect(html).toContain(
+      'href="/app/admin/access?pendingBefore=PENDING_NEXT#pilot-pending-list"',
+    );
+    expect(html).toContain(
+      'href="/app/admin/access?historyBefore=HISTORY_NEXT#pilot-history-panel"',
+    );
+    expect(textOf(html)).toContain('Showing 25 of 500 invitations.');
+  });
+
+  it('keeps the other list where it was while one pages, and offers the way back', async () => {
+    await renderServer(
+      Page({ searchParams: Promise.resolve({ historyBefore: 'H2', pendingBefore: 'P2' }) }),
+    );
+    expect(mocks.listInvitations).toHaveBeenCalledWith(
+      {},
+      { view: 'pending', limit: 25, before: 'P2' },
+    );
+    expect(mocks.listInvitations).toHaveBeenCalledWith(
+      {},
+      { view: 'history', limit: 25, before: 'H2' },
+    );
   });
 });

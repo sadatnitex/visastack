@@ -130,16 +130,20 @@ beforeEach(() => {
   ]);
   mocks.getPlatformEvidenceBytes.mockResolvedValue(1024);
   mocks.getProductAnalytics.mockResolvedValue({ available: false, reason: 'schema_pending' });
-  mocks.listFailedJobs.mockResolvedValue([
-    {
-      id: 'j1',
-      documentName: 'passport.pdf',
-      errorCode: 'ocr_timeout',
-      attempts: 5,
-      maxAttempts: 5,
-      lastError: 'timed out',
-    },
-  ]);
+  mocks.listFailedJobs.mockResolvedValue({
+    items: [
+      {
+        id: 'j1',
+        documentName: 'passport.pdf',
+        errorCode: 'ocr_timeout',
+        attempts: 5,
+        maxAttempts: 5,
+        lastError: 'timed out',
+      },
+    ],
+    nextCursor: null,
+    total: 1,
+  });
   mocks.totalAiCostUnits.mockResolvedValue(0);
   mocks.resolveAiLimits.mockResolvedValue({ budgetLimitUnits: 1_000_000 });
   mocks.evaluateReadiness.mockResolvedValue(readiness);
@@ -230,7 +234,8 @@ describe('Platform > Operations', () => {
     expect(text).toContain('Registered Accounts');
     expect(text).toContain('Traveller Records');
     expect(text).toContain('Not measured');
-    expect(html).toContain('admin-reference-working-area');
+    // WP-SB6: the rail's cards now sit in the Providers and Capacity group of the overview.
+    expect(html).toContain('admin-overview-groups');
     expect(html).toContain('admin-reference-rail');
     expect(text).toContain('Recorded Activity, Last 30 Days');
   });
@@ -404,4 +409,81 @@ it('does not show zero spend or capacity meters when the readings are unavailabl
   expect(html).not.toContain('meter-fill');
   expect(textOf(html)).not.toContain('$0.00 of');
   expect(mocks.collectOperationalSignals.mock.calls[0]?.[1]).not.toHaveProperty('ai');
+});
+
+describe('WP-SB6 overview within the scroll budget', () => {
+  const job = (n: number) => ({
+    id: `job-${n}`,
+    documentName: `document-${n}.pdf`,
+    errorCode: 'ocr_timeout',
+    attempts: 5,
+    maxAttempts: 5,
+    lastError: 'timed out',
+  });
+
+  it('keeps failed jobs in a fixed box, 50 a load from the server, with Show Older Entries', async () => {
+    mocks.listFailedJobs.mockResolvedValue({
+      items: Array.from({ length: 50 }, (_, n) => job(n)),
+      nextCursor: 'JOBS_NEXT',
+      total: 1000,
+    });
+    const html = await renderServer(Page({ searchParams: Promise.resolve({}) }));
+    expect(mocks.listFailedJobs).toHaveBeenCalledWith({}, { limit: 50 });
+    expect(html).toContain('class="activity-log-scroll staff-queue-panel"');
+    expect(html).toContain('aria-label="Failed Intake Jobs"');
+    expect(html.match(/class="row failed-job-row"/g) ?? []).toHaveLength(50);
+    expect(html).toContain('href="/app/admin?jobsBefore=JOBS_NEXT#admin-failed-jobs-panel"');
+    const text = textOf(html);
+    expect(text).toContain('Showing 50 of 1000 failed jobs.');
+    expect(text).toContain('Show Older Entries');
+    // The attention count says every failed job, not only the ones loaded.
+    expect(text).toMatch(/Failed Intake Jobs\s*1000/);
+  });
+
+  it('reads an older page of failed jobs from the cursor, with a way back', async () => {
+    mocks.listFailedJobs.mockResolvedValue({ items: [job(1)], nextCursor: null, total: 51 });
+    const html = await renderServer(Page({ searchParams: Promise.resolve({ jobsBefore: 'OLD' }) }));
+    expect(mocks.listFailedJobs).toHaveBeenCalledWith({}, { limit: 50, before: 'OLD' });
+    expect(html).toContain('href="/app/admin#admin-failed-jobs-panel"');
+    expect(textOf(html)).toContain('Show Newest Entries');
+  });
+
+  it('folds every specialist card into a named group that keeps its section link', async () => {
+    const html = await renderServer(Page());
+    const groups = [
+      ...html.matchAll(
+        /<details class="admin-overview-controls admin-overview-group"[^>]*><summary>([^<]+)<\/summary>/g,
+      ),
+    ].map((m) => m[1]);
+    expect(groups).toEqual([
+      'Activity and Adoption',
+      'Product Scorecard',
+      'Providers and Capacity',
+      'All Operational Signals',
+      'Readiness',
+      'Learning Areas',
+      'Storage Integrity',
+      'Jump to a Section',
+    ]);
+    // Closed by default, so the first screen is status and failed jobs.
+    expect(html).not.toMatch(/<details class="admin-overview-controls admin-overview-group" open/);
+    for (const id of [
+      'admin-signals',
+      'admin-platform-readiness',
+      'admin-analytics',
+      'admin-readiness',
+      'admin-provider-operations',
+      'admin-usage',
+      'admin-processing',
+    ]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+    // Status comes before the groups.
+    expect(html.indexOf('Signals Needing Attention')).toBeLessThan(
+      html.indexOf('admin-overview-groups'),
+    );
+    expect(html.indexOf('id="admin-processing"')).toBeLessThan(
+      html.indexOf('admin-overview-groups'),
+    );
+  });
 });

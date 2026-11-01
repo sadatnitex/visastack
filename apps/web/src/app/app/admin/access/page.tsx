@@ -1,14 +1,22 @@
 import {
+  type PilotInvitation,
   listActivePlatformRoles,
   listInvitations,
   reportUnboundAccounts,
   staffFactorCoverage,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import { ShowMore } from '../../../../components/show-more';
 import { PageHeader } from '../../../../components/ui';
 import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { neonSessionRef } from '../../../../lib/neon-recency';
+import {
+  type SearchParamsRecord,
+  TEAM_LIST_STEP,
+  pagingHref,
+  parseCursor,
+} from '../../../../lib/paging';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
 import { staffFactorMode } from '../../../../lib/staff-factor';
@@ -34,15 +42,49 @@ const PLATFORM_ROLE_LABELS: Record<string, string> = {
   QUALITY_ADMIN: 'Quality Admin',
 };
 
-/** Platform roles, pilot sign-in invitations, and accounts still waiting to be tied to a sign-in identity. */
-export default async function AdminAccessPage() {
+const ACCESS_PATH = '/app/admin/access';
+const PENDING_LIST = 'pilot-pending-list';
+const HISTORY_PANEL = 'pilot-history-panel';
+const INVITATION_NOUN = { one: 'invitation', other: 'invitations' } as const;
+
+type InvitationRow = PilotInvitation;
+
+/** One page of invitations as this page uses it; counts are null when the list could not be read. */
+interface InvitationList {
+  readonly items: readonly PilotInvitation[];
+  readonly nextCursor: string | null;
+  readonly counts: { readonly pending: number; readonly history: number } | null;
+}
+
+const NO_INVITATIONS: InvitationList = { items: [], nextCursor: null, counts: null };
+
+/**
+ * Platform roles, pilot sign-in invitations, and accounts still waiting to be tied to a sign-in
+ * identity. WP-SB6: invitations still waiting come first, 25 at a time; accepted and revoked ones
+ * sit in their own box below that scrolls inside, also read 25 at a time from the server.
+ */
+export default async function AdminAccessPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<SearchParamsRecord>;
+} = {}) {
+  const search = (await searchParams) ?? {};
+  const param = (name: string) => search[name];
+  const pendingBefore = parseCursor(param('pendingBefore'));
+  const historyBefore = parseCursor(param('historyBefore'));
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
     const { read: t, failed: failedSections } = tolerantReader();
-    const [roles, unboundAccounts, invitations, owner, coverage] = await Promise.all([
+    const readInvitations = async (
+      view: 'pending' | 'history',
+      before: string | undefined,
+    ): Promise<InvitationList> =>
+      listInvitations(db, { view, limit: TEAM_LIST_STEP, ...(before ? { before } : {}) });
+    const [roles, unboundAccounts, pending, history, owner, coverage] = await Promise.all([
       t('platform roles', () => listActivePlatformRoles(db), []),
       t('unbound accounts', () => reportUnboundAccounts(db), []),
-      t('invitations', () => listInvitations(db), []),
+      t('invitations', () => readInvitations('pending', pendingBefore), NO_INVITATIONS),
+      t('invitation history', () => readInvitations('history', historyBefore), NO_INVITATIONS),
       isPlatformOwnerAccount(db, { accountId, email }),
       t('authenticator coverage', () => staffFactorCoverage(db), null),
     ]);
@@ -50,7 +92,8 @@ export default async function AdminAccessPage() {
       admin: true as const,
       roles,
       unboundAccounts,
-      invitations,
+      pending,
+      history,
       owner,
       coverage,
       self: accountId,
@@ -146,48 +189,101 @@ export default async function AdminAccessPage() {
                 reconstructable. Revoking only blocks a future, not-yet-provisioned sign-in; an
                 account already provisioned from this invitation keeps its access.
               </p>
-              {data.invitations.length === 0 ? (
-                <p className="card-body u-mb-125">No invitations yet.</p>
-              ) : (
-                <div className="rows u-mb-125">
-                  {data.invitations.map((inv) => {
-                    const status = inv.revokedAt
-                      ? { label: 'Revoked', tone: 'badge-danger' }
-                      : inv.acceptedAt
-                        ? { label: 'Accepted', tone: 'badge-success' }
-                        : { label: 'Pending', tone: 'badge-neutral' };
-                    return (
-                      <div
-                        className="row"
-                        key={inv.id}
-                        style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.4rem' }}
+              <h3 className="pilot-list-title">Waiting to Be Used</h3>
+              {data.pending.items.length === 0 ? (
+                <p className="card-body u-mb-125">
+                  {pendingBefore ? (
+                    <>
+                      No older invitations waiting.{' '}
+                      <a
+                        href={pagingHref(
+                          ACCESS_PATH,
+                          search,
+                          { pendingBefore: null },
+                          PENDING_LIST,
+                        )}
                       >
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            gap: '0.75rem',
-                          }}
-                        >
-                          <span className="row-key" style={{ wordBreak: 'break-word' }}>
-                            {inv.email}
-                          </span>
-                          <span className="row-end">
-                            <span className={`badge ${status.tone}`}>{status.label}</span>
-                            {data.owner && !inv.revokedAt ? (
-                              <RevokeInvitationButton invitationId={inv.id} />
-                            ) : null}
-                          </span>
-                        </div>
-                        <span className="muted u-fs-085">
-                          {inv.reason ?? 'No reason given'} · invited{' '}
-                          {formatTimestampDate(inv.invitedAt)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+                        Show Newest Entries
+                      </a>
+                    </>
+                  ) : (
+                    'No invitations are waiting to be used.'
+                  )}
+                </p>
+              ) : (
+                <>
+                  <section
+                    className="activity-log-scroll staff-queue-panel"
+                    id={PENDING_LIST}
+                    aria-label="Invitations Waiting to Be Used"
+                    // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it
+                    tabIndex={0}
+                  >
+                    <ul className="rows">
+                      {data.pending.items.map((inv) => (
+                        <InvitationItem key={inv.id} inv={inv} owner={data.owner} />
+                      ))}
+                    </ul>
+                  </section>
+                  <InvitationPaging
+                    id="pilot-pending-more"
+                    landOn={PENDING_LIST}
+                    search={search}
+                    param="pendingBefore"
+                    cursor={data.pending.nextCursor}
+                    paged={pendingBefore !== undefined}
+                    shown={data.pending.items.length}
+                    total={data.pending.counts?.pending}
+                  />
+                </>
+              )}
+              <h3 className="pilot-list-title u-mt-125">Accepted and Revoked</h3>
+              {data.history.items.length === 0 ? (
+                <p className="card-body u-mb-125">
+                  {historyBefore ? (
+                    <>
+                      No older invitations.{' '}
+                      <a
+                        href={pagingHref(
+                          ACCESS_PATH,
+                          search,
+                          { historyBefore: null },
+                          HISTORY_PANEL,
+                        )}
+                      >
+                        Show Newest Entries
+                      </a>
+                    </>
+                  ) : (
+                    'No invitation has been accepted or revoked yet.'
+                  )}
+                </p>
+              ) : (
+                <>
+                  <section
+                    className="activity-log-scroll staff-queue-panel"
+                    id={HISTORY_PANEL}
+                    aria-label="Accepted and Revoked Invitations"
+                    // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it
+                    tabIndex={0}
+                  >
+                    <ul className="rows">
+                      {data.history.items.map((inv) => (
+                        <InvitationItem key={inv.id} inv={inv} owner={data.owner} />
+                      ))}
+                    </ul>
+                  </section>
+                  <InvitationPaging
+                    id="pilot-history-more"
+                    landOn={HISTORY_PANEL}
+                    search={search}
+                    param="historyBefore"
+                    cursor={data.history.nextCursor}
+                    paged={historyBefore !== undefined}
+                    shown={data.history.items.length}
+                    total={data.history.counts?.history}
+                  />
+                </>
               )}
               {data.owner ? (
                 <InviteForm />
@@ -232,5 +328,73 @@ export default async function AdminAccessPage() {
         </>
       )}
     </section>
+  );
+}
+
+/** One invitation: who, its state, why and when, and Revoke for a platform owner. */
+function InvitationItem({ inv, owner }: { readonly inv: InvitationRow; readonly owner: boolean }) {
+  const status = inv.revokedAt
+    ? { label: 'Revoked', tone: 'badge-danger' }
+    : inv.acceptedAt
+      ? { label: 'Accepted', tone: 'badge-success' }
+      : { label: 'Pending', tone: 'badge-neutral' };
+  return (
+    <li className="row invitation-row">
+      <div className="invitation-row-head">
+        <span className="row-key invitation-email">{inv.email}</span>
+        <span className="row-end">
+          <span className={`badge ${status.tone}`}>{status.label}</span>
+          {owner && !inv.revokedAt ? <RevokeInvitationButton invitationId={inv.id} /> : null}
+        </span>
+      </div>
+      <span className="muted u-fs-085">
+        {inv.reason ?? 'No reason given'} · invited {formatTimestampDate(inv.invitedAt)}
+      </span>
+    </li>
+  );
+}
+
+/** The end of one invitation list: the count, the next 25 from the server, and the way back. */
+function InvitationPaging({
+  id,
+  landOn,
+  search,
+  param,
+  cursor,
+  paged,
+  shown,
+  total,
+}: {
+  readonly id: string;
+  readonly landOn: string;
+  readonly search: SearchParamsRecord;
+  readonly param: 'pendingBefore' | 'historyBefore';
+  readonly cursor: string | null;
+  readonly paged: boolean;
+  readonly shown: number;
+  readonly total: number | undefined;
+}) {
+  return (
+    <div className="staff-queue-paging u-mb-125">
+      <ShowMore
+        id={id}
+        landOn={landOn}
+        pathname={ACCESS_PATH}
+        searchParams={search}
+        next={cursor ? { [param]: cursor } : null}
+        shown={shown}
+        {...(total !== undefined ? { total } : {})}
+        noun={INVITATION_NOUN}
+        label="Show Older Entries"
+      />
+      {paged ? (
+        <a
+          className="btn btn-secondary u-btn-sm"
+          href={pagingHref(ACCESS_PATH, search, { [param]: null }, landOn)}
+        >
+          Show Newest Entries
+        </a>
+      ) : null}
+    </div>
   );
 }

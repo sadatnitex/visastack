@@ -1,10 +1,17 @@
 import { listComplaintsForQualityReview, listFeedbackForQualityReview } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ShowMore } from '../../../../components/show-more';
 import { PageHeader } from '../../../../components/ui';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { complaintStatusLabel } from '../../../../lib/labels';
+import {
+  type SearchParamsRecord,
+  firstParam,
+  pagingHref,
+  parseCursor,
+} from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
 import { AssignComplaintForm, UpdateComplaintStatusForm } from './forms';
 
@@ -32,7 +39,39 @@ const STATUS_TONE: Record<string, string> = {
 
 const TERMINAL_STATUSES: ReadonlySet<string> = new Set(['RESOLVED', 'CLOSED']);
 
-export default async function AdminComplaintsPage() {
+/** The status tabs, open first (WP-SB6): what still needs someone comes before what has ended. */
+const TABS = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const;
+type Tab = (typeof TABS)[number];
+const TAB_PARAM: Record<Tab, string> = {
+  OPEN: 'open',
+  IN_PROGRESS: 'in-progress',
+  RESOLVED: 'resolved',
+  CLOSED: 'closed',
+};
+
+/** Complaints per page; each one carries its forms, so a page is shorter than a log. */
+const COMPLAINTS_PAGE_SIZE = 20;
+/** Feedback entries per load into the fixed box. */
+const FEEDBACK_PAGE_SIZE = 50;
+const COMPLAINTS_PATH = '/app/admin/complaints';
+const COMPLAINTS_LIST = 'complaints-list';
+const FEEDBACK_PANEL = 'feedback-panel';
+
+function tabFrom(value: string | readonly string[] | undefined): Tab {
+  const raw = firstParam(value);
+  return TABS.find((tab) => TAB_PARAM[tab] === raw) ?? 'OPEN';
+}
+
+export default async function AdminComplaintsPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<SearchParamsRecord>;
+} = {}) {
+  const search = (await searchParams) ?? {};
+  const param = (name: string) => search[name];
+  const tab = tabFrom(param('status'));
+  const before = parseCursor(param('before'));
+  const feedbackBefore = parseCursor(param('feedbackBefore'));
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await hasPlatformPermission(db, { accountId, email }, 'COMPLAINT_MANAGE'))) {
       return { authorized: false as const };
@@ -40,15 +79,26 @@ export default async function AdminComplaintsPage() {
     const actor = { accountId, email, bootstrapEmails: bootstrapAdminEmails() };
     const canViewFeedback = await hasPlatformPermission(db, { accountId, email }, 'FEEDBACK_VIEW');
     const [complaints, feedback] = await Promise.all([
-      listComplaintsForQualityReview(db, actor),
+      listComplaintsForQualityReview(db, actor, {
+        status: tab,
+        limit: COMPLAINTS_PAGE_SIZE,
+        ...(before ? { before } : {}),
+      }),
       canViewFeedback
-        ? listFeedbackForQualityReview(db, actor)
-        : Promise.resolve({ ok: true as const, value: [] }),
+        ? listFeedbackForQualityReview(db, actor, {
+            limit: FEEDBACK_PAGE_SIZE,
+            ...(feedbackBefore ? { before: feedbackBefore } : {}),
+          })
+        : Promise.resolve(null),
     ]);
     return {
       authorized: true as const,
-      complaints: complaints.ok ? complaints.value : [],
-      feedback: feedback.ok ? feedback.value : [],
+      complaints: complaints.ok ? complaints.value.items : [],
+      complaintsNext: complaints.ok ? complaints.value.nextCursor : null,
+      counts: complaints.ok ? complaints.value.counts : null,
+      feedback: feedback?.ok ? feedback.value.items : [],
+      feedbackNext: feedback?.ok ? feedback.value.nextCursor : null,
+      feedbackTotal: feedback?.ok ? feedback.value.total : 0,
       canViewFeedback,
     };
   });
@@ -78,43 +128,100 @@ export default async function AdminComplaintsPage() {
       <article className="card u-mb-150">
         <p className="card-kicker">Oversight</p>
         <h2 className="card-title">Complaints</h2>
+        <nav aria-label="Complaints by Status" className="pill-list complaint-tabs u-mb-100">
+          {TABS.map((status) => (
+            <a
+              key={status}
+              className="pill"
+              href={pagingHref(COMPLAINTS_PATH, search, {
+                status: TAB_PARAM[status],
+                before: null,
+              })}
+              aria-current={status === tab ? 'page' : undefined}
+            >
+              {complaintStatusLabel(status)}
+              {data.counts ? ` (${data.counts[status]})` : ''}
+            </a>
+          ))}
+        </nav>
         {data.complaints.length === 0 ? (
-          <p className="card-body">No complaints filed platform-wide.</p>
+          <p className="card-body">
+            {before ? (
+              <>
+                No older complaints here.{' '}
+                <a href={pagingHref(COMPLAINTS_PATH, search, { before: null }, COMPLAINTS_LIST)}>
+                  Show Newest Entries
+                </a>
+              </>
+            ) : data.counts === null ? (
+              'Complaints could not be loaded. Try again in a moment.'
+            ) : tab === 'OPEN' ? (
+              'No open complaints platform-wide.'
+            ) : (
+              `No ${complaintStatusLabel(tab).toLowerCase()} complaints platform-wide.`
+            )}
+          </p>
         ) : (
-          <div className="rows">
-            {data.complaints.map((c) => (
-              <div
-                className="row"
-                key={c.id}
-                style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                  <span className="row-key">Case {c.missionId}</span>
-                  <span className={`badge ${STATUS_TONE[c.status] ?? 'badge-neutral'}`}>
-                    {complaintStatusLabel(c.status)}
-                  </span>
-                </div>
-                <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                  {c.description}
-                </p>
-                {c.resolution ? (
-                  <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                    Resolution: {c.resolution}
-                  </p>
-                ) : null}
-                <p className="muted u-fs-075-m0">
-                  Filed {formatTimestampDate(c.createdAt)}
-                  {c.ownerAccountId ? ` · Assigned to ${c.ownerAccountId}` : ' · Unassigned'}
-                </p>
-                {!TERMINAL_STATUSES.has(c.status) ? (
-                  <div className="stack-sm">
-                    <AssignComplaintForm complaintId={c.id} />
-                    <UpdateComplaintStatusForm complaintId={c.id} currentStatus={c.status} />
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
+          <>
+            <section
+              className="activity-log-scroll staff-queue-panel"
+              id={COMPLAINTS_LIST}
+              aria-label="Complaints"
+              // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it
+              tabIndex={0}
+            >
+              <ul className="rows">
+                {data.complaints.map((c) => (
+                  <li className="row complaint-row" key={c.id}>
+                    <div className="complaint-row-head">
+                      <span className="row-key">Case {c.missionId}</span>
+                      <span className={`badge ${STATUS_TONE[c.status] ?? 'badge-neutral'}`}>
+                        {complaintStatusLabel(c.status)}
+                      </span>
+                    </div>
+                    <p className="muted complaint-row-text">{c.description}</p>
+                    {c.resolution ? (
+                      <p className="muted complaint-row-text">Resolution: {c.resolution}</p>
+                    ) : null}
+                    <p className="muted u-fs-075-m0">
+                      Filed {formatTimestampDate(c.createdAt)}
+                      {c.ownerAccountId ? ` · Assigned to ${c.ownerAccountId}` : ' · Unassigned'}
+                    </p>
+                    {!TERMINAL_STATUSES.has(c.status) ? (
+                      <details className="complaint-actions">
+                        <summary>Assign or Update</summary>
+                        <div className="stack-sm">
+                          <AssignComplaintForm complaintId={c.id} />
+                          <UpdateComplaintStatusForm complaintId={c.id} currentStatus={c.status} />
+                        </div>
+                      </details>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <div className="staff-queue-paging">
+              <ShowMore
+                id="complaints-more"
+                landOn={COMPLAINTS_LIST}
+                pathname={COMPLAINTS_PATH}
+                searchParams={search}
+                next={data.complaintsNext ? { before: data.complaintsNext } : null}
+                shown={data.complaints.length}
+                {...(data.counts ? { total: data.counts[tab] } : {})}
+                noun={{ one: 'complaint', other: 'complaints' }}
+                label="Show Older Entries"
+              />
+              {before ? (
+                <a
+                  className="btn btn-secondary u-btn-sm"
+                  href={pagingHref(COMPLAINTS_PATH, search, { before: null }, COMPLAINTS_LIST)}
+                >
+                  Show Newest Entries
+                </a>
+              ) : null}
+            </div>
+          </>
         )}
       </article>
 
@@ -126,21 +233,71 @@ export default async function AdminComplaintsPage() {
             Never visible to the agency being reviewed, and never a public review or ranking.
           </p>
           {data.feedback.length === 0 ? (
-            <p className="card-body">No feedback submitted platform-wide.</p>
+            <p className="card-body">
+              {feedbackBefore ? (
+                <>
+                  No older feedback.{' '}
+                  <a
+                    href={pagingHref(
+                      COMPLAINTS_PATH,
+                      search,
+                      { feedbackBefore: null },
+                      FEEDBACK_PANEL,
+                    )}
+                  >
+                    Show Newest Entries
+                  </a>
+                </>
+              ) : (
+                'No feedback submitted platform-wide.'
+              )}
+            </p>
           ) : (
-            <div className="rows">
-              {data.feedback.map((f) => (
-                <div
-                  className="row"
-                  key={f.id}
-                  style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}
-                >
-                  <span className="row-key">Case {f.missionId}</span>
-                  <span className="u-fs-085">{f.comments}</span>
-                  <span className="muted u-fs-075">{formatTimestampDate(f.createdAt)}</span>
-                </div>
-              ))}
-            </div>
+            <>
+              <section
+                className="activity-log-scroll staff-queue-panel"
+                id={FEEDBACK_PANEL}
+                aria-label="Private Feedback Entries"
+                // biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it
+                tabIndex={0}
+              >
+                <ul className="rows">
+                  {data.feedback.map((f) => (
+                    <li className="row feedback-row" key={f.id}>
+                      <span className="row-key">Case {f.missionId}</span>
+                      <span className="u-fs-085">{f.comments}</span>
+                      <span className="muted u-fs-075">{formatTimestampDate(f.createdAt)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+              <div className="staff-queue-paging">
+                <ShowMore
+                  id="feedback-more"
+                  landOn={FEEDBACK_PANEL}
+                  pathname={COMPLAINTS_PATH}
+                  searchParams={search}
+                  next={data.feedbackNext ? { feedbackBefore: data.feedbackNext } : null}
+                  shown={data.feedback.length}
+                  total={data.feedbackTotal}
+                  noun={{ one: 'feedback entry', other: 'feedback entries' }}
+                  label="Show Older Entries"
+                />
+                {feedbackBefore ? (
+                  <a
+                    className="btn btn-secondary u-btn-sm"
+                    href={pagingHref(
+                      COMPLAINTS_PATH,
+                      search,
+                      { feedbackBefore: null },
+                      FEEDBACK_PANEL,
+                    )}
+                  >
+                    Show Newest Entries
+                  </a>
+                ) : null}
+              </div>
+            </>
           )}
         </article>
       ) : null}
