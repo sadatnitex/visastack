@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   setExemption: vi.fn(),
   editFact: vi.fn(),
   registerFieldDefinition: vi.fn(),
+  requireAccess: vi.fn(),
+  markFactNotCurrent: vi.fn(),
+  markRecordEnded: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 vi.mock('@visastack/services', () => ({
@@ -16,6 +19,11 @@ vi.mock('@visastack/services', () => ({
   setExemption: mocks.setExemption,
   editFact: mocks.editFact,
   registerFieldDefinition: mocks.registerFieldDefinition,
+  accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
+  isAllowedEndDate: (date: Date) => date.getTime() < Date.parse('2900-01-01'),
+  requireAccess: mocks.requireAccess,
+  markFactNotCurrent: mocks.markFactNotCurrent,
+  markRecordEnded: mocks.markRecordEnded,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('../../../../lib/providers', () => ({ createKeyManagementPort: () => undefined }));
@@ -26,6 +34,8 @@ vi.mock('../../../../lib/session', () => ({
 vi.mock('./actions', () => ({}));
 
 const {
+  markEndedAction,
+  markNotCurrentAction,
   openSuggestedSectionsAction,
   saveOtherItemAction,
   setExemptionAction,
@@ -48,6 +58,9 @@ beforeEach(() => {
   mocks.setExemption.mockResolvedValue(ok);
   mocks.editFact.mockResolvedValue(ok);
   mocks.registerFieldDefinition.mockResolvedValue(undefined);
+  mocks.requireAccess.mockResolvedValue({ ok: true, value: { proof: 'owner-edit' } });
+  mocks.markFactNotCurrent.mockResolvedValue(ok);
+  mocks.markRecordEnded.mockResolvedValue(ok);
 });
 
 describe('opening and closing a section', () => {
@@ -240,5 +253,83 @@ describe('saving a something-else item', () => {
     const result = await saveOtherItemAction(initial, form(base));
     expect(result).toEqual({ ok: false, message: 'Consent needed' });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe('No Longer Current and Ended (LC-G1)', () => {
+  it('checks edit access for the signed-in person, marks that fact, and refreshes', async () => {
+    const result = await markNotCurrentAction(initial, form({ applicantId: 'a1', factId: 'f1' }));
+    expect(result).toEqual({
+      ok: true,
+      message: 'Marked as no longer current. The earlier value stays in History.',
+    });
+    expect(mocks.requireAccess).toHaveBeenCalledWith(
+      {},
+      { kind: 'account', accountId: 'owner-test' },
+      'APPROVE_EDIT',
+      { applicantId: 'a1' },
+      { purpose: 'profile_edit' },
+    );
+    expect(mocks.markFactNotCurrent).toHaveBeenCalledWith(
+      { proof: 'owner-edit' },
+      { factId: 'f1' },
+    );
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/app/applicant/a1', 'layout');
+  });
+
+  it('stops at the access check and says so in plain words', async () => {
+    mocks.requireAccess.mockResolvedValue({
+      ok: false,
+      error: { code: 'forbidden', message: 'not authorized (default_deny)' },
+    });
+    const result = await markNotCurrentAction(initial, form({ applicantId: 'a1', factId: 'f1' }));
+    expect(result).toEqual({ ok: false, message: 'Only the profile owner can change this.' });
+    expect(mocks.markFactNotCurrent).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('ends one entry on the chosen day', async () => {
+    const result = await markEndedAction(
+      initial,
+      form({
+        applicantId: 'a1',
+        recordGroupKey: 'previous_addresses',
+        repeatingRecordKey: 'r1',
+        endedOn: '2025-06-30',
+      }),
+    );
+    expect(result).toEqual({ ok: true, message: 'Marked as ended. Its details stay on file.' });
+    expect(mocks.markRecordEnded).toHaveBeenCalledWith(
+      { proof: 'owner-edit' },
+      {
+        recordGroupKey: 'previous_addresses',
+        repeatingRecordKey: 'r1',
+        endedOn: new Date('2025-06-30T00:00:00.000Z'),
+      },
+    );
+  });
+
+  it('asks for the date before calling anything, and names a future date plainly', async () => {
+    const missing = await markEndedAction(
+      initial,
+      form({ applicantId: 'a1', recordGroupKey: 'g', repeatingRecordKey: 'r1', endedOn: '' }),
+    );
+    expect(missing).toEqual({ ok: false, message: 'Enter the date it ended.', field: 'endedOn' });
+    expect(mocks.requireAccess).not.toHaveBeenCalled();
+    const future = await markEndedAction(
+      initial,
+      form({
+        applicantId: 'a1',
+        recordGroupKey: 'g',
+        repeatingRecordKey: 'r1',
+        endedOn: '2999-01-01',
+      }),
+    );
+    expect(future).toEqual({
+      ok: false,
+      message: 'The end date cannot be in the future.',
+      field: 'endedOn',
+    });
+    expect(mocks.markRecordEnded).not.toHaveBeenCalled();
   });
 });

@@ -14,3 +14,10 @@ apps/web/src/app/globals.css
 docs/roadmap/lifecycle/lanes/G1.md
 packages/services/src/missions.ts
 packages/services/src/missions.test.ts
+# Coordinator-approved exceptions (31 Oct 2026): one mock line, and savedValues only.
+apps/web/src/lib/traveller-composition.test.tsx
+apps/web/src/lib/master-profile.ts
+apps/web/src/lib/master-profile.test.ts
+# Coordinator-approved exceptions (1 Nov 2026): two browser-check stubs, and three expired test dates.
+apps/web/e2e/fixtures/section-actions.ts
+apps/web/src/app/app/agency/[orgId]/clients/page.test.tsx
