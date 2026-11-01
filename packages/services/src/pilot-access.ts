@@ -1,8 +1,19 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, lockOnEmail, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import {
+  type Page,
+  type PageRequest,
+  clampLimit,
+  cursorOrder,
+  cursorTime,
+  decodeTimeCursor,
+  encodeTimeCursor,
+  olderThan,
+  toPage,
+} from './paging';
 
 /**
  * The server-authoritative controlled-pilot access boundary
@@ -402,8 +413,71 @@ export async function revokeInvitation(
   });
 }
 
+/** WP-SB6: which invitations the Access page lists: still waiting, or used and revoked. */
+export type InvitationView = 'pending' | 'history';
+
+export interface InvitationPageRequest extends PageRequest {
+  /** `pending` (not accepted, not revoked) unless `history` is asked for. */
+  readonly view?: string;
+}
+
+/** One page of one view, with how many invitations each view holds. */
+export interface InvitationPage extends Page<PilotInvitation> {
+  readonly view: InvitationView;
+  readonly counts: { readonly pending: number; readonly history: number };
+}
+
 /** All invitations, newest first (platform-admin overview). */
-export async function listInvitations(db: Db): Promise<PilotInvitation[]> {
-  const rows = await db.select().from(schema.pilotInvitations);
-  return [...rows].sort((a, b) => b.invitedAt.getTime() - a.invitedAt.getTime());
+export async function listInvitations(db: Db): Promise<PilotInvitation[]>;
+/**
+ * WP-SB6: one page of pending invitations or of the history (accepted or revoked), newest first,
+ * with both counts. `before` is the previous page's `nextCursor`, bound to the view; a cursor from
+ * the other view, or anything malformed, gives the first page. Callers check the platform role
+ * first, exactly as for the full list.
+ */
+export async function listInvitations(
+  db: Db,
+  options: InvitationPageRequest,
+): Promise<InvitationPage>;
+export async function listInvitations(
+  db: Db,
+  options?: InvitationPageRequest,
+): Promise<PilotInvitation[] | InvitationPage> {
+  if (!options) {
+    const rows = await db.select().from(schema.pilotInvitations);
+    return [...rows].sort((a, b) => b.invitedAt.getTime() - a.invitedAt.getTime());
+  }
+  const p = schema.pilotInvitations;
+  const view: InvitationView = options.view === 'history' ? 'history' : 'pending';
+  const scope = `platform:invitations:${view}`;
+  const limit = clampLimit(options.limit);
+  const before = decodeTimeCursor(options.before, scope);
+  const inView =
+    view === 'pending'
+      ? and(isNull(p.acceptedAt), isNull(p.revokedAt))
+      : or(isNotNull(p.acceptedAt), isNotNull(p.revokedAt));
+  const [rows, counted] = await Promise.all([
+    db
+      .select({ invitation: p, cursorAt: cursorTime(p.invitedAt) })
+      .from(p)
+      .where(before ? and(inView, olderThan(p.invitedAt, p.id, before)) : inView)
+      .orderBy(...cursorOrder(p.invitedAt, p.id))
+      .limit(limit + 1),
+    db
+      .select({
+        pending: sql<number>`count(*) filter (where ${p.acceptedAt} is null and ${p.revokedAt} is null)::int`,
+        total: sql<number>`count(*)::int`,
+      })
+      .from(p),
+  ]);
+  const page = toPage(rows, limit, (last) =>
+    encodeTimeCursor({ at: last.cursorAt, id: last.invitation.id }, scope),
+  );
+  const pending = Number(counted[0]?.pending ?? 0);
+  return {
+    items: page.items.map((row) => row.invitation),
+    nextCursor: page.nextCursor,
+    view,
+    counts: { pending, history: Number(counted[0]?.total ?? 0) - pending },
+  };
 }

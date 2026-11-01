@@ -1,10 +1,20 @@
 import { type Result, err, ok } from '@visastack/core';
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { type CappedRows, getMissionForOwner } from './missions';
-import { clampLimit } from './paging';
+import {
+  type Page,
+  type PageRequest,
+  clampLimit,
+  cursorOrder,
+  cursorTime,
+  decodeTimeCursor,
+  encodeTimeCursor,
+  olderThan,
+  toPage,
+} from './paging';
 import { type PlatformAuthInput, canPerformPlatformAction } from './platform-roles';
 import { elapsedSeconds, recordProductEvent } from './product-events';
 
@@ -367,14 +377,88 @@ export async function assignComplaintOwner(
   });
 }
 
+/** The complaint statuses, in the order the triage tabs show them (open first). */
+export const COMPLAINT_TRIAGE_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const;
+export type ComplaintTriageStatus = (typeof COMPLAINT_TRIAGE_STATUSES)[number];
+
+/** WP-SB6: one status tab of the triage list, one page at a time. */
+export interface ComplaintTriageRequest extends PageRequest {
+  /** Which tab; anything else reads as OPEN. */
+  readonly status?: string;
+}
+
+/** One page of one tab, with how many complaints each status holds platform-wide. */
+export interface ComplaintTriagePage extends Page<CaseComplaint> {
+  readonly status: ComplaintTriageStatus;
+  readonly counts: Readonly<Record<ComplaintTriageStatus, number>>;
+}
+
+function triageStatus(value: string | undefined): ComplaintTriageStatus {
+  return COMPLAINT_TRIAGE_STATUSES.find((status) => status === value) ?? 'OPEN';
+}
+
 /** QUALITY_ADMIN-only: every complaint platform-wide, newest first (for triage). */
 export async function listComplaintsForQualityReview(
   db: Db,
   actor: PlatformAuthInput,
-): Promise<Result<CaseComplaint[], ServiceError>> {
+): Promise<Result<CaseComplaint[], ServiceError>>;
+/**
+ * WP-SB6: one page of one status tab, newest first, plus each status's count. `before` is the
+ * previous page's `nextCursor`, bound to the tab, so a cursor from another tab or anything
+ * malformed gives the tab's first page. The role check is the same as above.
+ */
+export async function listComplaintsForQualityReview(
+  db: Db,
+  actor: PlatformAuthInput,
+  options: ComplaintTriageRequest,
+): Promise<Result<ComplaintTriagePage, ServiceError>>;
+export async function listComplaintsForQualityReview(
+  db: Db,
+  actor: PlatformAuthInput,
+  options?: ComplaintTriageRequest,
+): Promise<Result<CaseComplaint[] | ComplaintTriagePage, ServiceError>> {
   if (!(await canPerformPlatformAction(db, actor, 'COMPLAINT_MANAGE'))) {
     return err(serviceError('forbidden', 'quality-admin permission is required'));
   }
-  const rows = await db.select().from(schema.caseComplaints);
-  return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+  if (!options) {
+    const rows = await db.select().from(schema.caseComplaints);
+    return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+  }
+  const c = schema.caseComplaints;
+  const status = triageStatus(options.status);
+  const scope = `platform:complaints:${status}`;
+  const limit = clampLimit(options.limit);
+  const before = decodeTimeCursor(options.before, scope);
+  const inTab = eq(c.status, status);
+  const [rows, grouped] = await Promise.all([
+    db
+      .select({ complaint: c, cursorAt: cursorTime(c.createdAt) })
+      .from(c)
+      .where(before ? and(inTab, olderThan(c.createdAt, c.id, before)) : inTab)
+      .orderBy(...cursorOrder(c.createdAt, c.id))
+      .limit(limit + 1),
+    db
+      .select({ status: c.status, total: sql<number>`count(*)::int` })
+      .from(c)
+      .groupBy(c.status),
+  ]);
+  const counts: Record<ComplaintTriageStatus, number> = {
+    OPEN: 0,
+    IN_PROGRESS: 0,
+    RESOLVED: 0,
+    CLOSED: 0,
+  };
+  for (const row of grouped) {
+    const key = triageStatus(row.status);
+    if (key === row.status) counts[key] = Number(row.total);
+  }
+  const page = toPage(rows, limit, (last) =>
+    encodeTimeCursor({ at: last.cursorAt, id: last.complaint.id }, scope),
+  );
+  return ok({
+    items: page.items.map((row) => row.complaint),
+    nextCursor: page.nextCursor,
+    status,
+    counts,
+  });
 }
