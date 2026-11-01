@@ -11418,3 +11418,62 @@ html:has(.sticky-action-bar) {
   margin-bottom: 0.5rem;
   font-size: var(--text-small);
 }
+
+/* WP-SB1 traveller records and logs: the profile-part choice above Profile History, Case History
+   as closed groups with each case's records in a fixed panel, and the notification panel. */
+.history-part-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.history-part-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: min(16rem, 100%);
+}
+.history-part-form .btn {
+  min-height: 44px;
+}
+.memory-cases {
+  gap: var(--space-2);
+}
+.memory-events-scroll .memory-timeline {
+  margin: 0.75rem 0;
+}
+.notifications-mark-all {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-2);
+}
+.notifications-mark-all .btn {
+  min-height: 44px;
+}
+.notifications-scroll .row:last-child {
+  border-bottom: 0;
+}
+.notification-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+.notification-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+.notification-new {
+  margin-left: 0.5rem;
+}
+.notification-summary {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.notification-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
