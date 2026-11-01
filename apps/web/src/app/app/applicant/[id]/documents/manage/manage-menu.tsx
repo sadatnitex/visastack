@@ -34,7 +34,7 @@ export function ManageMenu({
   const button = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const menuId = useId();
-  const panel = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLElement>(null);
   const focusIndex = useRef(0);
   // An action chosen from the menu takes focus, so the keyboard carries on inside it.
   const chosenByMenu = useRef(false);
@@ -155,11 +155,10 @@ export function ManageMenu({
         </div>
       ) : null}
       {Chosen ? (
-        <div
+        <section
           ref={panel}
           className="lc-manage-panel"
           tabIndex={-1}
-          role="group"
           aria-label={chosen?.entry.label}
         >
           <Chosen
@@ -171,7 +170,7 @@ export function ManageMenu({
               button.current?.focus();
             }}
           />
-        </div>
+        </section>
       ) : null}
     </div>
   );

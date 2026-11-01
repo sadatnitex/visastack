@@ -860,7 +860,8 @@ describe('archive, Recently Deleted and the Manage menu (resource lifecycle, mig
     // first and is selected; RESTORE is not registered, so no action opens by itself.
     const linked = await render(undefined, { manage: 'd13', action: 'RESTORE' });
     expect(textOf(linked)).toContain('Archived (1)');
-    expect(linked).toMatch(/aria-current="page"[^>]*>Archived|>Archived<span[^]*?aria-current/);
+    const archivedLink = linked.match(/<a [^>]*>Archived<span/)?.[0] ?? '';
+    expect(archivedLink).toContain('aria-current="page"');
     expect(textOf(linked)).toContain('d13.pdf');
     expect(textOf(linked)).not.toContain('d0.pdf');
 
