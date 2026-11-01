@@ -2256,3 +2256,5 @@ export {
   ownInvoiceDocument,
   ownReceiptDocument,
 } from './person-billing-history';
+// WP-SB0: shared paging (page sizes, scoped list cursors and the matching query helpers).
+export * from './paging';
