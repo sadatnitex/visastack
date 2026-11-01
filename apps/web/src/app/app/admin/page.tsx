@@ -442,7 +442,7 @@ export default async function AdminOperationsPage({
             )}
           </article>
           <div className="admin-overview-groups" id={GROUPS_SCOPE}>
-            {/* A section link (View Alerts, Platform Readiness, Jump to a Section) opens its group. */}
+            {/* A section link (View Alerts, Platform Readiness, a summary count) opens its group. */}
             <OpenGroupOnLink scopeId={GROUPS_SCOPE} />
             <h2 className="sr-only">More Operational Details and Tools</h2>
             <details className="admin-overview-controls admin-overview-group">
@@ -709,6 +709,10 @@ export default async function AdminOperationsPage({
             <details className="admin-overview-controls admin-overview-group">
               <summary>Readiness</summary>
               <div className="admin-overview-group-body">
+                <p className="card-body">
+                  <a href="/status">Public Status Page</a>: what anyone can see about the service
+                  right now.
+                </p>
                 <article className="card u-mb-150" id="admin-platform-readiness">
                   <p className="card-kicker">Operations</p>
                   <h2 className="card-title">Platform Readiness Detail</h2>
@@ -973,40 +977,6 @@ export default async function AdminOperationsPage({
                   </p>
                   <ReconcileButtons />
                 </article>
-              </div>
-            </details>
-            <details className="admin-overview-controls admin-overview-group">
-              <summary>Jump to a Section</summary>
-              <div className="admin-overview-group-body">
-                <nav
-                  aria-label="On this page"
-                  className="pill-list admin-section-navigation u-mb-150"
-                >
-                  <a href="/status" className="pill">
-                    Public Status Page
-                  </a>
-                  <a href="#admin-signals" className="pill">
-                    Signals
-                  </a>
-                  <a href="#admin-platform-readiness" className="pill">
-                    Readiness Detail
-                  </a>
-                  <a href="#admin-analytics" className="pill">
-                    Learning Areas
-                  </a>
-                  <a href="#admin-readiness" className="pill">
-                    Commercial Readiness
-                  </a>
-                  <a href="#admin-processing" className="pill">
-                    Processing Failures
-                  </a>
-                  <a href="#admin-provider-operations" className="pill">
-                    Providers and Recovery
-                  </a>
-                  <a href="#admin-usage" className="pill">
-                    Capacity
-                  </a>
-                </nav>
               </div>
             </details>
           </div>

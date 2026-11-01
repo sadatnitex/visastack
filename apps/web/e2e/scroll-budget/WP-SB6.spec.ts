@@ -44,8 +44,8 @@ test.describe('WP-SB6 scroll budget', () => {
   }) => {
     await renderFixture(page, FIXTURE, { view: 'overview', total: TOTAL });
     await expect(page.locator('.failed-job-row')).toHaveCount(50);
-    await expect(page.getByText('Showing 50 of 1000 failed jobs.')).toBeVisible();
-    await expect(page.locator('details.admin-overview-group')).toHaveCount(8);
+    await expect(page.getByText('Showing the newest 50 of 1000 failed jobs.')).toBeVisible();
+    await expect(page.locator('details.admin-overview-group')).toHaveCount(7);
     await expect(page.locator('details.admin-overview-group[open]')).toHaveCount(0);
     for (const viewport of ['phone', 'desktop'] as const) {
       await expectWithinBudget(page, { screens: 2, viewport, mode: 'enforce' });

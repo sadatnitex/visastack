@@ -173,7 +173,6 @@ function Overview({
           'Readiness',
           'Learning Areas',
           'Storage Integrity',
-          'Jump to a Section',
         ].map((title) => (
           <details className="admin-overview-controls admin-overview-group" key={title}>
             <summary>{title}</summary>

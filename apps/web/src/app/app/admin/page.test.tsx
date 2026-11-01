@@ -463,8 +463,10 @@ describe('WP-SB6 overview within the scroll budget', () => {
       'Readiness',
       'Learning Areas',
       'Storage Integrity',
-      'Jump to a Section',
     ]);
+    // The group headings are the way to each section; the one link only the old jump list had
+    // (the public status page) sits in the Readiness group.
+    expect(html).toContain('href="/status"');
     // Closed by default, so the first screen is status and failed jobs.
     expect(html).not.toMatch(/<details class="admin-overview-controls admin-overview-group" open/);
     for (const id of [

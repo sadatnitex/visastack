@@ -11543,3 +11543,35 @@ html:has(.sticky-action-bar) {
 .admin-overview-group-body > .card {
   margin: 0 !important;
 }
+/* WP-SB6 overview on a phone: the overview's budget is two screens, so its status counts sit in
+   one compact row, its failed jobs box is shorter than the log maximum, and the queue filters
+   share one line. */
+@media (max-width: 760px) {
+  .platform-operations .admin-reference-metrics,
+  .platform-operations .admin-operational-summary {
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .platform-operations .admin-operational-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .platform-operations .admin-summary-metric {
+    gap: 0.25rem;
+    padding: 0.75rem;
+  }
+  .platform-operations .admin-summary-metric strong {
+    font-size: 1.25rem;
+  }
+  .platform-operations .admin-summary-metric span,
+  .platform-operations .admin-summary-metric small {
+    font-size: var(--text-caption);
+    overflow-wrap: anywhere;
+  }
+  .platform-operations .staff-queue-panel {
+    max-height: 16rem;
+  }
+  .staff-queue-filters {
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: 0.5rem;
+  }
+}
