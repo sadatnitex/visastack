@@ -98,3 +98,23 @@ describe('Mark All Read (WP-SB1)', () => {
     ]);
   });
 });
+
+describe('Mark All Read past one batch (WP-SB1)', () => {
+  it('keeps reading batches of 100 until none is unread, and stops when nothing can be marked', async () => {
+    service.listNotificationsForAccount
+      .mockResolvedValueOnce(list(100, 100))
+      .mockResolvedValueOnce(list(30, 20))
+      .mockResolvedValue([]);
+    service.markNotificationRead.mockResolvedValue({ ok: true, value: undefined });
+    await markAllNotificationsReadAction();
+    expect(service.listNotificationsForAccount).toHaveBeenCalledTimes(2);
+    expect(service.markNotificationRead).toHaveBeenCalledTimes(120);
+
+    vi.resetAllMocks();
+    // A refused mark (never addressed to this person) cannot make the click loop.
+    service.listNotificationsForAccount.mockResolvedValue(list(100, 100));
+    service.markNotificationRead.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
+    await markAllNotificationsReadAction();
+    expect(service.listNotificationsForAccount).toHaveBeenCalledTimes(1);
+  });
+});

@@ -325,3 +325,37 @@ describe('Case History within the scroll budget (WP-SB1)', () => {
     );
   });
 });
+
+describe('Case History past the largest step (WP-SB1)', () => {
+  it('points to Cases when more cases exist than one read returns', async () => {
+    const many = {
+      recordShares: [],
+      totalCases: 105,
+      cases: Array.from({ length: 100 }, (_, i) => ({
+        missionId: `case-${i}`,
+        title: `Case ${i + 1}`,
+        destination: null,
+        purpose: null,
+        agencyName: null,
+        state: 'DRAFT',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        removed: false,
+        notSharedWith: [],
+        events: [],
+      })),
+    };
+    mocks.getApplicationMemory.mockResolvedValue(ok(many));
+    const html = renderServer(
+      await ApplicationMemoryPage({
+        params: Promise.resolve({ id: 'synthetic-family' }),
+        searchParams: Promise.resolve({ show: '100' }),
+      }),
+    );
+    const text = textOf(await html);
+    expect(text).toContain('Showing 100 of 105 cases.');
+    expect(text).toContain(
+      'Case History lists the 100 most recently active cases. Every case is on Cases .',
+    );
+    expect(await html).toContain('href="/app/applicant/synthetic-family/missions"');
+  });
+});

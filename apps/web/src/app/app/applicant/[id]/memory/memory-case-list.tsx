@@ -56,10 +56,10 @@ export function MemoryCaseList({
           >
             <article className="memory-case">
               <p className="card-kicker">{item.destination ?? 'Case'}</p>
+              <h3 className="card-title">
+                <Link href={`/app/mission/${item.missionId}`}>{item.title}</Link>
+              </h3>
               <p className="memory-case-meta">{meta.join(' · ')}</p>
-              <Link className="memory-case-open" href={`/app/mission/${item.missionId}`}>
-                Open {item.title}
-              </Link>
               {item.notSharedWith && item.notSharedWith.length > 0 ? (
                 <p className="memory-case-note">
                   Not shared with{' '}
@@ -124,6 +124,12 @@ export function MemoryCaseList({
           </CollapsibleGroup>
         );
       })}
+      {next === null && totalCases > cases.length ? (
+        <p className="memory-case-note">
+          Case History lists the {cases.length} most recently active cases. Every case is on{' '}
+          <Link href={`/app/applicant/${applicantId}/missions`}>Cases</Link>.
+        </p>
+      ) : null}
       <ShowMore
         id="memory-cases-more"
         landOn={caseAnchor(cases.length + 1)}

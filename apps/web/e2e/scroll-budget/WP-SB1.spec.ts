@@ -39,8 +39,10 @@ test.describe('WP-SB1 traveller records within the scroll budget', () => {
     for (const viewport of VIEWPORTS) {
       await expectWithinBudget(page, { screens: 3, viewport, mode: 'enforce' });
     }
-    for (const label of ['Part of the Profile', 'Search', 'What Happened', 'Who', 'When']) {
-      await expect(page.getByLabel(label, { exact: true })).toBeVisible();
+    // Each label wraps its control, so find the controls by role and name.
+    await expect(page.getByRole('searchbox', { name: 'Search', exact: true })).toBeVisible();
+    for (const name of ['Part of the Profile', 'What Happened', 'Who', 'When']) {
+      await expect(page.getByRole('combobox', { name, exact: true })).toBeVisible();
     }
     await expect(page.getByRole('link', { name: 'Show Older Entries' })).toHaveAttribute(
       'href',
@@ -81,7 +83,7 @@ test.describe('WP-SB1 traveller records within the scroll budget', () => {
     for (const viewport of VIEWPORTS) {
       await expectWithinBudget(page, { screens: 2, viewport, mode: 'enforce' });
     }
-    await expect(page.getByLabel('Result', { exact: true })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Result', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Show Older Entries' })).toBeVisible();
     await noSeriousAxe(page);
   });

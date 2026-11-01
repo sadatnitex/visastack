@@ -79,11 +79,8 @@ export async function hasConsent(db: Db, accountId: string, type: ConsentType): 
 export type ConsentRecord = typeof schema.consentRecords.$inferSelect;
 
 /**
- * Full consent history for an account, newest first. Records are append-only,
- * so this is the complete grant/revoke trail per purpose (Build Spec §13).
- */
-/**
- * Every consent change of one account, newest first (the form the data export uses). Given
+ * Every consent change of one account, newest first (the form the data export uses). Records are
+ * append-only, so this is the complete grant and revoke trail per purpose (Build Spec §13). Given
  * `options`, it reads one page instead: at most `limit` changes (default 50, clamped to 1 to 100),
  * older pages through the `before` cursor. A cursor made for another account gives the first page.
  */

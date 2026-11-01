@@ -395,7 +395,6 @@ export async function getCurrentFactVersion(
   );
 }
 
-/** Full, ordered version history for a fact (oldest first) — provenance trail. */
 /** Who saved a version, as the owner of the record sees it; never another person's id. */
 export type FactHistoryActor = 'owner' | 'someone_else' | 'not_recorded';
 
@@ -437,7 +436,7 @@ function factHistoryScope(applicantId: string, pack: string | undefined): string
 }
 
 /**
- * Every saved version of one fact, oldest first (the form most callers use). Given a person
+ * Every saved version of one fact, oldest first: its provenance trail (the form most callers use). Given a person
  * (`{ applicantId }`) instead, it reads that person's whole profile history one page at a time:
  * newest first, at most `limit` versions (default 50, clamped to 1 to 100), older pages through the
  * `before` cursor, optionally one part of the profile only. A cursor made for another person or

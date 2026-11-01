@@ -255,15 +255,13 @@ export interface ApplicationMemoryOptions {
 }
 
 /**
- * The ids of the `limit` most recently active cases of one person, in that order: the latest of
- * the case's start and every record the timeline shows (the same moments the full read sorts by),
- * ties settled by the earlier start and then the id, as the full read settles them.
+ * The `limit` most recently active cases of one person, in that order, with their agency's name:
+ * the latest of the case's start and every record the timeline shows. These are the same moments
+ * the full read sorts by (`lastActivity` in `getApplicationMemory`); a new kind of record on the
+ * timeline must be added to both. Ties are settled by the earlier start and then the id, as the
+ * full read settles them.
  */
-async function mostRecentCaseIds(
-  db: Db,
-  applicantId: string,
-  limit: number,
-): Promise<{ readonly ids: readonly string[]; readonly total: number }> {
+async function mostRecentCases(db: Db, applicantId: string, limit: number) {
   const m = schema.missions;
   const latest = (column: SQL, table: SQL, missionColumn: SQL, extra?: SQL): SQL =>
     sql`(select max(${column}) from ${table} where ${missionColumn} = ${m.id}${extra ? sql` and ${extra}` : sql``})`;
@@ -275,16 +273,17 @@ async function mostRecentCaseIds(
     ${latest(sql`${schema.missionSubmissions.submittedAt}`, sql`${schema.missionSubmissions}`, sql`${schema.missionSubmissions.missionId}`)},
     ${latest(sql`${schema.missionOutcomes.decisionDate}`, sql`${schema.missionOutcomes}`, sql`${schema.missionOutcomes.missionId}`)}
   )`;
-  const [ranked, totals] = await Promise.all([
+  const [rows, totals] = await Promise.all([
     db
-      .select({ id: m.id })
+      .select({ mission: m, agencyName: schema.organizations.name })
       .from(m)
+      .leftJoin(schema.organizations, eq(schema.organizations.id, m.ownerOrganizationId))
       .where(eq(m.applicantId, applicantId))
       .orderBy(sql`${lastActivity} desc`, asc(m.createdAt), asc(m.id))
       .limit(limit),
     db.select({ total: count() }).from(m).where(eq(m.applicantId, applicantId)),
   ]);
-  return { ids: ranked.map((row) => row.id), total: Number(first(totals)?.total ?? 0) };
+  return { rows, total: Number(first(totals)?.total ?? 0) };
 }
 
 /** Within one moment, records keep the order a case lives through them. */
@@ -324,16 +323,12 @@ export async function getApplicationMemory(
   const db = proof.tx;
   const applicantId = proof.applicant.id;
 
-  // A limited read picks its cases first, then reads only their records.
-  const window =
-    options.limit === undefined
-      ? null
-      : await mostRecentCaseIds(db, applicantId, clampLimit(options.limit, 10));
-  const counted = window ? { totalCases: window.total } : {};
-
-  const [missions, grants] = await Promise.all([
-    window && window.ids.length === 0
-      ? Promise.resolve([])
+  // A limited read picks its cases and reads only their records; the full read takes every case.
+  const limit = options.limit === undefined ? null : clampLimit(options.limit, 10);
+  const [ranked, everyCase, grants] = await Promise.all([
+    limit === null ? Promise.resolve(null) : mostRecentCases(db, applicantId, limit),
+    limit !== null
+      ? Promise.resolve(null)
       : db
           .select({ mission: schema.missions, agencyName: schema.organizations.name })
           .from(schema.missions)
@@ -341,12 +336,7 @@ export async function getApplicationMemory(
             schema.organizations,
             eq(schema.organizations.id, schema.missions.ownerOrganizationId),
           )
-          .where(
-            and(
-              eq(schema.missions.applicantId, applicantId),
-              window ? inArray(schema.missions.id, [...window.ids]) : undefined,
-            ),
-          )
+          .where(eq(schema.missions.applicantId, applicantId))
           .orderBy(asc(schema.missions.createdAt), asc(schema.missions.id)),
     db
       .select({
@@ -369,6 +359,9 @@ export async function getApplicationMemory(
       .where(eq(schema.grants.applicantId, applicantId))
       .orderBy(asc(schema.grants.createdAt), asc(schema.grants.id)),
   ]);
+
+  const missions = ranked ? ranked.rows : (everyCase ?? []);
+  const counted = ranked ? { totalCases: ranked.total } : {};
 
   const shareOf = (g: (typeof grants)[number]): MemoryShare => {
     const isOrganization = g.recipientOrganizationId !== null;
@@ -535,6 +528,7 @@ export async function getApplicationMemory(
 
   const cases = missions.map(({ mission, agencyName }) => {
     const events = [...(eventsByMission.get(mission.id) ?? [])].sort(byTime);
+    // The same moments `mostRecentCases` ranks by in SQL; keep the two in step.
     const lastActivity = Math.max(mission.createdAt.getTime(), ...events.map((e) => e.sortAt));
     return {
       lastActivity,
@@ -552,9 +546,9 @@ export async function getApplicationMemory(
       } satisfies MemoryCase,
     };
   });
-  if (window) {
-    // A limited read keeps the order its case window was chosen in.
-    const rank = new Map(window.ids.map((missionId, index) => [missionId, index] as const));
+  if (ranked) {
+    // A limited read keeps the order the cases were ranked in.
+    const rank = new Map(ranked.rows.map((row, index) => [row.mission.id, index] as const));
     cases.sort(
       (a, b) =>
         (rank.get(a.value.missionId) ?? Number.MAX_SAFE_INTEGER) -
