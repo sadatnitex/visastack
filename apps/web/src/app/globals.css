@@ -11573,7 +11573,8 @@ html:has(.sticky-action-bar) {
   .staff-queue-filters {
     grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
     gap: 0.5rem;
-  }  /* Two group headings per row; an opened group takes the whole width for its cards. */
+  }
+  /* Two group headings per row; an opened group takes the whole width for its cards. */
   .platform-operations .admin-overview-groups {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
