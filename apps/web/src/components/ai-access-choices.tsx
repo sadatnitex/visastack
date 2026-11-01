@@ -19,6 +19,13 @@ import {
 } from '../lib/ai-consent-labels';
 import { AiFileChoices } from './ai-file-choices';
 
+/**
+ * Up to this many cases are listed as they are; a longer list sits in a short box that scrolls
+ * inside (WP-SB4), so the screen stays short. A box, not a fold: these are one set of choices, so
+ * the chosen one must always be on the page and reachable by keyboard.
+ */
+export const AI_CASES_INLINE_MAX = 3;
+
 export interface AiAccessChoicesProps {
   readonly appName: string;
   readonly cases: readonly { readonly id: string; readonly title: string }[];
@@ -84,6 +91,21 @@ export function AiAccessChoices({
   // The whole group is described by the message too, so it is read with the group's name.
   const problemGroup = (field: string) =>
     invalid?.field === field ? { 'aria-describedby': invalid.messageId } : {};
+  const caseChoices = cases.map((item) => (
+    <label key={item.id} className="check output-check" htmlFor={`${id}-ai-case-${item.id}`}>
+      <input
+        id={`${id}-ai-case-${item.id}`}
+        type="radio"
+        name="cases"
+        value={item.id}
+        defaultChecked={initial.cases === item.id}
+        {...problem('cases')}
+      />
+      <span className="output-check-text">
+        <span>Only {item.title}</span>
+      </span>
+    </label>
+  ));
   return (
     <>
       <fieldset className="fieldset">
@@ -131,25 +153,11 @@ export function AiAccessChoices({
               <span>All Current Cases</span>
             </span>
           </label>
-          {cases.map((item) => (
-            <label
-              key={item.id}
-              className="check output-check"
-              htmlFor={`${id}-ai-case-${item.id}`}
-            >
-              <input
-                id={`${id}-ai-case-${item.id}`}
-                type="radio"
-                name="cases"
-                value={item.id}
-                defaultChecked={initial.cases === item.id}
-                {...problem('cases')}
-              />
-              <span className="output-check-text">
-                <span>Only {item.title}</span>
-              </span>
-            </label>
-          ))}
+          {cases.length > AI_CASES_INLINE_MAX ? (
+            <div className="checks ai-case-scroll">{caseChoices}</div>
+          ) : (
+            caseChoices
+          )}
           <label className="check output-check" htmlFor={`${id}-ai-cases-none`}>
             <input
               id={`${id}-ai-cases-none`}

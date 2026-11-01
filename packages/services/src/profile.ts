@@ -1,13 +1,25 @@
 import { randomUUID } from 'node:crypto';
 import { type ApplicantId, type FactStatus, type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
-import { and, asc, eq, isNull } from 'drizzle-orm';
+import { and, asc, count, eq, isNull, sql } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { incrementMaterialRevision, missionsSelectingFact } from './material-revision';
+import {
+  type Page,
+  type PageRequest,
+  clampLimit,
+  cursorOrder,
+  cursorTime,
+  decodeTimeCursor,
+  encodeTimeCursor,
+  olderThan,
+  toPage,
+} from './paging';
 import type { KeyManagementPort } from './ports';
 import {
   buildFactVersionAad,
@@ -384,6 +396,46 @@ export async function getCurrentFactVersion(
   );
 }
 
+/** Who saved a version, as the owner of the record sees it; never another person's id. */
+export type FactHistoryActor = 'owner' | 'someone_else' | 'not_recorded';
+
+/** One saved version of one detail, for a person's whole profile history (WP-SB1). */
+export interface FactHistoryEntry {
+  readonly id: string;
+  readonly factId: string;
+  readonly fieldKey: string;
+  /** The part of the profile the detail belongs to; `universal` when the field names none. */
+  readonly packId: string;
+  readonly repeatingRecordKey: string | null;
+  /** The saved text; null for a protected detail, which this list never unlocks. */
+  readonly value: string | null;
+  readonly isProtected: boolean;
+  readonly status: FactVersion['status'];
+  readonly method: FactVersion['method'];
+  readonly reason: string | null;
+  readonly actor: FactHistoryActor;
+  /** This version is the one the detail uses now. */
+  readonly isCurrent: boolean;
+  readonly createdAt: Date;
+}
+
+export interface FactHistoryOptions extends PageRequest {
+  /** Only details of this part of the profile (a pack id such as `universal`). */
+  readonly pack?: string;
+}
+
+export interface FactHistoryPage extends Page<FactHistoryEntry> {
+  /** Every saved version that matches, across all pages. */
+  readonly total: number;
+}
+
+const PACK_ID = /^[a-z][a-z0-9_]{0,63}$/;
+
+/** The cursor scope of one person's profile history, per filter, so a cursor never crosses either. */
+function factHistoryScope(applicantId: string, pack: string | undefined): string {
+  return `applicant:${applicantId}:fact-history:${pack ?? 'all'}`;
+}
+
 /** Full, ordered version history for a fact (oldest first) — provenance trail. */
 export async function listFactHistory(db: Db, factId: string): Promise<FactVersion[]> {
   return db
@@ -391,6 +443,84 @@ export async function listFactHistory(db: Db, factId: string): Promise<FactVersi
     .from(schema.factVersions)
     .where(eq(schema.factVersions.factId, factId))
     .orderBy(asc(schema.factVersions.createdAt));
+}
+
+async function listApplicantFactHistory(
+  db: Db,
+  applicantId: string,
+  ownerAccountId: string,
+  options: FactHistoryOptions,
+): Promise<FactHistoryPage> {
+  const v = schema.factVersions;
+  const f = schema.facts;
+  const d = schema.fieldDefinitions;
+  const pack = options.pack !== undefined && PACK_ID.test(options.pack) ? options.pack : undefined;
+  const scope = factHistoryScope(applicantId, pack);
+  const limit = clampLimit(options.limit);
+  const key = decodeTimeCursor(options.before, scope);
+  const packOf = sql<string>`coalesce(${d.packId}, 'universal')`;
+  const matches = and(eq(f.applicantId, applicantId), pack ? sql`${packOf} = ${pack}` : undefined);
+
+  const [rows, totals] = await Promise.all([
+    db
+      .select({
+        id: v.id,
+        factId: v.factId,
+        fieldKey: d.key,
+        packId: packOf,
+        repeatingRecordKey: f.repeatingRecordKey,
+        value: v.value,
+        protectedKeyVersion: v.protectedKeyVersion,
+        status: v.status,
+        method: v.method,
+        reason: v.reason,
+        actorAccountId: v.actorAccountId,
+        currentVersionId: f.currentVersionId,
+        createdAt: v.createdAt,
+        cursorAt: cursorTime(v.createdAt),
+      })
+      .from(v)
+      .innerJoin(f, eq(v.factId, f.id))
+      .innerJoin(d, eq(f.fieldDefinitionId, d.id))
+      .where(and(matches, key ? olderThan(v.createdAt, v.id, key) : undefined))
+      .orderBy(...cursorOrder(v.createdAt, v.id))
+      .limit(limit + 1),
+    db
+      .select({ total: count() })
+      .from(v)
+      .innerJoin(f, eq(v.factId, f.id))
+      .innerJoin(d, eq(f.fieldDefinitionId, d.id))
+      .where(matches),
+  ]);
+
+  const page = toPage(rows, limit, (last) =>
+    encodeTimeCursor({ at: last.cursorAt, id: last.id }, scope),
+  );
+  return {
+    total: Number(first(totals)?.total ?? 0),
+    nextCursor: page.nextCursor,
+    items: page.items.map((row) => ({
+      id: row.id,
+      factId: row.factId,
+      fieldKey: row.fieldKey,
+      packId: row.packId,
+      repeatingRecordKey: row.repeatingRecordKey,
+      // A protected detail is stored locked; this list never carries its text.
+      value: row.protectedKeyVersion === null ? row.value : null,
+      isProtected: row.protectedKeyVersion !== null,
+      status: row.status,
+      method: row.method,
+      reason: row.reason,
+      actor:
+        row.actorAccountId === null
+          ? 'not_recorded'
+          : row.actorAccountId === ownerAccountId
+            ? 'owner'
+            : 'someone_else',
+      isCurrent: row.currentVersionId === row.id,
+      createdAt: row.createdAt,
+    })),
+  };
 }
 
 /**
@@ -486,7 +616,44 @@ export async function listApplicantProfile(
   db: Db,
   applicantId: string,
   encryption?: KeyManagementPort,
-): Promise<ProfileEntry[]> {
+): Promise<ProfileEntry[]>;
+/**
+ * Profile History (WP-SB1): given the owner's access proof and `{ history }`, every saved version
+ * of every detail of that person, one page at a time: newest first, at most `limit` versions
+ * (default 50, clamped to 1 to 100), older pages through the `before` cursor, optionally one part of
+ * the profile only. A cursor made for another person or another filter gives the first page. Only
+ * the owner of the record may read it (anyone else gets `forbidden`), and a protected value is
+ * never unlocked here.
+ */
+export async function listApplicantProfile(
+  db: Db,
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+  options: { readonly history: FactHistoryOptions },
+): Promise<Result<FactHistoryPage, ServiceError>>;
+export async function listApplicantProfile(
+  db: Db,
+  subject: string | AuthorizedApplicant<'VIEW_METADATA'>,
+  third?: KeyManagementPort | { readonly history: FactHistoryOptions },
+): Promise<ProfileEntry[] | Result<FactHistoryPage, ServiceError>> {
+  if (typeof subject !== 'string') {
+    if (
+      !AuthorizedApplicant.isGenuine(subject, 'VIEW_METADATA') ||
+      subject.actor.kind !== 'applicant_owner'
+    ) {
+      return err(serviceError('forbidden', 'Only the owner of this record can see its history.'));
+    }
+    const history = third && 'history' in third ? third.history : {};
+    return ok(
+      await listApplicantFactHistory(
+        subject.tx,
+        subject.applicant.id,
+        subject.applicant.ownerAccountId,
+        history,
+      ),
+    );
+  }
+  const applicantId = subject;
+  const encryption = third && !('history' in third) ? third : undefined;
   const rows = await db
     .select({
       factId: schema.facts.id,

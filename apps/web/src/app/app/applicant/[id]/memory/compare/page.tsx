@@ -10,6 +10,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ShowMore } from '../../../../../../components/show-more';
 import { PageHeader, StatusBadge } from '../../../../../../components/ui';
 import {
   AMOUNT_BASIS_LABELS,
@@ -25,6 +26,7 @@ import {
   reviewSentence,
 } from '../../../../../../lib/application-memory-labels';
 import { formatDateOnly, formatTimestampDate } from '../../../../../../lib/format-date';
+import { TRAVELLER_LIST_STEP, nextShow, parseShow } from '../../../../../../lib/paging';
 import { createKeyManagementPort } from '../../../../../../lib/providers';
 import { withSession } from '../../../../../../lib/session';
 
@@ -32,7 +34,14 @@ export const metadata: Metadata = { title: 'Then and Now' };
 
 export const dynamic = 'force-dynamic';
 
-type Search = Promise<{ snapshot?: string | string[]; version?: string | string[] }>;
+type Search = Promise<{
+  snapshot?: string | string[];
+  version?: string | string[];
+  show?: string | string[];
+}>;
+
+/** The id of the n-th change in the list (from 1), so Show More can land on the first new one. */
+const changeAnchor = (position: number) => `then-now-change-${position}`;
 
 /** Reasons that only arise for an amount, whose currency and tax basis are then shown. */
 const AMOUNT_REASONS: ReadonlySet<string> = new Set([
@@ -111,6 +120,7 @@ export default async function ThenAndNowPage({
       applicantId={id}
       changes={loaded.changes}
       unavailable={loaded.kind === 'unavailable'}
+      show={query.show}
     />
   );
 }
@@ -119,12 +129,22 @@ function ChangesView({
   applicantId,
   changes,
   unavailable,
+  show,
 }: {
   readonly applicantId: string;
   readonly changes: SnapshotChanges;
   readonly unavailable: boolean;
+  /** The `show` address value: ten changes at a time, Show More for the next ten (WP-SB1). */
+  readonly show: string | string[] | undefined;
 }) {
   const { snapshot } = changes;
+  // The changes are already read in full (comparing needs them all), so every one stays reachable.
+  const paging = {
+    step: TRAVELLER_LIST_STEP,
+    max: Math.ceil(changes.changes.length / TRAVELLER_LIST_STEP) * TRAVELLER_LIST_STEP,
+  };
+  const listed = changes.changes.slice(0, parseShow(show, paging));
+  const next = changes.changes.length > listed.length ? nextShow(listed.length, paging) : null;
   return (
     <>
       <PageHeader
@@ -151,34 +171,46 @@ function ChangesView({
             in use.
           </p>
         ) : (
-          <ul className="then-now-changes">
-            {changes.changes.map((change) => {
-              const line = changeLine(change);
-              const version = comparableVersionId(change);
-              const key =
-                change.kind === 'detail'
-                  ? `detail-${change.factId}`
-                  : change.kind === 'document'
-                    ? `document-${change.documentId}`
-                    : `case-${change.caseField}`;
-              return (
-                <li key={key}>
-                  <span className="case-change-text">
-                    <span className="case-change-name">{line.name}</span>: {line.what}
-                  </span>
-                  {version ? (
-                    <Link
-                      className="case-change-link"
-                      href={compareHref(applicantId, snapshot.id, version)}
-                      aria-label={`Compare ${line.name}, then and now`}
-                    >
-                      Compare
-                    </Link>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            <ul className="then-now-changes">
+              {listed.map((change, index) => {
+                const line = changeLine(change);
+                const version = comparableVersionId(change);
+                const key =
+                  change.kind === 'detail'
+                    ? `detail-${change.factId}`
+                    : change.kind === 'document'
+                      ? `document-${change.documentId}`
+                      : `case-${change.caseField}`;
+                return (
+                  <li key={key} id={changeAnchor(index + 1)}>
+                    <span className="case-change-text">
+                      <span className="case-change-name">{line.name}</span>: {line.what}
+                    </span>
+                    {version ? (
+                      <Link
+                        className="case-change-link"
+                        href={compareHref(applicantId, snapshot.id, version)}
+                        aria-label={`Compare ${line.name}, then and now`}
+                      >
+                        Compare
+                      </Link>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+            <ShowMore
+              id="then-now-more"
+              landOn={changeAnchor(listed.length + 1)}
+              pathname={`/app/applicant/${applicantId}/memory/compare`}
+              searchParams={{ snapshot: snapshot.id }}
+              next={next === null ? null : { show: next }}
+              shown={listed.length}
+              total={changes.changes.length}
+              noun={{ one: 'change', other: 'changes' }}
+            />
+          </>
         )}
         {snapshot.exact && changes.unchangedDetailCount > 0 ? (
           <p className="then-now-note">

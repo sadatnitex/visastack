@@ -97,6 +97,7 @@ const { AddApplicantForm } = await import('../app/app/add-applicant-form');
 const { ConsentButton } = await import('../app/app/consent-button');
 const adminButtons = await import('../app/app/admin/action-buttons');
 const adminForms = await import('../app/app/admin/admin-forms');
+const { ApplicantPicker } = await import('../app/app/admin/privacy/applicant-picker');
 const aiSettings = await import('../app/app/admin/ai-settings/forms');
 const protectionForms = await import('../app/app/admin/document-protection/forms');
 const billingRulesForms = await import('../app/app/admin/billing/forms');
@@ -1480,7 +1481,11 @@ const ADMIN: readonly Case[] = [
   { name: 'retention policy', element: () => <adminForms.RetentionPolicyForm /> },
   {
     name: 'place a legal hold',
-    element: () => <adminForms.LegalHoldForm applicants={APPLICANTS} />,
+    element: () => (
+      <adminForms.LegalHoldForm
+        applicantPicker={<ApplicantPicker search={async () => ({ ok: true, matches: [] })} />}
+      />
+    ),
   },
   {
     name: 'new AI configuration',

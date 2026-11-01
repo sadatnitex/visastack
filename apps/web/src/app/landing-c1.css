@@ -732,3 +732,112 @@
     margin: 16px auto 12px;
   }
 }
+
+/* OWNER-EXTENSION (WP-SB8 scroll budget, owner request 31 Oct 2026): the story groups and the phone row of product cards.
+   The six story sections are one block of details groups; a closed group shows its kicker and
+   heading as one tappable row. Headings keep their reference type, only smaller inside a row. */
+.c1 .land-story {
+  padding-block: clamp(2.5rem, 6vw, 4.5rem);
+}
+.c1 .land-group {
+  border-bottom: 1px solid var(--hairline);
+}
+.c1 .land-story-section:first-child .land-group {
+  border-top: 1px solid var(--hairline);
+}
+.c1 .land-group-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: clamp(0.9rem, 1.6vw, 1.1rem);
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 12px;
+}
+.c1 .land-group-summary::-webkit-details-marker {
+  display: none;
+}
+.c1 .land-group-title {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+.c1 .land-group-summary .land-kicker {
+  margin: 0;
+}
+.c1 .land-group-summary .land-h2 {
+  margin: 0;
+  font-size: clamp(1.3rem, 2.2vw, 1.6rem);
+  line-height: 1.15;
+}
+.c1 .land-group-chevron {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--hairline);
+  color: var(--text-secondary);
+  transition: transform var(--motion-state) var(--motion-ease);
+}
+.c1 .land-group[open] > .land-group-summary .land-group-chevron {
+  transform: rotate(180deg);
+}
+.c1 .land-group-body {
+  display: grid;
+  gap: clamp(1.1rem, 2.5vw, 1.6rem);
+  padding-bottom: clamp(1.4rem, 3vw, 2.25rem);
+}
+.c1 .land-group-body > .land-trust-link {
+  margin: 0;
+}
+.c1 .land-story .land-trust {
+  background: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  .c1 .land-group-chevron {
+    transition: none;
+  }
+}
+@media (max-width: 760px) {
+  /* One row of cards that scrolls sideways inside itself, never the page. */
+  .c1 .c1-bento {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 2px;
+    padding-bottom: 6px;
+  }
+  .c1 .c1-bento > .c1-feature {
+    flex: 0 0 86%;
+    scroll-snap-align: start;
+    min-height: 300px;
+  }
+  .c1 .c1-bento > .c1-feature {
+    padding: 26px;
+  }
+  .c1 .land-story {
+    padding-block: 2rem;
+  }
+  .c1 .land-group-summary {
+    padding-block: 0.75rem;
+  }
+  /* The open first group reads as one compact before-and-after on a phone. */
+  .c1 .land-story .land-versus-col {
+    padding: 1.1rem 1.15rem;
+  }
+  .c1 .land-story .land-versus-label {
+    margin-bottom: 0.7rem;
+  }
+  .c1 .land-story .land-versus ul {
+    gap: 0.55rem;
+  }
+  .c1 .land-steps .land-step {
+    padding: 1.25rem 1.25rem 1.2rem;
+  }
+}

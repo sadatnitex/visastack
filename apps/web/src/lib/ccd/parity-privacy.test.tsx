@@ -16,7 +16,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
-  listConsentHistory: async () => state.history,
+  listConsentHistory: async () => ({ items: state.history, nextCursor: null }),
   getPendingDeletion: async () => state.pending,
   getDeletionImpactSummary: async () => ({ applicants: 1, documents: 2 }),
   listActiveLegalHoldsForAccount: async () => [],
