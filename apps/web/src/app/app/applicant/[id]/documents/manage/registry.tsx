@@ -1,6 +1,7 @@
 import type { DocumentAction } from '@visastack/services';
 import type { ComponentType } from 'react';
 import { ArchiveAction, RestoreAction } from './archive/archive-action';
+import { ReplaceAction } from './replace/replace-action';
 
 /** What every Manage action component receives (PROGRAMME section 3.4). */
 export interface ManageActionProps {
@@ -29,6 +30,7 @@ export const MANAGE_ACTIONS: Readonly<Partial<Record<DocumentAction, ManageActio
   ARCHIVE: { label: 'Archive', Component: ArchiveAction },
   RESTORE: { label: 'Restore', Component: RestoreAction },
   // LC-B actions
+  REPLACE: { label: 'Replace with a Newer Document', Component: ReplaceAction },
   // LC-C actions
   // LC-D actions
 };

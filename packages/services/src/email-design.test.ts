@@ -157,23 +157,54 @@ describe('the words of every email', () => {
   });
 
   it('uses Title Case buttons, plain words and no long dashes', () => {
+    const replaceLink = {
+      ...taskDue,
+      url: `${BASE}/app/applicant/a/documents?manage=d&action=REPLACE`,
+    };
     for (const [event, copy] of entries) {
-      const words = [
-        copy.eyebrow,
-        copy.action,
-        copy.why ?? '',
-        copy.after ?? '',
-        typeof copy.heading === 'string' ? copy.heading : copy.heading(taskDue),
-      ];
-      for (const text of words) expect(text, event).not.toContain(LONG_DASH);
-      for (const word of copy.action.split(' ')) {
-        if (['a', 'an', 'the', 'to', 'of', 'in', 'on', 'for', 'and', 'or'].includes(word)) continue;
-        expect(word[0], `${event}: ${copy.action}`).toBe(word[0]?.toUpperCase());
+      for (const input of [taskDue, replaceLink]) {
+        const action = typeof copy.action === 'string' ? copy.action : copy.action(input);
+        const after = typeof copy.after === 'function' ? copy.after(input) : copy.after;
+        const words = [
+          copy.eyebrow,
+          action,
+          copy.why ?? '',
+          after ?? '',
+          typeof copy.heading === 'string' ? copy.heading : copy.heading(input),
+        ];
+        for (const text of words) expect(text, event).not.toContain(LONG_DASH);
+        for (const word of action.split(' ')) {
+          if (['a', 'an', 'the', 'to', 'of', 'in', 'on', 'for', 'and', 'or'].includes(word))
+            continue;
+          expect(word[0], `${event}: ${action}`).toBe(word[0]?.toUpperCase());
+        }
+        expect(words.join(' '), event).not.toMatch(
+          /\b(mission|API|database|guarantee[ds]?|approval odds|supersed\w*)\b/i,
+        );
       }
-      expect(words.join(' '), event).not.toMatch(
-        /\b(mission|API|database|guarantee[ds]?|approval odds)\b/i,
-      );
     }
+  });
+
+  it('gives an expiry reminder that opens Replace a Replace It button (LC-B)', () => {
+    const replace = notificationEmail({
+      ...taskDue,
+      eventType: 'DOCUMENT_EXPIRY',
+      url: `${BASE}/app/applicant/a1/documents?manage=d1&action=REPLACE`,
+    });
+    expect(replace.action.label).toBe('Replace It');
+    expect(replace.after).toContain('confirm it again');
+    const rendered = renderEmail(replace, context);
+    expect(rendered.html).toContain('>Replace It</a>');
+    expect(rendered.html).toContain('action=REPLACE');
+    expect(rendered.text).toContain('Replace It: ');
+    // Before the lifecycle tables exist the reminder leads to the expiry list, as before.
+    const plain = notificationEmail({
+      ...taskDue,
+      eventType: 'DOCUMENT_EXPIRY',
+      url: `${BASE}/app/applicant/a1/expiry`,
+    });
+    expect(plain.action.label).toBe('Check the Date');
+    expect(plain.after).toBeUndefined();
   });
 
   it('never calls an accepted document a visa decision', () => {

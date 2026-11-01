@@ -6,6 +6,7 @@ import {
   updateComplaintStatus,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
 import { withSession } from '../../../../lib/session';
 
@@ -76,6 +77,16 @@ export async function updateComplaintStatusAction(
     if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
     return { ok: true, message: `Complaint moved to ${statusRaw}.` } satisfies ActionState;
   });
-  if (result.ok) revalidatePath('/app/admin/complaints');
-  return result;
+  if (!result.ok) return result;
+  revalidatePath('/app/admin/complaints');
+  // WP-SB6: the triage list shows one status tab at a time, so the moved complaint leaves the tab
+  // it was on. Open its new tab, which names the move, instead of letting it vanish.
+  redirect(`/app/admin/complaints?status=${STATUS_TAB[statusRaw]}&moved=${STATUS_TAB[statusRaw]}`);
 }
+
+/** The address name of each status tab on the triage page. */
+const STATUS_TAB: Record<ComplaintStatus, string> = {
+  IN_PROGRESS: 'in-progress',
+  RESOLVED: 'resolved',
+  CLOSED: 'closed',
+};

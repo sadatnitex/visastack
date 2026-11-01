@@ -1,14 +1,16 @@
 import type { AccountId, AgencyId, ApplicantId, DocumentId, Result } from '@visastack/core';
 import { err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
+import { accountPrincipal } from './access/principal';
+import { requireAccess } from './access/require-access';
 import { getApplicant } from './applicants';
-import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import type { Document } from './documents';
 import { type ServiceError, serviceError } from './errors';
-import { incrementMaterialRevision } from './material-revision';
-import { createTask } from './missions';
+import { presentDocumentCondition } from './lifecycle/foundation/conditions';
+import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
+import { applyReplacement } from './lifecycle/replace/replace';
 import { documentCategory, loadGrantsForPolicy } from './sharing';
 
 /**
@@ -95,6 +97,9 @@ export async function getWalletView(
   // is untouched), but never appears in the applicant's own browsable
   // wallet. Every normal, owner-uploaded document defaults true and is
   // unaffected.
+  // Archived documents stay in the wallet (the Documents page lists them under Archived); a
+  // document in Recently Deleted or being removed never shows here.
+  const lifecycle = await lifecycleTablesPresent(db);
   const documents = await db
     .select()
     .from(schema.documents)
@@ -102,6 +107,7 @@ export async function getWalletView(
       and(
         eq(schema.documents.applicantId, input.applicantId),
         eq(schema.documents.walletVisible, true),
+        lifecycle ? presentDocumentCondition() : undefined,
       ),
     );
 
@@ -211,6 +217,11 @@ export async function getWalletView(
  * document as selected evidence gets a real, visible `missionTask`, the
  * "flags cases using it" this requires; both documents must belong to the
  * SAME applicant, and only that applicant's owner may call this.
+ *
+ * Kept with its old signature for older tests; it has no caller outside tests. After the owner
+ * check it delegates to the shared replace logic (lifecycle/replace), which also refuses the same
+ * document, a loop and a document that is not current. Every new caller uses `replaceDocument`,
+ * which in addition refuses a newer document that is not usable yet or of another kind.
  */
 export async function supersedeDocument(
   db: Db,
@@ -220,12 +231,20 @@ export async function supersedeDocument(
     readonly newDocumentId: string;
   },
 ): Promise<Result<{ readonly flaggedMissionIds: readonly string[] }, ServiceError>> {
+  const lifecycle = await lifecycleTablesPresent(db);
+  const present = lifecycle ? presentDocumentCondition() : undefined;
   const oldDocument = first(
-    await db.select().from(schema.documents).where(eq(schema.documents.id, input.oldDocumentId)),
+    await db
+      .select()
+      .from(schema.documents)
+      .where(and(eq(schema.documents.id, input.oldDocumentId), present)),
   );
   if (!oldDocument) return err(serviceError('not_found', 'document not found'));
   const newDocument = first(
-    await db.select().from(schema.documents).where(eq(schema.documents.id, input.newDocumentId)),
+    await db
+      .select()
+      .from(schema.documents)
+      .where(and(eq(schema.documents.id, input.newDocumentId), present)),
   );
   if (!newDocument) return err(serviceError('not_found', 'replacement document not found'));
   if (oldDocument.applicantId !== newDocument.applicantId) {
@@ -235,59 +254,19 @@ export async function supersedeDocument(
   if (!applicant || applicant.ownerAccountId !== input.actorAccountId) {
     return err(serviceError('forbidden', 'only the applicant owner can supersede a document'));
   }
-  if (oldDocument.supersededByDocumentId) {
-    return err(serviceError('invalid', 'this document has already been superseded'));
-  }
-
-  return db.transaction(async (tx) => {
-    // Conditional, so two simultaneous requests cannot both supersede (and
-    // both bump the revision and add a task): only one update finds the row
-    // still unsuperseded.
-    const updated = await tx
-      .update(schema.documents)
-      .set({ supersededByDocumentId: input.newDocumentId })
-      .where(
-        and(
-          eq(schema.documents.id, input.oldDocumentId),
-          isNull(schema.documents.supersededByDocumentId),
-        ),
-      )
-      .returning({ id: schema.documents.id });
-    if (updated.length === 0) {
-      return err(serviceError('invalid', 'this document has already been superseded'));
-    }
-    const affectedMissions = await tx
-      .selectDistinct({ missionId: schema.missions.id })
-      .from(schema.selectedEvidence)
-      .innerJoin(schema.missions, eq(schema.missions.id, schema.selectedEvidence.missionId))
-      .where(eq(schema.selectedEvidence.documentId, input.oldDocumentId));
-
-    for (const { missionId } of affectedMissions) {
-      // A replaced document is a material change (v1.2 E03): bump the case
-      // revision in this same transaction, which also voids a live
-      // acknowledgement made with the old document. Snapshots stay exact.
-      await incrementMaterialRevision(tx, missionId);
-      await createTask(tx, {
-        actorAccountId: input.actorAccountId,
-        missionId,
-        description: `Evidence "${oldDocument.approvedName ?? oldDocument.originalName}" was superseded by a newer version. Review whether this case's selected evidence needs updating.`,
-      });
-    }
-
-    await appendAuditEvent(tx, {
-      eventType: 'DOCUMENT_SUPERSEDED',
-      actorAccountId: input.actorAccountId,
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      applicantId: oldDocument.applicantId,
-      resourceType: 'document',
-      resourceId: oldDocument.id,
-      metadata: {
-        newDocumentId: input.newDocumentId,
-        flaggedMissionCount: affectedMissions.length,
-      },
-    });
-
-    return ok({ flaggedMissionIds: affectedMissions.map((m) => m.missionId) });
-  });
+  const access = await requireAccess(
+    db,
+    accountPrincipal(input.actorAccountId),
+    'MANAGE',
+    { applicantId: oldDocument.applicantId },
+    { purpose: 'self' },
+  );
+  if (!access.ok) return access;
+  const replaced = await applyReplacement(
+    access.value,
+    { oldDocumentId: input.oldDocumentId, newDocumentId: input.newDocumentId },
+    { legacy: true },
+  );
+  if (!replaced.ok) return replaced;
+  return ok({ flaggedMissionIds: replaced.value.flaggedMissionIds });
 }

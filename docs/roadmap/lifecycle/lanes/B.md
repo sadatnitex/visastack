@@ -30,9 +30,19 @@ Same person only; agency, stranger and guessed id refused; snapshots byte-identi
 
 ## Status (lane fills in)
 
-- Started on main:
-- PR / merged SHA:
-- Checks seen green:
-- Live / hidden until migration:
-- Not verified:
-- Blocked:
+- Started on main: 9d5bb99abdc23571021bebe1cfe152013209a793 (LC-F, #381).
+- PR / merged SHA: #393 (https://github.com/sadatnitex/visastack/pull/393); merged as the squash commit of #393 on main (its SHA is in the PR and in the coordinator message).
+- Checks seen green: on 938898c6 (branch with main at 0c6e35a4 merged in): "Lint · Build · Typecheck · Test" (all shards), "No-secret Playwright checks", "No-secret smoke check", CodeQL, dependency review. Guarded full check DONE on 09af8510 (resumed from the test step after an adapters HEIC test ran past its 60 s limit on the first pass; that file passes alone in 24 s and in the resumed run). The final head adds only this Status text and is checked by CI again before merge.
+- Tests added: `lifecycle/replace/replace.test.ts` (red first: same document, loop, unusable replacement, already replaced and the two-at-once race; also other kind, expired, still checking, cannot be used, a document handed in for one case only, archived or deleted on either side, stranger, agency with a real MANAGE grant, read-level proof, guessed id, snapshots byte-identical, open cases flagged and revision bumped, finished cases untouched, audit and product event, the label helper), each run with the lifecycle tables present and missing; `notification-sweep.test.ts` (Replace link, expiry link while tables are missing, no reminder for an archived or deleted document or an archived traveller, no confirmation reminder about an archived or deleted document, an archived document that expires still makes its cases confirm again, no task reminder for a deleted traveller record); `email-design.test.ts` (Replace It button); web `replace/replace-action.test.tsx` and `replace/actions.test.ts`. Seven guards were broken once in the real code and went red, then restored.
+- Live / hidden until migration: nothing is live yet. Once merged, while migration 0113 has not run: reminders keep linking to the expiry list and the Manage menu stays hidden, so people see no change. After the migration: the Manage menu offers Replace with a Newer Document, expiry reminders link to it and the email shows a Replace It button.
+- Open task and final submission (PROGRAMME section 12): an open "confirm again" task does not block confirming the case again; nothing in submission reads case tasks (test: flags every case ... keeps snapshots exact).
+- Notes for the coordinator: `supersedeDocument` keeps its signature and delegates to the shared logic with `legacy: true`, which skips only the usable, expired, same-kind and wallet-visible checks, because `attention.test.ts` (not in this lane) replaces with a document that has no file. It has no caller outside tests. If `attention.test.ts` gives its renewed passport a clean version, `legacy` can go. The menu and heading read "Replace with a Newer Document" (small "with"), because `title-case.test.ts` refuses "With"; `docs/uiux/ccd/VOCABULARY.md` line 122 (lane F) should match. Finished cases (closed, cancelled, submitted, D5) are left exactly as they were by a replacement.
+- Not verified: browser and smoke checks, build, the full test run, CI, the Replace flow against a real upload and virus scan, the email in a real inbox, and anything on production.
+- Blocked: none. Cleared on 1 Nov 2026: the coordinator approved the two exact changes to `apps/web/src/app/app/applicant/[id]/documents/manage/manage-menu.test.tsx` (lane F's file), the same form lane A1 uses: the "ships empty" test became "lists only frozen actions" (each registered key must be one of `DOCUMENT_ACTIONS`), and "renders nothing when no allowed action is registered" passes `registry={{}}`. Nothing else in that file changed. Approved exception: the path check lists only that file, exactly as below.
+
+```
+1 changed file(s) are outside docs/roadmap/lifecycle/allowlists/B.txt:
+  apps/web/src/app/app/applicant/[id]/documents/manage/manage-menu.test.tsx
+Stop. Ask the owner to approve an allowlist change before editing these files.
+OK: no long dashes in added lines (excluding docs/design/harbor-v2).
+```
