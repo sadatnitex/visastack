@@ -1,6 +1,8 @@
 import type { DocumentAction } from '@visastack/services';
 import type { ComponentType } from 'react';
 import { ReplaceAction } from './replace/replace-action';
+import { CancelRemovalRequestAction } from './request/cancel-action';
+import { RequestRemovalAction } from './request/request-action';
 
 /** What every Manage action component receives (PROGRAMME section 3.4). */
 export interface ManageActionProps {
@@ -30,6 +32,8 @@ export const MANAGE_ACTIONS: Readonly<Partial<Record<DocumentAction, ManageActio
   REPLACE: { label: 'Replace with a Newer Document', Component: ReplaceAction },
   // LC-C actions
   // LC-D actions
+  REQUEST_REMOVAL: { label: 'Ask Us to Remove This File', Component: RequestRemovalAction },
+  CANCEL_REMOVAL_REQUEST: { label: 'Removal Requested', Component: CancelRemovalRequestAction },
 };
 
 /** The registered entries for `actions`, in the order given (availableDocumentActions order). */

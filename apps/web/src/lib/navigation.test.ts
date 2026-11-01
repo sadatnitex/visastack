@@ -160,6 +160,19 @@ describe('platform navigation (directive Part 9 section 1)', () => {
     ]);
   });
 
+  it('shows Removal Requests only with privacy access and the switch on', () => {
+    expect(labels(platformTabs(all))).not.toContain('Removal Requests');
+    expect(labels(platformTabs({ ...all, removalRequests: false }))).not.toContain(
+      'Removal Requests',
+    );
+    expect(labels(platformTabs({ ...all, privacy: false, removalRequests: true }))).not.toContain(
+      'Removal Requests',
+    );
+    const tabs = platformTabs({ ...all, removalRequests: true });
+    expect(labels(tabs).slice(4, 6)).toEqual(['Privacy', 'Removal Requests']);
+    expect(tabs.find((t) => t.label === 'Removal Requests')?.href).toBe('/app/admin/removals');
+  });
+
   it('keeps the shipped Access and Complaints areas as extra tabs', () => {
     expect(labels(platformTabs(all)).slice(6)).toEqual(['Access', 'Complaints']);
   });
