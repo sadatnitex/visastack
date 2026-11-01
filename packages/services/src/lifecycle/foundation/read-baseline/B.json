@@ -1,0 +1,11 @@
+{
+  "documents": [
+    "notification-sweep#sweepExpiryReminders",
+    "wallet#getWalletView",
+    "wallet#supersedeDocument"
+  ],
+  "applicants": [
+    "notification-sweep#sweepExpiryReminders",
+    "notification-sweep#sweepTaskDeadlineReminders"
+  ]
+}
