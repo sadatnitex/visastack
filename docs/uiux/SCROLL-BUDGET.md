@@ -17,11 +17,12 @@ Each is still printed with its height on every run. Fixing them is product work 
 
 | Page | Viewport | Measured | Budget | Ceiling | Why it is over | Check |
 |---|---|---|---|---|---|---|
-| Documents (12 rows a page) | phone | 2,955 px, 3.50 screens | 3 (2,532 px) | 3.75 | The shared list in `apps/web/src/components/document-wallet-browser.tsx` shows 12 rows a page (accepted by the coordinator, reported by WP-SB4) | `WP-SB4.spec.ts`, documents |
 | Agency Clients (15 invitations and 15 requests) | phone | 3,558 px, 4.22 screens | 3 (2,532 px) | 4.5 | Two 15-row lists on one page | `WP-SB5.spec.ts`, clients |
 | Agency Clients (same) | desktop | 2,913 px, 3.64 screens | 3 (2,400 px) | 4 | Same | `WP-SB5.spec.ts`, clients |
 | Agency Dashboard table (10 most urgent of 200) | phone | 2,616 px, 3.10 screens | 3 as checked; 2 (1,688 px) by the plan's dashboard rule, which makes it 1.55 times over | 3.5 | The table rows stack on a phone | `WP-SB5.spec.ts`, dashboard |
 | Case snapshot with its first group open (60 rows) | phone | 4,998 px, 5.92 screens | 2 (1,688 px) | 6.25 | The open group lists all its rows; folded, the same snapshot is 1 screen and enforced | `WP-SB2.spec.ts`, snapshot |
+
+Documents on a phone is no longer an exception (lane Z of the Resource Lifecycle Programme, 1 Nov 2026): the shared list in `apps/web/src/components/document-wallet-browser.tsx` shows 6 rows a page on a phone and 12 on a desktop, every document still reached through Previous and Next. Measured 2,025 px, 2.40 screens, against 3 (2,532 px); `WP-SB4.spec.ts` now enforces it on both screens.
 
 The Agency Clients, Agency Dashboard and open snapshot checks were in report mode or unmeasured before WP-SB10; they were found over budget when switched to enforce. The Dashboard table enforces on a desktop against 3 (977 px, 1.22 screens, also within the dashboard budget of 2). The fixture renders the dashboard's case table, not the whole dashboard, which is why WP-SB5 checks it against 3.
 

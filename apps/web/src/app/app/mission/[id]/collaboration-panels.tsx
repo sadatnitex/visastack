@@ -560,9 +560,10 @@ export function EvidenceSelectionPanel({
                           </span>
                         ) : null}
                         {doc.lifecycleLabel ? (
-                          <span className="badge badge-neutral" style={{ marginLeft: '0.4rem' }}>
-                            {doc.lifecycleLabel}
-                          </span>
+                          <>
+                            {' '}
+                            <span className="badge badge-neutral">{doc.lifecycleLabel}</span>
+                          </>
                         ) : null}
                       </span>
                       {selected && selectionId ? (

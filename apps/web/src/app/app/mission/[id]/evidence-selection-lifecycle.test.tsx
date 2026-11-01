@@ -53,8 +53,8 @@ describe('Select Evidence: lifecycle labels', () => {
         ]}
       />,
     );
-    expect(html).toContain('October statement<span class="badge badge-neutral"');
+    expect(html).toContain('October statement <span class="badge badge-neutral">Archived</span>');
     expect(html.match(/>Archived</g)).toHaveLength(1);
-    expect(html).not.toContain('September statement<span');
+    expect(html).not.toContain('September statement <span');
   });
 });
