@@ -1483,9 +1483,7 @@ const ADMIN: readonly Case[] = [
     name: 'place a legal hold',
     element: () => (
       <adminForms.LegalHoldForm
-        applicantPicker={
-          <ApplicantPicker search={async () => ({ ok: true, matches: [] })} />
-        }
+        applicantPicker={<ApplicantPicker search={async () => ({ ok: true, matches: [] })} />}
       />
     ),
   },

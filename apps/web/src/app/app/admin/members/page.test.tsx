@@ -54,12 +54,9 @@ describe('Platform > Members', () => {
       { limit: 20, emailSearch: 'agent@', before: 'cur_1' },
     );
     await renderServer(Page({ searchParams: Promise.resolve({ before: '<script>' }) }));
-    expect(mocks.listPlatformMembers).toHaveBeenLastCalledWith(
-      {},
-      expect.anything(),
-      undefined,
-      { limit: 20 },
-    );
+    expect(mocks.listPlatformMembers).toHaveBeenLastCalledWith({}, expect.anything(), undefined, {
+      limit: 20,
+    });
   });
 
   it('offers the next page with the search kept and a search form', async () => {
@@ -79,7 +76,7 @@ describe('Platform > Members', () => {
     });
     const html = await renderServer(Page({ searchParams: Promise.resolve({ q: 'agent' }) }));
     expect(html).toContain('href="/app/admin/members?q=agent&amp;before=cur_2#members-list"');
-    expect(html).toContain('role="search"');
+    expect(html).toMatch(/<form[^>]*aria-label="Find (organizations|members)"/);
     expect(textOf(html)).toContain('agent@example.test');
     expect(textOf(html)).toContain('Clear Search');
   });

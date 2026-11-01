@@ -29,8 +29,10 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const box = () => form.querySelector<HTMLInputElement>('input[role="combobox"]') as HTMLInputElement;
-const hidden = () => form.querySelector<HTMLInputElement>('input[type="hidden"]') as HTMLInputElement;
+const box = () =>
+  form.querySelector<HTMLInputElement>('input[role="combobox"]') as HTMLInputElement;
+const hidden = () =>
+  form.querySelector<HTMLInputElement>('input[type="hidden"]') as HTMLInputElement;
 const options = () => [...form.querySelectorAll<HTMLLIElement>('[role="option"]')];
 const status = () => form.querySelector('output')?.textContent ?? '';
 
@@ -62,9 +64,9 @@ describe('ApplicantPicker', () => {
     const label = form.querySelector(`label[for="${input.id}"]`);
     expect(label?.textContent).toBe('Applicant');
     expect(input.getAttribute('aria-expanded')).toBe('false');
-    expect(document.getElementById(input.getAttribute('aria-controls') ?? '')?.getAttribute('role')).toBe(
-      'listbox',
-    );
+    expect(
+      document.getElementById(input.getAttribute('aria-controls') ?? '')?.getAttribute('role'),
+    ).toBe('listbox');
     expect(input.getAttribute('aria-describedby')).toBe(form.querySelector('output')?.id);
     expect(hidden().name).toBe('applicantId');
     expect(hidden().value).toBe('');

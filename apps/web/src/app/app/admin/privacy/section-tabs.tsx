@@ -29,11 +29,7 @@ export function SectionTabs<K extends string>({
   return (
     <nav className="subnav sb7-section-tabs" aria-label={label}>
       {tabs.map((tab) => (
-        <Link
-          key={tab.key}
-          href={tab.href}
-          aria-current={tab.key === active ? 'page' : undefined}
-        >
+        <Link key={tab.key} href={tab.href} aria-current={tab.key === active ? 'page' : undefined}>
           {tab.label}
           {tab.count === undefined ? null : (
             <span className="sb7-tab-count">

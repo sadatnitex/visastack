@@ -87,7 +87,8 @@ export default async function DocumentProtectionPage({
   readonly searchParams?: Promise<SearchParamsRecord>;
 } = {}) {
   const query: SearchParamsRecord = (await searchParams) ?? {};
-  const wanted = firstParam(query['category']);
+  const { category: categoryParam } = query;
+  const wanted = firstParam(categoryParam);
   const data = await withSession(async ({ db, accountId, email }) => {
     const staff = await staffPrincipal(
       db,

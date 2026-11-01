@@ -9,11 +9,7 @@ import type { Db } from './db';
 import { listActiveLegalHolds } from './legal-hold';
 import { listAllOrganizations } from './organizations';
 import { encodeTimeCursor } from './paging';
-import {
-  APPLICANT_LOOKUP_MAX,
-  APPLICANT_SEARCH_MAX,
-  listAllApplicants,
-} from './platform-reads';
+import { APPLICANT_LOOKUP_MAX, APPLICANT_SEARCH_MAX, listAllApplicants } from './platform-reads';
 import { seedStaffAccount, staffScopeFor } from './platform-roles.test-support';
 
 /**
@@ -79,7 +75,10 @@ describe('listAllOrganizations with options', () => {
 
   it('gives the first page for a cursor made for another filter, a foreign list or nonsense', async () => {
     const first = await listAllOrganizations(db, { limit: 5 });
-    const pendingPage = await listAllOrganizations(db, { limit: 5, status: 'PENDING_VERIFICATION' });
+    const pendingPage = await listAllOrganizations(db, {
+      limit: 5,
+      status: 'PENDING_VERIFICATION',
+    });
     const fromOtherFilter = await listAllOrganizations(db, {
       limit: 5,
       before: pendingPage.nextCursor ?? '',

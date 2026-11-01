@@ -75,8 +75,9 @@ export default async function AdminPrivacyPage({
   readonly searchParams?: Promise<SearchParamsRecord>;
 } = {}) {
   const query: SearchParamsRecord = (await searchParams) ?? {};
-  const tab = tabOf(firstParam(query['tab']));
-  const before = tab === 'holds' ? parseCursor(query['before']) : undefined;
+  const { tab: tabParam, before: cursorParam } = query;
+  const tab = tabOf(firstParam(tabParam));
+  const before = tab === 'holds' ? parseCursor(cursorParam) : undefined;
 
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };

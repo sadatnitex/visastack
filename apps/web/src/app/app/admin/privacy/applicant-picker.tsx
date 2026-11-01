@@ -20,8 +20,7 @@ function statusText(status: Status, typed: string, chosen: ApplicantMatch | null
   if (status.kind === 'failed') return status.message;
   if (status.kind === 'done') {
     if (status.count === 0) return 'No applicants match. Try another part of the name.';
-    const shown =
-      status.count === 1 ? '1 applicant matches.' : `${status.count} applicants match.`;
+    const shown = status.count === 1 ? '1 applicant matches.' : `${status.count} applicants match.`;
     return status.count >= 20
       ? `${shown} Showing the first 20: type more of the name to narrow it.`
       : `${shown} Use the arrow keys to choose.`;
@@ -124,7 +123,9 @@ export function ApplicantPicker({
       setOpen(true);
       const step = event.key === 'ArrowDown' ? 1 : -1;
       setActive((current) =>
-        current < 0 && step < 0 ? matches.length - 1 : (current + step + matches.length) % matches.length,
+        current < 0 && step < 0
+          ? matches.length - 1
+          : (current + step + matches.length) % matches.length,
       );
     } else if (event.key === 'Enter') {
       const match = open ? matches[active] : undefined;
@@ -177,12 +178,22 @@ export function ApplicantPicker({
         onBlur={() => setOpen(false)}
       />
       <input type="hidden" name={name} value={chosen?.id ?? ''} />
-      <ul className="sb7-picker-list" id={listId} role="listbox" aria-label={`${label} matches`} hidden={!open}>
+      <div
+        className="sb7-picker-list"
+        id={listId}
+        // biome-ignore lint/a11y/useSemanticElements: a native select cannot filter as you type; this is the WAI-ARIA combobox list.
+        role="listbox"
+        tabIndex={-1}
+        aria-label={`${label} matches`}
+        hidden={!open}
+      >
         {matches.map((match, index) => (
-          <li
+          <div
             key={match.id}
             id={`${baseId}-option-${index}`}
+            // biome-ignore lint/a11y/useSemanticElements: an option of the combobox list above; focus stays in the text box (aria-activedescendant).
             role="option"
+            tabIndex={-1}
             aria-selected={index === active}
             className="sb7-picker-option"
             // Mouse down, not click: the text box would lose focus (and close the list) first.
@@ -193,9 +204,9 @@ export function ApplicantPicker({
           >
             {match.displayName}
             <span className="muted u-fs-085"> · ID {match.id.slice(0, 8)}</span>
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
       <output id={statusId} className="muted u-fs-085 sb7-picker-status">
         {statusText(status, typed, chosen)}
       </output>

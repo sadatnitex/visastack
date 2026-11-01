@@ -5,12 +5,12 @@ import {
   listRequirements,
 } from '@visastack/services';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   DocumentTypeDatalist,
   FieldKeyDatalist,
 } from '../../../../../components/catalogue-datalists';
-import Link from 'next/link';
 import { ShowMore } from '../../../../../components/show-more';
 import { PageHeader, StatusBadge } from '../../../../../components/ui';
 import { isPlatformAdmin } from '../../../../../lib/admin';
@@ -77,9 +77,13 @@ export default async function PackDetailPage({
 }) {
   const { packId } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
-  const wantedVersion = firstParam(query['version']);
-  const requirementsShown = parseShow(query['show'], { step: REQUIREMENTS_STEP, max: IN_MEMORY_MAX });
-  const versionsShown = parseShow(query['versions'], { step: VERSIONS_STEP, max: IN_MEMORY_MAX });
+  const { version: versionParam, show, versions: versionsParam } = query;
+  const wantedVersion = firstParam(versionParam);
+  const requirementsShown = parseShow(show, {
+    step: REQUIREMENTS_STEP,
+    max: IN_MEMORY_MAX,
+  });
+  const versionsShown = parseShow(versionsParam, { step: VERSIONS_STEP, max: IN_MEMORY_MAX });
 
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };

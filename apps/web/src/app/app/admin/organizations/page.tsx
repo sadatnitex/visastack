@@ -50,9 +50,10 @@ export default async function AdminOrganizationsPage({
   readonly searchParams?: Promise<SearchParamsRecord>;
 } = {}) {
   const query: SearchParamsRecord = (await searchParams) ?? {};
-  const search = (firstParam(query['q']) ?? '').trim().slice(0, SEARCH_MAX_CHARS);
-  const status = statusOf(firstParam(query['status']));
-  const before = parseCursor(query['before']);
+  const { q, status: statusParam, before: cursorParam } = query;
+  const search = (firstParam(q) ?? '').trim().slice(0, SEARCH_MAX_CHARS);
+  const status = statusOf(firstParam(statusParam));
+  const before = parseCursor(cursorParam);
   const filtered = search.length > 0 || status !== undefined;
 
   const data = await withSession(async ({ db, accountId, email }) => {
@@ -105,7 +106,6 @@ export default async function AdminOrganizationsPage({
               className="sb7-filter-bar u-mt-050"
               method="get"
               action={PATHNAME}
-              role="search"
               aria-label="Find organizations"
             >
               <div className="field-row">
@@ -126,12 +126,7 @@ export default async function AdminOrganizationsPage({
                 <label className="field-label" htmlFor="org-status">
                   Status
                 </label>
-                <select
-                  id="org-status"
-                  name="status"
-                  className="input"
-                  defaultValue={status ?? ''}
-                >
+                <select id="org-status" name="status" className="input" defaultValue={status ?? ''}>
                   <option value="">All Statuses</option>
                   {Object.entries(ORG_STATUS).map(([value, { label }]) => (
                     <option key={value} value={value}>

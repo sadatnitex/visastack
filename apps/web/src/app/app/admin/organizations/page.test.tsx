@@ -100,7 +100,9 @@ describe('Platform > Organizations', () => {
 
   it('reads one page of 25 with the filters from the address, and ignores an unknown status', async () => {
     await renderServer(
-      Page({ searchParams: Promise.resolve({ q: '  Visa  ', status: 'ACTIVE', before: 'abc_123' }) }),
+      Page({
+        searchParams: Promise.resolve({ q: '  Visa  ', status: 'ACTIVE', before: 'abc_123' }),
+      }),
     );
     expect(mocks.listAllOrganizations).toHaveBeenLastCalledWith(
       {},
@@ -123,7 +125,7 @@ describe('Platform > Organizations', () => {
     expect(textOf(html)).toContain('Next Page');
     expect(html).toContain('href="/app/admin/organizations?q=Visa#admin-organizations"');
     expect(textOf(html)).toContain('Back to the First Page');
-    expect(html).toContain('role="search"');
+    expect(html).toMatch(/<form[^>]*aria-label="Find (organizations|members)"/);
     expect(textOf(html)).toContain('Clear Filters');
   });
 

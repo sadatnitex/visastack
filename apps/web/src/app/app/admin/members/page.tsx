@@ -32,8 +32,9 @@ export default async function PlatformMembersPage({
   readonly searchParams: Promise<SearchParamsRecord>;
 }) {
   const query = await searchParams;
-  const search = (firstParam(query['q']) ?? '').trim().slice(0, SEARCH_MAX_CHARS);
-  const before = parseCursor(query['before']);
+  const { q, before: cursorParam } = query;
+  const search = (firstParam(q) ?? '').trim().slice(0, SEARCH_MAX_CHARS);
+  const before = parseCursor(cursorParam);
   const result = await withSession(async ({ db, accountId, email }) => {
     // Same rule as every platform check, including the authenticator code when it is required.
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) {
@@ -74,13 +75,7 @@ export default async function PlatformMembersPage({
         description="Registered accounts, separate from platform staff roles. Verification does not grant administrator access."
       />
       <article className="card" id="members-list">
-        <form
-          className="sb7-filter-bar"
-          method="get"
-          action={PATHNAME}
-          role="search"
-          aria-label="Find members"
-        >
+        <form className="sb7-filter-bar" method="get" action={PATHNAME} aria-label="Find members">
           <div className="field-row">
             <label className="field-label" htmlFor="member-search">
               Email Contains

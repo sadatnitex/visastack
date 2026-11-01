@@ -52,7 +52,13 @@ vi.mock('../pack-version-buttons', async () => {
 
 const { default: Page } = await import('./page');
 
-const PACK = { id: 'pk1', key: 'bd-uk-visit', name: 'UK Visit', authoritative: true, description: '' };
+const PACK = {
+  id: 'pk1',
+  key: 'bd-uk-visit',
+  name: 'UK Visit',
+  authoritative: true,
+  description: '',
+};
 
 function version(n: number, status: string) {
   return {

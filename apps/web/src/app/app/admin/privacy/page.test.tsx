@@ -153,9 +153,13 @@ describe('Platform > Privacy', () => {
       'h3',
     ]);
     expect(mocks.listActiveLegalHolds).toHaveBeenCalledWith({}, { limit: 25 });
-    expect(mocks.listAllApplicants).toHaveBeenCalledWith({}, { kind: 'staff' }, {
-      ids: ['ap1', 'ap2', 'ap1'],
-    });
+    expect(mocks.listAllApplicants).toHaveBeenCalledWith(
+      {},
+      { kind: 'staff' },
+      {
+        ids: ['ap1', 'ap2', 'ap1'],
+      },
+    );
   });
 
   it('reads holds 25 at a time and offers older ones, with a way back to the newest', async () => {
@@ -164,7 +168,10 @@ describe('Platform > Privacy', () => {
       nextCursor: 'next_holds',
     });
     const html = await renderServer(tab('holds', { before: 'prev_holds' }));
-    expect(mocks.listActiveLegalHolds).toHaveBeenCalledWith({}, { limit: 25, before: 'prev_holds' });
+    expect(mocks.listActiveLegalHolds).toHaveBeenCalledWith(
+      {},
+      { limit: 25, before: 'prev_holds' },
+    );
     expect(html).toContain('href="/app/admin/privacy?tab=holds&amp;before=next_holds#admin-holds"');
     expect(textOf(html)).toContain('Show Older Holds');
     expect(html).toContain('href="/app/admin/privacy?tab=holds#admin-holds"');

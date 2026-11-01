@@ -51,10 +51,16 @@ describe('searchApplicantsAction', () => {
 
   it('refuses a non-administrator and a role without the directory, reading nothing', async () => {
     mocks.isPlatformAdmin.mockResolvedValue(false);
-    expect(await searchApplicantsAction('Rahim')).toEqual({ ok: false, message: 'Not authorized.' });
+    expect(await searchApplicantsAction('Rahim')).toEqual({
+      ok: false,
+      message: 'Not authorized.',
+    });
     mocks.isPlatformAdmin.mockResolvedValue(true);
     mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
-    expect(await searchApplicantsAction('Rahim')).toEqual({ ok: false, message: 'Not authorized.' });
+    expect(await searchApplicantsAction('Rahim')).toEqual({
+      ok: false,
+      message: 'Not authorized.',
+    });
     expect(mocks.listAllApplicants).not.toHaveBeenCalled();
   });
 

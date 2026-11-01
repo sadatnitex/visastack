@@ -41,7 +41,8 @@ export default async function PackStudioPage({
   readonly searchParams?: Promise<SearchParamsRecord>;
 } = {}) {
   const query: SearchParamsRecord = (await searchParams) ?? {};
-  const packsShown = parseShow(query['show'], STEP);
+  const { show } = query;
+  const packsShown = parseShow(show, STEP);
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
     return {
