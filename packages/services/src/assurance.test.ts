@@ -845,3 +845,63 @@ describe('listIssuerVerificationsForDocument (EVI-05)', () => {
     expect(list[1]?.exactClaim).toBe('first call');
   });
 });
+
+describe('issuer verification and the resource lifecycle (LC-A2)', () => {
+  it('answers a deleted document as missing and keeps recording for an archived one', async () => {
+    const db = await freshDb();
+    const { account, applicant } = await seedOwner(db, 'lc-assurance-owner@example.com');
+    const register = async (name: string) => {
+      const doc = await registerDocument(db, {
+        actorAccountId: account.id,
+        applicantId: applicant.id,
+        originalName: name,
+        docType: 'PASSPORT',
+      });
+      if (!isOk(doc)) throw new Error('doc');
+      return doc.value.id;
+    };
+    const deletedId = await register('deleted.pdf');
+    const archivedId = await register('archived.pdf');
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values({
+      documentId: deletedId,
+      applicantId: applicant.id,
+      deletedAt: now,
+      deletePath: 'DUPLICATE',
+      purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+    });
+    await db
+      .insert(schema.documentLifecycle)
+      .values({ documentId: archivedId, applicantId: applicant.id, archivedAt: now });
+
+    const { agent, organization } = await seedActiveOrg(db, 'lc-assurance-agent@example.com');
+    await grantOrg(db, {
+      ownerAccountId: account.id,
+      applicantId: applicant.id,
+      organizationId: organization.id,
+      agentAccountId: agent.id,
+      actions: ['MANAGE'],
+    });
+    const record = (documentId: string) =>
+      recordIssuerVerification(db, {
+        actorAccountId: agent.id,
+        applicantId: applicant.id,
+        documentId,
+        issuerIdentity: 'Synthetic Issuer Office',
+        contactMethod: 'phone',
+        exactClaim: 'The document is genuine.',
+        response: 'Confirmed.',
+        validUntil: new Date(Date.now() + 86_400_000),
+      });
+
+    const missing = await record('00000000-0000-4000-8000-000000000000');
+    const deleted = await record(deletedId);
+    expect(isErr(deleted)).toBe(true);
+    if (isErr(deleted)) expect(deleted.error.code).toBe('not_found');
+    expect(deleted).toEqual(missing);
+    expect(await listIssuerVerificationsForDocument(db, deletedId)).toHaveLength(0);
+
+    expect(isOk(await record(archivedId))).toBe(true);
+    expect(await listIssuerVerificationsForDocument(db, archivedId)).toHaveLength(1);
+  });
+});

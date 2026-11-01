@@ -6,6 +6,13 @@ import { appendAuditEvent } from './audit';
 import { type ConsentRecord, getConsents, listConsentHistory } from './consent';
 import { type Db, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import {
+  everydayApplicantCondition,
+  everydayDocumentCondition,
+  lifecycleTablesPresent,
+  presentApplicantCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
 import { listProductEventsForAccount } from './product-events';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
@@ -93,6 +100,21 @@ export interface ExportedInvitationCaseException {
   readonly excludedByAccountId: string | null;
 }
 
+/**
+ * How an own-data export labels a record that is not current (resource lifecycle, LC-A2): the
+ * export holds every record the person still has, archived and Recently Deleted ones included.
+ */
+export type ExportLifecycleLabel = 'Archived' | 'Scheduled for removal';
+
+function lifecycleLabel(row: {
+  readonly present: boolean;
+  readonly everyday: boolean;
+}): { readonly status?: ExportLifecycleLabel } {
+  if (!row.present) return { status: 'Scheduled for removal' };
+  if (!row.everyday) return { status: 'Archived' };
+  return {};
+}
+
 export interface AccountExport {
   readonly account: typeof schema.accounts.$inferSelect;
   readonly consents: Awaited<ReturnType<typeof getConsents>>;
@@ -105,12 +127,16 @@ export interface AccountExport {
   readonly productEvents: ReadonlyArray<typeof schema.productEvents.$inferSelect>;
   readonly applicants: ReadonlyArray<{
     readonly applicant: typeof schema.applicants.$inferSelect;
+    /** Set only for a traveller record that is archived or in Recently Deleted. */
+    readonly status?: ExportLifecycleLabel;
     readonly facts: ReadonlyArray<{
       readonly fact: typeof schema.facts.$inferSelect;
       readonly versions: ReadonlyArray<typeof schema.factVersions.$inferSelect>;
     }>;
     readonly documents: ReadonlyArray<{
       readonly document: typeof schema.documents.$inferSelect;
+      /** Set only for a document that is archived or in Recently Deleted. */
+      readonly status?: ExportLifecycleLabel;
       readonly versions: ReadonlyArray<typeof schema.documentVersions.$inferSelect>;
       readonly nameVersions: ReadonlyArray<typeof schema.documentNameVersions.$inferSelect>;
       readonly scanResults: ReadonlyArray<typeof schema.documentScanResults.$inferSelect>;
@@ -165,11 +191,17 @@ export async function exportAccount(
   );
   if (!rateLimit.allowed) return err(serviceError('rate_limited', rateLimit.reason));
 
+  // Own-data export: every record, labelled by lifecycle (present and everyday conditions as labels).
+  const lifecycle = await lifecycleTablesPresent(db);
   const applicantRows = await db
-    .select()
+    .select({
+      applicant: schema.applicants,
+      present: lifecycle ? sql<boolean>`${presentApplicantCondition()}` : sql<boolean>`true`,
+      everyday: lifecycle ? sql<boolean>`${everydayApplicantCondition()}` : sql<boolean>`true`,
+    })
     .from(schema.applicants)
     .where(eq(schema.applicants.ownerAccountId, input.accountId));
-  const applicantIds = applicantRows.map((a) => a.id);
+  const applicantIds = applicantRows.map((a) => a.applicant.id);
 
   // Tables later migrations add are read only once they exist (S21: 0105; AI connections: 0100).
   const suggestionsReady = await aiSuggestionsAvailable(db);
@@ -180,7 +212,8 @@ export async function exportAccount(
         .from(sql`(select 1) as probe`)
     )[0]?.present === true;
   const applicants = await Promise.all(
-    applicantRows.map(async (applicant) => {
+    applicantRows.map(async (applicantRow) => {
+      const applicant = applicantRow.applicant;
       const factRows = await db
         .select()
         .from(schema.facts)
@@ -196,11 +229,16 @@ export async function exportAccount(
       );
 
       const docRows = await db
-        .select()
+        .select({
+          document: schema.documents,
+          present: lifecycle ? sql<boolean>`${presentDocumentCondition()}` : sql<boolean>`true`,
+          everyday: lifecycle ? sql<boolean>`${everydayDocumentCondition()}` : sql<boolean>`true`,
+        })
         .from(schema.documents)
         .where(eq(schema.documents.applicantId, applicant.id));
       const documents = await Promise.all(
-        docRows.map(async (document) => {
+        docRows.map(async (documentRow) => {
+          const document = documentRow.document;
           const versions = await db
             .select()
             .from(schema.documentVersions)
@@ -208,6 +246,7 @@ export async function exportAccount(
           const versionIds = versions.map((v) => v.id);
           return {
             document,
+            ...lifecycleLabel(documentRow),
             versions,
             nameVersions: await db
               .select()
@@ -356,6 +395,7 @@ export async function exportAccount(
         .where(eq(schema.profileFieldExemptions.applicantId, applicant.id));
       return {
         applicant,
+        ...lifecycleLabel(applicantRow),
         facts,
         documents,
         missions,

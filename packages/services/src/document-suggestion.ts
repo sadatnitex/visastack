@@ -11,6 +11,7 @@ import { type Db, first, required, schema } from './db';
 import { decideDocumentName, proposeDocumentName } from './document-naming';
 import { prepareDocumentKind, setDocumentType } from './documents';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { cleanDocumentName } from './naming';
 import { recordProductEvent } from './product-events';
 
@@ -127,18 +128,23 @@ export async function decideDocumentSuggestion(
   const documentId = proof.resource.document.id;
   const actorAccountId = proof.applicant.ownerAccountId;
   try {
+    const lifecycle = await lifecycleTablesPresent(proof.tx);
     const outcome = await proof.tx.transaction(async (tx) => {
-      const document = required(
-        first(
-          await tx
-            .select()
-            .from(schema.documents)
-            .where(eq(schema.documents.id, documentId))
-            .limit(1)
-            .for('update'),
-        ),
-        'document',
+      const document = first(
+        await tx
+          .select()
+          .from(schema.documents)
+          .where(
+            and(
+              eq(schema.documents.id, documentId),
+              // A command on one document: presentDocumentCondition (deleted answers as missing).
+              lifecycle ? presentDocumentCondition() : undefined,
+            ),
+          )
+          .limit(1)
+          .for('update'),
       );
+      if (!document) refuse('not_found', 'document not found');
       // Nothing is decided for a file that is not, or is no longer, past its safety checks.
       const latest = first(
         await tx

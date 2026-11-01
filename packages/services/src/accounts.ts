@@ -3,6 +3,7 @@ import { and, count, desc, eq, inArray, isNotNull, isNull, lt, or } from 'drizzl
 import { appendAuditEvent } from './audit';
 import { type Db, first, isUniqueViolation, lockOnEmail, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
 import { consumeAnyActiveInvitation } from './pilot-access';
 import { recordProductEvent } from './product-events';
 
@@ -316,13 +317,18 @@ export async function reportUnboundAccounts(db: Db): Promise<readonly UnboundAcc
     .orderBy(desc(schema.accounts.createdAt));
   if (accounts.length === 0) return [];
 
+  const lifecycle = await lifecycleTablesPresent(db);
   const counts = await db
     .select({ ownerAccountId: schema.applicants.ownerAccountId, n: count() })
     .from(schema.applicants)
     .where(
-      inArray(
-        schema.applicants.ownerAccountId,
-        accounts.map((a) => a.id),
+      and(
+        inArray(
+          schema.applicants.ownerAccountId,
+          accounts.map((a) => a.id),
+        ),
+        // A count of records still held: presentApplicantCondition (a deleted record is leaving).
+        lifecycle ? presentApplicantCondition() : undefined,
       ),
     )
     .groupBy(schema.applicants.ownerAccountId);

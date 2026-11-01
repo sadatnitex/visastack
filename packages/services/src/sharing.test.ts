@@ -1271,3 +1271,170 @@ describe('document kinds and sharing categories', () => {
     expect(isOk(candidates) && candidates.value.map((c) => c.id)).toEqual([documentId]);
   });
 });
+
+describe('sharing and the resource lifecycle (LC-A2)', () => {
+  const DAY_MS = 86_400_000;
+
+  async function consentedOwner(db: Db, email: string) {
+    const p = await provisionAccount(db, { email });
+    if (!isOk(p)) throw new Error('provision');
+    for (const type of ['CORE_PROCESSING', 'SHARING'] as const) {
+      await setConsent(db, {
+        actorAccountId: p.value.id,
+        accountId: p.value.id,
+        type,
+        granted: true,
+      });
+    }
+    return p.value;
+  }
+
+  async function traveller(db: Db, ownerId: string, displayName: string) {
+    const applicant = await createApplicant(db, {
+      actorAccountId: ownerId,
+      ownerAccountId: ownerId,
+      displayName,
+    });
+    if (!isOk(applicant)) throw new Error('applicant');
+    return applicant.value.id;
+  }
+
+  async function passport(db: Db, ownerId: string, applicantId: string, originalName: string) {
+    const doc = await registerDocument(db, {
+      actorAccountId: ownerId,
+      applicantId,
+      originalName,
+      docType: 'PASSPORT',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    return doc.value.id;
+  }
+
+  async function archiveDocument(db: Db, documentId: string, applicantId: string) {
+    await db
+      .insert(schema.documentLifecycle)
+      .values({ documentId, applicantId, archivedAt: new Date() });
+  }
+
+  async function deleteDocument(db: Db, documentId: string, applicantId: string) {
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values({
+      documentId,
+      applicantId,
+      deletedAt: now,
+      deletePath: 'DUPLICATE',
+      purgeAfter: new Date(now.getTime() + 30 * DAY_MS),
+    });
+  }
+
+  it('refuses a Recently Deleted document by name, accepts an archived one, and keeps only the archived one in a recipient view', async () => {
+    const db = await freshDb();
+    const owner = await consentedOwner(db, 'lc-share-owner@example.com');
+    const applicantId = await traveller(db, owner.id, 'Owner');
+    const archivedId = await passport(db, owner.id, applicantId, 'archived.pdf');
+    const deletedId = await passport(db, owner.id, applicantId, 'deleted.pdf');
+    const recipient = await provisionAccount(db, { email: 'lc-share-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    const base = {
+      actorAccountId: owner.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA', 'PREVIEW'] as ('VIEW_METADATA' | 'PREVIEW')[],
+      purpose: 'p',
+    };
+    // Shared while both were current.
+    const earlier = await createGrant(db, { ...base, documentIds: [archivedId, deletedId] });
+    if (!isOk(earlier)) throw new Error('grant');
+    await acceptGrant(db, { actorAccountId: recipient.value.id, grantId: earlier.value.id });
+
+    await archiveDocument(db, archivedId, applicantId);
+    await deleteDocument(db, deletedId, applicantId);
+
+    const refused = await createGrant(db, { ...base, documentIds: [deletedId] });
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.error.code).toBe('invalid');
+    expect(isOk(await createGrant(db, { ...base, documentIds: [archivedId] }))).toBe(true);
+
+    const workspace = await getRecipientWorkspace(db, {
+      actorAccountId: recipient.value.id,
+      grantId: earlier.value.id,
+    });
+    if (!isOk(workspace)) throw new Error('workspace');
+    expect(workspace.value.documents.map((d) => d.id)).toEqual([archivedId]);
+  });
+
+  it('offers neither an archived nor a Recently Deleted document to a category grant or a wider share', async () => {
+    const db = await freshDb();
+    const owner = await consentedOwner(db, 'lc-scope-owner@example.com');
+    const applicantId = await traveller(db, owner.id, 'Owner');
+    const currentId = await passport(db, owner.id, applicantId, 'current.pdf');
+    await archiveDocument(db, await passport(db, owner.id, applicantId, 'old.pdf'), applicantId);
+    await deleteDocument(db, await passport(db, owner.id, applicantId, 'dup.pdf'), applicantId);
+    const recipient = await provisionAccount(db, { email: 'lc-scope-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    const grant = await createGrant(db, {
+      actorAccountId: owner.id,
+      applicantId,
+      recipientAccountId: recipient.value.id,
+      actions: ['VIEW_METADATA'],
+      purpose: 'p',
+      categories: ['universal'],
+    });
+    if (!isOk(grant)) throw new Error('grant');
+    expect(grant.value.documentScopeSnapshot).toEqual([currentId]);
+
+    const laterId = await passport(db, owner.id, applicantId, 'later.pdf');
+    await archiveDocument(
+      db,
+      await passport(db, owner.id, applicantId, 'later-old.pdf'),
+      applicantId,
+    );
+    await deleteDocument(
+      db,
+      await passport(db, owner.id, applicantId, 'later-dup.pdf'),
+      applicantId,
+    );
+    const candidates = await previewScopeExpansion(db, {
+      actorAccountId: owner.id,
+      grantId: grant.value.id,
+    });
+    if (!isOk(candidates)) throw new Error('preview');
+    expect(candidates.value.map((c) => c.id)).toEqual([laterId]);
+  });
+
+  it("leaves a Recently Deleted traveller's grant out of the recipient inbox and keeps an archived traveller's", async () => {
+    const db = await freshDb();
+    const owner = await consentedOwner(db, 'lc-inbox-owner@example.com');
+    const archivedTraveller = await traveller(db, owner.id, 'Archived traveller');
+    const deletedTraveller = await traveller(db, owner.id, 'Deleted traveller');
+    const recipient = await provisionAccount(db, { email: 'lc-inbox-recipient@example.com' });
+    if (!isOk(recipient)) throw new Error('provision');
+    const grantFor = async (applicantId: string) => {
+      const grant = await createGrant(db, {
+        actorAccountId: owner.id,
+        applicantId,
+        recipientAccountId: recipient.value.id,
+        actions: ['VIEW_METADATA'],
+        purpose: 'p',
+      });
+      if (!isOk(grant)) throw new Error('grant');
+      return grant.value.id;
+    };
+    const archivedGrant = await grantFor(archivedTraveller);
+    await grantFor(deletedTraveller);
+    expect(await listGrantsForRecipientAccount(db, recipient.value.id)).toHaveLength(2);
+
+    const now = new Date();
+    await db.insert(schema.applicantLifecycle).values([
+      { applicantId: archivedTraveller, archivedAt: now },
+      {
+        applicantId: deletedTraveller,
+        deletedAt: now,
+        purgeAfter: new Date(now.getTime() + 30 * DAY_MS),
+      },
+    ]);
+    const incoming = await listGrantsForRecipientAccount(db, recipient.value.id);
+    expect(incoming.map((g) => g.grant.id)).toEqual([archivedGrant]);
+    expect(incoming[0]?.applicantName).toBe('Archived traveller');
+  });
+});

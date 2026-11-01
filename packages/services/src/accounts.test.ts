@@ -318,3 +318,31 @@ describe('touchAccountActivity (Part 7 §11 inactive-account policy bookkeeping)
     expect(account.lastActiveAt.getTime()).toBe(now.getTime());
   });
 });
+
+describe('unbound account report and the resource lifecycle (LC-A2)', () => {
+  it('leaves a traveller in Recently Deleted out of the count and keeps an archived one', async () => {
+    const db = await freshDb();
+    const legacy = await provisionAccount(db, { email: 'lifecycle-legacy@example.com' });
+    if (!isOk(legacy)) throw new Error('provision');
+    const [current, archived, deleted] = await db
+      .insert(schema.applicants)
+      .values([
+        { ownerAccountId: legacy.value.id, displayName: 'Synthetic current traveller' },
+        { ownerAccountId: legacy.value.id, displayName: 'Synthetic archived traveller' },
+        { ownerAccountId: legacy.value.id, displayName: 'Synthetic deleted traveller' },
+      ])
+      .returning({ id: schema.applicants.id });
+    if (!current || !archived || !deleted) throw new Error('Synthetic travellers');
+    const now = new Date();
+    await db.insert(schema.applicantLifecycle).values([
+      { applicantId: archived.id, archivedAt: now },
+      {
+        applicantId: deleted.id,
+        deletedAt: now,
+        purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+      },
+    ]);
+    const report = await reportUnboundAccounts(db);
+    expect(report.find((r) => r.email === 'lifecycle-legacy@example.com')?.applicantCount).toBe(2);
+  });
+});

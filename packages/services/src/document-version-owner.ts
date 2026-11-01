@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { type Db, first, schema } from './db';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -15,6 +16,7 @@ export async function documentVersionBelongsToApplicant(
   applicantId: string,
 ): Promise<boolean> {
   if (!UUID.test(documentVersionId) || !UUID.test(applicantId)) return false;
+  const lifecycle = await lifecycleTablesPresent(db);
   const row = first(
     await db
       .select({ id: schema.documentVersions.id })
@@ -24,6 +26,8 @@ export async function documentVersionBelongsToApplicant(
         and(
           eq(schema.documentVersions.id, documentVersionId),
           eq(schema.documents.applicantId, applicantId),
+          // Processing a version the caller names: presentDocumentCondition (deleted answers as missing).
+          lifecycle ? presentDocumentCondition() : undefined,
         ),
       )
       .limit(1),

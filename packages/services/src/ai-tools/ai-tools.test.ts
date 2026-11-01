@@ -165,7 +165,28 @@ async function document(applicantId: string, docType: string, readText?: string)
   }
   const code = (await referenceCodesFor(db, 'D', [doc.id])).get(doc.id);
   if (!code) throw new Error('code');
+  documentIds.set(code, { id: doc.id, applicantId });
   return code;
+}
+
+const documentIds = new Map<string, { id: string; applicantId: string }>();
+
+/** Archive or delete a document by its reference, the way lanes A1 and C will (LC-A2). */
+async function markLifecycle(code: string, state: 'ARCHIVED' | 'DELETED') {
+  const doc = documentIds.get(code);
+  if (!doc) throw new Error('unknown document');
+  const now = new Date();
+  await db.insert(schema.documentLifecycle).values(
+    state === 'ARCHIVED'
+      ? { documentId: doc.id, applicantId: doc.applicantId, archivedAt: now }
+      : {
+          documentId: doc.id,
+          applicantId: doc.applicantId,
+          deletedAt: now,
+          deletePath: 'DUPLICATE',
+          purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+        },
+  );
 }
 
 async function pack(actor: string): Promise<string> {
@@ -572,6 +593,26 @@ describe('AI tools: identifiers and documents', () => {
     expect(await refused(token, 'get_document_text', { document_reference: visa })).toBe(
       MESSAGES.notShared,
     );
+  });
+
+  it('never lists or reads a Recently Deleted document, and leaves an archived one out by default (LC-A2)', async () => {
+    const { ownerId, applicantId, passport, visa } = await seed();
+    const { token } = await connect(ownerId, applicantId, {
+      ...CASE_A_ONLY,
+      caseMode: 'NONE',
+      documentText: true,
+    });
+    await markLifecycle(visa, 'DELETED');
+    await markLifecycle(passport, 'ARCHIVED');
+    const list = await served(token, 'list_documents');
+    const codes = (
+      list.structuredContent as { documents: { referenceCode: string }[] }
+    ).documents.map((d) => d.referenceCode);
+    expect(codes).not.toContain(visa);
+    expect(codes).not.toContain(passport);
+    expect(wire(list)).not.toContain(VISA_TEXT);
+    const text = await call(token, 'get_document_text', { document_reference: visa });
+    expect(wire(text.result)).not.toContain(VISA_TEXT);
   });
 
   it('gives text only for a granted group, never for a protected kind', async () => {

@@ -1534,3 +1534,30 @@ describe('selected output: identifiers inside document text (S14 second review)'
     );
   });
 });
+
+describe('selected output and the resource lifecycle (LC-A2)', () => {
+  it('leaves archived and deleted documents out of the document list and its expiry dates', async () => {
+    const { ownerId, applicantId } = await person('lc-output@example.com');
+    const expiresAt = new Date('2026-12-01T00:00:00Z');
+    const current = await document(applicantId, 'PASSPORT', { expiresAt });
+    const archived = await document(applicantId, 'BANK_STATEMENT', { expiresAt });
+    const deleted = await document(applicantId, 'VISA', { expiresAt });
+    const now = new Date();
+    await db
+      .insert(schema.documentLifecycle)
+      .values({ documentId: archived.documentId, applicantId, archivedAt: now });
+    await db.insert(schema.documentLifecycle).values({
+      documentId: deleted.documentId,
+      applicantId,
+      deletedAt: now,
+      deletePath: 'DUPLICATE',
+      purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+    });
+
+    const output = await build(ownerId, applicantId, { documentList: true });
+    const code = (await referenceCodesFor(db, 'D', [current.documentId])).get(current.documentId);
+    expect(output.documents.map((d) => d.referenceCode)).toEqual([code]);
+    expect(output.documents.map((d) => d.kind)).toEqual(['Passport']);
+    expect(output.expiry.map((e) => e.kind)).toEqual(['Passport']);
+  });
+});

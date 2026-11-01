@@ -44,12 +44,12 @@ beforeEach(() => {
   navigationState.pathname = '/app/admin/organizations';
   mocks.isPlatformAdmin.mockResolvedValue(true);
   mocks.isPlatformOwnerAccount.mockResolvedValue(false);
-  mocks.listAllOrganizations.mockResolvedValue(orgs);
+  mocks.listAllOrganizations.mockResolvedValue({ items: orgs, nextCursor: null });
 });
 
 describe('Platform > Organizations', () => {
   it('shows each organization with only the actions its status allows', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(textOf(html)).toContain('Organizations');
     for (const org of orgs) expect(html).toContain(org.name);
     expect(
@@ -66,17 +66,17 @@ describe('Platform > Organizations', () => {
   });
 
   it('offers the Manage link only to a platform owner', async () => {
-    const asAdmin = await renderServer(Page());
+    const asAdmin = await renderServer(Page({}));
     expect(asAdmin).not.toContain('/app/admin/organizations/o-active');
     mocks.isPlatformOwnerAccount.mockResolvedValue(true);
-    const asOwner = await renderServer(Page());
+    const asOwner = await renderServer(Page({}));
     expect(asOwner).toContain('href="/app/admin/organizations/o-active"');
     expect(asOwner).toContain('>Manage<');
   });
 
   it('refuses anyone who is not a platform administrator, without reading anything', async () => {
     mocks.isPlatformAdmin.mockResolvedValue(false);
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(textOf(html)).toContain('restricted to platform administrators');
     expect(html).not.toContain('Active Visa Desk');
     expect(mocks.listAllOrganizations).not.toHaveBeenCalled();
@@ -87,7 +87,7 @@ describe('Platform > Organizations', () => {
     mocks.listAllOrganizations.mockRejectedValue(
       new Error('relation "organizations" does not exist'),
     );
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(textOf(html)).toContain('Some Sections Could Not Be Loaded');
     expect(textOf(html)).toContain('organizations');
     expect(textOf(html)).toContain('No Organizations Yet');
@@ -95,6 +95,55 @@ describe('Platform > Organizations', () => {
 
   it('keeps an unrelated failure of the permission check an error', async () => {
     mocks.isPlatformAdmin.mockRejectedValue(new Error('permission lookup failed'));
-    await expect(Page()).rejects.toThrow('permission lookup failed');
+    await expect(Page({})).rejects.toThrow('permission lookup failed');
+  });
+
+  it('reads one page of 25 with the filters from the address, and ignores an unknown status', async () => {
+    await renderServer(
+      Page({
+        searchParams: Promise.resolve({ q: '  Visa  ', status: 'ACTIVE', before: 'abc_123' }),
+      }),
+    );
+    expect(mocks.listAllOrganizations).toHaveBeenLastCalledWith(
+      {},
+      { limit: 25, search: 'Visa', status: 'ACTIVE', before: 'abc_123' },
+    );
+    await renderServer(
+      Page({ searchParams: Promise.resolve({ status: 'toString', before: '<bad cursor>' }) }),
+    );
+    expect(mocks.listAllOrganizations).toHaveBeenLastCalledWith({}, { limit: 25 });
+  });
+
+  it('offers the next page with the filters kept, and a way back to the first page', async () => {
+    mocks.listAllOrganizations.mockResolvedValue({ items: orgs, nextCursor: 'next_cursor' });
+    const html = await renderServer(
+      Page({ searchParams: Promise.resolve({ q: 'Visa', before: 'prev_cursor' }) }),
+    );
+    expect(html).toContain(
+      'href="/app/admin/organizations?q=Visa&amp;before=next_cursor#admin-organizations"',
+    );
+    expect(textOf(html)).toContain('Next Page');
+    expect(html).toContain('href="/app/admin/organizations?q=Visa#admin-organizations"');
+    expect(textOf(html)).toContain('Back to the First Page');
+    expect(html).toMatch(/<form[^>]*aria-label="Find (organizations|members)"/);
+    expect(textOf(html)).toContain('Clear Filters');
+  });
+
+  it('keeps suspend, terminate and manage in a row menu named for its organization', async () => {
+    mocks.isPlatformOwnerAccount.mockResolvedValue(true);
+    const html = await renderServer(Page({}));
+    expect(html.match(/class="sb7-row-menu"/g)).toHaveLength(4);
+    expect(textOf(html)).toContain('More Actions for Active Visa Desk');
+    mocks.isPlatformOwnerAccount.mockResolvedValue(false);
+    const asAdmin = await renderServer(Page({}));
+    // Pending and closed organizations have nothing behind a menu for a non-owner.
+    expect(asAdmin.match(/class="sb7-row-menu"/g)).toHaveLength(2);
+  });
+
+  it('says when nothing matches the filters instead of claiming there are no organizations', async () => {
+    mocks.listAllOrganizations.mockResolvedValue({ items: [], nextCursor: null });
+    const html = await renderServer(Page({ searchParams: Promise.resolve({ q: 'zzz' }) }));
+    expect(textOf(html)).toContain('No organizations match these filters.');
+    expect(textOf(html)).not.toContain('No Organizations Yet');
   });
 });

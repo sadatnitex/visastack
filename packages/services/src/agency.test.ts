@@ -184,13 +184,13 @@ describe('agency collaboration — assignments, notes, evidence', () => {
     });
     if (!isOk(later)) throw new Error('later note');
     const recent = await listNotes(db, org.value.id, applicantId, mission.value.id, { limit: 1 });
-    expect(recent.map((item) => item.id)).toEqual([later.value.id]);
+    expect(recent.items.map((item) => item.id)).toEqual([later.value.id]);
     expect(await listNotes(db, org.value.id, applicantId, mission.value.id)).toHaveLength(2);
     expect(
       await listNotes(db, '00000000-0000-4000-8000-000000000001', applicantId, mission.value.id, {
         limit: 50,
       }),
-    ).toEqual([]);
+    ).toEqual({ items: [], nextCursor: null, total: 0 });
 
     // A non-admin cannot assign.
     const stranger = await provisionAccount(db, { email: 'stranger-coll@example.com' });
@@ -3516,5 +3516,169 @@ describe('E02 agency triage mapping (Programme X WP-V4, R03)', () => {
       } as unknown as AuthorizedApplicant<'MANAGE'>;
       expect((await listRespondingDocumentStatesForOrg(forged, organizationId)).size).toBe(0);
     });
+  });
+});
+
+describe('agency views and the resource lifecycle (LC-A2)', () => {
+  /** Two travellers shared with one agency, each with a case and a request, plus two clean documents for the first. */
+  async function sharedScenario(db: Db) {
+    const kept = await consentedApplicant(db, 'lc-kept@example.com');
+    const gone = await consentedApplicant(db, 'lc-gone@example.com');
+    const agentAcc = await provisionAccount(db, { email: 'agent-lc@acme.com' });
+    if (!isOk(agentAcc)) throw new Error('provision');
+    const org = await createOrganization(db, { actorAccountId: agentAcc.value.id, name: 'Acme' });
+    if (!isOk(org)) throw new Error('org');
+    await activateOrg(db, org.value.id);
+    const missionIds: string[] = [];
+    for (const who of [kept, gone]) {
+      const mission = await createMission(db, {
+        actorAccountId: who.account.id,
+        applicantId: who.applicantId,
+        title: 'Synthetic trip',
+      });
+      if (!isOk(mission)) throw new Error('mission');
+      missionIds.push(mission.value.id);
+      const grant = await createGrant(db, {
+        actorAccountId: who.account.id,
+        applicantId: who.applicantId,
+        recipientOrganizationId: org.value.id,
+        actions: ['MANAGE'],
+        purpose: 'collaboration',
+      });
+      if (!isOk(grant)) throw new Error('grant');
+      await acceptGrant(db, { actorAccountId: agentAcc.value.id, grantId: grant.value.id });
+      const field = await requestEvidence(db, {
+        actorAccountId: agentAcc.value.id,
+        organizationId: org.value.id,
+        applicantId: who.applicantId,
+        kind: 'FIELD',
+        fieldKey: 'passport_number',
+      });
+      if (!isOk(field)) throw new Error('request');
+    }
+    const documentRequest = await requestEvidence(db, {
+      actorAccountId: agentAcc.value.id,
+      organizationId: org.value.id,
+      applicantId: kept.applicantId,
+      kind: 'DOCUMENT',
+      docType: 'bank_statement',
+    });
+    if (!isOk(documentRequest)) throw new Error('request');
+    const cleanDocument = async (originalName: string) => {
+      const doc = await registerDocument(db, {
+        actorAccountId: kept.account.id,
+        applicantId: kept.applicantId,
+        originalName,
+        docType: 'bank_statement',
+      });
+      if (!isOk(doc)) throw new Error('doc');
+      await addDocumentVersion(db, {
+        actorAccountId: kept.account.id,
+        documentId: doc.value.id,
+        bucket: 'CLEAN',
+        objectKey: `lc-${originalName}`,
+        safetyStatus: 'CLEAN',
+        processingStatus: 'AWAITING_REVIEW',
+      });
+      return doc.value.id;
+    };
+    return {
+      kept,
+      gone,
+      agentId: agentAcc.value.id,
+      orgId: org.value.id,
+      keptMission: missionIds[0],
+      documentRequestId: documentRequest.value.id,
+      firstDocument: await cleanDocument('first.pdf'),
+      secondDocument: await cleanDocument('second.pdf'),
+    };
+  }
+
+  async function agencyLists(db: Db, s: Awaited<ReturnType<typeof sharedScenario>>) {
+    const detailed = await listEvidenceRequestsForOrgDetailed(db, s.agentId, s.orgId);
+    if (!isOk(detailed)) throw new Error('detailed');
+    return {
+      missions: (await listMissionsForOrganization(db, s.orgId)).map((m) => m.applicantId),
+      applicants: (await listApplicantsForOrganization(db, s.orgId)).map((a) => a.applicantId),
+      requests: detailed.value.map((r) => r.applicantId),
+    };
+  }
+
+  it('drops a Recently Deleted traveller from every agency list and keeps an archived one', async () => {
+    const db = await freshDb();
+    const s = await sharedScenario(db);
+    const before = await agencyLists(db, s);
+    expect(new Set(before.missions)).toEqual(new Set([s.kept.applicantId, s.gone.applicantId]));
+    expect(new Set(before.applicants)).toEqual(new Set([s.kept.applicantId, s.gone.applicantId]));
+    expect(before.requests).toHaveLength(3);
+
+    const now = new Date();
+    await db.insert(schema.applicantLifecycle).values([
+      { applicantId: s.kept.applicantId, archivedAt: now },
+      {
+        applicantId: s.gone.applicantId,
+        deletedAt: now,
+        purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+      },
+    ]);
+    const after = await agencyLists(db, s);
+    expect(after.missions).toEqual([s.kept.applicantId]);
+    expect(after.applicants).toEqual([s.kept.applicantId]);
+    expect(after.requests).toEqual([s.kept.applicantId, s.kept.applicantId]);
+    const missions = await listMissionsForOrganization(db, s.orgId);
+    expect(missions[0]?.missionId).toBe(s.keptMission);
+  });
+
+  it('refuses a Recently Deleted document as an answer and accepts an archived one', async () => {
+    const db = await freshDb();
+    const s = await sharedScenario(db);
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values([
+      { documentId: s.firstDocument, applicantId: s.kept.applicantId, archivedAt: now },
+      {
+        documentId: s.secondDocument,
+        applicantId: s.kept.applicantId,
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+      },
+    ]);
+    const refused = await submitEvidenceResponse(db, {
+      actorAccountId: s.kept.account.id,
+      requestId: s.documentRequestId,
+      documentId: s.secondDocument,
+    });
+    expect(isErr(refused)).toBe(true);
+    if (isErr(refused)) expect(refused.error.code).toBe('not_found');
+    const accepted = await submitEvidenceResponse(db, {
+      actorAccountId: s.kept.account.id,
+      requestId: s.documentRequestId,
+      documentId: s.firstDocument,
+    });
+    expect(isOk(accepted)).toBe(true);
+    if (isOk(accepted)) {
+      expect(accepted.value.status).toBe('RECEIVED');
+      expect(accepted.value.respondingDocumentId).toBe(s.firstDocument);
+    }
+  });
+
+  it('keeps every list and answer working while the lifecycle tables are missing', async () => {
+    const client = await createMigratedPglite();
+    await client.exec(
+      'drop table document_removal_requests, document_lifecycle, applicant_lifecycle, deletion_receipts cascade',
+    );
+    const db = drizzle(client, { schema }) as unknown as Db;
+    const s = await sharedScenario(db);
+    const lists = await agencyLists(db, s);
+    const both = new Set([s.kept.applicantId, s.gone.applicantId]);
+    expect(new Set(lists.missions)).toEqual(both);
+    expect(new Set(lists.applicants)).toEqual(both);
+    expect(lists.requests).toHaveLength(3);
+    const answered = await submitEvidenceResponse(db, {
+      actorAccountId: s.kept.account.id,
+      requestId: s.documentRequestId,
+      documentId: s.secondDocument,
+    });
+    expect(isOk(answered)).toBe(true);
   });
 });

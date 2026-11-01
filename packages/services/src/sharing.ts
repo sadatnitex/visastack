@@ -36,6 +36,12 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import {
+  everydayDocumentCondition,
+  lifecycleTablesPresent,
+  presentApplicantCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
 import { recordProductEvent } from './product-events';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
@@ -272,10 +278,17 @@ export async function prepareGrantScope(
   }
   if (input.documentIds && input.documentIds.length > 0) {
     const uniqueIds = [...new Set(input.documentIds)];
+    const lifecycle = await lifecycleTablesPresent(db);
     const docs = await db
       .select({ id: schema.documents.id, applicantId: schema.documents.applicantId })
       .from(schema.documents)
-      .where(inArray(schema.documents.id, uniqueIds));
+      .where(
+        and(
+          inArray(schema.documents.id, uniqueIds),
+          // Grant document_ids, an explicit choice: presentDocumentCondition (a deleted one is refused).
+          lifecycle ? presentDocumentCondition() : undefined,
+        ),
+      );
     if (docs.length !== uniqueIds.length || docs.some((d) => d.applicantId !== input.applicantId)) {
       return err(serviceError('invalid', 'one or more documents do not belong to this applicant'));
     }
@@ -572,11 +585,18 @@ export async function listGrantsForRecipientAccount(
   db: Db,
   accountId: string,
 ): Promise<IncomingGrant[]> {
+  const lifecycle = await lifecycleTablesPresent(db);
   const rows = await db
     .select({ grant: schema.grants, applicantName: schema.applicants.displayName })
     .from(schema.grants)
     .innerJoin(schema.applicants, eq(schema.applicants.id, schema.grants.applicantId))
-    .where(eq(schema.grants.recipientAccountId, accountId));
+    .where(
+      and(
+        eq(schema.grants.recipientAccountId, accountId),
+        // A recipient's view of shared records: presentApplicantCondition (archive never revokes sharing, D6).
+        lifecycle ? presentApplicantCondition() : undefined,
+      ),
+    );
   return [...rows]
     .sort((a, b) => b.grant.createdAt.getTime() - a.grant.createdAt.getTime())
     .map((r) => ({ grant: r.grant, applicantName: r.applicantName }));
@@ -1264,10 +1284,17 @@ async function documentIdsMatchingCategories(
   applicantId: string,
   categories: readonly string[],
 ): Promise<string[]> {
+  const lifecycle = await lifecycleTablesPresent(db);
   const rows = await db
     .select({ id: schema.documents.id, docType: schema.documents.docType })
     .from(schema.documents)
-    .where(eq(schema.documents.applicantId, applicantId));
+    .where(
+      and(
+        eq(schema.documents.applicantId, applicantId),
+        // Automatic category matching: everydayDocumentCondition (archived is never newly shared).
+        lifecycle ? everydayDocumentCondition() : undefined,
+      ),
+    );
   return rows
     .filter((d) => {
       const category = categoryOfDocType(d.docType);
@@ -1407,6 +1434,7 @@ export async function getRecipientWorkspace(
     }
   }
 
+  const lifecycle = await lifecycleTablesPresent(db);
   const documentRows = await db
     .select({
       id: schema.documents.id,
@@ -1415,7 +1443,13 @@ export async function getRecipientWorkspace(
       docType: schema.documents.docType,
     })
     .from(schema.documents)
-    .where(eq(schema.documents.applicantId, grant.applicantId));
+    .where(
+      and(
+        eq(schema.documents.applicantId, grant.applicantId),
+        // A recipient's view of a shared record: presentDocumentCondition (archive never revokes sharing, D6).
+        lifecycle ? presentDocumentCondition() : undefined,
+      ),
+    );
 
   const documents: RecipientDocumentView[] = [];
   for (const doc of documentRows) {
@@ -1490,6 +1524,7 @@ export async function previewScopeExpansion(
   const candidateIds = [...matchingIds].filter((id) => !alreadyIncluded.has(id));
   if (candidateIds.length === 0) return ok([]);
 
+  const lifecycle = await lifecycleTablesPresent(db);
   const rows = await db
     .select({
       id: schema.documents.id,
@@ -1498,7 +1533,13 @@ export async function previewScopeExpansion(
       docType: schema.documents.docType,
     })
     .from(schema.documents)
-    .where(inArray(schema.documents.id, candidateIds));
+    .where(
+      and(
+        inArray(schema.documents.id, candidateIds),
+        // Offered for a wider share: everydayDocumentCondition.
+        lifecycle ? everydayDocumentCondition() : undefined,
+      ),
+    );
   return ok(
     rows.map((d) => ({
       id: d.id,

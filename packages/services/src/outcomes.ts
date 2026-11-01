@@ -1,8 +1,9 @@
 import { type Result, err, ok } from '@visastack/core';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { getMissionForOwner } from './missions';
 import { recordProductEvent } from './product-events';
 
@@ -61,11 +62,18 @@ export async function recordOutcome(
   }
 
   if (input.evidenceDocumentId) {
+    const lifecycle = await lifecycleTablesPresent(db);
     const evidenceDoc = first(
       await db
         .select()
         .from(schema.documents)
-        .where(eq(schema.documents.id, input.evidenceDocumentId))
+        .where(
+          and(
+            eq(schema.documents.id, input.evidenceDocumentId),
+            // An explicit choice of evidence: presentDocumentCondition (archived stays, deleted goes).
+            lifecycle ? presentDocumentCondition() : undefined,
+          ),
+        )
         .limit(1),
     );
     if (!evidenceDoc || evidenceDoc.applicantId !== mission.applicantId) {

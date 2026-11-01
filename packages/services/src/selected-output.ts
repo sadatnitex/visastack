@@ -24,6 +24,11 @@ import { isServableProcessingState } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { DEFAULT_EXPIRY_REMINDER_THRESHOLD_DAYS, getReminderThresholds } from './expiry';
+import {
+  everydayDocumentCondition,
+  lifecycleTablesPresent,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
 import { type Readiness, computeReadiness, isFactStatusEligible } from './missions';
 import { toLocalDateParts } from './notification-sweep';
 import type { KeyManagementPort } from './ports';
@@ -1113,6 +1118,7 @@ async function loadEvidence(
   }
   const documentVersionIds = [...new Set([...pairs.values()].flatMap((set) => [...set]))];
   if (documentVersionIds.length === 0) return result;
+  const lifecycle = await lifecycleTablesPresent(db);
   const evidenceDocuments = await db
     .select({
       versionId: schema.documentVersions.id,
@@ -1131,6 +1137,13 @@ async function loadEvidence(
         // A document of another person can never be named here.
         eq(schema.documents.applicantId, applicantId),
         eq(schema.documents.walletVisible, true),
+        // A traveller's AI context: everydayDocumentCondition. An agency's AI tools see what was
+        // shared with it: presentDocumentCondition (archive never revokes sharing, D6).
+        lifecycle
+          ? documentAllowed === null
+            ? everydayDocumentCondition()
+            : presentDocumentCondition()
+          : undefined,
       ),
     );
   const erasing = await activeOrVerifiedErasureStorageObjectIds(
@@ -1198,6 +1211,7 @@ async function loadDocumentParts(
     return { documents: [], expiry: [], documentText: [] };
   }
   // Only current documents (a replaced document is history), and only their latest version.
+  const lifecycle = await lifecycleTablesPresent(db);
   const documentRows = await db
     .select({
       id: schema.documents.id,
@@ -1213,6 +1227,13 @@ async function loadDocumentParts(
         isNull(schema.documents.supersededByDocumentId),
         // A document a contributor handed over for one case only stays out of reusable outputs.
         eq(schema.documents.walletVisible, true),
+        // A traveller's AI context and list_documents: everydayDocumentCondition. An agency's AI
+        // tools: presentDocumentCondition (archive never revokes sharing, D6).
+        lifecycle
+          ? input.agency === null
+            ? everydayDocumentCondition()
+            : presentDocumentCondition()
+          : undefined,
       ),
     )
     .orderBy(asc(schema.documents.createdAt), asc(schema.documents.id));
