@@ -705,3 +705,55 @@ describe('review fixes: how the reading shares the queue and the file', () => {
     expect(await proposalsOf(db, reader.versionId)).toHaveLength(8);
   });
 });
+
+describe('automatic reading and the resource lifecycle (LC-A2)', () => {
+  it('skips a deleted document or a deleted traveller quietly, without calling the provider', async () => {
+    const db = await freshDb();
+    const now = new Date();
+    const purgeAfter = new Date(now.getTime() + 30 * 86_400_000);
+    const deletedDocument = await seedReader(db, 'lc-read-doc@example.com', {
+      docType: 'HOTEL_BOOKING',
+    });
+    const deletedTraveller = await seedReader(db, 'lc-read-traveller@example.com', {
+      docType: 'HOTEL_BOOKING',
+    });
+    const current = await seedReader(db, 'lc-read-current@example.com', {
+      docType: 'HOTEL_BOOKING',
+    });
+    for (const reader of [deletedDocument, deletedTraveller, current]) {
+      await runIntake(db, reader.versionId, extractorFor(LETTER_TEXT));
+    }
+    await db.insert(schema.documentLifecycle).values({
+      documentId: deletedDocument.documentId,
+      applicantId: deletedDocument.applicantId,
+      deletedAt: now,
+      deletePath: 'DUPLICATE',
+      purgeAfter,
+    });
+    await db
+      .insert(schema.applicantLifecycle)
+      .values({ applicantId: deletedTraveller.applicantId, deletedAt: now, purgeAfter });
+
+    const { ports, calls } = countingPorts();
+    for (const reader of [deletedDocument, deletedTraveller]) {
+      const result = await processAiReading(db, scope(), ports, {
+        documentVersionId: reader.versionId,
+      });
+      expect(result).toEqual({
+        outcome: 'SKIPPED',
+        ranOcr: false,
+        ranExtraction: false,
+        suggestions: 0,
+      });
+      expect(await proposalsOf(db, reader.versionId)).toHaveLength(0);
+    }
+    expect(calls.extract + calls.ocr + calls.render + calls.prepare).toBe(0);
+
+    // The same file, still current, is read as usual.
+    const read = await processAiReading(db, scope(), ports, {
+      documentVersionId: current.versionId,
+    });
+    expect(read.outcome).not.toBe('SKIPPED');
+    expect(calls.extract).toBe(1);
+  });
+});

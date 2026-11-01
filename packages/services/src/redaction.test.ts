@@ -1265,3 +1265,102 @@ describe('safe copies (S23, ADR 0022)', () => {
     });
   });
 });
+
+describe('safe copy states and the resource lifecycle (LC-A2)', () => {
+  it('leaves a Recently Deleted version out and keeps an archived one', async () => {
+    const db = await freshDb();
+    resetProtectedFieldKeyCacheForTests();
+    const created = await provisionAccount(db, { email: 'lifecycle-redaction@example.com' });
+    if (!isOk(created)) throw new Error('provision');
+    const owner = created.value.id;
+    for (const type of ['CORE_PROCESSING', 'SHARING'] as const) {
+      await setConsent(db, { actorAccountId: owner, accountId: owner, type, granted: true });
+    }
+    const applicant = await createApplicant(db, {
+      actorAccountId: owner,
+      ownerAccountId: owner,
+      displayName: 'Synthetic Traveller',
+    });
+    if (!isOk(applicant)) throw new Error('applicant');
+    const applicantId = applicant.value.id;
+    // Over the size limit, so each version reads TOO_LARGE without any drawing.
+    const addLarge = async (originalName: string) => {
+      const doc = await registerDocument(db, {
+        actorAccountId: owner,
+        applicantId,
+        originalName,
+        docType: 'PASSPORT',
+      });
+      if (!isOk(doc)) throw new Error('document');
+      const version = await addDocumentVersion(db, {
+        actorAccountId: owner,
+        documentId: doc.value.id,
+        bucket: 'CLEAN',
+        objectKey: `redaction-${randomUUID()}`,
+        sizeBytes: 25 * 1024 * 1024 + 1,
+        safetyStatus: 'CLEAN',
+        processingStatus: 'APPROVED',
+      });
+      if (!isOk(version)) throw new Error('version');
+      return { documentId: doc.value.id, versionId: version.value.version.id };
+    };
+    const archived = await addLarge('archived.pdf');
+    const deleted = await addLarge('deleted.pdf');
+    const documentProof = async (documentId: string) => {
+      const binding = { accountId: owner, action: 'VIEW_METADATA' as const, resourceId: documentId };
+      const stepUp = verifyStepUp(
+        STEP_UP_SECRET,
+        issueStepUpAssurance(STEP_UP_SECRET, binding),
+        binding,
+      );
+      const result = await requireAccess(
+        db,
+        accountPrincipal(owner),
+        'VIEW_METADATA',
+        { documentId },
+        { purpose: EACH_GRANT, ...(stepUp ? { stepUp } : {}) },
+      );
+      if (!isOk(result)) throw new Error(`gate: ${result.error.code}`);
+      return result.value;
+    };
+    // Proofs are taken while both documents are current; the reads must still apply the rule.
+    const archivedProof = await documentProof(archived.documentId);
+    const deletedProof = await documentProof(deleted.documentId);
+    const applicantProof = await requireAccess(
+      db,
+      accountPrincipal(owner),
+      'VIEW_METADATA',
+      { applicantId },
+      { purpose: 'self' },
+    );
+    if (!isOk(applicantProof)) throw new Error('applicant gate');
+    const before = await listRedactionStates(applicantProof.value, [
+      archived.versionId,
+      deleted.versionId,
+    ]);
+    expect(isOk(before) && before.value.size).toBe(2);
+
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values([
+      { documentId: archived.documentId, applicantId, archivedAt: now },
+      {
+        documentId: deleted.documentId,
+        applicantId,
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+      },
+    ]);
+    const listed = await listRedactionStates(applicantProof.value, [
+      archived.versionId,
+      deleted.versionId,
+    ]);
+    if (!isOk(listed)) throw new Error('states');
+    expect(listed.value.get(archived.versionId)).toBe('TOO_LARGE');
+    expect(listed.value.has(deleted.versionId)).toBe(false);
+
+    const states = await listSafeCopyStatesForDocuments(archivedProof, [deletedProof]);
+    expect(states.get(archived.documentId)).toBe('TOO_LARGE');
+    expect(states.get(deleted.documentId)).toBe('NOT_PREPARED');
+  });
+});
