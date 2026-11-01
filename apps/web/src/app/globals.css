@@ -11418,3 +11418,96 @@ html:has(.sticky-action-bar) {
   margin-bottom: 0.5rem;
   font-size: var(--text-small);
 }
+
+/* WP-SB5 agency workspace within the scroll budget: the Cases list is one compact row per case
+   (15 a page) and only the open case shows its workspace; the Dashboard table and the Activity
+   case links end in a short row of actions. */
+.agency-case-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.agency-case-list-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title action"
+    "meta action";
+  align-items: center;
+  column-gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: 0.5rem;
+  background: var(--bg-elevated);
+  color: var(--text);
+  text-decoration: none;
+}
+.agency-case-list-link:hover {
+  border-color: var(--accent);
+}
+.agency-case-list-open {
+  border-color: var(--accent);
+  background: var(--brand-bg);
+}
+.agency-case-list-title {
+  grid-area: title;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.agency-case-list-meta {
+  grid-area: meta;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-small);
+}
+.agency-case-list-action {
+  grid-area: action;
+  color: var(--accent);
+  font-size: var(--text-small);
+  white-space: nowrap;
+}
+.agency-case-list-open .agency-case-list-action {
+  color: var(--selected-text);
+  font-weight: 600;
+}
+.agency-case-table-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.agency-case-notes-more {
+  margin-top: 0.5rem;
+}
+.agency-activity-cases {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.agency-activity-cases ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (max-width: 40rem) {
+  .agency-case-list-link {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "title"
+      "meta"
+      "action";
+    row-gap: 0.15rem;
+  }
+}
