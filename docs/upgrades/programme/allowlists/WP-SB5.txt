@@ -1,0 +1,27 @@
+# WP-SB5 Agency workspace (Scroll Budget programme, docs/upgrades/programme/SCROLL-BUDGET-PLAN.md section 6 "SB5").
+# Drafted from the SB5 seed (plan section 4 plus tests and shared files). The owner approved this allowlist
+# in advance on 31 Oct 2026 (relayed by the coordinator session).
+# In packages/services/src/agency.ts only listNotes, listVisibleMissionsForMember (paging) and
+# listEvidenceRequestsForOrgDetailed (the request list) may change; never listNotesForOwner (SB2) or
+# listEvidenceRequestsForApplicant (SB3). In client-invitations.ts only listClientInvitations (the client
+# invitation list the seed names). Agency plan and invoices are frozen and not listed.
+# globals.css takes only an appended block starting with "/* WP-SB5". STATUS.md is not edited (only WP-SB10).
+apps/web/src/app/app/agency/[orgId]/page.tsx
+apps/web/src/app/app/agency/[orgId]/page.test.tsx
+apps/web/src/app/app/agency/[orgId]/cases/**
+apps/web/src/app/app/agency/[orgId]/activity/**
+apps/web/src/app/app/agency/[orgId]/clients/**
+apps/web/src/app/app/agency/[orgId]/console-data.ts
+apps/web/src/app/app/agency/[orgId]/console-data.test.ts
+apps/web/src/app/app/agency/[orgId]/console-data-triage.test.ts
+packages/services/src/agency.ts
+packages/services/src/agency.test.ts
+packages/services/src/client-invitations.ts
+packages/services/src/client-invitations.test.ts
+packages/services/src/agency-workspace-paging.test.ts
+apps/web/e2e/scroll-budget/WP-SB5.spec.ts
+apps/web/e2e/scroll-budget/WP-SB5.fixture.tsx
+apps/web/src/app/globals.css
+docs/commercial-v1/known-issues.md
+docs/upgrades/programme/COVERAGE-LEDGER.csv
+docs/upgrades/programme/allowlists/WP-SB5.txt
