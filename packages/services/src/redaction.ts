@@ -193,6 +193,27 @@ function ownerDocument(proof: AnyProof, action: 'PREVIEW' | 'MANAGE'): DocumentR
   return document;
 }
 
+/** The same answer as for a document that does not exist. */
+function notFound(): ServiceError {
+  return serviceError('not_found', 'document not found');
+}
+
+/**
+ * Whether the proof's document is in Recently Deleted or being removed (resource lifecycle,
+ * LC-A2). The proof loaded the one named record whatever its state; the Safe Copy editor and the
+ * Safe Copy itself serve bytes, so they use presentDocumentCondition and answer a deleted
+ * document exactly like a missing one. An archived document keeps its Safe Copy.
+ */
+async function documentGone(db: Db, documentId: string): Promise<boolean> {
+  if (!(await lifecycleTablesPresent(db))) return false;
+  const present = await db
+    .select({ id: schema.documents.id })
+    .from(schema.documents)
+    .where(and(eq(schema.documents.id, documentId), presentDocumentCondition()))
+    .limit(1);
+  return present.length === 0;
+}
+
 async function audit(
   proof: DocumentProof,
   document: DocumentRow,
@@ -698,6 +719,7 @@ export async function openRedactionEditor(
 ): Promise<Result<RedactionEditorView, SafeCopyError>> {
   const document = ownerDocument(proof, 'PREVIEW');
   if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
+  if (await documentGone(proof.tx, document.id)) return err(notFound());
   const metadata = { variant: 'redaction_editor', disposition: 'preview' };
   const loaded = await loadForOwner(proof, document, deps, 'REDACTION_PAGE', metadata, undefined);
   if (!loaded.ok) return loaded;
@@ -738,6 +760,7 @@ export async function renderRedactionPage(
 ): Promise<Result<RenderedRedactionPage, SafeCopyError>> {
   const document = ownerDocument(proof, 'PREVIEW');
   if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
+  if (await documentGone(proof.tx, document.id)) return err(notFound());
   if (
     !Number.isSafeInteger(input.page) ||
     input.page < 1 ||
@@ -1107,6 +1130,7 @@ export async function suggestRedactions(
 ): Promise<Result<readonly RedactionSuggestion[], SafeCopyError>> {
   const document = ownerDocument(proof, 'PREVIEW');
   if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
+  if (await documentGone(proof.tx, document.id)) return err(notFound());
   const metadata = { variant: 'redaction_suggestions', disposition: 'preview' };
   const loaded = await loadForOwner(
     proof,
@@ -1199,6 +1223,7 @@ export async function saveRedactionMasks(
 ): Promise<Result<SavedRedaction, SafeCopyError>> {
   const document = ownerDocument(proof, 'MANAGE');
   if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
+  if (await documentGone(proof.tx, document.id)) return err(notFound());
   if (input.pages.length < 1 || input.pages.length > REDACTION_LIMITS.maxPages) {
     return err(serviceError('invalid', 'mark every page of the document'));
   }
@@ -1328,6 +1353,7 @@ export async function clearRedactionMasks(
 ): Promise<Result<{ readonly pagesCleared: number }, SafeCopyError>> {
   const document = ownerDocument(proof, 'MANAGE');
   if (!document) return err(serviceError('forbidden', 'only the owner can change a safe copy'));
+  if (await documentGone(proof.tx, document.id)) return err(notFound());
   const db = proof.tx;
   if (!(await redactionMasksTablePresent(db))) return err(refusalError('not_ready_yet'));
   const version = first(
@@ -1401,6 +1427,7 @@ export async function prepareSafeCopyPage(
 ): Promise<Result<PreparedSafeCopyPage, SafeCopyError>> {
   const document = ownerDocument(proof, 'MANAGE');
   if (!document) return err(serviceError('forbidden', 'only the owner can prepare a safe copy'));
+  if (await documentGone(proof.tx, document.id)) return err(notFound());
   if (
     !Number.isSafeInteger(input.page) ||
     input.page < 1 ||
@@ -1614,6 +1641,7 @@ export async function produceSafeCopy(
   if (document.applicantId !== proof.applicant.id) {
     return err(serviceError('forbidden', 'access denied'));
   }
+  if (await documentGone(proof.tx, document.id)) return err(notFound());
   const requested = { variant: 'redacted', disposition: options.disposition ?? 'download' };
   const refuse = async (
     reason: string,
