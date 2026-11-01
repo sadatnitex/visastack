@@ -16,6 +16,10 @@ apps/web/src/components/country-browser.test.tsx
 apps/web/e2e/scroll-budget/WP-SB8.spec.ts
 # The spec's own fixture, in the spec's folder where WP-SB0's renderFixture looks first (a test file).
 apps/web/e2e/scroll-budget/WP-SB8.fixture.tsx
+# Approved by the owner on 1 Nov 2026: the two country page tests, example country only (the UK
+# is now behind Show More); what they check, links staying in their workspace, is unchanged.
+apps/web/src/app/app/countries/countries.page.test.tsx
+apps/web/src/app/app/agency/[orgId]/countries/agency-countries.page.test.tsx
 apps/web/src/app/globals.css
 docs/commercial-v1/known-issues.md
 docs/upgrades/programme/COVERAGE-LEDGER.csv
