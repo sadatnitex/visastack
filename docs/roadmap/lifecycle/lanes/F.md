@@ -55,14 +55,12 @@ Any read-site migration (A1, A2, B, E do those), any action component, any job r
   - `apps/web/src/app/app/admin/page.tsx`: 12 `SCORECARD_LABELS` lines for the new product events (WP-SB6 told to keep them).
   - `apps/web/src/components/document-wallet-browser.tsx`: optional `manage?: ReactNode` on `WalletBrowserDocument`, drawn in the row after its select button, never in the selected details; a row without it renders as before (`manage/wallet-row-manage.test.tsx`).
   - `apps/web/src/lib/ccd/parity-documents.test.tsx`: one line in its services mock, `lifecycleTablesPresent: async () => false,` (the page before migration 0113, which is what that parity test protects; approved 1 Nov 2026). The tables-present case is covered by `documents/page.test.tsx`.
-  - `apps/web/src/app/app/agency/[orgId]/clients/page.test.tsx`: the three fixture dates `2026-11-01T00:00:00Z` become `2099-11-01T00:00:00Z` (lines 56, 111, 117), the identical change lane G1 is landing; accepted by the coordinator's notice of 1 Nov 2026 (the fixture expired and fails on main too). When G1 merges first, merging main makes this line disappear from the diff.
-  - Exact output of `node scripts/programme/check-allowed-paths.mjs docs/roadmap/lifecycle/allowlists/F.txt --no-emdash --exclude docs/design/harbor-v2` before the last commit:
+  - Exact output of `node scripts/programme/check-allowed-paths.mjs docs/roadmap/lifecycle/allowlists/F.txt --no-emdash --exclude docs/design/harbor-v2` on the head after merging main (lane G1's identical clients-page date fix is on main, so that file is no longer in this diff):
 
     ```
-    5 changed file(s) are outside docs/roadmap/lifecycle/allowlists/F.txt:
+    4 changed file(s) are outside docs/roadmap/lifecycle/allowlists/F.txt:
       apps/web/src/app/app/admin/page.tsx
       apps/web/src/app/app/admin/privacy/page.tsx
-      apps/web/src/app/app/agency/[orgId]/clients/page.test.tsx
       apps/web/src/components/document-wallet-browser.tsx
       apps/web/src/lib/ccd/parity-documents.test.tsx
     Stop. Ask the owner to approve an allowlist change before editing these files.
