@@ -65,7 +65,7 @@ SP=$!
 ours=
 for i in $(seq 1 60); do
   kill -0 "$SP" 2>/dev/null || break
-  if [ -n "$BUILD_ID" ] && curl -s "http://localhost:$P/status" | grep -q "$BUILD_ID"; then ours=1; break; fi
+  if [ -n "$BUILD_ID" ] && curl -s "http://localhost:$P/status" | grep -qF -- "$BUILD_ID"; then ours=1; break; fi
   sleep 1
 done
 if [ -z "$ours" ]; then
