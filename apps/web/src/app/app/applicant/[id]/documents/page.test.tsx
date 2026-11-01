@@ -995,6 +995,7 @@ describe('archive, Recently Deleted and the Manage menu (resource lifecycle, mig
       expect(offers(going)).toEqual(none);
     } finally {
       vi.unstubAllEnvs();
+      mocks.detailsAvailable.mockResolvedValue('unconfigured');
     }
   });
 

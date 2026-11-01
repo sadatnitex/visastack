@@ -15,6 +15,7 @@ import { type ServiceError, refusal, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { enqueueNotificationBothChannels } from './notifications';
+import { OPEN_ORGANIZATION_STATUSES } from './organization-admission';
 import { addMembership, isOrgAdmin } from './organizations';
 import type { KeyManagementPort } from './ports';
 import { RATE_LIMITS, checkRateLimits } from './rate-limit';
@@ -94,7 +95,6 @@ async function invitationRateLimitRefusal(
  * withdrawal, review or closure (which lock that row for update) cannot land between this check
  * and the write that follows it in the same transaction.
  */
-const MEMBER_TAKING_STATUSES: readonly string[] = ['ACTIVE', 'PENDING_VERIFICATION'];
 
 async function organizationTakesMembers(tx: Db, organizationId: string): Promise<boolean> {
   const org = first(
@@ -104,7 +104,7 @@ async function organizationTakesMembers(tx: Db, organizationId: string): Promise
       .where(eq(schema.organizations.id, organizationId))
       .for('share'),
   );
-  return org !== undefined && MEMBER_TAKING_STATUSES.includes(org.status);
+  return org !== undefined && OPEN_ORGANIZATION_STATUSES.includes(org.status);
 }
 
 const CANNOT_INVITE = 'this agency can no longer invite members';
@@ -327,6 +327,7 @@ export async function previewOrganizationInvitation(
         email: schema.organizationInvitations.email,
         expiresAt: schema.organizationInvitations.expiresAt,
         status: schema.organizationInvitations.status,
+        organizationStatus: schema.organizations.status,
       })
       .from(schema.organizationInvitations)
       .innerJoin(
@@ -342,6 +343,10 @@ export async function previewOrganizationInvitation(
   }
   if (row.expiresAt.getTime() < Date.now()) {
     return err(serviceError('invalid', 'this invitation has expired'));
+  }
+  // The same rule acceptance applies, so the page never offers an Accept that can only fail.
+  if (!OPEN_ORGANIZATION_STATUSES.includes(row.organizationStatus)) {
+    return err(serviceError('invalid', 'this agency is no longer taking new members'));
   }
   return ok({
     organizationName: row.organizationName,

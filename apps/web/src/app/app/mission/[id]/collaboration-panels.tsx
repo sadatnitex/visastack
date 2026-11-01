@@ -435,7 +435,7 @@ interface CandidateView {
     readonly eligible: boolean;
     /** NTF-01: this candidate's freshness against the requirement's route-specific rule, if any. */
     readonly staleness: 'not_applicable' | 'unknown' | 'fresh' | 'stale';
-    /** Lane Z: "Archived", "Replaced on 3 Nov" or "Removed by the traveller on 3 Nov"; null when current. */
+    /** Lane Z: "Archived", "Replaced" or "Removed by the traveller on 3 Nov"; null when current. */
     readonly lifecycleLabel?: string | null;
   }>;
   readonly selectedFactIds: readonly string[];

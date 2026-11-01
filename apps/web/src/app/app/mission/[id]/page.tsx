@@ -328,6 +328,21 @@ export default async function MissionPage({
     if (!owned.ok) return null;
     const mission = owned.value;
     const applicant = await getApplicant(db, mission.applicantId);
+    // One "view my own case" proof for the trip checks, gap explanations and lifecycle labels,
+    // made on first use and shared (lane Z review: it was made up to three times).
+    const makeSelfView = () =>
+      requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'VIEW_METADATA',
+        { missionId: mission.id },
+        { purpose: 'self' },
+      );
+    let selfViewGate: ReturnType<typeof makeSelfView> | undefined;
+    const selfView = () => {
+      selfViewGate ??= makeSelfView();
+      return selfViewGate;
+    };
     const [
       readiness,
       requirements,
@@ -392,13 +407,7 @@ export default async function MissionPage({
       // owner of this case. A refusal or an error shows a plain message, never a made-up result.
       // A case with no travel date, or one already handed in, needs no gate call at all.
       tripChecksApply(mission.state) && (mission.travelStartDate || mission.travelEndDate)
-        ? requireAccess(
-            db,
-            accountPrincipal(accountId),
-            'VIEW_METADATA',
-            { missionId: mission.id },
-            { purpose: 'self' },
-          )
+        ? selfView()
             .then((gate) => (gate.ok ? computeTripChecks(gate.value) : null))
             .catch(() => null)
         : Promise.resolve([]),
@@ -458,15 +467,7 @@ export default async function MissionPage({
     // Gap Explanations' own switch (S28), read only when the button could show. Off, a short
     // hint takes the button's place and any explanation already given stays.
     const explanationGate =
-      explanationConfigured && explanationEntries.length > 0
-        ? await requireAccess(
-            db,
-            accountPrincipal(accountId),
-            'VIEW_METADATA',
-            { missionId: mission.id },
-            { purpose: 'self' },
-          )
-        : null;
+      explanationConfigured && explanationEntries.length > 0 ? await selfView() : null;
     const explanationFeature = explanationGate?.ok
       ? await getAiFeatureState(db, 'ai_explanations', { proof: explanationGate.value })
       : null;
@@ -535,16 +536,7 @@ export default async function MissionPage({
     // or removed says so on the evidence lines. Read through the case's own access proof.
     const evidenceEntries = candidates.ok ? candidates.value : [];
     const evidenceIds = evidenceDocumentIds(evidenceEntries);
-    const evidenceGate =
-      evidenceIds.length > 0
-        ? await requireAccess(
-            db,
-            accountPrincipal(accountId),
-            'VIEW_METADATA',
-            { missionId: mission.id },
-            { purpose: 'self' },
-          )
-        : null;
+    const evidenceGate = evidenceIds.length > 0 ? await selfView() : null;
     const lifecycleNow = new Date();
     const evidenceLifecycle = evidenceLifecycleLabels(
       evidenceEntries,

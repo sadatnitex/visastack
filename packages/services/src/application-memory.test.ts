@@ -836,6 +836,41 @@ describe('Application Memory and prior versus current (WP-V3 part 3)', () => {
     expect(documentChanges).toHaveLength(4);
   }, 60_000);
 
+  it('lists the replacement as added when the replaced document was then deleted (LC-Z review)', async () => {
+    const me = await person('replaced-then-deleted@example.com');
+    const old = await addDocument(me, 'old.pdf', 'payslip');
+    const missionId = await caseFor(me);
+    const snap = await snapshot(me, missionId);
+    const newer = await addDocument(me, 'newer.pdf', 'payslip');
+    await db
+      .update(schema.documents)
+      .set({ supersededByDocumentId: newer })
+      .where(eq(schema.documents.id, old));
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values({
+      documentId: old,
+      applicantId: me.applicantId,
+      deletedAt: now,
+      deletePath: 'DUPLICATE',
+      purgeAfter: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+    });
+    const listed = await listChangesSinceSnapshot(await view(me, { missionId }), snap.id);
+    if (!isOk(listed)) throw new Error('listed');
+    const documentChanges = listed.value.changes.filter((c) => c.kind === 'document');
+    expect(documentChanges).toContainEqual({
+      kind: 'document',
+      change: 'deleted',
+      documentId: old,
+      docType: 'payslip',
+    });
+    expect(documentChanges).toContainEqual({
+      kind: 'document',
+      change: 'added',
+      documentId: newer,
+      docType: 'payslip',
+    });
+  }, 60_000);
+
   it('works exactly as before with the lifecycle tables missing: a gone document is no longer available (LC-Z)', async () => {
     const client = await createMigratedPglite();
     await client.exec(

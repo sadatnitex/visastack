@@ -870,7 +870,6 @@ async function changesSince(
   for (const doc of parsed.documents) {
     const stored = storedById.get(doc.documentId);
     const latest = latestByDocument.get(doc.documentId);
-    if (stored?.supersededByDocumentId) replacementIds.add(stored.supersededByDocumentId);
     const unusable =
       !stored ||
       !latest ||
@@ -889,6 +888,11 @@ async function changesSince(
             : latest.id !== doc.documentVersionId
               ? 'new_version'
               : null;
+    // A replacement is named by its "replaced" line only; when the old document was then deleted,
+    // the line says "removed", so the replacement the case uses is listed as added (lane Z review).
+    if (change === 'replaced' && stored?.supersededByDocumentId) {
+      replacementIds.add(stored.supersededByDocumentId);
+    }
     if (change) {
       changes.push({ kind: 'document', change, documentId: doc.documentId, docType: doc.docType });
     }

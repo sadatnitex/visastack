@@ -3175,6 +3175,25 @@ export async function approveProposal(
   if (!fromApp && sourceDocumentVersionId === null) {
     return err(serviceError('invalid', 'proposal has no document to approve from'));
   }
+  // A detail read from a document in Recently Deleted or being removed is never saved from it
+  // (lane Z review): presentDocumentCondition, the same rule every document read uses.
+  if (!fromApp && sourceDocumentVersionId !== null && (await lifecycleTablesPresent(db))) {
+    const source = first(
+      await db
+        .select({ id: schema.documents.id })
+        .from(schema.documentVersions)
+        .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
+        .where(
+          and(eq(schema.documentVersions.id, sourceDocumentVersionId), presentDocumentCondition()),
+        )
+        .limit(1),
+    );
+    if (!source) {
+      return err(
+        serviceError('invalid', 'this document was deleted, so its details cannot be saved'),
+      );
+    }
+  }
 
   const repeatingRecordKey = input.repeatingRecordKey ?? null;
   const existingFactId = await findExistingFactId(

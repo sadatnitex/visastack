@@ -11,6 +11,7 @@ import {
   addMemberByEmail,
   createOrganizationInvitation,
   listOrganizationInvitations,
+  previewOrganizationInvitation,
   revokeOrganizationInvitation,
   sweepAbandonedOrganizationInvitations,
 } from './invitations';
@@ -744,6 +745,31 @@ describe('organization invitations - secure member invitations for a recipient w
           expect(refused.error.message).toBe('this agency can no longer invite members');
         }
         expect(await invitationsFor(`new-${status.toLowerCase()}@example.com`)).toHaveLength(0);
+      },
+    );
+
+    it.each(['SUSPENDED', 'REJECTED', 'CLOSED'] as const)(
+      'shows no Accept for an invitation from a %s agency: the preview says it plainly (lane Z review)',
+      async (status) => {
+        const email = `preview-${status.toLowerCase()}@example.com`;
+        const issued = await invite(email);
+        if (!isOk(issued)) throw new Error('issue');
+        expect(
+          isOk(
+            await previewOrganizationInvitation(db, {
+              rawToken: issued.value.rawToken,
+              actorEmail: email,
+            }),
+          ),
+        ).toBe(true);
+        await setStatus(status);
+        const preview = await previewOrganizationInvitation(db, {
+          rawToken: issued.value.rawToken,
+          actorEmail: email,
+        });
+        expect(isErr(preview) && preview.error.message).toBe(
+          'this agency is no longer taking new members',
+        );
       },
     );
 

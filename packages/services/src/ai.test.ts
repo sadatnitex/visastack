@@ -250,6 +250,39 @@ describe('AI Gateway — proposals never silently mutate', () => {
     if (isErr(denied)) expect(denied.error.code).toBe('consent_required');
   });
 
+  it('refuses to save a detail read from a document now in Recently Deleted (lane Z review)', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ai-binned@example.com');
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 10,
+    });
+    if (!isOk(run)) throw new Error('run');
+    const proposalId = run.value.proposals.find((p) => p.fieldKey === 'passport.number')?.id ?? '';
+    const [version] = await db
+      .select({ documentId: schema.documentVersions.documentId })
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, versionId));
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values({
+      documentId: version?.documentId ?? '',
+      applicantId,
+      deletedAt: now,
+      deletePath: 'DUPLICATE',
+      purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+    });
+    const refused = await approveProposal(db, { actorAccountId: account.id, proposalId });
+    expect(isErr(refused) && refused.error.message).toBe(
+      'this document was deleted, so its details cannot be saved',
+    );
+    expect(await db.select().from(schema.facts)).toHaveLength(0);
+  });
+
   it('runs, persists proposals + evidence without mutating, then approves atomically with provenance', async () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ai2@example.com');
     await grantAiConsent(db, account.id);

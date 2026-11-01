@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm';
 import { type StaffScope, staffScopeProblem } from '../../access/principal';
 import { type Db, schema } from '../../db';
 import type { ServiceError } from '../../errors';
@@ -38,7 +38,7 @@ export interface LifecycleMeasures {
     readonly per100: number | null;
     readonly target: 10;
   };
-  /** Removal requests: median working days to a decision, and how many took or have waited over 30 days. Target: median 3 or less, none over 30. */
+  /** Removal requests (last 180 days, plus any still waiting): median working days to a decision, and how many took or have waited over 30 days. Target: median 3 or less, none over 30. */
   readonly removalDecisions: {
     readonly decided: number;
     readonly medianWorkingDays: number | null;
@@ -85,49 +85,33 @@ export async function getLifecycleMeasures(
   const now = options.now ?? new Date();
   const tablesPresent = await lifecycleTablesPresent(db);
 
-  // 1. Expiry reminder to replacement within 14 days.
-  const firstReminders = await db
+  // 1. Expiry reminder to replacement within 14 days: each document's first reminder from 14 to
+  // 90 days ago, and whether a replacement was recorded within 14 days of it. All in the database.
+  const firstReminders = db
     .select({
-      documentId: schema.notifications.resourceId,
-      firstAt: sql<Date>`min(${schema.notifications.createdAt})`.mapWith(
-        (value: string | Date) => new Date(value),
-      ),
+      documentId: sql<string>`${schema.notifications.resourceId}`.as('document_id'),
+      firstAt: sql<Date>`min(${schema.notifications.createdAt})`.as('first_at'),
     })
     .from(schema.notifications)
-    .where(eq(schema.notifications.eventType, 'DOCUMENT_EXPIRY'))
-    .groupBy(schema.notifications.resourceId);
-  const settled = firstReminders.filter(
-    (r): r is { documentId: string; firstAt: Date } =>
-      r.documentId !== null &&
-      r.firstAt.getTime() <= now.getTime() - 14 * DAY &&
-      r.firstAt.getTime() >= now.getTime() - 90 * DAY,
-  );
-  const replacements =
-    settled.length === 0
-      ? []
-      : await db
-          .select({
-            documentId: schema.auditEvents.resourceId,
-            at: schema.auditEvents.occurredAt,
-          })
-          .from(schema.auditEvents)
-          .where(
-            and(
-              eq(schema.auditEvents.eventType, 'DOCUMENT_SUPERSEDED'),
-              inArray(
-                schema.auditEvents.resourceId,
-                settled.map((r) => r.documentId),
-              ),
-            ),
-          );
-  const replacedWithin14Days = settled.filter((reminder) =>
-    replacements.some(
-      (r) =>
-        r.documentId === reminder.documentId &&
-        r.at.getTime() >= reminder.firstAt.getTime() &&
-        r.at.getTime() <= reminder.firstAt.getTime() + 14 * DAY,
-    ),
-  ).length;
+    .where(
+      and(
+        eq(schema.notifications.eventType, 'DOCUMENT_EXPIRY'),
+        isNotNull(schema.notifications.resourceId),
+      ),
+    )
+    .groupBy(schema.notifications.resourceId)
+    .having(
+      sql`min(${schema.notifications.createdAt}) between ${new Date(now.getTime() - 90 * DAY).toISOString()} and ${new Date(now.getTime() - 14 * DAY).toISOString()}`,
+    )
+    .as('first_reminders');
+  const [reminderRow] = await db
+    .select({
+      reminded: sql<string>`count(*)`,
+      replaced: sql<string>`count(*) filter (where exists (select 1 from ${schema.auditEvents} where ${schema.auditEvents.eventType} = 'DOCUMENT_SUPERSEDED' and ${schema.auditEvents.resourceId} = ${firstReminders.documentId} and ${schema.auditEvents.occurredAt} >= ${firstReminders.firstAt} and ${schema.auditEvents.occurredAt} <= ${firstReminders.firstAt} + interval '14 days'))`,
+    })
+    .from(firstReminders);
+  const reminded = Number(reminderRow?.reminded ?? 0);
+  const replacedWithin14Days = Number(reminderRow?.replaced ?? 0);
 
   // 2. Exact duplicates kept: the latest file of each present document, grouped by person and
   // fingerprint. Only counts leave the database.
@@ -146,7 +130,8 @@ export async function getLifecycleMeasures(
   const groups = db
     .select({ copies: sql<number>`count(*)`.as('copies') })
     .from(latest)
-    .where(eq(latest.rank, 1))
+    // A file with no fingerprint is never a duplicate (duplicates/status.ts).
+    .where(and(eq(latest.rank, 1), isNotNull(latest.sha256)))
     .groupBy(latest.applicantId, latest.sha256)
     .as('groups');
   const [duplicateRow] = await db
@@ -181,13 +166,20 @@ export async function getLifecycleMeasures(
   // 4. Removal requests decided (PRV-03): median working days, and any over 30 days.
   let removalDecisions: LifecycleMeasures['removalDecisions'] = null;
   if (tablesPresent) {
+    // The last 180 days of requests, plus any still waiting however old.
     const requests = await db
       .select({
         requestedAt: schema.documentRemovalRequests.requestedAt,
         decidedAt: schema.documentRemovalRequests.decidedAt,
         status: schema.documentRemovalRequests.status,
       })
-      .from(schema.documentRemovalRequests);
+      .from(schema.documentRemovalRequests)
+      .where(
+        or(
+          eq(schema.documentRemovalRequests.status, 'PENDING'),
+          gte(schema.documentRemovalRequests.requestedAt, new Date(now.getTime() - 180 * DAY)),
+        ),
+      );
     const decided = requests.filter((r) => r.decidedAt !== null);
     const overThirtyDays = requests.filter((r) => {
       if (r.status === 'CANCELLED') return false;
@@ -208,9 +200,9 @@ export async function getLifecycleMeasures(
   return ok({
     tablesPresent,
     reminderToReplacement: {
-      reminded: settled.length,
+      reminded,
       replacedWithin14Days,
-      percent: rate(replacedWithin14Days, settled.length),
+      percent: rate(replacedWithin14Days, reminded),
       target: 40,
     },
     duplicatesKept: { documents, duplicates, per100: rate(duplicates, documents), target: 3 },

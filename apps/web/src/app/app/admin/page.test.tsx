@@ -530,9 +530,27 @@ describe('Product Scorecard: archive, replace and removal measures (resource lif
     expect(text).toMatch(/2 working days \(3 decided, 0 over 30 days\).*Within Target/);
   });
 
+  it('names an overdue request even before any decision (lane Z review)', async () => {
+    mocks.staffPrincipal.mockResolvedValueOnce({ ok: true, value: { staff: 'scope' } } as never);
+    mocks.getLifecycleMeasures.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        ...measures,
+        removalDecisions: {
+          ...measures.removalDecisions,
+          decided: 0,
+          medianWorkingDays: null,
+          overThirtyDays: 1,
+        },
+      },
+    });
+    const text = textOf(await renderServer(Page({})));
+    expect(text).toMatch(/No decisions yet \(1 over 30 days\).*Outside Target/);
+  });
+
   it('says why the figures are hidden from staff without that role, and reads nothing', async () => {
     const text = textOf(await renderServer(Page({})));
-    expect(text).toContain('show only to staff with the privacy directory role');
+    expect(text).toContain('show only to staff with the Compliance Admin role');
     expect(mocks.getLifecycleMeasures).not.toHaveBeenCalled();
   });
 });

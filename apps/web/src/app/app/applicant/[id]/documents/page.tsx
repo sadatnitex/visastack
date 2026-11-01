@@ -890,7 +890,7 @@ export default async function ApplicantDocumentsPage({
                         </details>
                       );
                     })()}
-                    {suggestion ? (
+                    {suggestion && !binned ? (
                       <DocumentSuggestionCard
                         applicantId={id}
                         suggestion={suggestion}
@@ -905,9 +905,13 @@ export default async function ApplicantDocumentsPage({
                     {(() => {
                       const versionId = doc.latestVersionId;
                       if (!versionId) return null;
-                      const proposalsForDoc = data.pendingProposals.filter(
-                        (p) => p.proposal.documentVersionId === versionId,
-                      );
+                      // Lane Z review: a file in Recently Deleted or being removed offers no
+                      // findings to save (the server refuses them too).
+                      const proposalsForDoc = binned
+                        ? []
+                        : data.pendingProposals.filter(
+                            (p) => p.proposal.documentVersionId === versionId,
+                          );
                       const stage = data.reading?.states.get(versionId)?.stage;
                       // Read Again is the retry: offered once the first reading is over, never while it runs.
                       const readAgainStage =

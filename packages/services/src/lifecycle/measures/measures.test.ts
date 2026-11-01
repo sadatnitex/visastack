@@ -53,7 +53,11 @@ async function seedOwner(db: Db) {
   return { accountId, applicantId: applicant.value.id };
 }
 
-async function addDocument(db: Db, owner: { accountId: string; applicantId: string }, sha: string) {
+async function addDocument(
+  db: Db,
+  owner: { accountId: string; applicantId: string },
+  sha: string | null,
+) {
   const doc = await registerDocument(db, {
     actorAccountId: owner.accountId,
     applicantId: owner.applicantId,
@@ -69,7 +73,7 @@ async function addDocument(db: Db, owner: { accountId: string; applicantId: stri
     objectKey: `lc-z-measures-${counter}`,
     safetyStatus: 'CLEAN',
     processingStatus: 'AWAITING_REVIEW',
-    sha256: sha,
+    ...(sha === null ? {} : { sha256: sha }),
   });
   if (!isOk(version)) throw new Error('version');
   return doc.value.id;
@@ -106,6 +110,9 @@ async function seed(db: Db, options: { readonly lifecycle: boolean }) {
   const a2 = await addDocument(db, owner, 'a'.repeat(64));
   const b = await addDocument(db, owner, 'b'.repeat(64));
   const c = await addDocument(db, owner, 'c'.repeat(64));
+  // Two files with no fingerprint are never counted as duplicates of each other.
+  await addDocument(db, owner, null);
+  await addDocument(db, owner, null);
   // Another person's identical file is not a duplicate of this person's.
   const other = await seedOwner(db);
   await addDocument(db, other, 'b'.repeat(64));

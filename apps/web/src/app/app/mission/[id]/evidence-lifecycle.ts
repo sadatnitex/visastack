@@ -8,7 +8,10 @@ interface EvidenceEntry {
 }
 
 export interface EvidenceLifecycleLabels {
-  /** "Archived", "Replaced on 3 Nov" or "Removed by the traveller on 3 Nov", by document id. */
+  /**
+   * "Archived", "Replaced" or "Removed by the traveller on 3 Nov", by document id. A replaced
+   * document reads plain "Replaced": its replacement time is not on the lifecycle read.
+   */
   readonly byDocument: Readonly<Record<string, string>>;
   /** The labels of the documents a case chose for each requirement, by requirement id. */
   readonly chosenByRequirement: Readonly<Record<string, readonly string[]>>;

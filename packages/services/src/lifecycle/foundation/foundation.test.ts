@@ -675,6 +675,13 @@ describe('lifecycle foundation with the tables present', () => {
         .from(schema.auditEvents)
         .where(eq(schema.auditEvents.eventType, 'DOCUMENT_REMOVAL_QUEUED'));
       expect(event?.metadata).toMatchObject({ receiptId, storageObjects: 0, removed: true });
+      // Lane Z: the destroyed measure counts this removal too.
+      expect(
+        await db
+          .select()
+          .from(schema.productEvents)
+          .where(eq(schema.productEvents.eventType, 'DOCUMENT_DESTROYED')),
+      ).toHaveLength(1);
     },
     HEAVY,
   );

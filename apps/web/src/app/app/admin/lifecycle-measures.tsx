@@ -43,7 +43,7 @@ export function lifecycleMeasureRows(measures: LifecycleMeasures): readonly Meas
           label: 'Removal Requests: Median Time to a Decision',
           value:
             removal.medianWorkingDays === null
-              ? 'No decisions yet'
+              ? `No decisions yet (${removal.overThirtyDays} over ${removal.targetMaxDays} days)`
               : `${removal.medianWorkingDays} working days (${removal.decided} decided, ${removal.overThirtyDays} over ${removal.targetMaxDays} days)`,
           target: `${removal.targetMedian} working days or less, none over ${removal.targetMaxDays} days`,
           withinTarget:
@@ -84,7 +84,7 @@ export function LifecycleMeasuresCard({
       {measures === 'restricted' ? (
         <p className="card-body">
           These figures are counted over people&apos;s records, so they show only to staff with the
-          privacy directory role.
+          Compliance Admin role.
         </p>
       ) : measures === 'unavailable' ? (
         <p role="alert">These figures could not be read just now. No trend is inferred.</p>

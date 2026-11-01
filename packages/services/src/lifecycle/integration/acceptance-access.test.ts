@@ -48,9 +48,8 @@ import {
 type Manage = AuthorizedApplicant<'MANAGE'>;
 
 /**
- * Known gap (lane C, recently-deleted/restore.ts `restoreDeleted`): a well-formed id with no
- * lifecycle row of this traveller is refused as `invalid` ("not in Recently Deleted"), not as
- * `not_found`. Listed so the row is proven for every other command and the gap stays visible.
+ * Every lifecycle command, Restore and Undo included, gives a guessed, malformed or another
+ * person's id the same not-found (lane Z fixed `restoreDeleted`, which used to answer `invalid`).
  */
 type Outcome = Result<unknown, ServiceError>;
 
