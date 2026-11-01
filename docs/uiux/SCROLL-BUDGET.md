@@ -15,9 +15,7 @@ One screen is 844 px on a phone (390 by 844) and 800 px on a desktop (1280 by 80
 
 Each is still printed with its height on every run.
 
-| Page | Viewport | Measured | Budget | Ceiling | Why it is over | Check |
-|---|---|---|---|---|---|---|
-| Documents (12 rows a page) | phone | 2,955 px, 3.50 screens | 3 (2,532 px) | 3.75 | The shared list in `apps/web/src/components/document-wallet-browser.tsx` shows 12 rows a page (accepted by the coordinator, reported by WP-SB4); owned by lane Z of the Resource Lifecycle programme | `WP-SB4.spec.ts`, documents |
+No known exception remains (lane Z, 1 Nov 2026). The last one, Documents on a phone, is fixed: the shared list in `apps/web/src/components/document-wallet-browser.tsx` shows 6 rows a page on a phone and 12 on a desktop, every document still reached through Previous and Next. Before: 2,955 px, 3.50 screens. Now: 2,025 px, 2.40 screens, against 3 (2,532 px); `WP-SB4.spec.ts` enforces it on both screens.
 
 Fixed by WP-SB11 (1 November 2026), now enforced, measured on a local production build of the WP-SB11 head:
 

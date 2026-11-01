@@ -11,6 +11,7 @@ import { type ServiceError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { createMission } from './missions';
+import { OPEN_ORGANIZATION_STATUSES } from './organization-admission';
 import { isOrgAdmin } from './organizations';
 import {
   type Page,
@@ -400,9 +401,6 @@ export interface PublicClientInvitationView {
   readonly grantActions: readonly PermissionAction[];
   readonly expiresAt: Date;
 }
-
-/** An agency that has been reviewed is ACTIVE; one still waiting for review may invite, but is shown plainly. */
-const OPEN_ORGANIZATION_STATUSES: readonly string[] = ['ACTIVE', 'PENDING_VERIFICATION'];
 
 /**
  * The one lookup behind the public page and its logo: by hashed token only, and `null` for a token

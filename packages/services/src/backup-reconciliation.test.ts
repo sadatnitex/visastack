@@ -28,6 +28,7 @@ import { type Db, first } from './db';
 import { executeAccountDeletion, requestAccountDeletion } from './deletion';
 import { addDocumentVersion, registerDocument } from './documents';
 import { enqueueErasureJob, runErasureWorker } from './erasure';
+import { createOrganizationInvitation } from './invitations';
 import { placeLegalHold, releaseLegalHold } from './legal-hold';
 import { createMission, transitionMission } from './missions';
 import {
@@ -35,6 +36,7 @@ import {
   reviewOrganization,
   suspendOrganization,
   terminateOrganization,
+  withdrawOrganizationApplication,
 } from './organizations';
 import { grantPlatformRole, revokePlatformRole } from './platform-roles';
 import { loadGrantsForPolicy } from './sharing';
@@ -2042,5 +2044,89 @@ describe('reconcileRestoredBranch: lifecycle removal (LC-F, owner decision D10)'
       await newDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
     ).toHaveLength(0);
     expect((await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT)).errors).toHaveLength(0);
+  });
+});
+
+describe('reconcileRestoredBranch: a withdrawn agency application (LC-G3)', () => {
+  let oldDb: Db;
+  let newDb: Db;
+  beforeEach(async () => {
+    oldDb = await freshDb();
+    newDb = await freshDb();
+  });
+
+  it('never brings a withdrawn application back to waiting for review, with its unused invitations, and a second run is a no-op', async () => {
+    const owner = await seedAccount(oldDb, 'applying-owner@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const created = await createOrganization(oldDb, { actorAccountId: owner.id, name: 'Waiting' });
+    if (!isOk(created)) throw new Error('org failed');
+    const invited = await createOrganizationInvitation(oldDb, {
+      actorAccountId: owner.id,
+      organizationId: created.value.id,
+      email: 'future-member@example.com',
+      role: 'CASE_MANAGER',
+    });
+    if (!isOk(invited)) throw new Error('invitation failed');
+    // The restore point: the application was waiting, with its owner and one unused invitation.
+    await mirrorRow(newDb, schema.organizations, created.value);
+    for (const row of await oldDb
+      .select()
+      .from(schema.memberships)
+      .where(eq(schema.memberships.organizationId, created.value.id))) {
+      await mirrorRow(newDb, schema.memberships, row);
+    }
+    await mirrorRow(newDb, schema.organizationInvitations, invited.value.invitation);
+
+    const withdrawn = await withdrawOrganizationApplication(oldDb, {
+      actorAccountId: owner.id,
+      organizationId: created.value.id,
+    });
+    if (!isOk(withdrawn)) throw new Error('withdraw failed');
+
+    // Every event above was written after RESTORE_POINT, so all of them are replayed.
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toEqual([]);
+    expect(report.counts.organizationsForced).toBe(1);
+    const [org] = await newDb
+      .select()
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, created.value.id));
+    expect(org?.status).toBe('CLOSED');
+    const [invitation] = await newDb
+      .select()
+      .from(schema.organizationInvitations)
+      .where(eq(schema.organizationInvitations.id, invited.value.invitation.id));
+    expect(invitation?.status).toBe('REVOKED');
+    const memberships = await newDb
+      .select({ active: schema.memberships.active })
+      .from(schema.memberships)
+      .where(eq(schema.memberships.organizationId, created.value.id));
+    expect(memberships.map((m) => m.active)).toEqual([false]);
+    const [attributed] = await newDb
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'RECONCILIATION_ORGANIZATION_APPLICATION_WITHDRAWN'));
+    expect(attributed?.resourceId).toBe(created.value.id);
+
+    const second = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(second.counts.organizationsForced).toBe(0);
+    expect(second.errors).toEqual([]);
+  });
+
+  it('leaves an application withdrawn before the restore point to the restored branch as it is', async () => {
+    const owner = await seedAccount(oldDb, 'early-owner@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const created = await createOrganization(oldDb, { actorAccountId: owner.id, name: 'Early' });
+    if (!isOk(created)) throw new Error('org failed');
+    await mirrorRow(newDb, schema.organizations, created.value);
+    const withdrawn = await withdrawOrganizationApplication(oldDb, {
+      actorAccountId: owner.id,
+      organizationId: created.value.id,
+    });
+    if (!isOk(withdrawn)) throw new Error('withdraw failed');
+    // A restore point after the withdrawal: the restored branch already holds it, so nothing replays.
+    const later = new Date(Date.now() + 60_000);
+    const report = await reconcileRestoredBranch(oldDb, newDb, later);
+    expect(report.counts.organizationsForced).toBe(0);
   });
 });

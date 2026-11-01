@@ -30,6 +30,8 @@ Same person only; agency, stranger and guessed id refused; snapshots byte-identi
 
 ## Status (lane fills in)
 
+- Recorded by lane Z (1 Nov 2026): merged as #393, squash commit 19ec6a15 on main. Migration 0113 ran on production on the owner's word (db-migrate.yml run 41263156493, 1 Nov 2026 01:57Z; confirmed: 112 rows in the migration journal, the four lifecycle tables and the DOCUMENT_REMOVAL reason). Production is in "tables present" mode, so any "hidden until the migration" or "0113 has not run" line in this section is now out of date: those pieces are live.
+
 - Started on main: 9d5bb99abdc23571021bebe1cfe152013209a793 (LC-F, #381).
 - PR / merged SHA: #393 (https://github.com/sadatnitex/visastack/pull/393); merged as the squash commit of #393 on main (its SHA is in the PR and in the coordinator message).
 - Checks seen green: on 938898c6 (branch with main at 0c6e35a4 merged in): "Lint · Build · Typecheck · Test" (all shards), "No-secret Playwright checks", "No-secret smoke check", CodeQL, dependency review. Guarded full check DONE on 09af8510 (resumed from the test step after an adapters HEIC test ran past its 60 s limit on the first pass; that file passes alone in 24 s and in the resumed run). The final head adds only this Status text and is checked by CI again before merge.

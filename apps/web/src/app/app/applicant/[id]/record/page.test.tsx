@@ -208,3 +208,15 @@ describe('documents on the Record', () => {
     ).toBe(true);
   });
 });
+
+describe('which documents the Record lists (resource lifecycle, LC-Z)', () => {
+  it('keeps archived documents beside the wallet rows that name them, so none reads as unchecked (D6)', async () => {
+    await render();
+    expect(mocks.listDocumentsDetailed).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      person,
+      { lifecycle: 'present' },
+    );
+  });
+});

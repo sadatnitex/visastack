@@ -31,6 +31,8 @@ Support requests (D), any other read site (A2), Replace (B), travellers (E).
 
 ## Status (lane fills in)
 
+- Recorded by lane Z (1 Nov 2026): merged as #396, squash commit 9c8b664e on main. Migration 0113 ran on production on the owner's word (db-migrate.yml run 41263156493, 1 Nov 2026 01:57Z; confirmed: 112 rows in the migration journal, the four lifecycle tables and the DOCUMENT_REMOVAL reason). Production is in "tables present" mode, so any "hidden until the migration" or "0113 has not run" line in this section is now out of date: those pieces are live.
+
 - Started on main: 19ec6a15ec99e0ea7877454560b51bbf3ba1be46 (1 Nov 2026).
 - PR / merged SHA: (filled at merge)
 - Checks seen green: (filled at merge)

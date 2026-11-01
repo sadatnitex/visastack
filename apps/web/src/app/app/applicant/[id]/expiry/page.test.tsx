@@ -317,3 +317,15 @@ describe('long lists on the Expiry page (WP-SB4)', () => {
     expect(html).not.toContain('id="expiry-docs-more"');
   });
 });
+
+describe('which documents the Expiry page watches (resource lifecycle, LC-Z)', () => {
+  it('lists only everyday documents, so an archived or deleted file raises no expiry reminder', async () => {
+    await page();
+    expect(service.listDocumentsDetailed).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'person',
+      { lifecycle: 'everyday' },
+    );
+  });
+});

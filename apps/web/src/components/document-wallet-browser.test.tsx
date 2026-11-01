@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocumentWalletBrowser, type WalletBrowserDocument } from './document-wallet-browser';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const records: WalletBrowserDocument[] = Array.from({ length: 15 }, (_, index) => ({
@@ -162,5 +162,49 @@ describe('documents with no kind set', () => {
     );
     expect(container.textContent).toContain('1 document matches. Page 1 of 1.');
     expect(button('Show It')).toBeTruthy();
+  });
+});
+
+describe('fewer rows a page on a phone (scroll budget, lane Z)', () => {
+  const phone = (matches: boolean) =>
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) =>
+        ({
+          matches,
+          media: query,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+        }) as unknown as MediaQueryList,
+    );
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('shows 6 rows a page on a phone, and every document is still reached through the pages', () => {
+    phone(true);
+    act(() => root.unmount());
+    root = createRoot(container);
+    act(() =>
+      root.render(<DocumentWalletBrowser applicantId="synthetic-person" documents={records} />),
+    );
+    const seen: string[] = [];
+    const rows = () => [...container.querySelectorAll('.wallet-metadata-list li')];
+    expect(rows()).toHaveLength(6);
+    expect(container.querySelector('output')?.textContent).toContain('Page 1 of 3');
+    for (let pageIndex = 0; pageIndex < 3; pageIndex += 1) {
+      seen.push(...rows().map((row) => row.id));
+      if (pageIndex < 2) act(() => button('Next').click());
+    }
+    expect(new Set(seen).size).toBe(records.length);
+    expect(button('Next').disabled).toBe(true);
+  });
+
+  it('keeps 12 rows a page on a larger screen', () => {
+    phone(false);
+    act(() => root.unmount());
+    root = createRoot(container);
+    act(() =>
+      root.render(<DocumentWalletBrowser applicantId="synthetic-person" documents={records} />),
+    );
+    expect(container.querySelectorAll('.wallet-metadata-list li')).toHaveLength(12);
   });
 });

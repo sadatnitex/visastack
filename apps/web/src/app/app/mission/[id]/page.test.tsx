@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   computeTripChecks: vi.fn(),
   getApplicant: vi.fn(),
   getEvidenceCandidates: vi.fn(),
+  getDocumentLifecycles: vi.fn(async () => new Map()),
   getLatestExplanationForRequirement: vi.fn(),
   getLiveAcknowledgement: vi.fn(),
   getMissionForOwner: vi.fn(),
@@ -1138,5 +1139,86 @@ describe('WP-SB2: a short checklist group', () => {
     const page = new (await import('jsdom')).JSDOM(await render()).window.document;
     expect(page.querySelector('#case-checklist-needs-you details.case-checklist-rest')).toBeNull();
     expect(page.querySelectorAll('#case-checklist-needs-you .row')).toHaveLength(3);
+  });
+});
+
+describe('lifecycle labels on the case evidence (resource lifecycle, lane Z)', () => {
+  const candidate = (selected: readonly string[]) => ({
+    packRequirementId: 'req-0',
+    kind: 'DOCUMENT',
+    key: 'bank_statement',
+    citation: 'rule',
+    optional: false,
+    factCandidates: [],
+    documentCandidates: [
+      {
+        documentId: 'doc-archived',
+        displayName: 'Bank statement October',
+        eligible: true,
+        staleness: { status: 'fresh' },
+      },
+      {
+        documentId: 'doc-current',
+        displayName: 'Bank statement September',
+        eligible: true,
+        staleness: { status: 'fresh' },
+      },
+    ],
+    selectedFactIds: [],
+    selectedDocumentIds: selected,
+  });
+  const lifecycle = (state: string, extra: Record<string, unknown> = {}) => ({
+    state,
+    replaced: false,
+    archivedAt: null,
+    deletedAt: null,
+    purgeAfter: null,
+    deletePath: null,
+    ...extra,
+  });
+
+  it('marks a chosen archived or removed document on its checklist line and in the picker, never by name', async () => {
+    setUp({ requirements: ['SATISFIED'] });
+    mocks.getEvidenceCandidates.mockResolvedValue(ok([candidate(['doc-archived', 'doc-removed'])]));
+    mocks.getDocumentLifecycles.mockResolvedValue(
+      new Map([
+        ['doc-archived', lifecycle('ARCHIVED')],
+        ['doc-current', lifecycle('CURRENT')],
+        [
+          'doc-removed',
+          lifecycle('RECENTLY_DELETED', { deletedAt: new Date('2026-11-03T09:00:00Z') }),
+        ],
+      ]),
+    );
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toMatch(/Chosen document: Archived, Removed by the traveller on 3 Nov/);
+    expect(mocks.getDocumentLifecycles).toHaveBeenCalledWith(
+      expect.anything(),
+      ['doc-archived', 'doc-current', 'doc-removed'],
+      { synthetic: 'proof' },
+      expect.objectContaining({ now: expect.any(Date) }),
+    );
+    const panel = stubProps<{
+      candidates: { documentCandidates: { documentId: string; lifecycleLabel: string | null }[] }[];
+    }>(html, 'EvidenceSelectionPanel')[0];
+    expect(
+      panel?.candidates[0]?.documentCandidates.map((d) => [d.documentId, d.lifecycleLabel]),
+    ).toEqual([
+      ['doc-archived', 'Archived'],
+      ['doc-current', null],
+    ]);
+  });
+
+  it('shows no line when every chosen document is current, and reads no lifecycle without evidence', async () => {
+    setUp({ requirements: ['SATISFIED'] });
+    mocks.getEvidenceCandidates.mockResolvedValue(ok([candidate(['doc-current'])]));
+    mocks.getDocumentLifecycles.mockResolvedValue(new Map([['doc-current', lifecycle('CURRENT')]]));
+    expect(textOf(await render())).not.toContain('Chosen document:');
+
+    vi.clearAllMocks();
+    setUp({ requirements: ['SATISFIED'] });
+    await render();
+    expect(mocks.getDocumentLifecycles).not.toHaveBeenCalled();
   });
 });

@@ -923,7 +923,13 @@ const CASES_MISSION: readonly Case[] = [
             citation: 'Guidance 4.2',
             factCandidates: [],
             documentCandidates: [
-              { documentId: 'd1', displayName: 'Passport', eligible: true, staleness: 'fresh' },
+              {
+                documentId: 'd1',
+                displayName: 'Passport',
+                eligible: true,
+                staleness: 'fresh',
+                lifecycleLabel: 'Archived',
+              },
               {
                 documentId: 'd2',
                 displayName: 'Old passport',

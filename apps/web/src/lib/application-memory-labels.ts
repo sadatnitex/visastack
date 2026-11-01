@@ -61,11 +61,14 @@ export function changeLine(change: MemoryChange): { readonly name: string; reado
             ? 'new version added'
             : change.change === 'replaced'
               ? 'replaced by another document'
-              : change.change === 'removed'
-                ? 'no longer available'
-                : change.change === 'not_used'
-                  ? 'no longer used in this case'
-                  : 'added to this case',
+              : // Deleted from the record (Recently Deleted, removing, or gone): Removed.
+                change.change === 'deleted'
+                ? 'removed'
+                : change.change === 'removed'
+                  ? 'no longer available'
+                  : change.change === 'not_used'
+                    ? 'no longer used in this case'
+                    : 'added to this case',
       };
     case 'case':
       return { name: CASE_FIELD_LABELS[change.caseField], what: 'changed' };

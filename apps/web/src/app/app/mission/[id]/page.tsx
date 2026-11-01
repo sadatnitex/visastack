@@ -11,6 +11,7 @@ import {
   computeTripChecks,
   getAiFeatureState,
   getApplicant,
+  getDocumentLifecycles,
   getEvidenceCandidates,
   getLatestExplanationForRequirement,
   getLiveAcknowledgement,
@@ -91,6 +92,7 @@ import {
 } from './collaboration-panels';
 import { ComplaintPanel, FeedbackPanel } from './complaint-feedback-panel';
 import { ContributorRequestsPanel } from './contributor-requests-panel';
+import { evidenceDocumentIds, evidenceLifecycleLabels } from './evidence-lifecycle';
 import { composeSelectionCandidateKey } from './evidence-selection-key';
 import {
   CaseDetailsForm,
@@ -326,6 +328,21 @@ export default async function MissionPage({
     if (!owned.ok) return null;
     const mission = owned.value;
     const applicant = await getApplicant(db, mission.applicantId);
+    // One "view my own case" proof for the trip checks, gap explanations and lifecycle labels,
+    // made on first use and shared (lane Z review: it was made up to three times).
+    const makeSelfView = () =>
+      requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'VIEW_METADATA',
+        { missionId: mission.id },
+        { purpose: 'self' },
+      );
+    let selfViewGate: ReturnType<typeof makeSelfView> | undefined;
+    const selfView = () => {
+      selfViewGate ??= makeSelfView();
+      return selfViewGate;
+    };
     const [
       readiness,
       requirements,
@@ -390,13 +407,7 @@ export default async function MissionPage({
       // owner of this case. A refusal or an error shows a plain message, never a made-up result.
       // A case with no travel date, or one already handed in, needs no gate call at all.
       tripChecksApply(mission.state) && (mission.travelStartDate || mission.travelEndDate)
-        ? requireAccess(
-            db,
-            accountPrincipal(accountId),
-            'VIEW_METADATA',
-            { missionId: mission.id },
-            { purpose: 'self' },
-          )
+        ? selfView()
             .then((gate) => (gate.ok ? computeTripChecks(gate.value) : null))
             .catch(() => null)
         : Promise.resolve([]),
@@ -456,15 +467,7 @@ export default async function MissionPage({
     // Gap Explanations' own switch (S28), read only when the button could show. Off, a short
     // hint takes the button's place and any explanation already given stays.
     const explanationGate =
-      explanationConfigured && explanationEntries.length > 0
-        ? await requireAccess(
-            db,
-            accountPrincipal(accountId),
-            'VIEW_METADATA',
-            { missionId: mission.id },
-            { purpose: 'self' },
-          )
-        : null;
+      explanationConfigured && explanationEntries.length > 0 ? await selfView() : null;
     const explanationFeature = explanationGate?.ok
       ? await getAiFeatureState(db, 'ai_explanations', { proof: explanationGate.value })
       : null;
@@ -529,6 +532,19 @@ export default async function MissionPage({
           evidenceOptionsById.set(d.documentId, d.displayName);
       }
     }
+    // Resource lifecycle (lane Z, PROGRAMME 5.3): a chosen document that is archived, replaced
+    // or removed says so on the evidence lines. Read through the case's own access proof.
+    const evidenceEntries = candidates.ok ? candidates.value : [];
+    const evidenceIds = evidenceDocumentIds(evidenceEntries);
+    const evidenceGate = evidenceIds.length > 0 ? await selfView() : null;
+    const lifecycleNow = new Date();
+    const evidenceLifecycle = evidenceLifecycleLabels(
+      evidenceEntries,
+      evidenceGate?.ok
+        ? await getDocumentLifecycles(db, evidenceIds, evidenceGate.value, { now: lifecycleNow })
+        : new Map(),
+      lifecycleNow,
+    );
     // Composite key (finding #33, post-programme defect register) - see
     // evidence-selection-key.ts's own doc comment.
     const selectionIdsByCandidate: Record<string, string> = {};
@@ -680,6 +696,7 @@ export default async function MissionPage({
         : [],
       letters: letters.ok ? letters.value : [],
       candidates: candidates.ok ? candidates.value : [],
+      evidenceLifecycle,
       selectionIdsByCandidate,
       linkedMissions: otherLinked.map((m) => ({
         id: m.id,
@@ -859,6 +876,12 @@ export default async function MissionPage({
           </span>
         ) : null}
         {bookingReminder ? <span className="muted u-fs-085">{bookingReminder}</span> : null}
+        {data.evidenceLifecycle.chosenByRequirement[r.packRequirementId] ? (
+          <span className="muted u-fs-085">
+            Chosen document:{' '}
+            {data.evidenceLifecycle.chosenByRequirement[r.packRequirementId]?.join(', ')}
+          </span>
+        ) : null}
         {r.citation ? (
           <span className="muted u-fs-075">
             Cite: {sourceLine || r.citation}
@@ -1246,6 +1269,7 @@ export default async function MissionPage({
                         displayName: d.displayName,
                         eligible: d.eligible,
                         staleness: d.staleness.status,
+                        lifecycleLabel: data.evidenceLifecycle.byDocument[d.documentId] ?? null,
                       })),
                       selectedFactIds: c.selectedFactIds,
                       selectedDocumentIds: c.selectedDocumentIds,

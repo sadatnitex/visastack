@@ -578,7 +578,14 @@ export default async function ApplicantDocumentsPage({
             const processingKey = doc.processingStatus
               ? PROCESSING_STATE_KEYS[doc.processingStatus]
               : undefined;
+            // A document in Recently Deleted or being removed is never opened, downloaded or read
+            // again (the server refuses each), so none of those buttons is offered. An archived
+            // document is still the person's own file and keeps them.
+            const binned =
+              lifecycleStateOf(doc.id) === 'RECENTLY_DELETED' ||
+              lifecycleStateOf(doc.id) === 'REMOVING';
             const previewable =
+              !binned &&
               doc.safetyStatus === 'CLEAN' &&
               doc.processingStatus !== null &&
               isServableProcessingState(doc.processingStatus);
@@ -618,6 +625,7 @@ export default async function ApplicantDocumentsPage({
             // Read Again needs the switch for what it would do: text, or a scan first and then text.
             const readingOn = data.aiFeatures?.ai_document_reading.available !== false;
             const couldReadAgain =
+              !binned &&
               data.coreGranted &&
               ((data.detailsAvailable && data.aiGranted) ||
                 (data.ocrConfigured && data.ocrGranted));
@@ -772,6 +780,7 @@ export default async function ApplicantDocumentsPage({
                     {(doc.classification?.reviewRequired === true ||
                       !doc.classification ||
                       (doc.docType === 'PASSPORT' && !doc.expiresAt)) &&
+                    !binned &&
                     doc.safetyStatus === 'CLEAN' &&
                     doc.latestVersionId &&
                     ['AWAITING_REVIEW', 'APPROVED'].includes(doc.processingStatus ?? '') ? (
@@ -881,7 +890,7 @@ export default async function ApplicantDocumentsPage({
                         </details>
                       );
                     })()}
-                    {suggestion ? (
+                    {suggestion && !binned ? (
                       <DocumentSuggestionCard
                         applicantId={id}
                         suggestion={suggestion}
@@ -896,9 +905,13 @@ export default async function ApplicantDocumentsPage({
                     {(() => {
                       const versionId = doc.latestVersionId;
                       if (!versionId) return null;
-                      const proposalsForDoc = data.pendingProposals.filter(
-                        (p) => p.proposal.documentVersionId === versionId,
-                      );
+                      // Lane Z review: a file in Recently Deleted or being removed offers no
+                      // findings to save (the server refuses them too).
+                      const proposalsForDoc = binned
+                        ? []
+                        : data.pendingProposals.filter(
+                            (p) => p.proposal.documentVersionId === versionId,
+                          );
                       const stage = data.reading?.states.get(versionId)?.stage;
                       // Read Again is the retry: offered once the first reading is over, never while it runs.
                       const readAgainStage =
@@ -936,7 +949,9 @@ export default async function ApplicantDocumentsPage({
                       // gap (no classification yet reached, or one reached but not
                       // confident) -- never offered once a confident deterministic
                       // (or already-approved AI) classification already exists.
+                      // Lane Z: a file in Recently Deleted or being removed is never read again.
                       if (
+                        binned ||
                         !data.classificationConfigured ||
                         !data.aiGranted ||
                         !doc.classification
@@ -978,7 +993,12 @@ export default async function ApplicantDocumentsPage({
                       // extraction/classification above -- the check sends the
                       // document's own text plus the applicant's already-
                       // confirmed TRUSTED profile facts, never a second document.
-                      if (!data.inconsistencyConfigured || !data.aiGranted || !doc.classification) {
+                      if (
+                        binned ||
+                        !data.inconsistencyConfigured ||
+                        !data.aiGranted ||
+                        !doc.classification
+                      ) {
                         return null;
                       }
                       const versionId = doc.latestVersionId;

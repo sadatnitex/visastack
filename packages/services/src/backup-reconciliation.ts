@@ -110,6 +110,10 @@ const RECONCILED_EVENT_TYPES = [
   // LC-F: a deleted document with no stored file is removed at once (no erasure job, so no
   // ERASURE_VERIFIED); its `removed: true` event is replayed here instead (owner decision D10).
   'DOCUMENT_REMOVAL_QUEUED',
+  // LC-G3: an agency application withdrawn after the restore point never comes back to waiting
+  // for review, and its unused team invitations stay revoked. Its memberships end through their
+  // own MEMBERSHIP_DEACTIVATED events, replayed above.
+  'ORGANIZATION_APPLICATION_WITHDRAWN',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -261,6 +265,48 @@ async function forceOrganizationStatus(
     .set({ status: targetStatus, updatedAt: new Date() })
     .where(eq(schema.organizations.id, resourceId));
   return true;
+}
+
+/**
+ * Replays a withdrawn agency application: the organization is CLOSED (the status a withdrawal
+ * sets, and the most restrictive one, so nothing is ever downgraded) and its team invitations that
+ * were never used are revoked, as `withdrawOrganizationApplication` does. The organization row is
+ * locked first, the order that function takes. A no-op once the restored branch already matches,
+ * or when the organization was created after the restore point.
+ */
+async function forceOrganizationApplicationWithdrawn(
+  newDb: Db,
+  organizationId: string,
+): Promise<boolean> {
+  return newDb.transaction(async (tx) => {
+    const org = first(
+      await tx
+        .select({ status: schema.organizations.status })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, organizationId))
+        .for('update'),
+    );
+    if (!org) return false;
+    const now = new Date();
+    const closed = org.status !== 'CLOSED';
+    if (closed) {
+      await tx
+        .update(schema.organizations)
+        .set({ status: 'CLOSED', updatedAt: now })
+        .where(eq(schema.organizations.id, organizationId));
+    }
+    const revoked = await tx
+      .update(schema.organizationInvitations)
+      .set({ status: 'REVOKED', revokedAt: now, updatedAt: now })
+      .where(
+        and(
+          eq(schema.organizationInvitations.organizationId, organizationId),
+          eq(schema.organizationInvitations.status, 'PENDING'),
+        ),
+      )
+      .returning({ id: schema.organizationInvitations.id });
+    return closed || revoked.length > 0;
+  });
 }
 
 /** Ends every live token of one AI connection on the restored branch. */
@@ -1131,6 +1177,10 @@ const EVENT_META: Readonly<
   GRANT_AI_ASSIST_CHANGED: { counter: 'aiAssistRemoved', resourceType: 'grant' },
   ORGANIZATION_AI_SETTING_UPDATED: { counter: 'agencyAiSettingsOff', resourceType: 'organization' },
   DOCUMENT_REMOVAL_QUEUED: { counter: 'erasuresVerified', resourceType: 'document' },
+  ORGANIZATION_APPLICATION_WITHDRAWN: {
+    counter: 'organizationsForced',
+    resourceType: 'organization',
+  },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -1184,6 +1234,8 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
       return metadataFlag(event.metadata, 'removed') === true
         ? forceDocumentRemovedWithoutFiles(newDb, resourceId)
         : false;
+    case 'ORGANIZATION_APPLICATION_WITHDRAWN':
+      return forceOrganizationApplicationWithdrawn(newDb, resourceId);
     default:
       return false;
   }

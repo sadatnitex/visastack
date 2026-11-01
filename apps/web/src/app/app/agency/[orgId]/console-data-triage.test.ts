@@ -10,6 +10,7 @@ const svc = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   listRespondingDocumentStatesForOrg: vi.fn(),
   referenceCodesFor: vi.fn(),
+  getDocumentLifecycles: vi.fn(),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -34,6 +35,7 @@ const row = (overrides: Record<string, unknown>) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   svc.referenceCodesFor.mockResolvedValue(new Map());
+  svc.getDocumentLifecycles.mockResolvedValue(new Map());
 });
 
 describe('loadEvidenceRequests: answered file state', () => {
@@ -104,5 +106,63 @@ describe('loadEvidenceRequests: answered file state', () => {
     expect(await loadEvidenceRequests(db, 'acct', 'o1', { admin: false })).toEqual([]);
     expect(svc.listEvidenceRequestsForOrgDetailed).not.toHaveBeenCalled();
     expect(svc.requireAccess).not.toHaveBeenCalled();
+  });
+});
+
+describe('loadEvidenceRequests: answered file lifecycle (lane Z)', () => {
+  const lifecycle = (state: string, extra: Record<string, unknown> = {}) => ({
+    state,
+    replaced: false,
+    archivedAt: null,
+    deletedAt: null,
+    purgeAfter: null,
+    deletePath: null,
+    ...extra,
+  });
+
+  it('labels an archived or removed answered file with the same proof, never by name', async () => {
+    svc.listEvidenceRequestsForOrgDetailed.mockResolvedValue(
+      ok([
+        row({ id: 'r-archived', respondingDocumentId: 'd1' }),
+        row({ id: 'r-removed', respondingDocumentId: 'd2' }),
+        row({ id: 'r-current', respondingDocumentId: 'd3' }),
+        row({ id: 'r-refused', missionId: 'm2', respondingDocumentId: 'd4' }),
+      ]),
+    );
+    svc.requireAccess.mockImplementation(async (_db, _principal, _action, ref) =>
+      ref.missionId === 'm2'
+        ? { ok: false, error: { code: 'forbidden' } }
+        : ok({ proofFor: ref.missionId }),
+    );
+    svc.listRespondingDocumentStatesForOrg.mockResolvedValue(new Map());
+    svc.getDocumentLifecycles.mockResolvedValue(
+      new Map([
+        ['d1', lifecycle('ARCHIVED')],
+        [
+          'd2',
+          lifecycle('REMOVING', {
+            deletedAt: new Date('2026-11-03T10:00:00Z'),
+            deletePath: 'REQUEST',
+          }),
+        ],
+        ['d3', lifecycle('CURRENT')],
+      ]),
+    );
+    const rows = await loadEvidenceRequests(
+      db,
+      'acct',
+      'o1',
+      { admin: true },
+      { withFileStates: true },
+    );
+    const labels = Object.fromEntries(rows.map((r) => [r.id, r.respondingDocumentLabel ?? null]));
+    expect(labels['r-archived']).toBe('Archived');
+    expect(labels['r-removed']).toMatch(/^Removed by the traveller on 3 Nov/);
+    expect(labels['r-current']).toBeNull();
+    expect(labels['r-refused']).toBeNull();
+    // Only the case the gate allowed was read, with that case's proof and its own files.
+    expect(svc.getDocumentLifecycles).toHaveBeenCalledTimes(1);
+    expect(svc.getDocumentLifecycles.mock.calls[0]?.[1]).toEqual(['d1', 'd2', 'd3']);
+    expect(svc.getDocumentLifecycles.mock.calls[0]?.[2]).toEqual({ proofFor: 'm1' });
   });
 });

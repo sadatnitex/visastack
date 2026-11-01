@@ -29,6 +29,8 @@ Document actions (A1, B, C, D), workspace search (A2).
 
 ## Status (lane fills in)
 
+- Recorded by lane Z (1 Nov 2026): merged as #400, squash commit 457fb5e7 on main. Migration 0113 ran on production on the owner's word (db-migrate.yml run 41263156493, 1 Nov 2026 01:57Z; confirmed: 112 rows in the migration journal, the four lifecycle tables and the DOCUMENT_REMOVAL reason). Production is in "tables present" mode, so any "hidden until the migration" or "0113 has not run" line in this section is now out of date: those pieces are live.
+
 - Started on main: 19ec6a15ec99e0ea7877454560b51bbf3ba1be46; merged main into the branch after LC-A1 (1f2f2e9b), LC-C (9c8b664e) and LC-D (b00a5b19).
 - PR / merged SHA: #400; lane C and lane D merged first as agreed; merged SHA recorded on main by the squash merge.
 - Checks seen green: local guarded full check on f6c2778b ended DONE (install, audit, lint, typecheck, all package tests, web tests, build, supply chain, browser checks, smoke). CI not yet seen.

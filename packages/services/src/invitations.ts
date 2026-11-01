@@ -15,6 +15,7 @@ import { type ServiceError, refusal, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { enqueueNotificationBothChannels } from './notifications';
+import { OPEN_ORGANIZATION_STATUSES } from './organization-admission';
 import { addMembership, isOrgAdmin } from './organizations';
 import type { KeyManagementPort } from './ports';
 import { RATE_LIMITS, checkRateLimits } from './rate-limit';
@@ -87,6 +88,27 @@ async function invitationRateLimitRefusal(
   return decision.allowed ? undefined : serviceError('rate_limited', decision.reason);
 }
 
+/**
+ * The agency statuses that may still take members: a verified agency, and one still waiting for
+ * review (the same rule client invitations follow). A withdrawn, rejected, closed or suspended
+ * agency invites and admits nobody. Read under a shared lock on the organization row, so a
+ * withdrawal, review or closure (which lock that row for update) cannot land between this check
+ * and the write that follows it in the same transaction.
+ */
+
+async function organizationTakesMembers(tx: Db, organizationId: string): Promise<boolean> {
+  const org = first(
+    await tx
+      .select({ status: schema.organizations.status })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId))
+      .for('share'),
+  );
+  return org !== undefined && OPEN_ORGANIZATION_STATUSES.includes(org.status);
+}
+
+const CANNOT_INVITE = 'this agency can no longer invite members';
+
 /** Mint and persist a fresh invitation for an already-authorized, already-rate-limited, normalized email. */
 async function issueOrganizationInvitation(
   db: Db,
@@ -98,6 +120,9 @@ async function issueOrganizationInvitation(
   const expiresAt = new Date(Date.now() + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
   return db.transaction(async (tx) => {
+    if (!(await organizationTakesMembers(tx, input.organizationId))) {
+      return err(serviceError('invalid', CANNOT_INVITE));
+    }
     // Superseded rather than left dangling: at most one live PENDING
     // invitation per (org, email), so there is never ambiguity about which
     // link is the current one, and a stale earlier token stops working the
@@ -238,6 +263,9 @@ export async function addMemberByEmail(
   const existingAccount = await getAccountByEmail(db, email);
   if (existingAccount) {
     return db.transaction(async (tx) => {
+      if (!(await organizationTakesMembers(tx, input.organizationId))) {
+        return err(serviceError('invalid', CANNOT_INVITE));
+      }
       const added = await addMembership(tx, {
         actorAccountId: input.actorAccountId,
         organizationId: input.organizationId,
@@ -299,6 +327,7 @@ export async function previewOrganizationInvitation(
         email: schema.organizationInvitations.email,
         expiresAt: schema.organizationInvitations.expiresAt,
         status: schema.organizationInvitations.status,
+        organizationStatus: schema.organizations.status,
       })
       .from(schema.organizationInvitations)
       .innerJoin(
@@ -314,6 +343,10 @@ export async function previewOrganizationInvitation(
   }
   if (row.expiresAt.getTime() < Date.now()) {
     return err(serviceError('invalid', 'this invitation has expired'));
+  }
+  // The same rule acceptance applies, so the page never offers an Accept that can only fail.
+  if (!OPEN_ORGANIZATION_STATUSES.includes(row.organizationStatus)) {
+    return err(serviceError('invalid', 'this agency is no longer taking new members'));
   }
   return ok({
     organizationName: row.organizationName,
@@ -366,6 +399,11 @@ export async function acceptOrganizationInvitation(
   }
 
   return db.transaction(async (tx) => {
+    // Checked first, so the organization row is locked before the invitation row, the order a
+    // withdrawal takes (it closes the organization, then revokes its pending invitations).
+    if (!(await organizationTakesMembers(tx, invitation.organizationId))) {
+      return err(serviceError('invalid', 'this agency is no longer taking new members'));
+    }
     // A genuine re-confirmation (this account is already an active member of
     // this org) consumes no new seat and must never be blocked by a full
     // org -- checked against the pre-write state, before anything below

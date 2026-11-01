@@ -289,3 +289,25 @@ describe('then-and-now changes within the scroll budget (WP-SB1)', () => {
     expect(few).not.toContain('show-more-link');
   });
 });
+
+describe('a document deleted since the snapshot (resource lifecycle, LC-Z)', () => {
+  it('says it was removed, distinct from a file that is no longer available, with nothing to compare', async () => {
+    mocks.listChangesSinceSnapshot.mockResolvedValue(
+      ok({
+        snapshot: SNAPSHOT,
+        review: REVIEW,
+        changes: [
+          { kind: 'document', change: 'deleted', documentId: 'doc-1', docType: 'PASSPORT' },
+          { kind: 'document', change: 'removed', documentId: 'doc-2', docType: 'PASSPORT' },
+        ],
+        unchangedDetailCount: 0,
+      }),
+    );
+    const html = await render({ snapshot: SNAP });
+    const items = [...html.matchAll(/<li [^>]*id="then-now-change-\d+"[^>]*>(.*?)<\/li>/g)].map(
+      (match) => textOf(match[1] ?? '').replace(/\s+:/g, ':'),
+    );
+    expect(items).toEqual(['Passport: removed', 'Passport: no longer available']);
+    expect(html).not.toContain('>Compare<');
+  });
+});

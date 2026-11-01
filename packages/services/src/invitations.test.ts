@@ -11,6 +11,7 @@ import {
   addMemberByEmail,
   createOrganizationInvitation,
   listOrganizationInvitations,
+  previewOrganizationInvitation,
   revokeOrganizationInvitation,
   sweepAbandonedOrganizationInvitations,
 } from './invitations';
@@ -700,5 +701,123 @@ describe('organization invitations - secure member invitations for a recipient w
         .where(eq(dbSchema.organizationInvitations.id, invited.value.invitation.id));
       expect(remaining).toHaveLength(1);
     });
+  });
+
+  describe('only an agency that can still take members invites or admits them (LC-Z)', () => {
+    const setStatus = (status: 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'CLOSED') =>
+      db.update(dbSchema.organizations).set({ status }).where(eq(dbSchema.organizations.id, orgId));
+    const invite = (email: string) =>
+      createOrganizationInvitation(db, {
+        actorAccountId: ownerId,
+        organizationId: orgId,
+        email,
+        role: 'CASE_MANAGER',
+      });
+    const invitationsFor = (email: string) =>
+      db
+        .select()
+        .from(dbSchema.organizationInvitations)
+        .where(eq(dbSchema.organizationInvitations.email, email));
+
+    it('still lets an agency waiting for review, or a verified one, invite and admit', async () => {
+      const waiting = await invite('waiting@example.com');
+      if (!isOk(waiting)) throw new Error('a waiting agency should invite');
+      await setStatus('ACTIVE');
+      const verified = await invite('verified@example.com');
+      if (!isOk(verified)) throw new Error('a verified agency should invite');
+      const joinerId = await account(db, 'waiting@example.com');
+      const accepted = await acceptOrganizationInvitation(db, {
+        actorAccountId: joinerId,
+        actorEmail: 'waiting@example.com',
+        rawToken: waiting.value.rawToken,
+      });
+      expect(isOk(accepted)).toBe(true);
+    });
+
+    it.each(['SUSPENDED', 'REJECTED', 'CLOSED'] as const)(
+      'refuses to issue an invitation for a %s agency, and creates nothing',
+      async (status) => {
+        await setStatus(status);
+        const refused = await invite(`new-${status.toLowerCase()}@example.com`);
+        expect(isErr(refused)).toBe(true);
+        if (isErr(refused)) {
+          expect(refused.error.code).toBe('invalid');
+          expect(refused.error.message).toBe('this agency can no longer invite members');
+        }
+        expect(await invitationsFor(`new-${status.toLowerCase()}@example.com`)).toHaveLength(0);
+      },
+    );
+
+    it.each(['SUSPENDED', 'REJECTED', 'CLOSED'] as const)(
+      'shows no Accept for an invitation from a %s agency: the preview says it plainly (lane Z review)',
+      async (status) => {
+        const email = `preview-${status.toLowerCase()}@example.com`;
+        const issued = await invite(email);
+        if (!isOk(issued)) throw new Error('issue');
+        expect(
+          isOk(
+            await previewOrganizationInvitation(db, {
+              rawToken: issued.value.rawToken,
+              actorEmail: email,
+            }),
+          ),
+        ).toBe(true);
+        await setStatus(status);
+        const preview = await previewOrganizationInvitation(db, {
+          rawToken: issued.value.rawToken,
+          actorEmail: email,
+        });
+        expect(isErr(preview) && preview.error.message).toBe(
+          'this agency is no longer taking new members',
+        );
+      },
+    );
+
+    it('refuses to add an existing account directly to a closed agency', async () => {
+      const memberId = await account(db, 'existing@example.com');
+      await setStatus('CLOSED');
+      const refused = await addMemberByEmail(db, {
+        actorAccountId: ownerId,
+        organizationId: orgId,
+        email: 'existing@example.com',
+        role: 'CASE_MANAGER',
+      });
+      expect(isErr(refused)).toBe(true);
+      if (isErr(refused))
+        expect(refused.error.message).toBe('this agency can no longer invite members');
+      expect(await isOrgAdmin(db, memberId, orgId)).toBe(false);
+      const memberships = await db
+        .select()
+        .from(dbSchema.memberships)
+        .where(eq(dbSchema.memberships.accountId, memberId));
+      expect(memberships).toHaveLength(0);
+    });
+
+    it.each(['SUSPENDED', 'REJECTED', 'CLOSED'] as const)(
+      'refuses to accept an invitation once the agency is %s, and leaves it unused',
+      async (status) => {
+        const invited = await invite('late@example.com');
+        if (!isOk(invited)) throw new Error('setup failed');
+        await setStatus(status);
+        const joinerId = await account(db, 'late@example.com');
+        const refused = await acceptOrganizationInvitation(db, {
+          actorAccountId: joinerId,
+          actorEmail: 'late@example.com',
+          rawToken: invited.value.rawToken,
+        });
+        expect(isErr(refused)).toBe(true);
+        if (isErr(refused)) {
+          expect(refused.error.code).toBe('invalid');
+          expect(refused.error.message).toBe('this agency is no longer taking new members');
+        }
+        const [row] = await invitationsFor('late@example.com');
+        expect(row?.status).toBe('PENDING');
+        const memberships = await db
+          .select()
+          .from(dbSchema.memberships)
+          .where(eq(dbSchema.memberships.accountId, joinerId));
+        expect(memberships).toHaveLength(0);
+      },
+    );
   });
 });

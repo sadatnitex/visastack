@@ -6,6 +6,7 @@ import { enqueueErasureJob } from '../../erasure';
 import { type ServiceError, serviceError } from '../../errors';
 import { documentBlockedByLegalHold } from '../../legal-hold';
 import { incrementMaterialRevision, missionsSelectingDocument } from '../../material-revision';
+import { recordProductEvent } from '../../product-events';
 import { type LifecycleAccess, lifecycleActorAccountId, lifecycleCommandCovers } from './access';
 import { isUuid } from './ids';
 import { lifecycleTablesPresent } from './presence';
@@ -155,6 +156,8 @@ export async function enqueueDocumentRemoval(
     }
     await tx.delete(schema.documents).where(eq(schema.documents.id, input.documentId));
     await moveReceipt(tx, input.receiptId, receipt.status, 'REMOVED', new Date());
+    // The same measure the erasure worker records when a Removal Record reaches Removed (lane Z).
+    await recordProductEvent(tx, { eventType: 'DOCUMENT_DESTROYED', accountId: null });
     // `removed: true` marks the removal as already complete, so a backup restore replays it
     // (backup-reconciliation.ts) exactly as it replays a verified erasure.
     await audit('DOCUMENT_REMOVAL_QUEUED', { storageObjects: 0, removed: true });

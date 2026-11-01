@@ -153,3 +153,50 @@ describe('where a case stands, for someone who cannot see requests (WP-V4 review
     expect(triage.state).toBe('NOT_READY');
   });
 });
+
+describe('an answered file that is no longer current (resource lifecycle, lane Z)', () => {
+  const summary = {
+    state: 'IN_PROGRESS',
+    counts: {},
+    items: [
+      {
+        key: 'request:r1',
+        kind: 'DOCUMENT',
+        subject: 'PASSPORT',
+        packRequirementId: null,
+        requestId: 'r1',
+        group: 'RECEIVED',
+        indicators: [],
+        dueDate: null,
+      },
+      {
+        key: 'request:r2',
+        kind: 'DOCUMENT',
+        subject: 'BANK_STATEMENT',
+        packRequirementId: null,
+        requestId: 'r2',
+        group: 'RECEIVED',
+        indicators: [],
+        dueDate: null,
+      },
+    ],
+  } as unknown as Parameters<typeof caseTriageView>[0];
+
+  it('adds the lifecycle label to that request only, and never a file name', () => {
+    const shown = caseTriageView(summary, {
+      requirementLabels: new Map(),
+      requestsIncluded: true,
+      requestDocumentLabels: new Map([['r1', 'Removed by the traveller on 3 Nov']]),
+    });
+    const items = shown.groups.flatMap((g) => g.items);
+    expect(items.find((i) => i.key === 'request:r1')?.notes).toEqual([
+      'Removed by the traveller on 3 Nov',
+    ]);
+    expect(items.find((i) => i.key === 'request:r2')?.notes).toEqual([]);
+  });
+
+  it('is unchanged when no labels are passed', () => {
+    const shown = caseTriageView(summary, { requirementLabels: new Map(), requestsIncluded: true });
+    expect(shown.groups.flatMap((g) => g.items).every((i) => i.notes.length === 0)).toBe(true);
+  });
+});
