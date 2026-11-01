@@ -437,10 +437,7 @@ export async function listComplaintsForQualityReview(
       .where(before ? and(inTab, olderThan(c.createdAt, c.id, before)) : inTab)
       .orderBy(...cursorOrder(c.createdAt, c.id))
       .limit(limit + 1),
-    db
-      .select({ status: c.status, total: sql<number>`count(*)::int` })
-      .from(c)
-      .groupBy(c.status),
+    db.select({ status: c.status, total: sql<number>`count(*)::int` }).from(c).groupBy(c.status),
   ]);
   const counts: Record<ComplaintTriageStatus, number> = {
     OPEN: 0,

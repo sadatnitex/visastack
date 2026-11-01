@@ -127,6 +127,9 @@ async function auditTrailPage(db: Db, request: AuditTrailRequest): Promise<Page<
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(a.seq))
     .limit(limit + 1);
-  const entries = rows.map(({ event, actorEmail }) => ({ ...event, actorEmail: actorEmail ?? null }));
+  const entries = rows.map(({ event, actorEmail }) => ({
+    ...event,
+    actorEmail: actorEmail ?? null,
+  }));
   return toPage(entries, limit, (last) => encodeSeqCursor(last.seq, scope));
 }

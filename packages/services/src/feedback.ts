@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -134,7 +134,9 @@ export async function listFeedbackForQualityReview(
   db: Db,
   actor: PlatformAuthInput,
   options?: PageRequest,
-): Promise<Result<CaseFeedback[] | (Page<CaseFeedback> & { readonly total: number }), ServiceError>> {
+): Promise<
+  Result<CaseFeedback[] | (Page<CaseFeedback> & { readonly total: number }), ServiceError>
+> {
   if (!(await canPerformPlatformAction(db, actor, 'FEEDBACK_VIEW'))) {
     return err(serviceError('forbidden', 'quality-admin permission is required'));
   }

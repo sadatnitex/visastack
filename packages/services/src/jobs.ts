@@ -487,10 +487,7 @@ export async function listFailedJobs(
     .innerJoin(schema.documents, eq(schema.documentVersions.documentId, schema.documents.id))
     .where(
       before
-        ? and(
-            failed,
-            olderThan(schema.processingJobs.updatedAt, schema.processingJobs.id, before),
-          )
+        ? and(failed, olderThan(schema.processingJobs.updatedAt, schema.processingJobs.id, before))
         : failed,
     )
     .orderBy(...cursorOrder(schema.processingJobs.updatedAt, schema.processingJobs.id))
