@@ -189,6 +189,16 @@ export {
   registerFieldDefinitions,
   revealFactVersionValue,
 } from './profile';
+// LC-G1: No Longer Current and Ended on the profile.
+export {
+  type MarkFactNotCurrentResult,
+  type MarkRecordEndedInput,
+  type MarkRecordEndedResult,
+  isAllowedEndDate,
+  listEndedRecords,
+  markFactNotCurrent,
+  markRecordEnded,
+} from './lifecycle/profile/profile-lifecycle';
 export {
   CONSISTENCY_LABELS,
   CONSISTENCY_REASON_TEXT,

@@ -227,6 +227,30 @@ describe('master profile view', () => {
     expect(savableField('monthly_salary_tax_basis')?.packId).toBe('professional');
   });
 
+  it('does not count a detail marked No Longer Current (no value) as filled (LC-G1)', () => {
+    const choices = {
+      activated: new Set<string>(),
+      notApplicable: new Set<string>(),
+      noneDeclared: new Set<string>(),
+    };
+    const filled = completionOf(
+      [{ fieldKey: 'given_name', value: 'Ayesha', status: 'APPLICANT_CONFIRMED' }],
+      choices,
+    );
+    const marked = completionOf(
+      [{ fieldKey: 'given_name', value: null, status: 'STALE' }],
+      choices,
+    );
+    expect(filled.answered).toBe(1);
+    expect(marked.answered).toBe(0);
+    // A protected value still reads as filled: no text, but a real saved status.
+    const protectedValue = completionOf(
+      [{ fieldKey: 'given_name', value: null, status: 'APPLICANT_CONFIRMED' }],
+      choices,
+    );
+    expect(protectedValue.answered).toBe(1);
+  });
+
   it('does not ask about tax when the amount does not apply, unless it was already answered', () => {
     const keysOf = (view: ReturnType<typeof buildMasterProfileView>) =>
       sectionsOf(view)
