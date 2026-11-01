@@ -163,8 +163,19 @@ interface Copy {
   readonly eyebrow: string;
   readonly heading: string | ((input: NotificationEmailInput) => string);
   readonly why?: string;
-  readonly action: string;
-  readonly after?: string;
+  readonly action: string | ((input: NotificationEmailInput) => string);
+  readonly after?: string | ((input: NotificationEmailInput) => string | undefined);
+}
+
+/** An expiry reminder that leads to Replace With a Newer Document (lane LC-B). */
+function opensReplace(input: NotificationEmailInput): boolean {
+  try {
+    return (
+      new URL(input.url, 'https://placeholder.invalid').searchParams.get('action') === 'REPLACE'
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -233,7 +244,11 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     eyebrow: 'Your Documents',
     heading: 'A document is close to its expiry date',
     why: 'Renewing in good time keeps every application you prepare ready to go.',
-    action: 'Check the Date',
+    action: (input) => (opensReplace(input) ? 'Replace It' : 'Check the Date'),
+    after: (input) =>
+      opensReplace(input)
+        ? 'Renewed already? Replace It puts the new one in place, and each case that used the old one asks you to confirm it again.'
+        : undefined,
   },
   VERIFICATION_EXPIRY: {
     eyebrow: 'Your Documents',
@@ -383,13 +398,21 @@ export function notificationEmail(input: NotificationEmailInput): EmailContent {
       ? copy.heading(input)
       : copy.heading
     : input.subject;
+  const after = typeof copy?.after === 'function' ? copy.after(input) : copy?.after;
   return {
     preheader: input.summary,
     eyebrow: copy?.eyebrow ?? 'VisaStack',
     heading,
     fact: input.summary,
     ...(copy?.why ? { why: copy.why } : {}),
-    action: { label: copy?.action ?? 'Open VisaStack', url: input.url },
-    ...(copy?.after ? { after: copy.after } : {}),
+    action: {
+      label: copy
+        ? typeof copy.action === 'function'
+          ? copy.action(input)
+          : copy.action
+        : 'Open VisaStack',
+      url: input.url,
+    },
+    ...(after ? { after } : {}),
   };
 }

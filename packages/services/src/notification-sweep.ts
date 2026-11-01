@@ -1,6 +1,13 @@
-import { and, eq, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { type Db, schema } from './db';
 import { classifyExpiry, getReminderThresholds } from './expiry';
+import {
+  everydayApplicantCondition,
+  everydayDocumentCondition,
+  presentApplicantCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation/conditions';
+import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import {
   getLiveAcknowledgement,
   incrementMaterialRevision,
@@ -140,6 +147,9 @@ export async function sweepTaskDeadlineReminders(
       and(
         isNotNull(schema.missionTasks.dueDate),
         or(eq(schema.missionTasks.status, 'OPEN'), eq(schema.missionTasks.status, 'IN_PROGRESS')),
+        // A traveller record in Recently Deleted or being removed gets no reminders. An archived
+        // one still does: its open cases carry on.
+        (await lifecycleTablesPresent(db)) ? presentApplicantCondition() : undefined,
       ),
     )
     .limit(options.limit ?? 200);
@@ -190,6 +200,21 @@ export async function sweepTaskDeadlineReminders(
 
 // --- Expiry reminder sweep --------------------------------------------------
 
+/**
+ * Where an expiry reminder leads. With the resource lifecycle in place it opens Replace With a
+ * Newer Document on that document (the Documents page's `?manage=&action=` link); before
+ * migration 0113 there is no Replace flow yet, so it leads to the expiry list as before.
+ */
+export function expiryReminderPath(
+  applicantId: string,
+  documentId: string,
+  lifecycle: boolean,
+): string {
+  if (!lifecycle) return `/app/applicant/${applicantId}/expiry`;
+  const query = new URLSearchParams({ manage: documentId, action: 'REPLACE' });
+  return `/app/applicant/${applicantId}/documents?${query.toString()}`;
+}
+
 export interface ExpirySweepResult extends SweepResult {
   /** Missions whose live acknowledgement was invalidated this run because selected evidence expired (directive Part 7 §5). */
   readonly missionsDirtied: number;
@@ -222,6 +247,12 @@ export async function sweepExpiryReminders(
   now: Date,
   options: { readonly limit?: number } = {},
 ): Promise<ExpirySweepResult> {
+  // Resource lifecycle (migration 0113). A document in Recently Deleted or being removed, or of a
+  // traveller record that is, is never visited. An archived document, or any document of an
+  // archived traveller, still makes the cases that chose it need confirming again once it expires
+  // (an explicit choice stays where it was made, owner decision D6), but sends no reminder.
+  // Without the tables every document is current, exactly as before.
+  const lifecycle = await lifecycleTablesPresent(db);
   const documentRows = await db
     .select({
       documentId: schema.documents.id,
@@ -230,11 +261,19 @@ export async function sweepExpiryReminders(
       applicantId: schema.documents.applicantId,
       ownerAccountId: schema.applicants.ownerAccountId,
       displayName: schema.documents.originalName,
+      everyday: lifecycle
+        ? sql<boolean>`(${everydayDocumentCondition()} and ${everydayApplicantCondition()})`
+        : sql<boolean>`true`,
     })
     .from(schema.documents)
     .innerJoin(schema.applicants, eq(schema.applicants.id, schema.documents.applicantId))
     .where(
-      and(isNotNull(schema.documents.expiresAt), isNull(schema.documents.supersededByDocumentId)),
+      and(
+        isNotNull(schema.documents.expiresAt),
+        isNull(schema.documents.supersededByDocumentId),
+        lifecycle ? presentDocumentCondition() : undefined,
+        lifecycle ? presentApplicantCondition() : undefined,
+      ),
     )
     .limit(options.limit ?? 200);
 
@@ -257,6 +296,7 @@ export async function sweepExpiryReminders(
     }
 
     if (classification.urgency !== 'reminder' || classification.thresholdCrossed === null) continue;
+    if (row.everyday !== true) continue;
 
     await db.transaction(async (tx) => {
       await enqueueNotificationBothChannels(tx, {
@@ -268,7 +308,7 @@ export async function sweepExpiryReminders(
         payload: {
           subject: 'A document is expiring soon',
           summary: `"${row.displayName}" is expiring soon -- check whether it needs renewing.`,
-          deepLinkPath: `/app/applicant/${row.applicantId}/expiry`,
+          deepLinkPath: expiryReminderPath(row.applicantId, row.documentId, lifecycle),
         },
       });
     });
@@ -285,6 +325,16 @@ export async function sweepExpiryReminders(
     })
     .from(schema.issuerVerifications)
     .innerJoin(schema.applicants, eq(schema.applicants.id, schema.issuerVerifications.applicantId))
+    .where(
+      lifecycle
+        ? and(
+            everydayApplicantCondition(),
+            // A confirmation about a document that is archived, in Recently Deleted or being
+            // removed sends no reminder either.
+            sql`(${schema.issuerVerifications.documentId} is null or exists (select 1 from ${schema.documents} where ${schema.documents.id} = ${schema.issuerVerifications.documentId} and ${everydayDocumentCondition()}))`,
+          )
+        : undefined,
+    )
     .limit(options.limit ?? 200);
 
   for (const row of verificationRows) {

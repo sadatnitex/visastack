@@ -2303,6 +2303,19 @@ export {
 // LC-A1 exports
 
 // LC-B exports
+export {
+  FINISHED_CASE_STATES_FOR_REPLACE,
+  REPLACE_REFUSALS,
+  type DocumentLifecycleLabelInput,
+  type ReplaceDocumentOutcome,
+  type ReplacedInCase,
+  type ReplacementCandidate,
+  type ReplacementOptions,
+  type ReplacementStatus,
+  documentLifecycleLabel,
+  listReplacementOptions,
+  replaceDocument,
+} from './lifecycle/replace';
 
 // LC-C exports
 
