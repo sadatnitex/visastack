@@ -14,7 +14,8 @@ import {
   terminateOrganization,
   withdrawOrganizationApplication,
 } from './organizations';
-import { executeScheduledDowngrade } from './plans';
+import { activateSubscription, executeScheduledDowngrade } from './plans';
+import { grantPlatformRole } from './platform-roles';
 
 /**
  * Owner decision "Founding A" (1 Nov 2026): when an agency withdraws its application or is
@@ -83,6 +84,18 @@ async function restoredBranchOf(organizationId: string): Promise<Db> {
     .where(eq(schema.subscriptions.organizationId, organizationId))) {
     await restored.insert(schema.subscriptions).values(row);
   }
+  for (const row of await db
+    .select()
+    .from(schema.scheduledDowngrades)
+    .where(eq(schema.scheduledDowngrades.organizationId, organizationId))) {
+    await restored.insert(schema.scheduledDowngrades).values(row);
+  }
+  for (const row of await db
+    .select()
+    .from(schema.notifications)
+    .where(eq(schema.notifications.organizationId, organizationId))) {
+    await restored.insert(schema.notifications).values(row);
+  }
   return restored;
 }
 
@@ -124,10 +137,14 @@ async function waitingDowngrade(organizationId: string, due = false): Promise<st
     .select({ id: schema.plans.id })
     .from(schema.plans)
     .where(eq(schema.plans.key, AGENCY_FOUNDING_PLAN_KEY));
-  const [smaller] = await db
+  await db
     .insert(schema.plans)
     .values({ key: 'agency_smaller_founding_a', name: 'Smaller', audience: 'AGENCY' })
-    .returning({ id: schema.plans.id });
+    .onConflictDoNothing({ target: schema.plans.key });
+  const [smaller] = await db
+    .select({ id: schema.plans.id })
+    .from(schema.plans)
+    .where(eq(schema.plans.key, 'agency_smaller_founding_a'));
   if (!founding || !smaller) throw new Error('plans');
   const [row] = await db
     .insert(schema.scheduledDowngrades)
@@ -145,7 +162,7 @@ async function waitingDowngrade(organizationId: string, due = false): Promise<st
   await db.insert(schema.notifications).values({
     eventType: 'DOWNGRADE_SCHEDULED',
     channel: 'IN_APP',
-    idempotencyKey: `downgrade-notice-${row.id}`,
+    idempotencyKey: `downgrade-notice-${row.id}-${organizationId}`,
     recipientAccountId: owner,
     organizationId,
     resourceId: row.id,
@@ -291,6 +308,7 @@ describe('a closing agency keeps no plan (owner decision Founding A)', () => {
 
   it('a restore never brings back an ended plan or a rejected application to waiting', async () => {
     const organizationId = await newAgency();
+    const downgradeId = await waitingDowngrade(organizationId);
     const restored = await restoredBranchOf(organizationId);
     await new Promise((resolve) => setTimeout(resolve, 5));
     const restorePoint = new Date();
@@ -312,6 +330,17 @@ describe('a closing agency keeps no plan (owner decision Founding A)', () => {
       .from(schema.subscriptions)
       .where(eq(schema.subscriptions.id, subscription?.id ?? ''));
     expect(restoredPlan?.endedAt).not.toBeNull();
+    // Its waiting downgrade and that downgrade's notice end there too, as the rejection did.
+    const [restoredDowngrade] = await restored
+      .select({ status: schema.scheduledDowngrades.status })
+      .from(schema.scheduledDowngrades)
+      .where(eq(schema.scheduledDowngrades.id, downgradeId));
+    expect(restoredDowngrade?.status).toBe('CANCELLED');
+    const [restoredNotice] = await restored
+      .select({ status: schema.notifications.status })
+      .from(schema.notifications)
+      .where(eq(schema.notifications.resourceId, downgradeId));
+    expect(restoredNotice?.status).toBe('CANCELLED');
     const attributed = await restored
       .select({ eventType: schema.auditEvents.eventType })
       .from(schema.auditEvents)
@@ -325,6 +354,36 @@ describe('a closing agency keeps no plan (owner decision Founding A)', () => {
     const again = await reconcileRestoredBranch(db, restored, restorePoint);
     expect(again.counts.subscriptionsEnded).toBe(0);
     expect(again.counts.organizationsForced).toBe(0);
+  });
+
+  it('a restore ends the restored plan even when the plan changed after the restore point', async () => {
+    const organizationId = await newAgency();
+    const restored = await restoredBranchOf(organizationId);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const restorePoint = new Date();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    // After the restore point the agency moves to another plan (a new row), then is rejected.
+    const [founding] = await plansOf(organizationId);
+    await db.execute(
+      sql`update subscriptions set ended_at = now() where id = ${founding?.id}::uuid`,
+    );
+    await db.execute(sql`insert into subscriptions (organization_id, plan_id, assigned_by_account_id, reason)
+      select ${organizationId}::uuid, plan_id, ${reviewer}::uuid, 'moved' from subscriptions
+      where id = ${founding?.id}::uuid`);
+    expect(isOk(await reject(organizationId))).toBe(true);
+
+    const report = await reconcileRestoredBranch(db, restored, restorePoint);
+    expect(report.errors).toEqual([]);
+    const current = await restored
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.organizationId, organizationId),
+          sql`${schema.subscriptions.endedAt} is null`,
+        ),
+      );
+    expect(current).toEqual([]);
   });
 
   it("a restore never replays an approval: it is the platform's to make again", async () => {
@@ -383,21 +442,61 @@ describe('a closing agency keeps no plan (owner decision Founding A)', () => {
     const plans = await plansOf(organizationId);
     expect(plans).toHaveLength(1);
     expect(plans[0]?.plan_key).toBe(AGENCY_FOUNDING_PLAN_KEY);
-    const [downgrade] = await db
-      .select({ status: schema.scheduledDowngrades.status })
-      .from(schema.scheduledDowngrades)
-      .where(eq(schema.scheduledDowngrades.id, downgradeId));
-    expect(downgrade?.status).toBe('PENDING');
-    // A rejected agency is refused the same way.
+    // Cancelled with its notice, so it is not tried again every day.
+    const statusOf = async (id: string) =>
+      (
+        await db
+          .select({ status: schema.scheduledDowngrades.status })
+          .from(schema.scheduledDowngrades)
+          .where(eq(schema.scheduledDowngrades.id, id))
+      )[0]?.status;
+    expect(await statusOf(downgradeId)).toBe('CANCELLED');
+    expect(await noticeStatus(downgradeId)).toBe('CANCELLED');
+    // A rejected agency is treated the same way.
     await db.execute(
       sql`update organizations set status = 'REJECTED' where id = ${organizationId}::uuid`,
     );
-    expect(isOk(await executeScheduledDowngrade(db, { downgradeId }))).toBe(false);
-    // The same downgrade on an agency still open is applied as before.
+    const second = await waitingDowngrade(organizationId, true);
+    expect(isOk(await executeScheduledDowngrade(db, { downgradeId: second }))).toBe(false);
+    expect(await statusOf(second)).toBe('CANCELLED');
+    // A downgrade on an agency still open is applied as before.
     await db.execute(
       sql`update organizations set status = 'ACTIVE' where id = ${organizationId}::uuid`,
     );
-    expect(isOk(await executeScheduledDowngrade(db, { downgradeId }))).toBe(true);
+    const third = await waitingDowngrade(organizationId, true);
+    expect(isOk(await executeScheduledDowngrade(db, { downgradeId: third }))).toBe(true);
+    expect(await statusOf(third)).toBe('EXECUTED');
+  });
+
+  it('the platform owner cannot give a plan to a closed or rejected agency', async () => {
+    const ownerEmail = 'platform-owner-founding-a@platform.example.com';
+    const platformOwner = await account(ownerEmail);
+    const granted = await grantPlatformRole(db, {
+      actor: { accountId: platformOwner, email: ownerEmail, bootstrapEmails: [ownerEmail] },
+      targetAccountId: platformOwner,
+      role: 'PLATFORM_OWNER',
+      reason: 'seed',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(granted)) throw new Error('grant');
+    const organizationId = await newAgency();
+    const [founding] = await plansOf(organizationId);
+    const [{ id: planId } = { id: '' }] = await db
+      .select({ id: schema.plans.id })
+      .from(schema.plans)
+      .where(eq(schema.plans.key, AGENCY_FOUNDING_PLAN_KEY));
+    expect(isOk(await reject(organizationId))).toBe(true);
+    const given = await activateSubscription(db, {
+      actor: { accountId: platformOwner, email: ownerEmail, bootstrapEmails: [] },
+      stepUpSatisfied: true,
+      organizationId,
+      planId,
+      reason: 'test',
+    });
+    expect(isOk(given)).toBe(false);
+    const current = await plansOf(organizationId);
+    expect(current.filter((p) => p.ended_at === null)).toEqual([]);
+    expect(current.map((p) => p.id)).toEqual([founding?.id]);
   });
 
   it('a refused withdrawal or termination leaves the plan as it was', async () => {

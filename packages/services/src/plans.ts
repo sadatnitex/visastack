@@ -494,6 +494,10 @@ export async function activateSubscription(
   }
 
   return db.transaction(async (tx) => {
+    // Owner decision "Founding A": a closed or rejected agency keeps no plan, so none is given.
+    if (!(await agencyKeepsPlan(tx, input.organizationId))) {
+      return err(serviceError('invalid', AGENCY_KEEPS_NO_PLAN));
+    }
     const now = new Date();
     await tx
       .update(schema.subscriptions)
@@ -605,6 +609,29 @@ export async function endSubscription(
 }
 
 /**
+ * Owner decision "Founding A": only an agency still open (ACTIVE, waiting for review, or
+ * SUSPENDED) keeps a plan; a CLOSED or REJECTED one keeps none. Read under a shared lock on the
+ * agency row, so a closing still running (which holds that row) is waited for and seen.
+ */
+const STATUSES_KEEPING_A_PLAN: ReadonlySet<string> = new Set([
+  'ACTIVE',
+  'PENDING_VERIFICATION',
+  'SUSPENDED',
+]);
+const AGENCY_KEEPS_NO_PLAN = 'This agency is closed or was rejected, so it keeps no plan.';
+
+async function agencyKeepsPlan(tx: Db, organizationId: string): Promise<boolean> {
+  const organization = first(
+    await tx
+      .select({ status: schema.organizations.status })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, organizationId))
+      .for('share'),
+  );
+  return organization !== undefined && STATUSES_KEEPING_A_PLAN.has(organization.status);
+}
+
+/**
  * Auto-cancels any still-PENDING scheduled downgrade for this organization,
  * as a side effect of an immediate plan change (`activateSubscription`) or
  * an unassignment (`endSubscription`) that makes it stale -- left in place,
@@ -618,6 +645,7 @@ async function supersedePendingDowngrade(
   organizationId: string,
   actorAccountId: string,
   now: Date,
+  reason = 'superseded by an immediate plan change',
 ): Promise<void> {
   const pending = first(
     await tx
@@ -638,7 +666,7 @@ async function supersedePendingDowngrade(
       status: 'CANCELLED',
       cancelledAt: now,
       cancelledByAccountId: actorAccountId,
-      cancelledReason: 'superseded by an immediate plan change',
+      cancelledReason: reason,
       updatedAt: now,
     })
     .where(eq(schema.scheduledDowngrades.id, pending.id));
@@ -650,7 +678,7 @@ async function supersedePendingDowngrade(
     result: 'ALLOWED',
     resourceType: 'scheduled_downgrade',
     resourceId: pending.id,
-    reason: 'superseded by an immediate plan change',
+    reason,
     metadata: { organizationId },
   });
   await cancelQueuedNotificationsForResource(tx, pending.id);
@@ -796,6 +824,9 @@ export async function scheduleDowngrade(
 
   try {
     return await db.transaction(async (tx) => {
+      if (!(await agencyKeepsPlan(tx, input.organizationId))) {
+        return err(serviceError('invalid', AGENCY_KEEPS_NO_PLAN));
+      }
       const downgrade = required(
         first(
           await tx
@@ -981,9 +1012,10 @@ export async function executeScheduledDowngrade(
   }
 
   return db.transaction(async (tx) => {
-    // The current plan first, then the downgrade: the order every plan change and an agency
-    // closing (organizations.ts) lock them in. Both are read again under the lock, so a closing,
-    // a cancellation or another run that committed meanwhile is seen here and nothing is undone.
+    // The agency row first (shared), then its current plan, then the downgrade: the order an
+    // agency closing (organizations.ts) takes them in. A closing still running holds the agency
+    // row, so this waits for it and then sees the agency as it left it; nothing is undone.
+    const keepsPlan = await agencyKeepsPlan(tx, pending.organizationId);
     const current = first(
       await tx
         .select()
@@ -1010,16 +1042,17 @@ export async function executeScheduledDowngrade(
         .for('update'),
     );
     if (!stillPending) return err(serviceError('not_found', 'no pending scheduled downgrade'));
-    // Owner decision "Founding A": a closed or rejected agency keeps no plan, so none is ever
-    // put back.
-    const organization = first(
-      await tx
-        .select({ status: schema.organizations.status })
-        .from(schema.organizations)
-        .where(eq(schema.organizations.id, pending.organizationId)),
-    );
-    if (!organization || organization.status === 'CLOSED' || organization.status === 'REJECTED') {
-      return err(serviceError('invalid', 'this agency is closed'));
+    // Owner decision "Founding A": a closed or rejected agency keeps no plan, so none is ever put
+    // back. Its change is cancelled (with its notice), so it is not tried again every day.
+    if (!keepsPlan) {
+      await supersedePendingDowngrade(
+        tx,
+        pending.organizationId,
+        pending.requestedByAccountId,
+        now,
+        'the agency keeps no plan (closed or rejected)',
+      );
+      return err(serviceError('invalid', AGENCY_KEEPS_NO_PLAN));
     }
     if (!current || current.planId !== pending.fromPlanId) {
       return err(

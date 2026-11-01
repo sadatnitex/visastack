@@ -198,3 +198,16 @@ not merely a library function requiring a one-off script.
 Production uses private R2 storage; database-only encrypted archive recovery is verified, while complete document/key/lifecycle recovery remains open.
 
 Earlier implementation snapshots and provider-specific instructions above are retained as history. For current setup, incident response and availability, use [current operating guidance](current-platform.md). Original acceptance and security targets remain in force; this correction does not mark them complete or authorize migration, production restore, paid activation or sensitive-data intake.
+
+## Agency closings and plans (2026-11-01, owner decision "Founding A")
+
+Rows added to the replay table above (append only):
+
+| Resource | Event type(s) on the pre-incident branch | Reconciliation action on the restored branch |
+| --- | --- | --- |
+| Agency application withdrawn (LC-G3) | `ORGANIZATION_APPLICATION_WITHDRAWN` | Force the organization to `CLOSED`, revoke its unused team invitations, and leave it no plan: end whatever subscription is current there and cancel a downgrade still waiting, with its queued notice. |
+| Agency application rejected | `ORGANIZATION_REVIEWED` with metadata `decision: REJECTED` (an approval is never replayed) | An application still waiting for review there is `REJECTED` again; a rejected or closed agency keeps no plan (as above). Counted in `organizationsForced`. |
+| Agency terminated | `ORGANIZATION_TERMINATED` | As before (`CLOSED` beats `SUSPENDED` beats `ACTIVE`), and the closed agency keeps no plan (as above). |
+| Subscription ended | `SUBSCRIPTION_ENDED` (a closing agency's plan, or one the owner ended) | End that subscription again at the moment it ended, and cancel the agency's downgrade still waiting there with its queued notice (the old branch cancelled it in the same transaction). Counted in `subscriptionsEnded`; written as `RECONCILIATION_SUBSCRIPTION_ENDED`. |
+
+Not replayed (known limit, owner decision needed): a subscription ended without a `SUBSCRIPTION_ENDED` record (a plan change by `activateSubscription`, an executed downgrade, a traveller's lapse, refund or plan switch) comes back current on the restored branch. For an agency that keeps no plan this is covered by the rows above; for an open agency or a traveller it is not.
