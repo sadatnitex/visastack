@@ -895,10 +895,7 @@ async function loadDocumentInstancesByType(db: Db, applicantId: string): Promise
 }
 
 /** A document group's instances that automatic matching may use: neither replaced nor archived. */
-function everydayInstances(
-  pool: DocumentPool,
-  key: DocumentGroupKey,
-): readonly DocumentInstance[] {
+function everydayInstances(pool: DocumentPool, key: DocumentGroupKey): readonly DocumentInstance[] {
   return (pool.byType.get(key) ?? []).filter((d) => !pool.setAside.has(d.documentId));
 }
 

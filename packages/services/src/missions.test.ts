@@ -3872,7 +3872,9 @@ describe('LC-A1 - readiness counts only what it should (replaced, archived, dele
         documentId: id,
       });
     const archive = (id: string) =>
-      db.insert(schema.documentLifecycle).values({ documentId: id, applicantId, archivedAt: new Date() });
+      db
+        .insert(schema.documentLifecycle)
+        .values({ documentId: id, applicantId, archivedAt: new Date() });
     const markDeleted = (id: string) => {
       const now = new Date();
       return db.insert(schema.documentLifecycle).values({

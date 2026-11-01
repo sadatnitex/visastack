@@ -101,7 +101,9 @@ async function setUp(options: { readonly withoutLifecycle?: boolean } = {}) {
             eq(schema.auditEvents.resourceType, 'document'),
           ),
         )
-    ).filter((row) => row.eventType === 'DOCUMENT_ARCHIVED' || row.eventType === 'DOCUMENT_RESTORED');
+    ).filter(
+      (row) => row.eventType === 'DOCUMENT_ARCHIVED' || row.eventType === 'DOCUMENT_RESTORED',
+    );
   const productTypes = async () =>
     (await db.select({ eventType: schema.productEvents.eventType }).from(schema.productEvents))
       .map((row) => row.eventType)
