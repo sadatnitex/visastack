@@ -60,6 +60,7 @@ vi.mock('../app/app/admin/actions', standIn);
 vi.mock('../app/app/admin/ai-settings/actions', standIn);
 vi.mock('../app/app/admin/billing/actions', standIn);
 vi.mock('../app/app/admin/billing/travellers/actions', standIn);
+vi.mock('../app/app/admin/billing/travellers/metrics/actions', standIn);
 vi.mock('../app/app/admin/ai/actions', standIn);
 vi.mock('../app/app/applicant/[id]/sharing/ai-draft-actions', standIn);
 vi.mock('../app/app/admin/document-protection/actions', standIn);
@@ -103,6 +104,7 @@ const protectionForms = await import('../app/app/admin/document-protection/forms
 const removalForms = await import('../app/app/admin/removals/decide-form');
 const billingRulesForms = await import('../app/app/admin/billing/forms');
 const travellerBillingForms = await import('../app/app/admin/billing/travellers/forms');
+const travellerThresholdsForms = await import('../app/app/admin/billing/travellers/metrics/forms');
 const aiFeatureForms = await import('../app/app/admin/ai/forms');
 const planForms = await import('../app/app/admin/plans/forms');
 const travellerPlanForms = await import('../app/app/account/plan/plan-forms');
@@ -1691,6 +1693,42 @@ const ADMIN: readonly Case[] = [
         overdueHandlingEnabled
         graceAfterDays={7}
         suspendAfterDays={30}
+      />
+    ),
+  },
+  {
+    name: 'save the traveller plan alert thresholds',
+    element: () => (
+      <travellerThresholdsForms.TravellerThresholdsForm
+        thresholds={{
+          checkoutSuccessMinPercent: 50,
+          confirmationMaxMinutes: 15,
+          stuckConfirmingMax: 0,
+          needsCheckMax: 0,
+        }}
+        available
+        unavailableMessage="Traveller plan thresholds can be set once the database is updated."
+      />
+    ),
+    fields: [
+      'checkoutSuccessMinPercent',
+      'confirmationMaxMinutes',
+      'stuckConfirmingMax',
+      'needsCheckMax',
+    ],
+  },
+  {
+    name: 'save the traveller plan alert thresholds (before the database is updated)',
+    element: () => (
+      <travellerThresholdsForms.TravellerThresholdsForm
+        thresholds={{
+          checkoutSuccessMinPercent: 50,
+          confirmationMaxMinutes: 15,
+          stuckConfirmingMax: 0,
+          needsCheckMax: 0,
+        }}
+        available={false}
+        unavailableMessage="Traveller plan thresholds can be set once the database is updated."
       />
     ),
   },

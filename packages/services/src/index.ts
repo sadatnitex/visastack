@@ -2323,6 +2323,30 @@ export {
 } from './lifecycle/replace';
 
 // LC-C exports
+export {
+  type DuplicateStatus,
+  NOT_A_DUPLICATE,
+  duplicateStatus,
+  duplicateStatuses,
+  type TidyUpCounts,
+  tidyUpCounts,
+} from './lifecycle/duplicates';
+export {
+  DELETE_DUPLICATE_REFUSALS,
+  type DeleteDuplicateOutcome,
+  type DeleteDuplicatePreview,
+  PURGE_BATCH_LIMIT,
+  type PurgeDueDocumentsResult,
+  RECENTLY_DELETED_DAYS,
+  RESTORE_REFUSALS,
+  type RestoreSource,
+  type SwitchedCase,
+  deleteDuplicate,
+  previewDeleteDuplicate,
+  purgeDueDocuments,
+  restoreDeleted,
+  undoDelete,
+} from './lifecycle/recently-deleted';
 
 // LC-D exports
 export {
@@ -2353,3 +2377,23 @@ export {
 } from './lifecycle/removal-requests';
 
 // LC-E exports
+// ADR 0025 T6: the owner's traveller plan metrics and health thresholds (migration 0114).
+export {
+  STANDARD_TRAVELLER_THRESHOLDS,
+  TRAVELLER_HEALTH_UNAVAILABLE,
+  TRAVELLER_METRICS_MAX_DAYS,
+  type TravellerHealth,
+  type TravellerHealthSettings,
+  type TravellerHealthSignal,
+  type TravellerHealthThresholds,
+  type TravellerPlanDay,
+  type TravellerPlanEvent,
+  type TravellerPlanMetrics,
+  type TravellerSignalStatus,
+  countTravellerPlanEvent,
+  getTravellerHealthSettings,
+  travellerPlanHealth,
+  travellerPlanMetrics,
+  travellerThresholdsProblem,
+  updateTravellerHealthSettings,
+} from './traveller-plan-metrics';

@@ -7,10 +7,19 @@
  */
 
 import { type UpgradeLineKind, isUpgradeLineKind } from '../components/upgrade-line';
+import { isRecordId } from './record-id';
 
 export type UploadOutcome =
-  /** The server added it; `title` is the name it is listed under. */
-  | { readonly kind: 'added'; readonly message: string; readonly title: string | null }
+  /**
+   * The server added it; `title` is the name it is listed under. `removableCopyId` is set when it
+   * is an exact copy of a document already kept, so Remove This New Copy can be offered (LC-C).
+   */
+  | {
+      readonly kind: 'added';
+      readonly message: string;
+      readonly title: string | null;
+      readonly removableCopyId?: string;
+    }
   /**
    * The server answered no, with its reason, and the line to add when a paid plan would give more
    * room (ADR 0025 section 12.2).
@@ -86,14 +95,22 @@ export function readAnswer(status: number, body: string): UploadOutcome {
     return { kind: 'unknown' };
   }
   if (typeof parsed !== 'object' || parsed === null) return { kind: 'unknown' };
-  const { message, title, upgrade } = parsed as {
+  const { message, title, upgrade, removableCopyId } = parsed as {
     message?: unknown;
     title?: unknown;
     upgrade?: unknown;
+    removableCopyId?: unknown;
   };
   if (typeof message !== 'string') return { kind: 'unknown' };
   if (status === 201) {
-    return { kind: 'added', message, title: typeof title === 'string' ? title : null };
+    return {
+      kind: 'added',
+      message,
+      title: typeof title === 'string' ? title : null,
+      ...(typeof removableCopyId === 'string' && isRecordId(removableCopyId)
+        ? { removableCopyId }
+        : {}),
+    };
   }
   if (status >= 400 && status < 500) {
     return { kind: 'refused', message, ...(isUpgradeLineKind(upgrade) ? { upgrade } : {}) };

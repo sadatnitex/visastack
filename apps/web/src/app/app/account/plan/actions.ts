@@ -2,9 +2,11 @@
 
 import {
   type ServiceError,
+  countTravellerPlanEvent,
   setPlanRenewal,
   startPersonCheckout,
   startPersonPayment,
+  travellerPlansEnabled,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -82,7 +84,12 @@ export async function buyPlanAction(_prev: FormResult, formData: FormData): Prom
   if (!ID.test(planId)) return NOT_FOUND;
   const outcome = await withSession(
     async ({ db, self }): Promise<FormResult | { readonly invoiceId: string }> => {
-      const made = await startPersonCheckout(db, self, { planId });
+      // ADR 0025 section 12.6 (T6): one Get tap counted, a number and never who, only while
+      // selling is on. Run beside the checkout; it never fails it.
+      const [made] = await Promise.all([
+        startPersonCheckout(db, self, { planId }),
+        travellerPlansEnabled() ? countTravellerPlanEvent(db, 'GET_TAPPED') : null,
+      ]);
       if (!made.ok) return made.error.code === 'not_found' ? NOT_FOUND : personWords(made.error);
       return { invoiceId: made.value.invoiceId };
     },
