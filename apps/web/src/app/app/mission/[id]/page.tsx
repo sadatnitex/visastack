@@ -45,7 +45,6 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Fragment } from 'react';
 import {
   CasePreparationSummary,
   CaseStageTracker,
@@ -54,6 +53,8 @@ import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
 import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
 import { ReferenceCode } from '../../../../components/reference-code';
+import { type RowNoun, ShowMore } from '../../../../components/show-more';
+import { StickyActionBar } from '../../../../components/sticky-action-bar';
 import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
 import { memoryHref } from '../../../../lib/application-memory-labels';
@@ -67,6 +68,13 @@ import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { getLocale } from '../../../../lib/locale';
 import { fieldLabel } from '../../../../lib/master-profile';
+import {
+  type SearchParamsRecord,
+  TRAVELLER_LIST_STEP,
+  firstParam,
+  nextShow,
+  parseShow,
+} from '../../../../lib/paging';
 import { REQUIREMENT_GROUPS } from '../../../../lib/requirement-groups';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
@@ -90,19 +98,16 @@ import {
   SnapshotButton,
   TransitionButtons,
 } from './mission-buttons';
+import { OpenGroupOnLink } from './open-group-on-link';
 import { OutcomePanel } from './outcome-panel';
 import { ExplainGapButton } from './readiness-gap-explain';
+import { isPacketSnapshot } from './snapshot-packet';
 import { SubmissionReportPanel } from './submission-report-panel';
 import { TripChecksPanel } from './trip-checks-panel';
 
 export const metadata: Metadata = { title: 'Case' };
 
 export const dynamic = 'force-dynamic';
-
-// A snapshot taken once the mission has reached this stage of the reviewer
-// workflow is the application packet (Build Spec §4.5's "pack production"),
-// not just a working evidence capture.
-const PACKET_STATES: ReadonlySet<string> = new Set(['READY_TO_EXPORT', 'LOCKED', 'CLOSED']);
 
 // RUL-04's four case-level outcomes (directive §10 case-readiness experience),
 // never averaged from the per-requirement states below.
@@ -159,6 +164,31 @@ const REQUIREMENT_STATE_META: Record<
 };
 
 type AttentionKind = 'changed' | 'missing' | 'unconfirmed' | 'trip' | 'tasks';
+
+/** How many snapshots the case page lists; the rest are one link away (WP-SB2). */
+const SNAPSHOTS_ON_PAGE = 5;
+
+/** Rows a checklist group shows before the rest fold under Show All (WP-SB2). */
+const CHECKLIST_ROWS_SHOWN = 3;
+
+/**
+ * The case page's capped lists (WP-SB2): each shows 10 rows, then Show More asks the server for
+ * 10 more through its own address parameter, so opening one list never resets another.
+ */
+const CAPPED_LISTS = {
+  tasks: { noun: { one: 'task', other: 'tasks' }, rowId: 'case-task' },
+  notes: { noun: { one: 'note', other: 'notes' }, rowId: 'case-note' },
+  outcomes: { noun: { one: 'outcome', other: 'outcomes' }, rowId: 'case-outcome' },
+  complaints: { noun: { one: 'complaint', other: 'complaints' }, rowId: 'case-complaint' },
+  feedback: { noun: { one: 'feedback note', other: 'feedback notes' }, rowId: 'case-feedback' },
+} as const satisfies Record<string, { readonly noun: RowNoun; readonly rowId: string }>;
+
+type CappedList = keyof typeof CAPPED_LISTS;
+
+const LIST_STEP = { step: TRAVELLER_LIST_STEP } as const;
+
+/** The checklist groups' ids are `<prefix>-<heading in lower case with hyphens>`. */
+const CHECKLIST_ID_PREFIX = 'case-checklist';
 
 /** How long after it is made a case still opens with its welcome note. */
 const WELCOME_WINDOW_MS = 60 * 60 * 1000;
@@ -264,12 +294,30 @@ export default async function MissionPage({
   searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
-  readonly searchParams?: Promise<{ readonly welcome?: string | string[] }>;
+  readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
   const { id } = await params;
-  const { welcome } = (await searchParams) ?? {};
+  const query: SearchParamsRecord = (await searchParams) ?? {};
+  // Named apart from the lists read below, which use the same words.
+  const {
+    welcome,
+    tasks: tasksShow,
+    notes: notesShow,
+    outcomes: outcomesShow,
+    complaints: complaintsShow,
+    feedback: feedbackShow,
+  } = query;
   // Start a Case and Start a New Case from This One both arrive with `welcome=1`.
-  const welcomeAsked = welcome === '1';
+  const welcomeAsked = firstParam(welcome) === '1';
+  // How many rows each capped list shows: 10 by default, more after Show More (WP-SB2).
+  const shown: Record<CappedList, number> = {
+    tasks: parseShow(tasksShow, LIST_STEP),
+    notes: parseShow(notesShow, LIST_STEP),
+    outcomes: parseShow(outcomesShow, LIST_STEP),
+    complaints: parseShow(complaintsShow, LIST_STEP),
+    feedback: parseShow(feedbackShow, LIST_STEP),
+  };
+
   const locale = await getLocale();
   const t = createTranslator(locale);
 
@@ -307,9 +355,9 @@ export default async function MissionPage({
       mission.packVersionId
         ? getPackVersion(db, mission.packVersionId)
         : Promise.resolve(undefined),
-      listMissionSnapshots(db, accountId, mission.id),
+      listMissionSnapshots(db, accountId, mission.id, { limit: SNAPSHOTS_ON_PAGE }),
       listPublishedPackVersions(db),
-      listTasks(db, accountId, mission.id),
+      listTasks(db, accountId, mission.id, { limit: shown.tasks }),
       listGeneratedOutputs(db, accountId, mission.id),
       listSelectedEvidence(db, accountId, mission.id),
       getEvidenceCandidates(db, accountId, mission.id),
@@ -321,7 +369,7 @@ export default async function MissionPage({
         : Promise.resolve([]),
       listAccessForApplicant(db, accountId, mission.applicantId),
       listContributorRequests(db, { actorAccountId: accountId, missionId: mission.id }),
-      listNotesForOwner(db, accountId, mission.id),
+      listNotesForOwner(db, accountId, mission.id, { limit: shown.notes }),
       listAppointments(db, accountId, mission.id),
       // CAS-07 (Part 7 §6): whether this case currently has a live
       // acknowledgement -- surfaced here so the SUBMISSION_READY gate
@@ -335,8 +383,8 @@ export default async function MissionPage({
       listAcknowledgementsForMission(db, accountId, mission.id),
       listOutcomesForMission(db, accountId, mission.id),
       listSubmissionsForMission(db, accountId, mission.id),
-      listComplaintsForMission(db, accountId, mission.id),
-      listFeedbackForMission(db, accountId, mission.id),
+      listComplaintsForMission(db, accountId, mission.id, { limit: shown.complaints }),
+      listFeedbackForMission(db, accountId, mission.id, { limit: shown.feedback }),
       isExplanationConfigured(db),
       // The date checks read the traveller's profile, so they run through the access gate for the
       // owner of this case. A refusal or an error shows a plain message, never a made-up result.
@@ -353,7 +401,7 @@ export default async function MissionPage({
             .catch(() => null)
         : Promise.resolve([]),
     ]);
-    const complaintList = complaints.ok ? complaints.value : [];
+    const complaintList = complaints.ok ? complaints.value.items : [];
     const complaintEventsById = new Map(
       await Promise.all(
         complaintList.map(
@@ -531,8 +579,11 @@ export default async function MissionPage({
         documentId,
         displayName,
       })),
+      // The outcome read has no server cap of its own yet (outside this package), so the page
+      // shows the newest rows only; a case holds a handful of outcomes in practice.
+      outcomeTotal: outcomes.ok ? outcomes.value.length : 0,
       outcomes: outcomes.ok
-        ? outcomes.value.map((o) => ({
+        ? outcomes.value.slice(0, shown.outcomes).map((o) => ({
             id: o.id,
             decision: o.decision,
             decisionDate: o.decisionDate.toISOString(),
@@ -550,6 +601,7 @@ export default async function MissionPage({
             submittedAt: s.submittedAt.toISOString(),
           }))
         : [],
+      complaintTotal: complaints.ok ? complaints.value.total : 0,
       complaints: complaintList.map((c) => {
         const events = complaintEventsById.get(c.id);
         return {
@@ -567,8 +619,9 @@ export default async function MissionPage({
           })),
         };
       }),
+      feedbackTotal: feedback.ok ? feedback.value.total : 0,
       feedback: feedback.ok
-        ? feedback.value.map((f) => ({
+        ? feedback.value.items.map((f) => ({
             id: f.id,
             comments: f.comments,
             createdAt: f.createdAt.toISOString(),
@@ -595,9 +648,12 @@ export default async function MissionPage({
               : null,
           }
         : null,
-      snapshots: snapshots.ok ? snapshots.value : [],
+      snapshots: snapshots.ok ? snapshots.value.items : [],
+      moreSnapshots: snapshots.ok && snapshots.value.nextCursor !== null,
+      taskTotal: tasks.ok ? tasks.value.total : 0,
+      openTaskCount: tasks.ok ? tasks.value.open : 0,
       tasks: tasks.ok
-        ? tasks.value.map((t) => ({
+        ? tasks.value.items.map((t) => ({
             id: t.id,
             description: t.description,
             status: t.status,
@@ -647,7 +703,8 @@ export default async function MissionPage({
             expiresAt: r.expiresAt.toISOString(),
           }))
         : [],
-      notes: notes.map((n) => ({
+      noteTotal: notes.total,
+      notes: notes.items.map((n) => ({
         id: n.id,
         body: n.body,
         authorEmail: n.authorEmail,
@@ -664,18 +721,20 @@ export default async function MissionPage({
   const stageStates = stageButtonStates(nextStates);
   const canCancel = nextStates.includes('CANCELLED');
 
-  const openTasks = data.tasks.filter(
-    (task) => task.status === 'OPEN' || task.status === 'IN_PROGRESS',
-  ).length;
+  // Counted on the server across the whole case, not from the rows on the page.
+  const openTasks = data.openTaskCount;
   const showTripChecks =
     tripChecksApply(mission.state) && Boolean(mission.travelStartDate || mission.travelEndDate);
   const tripChecksToAct = tripChecksNeedingAction(data.tripChecks ?? []);
+  const hasChecklist = Boolean(data.readiness) && data.requirementDetails.length > 0;
   const attention: {
     readonly kind: AttentionKind;
     readonly label: string;
     readonly href: string;
     readonly count: number;
     readonly tone: 'warning' | 'danger';
+    /** The id of a checklist group the link opens, which then shows the rows it counts. */
+    readonly opens?: string;
   }[] = [
     ...(data.isDirty
       ? [
@@ -706,6 +765,8 @@ export default async function MissionPage({
             kind: 'unconfirmed' as const,
             label: 'need a check',
             href: '#readiness',
+            // The group this link opens when followed (WP-SB2).
+            ...(hasChecklist ? { opens: `${CHECKLIST_ID_PREFIX}-needs-a-check` } : {}),
             count: data.requiredUnverifiedCount,
             tone: 'warning' as const,
           },
@@ -744,7 +805,141 @@ export default async function MissionPage({
   // The one primary button on the page belongs to the next step or the changed-case alert; the
   // welcome note and the checklist picker offer theirs only when neither is there.
   const hasNextStepOrAlert = data.isDirty || showNextStep;
-  const hasChecklist = Boolean(data.readiness) && data.requirementDetails.length > 0;
+  /** One checklist row (WP-SB2 moved it out of the group so a group can show its first rows). */
+  const requirementRow = (r: RequirementDetailRow) => {
+    const meta = REQUIREMENT_STATE_META[r.state];
+    const label = requirementLabel(r);
+    const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
+    const sourceHref = safeHttpUrl(r.sourceUrl);
+    const bookingReminder =
+      r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION'
+        ? bookingReminderFor(r.kind, r.key)
+        : null;
+    return (
+      <div
+        className="row"
+        key={r.packRequirementId}
+        style={{
+          flexDirection: 'column',
+          alignItems: 'stretch',
+          gap: '0.3rem',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '0.75rem',
+          }}
+        >
+          <span className="row-key">
+            {label || '(unnamed)'}
+            {r.optional ? ' · optional' : ''}
+          </span>
+          <span className={`badge ${meta.tone}`}>{meta.label}</span>
+        </div>
+        {meta.next ? (
+          <span className="muted u-fs-085">
+            {meta.next}
+            {r.state === 'CONFLICTING' ? (
+              <>
+                {' '}
+                <Link href={`/app/applicant/${data.applicantId}/profile`}>
+                  Resolve on Profile →
+                </Link>
+              </>
+            ) : null}
+            {r.state === 'CRITICAL_GAP' || r.state === 'EXPIRING_STALE' ? (
+              <>
+                {' '}
+                <a href="#evidence">Provide Evidence ↓</a>
+              </>
+            ) : null}
+          </span>
+        ) : null}
+        {bookingReminder ? <span className="muted u-fs-085">{bookingReminder}</span> : null}
+        {r.citation ? (
+          <span className="muted u-fs-075">
+            Cite: {sourceLine || r.citation}
+            {r.observedDate ? ` · as of ${formatDateOnly(r.observedDate)}` : ''}
+            {sourceHref ? (
+              <>
+                {' · '}
+                <a href={sourceHref} target="_blank" rel="noreferrer">
+                  source
+                </a>
+              </>
+            ) : null}
+          </span>
+        ) : null}
+        {r.sourceInaccessible ? (
+          <span className="badge badge-danger" style={{ alignSelf: 'flex-start' }}>
+            Source Currently Unreachable - Under Review
+          </span>
+        ) : null}
+        {data.explanationConfigured && (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
+          <ExplainGapButton
+            missionId={data.mission.id}
+            packRequirementId={r.packRequirementId}
+            explanation={
+              data.explanationsByRequirement.get(r.packRequirementId)?.explanation ?? null
+            }
+            {...(data.explanationFeature && !data.explanationFeature.available
+              ? { off: data.explanationFeature.reason }
+              : {})}
+          />
+        ) : null}
+      </div>
+    );
+  };
+  // The checklist's groups that have rows, in their fixed order (WP-SB2).
+  const checklistGroups = REQUIREMENT_GROUPS.flatMap((group) => {
+    const rows = data.requirementDetails.filter((r) => group.states.includes(r.state));
+    return rows.length === 0
+      ? []
+      : [{ key: group.heading.toLowerCase().replace(/\s+/g, '-'), heading: group.heading, rows }];
+  });
+  const pathname = `/app/mission/${mission.id}`;
+  const newCaseHref = `/app/applicant/${data.applicantId}/missions/prepare-again?from=${mission.id}`;
+  const totals: Record<CappedList, number> = {
+    tasks: data.taskTotal,
+    notes: data.noteTotal,
+    outcomes: data.outcomeTotal,
+    complaints: data.complaintTotal,
+    feedback: data.feedbackTotal,
+  };
+  const rowsOnPage: Record<CappedList, number> = {
+    tasks: data.tasks.length,
+    notes: data.notes.length,
+    outcomes: data.outcomes.length,
+    complaints: data.complaints.length,
+    feedback: data.feedback.length,
+  };
+  // Show More keeps every other list's place, but not the one-time welcome note.
+  const { welcome: _welcome, ...listQuery } = query;
+  // A section someone asked to see more of stays open when the page comes back.
+  const expanded = (list: CappedList) => shown[list] > TRAVELLER_LIST_STEP;
+  /** The Show More control under one capped list; nothing when the list is short. */
+  const showMore = (list: CappedList) => {
+    const total = totals[list];
+    if (total <= TRAVELLER_LIST_STEP) return null;
+    const onPage = rowsOnPage[list];
+    const next = onPage < total ? nextShow(shown[list], LIST_STEP) : null;
+    return (
+      <ShowMore
+        id={`case-${list}-more`}
+        landOn={`${CAPPED_LISTS[list].rowId}-${onPage}`}
+        pathname={pathname}
+        searchParams={listQuery}
+        next={next === null ? null : { [list]: next }}
+        shown={onPage}
+        total={total}
+        noun={CAPPED_LISTS[list].noun}
+      />
+    );
+  };
+  const nextStepAction = showNextStep && nextStep ? NEXT_STEP_COPY[nextStep.kind] : null;
 
   return (
     <section className="section container">
@@ -773,20 +968,21 @@ export default async function MissionPage({
         }
         actions={
           <>
-            <a className="btn btn-secondary" href="#evidence">
-              Add Evidence
-            </a>
-            <Link
-              className="btn btn-secondary"
-              href={`/app/applicant/${data.applicantId}/missions/prepare-again?from=${mission.id}`}
-            >
-              Start a New Case from This One
-            </Link>
-            <SnapshotButton missionId={mission.id} />
+            {/* On a phone these three fold into More (WP-SB2), which repeats them there. */}
+            <div className="case-header-wide">
+              <a className="btn btn-secondary" href="#evidence">
+                Add Evidence
+              </a>
+              <Link className="btn btn-secondary" href={newCaseHref}>
+                Start a New Case from This One
+              </Link>
+              <SnapshotButton missionId={mission.id} />
+            </div>
             <CaseMoreMenu
               missionId={mission.id}
               applicantId={data.applicantId}
               canCancel={canCancel}
+              headerActions={{ addEvidenceHref: '#evidence', newCaseHref }}
             />
           </>
         }
@@ -855,7 +1051,7 @@ export default async function MissionPage({
             <p className="case-next-step-body">
               {NEXT_STEP_COPY[nextStep.kind].body(data.firstHardGapLabel)}
             </p>
-            <a className="btn btn-primary" href={nextStep.href}>
+            <a className="btn btn-primary" href={nextStep.href} data-open-group={nextStep.opens}>
               {NEXT_STEP_COPY[nextStep.kind].action}
             </a>
           </section>
@@ -892,7 +1088,7 @@ export default async function MissionPage({
             ) : (
               attention.map((item) => (
                 <li key={item.label}>
-                  <a href={item.href}>
+                  <a href={item.href} data-open-group={item.opens}>
                     <StatusBadge tone={item.tone}>{item.count}</StatusBadge>
                     {item.label}
                   </a>
@@ -967,123 +1163,45 @@ export default async function MissionPage({
                   {data.requirementDetails.length > 0 ? (
                     <div id="readiness" {...atLevel('browse')}>
                       <h3 className="case-checklist-heading">Evidence Checklist</h3>
-                      {REQUIREMENT_GROUPS.map((group) => {
-                        const groupRows = data.requirementDetails.filter((r) =>
-                          group.states.includes(r.state),
-                        );
-                        if (groupRows.length === 0) return null;
-                        return (
-                          <Fragment key={group.heading}>
-                            <h4 className="case-group-heading">
-                              {group.heading} <span className="muted">{groupRows.length}</span>
-                            </h4>
-                            <div className="rows">
-                              {groupRows.map((r) => {
-                                const meta = REQUIREMENT_STATE_META[r.state];
-                                const label = requirementLabel(r);
-                                const sourceLine = [r.publisher, r.sourceTitle]
-                                  .filter(Boolean)
-                                  .join(' · ');
-                                const sourceHref = safeHttpUrl(r.sourceUrl);
-                                const bookingReminder =
-                                  r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION'
-                                    ? bookingReminderFor(r.kind, r.key)
-                                    : null;
-                                return (
-                                  <div
-                                    className="row"
-                                    key={r.packRequirementId}
-                                    style={{
-                                      flexDirection: 'column',
-                                      alignItems: 'stretch',
-                                      gap: '0.3rem',
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        gap: '0.75rem',
-                                      }}
-                                    >
-                                      <span className="row-key">
-                                        {label || '(unnamed)'}
-                                        {r.optional ? ' · optional' : ''}
-                                      </span>
-                                      <span className={`badge ${meta.tone}`}>{meta.label}</span>
-                                    </div>
-                                    {meta.next ? (
-                                      <span className="muted u-fs-085">
-                                        {meta.next}
-                                        {r.state === 'CONFLICTING' ? (
-                                          <>
-                                            {' '}
-                                            <Link
-                                              href={`/app/applicant/${data.applicantId}/profile`}
-                                            >
-                                              Resolve on Profile →
-                                            </Link>
-                                          </>
-                                        ) : null}
-                                        {r.state === 'CRITICAL_GAP' ||
-                                        r.state === 'EXPIRING_STALE' ? (
-                                          <>
-                                            {' '}
-                                            <a href="#evidence">Provide Evidence ↓</a>
-                                          </>
-                                        ) : null}
-                                      </span>
-                                    ) : null}
-                                    {bookingReminder ? (
-                                      <span className="muted u-fs-085">{bookingReminder}</span>
-                                    ) : null}
-                                    {r.citation ? (
-                                      <span className="muted u-fs-075">
-                                        Cite: {sourceLine || r.citation}
-                                        {r.observedDate
-                                          ? ` · as of ${formatDateOnly(r.observedDate)}`
-                                          : ''}
-                                        {sourceHref ? (
-                                          <>
-                                            {' · '}
-                                            <a href={sourceHref} target="_blank" rel="noreferrer">
-                                              source
-                                            </a>
-                                          </>
-                                        ) : null}
-                                      </span>
-                                    ) : null}
-                                    {r.sourceInaccessible ? (
-                                      <span
-                                        className="badge badge-danger"
-                                        style={{ alignSelf: 'flex-start' }}
-                                      >
-                                        Source Currently Unreachable - Under Review
-                                      </span>
-                                    ) : null}
-                                    {data.explanationConfigured &&
-                                    (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
-                                      <ExplainGapButton
-                                        missionId={data.mission.id}
-                                        packRequirementId={r.packRequirementId}
-                                        explanation={
-                                          data.explanationsByRequirement.get(r.packRequirementId)
-                                            ?.explanation ?? null
-                                        }
-                                        {...(data.explanationFeature &&
-                                        !data.explanationFeature.available
-                                          ? { off: data.explanationFeature.reason }
-                                          : {})}
-                                      />
-                                    ) : null}
+                      {/* WP-SB2: each group opens and closes; the first one with rows (what is
+                          missing, when anything is) starts open. Its heading stays a real heading
+                          inside the opener, so heading navigation still finds every group. */}
+                      <OpenGroupOnLink scopeId="readiness" />
+                      <div className="collapsible-groups">
+                        {checklistGroups.map((group, index) => (
+                          <details
+                            className="collapsible-group"
+                            id={`${CHECKLIST_ID_PREFIX}-${group.key}`}
+                            key={group.key}
+                            open={index === 0}
+                          >
+                            <summary className="collapsible-group-summary">
+                              <h4 className="case-group-heading collapsible-group-title">
+                                {group.heading} <span className="muted">{group.rows.length}</span>
+                              </h4>
+                            </summary>
+                            <div className="collapsible-group-body">
+                              <div className="rows">
+                                {group.rows.slice(0, CHECKLIST_ROWS_SHOWN).map(requirementRow)}
+                              </div>
+                              {group.rows.length > CHECKLIST_ROWS_SHOWN ? (
+                                <details className="case-checklist-rest">
+                                  <summary>
+                                    {plural(
+                                      group.rows.length - CHECKLIST_ROWS_SHOWN,
+                                      'More Item',
+                                      'More Items',
+                                    )}
+                                  </summary>
+                                  <div className="rows">
+                                    {group.rows.slice(CHECKLIST_ROWS_SHOWN).map(requirementRow)}
                                   </div>
-                                );
-                              })}
+                                </details>
+                              ) : null}
                             </div>
-                          </Fragment>
-                        );
-                      })}
+                          </details>
+                        ))}
+                      </div>
                     </div>
                   ) : null}
                   <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '1rem' }}>
@@ -1142,9 +1260,17 @@ export default async function MissionPage({
               <Disclosure
                 title="Tasks, Appointments and Letters"
                 hint="Open when you need to make a change"
+                open={expanded('tasks')}
               >
                 <div className="grid u-mt-150" id="work">
-                  <TasksPanel missionId={mission.id} tasks={data.tasks} />
+                  <TasksPanel
+                    missionId={mission.id}
+                    tasks={data.tasks}
+                    rowIdPrefix={CAPPED_LISTS.tasks.rowId}
+                    more={showMore('tasks')}
+                    finishedTotal={data.taskTotal - data.openTaskCount}
+                    finishedOpen={expanded('tasks')}
+                  />
                   <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
                   <LettersPanel
                     missionId={mission.id}
@@ -1168,6 +1294,7 @@ export default async function MissionPage({
               <Disclosure
                 title="Contributors and Notes from Your Agency"
                 hint="Ask a sponsor for one document, read shared notes"
+                open={expanded('notes')}
               >
                 <div className="grid">
                   <article className="card">
@@ -1195,10 +1322,11 @@ export default async function MissionPage({
                       <p className="muted u-fs-085">No notes shared with you yet.</p>
                     ) : (
                       <div className="rows">
-                        {data.notes.map((n) => (
+                        {data.notes.map((n, index) => (
                           <div
                             className="row"
                             key={n.id}
+                            id={`${CAPPED_LISTS.notes.rowId}-${index}`}
                             style={{ flexDirection: 'column', alignItems: 'flex-start' }}
                           >
                             <span className="u-fs-085">{n.body}</span>
@@ -1210,6 +1338,7 @@ export default async function MissionPage({
                             </span>
                           </div>
                         ))}
+                        {showMore('notes')}
                       </div>
                     )}
                   </article>
@@ -1218,7 +1347,11 @@ export default async function MissionPage({
             </div>
 
             <div className="depth-item" {...atLevel('everything')}>
-              <Disclosure title="Submission and Outcome" hint="Open when you need to make a change">
+              <Disclosure
+                title="Submission and Outcome"
+                hint="Open when you need to make a change"
+                open={expanded('outcomes')}
+              >
                 <div className="grid u-mt-150" id="outcome">
                   <SubmissionReportPanel
                     missionId={mission.id}
@@ -1229,6 +1362,8 @@ export default async function MissionPage({
                     missionId={mission.id}
                     outcomes={data.outcomes}
                     evidenceOptions={data.evidenceOptions}
+                    rowIdPrefix={CAPPED_LISTS.outcomes.rowId}
+                    more={showMore('outcomes')}
                   />
                 </div>
               </Disclosure>
@@ -1238,13 +1373,21 @@ export default async function MissionPage({
               <Disclosure
                 title="Problems and Feedback"
                 hint="Raise a complaint or give feedback on this case"
+                open={expanded('complaints') || expanded('feedback')}
               >
                 <div className="grid">
-                  <ComplaintPanel missionId={mission.id} complaints={data.complaints} />
+                  <ComplaintPanel
+                    missionId={mission.id}
+                    complaints={data.complaints}
+                    rowIdPrefix={CAPPED_LISTS.complaints.rowId}
+                    more={showMore('complaints')}
+                  />
                   <FeedbackPanel
                     missionId={mission.id}
                     feedback={data.feedback}
                     canSubmit={data.canSubmitFeedback}
+                    rowIdPrefix={CAPPED_LISTS.feedback.rowId}
+                    more={showMore('feedback')}
                   />
                 </div>
               </Disclosure>
@@ -1360,8 +1503,7 @@ export default async function MissionPage({
               ) : (
                 <div className="rows u-mt-050">
                   {data.snapshots.map((snap) => {
-                    const content = snap.content as { state?: string } | null;
-                    const isPacket = content?.state ? PACKET_STATES.has(content.state) : false;
+                    const isPacket = isPacketSnapshot(snap.content);
                     return (
                       <Link
                         href={`/app/mission/${mission.id}/snapshots/${snap.id}`}
@@ -1385,6 +1527,11 @@ export default async function MissionPage({
                   })}
                 </div>
               )}
+              {data.moreSnapshots ? (
+                <p className="card-body u-mt-050">
+                  <Link href={`/app/mission/${mission.id}/snapshots`}>See All Snapshots</Link>
+                </p>
+              ) : null}
             </article>
             <article className="card" {...atLevel('everything')}>
               <p className="card-kicker">Family Trip</p>
@@ -1407,6 +1554,23 @@ export default async function MissionPage({
             </article>
           </aside>
         </div>
+        {nextStepAction && nextStep ? (
+          // WP-SB2: on a phone the next step stays in reach while the person scrolls the case.
+          <div className="case-sticky-next">
+            <StickyActionBar
+              label="Next Step"
+              note={nextStepAction.title(nextStep.count, mission.title)}
+            >
+              <a
+                className="btn btn-secondary"
+                href={nextStep.href}
+                data-open-group={nextStep.opens}
+              >
+                {nextStepAction.action}
+              </a>
+            </StickyActionBar>
+          </div>
+        ) : null}
       </DepthScope>
     </section>
   );

@@ -11081,6 +11081,161 @@ html:has(.sticky-action-bar) {
   gap: 0.5rem;
 }
 
+/* WP-LC-F resource lifecycle: Manage menu, Current / Archived / Recently Deleted links, Undo status and Removal Records (44 px targets) */
+.lc-manage {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.lc-manage-button {
+  min-height: 44px;
+  min-width: 44px;
+}
+.lc-manage-menu {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  z-index: 20;
+  min-width: 14rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  padding: var(--space-1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+}
+.lc-manage-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lc-manage-item:hover,
+.lc-manage-item:focus-visible {
+  background: var(--bg-subtle);
+}
+.lc-manage-panel {
+  width: 100%;
+}
+.lc-tabs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.lc-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.lc-tab[aria-current="page"] {
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 650;
+}
+.lc-tab-count {
+  color: var(--text-tertiary);
+}
+.lc-undo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.lc-undo-button {
+  min-height: 44px;
+}
+.lc-record-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lc-record {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.lc-record-status {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 650;
+}
+.lc-records-more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+/* The Manage menu inside a document row, below the row's select button. */
+.wallet-document-manage {
+  padding: 0 var(--space-3) var(--space-2);
+}
+
+/* WP-SB2 case workspace: on a phone the header actions fold into More and the next step stays in
+   reach at the bottom of the screen; the All Snapshots page badge spacing. */
+.case-header-wide {
+  display: contents;
+}
+.case-more-phone,
+.case-sticky-next {
+  display: none;
+}
+.case-more-snapshot {
+  padding: 0.25rem 0.75rem;
+}
+.case-snapshot-packet {
+  margin-left: 0.5rem;
+}
+@media (max-width: 640px) {
+  .case-header-wide {
+    display: none;
+  }
+  .case-more-phone {
+    display: block;
+  }
+  /* No box of its own, so the bar sticks within the whole case page, not this wrapper. */
+  .case-sticky-next {
+    display: contents;
+  }
+}
+@media (min-width: 641px) {
+  /* The case page's next-step bar shows on phones only, so it keeps no room on wider screens. */
+  html:has(.case-sticky-next) {
+    scroll-padding-bottom: auto;
+  }
+}
+.case-checklist-rest > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--space-2);
+  color: var(--accent);
+  cursor: pointer;
+}
+
 /* WP-SB3 scroll budget for sharing, insights, evidence and the shared view: each grant's details
    behind its own expander, and each insights card's list opens and closes under its heading,
    with its count. Show More itself comes from WP-SB0. */
