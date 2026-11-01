@@ -131,7 +131,10 @@ export type LatestUsableVersion =
  * loads its record whatever its lifecycle state, so every byte path asks this one question.
  * Before migration 0113 every document is present.
  */
-export async function documentIsPresent(db: Db, documentId: string): Promise<boolean> {
+export async function documentIsPresent(proof: DocumentProof): Promise<boolean> {
+  if (proof.resource.kind !== 'document') return false;
+  const db = proof.tx;
+  const documentId = proof.resource.document.id;
   if (!(await lifecycleTablesPresent(db))) return true;
   const present = await db
     .select({ id: schema.documents.id })
@@ -151,7 +154,7 @@ export async function latestUsableVersion(proof: DocumentProof): Promise<LatestU
   // The file paths built on a document proof (Safe Copy, AI original file, photo sizing) never
   // serve a document in Recently Deleted or being removed (LC-A2); preview and download apply the
   // same rule in documents.ts. The audit reason names the removal.
-  if (!(await documentIsPresent(db, proof.resource.document.id))) {
+  if (!(await documentIsPresent(proof))) {
     return { kind: 'refused', reason: 'document_removed' };
   }
   const version = first(
