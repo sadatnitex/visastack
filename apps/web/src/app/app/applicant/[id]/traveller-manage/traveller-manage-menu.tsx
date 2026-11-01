@@ -3,6 +3,7 @@
 import type { TravellerAction } from '@visastack/services';
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { SubmitButton } from '../../../../../components/form-feedback';
 import { travellerLifecycleAction } from './actions';
 import { TRAVELLER_ACTION_LABELS } from './labels';
 
@@ -29,9 +30,12 @@ const BUSY: Readonly<Record<MenuAction, string>> = {
 function ConfirmButton({ action }: { readonly action: MenuAction }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="btn btn-primary lc-traveller-button" disabled={pending}>
-      {pending ? BUSY[action] : TRAVELLER_ACTION_LABELS[action]}
-    </button>
+    <SubmitButton
+      pending={pending}
+      idle={TRAVELLER_ACTION_LABELS[action]}
+      busy={BUSY[action]}
+      className="btn btn-primary lc-traveller-button"
+    />
   );
 }
 
