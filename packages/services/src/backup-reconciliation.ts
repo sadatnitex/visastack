@@ -18,6 +18,7 @@ import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { isMissingRelationError } from './missing-relation';
 import { redactionMasksTablePresent } from './redaction-table';
+import { personBillingPresent } from './traveller-billing';
 
 /**
  * Backup resurrection reconciliation (master directive Part 7 §15). See
@@ -162,6 +163,8 @@ export interface ReconciliationReport {
   readonly checked: number;
   readonly counts: ReconciliationCounts;
   readonly errors: readonly ReconciliationError[];
+  /** Every plan the restore ended, for the owner to check (see `PlanToCheck`). */
+  readonly plansToCheck: readonly PlanToCheck[];
 }
 
 type AuditEventRow = typeof schema.auditEvents.$inferSelect;
@@ -1469,5 +1472,123 @@ export async function reconcileRestoredBranch(
     }
   }
 
-  return { checked: events.length, counts, errors };
+  const plansToCheck = await endPlansEndedOnOldBranch(oldDb, newDb, restorePoint, errors);
+  mutableCounts.subscriptionsEnded += plansToCheck.filter((plan) => plan.endedHere).length;
+  return {
+    checked: events.length,
+    counts,
+    errors,
+    plansToCheck: plansToCheck.map(({ endedHere: _, ...plan }) => plan),
+  };
+}
+
+// --- Plans ended on the pre-incident branch (owner decision, 1 Nov 2026)
+// A traveller's plan is named by its paying account below this line only (access/enforcement.test.ts).
+
+/**
+ * A plan the restore ended to match the pre-incident branch (owner decision, 1 Nov 2026), listed
+ * so the owner can give back the right plan: a plan started after the restore point cannot come
+ * back with a restore, so `hasCurrentPlan: false` means this agency or traveller now has none.
+ * Ids and the plan's key only, never a name or an email.
+ */
+export interface PlanToCheck {
+  readonly subscriptionId: string;
+  readonly organizationId: string | null;
+  readonly payerAccountId: string | null;
+  readonly planKey: string | null;
+  readonly endedAt: Date;
+  readonly hasCurrentPlan: boolean;
+}
+
+interface EndedOnOldBranch {
+  readonly id: string;
+  readonly organization_id: string | null;
+  readonly payer_account_id: string | null;
+  readonly plan_key: string | null;
+  readonly ended_at: Date | string;
+}
+
+/**
+ * Owner decision (1 Nov 2026): a restore never brings back an ended plan, whatever ended it (a
+ * closing, the owner, a plan change, an executed downgrade, a traveller's lapse, refund or plan
+ * switch, or any later path). Asked of the one branch that knows: every subscription the
+ * pre-incident branch shows ended after the restore point, still current on the restored branch,
+ * ends there at the same moment. An agency left with no plan has its waiting downgrades cancelled
+ * with their notices (nothing is left to change from). Each one is audited on the restored branch
+ * and listed for the owner, with whether that agency or traveller still has a current plan there.
+ * A subscription created after the restore point is not on the restored branch: nothing to end.
+ */
+async function endPlansEndedOnOldBranch(
+  oldDb: Db,
+  newDb: Db,
+  restorePoint: Date,
+  errors: ReconciliationError[],
+): Promise<(PlanToCheck & { readonly endedHere: boolean })[]> {
+  // The paying account is a column of migration 0110; a branch from before it has agency plans only.
+  const payer = (await personBillingPresent(oldDb)) ? sql`s.payer_account_id` : sql`null::uuid`;
+  const ended = (
+    (await oldDb.execute(sql`
+      select s.id, s.organization_id, ${payer} as payer_account_id, p.key as plan_key, s.ended_at
+      from subscriptions s left join plans p on p.id = s.plan_id
+      where s.ended_at > ${restorePoint.toISOString()}::timestamptz
+      order by s.ended_at, s.id`)) as unknown as { rows: EndedOnOldBranch[] }
+  ).rows;
+  const listed: (PlanToCheck & { readonly endedHere: boolean })[] = [];
+  for (const row of ended) {
+    const endedAt = new Date(row.ended_at);
+    try {
+      const result = await newDb.transaction(async (tx) => {
+        const changed = await tx
+          .update(schema.subscriptions)
+          .set({ endedAt })
+          .where(and(eq(schema.subscriptions.id, row.id), isNull(schema.subscriptions.endedAt)))
+          .returning({ id: schema.subscriptions.id });
+        if (changed.length === 0) return null;
+        const owner =
+          row.organization_id !== null
+            ? sql`organization_id = ${row.organization_id}::uuid`
+            : sql`payer_account_id = ${row.payer_account_id}::uuid`;
+        const current = (
+          (await tx.execute(
+            sql`select 1 from subscriptions where ${owner} and ended_at is null limit 1`,
+          )) as unknown as { rows: unknown[] }
+        ).rows;
+        const hasCurrentPlan = current.length > 0;
+        if (!hasCurrentPlan && row.organization_id !== null) {
+          await cancelWaitingDowngrades(tx, row.organization_id, endedAt);
+        }
+        await appendAuditEvent(tx, {
+          eventType: 'RECONCILIATION_SUBSCRIPTION_ENDED',
+          method: 'SYSTEM',
+          result: 'ALLOWED',
+          resourceType: 'subscription',
+          resourceId: row.id,
+          reason: 'backup_resurrection_reconciliation',
+          metadata: {
+            source: 'pre_incident_branch_state',
+            sourceEndedAt: endedAt.toISOString(),
+            hasCurrentPlan,
+          },
+        });
+        return { hasCurrentPlan };
+      });
+      if (result === null) continue;
+      listed.push({
+        subscriptionId: row.id,
+        organizationId: row.organization_id,
+        payerAccountId: row.payer_account_id,
+        planKey: row.plan_key,
+        endedAt,
+        hasCurrentPlan: result.hasCurrentPlan,
+        endedHere: true,
+      });
+    } catch (error) {
+      errors.push({
+        eventType: 'SUBSCRIPTION_STATE',
+        resourceId: row.id,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return listed;
 }

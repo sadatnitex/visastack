@@ -35,7 +35,7 @@ The full list is `docs/SESSION-START.md` section 6.
 
 ## 3. Open work, in order
 
-1. **Founding A follow-up** (done, #407): the owner answered both YES (reported by the coordinator, 1 Nov 2026): a REJECTED application also ends its Founding Access subscription, and backup reconciliation replays SUBSCRIPTION_ENDED and a rejection. Also in #407: no plan can be given to a closed or rejected agency, and the daily downgrade run cancels one for such an agency. Open, needs the owner: a subscription ended without a SUBSCRIPTION_ENDED record is not replayed by a restore (`docs/operations/backup-resurrection-reconciliation.md`, last section).
+1. **Founding A follow-up** (done, #407): the owner answered both YES (reported by the coordinator, 1 Nov 2026): a REJECTED application also ends its Founding Access subscription, and backup reconciliation replays SUBSCRIPTION_ENDED and a rejection. Also in #407: no plan can be given to a closed or rejected agency, and the daily downgrade run cancels one for such an agency. Restore of every other plan ending: done (#408): a restore ends every plan the pre-incident branch shows ended after the restore point, whatever ended it, and lists each for the owner (`docs/operations/backup-resurrection-reconciliation.md`, last section).
 2. **PGlite speedup for tests** (next engineering item, deferred from #376): fewer database copies per test so CI gets faster. Not started.
 3. **Lifecycle cleanup** (not urgent): the per-request presence checks for the lifecycle tables can go now that 0113 is confirmed on production.
 4. **Paid plans go-live**: owner items D7, D12, O6, then "go live"; T7 (privacy and launch) and T8 (after launch) per ADR 0025.
