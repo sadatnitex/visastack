@@ -111,6 +111,25 @@ describe('current contextual navigation contract', () => {
       'Complaints',
     ]);
   });
+  it('shows Removal Requests after Privacy Operations only when the removal flag is on', () => {
+    const tools = (removals: boolean | undefined) =>
+      workspaceNavigation('/app/admin', {
+        ...access,
+        platform: {
+          owner: true,
+          ai: true,
+          complaints: true,
+          audit: true,
+          privacy: true,
+          ...(removals === undefined ? {} : { removals }),
+        },
+      }).tools.map((link) => [link.label, link.href]);
+    expect(tools(undefined).map(([label]) => label)).not.toContain('Removal Requests');
+    expect(tools(false).map(([label]) => label)).not.toContain('Removal Requests');
+    const on = tools(true);
+    const at = on.findIndex(([label]) => label === 'Privacy Operations');
+    expect(on[at + 1]).toEqual(['Removal Requests', '/app/admin/removals']);
+  });
   it('hides the private account directory and restricted configuration for limited platform staff', () => {
     const limited = {
       ...access,

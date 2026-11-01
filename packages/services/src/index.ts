@@ -2349,6 +2349,32 @@ export {
 } from './lifecycle/recently-deleted';
 
 // LC-D exports
+export {
+  DECLINE_REASON_WORDS,
+  FINISHED_CASE_STATES_FOR_REMOVAL,
+  REMOVAL_ALERT_WORKING_DAYS,
+  REMOVAL_DECLINE_CODES,
+  REMOVAL_QUEUE_PAGE,
+  REMOVAL_REQUEST_REASONS,
+  REMOVAL_REQUEST_REFUSALS,
+  type RemovalDecisionInput,
+  type RemovalDecisionOutcome,
+  type RemovalDeclineCode,
+  type RemovalImpact,
+  type RemovalQueuePage,
+  type RemovalQueueRow,
+  type RemovalRequestReason,
+  type RemovalSweepResult,
+  type RequestRemovalOutcome,
+  addWorkingDays,
+  cancelRemovalRequest,
+  decideRemovalRequest,
+  listRemovalQueue,
+  pendingRemovalRequests,
+  requestRemoval,
+  sweepRemovalRequests,
+  workingDaysBetween,
+} from './lifecycle/removal-requests';
 
 // LC-E exports
 // ADR 0025 T6: the owner's traveller plan metrics and health thresholds (migration 0114).
