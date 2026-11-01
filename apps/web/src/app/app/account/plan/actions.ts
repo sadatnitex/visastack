@@ -2,6 +2,7 @@
 
 import {
   type ServiceError,
+  countTravellerPlanEvent,
   setPlanRenewal,
   startPersonCheckout,
   startPersonPayment,
@@ -82,6 +83,8 @@ export async function buyPlanAction(_prev: FormResult, formData: FormData): Prom
   if (!ID.test(planId)) return NOT_FOUND;
   const outcome = await withSession(
     async ({ db, self }): Promise<FormResult | { readonly invoiceId: string }> => {
+      // ADR 0025 section 12.6 (T6): one Get tap counted, a number and never who. Never fails.
+      await countTravellerPlanEvent(db, 'GET_TAPPED');
       const made = await startPersonCheckout(db, self, { planId });
       if (!made.ok) return made.error.code === 'not_found' ? NOT_FOUND : personWords(made.error);
       return { invoiceId: made.value.invoiceId };

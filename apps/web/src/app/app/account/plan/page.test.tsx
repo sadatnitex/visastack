@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   purchase: vi.fn(),
   renewal: vi.fn(),
   billing: vi.fn(),
+  count: vi.fn(),
 }));
 
 vi.mock('../../../../lib/session', () => ({
@@ -31,6 +32,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   getOwnPurchase: (...args: unknown[]) => mocks.purchase(...args),
   getOwnRenewal: (...args: unknown[]) => mocks.renewal(...args),
   hasOwnBilling: (...args: unknown[]) => mocks.billing(...args),
+  countTravellerPlanEvent: (...args: unknown[]) => mocks.count(...args),
 }));
 vi.mock('./plan-forms', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
@@ -62,6 +64,8 @@ const feature = (overrides: Record<string, unknown>) => ({
 
 beforeEach(() => {
   navigationState.pathname = '/app/account/plan';
+  mocks.count.mockReset();
+  mocks.count.mockResolvedValue(undefined);
   mocks.renewal.mockResolvedValue(null);
   mocks.billing.mockResolvedValue(false);
   mocks.summary.mockResolvedValue({
@@ -396,6 +400,25 @@ describe('buying a paid plan on Plan & Usage (ADR 0025 T3c)', () => {
     expect(mocks.purchase).not.toHaveBeenCalled();
   });
 
+  it('counts one Plan & Usage view while selling is on, a number and never who (T6)', async () => {
+    await renderServer(Page({}));
+    expect(mocks.count).toHaveBeenCalledTimes(1);
+    expect(mocks.count.mock.calls[0]).toEqual([{}, 'PLAN_VIEWED']);
+    // Started beside the page's own reads, not after them: it is already counting by the time
+    // the plan summary comes back.
+    mocks.count.mockClear();
+    const summary: unknown = await mocks.summary();
+    let countingAlready = false;
+    mocks.summary.mockImplementationOnce(() =>
+      Promise.resolve().then(() => {
+        countingAlready = mocks.count.mock.calls.length > 0;
+        return summary;
+      }),
+    );
+    await renderServer(Page({}));
+    expect(countingAlready).toBe(true);
+  });
+
   it('shows nothing to buy, and reads no plans, while selling is switched off', async () => {
     vi.stubEnv('TRAVELLER_PLANS_ENABLED', 'false');
     mocks.catalogue.mockClear();
@@ -409,6 +432,8 @@ describe('buying a paid plan on Plan & Usage (ADR 0025 T3c)', () => {
     expect(text).toContain('Paid plans for travellers are not offered yet');
     expect(mocks.catalogue).not.toHaveBeenCalled();
     expect(mocks.purchase).not.toHaveBeenCalled();
+    // Nothing is counted while nothing is sold.
+    expect(mocks.count).not.toHaveBeenCalled();
   });
 
   it('passes the automated accessibility rules with the comparison and the confirmation', async () => {
