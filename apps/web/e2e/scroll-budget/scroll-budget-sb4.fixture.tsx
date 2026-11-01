@@ -86,7 +86,7 @@ function CalendarView({ count }: { readonly count: number }) {
         <form className="calendar-form">
           <fieldset className="fieldset">
             <legend className="field-label">Dates to Add</legend>
-            <CalendarDateGroups items={items} chosen={new Set()} />
+            <CalendarDateGroups items={items} chosen={new Set()} fieldName="key" />
           </fieldset>
           <fieldset className="fieldset">
             <legend className="field-label">Titles</legend>

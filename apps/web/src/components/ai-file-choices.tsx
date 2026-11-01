@@ -68,6 +68,16 @@ export function AiFileChoices({
     () => new Set(initial.map((file) => file.documentId)),
   );
   const [running, setRunning] = useState(false);
+  // Which groups start open: those holding a ticked file, or all of them when a file needs a look.
+  // Worked out once, so a later answer never closes a group the person opened (or opens one).
+  const [openGroups] = useState<ReadonlySet<string>>(
+    () =>
+      new Set(
+        candidates
+          .filter((candidate) => invalid?.field === 'file' || ticked.has(candidate.documentId))
+          .map((candidate) => candidate.group),
+      ),
+  );
   const groupRef = useRef<HTMLFieldSetElement>(null);
   useEffect(() => {
     setRunning(true);
@@ -132,10 +142,7 @@ export function AiFileChoices({
             title={group.label}
             count={group.documents.length}
             noun={{ one: 'document', other: 'documents' }}
-            open={
-              fileError !== undefined ||
-              group.documents.some((document) => ticked.has(document.documentId))
-            }
+            open={openGroups.has(group.label)}
           >
             <fieldset className="fieldset ai-file-group">
               <legend className="sr-only">{group.label}</legend>

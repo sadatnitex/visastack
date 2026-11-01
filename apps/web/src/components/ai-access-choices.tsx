@@ -18,11 +18,11 @@ import {
   AI_SUGGEST_KEPT_NOTE,
 } from '../lib/ai-consent-labels';
 import { AiFileChoices } from './ai-file-choices';
-import { CollapsibleGroup } from './collapsible-group';
 
 /**
- * Up to this many cases are listed as they are; a longer list sits behind "Choose One Case"
- * (WP-SB4), so the screen stays short. It opens by itself when one of them is the choice.
+ * Up to this many cases are listed as they are; a longer list sits in a short box that scrolls
+ * inside (WP-SB4), so the screen stays short. A box, not a fold: these are one set of choices, so
+ * the chosen one must always be on the page and reachable by keyboard.
  */
 export const AI_CASES_INLINE_MAX = 3;
 
@@ -154,14 +154,7 @@ export function AiAccessChoices({
             </span>
           </label>
           {cases.length > AI_CASES_INLINE_MAX ? (
-            <CollapsibleGroup
-              title="Choose One Case"
-              count={cases.length}
-              noun={{ one: 'case', other: 'cases' }}
-              open={cases.some((item) => item.id === initial.cases) || invalid?.field === 'cases'}
-            >
-              <div className="checks">{caseChoices}</div>
-            </CollapsibleGroup>
+            <div className="checks ai-case-scroll">{caseChoices}</div>
           ) : (
             caseChoices
           )}

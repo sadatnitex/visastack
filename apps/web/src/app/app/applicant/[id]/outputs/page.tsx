@@ -49,62 +49,46 @@ type OutputsQuery = Record<string, string | string[] | undefined>;
 
 /** The three steps of the page (WP-SB4): pick a summary, choose what goes in, check and share. */
 type OutputStep = 1 | 2 | 3;
-const STEPS: readonly (readonly [OutputStep, string, string])[] = [
-  [1, 'Choose a Summary', 'output-step-choose'],
-  [2, 'Choose What to Include', 'output-step-options'],
-  [3, 'Preview and Share', 'output-preview'],
+const STEPS: readonly (readonly [OutputStep, string])[] = [
+  [1, 'Choose a Summary'],
+  [2, 'Choose What to Include'],
+  [3, 'Preview and Share'],
 ];
 
-/** Where the person is: no summary picked yet, choices not previewed yet, or previewed. */
-function currentStep(query: OutputsQuery, previewed: boolean): OutputStep {
-  if (previewed) return 3;
+/**
+ * Where the person is: no summary picked yet, choices not yet turned into a preview, or a preview
+ * showing. Step 3 needs a preview that exists, not only one that was asked for (a summary that
+ * needs a case shows none until a case is chosen, so its choices stay open).
+ */
+function currentStep(query: OutputsQuery, previewed: boolean, hasPreview: boolean): OutputStep {
+  if (previewed && hasPreview) return 3;
   const { output } = query;
   return output === undefined ? 1 : 2;
 }
 
-function StepList({
-  step,
-  hasPreview,
-}: { readonly step: OutputStep; readonly hasPreview: boolean }) {
+/**
+ * Where the person is in the three steps, in words. Not links: each step opens from its own
+ * heading below, so a link here could never land on a folded part.
+ */
+function StepList({ step }: { readonly step: OutputStep }) {
   return (
-    <nav aria-label="Steps" className="u-mb-150 output-noprint">
-      <ol className="output-steps">
-        {STEPS.map(([number, label, target]) => {
-          const linked = number !== 3 || hasPreview;
-          const content = (
-            <>
-              <span className="output-step-number" aria-hidden="true">
-                {number}
-              </span>
-              <span>
-                <span className="sr-only">Step {number}: </span>
-                {label}
-              </span>
-            </>
-          );
-          return (
-            <li key={number} className="output-step">
-              {linked ? (
-                <a
-                  href={`#${target}`}
-                  className="output-step-link"
-                  aria-current={number === step ? 'step' : undefined}
-                >
-                  {content}
-                </a>
-              ) : (
-                <span
-                  className="output-step-link"
-                  aria-current={number === step ? 'step' : undefined}
-                >
-                  {content}
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
+    <ol className="output-steps u-mb-150 output-noprint" aria-label="Steps">
+      {STEPS.map(([number, label]) => (
+        <li
+          key={number}
+          className="output-step"
+          aria-current={number === step ? 'step' : undefined}
+        >
+          <span className="output-step-number" aria-hidden="true">
+            {number}
+          </span>
+          <span>
+            <span className="sr-only">Step {number} of 3: </span>
+            {label}
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -240,7 +224,7 @@ export default async function OutputsPage({
     choice: { ...choice, missionId: ready.missionId },
   });
   const showCasePicker = template.needsCase || request.template === 'ai_context';
-  const step = currentStep(query, request.previewed);
+  const step = currentStep(query, request.previewed, Boolean(output && text));
 
   return (
     <>
@@ -270,13 +254,13 @@ export default async function OutputsPage({
         </p>
       ) : null}
 
-      <StepList step={step} hasPreview={Boolean(output && text)} />
+      <StepList step={step} />
 
       {/* Step 1. Open until a summary is picked; afterwards one line says which, and opens again. */}
       <div className="u-mb-150 output-noprint">
         <CollapsibleGroup
           id="output-step-choose"
-          title={`Summary: ${template.label}`}
+          title={step === 1 ? 'Choose a Summary' : `Summary: ${template.label}`}
           open={step === 1}
         >
           <nav aria-label="Kinds of Summary">

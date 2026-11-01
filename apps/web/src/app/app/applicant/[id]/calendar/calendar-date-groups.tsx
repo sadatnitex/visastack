@@ -36,12 +36,12 @@ const GROUP_ORDER = Object.keys(CALENDAR_GROUP_TITLES) as CalendarKind[];
 export function CalendarDateGroups({
   items,
   chosen,
-  fieldName = 'key',
+  fieldName,
 }: {
   readonly items: readonly CalendarDateRow[];
   readonly chosen: ReadonlySet<string>;
   /** The form field each date box sends its key in. */
-  readonly fieldName?: string;
+  readonly fieldName: string;
 }) {
   const groups = GROUP_ORDER.map((kind) => ({
     kind,

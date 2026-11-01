@@ -86,9 +86,17 @@ test.describe('WP-SB4 traveller tasks and forms with worst-case data', () => {
     await expectBarInReach(page, 'Answer Synthetic App');
     await expect(page.getByRole('button', { name: 'Allow Access' })).toBeInViewport();
     await expect(page.getByRole('button', { name: 'Do Not Allow' })).toBeInViewport();
-    // Opening the case list shows every case, and the choice is the same radio group.
-    await page.getByText('Choose One Case').click();
-    await expect(page.getByRole('radio', { name: 'Only Synthetic Trip 20' })).toBeVisible();
+    // The long case list scrolls in its own short box; the last case is reachable by keyboard
+    // and stays in the same set of choices.
+    const lastCase = page.getByRole('radio', { name: 'Only Synthetic Trip 20' });
+    await lastCase.focus();
+    await expect(lastCase).toBeInViewport();
+    const box = await page.locator('.ai-case-scroll').evaluate((element) => ({
+      overflowY: getComputedStyle(element).overflowY,
+      height: element.getBoundingClientRect().height,
+    }));
+    expect(box.overflowY).toBe('auto');
+    expect(box.height).toBeLessThanOrEqual(16 * 16 + 0.5);
     await expect(page.locator('input[name="cases"]')).toHaveCount(22);
     await expect(page.locator('input[name="file"]')).toHaveCount(40);
     await noSeriousAxe(page);

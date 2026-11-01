@@ -109,9 +109,9 @@ describe('PrepareAgainForm stays short (WP-SB4)', () => {
       ),
     );
 
-  it('folds the three groups, each with its count, with only the first open', () => {
+  it('folds the three groups, each with its count, opening the first and any that needs a look', () => {
     expect(group('REUSABLE')?.[1]).toBe(' open=""');
-    expect(group('NEEDS_REVIEW')?.[1]).toBeUndefined();
+    expect(group('NEEDS_REVIEW')?.[1]).toBe(' open=""');
     expect(group('MISSING')?.[1]).toBeUndefined();
     expect([group('REUSABLE')?.[2], group('NEEDS_REVIEW')?.[2], group('MISSING')?.[2]]).toEqual([
       '1',

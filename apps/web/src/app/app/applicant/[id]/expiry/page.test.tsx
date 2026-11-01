@@ -299,6 +299,17 @@ describe('long lists on the Expiry page (WP-SB4)', () => {
     expect(rowCount(await at({ docs: '999999' }), 'docs')).toBe(25);
   });
 
+  it('reaches the last row of a list longer than 100', async () => {
+    const long = Array.from({ length: 135 }, (_, i) => ({ ...docs[0], id: `long-${i}` }));
+    service.listDocumentsDetailed.mockResolvedValue({ ok: true, value: long });
+    expect(rowCount(await at({ docs: '100' }), 'docs')).toBe(100);
+    const html = await at({ docs: '100' });
+    expect(html).toContain('href="/app/applicant/person/expiry?docs=110#expiry-docs-100"');
+    const all = await at({ docs: '140' });
+    expect(rowCount(all, 'docs')).toBe(135);
+    expect(textOf(near(all, 'expiry-docs-more'))).toContain('Showing all 135 documents.');
+  });
+
   it('adds no Show More to a short list', async () => {
     service.listDocumentsDetailed.mockResolvedValue({ ok: true, value: docs.slice(0, 4) });
     const html = await at({});

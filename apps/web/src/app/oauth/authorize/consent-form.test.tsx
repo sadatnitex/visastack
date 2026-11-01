@@ -92,14 +92,14 @@ describe('the AI app consent screen (WP-SB4 layout)', () => {
     expect(end).toContain('Do Not Allow');
   });
 
-  it('folds the long case list and each group of files, closed while nothing in them is chosen', () => {
+  it('folds each group of files, closed while nothing in it is ticked; cases scroll in a box', () => {
+    expect(html).toContain('class="checks ai-case-scroll"');
     const summaries = [
       ...html.matchAll(
         /<details class="collapsible-group"( open="")?><summary[^>]*><span class="collapsible-group-title">([^<]+)</g,
       ),
     ].map((m) => ({ title: m[2], open: Boolean(m[1]) }));
     expect(summaries).toEqual([
-      { title: 'Choose One Case', open: false },
       { title: 'Travel and Immigration', open: false },
       { title: 'Accommodation and Host', open: false },
     ]);

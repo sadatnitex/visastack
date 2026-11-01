@@ -88,6 +88,15 @@ const ROW_NOUNS: Readonly<Record<ExpiryList, { one: string; other: string }>> = 
 };
 
 /**
+ * The steps of one list. The page already holds every row (these lists are read whole for the
+ * urgency sort), so Show More can reach the last row, however long the list is.
+ */
+function listPaging(total: number): { readonly step: number; readonly max: number } {
+  const step = TRAVELLER_LIST_STEP;
+  return { step, max: Math.max(step, Math.ceil(total / step) * step) };
+}
+
+/**
  * The end of one capped list: the count, and Show More while rows are left. Focus lands on the
  * first row that was added.
  */
@@ -105,7 +114,7 @@ function ListEnd({
   readonly total: number;
 }) {
   if (total <= TRAVELLER_LIST_STEP) return null;
-  const next = shown < total ? nextShow(shown, { step: TRAVELLER_LIST_STEP }) : null;
+  const next = shown < total ? nextShow(shown, listPaging(total)) : null;
   return (
     <ShowMore
       id={`expiry-${list}-more`}
@@ -130,10 +139,7 @@ export default async function ExpiryCentrePage({
   const { id } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
   const pathname = `/app/applicant/${id}/expiry`;
-  const showing = (list: ExpiryList) => parseShow(query[list], { step: TRAVELLER_LIST_STEP });
-  const shownDocs = showing('docs');
-  const shownRules = showing('rules');
-  const shownChecks = showing('checks');
+  const showing = (list: ExpiryList, total: number) => parseShow(query[list], listPaging(total));
   const now = new Date();
 
   const data = await withSession(async ({ db, accountId }) => {
@@ -180,6 +186,9 @@ export default async function ExpiryCentrePage({
   });
 
   if (!data) notFound();
+  const shownDocs = showing('docs', data.intrinsic.length);
+  const shownRules = showing('rules', data.freshnessRows.length);
+  const shownChecks = showing('checks', data.verifications.length);
   const depth = await readDepth('expiry');
   const depthWords = depthCopyFor('expiry');
 

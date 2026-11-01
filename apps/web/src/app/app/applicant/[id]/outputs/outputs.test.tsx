@@ -386,7 +386,9 @@ describe('the briefs and summaries page', () => {
 
 describe('the page in three steps (WP-SB4)', () => {
   const current = (html: string) =>
-    html.match(/aria-current="step"[^>]*>[\s\S]*?<span class="sr-only">Step (\d): <\/span>/)?.[1];
+    html.match(
+      /aria-current="step"[^>]*>[\s\S]*?<span class="sr-only">Step (\d) of 3: <\/span>/,
+    )?.[1];
   const opened = (html: string, id: string) =>
     new RegExp(`<details class="collapsible-group" id="${id}" open=""`).test(html);
 
@@ -395,12 +397,16 @@ describe('the page in three steps (WP-SB4)', () => {
     expect(current(html)).toBe('1');
     expect(opened(html, 'output-step-choose')).toBe(true);
     expect(opened(html, 'output-choices')).toBe(true);
-    expect(textOf(html)).toContain('Summary: Agency Brief');
+    // Nothing is picked yet, so the folded title asks rather than names one.
+    expect(html).toContain('<span class="collapsible-group-title">Choose a Summary</span>');
   });
 
   it('folds the kinds once one is picked (step 2), and the choices once previewed (step 3)', async () => {
     const second = await render({ output: 'confirmed_sheet' });
     expect(current(second)).toBe('2');
+    expect(second).toContain(
+      '<span class="collapsible-group-title">Summary: Confirmed Information Sheet</span>',
+    );
     expect(opened(second, 'output-step-choose')).toBe(false);
     expect(opened(second, 'output-choices')).toBe(true);
     const third = await render({
@@ -413,6 +419,13 @@ describe('the page in three steps (WP-SB4)', () => {
     // Folded, every choice is still in the form, so Preview again sends the same answers.
     expect(third).toMatch(/name="layer" checked="" value="travel_documents"/);
     expect(third).toContain('id="output-preview"');
+  });
+
+  it('stays on step 2 with the choices open when Preview gave nothing to show yet', async () => {
+    const html = await render({ output: 'case_handover', preview: '1', case: 'not-a-case' });
+    expect(current(html)).toBe('2');
+    expect(opened(html, 'output-choices')).toBe(true);
+    expect(html).not.toContain('id="output-preview"');
   });
 
   it('keeps the field list folded, with its count, and every box still sent', async () => {

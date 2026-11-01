@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useRef } from 'react';
-import { CollapsibleGroups } from '../../../../../../components/collapsible-group';
+import { CollapsibleGroup } from '../../../../../../components/collapsible-group';
 import {
   FormMessage,
   SubmitButton,
@@ -83,7 +83,11 @@ export function PrepareAgainForm({
     ...dateCheck.errors,
   };
   const values = state.values ?? {};
-  const firstFilled = groups.find((group) => group.items.length > 0);
+  // The first group with something in it opens, and so does any group asking for a look (its
+  // tone says so), so nothing that needs checking starts out of sight.
+  const firstFilled = groups.find((group) => group.items.length > 0)?.key;
+  const startsOpen = (group: PrepareAgainGroupView) =>
+    group.items.length > 0 && (group.key === firstFilled || group.tone === 'warning');
 
   /** The attributes and message that tie one box to its own problem, as on Start a Case. */
   const problem = (name: CaseFormField, describedBy?: string) => {
@@ -182,20 +186,22 @@ export function PrepareAgainForm({
       </section>
 
       {/* The three groups fold away (WP-SB4), so the page starts short; the first group with
-          something in it is open. Every tick box is sent whether its group is open or not. */}
+          something in it, and any group that needs a look, are open. Every tick box is sent
+          whether its group is open or not. */}
       <section className="card" aria-labelledby="prepare-again-records">
         <h2 className="card-title" id="prepare-again-records">
           Records from the Last Case
         </h2>
-        <CollapsibleGroups
-          idPrefix="prepare-again"
-          noun={{ one: 'item', other: 'items' }}
-          {...(firstFilled ? { openKey: firstFilled.key } : {})}
-          groups={groups.map((group) => ({
-            key: group.key,
-            title: group.title,
-            count: group.items.length,
-            content: (
+        <div className="collapsible-groups">
+          {groups.map((group) => (
+            <CollapsibleGroup
+              key={group.key}
+              id={`prepare-again-${group.key}`}
+              title={group.title}
+              count={group.items.length}
+              noun={{ one: 'item', other: 'items' }}
+              open={startsOpen(group)}
+            >
               <>
                 <p className="muted">{group.hint}</p>
                 {group.items.length === 0 ? (
@@ -237,9 +243,9 @@ export function PrepareAgainForm({
                   </ul>
                 )}
               </>
-            ),
-          }))}
-        />
+            </CollapsibleGroup>
+          ))}
+        </div>
       </section>
 
       <section className="card" aria-labelledby="prepare-again-sharing">
