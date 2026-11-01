@@ -44,9 +44,15 @@ export function TasksPanel({
   tasks,
   rowIdPrefix,
   more,
+  finishedTotal,
+  finishedOpen = false,
 }: {
   readonly missionId: string;
   readonly tasks: readonly TaskView[];
+  /** WP-SB2: finished tasks across the whole case, when the page shows only the first rows. */
+  readonly finishedTotal?: number;
+  /** WP-SB2: open the finished list, for example after Show More added rows to it. */
+  readonly finishedOpen?: boolean;
   /** WP-SB2: each row gets the id `<rowIdPrefix>-<index>`, so Show More can land on the first new one. */
   readonly rowIdPrefix?: string;
   /** WP-SB2: the Show More control under the list, when the page capped it. */
@@ -137,9 +143,9 @@ export function TasksPanel({
       )}
       <FormMessage result={statusFrom === 'list' ? status : NO_RESULT} />
       {decided.length > 0 ? (
-        <details className="u-mb-100">
+        <details className="u-mb-100" open={finishedOpen}>
           <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
-            {plural(decided.length, 'Task')} Done or Cancelled
+            {plural(Math.max(finishedTotal ?? 0, decided.length), 'Task')} Done or Cancelled
           </summary>
           <div className="rows u-mt-050">
             {decided.map((task, index) => (

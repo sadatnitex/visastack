@@ -984,10 +984,8 @@ describe('WP-SB2: a worst-case case stays short', () => {
     expect(notes?.querySelector('.show-more-count')?.textContent).toBe('Showing 10 of 34 notes.');
     const link = notes?.querySelector<HTMLAnchorElement>('a.show-more-link');
     expect(link?.textContent).toBe('Show More notes');
-    // Other address parameters are kept; only this list grows.
-    expect(link?.getAttribute('href')).toBe(
-      '/app/mission/synthetic-case?welcome=1&notes=20#case-note-10',
-    );
+    // Only this list grows, and the one-time welcome note is not asked for again.
+    expect(link?.getAttribute('href')).toBe('/app/mission/synthetic-case?notes=20#case-note-10');
     expect(notes?.querySelector('details')?.hasAttribute('open')).toBe(false);
   });
 
@@ -1098,5 +1096,30 @@ describe('WP-SB2: a worst-case case stays short', () => {
     setUp();
     const page = await doc(await renderWith({}));
     expect(page.querySelector('.case-sticky-next')).toBeNull();
+  });
+
+  it('points the need-a-check link at its own checklist group, which opens when followed', async () => {
+    setUp({ requirements: ['CRITICAL_GAP', 'UNVERIFIED', 'UNVERIFIED'] });
+    const page = await doc(await renderWith({}));
+    const chip = [...page.querySelectorAll('.case-attention a')].find((a) =>
+      a.textContent?.includes('need a check'),
+    );
+    expect(chip?.getAttribute('href')).toBe('#case-checklist-needs-a-check');
+    expect(page.querySelector('#case-checklist-needs-a-check')?.tagName).toBe('DETAILS');
+  });
+
+  it('counts finished tasks across the whole case and opens them after Show More', async () => {
+    setUp();
+    mocks.listTasks.mockResolvedValue(ok({ items: [], total: 60, open: 3 }));
+    let [tasks] = stubProps<{ finishedTotal: number; finishedOpen: boolean }>(
+      await renderWith({}),
+      'TasksPanel',
+    );
+    expect(tasks).toMatchObject({ finishedTotal: 57, finishedOpen: false });
+    [tasks] = stubProps<{ finishedTotal: number; finishedOpen: boolean }>(
+      await renderWith({ tasks: '20' }),
+      'TasksPanel',
+    );
+    expect(tasks?.finishedOpen).toBe(true);
   });
 });

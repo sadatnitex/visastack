@@ -11078,3 +11078,9 @@ html:has(.sticky-action-bar) {
     display: contents;
   }
 }
+@media (min-width: 641px) {
+  /* The case page's next-step bar shows on phones only, so it keeps no room on wider screens. */
+  html:has(.case-sticky-next) {
+    scroll-padding-bottom: auto;
+  }
+}

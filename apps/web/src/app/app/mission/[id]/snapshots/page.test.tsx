@@ -87,7 +87,7 @@ describe('All Snapshots', () => {
       before: 'opaque_1',
     });
     const page = await doc(html);
-    expect(page.querySelector('h1')?.textContent).toBe('Older Snapshots');
+    expect(page.querySelector('h1')?.textContent).toBe('All Snapshots');
     expect(html).not.toContain('Show Older Snapshots');
     expect(html).toContain('These are the oldest snapshots of this case.');
     expect(

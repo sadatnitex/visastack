@@ -6,6 +6,7 @@ import { PageHeader } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { type SearchParamsRecord, pagingHref, parseCursor } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
+import { isPacketSnapshot } from '../snapshot-packet';
 
 export const metadata: Metadata = { title: 'Case Snapshots' };
 
@@ -13,9 +14,6 @@ export const dynamic = 'force-dynamic';
 
 /** How many snapshots one load lists; Show More asks the server for the next, older ones. */
 const SNAPSHOTS_PER_LOAD = 25;
-
-// The same stages the case page marks as an application packet.
-const PACKET_STATES: ReadonlySet<string> = new Set(['READY_TO_EXPORT', 'LOCKED', 'CLOSED']);
 
 /**
  * Every snapshot of one case, newest first (WP-SB2). The case page lists the five newest and links
@@ -49,7 +47,7 @@ export default async function MissionSnapshotsPage({
         version: snap.version,
         checksum: snap.checksum,
         createdAt: snap.createdAt.toISOString(),
-        isPacket: PACKET_STATES.has((snap.content as { state?: string } | null)?.state ?? ''),
+        isPacket: isPacketSnapshot(snap.content),
       })),
       nextCursor: page.value.nextCursor,
     };
@@ -64,7 +62,7 @@ export default async function MissionSnapshotsPage({
       <PageHeader
         back={{ href: `/app/mission/${mission.id}`, label: mission.title }}
         eyebrow="Case"
-        title={before ? 'Older Snapshots' : 'All Snapshots'}
+        title="All Snapshots"
         description="Each snapshot keeps exactly what this case held when it was taken, newest first."
       />
       <article className="card">

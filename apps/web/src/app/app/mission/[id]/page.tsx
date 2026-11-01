@@ -99,19 +99,16 @@ import {
   SnapshotButton,
   TransitionButtons,
 } from './mission-buttons';
+import { OpenGroupOnLink } from './open-group-on-link';
 import { OutcomePanel } from './outcome-panel';
 import { ExplainGapButton } from './readiness-gap-explain';
+import { isPacketSnapshot } from './snapshot-packet';
 import { SubmissionReportPanel } from './submission-report-panel';
 import { TripChecksPanel } from './trip-checks-panel';
 
 export const metadata: Metadata = { title: 'Case' };
 
 export const dynamic = 'force-dynamic';
-
-// A snapshot taken once the mission has reached this stage of the reviewer
-// workflow is the application packet (Build Spec §4.5's "pack production"),
-// not just a working evidence capture.
-const PACKET_STATES: ReadonlySet<string> = new Set(['READY_TO_EXPORT', 'LOCKED', 'CLOSED']);
 
 // RUL-04's four case-level outcomes (directive §10 case-readiness experience),
 // never averaged from the per-requirement states below.
@@ -187,6 +184,9 @@ const CAPPED_LISTS = {
 type CappedList = keyof typeof CAPPED_LISTS;
 
 const LIST_STEP = { step: TRAVELLER_LIST_STEP } as const;
+
+/** The checklist groups' ids are `<prefix>-<heading in lower case with hyphens>`. */
+const CHECKLIST_ID_PREFIX = 'case-checklist';
 
 /** How long after it is made a case still opens with its welcome note. */
 const WELCOME_WINDOW_MS = 60 * 60 * 1000;
@@ -724,6 +724,7 @@ export default async function MissionPage({
   const showTripChecks =
     tripChecksApply(mission.state) && Boolean(mission.travelStartDate || mission.travelEndDate);
   const tripChecksToAct = tripChecksNeedingAction(data.tripChecks ?? []);
+  const hasChecklist = Boolean(data.readiness) && data.requirementDetails.length > 0;
   const attention: {
     readonly kind: AttentionKind;
     readonly label: string;
@@ -759,7 +760,8 @@ export default async function MissionPage({
           {
             kind: 'unconfirmed' as const,
             label: 'need a check',
-            href: '#readiness',
+            // Its own group of the checklist, which opens when the link is followed (WP-SB2).
+            href: hasChecklist ? `#${CHECKLIST_ID_PREFIX}-needs-a-check` : '#readiness',
             count: data.requiredUnverifiedCount,
             tone: 'warning' as const,
           },
@@ -798,7 +800,6 @@ export default async function MissionPage({
   // The one primary button on the page belongs to the next step or the changed-case alert; the
   // welcome note and the checklist picker offer theirs only when neither is there.
   const hasNextStepOrAlert = data.isDirty || showNextStep;
-  const hasChecklist = Boolean(data.readiness) && data.requirementDetails.length > 0;
   const pathname = `/app/mission/${mission.id}`;
   const newCaseHref = `/app/applicant/${data.applicantId}/missions/prepare-again?from=${mission.id}`;
   const totals: Record<CappedList, number> = {
@@ -815,6 +816,8 @@ export default async function MissionPage({
     complaints: data.complaints.length,
     feedback: data.feedback.length,
   };
+  // Show More keeps every other list's place, but not the one-time welcome note.
+  const { welcome: _welcome, ...listQuery } = query;
   // A section someone asked to see more of stays open when the page comes back.
   const expanded = (list: CappedList) => shown[list] > TRAVELLER_LIST_STEP;
   /** The Show More control under one capped list; nothing when the list is short. */
@@ -828,7 +831,7 @@ export default async function MissionPage({
         id={`case-${list}-more`}
         landOn={`${CAPPED_LISTS[list].rowId}-${onPage}`}
         pathname={pathname}
-        searchParams={query}
+        searchParams={listQuery}
         next={next === null ? null : { [list]: next }}
         shown={onPage}
         total={total}
@@ -1062,8 +1065,9 @@ export default async function MissionPage({
                       <h3 className="case-checklist-heading">Evidence Checklist</h3>
                       {/* WP-SB2: each group opens and closes; the first one with rows (what is
                           missing, when anything is) starts open. */}
+                      <OpenGroupOnLink scopeId="readiness" />
                       <CollapsibleGroups
-                        idPrefix="case-checklist"
+                        idPrefix={CHECKLIST_ID_PREFIX}
                         noun={{ one: 'item', other: 'items' }}
                         groups={REQUIREMENT_GROUPS.flatMap((group) => {
                           const groupRows = data.requirementDetails.filter((r) =>
@@ -1256,6 +1260,8 @@ export default async function MissionPage({
                     tasks={data.tasks}
                     rowIdPrefix={CAPPED_LISTS.tasks.rowId}
                     more={showMore('tasks')}
+                    finishedTotal={data.taskTotal - data.openTaskCount}
+                    finishedOpen={expanded('tasks')}
                   />
                   <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
                   <LettersPanel
@@ -1489,8 +1495,7 @@ export default async function MissionPage({
               ) : (
                 <div className="rows u-mt-050">
                   {data.snapshots.map((snap) => {
-                    const content = snap.content as { state?: string } | null;
-                    const isPacket = content?.state ? PACKET_STATES.has(content.state) : false;
+                    const isPacket = isPacketSnapshot(snap.content);
                     return (
                       <Link
                         href={`/app/mission/${mission.id}/snapshots/${snap.id}`}

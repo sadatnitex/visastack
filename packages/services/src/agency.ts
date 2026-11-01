@@ -1484,6 +1484,8 @@ export async function listNotesForOwner(
     const rows = await query;
     return rows.map((r) => ({ ...r, authorEmail: r.authorEmail ?? null }));
   }
+  // The same clamp as clampLimit in paging.ts (1 to 100, default 50), written here so this shared
+  // file gains no new import line that parallel packages would also touch.
   const requested = Number.isFinite(options.limit) ? Math.floor(options.limit ?? 50) : 50;
   const limit = Math.min(100, Math.max(1, requested));
   const [rows, counts] = await Promise.all([
