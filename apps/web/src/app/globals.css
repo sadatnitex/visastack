@@ -11596,4 +11596,8 @@ html:has(.sticky-action-bar) {
   .platform-operations .admin-overview-groups > .admin-overview-group[open] {
     grid-column: 1 / -1;
   }
+  /* The overview's budget is two screens, so its jobs box is shorter than the log maximum. */
+  .platform-operations .staff-queue-panel {
+    max-height: 22rem;
+  }
 }
