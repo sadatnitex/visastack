@@ -5,7 +5,15 @@ import { PageHeader } from '../../../../components/ui';
 import { bootstrapAdminEmails, hasPlatformPermission } from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { complaintStatusLabel } from '../../../../lib/labels';
+import {
+  type SearchParamsRecord,
+  firstParam,
+  pagingHref,
+  parseCursor,
+} from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
+import { QueuePaging, QueuePastEnd } from '../email/queue-paging';
+import { QueuePanel } from '../email/queue-panel';
 import { AssignComplaintForm, UpdateComplaintStatusForm } from './forms';
 
 export const metadata: Metadata = { title: 'Complaints' };
@@ -32,7 +40,50 @@ const STATUS_TONE: Record<string, string> = {
 
 const TERMINAL_STATUSES: ReadonlySet<string> = new Set(['RESOLVED', 'CLOSED']);
 
-export default async function AdminComplaintsPage() {
+/** The status tabs, open first (WP-SB6): what still needs someone comes before what has ended. */
+const TABS = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const;
+type Tab = (typeof TABS)[number];
+const TAB_PARAM: Record<Tab, string> = {
+  OPEN: 'open',
+  IN_PROGRESS: 'in-progress',
+  RESOLVED: 'resolved',
+  CLOSED: 'closed',
+};
+
+/** Complaints per page; each one carries its forms, so a page is shorter than a log. */
+const COMPLAINTS_PAGE_SIZE = 20;
+/** Feedback entries per load into the fixed box. */
+const FEEDBACK_PAGE_SIZE = 50;
+const COMPLAINTS_PATH = '/app/admin/complaints';
+const COMPLAINTS_LIST = 'complaints-list';
+const FEEDBACK_PANEL = 'feedback-panel';
+
+/** What an empty tab says, one written sentence per tab. */
+const EMPTY_TAB: Record<Tab, string> = {
+  OPEN: 'No open complaints platform-wide.',
+  IN_PROGRESS: 'No complaints are being handled right now.',
+  RESOLVED: 'No complaints have been resolved yet.',
+  CLOSED: 'No complaints have been closed yet.',
+};
+
+function tabFrom(value: string | readonly string[] | undefined): Tab {
+  const raw = firstParam(value);
+  return TABS.find((tab) => TAB_PARAM[tab] === raw) ?? 'OPEN';
+}
+
+export default async function AdminComplaintsPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<SearchParamsRecord>;
+}) {
+  const search = (await searchParams) ?? {};
+  const param = (name: string) => search[name];
+  const tab = tabFrom(param('status'));
+  const before = parseCursor(param('before'));
+  const feedbackBefore = parseCursor(param('feedbackBefore'));
+  // After a status change the action opens the complaint's new tab and names it (fixed words only).
+  const movedRaw = firstParam(param('moved'));
+  const moved = TABS.find((status) => TAB_PARAM[status] === movedRaw && status === tab);
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await hasPlatformPermission(db, { accountId, email }, 'COMPLAINT_MANAGE'))) {
       return { authorized: false as const };
@@ -40,15 +91,26 @@ export default async function AdminComplaintsPage() {
     const actor = { accountId, email, bootstrapEmails: bootstrapAdminEmails() };
     const canViewFeedback = await hasPlatformPermission(db, { accountId, email }, 'FEEDBACK_VIEW');
     const [complaints, feedback] = await Promise.all([
-      listComplaintsForQualityReview(db, actor),
+      listComplaintsForQualityReview(db, actor, {
+        status: tab,
+        limit: COMPLAINTS_PAGE_SIZE,
+        ...(before ? { before } : {}),
+      }),
       canViewFeedback
-        ? listFeedbackForQualityReview(db, actor)
-        : Promise.resolve({ ok: true as const, value: [] }),
+        ? listFeedbackForQualityReview(db, actor, {
+            limit: FEEDBACK_PAGE_SIZE,
+            ...(feedbackBefore ? { before: feedbackBefore } : {}),
+          })
+        : Promise.resolve(null),
     ]);
     return {
       authorized: true as const,
-      complaints: complaints.ok ? complaints.value : [],
-      feedback: feedback.ok ? feedback.value : [],
+      complaints: complaints.ok ? complaints.value.items : [],
+      complaintsNext: complaints.ok ? complaints.value.nextCursor : null,
+      counts: complaints.ok ? complaints.value.counts : null,
+      feedback: feedback?.ok ? feedback.value.items : [],
+      feedbackNext: feedback?.ok ? feedback.value.nextCursor : null,
+      feedbackTotal: feedback?.ok ? feedback.value.total : 0,
       canViewFeedback,
     };
   });
@@ -78,43 +140,94 @@ export default async function AdminComplaintsPage() {
       <article className="card u-mb-150">
         <p className="card-kicker">Oversight</p>
         <h2 className="card-title">Complaints</h2>
+        <nav aria-label="Complaints by Status" className="pill-list complaint-tabs u-mb-100">
+          {TABS.map((status) => (
+            <a
+              key={status}
+              className="pill"
+              href={pagingHref(COMPLAINTS_PATH, search, {
+                status: TAB_PARAM[status],
+                before: null,
+              })}
+              aria-current={status === tab ? 'page' : undefined}
+            >
+              {complaintStatusLabel(status)}
+              {data.counts ? ` (${data.counts[status]})` : ''}
+            </a>
+          ))}
+        </nav>
+        {moved ? (
+          <output className="notice notice-ok u-mb-100">
+            {`Complaint moved to ${complaintStatusLabel(moved)}. It is listed on this tab now.`}
+          </output>
+        ) : null}
         {data.complaints.length === 0 ? (
-          <p className="card-body">No complaints filed platform-wide.</p>
+          before ? (
+            <QueuePastEnd
+              pathname={COMPLAINTS_PATH}
+              search={search}
+              param="before"
+              landOn={COMPLAINTS_LIST}
+              what="No older complaints here."
+            />
+          ) : (
+            <p className="card-body">
+              {data.counts === null
+                ? 'Complaints could not be loaded. Try again in a moment.'
+                : EMPTY_TAB[tab]}
+            </p>
+          )
         ) : (
-          <div className="rows">
-            {data.complaints.map((c) => (
-              <div
-                className="row"
-                key={c.id}
-                style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                  <span className="row-key">Case {c.missionId}</span>
-                  <span className={`badge ${STATUS_TONE[c.status] ?? 'badge-neutral'}`}>
-                    {complaintStatusLabel(c.status)}
-                  </span>
-                </div>
-                <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                  {c.description}
-                </p>
-                {c.resolution ? (
-                  <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                    Resolution: {c.resolution}
-                  </p>
-                ) : null}
-                <p className="muted u-fs-075-m0">
-                  Filed {formatTimestampDate(c.createdAt)}
-                  {c.ownerAccountId ? ` · Assigned to ${c.ownerAccountId}` : ' · Unassigned'}
-                </p>
-                {!TERMINAL_STATUSES.has(c.status) ? (
-                  <div className="stack-sm">
-                    <AssignComplaintForm complaintId={c.id} />
-                    <UpdateComplaintStatusForm complaintId={c.id} currentStatus={c.status} />
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
+          <>
+            <QueuePanel
+              id={COMPLAINTS_LIST}
+              label="Complaints"
+              pageKey={`${tab}:${before ?? 'first'}`}
+              items={data.complaints.map((c) => ({
+                id: c.id,
+                className: 'complaint-row',
+                find: `Case ${c.missionId} ${c.description} ${c.resolution ?? ''}`,
+                node: (
+                  <>
+                    <div className="complaint-row-head">
+                      <span className="row-key">Case {c.missionId}</span>
+                      <span className={`badge ${STATUS_TONE[c.status] ?? 'badge-neutral'}`}>
+                        {complaintStatusLabel(c.status)}
+                      </span>
+                    </div>
+                    <p className="muted complaint-row-text">{c.description}</p>
+                    {c.resolution ? (
+                      <p className="muted complaint-row-text">Resolution: {c.resolution}</p>
+                    ) : null}
+                    <p className="muted u-fs-075-m0">
+                      Filed {formatTimestampDate(c.createdAt)}
+                      {c.ownerAccountId ? ` · Assigned to ${c.ownerAccountId}` : ' · Unassigned'}
+                    </p>
+                    {!TERMINAL_STATUSES.has(c.status) ? (
+                      <details className="complaint-actions">
+                        <summary>Assign or Update</summary>
+                        <div className="stack-sm">
+                          <AssignComplaintForm complaintId={c.id} />
+                          <UpdateComplaintStatusForm complaintId={c.id} currentStatus={c.status} />
+                        </div>
+                      </details>
+                    ) : null}
+                  </>
+                ),
+              }))}
+            />
+            <QueuePaging
+              pathname={COMPLAINTS_PATH}
+              search={search}
+              param="before"
+              cursor={data.complaintsNext}
+              later={before !== undefined}
+              landOn={COMPLAINTS_LIST}
+              shown={data.complaints.length}
+              total={data.counts?.[tab] ?? data.complaints.length}
+              noun={{ one: 'complaint', other: 'complaints' }}
+            />
+          </>
         )}
       </article>
 
@@ -126,21 +239,48 @@ export default async function AdminComplaintsPage() {
             Never visible to the agency being reviewed, and never a public review or ranking.
           </p>
           {data.feedback.length === 0 ? (
-            <p className="card-body">No feedback submitted platform-wide.</p>
+            feedbackBefore ? (
+              <QueuePastEnd
+                pathname={COMPLAINTS_PATH}
+                search={search}
+                param="feedbackBefore"
+                landOn={FEEDBACK_PANEL}
+                what="No older feedback."
+              />
+            ) : (
+              <p className="card-body">No feedback submitted platform-wide.</p>
+            )
           ) : (
-            <div className="rows">
-              {data.feedback.map((f) => (
-                <div
-                  className="row"
-                  key={f.id}
-                  style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}
-                >
-                  <span className="row-key">Case {f.missionId}</span>
-                  <span className="u-fs-085">{f.comments}</span>
-                  <span className="muted u-fs-075">{formatTimestampDate(f.createdAt)}</span>
-                </div>
-              ))}
-            </div>
+            <>
+              <QueuePanel
+                id={FEEDBACK_PANEL}
+                label="Private Feedback Entries"
+                pageKey={feedbackBefore ?? 'first'}
+                items={data.feedback.map((f) => ({
+                  id: f.id,
+                  className: 'feedback-row',
+                  find: `Case ${f.missionId} ${f.comments}`,
+                  node: (
+                    <>
+                      <span className="row-key">Case {f.missionId}</span>
+                      <span className="u-fs-085">{f.comments}</span>
+                      <span className="muted u-fs-075">{formatTimestampDate(f.createdAt)}</span>
+                    </>
+                  ),
+                }))}
+              />
+              <QueuePaging
+                pathname={COMPLAINTS_PATH}
+                search={search}
+                param="feedbackBefore"
+                cursor={data.feedbackNext}
+                later={feedbackBefore !== undefined}
+                landOn={FEEDBACK_PANEL}
+                shown={data.feedback.length}
+                total={data.feedbackTotal}
+                noun={{ one: 'feedback entry', other: 'feedback entries' }}
+              />
+            </>
           )}
         </article>
       ) : null}

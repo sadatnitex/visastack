@@ -11859,6 +11859,190 @@ html:has(.sticky-action-bar) {
   }
 }
 
+/* WP-SB6 staff operations within the scroll budget: queues (failed jobs, emails, feedback, the
+   invitation history) use the log's fixed box and scroll inside; the overview folds its specialist
+   cards into groups; complaints show status tabs with the forms behind an expander. */
+.staff-queue-panel {
+  padding: 0 0.75rem;
+}
+.staff-queue-panel > .rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.staff-queue-panel > .rows > .row:last-child {
+  border-bottom: 0;
+}
+.staff-queue-paging {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.75rem;
+}
+.staff-queue-paging .show-more {
+  margin: 0;
+}
+.failed-job-row,
+.invitation-row,
+.complaint-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+.failed-job-head,
+.invitation-row-head,
+.complaint-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+.failed-job-name,
+.invitation-email {
+  overflow-wrap: anywhere;
+}
+.failed-job-error {
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+}
+.feedback-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+.complaint-row-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-small);
+}
+.complaint-actions > summary {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--selected-text);
+}
+.complaint-actions[open] > summary {
+  margin-bottom: 0.5rem;
+}
+.complaint-tabs .pill {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.complaint-tabs .pill[aria-current="page"] {
+  color: var(--selected-text);
+  border-color: currentColor;
+  font-weight: 600;
+}
+.pilot-list-title {
+  margin: 0 0 0.5rem;
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+.audit-who-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+.audit-who-search .input {
+  flex: 1 1 16rem;
+  min-width: 0;
+  max-width: 28rem;
+}
+.audit-who-help {
+  flex-basis: 100%;
+  margin: 0;
+}
+.admin-failed-jobs {
+  margin-bottom: 1.5rem;
+}
+.admin-overview-groups {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+.admin-overview-groups > .admin-overview-group {
+  margin-block: 0;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  padding: 0 1rem;
+  background: var(--bg-elevated);
+}
+.admin-overview-group-body {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 1rem;
+}
+.admin-overview-group-body > .card {
+  margin: 0 !important;
+}
+/* WP-SB6 overview on a phone: the overview's budget is two screens, so its status counts sit in
+   one compact row, its failed jobs box is shorter than the log maximum, and the queue filters
+   share one line. */
+@media (max-width: 760px) {
+  .platform-operations .admin-reference-metrics,
+  .platform-operations .admin-operational-summary {
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .platform-operations .admin-operational-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .platform-operations .admin-summary-metric {
+    gap: 0.25rem;
+    padding: 0.75rem;
+  }
+  .platform-operations .admin-summary-metric strong {
+    font-size: 1.25rem;
+  }
+  .platform-operations .admin-summary-metric span,
+  .platform-operations .admin-summary-metric small {
+    font-size: var(--text-caption);
+    overflow-wrap: anywhere;
+  }
+  .platform-operations .staff-queue-panel {
+    max-height: 16rem;
+  }
+  .staff-queue-filters {
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: 0.5rem;
+  }
+  /* Two group headings per row; an opened group takes the whole width for its cards. */
+  .platform-operations .admin-overview-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .platform-operations .admin-overview-groups > .admin-overview-group {
+    padding: 0 0.75rem;
+  }
+  .platform-operations .admin-overview-groups > .admin-overview-group[open] {
+    grid-column: 1 / -1;
+  }
+  .platform-operations .admin-overview-group > summary {
+    font-size: var(--text-small);
+  }
+}
+/* WP-SB6 overview on wider screens: the group headings sit three per row (two on a phone, above),
+   and an opened group takes the whole width for its cards. */
+@media (min-width: 761px) {
+  .platform-operations .admin-overview-groups {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .platform-operations .admin-overview-groups > .admin-overview-group[open] {
+    grid-column: 1 / -1;
+  }
+  /* The overview's budget is two screens, so its jobs box is shorter than the log maximum. */
+  .platform-operations .staff-queue-panel {
+    max-height: 22rem;
+  }
+}
+
 /* WP-LC-B replace: Replace with a Newer Document, the choice list, the upload and the result line (44 px targets) */
 .lc-replace {
   display: flex;

@@ -1,10 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm';
+import { type SQL, type SQLWrapper, and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { type StaffScope, staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import {
+  type TimeCursorKey,
+  clampLimit,
+  cursorTime,
+  decodeTimeCursor,
+  encodeTimeCursor,
+  olderThan,
+  toPage,
+} from './paging';
 
 /**
  * Staff view of application email that did not arrive (Email Delivery page).
@@ -60,7 +69,28 @@ export interface EmailDeliveryProblems {
   readonly failed: readonly EmailDeliveryRow[];
   readonly waiting: readonly EmailDeliveryRow[];
   readonly counts: EmailDeliveryCounts;
+  /** WP-SB6: pass back as `failedBefore` for the next, older failures; null when none remain. */
+  readonly failedNext: string | null;
+  /** WP-SB6: pass back as `waitingAfter` for the next waiting emails; null when none remain. */
+  readonly waitingNext: string | null;
+  /** Every failed or refused email still listed, not only this page. */
+  readonly failedTotal: number;
+  /** Every email waiting longer than the waiting threshold, not only this page. */
+  readonly waitingTotal: number;
 }
+
+/** WP-SB6: which page of each list to read. Leaving it out reads the first page of both. */
+export interface EmailDeliveryPageRequest {
+  /** Rows per list; clamped to 1 to 100, 50 by default. */
+  readonly limit?: number;
+  /** The `failedNext` of the previous page. */
+  readonly failedBefore?: string;
+  /** The `waitingNext` of the previous page. */
+  readonly waitingAfter?: string;
+}
+
+const FAILED_SCOPE = 'platform:email:failed';
+const WAITING_SCOPE = 'platform:email:waiting';
 
 // The full address never leaves the database: only its domain is selected. Built per call, never
 // at module load (tests that stub the database would crash on import).
@@ -85,6 +115,7 @@ export async function listEmailDeliveryProblems(
   db: Db,
   staff: StaffScope<'PROCESSING_JOB_RETRY'>,
   now: Date = new Date(),
+  options: EmailDeliveryPageRequest = {},
 ): Promise<Result<EmailDeliveryProblems, ServiceError>> {
   const problem = staffScopeProblem(staff, 'PROCESSING_JOB_RETRY');
   if (problem) return err(problem);
@@ -94,19 +125,30 @@ export async function listEmailDeliveryProblems(
   const waitingBefore = new Date(now.getTime() - EMAIL_DELIVERY_WAITING_AFTER_MS);
   const since = new Date(now.getTime() - EMAIL_DELIVERY_DAY_MS).toISOString();
 
-  const [failed, waiting, totals] = await Promise.all([
+  const limit = clampLimit(options.limit, EMAIL_DELIVERY_LIST_LIMIT);
+  // Each cursor is bound to its own list, so one never moves the other or comes from elsewhere.
+  const failedBefore = decodeTimeCursor(options.failedBefore, FAILED_SCOPE);
+  const waitingAfter = decodeTimeCursor(options.waitingAfter, WAITING_SCOPE);
+  const isFailed = and(eq(n.channel, 'EMAIL'), inArray(n.status, ['FAILED', 'BOUNCED']));
+  const isWaiting = and(
+    eq(n.channel, 'EMAIL'),
+    eq(n.status, 'QUEUED'),
+    lt(n.createdAt, waitingBefore),
+  );
+
+  const [failedRows, waitingRows, totals] = await Promise.all([
     db
-      .select(rowColumns())
+      .select({ ...rowColumns(), cursorAt: cursorTime(n.createdAt) })
       .from(n)
-      .where(and(eq(n.channel, 'EMAIL'), inArray(n.status, ['FAILED', 'BOUNCED'])))
+      .where(failedBefore ? and(isFailed, olderThan(n.createdAt, n.id, failedBefore)) : isFailed)
       .orderBy(desc(n.createdAt), desc(n.id))
-      .limit(EMAIL_DELIVERY_LIST_LIMIT),
+      .limit(limit + 1),
     db
-      .select(rowColumns())
+      .select({ ...rowColumns(), cursorAt: cursorTime(n.createdAt) })
       .from(n)
-      .where(and(eq(n.channel, 'EMAIL'), eq(n.status, 'QUEUED'), lt(n.createdAt, waitingBefore)))
+      .where(waitingAfter ? and(isWaiting, newerThan(n.createdAt, n.id, waitingAfter)) : isWaiting)
       .orderBy(asc(n.createdAt), asc(n.id))
-      .limit(EMAIL_DELIVERY_LIST_LIMIT),
+      .limit(limit + 1),
     db
       .select({
         sentToday: sql<number>`count(*) filter (where ${n.sentAt} >= ${since}::timestamptz)`,
@@ -117,22 +159,39 @@ export async function listEmailDeliveryProblems(
         // its send, for one the mail service took and then reported as failed).
         failedToday: sql<number>`count(*) filter (where (${n.status} = 'FAILED' and greatest(${n.createdAt}, ${n.nextAttemptAt}, coalesce(${n.sentAt}, ${n.createdAt})) >= ${since}::timestamptz) or (${n.status} = 'BOUNCED' and coalesce(${n.bouncedAt}, ${n.createdAt}) >= ${since}::timestamptz))`,
         waitingNow: sql<number>`count(*) filter (where ${n.status} = 'QUEUED')`,
+        failedTotal: sql<number>`count(*) filter (where ${n.status} in ('FAILED', 'BOUNCED'))`,
+        waitingTotal: sql<number>`count(*) filter (where ${n.status} = 'QUEUED' and ${n.createdAt} < ${waitingBefore.toISOString()}::timestamptz)`,
       })
       .from(n)
       .where(eq(n.channel, 'EMAIL')),
   ]);
+  const failed = toPage(failedRows, limit, (last) =>
+    encodeTimeCursor({ at: last.cursorAt, id: last.id }, FAILED_SCOPE),
+  );
+  const waiting = toPage(waitingRows, limit, (last) =>
+    encodeTimeCursor({ at: last.cursorAt, id: last.id }, WAITING_SCOPE),
+  );
 
   const total = first(totals);
   return ok({
-    failed: failed.map(toRow),
-    waiting: waiting.map(toRow),
+    failed: failed.items.map(toRow),
+    waiting: waiting.items.map(toRow),
     counts: {
       sentToday: Number(total?.sentToday ?? 0),
       deliveredToday: Number(total?.deliveredToday ?? 0),
       failedToday: Number(total?.failedToday ?? 0),
       waitingNow: Number(total?.waitingNow ?? 0),
     },
+    failedNext: failed.nextCursor,
+    waitingNext: waiting.nextCursor,
+    failedTotal: Number(total?.failedTotal ?? 0),
+    waitingTotal: Number(total?.waitingTotal ?? 0),
   });
+}
+
+/** Rows after a time cursor position in oldest-first order (the waiting list reads forward). */
+function newerThan(timeColumn: SQLWrapper, idColumn: SQLWrapper, key: TimeCursorKey): SQL {
+  return sql`(${timeColumn}, ${idColumn}) > (${key.at}::timestamptz, ${key.id})`;
 }
 
 function toRow(row: {

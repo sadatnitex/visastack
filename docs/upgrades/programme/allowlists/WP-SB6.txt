@@ -1,0 +1,34 @@
+# WP-SB6 Staff operations (Scroll Budget programme,
+# docs/upgrades/programme/SCROLL-BUDGET-PLAN.md section 6 "SB6").
+# Drafted from the SB6 seed (plan section 4 plus tests and shared files). The owner approved this
+# allowlist in advance on 31 Oct 2026 (relayed by the coordinator session).
+# Service files: only the named reads are edited. platform-reads.ts listRecentAuditEvents;
+# complaints.ts listComplaintsForQualityReview; feedback.ts listFeedbackForQualityReview;
+# pilot-access.ts listInvitations; email-delivery-admin.ts listEmailDeliveryProblems;
+# jobs.ts listFailedJobs. STATUS.md is not edited by this package (only WP-SB10 writes it).
+apps/web/src/app/app/admin/page.tsx
+apps/web/src/app/app/admin/page.test.tsx
+apps/web/src/app/app/admin/audit/**
+apps/web/src/app/app/admin/email/**
+apps/web/src/app/app/admin/complaints/**
+apps/web/src/app/app/admin/access/**
+packages/services/src/platform-reads.ts
+packages/services/src/platform-reads.test.ts
+packages/services/src/complaints.ts
+packages/services/src/complaints.test.ts
+packages/services/src/feedback.ts
+packages/services/src/feedback.test.ts
+packages/services/src/pilot-access.ts
+packages/services/src/pilot-access.test.ts
+packages/services/src/email-delivery-admin.ts
+packages/services/src/email-delivery-admin.test.ts
+packages/services/src/jobs.ts
+packages/services/src/jobs.test.ts
+packages/services/src/staff-ops-paging.test.ts
+apps/web/e2e/scroll-budget/WP-SB6.spec.ts
+# The spec's own fixture, in the spec's folder where WP-SB0's renderFixture looks first (a test file).
+apps/web/e2e/scroll-budget/WP-SB6.fixture.tsx
+apps/web/src/app/globals.css
+docs/commercial-v1/known-issues.md
+docs/upgrades/programme/COVERAGE-LEDGER.csv
+docs/upgrades/programme/allowlists/WP-SB6.txt

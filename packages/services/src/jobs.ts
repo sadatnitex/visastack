@@ -12,6 +12,17 @@ import type { DocumentConverterPort } from './extraction';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { processIntake } from './intake';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
+import {
+  type Page,
+  type PageRequest,
+  clampLimit,
+  cursorOrder,
+  cursorTime,
+  decodeTimeCursor,
+  encodeTimeCursor,
+  olderThan,
+  toPage,
+} from './paging';
 import type { ObservabilityPort } from './ports';
 
 /**
@@ -443,9 +454,31 @@ export interface FailedJobSummary {
 }
 
 /** Jobs that exhausted their retries — parked, never silently dropped, admin-visible. */
-export async function listFailedJobs(db: Db, limit = 50): Promise<FailedJobSummary[]> {
+export async function listFailedJobs(db: Db, limit?: number): Promise<FailedJobSummary[]>;
+/**
+ * WP-SB6: one page of the same list for the overview's fixed panel, newest failure first, with
+ * the number of failed jobs in all. `before` is the previous page's `nextCursor`, bound to this
+ * list; a cursor made for another list, or anything malformed, gives the first page.
+ */
+export async function listFailedJobs(
+  db: Db,
+  options: PageRequest,
+): Promise<Page<FailedJobSummary> & { readonly total: number }>;
+export async function listFailedJobs(
+  db: Db,
+  limitOrOptions: number | PageRequest = 50,
+): Promise<FailedJobSummary[] | (Page<FailedJobSummary> & { readonly total: number })> {
+  const paged = typeof limitOrOptions === 'object';
+  const scope = 'platform:failed-jobs';
+  const limit = paged ? clampLimit(limitOrOptions.limit) : limitOrOptions;
+  const before = paged ? decodeTimeCursor(limitOrOptions.before, scope) : null;
   const lifecycle = await lifecycleTablesPresent(db);
-  const rows = await db
+  const failed = and(
+    eq(schema.processingJobs.status, 'FAILED'),
+    // Processing jobs: presentDocumentCondition (a deleted document's failure needs no retry).
+    lifecycle ? presentDocumentCondition() : undefined,
+  );
+  const rowsRead = db
     .select({
       id: schema.processingJobs.id,
       documentVersionId: schema.processingJobs.documentVersionId,
@@ -457,6 +490,7 @@ export async function listFailedJobs(db: Db, limit = 50): Promise<FailedJobSumma
       lastError: schema.processingJobs.lastError,
       errorCode: schema.processingJobs.errorCode,
       updatedAt: schema.processingJobs.updatedAt,
+      cursorAt: cursorTime(schema.processingJobs.updatedAt),
     })
     .from(schema.processingJobs)
     .innerJoin(
@@ -465,16 +499,44 @@ export async function listFailedJobs(db: Db, limit = 50): Promise<FailedJobSumma
     )
     .innerJoin(schema.documents, eq(schema.documentVersions.documentId, schema.documents.id))
     .where(
-      and(
-        eq(schema.processingJobs.status, 'FAILED'),
-        // Processing jobs: presentDocumentCondition (a deleted document's failure needs no retry).
-        lifecycle ? presentDocumentCondition() : undefined,
-      ),
+      before
+        ? and(failed, olderThan(schema.processingJobs.updatedAt, schema.processingJobs.id, before))
+        : failed,
     )
-    .orderBy(desc(schema.processingJobs.updatedAt))
-    .limit(limit);
+    .orderBy(...cursorOrder(schema.processingJobs.updatedAt, schema.processingJobs.id))
+    .limit(paged ? limit + 1 : limit);
 
-  return rows.map((row) => ({ ...row, updatedAt: row.updatedAt.toISOString() }));
+  if (!paged) {
+    const rows = await rowsRead;
+    return rows.map(({ cursorAt: _cursorAt, ...row }) => ({
+      ...row,
+      updatedAt: row.updatedAt.toISOString(),
+    }));
+  }
+  // The same joins as the list, so the total never counts a job the list could not show.
+  const [rows, counted] = await Promise.all([
+    rowsRead,
+    db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(schema.processingJobs)
+      .innerJoin(
+        schema.documentVersions,
+        eq(schema.processingJobs.documentVersionId, schema.documentVersions.id),
+      )
+      .innerJoin(schema.documents, eq(schema.documentVersions.documentId, schema.documents.id))
+      .where(failed),
+  ]);
+  const page = toPage(rows, limit, (last) =>
+    encodeTimeCursor({ at: last.cursorAt, id: last.id }, scope),
+  );
+  return {
+    items: page.items.map(({ cursorAt: _cursorAt, ...row }) => ({
+      ...row,
+      updatedAt: row.updatedAt.toISOString(),
+    })),
+    nextCursor: page.nextCursor,
+    total: Number(counted[0]?.total ?? 0),
+  };
 }
 
 /**

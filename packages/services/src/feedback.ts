@@ -4,7 +4,17 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { type CappedRows, getMissionForOwner } from './missions';
-import { clampLimit } from './paging';
+import {
+  type Page,
+  type PageRequest,
+  clampLimit,
+  cursorOrder,
+  cursorTime,
+  decodeTimeCursor,
+  encodeTimeCursor,
+  olderThan,
+  toPage,
+} from './paging';
 import { type PlatformAuthInput, canPerformPlatformAction } from './platform-roles';
 
 /**
@@ -109,10 +119,50 @@ export async function listFeedbackForMission(
 export async function listFeedbackForQualityReview(
   db: Db,
   actor: PlatformAuthInput,
-): Promise<Result<CaseFeedback[], ServiceError>> {
+): Promise<Result<CaseFeedback[], ServiceError>>;
+/**
+ * WP-SB6: one page of the same list, newest first, with the number of records in all. `before`
+ * is the previous page's `nextCursor`, bound to this list; anything else gives the first page.
+ * The role check is the same as above.
+ */
+export async function listFeedbackForQualityReview(
+  db: Db,
+  actor: PlatformAuthInput,
+  options: PageRequest,
+): Promise<Result<Page<CaseFeedback> & { readonly total: number }, ServiceError>>;
+export async function listFeedbackForQualityReview(
+  db: Db,
+  actor: PlatformAuthInput,
+  options?: PageRequest,
+): Promise<
+  Result<CaseFeedback[] | (Page<CaseFeedback> & { readonly total: number }), ServiceError>
+> {
   if (!(await canPerformPlatformAction(db, actor, 'FEEDBACK_VIEW'))) {
     return err(serviceError('forbidden', 'quality-admin permission is required'));
   }
-  const rows = await db.select().from(schema.caseFeedback);
-  return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+  if (!options) {
+    const rows = await db.select().from(schema.caseFeedback);
+    return ok([...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+  }
+  const f = schema.caseFeedback;
+  const scope = 'platform:feedback';
+  const limit = clampLimit(options.limit);
+  const before = decodeTimeCursor(options.before, scope);
+  const [rows, counted] = await Promise.all([
+    db
+      .select({ feedback: f, cursorAt: cursorTime(f.createdAt) })
+      .from(f)
+      .where(before ? olderThan(f.createdAt, f.id, before) : undefined)
+      .orderBy(...cursorOrder(f.createdAt, f.id))
+      .limit(limit + 1),
+    db.select({ total: sql<number>`count(*)::int` }).from(f),
+  ]);
+  const page = toPage(rows, limit, (last) =>
+    encodeTimeCursor({ at: last.cursorAt, id: last.feedback.id }, scope),
+  );
+  return ok({
+    items: page.items.map((row) => row.feedback),
+    nextCursor: page.nextCursor,
+    total: Number(counted[0]?.total ?? 0),
+  });
 }
