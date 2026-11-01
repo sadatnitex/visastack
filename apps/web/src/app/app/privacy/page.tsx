@@ -9,6 +9,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ActivityLog, type ActivityLogEntry } from '../../../components/activity-log';
 import { DepthScope, atLevel } from '../../../components/depth';
 import { DepthSwitch } from '../../../components/depth-switch';
 import { EmptyState, PageHeader } from '../../../components/ui';
@@ -16,6 +17,7 @@ import { readAiUsage, usageBadge, usageLine } from '../../../lib/ai-usage';
 import { depthCopyFor } from '../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../lib/ccd/depth.server';
 import { consentName } from '../../../lib/labels';
+import { type SearchParamsRecord, pagingHref, parseCursor } from '../../../lib/paging';
 import { withSession } from '../../../lib/session';
 import { DeletionPanel } from './deletion-panel';
 import { LargeExportPanel } from './large-export-panel';
@@ -43,10 +45,26 @@ function formatDateTime(iso: string): string {
   });
 }
 
-export default async function PrivacyPage() {
+/** Consent changes per load (the log budget), older ones through Show Older Entries. */
+const CONSENT_PAGE_SIZE = 50;
+const CONSENT_LOG_ID = 'consent-history-log';
+const PATHNAME = '/app/privacy';
+
+export default async function PrivacyPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<
+    SearchParamsRecord & { readonly consentBefore?: string | string[] }
+  >;
+} = {}) {
+  const query = (await searchParams) ?? {};
+  const consentBefore = parseCursor(query.consentBefore);
   const data = await withSession(async ({ db, accountId }) => {
     const [history, pending, impact, holds, exportJobs, aiUsage] = await Promise.all([
-      listConsentHistory(db, accountId),
+      listConsentHistory(db, accountId, {
+        limit: CONSENT_PAGE_SIZE,
+        ...(consentBefore ? { before: consentBefore } : {}),
+      }),
       getPendingDeletion(db, accountId),
       getDeletionImpactSummary(db, accountId),
       listActiveLegalHoldsForAccount(db, accountId),
@@ -55,11 +73,21 @@ export default async function PrivacyPage() {
     ]);
     return {
       aiUsage,
-      history: history.map((row) => ({
-        type: row.type as ConsentType,
-        granted: row.grantedAt !== null && row.revokedAt === null,
-        at: (row.grantedAt ?? row.revokedAt ?? row.createdAt).toISOString(),
-      })),
+      historyOlder: history.nextCursor,
+      history: history.items.map((row): ActivityLogEntry => {
+        const type = row.type as ConsentType;
+        const granted = row.grantedAt !== null && row.revokedAt === null;
+        const at = (row.grantedAt ?? row.revokedAt ?? row.createdAt).toISOString();
+        return {
+          id: row.id,
+          what: CONSENT_LABELS[type] ?? type,
+          outcome: granted
+            ? { label: 'Granted', tone: 'success' }
+            : { label: 'Revoked', tone: 'neutral' },
+          at,
+          when: formatDateTime(at),
+        };
+      }),
       scheduledFor: pending ? pending.scheduledFor.toISOString() : null,
       impact,
       holds: holds.map((h) => ({
@@ -162,23 +190,37 @@ export default async function PrivacyPage() {
         <article className="card u-mt-150" id="consent-history" {...atLevel('browse')}>
           <p className="card-kicker">Transparency</p>
           <h2 className="card-title">Consent History</h2>
-          {data.history.length === 0 ? (
+          {data.history.length === 0 && !consentBefore ? (
             <EmptyState icon="activity" title="No Changes Yet">
               Each time you turn a permission on or off, it is recorded here with the date.
             </EmptyState>
           ) : (
-            <div className="rows u-mt-050">
-              {data.history.map((entry, i) => (
-                <div className="row" key={`${entry.type}-${entry.at}-${i}`}>
-                  <span className="row-key">{CONSENT_LABELS[entry.type] ?? entry.type}</span>
-                  <span className="row-end">
-                    <span className={`badge ${entry.granted ? 'badge-success' : 'badge-neutral'}`}>
-                      {entry.granted ? 'Granted' : 'Revoked'}
-                    </span>
-                    <span className="muted u-fs-085">{formatDateTime(entry.at)}</span>
-                  </span>
-                </div>
-              ))}
+            <div className="u-mt-050">
+              <ActivityLog
+                id={CONSENT_LOG_ID}
+                label="Consent History Entries"
+                entries={data.history}
+                {...(data.historyOlder
+                  ? {
+                      olderHref: pagingHref(
+                        PATHNAME,
+                        query,
+                        { consentBefore: data.historyOlder },
+                        CONSENT_LOG_ID,
+                      ),
+                    }
+                  : {})}
+                {...(consentBefore
+                  ? {
+                      newestHref: pagingHref(
+                        PATHNAME,
+                        query,
+                        { consentBefore: null },
+                        CONSENT_LOG_ID,
+                      ),
+                    }
+                  : {})}
+              />
             </div>
           )}
         </article>

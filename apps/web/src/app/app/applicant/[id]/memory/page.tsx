@@ -1,40 +1,36 @@
-import {
-  type MemoryEvent,
-  accountPrincipal,
-  getApplicationMemory,
-  requireAccess,
-} from '@visastack/services';
+import { accountPrincipal, getApplicationMemory, requireAccess } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { eventKey, eventLine } from '../../../../../lib/application-memory-labels';
-import { humanizeCode } from '../../../../../lib/format-code';
-import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
+import { type SearchParamsRecord, TRAVELLER_LIST_STEP, parseShow } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
+import { MemoryCaseList, eventDate } from './memory-case-list';
 
 export const metadata: Metadata = { title: 'Case History' };
 
 export const dynamic = 'force-dynamic';
 
-/** A reported submission date and a decision date are calendar dates the person gave. */
-function eventDate(event: MemoryEvent): string {
-  return event.kind === 'reported_submitted' || event.kind === 'outcome'
-    ? formatDateOnly(event.at)
-    : formatTimestampDate(event.at);
-}
-
 /**
  * v1.2 B08 (U06) Case History (once called Application Memory), WP-V3 part 3: every case of one person,
  * oldest record first within a case, with what was prepared, confirmed,
  * shared, reported as submitted and decided. Owner only.
+ *
+ * WP-SB1: the ten most recently active cases load first (Show More asks the server for ten more);
+ * the latest case is open and older ones are closed, and each case's records scroll inside a panel
+ * of fixed height, so the page stays short however long a person has used VisaStack.
  */
 export default async function ApplicationMemoryPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
+  readonly searchParams?: Promise<SearchParamsRecord & { readonly show?: string | string[] }>;
 }) {
   const { id } = await params;
+  const query = (await searchParams) ?? {};
+  const shown = parseShow(query.show, { step: TRAVELLER_LIST_STEP });
 
   const memory = await withSession(async ({ db, accountId }) => {
     const gate = await requireAccess(
@@ -45,7 +41,7 @@ export default async function ApplicationMemoryPage({
       { purpose: 'application_memory' },
     );
     if (!gate.ok) return null;
-    const read = await getApplicationMemory(gate.value);
+    const read = await getApplicationMemory(gate.value, { limit: shown });
     return read.ok ? read.value : null;
   });
   if (!memory) notFound();
@@ -98,78 +94,12 @@ export default async function ApplicationMemoryPage({
           </EmptyState>
         </article>
       ) : (
-        <div className="memory-cases">
-          {memory.cases.map((item) => {
-            const meta = [
-              item.purpose,
-              item.agencyName ? `Managed by ${item.agencyName}` : null,
-              humanizeCode(item.state),
-              `Started ${formatTimestampDate(item.createdAt)}`,
-            ].filter((part): part is string => Boolean(part));
-            return (
-              <article className="card memory-case" key={item.missionId}>
-                <p className="card-kicker">{item.destination ?? 'Case'}</p>
-                <h3 className="card-title">
-                  <Link href={`/app/mission/${item.missionId}`}>{item.title}</Link>
-                </h3>
-                <p className="memory-case-meta">{meta.join(' · ')}</p>
-                {item.notSharedWith && item.notSharedWith.length > 0 ? (
-                  <p className="memory-case-note">
-                    Not shared with{' '}
-                    {item.notSharedWith
-                      .map((e) => e.recipientName ?? 'a removed recipient')
-                      .join(', ')}
-                    , who can see your other cases.{' '}
-                    <Link href={`/app/applicant/${id}/sharing`}>Manage Sharing</Link>
-                  </p>
-                ) : null}
-                {item.removed ? (
-                  <p className="memory-case-note">
-                    This case's files were removed at the end of its keep period. The record of what
-                    happened stays.
-                  </p>
-                ) : null}
-                {item.events.length === 0 ? (
-                  <p className="memory-case-note">Nothing has been prepared for this case yet.</p>
-                ) : (
-                  <ol className="memory-timeline">
-                    {item.events.map((event) => {
-                      const line = eventLine(event);
-                      return (
-                        <li
-                          className={`memory-event memory-event-${event.kind}`}
-                          key={eventKey(event)}
-                        >
-                          <span className="memory-event-date">{eventDate(event)}</span>
-                          <span className="memory-event-title">{line.title}</span>
-                          {line.note ? (
-                            <span className="memory-event-note">{line.note}</span>
-                          ) : null}
-                          {event.kind === 'prepared' && !item.removed ? (
-                            <span className="memory-event-actions">
-                              <Link
-                                className="btn btn-secondary"
-                                href={`/app/mission/${item.missionId}/snapshots/${event.snapshotId}`}
-                              >
-                                View Snapshot {event.snapshotVersion}
-                              </Link>
-                              <Link
-                                className="btn btn-secondary"
-                                href={`/app/applicant/${id}/memory/compare?snapshot=${event.snapshotId}`}
-                              >
-                                Compare with Today
-                              </Link>
-                            </span>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </ol>
-                )}
-              </article>
-            );
-          })}
-        </div>
+        <MemoryCaseList
+          applicantId={id}
+          cases={memory.cases}
+          totalCases={memory.totalCases ?? memory.cases.length}
+          searchParams={query}
+        />
       )}
     </>
   );

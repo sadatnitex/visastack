@@ -244,3 +244,48 @@ describe('then-and-now view (v1.2 E03, WP-V3 part 3)', () => {
     await expect(render({ snapshot: SNAP })).rejects.toThrow('NEXT_NOT_FOUND');
   });
 });
+
+describe('then-and-now changes within the scroll budget (WP-SB1)', () => {
+  function manyChanges(count: number) {
+    return ok({
+      snapshot: SNAPSHOT,
+      review: REVIEW,
+      changes: Array.from({ length: count }, (_, i) => ({
+        kind: 'detail',
+        change: 'changed',
+        fieldKey: 'employer_name',
+        repeatingRecordKey: `record-${i}`,
+        factId: `fact-${i}`,
+        priorFactVersionId: PRIOR,
+        currentFactVersionId: CURRENT,
+      })),
+      unchangedDetailCount: 0,
+    });
+  }
+
+  it('lists ten changes, then offers ten more that land on the first new one', async () => {
+    mocks.listChangesSinceSnapshot.mockResolvedValue(manyChanges(500));
+    const html = await render({ snapshot: SNAP });
+    expect(html.match(/id="then-now-change-\d+"/g)).toHaveLength(10);
+    expect(textOf(html)).toContain('Showing 10 of 500 changes.');
+    expect(html).toContain(
+      `href="/app/applicant/synthetic-family/memory/compare?snapshot=${SNAP}&amp;show=20#then-now-change-11"`,
+    );
+  });
+
+  it('shows the next step on request, never past the ceiling, and nothing more once all show', async () => {
+    mocks.listChangesSinceSnapshot.mockResolvedValue(manyChanges(500));
+    const grown = await render({ snapshot: SNAP, show: '20' });
+    expect(grown.match(/id="then-now-change-\d+"/g)).toHaveLength(20);
+    // Already read in full, so every change stays reachable, and a wild value stops at the end.
+    const capped = await render({ snapshot: SNAP, show: '5000' });
+    expect(capped.match(/id="then-now-change-\d+"/g)).toHaveLength(500);
+    expect(textOf(capped)).toContain('Showing all 500 changes.');
+    expect(capped).not.toContain('show-more-link');
+
+    mocks.listChangesSinceSnapshot.mockResolvedValue(manyChanges(3));
+    const few = await render({ snapshot: SNAP });
+    expect(textOf(few)).toContain('Showing all 3 changes.');
+    expect(few).not.toContain('show-more-link');
+  });
+});

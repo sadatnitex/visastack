@@ -1,14 +1,20 @@
 import { listNotificationsForAccount } from '@visastack/services';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { DepthScope, atLevel } from '../../../components/depth';
 import { DepthSwitch } from '../../../components/depth-switch';
 import { EmptyState, PageHeader } from '../../../components/ui';
+import type { DepthLevel } from '../../../lib/ccd/depth';
 import { depthCopyFor } from '../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../lib/ccd/depth.server';
-import { formatTimestampDate } from '../../../lib/format-date';
+import {
+  type SearchParamsRecord,
+  TRAVELLER_LIST_STEP,
+  nextShow,
+  parseShow,
+} from '../../../lib/paging';
 import { withSession } from '../../../lib/session';
-import { markNotificationReadAction } from './actions';
+import { markAllNotificationsReadAction, markNotificationReadAction } from './actions';
+import { NotificationList } from './notification-list';
 
 export const metadata: Metadata = { title: 'Notifications' };
 
@@ -18,14 +24,29 @@ const RECENT_READ_SHOWN = 10;
 export const dynamic = 'force-dynamic';
 
 /**
- * NTF-02's in-app channel: every notification actually sent to this account,
- * newest first. The product calls this page "Notifications" (decision D3, which retired
- * "Alerts"); the route and the stored records keep the same name.
+ * NTF-02's in-app channel: every notification actually sent to this account. The product calls
+ * this page "Notifications" (decision D3, which retired "Alerts"); the route and the stored records
+ * keep the same name.
+ *
+ * WP-SB1: unread ones come first, then read ones, each newest first. Ten load at a time inside a
+ * panel of fixed height; Show More asks the server for ten more, and Mark All Read clears them.
  */
-export default async function NotificationsPage() {
-  const notifications = await withSession(({ db, accountId }) =>
-    listNotificationsForAccount(db, accountId),
+export default async function NotificationsPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<SearchParamsRecord & { readonly show?: string | string[] }>;
+} = {}) {
+  const query = (await searchParams) ?? {};
+  const shown = parseShow(query.show, { step: TRAVELLER_LIST_STEP });
+  // One more than shown proves whether another step exists.
+  const read = await withSession(({ db, accountId }) =>
+    listNotificationsForAccount(db, accountId, { unreadFirst: true, limit: shown + 1 }),
   );
+  const notifications = read.slice(0, shown);
+  const next =
+    read.length > notifications.length
+      ? nextShow(notifications.length, { step: TRAVELLER_LIST_STEP })
+      : null;
   const depth = await readDepth('notifications');
   // Unread ones are the Glance; the most recent read ones are Browse; the rest are Everything.
   const recentRead = new Set(
@@ -34,7 +55,7 @@ export default async function NotificationsPage() {
       .slice(0, RECENT_READ_SHOWN)
       .map((n) => n.id),
   );
-  const levelOf = (n: { readonly id: string; readonly read: boolean }) =>
+  const levelOf = (n: { readonly id: string; readonly read: boolean }): DepthLevel | null =>
     !n.read ? null : recentRead.has(n.id) ? 'browse' : 'everything';
   const allRead = notifications.length > 0 && notifications.every((n) => n.read);
 
@@ -63,62 +84,13 @@ export default async function NotificationsPage() {
               close to expiring, a case that moved. Nothing needs you right now.
             </EmptyState>
           ) : (
-            <div className="rows">
-              {notifications.map((n) => {
-                const level = levelOf(n);
-                return (
-                  <div
-                    key={n.id}
-                    {...(level ? atLevel(level) : {})}
-                    className="row"
-                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem' }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                      }}
-                    >
-                      <span className="row-key">
-                        {n.subject}
-                        {!n.read ? (
-                          <span className="badge badge-warning" style={{ marginLeft: '0.5rem' }}>
-                            New
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="muted u-fs-075">{formatTimestampDate(n.createdAt)}</span>
-                    </div>
-                    <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                      {n.summary}
-                    </p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                      <Link
-                        href={n.deepLinkPath}
-                        className="btn btn-secondary"
-                        style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
-                      >
-                        Open
-                      </Link>
-                      {!n.read ? (
-                        <form action={markNotificationReadAction}>
-                          <input type="hidden" name="notificationId" value={n.id} />
-                          <button
-                            type="submit"
-                            className="btn btn-secondary"
-                            style={{ padding: '0.3rem 0.9rem', fontSize: 'var(--text-small)' }}
-                          >
-                            Mark Read
-                          </button>
-                        </form>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <NotificationList
+              notifications={notifications.map((n) => ({ ...n, level: levelOf(n) }))}
+              next={next}
+              searchParams={query}
+              markReadAction={markNotificationReadAction}
+              markAllReadAction={markAllNotificationsReadAction}
+            />
           )}
         </article>
       </DepthScope>
