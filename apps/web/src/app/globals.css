@@ -11051,6 +11051,36 @@ html:has(.sticky-action-bar) {
   padding: 0 var(--space-3) var(--space-3);
 }
 
+/* WP-LC-G1 profile: "No Longer Current" on one value and "Ended" on one list entry, with 44 px targets */
+.profile-lifecycle-mark {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+.profile-lifecycle-mark .btn,
+.profile-record-end .btn {
+  min-height: 44px;
+}
+.profile-record-ended {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+}
+.profile-record-end > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--text-small);
+  cursor: pointer;
+}
+.profile-record-end .field-control {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 /* WP-SB4 traveller tasks and forms: Select All in a group of calendar dates, the calendar preview
    in a fixed panel, the three steps of Briefs and Summaries, and the selected document as a sheet
    with its own scroll, so the paged list beside or above it stays within the page budget. */

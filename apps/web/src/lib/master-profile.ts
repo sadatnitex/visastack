@@ -134,6 +134,8 @@ export interface MasterProfileInput {
 function savedValues(entries: readonly ProfileEntryLite[]): Record<string, string[]> {
   const values: Record<string, string[]> = {};
   for (const entry of entries) {
+    // LC-G1: a detail marked No Longer Current holds no value; it is not filled in.
+    if (entry.status === 'STALE' && entry.value === null) continue;
     const text = entry.value === null ? (entry.status ? '[protected]' : '') : entry.value.trim();
     if (text === '') continue;
     const list = values[entry.fieldKey] ?? [];
