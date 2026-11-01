@@ -302,6 +302,15 @@ describe('withdrawOrganizationApplication', () => {
   });
 
   it('works on a database without the lifecycle tables (it never reads them)', async () => {
+    // The migrated test database may already hold them: remove them, as before the migration runs.
+    for (const table of [
+      'document_lifecycle',
+      'applicant_lifecycle',
+      'document_removal_requests',
+      'deletion_receipts',
+    ]) {
+      await db.execute(sql.raw(`drop table if exists ${table} cascade`));
+    }
     const present = await db.execute(
       sql`select to_regclass('public.document_lifecycle') is not null as present`,
     );
