@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import {
+  DEFAULT_MODE,
   PANEL_MAX_PX,
   VIEWPORTS,
   expectFixedPanel,
@@ -10,7 +11,7 @@ import {
 
 /**
  * WP-SB0: the shared scroll budget parts with worst-case data, and proof that the guard itself
- * fails on a page that breaks its budget. Budgets here are in report mode (support.ts); the
+ * fails on a page that breaks its budget. Budgets enforce by default since WP-SB10 (support.ts); the
  * behaviour checks (focus, landing anchor, bar never covering a field) always apply.
  */
 
@@ -42,6 +43,20 @@ test.describe('scroll budget guard', () => {
     await expect(
       expectWithinBudget(page, { screens: 4, viewport: 'phone', mode: 'enforce' }),
     ).resolves.toMatchObject({ viewport: 'phone', sideways: 0 });
+  });
+
+  test('enforces by default, and a reported exception still fails above its ceiling', async ({
+    page,
+  }) => {
+    // The switch itself, read directly so a local SCROLL_BUDGET_MODE cannot hide a change to it.
+    expect(DEFAULT_MODE).toBe('enforce');
+    await renderFixture(page, FIXTURE, { view: 'padded', padding: 3 * 844 });
+    await expect(
+      expectWithinBudget(page, { screens: 2, viewport: 'phone', mode: 'report', ceiling: 2.5 }),
+    ).rejects.toThrow(/exception ceiling/);
+    await expect(
+      expectWithinBudget(page, { screens: 2, viewport: 'phone', mode: 'report', ceiling: 3.5 }),
+    ).resolves.toMatchObject({ viewport: 'phone' });
   });
 
   test('fails a page that scrolls sideways', async ({ page }) => {
