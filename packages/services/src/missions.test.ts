@@ -3801,3 +3801,280 @@ describe('OPS-04 (Commercial V1 Part 9): case analytics', () => {
     }
   });
 });
+
+describe('LC-A1 - readiness counts only what it should (replaced, archived, deleted documents)', () => {
+  /** A case on the uk.tourist pack plus one clean bank statement. */
+  async function setUp(options: { readonly withoutLifecycle?: boolean } = {}) {
+    const client = await createMigratedPglite();
+    if (options.withoutLifecycle) {
+      await client.exec(
+        'drop table document_removal_requests, document_lifecycle, applicant_lifecycle, deletion_receipts cascade',
+      );
+    }
+    const db = drizzle(client, { schema }) as unknown as Db;
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'UK Visa',
+      itineraryRef: 'trip-1',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId,
+    });
+    const addDocument = async (name: string, docType = 'bank_statement') => {
+      const doc = await registerDocument(db, {
+        actorAccountId: account.id,
+        applicantId,
+        originalName: name,
+        docType,
+      });
+      if (!isOk(doc)) throw new Error('doc');
+      await addDocumentVersion(db, {
+        actorAccountId: account.id,
+        documentId: doc.value.id,
+        bucket: 'CLEAN',
+        objectKey: `k-${name}`,
+        safetyStatus: 'CLEAN',
+        processingStatus: 'AWAITING_REVIEW',
+      });
+      return doc.value.id;
+    };
+    const documentId = await addDocument('bank.pdf');
+    const requirements = await db
+      .select()
+      .from(schema.packRequirements)
+      .where(eq(schema.packRequirements.packVersionId, packVersionId));
+    const documentRequirementId = requirements.find((r) => r.kind === 'DOCUMENT')?.id as string;
+    const missionId = mission.value.id;
+    const documentResult = async () => {
+      const readiness = await computeReadiness(db, missionId);
+      if (!isOk(readiness)) throw new Error('readiness');
+      const result = readiness.value.requirementResults.find((r) => r.kind === 'DOCUMENT');
+      const missing = readiness.value.missing.some((m) => m.kind === 'DOCUMENT');
+      return { result, missing };
+    };
+    const candidates = async () => {
+      const entries = await getEvidenceCandidates(db, account.id, missionId);
+      if (!isOk(entries)) throw new Error('candidates');
+      const entry = entries.value.find((e) => e.kind === 'DOCUMENT');
+      return (entry?.documentCandidates ?? []).map((d) => d.documentId);
+    };
+    const select = (id: string) =>
+      selectEvidence(db, {
+        actorAccountId: account.id,
+        missionId,
+        packRequirementId: documentRequirementId,
+        documentId: id,
+      });
+    const archive = (id: string) =>
+      db
+        .insert(schema.documentLifecycle)
+        .values({ documentId: id, applicantId, archivedAt: new Date() });
+    const markDeleted = (id: string) => {
+      const now = new Date();
+      return db.insert(schema.documentLifecycle).values({
+        documentId: id,
+        applicantId,
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      });
+    };
+    const replace = async (id: string, docType = 'bank_statement') => {
+      const newer = await addDocument('bank-newer.pdf', docType);
+      await db
+        .update(schema.documents)
+        .set({ supersededByDocumentId: newer })
+        .where(eq(schema.documents.id, id));
+      return newer;
+    };
+    const snapshotDocumentIds = async () => {
+      const snap = await snapshotMission(db, { actorAccountId: account.id, missionId });
+      if (!isOk(snap)) throw new Error('snapshot');
+      const content = snap.value.content as {
+        documents: ReadonlyArray<{ documentId: string }>;
+        requirementMapping: ReadonlyArray<{
+          kind: string;
+          documents?: ReadonlyArray<{ documentId: string }>;
+          selectedButReplacedOrArchived?: boolean;
+        }>;
+      };
+      return {
+        documents: content.documents.map((d) => d.documentId),
+        mapping: content.requirementMapping.find((m) => m.kind === 'DOCUMENT'),
+      };
+    };
+    return {
+      db,
+      account,
+      applicantId,
+      missionId,
+      documentId,
+      addDocument,
+      documentResult,
+      candidates,
+      select,
+      archive,
+      markDeleted,
+      replace,
+      snapshotDocumentIds,
+    };
+  }
+
+  it('a clean, current document satisfies its requirement (baseline)', async () => {
+    const t = await setUp();
+    const { result, missing } = await t.documentResult();
+    expect(result?.state).toBe('SATISFIED');
+    expect(missing).toBe(false);
+    expect(result?.selectedButReplacedOrArchived).toBeUndefined();
+  });
+
+  for (const withoutLifecycle of [false, true]) {
+    const label = withoutLifecycle ? 'lifecycle tables missing' : 'lifecycle tables present';
+    it(`a replaced document no longer satisfies a requirement automatically (${label})`, async () => {
+      const t = await setUp({ withoutLifecycle });
+      // Replaced by a usable document filed as another type: only the replaced one could match.
+      await t.replace(t.documentId, 'payslip');
+      const { result, missing } = await t.documentResult();
+      expect(result?.state).not.toBe('SATISFIED');
+      expect(missing).toBe(true);
+      expect(await t.candidates()).toEqual([]);
+      expect((await t.snapshotDocumentIds()).documents).not.toContain(t.documentId);
+    });
+
+    it(`a replaced document steps aside for its usable replacement (${label})`, async () => {
+      const t = await setUp({ withoutLifecycle });
+      const newer = await t.replace(t.documentId);
+      const { result } = await t.documentResult();
+      expect(result?.state).toBe('SATISFIED');
+      expect(result?.selectedButReplacedOrArchived).toBeUndefined();
+      expect(await t.candidates()).toEqual([newer]);
+      expect((await t.snapshotDocumentIds()).documents).not.toContain(t.documentId);
+    });
+
+    it(`a replaced document counts again while its replacement is not usable (${label})`, async () => {
+      const t = await setUp({ withoutLifecycle });
+      const newer = await t.replace(t.documentId);
+      await t.db
+        .update(schema.documentVersions)
+        .set({ processingStatus: 'UPLOADING' })
+        .where(eq(schema.documentVersions.documentId, newer));
+      const { result } = await t.documentResult();
+      expect(result?.state).toBe('SATISFIED');
+      expect(await t.candidates()).toEqual(expect.arrayContaining([t.documentId]));
+    });
+
+    it(`an explicitly selected replaced document stays eligible and is flagged (${label})`, async () => {
+      const t = await setUp({ withoutLifecycle });
+      expect(isOk(await t.select(t.documentId))).toBe(true);
+      await t.replace(t.documentId);
+      const { result, missing } = await t.documentResult();
+      expect(result?.state).toBe('SATISFIED');
+      expect(missing).toBe(false);
+      expect(result?.selectedButReplacedOrArchived).toBe(true);
+      expect(await t.candidates()).toContain(t.documentId);
+      const snapshot = await t.snapshotDocumentIds();
+      expect(snapshot.documents).toContain(t.documentId);
+      expect(snapshot.mapping?.selectedButReplacedOrArchived).toBe(true);
+    });
+  }
+
+  it('an archived document no longer satisfies a requirement automatically', async () => {
+    const t = await setUp();
+    await t.archive(t.documentId);
+    const { result, missing } = await t.documentResult();
+    expect(result?.state).not.toBe('SATISFIED');
+    expect(missing).toBe(true);
+    expect(await t.candidates()).toEqual([]);
+    expect((await t.snapshotDocumentIds()).documents).not.toContain(t.documentId);
+  });
+
+  it('a replaced document counts again while its replacement is in Recently Deleted', async () => {
+    const t = await setUp();
+    const newer = await t.replace(t.documentId);
+    await t.markDeleted(newer);
+    const { result } = await t.documentResult();
+    expect(result?.state).toBe('SATISFIED');
+    expect(await t.candidates()).toEqual([t.documentId]);
+  });
+
+  it('an archived document leaves automatic matching but another current one still counts', async () => {
+    const t = await setUp();
+    const other = await t.addDocument('bank-2.pdf');
+    await t.archive(t.documentId);
+    const { result } = await t.documentResult();
+    expect(result?.state).toBe('SATISFIED');
+    expect(result?.selectedButReplacedOrArchived).toBeUndefined();
+    expect(await t.candidates()).toEqual([other]);
+  });
+
+  it('an explicitly selected archived document stays eligible and is flagged (D6)', async () => {
+    const t = await setUp();
+    expect(isOk(await t.select(t.documentId))).toBe(true);
+    await t.archive(t.documentId);
+    const { result, missing } = await t.documentResult();
+    expect(result?.state).toBe('SATISFIED');
+    expect(missing).toBe(false);
+    expect(result?.selectedButReplacedOrArchived).toBe(true);
+    expect(await t.candidates()).toContain(t.documentId);
+    const snapshot = await t.snapshotDocumentIds();
+    expect(snapshot.documents).toContain(t.documentId);
+    expect(snapshot.mapping?.selectedButReplacedOrArchived).toBe(true);
+  });
+
+  it('an archived document can still be chosen on purpose', async () => {
+    const t = await setUp();
+    await t.archive(t.documentId);
+    expect(isOk(await t.select(t.documentId))).toBe(true);
+    const { result } = await t.documentResult();
+    expect(result?.state).toBe('SATISFIED');
+    expect(result?.selectedButReplacedOrArchived).toBe(true);
+  });
+
+  it('a document in Recently Deleted is never eligible, even when selected, and cannot be chosen', async () => {
+    const t = await setUp();
+    expect(isOk(await t.select(t.documentId))).toBe(true);
+    await t.markDeleted(t.documentId);
+    const { result, missing } = await t.documentResult();
+    expect(result?.state).not.toBe('SATISFIED');
+    expect(missing).toBe(true);
+    expect(await t.candidates()).toEqual([]);
+    expect((await t.snapshotDocumentIds()).documents).not.toContain(t.documentId);
+    const again = await t.select(t.documentId);
+    expect(isErr(again)).toBe(true);
+    if (isErr(again)) expect(again.error.code).toBe('not_found');
+  });
+
+  it('readiness works unchanged while the lifecycle tables are missing', async () => {
+    const t = await setUp({ withoutLifecycle: true });
+    const { result } = await t.documentResult();
+    expect(result?.state).toBe('SATISFIED');
+    expect(await t.candidates()).toEqual([t.documentId]);
+    expect(isOk(await t.select(t.documentId))).toBe(true);
+    expect((await t.snapshotDocumentIds()).documents).toContain(t.documentId);
+    const linked = await listMissionsByItineraryRef(t.db, {
+      actorAccountId: t.account.id,
+      itineraryRef: 'trip-1',
+    });
+    expect(linked.map((m) => m.id)).toEqual([t.missionId]);
+  });
+
+  it('cases of a traveller record in Recently Deleted are not linked by itinerary reference', async () => {
+    const t = await setUp();
+    const linked = () =>
+      listMissionsByItineraryRef(t.db, { actorAccountId: t.account.id, itineraryRef: 'trip-1' });
+    expect((await linked()).map((m) => m.id)).toEqual([t.missionId]);
+    const now = new Date();
+    await t.db.insert(schema.applicantLifecycle).values({
+      applicantId: t.applicantId,
+      deletedAt: now,
+      purgeAfter: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+    });
+    expect(await linked()).toEqual([]);
+  });
+});
