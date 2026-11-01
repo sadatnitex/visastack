@@ -1,8 +1,9 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { clampLimit } from './paging';
 import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
 
 /**
@@ -225,7 +226,17 @@ export async function isCommercialOverrideActive(
 export async function listCommercialOverridesForOrganization(
   db: Db,
   organizationId: string,
+  /** WP-SB9: only the newest `limit` overrides (1 to 100); the full history when left out. */
+  options: { readonly limit?: number } = {},
 ): Promise<CommercialOverride[]> {
+  if (options.limit !== undefined) {
+    return db
+      .select()
+      .from(schema.commercialOverrides)
+      .where(eq(schema.commercialOverrides.organizationId, organizationId))
+      .orderBy(desc(schema.commercialOverrides.createdAt), desc(schema.commercialOverrides.id))
+      .limit(clampLimit(options.limit));
+  }
   const rows = await db
     .select()
     .from(schema.commercialOverrides)

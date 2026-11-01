@@ -15,6 +15,7 @@ import { invoiceHasRefundSql } from './billing-standing';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isUuid, normalizeCurrency } from './invoice-ledger';
+import { clampLimit } from './paging';
 import { IN_FLIGHT_ATTEMPTS, personInvoiceInTime, referenceCode } from './person-billing';
 import {
   personInvoices,
@@ -153,7 +154,8 @@ export async function hasOwnBilling(db: Db, self: SelfScope): Promise<boolean> {
 export async function listOwnBilling(
   db: Db,
   self: SelfScope,
-  input: { readonly now?: Date } = {},
+  /** `limit` (WP-SB9): only the newest purchases (1 to 100); every purchase when left out. */
+  input: { readonly now?: Date; readonly limit?: number } = {},
 ): Promise<Result<readonly OwnPurchaseView[], ServiceError>> {
   const denied = selfScopeProblem(self);
   if (denied) return err(denied);
@@ -162,7 +164,7 @@ export async function listOwnBilling(
   const accountId = self.accountId;
   const i = personInvoices;
 
-  const invoices = await db
+  const invoiceQuery = db
     .select({
       id: i.id,
       invoiceRef: i.invoiceRef,
@@ -181,6 +183,8 @@ export async function listOwnBilling(
     .innerJoin(schema.plans, eq(schema.plans.id, i.planId))
     .where(eq(i.payerAccountId, accountId))
     .orderBy(desc(i.createdAt), desc(i.periodStart), desc(i.id));
+  const invoices =
+    input.limit === undefined ? await invoiceQuery : await invoiceQuery.limit(clampLimit(input.limit));
   if (invoices.length === 0) return ok([]);
   const ids = invoices.map((row) => row.id);
   const payable = await stillPayable(db, accountId, invoices, now);

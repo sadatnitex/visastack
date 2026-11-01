@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { isActiveMember } from './agency';
 import { appendAuditEvent } from './audit';
 import {
@@ -30,6 +30,7 @@ import {
 } from './invoice-ledger';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import { isOrgAdmin } from './organizations';
+import { clampLimit } from './paging';
 import { parseAmountForCurrency } from './payment-amounts';
 import { ledgerColumns, ledgerModeSql } from './plans-schema';
 import { type PlatformAuthInput, isPlatformOwner } from './platform-roles';
@@ -415,6 +416,8 @@ export async function listBillingStatusHistory(
     readonly actorEmail?: string;
     readonly bootstrapEmails?: readonly string[];
   },
+  /** WP-SB9: only the newest `limit` changes (1 to 100); every change when left out. */
+  options: { readonly limit?: number } = {},
 ): Promise<Result<BillingStatusHistoryEntry[], ServiceError>> {
   if (!(await canReadOrganizationBilling(db, input))) {
     return err(serviceError('forbidden', 'not an active member of this organization'));
@@ -427,7 +430,7 @@ export async function listBillingStatusHistory(
       .limit(1),
   );
   if (!account) return ok([]);
-  return ok(await readBillingStatusHistory(db, account.id));
+  return ok(await readBillingStatusHistory(db, account.id, options));
 }
 
 /** True if this organization's billing account currently reads SUSPENDED. An organization with no billing account at all is never suspended -- absence of billing tracking is not itself a billing problem. */
@@ -821,9 +824,22 @@ export async function listInvoicesForOrganization(
     readonly actorEmail?: string;
     readonly bootstrapEmails?: readonly string[];
   },
+  /** WP-SB9: only the newest `limit` invoices (1 to 100); every invoice when left out. */
+  options: { readonly limit?: number } = {},
 ): Promise<Result<Invoice[], ServiceError>> {
   if (!(await canReadOrganizationBilling(db, input))) {
     return err(serviceError('forbidden', 'not an active member of this organization'));
+  }
+  if (options.limit !== undefined) {
+    // Same organization filter and order as below, cut in the database (newest first, then id).
+    return ok(
+      await db
+        .select()
+        .from(schema.invoices)
+        .where(eq(schema.invoices.organizationId, input.organizationId))
+        .orderBy(desc(schema.invoices.createdAt), desc(schema.invoices.id))
+        .limit(clampLimit(options.limit)),
+    );
   }
   const rows = await db
     .select()

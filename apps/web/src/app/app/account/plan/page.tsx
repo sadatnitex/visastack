@@ -25,10 +25,13 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { ShowMore } from '../../../../components/show-more';
 import { PageHeader } from '../../../../components/ui';
 import { planFeatureView, readAiUsage } from '../../../../lib/ai-usage';
+import { SHOW_MAX, nextShow, parseShow } from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
 import { UsageMeter } from '../../applicant/[id]/usage-meter';
+import { BILLING_ROWS_STEP, billingRowId } from './billing/billing-row';
 import { BuyPlanForm, PayPurchaseForm, RenewalForm } from './plan-forms';
 
 export const metadata: Metadata = { title: 'Plan & Usage' };
@@ -335,6 +338,14 @@ export default async function TravellerPlanPage({
       : null;
   const renewalWaiting = waitingPlan !== null;
   const usedBytes = profiles.reduce((total, profile) => total + profile.usedBytes, 0);
+  // Scroll Budget (WP-SB9): a meter for the first 10 people, then Show More. Every person is still
+  // counted in the account total and the storage hint above, so nothing about limits changes.
+  const profilesShown = parseShow(query['show'], { step: BILLING_ROWS_STEP, max: SHOW_MAX });
+  const shownProfiles = profiles.slice(0, profilesShown);
+  const profilesNext =
+    profiles.length > profilesShown
+      ? nextShow(profilesShown, { step: BILLING_ROWS_STEP, max: SHOW_MAX })
+      : null;
   const offered = catalogue !== null && catalogue.offers.length > 0;
   // A Get button shows only while a plan is on sale and nothing paid covers today.
   const canUpgrade = offered && summary.paidUntil === null && !renewalWaiting;
@@ -427,15 +438,28 @@ export default async function TravellerPlanPage({
               usedBytes={usedBytes}
               limitBytes={limits.accountBytes}
             />
-            {profiles.map((profile) => (
-              <UsageMeter
-                key={profile.applicantId}
-                label={profile.displayName}
-                usedBytes={profile.usedBytes}
-                limitBytes={limits.personBytes}
-              />
+            {shownProfiles.map((profile, index) => (
+              <div key={profile.applicantId} id={billingRowId('storage', index)}>
+                <UsageMeter
+                  label={profile.displayName}
+                  usedBytes={profile.usedBytes}
+                  limitBytes={limits.personBytes}
+                />
+              </div>
             ))}
           </div>
+          {profiles.length > BILLING_ROWS_STEP ? (
+            <ShowMore
+              id="storage-more"
+              pathname="/app/account/plan"
+              searchParams={query}
+              next={profilesNext === null ? null : { show: profilesNext }}
+              landOn={billingRowId('storage', profilesShown)}
+              shown={shownProfiles.length}
+              total={profiles.length}
+              noun={{ one: 'person', other: 'people' }}
+            />
+          ) : null}
           {profiles.length === 0 ? (
             <p className="muted u-fs-085">Nothing stored yet.</p>
           ) : (

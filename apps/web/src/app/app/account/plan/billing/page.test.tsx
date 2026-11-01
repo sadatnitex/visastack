@@ -89,7 +89,7 @@ describe('Billing History while paid plans are switched off', () => {
     mocks.hasOwnBilling.mockResolvedValue(true);
     const text = textOf(await renderServer(Page()));
     expect(text).toContain('TP-A1B2C3D4-2');
-    expect(mocks.listOwnBilling).toHaveBeenCalledWith({}, SELF);
+    expect(mocks.listOwnBilling).toHaveBeenCalledWith({}, SELF, { limit: 11 });
   });
 });
 
@@ -100,7 +100,7 @@ describe('Billing History', () => {
     expect(text).toContain('Billing History');
     // With the switch on the list is read straight away, with the session's own scope only.
     expect(mocks.hasOwnBilling).not.toHaveBeenCalled();
-    expect(mocks.listOwnBilling).toHaveBeenCalledWith({}, SELF);
+    expect(mocks.listOwnBilling).toHaveBeenCalledWith({}, SELF, { limit: 11 });
     expect(text).toContain('Traveller Plus');
     expect(text).toMatch(/BDT\s499\.00/);
     expect(text).toContain('Paid On 30 Oct 2026');
@@ -213,6 +213,49 @@ describe('Billing History', () => {
   it('passes the automated accessibility rules, with purchases and when empty', async () => {
     expect(await axeViolations(await renderServer(Page()))).toEqual([]);
     mocks.listOwnBilling.mockResolvedValue({ ok: true, value: [] });
+    expect(await axeViolations(await renderServer(Page()))).toEqual([]);
+  });
+});
+
+describe('Billing History within the scroll budget (WP-SB9)', () => {
+  const many = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      ...waiting,
+      id: `33333333-2222-4333-8444-${String(index).padStart(12, '0')}`,
+      invoiceRef: `TP-A1B2C3D4-${count - index}`,
+    }));
+  const rows = (html: string) => html.match(/<details class="billing-row"/g) ?? [];
+
+  it('shows the newest 10 purchases as compact rows, the first open, then Show More', async () => {
+    mocks.listOwnBilling.mockResolvedValue({ ok: true, value: many(11) });
+    const html = await renderServer(Page());
+    expect(mocks.listOwnBilling).toHaveBeenCalledWith({}, SELF, { limit: 11 });
+    expect(rows(html)).toHaveLength(10);
+    expect(html.match(/<details class="billing-row"[^>]*\sopen/g)).toHaveLength(1);
+    expect(html).toContain('id="purchase-row-0" open');
+    expect(html).toContain('href="/app/account/plan/billing?show=20#purchase-row-10"');
+    expect(textOf(html)).toContain('Showing the first 10 purchases.');
+    expect(textOf(html)).not.toContain('TP-A1B2C3D4-1 ');
+  });
+
+  it('reads the next step from the address, and offers no more once everything shows', async () => {
+    mocks.listOwnBilling.mockResolvedValue({ ok: true, value: many(14) });
+    const html = await renderServer(Page({ searchParams: Promise.resolve({ show: '20' }) }));
+    expect(mocks.listOwnBilling).toHaveBeenCalledWith({}, SELF, { limit: 21 });
+    expect(rows(html)).toHaveLength(14);
+    expect(html).not.toContain('?show=');
+    expect(textOf(html)).toContain('Showing all 14 purchases.');
+  });
+
+  it('never trusts a hand-edited address: junk gives one step, a huge number the ceiling', async () => {
+    await renderServer(Page({ searchParams: Promise.resolve({ show: 'all' }) }));
+    expect(mocks.listOwnBilling).toHaveBeenLastCalledWith({}, SELF, { limit: 11 });
+    await renderServer(Page({ searchParams: Promise.resolve({ show: '100000' }) }));
+    expect(mocks.listOwnBilling).toHaveBeenLastCalledWith({}, SELF, { limit: 91 });
+  });
+
+  it('passes the automated accessibility rules with a full page of rows', async () => {
+    mocks.listOwnBilling.mockResolvedValue({ ok: true, value: many(11) });
     expect(await axeViolations(await renderServer(Page()))).toEqual([]);
   });
 });
