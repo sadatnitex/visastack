@@ -79,7 +79,7 @@ afterEach(() => {
 describe('Billing History while paid plans are switched off', () => {
   it('is not found, and lists nothing, for someone who never bought', async () => {
     vi.stubEnv('TRAVELLER_PLANS_ENABLED', '');
-    await expect(Page()).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(Page({})).rejects.toThrow('NEXT_NOT_FOUND');
     expect(mocks.hasOwnBilling).toHaveBeenCalledWith({}, SELF);
     expect(mocks.listOwnBilling).not.toHaveBeenCalled();
   });
@@ -87,20 +87,20 @@ describe('Billing History while paid plans are switched off', () => {
   it('still shows what someone bought while they were on', async () => {
     vi.stubEnv('TRAVELLER_PLANS_ENABLED', '');
     mocks.hasOwnBilling.mockResolvedValue(true);
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('TP-A1B2C3D4-2');
-    expect(mocks.listOwnBilling).toHaveBeenCalledWith({}, SELF);
+    expect(mocks.listOwnBilling).toHaveBeenCalledWith({}, SELF, { limit: 11 });
   });
 });
 
 describe('Billing History', () => {
   it("lists the person's own purchases with plan, amount, status, period and receipts", async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(text).toContain('Billing History');
     // With the switch on the list is read straight away, with the session's own scope only.
     expect(mocks.hasOwnBilling).not.toHaveBeenCalled();
-    expect(mocks.listOwnBilling).toHaveBeenCalledWith({}, SELF);
+    expect(mocks.listOwnBilling).toHaveBeenCalledWith({}, SELF, { limit: 11 });
     expect(text).toContain('Traveller Plus');
     expect(text).toMatch(/BDT\s499\.00/);
     expect(text).toContain('Paid On 30 Oct 2026');
@@ -112,7 +112,7 @@ describe('Billing History', () => {
   });
 
   it('links each invoice and receipt to its own PDF, with no download attribute', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(html).toContain(`href="/app/account/plan/billing/invoices/${paid.id}/pdf"`);
     expect(html).toContain(`href="/app/account/plan/billing/invoices/${waiting.id}/pdf"`);
     expect(html).toContain(`href="/app/account/plan/billing/receipts/${paid.receipts[0]?.id}/pdf"`);
@@ -124,7 +124,7 @@ describe('Billing History', () => {
   });
 
   it('offers a refund request for a paid purchase inside 7 days, with the reference filled in', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const mailtos = [...html.matchAll(/href="(mailto:[^"]*)"/g)].map((m) => m[1] ?? '');
     // Only the paid purchase in its window: never the unpaid one.
     expect(mailtos).toHaveLength(1);
@@ -145,7 +145,7 @@ describe('Billing History', () => {
 
   it('says how to ask through Help and Support when no support inbox is set up', async () => {
     vi.stubEnv('SUPPORT_EMAIL', '');
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(html).not.toContain('mailto:');
     expect(html).toContain('href="/app/help#contact"');
     expect(textOf(html)).toContain('and quote TP-A1B2C3D4-2');
@@ -172,7 +172,7 @@ describe('Billing History', () => {
         },
       ],
     });
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(html).not.toContain('mailto:');
     expect(textOf(html)).not.toContain('Request a Refund');
     expect(textOf(html)).toContain('Test Payment');
@@ -187,7 +187,7 @@ describe('Billing History', () => {
         { ...paid, status: 'refunded', statusLabel: 'Partly Refunded', refundableUntil: null },
       ],
     });
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Not paid in time, so nothing was charged and you owe nothing.');
     expect(text).toContain('Part of the money paid for this was refunded.');
     expect(text).not.toContain('Cancelled. There is nothing to pay.');
@@ -197,7 +197,7 @@ describe('Billing History', () => {
 
   it('shows a plain empty state with no billing figures', async () => {
     mocks.listOwnBilling.mockResolvedValue({ ok: true, value: [] });
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('No Purchases Yet');
     expect(text).not.toMatch(/\bBDT\b|Refund|Receipt R-/);
   });
@@ -207,12 +207,64 @@ describe('Billing History', () => {
       ok: false,
       error: { code: 'forbidden', message: 'no' },
     });
-    await expect(Page()).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(Page({})).rejects.toThrow('NEXT_NOT_FOUND');
   });
 
   it('passes the automated accessibility rules, with purchases and when empty', async () => {
-    expect(await axeViolations(await renderServer(Page()))).toEqual([]);
+    expect(await axeViolations(await renderServer(Page({})))).toEqual([]);
     mocks.listOwnBilling.mockResolvedValue({ ok: true, value: [] });
-    expect(await axeViolations(await renderServer(Page()))).toEqual([]);
+    expect(await axeViolations(await renderServer(Page({})))).toEqual([]);
+  });
+});
+
+describe('Billing History within the scroll budget (WP-SB9)', () => {
+  const many = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      ...waiting,
+      id: `33333333-2222-4333-8444-${String(index).padStart(12, '0')}`,
+      invoiceRef: `TP-A1B2C3D4-${count - index}`,
+    }));
+  const rows = (html: string) => html.match(/<details class="billing-row"/g) ?? [];
+
+  it('shows the newest 10 purchases as compact rows, the first open, then Show More', async () => {
+    mocks.listOwnBilling.mockResolvedValue({ ok: true, value: many(11) });
+    const html = await renderServer(Page({}));
+    expect(mocks.listOwnBilling).toHaveBeenCalledWith({}, SELF, { limit: 11 });
+    expect(rows(html)).toHaveLength(10);
+    expect(html.match(/<details class="billing-row"[^>]*\sopen/g)).toHaveLength(1);
+    expect(html).toContain('id="purchase-row-0" open');
+    expect(html).toContain('href="/app/account/plan/billing?show=20#purchase-row-10"');
+    expect(textOf(html)).toContain('Showing the first 10 purchases.');
+    expect(textOf(html)).not.toContain('TP-A1B2C3D4-1 ');
+  });
+
+  it('reads the next step from the address, and offers no more once everything shows', async () => {
+    mocks.listOwnBilling.mockResolvedValue({ ok: true, value: many(14) });
+    const html = await renderServer(Page({ searchParams: Promise.resolve({ show: '20' }) }));
+    expect(mocks.listOwnBilling).toHaveBeenCalledWith({}, SELF, { limit: 21 });
+    expect(rows(html)).toHaveLength(14);
+    expect(html).not.toContain('?show=');
+    expect(textOf(html)).toContain('Showing all 14 purchases.');
+  });
+
+  it('never trusts a hand-edited address: junk gives one step, a huge number the ceiling', async () => {
+    await renderServer(Page({ searchParams: Promise.resolve({ show: 'all' }) }));
+    expect(mocks.listOwnBilling).toHaveBeenLastCalledWith({}, SELF, { limit: 11 });
+    await renderServer(Page({ searchParams: Promise.resolve({ show: '100000' }) }));
+    expect(mocks.listOwnBilling).toHaveBeenLastCalledWith({}, SELF, { limit: 91 });
+  });
+
+  it('says plainly when older purchases are past the 90 it lists', async () => {
+    mocks.listOwnBilling.mockResolvedValue({ ok: true, value: many(91) });
+    const text = textOf(
+      await renderServer(Page({ searchParams: Promise.resolve({ show: '90' }) })),
+    );
+    expect(text).toContain('Showing the newest 90 purchases. Older purchases are not listed here.');
+    expect(text).not.toContain('Showing all');
+  });
+
+  it('passes the automated accessibility rules with a full page of rows', async () => {
+    mocks.listOwnBilling.mockResolvedValue({ ok: true, value: many(11) });
+    expect(await axeViolations(await renderServer(Page({})))).toEqual([]);
   });
 });

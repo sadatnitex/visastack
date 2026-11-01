@@ -16,8 +16,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader, StatusBadge } from '../../../../../components/ui';
+import type { SearchParamsRecord } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
 import { supportEmail } from '../../../../../lib/support-email';
+import { BillingListEnd, billingRowId, billingRowsShown, capRows } from './billing-list';
+import { BillingRow } from './billing-row';
 
 export const metadata: Metadata = { title: 'Billing History' };
 
@@ -37,13 +40,23 @@ export const dynamic = 'force-dynamic';
  * email to the watched support inbox with the purchase reference filled in. Without a support
  * inbox set up, a sentence says how to ask through Help and Support instead.
  */
-export default async function BillingHistoryPage() {
-  const purchases = await withSession(async ({ db, self }) => {
+export default async function BillingHistoryPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<SearchParamsRecord>;
+}) {
+  const query = (await searchParams) ?? {};
+  // Scroll Budget (WP-SB9): the newest 10 purchases, then Show More; one extra row is read only to
+  // know whether more exist. Still only this person's own rows (their SelfScope).
+  const shown = billingRowsShown(query);
+  const listed = await withSession(async ({ db, self }) => {
     if (!travellerPlansEnabled() && !(await hasOwnBilling(db, self))) return null;
-    const listed = await listOwnBilling(db, self);
-    return listed.ok ? listed.value : null;
+    const read = await listOwnBilling(db, self, { limit: shown + 1 });
+    return read.ok ? read.value : null;
   });
-  if (purchases === null) notFound();
+  if (listed === null) notFound();
+  const capped = capRows(listed, shown);
+  const purchases = capped.rows;
   const email = supportEmail();
 
   return (
@@ -70,10 +83,24 @@ export default async function BillingHistoryPage() {
           </p>
         </article>
       ) : (
-        <div className="stack-sm">
-          {purchases.map((purchase) => (
-            <PurchaseCard key={purchase.id} purchase={purchase} supportEmail={email} />
+        <div className="billing-rows">
+          {purchases.map((purchase, index) => (
+            <PurchaseCard
+              key={purchase.id}
+              rowId={billingRowId('purchase', index)}
+              open={index === 0}
+              purchase={purchase}
+              supportEmail={email}
+            />
           ))}
+          <BillingListEnd
+            prefix="purchase"
+            pathname="/app/account/plan/billing"
+            searchParams={query}
+            capped={capped}
+            shown={shown}
+            noun={{ one: 'purchase', other: 'purchases' }}
+          />
         </div>
       )}
     </section>
@@ -105,28 +132,42 @@ function statusNote(purchase: OwnPurchaseView): string {
   return STATUS_NOTES[purchase.status];
 }
 
+/**
+ * One purchase as a compact row (WP-SB9): its reference, status and amount stay visible; the
+ * period, receipts, refund and PDFs open beneath it. The newest purchase starts open.
+ */
 function PurchaseCard({
+  rowId,
+  open,
   purchase,
   supportEmail: email,
 }: {
+  readonly rowId: string;
+  readonly open: boolean;
   readonly purchase: OwnPurchaseView;
   readonly supportEmail: string | null;
 }) {
   const headingId = `purchase-${purchase.id}`;
   const money = (minor: number) => formatMoney(minor, purchase.currency);
   return (
-    <article className="card invoice-card" aria-labelledby={headingId}>
-      <div className="invoice-head">
-        <h2 id={headingId} className="invoice-ref">
-          {purchase.invoiceRef}
-        </h2>
-        <span className="billing-badges">
+    <BillingRow
+      id={rowId}
+      open={open}
+      title={purchase.invoiceRef}
+      line={`${money(purchase.amountMinorUnits)}, ${purchase.planName}`}
+      badges={
+        <>
           <StatusBadge tone={STATUS_TONES[purchase.status]}>{purchase.statusLabel}</StatusBadge>
           {purchase.testPayment ? (
             <StatusBadge tone="warning">{TEST_PAYMENT_LABEL}</StatusBadge>
           ) : null}
-        </span>
-      </div>
+        </>
+      }
+    >
+      {/* The row's reference again as a heading, so the receipt and refund headings sit under it. */}
+      <h2 className="sr-only" id={headingId}>
+        {purchase.invoiceRef}
+      </h2>
       <p className="invoice-note">{statusNote(purchase)}</p>
       <dl className="invoice-facts">
         <div>
@@ -195,7 +236,7 @@ function PurchaseCard({
           <span className="sr-only"> {purchase.invoiceRef}</span>
         </a>
       </div>
-    </article>
+    </BillingRow>
   );
 }
 

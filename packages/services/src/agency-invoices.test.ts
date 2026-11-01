@@ -272,6 +272,29 @@ describe('numbered receipts (S12)', () => {
 
   const receiptRows = () => db.select().from(schema.paymentReceipts);
 
+  it('WP-SB9: a limit reads only the newest invoices of the named agency, owners and admins only', async () => {
+    for (const tag of ['1', '2', '3']) await openInvoice(org.organizationId, `INV-SB9-${tag}`);
+    await openInvoice(other.organizationId, 'INV-SB9-OTHER');
+    const read = (actorAccountId: string, limit?: number) =>
+      listAgencyInvoices(db, {
+        payments: onePort(new FakePaymentPort()),
+        actorAccountId,
+        organizationId: org.organizationId,
+        ...(limit === undefined ? {} : { limit }),
+      });
+    const all = await read(org.ownerAccountId);
+    if (!isOk(all)) throw new Error('list');
+    const limited = await read(org.ownerAccountId, 2);
+    if (!isOk(limited)) throw new Error('list');
+    expect(limited.value.map((invoice) => invoice.id)).toEqual(
+      all.value.slice(0, 2).map((invoice) => invoice.id),
+    );
+    expect(limited.value.map((invoice) => invoice.invoiceRef)).toEqual(['INV-SB9-3', 'INV-SB9-2']);
+    expect(all.value.some((invoice) => invoice.invoiceRef === 'INV-SB9-OTHER')).toBe(false);
+    // A limit never widens who may read: a stranger is still refused.
+    expect(isErr(await read(randomUUID(), 2))).toBe(true);
+  });
+
   it('issues a receipt for every kind of collection, numbered from 1 in each agency', async () => {
     const a = await openInvoice(org.organizationId, 'INV-R-A');
     const b = await openInvoice(other.organizationId, 'INV-R-B');

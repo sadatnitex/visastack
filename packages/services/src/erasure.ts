@@ -16,6 +16,7 @@ import {
 import { AuthorizedApplicant } from './access/require-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
+import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { redactionMasksTablePresent } from './redaction-table';
 import { documentBlockedByLegalHold, hasActiveLegalHold } from './retention';
@@ -56,6 +57,18 @@ import type { BlobStore } from './storage';
 
 export type ErasureJob = typeof schema.erasureJobs.$inferSelect;
 export type ErasureJobReason = ErasureJob['reason'];
+
+/**
+ * Reasons that remove a whole document row once every one of its stored files is verified gone:
+ * the retention purge, and a lifecycle removal (a deleted duplicate whose 30 days ended, or a file
+ * support approved for removal). Both take the identical path: hold recheck, document row lock,
+ * all-siblings-verified, material revision for every case selecting it, then the row and its
+ * storage objects.
+ */
+export const DOCUMENT_ROW_REASONS: ReadonlySet<ErasureJobReason> = new Set<ErasureJobReason>([
+  'RETENTION_PURGE',
+  'DOCUMENT_REMOVAL',
+]);
 
 const DEFAULT_CLAIM_LIMIT = 5;
 const BACKOFF_BASE_SECONDS = 30;
@@ -435,7 +448,7 @@ async function finalizeVerifiedJob(
     // check (processErasureJob) to land before this finalize step runs. The
     // bytes are already gone by this point (unrecoverable), but the logical
     // record itself — the thing a hold actually protects — is preserved.
-    if (job.reason === 'RETENTION_PURGE' && job.applicantId) {
+    if (DOCUMENT_ROW_REASONS.has(job.reason) && job.applicantId) {
       await tx
         .select({ id: schema.applicants.id })
         .from(schema.applicants)
@@ -461,11 +474,12 @@ async function finalizeVerifiedJob(
           'DELETED',
           'a legal hold was placed after bytes were deleted; logical record preserved',
         );
+        if (blocked) await blockRemovalReceipt(tx, job);
         return blocked ? 'blocked' : 'lost-lease';
       }
     }
 
-    if (job.reason === 'RETENTION_PURGE' && job.documentId) {
+    if (DOCUMENT_ROW_REASONS.has(job.reason) && job.documentId) {
       await tx
         .select({ id: schema.documents.id })
         .from(schema.documents)
@@ -525,7 +539,7 @@ async function finalizeVerifiedJob(
     // (PR-C1: `enqueueErasureJob`'s own existence check, above) — avoiding
     // the wasted redundant work, not a correctness gap, since this
     // completion check never depended on it in the first place.
-    if (job.reason === 'RETENTION_PURGE' && job.documentId) {
+    if (DOCUMENT_ROW_REASONS.has(job.reason) && job.documentId) {
       const siblings = await tx
         .select({
           status: schema.erasureJobs.status,
@@ -554,10 +568,24 @@ async function finalizeVerifiedJob(
         for (const missionId of await missionsSelectingDocument(tx, job.documentId)) {
           await incrementMaterialRevision(tx, missionId);
         }
+        // Read before the delete: the document's lifecycle row goes with it. Whichever reason
+        // finishes the document (a lifecycle removal, or a retention purge reaching a document
+        // that sits in Recently Deleted), its Removal Record reads Removed.
+        const receiptId = await removalReceiptId(tx, job.documentId);
+        const freed =
+          receiptId === null
+            ? 0
+            : (
+                await tx
+                  .select({ size: schema.storageObjects.sizeBytes })
+                  .from(schema.storageObjects)
+                  .where(inArray(schema.storageObjects.id, [...requiredStorageObjectIds]))
+              ).reduce((sum, row) => sum + (row.size ?? 0), 0);
         await tx.delete(schema.documents).where(eq(schema.documents.id, job.documentId));
         await tx
           .delete(schema.storageObjects)
           .where(inArray(schema.storageObjects.id, [...requiredStorageObjectIds]));
+        if (receiptId !== null) await completeRemovalReceipt(tx, receiptId, freed);
       }
     } else {
       await tx
@@ -577,6 +605,78 @@ async function finalizeVerifiedJob(
   });
 }
 
+/**
+ * The Removal Record of a deleted document, read from its lifecycle row (migration 0113), or null
+ * when there is none (the tables are missing, or the document was never deleted).
+ */
+async function removalReceiptId(tx: Db, documentId: string): Promise<string | null> {
+  if (!(await lifecycleTablesPresent(tx))) return null;
+  const row = first(
+    await tx
+      .select({ receiptId: schema.documentLifecycle.receiptId })
+      .from(schema.documentLifecycle)
+      .where(eq(schema.documentLifecycle.documentId, documentId)),
+  );
+  return row?.receiptId ?? null;
+}
+
+/**
+ * Every stored file of a removed document is verified gone: its Removal Record reads Removed,
+ * with the time and the space freed. A record already finished is left as it is; the receipt
+ * guard of migration 0113 accepts only this forward move.
+ */
+async function completeRemovalReceipt(
+  tx: Db,
+  receiptId: string,
+  bytesFreed: number,
+): Promise<void> {
+  const receipt = first(
+    await tx
+      .select({ status: schema.deletionReceipts.status, effects: schema.deletionReceipts.effects })
+      .from(schema.deletionReceipts)
+      .where(eq(schema.deletionReceipts.id, receiptId))
+      .for('update'),
+  );
+  if (!receipt || receipt.status === 'REMOVED' || receipt.status === 'RESTORED') return;
+  if (receipt.status !== 'REMOVING') {
+    await tx
+      .update(schema.deletionReceipts)
+      .set({ status: 'REMOVING' })
+      .where(eq(schema.deletionReceipts.id, receiptId));
+  }
+  const effects =
+    receipt.effects.bytesFreed === undefined ? { ...receipt.effects, bytesFreed } : receipt.effects;
+  await tx
+    .update(schema.deletionReceipts)
+    .set({ status: 'REMOVED', verifiedGoneAt: new Date(), effects })
+    .where(eq(schema.deletionReceipts.id, receiptId));
+}
+
+/** A legal hold stopped a `DOCUMENT_REMOVAL`: its Removal Record reads Kept (Legal Requirement). */
+async function blockRemovalReceipt(tx: Db, job: ErasureJob): Promise<void> {
+  if (job.reason !== 'DOCUMENT_REMOVAL' || !job.documentId) return;
+  const receiptId = await removalReceiptId(tx, job.documentId);
+  if (receiptId === null) return;
+  await tx
+    .update(schema.deletionReceipts)
+    .set({ status: 'BLOCKED' })
+    .where(
+      and(
+        eq(schema.deletionReceipts.id, receiptId),
+        inArray(schema.deletionReceipts.status, ['SCHEDULED', 'REMOVING']),
+      ),
+    );
+  await appendAuditEvent(tx, {
+    eventType: 'DOCUMENT_REMOVAL_BLOCKED',
+    method: 'SYSTEM',
+    result: 'ALLOWED',
+    applicantId: job.applicantId,
+    resourceType: 'document',
+    resourceId: job.documentId,
+    metadata: { receiptId, cause: 'LEGAL_HOLD' },
+  });
+}
+
 type ProcessOutcome = 'verified' | 'blocked' | 'failed' | 'lost-lease';
 
 /**
@@ -592,7 +692,7 @@ async function processErasureJob(
   leaseOwner: string,
 ): Promise<ProcessOutcome> {
   try {
-    if (job.reason === 'RETENTION_PURGE' && job.applicantId) {
+    if (DOCUMENT_ROW_REASONS.has(job.reason) && job.applicantId) {
       const held = job.documentId
         ? await documentBlockedByLegalHold(db, {
             applicantId: job.applicantId,
@@ -600,13 +700,17 @@ async function processErasureJob(
           })
         : await hasActiveLegalHold(db, job.applicantId);
       if (held) {
-        const blocked = await blockOnHold(
-          db,
-          job,
-          leaseOwner,
-          'CLAIMED',
-          'an active legal hold blocks this purge',
-        );
+        const blocked = await db.transaction(async (tx) => {
+          const done = await blockOnHold(
+            tx,
+            job,
+            leaseOwner,
+            'CLAIMED',
+            'an active legal hold blocks this purge',
+          );
+          if (done) await blockRemovalReceipt(tx, job);
+          return done;
+        });
         return blocked ? 'blocked' : 'lost-lease';
       }
     }

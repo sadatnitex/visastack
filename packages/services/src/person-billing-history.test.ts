@@ -189,6 +189,10 @@ describe("a person's own Billing History (ADR 0025 T5)", () => {
       receipts: [],
     });
     expect(await hasOwnBilling(db, self(alice))).toBe(true);
+    // WP-SB9: a limit reads only the newest purchase, still only Alice's own.
+    const newest = await listOwnBilling(db, self(alice), { limit: 1 });
+    if (!newest.ok) throw new Error('history');
+    expect(newest.value.map((p) => p.id)).toEqual([newer.invoiceId]);
     // A day later the unpaid purchase can no longer be paid, and says so (T4).
     const later = await listOwnBilling(db, self(alice), { now: new Date(Date.now() + 2 * DAY_MS) });
     if (!later.ok) throw new Error('history');

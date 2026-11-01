@@ -1,0 +1,25 @@
+{
+  "documents": {
+    "access/require-access#requireAccess": "authorisation: loads the one named record to decide who may act; what is offered is decided by the lifecycle conditions at the read that lists it",
+    "access/step-up-proof#stepUpForAiOriginalFile": "authorisation: binds a fresh sign-in check to the one named record",
+    "backup-reconciliation#reconcileRestoredBranch": "backup restore reconciliation: re-applies removals and must see every restored document",
+    "deletion#executeAccountDeletion": "account and traveller deletion: removes every record, archived or deleted included",
+    "deletion#getDeletionImpactSummary": "account and traveller deletion: removes every record, archived or deleted included",
+    "erasure#documentsLeavingByErasure": "erasure engine: must see every document it is removing, whatever its lifecycle state",
+    "erasure#runErasureWorker": "erasure engine: must see every document it is removing, whatever its lifecycle state",
+    "legal-hold#listActiveLegalHoldsForAccount": "legal hold: scope checks and hold lists must see every document a hold protects",
+    "legal-hold#placeLegalHold": "legal hold: scope checks and hold lists must see every document a hold protects",
+    "lifecycle/foundation/removal#enqueueDocumentRemoval": "the removal command itself: locks the one deleted document it removes",
+    "lifecycle/foundation/state#getDocumentLifecycles": "the lifecycle state lookup itself, by document id",
+    "retention#documentsPastRetention": "retention purge: expires every document past its retention period, whatever its lifecycle state",
+    "retention#purgeExpiredDocuments": "retention purge: expires every document past its retention period, whatever its lifecycle state"
+  },
+  "applicants": {
+    "access/step-up-proof#stepUpForAiOriginalFile": "authorisation: binds a fresh sign-in check to the one named record",
+    "access/step-up-proof#stepUpFromAiConnection": "authorisation: binds a fresh sign-in check to the one named record",
+    "case-retention#sweepCaseRetentionNotices": "case retention purge: applies to every case record, whatever its lifecycle state",
+    "deletion#executeAccountDeletion": "account and traveller deletion: removes every record, archived or deleted included",
+    "deletion#getDeletionImpactSummary": "account and traveller deletion: removes every record, archived or deleted included",
+    "legal-hold#listActiveLegalHoldsForAccount": "legal hold: scope checks and hold lists must see every document a hold protects"
+  }
+}

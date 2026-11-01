@@ -189,6 +189,16 @@ export {
   registerFieldDefinitions,
   revealFactVersionValue,
 } from './profile';
+// LC-G1: No Longer Current and Ended on the profile.
+export {
+  type MarkFactNotCurrentResult,
+  type MarkRecordEndedInput,
+  type MarkRecordEndedResult,
+  isAllowedEndDate,
+  listEndedRecords,
+  markFactNotCurrent,
+  markRecordEnded,
+} from './lifecycle/profile/profile-lifecycle';
 export {
   CONSISTENCY_LABELS,
   CONSISTENCY_REASON_TEXT,
@@ -2247,3 +2257,55 @@ export {
   ownInvoiceDocument,
   ownReceiptDocument,
 } from './person-billing-history';
+// WP-SB0: shared paging (page sizes, scoped list cursors and the matching query helpers).
+export * from './paging';
+
+// --- Resource lifecycle programme (docs/roadmap/lifecycle/PROGRAMME.md section 5.2) ---
+// One anchor per lane: each lane inserts its exports only directly below its own anchor.
+// LC-F exports
+export {
+  DOCUMENT_ACTIONS,
+  DOCUMENT_LIFECYCLE_STATES,
+  DELETION_RECEIPT_STATUSES,
+  LIFECYCLE_RELATIONS,
+  LIFECYCLE_STAFF_ACTIONS,
+  LIFECYCLE_SYSTEM_JOBS,
+  type AdvanceDeletionReceiptPatch,
+  type DeletionReceiptStatus,
+  type DeletionReceiptView,
+  type DocumentAction,
+  type DocumentActionView,
+  type DocumentLifecycle,
+  type DocumentLifecycleState,
+  type DuplicateBlockReason,
+  type EnqueueDocumentRemovalInput,
+  type EnqueueDocumentRemovalOutcome,
+  type LifecycleAccess,
+  type OpenDeletionReceiptInput,
+  type ReceiptEffects,
+  advanceDeletionReceipt,
+  availableDocumentActions,
+  enqueueDocumentRemoval,
+  everydayApplicantCondition,
+  everydayDocumentCondition,
+  getDocumentLifecycle,
+  getDocumentLifecycles,
+  lifecycleTablesPresent,
+  listDeletionReceipts,
+  mergeReceiptEffects,
+  openDeletionReceipt,
+  presentApplicantCondition,
+  presentDocumentCondition,
+  receiptEffectsSchema,
+  receiptMoveAllowed,
+} from './lifecycle/foundation';
+
+// LC-A1 exports
+
+// LC-B exports
+
+// LC-C exports
+
+// LC-D exports
+
+// LC-E exports

@@ -126,7 +126,10 @@ describe('refund actions (S18)', () => {
     expect(mocks.requestRefund).not.toHaveBeenCalled();
     expect(mocks.tryEstablishStepUp.mock.calls[0]?.[0]).toMatchObject({
       action: 'INVOICE_REFUND_REQUEST',
-    });
+    }); // WP-SB9: after the check, back to the Refunds part of the organization page.
+    expect(mocks.tryEstablishStepUp.mock.calls[0]?.[1]).toMatch(
+      /^\/app\/admin\/organizations\/[^?]+\?tab=refunds$/,
+    );
   });
 
   it('send the typed amount with the step-up proved, and say what happens next', async () => {
