@@ -272,4 +272,57 @@ describe('personal sharing before registration', () => {
       false,
     );
   });
+
+  it('leaves a document deleted after inviting out of the share, and refuses when none is left (LC-A2)', async () => {
+    const named = async (name: string) => {
+      const doc = await registerDocument(db, {
+        actorAccountId: owner,
+        applicantId,
+        originalName: name,
+      });
+      if (!doc.ok) throw new Error('Fixture failed');
+      return doc.value.id;
+    };
+    const markDeleted = async (documentId: string) => {
+      const now = new Date();
+      await db.insert(schema.documentLifecycle).values({
+        documentId,
+        applicantId,
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+      });
+    };
+    const kept = await named('kept.pdf');
+    const gone = await named('gone.pdf');
+    const request = { ...input(), documentIds: [kept, gone] };
+    const created = await createSharingInvitation(db, request);
+    if (!created.ok) throw new Error(`Invitation failed: ${created.error.message}`);
+    await markDeleted(gone);
+    const target = await recipient(request.email);
+    const accepted = await acceptSharingInvitation(db, {
+      actorAccountId: target,
+      rawToken: created.value.rawToken,
+    });
+    if (!accepted.ok) throw new Error(`Accept failed: ${accepted.error.message}`);
+    const [grant] = await db
+      .select({ documentIds: schema.grants.documentIds })
+      .from(schema.grants)
+      .where(eq(schema.grants.id, accepted.value));
+    expect(grant?.documentIds).toEqual([kept]);
+
+    const onlyGone = await named('only-gone.pdf');
+    const second = { ...input(), documentIds: [onlyGone] };
+    const invited = await createSharingInvitation(db, second);
+    if (!invited.ok) throw new Error('Invitation failed');
+    await markDeleted(onlyGone);
+    const other = await recipient(second.email);
+    const refused = await acceptSharingInvitation(db, {
+      actorAccountId: other,
+      rawToken: invited.value.rawToken,
+    });
+    expect(!refused.ok && refused.error.message).toBe(
+      'The documents in this invitation are no longer available.',
+    );
+  });
 });

@@ -8,6 +8,7 @@ import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import type { KeyManagementPort } from './ports';
+import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
 
 /**
  * CAS-08 - Contributor request (Commercial V1 Part 4 §14): lets a mission
@@ -168,6 +169,7 @@ export async function previewContributorRequest(
   input: { readonly rawToken: string; readonly actorEmail: string },
 ): Promise<Result<ContributorRequestPreview, ServiceError>> {
   const tokenHash = hashInvitationToken(input.rawToken);
+  const lifecycle = await lifecycleTablesPresent(db);
   const row = first(
     await db
       .select({
@@ -187,7 +189,14 @@ export async function previewContributorRequest(
         eq(schema.applicants.id, schema.contributorRequests.applicantId),
       )
       .innerJoin(schema.missions, eq(schema.missions.id, schema.contributorRequests.missionId))
-      .where(eq(schema.contributorRequests.tokenHash, tokenHash))
+      .where(
+        and(
+          eq(schema.contributorRequests.tokenHash, tokenHash),
+          // A request into one named record: presentApplicantCondition (a traveller in Recently
+          // Deleted takes in nothing new; an archived one still can).
+          lifecycle ? presentApplicantCondition() : undefined,
+        ),
+      )
       .limit(1),
   );
   if (!row) return err(serviceError('not_found', 'request not found'));

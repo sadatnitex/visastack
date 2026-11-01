@@ -13,6 +13,9 @@
     "legal-hold#placeLegalHold": "legal hold: scope checks and hold lists must see every document a hold protects",
     "lifecycle/foundation/removal#enqueueDocumentRemoval": "the removal command itself: locks the one deleted document it removes",
     "lifecycle/foundation/state#getDocumentLifecycles": "the lifecycle state lookup itself, by document id",
+    "quotas#getAccountEvidenceBytes": "storage quota: a deleted document's file stays stored until it is destroyed, so it still counts against the owner's room (otherwise delete and upload again would pass the limit)",
+    "quotas#getApplicantEvidenceBytes": "storage quota: a deleted document's file stays stored until it is destroyed, so it still counts against the owner's room (otherwise delete and upload again would pass the limit)",
+    "quotas#getOrganizationEvidenceBytes": "storage quota: a deleted document's file stays stored until it is destroyed, so it still counts against the owner's room (otherwise delete and upload again would pass the limit)",
     "retention#documentsPastRetention": "retention purge: expires every document past its retention period, whatever its lifecycle state",
     "retention#purgeExpiredDocuments": "retention purge: expires every document past its retention period, whatever its lifecycle state"
   },
@@ -22,6 +25,10 @@
     "case-retention#sweepCaseRetentionNotices": "case retention purge: applies to every case record, whatever its lifecycle state",
     "deletion#executeAccountDeletion": "account and traveller deletion: removes every record, archived or deleted included",
     "deletion#getDeletionImpactSummary": "account and traveller deletion: removes every record, archived or deleted included",
-    "legal-hold#listActiveLegalHoldsForAccount": "legal hold: scope checks and hold lists must see every document a hold protects"
+    "legal-hold#listActiveLegalHoldsForAccount": "legal hold: scope checks and hold lists must see every document a hold protects",
+    "platform-reads#listAllApplicants": "privacy administrator: the platform-wide traveller picker must see every record, Recently Deleted included, to place a legal hold or answer a privacy request",
+    "quotas#getAccountEvidenceBytes": "storage quota: a deleted document's file stays stored until it is destroyed, so it still counts against the owner's room (otherwise delete and upload again would pass the limit)",
+    "uploads#growUploadReservation": "storage quota: a deleted document's file stays stored until it is destroyed, so it still counts against the owner's room (otherwise delete and upload again would pass the limit)",
+    "uploads#reserveUpload": "storage quota: a deleted document's file stays stored until it is destroyed, so it still counts against the owner's room (otherwise delete and upload again would pass the limit)"
   }
 }

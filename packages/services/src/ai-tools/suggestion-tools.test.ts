@@ -24,7 +24,7 @@ import {
   totalAiCostUnits,
 } from '../ai';
 import type { AiConnectionChoices } from '../ai-connection-scopes';
-import { deleteAiDraft, listAiDrafts } from '../ai-suggestions';
+import { deleteAiDraft, listAiDrafts, recordProfileSuggestion } from '../ai-suggestions';
 import { createApplicant } from '../applicants';
 import { listNeedsAttention } from '../attention';
 import { setConsent } from '../consent';
@@ -1320,5 +1320,105 @@ describe('S21 review round 3', () => {
     expect(draft.value).toBe(MESSAGES.writeLimit);
     expect(touches(draft.statements, 'missions')).toEqual([]);
     expect(await counts()).toMatchObject({ proposals: 0, drafts: 0, tasks: 0 });
+  });
+});
+
+describe('suggest_profile_update and the resource lifecycle (LC-A2)', () => {
+  const DAY_MS = 86_400_000;
+  const expirySuggestion = {
+    section: 'travel_documents',
+    field: 'Passport Expiry',
+    value: '2031-01-01',
+    reason: 'Read from the passport the person showed me.',
+  };
+
+  async function documentIdOf(versionId: string): Promise<string> {
+    const [row] = await db
+      .select({ documentId: schema.documentVersions.documentId })
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, versionId));
+    if (!row) throw new Error('version');
+    return row.documentId;
+  }
+
+  async function markDeleted(applicantId: string, documentId: string) {
+    const deletedAt = new Date();
+    await db.insert(schema.documentLifecycle).values({
+      documentId,
+      applicantId,
+      deletedAt,
+      deletePath: 'DUPLICATE',
+      purgeAfter: new Date(deletedAt.getTime() + 30 * DAY_MS),
+    });
+  }
+
+  /** The proof the AI gate mints for the record owner, to call the write directly. */
+  async function ownerWriteProof(ownerId: string, applicantId: string) {
+    const proof = await requireAccess(
+      db,
+      accountPrincipal(ownerId),
+      'PROPOSE_EDIT',
+      { applicantId },
+      { purpose: 'ai_connection' },
+    );
+    if (!isOk(proof)) throw new Error(`proof: ${proof.error.code}`);
+    return proof.value;
+  }
+
+  const WRITER = { connectionId: '', clientName: 'Claude', clientHost: 'claude.ai' };
+
+  it('refuses a suggestion whose source is in Recently Deleted, and writes nothing', async () => {
+    const { ownerId, applicantId } = await person();
+    await register('passport_expiry');
+    const passport = await document(applicantId, 'PASSPORT');
+    const { token, connectionId } = await connect(ownerId, applicantId, SUGGEST);
+    await markDeleted(applicantId, await documentIdOf(passport.versionId));
+    const before = await counts();
+    expect(
+      await refused(token, 'suggest_profile_update', {
+        ...expirySuggestion,
+        document_reference: passport.reference,
+      }),
+    ).toBe(MESSAGES.documentNotOpen);
+    // The write itself refuses it too, whoever checked the list first.
+    const outcome = await recordProfileSuggestion(await ownerWriteProof(ownerId, applicantId), {
+      writer: { ...WRITER, connectionId },
+      fieldKey: 'passport_expiry',
+      value: '2031-01-01',
+      reason: 'Read from the passport the person showed me.',
+      documentReference: passport.reference,
+    });
+    expect(outcome).toEqual({ kind: 'refused', reason: 'document_not_shared' });
+    expect(await counts()).toEqual(before);
+  });
+
+  it('the write accepts an archived source; the app cannot name it, as it is not in its list', async () => {
+    const { ownerId, applicantId } = await person();
+    await register('passport_expiry');
+    const passport = await document(applicantId, 'PASSPORT');
+    const { token, connectionId } = await connect(ownerId, applicantId, SUGGEST);
+    await db.insert(schema.documentLifecycle).values({
+      documentId: await documentIdOf(passport.versionId),
+      applicantId,
+      archivedAt: new Date(),
+    });
+    // A traveller's own AI list leaves archived documents out (everydayDocumentCondition in
+    // selected-output.ts), so the gate refuses the reference before the write is reached.
+    expect(
+      await refused(token, 'suggest_profile_update', {
+        ...expirySuggestion,
+        document_reference: passport.reference,
+      }),
+    ).toBe(MESSAGES.documentNotOpen);
+    const direct = await recordProfileSuggestion(await ownerWriteProof(ownerId, applicantId), {
+      writer: { ...WRITER, connectionId },
+      fieldKey: 'passport_expiry',
+      value: '2032-02-02',
+      reason: 'A second reading of the same passport.',
+      documentReference: passport.reference,
+    });
+    expect(direct.kind).toBe('created');
+    const [pending] = await listPendingProposals(db, applicantId);
+    expect(pending?.proposal.documentVersionId).toBe(passport.versionId);
   });
 });

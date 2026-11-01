@@ -149,3 +149,70 @@ describe('formula cells in the account export (S21 round 3, CSV injection)', () 
     }
   });
 });
+
+describe('lifecycle labels in the account export tables (LC-A2)', () => {
+  const base = {
+    account: { id: 'acct' },
+    consents: {},
+    consentHistory: [],
+    memberships: [],
+    assignments: [],
+    grantsReceived: [],
+    missionNotesAuthored: [],
+    productEvents: [],
+    auditEvents: [],
+  };
+  const person = (
+    status: string | undefined,
+    documents: { id: string; status?: string }[],
+  ): Record<string, unknown> => ({
+    applicant: { id: 'a1', displayName: 'R' },
+    ...(status ? { status } : {}),
+    facts: [],
+    documents: documents.map((d) => ({
+      document: { id: d.id },
+      ...(d.status ? { status: d.status } : {}),
+      versions: [],
+      nameVersions: [],
+      scanResults: [],
+    })),
+    missions: [],
+    grantsGranted: [],
+    evidenceRequests: [],
+    aiRuns: [],
+    aiDrafts: [],
+    aiConnections: [],
+  });
+  const csvOf = (tables: ReturnType<typeof buildExportCsvTables>, name: string) =>
+    tables.find((t) => t.name === name)?.csv ?? '';
+
+  it('labels archived and Recently Deleted records, leaving current ones empty', () => {
+    const data = {
+      ...base,
+      applicants: [
+        person('Archived', [
+          { id: 'd1' },
+          { id: 'd2', status: 'Archived' },
+          { id: 'd3', status: 'Scheduled for removal' },
+        ]),
+      ],
+    } as unknown as AccountExport;
+    const tables = buildExportCsvTables(data, { D: new Map([['d1', 'D-7K2Q9M']]) });
+    const documents = csvOf(tables, 'documents.csv').split(/\r?\n/);
+    expect(documents[0]).toBe('id,reference_code,status');
+    expect(documents[1]).toBe('d1,D-7K2Q9M,');
+    expect(documents[2]).toBe('d2,,Archived');
+    expect(documents[3]).toBe('d3,,Scheduled for removal');
+    expect(csvOf(tables, 'applicants.csv').split(/\r?\n/)[1]).toContain('Archived');
+  });
+
+  it('adds no status column when nothing is archived or deleted', () => {
+    const data = {
+      ...base,
+      applicants: [person(undefined, [{ id: 'd1' }])],
+    } as unknown as AccountExport;
+    const tables = buildExportCsvTables(data);
+    expect(csvOf(tables, 'documents.csv')).not.toContain('status');
+    expect(csvOf(tables, 'applicants.csv')).not.toContain('status');
+  });
+});

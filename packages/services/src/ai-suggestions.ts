@@ -18,6 +18,7 @@ import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { registerFieldDefinition } from './profile';
 import { findReferenceEntity } from './reference-codes';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 
 /**
  * What an AI app may leave for the person through its connection (S21, ADR 0021 extension
@@ -239,6 +240,7 @@ export async function recordProfileSuggestion(
   if (input.documentReference !== null) {
     const parsed = parseReferenceCode(input.documentReference, 'D');
     const documentId = parsed.ok ? await findReferenceEntity(tx, 'D', parsed.code) : null;
+    const lifecycle = await lifecycleTablesPresent(tx);
     const latest = documentId
       ? first(
           await tx
@@ -252,6 +254,8 @@ export async function recordProfileSuggestion(
               and(
                 eq(schema.documents.id, documentId),
                 eq(schema.documents.applicantId, applicantId),
+                // A source the app names: presentDocumentCondition (a deleted one is not shared).
+                lifecycle ? presentDocumentCondition() : undefined,
               ),
             )
             .orderBy(desc(schema.documentVersions.versionNumber))

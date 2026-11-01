@@ -78,6 +78,18 @@ function withReferenceCodes<T extends { readonly id: string }>(
   return rows.map((row) => ({ ...row, reference_code: codes.get(row.id) ?? '' }));
 }
 
+/**
+ * The lifecycle label of each row ("Archived" or "Scheduled for removal", LC-A2), as a `status`
+ * column on every row of the table, empty for a current record. Added only when some row has a
+ * label, so an export with nothing archived or deleted is exactly as before.
+ */
+function withLifecycleStatus<T extends Record<string, unknown>>(
+  rows: readonly { readonly row: T; readonly status: string | undefined }[],
+): readonly Record<string, unknown>[] {
+  if (!rows.some((entry) => entry.status !== undefined)) return rows.map((entry) => entry.row);
+  return rows.map((entry) => ({ ...entry.row, status: entry.status ?? '' }));
+}
+
 export function buildExportCsvTables(
   data: AccountExport,
   codes: ExportReferenceCodes = {},
@@ -95,9 +107,11 @@ export function buildExportCsvTables(
     table('audit_events.csv', data.auditEvents),
     table(
       'applicants.csv',
-      withReferenceCodes(
-        applicants.map((a) => a.applicant),
-        codes.P,
+      withLifecycleStatus(
+        withReferenceCodes(
+          applicants.map((a) => a.applicant),
+          codes.P,
+        ).map((row, index) => ({ row, status: applicants[index]?.status })),
       ),
     ),
     table(
@@ -110,9 +124,14 @@ export function buildExportCsvTables(
     ),
     table(
       'documents.csv',
-      withReferenceCodes(
-        applicants.flatMap((a) => a.documents.map((d) => d.document)),
-        codes.D,
+      withLifecycleStatus(
+        (() => {
+          const documents = applicants.flatMap((a) => a.documents);
+          return withReferenceCodes(
+            documents.map((d) => d.document),
+            codes.D,
+          ).map((row, index) => ({ row, status: documents[index]?.status }));
+        })(),
       ),
     ),
     table(

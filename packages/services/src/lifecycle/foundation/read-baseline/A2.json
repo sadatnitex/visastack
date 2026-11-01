@@ -1,18 +1,4 @@
 {
-  "documents": [
-    "access/with-ai-connection#withAiConnection",
-    "access/with-ai-connection#withAiFileConnection",
-    "access/with-ai-connection#withAiSuggestionConnection",
-    "ai-suggestions#recordProfileSuggestion",
-    "quotas#getAccountEvidenceBytes",
-    "quotas#getApplicantEvidenceBytes",
-    "quotas#getOrganizationEvidenceBytes"
-  ],
-  "applicants": [
-    "contributor-requests#previewContributorRequest",
-    "platform-reads#listAllApplicants",
-    "quotas#getAccountEvidenceBytes",
-    "uploads#growUploadReservation",
-    "uploads#reserveUpload"
-  ]
+  "documents": [],
+  "applicants": []
 }

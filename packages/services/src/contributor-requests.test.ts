@@ -607,3 +607,53 @@ describe('the contributor is emailed the link', () => {
     expect(sent).toEqual([]);
   });
 });
+
+describe('contributor request previews and the resource lifecycle (LC-A2)', () => {
+  const DAY_MS = 86_400_000;
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function pendingRequest(emailSeed: string) {
+    const { account, applicantId, missionId } = await setUp(db, emailSeed);
+    const created = await createContributorRequest(db, {
+      actorAccountId: account.id,
+      missionId,
+      contributorEmail: 'sponsor@example.com',
+      docType: 'bank_statement',
+      purpose: 'Financial sponsorship evidence.',
+    });
+    if (!isOk(created)) throw new Error('create');
+    return { applicantId, rawToken: created.value.rawToken };
+  }
+
+  it('answers not found for a request into a traveller in Recently Deleted', async () => {
+    const { applicantId, rawToken } = await pendingRequest('lc-a2-deleted');
+    const now = new Date();
+    await db.insert(schema.applicantLifecycle).values({
+      applicantId,
+      deletedAt: now,
+      purgeAfter: new Date(now.getTime() + 30 * DAY_MS),
+    });
+    const preview = await previewContributorRequest(db, {
+      rawToken,
+      actorEmail: 'sponsor@example.com',
+    });
+    expect(isErr(preview) && preview.error.code).toBe('not_found');
+  });
+
+  it('still previews a request into an archived traveller', async () => {
+    const { applicantId, rawToken } = await pendingRequest('lc-a2-archived');
+    await db.insert(schema.applicantLifecycle).values({ applicantId, archivedAt: new Date() });
+    const preview = await previewContributorRequest(db, {
+      rawToken,
+      actorEmail: 'sponsor@example.com',
+    });
+    expect(isOk(preview)).toBe(true);
+    if (isOk(preview)) {
+      expect(preview.value.applicantName).toBe('Owner');
+      expect(preview.value.emailMatches).toBe(true);
+    }
+  });
+});
