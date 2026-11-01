@@ -20,6 +20,7 @@ import { accountPrincipal } from './access/principal';
 import { requireAccess } from './access/require-access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
+import { appendAuditEvent } from './audit';
 import { reconcileRestoredBranch } from './backup-reconciliation';
 import { sweepCaseRetentionPurge } from './case-retention';
 import { setConsent } from './consent';
@@ -1884,5 +1885,162 @@ describe('reconcileRestoredBranch: safe copy boxes (S23)', () => {
     const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
     expect(report.errors).toEqual([]);
     expect(report.counts.redactionMasksReconciled).toBe(0);
+  });
+});
+
+describe('reconcileRestoredBranch: lifecycle removal (LC-F, owner decision D10)', () => {
+  let oldDb: Db;
+  let newDb: Db;
+  beforeEach(async () => {
+    oldDb = await freshDb();
+    newDb = await freshDb();
+  });
+
+  it('never brings back a document removed with DOCUMENT_REMOVAL, and its restored Removal Record reads Removed', async () => {
+    const storage = new FakeBlobStore();
+    const owner = await seedAccount(oldDb, 'lifecycle-removal-owner@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const applicant = await seedApplicant(oldDb, owner.id);
+    await mirrorRow(newDb, schema.applicants, applicant);
+    const registered = await registerDocument(oldDb, {
+      actorAccountId: owner.id,
+      applicantId: applicant.id,
+      originalName: 'synthetic-duplicate.pdf',
+    });
+    if (!isOk(registered)) throw new Error('setup failed');
+    const documentId = registered.value.id;
+    await addDocumentVersion(oldDb, {
+      actorAccountId: owner.id,
+      documentId,
+      bucket: 'CLEAN',
+      objectKey: 'obj-lifecycle-removal',
+    });
+    await storage.putObject({
+      bucket: 'CLEAN',
+      objectKey: 'obj-lifecycle-removal',
+      contentType: 'application/pdf',
+      bytes: new Uint8Array([1]),
+    });
+    const documentRow = first(
+      await oldDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    );
+    const versionRow = first(
+      await oldDb
+        .select()
+        .from(schema.documentVersions)
+        .where(eq(schema.documentVersions.documentId, documentId)),
+    );
+    const storageObject = first(
+      await oldDb
+        .select()
+        .from(schema.storageObjects)
+        .where(eq(schema.storageObjects.objectKey, 'obj-lifecycle-removal')),
+    );
+    if (!documentRow || !versionRow || !storageObject) throw new Error('setup failed');
+    // The backup was taken while the duplicate sat in Recently Deleted.
+    const deletedAt = new Date('2025-12-01T00:00:00.000Z');
+    for (const db of [oldDb, newDb]) {
+      if (db === newDb) {
+        await mirrorRow(newDb, schema.documents, documentRow);
+        await mirrorRow(newDb, schema.storageObjects, storageObject);
+        await mirrorRow(newDb, schema.documentVersions, versionRow);
+      }
+      const [receipt] = await db
+        .insert(schema.deletionReceipts)
+        .values({
+          id: '00000000-0000-4000-8000-0000000000d1',
+          applicantId: applicant.id,
+          subjectKind: 'DOCUMENT',
+          subjectCode: 'D-7K2Q9M',
+          path: 'DUPLICATE',
+          requestedAt: deletedAt,
+          status: 'SCHEDULED',
+        })
+        .returning();
+      await db.insert(schema.documentLifecycle).values({
+        documentId,
+        applicantId: applicant.id,
+        deletedAt,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(deletedAt.getTime() + 30 * 86_400_000),
+        receiptId: receipt?.id ?? null,
+      });
+    }
+
+    await enqueueErasureJob(oldDb, {
+      reason: 'DOCUMENT_REMOVAL',
+      bucket: 'CLEAN',
+      objectKey: 'obj-lifecycle-removal',
+      expectedHash: null,
+      storageObjectId: storageObject.id,
+      documentId,
+      applicantId: applicant.id,
+    });
+    expect(await runErasureWorker(oldDb, storage, { limit: 5 })).toEqual({
+      processed: 1,
+      blocked: 0,
+      failed: 0,
+    });
+    expect(
+      await oldDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    ).toHaveLength(0);
+    await oldDb
+      .update(schema.auditEvents)
+      .set({ occurredAt: AFTER })
+      .where(eq(schema.auditEvents.eventType, 'ERASURE_VERIFIED'));
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toHaveLength(0);
+    expect(report.counts.erasuresVerified).toBe(1);
+    expect(
+      await newDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    ).toHaveLength(0);
+    const [restoredReceipt] = await newDb.select().from(schema.deletionReceipts);
+    expect(restoredReceipt?.status).toBe('REMOVED');
+    expect(restoredReceipt?.verifiedGoneAt).toBeInstanceOf(Date);
+
+    const second = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(second.errors).toHaveLength(0);
+    expect(second.counts.erasuresVerified).toBe(0);
+  });
+
+  it('replays a removal of a document with no stored file, which has no erasure to replay', async () => {
+    const owner = await seedAccount(oldDb, 'lifecycle-nofile-owner@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const applicant = await seedApplicant(oldDb, owner.id);
+    await mirrorRow(newDb, schema.applicants, applicant);
+    const registered = await registerDocument(oldDb, {
+      actorAccountId: owner.id,
+      applicantId: applicant.id,
+      originalName: 'synthetic-empty.pdf',
+    });
+    if (!isOk(registered)) throw new Error('setup failed');
+    const documentId = registered.value.id;
+    const documentRow = first(
+      await oldDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    );
+    if (!documentRow) throw new Error('setup failed');
+    await mirrorRow(newDb, schema.documents, documentRow);
+    await appendAuditEvent(oldDb, {
+      eventType: 'DOCUMENT_REMOVAL_QUEUED',
+      method: 'SYSTEM',
+      result: 'ALLOWED',
+      applicantId: applicant.id,
+      resourceType: 'document',
+      resourceId: documentId,
+      metadata: { storageObjects: 0, removed: true },
+    });
+    await oldDb
+      .update(schema.auditEvents)
+      .set({ occurredAt: AFTER })
+      .where(eq(schema.auditEvents.eventType, 'DOCUMENT_REMOVAL_QUEUED'));
+    await oldDb.delete(schema.documents).where(eq(schema.documents.id, documentId));
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.errors).toHaveLength(0);
+    expect(
+      await newDb.select().from(schema.documents).where(eq(schema.documents.id, documentId)),
+    ).toHaveLength(0);
+    expect((await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT)).errors).toHaveLength(0);
   });
 });

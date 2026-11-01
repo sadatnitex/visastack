@@ -92,6 +92,20 @@ export const PRODUCT_EVENT_TYPES = [
   // S20: a file given to an AI app through "Original Files", labelled with how it was given
   // (SAFE_COPY or ORIGINAL); once per connection, per UTC day and per label.
   'AI_FILE_SERVED',
+  // Resource lifecycle (LC-F, PROGRAMME section 3.5): archive, replace, duplicates, Recently
+  // Deleted, support-reviewed removal and traveller records. No label; ids and counts never.
+  'DOCUMENT_ARCHIVED',
+  'DOCUMENT_RESTORED',
+  'DOCUMENT_REPLACED',
+  'DUPLICATE_REMOVED_AT_UPLOAD',
+  'DOCUMENT_DELETED',
+  'DOCUMENT_DELETE_UNDONE',
+  'DOCUMENT_DESTROYED',
+  'REMOVAL_REQUESTED',
+  'REMOVAL_DECIDED',
+  'TRAVELLER_ARCHIVED',
+  'TRAVELLER_RESTORED',
+  'TRAVELLER_REMOVED',
 ] as const;
 
 export type ProductEventType = (typeof PRODUCT_EVENT_TYPES)[number];
@@ -430,6 +444,24 @@ export const PRODUCT_EVENT_CATEGORIES: ReadonlyArray<{
       'AI_CONTEXT_DENIED',
       'AI_CONNECTOR_REVOKED',
       'AI_FILE_SERVED',
+    ],
+  },
+  {
+    key: 'resource_lifecycle',
+    label: 'Archive, replace and removal',
+    eventTypes: [
+      'DOCUMENT_ARCHIVED',
+      'DOCUMENT_RESTORED',
+      'DOCUMENT_REPLACED',
+      'DUPLICATE_REMOVED_AT_UPLOAD',
+      'DOCUMENT_DELETED',
+      'DOCUMENT_DELETE_UNDONE',
+      'DOCUMENT_DESTROYED',
+      'REMOVAL_REQUESTED',
+      'REMOVAL_DECIDED',
+      'TRAVELLER_ARCHIVED',
+      'TRAVELLER_RESTORED',
+      'TRAVELLER_REMOVED',
     ],
   },
 ];

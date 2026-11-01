@@ -26,6 +26,8 @@ export interface WalletBrowserDocument {
   readonly processingLabel: string;
   readonly previewAllowed: boolean;
   readonly details: ReactNode;
+  /** The row's Manage menu (resource lifecycle), drawn in the row next to its select button. */
+  readonly manage?: ReactNode;
 }
 type Filter = 'all' | 'ready' | 'review' | 'expiring';
 /** The summary tiles above the list, which also filter it. Names, so Title Case. */
@@ -204,6 +206,7 @@ export function DocumentWalletBrowser({
                         : 'Update time unavailable'}
                     </span>
                   </button>
+                  {doc.manage ? <div className="wallet-document-manage">{doc.manage}</div> : null}
                   {selectedId === doc.id ? (
                     <a className="wallet-detail-jump" href="#wallet-selected-document">
                       View Selected Details →
