@@ -473,8 +473,8 @@ export {
   setRequireDifferentReviewer,
   suspendOrganization,
   terminateOrganization,
+  withdrawOrganizationApplication,
 } from './organizations';
-export { withdrawOrganizationApplication } from './lifecycle/agency/withdraw-application';
 
 export {
   ALLOWED_LOGO_CONTENT_TYPES,

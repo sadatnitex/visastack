@@ -16,8 +16,8 @@ import {
   setMembershipActive,
   suspendOrganization,
   terminateOrganization,
+  withdrawOrganizationApplication,
 } from '../../organizations';
-import { withdrawOrganizationApplication } from './withdraw-application';
 
 async function freshDb(): Promise<Db> {
   const client = await createMigratedPglite();
