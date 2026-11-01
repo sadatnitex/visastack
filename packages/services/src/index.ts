@@ -2302,6 +2302,16 @@ export {
 // LC-A1 exports
 
 // LC-B exports
+export {
+  type DocumentLifecycleLabelInput,
+  type ReplaceDocumentOutcome,
+  type ReplacedInCase,
+  type ReplacementCandidate,
+  type ReplacementOptions,
+  documentLifecycleLabel,
+  listReplacementOptions,
+  replaceDocument,
+} from './lifecycle/replace';
 
 // LC-C exports
 

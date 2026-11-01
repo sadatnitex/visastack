@@ -19,6 +19,7 @@ import {
 } from './missions';
 import {
   computeTaskDeadlineThreshold,
+  expiryReminderPath,
   sweepExpiryReminders,
   sweepTaskDeadlineReminders,
 } from './notification-sweep';
@@ -570,4 +571,227 @@ describe('OPS-04 (Commercial V1 Part 9): overdue-task analytics', () => {
     await sweepTaskDeadlineReminders(db, now);
     expect(await overdueEvents()).toEqual([]);
   });
+});
+
+describe('reminders and the resource lifecycle (LC-B)', () => {
+  async function lifecycleDb(withoutLifecycle: boolean): Promise<Db> {
+    const client = await createMigratedPglite();
+    if (withoutLifecycle) {
+      // The database as production has it until the owner approves migration 0113.
+      await client.exec(
+        'drop table document_removal_requests, document_lifecycle, applicant_lifecycle, deletion_receipts cascade',
+      );
+    }
+    return drizzle(client, { schema }) as unknown as Db;
+  }
+
+  let counter = 0;
+  async function expiringDocument(db: Db, accountId: string, applicantId: string, at: Date) {
+    const doc = await registerDocument(db, {
+      actorAccountId: accountId,
+      applicantId,
+      originalName: 'passport.pdf',
+      docType: 'passport',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    counter += 1;
+    await addDocumentVersion(db, {
+      actorAccountId: accountId,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: `lc-b-${counter}`,
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    await db
+      .update(schema.documents)
+      .set({ expiresAt: at })
+      .where(eq(schema.documents.id, doc.value.id));
+    return doc.value.id;
+  }
+
+  async function expiryReminders(db: Db) {
+    return db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'DOCUMENT_EXPIRY'));
+  }
+
+  const now = new Date('2026-06-15T12:00:00.000Z');
+  const in30Days = new Date(now.getTime() + 30 * DAY_MS);
+
+  it('links an expiry reminder to Replace on that document', async () => {
+    const db = await lifecycleDb(false);
+    const { account, applicantId } = await seedOwner(db, 'lc-b-link@example.com');
+    const documentId = await expiringDocument(db, account.id, applicantId, in30Days);
+    expect((await sweepExpiryReminders(db, now)).enqueued).toBe(1);
+    const rows = await expiryReminders(db);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect((row.payload as { deepLinkPath: string }).deepLinkPath).toBe(
+        `/app/applicant/${applicantId}/documents?manage=${documentId}&action=REPLACE`,
+      );
+    }
+  }, 60_000);
+
+  it('keeps the expiry list link while the lifecycle tables are missing', async () => {
+    const db = await lifecycleDb(true);
+    const { account, applicantId } = await seedOwner(db, 'lc-b-missing@example.com');
+    await expiringDocument(db, account.id, applicantId, in30Days);
+    expect((await sweepExpiryReminders(db, now)).enqueued).toBe(1);
+    const rows = await expiryReminders(db);
+    expect(rows).toHaveLength(2);
+    expect((rows[0]?.payload as { deepLinkPath: string }).deepLinkPath).toBe(
+      `/app/applicant/${applicantId}/expiry`,
+    );
+    expect(expiryReminderPath('a', 'd', false)).toBe('/app/applicant/a/expiry');
+  }, 60_000);
+
+  it('sends no reminder for an archived or deleted document, or an archived traveller', async () => {
+    const db = await lifecycleDb(false);
+    const { account, applicantId } = await seedOwner(db, 'lc-b-skip@example.com');
+    const archived = await expiringDocument(db, account.id, applicantId, in30Days);
+    const deleted = await expiringDocument(db, account.id, applicantId, in30Days);
+    await db.insert(schema.documentLifecycle).values([
+      { documentId: archived, applicantId, archivedAt: now },
+      {
+        documentId: deleted,
+        applicantId,
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * DAY_MS),
+      },
+    ]);
+    const other = await createApplicant(db, {
+      actorAccountId: account.id,
+      ownerAccountId: account.id,
+      displayName: 'Archived Traveller',
+    });
+    if (!isOk(other)) throw new Error('applicant');
+    const travellerDocument = await expiringDocument(db, account.id, other.value.id, in30Days);
+    await db.insert(schema.issuerVerifications).values({
+      applicantId: other.value.id,
+      documentId: travellerDocument,
+      issuerIdentity: 'Synthetic Bank',
+      contactMethod: 'phone',
+      exactClaim: 'account held',
+      response: 'confirmed',
+      validUntil: in30Days,
+      verifiedByAccountId: account.id,
+    });
+    await db
+      .insert(schema.applicantLifecycle)
+      .values({ applicantId: other.value.id, archivedAt: now });
+
+    const result = await sweepExpiryReminders(db, now);
+    expect(result.enqueued).toBe(0);
+    expect(await expiryReminders(db)).toHaveLength(0);
+    expect(
+      await db
+        .select()
+        .from(schema.notifications)
+        .where(eq(schema.notifications.eventType, 'VERIFICATION_EXPIRY')),
+    ).toHaveLength(0);
+    // The deleted document is not even visited; the two archived ones are.
+    expect(result.checked).toBe(2 + 0);
+  }, 60_000);
+
+  it('still makes a case that chose an archived document confirm again once it expires', async () => {
+    const db = await lifecycleDb(false);
+    const { account, applicantId } = await seedOwner(db, 'lc-b-archived-dirty@example.com');
+    const documentId = await expiringDocument(db, account.id, applicantId, in30Days);
+    const pack = await createPack(db, { actorAccountId: account.id, key: 'lcb.pack', name: 'P' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: account.id, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    const requirement = await addRequirement(db, {
+      actorAccountId: account.id,
+      packVersionId: version.value.id,
+      kind: 'DOCUMENT',
+      docType: 'passport',
+      citation: 'rule',
+    });
+    if (!isOk(requirement)) throw new Error('requirement');
+    await approvePackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    await publishPackVersion(db, { actorAccountId: account.id, packVersionId: version.value.id });
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'M',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    await attachPackVersion(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packVersionId: version.value.id,
+    });
+    await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      packRequirementId: requirement.value.id,
+      documentId,
+    });
+    const snap = await snapshotMission(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+    });
+    if (!isOk(snap)) throw new Error('snapshot');
+    const ack = await decideAcknowledgement(db, {
+      actorAccountId: account.id,
+      missionId: mission.value.id,
+      snapshotId: snap.value.id,
+      expectedSnapshotChecksum: snap.value.checksum,
+      decision: 'ACKNOWLEDGED',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(ack)) throw new Error('acknowledge');
+    await db.insert(schema.documentLifecycle).values({ documentId, applicantId, archivedAt: now });
+    await db
+      .update(schema.documents)
+      .set({ expiresAt: new Date(Date.now() - 2 * DAY_MS) })
+      .where(eq(schema.documents.id, documentId));
+    const result = await sweepExpiryReminders(db, new Date());
+    expect(result.missionsDirtied).toBe(1);
+  }, 60_000);
+
+  it('sends no task reminder for a deleted traveller record, but does for an archived one', async () => {
+    const db = await lifecycleDb(false);
+    const { account } = await seedOwner(db, 'lc-b-tasks@example.com');
+    const dueDate = new Date(now.getTime() + 7 * DAY_MS);
+    const ids: string[] = [];
+    for (const name of ['Archived Traveller', 'Deleted Traveller']) {
+      const applicant = await createApplicant(db, {
+        actorAccountId: account.id,
+        ownerAccountId: account.id,
+        displayName: name,
+      });
+      if (!isOk(applicant)) throw new Error('applicant');
+      ids.push(applicant.value.id);
+      const mission = await createMission(db, {
+        actorAccountId: account.id,
+        applicantId: applicant.value.id,
+        title: name,
+      });
+      if (!isOk(mission)) throw new Error('mission');
+      const task = await createTask(db, {
+        actorAccountId: account.id,
+        missionId: mission.value.id,
+        description: 'Book the appointment',
+        dueDate,
+        dueTimezone: 'Asia/Dhaka',
+      });
+      if (!isOk(task)) throw new Error('task');
+    }
+    const [archivedId, deletedId] = ids as [string, string];
+    await db.insert(schema.applicantLifecycle).values([
+      { applicantId: archivedId, archivedAt: now },
+      {
+        applicantId: deletedId,
+        deletedAt: now,
+        purgeAfter: new Date(now.getTime() + 30 * DAY_MS),
+      },
+    ]);
+    const result = await sweepTaskDeadlineReminders(db, now);
+    expect(result).toEqual({ checked: 1, enqueued: 1 });
+  }, 60_000);
 });
