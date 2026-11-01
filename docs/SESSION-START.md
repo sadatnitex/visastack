@@ -1,6 +1,6 @@
 # VisaStack: start here (every session)
 
-Read this once at the start of a session, then only what your task needs. `CLAUDE.md` (loaded automatically) holds the standing rules; this page is the full picture behind them, for any task, inside or outside Programme X. Last updated 29 October 2026. When something here is out of date, fix this page in the same PR.
+Read this once at the start of a session, then only what your task needs. `CLAUDE.md` (loaded automatically) holds the standing rules; this page is the full picture behind them, for any task, inside or outside Programme X. Last updated 1 November 2026. When something here is out of date, fix this page in the same PR.
 
 ## 1. What VisaStack is
 
@@ -63,6 +63,13 @@ The rule itself is in `CLAUDE.md` (sections 5 and 7). Two practical notes: write
 
 ## 6. Owner decisions in force (newest first)
 
+- 1 Nov: Founding A follow-up, both YES: a REJECTED application also ends Founding Access; backup reconciliation replays SUBSCRIPTION_ENDED.
+- 1 Nov: "G-Z accepted": the Resource Lifecycle Programme is accepted (`docs/roadmap/lifecycle/STATUS.md`).
+- 1 Nov: "Founding A": when an agency withdraws or is terminated, Founding Access stops renewing at once, no automatic refund. Refined the same day to "Close the record": Founding Access is free and never invoiced, so the plan ends at that moment. Merged as #405 (`b8bb2df4`).
+- 1 Nov: "switch on removal requests": `DOCUMENT_REMOVAL_REQUESTS=on` in Vercel Production. "G-D approved": the Compliance Admin role reviews removal requests, each decision needs a fresh sign-in, no new role, wording approved as shipped.
+- 1 Nov: "migrate 0113" and "migrate 0114": each ran once (runs 41263156493 and 41289963351). A word covers only the number it names.
+- 1 Nov: "G3 A": one written access-ratchet exception for `organizations#withdrawOrganizationApplication`.
+- 31 Oct: paid traveller plans (ADR 0025): the recommended defaults D1 to D14. Live selling still needs D7 (the accountant's VAT answer), D12 (the lawyer's wording review), O6 (live payment account) and the owner's "go live".
 - 29 Oct: every new build follows and extends the latest interface style (ADR 0023 Calm Core With Depths, `docs/uiux/CONTRAST-AND-SURFACES.md`, `docs/uiux/ccd/VOCABULARY.md`, the parity guard) and never damages existing UX.
 - 29 Oct: documentation is kept so any agent can take over with an accurate, non-redundant picture: one fact in one place (the owner doc in section 2), pointers elsewhere, and every PR updates the status pages it affects.
 - 28 Oct: the AI connector is switched on in production by the owner (`AI_CONNECTOR_ENABLED=true`); still a controlled pilot with made-up data only.
@@ -83,17 +90,18 @@ The rule itself is in `CLAUDE.md` (sections 5 and 7). Two practical notes: write
 
 ## 7. Open work, in order
 
-Two workstreams run side by side:
+State on 1 Nov 2026 (main `b8bb2df4`). Done since 29 Oct: the Resource Lifecycle Programme (accepted, `docs/roadmap/lifecycle/STATUS.md`), the Scroll Budget programme (every check enforces, `docs/uiux/SCROLL-BUDGET.md`), paid traveller plans T1 to T6 (selling off), Founding A (#405), Small Commercial S18 to S22, S28, S29 and S19 step 0. Migrations through 0114 are applied in production; none is pending. Interface work (Programme X, Calm Core With Depths, Scroll Budget): `docs/upgrades/programme/STATUS.md`.
 
-- **Small Commercial V1** (status: `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md` section M). In progress: **S23 real redaction** (ADR 0022), not merged and not live; it adds migration 0102, which runs only on the owner's word after its merge. Then, in order: S17 recurring invoices, reminders, overdue and reactivation; S18 refunds, credits and accounting export; S20 AI connector original files (needs S23's safe copies); S21 AI suggestion tools; S22 agency AI connectors; S24 commercial acceptance (prepared only, never merged without the owner's explicit word). S19 only if the owner names a second payment provider. S25 Bangla last, only on the owner's word.
-- **Update, 29 Oct 2026 afternoon (Small Commercial V1; supersedes the line above where they differ):** **S23 real redaction is live** (ADR 0022; #339, migration 0102 applied 29 Oct; fixes #340 and #341): safe copies prepare and download in production, previews work again, and the sign-up confirmation page remembers the address. In progress: **S17 recurring invoices, reminders, overdue handling and reactivation** (ADR 0020 Phase 2), not merged and not live; it adds migration 0103, which runs only on the owner's word after its merge (runbook `docs/operations/billing-cycle.md`), and automatic Grace and Suspended stays off until the owner sets O13. Then, in order: S18 refunds, credits and accounting export; S20 AI connector original files (needs S23's safe copies); S21 AI suggestion tools; S22 agency AI connectors; S24 commercial acceptance (prepared only, never merged without the owner's explicit word). S19 only if the owner names a second payment provider. S25 Bangla last, only on the owner's word.
-- **Update, 30 Oct 2026 (Small Commercial V1; supersedes the lines above where they differ):** **S17 is live** (#342, `aaa29e34`; migration 0103 applied 29 Oct with the owner's word, run 40894153710). **In progress: S18** refunds, credits, refunds made outside VisaStack and the monthly accounting file (ADR 0020 S18 amendment; migration 0104 on the owner's word; live gateway refunds also need O6 and O18), plus a fix for the `/auth/reauth` production error. Then S20, S21, S22, then S24.
-- **Programme X and Calm Core With Depths** (another session): `docs/upgrades/programme/STATUS.md`.
-- **Resource Lifecycle Programme (planned 31 Oct 2026, not started):** archive, replace, duplicate removal, support-reviewed removal and traveller tidy-up, run as parallel lanes with file allowlists. Plan, briefs and start prompts: `docs/roadmap/lifecycle/` (start with `KICKOFF.md`).
-- **Update, 1 Nov 2026 (Resource Lifecycle Programme; supersedes the line above):** every lane is merged and live (F #381, G1 #379, G2 #382, G3 #389, A2 #388, B #393, A1 #395, C #396, D #399, E #400; lane Z integration in review). Migration 0113 ran on production (run 41263156493), so production is in "tables present" mode; removal requests are switched on (`DOCUMENT_REMOVAL_REQUESTS=on`, gate G-D approved). Final state: `docs/roadmap/lifecycle/STATUS.md`. Gate G-Z accepted (lane Z #403, 8f00f610); the Founding Access question was decided (Founding A, built by the paid plans session). Open: deferred items H30 to H32; the per-request presence checks can be removed now that 0113 is confirmed (a cleanup, not urgent).
-- Alongside, never ahead: engineering roadmap steps 4 and 5 (register H20 and H21 in `docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md`).
+1. **Founding A follow-up** (in progress, session VS-XYZ-02): a REJECTED application also ends its Founding Access subscription, and backup reconciliation replays SUBSCRIPTION_ENDED (both decided YES by the owner, 1 Nov). Not merged when this was written.
+2. **Faster tests** (next engineering item): the PGlite-per-test speedup deferred from #376.
+3. **Lifecycle cleanup** (not urgent): remove the per-request presence checks for the lifecycle tables now that 0113 is on production.
+4. **Paid plans go-live**, on the owner's items D7, D12, O6 and "go live"; then T7 and T8 (ADR 0025).
+5. **Deferred, with triggers:** H30 to H32 and the rest of `docs/roadmap/DEFERRED-COMMERCIAL-HARDENING.md`; engineering roadmap steps 4 and 5 (H20, H21) run alongside, never ahead.
+6. **Owner's word only:** S24 commercial acceptance with WP-V6 (never merged automatically), S25 Bangla, S19 proper (a second payment provider).
 
-Owner actions that switch built features on: `docs/roadmap/OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md`. Open branches and how to resume: the newest `docs/upgrades/programme/SESSION-HANDOFF-*.md`. Earlier views of this section are in git history.
+The owner checked on screen that Ask Us to Remove This File appears (owner check, 1 Nov 2026, reported by the coordinator). Not verified: a signed-in live click-through of the other lifecycle actions; signed-in Scroll Budget pages on the live site.
+
+Owner actions that switch built features on: `docs/roadmap/OWNER-ACTIONS-SMALL-COMMERCIAL-V1.md`. Open branches, running sessions and how to resume: the newest `docs/upgrades/programme/SESSION-HANDOFF-*.md`. Earlier views of this section are in git history.
 
 ## 8. Pitfalls learned
 
@@ -114,3 +122,7 @@ Owner actions that switch built features on: `docs/roadmap/OWNER-ACTIONS-SMALL-C
 - GitHub can re-subscribe a session to a PR's activity after the PR is created: unsubscribe again when that notice arrives.
 - A page that loads data after a link to one of its sections (`#name`) must scroll to that section again once the data arrives (the status page fix in #317).
 - Run the local full check only through the guarded `scripts/agent/full-check.sh`, start it with the tool's background mode (a trailing `&` inside a foreground command loses the completion notice) and trust only its summary lines (section 4).
+- Never use an absolute test date close to today: a fixture date that expired on 1 Nov 2026 turned every branch red (#379). Build dates from the test clock.
+- Heavy tests get explicit timeouts (the HEIC converter test has 180 s since #400): CI machines are slower.
+- `grep` with a value that may start with `-` needs `-F --` (the full-check build id, fixed in #395).
+- A PR with no checks 15 minutes after a push usually conflicts with main (GitHub runs no `pull_request` workflow on a conflicting PR): merge main.
