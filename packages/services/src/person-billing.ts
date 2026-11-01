@@ -1002,6 +1002,18 @@ async function lapsePlan(
       cancelledInvoices: cancelled,
     },
   });
+  // Recorded so a restore from backup never brings the plan back (owner, 1 Nov 2026).
+  await appendAuditEvent(tx, {
+    eventType: 'SUBSCRIPTION_ENDED',
+    actorAccountId: null,
+    action: 'MANAGE',
+    method: 'SYSTEM',
+    result: 'ALLOWED',
+    resourceType: 'subscription',
+    resourceId: state.subscriptionId,
+    reason: 'plan_lapsed',
+    metadata: { personPlan: true },
+  });
   await enqueueNotificationBothChannels(tx, {
     eventType: 'PERSON_PLAN_ENDED',
     resourceId: state.subscriptionId,
@@ -1128,5 +1140,19 @@ export async function settlePlanAfterRefund(
     resourceId: subscriptionId,
     metadata: { invoiceId, outcome, cancelledInvoices: cancelled, renewalBeingPaid: beingPaid },
   });
+  if (outcome === 'plan_ended') {
+    // Recorded so a restore from backup never brings the plan back (owner, 1 Nov 2026).
+    await appendAuditEvent(tx, {
+      eventType: 'SUBSCRIPTION_ENDED',
+      actorAccountId: staff.accountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'subscription',
+      resourceId: subscriptionId,
+      reason: 'refunded',
+      metadata: { personPlan: true, invoiceId },
+    });
+  }
   return outcome;
 }

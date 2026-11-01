@@ -802,6 +802,9 @@ const PERSON_SECTIONS: Readonly<Record<string, string>> = {
   'invoice-ledger': "// --- A person's own invoice (ADR 0025, T3b)",
   // T6: person refunds reuse the agency refund rules from below this marker.
   refunds: "// --- A person's refund (ADR 0025, T6)",
+  // A restore lists every plan it ended, a traveller's by its paying account (owner, 1 Nov 2026).
+  'backup-reconciliation':
+    '// --- Plans ended on the pre-incident branch (owner decision, 1 Nov 2026)',
 };
 
 /** Service and web files outside PAYER_COLUMN_MODULES that match PERSON_ROW_TEXT. Tests left out. */

@@ -61,6 +61,24 @@ async function main(): Promise<void> {
     for (const [rule, count] of Object.entries(report.counts)) {
       if (count > 0) process.stdout.write(`  ${rule}: ${count}\n`);
     }
+    // Owner decision (1 Nov 2026): every plan the restore ended, so the right one can be given
+    // back. A plan started after the restore point cannot come back with a restore.
+    if (report.plansToCheck.length > 0) {
+      process.stdout.write(
+        `${report.plansToCheck.length} plan(s) ended by the restore (lines marked ACTION need a plan given back):\n`,
+      );
+      for (const plan of report.plansToCheck) {
+        const who = plan.organizationId
+          ? `agency ${plan.organizationId}`
+          : `traveller account ${plan.payerAccountId ?? 'unknown'}`;
+        const action = plan.needsAction
+          ? `ACTION: should have ${plan.planToHave}, now has ${plan.planNow ?? 'no plan'}`
+          : 'no action';
+        process.stdout.write(
+          `  ${who}: ${plan.endedPlanKey ?? 'unknown plan'} ended (${plan.reason ?? 'no reason'}) ${plan.endedAt.toISOString()}; ${action}\n`,
+        );
+      }
+    }
     if (report.errors.length > 0) {
       process.stdout.write(`${report.errors.length} error(s):\n`);
       for (const error of report.errors) {

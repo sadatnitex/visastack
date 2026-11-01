@@ -18,6 +18,7 @@ import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { isMissingRelationError } from './missing-relation';
 import { redactionMasksTablePresent } from './redaction-table';
+import { personBillingPresent } from './traveller-billing';
 
 /**
  * Backup resurrection reconciliation (master directive Part 7 §15). See
@@ -162,6 +163,8 @@ export interface ReconciliationReport {
   readonly checked: number;
   readonly counts: ReconciliationCounts;
   readonly errors: readonly ReconciliationError[];
+  /** Every plan the restore ended, for the owner to check (see `PlanToCheck`). */
+  readonly plansToCheck: readonly PlanToCheck[];
 }
 
 type AuditEventRow = typeof schema.auditEvents.$inferSelect;
@@ -383,31 +386,211 @@ async function cancelWaitingDowngrades(tx: Db, organizationId: string, at: Date)
   return cancelled.length > 0;
 }
 
+/** The rows of a raw query, whichever shape the driver returns them in. */
+function resultRows<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  return ((result as { rows?: T[] } | null)?.rows ?? []) as T[];
+}
+
+/** Endings that put another agency plan in place: the recorded replacement is replayed too. */
+const REPLACED_AGENCY_PLAN: ReadonlySet<string> = new Set(['plan_changed', 'downgrade_executed']);
+
+interface RecordedReplacement {
+  readonly planKey: string | null;
+  readonly planId: string | null;
+  readonly at: Date;
+  readonly actorAccountId: string | null;
+  readonly scheduledDowngradeId: string | null;
+}
+
 /**
- * Replays an ended subscription (owner decision "Founding A"): still current on the restored
- * branch, it ends again at the moment it ended, and a downgrade the agency still has waiting there
- * is cancelled with its notice (the old branch cancelled it in the same transaction). A no-op once
- * the restored branch already matches, or when the subscription was created after the restore
- * point.
+ * The plan that replaced an ended one, as the audit chain recorded it when it started
+ * (SUBSCRIPTION_ACTIVATED, DOWNGRADE_EXECUTED or PERSON_PLAN_PURCHASED for that subscription),
+ * never the pre-incident branch's live rows, which the incident may have damaged.
+ */
+async function recordedReplacement(
+  oldDb: Db,
+  subscriptionId: string,
+): Promise<RecordedReplacement | null> {
+  const event = first(
+    await oldDb
+      .select()
+      .from(schema.auditEvents)
+      .where(
+        and(
+          eq(schema.auditEvents.resourceId, subscriptionId),
+          inArray(schema.auditEvents.eventType, [
+            'SUBSCRIPTION_ACTIVATED',
+            'DOWNGRADE_EXECUTED',
+            'PERSON_PLAN_PURCHASED',
+          ]),
+        ),
+      )
+      .orderBy(asc(schema.auditEvents.seq))
+      .limit(1),
+  );
+  if (!event) return null;
+  const text = (key: string) => {
+    const value = metadataValue(event.metadata, key);
+    return typeof value === 'string' ? value : null;
+  };
+  return {
+    planKey: text('planKey'),
+    planId: text('planId'),
+    at: event.occurredAt,
+    actorAccountId: event.actorAccountId,
+    scheduledDowngradeId: text('scheduledDowngradeId'),
+  };
+}
+
+/**
+ * Replays an ended subscription (owner decisions "Founding A", 1 Nov 2026): every way a plan ends
+ * records SUBSCRIPTION_ENDED, and only those recorded decisions are replayed (an ending the
+ * incident itself caused wrote no record and is not copied back).
+ *
+ * - An agency plan replaced by another (`plan_changed`, `downgrade_executed`): the change is
+ *   replayed whole, the old plan ends and the recorded replacement starts with its own id (so a
+ *   later ending of it replays too), never leaving the agency with no plan, which would lift every
+ *   limit. When the replacement cannot be made (its plan is not on the restored branch, or the
+ *   agency has another current plan there), nothing changes and the owner's list says what to give.
+ * - Any other ending (a closing, the owner, a traveller's lapse, refund or plan switch): it ends
+ *   again at the moment it ended; an agency's waiting downgrade is cancelled with its notice; a
+ *   traveller plan's renewal reminders still waiting to go out stop.
+ *
+ * A no-op once the restored branch already matches, or when the subscription was created after
+ * the restore point (its own start is then replayed by the ending it replaced, if any).
  */
 async function forceSubscriptionEnded(
+  oldDb: Db,
   newDb: Db,
   subscriptionId: string,
-  endedAt: Date,
-  metadata: unknown,
+  event: AuditEventRow,
 ): Promise<boolean> {
+  const replacedBy = metadataValue(event.metadata, 'replacedBy');
+  if (event.reason && REPLACED_AGENCY_PLAN.has(event.reason) && typeof replacedBy === 'string') {
+    return forceAgencyPlanReplaced(oldDb, newDb, subscriptionId, replacedBy, event);
+  }
   return newDb.transaction(async (tx) => {
     const ended = await tx
       .update(schema.subscriptions)
-      .set({ endedAt })
+      .set({ endedAt: event.occurredAt })
       .where(and(eq(schema.subscriptions.id, subscriptionId), isNull(schema.subscriptions.endedAt)))
       .returning({ organizationId: schema.subscriptions.organizationId });
-    const organizationId = ended[0]?.organizationId ?? metadataValue(metadata, 'organizationId');
-    const cancelled =
-      typeof organizationId === 'string'
-        ? await cancelWaitingDowngrades(tx, organizationId, endedAt)
-        : false;
-    return ended.length > 0 || cancelled;
+    const row = ended[0];
+    if (!row) return false;
+    if (row.organizationId !== null) {
+      await cancelWaitingDowngrades(tx, row.organizationId, event.occurredAt);
+    } else {
+      // A traveller's plan: its renewal reminders still waiting to go out stop, as its lapse,
+      // refund or switch stopped them (the daily run voids the renewal itself).
+      await tx
+        .update(schema.notifications)
+        .set({ status: 'CANCELLED' })
+        .where(
+          and(
+            eq(schema.notifications.status, 'QUEUED'),
+            sql`${schema.notifications.resourceId}::text in (select id::text from invoices
+              where subscription_id = ${subscriptionId}::uuid and status in ('OPEN', 'PARTIALLY_PAID'))`,
+          ),
+        );
+    }
+    return true;
+  });
+}
+
+/** Replays a recorded agency plan change or executed downgrade whole (see above). */
+async function forceAgencyPlanReplaced(
+  oldDb: Db,
+  newDb: Db,
+  subscriptionId: string,
+  replacedBy: string,
+  event: AuditEventRow,
+): Promise<boolean> {
+  const replacement = await recordedReplacement(oldDb, replacedBy);
+  return newDb.transaction(async (tx) => {
+    const found = first(
+      await tx
+        .select({ organizationId: schema.subscriptions.organizationId })
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.id, subscriptionId)),
+    );
+    if (!found?.organizationId) return false;
+    const organizationId = found.organizationId;
+    // The organization row first, then its plans: the order every plan change takes.
+    const org = first(
+      await tx
+        .select({ status: schema.organizations.status })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, organizationId))
+        .for('update'),
+    );
+    if (!org) return false;
+    const old = first(
+      await tx
+        .select({
+          endedAt: schema.subscriptions.endedAt,
+          assignedByAccountId: schema.subscriptions.assignedByAccountId,
+        })
+        .from(schema.subscriptions)
+        .where(eq(schema.subscriptions.id, subscriptionId))
+        .for('update'),
+    );
+    if (!old || old.endedAt !== null) return false;
+    if (org.status === 'CLOSED' || org.status === 'REJECTED') {
+      // A closed or rejected agency keeps no plan: nothing is put in its place.
+      return forceAgencyKeepsNoPlan(tx, organizationId, event.occurredAt);
+    }
+    if (!replacement?.planKey) return false;
+    const plan = first(
+      await tx
+        .select({ id: schema.plans.id })
+        .from(schema.plans)
+        .where(eq(schema.plans.key, replacement.planKey)),
+    );
+    const other = first(
+      await tx
+        .select({ id: schema.subscriptions.id })
+        .from(schema.subscriptions)
+        .where(
+          and(
+            eq(schema.subscriptions.organizationId, organizationId),
+            isNull(schema.subscriptions.endedAt),
+            ne(schema.subscriptions.id, subscriptionId),
+          ),
+        ),
+    );
+    if (!plan || other) return false;
+    await tx
+      .update(schema.subscriptions)
+      .set({ endedAt: event.occurredAt })
+      .where(eq(schema.subscriptions.id, subscriptionId));
+    await tx
+      .insert(schema.subscriptions)
+      .values({
+        id: replacedBy,
+        organizationId,
+        planId: plan.id,
+        startedAt: replacement.at,
+        assignedByAccountId: old.assignedByAccountId ?? replacement.actorAccountId,
+        reason: `Restored from backup: ${event.reason ?? 'plan changed'}`,
+      })
+      .onConflictDoNothing();
+    if (event.reason === 'downgrade_executed' && replacement.scheduledDowngradeId) {
+      // Done already: the daily run must not apply it a second time.
+      await tx
+        .update(schema.scheduledDowngrades)
+        .set({ status: 'EXECUTED', executedAt: replacement.at, updatedAt: replacement.at })
+        .where(
+          and(
+            eq(schema.scheduledDowngrades.id, replacement.scheduledDowngradeId),
+            eq(schema.scheduledDowngrades.status, 'PENDING'),
+          ),
+        );
+    } else {
+      // An immediate plan change made any waiting downgrade stale, as activateSubscription does.
+      await cancelWaitingDowngrades(tx, organizationId, event.occurredAt);
+    }
+    return true;
   });
 }
 
@@ -1378,7 +1561,7 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
     case 'ORGANIZATION_APPLICATION_WITHDRAWN':
       return forceOrganizationApplicationWithdrawn(newDb, resourceId);
     case 'SUBSCRIPTION_ENDED':
-      return forceSubscriptionEnded(newDb, resourceId, event.occurredAt, event.metadata);
+      return forceSubscriptionEnded(oldDb, newDb, resourceId, event);
     case 'ORGANIZATION_REVIEWED':
       // Only a rejection narrows; an approval is the platform's to make again.
       return metadataValue(event.metadata, 'decision') === 'REJECTED'
@@ -1469,5 +1652,139 @@ export async function reconcileRestoredBranch(
     }
   }
 
-  return { checked: events.length, counts, errors };
+  const plansToCheck = await listEndedPlans(
+    oldDb,
+    newDb,
+    events.filter((event) => event.eventType === 'SUBSCRIPTION_ENDED'),
+    errors,
+  );
+  return { checked: events.length, counts, errors, plansToCheck };
+}
+
+// --- Plans ended on the pre-incident branch (owner decision, 1 Nov 2026)
+// A traveller's plan is named by its paying account below this line only (access/enforcement.test.ts).
+
+/**
+ * An agency or traveller whose plan a restore ended, one line each, so the owner can put right
+ * what a restore cannot. Every way a plan ends records SUBSCRIPTION_ENDED and the replay above ends
+ * it again; a recorded agency plan change or downgrade puts its replacement back too. `planToHave`
+ * is the plan the last recorded ending put in its place (none after a closing, the owner ending
+ * it, a lapse or a refund), taken from the audit chain, never from the pre-incident branch's live
+ * rows; `planNow` is what they have on the restored branch. `needsAction` is true when those
+ * differ: a replacement that could not be put back, or a traveller's switch to a plan they paid for
+ * (their payment is not restored). Ids and plan keys only, never a name or an email.
+ */
+export interface PlanToCheck {
+  readonly subscriptionId: string;
+  readonly organizationId: string | null;
+  readonly payerAccountId: string | null;
+  readonly endedPlanKey: string | null;
+  /** Why it ended (`plan_changed`, `plan_lapsed`, `refunded`, `application_rejected`, ...). */
+  readonly reason: string | null;
+  readonly endedAt: Date;
+  readonly planNow: string | null;
+  readonly planToHave: string | null;
+  readonly needsAction: boolean;
+}
+
+interface SubscriptionOwner {
+  readonly organization_id: string | null;
+  readonly payer_account_id: string | null;
+  readonly plan_key: string | null;
+}
+
+/** Whose subscription this is, and its plan, on one branch (null when it is not there). */
+async function subscriptionOwner(
+  db: Db,
+  subscriptionId: string,
+): Promise<SubscriptionOwner | null> {
+  const payer = (await personBillingPresent(db)) ? sql`s.payer_account_id` : sql`null::uuid`;
+  return (
+    resultRows<SubscriptionOwner>(
+      await db.execute(sql`
+        select s.organization_id, ${payer} as payer_account_id, p.key as plan_key
+        from subscriptions s left join plans p on p.id = s.plan_id
+        where s.id::text = ${subscriptionId}`),
+    )[0] ?? null
+  );
+}
+
+/** The plan key an agency or traveller currently has on the restored branch, or null. */
+async function currentPlanOf(db: Db, owner: SubscriptionOwner): Promise<string | null> {
+  const whose =
+    owner.organization_id !== null
+      ? sql`s.organization_id = ${owner.organization_id}::uuid`
+      : (await personBillingPresent(db)) && owner.payer_account_id !== null
+        ? sql`s.payer_account_id = ${owner.payer_account_id}::uuid`
+        : null;
+  if (whose === null) return null;
+  return (
+    resultRows<{ plan_key: string | null }>(
+      await db.execute(sql`
+        select p.key as plan_key from subscriptions s left join plans p on p.id = s.plan_id
+        where ${whose} and s.ended_at is null limit 1`),
+    )[0]?.plan_key ?? null
+  );
+}
+
+/** The plan key the recorded replacement started on, or null when nothing replaced it. */
+async function planToHaveAfter(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<string | null> {
+  const replacedBy = metadataValue(event.metadata, 'replacedBy');
+  if (typeof replacedBy !== 'string') return null;
+  const replacement = await recordedReplacement(oldDb, replacedBy);
+  if (!replacement) return null;
+  if (replacement.planKey) return replacement.planKey;
+  if (!replacement.planId) return null;
+  for (const db of [newDb, oldDb]) {
+    const plan = first(
+      await db
+        .select({ key: schema.plans.key })
+        .from(schema.plans)
+        .where(eq(schema.plans.id, replacement.planId)),
+    );
+    if (plan) return plan.key;
+  }
+  return null;
+}
+
+/** One line per agency or traveller (their last recorded ending), for the owner to check. */
+async function listEndedPlans(
+  oldDb: Db,
+  newDb: Db,
+  endings: readonly AuditEventRow[],
+  errors: ReconciliationError[],
+): Promise<PlanToCheck[]> {
+  const byOwner = new Map<string, PlanToCheck>();
+  for (const event of endings) {
+    const subscriptionId = event.resourceId;
+    if (!subscriptionId) continue;
+    try {
+      const owner =
+        (await subscriptionOwner(newDb, subscriptionId)) ??
+        (await subscriptionOwner(oldDb, subscriptionId));
+      if (!owner) continue;
+      const key = owner.organization_id ?? owner.payer_account_id;
+      if (!key) continue;
+      const planToHave = await planToHaveAfter(oldDb, newDb, event);
+      const planNow = await currentPlanOf(newDb, owner);
+      byOwner.set(key, {
+        subscriptionId,
+        organizationId: owner.organization_id,
+        payerAccountId: owner.payer_account_id,
+        endedPlanKey: owner.plan_key,
+        reason: event.reason ?? null,
+        endedAt: event.occurredAt,
+        planNow,
+        planToHave,
+        needsAction: planToHave !== null && planToHave !== planNow,
+      });
+    } catch (error) {
+      errors.push({
+        eventType: 'SUBSCRIPTION_ENDED',
+        resourceId: subscriptionId,
+        message: `not listed for the owner: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  }
+  return [...byOwner.values()];
 }
