@@ -4,20 +4,25 @@ import { type MessageKey, type Translator, createTranslator } from '@visastack/i
 import {
   CONVERTED_FROM_HEIC_SOURCE,
   DEFAULT_DOCUMENT_PROTECTION,
+  type DocumentAction,
   type DocumentLifecycleStatus,
   accountPrincipal,
+  availableDocumentActions,
   classifyExpiry,
   documentCategory,
   getAiFeatureStates,
   getApplicant,
   getApplicantEvidenceBytes,
+  getDocumentLifecycles,
   getLatestOcrRun,
   getWalletView,
   hasConsent,
   isPassportPhotoType,
   isRestrictedDocumentType,
   isServableProcessingState,
+  lifecycleTablesPresent,
   listApplicantProfile,
+  listDeletionReceipts,
   listDocumentReadingStates,
   listDocumentsDetailed,
   listIssuerVerificationsForDocument,
@@ -91,6 +96,9 @@ import { DocumentUploader } from '../document-uploader';
 import { downloadOriginalAction } from '../download-actions';
 import { ReadingOfferCard, ReadingStatus } from '../reading-status';
 import { UsageMeter } from '../usage-meter';
+import { type LifecycleTab, LifecycleTabs, lifecycleTabOf } from './manage/lifecycle-tabs';
+import { ManageMenu } from './manage/manage-menu';
+import { documentActionView, isDocumentAction } from './manage/view';
 
 const ORIGINAL_KINDS: readonly string[] = [...ORIGINAL_DOCUMENT_KEYS];
 
@@ -169,6 +177,11 @@ export default async function ApplicantDocumentsPage({
     readonly download_error?: string;
     /** A document kind chosen from a profile section's Upload link (repeated keys arrive as a list). */
     readonly type?: string | string[];
+    /** Which lifecycle list to show: Current (default), archived or deleted. */
+    readonly view?: string;
+    /** A reminder's link: the document to manage and the action to open (?manage=&action=). */
+    readonly manage?: string;
+    readonly action?: string;
   }>;
 }) {
   const { id } = await params;
@@ -181,7 +194,11 @@ export default async function ApplicantDocumentsPage({
     reading_queued: readingQueued,
     download_error: downloadError,
     type: requestedType,
+    view: requestedView,
+    manage: manageDocumentId,
+    action: requestedAction,
   } = await searchParams;
+  const tab: LifecycleTab = lifecycleTabOf(requestedView);
   // Only a kind the catalogue knows opens the upload form ready; anything else is ignored.
   const initialKind =
     typeof requestedType === 'string' ? (resolveDocumentType(requestedType)?.key ?? '') : '';
@@ -287,6 +304,31 @@ export default async function ApplicantDocumentsPage({
     const protection = await readDocumentProtectionSettings(db).catch(
       () => DEFAULT_DOCUMENT_PROTECTION,
     );
+    // Archive, Recently Deleted and the Manage menu (resource lifecycle, migration 0113). Before
+    // that migration nothing here is read and the page is exactly as it was: no tabs, no menu,
+    // every document in the one list.
+    const lifecycle =
+      readingAccess.ok && (await lifecycleTablesPresent(db))
+        ? await (async () => {
+            const states = await getDocumentLifecycles(
+              db,
+              documentRows.map((doc) => doc.id),
+              readingAccess.value,
+            );
+            const receipts = await listDeletionReceipts(readingAccess.value, { limit: 1 });
+            const actions = new Map<string, readonly DocumentAction[]>(
+              documentRows.map((doc) => {
+                const state = states.get(doc.id);
+                return [doc.id, state ? availableDocumentActions(documentActionView(state)) : []];
+              }),
+            );
+            return {
+              states,
+              actions,
+              hasRemovalRecords: receipts.ok && receipts.value.length > 0,
+            };
+          })()
+        : null;
     // Visible codes (ADR 0018) for the documents already read above; none before migration 0091.
     const referenceCodes = await referenceCodesFor(
       db,
@@ -296,6 +338,7 @@ export default async function ApplicantDocumentsPage({
     return {
       protection,
       referenceCodes,
+      lifecycle,
       displayName: applicant.displayName ?? 'Unknown',
       documents: documentRows,
       recordsUnavailable: !documents.ok || !wallet.ok,
@@ -367,6 +410,30 @@ export default async function ApplicantDocumentsPage({
     initialSelection && (savedDepth === 'auto' || savedDepth === 'glance') ? 'browse' : savedDepth;
   const depthWords = depthCopyFor('documents');
   const safeCopiesOn = getPlatformCapabilities().redactedDownload === 'available';
+  // Which documents the chosen list shows. Without the lifecycle tables every document is Current.
+  const lifecycleStateOf = (documentId: string) =>
+    data.lifecycle?.states.get(documentId)?.state ?? 'CURRENT';
+  const inTab = (documentId: string) => {
+    const state = lifecycleStateOf(documentId);
+    if (tab === 'archived') return state === 'ARCHIVED';
+    if (tab === 'deleted') return state === 'RECENTLY_DELETED' || state === 'REMOVING';
+    return state === 'CURRENT';
+  };
+  const archivedCount = data.documents.filter(
+    (doc) => lifecycleStateOf(doc.id) === 'ARCHIVED',
+  ).length;
+  const deletedCount = data.documents.filter((doc) => {
+    const state = lifecycleStateOf(doc.id);
+    return state === 'RECENTLY_DELETED' || state === 'REMOVING';
+  }).length;
+  const listedDocuments = data.lifecycle
+    ? data.documents.filter((doc) => inTab(doc.id))
+    : data.documents;
+  // A reminder's deep link opens one document's action; only an action the rule allows opens.
+  const deepLinkAction =
+    manageDocumentId && isDocumentAction(requestedAction) ? requestedAction : undefined;
+  const actionsFor = (documentId: string): readonly DocumentAction[] =>
+    data.lifecycle?.actions.get(documentId) ?? [];
 
   return (
     <>
@@ -431,11 +498,25 @@ export default async function ApplicantDocumentsPage({
 
         {offer ? <ReadingOfferCard offer={offer} /> : null}
 
+        {data.lifecycle ? (
+          <div {...atLevel('browse')}>
+            <LifecycleTabs
+              basePath={`/app/applicant/${id}/documents`}
+              active={tab}
+              archivedCount={archivedCount}
+              deletedCount={deletedCount}
+              removalRecordsHref={
+                data.lifecycle.hasRemovalRecords ? `/app/applicant/${id}/removal-records` : null
+              }
+            />
+          </div>
+        ) : null}
+
         <DocumentWalletBrowser
-          key={initialSelection ?? id}
+          key={`${initialSelection ?? id}:${tab}`}
           applicantId={id}
           {...(initialSelection ? { initialSelection } : {})}
-          documents={data.documents.map((doc) => {
+          documents={listedDocuments.map((doc) => {
             const badge = safetyBadge(doc.safetyStatus ?? 'PENDING', t);
             const processingKey = doc.processingStatus
               ? PROCESSING_STATE_KEYS[doc.processingStatus]
@@ -508,6 +589,25 @@ export default async function ApplicantDocumentsPage({
               safetyLabel: badge.label,
               processingLabel: processingKey ? t(processingKey) : 'Not yet checked',
               previewAllowed: previewable,
+              // The Manage menu, at Browse depth; absent (the row exactly as before) until the
+              // lifecycle tables exist and a lane has registered an action this document allows.
+              ...(actionsFor(doc.id).length > 0
+                ? {
+                    manage: (
+                      <div {...atLevel('browse')}>
+                        <ManageMenu
+                          applicantId={id}
+                          documentId={doc.id}
+                          documentName={doc.approvedName ?? doc.originalName}
+                          actions={actionsFor(doc.id)}
+                          {...(deepLinkAction && manageDocumentId === doc.id
+                            ? { initialAction: deepLinkAction }
+                            : {})}
+                        />
+                      </div>
+                    ),
+                  }
+                : {}),
               details: (
                 <div key={doc.id} {...atLevel('browse')}>
                   <div

@@ -5,11 +5,7 @@ import { and, eq, getTableName } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { type StaffScope, accountPrincipal, staffPrincipal } from '../../access/principal';
-import {
-  type AuthorizedApplicant,
-  EACH_GRANT,
-  requireAccess,
-} from '../../access/require-access';
+import { type AuthorizedApplicant, EACH_GRANT, requireAccess } from '../../access/require-access';
 import { provisionAccount } from '../../accounts';
 import { createApplicant } from '../../applicants';
 import { setConsent } from '../../consent';
@@ -17,7 +13,12 @@ import type { Db } from '../../db';
 import { addDocumentVersion, registerDocument } from '../../documents';
 import { runErasureWorker } from '../../erasure';
 import { placeLegalHold } from '../../legal-hold';
-import { attachPackVersion, createMission, getMissionForOwner, selectEvidence } from '../../missions';
+import {
+  attachPackVersion,
+  createMission,
+  getMissionForOwner,
+  selectEvidence,
+} from '../../missions';
 import {
   addPackVersion,
   addRequirement,
@@ -201,10 +202,7 @@ async function receiptRow(db: Db, id: string) {
 }
 
 async function jobsFor(db: Db, documentId: string) {
-  return db
-    .select()
-    .from(schema.erasureJobs)
-    .where(eq(schema.erasureJobs.documentId, documentId));
+  return db.select().from(schema.erasureJobs).where(eq(schema.erasureJobs.documentId, documentId));
 }
 
 describe('lifecycleTablesPresent', () => {
@@ -289,9 +287,9 @@ describe('receipt effects', () => {
     expect(receiptEffectsSchema.safeParse({ casesSwitched: ['Visit to Japan'] }).success).toBe(
       false,
     );
-    expect(receiptEffectsSchema.safeParse({ casesSwitched: ['C-7K2Q9M'], bytesFreed: 3 }).success).toBe(
-      true,
-    );
+    expect(
+      receiptEffectsSchema.safeParse({ casesSwitched: ['C-7K2Q9M'], bytesFreed: 3 }).success,
+    ).toBe(true);
   });
 
   it('merges lists and keeps counts as first written', () => {
@@ -390,7 +388,10 @@ describe('lifecycle foundation with the tables present', () => {
       );
       expect(states.get(current)).toMatchObject({ state: 'CURRENT', replaced: true });
       expect(states.get(archived)?.state).toBe('ARCHIVED');
-      expect(states.get(deleted)).toMatchObject({ state: 'RECENTLY_DELETED', deletePath: 'DUPLICATE' });
+      expect(states.get(deleted)).toMatchObject({
+        state: 'RECENTLY_DELETED',
+        deletePath: 'DUPLICATE',
+      });
       expect(states.get(requested)?.state).toBe('REMOVING');
       expect(states.size).toBe(4);
       // Thirty days later the deleted duplicate is on its way out.
@@ -417,9 +418,9 @@ describe('lifecycle foundation with the tables present', () => {
         subjectCode: 'D-7K2Q9M',
         path: 'DUPLICATE' as const,
       };
-      expect((await openDeletionReceipt(db, { ...input, title: 'Passport' } as never, access)).ok).toBe(
-        false,
-      );
+      expect(
+        (await openDeletionReceipt(db, { ...input, title: 'Passport' } as never, access)).ok,
+      ).toBe(false);
       expect(
         (await openDeletionReceipt(db, { ...input, subjectCode: 'P-7K2Q9M' }, access)).ok,
       ).toBe(false);
@@ -437,13 +438,27 @@ describe('lifecycle foundation with the tables present', () => {
       const id = opened.value.id;
       expect((await advanceDeletionReceipt(db, id, 'REMOVED', {}, access)).ok).toBe(false);
       expect(
-        (await advanceDeletionReceipt(db, id, 'REMOVING', { effects: { sharesAffected: 1 } }, access))
-          .ok,
+        (
+          await advanceDeletionReceipt(
+            db,
+            id,
+            'REMOVING',
+            { effects: { sharesAffected: 1 } },
+            access,
+          )
+        ).ok,
       ).toBe(true);
       expect((await advanceDeletionReceipt(db, id, 'SCHEDULED', {}, access)).ok).toBe(false);
       expect(
-        (await advanceDeletionReceipt(db, id, 'REMOVING', { effects: { sharesAffected: 2 } }, access))
-          .ok,
+        (
+          await advanceDeletionReceipt(
+            db,
+            id,
+            'REMOVING',
+            { effects: { sharesAffected: 2 } },
+            access,
+          )
+        ).ok,
       ).toBe(false);
       expect((await advanceDeletionReceipt(db, id, 'REMOVED', {}, strangerAccess)).ok).toBe(false);
       const row = await receiptRow(db, id);
@@ -482,7 +497,13 @@ describe('lifecycle foundation with the tables present', () => {
       for (const [index, scope] of holds.entries()) {
         const local = await freshDb();
         const person = await seedOwner(local, `hold-${scope}@example.com`);
-        const documentId = await seedDocument(local, person, [`hold-${scope}`], undefined, 'bank_statement');
+        const documentId = await seedDocument(
+          local,
+          person,
+          [`hold-${scope}`],
+          undefined,
+          'bank_statement',
+        );
         let missionId: string | undefined;
         if (scope === 'case') missionId = await selectInCase(local, person, documentId);
         const { receiptId, access } = await markDeleted(local, person, documentId, 'REQUEST');
@@ -520,11 +541,13 @@ describe('lifecycle foundation with the tables present', () => {
 
       const notWaiting = await seedDocument(db, owner, ['r-other']);
       expect(
-        (await enqueueDocumentRemoval(
-          db,
-          { documentId: notWaiting, applicantId: owner.applicantId, receiptId },
-          access,
-        )).ok,
+        (
+          await enqueueDocumentRemoval(
+            db,
+            { documentId: notWaiting, applicantId: owner.applicantId, receiptId },
+            access,
+          )
+        ).ok,
       ).toBe(false);
 
       const queued = await enqueueDocumentRemoval(
@@ -577,11 +600,13 @@ describe('lifecycle foundation with the tables present', () => {
       const documentId = await seedDocument(db, owner, ['h-v1'], storage);
       const { receiptId, access } = await markDeleted(db, owner, documentId, 'REQUEST');
       expect(
-        (await enqueueDocumentRemoval(
-          db,
-          { documentId, applicantId: owner.applicantId, receiptId },
-          access,
-        )).ok,
+        (
+          await enqueueDocumentRemoval(
+            db,
+            { documentId, applicantId: owner.applicantId, receiptId },
+            access,
+          )
+        ).ok,
       ).toBe(true);
       const originalGet = storage.getObject.bind(storage);
       storage.getObject = async (objectKey: string) => {
@@ -674,7 +699,10 @@ async function selectInCase(
     name: 'Lifecycle Test Pack',
   });
   if (!isOk(pack)) throw new Error('pack');
-  const version = await addPackVersion(db, { actorAccountId: owner.accountId, packId: pack.value.id });
+  const version = await addPackVersion(db, {
+    actorAccountId: owner.accountId,
+    packId: pack.value.id,
+  });
   if (!isOk(version)) throw new Error('version');
   const requirement = await addRequirement(db, {
     actorAccountId: owner.accountId,
@@ -684,8 +712,14 @@ async function selectInCase(
     citation: 'rule 1',
   });
   if (!isOk(requirement)) throw new Error('requirement');
-  await approvePackVersion(db, { actorAccountId: owner.accountId, packVersionId: version.value.id });
-  await publishPackVersion(db, { actorAccountId: owner.accountId, packVersionId: version.value.id });
+  await approvePackVersion(db, {
+    actorAccountId: owner.accountId,
+    packVersionId: version.value.id,
+  });
+  await publishPackVersion(db, {
+    actorAccountId: owner.accountId,
+    packVersionId: version.value.id,
+  });
   const mission = await createMission(db, {
     actorAccountId: owner.accountId,
     applicantId: owner.applicantId,

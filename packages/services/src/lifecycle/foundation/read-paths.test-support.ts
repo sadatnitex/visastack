@@ -104,7 +104,11 @@ function moduleNames(sf: ts.SourceFile): ModuleNames {
             tables.set(element.name.text, imported as ReadTable);
           }
         }
-        if (/lifecycle\/foundation(\/index|\/conditions)?$|^\.\/conditions$|^@visastack\/services$/.test(from)) {
+        if (
+          /lifecycle\/foundation(\/index|\/conditions)?$|^\.\/conditions$|^@visastack\/services$/.test(
+            from,
+          )
+        ) {
           if (allConditions.has(imported)) conditions.set(element.name.text, imported);
         }
       }
@@ -145,7 +149,11 @@ function moduleNames(sf: ts.SourceFile): ModuleNames {
   return { tables, conditions, helpers };
 }
 
-function tableOf(node: ts.Expression, names: ModuleNames, locals: Map<string, ReadTable>): ReadTable | undefined {
+function tableOf(
+  node: ts.Expression,
+  names: ModuleNames,
+  locals: Map<string, ReadTable>,
+): ReadTable | undefined {
   const target = unwrap(node);
   if (ts.isIdentifier(target)) return locals.get(target.text) ?? names.tables.get(target.text);
   return tableOfAccess(target);
@@ -199,7 +207,9 @@ function chainTop(node: ts.Node): ts.Expression {
     if (
       parent &&
       (ts.isPropertyAccessExpression(parent) || ts.isCallExpression(parent)) &&
-      (ts.isPropertyAccessExpression(parent) ? parent.expression === current : parent.expression === current)
+      (ts.isPropertyAccessExpression(parent)
+        ? parent.expression === current
+        : parent.expression === current)
     ) {
       current = parent;
       continue;
@@ -214,11 +224,7 @@ interface Scan {
   readonly conditionNames: Set<string>;
 }
 
-function scanFunction(
-  fn: FunctionLike,
-  names: ModuleNames,
-  seen: Set<FunctionLike>,
-): Scan {
+function scanFunction(fn: FunctionLike, names: ModuleNames, seen: Set<FunctionLike>): Scan {
   const tables = new Set<ReadTable>();
   const conditionNames = new Set<string>();
   if (seen.has(fn)) return { tables, conditionNames };

@@ -1,6 +1,4 @@
 {
   "documents": [],
-  "applicants": [
-    "applicants#listApplicants"
-  ]
+  "applicants": ["applicants#listApplicants"]
 }

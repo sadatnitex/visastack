@@ -31,6 +31,16 @@ const mocks = vi.hoisted(() => ({
   detailsAvailable: vi.fn(async () => 'unconfigured'),
   depth: 'auto' as string,
   ocrConfigured: vi.fn(async () => false),
+  /** Resource lifecycle (migration 0113): missing unless a test says the tables are there. */
+  lifecycleTablesPresent: vi.fn(async () => false),
+  getDocumentLifecycles: vi.fn(async (): Promise<Map<string, unknown>> => new Map()),
+  listDeletionReceipts: vi.fn(
+    async (): Promise<{ ok: boolean; value: unknown[] }> => ({
+      ok: true,
+      value: [],
+    }),
+  ),
+  availableDocumentActions: vi.fn((_view: unknown): string[] => []),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -67,6 +77,10 @@ vi.mock('@visastack/services', async (importOriginal) => ({
     ),
   listDocumentReadingStates: mocks.listDocumentReadingStates,
   listRedactionStates: mocks.listRedactionStates,
+  lifecycleTablesPresent: mocks.lifecycleTablesPresent,
+  getDocumentLifecycles: mocks.getDocumentLifecycles,
+  listDeletionReceipts: mocks.listDeletionReceipts,
+  availableDocumentActions: mocks.availableDocumentActions,
 }));
 vi.mock('../../../../../lib/ai', () => ({
   isClassificationConfigured: async () => false,
@@ -122,11 +136,11 @@ function doc(id: string, processingStatus: string) {
   };
 }
 
-const render = async (document?: string) =>
+const render = async (document?: string, extra: Record<string, string> = {}) =>
   renderServer(
     DocumentsPage({
       params: Promise.resolve({ id: 'a1' }),
-      searchParams: Promise.resolve(document ? { document } : {}),
+      searchParams: Promise.resolve({ ...(document ? { document } : {}), ...extra }),
     }),
   );
 
@@ -758,5 +772,91 @@ describe('the documents page with the depth switch (CCD-3)', () => {
     mocks.depth = 'glance';
     expect(await render()).toContain('data-depth="glance"');
     mocks.depth = 'auto';
+  });
+});
+
+describe('archive, Recently Deleted and the Manage menu (resource lifecycle, migration 0113)', () => {
+  const state = (value: string, replaced = false) => ({
+    state: value,
+    replaced,
+    archivedAt: null,
+    deletedAt: null,
+    purgeAfter: null,
+    deletePath: null,
+  });
+  beforeEach(async () => {
+    const real = await vi.importActual<typeof import('@visastack/services')>('@visastack/services');
+    mocks.availableDocumentActions.mockImplementation((view) =>
+      real.availableDocumentActions(view as Parameters<typeof real.availableDocumentActions>[0]),
+    );
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc('kept', 'APPROVED'), doc('shelved', 'APPROVED'), doc('binned', 'APPROVED')],
+    });
+  });
+
+  it('renders exactly as before while the lifecycle tables are missing', async () => {
+    const html = await render();
+    expect(mocks.lifecycleTablesPresent).toHaveBeenCalled();
+    expect(mocks.getDocumentLifecycles).not.toHaveBeenCalled();
+    expect(mocks.listDeletionReceipts).not.toHaveBeenCalled();
+    expect(mocks.availableDocumentActions).not.toHaveBeenCalled();
+    expect(html).not.toContain('aria-label="Document lists"');
+    expect(html).not.toContain('aria-haspopup="menu"');
+    for (const name of ['kept.pdf', 'shelved.pdf', 'binned.pdf'])
+      expect(textOf(html)).toContain(name);
+    // Even a hand-written list address shows the one list.
+    const archived = await render(undefined, { view: 'archived' });
+    expect(textOf(archived)).toContain('binned.pdf');
+  });
+
+  it('shows no tabs while nothing is archived or deleted, and no menu while no action is registered', async () => {
+    mocks.lifecycleTablesPresent.mockResolvedValue(true);
+    mocks.getDocumentLifecycles.mockResolvedValue(
+      new Map([
+        ['kept', state('CURRENT')],
+        ['shelved', state('CURRENT')],
+        ['binned', state('CURRENT')],
+      ]),
+    );
+    const html = await render();
+    expect(mocks.availableDocumentActions).toHaveBeenCalledTimes(3);
+    expect(html).not.toContain('aria-label="Document lists"');
+    expect(html).not.toContain('aria-haspopup="menu"');
+  });
+
+  it('splits the documents into Current, Archived and Recently Deleted once there is something to show', async () => {
+    mocks.lifecycleTablesPresent.mockResolvedValue(true);
+    mocks.getDocumentLifecycles.mockResolvedValue(
+      new Map([
+        ['kept', state('CURRENT')],
+        ['shelved', state('ARCHIVED')],
+        ['binned', state('RECENTLY_DELETED')],
+      ]),
+    );
+    const current = await render();
+    expect(current).toContain('aria-label="Document lists"');
+    expect(textOf(current)).toContain('Archived (1)');
+    expect(textOf(current)).toContain('Recently Deleted (1)');
+    expect(textOf(current)).toContain('kept.pdf');
+    expect(textOf(current)).not.toContain('shelved.pdf');
+    expect(textOf(current)).not.toContain('binned.pdf');
+    expect(textOf(current)).not.toContain('Removal Records');
+
+    const archived = await render(undefined, { view: 'archived' });
+    expect(textOf(archived)).toContain('shelved.pdf');
+    expect(textOf(archived)).not.toContain('kept.pdf');
+    const deleted = await render(undefined, { view: 'deleted' });
+    expect(textOf(deleted)).toContain('binned.pdf');
+    expect(textOf(deleted)).not.toContain('shelved.pdf');
+  });
+
+  it('links to the Removal Records only when there are some', async () => {
+    mocks.lifecycleTablesPresent.mockResolvedValue(true);
+    mocks.getDocumentLifecycles.mockResolvedValue(new Map([['kept', state('CURRENT')]]));
+    mocks.listDeletionReceipts.mockResolvedValue({ ok: true, value: [{ id: 'r1' }] });
+    const html = await render();
+    expect(html).toContain('href="/app/applicant/a1/removal-records"');
+    expect(textOf(html)).toContain('Removal Records');
   });
 });

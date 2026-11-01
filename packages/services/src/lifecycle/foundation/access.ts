@@ -1,6 +1,6 @@
 import type { PermissionAction } from '@visastack/core';
+import { StaffScope, type SystemJob, SystemScope } from '../../access/principal';
 import { AuthorizedApplicant } from '../../access/require-access';
-import { StaffScope, SystemScope, type SystemJob } from '../../access/principal';
 import type { PlatformAction } from '../../platform-roles';
 
 /**

@@ -1,8 +1,8 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { type StaffScope, staffScopeProblem } from '../../access/principal';
 import { AuthorizedApplicant } from '../../access/require-access';
-import { StaffScope, staffScopeProblem } from '../../access/principal';
 import { type Db, first, schema } from '../../db';
 import { type ServiceError, serviceError } from '../../errors';
 import { type LifecycleAccess, lifecycleAccessCovers } from './access';
@@ -57,7 +57,10 @@ const FORWARD: Readonly<Record<DeletionReceiptStatus, readonly DeletionReceiptSt
 };
 
 /** Whether a receipt may move from `from` to `to` (the same rule the database trigger enforces). */
-export function receiptMoveAllowed(from: DeletionReceiptStatus, to: DeletionReceiptStatus): boolean {
+export function receiptMoveAllowed(
+  from: DeletionReceiptStatus,
+  to: DeletionReceiptStatus,
+): boolean {
   return from === to || FORWARD[from].includes(to);
 }
 
@@ -73,7 +76,10 @@ const openInputSchema = z
       .nullable()
       .optional(),
     uploadedAt: z.date().nullable().optional(),
-    uploadedByRole: z.enum(['OWNER', 'AGENCY_MEMBER', 'CONTRIBUTOR', 'SYSTEM']).nullable().optional(),
+    uploadedByRole: z
+      .enum(['OWNER', 'AGENCY_MEMBER', 'CONTRIBUTOR', 'SYSTEM'])
+      .nullable()
+      .optional(),
     path: z.enum(['DUPLICATE', 'REQUEST', 'EMPTY_TRAVELLER']),
     requestedByAccountId: z.string().refine(isUuid).nullable().optional(),
     approvedByAccountId: z.string().refine(isUuid).nullable().optional(),

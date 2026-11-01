@@ -9,7 +9,5 @@
     "missions#selectEvidence",
     "missions#snapshotMission"
   ],
-  "applicants": [
-    "missions#listMissionsByItineraryRef"
-  ]
+  "applicants": ["missions#listMissionsByItineraryRef"]
 }

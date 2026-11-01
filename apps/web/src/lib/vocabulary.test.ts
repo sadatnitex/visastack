@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -69,4 +69,30 @@ describe('visible text uses product words (directive Part 9 UX-01)', () => {
       expect(hits, hits.join('\n')).toEqual([]);
     });
   }
+});
+
+describe('lifecycle screens use the lifecycle words (docs/uiux/ccd/VOCABULARY.md, Resource lifecycle)', () => {
+  const RETIRED =
+    /\b(eras(e|ed|ing|ure)|purg(e|ed|es|ing)|tombstones?|supersed(e|ed|es|ing)|soft delet\w*|cascad\w*|fact versions?)\b/i;
+  const files = [
+    ...sourceFiles(join(WEB_SRC, 'components', 'lifecycle')),
+    ...sourceFiles(join(WEB_SRC, 'app', 'app', 'applicant', '[id]', 'documents', 'manage')),
+    // Lane C's page, once it exists.
+    ...(existsSync(join(WEB_SRC, 'app', 'app', 'applicant', '[id]', 'removal-records'))
+      ? sourceFiles(join(WEB_SRC, 'app', 'app', 'applicant', '[id]', 'removal-records'))
+      : []),
+  ];
+  const all = files.flatMap((file) => visibleText(file, readFileSync(file, 'utf8')));
+
+  it('scans the lifecycle screens', () => {
+    expect(files.length).toBeGreaterThan(4);
+    expect(all.some((v) => v.text.includes('Removing Securely'))).toBe(true);
+  });
+
+  it('never shows a retired word there', () => {
+    const hits = all
+      .filter((v) => RETIRED.test(v.text))
+      .map((v) => `${relative(WEB_SRC, v.file)}:${v.line}: ${JSON.stringify(v.text)}`);
+    expect(hits, hits.join('\n')).toEqual([]);
+  });
 });

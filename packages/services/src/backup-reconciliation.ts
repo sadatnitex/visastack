@@ -8,7 +8,12 @@ import { purgeMissionUnconditionally } from './case-retention';
 import { getConsents } from './consent';
 import { type Db, first, schema } from './db';
 import { executeAccountDeletion } from './deletion';
-import { DOCUMENT_ROW_REASONS, type ErasureJobReason, enqueueErasureJob, safeCopyDrawingIds } from './erasure';
+import {
+  DOCUMENT_ROW_REASONS,
+  type ErasureJobReason,
+  enqueueErasureJob,
+  safeCopyDrawingIds,
+} from './erasure';
 import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { isMissingRelationError } from './missing-relation';

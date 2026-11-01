@@ -1,8 +1,8 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { type Db, schema } from '../../db';
-import { isUuid } from './ids';
 import { type LifecycleAccess, lifecycleScope } from './access';
 import type { DocumentLifecycleState } from './actions';
+import { isUuid } from './ids';
 import { lifecycleTablesPresent } from './presence';
 
 export interface DocumentLifecycle {

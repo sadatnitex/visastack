@@ -624,7 +624,11 @@ async function removalReceiptId(tx: Db, documentId: string): Promise<string | nu
  * with the time and the space freed. A record already finished is left as it is; the receipt
  * guard of migration 0113 accepts only this forward move.
  */
-async function completeRemovalReceipt(tx: Db, receiptId: string, bytesFreed: number): Promise<void> {
+async function completeRemovalReceipt(
+  tx: Db,
+  receiptId: string,
+  bytesFreed: number,
+): Promise<void> {
   const receipt = first(
     await tx
       .select({ status: schema.deletionReceipts.status, effects: schema.deletionReceipts.effects })

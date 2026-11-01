@@ -57,7 +57,7 @@ describe('migration 0113: resource lifecycle', () => {
         'document_removal_requests',
       ]);
       const reasons = await client.query<{ value: string }>(
-        `select unnest(enum_range(null::erasure_job_reason))::text as value`,
+        'select unnest(enum_range(null::erasure_job_reason))::text as value',
       );
       expect(reasons.rows.map((row) => row.value)).toContain('DOCUMENT_REMOVAL');
     },
@@ -108,7 +108,9 @@ describe('migration 0113: resource lifecycle', () => {
       client.query(`update deletion_receipts set path = 'REQUEST' where id = '${id}'`),
     ).rejects.toThrow(/cannot be edited/);
     await expect(
-      client.query(`update deletion_receipts set requested_by_account_id = null where id = '${id}'`),
+      client.query(
+        `update deletion_receipts set requested_by_account_id = null where id = '${id}'`,
+      ),
     ).rejects.toThrow(/who asked/);
   });
 

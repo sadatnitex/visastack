@@ -70,9 +70,18 @@ describe('lifecycle read paths', () => {
 
   it('lists every read that does not apply the lifecycle rule, and only those', () => {
     const problems = checkReadSites(sites, lists);
-    expect(problems.unlisted, 'add the lifecycle condition (or, for a permanent reason, read-exempt.json)').toEqual([]);
-    expect(problems.stale, 'remove these entries from your lane baseline: they comply now or are gone').toEqual([]);
-    expect(problems.staleExempt, 'remove these from read-exempt.json: they no longer read the table').toEqual([]);
+    expect(
+      problems.unlisted,
+      'add the lifecycle condition (or, for a permanent reason, read-exempt.json)',
+    ).toEqual([]);
+    expect(
+      problems.stale,
+      'remove these entries from your lane baseline: they comply now or are gone',
+    ).toEqual([]);
+    expect(
+      problems.staleExempt,
+      'remove these from read-exempt.json: they no longer read the table',
+    ).toEqual([]);
     expect(problems.duplicated).toEqual([]);
   });
 
@@ -102,7 +111,9 @@ describe('lifecycle read paths', () => {
 
 describe('the read-path analyser', () => {
   const lists = (baseline: Partial<Record<ReadTable, string[]>> = {}): ReadLists => ({
-    baselines: { A2: { documents: baseline.documents ?? [], applicants: baseline.applicants ?? [] } },
+    baselines: {
+      A2: { documents: baseline.documents ?? [], applicants: baseline.applicants ?? [] },
+    },
     exempt: { documents: {}, applicants: {} },
   });
   const header = `import { and, eq } from 'drizzle-orm';
