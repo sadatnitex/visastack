@@ -334,15 +334,15 @@ describe('agency Clients: within the scroll budget (WP-SB5)', () => {
     expect(mocks.loadEvidenceRequestPage).toHaveBeenCalledTimes(1);
     expect(mocks.loadEvidenceRequestPage.mock.calls[0]?.[4]).toEqual({
       view: undefined,
-      limit: 15,
+      limit: 10,
       before: undefined,
     });
   });
 
-  it('shows 15 requests with a status filter, the count of each view and Show More', async () => {
+  it('shows 10 requests with a status filter, the count of each view and Show More (WP-SB11)', async () => {
     mocks.loadEvidenceRequestPage.mockResolvedValue(
       requestPage(
-        Array.from({ length: 15 }, (_, i) => request(i)),
+        Array.from({ length: 10 }, (_, i) => request(i)),
         {
           nextCursor: 'req-next',
           total: 300,
@@ -351,9 +351,9 @@ describe('agency Clients: within the scroll budget (WP-SB5)', () => {
       ),
     );
     const html = await renderServer(Page(withQuery({ status: 'open' })));
-    expect(html.split('id="request-').length - 1).toBe(15);
+    expect(html.split('id="request-').length - 1).toBe(10);
     const text = textOf(html);
-    expect(text).toContain('Showing 15 of 300 requests.');
+    expect(text).toContain('Showing 10 of 300 requests.');
     for (const label of [
       'All 320',
       'Open 300',
@@ -365,11 +365,11 @@ describe('agency Clients: within the scroll budget (WP-SB5)', () => {
     }
     expect(mocks.loadEvidenceRequestPage.mock.calls[0]?.[4]).toEqual({
       view: 'open',
-      limit: 15,
+      limit: 10,
       before: undefined,
     });
     expect(html).toContain(
-      'href="/app/agency/o1/clients?status=open&amp;requests=30#agency-evidence-request-list"',
+      'href="/app/agency/o1/clients?status=open&amp;requests=20#agency-evidence-request-list"',
     );
     expect(html).toMatch(/aria-label="Evidence requests by status"/);
     expect(html).toMatch(
@@ -384,7 +384,7 @@ describe('agency Clients: within the scroll budget (WP-SB5)', () => {
     const html = await renderServer(Page(withQuery({ status: 'everything' })));
     expect(mocks.loadEvidenceRequestPage.mock.calls[0]?.[4]).toEqual({
       view: undefined,
-      limit: 15,
+      limit: 10,
       before: undefined,
     });
     const text = textOf(html);
@@ -414,5 +414,46 @@ describe('agency Clients: within the scroll budget (WP-SB5)', () => {
     const empty = await renderServer(Page(props));
     expect(empty).toMatch(/<details class="collapsible-group" id="invite-client" open="">/);
     expect(empty).toMatch(/<details class="collapsible-group" id="ask-for-evidence" open="">/);
+  });
+});
+
+/**
+ * WP-SB11: the pending invitations fold into their own counted group, so the page opens on one
+ * list. The group opens on its own while there is no request to follow, and when the address pages
+ * through invitations; it is the same read and the same rows either way.
+ */
+describe('agency Clients: one list open at a time (WP-SB11)', () => {
+  const GROUP = /<details class="collapsible-group" id="client-invitations"( open="")?>/;
+
+  it('folds the pending invitations into a counted group while there are requests', async () => {
+    const html = await renderServer(Page(props));
+    const match = html.match(GROUP);
+    expect(match).not.toBeNull();
+    expect(match?.[1]).toBeUndefined();
+    const group = html.slice(html.indexOf('id="client-invitations"'));
+    expect(textOf(group.slice(0, group.indexOf('</summary>')))).toContain('Pending Invitations');
+    // The rows are all still there, one tap away, with their revoke controls.
+    expect(group.indexOf('id="client-invitation-list"')).toBeGreaterThan(0);
+    expect(stubProps(html, 'ClientInvitationRevokeButton').length).toBeGreaterThan(0);
+  });
+
+  it('opens the group when there is no request yet', async () => {
+    mocks.loadEvidenceRequestPage.mockResolvedValue(requestPage([]));
+    const html = await renderServer(Page(props));
+    expect(html.match(GROUP)?.[1]).toBe(' open=""');
+  });
+
+  it('opens the group when the address pages through invitations', async () => {
+    for (const query of [{ invites: '30' }, { invitesBefore: 'inv-next', invitesFrom: '90' }]) {
+      const html = await renderServer(Page(withQuery(query)));
+      expect(html.match(GROUP)?.[1]).toBe(' open=""');
+    }
+  });
+
+  it('shows no group at all when nobody is invited', async () => {
+    mocks.loadPendingClientInvitationPage.mockResolvedValue(invitationPage([]));
+    const html = await renderServer(Page(props));
+    expect(html).not.toContain('id="client-invitations"');
+    expect(textOf(html)).toContain('No Clients Invited Yet');
   });
 });

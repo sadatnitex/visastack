@@ -452,7 +452,7 @@ describe('agency Dashboard: within the scroll budget (WP-SB5)', () => {
     mocks.loadCases.mockResolvedValue({ admin: true, cases: [...many(199), needsAttention] });
     const html = await renderServer(Page(pageProps({ quick: 'mine' })));
     const rows = html.split('id="agency-case-table-rows"')[1]?.split('</tbody>')[0] ?? '';
-    expect(rows.match(/<tr>/g)).toHaveLength(10);
+    expect(rows.match(/<tr( class="agency-case-row-later")?>/g)).toHaveLength(10);
     const text = textOf(html);
     expect(text).toContain('Showing 10 of 199 cases.');
     // The filters stay on the Show More link.
@@ -461,11 +461,43 @@ describe('agency Dashboard: within the scroll budget (WP-SB5)', () => {
     expect(text).toContain('View All Cases');
   });
 
+  it('keeps every case on the page and folds the ones after the first 5 on a phone (WP-SB11)', async () => {
+    mocks.loadCases.mockResolvedValue({ admin: true, cases: many(12) });
+    const html = await renderServer(Page(pageProps()));
+    const rows = html.split('id="agency-case-table-rows"')[1]?.split('</tbody>')[0] ?? '';
+    expect(rows.match(/<tr>/g)).toHaveLength(5);
+    expect(rows.match(/<tr class="agency-case-row-later">/g)).toHaveLength(5);
+    expect(html).toContain(
+      'id="agency-case-table-all" class="agency-case-table-toggle-input" aria-label="Show All 10 Cases"',
+    );
+    expect(textOf(html)).toContain('Show the Other 5 Cases');
+    mocks.loadCases.mockResolvedValue({ admin: true, cases: many(4) });
+    const few = await renderServer(Page(pageProps()));
+    expect(few).not.toContain('agency-case-table-all');
+    expect(few).not.toContain('agency-case-row-later');
+  });
+
+  it('marks the table for the compact phone rows, every cell keeping its label (WP-SB11)', async () => {
+    mocks.loadCases.mockResolvedValue({ admin: true, cases: many(12) });
+    const html = await renderServer(Page(pageProps()));
+    expect(html).toContain('<table class="data-table agency-case-table u-mt-100">');
+    const rows = html.split('id="agency-case-table-rows"')[1]?.split('</tbody>')[0] ?? '';
+    const first = rows.split('</tr>')[0] ?? '';
+    expect([...first.matchAll(/data-label="([^"]+)"/g)].map((m) => m[1])).toEqual([
+      'Stage',
+      'Readiness',
+      'Deadline',
+      'Needs Attention',
+      'Assigned',
+      'Traveller Confirmed',
+    ]);
+  });
+
   it('grows the table by 10 when asked, and never past what exists', async () => {
     mocks.loadCases.mockResolvedValue({ admin: true, cases: many(25) });
     const html = await renderServer(Page(pageProps({ show: '20' })));
     const rows = html.split('id="agency-case-table-rows"')[1]?.split('</tbody>')[0] ?? '';
-    expect(rows.match(/<tr>/g)).toHaveLength(20);
+    expect(rows.match(/<tr( class="agency-case-row-later")?>/g)).toHaveLength(20);
     const all = await renderServer(Page(pageProps({ show: '30' })));
     expect(textOf(all)).toContain('Showing all 25 cases.');
     expect(all).not.toContain('show=40');

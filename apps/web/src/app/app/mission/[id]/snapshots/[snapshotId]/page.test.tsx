@@ -106,3 +106,57 @@ describe('a snapshot in groups', () => {
     expect(groups.map((g) => g.hasAttribute('open'))).toEqual([true, false]);
   });
 });
+
+/**
+ * WP-SB11: an open part draws its first 8 rows, then Show All inside the part reveals the rest.
+ * Every row stays on the page (folded, not left out), so find-in-page and the confirmation below
+ * still cover the whole snapshot.
+ */
+describe('a snapshot part shows 8 rows, then Show All', () => {
+  /** The rows drawn before Show All (not inside the folded rest). */
+  const visible = (part: Element | null) =>
+    [...(part?.querySelectorAll('.row') ?? [])].filter(
+      (row) => !row.closest('.snapshot-rows-more'),
+    );
+
+  it('draws 8 rows of each part and folds the rest, all still on the page', async () => {
+    mocks.getMissionSnapshot.mockResolvedValue(
+      ok({ id: 'snap-1', version: 3, checksum: 'abc', content: content(60) }),
+    );
+    const page = await render();
+    for (const [key, total, label] of [
+      ['requirements', 60, 'Requirements'],
+      ['facts', 40, 'Facts'],
+      ['documents', 30, 'Documents'],
+    ] as const) {
+      const part = page.getElementById(`snapshot-${key}`);
+      expect(part?.querySelectorAll('.row')).toHaveLength(total);
+      expect(visible(part)).toHaveLength(8);
+      const more = part?.querySelector('details.snapshot-rows-more');
+      expect(more?.hasAttribute('open')).toBe(false);
+      expect(more?.querySelectorAll('.row')).toHaveLength(total - 8);
+      expect(more?.querySelector('summary .snapshot-rows-more-closed')?.textContent).toBe(
+        `Show All ${total} ${label}`,
+      );
+      expect(more?.querySelector('summary .snapshot-rows-more-open')?.textContent).toBe(
+        `Show Fewer ${label}`,
+      );
+    }
+  });
+
+  it('has no Show All when a part holds 8 rows or fewer', async () => {
+    const short = content(8);
+    mocks.getMissionSnapshot.mockResolvedValue(
+      ok({
+        id: 'snap-1',
+        version: 3,
+        checksum: 'abc',
+        content: { ...short, facts: short.facts.slice(0, 3), documents: [] },
+      }),
+    );
+    const page = await render();
+    expect(page.querySelectorAll('#snapshot-requirements .row')).toHaveLength(8);
+    expect(page.querySelector('.snapshot-rows-more')).toBeNull();
+    expect(page.querySelectorAll('#snapshot-facts .row')).toHaveLength(3);
+  });
+});

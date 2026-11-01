@@ -8,12 +8,12 @@ Keep this file between 250 and 400 words. Memory between sessions; evidence live
 - WP-C2: sidebar and page, card edges, control edges and the text tiers now separate by tone and edges only; status words and two text tiers are darker than Harbor on purpose (`colour-map.md`, section WP-C2)
 - Migrations: up to 0113 in the repository (Resource Lifecycle); Scroll Budget added none. Pending state not checked by WP-SB10
 - CCD-7 widths: 824 rendered pages at 390, 768 and 1280 show no sideways scroll (checker seen catching a wide page). WP-C2 layout findings (empty sections, one primary button per region, a quieter Turn Off, visible disclosure markers) go to the Record and Cases depth work
-- Scroll Budget: 53 browser checks pass locally, enforced by default and run in CI. Four reported exceptions, phone unless noted: Documents 3.5 screens (budget 3), Agency Clients 4.22 (desktop 3.64), Agency Dashboard table 3.1, open case snapshot 5.92 (budget 2). Heights of 1,246 rendered pages: `docs/uiux/SCROLL-BUDGET.md`, with 27 test files to triage
+- Scroll Budget: every browser check enforces and runs in CI. WP-SB11 fixed three of the four exceptions (Agency Clients 2.44 phone screens, Dashboard table 1.91 of 2, open snapshot 1.74 of 2). One left: Documents on a phone 3.5 screens (budget 3), owned by lane Z. Heights of 1,246 rendered pages: `docs/uiux/SCROLL-BUDGET.md`, with 27 test files to triage
 - Owner steps still open: O16 AWS account for the key service; turn on staff codes when staff have enrolled; keep click and open tracking off for the sending domain in the email service (invitation links carry one-time codes)
 - Known weakness: the live pixel-identity browser test failed once and passed on re-run on two deploys; being hardened
 - Not verified live: signed-in pages at phone and desktop widths (CCD, WP-C2, every Scroll Budget page); the platform admin console; hover, pressed and disabled states; any real AWS, payment or AI provider call
 - Blockers: none
-- Next action: Small Commercial order in `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md` section M; a layout package for the four Scroll Budget exceptions and the triage list
+- Next action: Small Commercial order in `docs/roadmap/SONNET-SMALL-COMMERCIAL-V1-HANDOFF.md` section M; the Scroll Budget triage list (WP-SB11 closed three exceptions)
 
 ## How to update
 

@@ -5,7 +5,8 @@ import { VIEWPORTS, expectWithinBudget, renderFixture } from './support';
 /**
  * WP-SB2: the case workspace with worst-case data (a 60-item checklist, 120 tasks, 80 notes, 60
  * complaints, 60 feedback notes, 60 snapshots) stays within its phone budget, and the same case
- * laid out the old way does not. This file enforces its budgets (plan section 5).
+ * laid out the old way does not. This file enforces its budgets (plan section 5), including the
+ * open snapshot since WP-SB11.
  */
 
 const FIXTURE = 'WP-SB2';
@@ -64,21 +65,36 @@ test.describe('WP-SB2 case workspace', () => {
     await expect(groups).toHaveCount(3);
     await expect(page.locator('#snapshot-requirements')).toHaveAttribute('open', '');
     await expect(page.locator('#snapshot-facts')).not.toHaveAttribute('open', '');
-    // As it opens, with its 60 open rows, it is over budget on a phone (5.92 screens, WP-SB10):
-    // reported, not enforced; the open rows are the reason to open it. Recorded in
-    // docs/uiux/SCROLL-BUDGET.md section 2; it still fails above its ceiling. Folded again,
-    // every part is enforced below.
-    await expectWithinBudget(page, {
-      screens: 2,
-      viewport: 'phone',
-      mode: 'report',
-      ceiling: 6.25,
-    });
+    // WP-SB11: as it opens, the first group draws 8 of its 60 rows and folds the rest behind
+    // Show All, so the open snapshot fits the phone budget too; every row is still on the page.
+    const first = page.locator('#snapshot-requirements');
+    await expect(first.locator('.row')).toHaveCount(60);
+    await expect(first.locator('.row:visible')).toHaveCount(8);
+    const showAll = first.locator('details.snapshot-rows-more > summary');
+    await expect(showAll).toHaveText('Show All 60 Requirements', { useInnerText: true });
+    for (const viewport of ['phone', 'desktop'] as const) {
+      await expectWithinBudget(page, { screens: 2, viewport, mode: 'enforce' });
+    }
+    await page.setViewportSize(VIEWPORTS.phone);
+    await showAll.click();
+    await expect(first.locator('.row:visible')).toHaveCount(60);
+    await expect(showAll).toHaveText('Show Fewer Requirements', { useInnerText: true });
+    await showAll.click();
     // With its first group closed again, every part of the snapshot is one tap away.
     await page.locator('#snapshot-requirements > summary').click();
     for (const viewport of ['phone', 'desktop'] as const) {
       await expectWithinBudget(page, { screens: 2, viewport, mode: 'enforce' });
     }
     await noSeriousAxe(page);
+  });
+
+  test('the open snapshot breaks the phone budget when its group draws every row', async ({
+    page,
+  }) => {
+    await renderFixture(page, FIXTURE, { view: 'snapshot-uncapped' });
+    await expect(page.locator('#snapshot-requirements .row')).toHaveCount(60);
+    await expect(
+      expectWithinBudget(page, { screens: 2, viewport: 'phone', mode: 'enforce' }),
+    ).rejects.toThrow(/page height at phone/);
   });
 });

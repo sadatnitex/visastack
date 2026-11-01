@@ -1,14 +1,14 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { expectFixedPanel, expectWithinBudget, renderFixture } from './support';
+import { VIEWPORTS, expectFixedPanel, expectWithinBudget, renderFixture } from './support';
 
 /**
  * WP-SB5: the agency Cases, Activity, Clients and Dashboard pages at their row caps with
  * worst-case data (200 cases, 300 notes, 400 invitations and 300 requests). The Cases budget
  * (3 screens with 200 cases) and the Activity log panel are the plan's acceptance and are
- * enforced; Clients (both sizes) and the Dashboard table (phone) are over budget and reported,
- * the Dashboard table enforces on a desktop (docs/uiux/SCROLL-BUDGET.md). The page tests prove the
- * real pages apply these caps and read data for the one open case only.
+ * enforced. Since WP-SB11 Clients (3 screens, both sizes) and the Dashboard table (2 screens, the
+ * dashboard budget, both sizes) enforce too. The page tests prove the real pages apply these caps
+ * and read data for the one open case only.
  */
 
 const FIXTURE = 'WP-SB5';
@@ -52,41 +52,79 @@ test.describe('WP-SB5 scroll budget', () => {
     await noSeriousAxe(page);
   });
 
-  test('clients lists 15 invitations and 15 requests, forms closed', async ({ page }) => {
+  test('clients lists 15 invitations and 10 requests, forms closed', async ({ page }) => {
     await renderFixture(page, FIXTURE, { view: 'clients', total: 400, shown: 15 });
     await expect(page.locator('#client-invitation-list .row')).toHaveCount(15);
-    await expect(page.locator('#agency-evidence-request-list .row')).toHaveCount(15);
+    await expect(page.locator('#agency-evidence-request-list .row')).toHaveCount(10);
     await expect(page.locator('details#invite-client')).not.toHaveAttribute('open', '');
+    // WP-SB11: the pending invitations fold into their own counted group while there are
+    // requests to follow, so the page opens on one list; one tap shows the other.
+    const invitations = page.locator('details#client-invitations');
+    await expect(invitations).not.toHaveAttribute('open', '');
+    await expect(invitations.locator('summary')).toContainText('Pending Invitations');
+    await expect(invitations.locator('summary')).toContainText('400');
     for (const viewport of ['phone', 'desktop'] as const) {
-      // Over budget (phone 4.22, desktop 3.64 screens, WP-SB10): reported, not enforced, until
-      // the two 15-row lists are settled; still fails above its ceiling. Recorded in
-      // docs/uiux/SCROLL-BUDGET.md section 2.
-      await expectWithinBudget(page, {
-        screens: 3,
-        viewport,
-        mode: 'report',
-        ceiling: viewport === 'phone' ? 4.5 : 4,
-      });
+      await expectWithinBudget(page, { screens: 3, viewport, mode: 'enforce' });
     }
     await noSeriousAxe(page);
+    await invitations.locator('summary').click();
+    await expect(page.locator('#client-invitation-list .row').first()).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Show More pending invitations' })).toBeVisible();
+  });
+
+  test('clients with both lists open breaks the budget', async ({ page }) => {
+    await renderFixture(page, FIXTURE, {
+      view: 'clients',
+      total: 400,
+      shown: 15,
+      invitationsOpen: true,
+    });
+    await expect(
+      expectWithinBudget(page, { screens: 3, viewport: 'phone', mode: 'enforce' }),
+    ).rejects.toThrow(/page height at phone/);
   });
 
   test('the dashboard table shows the 10 most urgent cases, then Show More', async ({ page }) => {
     await renderFixture(page, FIXTURE, { view: 'dashboard', total: 200, shown: 10 });
     await expect(page.locator('#agency-case-table-rows tr')).toHaveCount(10);
+    await expect(page.getByText('Showing 10 of 200 cases.')).toBeVisible();
     await expect(page.getByRole('link', { name: 'View All Cases' })).toBeVisible();
+    // WP-SB11: on a phone the first 5 cases show as compact cards and the other 5 stay on the page
+    // behind Show the Other 5 Cases, so the table fits the dashboard budget of 2 screens on both
+    // sizes; a desktop shows all 10 and no toggle.
     for (const viewport of ['phone', 'desktop'] as const) {
-      // Over budget on a phone (3.1 screens, WP-SB10): reported, not enforced, until the table
-      // rows are settled; still fails above its ceiling. Recorded in docs/uiux/SCROLL-BUDGET.md
-      // section 2; a desktop enforces.
-      await expectWithinBudget(page, {
-        screens: 3,
-        viewport,
-        mode: viewport === 'phone' ? 'report' : 'enforce',
-        ...(viewport === 'phone' ? { ceiling: 3.5 } : {}),
-      });
+      await expectWithinBudget(page, { screens: 2, viewport, mode: 'enforce' });
     }
+    await page.setViewportSize(VIEWPORTS.desktop);
+    await expect(page.locator('#agency-case-table-rows tr:visible')).toHaveCount(10);
+    await expect(page.locator('.agency-case-table-toggle')).toBeHidden();
+    await page.setViewportSize(VIEWPORTS.phone);
+    await expect(page.locator('#agency-case-table-rows tr:visible')).toHaveCount(5);
+    const toggle = page.getByRole('checkbox', { name: 'Show All 10 Cases' });
+    await expect(page.locator('label[for="agency-case-table-all"]')).toHaveText(
+      'Show the Other 5 Cases',
+      { useInnerText: true },
+    );
+    await expect(toggle).not.toBeChecked();
     await noSeriousAxe(page);
+    await page.locator('label[for="agency-case-table-all"]').click();
+    await expect(toggle).toBeChecked();
+    await expect(page.locator('#agency-case-table-rows tr:visible')).toHaveCount(10);
+    await expect(page.locator('label[for="agency-case-table-all"]')).toHaveText(
+      'Show Fewer Cases',
+      { useInnerText: true },
+    );
+  });
+
+  test('the dashboard table breaks its budget with all 10 cases unfolded on a phone', async ({
+    page,
+  }) => {
+    await renderFixture(page, FIXTURE, { view: 'dashboard', total: 200, shown: 10 });
+    await page.setViewportSize(VIEWPORTS.phone);
+    await page.locator('label[for="agency-case-table-all"]').click();
+    await expect(
+      expectWithinBudget(page, { screens: 2, viewport: 'phone', mode: 'enforce' }),
+    ).rejects.toThrow(/page height at phone/);
   });
 
   test('the cases budget fails when the list cap is lost', async ({ page }) => {

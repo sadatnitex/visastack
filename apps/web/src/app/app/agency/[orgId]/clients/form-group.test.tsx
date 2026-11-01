@@ -65,3 +65,31 @@ describe('openRequestAddress (WP-SB5)', () => {
     expect(openRequestAddress('/c', '', '#request-r1', nowhere)).toBeNull();
   });
 });
+
+describe('FormGroup as the pending invitations group (WP-SB11)', () => {
+  it('shows its count and stays open when a link back to the newest rows drops the paging', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const group = (openAtFirst: boolean) => (
+      <FormGroup
+        id="client-invitations"
+        title="Pending Invitations"
+        count={40}
+        noun={{ one: 'pending invitation', other: 'pending invitations' }}
+        openAtFirst={openAtFirst}
+      >
+        <div id="client-invitation-list">rows</div>
+      </FormGroup>
+    );
+    // Opened by paging through invitations.
+    await act(async () => root.render(group(true)));
+    expect(host.querySelector('.collapsible-group-count')?.textContent).toBe('40');
+    expect(host.querySelector('summary')?.textContent).toContain('40 pending invitations');
+    // Back to the Newest Invitations: the address no longer pages, the group stays open.
+    await act(async () => root.render(group(false)));
+    expect(host.querySelector('details')?.open).toBe(true);
+    await act(async () => root.unmount());
+    host.remove();
+  });
+});
