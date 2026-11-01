@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { expectFixedPanel, expectWithinBudget, renderFixture } from './support';
+import { VIEWPORTS, expectFixedPanel, expectWithinBudget, renderFixture } from './support';
 
 /**
  * WP-SB5: the agency Cases, Activity, Clients and Dashboard pages at their row caps with
@@ -84,21 +84,44 @@ test.describe('WP-SB5 scroll budget', () => {
     ).rejects.toThrow(/page height at phone/);
   });
 
-  test('the dashboard table shows the 5 most urgent cases, then Show More', async ({ page }) => {
-    await renderFixture(page, FIXTURE, { view: 'dashboard', total: 200, shown: 5 });
-    await expect(page.locator('#agency-case-table-rows tr')).toHaveCount(5);
-    await expect(page.getByText('Showing 5 of 200 cases.')).toBeVisible();
+  test('the dashboard table shows the 10 most urgent cases, then Show More', async ({ page }) => {
+    await renderFixture(page, FIXTURE, { view: 'dashboard', total: 200, shown: 10 });
+    await expect(page.locator('#agency-case-table-rows tr')).toHaveCount(10);
+    await expect(page.getByText('Showing 10 of 200 cases.')).toBeVisible();
     await expect(page.getByRole('link', { name: 'View All Cases' })).toBeVisible();
-    // WP-SB11: the 5 most urgent cases as compact cards on a phone keep the table within the
-    // dashboard budget of 2 screens on both sizes.
+    // WP-SB11: on a phone the first 5 cases show as compact cards and the other 5 stay on the page
+    // behind Show the Other 5 Cases, so the table fits the dashboard budget of 2 screens on both
+    // sizes; a desktop shows all 10 and no toggle.
     for (const viewport of ['phone', 'desktop'] as const) {
       await expectWithinBudget(page, { screens: 2, viewport, mode: 'enforce' });
     }
+    await page.setViewportSize(VIEWPORTS.desktop);
+    await expect(page.locator('#agency-case-table-rows tr:visible')).toHaveCount(10);
+    await expect(page.locator('.agency-case-table-toggle')).toBeHidden();
+    await page.setViewportSize(VIEWPORTS.phone);
+    await expect(page.locator('#agency-case-table-rows tr:visible')).toHaveCount(5);
+    const toggle = page.getByRole('checkbox', { name: 'Show All 10 Cases' });
+    await expect(page.locator('label[for="agency-case-table-all"]')).toHaveText(
+      'Show the Other 5 Cases',
+      { useInnerText: true },
+    );
+    await expect(toggle).not.toBeChecked();
     await noSeriousAxe(page);
+    await page.locator('label[for="agency-case-table-all"]').click();
+    await expect(toggle).toBeChecked();
+    await expect(page.locator('#agency-case-table-rows tr:visible')).toHaveCount(10);
+    await expect(page.locator('label[for="agency-case-table-all"]')).toHaveText(
+      'Show Fewer Cases',
+      { useInnerText: true },
+    );
   });
 
-  test('the dashboard table breaks its budget at 10 cases on a phone', async ({ page }) => {
+  test('the dashboard table breaks its budget with all 10 cases unfolded on a phone', async ({
+    page,
+  }) => {
     await renderFixture(page, FIXTURE, { view: 'dashboard', total: 200, shown: 10 });
+    await page.setViewportSize(VIEWPORTS.phone);
+    await page.locator('label[for="agency-case-table-all"]').click();
     await expect(
       expectWithinBudget(page, { screens: 2, viewport: 'phone', mode: 'enforce' }),
     ).rejects.toThrow(/page height at phone/);

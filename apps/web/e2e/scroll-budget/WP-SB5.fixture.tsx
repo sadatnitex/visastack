@@ -260,6 +260,7 @@ function Clients({
  * The dashboard's case table with the same seven columns, badges and readiness ring as the real
  * page, worst case for height: every row has a ring, two attention badges and an assignee
  * (WP-SB11 brought this in line with the page, which the earlier five-column copy understated).
+ * On a phone the cases after the first 5 fold behind "Show the Other N Cases", as on the page.
  */
 function Dashboard({ total, shown }: { total: number; shown: number }) {
   return (
@@ -297,7 +298,7 @@ function Dashboard({ total, shown }: { total: number; shown: number }) {
         </thead>
         <tbody id="agency-case-table-rows">
           {rows(shown).map((n) => (
-            <tr key={n}>
+            <tr key={n} {...(n >= 5 ? { className: 'agency-case-row-later' } : {})}>
               <th scope="row" className="cell-main">
                 <a href={`/app/agency/o1/cases#mission-${caseId(n)}`}>
                   Traveller Number {n} · Visitor Visa Application {n}
@@ -329,12 +330,28 @@ function Dashboard({ total, shown }: { total: number; shown: number }) {
           ))}
         </tbody>
       </table>
+      {shown > 5 ? (
+        <div className="agency-case-table-toggle">
+          <input
+            type="checkbox"
+            id="agency-case-table-all"
+            className="agency-case-table-toggle-input"
+            aria-label={`Show All ${shown} Cases`}
+          />
+          <label htmlFor="agency-case-table-all" className="btn btn-secondary u-btn-sm">
+            <span className="agency-case-table-toggle-closed">
+              Show the Other {shown - 5} {shown - 5 === 1 ? 'Case' : 'Cases'}
+            </span>
+            <span className="agency-case-table-toggle-open">Show Fewer Cases</span>
+          </label>
+        </div>
+      ) : null}
       <div className="agency-case-table-end">
         <ShowMore
           id="agency-case-table-more"
           landOn="agency-case-table-rows"
           pathname="/app/agency/o1"
-          next={shown < total ? { show: shown + 5 } : null}
+          next={shown < total ? { show: shown + 10 } : null}
           shown={shown}
           total={total}
           noun={{ one: 'case', other: 'cases' }}

@@ -54,14 +54,15 @@ function Stat({
 
 export const metadata: Metadata = { title: 'Agency Dashboard' };
 
-/** How many queued cases the Dashboard shows before Show More (WP-SB5). */
+/** How many cases and queued cases the Dashboard shows before Show More (WP-SB5). */
 const DASHBOARD_CASE_STEP = 10;
 /**
- * How many of the most urgent cases the Dashboard table shows before Show More (WP-SB11, was 10):
- * a case with all seven of its facts is about 245 px tall as a phone card, so 5 keep the
- * Dashboard within its two-screen budget. View All Cases still opens every case.
+ * WP-SB11: on a phone the table draws its first 5 cases as compact cards and folds the rest of
+ * this load behind "Show the Other N Cases" (a checkbox and CSS, so it works without script).
+ * Every case stays on the page; a wider screen shows them all. A case card is about 245 px tall,
+ * so this keeps the Dashboard within its two-screen budget on a phone.
  */
-const DASHBOARD_TABLE_STEP = 5;
+const PHONE_FIRST_CASES = 5;
 
 export const dynamic = 'force-dynamic';
 
@@ -97,9 +98,9 @@ export default async function AgencyDashboardPage({
     assignee: assigneeFilter = '',
     quick: rawQuick = '',
   } = query;
-  // WP-SB5: the case table shows the 5 most urgent cases (WP-SB11), then Show More; the reassignment
+  // WP-SB5: the case table shows the 10 most urgent cases, then Show More; the reassignment
   // queue the same. The Cases page lists every case.
-  const casesShown = parseShow(query.show, { step: DASHBOARD_TABLE_STEP });
+  const casesShown = parseShow(query.show, { step: DASHBOARD_CASE_STEP });
   const queueShown = parseShow(query.queue, { step: DASHBOARD_CASE_STEP });
 
   const data = await withSession(async ({ db, accountId }) => {
@@ -501,12 +502,17 @@ export default async function AgencyDashboardPage({
                   </tr>
                 </thead>
                 <tbody id="agency-case-table-rows">
-                  {searched.slice(0, casesShown).map((row) => {
+                  {searched.slice(0, casesShown).map((row, index) => {
                     const { mission } = row;
                     const required = mission.readiness?.requiredCount ?? 0;
                     const satisfied = mission.readiness?.satisfiedRequired ?? 0;
                     return (
-                      <tr key={mission.missionId}>
+                      <tr
+                        key={mission.missionId}
+                        {...(index >= PHONE_FIRST_CASES
+                          ? { className: 'agency-case-row-later' }
+                          : {})}
+                      >
                         <th scope="row" className="cell-main">
                           <Link href={`/app/agency/${orgId}/cases#mission-${mission.missionId}`}>
                             {mission.applicantName} · {mission.title}
@@ -613,6 +619,26 @@ export default async function AgencyDashboardPage({
                 </tbody>
               </table>
             )}
+            {Math.min(casesShown, searched.length) > PHONE_FIRST_CASES ? (
+              <div className="agency-case-table-toggle">
+                <input
+                  type="checkbox"
+                  id="agency-case-table-all"
+                  className="agency-case-table-toggle-input"
+                  // A stable spoken name with the checked state; the visible words switch.
+                  aria-label={`Show All ${Math.min(casesShown, searched.length)} Cases`}
+                />
+                <label htmlFor="agency-case-table-all" className="btn btn-secondary u-btn-sm">
+                  <span className="agency-case-table-toggle-closed">
+                    {(() => {
+                      const others = Math.min(casesShown, searched.length) - PHONE_FIRST_CASES;
+                      return `Show the Other ${others} ${others === 1 ? 'Case' : 'Cases'}`;
+                    })()}
+                  </span>
+                  <span className="agency-case-table-toggle-open">Show Fewer Cases</span>
+                </label>
+              </div>
+            ) : null}
             {searched.length > 0 ? (
               <div className="agency-case-table-end">
                 <ShowMore
@@ -621,7 +647,7 @@ export default async function AgencyDashboardPage({
                   pathname={base}
                   searchParams={dashboardQuery}
                   next={(() => {
-                    const more = nextShow(casesShown, { step: DASHBOARD_TABLE_STEP });
+                    const more = nextShow(casesShown, { step: DASHBOARD_CASE_STEP });
                     return more !== null && searched.length > casesShown ? { show: more } : null;
                   })()}
                   shown={Math.min(casesShown, searched.length)}

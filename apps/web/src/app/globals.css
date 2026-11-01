@@ -12173,8 +12173,12 @@ html:has(.sticky-action-bar) {
 /* WP-SB11 scroll budget exceptions: on a phone the agency Dashboard case table packs each case
    into a compact card: the case and its destination on top, then its six facts flowing together,
    each after its own small label. The readiness ring's drawing is out of sight there (a screen
-   reader still reads it) and its words ("9 of 12 items ready") stay. Same cells, same words, so the
-   5 most urgent cases fit the dashboard's two screens. */
+   reader still reads it) and its words ("9 of 12 items ready") stay. The first 5 cases show; the
+   rest of the load stay on the page behind "Show the Other N Cases" (a checkbox, no script needed),
+   so the dashboard fits its two screens. Wider screens show every case and no toggle. */
+.agency-case-table-toggle {
+  display: none;
+}
 @media (max-width: 40rem) {
   .agency-case-table tbody tr {
     display: flex;
@@ -12207,7 +12211,7 @@ html:has(.sticky-action-bar) {
   }
   .agency-case-table td::before {
     flex: none;
-    font-size: 0.6875rem;
+    font-size: var(--text-caption);
     letter-spacing: 0.04em;
   }
   .agency-case-table td > * {
@@ -12219,6 +12223,35 @@ html:has(.sticky-action-bar) {
   .agency-case-table .progress-ring-row {
     display: inline-flex;
     margin: 0;
+  }
+  .agency-case-table-toggle {
+    display: block;
+    margin-top: 0.5rem;
+  }
+  .agency-case-table-toggle-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .agency-case-table-toggle label {
+    min-height: 2.75rem;
+    cursor: pointer;
+  }
+  .agency-case-table-toggle-input:focus-visible + label {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .card:has(.agency-case-table-toggle-input:not(:checked)) .agency-case-row-later,
+  .agency-case-table-toggle-open,
+  .agency-case-table-toggle-input:checked + label .agency-case-table-toggle-closed {
+    display: none;
+  }
+  .agency-case-table-toggle-input:checked + label .agency-case-table-toggle-open {
+    display: inline;
   }
   /* Out of sight but still read: the drawing carries the spoken count ("9 of 12 items ready"). */
   .agency-case-table .progress-ring-graphic {
