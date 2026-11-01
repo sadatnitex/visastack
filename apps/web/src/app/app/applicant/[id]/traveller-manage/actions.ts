@@ -10,6 +10,7 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { isRecordId } from '../../../../../lib/record-id';
 import { withSession } from '../../../../../lib/session';
 import { OUTCOME_PARAM, type TravellerOutcome, refusalOutcome } from './messages';
 
@@ -23,12 +24,13 @@ import { OUTCOME_PARAM, type TravellerOutcome, refusalOutcome } from './messages
 const COMMANDS = ['archive', 'restore', 'remove', 'restoreDeleted'] as const;
 type Command = (typeof COMMANDS)[number];
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** Where to land afterwards: the traveller's own page, or the list of all travellers. */
+/**
+ * Where to land afterwards: the traveller's own page, or the list of all travellers. A record just
+ * moved to Recently Deleted lands on the list, where its Restore button is.
+ */
 function landing(applicantId: string, returnTo: string, outcome: TravellerOutcome): string {
   const query = `?${OUTCOME_PARAM}=${outcome}`;
-  return returnTo === 'list'
+  return returnTo === 'list' || outcome === 'removed'
     ? `/app/applicants${query}#traveller-outcome`
     : `/app/applicant/${applicantId}${query}#traveller-outcome`;
 }
@@ -70,7 +72,7 @@ export async function travellerLifecycleAction(formData: FormData): Promise<void
   const applicantId = String(formData.get('applicantId') ?? '');
   const command = String(formData.get('command') ?? '');
   const returnTo = String(formData.get('returnTo') ?? '');
-  if (!UUID.test(applicantId) || !(COMMANDS as readonly string[]).includes(command)) {
+  if (!isRecordId(applicantId) || !(COMMANDS as readonly string[]).includes(command)) {
     redirect('/app/applicants');
   }
   const outcome = await perform(applicantId, command as Command);

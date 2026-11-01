@@ -120,21 +120,54 @@ async function auditTypes(db: Db, applicantId: string): Promise<string[]> {
 const ids = (rows: readonly { readonly id: string }[]) => rows.map((row) => row.id).sort();
 
 describe('availableTravellerActions', () => {
-  it('never offers Archive for Myself, and offers removal only without a block', () => {
+  it('never offers Archive for Myself or the last traveller in use, and offers removal only without a block', () => {
     expect(
-      availableTravellerActions({ state: 'CURRENT', isMyself: true, removalBlock: 'LAST_MYSELF' }),
+      availableTravellerActions({
+        state: 'CURRENT',
+        isMyself: false,
+        anotherInUse: false,
+        removalBlock: 'LAST_EVERYDAY',
+      }),
     ).toEqual([]);
     expect(
-      availableTravellerActions({ state: 'CURRENT', isMyself: true, removalBlock: null }),
+      availableTravellerActions({
+        state: 'CURRENT',
+        isMyself: true,
+        anotherInUse: true,
+        removalBlock: 'LAST_MYSELF',
+      }),
+    ).toEqual([]);
+    expect(
+      availableTravellerActions({
+        state: 'CURRENT',
+        isMyself: true,
+        anotherInUse: true,
+        removalBlock: null,
+      }),
     ).toEqual(['REMOVE_EMPTY']);
     expect(
-      availableTravellerActions({ state: 'CURRENT', isMyself: false, removalBlock: 'NOT_EMPTY' }),
+      availableTravellerActions({
+        state: 'CURRENT',
+        isMyself: false,
+        anotherInUse: true,
+        removalBlock: 'NOT_EMPTY',
+      }),
     ).toEqual(['ARCHIVE']);
     expect(
-      availableTravellerActions({ state: 'ARCHIVED', isMyself: false, removalBlock: null }),
+      availableTravellerActions({
+        state: 'ARCHIVED',
+        isMyself: false,
+        anotherInUse: true,
+        removalBlock: null,
+      }),
     ).toEqual(['RESTORE', 'REMOVE_EMPTY']);
     expect(
-      availableTravellerActions({ state: 'RECENTLY_DELETED', isMyself: false, removalBlock: null }),
+      availableTravellerActions({
+        state: 'RECENTLY_DELETED',
+        isMyself: false,
+        anotherInUse: true,
+        removalBlock: null,
+      }),
     ).toEqual(['RESTORE_DELETED']);
   });
 });
@@ -344,6 +377,45 @@ describe('travellers with the lifecycle tables present', () => {
       const family = await addTraveller(db, owner);
       expect(await travellerIsEmpty(db, family, await manage(db, owner, self))).toBe(false);
       expect(await travellerIsEmpty(db, 'not-a-uuid', await manage(db, owner, family))).toBe(false);
+    },
+    HEAVY,
+  );
+});
+
+describe('the last traveller in use (lifecycle tables present)', () => {
+  it(
+    'keeps one traveller in use: the last one cannot be archived or removed',
+    async () => {
+      const db = await freshDb();
+      const owner = await seedAccount(db, 'lc-e-last@example.com');
+      const first = await addTraveller(db, owner);
+      const second = await addTraveller(db, owner);
+      expect((await archiveTraveller(await manage(db, owner, first))).ok).toBe(true);
+      const lastArchive = await archiveTraveller(await manage(db, owner, second));
+      expect(!lastArchive.ok && lastArchive.error.message).toBe(TRAVELLER_REFUSALS.lastEveryday);
+      const lastRemove = await deleteEmptyTraveller(await manage(db, owner, second));
+      expect(!lastRemove.ok && lastRemove.error.message).toBe(TRAVELLER_REFUSALS.lastEveryday);
+      const view = await getTravellerManageView(await manage(db, owner, second));
+      expect(view.ok && view.value?.actions).toEqual([]);
+      expect(view.ok && view.value?.removalBlock).toBe('LAST_EVERYDAY');
+      expect(ids(await listApplicants(db, owner))).toEqual([second]);
+    },
+    HEAVY,
+  );
+
+  it(
+    'brings a record archived before its removal back into everyday use when restored',
+    async () => {
+      const db = await freshDb();
+      const owner = await seedAccount(db, 'lc-e-archived-removed@example.com');
+      const self = await addTraveller(db, owner, 'SELF');
+      const family = await addTraveller(db, owner);
+      expect((await archiveTraveller(await manage(db, owner, family))).ok).toBe(true);
+      expect((await deleteEmptyTraveller(await manage(db, owner, family))).ok).toBe(true);
+      const restored = await restoreDeletedTraveller(await manage(db, owner, family));
+      expect(restored.ok && restored.value.state).toBe('CURRENT');
+      expect(ids(await listApplicants(db, owner))).toEqual([self, family].sort());
+      expect(await listApplicants(db, owner, { view: 'archived' })).toEqual([]);
     },
     HEAVY,
   );

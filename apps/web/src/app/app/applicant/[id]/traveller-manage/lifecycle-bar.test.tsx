@@ -2,7 +2,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./actions', () => ({ travellerLifecycleAction: async () => undefined }));
-vi.mock('@visastack/services', () => ({ TRAVELLER_REFUSALS: {} }));
+vi.mock('@visastack/services', () => ({
+  TRAVELLER_REFUSALS: {},
+  TRAVELLER_RECENTLY_DELETED_DAYS: 30,
+}));
 const { TravellerLifecycleBar } = await import('./lifecycle-bar');
 
 const ID = '10000000-0000-4000-8000-000000000002';

@@ -1,5 +1,10 @@
 import { createTranslator } from '@visastack/i18n';
-import { type ListedApplicant, getConsents, listApplicants } from '@visastack/services';
+import {
+  type ListedApplicant,
+  TRAVELLER_RECENTLY_DELETED_DAYS,
+  getConsents,
+  listApplicants,
+} from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ShowMore } from '../../../components/show-more';
@@ -15,11 +20,8 @@ import {
 import { relationshipLabel } from '../../../lib/relationship-labels';
 import { withSession } from '../../../lib/session';
 import { AddApplicantForm } from '../add-applicant-form';
-import {
-  OUTCOME_PARAM,
-  outcomeMessage,
-  removedInDays,
-} from '../applicant/[id]/traveller-manage/messages';
+import { removedInDays } from '../applicant/[id]/traveller-manage/labels';
+import { OUTCOME_PARAM, outcomeMessage } from '../applicant/[id]/traveller-manage/messages';
 import { RestoreTravellerForm } from '../applicant/[id]/traveller-manage/restore-form';
 
 export const metadata: Metadata = { title: 'All Travellers' };
@@ -47,6 +49,8 @@ function ParkedTravellers({
   const shown = Math.min(parseShow(query[kind], paging), people.length);
   const next = shown < people.length ? nextShow(shown, paging) : null;
   const deleted = kind === 'deleted';
+  // The result of the last action is shown once: Show More does not carry it along.
+  const { [OUTCOME_PARAM]: _outcome, ...listQuery } = query;
   const headingId = `travellers-${kind}-heading`;
   return (
     <article className="card" aria-labelledby={headingId}>
@@ -56,7 +60,7 @@ function ParkedTravellers({
       </h2>
       <p className="card-body muted">
         {deleted
-          ? 'Empty records you removed. Each is removed for good after 30 days; until then you can restore it.'
+          ? `Empty records you removed. Each is removed for good after ${TRAVELLER_RECENTLY_DELETED_DAYS} days; until then you can restore it.`
           : 'Hidden from your everyday lists, and their reminders are paused. Nothing is deleted.'}
       </p>
       <ul className="rows u-mt-050 lc-traveller-list">
@@ -97,7 +101,7 @@ function ParkedTravellers({
           id={`travellers-${kind}-more`}
           landOn={`travellers-${kind}-${shown}`}
           pathname={PATHNAME}
-          searchParams={query}
+          searchParams={listQuery}
           next={next === null ? null : { [kind]: next }}
           shown={shown}
           total={people.length}

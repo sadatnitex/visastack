@@ -5,6 +5,7 @@ const service = vi.hoisted(() => ({
   listApplicants: vi.fn(),
   getConsents: vi.fn(),
   TRAVELLER_REFUSALS: { notEmpty: 'not empty' },
+  TRAVELLER_RECENTLY_DELETED_DAYS: 30,
 }));
 vi.mock('@visastack/services', () => service);
 vi.mock('../applicant/[id]/traveller-manage/actions', () => ({
@@ -92,6 +93,7 @@ describe('Archived and Recently Deleted travellers (LC-E)', () => {
     expect(html).toContain('Archived Travellers');
     expect(html).toContain('href="/app/applicant/arch"');
     expect(html).toContain('Recently Deleted Records');
+    expect(html).toContain('removed for good after 30 days');
     expect(html).toContain('Removed in 12 Days');
     // A record in Recently Deleted is not opened from here; it is restored first.
     expect(html).not.toContain('href="/app/applicant/gone"');
@@ -113,6 +115,12 @@ describe('Archived and Recently Deleted travellers (LC-E)', () => {
       await ApplicantsPage({ searchParams: Promise.resolve({ archived: '20' }) }),
     );
     expect(more.match(/class="row lc-traveller-row"/g)).toHaveLength(12);
+    // A result line from the last action is not carried into Show More.
+    const after = renderToStaticMarkup(
+      await ApplicantsPage({ searchParams: Promise.resolve({ traveller: 'restored' }) }),
+    );
+    expect(after).toContain('Restored.');
+    expect(after).not.toMatch(/href="[^"]*traveller=restored/);
   });
 
   it('shows the result of the last action, and only words it knows', async () => {

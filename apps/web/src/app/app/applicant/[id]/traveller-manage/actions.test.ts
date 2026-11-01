@@ -74,8 +74,9 @@ describe('the traveller lifecycle form action', () => {
     );
     expect(mocks.archiveTraveller).toHaveBeenCalledWith(PROOF);
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/app', 'layout');
-    expect(await submit({ applicantId: ID, command: 'remove', returnTo: 'traveller' })).toContain(
-      'traveller=removed',
+    // A record just moved to Recently Deleted lands on the list, where its Restore button is.
+    expect(await submit({ applicantId: ID, command: 'remove', returnTo: 'traveller' })).toBe(
+      '/app/applicants?traveller=removed#traveller-outcome',
     );
     expect(await submit({ applicantId: ID, command: 'restoreDeleted', returnTo: 'list' })).toBe(
       '/app/applicants?traveller=restored#traveller-outcome',

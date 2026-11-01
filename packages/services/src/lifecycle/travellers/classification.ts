@@ -24,6 +24,8 @@ export interface ApplicantReference {
   readonly kind: ApplicantReferenceKind;
   /** For `UNFINISHED`: the column and the one value that means the work is finished. */
   readonly finished?: { readonly column: string; readonly value: string };
+  /** The column has no index of its own, so the emptiness check asks it last. */
+  readonly unindexed?: true;
 }
 
 export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
@@ -34,7 +36,7 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
   { table: 'profile_section_states', column: 'applicant_id', kind: 'DATA' },
   { table: 'applicant_photos', column: 'applicant_id', kind: 'DATA' },
   // Documents, uploads in progress and what was read from them.
-  { table: 'documents', column: 'applicant_id', kind: 'DATA' },
+  { table: 'documents', column: 'applicant_id', kind: 'DATA', unindexed: true },
   { table: 'upload_intents', column: 'applicant_id', kind: 'DATA' },
   { table: 'document_type_proposals', column: 'applicant_id', kind: 'DATA' },
   { table: 'document_inconsistency_flags', column: 'applicant_id', kind: 'DATA' },
@@ -45,19 +47,19 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
   { table: 'ai_drafts', column: 'applicant_id', kind: 'DATA' },
   { table: 'issuer_verifications', column: 'applicant_id', kind: 'DATA' },
   // Cases, sharing and the people who work with this traveller.
-  { table: 'missions', column: 'applicant_id', kind: 'DATA' },
+  { table: 'missions', column: 'applicant_id', kind: 'DATA', unindexed: true },
   { table: 'grants', column: 'applicant_id', kind: 'DATA' },
   { table: 'grant_case_exclusions', column: 'applicant_id', kind: 'DATA' },
   { table: 'sharing_invitations', column: 'applicant_id', kind: 'DATA' },
   { table: 'support_grants', column: 'applicant_id', kind: 'DATA' },
   { table: 'evidence_requests', column: 'applicant_id', kind: 'DATA' },
   { table: 'contributor_requests', column: 'applicant_id', kind: 'DATA' },
-  { table: 'client_invitations', column: 'accepted_applicant_id', kind: 'DATA' },
-  { table: 'acknowledgements', column: 'subject_applicant_id', kind: 'DATA' },
+  { table: 'client_invitations', column: 'accepted_applicant_id', kind: 'DATA', unindexed: true },
+  { table: 'acknowledgements', column: 'subject_applicant_id', kind: 'DATA', unindexed: true },
   // Connections and messages.
   { table: 'ai_connections', column: 'applicant_id', kind: 'DATA' },
   { table: 'calendar_feeds', column: 'applicant_id', kind: 'DATA' },
-  { table: 'notifications', column: 'applicant_id', kind: 'DATA' },
+  { table: 'notifications', column: 'applicant_id', kind: 'DATA', unindexed: true },
   // Protection and lifecycle records held for this traveller.
   { table: 'legal_holds', column: 'applicant_id', kind: 'DATA' },
   { table: 'document_lifecycle', column: 'applicant_id', kind: 'DATA' },
@@ -71,6 +73,7 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
     column: 'applicant_id',
     kind: 'UNFINISHED',
     finished: { column: 'status', value: 'VERIFIED' },
+    unindexed: true,
   },
   { table: 'applicant_lifecycle', column: 'applicant_id', kind: 'OWN_STATE' },
   { table: 'audit_events', column: 'applicant_id', kind: 'KEPT' },

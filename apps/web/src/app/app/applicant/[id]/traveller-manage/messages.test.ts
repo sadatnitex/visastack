@@ -1,6 +1,7 @@
 import { TRAVELLER_REFUSALS } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
-import { outcomeMessage, refusalOutcome, removedInDays } from './messages';
+import { removedInDays } from './labels';
+import { outcomeMessage, refusalOutcome } from './messages';
 
 describe('traveller action words', () => {
   it('has plain words for every refusal the services can give', () => {
@@ -29,10 +30,25 @@ describe('traveller action words', () => {
     }
   });
 
-  it('counts the days left in Recently Deleted, never below one', () => {
+  it('counts the days left in Recently Deleted the way the Removal Record list does', () => {
     const now = new Date('2026-11-01T10:00:00Z');
     expect(removedInDays(new Date('2026-12-01T10:00:00Z'), now)).toBe('Removed in 30 Days');
     expect(removedInDays(new Date('2026-11-01T12:00:00Z'), now)).toBe('Removed in 1 Day');
-    expect(removedInDays(new Date('2026-10-31T10:00:00Z'), now)).toBe('Removed in 1 Day');
+    expect(removedInDays(new Date('2026-10-31T10:00:00Z'), now)).toBe('Removed in 0 Days');
+  });
+});
+
+describe('browser code of the traveller actions', () => {
+  it('imports nothing but types from the services package (a value import breaks the build)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    for (const file of ['traveller-manage-menu.tsx', 'labels.ts']) {
+      const source = readFileSync(fileURLToPath(new URL(`./${file}`, import.meta.url)), 'utf8');
+      const imports = [...source.matchAll(/import\s+(type\s+)?\{[^}]*\}\s+from\s+'([^']+)'/g)];
+      for (const [, typeOnly, from] of imports) {
+        if (from === '@visastack/services') expect(typeOnly, file).toBeDefined();
+      }
+      expect(source, file).not.toContain("from './messages'");
+    }
   });
 });

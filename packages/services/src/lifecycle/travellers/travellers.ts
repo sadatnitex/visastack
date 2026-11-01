@@ -6,7 +6,10 @@ import { appendAuditEvent } from '../../audit';
 import { type Db, first, schema } from '../../db';
 import { type ServiceError, serviceError } from '../../errors';
 // Imported by the foundation's path, which the read-path guard recognises.
-import { presentApplicantCondition } from '../../lifecycle/foundation/conditions';
+import {
+  everydayApplicantCondition,
+  presentApplicantCondition,
+} from '../../lifecycle/foundation/conditions';
 import { recordProductEvent } from '../../product-events';
 import { assignReferenceCode, referenceCodeFor } from '../../reference-codes';
 import { lifecycleAccessCovers, lifecycleCommandCovers } from '../foundation/access';
@@ -47,6 +50,7 @@ export const TRAVELLER_REFUSALS = {
   notEmpty: 'this traveller record holds information and can only be archived',
   lastMyself: 'your own record can be removed only while another record for you stays',
   onlyRecord: 'the only traveller record on an account cannot be removed',
+  lastEveryday: 'at least one traveller on the account must stay in use',
   noCode: 'this traveller record has no reference code yet',
 } as const;
 
@@ -62,24 +66,31 @@ export interface TravellerLifecycle {
 export const TRAVELLER_ACTIONS = ['ARCHIVE', 'RESTORE', 'REMOVE_EMPTY', 'RESTORE_DELETED'] as const;
 export type TravellerAction = (typeof TRAVELLER_ACTIONS)[number];
 
-/** Why "Remove Empty Record" is not offered, in the order it is checked. */
-export type TravellerRemovalBlock = 'NOT_EMPTY' | 'LAST_MYSELF' | 'ONLY_RECORD';
+/**
+ * Why "Remove Empty Record" is not offered, in the order it is checked. `LAST_EVERYDAY`: the
+ * account would be left with no traveller in use (every other record archived or deleted), which
+ * would make it look new and empty everywhere.
+ */
+export type TravellerRemovalBlock = 'NOT_EMPTY' | 'LAST_MYSELF' | 'ONLY_RECORD' | 'LAST_EVERYDAY';
 
 export interface TravellerActionView {
   readonly state: TravellerLifecycleState;
   readonly isMyself: boolean;
+  /** Whether another traveller stays in use if this one is archived. */
+  readonly anotherInUse: boolean;
   readonly removalBlock: TravellerRemovalBlock | null;
 }
 
 /**
  * The traveller actions the owner may take, in menu order. Pure: screens never decide visibility
- * themselves. Myself is never archived; removal needs an empty record and an anchor that stays.
+ * themselves. Myself is never archived, nor the last traveller in use; removal needs an empty
+ * record and an anchor that stays.
  */
 export function availableTravellerActions(view: TravellerActionView): TravellerAction[] {
   if (view.state === 'RECENTLY_DELETED') return ['RESTORE_DELETED'];
   const actions: TravellerAction[] = [];
   if (view.state === 'ARCHIVED') actions.push('RESTORE');
-  else if (!view.isMyself) actions.push('ARCHIVE');
+  else if (!view.isMyself && view.anotherInUse) actions.push('ARCHIVE');
   if (view.removalBlock === null) actions.push('REMOVE_EMPTY');
   return actions;
 }
@@ -108,9 +119,20 @@ async function lifecycleRow(db: Db, applicantId: string): Promise<LifecycleRow |
   return first(await db.select().from(table).where(eq(table.applicantId, applicantId)).limit(1));
 }
 
+const BLOCKING = APPLICANT_REFERENCES.filter(
+  (ref) => ref.kind === 'DATA' || ref.kind === 'UNFINISHED',
+)
+  // Columns without an index of their own go last: for a record holding anything, an indexed
+  // check finds it first and the rest are never run.
+  .sort((a, b) => Number(a.unindexed === true) - Number(b.unindexed === true));
+
+/** Databases on which every classified table exists (tables are never dropped once created). */
+const ALL_PRESENT = new WeakSet<object>();
+
 /** Which classified tables exist on this database (a later migration may not have run yet). */
 async function presentRelations(db: Db, names: readonly string[]): Promise<ReadonlySet<string>> {
   if (names.length === 0) return new Set();
+  if (ALL_PRESENT.has(db)) return new Set(names);
   const list = sql.join(
     names.map((name) => sql`(${name}::text, to_regclass(${name}::text) is not null)`),
     sql`, `,
@@ -118,27 +140,24 @@ async function presentRelations(db: Db, names: readonly string[]): Promise<Reado
   const rows = await db
     .select({ name: sql<string>`probe.name`, present: sql<boolean>`probe.present` })
     .from(sql`(values ${list}) as probe(name, present)`);
-  return new Set(rows.filter((row) => row.present === true).map((row) => row.name));
+  const present = new Set(rows.filter((row) => row.present === true).map((row) => row.name));
+  if (present.size === new Set(names).size) ALL_PRESENT.add(db);
+  return present;
 }
 
 /** Whether any classified table holds a row for the traveller. One query over the present tables. */
 async function holdsAnything(db: Db, applicantId: string): Promise<boolean> {
-  const blocking = APPLICANT_REFERENCES.filter(
-    (ref) => ref.kind === 'DATA' || ref.kind === 'UNFINISHED',
-  );
   const present = await presentRelations(
     db,
-    blocking.map((ref) => ref.table),
+    BLOCKING.map((ref) => ref.table),
   );
-  const checks = blocking
-    .filter((ref) => present.has(ref.table))
-    .map((ref) => {
-      const where = sql`${sql.identifier(ref.column)} = ${applicantId}::uuid`;
-      const unfinished = ref.finished
-        ? sql` and ${sql.identifier(ref.finished.column)}::text <> ${ref.finished.value}`
-        : sql``;
-      return sql`exists (select 1 from ${sql.identifier(ref.table)} where ${where}${unfinished})`;
-    });
+  const checks = BLOCKING.filter((ref) => present.has(ref.table)).map((ref) => {
+    const where = sql`${sql.identifier(ref.column)} = ${applicantId}::uuid`;
+    const unfinished = ref.finished
+      ? sql` and ${sql.identifier(ref.finished.column)} <> ${ref.finished.value}`
+      : sql``;
+    return sql`exists (select 1 from ${sql.identifier(ref.table)} where ${where}${unfinished})`;
+  });
   if (checks.length === 0) return false;
   const rows = await db
     .select({ holds: sql<boolean>`(${sql.join(checks, sql` or `)})` })
@@ -165,32 +184,46 @@ interface OwnedRecord {
   readonly id: string;
   readonly relationship: string;
   readonly createdAt: Date;
+  /** False for a record in Recently Deleted. */
   readonly present: boolean;
+  /** Present and not archived: a traveller in use. */
+  readonly everyday: boolean;
 }
 
 /**
- * The owner's traveller records, locked in id order so two removals on one account run one after
- * the other (two Myself records can never remove each other at the same moment). `present` is
- * false for a record in Recently Deleted.
+ * The owner's traveller records with their lifecycle state (only called once the lifecycle
+ * tables exist). With `lock`, the rows are locked in id order so two changes on one account run
+ * one after the other: two Myself records can never remove each other, and two travellers can
+ * never both be archived as "the other one still in use".
  */
-async function lockOwnedRecords(
-  tx: Db,
+async function ownedRecords(
+  db: Db,
   ownerAccountId: string,
-  lifecycle: boolean,
+  options: { readonly lock: boolean },
 ): Promise<OwnedRecord[]> {
   const applicants = schema.applicants;
-  const rows = await tx
+  const query = db
     .select({
       id: applicants.id,
       relationship: applicants.relationship,
       createdAt: applicants.createdAt,
-      present: lifecycle ? sql<boolean>`${presentApplicantCondition()}` : sql<boolean>`true`,
+      present: sql<boolean>`${presentApplicantCondition()}`,
+      everyday: sql<boolean>`${everydayApplicantCondition()}`,
     })
     .from(applicants)
     .where(eq(applicants.ownerAccountId, ownerAccountId))
-    .orderBy(asc(applicants.id))
-    .for('update', { of: applicants });
-  return rows.map((row) => ({ ...row, present: row.present === true }));
+    .orderBy(asc(applicants.id));
+  const rows = options.lock ? await query.for('update', { of: applicants }) : await query;
+  return rows.map((row) => ({
+    ...row,
+    present: row.present === true,
+    everyday: row.everyday === true,
+  }));
+}
+
+/** Whether a traveller other than `applicantId` stays in use. */
+function anotherInUse(records: readonly OwnedRecord[], applicantId: string): boolean {
+  return records.some((record) => record.id !== applicantId && record.everyday);
 }
 
 /** The record a traveller's Removal Record is anchored on: another present Myself, else any other present record. */
@@ -212,6 +245,8 @@ function removalBlockFor(
     return 'LAST_MYSELF';
   }
   if (others.length === 0) return 'ONLY_RECORD';
+  const listed = records.find((record) => record.id === target.id);
+  if (listed?.everyday !== false && !anotherInUse(records, target.id)) return 'LAST_EVERYDAY';
   return null;
 }
 
@@ -219,6 +254,7 @@ const BLOCK_REFUSAL: Readonly<Record<TravellerRemovalBlock, string>> = {
   NOT_EMPTY: TRAVELLER_REFUSALS.notEmpty,
   LAST_MYSELF: TRAVELLER_REFUSALS.lastMyself,
   ONLY_RECORD: TRAVELLER_REFUSALS.onlyRecord,
+  LAST_EVERYDAY: TRAVELLER_REFUSALS.lastEveryday,
 };
 
 function ownerOnly(access: AuthorizedApplicant<'MANAGE'>): ServiceError | null {
@@ -239,32 +275,20 @@ export async function getTravellerManageView(
   const db = access.tx;
   if (!(await lifecycleTablesPresent(db))) return ok(null);
   const applicant = access.applicant;
-  const applicants = schema.applicants;
   const [row, records, holds] = await Promise.all([
     lifecycleRow(db, applicant.id),
-    db
-      .select({
-        id: applicants.id,
-        relationship: applicants.relationship,
-        createdAt: applicants.createdAt,
-        present: sql<boolean>`${presentApplicantCondition()}`,
-      })
-      .from(applicants)
-      .where(eq(applicants.ownerAccountId, applicant.ownerAccountId)),
+    ownedRecords(db, applicant.ownerAccountId, { lock: false }),
     holdsAnything(db, applicant.id),
   ]);
   const lifecycle = lifecycleOf(row);
-  const removalBlock = removalBlockFor(
-    records.map((record) => ({ ...record, present: record.present === true })),
-    applicant,
-    !holds,
-  );
+  const removalBlock = removalBlockFor(records, applicant, !holds);
   return ok({
     lifecycle,
     removalBlock,
     actions: availableTravellerActions({
       state: lifecycle.state,
       isMyself: applicant.relationship === 'SELF',
+      anotherInUse: anotherInUse(records, applicant.id),
       removalBlock,
     }),
   });
@@ -287,12 +311,15 @@ export async function archiveTraveller(
   const now = options.now ?? new Date();
   const actor = applicant.ownerAccountId;
   return access.tx.transaction(async (tx) => {
-    await lockOwnedRecords(tx, actor, true);
+    const records = await ownedRecords(tx, actor, { lock: true });
     const before = lifecycleOf(await lifecycleRow(tx, applicant.id));
     if (before.state === 'RECENTLY_DELETED') {
       return err(serviceError('invalid', TRAVELLER_REFUSALS.deleted));
     }
     if (before.state === 'ARCHIVED') return ok(before);
+    if (!anotherInUse(records, applicant.id)) {
+      return err(serviceError('invalid', TRAVELLER_REFUSALS.lastEveryday));
+    }
     const table = schema.applicantLifecycle;
     await tx
       .insert(table)
@@ -335,7 +362,7 @@ export async function restoreTraveller(
   const now = options.now ?? new Date();
   const actor = applicant.ownerAccountId;
   return access.tx.transaction(async (tx) => {
-    await lockOwnedRecords(tx, actor, true);
+    await ownedRecords(tx, actor, { lock: true });
     const before = lifecycleOf(await lifecycleRow(tx, applicant.id));
     if (before.state === 'RECENTLY_DELETED') {
       return err(serviceError('invalid', TRAVELLER_REFUSALS.deleted));
@@ -410,7 +437,7 @@ export async function deleteEmptyTraveller(
   const purgeAfter = new Date(now.getTime() + TRAVELLER_RECENTLY_DELETED_DAYS * DAY_MS);
   const actor = applicant.ownerAccountId;
   return access.tx.transaction(async (tx) => {
-    const records = await lockOwnedRecords(tx, actor, true);
+    const records = await ownedRecords(tx, actor, { lock: true });
     const target = records.find((record) => record.id === applicant.id);
     if (!target) return err(serviceError('not_found', 'record not found'));
     if (!target.present) return err(serviceError('invalid', TRAVELLER_REFUSALS.deleted));
@@ -485,7 +512,7 @@ export async function restoreDeletedTraveller(
   const now = options.now ?? new Date();
   const actor = applicant.ownerAccountId;
   return access.tx.transaction(async (tx) => {
-    await lockOwnedRecords(tx, actor, true);
+    await ownedRecords(tx, actor, { lock: true });
     const row = await lifecycleRow(tx, applicant.id);
     if (lifecycleOf(row).state !== 'RECENTLY_DELETED') {
       return err(serviceError('invalid', TRAVELLER_REFUSALS.notDeleted));
@@ -541,7 +568,10 @@ async function clearDeleted(
   const table = schema.applicantLifecycle;
   await tx
     .update(table)
+    // Back in everyday use: a record archived before it was removed is not archived again.
     .set({
+      archivedAt: null,
+      archivedByAccountId: null,
       deletedAt: null,
       deletedByAccountId: null,
       purgeAfter: null,

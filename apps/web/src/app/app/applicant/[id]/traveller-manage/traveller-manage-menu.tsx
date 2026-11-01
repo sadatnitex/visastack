@@ -4,7 +4,7 @@ import type { TravellerAction } from '@visastack/services';
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { travellerLifecycleAction } from './actions';
-import { TRAVELLER_ACTION_LABELS } from './messages';
+import { TRAVELLER_ACTION_LABELS } from './labels';
 
 type MenuAction = Extract<TravellerAction, 'ARCHIVE' | 'REMOVE_EMPTY'>;
 
@@ -15,10 +15,10 @@ const COMMAND: Readonly<Record<MenuAction, string>> = {
   REMOVE_EMPTY: 'remove',
 };
 
-function confirmation(action: MenuAction, name: string): string {
+function confirmation(action: MenuAction, name: string, days: number): string {
   return action === 'ARCHIVE'
     ? `${name} leaves your everyday lists and their reminders stop. Nothing is deleted, and you can restore them at any time from All Travellers.`
-    : 'This record holds no details, documents or cases. It moves to Recently Deleted and is removed for good after 30 days. Until then you can restore it.';
+    : `This record holds no details, documents or cases. It moves to Recently Deleted and is removed for good after ${days} days. Until then you can restore it from All Travellers.`;
 }
 
 const BUSY: Readonly<Record<MenuAction, string>> = {
@@ -46,10 +46,13 @@ export function TravellerManageMenu({
   applicantId,
   name,
   actions,
+  days,
 }: {
   readonly applicantId: string;
   readonly name: string;
   readonly actions: readonly TravellerAction[];
+  /** How long a removed record waits in Recently Deleted (TRAVELLER_RECENTLY_DELETED_DAYS). */
+  readonly days: number;
 }) {
   const items = MENU_ACTIONS.filter((action) => actions.includes(action));
   const [open, setOpen] = useState(false);
@@ -171,7 +174,7 @@ export function TravellerManageMenu({
           aria-labelledby={headingId}
         >
           <h3 id={headingId}>{TRAVELLER_ACTION_LABELS[chosen]}</h3>
-          <p>{confirmation(chosen, name)}</p>
+          <p>{confirmation(chosen, name, days)}</p>
           <form action={travellerLifecycleAction} className="lc-traveller-actions">
             <input type="hidden" name="applicantId" value={applicantId} />
             <input type="hidden" name="command" value={COMMAND[chosen]} />

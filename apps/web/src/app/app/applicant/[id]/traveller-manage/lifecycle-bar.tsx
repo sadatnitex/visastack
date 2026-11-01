@@ -1,6 +1,7 @@
-import type { TravellerManageView } from '@visastack/services';
+import { TRAVELLER_RECENTLY_DELETED_DAYS, type TravellerManageView } from '@visastack/services';
 import { formatTimestampDate } from '../../../../../lib/format-date';
-import { outcomeMessage, removedInDays } from './messages';
+import { removedInDays } from './labels';
+import { outcomeMessage } from './messages';
 import { RestoreTravellerForm } from './restore-form';
 import { TravellerManageMenu } from './traveller-manage-menu';
 
@@ -71,7 +72,12 @@ export function TravellerLifecycleBar({
         </div>
       ) : null}
       {showMenu && view ? (
-        <TravellerManageMenu applicantId={applicantId} name={name} actions={view.actions} />
+        <TravellerManageMenu
+          applicantId={applicantId}
+          name={name}
+          actions={view.actions}
+          days={TRAVELLER_RECENTLY_DELETED_DAYS}
+        />
       ) : null}
     </div>
   );

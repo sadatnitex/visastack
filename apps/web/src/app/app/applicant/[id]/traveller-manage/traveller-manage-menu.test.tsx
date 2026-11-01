@@ -4,7 +4,6 @@ import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./actions', () => ({ travellerLifecycleAction: async () => undefined }));
-vi.mock('@visastack/services', () => ({ TRAVELLER_REFUSALS: {} }));
 const { TravellerManageMenu } = await import('./traveller-manage-menu');
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -31,11 +30,18 @@ const items = () => [...container.querySelectorAll('[role="menuitem"]')] as HTML
 
 describe('the traveller Manage menu', () => {
   it('renders nothing when the server allowed no menu action (Myself, or only Restore)', () => {
-    act(() => root.render(<TravellerManageMenu applicantId={ID} name="Ayesha" actions={[]} />));
+    act(() =>
+      root.render(<TravellerManageMenu applicantId={ID} name="Ayesha" days={30} actions={[]} />),
+    );
     expect(container.innerHTML).toBe('');
     act(() =>
       root.render(
-        <TravellerManageMenu applicantId={ID} name="Ayesha" actions={['RESTORE_DELETED']} />,
+        <TravellerManageMenu
+          applicantId={ID}
+          name="Ayesha"
+          days={30}
+          actions={['RESTORE_DELETED']}
+        />,
       ),
     );
     expect(container.innerHTML).toBe('');
@@ -47,6 +53,7 @@ describe('the traveller Manage menu', () => {
         <TravellerManageMenu
           applicantId={ID}
           name="Ayesha"
+          days={30}
           actions={['ARCHIVE', 'REMOVE_EMPTY']}
         />,
       ),
@@ -69,7 +76,9 @@ describe('the traveller Manage menu', () => {
 
   it('asks before acting, with a plain form for the chosen action, and Cancel returns focus', () => {
     act(() =>
-      root.render(<TravellerManageMenu applicantId={ID} name="Ayesha" actions={['ARCHIVE']} />),
+      root.render(
+        <TravellerManageMenu applicantId={ID} name="Ayesha" days={30} actions={['ARCHIVE']} />,
+      ),
     );
     act(() => manageButton().click());
     expect(items().map((item) => item.textContent)).toEqual(['Archive Traveller']);
@@ -93,7 +102,7 @@ describe('the traveller Manage menu', () => {
   it('explains Remove Empty Record before moving the record to Recently Deleted', () => {
     act(() =>
       root.render(
-        <TravellerManageMenu applicantId={ID} name="Ayesha" actions={['REMOVE_EMPTY']} />,
+        <TravellerManageMenu applicantId={ID} name="Ayesha" days={30} actions={['REMOVE_EMPTY']} />,
       ),
     );
     act(() => manageButton().click());
