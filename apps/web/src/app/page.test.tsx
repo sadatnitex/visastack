@@ -180,9 +180,9 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
   it('gives every section a name for screen readers and keeps one top heading', async () => {
     const html = await render();
     expect(html.match(/<h1[ >]/g)?.length).toBe(1);
-    // Hero, country picker (Growth G2), product and closing call; the six story sections are
-    // groups in one block since WP-SB8, each still with its own second-level heading.
-    expect(html.match(/<section[^>]*aria-labelledby="land-[a-z-]+"/g)?.length).toBe(4);
+    // Nine story sections plus the country picker under the hero (Growth G2). Since WP-SB8 six of
+    // them are groups that open in place, each still a named region with its own heading.
+    expect(html.match(/<section[^>]*aria-labelledby="land-[a-z-]+"/g)?.length).toBe(10);
     expect(html.match(/<h2[ >]/g)?.length).toBe(9);
     expect(html).toContain('id="land-hero-title"');
   });

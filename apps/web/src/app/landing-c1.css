@@ -742,7 +742,7 @@
 .c1 .land-group {
   border-bottom: 1px solid var(--hairline);
 }
-.c1 .land-group:first-child {
+.c1 .land-story-section:first-child .land-group {
   border-top: 1px solid var(--hairline);
 }
 .c1 .land-group-summary {

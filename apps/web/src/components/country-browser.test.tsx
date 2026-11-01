@@ -114,6 +114,8 @@ describe('the country list controls', () => {
     expect(names()).toEqual(['Vietnam']);
     type('zzz');
     expect(container.textContent).toContain('No Countries Match');
+    // The polite count says so too, so a screen reader hears that the list is now empty.
+    expect(container.querySelector('output')?.textContent).toBe('No countries match.');
   });
 
   it('flags a country that needs checking on its row', () => {

@@ -1,4 +1,4 @@
-import { listPublicTrustPublished } from '@visastack/services';
+import { type PublicTrustRoute, listPublicTrustPublished } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactElement } from 'react';
@@ -20,15 +20,13 @@ const MAX_QUERY = 80;
 const QUERY_KEY = 'q';
 const SHOW_KEY = 'show';
 
-type Route = Awaited<ReturnType<typeof listPublicTrustPublished>>[number];
-
 /** The search words from `?q=`, trimmed and capped; empty when there are none. */
 function searchWords(params: SearchParamsRecord): string {
   return (firstParam(params[QUERY_KEY]) ?? '').trim().slice(0, MAX_QUERY);
 }
 
 /** A route matches when its name, country, route type or description holds the search words. */
-function matchesSearch(route: Route, words: string): boolean {
+function matchesSearch(route: PublicTrustRoute, words: string): boolean {
   if (words === '') return true;
   const needle = words.toLocaleLowerCase();
   return [route.packName, route.jurisdiction, route.route, route.routeDescription].some((field) =>
@@ -57,7 +55,7 @@ export default async function PublicTrustCatalogPage(
   props?: TrustCatalogProps,
 ): Promise<ReactElement> {
   const params: SearchParamsRecord = (await props?.searchParams) ?? {};
-  let routes: Awaited<ReturnType<typeof listPublicTrustPublished>>;
+  let routes: PublicTrustRoute[];
   try {
     routes = await withPublicDb((db) => listPublicTrustPublished(db));
   } catch (error) {
@@ -106,7 +104,7 @@ function RouteList({
   routes,
   params,
 }: {
-  readonly routes: readonly Route[];
+  readonly routes: readonly PublicTrustRoute[];
   readonly params: SearchParamsRecord;
 }) {
   const words = searchWords(params);

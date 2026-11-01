@@ -119,7 +119,8 @@ export function CountryBrowser({
               noun: COUNTRY_NOUN,
               more,
             })
-          : ''}
+          : null}
+        {matches.length === 0 ? <span className="sr-only">No countries match.</span> : null}
       </output>
       {matches.length > 0 ? (
         <>
