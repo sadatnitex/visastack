@@ -5327,3 +5327,60 @@ export const documentRemovalRequests = pgTable(
     ),
   ],
 );
+
+// --- Paid traveller plans: counted metrics and health thresholds (ADR 0025 T6, migration 0114) ---
+
+/**
+ * How many times a day Plan & Usage was opened and Get was tapped (ADR 0025 section 12.6):
+ * counts only, never who. Everything else the metrics show is counted from billing rows.
+ */
+export const travellerPlanDailyCounts = pgTable(
+  'traveller_plan_daily_counts',
+  {
+    day: date('day', { mode: 'string' }).notNull(),
+    event: text('event').notNull(),
+    count: integer('count').notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ name: 'traveller_plan_daily_counts_pk', columns: [table.day, table.event] }),
+    check(
+      'traveller_plan_daily_counts_event',
+      sql`${table.event} in ('PLAN_VIEWED', 'GET_TAPPED')`,
+    ),
+    check('traveller_plan_daily_counts_count', sql`${table.count} >= 0`),
+  ],
+);
+
+/**
+ * The platform owner's alert thresholds for traveller payments (ADR 0025 section 12.6): one row.
+ * Until it exists, the standard values apply.
+ */
+export const travellerPlanHealthSettings = pgTable(
+  'traveller_plan_health_settings',
+  {
+    id: boolean('id').primaryKey().default(true),
+    checkoutSuccessMinPercent: integer('checkout_success_min_percent').notNull().default(50),
+    confirmationMaxMinutes: integer('confirmation_max_minutes').notNull().default(15),
+    stuckConfirmingMax: integer('stuck_confirming_max').notNull().default(0),
+    needsCheckMax: integer('needs_check_max').notNull().default(0),
+    updatedByAccountId: uuid('updated_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('traveller_plan_health_settings_singleton', sql`${table.id}`),
+    check(
+      'traveller_plan_health_settings_success_range',
+      sql`${table.checkoutSuccessMinPercent} between 0 and 100`,
+    ),
+    check(
+      'traveller_plan_health_settings_minutes_range',
+      sql`${table.confirmationMaxMinutes} between 1 and 1440`,
+    ),
+    check(
+      'traveller_plan_health_settings_counts_range',
+      sql`${table.stuckConfirmingMax} between 0 and 1000 and ${table.needsCheckMax} between 0 and 1000`,
+    ),
+  ],
+);
