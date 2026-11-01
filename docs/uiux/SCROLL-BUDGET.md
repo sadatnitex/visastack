@@ -13,18 +13,22 @@ One screen is 844 px on a phone (390 by 844) and 800 px on a desktop (1280 by 80
 
 ## 2. Known exceptions (reported, not enforced)
 
-Each is still printed with its height on every run. Fixing them is product work outside this package.
+Each is still printed with its height on every run.
 
-| Page | Viewport | Measured | Budget | Ceiling | Why it is over | Check |
-|---|---|---|---|---|---|---|
-| Agency Clients (15 invitations and 15 requests) | phone | 3,558 px, 4.22 screens | 3 (2,532 px) | 4.5 | Two 15-row lists on one page | `WP-SB5.spec.ts`, clients |
-| Agency Clients (same) | desktop | 2,913 px, 3.64 screens | 3 (2,400 px) | 4 | Same | `WP-SB5.spec.ts`, clients |
-| Agency Dashboard table (10 most urgent of 200) | phone | 2,616 px, 3.10 screens | 3 as checked; 2 (1,688 px) by the plan's dashboard rule, which makes it 1.55 times over | 3.5 | The table rows stack on a phone | `WP-SB5.spec.ts`, dashboard |
-| Case snapshot with its first group open (60 rows) | phone | 4,998 px, 5.92 screens | 2 (1,688 px) | 6.25 | The open group lists all its rows; folded, the same snapshot is 1 screen and enforced | `WP-SB2.spec.ts`, snapshot |
+No known exception remains (lane Z, 1 Nov 2026). The last one, Documents on a phone, is fixed: the shared list in `apps/web/src/components/document-wallet-browser.tsx` shows 6 rows a page on a phone and 12 on a desktop, every document still reached through Previous and Next. Before: 2,955 px, 3.50 screens. Now: 2,025 px, 2.40 screens, against 3 (2,532 px); `WP-SB4.spec.ts` enforces it on both screens.
 
-Documents on a phone is no longer an exception (lane Z of the Resource Lifecycle Programme, 1 Nov 2026): the shared list in `apps/web/src/components/document-wallet-browser.tsx` shows 6 rows a page on a phone and 12 on a desktop, every document still reached through Previous and Next. Measured 2,025 px, 2.40 screens, against 3 (2,532 px); `WP-SB4.spec.ts` now enforces it on both screens.
+Fixed by WP-SB11 (1 November 2026), now enforced, measured on a local production build of the WP-SB11 head:
 
-The Agency Clients, Agency Dashboard and open snapshot checks were in report mode or unmeasured before WP-SB10; they were found over budget when switched to enforce. The Dashboard table enforces on a desktop against 3 (977 px, 1.22 screens, also within the dashboard budget of 2). The fixture renders the dashboard's case table, not the whole dashboard, which is why WP-SB5 checks it against 3.
+| Page | Viewport | Before | Now | Budget | What changed |
+|---|---|---|---|---|---|
+| Agency Clients (15 invitations, requests 10 a load) | phone | 3,558 px, 4.22 | 2,058 px, 2.44 | 3 | The pending invitations fold into their own counted group (open while there is no request, or while paging invitations); requests show 10 at a time, then Show More |
+| Agency Clients (same) | desktop | 2,913 px, 3.64 | 1,934 px, 2.42 | 3 | Same |
+| Agency Dashboard table (10 most urgent of 200, all seven columns) | phone | 2,616 px, 3.10 (5-column copy) | 1,610 px, 1.91 | 2 | On a phone each case is a compact card with every label kept; the first 5 show and the other 5 stay on the page behind Show the Other 5 Cases; the fixture now carries the page's seven columns and readiness ring |
+| Agency Dashboard table (same) | desktop | 977 px, 1.22 (5-column copy) | 1,339 px, 1.67 | 2 | All 10 cases, no fold |
+| Case snapshot, first group open (60 rows) | phone | 4,998 px, 5.92 | 1,469 px, 1.74 | 2 | Each part draws its first 8 rows; Show All inside the part unfolds the rest, which stay on the page |
+| Case snapshot, first group open | desktop | not measured | 1,185 px, 1.48 | 2 | Same |
+
+New guards that must stay red: Clients with both lists open (3,709 px, 4.39 phone screens), the Dashboard table with all 10 cases unfolded on a phone (2,838 px, 3.36) and the snapshot with every row drawn (7,814 px, 9.26).
 
 Close to budget (under 10 percent headroom, may turn red from an unrelated style change): the landing page on a desktop (4,411 of 4,800 px), the staff organizations list on a phone (5.84 of 6 screens), AI Settings on a desktop (2.88 of 3), the admin overview on a desktop (1.92 of 2), the agency Cases list and the WP-SB4 consent page on a desktop (2.84 of 3).
 
@@ -55,7 +59,9 @@ Measured by the checks themselves (`npx playwright test scroll-budget/` against 
 | WP-SB1.spec.ts | notifications: ten in a fixed panel, Mark All Read, then Show More | desktop 1280x800: 800px = 1 screens (budget 2, 1600px) [enforce] |
 | WP-SB1.spec.ts | notifications: ten in a fixed panel, Mark All Read, then Show More | phone 390x844: 844px = 1 screens (budget 2, 1688px) [enforce] |
 | WP-SB2.spec.ts | a snapshot with 130 entries opens on its first group and folds to one screen | desktop 1280x800: 800px = 1 screens (budget 2, 1600px) [enforce] |
-| WP-SB2.spec.ts | a snapshot with 130 entries opens on its first group and folds to one screen | phone 390x844: 4998px = 5.92 screens (budget 2, 1688px) [report] |
+| WP-SB2.spec.ts | a snapshot with 130 entries opens on its first group and folds to one screen | phone 390x844: 1469px = 1.74 screens (budget 2, 1688px) [enforce] (WP-SB11) |
+| WP-SB2.spec.ts | a snapshot with 130 entries opens on its first group and folds to one screen | desktop 1280x800: 1185px = 1.48 screens (budget 2, 1600px) [enforce] (WP-SB11, open) |
+| WP-SB2.spec.ts | the open snapshot breaks the phone budget when its group draws every row | phone 390x844: 7814px = 9.26 screens (budget 2, 1688px) [enforce] (WP-SB11) |
 | WP-SB2.spec.ts | a snapshot with 130 entries opens on its first group and folds to one screen | phone 390x844: 844px = 1 screens (budget 2, 1688px) [enforce] |
 | WP-SB2.spec.ts | a worst-case case fits 3 screens on a phone and on a desktop | desktop 1280x800: 1566px = 1.96 screens (budget 3, 2400px) [enforce] |
 | WP-SB2.spec.ts | a worst-case case fits 3 screens on a phone and on a desktop | phone 390x844: 2326px = 2.76 screens (budget 3, 2532px) [enforce] |
@@ -79,11 +85,13 @@ Measured by the checks themselves (`npx playwright test scroll-budget/` against 
 | WP-SB5.spec.ts | case activity keeps 50 notes in the fixed log panel with filters | phone 390x844: 1277px = 1.51 screens (budget 3, 2532px) [enforce] |
 | WP-SB5.spec.ts | cases with 200 cases lists 15 and stays within 3 screens | desktop 1280x800: 1280px = 1.6 screens (budget 3, 2400px) [enforce] |
 | WP-SB5.spec.ts | cases with 200 cases lists 15 and stays within 3 screens | phone 390x844: 2399px = 2.84 screens (budget 3, 2532px) [enforce] |
-| WP-SB5.spec.ts | clients lists 15 invitations and 15 requests, forms closed | desktop 1280x800: 2913px = 3.64 screens (budget 3, 2400px) [report] |
-| WP-SB5.spec.ts | clients lists 15 invitations and 15 requests, forms closed | phone 390x844: 3558px = 4.22 screens (budget 3, 2532px) [report] |
+| WP-SB5.spec.ts | clients lists 15 invitations and 10 requests, forms closed | desktop 1280x800: 1934px = 2.42 screens (budget 3, 2400px) [enforce] (WP-SB11) |
+| WP-SB5.spec.ts | clients lists 15 invitations and 10 requests, forms closed | phone 390x844: 2058px = 2.44 screens (budget 3, 2532px) [enforce] (WP-SB11) |
+| WP-SB5.spec.ts | clients with both lists open breaks the budget | phone 390x844: 3709px = 4.39 screens (budget 3, 2532px) [enforce] (WP-SB11) |
 | WP-SB5.spec.ts | the cases budget fails when the list cap is lost | phone 390x844: 28490px = 33.76 screens (budget 3, 2532px) [enforce] |
-| WP-SB5.spec.ts | the dashboard table shows the 10 most urgent cases, then Show More | desktop 1280x800: 977px = 1.22 screens (budget 3, 2400px) [enforce] |
-| WP-SB5.spec.ts | the dashboard table shows the 10 most urgent cases, then Show More | phone 390x844: 2616px = 3.1 screens (budget 3, 2532px) [report] |
+| WP-SB5.spec.ts | the dashboard table shows the 10 most urgent cases, then Show More | desktop 1280x800: 1339px = 1.67 screens (budget 2, 1600px) [enforce] (WP-SB11) |
+| WP-SB5.spec.ts | the dashboard table shows the 10 most urgent cases, then Show More | phone 390x844: 1610px = 1.91 screens (budget 2, 1688px) [enforce] (WP-SB11) |
+| WP-SB5.spec.ts | the dashboard table breaks its budget with all 10 cases unfolded on a phone | phone 390x844: 2838px = 3.36 screens (budget 2, 1688px) [enforce] (WP-SB11) |
 | WP-SB6.spec.ts | access fits 3 screens: pending first, history apart, 25 a load each | desktop 1280x800: 1868px = 2.34 screens (budget 3, 2400px) [enforce] |
 | WP-SB6.spec.ts | access fits 3 screens: pending first, history apart, 25 a load each | phone 390x844: 2157px = 2.56 screens (budget 3, 2532px) [enforce] |
 | WP-SB6.spec.ts | complaints fit 3 screens: tabs, 20 complaints and feedback in fixed boxes | desktop 1280x800: 1892px = 2.37 screens (budget 3, 2400px) [enforce] |

@@ -56,6 +56,13 @@ export const metadata: Metadata = { title: 'Agency Dashboard' };
 
 /** How many cases and queued cases the Dashboard shows before Show More (WP-SB5). */
 const DASHBOARD_CASE_STEP = 10;
+/**
+ * WP-SB11: on a phone the table draws its first 5 cases as compact cards and folds the rest of
+ * this load behind "Show the Other N Cases" (a checkbox and CSS, so it works without script).
+ * Every case stays on the page; a wider screen shows them all. A case card is about 245 px tall,
+ * so this keeps the Dashboard within its two-screen budget on a phone.
+ */
+const PHONE_FIRST_CASES = 5;
 
 export const dynamic = 'force-dynamic';
 
@@ -481,7 +488,7 @@ export default async function AgencyDashboardPage({
             ) : searched.length === 0 ? (
               <p className="card-body u-mt-100">No cases match that search.</p>
             ) : (
-              <table className="data-table u-mt-100">
+              <table className="data-table agency-case-table u-mt-100">
                 <caption className="sr-only">Cases, Most Urgent First</caption>
                 <thead>
                   <tr>
@@ -495,12 +502,17 @@ export default async function AgencyDashboardPage({
                   </tr>
                 </thead>
                 <tbody id="agency-case-table-rows">
-                  {searched.slice(0, casesShown).map((row) => {
+                  {searched.slice(0, casesShown).map((row, index) => {
                     const { mission } = row;
                     const required = mission.readiness?.requiredCount ?? 0;
                     const satisfied = mission.readiness?.satisfiedRequired ?? 0;
                     return (
-                      <tr key={mission.missionId}>
+                      <tr
+                        key={mission.missionId}
+                        {...(index >= PHONE_FIRST_CASES
+                          ? { className: 'agency-case-row-later' }
+                          : {})}
+                      >
                         <th scope="row" className="cell-main">
                           <Link href={`/app/agency/${orgId}/cases#mission-${mission.missionId}`}>
                             {mission.applicantName} · {mission.title}
@@ -607,6 +619,26 @@ export default async function AgencyDashboardPage({
                 </tbody>
               </table>
             )}
+            {Math.min(casesShown, searched.length) > PHONE_FIRST_CASES ? (
+              <div className="agency-case-table-toggle">
+                <input
+                  type="checkbox"
+                  id="agency-case-table-all"
+                  className="agency-case-table-toggle-input"
+                  // A stable spoken name with the checked state; the visible words switch.
+                  aria-label={`Show All ${Math.min(casesShown, searched.length)} Cases`}
+                />
+                <label htmlFor="agency-case-table-all" className="btn btn-secondary u-btn-sm">
+                  <span className="agency-case-table-toggle-closed">
+                    {(() => {
+                      const others = Math.min(casesShown, searched.length) - PHONE_FIRST_CASES;
+                      return `Show the Other ${others} ${others === 1 ? 'Case' : 'Cases'}`;
+                    })()}
+                  </span>
+                  <span className="agency-case-table-toggle-open">Show Fewer Cases</span>
+                </label>
+              </div>
+            ) : null}
             {searched.length > 0 ? (
               <div className="agency-case-table-end">
                 <ShowMore

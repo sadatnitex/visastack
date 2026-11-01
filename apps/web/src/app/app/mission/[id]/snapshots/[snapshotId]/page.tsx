@@ -6,6 +6,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import type { ReactNode } from 'react';
 import { CollapsibleGroups } from '../../../../../../components/collapsible-group';
 import { PageHeader } from '../../../../../../components/ui';
 import { documentTypeLabel } from '../../../../../../lib/labels';
@@ -92,6 +93,43 @@ const RESULT_STATE_LABELS: Record<RequirementResultState, { label: string; tone:
   NOT_APPLICABLE: { label: 'Not Applicable', tone: 'badge-neutral' },
 };
 
+/**
+ * WP-SB11: an open part draws its first 8 rows, then a Show All control inside the part reveals
+ * the rest. The other rows are already on the page (find-in-page, the browser opening the part for
+ * a search, and the confirmation below all still cover the whole snapshot); they are only folded,
+ * so the open snapshot fits two phone screens.
+ */
+const FIRST_ROWS = 8;
+
+function RowsWithMore<T>({
+  items,
+  label,
+  draw,
+}: {
+  readonly items: readonly T[];
+  /** Title Case, plural, for the control: "Requirements". */
+  readonly label: string;
+  readonly draw: (item: T) => ReactNode;
+}) {
+  const rest = items.slice(FIRST_ROWS);
+  return (
+    <>
+      <div className="rows u-mt-050">{items.slice(0, FIRST_ROWS).map(draw)}</div>
+      {rest.length > 0 ? (
+        <details className="snapshot-rows-more">
+          <summary className="btn btn-secondary u-btn-sm">
+            <span className="snapshot-rows-more-closed">
+              Show All {items.length} {label}
+            </span>
+            <span className="snapshot-rows-more-open">Show Fewer {label}</span>
+          </summary>
+          <div className="rows">{rest.map(draw)}</div>
+        </details>
+      ) : null}
+    </>
+  );
+}
+
 export default async function MissionSnapshotPage({
   params,
 }: {
@@ -159,7 +197,7 @@ export default async function MissionSnapshotPage({
       ) : null}
 
       {/* WP-SB2: the three long parts of a snapshot open and close, each with its count; the
-          first one starts open. */}
+          first one starts open. WP-SB11: 8 rows a part, then Show All inside it. */}
       <div className="u-mb-150">
         <CollapsibleGroups
           idPrefix="snapshot"
@@ -179,8 +217,10 @@ export default async function MissionSnapshotPage({
                           Each pack requirement resolved to the specific evidence backing it, as of
                           this snapshot.
                         </p>
-                        <div className="rows">
-                          {content.requirementMapping.map((m) => {
+                        <RowsWithMore
+                          items={content.requirementMapping}
+                          label="Requirements"
+                          draw={(m) => {
                             const label = m.kind === 'FIELD' ? (fieldLabel(m.key) ?? m.key) : m.key;
                             return (
                               <div
@@ -236,8 +276,8 @@ export default async function MissionSnapshotPage({
                                 ) : null}
                               </div>
                             );
-                          })}
-                        </div>
+                          }}
+                        />
                       </>
                     ),
                   },
@@ -252,8 +292,10 @@ export default async function MissionSnapshotPage({
                   {facts.length === 0 ? (
                     <p className="card-body">No facts recorded.</p>
                   ) : (
-                    <div className="rows u-mt-050">
-                      {facts.map((fact) => (
+                    <RowsWithMore
+                      items={facts}
+                      label="Facts"
+                      draw={(fact) => (
                         <div className="row" key={fact.factId}>
                           <span className="row-key">
                             {fieldLabel(fact.fieldKey) ?? fact.fieldKey}
@@ -261,8 +303,8 @@ export default async function MissionSnapshotPage({
                           </span>
                           <span>{fact.value}</span>
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    />
                   )}
                 </>
               ),
@@ -276,8 +318,10 @@ export default async function MissionSnapshotPage({
                   {content.documents.length === 0 ? (
                     <p className="card-body">No documents recorded.</p>
                   ) : (
-                    <div className="rows u-mt-050">
-                      {content.documents.map((doc) => (
+                    <RowsWithMore
+                      items={content.documents}
+                      label="Documents"
+                      draw={(doc) => (
                         <div className="row" key={doc.documentVersionId}>
                           <span className="row-key">{doc.displayName}</span>
                           {doc.docType ? (
@@ -286,8 +330,8 @@ export default async function MissionSnapshotPage({
                             </span>
                           ) : null}
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    />
                   )}
                 </>
               ),

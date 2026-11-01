@@ -41,6 +41,11 @@ const REQUEST_KEYS: ListKeys = {
   before: 'requestsBefore',
   from: 'requestsFrom',
 };
+/**
+ * Requests on this page grow 10 at a time (WP-SB11, was 15 like the other agency lists): with the
+ * invitations folded, 10 request rows keep the page within 3 screens on a phone.
+ */
+const REQUEST_SIZES = { step: 10, max: 90 } as const;
 const STATUS_KEY = 'status';
 /** One request a link points at (Do Next, the workspace search), shown first when off the page. */
 const REQUEST_KEY = 'request';
@@ -52,6 +57,10 @@ const REQUEST_KEY = 'request';
  *
  * Scroll Budget WP-SB5: pending invitations and requests show 15 at a time with Show More, the
  * requests by status view, and the two forms open from their own headings.
+ *
+ * WP-SB11: the pending invitations sit in their own group with their count, so the page opens on
+ * one list, not two, and requests show 10 at a time (3 screens on a phone). The group opens on its own when there is no
+ * request to follow yet, and when the address pages through invitations (their Show More).
  */
 export default async function AgencyClientsPage({
   params,
@@ -63,11 +72,14 @@ export default async function AgencyClientsPage({
   const { orgId } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
   const invitePage = listWindow(query, INVITE_KEYS, AGENCY_LIST_SIZES);
-  const requestPage = listWindow(query, REQUEST_KEYS, AGENCY_LIST_SIZES);
+  const requestPage = listWindow(query, REQUEST_KEYS, REQUEST_SIZES);
   const statusParam = firstParam(query[STATUS_KEY]);
   const view: RequestViewKey | undefined = REQUEST_VIEWS.find((v) => v.key === statusParam)?.key;
   const linked = firstParam(query[REQUEST_KEY]);
   const linkedId = linked && isUuid(linked) ? linked.toLowerCase() : undefined;
+  const pagingInvitations = [INVITE_KEYS.show, INVITE_KEYS.before, INVITE_KEYS.from].some(
+    (key) => firstParam(query[key]) !== undefined,
+  );
 
   const data = await withSession(async ({ db, accountId }) => {
     const access = await loadOrgAccess(db, accountId, orgId);
@@ -158,7 +170,15 @@ export default async function AgencyClientsPage({
           organization access, never the invitation itself.
         </p>
         {invitations.total > 0 ? (
-          <>
+          // Keeps the state it first opened with across this page's own links (Show More, Back to
+          // the Newest Invitations), so a link into the list never folds it shut.
+          <FormGroup
+            id="client-invitations"
+            title="Pending Invitations"
+            count={invitations.total}
+            noun={{ one: 'pending invitation', other: 'pending invitations' }}
+            openAtFirst={pagingInvitations || requests.viewCounts.all === 0}
+          >
             <div className="rows u-mb-100" id="client-invitation-list">
               {invitations.items.map((invitation) => (
                 <div className="row" key={invitation.id}>
@@ -209,7 +229,7 @@ export default async function AgencyClientsPage({
               noun={{ one: 'pending invitation', other: 'pending invitations' }}
               newestLabel="Back to the Newest Invitations"
             />
-          </>
+          </FormGroup>
         ) : (
           <div className="u-mb-150">
             <EmptyState
@@ -319,7 +339,7 @@ export default async function AgencyClientsPage({
                   pathname={pathname}
                   query={query}
                   keys={REQUEST_KEYS}
-                  sizes={AGENCY_LIST_SIZES}
+                  sizes={REQUEST_SIZES}
                   window={requestPage}
                   shown={requests.items.length}
                   total={requests.total}

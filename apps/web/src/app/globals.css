@@ -12412,3 +12412,123 @@ html:has(.sticky-action-bar) {
   justify-content: flex-end;
   gap: var(--space-2);
 }
+
+/* WP-SB11 scroll budget exceptions: on a phone the agency Dashboard case table packs each case
+   into a compact card: the case and its destination on top, then its six facts flowing together,
+   each after its own small label. The readiness ring's drawing is out of sight there (a screen
+   reader still reads it) and its words ("9 of 12 items ready") stay. The first 5 cases show; the
+   rest of the load stay on the page behind "Show the Other N Cases" (a checkbox, no script needed),
+   so the dashboard fits its two screens. Wider screens show every case and no toggle. */
+.agency-case-table-toggle {
+  display: none;
+}
+@media (max-width: 40rem) {
+  .agency-case-table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.85rem;
+    padding: 0.6rem 0;
+  }
+  .agency-case-table tbody th[scope="row"] {
+    flex: 1 1 100%;
+    padding: 0;
+  }
+  .agency-case-table .cell-main {
+    margin-bottom: 0;
+  }
+  .agency-case-table th .cell-sub {
+    display: inline;
+    margin: 0 0 0 0.4rem;
+  }
+  .agency-case-table td {
+    display: inline-flex;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15rem 0.4rem;
+    min-width: 0;
+    padding: 0;
+    font-size: var(--text-small);
+    overflow-wrap: anywhere;
+  }
+  .agency-case-table td::before {
+    flex: none;
+    font-size: var(--text-caption);
+    letter-spacing: 0.04em;
+  }
+  .agency-case-table td > * {
+    flex: 0 1 auto;
+  }
+  .agency-case-table .cell-sub {
+    margin-top: 0;
+  }
+  .agency-case-table .progress-ring-row {
+    display: inline-flex;
+    margin: 0;
+  }
+  .agency-case-table-toggle {
+    display: block;
+    margin-top: 0.5rem;
+  }
+  .agency-case-table-toggle-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .agency-case-table-toggle label {
+    min-height: 2.75rem;
+    cursor: pointer;
+  }
+  .agency-case-table-toggle-input:focus-visible + label {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .card:has(.agency-case-table-toggle-input:not(:checked)) .agency-case-row-later,
+  .agency-case-table-toggle-open,
+  .agency-case-table-toggle-input:checked + label .agency-case-table-toggle-closed {
+    display: none;
+  }
+  .agency-case-table-toggle-input:checked + label .agency-case-table-toggle-open {
+    display: inline;
+  }
+  /* Out of sight but still read: the drawing carries the spoken count ("9 of 12 items ready"). */
+  .agency-case-table .progress-ring-graphic {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+}
+/* WP-SB11 open case snapshot: each part draws its first 8 rows, then a Show All button inside the
+   part unfolds the rest, which are already on the page. The button says Show Fewer while open. */
+.snapshot-rows-more {
+  margin-top: 0.75rem;
+}
+.snapshot-rows-more > summary {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  list-style: none;
+  cursor: pointer;
+}
+.snapshot-rows-more > summary::-webkit-details-marker {
+  display: none;
+}
+.snapshot-rows-more[open] > summary {
+  margin-bottom: 0.5rem;
+}
+.snapshot-rows-more-open,
+.snapshot-rows-more[open] .snapshot-rows-more-closed {
+  display: none;
+}
+.snapshot-rows-more[open] .snapshot-rows-more-open {
+  display: inline;
+}
