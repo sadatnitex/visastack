@@ -338,7 +338,15 @@ export default async function HomePage({ searchParams }: HomePageProps) {
               receive only the access you choose, within the permissions the platform provides.
             </p>
           </div>
-          <div className="c1-bento">
+          {/* WP-SB8: on a phone the four cards sit in one row that scrolls sideways (no stacked grid). */}
+          <div
+            className="c1-bento"
+            // biome-ignore lint/a11y/useSemanticElements: a fieldset groups form controls; these are cards
+            role="group"
+            aria-labelledby="land-product-title"
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: on a phone this row scrolls sideways, so the keyboard must reach it.
+            tabIndex={0}
+          >
             <article className="c1-feature c1-feature-glow c1-feature-big">
               <span className="c1-small-label">01 / A reusable record</span>
               <h3>
@@ -403,179 +411,215 @@ export default async function HomePage({ searchParams }: HomePageProps) {
         </div>
       </section>
 
-      <section className="land-section land-problem" aria-labelledby="land-problem-title">
+      {/* WP-SB8 (scroll budget): the six story sections are one block of groups that open in
+          place, so a phone reads the page in about five screens. Each group shows its kicker and
+          heading and opens with one tap or key press; all start closed so the block reads as a
+          short index (opening the first one by default costs about 700px on a phone and leaves
+          too little room under the 6-screen budget). All words stay in the page (and in its
+          search), and the menu's links still land on their group by its id. */}
+      <div className="land-section land-story">
         <div className="land-wrap">
-          <div className="land-head">
-            <p className="land-kicker">The Problem</p>
-            <h2 className="land-h2" id="land-problem-title">
-              Every visa starts with the same scramble
-            </h2>
-            <p className="land-sub">
-              Your life does not change between applications. The paperwork should not have to start
-              from zero each time.
-            </p>
-          </div>
-          <div className="land-versus">
-            <div className="land-versus-col land-versus-before">
-              <p className="land-versus-label">Without One Profile</p>
-              <ul>
-                {BEFORE.map((line) => (
-                  <li key={line}>
-                    <Icon name="close" size={16} />
-                    <span>{line}</span>
+          <details className="land-group" id="problem">
+            <summary className="land-group-summary">
+              <span className="land-group-title">
+                <span className="land-kicker">The Problem</span>
+                <h2 className="land-h2" id="land-problem-title">
+                  Every visa starts with the same scramble
+                </h2>
+              </span>
+              <span className="land-group-chevron" aria-hidden="true">
+                <Icon name="chevronDown" size={22} />
+              </span>
+            </summary>
+            <div className="land-group-body">
+              <p className="land-sub">
+                Your life does not change between applications. The paperwork should not have to
+                start from zero each time.
+              </p>
+              <div className="land-versus">
+                <div className="land-versus-col land-versus-before">
+                  <p className="land-versus-label">Without One Profile</p>
+                  <ul>
+                    {BEFORE.map((line) => (
+                      <li key={line}>
+                        <Icon name="close" size={16} />
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="land-versus-col land-versus-after">
+                  <p className="land-versus-label">With VisaStack</p>
+                  <ul>
+                    {AFTER.map((line) => (
+                      <li key={line}>
+                        <Icon name="check" size={16} />
+                        <span>{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <details className="land-group" id="how-it-works">
+            <summary className="land-group-summary">
+              <span className="land-group-title">
+                <span className="land-kicker">Three Simple Steps</span>
+                <h2 className="land-h2" id="land-how-title">
+                  How It Works
+                </h2>
+              </span>
+              <span className="land-group-chevron" aria-hidden="true">
+                <Icon name="chevronDown" size={22} />
+              </span>
+            </summary>
+            <div className="land-group-body">
+              <p className="land-sub">Three steps, and the first one only happens once.</p>
+              <ol className="land-steps">
+                {STEPS.map((step, index) => (
+                  <li className="land-step" key={step.title}>
+                    <span className="land-step-icon">
+                      <Icon name={step.icon} size={22} />
+                    </span>
+                    <p className="land-step-kicker">Step {index + 1}</p>
+                    <h3 className="land-h3">{step.title}</h3>
+                    <p className="land-body">{step.body}</p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </details>
+
+          <details className="land-group" id="capabilities">
+            <summary className="land-group-summary">
+              <span className="land-group-title">
+                <span className="land-kicker">What Works Today</span>
+                <h2 className="land-h2" id="land-cap-title">
+                  Switched On Step by Step
+                </h2>
+              </span>
+              <span className="land-group-chevron" aria-hidden="true">
+                <Icon name="chevronDown" size={22} />
+              </span>
+            </summary>
+            <div className="land-group-body">
+              <p className="land-sub">
+                {betaOpen ? 'VisaStack is in public beta' : 'VisaStack is in a private pilot'}, so
+                some features are still being switched on. The status page shows what works today.
+                Checking a file shows how complete it is, never a guess at your chances of approval.
+              </p>
+              <p className="land-trust-link">
+                <Link href="/status">See What Works Today</Link>
+              </p>
+            </div>
+          </details>
+
+          <details className="land-group" id="for-agencies">
+            <summary className="land-group-summary">
+              <span className="land-group-title">
+                <span className="land-kicker">Who it is for</span>
+                <h2 className="land-h2" id="land-who-title">
+                  Calmer for the Traveller, Clearer for the Agency
+                </h2>
+              </span>
+              <span className="land-group-chevron" aria-hidden="true">
+                <Icon name="chevronDown" size={22} />
+              </span>
+            </summary>
+            <div className="land-group-body">
+              <div className="land-who">
+                {AUDIENCES.map((audience) => (
+                  <article className="land-who-card" key={audience.who}>
+                    <span className="land-tile-icon">
+                      <Icon name={audience.icon} size={22} />
+                    </span>
+                    <p className="land-step-kicker">{audience.who}</p>
+                    <h3 className="land-h3">{audience.title}</h3>
+                    <ul className="land-ticks">
+                      {audience.points.map((point) => (
+                        <li key={point}>
+                          <Icon name="check" size={16} />
+                          <span>{point}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </details>
+
+          <details className="land-group land-trust" id="trust">
+            <summary className="land-group-summary">
+              <span className="land-group-title">
+                <span className="land-kicker">Trust, Built In</span>
+                <h2 className="land-h2" id="land-trust-title">
+                  How VisaStack Treats Your Information
+                </h2>
+              </span>
+              <span className="land-group-chevron" aria-hidden="true">
+                <Icon name="chevronDown" size={22} />
+              </span>
+            </summary>
+            <div className="land-group-body">
+              <p className="land-sub">
+                These promises are built into how the product works, not options you have to switch
+                on.
+              </p>
+              <ul className="land-promises">
+                {PROMISES.map((promise) => (
+                  <li key={promise.text}>
+                    <span className="land-promise-icon">
+                      <Icon name={promise.icon} size={20} />
+                    </span>
+                    <span>{promise.text}</span>
                   </li>
                 ))}
               </ul>
+              <p className="land-trust-link">
+                <Link href="/trust">Read Our Public Trust Page</Link>
+              </p>
             </div>
-            <div className="land-versus-col land-versus-after">
-              <p className="land-versus-label">With VisaStack</p>
-              <ul>
-                {AFTER.map((line) => (
-                  <li key={line}>
-                    <Icon name="check" size={16} />
-                    <span>{line}</span>
+          </details>
+
+          <details className="land-group" id="road-ahead">
+            <summary className="land-group-summary">
+              <span className="land-group-title">
+                <span className="land-kicker">The Road Ahead</span>
+                <h2 className="land-h2" id="land-road-title">
+                  Honest about where we are
+                </h2>
+              </span>
+              <span className="land-group-chevron" aria-hidden="true">
+                <Icon name="chevronDown" size={22} />
+              </span>
+            </summary>
+            <div className="land-group-body">
+              <p className="land-sub">
+                {betaOpen
+                  ? 'Registration is open for public beta, and some features are not switched on yet.'
+                  : 'This is a private pilot for invited users, and some features are not switched on yet.'}{' '}
+                {betaOpen
+                  ? 'It is free to use at your own risk while we finish switching on protections such as virus scanning of uploads. The status page shows exactly what works today.'
+                  : 'Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet.'}
+              </p>
+              <ol className="land-horizons">
+                {HORIZONS.map((horizon) => (
+                  <li className={`land-horizon land-horizon-${horizon.state}`} key={horizon.title}>
+                    <p className="land-horizon-label">
+                      {horizon.state === 'now' && betaOpen ? 'Available in Beta' : horizon.label}
+                    </p>
+                    <h3 className="land-h3">{horizon.title}</h3>
+                    <p className="land-body">{horizon.body}</p>
                   </li>
                 ))}
-              </ul>
+              </ol>
             </div>
-          </div>
+          </details>
         </div>
-      </section>
-
-      <section className="land-section" id="how-it-works" aria-labelledby="land-how-title">
-        <div className="land-wrap">
-          <div className="land-head">
-            <p className="land-kicker">Three Simple Steps</p>
-            <h2 className="land-h2" id="land-how-title">
-              How It Works
-            </h2>
-            <p className="land-sub">Three steps, and the first one only happens once.</p>
-          </div>
-          <ol className="land-steps">
-            {STEPS.map((step, index) => (
-              <li className="land-step" key={step.title}>
-                <span className="land-step-icon">
-                  <Icon name={step.icon} size={22} />
-                </span>
-                <p className="land-step-kicker">Step {index + 1}</p>
-                <h3 className="land-h3">{step.title}</h3>
-                <p className="land-body">{step.body}</p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
-
-      <section
-        className="land-section land-tint"
-        id="capabilities"
-        aria-labelledby="land-cap-title"
-      >
-        <div className="land-wrap">
-          <div className="land-head">
-            <p className="land-kicker">What Works Today</p>
-            <h2 className="land-h2" id="land-cap-title">
-              Switched On Step by Step
-            </h2>
-            <p className="land-sub">
-              {betaOpen ? 'VisaStack is in public beta' : 'VisaStack is in a private pilot'}, so
-              some features are still being switched on. The status page shows what works today.
-              Checking a file shows how complete it is, never a guess at your chances of approval.
-            </p>
-            <p className="land-trust-link">
-              <Link href="/status">See What Works Today</Link>
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="land-section" id="for-agencies" aria-labelledby="land-who-title">
-        <div className="land-wrap">
-          <div className="land-head">
-            <p className="land-kicker">Who it is for</p>
-            <h2 className="land-h2" id="land-who-title">
-              Calmer for the Traveller, Clearer for the Agency
-            </h2>
-          </div>
-          <div className="land-who">
-            {AUDIENCES.map((audience) => (
-              <article className="land-who-card" key={audience.who}>
-                <span className="land-tile-icon">
-                  <Icon name={audience.icon} size={22} />
-                </span>
-                <p className="land-step-kicker">{audience.who}</p>
-                <h3 className="land-h3">{audience.title}</h3>
-                <ul className="land-ticks">
-                  {audience.points.map((point) => (
-                    <li key={point}>
-                      <Icon name="check" size={16} />
-                      <span>{point}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="land-section land-trust" aria-labelledby="land-trust-title">
-        <div className="land-wrap">
-          <div className="land-head">
-            <p className="land-kicker">Trust, Built In</p>
-            <h2 className="land-h2" id="land-trust-title">
-              How VisaStack Treats Your Information
-            </h2>
-            <p className="land-sub">
-              These promises are built into how the product works, not options you have to switch
-              on.
-            </p>
-          </div>
-          <ul className="land-promises">
-            {PROMISES.map((promise) => (
-              <li key={promise.text}>
-                <span className="land-promise-icon">
-                  <Icon name={promise.icon} size={20} />
-                </span>
-                <span>{promise.text}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="land-trust-link">
-            <Link href="/trust">Read Our Public Trust Page</Link>
-          </p>
-        </div>
-      </section>
-
-      <section className="land-section" aria-labelledby="land-road-title">
-        <div className="land-wrap">
-          <div className="land-head">
-            <p className="land-kicker">The Road Ahead</p>
-            <h2 className="land-h2" id="land-road-title">
-              Honest about where we are
-            </h2>
-            <p className="land-sub">
-              {betaOpen
-                ? 'Registration is open for public beta, and some features are not switched on yet.'
-                : 'This is a private pilot for invited users, and some features are not switched on yet.'}{' '}
-              {betaOpen
-                ? 'It is free to use at your own risk while we finish switching on protections such as virus scanning of uploads. The status page shows exactly what works today.'
-                : 'Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet.'}
-            </p>
-          </div>
-          <ol className="land-horizons">
-            {HORIZONS.map((horizon) => (
-              <li className={`land-horizon land-horizon-${horizon.state}`} key={horizon.title}>
-                <p className="land-horizon-label">
-                  {horizon.state === 'now' && betaOpen ? 'Available in Beta' : horizon.label}
-                </p>
-                <h3 className="land-h3">{horizon.title}</h3>
-                <p className="land-body">{horizon.body}</p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
+      </div>
 
       <section className="land-final" aria-labelledby="land-final-title">
         <div className="land-wrap">
