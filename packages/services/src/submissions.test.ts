@@ -458,3 +458,105 @@ describe('TRU-04 (Commercial V1 Part 7 §7): external submission report', () => 
     expect(isOk(result)).toBe(true);
   });
 });
+
+describe('external submission report and the resource lifecycle (LC-A2)', () => {
+  /** A submission-ready case whose one selected document has since expired. */
+  async function readyWithExpiredDocument(db: Db) {
+    const { account, applicantId } = await seed(db);
+    const packVersionId = await publishedDocumentPack(db, account.id);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'Synthetic visa',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const missionId = mission.value.id;
+    await attachPackVersion(db, { actorAccountId: account.id, missionId, packVersionId });
+    const doc = await registerDocument(db, {
+      actorAccountId: account.id,
+      applicantId,
+      originalName: 'passport.pdf',
+      docType: 'passport',
+    });
+    if (!isOk(doc)) throw new Error('doc');
+    await addDocumentVersion(db, {
+      actorAccountId: account.id,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: 'sub-lifecycle-k',
+      safetyStatus: 'CLEAN',
+      processingStatus: 'AWAITING_REVIEW',
+    });
+    const requirement = (
+      await db
+        .select()
+        .from(schema.packRequirements)
+        .where(eq(schema.packRequirements.packVersionId, packVersionId))
+    )[0];
+    if (!requirement) throw new Error('requirement');
+    const selected = await selectEvidence(db, {
+      actorAccountId: account.id,
+      missionId,
+      packRequirementId: requirement.id,
+      documentId: doc.value.id,
+    });
+    if (!isOk(selected)) throw new Error('select');
+    const snap = await snapshotMission(db, { actorAccountId: account.id, missionId });
+    if (!isOk(snap)) throw new Error('snapshot');
+    const ack = await decideAcknowledgement(db, {
+      actorAccountId: account.id,
+      missionId,
+      snapshotId: snap.value.id,
+      expectedSnapshotChecksum: snap.value.checksum,
+      decision: 'ACKNOWLEDGED',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(ack)) throw new Error('acknowledge');
+    for (const to of ['INTAKE', 'IN_REVIEW', 'AWAITING_APPLICANT', 'SUBMISSION_READY'] as const) {
+      const moved = await transitionMission(db, { actorAccountId: account.id, missionId, to });
+      if (!isOk(moved)) throw new Error(`transition to ${to}`);
+    }
+    await db
+      .update(schema.documents)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(schema.documents.id, doc.value.id));
+    const submit = () =>
+      recordSubmission(db, {
+        actorAccountId: account.id,
+        missionId,
+        channel: 'EMAIL',
+        externalReportDescription: 'Sent by email',
+        stepUpSatisfied: true,
+      });
+    return { applicantId, documentId: doc.value.id, submit };
+  }
+
+  it('blocks on a selected document in Recently Deleted until it is replaced', async () => {
+    const db = await freshDb();
+    const s = await readyWithExpiredDocument(db);
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values({
+      documentId: s.documentId,
+      applicantId: s.applicantId,
+      deletedAt: now,
+      deletePath: 'DUPLICATE',
+      purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+    });
+    const result = await s.submit();
+    expect(isErr(result) && result.error.code).toBe('stale');
+    expect(isErr(result) && result.error.message).toContain('was deleted');
+  });
+
+  it('still blocks on an expired selected document that is only archived', async () => {
+    const db = await freshDb();
+    const s = await readyWithExpiredDocument(db);
+    await db.insert(schema.documentLifecycle).values({
+      documentId: s.documentId,
+      applicantId: s.applicantId,
+      archivedAt: new Date(),
+    });
+    const result = await s.submit();
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('stale');
+  });
+});

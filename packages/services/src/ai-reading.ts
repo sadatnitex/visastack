@@ -18,6 +18,11 @@ import { type Db, first, schema } from './db';
 import { getDocumentTypeOfVersion } from './documents';
 import type { ServiceError } from './errors';
 import { getLatestReadableText } from './intake';
+import {
+  lifecycleTablesPresent,
+  presentApplicantCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
 import type { AiOcrPort, OcrSourceImageOutcome } from './ocr';
 
 /**
@@ -104,6 +109,7 @@ async function loadReadingTarget(
   db: Db,
   documentVersionId: string,
 ): Promise<ReadingTarget | undefined> {
+  const lifecycle = await lifecycleTablesPresent(db);
   const row = first(
     await db
       .select({
@@ -118,7 +124,14 @@ async function loadReadingTarget(
       .from(schema.documentVersions)
       .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
       .innerJoin(schema.applicants, eq(schema.applicants.id, schema.documents.applicantId))
-      .where(eq(schema.documentVersions.id, documentVersionId))
+      .where(
+        and(
+          eq(schema.documentVersions.id, documentVersionId),
+          // Processing job: presentDocumentCondition and presentApplicantCondition; skip quietly.
+          lifecycle ? presentDocumentCondition() : undefined,
+          lifecycle ? presentApplicantCondition() : undefined,
+        ),
+      )
       .limit(1),
   );
   if (!row) return undefined;

@@ -1082,3 +1082,39 @@ describe('S20 round 3', () => {
     expect(!changed.ok && changed.error.code).toBe('case_not_on_record');
   });
 });
+
+describe('get_document_file and the resource lifecycle (LC-A2)', () => {
+  const DAY_MS = 86_400_000;
+
+  it('answers a chosen file in Recently Deleted as not chosen, reading nothing', async () => {
+    const { ownerId, applicantId } = await person('lc-deleted@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    await prepareSafeCopy(ownerId, visa.documentId, visa.versionId);
+    const { token } = await connect(ownerId, applicantId, [{ documentId: visa.documentId }]);
+    await given(token, visa.reference);
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values({
+      documentId: visa.documentId,
+      applicantId,
+      deletedAt: now,
+      deletePath: 'DUPLICATE',
+      purgeAfter: new Date(now.getTime() + 30 * DAY_MS),
+    });
+    reads = [];
+    expect(await refused(token, visa.reference)).toBe(MESSAGES.fileNotChosen);
+    expect(await lastDenial()).toBe('file_not_chosen');
+    expect(reads).toEqual([]);
+  });
+
+  it('still gives an archived chosen file', async () => {
+    const { ownerId, applicantId } = await person('lc-archived@example.com');
+    const visa = await document(ownerId, applicantId, 'VISA');
+    await prepareSafeCopy(ownerId, visa.documentId, visa.versionId);
+    const { token } = await connect(ownerId, applicantId, [{ documentId: visa.documentId }]);
+    await db
+      .insert(schema.documentLifecycle)
+      .values({ documentId: visa.documentId, applicantId, archivedAt: new Date() });
+    const result = await given(token, visa.reference);
+    expect(Buffer.from(blobOf(result).blob, 'base64')).toEqual(Buffer.from(SAFE_COPY_PDF));
+  });
+});

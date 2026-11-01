@@ -11,7 +11,13 @@ import type { Db } from './db';
 import { addDocumentVersion, registerDocument } from './documents';
 import type { DocumentConverterPort } from './extraction';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
-import { enqueueIntakeJob, listFailedJobs, retryFailedJob, runIntakeWorker } from './jobs';
+import {
+  enqueueIntakeJob,
+  listFailedJobs,
+  requestDocumentReExtraction,
+  retryFailedJob,
+  runIntakeWorker,
+} from './jobs';
 
 // A valid ICAO TD3 specimen (check digits computed to validate) -- confident
 // PASSPORT classification, reviewRequired: false, so a naming proposal is
@@ -674,5 +680,101 @@ describe('low-volume durable job queue — async intake', () => {
     // The raw message (which could carry internal detail) stays a separate,
     // admin-only field — never conflated with the safe category.
     expect(row?.lastError).toContain('10.0.4.12');
+  });
+});
+
+describe('processing jobs and the resource lifecycle (LC-A2)', () => {
+  async function documentOf(db: Db, versionId: string) {
+    const row = (
+      await db
+        .select({
+          documentId: schema.documentVersions.documentId,
+          applicantId: schema.documents.applicantId,
+          ownerAccountId: schema.applicants.ownerAccountId,
+        })
+        .from(schema.documentVersions)
+        .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
+        .innerJoin(schema.applicants, eq(schema.applicants.id, schema.documents.applicantId))
+        .where(eq(schema.documentVersions.id, versionId))
+    )[0];
+    if (!row) throw new Error('version');
+    return row;
+  }
+
+  async function markDocument(
+    db: Db,
+    documentId: string,
+    applicantId: string,
+    state: 'archived' | 'deleted',
+  ) {
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values(
+      state === 'archived'
+        ? { documentId, applicantId, archivedAt: now }
+        : {
+            documentId,
+            applicantId,
+            deletedAt: now,
+            deletePath: 'DUPLICATE',
+            purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+          },
+    );
+  }
+
+  /** A file that finished its checks and opened for review, as a reading request expects. */
+  async function readyVersion(db: Db, email: string) {
+    const versionId = await seedVersion(db, email);
+    await db
+      .update(schema.documentVersions)
+      .set({ safetyStatus: 'CLEAN', processingStatus: 'AWAITING_REVIEW' })
+      .where(eq(schema.documentVersions.id, versionId));
+    return { versionId, ...(await documentOf(db, versionId)) };
+  }
+
+  it('refuses another reading of a deleted document exactly like a missing one, and allows it for an archived one', async () => {
+    const db = await freshDb();
+    const deleted = await readyVersion(db, 'lc-jobs-deleted@example.com');
+    const archived = await readyVersion(db, 'lc-jobs-archived@example.com');
+    await markDocument(db, deleted.documentId, deleted.applicantId, 'deleted');
+    await markDocument(db, archived.documentId, archived.applicantId, 'archived');
+
+    const missing = await requestDocumentReExtraction(db, {
+      actorAccountId: deleted.ownerAccountId,
+      documentId: '00000000-0000-4000-8000-000000000000',
+      expectedVersionId: deleted.versionId,
+    });
+    const refused = await requestDocumentReExtraction(db, {
+      actorAccountId: deleted.ownerAccountId,
+      documentId: deleted.documentId,
+      expectedVersionId: deleted.versionId,
+    });
+    expect(missing.ok).toBe(false);
+    expect(refused).toEqual(missing);
+
+    const allowed = await requestDocumentReExtraction(db, {
+      actorAccountId: archived.ownerAccountId,
+      documentId: archived.documentId,
+      expectedVersionId: archived.versionId,
+    });
+    expect(isOk(allowed)).toBe(true);
+  });
+
+  it('leaves a deleted document out of the failed jobs list and keeps an archived one', async () => {
+    const db = await freshDb();
+    const deleted = await readyVersion(db, 'lc-failed-deleted@example.com');
+    const archived = await readyVersion(db, 'lc-failed-archived@example.com');
+    for (const entry of [deleted, archived]) {
+      const job = await enqueueIntakeJob(db, { documentVersionId: entry.versionId });
+      await db
+        .update(schema.processingJobs)
+        .set({ status: 'FAILED', lastError: 'scanner unavailable' })
+        .where(eq(schema.processingJobs.id, job.id));
+    }
+    expect(await listFailedJobs(db)).toHaveLength(2);
+    await markDocument(db, deleted.documentId, deleted.applicantId, 'deleted');
+    await markDocument(db, archived.documentId, archived.applicantId, 'archived');
+
+    const failed = await listFailedJobs(db);
+    expect(failed.map((job) => job.documentId)).toEqual([archived.documentId]);
   });
 });

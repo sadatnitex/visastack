@@ -1,5 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, gt } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray } from 'drizzle-orm';
 import {
   carryRecipientCaseExceptions,
   listCaseExclusionsForApplicant,
@@ -15,6 +15,7 @@ import { isEmailAddress } from './email-address';
 import { type ServiceError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import type { KeyManagementPort } from './ports';
 import { type CreateGrantInput, acceptGrant, createGrant, prepareGrantScope } from './sharing';
 
@@ -137,10 +138,36 @@ export async function previewSharingInvitation(
   const applicant = await getApplicant(db, invite.applicantId);
   if (!applicant || applicant.ownerAccountId !== invite.invitedByAccountId)
     return err(serviceError('forbidden', 'Invitation unavailable.'));
+  // Documents the owner moved to Recently Deleted after inviting are no longer part of the share
+  // (LC-A2), so the recipient is shown, and given, only what is still there; archived ones stay
+  // (D6). An invitation whose named documents are all gone offers nothing and is refused here.
+  if (invite.documentIds?.length) {
+    const documentIds = await stillPresentDocumentIds(db, invite.documentIds);
+    if (documentIds.length === 0)
+      return err(
+        serviceError('invalid', 'The documents in this invitation are no longer available.'),
+      );
+    return ok({ ...invite, documentIds });
+  }
   return ok(invite);
 }
 
+/**
+ * The named documents that are not in Recently Deleted or being removed, in their order
+ * (presentDocumentCondition). Before migration 0113 every named document is kept.
+ */
+async function stillPresentDocumentIds(db: Db, documentIds: readonly string[]): Promise<string[]> {
+  if (!(await lifecycleTablesPresent(db))) return [...documentIds];
+  const present = await db
+    .select({ id: schema.documents.id })
+    .from(schema.documents)
+    .where(and(inArray(schema.documents.id, documentIds), presentDocumentCondition()));
+  const kept = new Set(present.map((row) => row.id));
+  return documentIds.filter((id) => kept.has(id));
+}
+
 /** Claim once, revalidate owner/consent and restore the original category snapshot atomically. */
+
 export async function acceptSharingInvitation(
   db: Db,
   input: { readonly actorAccountId: string; readonly rawToken: string },
@@ -184,6 +211,9 @@ export async function acceptSharingInvitation(
         .returning();
       if (!claimed.length)
         return err(serviceError('invalid', 'This invitation is no longer pending.'));
+      // The preview already left out documents in Recently Deleted (LC-A2); how many is recorded.
+      const documentsLeftOut =
+        (claimed[0]?.documentIds?.length ?? 0) - (invite.documentIds?.length ?? 0);
       const created = await createGrant(tx, {
         actorAccountId: invite.invitedByAccountId,
         applicantId: invite.applicantId,
@@ -225,7 +255,14 @@ export async function acceptSharingInvitation(
         resourceId: invite.id,
         method: 'MANUAL',
         result: 'ALLOWED',
-        ...(carried > 0 ? { metadata: { caseExceptions: carried } } : {}),
+        ...(carried > 0 || documentsLeftOut > 0
+          ? {
+              metadata: {
+                ...(carried > 0 ? { caseExceptions: carried } : {}),
+                ...(documentsLeftOut > 0 ? { documentsLeftOut } : {}),
+              },
+            }
+          : {}),
       });
       return ok(accepted.value.id);
     })

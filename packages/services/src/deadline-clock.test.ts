@@ -680,3 +680,32 @@ describe('listDeadlineClock', () => {
     HEAVY,
   );
 });
+
+describe('the deadline clock and the resource lifecycle (LC-A2)', () => {
+  it(
+    'shows no date for an archived or deleted expiring document, and does for a current one',
+    async () => {
+      const who = await person('lc-clock@example.com');
+      const current = await document(who.ownerId, who.applicantId, 'PASSPORT', day('2026-11-20'));
+      const archived = await document(who.ownerId, who.applicantId, 'VISA', day('2026-11-20'));
+      const deleted = await document(who.ownerId, who.applicantId, 'VISA', day('2026-11-20'));
+      const now = new Date();
+      await db
+        .insert(schema.documentLifecycle)
+        .values({ documentId: archived, applicantId: who.applicantId, archivedAt: now });
+      await db.insert(schema.documentLifecycle).values({
+        documentId: deleted,
+        applicantId: who.applicantId,
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+      });
+
+      const keys = (await clock(who)).entries
+        .filter((entry) => entry.kind === 'document_expires')
+        .map((entry) => entry.key);
+      expect(keys).toEqual([`document_expires:${current}`]);
+    },
+    HEAVY,
+  );
+});

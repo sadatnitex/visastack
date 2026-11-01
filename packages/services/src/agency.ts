@@ -23,6 +23,11 @@ import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import {
+  lifecycleTablesPresent,
+  presentApplicantCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
+import {
   cancelQueuedNotificationsForResource,
   enqueueNotificationBothChannels,
 } from './notifications';
@@ -1093,6 +1098,7 @@ export async function listMissionsForOrganization(
   organizationId: string,
 ): Promise<OrgMission[]> {
   const now = new Date();
+  const lifecycle = await lifecycleTablesPresent(db);
   const rows = await withCaseExclusions(db, (covers) =>
     db
       .selectDistinct({
@@ -1113,6 +1119,8 @@ export async function listMissionsForOrganization(
           lte(schema.grants.startAt, now),
           or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
           covers(schema.missions.id),
+          // Agency view of shared cases: presentApplicantCondition (archive never revokes sharing, D6).
+          lifecycle ? presentApplicantCondition() : undefined,
         ),
       ),
   );
@@ -1982,13 +1990,14 @@ export async function listEvidenceRequestsForOrgDetailed(
 ): Promise<Result<EvidenceRequestWithApplicant[] | EvidenceRequestsPage, ServiceError>> {
   const listed = await listEvidenceRequestsForOrg(db, actorAccountId, organizationId);
   if (!listed.ok) return listed;
-  if (!options) return ok(await withApplicantNames(db, listed.value));
+  const requests = await withoutDeletedTravellers(db, listed.value);
+  if (!options) return ok(await withApplicantNames(db, requests));
   const statusCounts: Record<string, number> = {};
-  for (const request of listed.value) {
+  for (const request of requests) {
     statusCounts[request.status] = (statusCounts[request.status] ?? 0) + 1;
   }
   const wanted = options.statuses?.length ? new Set<string>(options.statuses) : null;
-  const matching = listed.value
+  const matching = requests
     .filter((request) => wanted === null || wanted.has(request.status))
     .filter((request) => options.only === undefined || request.id === options.only)
     .map((request) => ({ request, at: request.createdAt.toISOString() }))
@@ -2032,6 +2041,25 @@ export interface EvidenceRequestsPage extends Page<EvidenceRequestWithApplicant>
   readonly total: number;
   /** How many requests the organization holds in each status, before the filter. */
   readonly statusCounts: Readonly<Record<string, number>>;
+}
+
+/**
+ * Leaves out the requests of a traveller record in Recently Deleted, before anything is counted
+ * or paged, so the list, its total and its status counts agree (agency view:
+ * presentApplicantCondition; an archived traveller's requests stay, D6).
+ */
+async function withoutDeletedTravellers(
+  db: Db,
+  requests: readonly EvidenceRequest[],
+): Promise<readonly EvidenceRequest[]> {
+  if (requests.length === 0 || !(await lifecycleTablesPresent(db))) return requests;
+  const applicantIds = [...new Set(requests.map((request) => request.applicantId))];
+  const present = await db
+    .select({ id: schema.applicants.id })
+    .from(schema.applicants)
+    .where(and(inArray(schema.applicants.id, applicantIds), presentApplicantCondition()));
+  const kept = new Set(present.map((row) => row.id));
+  return requests.filter((request) => kept.has(request.applicantId));
 }
 
 async function withApplicantNames(
@@ -2500,6 +2528,7 @@ export async function listApplicantsForOrganization(
   organizationId: string,
 ): Promise<OrgApplicant[]> {
   const now = new Date();
+  const lifecycle = await lifecycleTablesPresent(db);
   const rows = await db
     .selectDistinct({
       applicantId: schema.grants.applicantId,
@@ -2514,6 +2543,8 @@ export async function listApplicantsForOrganization(
         isNotNull(schema.grants.acceptedAt),
         lte(schema.grants.startAt, now),
         or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+        // Agency view: presentApplicantCondition (archive never revokes sharing, D6).
+        lifecycle ? presentApplicantCondition() : undefined,
       ),
     );
   return rows;
@@ -2670,11 +2701,18 @@ export async function submitEvidenceResponse(
         serviceError('invalid', 'a DOCUMENT request is satisfied by exactly one documentId'),
       );
     }
+    const lifecycle = await lifecycleTablesPresent(db);
     const document = first(
       await db
         .select({ applicantId: schema.documents.applicantId, docType: schema.documents.docType })
         .from(schema.documents)
-        .where(eq(schema.documents.id, input.documentId))
+        .where(
+          and(
+            eq(schema.documents.id, input.documentId),
+            // The owner's explicit answer: presentDocumentCondition (archived stays, deleted goes).
+            lifecycle ? presentDocumentCondition() : undefined,
+          ),
+        )
         .limit(1),
     );
     if (!document || document.applicantId !== request.applicantId) {

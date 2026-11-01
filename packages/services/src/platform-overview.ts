@@ -2,6 +2,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { and, gte, inArray, lte, sql } from 'drizzle-orm';
 import { type Db, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
 import { type PlatformAuthInput, hasAnyPlatformRole } from './platform-roles';
 
 export interface PlatformOverview {
@@ -27,9 +28,14 @@ export async function getPlatformOverview(
     return err(serviceError('forbidden', 'Platform access is required.'));
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   start.setUTCDate(start.getUTCDate() - 29);
+  const lifecycle = await lifecycleTablesPresent(db);
   const [accounts, travellers, agencies, documents, events] = await Promise.all([
     db.select({ count: sql<string>`count(*)` }).from(schema.accounts),
-    db.select({ count: sql<string>`count(*)` }).from(schema.applicants),
+    db
+      .select({ count: sql<string>`count(*)` })
+      .from(schema.applicants)
+      // A count of travellers: presentApplicantCondition (a deleted record is leaving).
+      .where(lifecycle ? presentApplicantCondition() : undefined),
     db.select({ count: sql<string>`count(*)` }).from(schema.organizations),
     db
       .select({

@@ -1,4 +1,5 @@
 import { isErr, isOk } from '@visastack/core';
+import { schema } from '@visastack/db';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { accountPrincipal, requireAccess } from './access';
 import {
@@ -197,5 +198,44 @@ describe('listDocumentReadingStates', () => {
     const result = await listDocumentReadingStates(own, [reader.versionId]);
     if (!isOk(result)) throw new Error('states');
     expect(result.value.states.size).toBe(0);
+  });
+});
+
+describe('reading states and the resource lifecycle (LC-A2)', () => {
+  it('leaves out a deleted document version and keeps an archived one', async () => {
+    const db = await freshDb();
+    const deleted = await seedReader(db, 'lc-state-deleted@example.com');
+    const archived = await seedReader(db, 'lc-state-archived@example.com');
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values({
+      documentId: deleted.documentId,
+      applicantId: deleted.applicantId,
+      deletedAt: now,
+      deletePath: 'DUPLICATE',
+      purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+    });
+    await db.insert(schema.documentLifecycle).values({
+      documentId: archived.documentId,
+      applicantId: archived.applicantId,
+      archivedAt: now,
+    });
+
+    const access = async (reader: { accountId: string; applicantId: string }) => {
+      const granted = await requireAccess(
+        db,
+        accountPrincipal(reader.accountId),
+        'VIEW_METADATA',
+        { applicantId: reader.applicantId },
+        { purpose: 'self' },
+      );
+      if (!isOk(granted)) throw new Error('access');
+      return granted.value;
+    };
+    const gone = await listDocumentReadingStates(await access(deleted), [deleted.versionId]);
+    if (!isOk(gone)) throw new Error('states');
+    expect(gone.value.states.size).toBe(0);
+    const kept = await listDocumentReadingStates(await access(archived), [archived.versionId]);
+    if (!isOk(kept)) throw new Error('states');
+    expect([...kept.value.states.keys()]).toEqual([archived.versionId]);
   });
 });

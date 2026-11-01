@@ -584,3 +584,83 @@ describe('account export document bytes (Chunk 2 -- real original document bytes
     expect(manifestOf(files).profilePhotos).toEqual({ included: 0 });
   });
 });
+
+describe('account export files and the resource lifecycle (LC-A2)', () => {
+  it('names an archived document file with (Archived) and a Recently Deleted one with (Scheduled for removal)', async () => {
+    const db = await freshDb();
+    resetProtectedFieldKeyCacheForTests();
+    const storage = new FakeBlobStore();
+    const ports: AccountExportPorts = {
+      blobStore: storage,
+      keyManagement: fakeKeyManagementPort(),
+      bundler: fakeBundler(),
+    };
+    const { accountId, applicantId } = await seedAccountWithApplicant(
+      db,
+      'export-lifecycle@example.com',
+    );
+    const addStored = async (originalName: string, objectKey: string) => {
+      const doc = await registerDocument(db, {
+        actorAccountId: accountId,
+        applicantId,
+        originalName,
+        docType: 'passport',
+      });
+      if (!isOk(doc)) throw new Error('doc');
+      const version = await addDocumentVersion(db, {
+        actorAccountId: accountId,
+        documentId: doc.value.id,
+        bucket: 'CLEAN',
+        objectKey,
+        safetyStatus: 'CLEAN',
+        processingStatus: 'AWAITING_REVIEW',
+      });
+      if (!isOk(version)) throw new Error('version');
+      await storage.putObject({
+        bucket: 'CLEAN',
+        objectKey,
+        contentType: 'application/pdf',
+        bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+      });
+      return doc.value.id;
+    };
+    await addStored('current.pdf', 'lifecycle-current');
+    const archivedId = await addStored('archived.pdf', 'lifecycle-archived');
+    const deletedId = await addStored('deleted.pdf', 'lifecycle-deleted');
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values([
+      { documentId: archivedId, applicantId, archivedAt: now },
+      {
+        documentId: deletedId,
+        applicantId,
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+      },
+    ]);
+
+    await enqueueAccountExportJob(db, accountId);
+    await runAccountExportWorker(db, ports, { limit: 5 });
+    const job = first(
+      await db
+        .select()
+        .from(schema.accountExportJobs)
+        .where(eq(schema.accountExportJobs.accountId, accountId)),
+    );
+    if (!job) throw new Error('no job');
+    const artifact = await getAccountExportArtifact(db, ports, {
+      actorAccountId: accountId,
+      jobId: job.id,
+    });
+    if (!isOk(artifact)) throw new Error('artifact not ready');
+    const names = decodeFakeBundle(artifact.value.bytes)
+      .map((f) => f.name)
+      .filter((name) => name.startsWith('documents/'))
+      .sort();
+    expect(names).toEqual([
+      'documents/archived - v1 (Archived).pdf',
+      'documents/current - v1.pdf',
+      'documents/deleted - v1 (Scheduled for removal).pdf',
+    ]);
+  });
+});

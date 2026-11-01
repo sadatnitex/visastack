@@ -264,7 +264,9 @@ async function collectDocumentFiles(
   exported: AccountExport,
 ): Promise<DocumentBundleResult> {
   const candidates = exported.applicants.flatMap((a) =>
-    a.documents.flatMap((d) => d.versions.map((version) => ({ version, document: d.document }))),
+    a.documents.flatMap((d) =>
+      d.versions.map((version) => ({ version, document: d.document, status: d.status })),
+    ),
   );
   if (candidates.length === 0) return { files: [], included: 0, excluded: [] };
 
@@ -283,7 +285,7 @@ async function collectDocumentFiles(
   const usedNames = new Set<string>();
   let included = 0;
 
-  for (const { version, document } of candidates) {
+  for (const { version, document, status } of candidates) {
     const usable = isDocumentVersionUsable({
       safetyStatus: version.safetyStatus,
       processingStatus: version.processingStatus,
@@ -314,7 +316,8 @@ async function collectDocumentFiles(
     const baseName = sanitizeNameComponent(stripKnownExtension(rawName, ext)) || 'document';
     const name = uniqueZipEntryName(
       usedNames,
-      `documents/${baseName} - v${version.versionNumber}`,
+      // An archived or Recently Deleted document says so in its file name (LC-A2).
+      `documents/${baseName} - v${version.versionNumber}${status ? ` (${status})` : ''}`,
       ext,
     );
     files.push({ name, bytes: stored.bytes });

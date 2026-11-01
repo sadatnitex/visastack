@@ -8,6 +8,7 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
+import { registerDocument } from './documents';
 import { exportAccount } from './export';
 import { buildExportCsvTables } from './export-csv';
 import { createMission } from './missions';
@@ -140,6 +141,105 @@ describe('account export: per-case sharing exceptions', () => {
         true,
       );
       expect(data.manifest.counts.caseExceptions).toBe(0);
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+});
+
+async function seedLifecycle(db: Db) {
+  const owner = await consented(db, 'export-lifecycle@example.test');
+  const traveller = async (displayName: string) => {
+    const created = await createApplicant(db, {
+      actorAccountId: owner.id,
+      ownerAccountId: owner.id,
+      displayName,
+    });
+    if (!isOk(created)) throw new Error('applicant');
+    return created.value.id;
+  };
+  const currentTraveller = await traveller('Current traveller');
+  const archivedTraveller = await traveller('Archived traveller');
+  const deletedTraveller = await traveller('Deleted traveller');
+  const document = async (originalName: string) => {
+    const created = await registerDocument(db, {
+      actorAccountId: owner.id,
+      applicantId: currentTraveller,
+      originalName,
+      docType: 'passport',
+    });
+    if (!isOk(created)) throw new Error('document');
+    return created.value.id;
+  };
+  const currentDocument = await document('current.pdf');
+  const archivedDocument = await document('archived.pdf');
+  const deletedDocument = await document('deleted.pdf');
+  return {
+    owner,
+    currentTraveller,
+    archivedTraveller,
+    deletedTraveller,
+    currentDocument,
+    archivedDocument,
+    deletedDocument,
+  };
+}
+
+describe('account export and the resource lifecycle (LC-A2)', () => {
+  it(
+    'exports every record and labels archived and Recently Deleted ones',
+    async () => {
+      const db = await freshDb();
+      const s = await seedLifecycle(db);
+      const now = new Date();
+      const purgeAfter = new Date(now.getTime() + 30 * 86_400_000);
+      await db.insert(schema.documentLifecycle).values([
+        { documentId: s.archivedDocument, applicantId: s.currentTraveller, archivedAt: now },
+        {
+          documentId: s.deletedDocument,
+          applicantId: s.currentTraveller,
+          deletedAt: now,
+          deletePath: 'DUPLICATE',
+          purgeAfter,
+        },
+      ]);
+      await db.insert(schema.applicantLifecycle).values([
+        { applicantId: s.archivedTraveller, archivedAt: now },
+        { applicantId: s.deletedTraveller, deletedAt: now, purgeAfter },
+      ]);
+      const data = await exportFor(db, s.owner.id);
+      const travellers = new Map(data.applicants.map((a) => [a.applicant.id, a]));
+      expect(travellers.size).toBe(3);
+      const current = travellers.get(s.currentTraveller);
+      expect(current).toBeDefined();
+      expect(current && 'status' in current).toBe(false);
+      expect(travellers.get(s.archivedTraveller)?.status).toBe('Archived');
+      expect(travellers.get(s.deletedTraveller)?.status).toBe('Scheduled for removal');
+      const documents = new Map(current?.documents.map((d) => [d.document.id, d]) ?? []);
+      expect(documents.size).toBe(3);
+      const currentDoc = documents.get(s.currentDocument);
+      expect(currentDoc).toBeDefined();
+      expect(currentDoc && 'status' in currentDoc).toBe(false);
+      expect(documents.get(s.archivedDocument)?.status).toBe('Archived');
+      expect(documents.get(s.deletedDocument)?.status).toBe('Scheduled for removal');
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
+    'still exports every record with no status labels while the lifecycle tables are missing',
+    async () => {
+      const client = await createMigratedPglite();
+      await client.exec(
+        'drop table document_removal_requests, document_lifecycle, applicant_lifecycle, deletion_receipts cascade',
+      );
+      const db = drizzle(client, { schema }) as unknown as Db;
+      const s = await seedLifecycle(db);
+      const data = await exportFor(db, s.owner.id);
+      expect(data.applicants).toHaveLength(3);
+      expect(data.applicants.every((a) => !('status' in a))).toBe(true);
+      const documents = data.applicants.flatMap((a) => a.documents);
+      expect(documents).toHaveLength(3);
+      expect(documents.every((d) => !('status' in d))).toBe(true);
     },
     HEAVY_TIMEOUT_MS,
   );

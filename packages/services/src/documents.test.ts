@@ -6,10 +6,13 @@ import type { Membership } from '@visastack/policy';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { accountPrincipal } from './access/principal';
+import { EACH_GRANT, requireAccess } from './access/require-access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
+import { latestUsableVersion } from './document-access';
 import { readDocumentAccessToken } from './document-access-token';
 import {
   addDocumentVersion,
@@ -31,6 +34,7 @@ import {
 } from './documents';
 import { enqueueErasureJob } from './erasure';
 import { createOrganization, reviewOrganization } from './organizations';
+import { type PhotoSizingDeps, checkVisaPhoto, produceVisaPhotoSize } from './photo-sizing';
 import { seedStaffAccount, staffScopeFor } from './platform-roles.test-support';
 import { acceptGrant, createGrant } from './sharing';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
@@ -1855,5 +1859,289 @@ describe('registerDocumentWithVersion: a kind chosen at upload', () => {
     expect(isOk(result)).toBe(true);
     const docs = await listDocumentsDetailed(db, account.id, applicant.id);
     if (isOk(docs)) expect(docs.value[0]?.docType).toBeNull();
+  });
+});
+
+describe('documents and the resource lifecycle (LC-A2)', () => {
+  /** Archive or delete a document the way lanes A1 and C will (one row in `document_lifecycle`). */
+  async function markLifecycle(
+    db: Db,
+    document: { id: string; applicantId: string },
+    state: 'ARCHIVED' | 'DELETED',
+  ) {
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values(
+      state === 'ARCHIVED'
+        ? { documentId: document.id, applicantId: document.applicantId, archivedAt: now }
+        : {
+            documentId: document.id,
+            applicantId: document.applicantId,
+            deletedAt: now,
+            deletePath: 'DUPLICATE',
+            purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+          },
+    );
+  }
+
+  const ownerPreview = (
+    db: Db,
+    storage: FakeStorage,
+    document: { id: string; applicantId: string },
+  ) =>
+    previewDocument(db, storage, {
+      actor: { kind: 'applicant_owner', applicantId: document.applicantId as never },
+      documentId: document.id,
+      purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+    });
+
+  it('never previews or downloads a Recently Deleted document, with the same not-found as a missing one', async () => {
+    const db = await freshDb();
+    const storage = new FakeStorage();
+    const { document } = await seedOwnerWithDocument(db, 'lc-deleted@example.com');
+    const before = await ownerPreview(db, storage, document);
+    expect(isOk(before)).toBe(true);
+    const fields = isOk(before)
+      ? readDocumentAccessToken(new URL(before.value.url).searchParams)
+      : undefined;
+
+    await markLifecycle(db, document, 'DELETED');
+
+    const missing = await ownerPreview(db, storage, { ...document, id: crypto.randomUUID() });
+    const preview = await ownerPreview(db, storage, document);
+    expect(isErr(preview) && preview.error).toEqual(isErr(missing) && missing.error);
+    const download = await downloadDocument(db, storage, {
+      actor: { kind: 'applicant_owner', applicantId: document.applicantId as never },
+      documentId: document.id,
+      purpose: 'self_review',
+      accessTokenSecret: TEST_ACCESS_TOKEN_SECRET,
+      variant: 'original',
+    });
+    expect(isErr(download) && download.error.code).toBe('not_found');
+    // A link handed out before the delete stops working at its next redemption.
+    if (fields) {
+      expect(await recheckDocumentAccess(db, fields)).toEqual({
+        allowed: false,
+        reason: 'document_not_found',
+      });
+    }
+  });
+
+  it('keeps an archived document reachable (archive changes only what is offered by default)', async () => {
+    const db = await freshDb();
+    const storage = new FakeStorage();
+    const { account, applicant, document } = await seedOwnerWithDocument(
+      db,
+      'lc-archived@example.com',
+    );
+    await markLifecycle(db, document, 'ARCHIVED');
+    expect(isOk(await ownerPreview(db, storage, document))).toBe(true);
+    // The default list keeps it (D6); a list of offers leaves it out; the full list keeps it.
+    const listed = await listDocuments(db, account.id, applicant.id);
+    expect(isOk(listed) && listed.value.map((d) => d.id)).toEqual([document.id]);
+    const everyday = await listDocuments(db, account.id, applicant.id, { lifecycle: 'everyday' });
+    expect(isOk(everyday) && everyday.value.map((d) => d.id)).toEqual([]);
+    const all = await listDocumentsDetailed(db, account.id, applicant.id, { lifecycle: 'all' });
+    expect(isOk(all) && all.value.map((d) => d.id)).toEqual([document.id]);
+  });
+
+  it('refuses changes to a Recently Deleted document and leaves it out of every list', async () => {
+    const db = await freshDb();
+    const { account, applicant, document } = await seedOwnerWithDocument(db, 'lc-edit@example.com');
+    await markLifecycle(db, document, 'DELETED');
+    const dated = await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      documentDate: '2026-01-01',
+    });
+    expect(isErr(dated) && dated.error.code).toBe('not_found');
+    const typed = await setDocumentType(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      docType: 'BANK_STATEMENT',
+    });
+    expect(isErr(typed) && typed.error.code).toBe('not_found');
+    const listed = await listDocumentsDetailed(db, account.id, applicant.id);
+    expect(isOk(listed) && listed.value).toEqual([]);
+    const present = await listDocumentsDetailed(db, account.id, applicant.id, {
+      lifecycle: 'present',
+    });
+    expect(isOk(present) && present.value).toEqual([]);
+    const all = await listDocumentsDetailed(db, account.id, applicant.id, { lifecycle: 'all' });
+    expect(isOk(all) && all.value.map((d) => d.id)).toEqual([document.id]);
+  });
+
+  it('works exactly as before with the lifecycle tables missing', async () => {
+    const client = await createMigratedPglite();
+    await client.exec(
+      'drop table document_removal_requests, document_lifecycle, applicant_lifecycle, deletion_receipts cascade',
+    );
+    const db = drizzle(client, { schema }) as unknown as Db;
+    const storage = new FakeStorage();
+    const { account, applicant, document } = await seedOwnerWithDocument(
+      db,
+      'lc-missing@example.com',
+    );
+    expect(isOk(await ownerPreview(db, storage, document))).toBe(true);
+    const listed = await listDocumentsDetailed(db, account.id, applicant.id);
+    expect(isOk(listed) && listed.value.map((d) => d.id)).toEqual([document.id]);
+    const dated = await setDocumentDate(db, {
+      actorAccountId: account.id,
+      documentId: document.id,
+      documentDate: '2026-01-01',
+    });
+    expect(isOk(dated)).toBe(true);
+  });
+});
+
+describe('every byte path refuses a Recently Deleted document (LC-A2, latestUsableVersion)', () => {
+  /** A photo sizer and store that record what was reached, so a refusal can be shown to read nothing. */
+  function photoDeps(): PhotoSizingDeps & { readonly calls: string[] } {
+    const calls: string[] = [];
+    return {
+      calls,
+      storage: {
+        async getObject() {
+          calls.push('getObject');
+          return { contentType: 'image/jpeg', bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]) };
+        },
+      },
+      sizer: {
+        async measure() {
+          calls.push('measure');
+          return {
+            width: 1200,
+            height: 1500,
+            meanLuma: 150,
+            lumaStdDev: 50,
+            sharpness: 300,
+            borderStdDev: 4,
+            borderMeanLuma: 240,
+          };
+        },
+        async preview() {
+          calls.push('preview');
+          return { bytes: new Uint8Array([1]), width: 384, height: 480 };
+        },
+        async produce() {
+          calls.push('produce');
+          return {
+            bytes: new Uint8Array([9]),
+            widthPx: 413,
+            heightPx: 531,
+            dpi: 300,
+            quality: 92,
+            cropBox: { left: 0, top: 0, width: 1167, height: 1500 },
+            withinFileSizeRange: true,
+          };
+        },
+      },
+    };
+  }
+
+  async function seedPhoto(db: Db, email: string) {
+    const provisioned = await provisionAccount(db, { email });
+    if (!isOk(provisioned)) throw new Error('provision failed');
+    const ownerId = provisioned.value.id;
+    await setConsent(db, {
+      actorAccountId: ownerId,
+      accountId: ownerId,
+      type: 'CORE_PROCESSING',
+      granted: true,
+    });
+    const applicant = await createApplicant(db, {
+      actorAccountId: ownerId,
+      ownerAccountId: ownerId,
+      displayName: 'Owner',
+    });
+    if (!isOk(applicant)) throw new Error('applicant failed');
+    const doc = await registerDocument(db, {
+      actorAccountId: ownerId,
+      applicantId: applicant.value.id,
+      originalName: 'me.jpg',
+      docType: 'PHOTOGRAPH',
+    });
+    if (!isOk(doc)) throw new Error('document failed');
+    const version = await addDocumentVersion(db, {
+      actorAccountId: ownerId,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: `photo-${email}`,
+      sizeBytes: 4,
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    if (!isOk(version)) throw new Error('version failed');
+    const gate = async () => {
+      const access = await requireAccess(
+        db,
+        accountPrincipal(ownerId),
+        'DOWNLOAD_REDACTED',
+        { documentId: doc.value.id },
+        { purpose: EACH_GRANT },
+      );
+      if (!isOk(access)) throw new Error(`gate: ${access.error.code}`);
+      return access.value;
+    };
+    return { applicantId: applicant.value.id, documentId: doc.value.id, gate };
+  }
+
+  async function markDeleted(db: Db, documentId: string, applicantId: string) {
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values({
+      documentId,
+      applicantId,
+      deletedAt: now,
+      deletePath: 'DUPLICATE',
+      purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+    });
+  }
+
+  it('refuses photo sizing and the shared byte path for a deleted photo, and reads nothing', async () => {
+    const db = await freshDb();
+    const photo = await seedPhoto(db, 'lc-photo-deleted@example.com');
+    const before = photoDeps();
+    expect(isOk(await checkVisaPhoto(await photo.gate(), before))).toBe(true);
+    expect((await latestUsableVersion(await photo.gate())).kind).toBe('usable');
+
+    await markDeleted(db, photo.documentId, photo.applicantId);
+
+    const deps = photoDeps();
+    expect(isErr(await checkVisaPhoto(await photo.gate(), deps))).toBe(true);
+    const sized = await produceVisaPhotoSize(await photo.gate(), deps, {
+      specId: 'us-2x2',
+      crop: { offsetX: 0, offsetY: 0, zoom: 1 },
+    });
+    expect(isErr(sized)).toBe(true);
+    // No stored bytes were read and no image work ran.
+    expect(deps.calls).toEqual([]);
+    // The one rule the file paths built on a document proof share (Safe Copy, AI original file, photo sizing).
+    expect(await latestUsableVersion(await photo.gate())).toEqual({
+      kind: 'refused',
+      reason: 'document_removed',
+    });
+  });
+
+  it('keeps an archived photo usable', async () => {
+    const db = await freshDb();
+    const photo = await seedPhoto(db, 'lc-photo-archived@example.com');
+    await db.insert(schema.documentLifecycle).values({
+      documentId: photo.documentId,
+      applicantId: photo.applicantId,
+      archivedAt: new Date(),
+    });
+    expect(isOk(await checkVisaPhoto(await photo.gate(), photoDeps()))).toBe(true);
+    expect((await latestUsableVersion(await photo.gate())).kind).toBe('usable');
+  });
+
+  it('serves the photo exactly as before while the lifecycle tables are missing', async () => {
+    const client = await createMigratedPglite();
+    await client.exec(
+      'drop table document_removal_requests, document_lifecycle, applicant_lifecycle, deletion_receipts cascade',
+    );
+    const db = drizzle(client, { schema }) as unknown as Db;
+    const photo = await seedPhoto(db, 'lc-photo-missing@example.com');
+    expect(isOk(await checkVisaPhoto(await photo.gate(), photoDeps()))).toBe(true);
+    expect((await latestUsableVersion(await photo.gate())).kind).toBe('usable');
   });
 });

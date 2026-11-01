@@ -5,6 +5,7 @@ import { type ReadingStopReason, isAiReadingKey, isReadingStopReason } from './a
 import { isConnectorModelVersion, isDeterministicModelVersion } from './ai-run-kinds';
 import { schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 
 /**
  * What the documents page says about a file's reading (S6, ADR 0019). The words live on the web
@@ -113,6 +114,7 @@ export async function listDocumentReadingStates(
   if (ids.length === 0) return ok({ states: new Map(), sourceOfRun: new Map() });
   const db = access.tx;
   const applicantId = access.applicant.id;
+  const lifecycle = await lifecycleTablesPresent(db);
 
   const own = await db
     .select({
@@ -124,7 +126,12 @@ export async function listDocumentReadingStates(
     .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
     .where(
       // Only this traveller's own versions, whatever ids were asked for.
-      and(inArray(schema.documentVersions.id, ids), eq(schema.documents.applicantId, applicantId)),
+      // Named versions: presentDocumentCondition (an archived file's reading stays visible).
+      and(
+        inArray(schema.documentVersions.id, ids),
+        eq(schema.documents.applicantId, applicantId),
+        lifecycle ? presentDocumentCondition() : undefined,
+      ),
     );
   if (own.length === 0) return ok({ states: new Map(), sourceOfRun: new Map() });
   const ownIds = own.map((version) => version.id);
