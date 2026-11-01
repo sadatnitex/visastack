@@ -23,7 +23,7 @@ During the run, each lane's own file (`lanes/<LANE>.md`, Status section) was the
 | G-GO | Given (the coordinator prompt from `KICKOFF.md`). |
 | G-MIG | Given. Migration 0113 ran on production on the owner's word: `db-migrate.yml` run 41263156493, 1 Nov 2026 01:57Z. Confirmed: 112 rows in the migration journal, the four lifecycle tables, and the `DOCUMENT_REMOVAL` erasure reason. Production is in "tables present" mode. (Paid plans migration 0114, run 41289963351, is a separate track.) |
 | G-D | Approved by the owner on 1 Nov 2026 ("G-D approved"). Reviewing role: the Compliance Admin role reads the queue and decides; a decision needs a fresh sign-in; no new role. Then "switch on removal requests": `DOCUMENT_REMOVAL_REQUESTS=on` is set in Vercel production and redeployed (by the coordinator). |
-| G-Z | Accepted by the owner on 1 Nov 2026 ("G-Z accepted") after reading lane Z's report. Open: the Founding Access question in `lanes/Z.md` (Blocked). |
+| G-Z | Accepted by the owner on 1 Nov 2026 ("G-Z accepted") after reading lane Z's report. The Founding Access question was decided by the owner the same day (Founding A: renewal stops at once on withdraw or terminate, access ends at the end of the paid period, no automatic refund), implemented separately by the paid plans session. |
 
 ### Privacy notice lines approved at G-D (the exact wording on screen today)
 
