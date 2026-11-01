@@ -347,6 +347,15 @@ describe('billing accounts -- states, transitions, and history (COM-03)', () => 
     expect(history.value[0]?.fromStatus).toBe('CLOSED');
     expect(history.value[5]?.toStatus).toBe('TRIAL');
     expect(history.value[5]?.fromStatus).toBeNull();
+    // WP-SB9: a limit reads only the newest changes, in the same order.
+    const newest = await listBillingStatusHistory(
+      db,
+      { actorAccountId: ownerAccountId, organizationId },
+      { limit: 2 },
+    );
+    expect(isOk(newest) && newest.value.map((entry) => entry.id)).toEqual(
+      history.value.slice(0, 2).map((entry) => entry.id),
+    );
   });
 
   it('refuses CLOSED -> GRACE/SUSPENDED and refuses re-entering TRIAL from anywhere except CLOSED', async () => {
@@ -1084,6 +1093,21 @@ describe('invoices -- issue, collect, void (COM-03)', () => {
     expect(list.value).toHaveLength(2);
     expect(list.value[0]?.id).toBe(second.value.id);
     expect(list.value[1]?.id).toBe(first.value.id);
+    // WP-SB9: a limit cuts the same newest-first list in the database, still members only.
+    const newestOnly = await listInvoicesForOrganization(
+      db,
+      { actorAccountId: ownerAccountId, organizationId },
+      { limit: 1 },
+    );
+    expect(isOk(newestOnly) && newestOnly.value.map((invoice) => invoice.id)).toEqual([
+      second.value.id,
+    ]);
+    const strangerLimited = await listInvoicesForOrganization(
+      db,
+      { actorAccountId: strangerId, organizationId },
+      { limit: 1 },
+    );
+    expect(isErr(strangerLimited)).toBe(true);
 
     const platformOwnerList = await listInvoicesForOrganization(db, {
       actorAccountId: owner.accountId,

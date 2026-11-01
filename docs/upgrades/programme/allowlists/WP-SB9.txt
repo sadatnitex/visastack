@@ -1,0 +1,27 @@
+# WP-SB9 Billing surfaces (Scroll Budget programme, docs/upgrades/programme/SCROLL-BUDGET-PLAN.md section 6 "SB9").
+# Drafted from the SB9 seed (plan section 4 plus tests and shared files). The owner approved this allowlist
+# in advance on 31 Oct 2026 (relayed by the coordinator session). STATUS.md is not edited by this package
+# (only WP-SB10 writes it). Prices, payments, receipts and who can pay do not change: layout, caps and paging only.
+apps/web/src/app/app/account/plan/**
+apps/web/src/app/app/agency/[orgId]/plan/**
+apps/web/src/app/app/admin/plans/**
+apps/web/src/app/app/admin/billing/**
+apps/web/src/app/app/admin/organizations/[orgId]/**
+# The billing list functions those pages read (an optional limit only; default behaviour unchanged).
+packages/services/src/person-billing-history.ts
+packages/services/src/person-billing-history.test.ts
+packages/services/src/agency-invoices.ts
+packages/services/src/agency-invoices.test.ts
+packages/services/src/billing.ts
+packages/services/src/billing.test.ts
+packages/services/src/billing-history.ts
+packages/services/src/billing-history.test.ts
+packages/services/src/commercial-override.ts
+packages/services/src/commercial-override.test.ts
+packages/services/src/manual-claims.ts
+packages/services/src/manual-claims.test.ts
+apps/web/e2e/scroll-budget/WP-SB9.spec.ts
+apps/web/src/app/globals.css
+docs/commercial-v1/known-issues.md
+docs/upgrades/programme/COVERAGE-LEDGER.csv
+docs/upgrades/programme/allowlists/WP-SB9.txt

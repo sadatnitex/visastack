@@ -50,6 +50,18 @@ function returnPath(organizationId: string): string {
   return `/app/admin/organizations/${organizationId}`;
 }
 
+/**
+ * Where the fresh sign-in check sends the owner back to: the part of the organization page the
+ * action belongs to (WP-SB9), so they land where they were working. Revalidation keeps the bare
+ * path, which covers every part.
+ */
+function stepUpReturnPath(
+  organizationId: string,
+  tab: 'plan' | 'invoices' | 'reports' | 'refunds' | 'overrides',
+): string {
+  return tab === 'plan' ? returnPath(organizationId) : `${returnPath(organizationId)}?tab=${tab}`;
+}
+
 function parseDate(formData: FormData, field: string): Date | undefined {
   const raw = String(formData.get(field) ?? '').trim();
   if (raw.length === 0) return undefined;
@@ -73,7 +85,7 @@ export async function activatePlanAction(
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'SUBSCRIPTION_ACTIVATE', resourceId: organizationId },
-      returnPath(organizationId),
+      stepUpReturnPath(organizationId, 'plan'),
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
@@ -107,7 +119,7 @@ export async function endSubscriptionAction(
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'SUBSCRIPTION_END', resourceId: organizationId },
-      returnPath(organizationId),
+      stepUpReturnPath(organizationId, 'plan'),
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
@@ -146,7 +158,7 @@ export async function scheduleDowngradeAction(
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'DOWNGRADE_SCHEDULE', resourceId: organizationId },
-      returnPath(organizationId),
+      stepUpReturnPath(organizationId, 'plan'),
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
@@ -189,7 +201,7 @@ export async function cancelScheduledDowngradeAction(
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'DOWNGRADE_CANCEL', resourceId: downgradeId },
-      returnPath(organizationId),
+      stepUpReturnPath(organizationId, 'plan'),
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
@@ -224,7 +236,7 @@ export async function openBillingAccountAction(
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'BILLING_ACCOUNT_OPEN', resourceId: organizationId },
-      returnPath(organizationId),
+      stepUpReturnPath(organizationId, 'plan'),
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
@@ -273,7 +285,7 @@ export async function transitionBillingStatusAction(
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'BILLING_STATUS_TRANSITION', resourceId: organizationId },
-      returnPath(organizationId),
+      stepUpReturnPath(organizationId, 'plan'),
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
@@ -348,7 +360,7 @@ export async function createInvoiceAction(
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'INVOICE_CREATE', resourceId: organizationId },
-      returnPath(organizationId),
+      stepUpReturnPath(organizationId, 'invoices'),
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
@@ -412,7 +424,7 @@ export async function recordInvoicePaymentAction(
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'INVOICE_PAYMENT_RECORD', resourceId: invoiceId },
-      returnPath(organizationId),
+      stepUpReturnPath(organizationId, 'invoices'),
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
@@ -460,7 +472,7 @@ export async function voidInvoiceAction(
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'INVOICE_VOID', resourceId: invoiceId },
-      returnPath(organizationId),
+      stepUpReturnPath(organizationId, 'invoices'),
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
@@ -497,7 +509,7 @@ export async function grantOverrideAction(
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'COMMERCIAL_OVERRIDE_GRANT', resourceId: organizationId },
-      returnPath(organizationId),
+      stepUpReturnPath(organizationId, 'overrides'),
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
@@ -535,7 +547,7 @@ export async function revokeOverrideAction(
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'COMMERCIAL_OVERRIDE_REVOKE', resourceId: overrideId },
-      returnPath(organizationId),
+      stepUpReturnPath(organizationId, 'overrides'),
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
@@ -567,7 +579,7 @@ export async function approveClaimAction(
     if (!(await isPlatformOwnerAccount(db, { accountId, email }))) return DENIED;
     const stepUp = await tryEstablishStepUp(
       { accountId, action: 'MANUAL_CLAIM_APPROVE', resourceId: claimId },
-      returnPath(organizationId),
+      stepUpReturnPath(organizationId, 'reports'),
     );
     if (stepUp.kind === 'not_configured') {
       return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;

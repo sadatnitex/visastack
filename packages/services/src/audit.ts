@@ -1,7 +1,15 @@
 import type { PermissionAction } from '@visastack/core';
 import { type AuditFieldValue, computeAuditHash } from '@visastack/db';
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { type Db, first, required, schema } from './db';
+import {
+  type Page,
+  belowSeq,
+  clampLimit,
+  decodeSeqCursor,
+  encodeSeqCursor,
+  toPage,
+} from './paging';
 
 /**
  * The append-only, tamper-evident audit sink (Build Spec §14).
@@ -211,8 +219,30 @@ export async function listAuditEventsForApplicant(
   db: Db,
   actorAccountId: string,
   applicantId: string,
-  limit = 100,
-): Promise<ApplicantAuditEvent[]> {
+  limit?: number,
+): Promise<ApplicantAuditEvent[]>;
+/**
+ * WP-SB3: one page of the same log for the Access Log's Show Older Entries. `before` is the
+ * `nextCursor` of the previous page; it is bound to this applicant's access log, so a cursor made
+ * for another record, or anything malformed, gives the first page. The owner check and the
+ * applicant filter are the same as above, so a cursor can only move within this owner's log.
+ */
+export async function listAuditEventsForApplicant(
+  db: Db,
+  actorAccountId: string,
+  applicantId: string,
+  options: { readonly limit?: number; readonly before?: string },
+): Promise<Page<ApplicantAuditEvent>>;
+export async function listAuditEventsForApplicant(
+  db: Db,
+  actorAccountId: string,
+  applicantId: string,
+  limitOrOptions: number | { readonly limit?: number; readonly before?: string } = 100,
+): Promise<ApplicantAuditEvent[] | Page<ApplicantAuditEvent>> {
+  const paged = typeof limitOrOptions === 'object';
+  const scope = `applicant:${applicantId}:access-log`;
+  const limit = paged ? clampLimit(limitOrOptions.limit) : limitOrOptions;
+  const before = paged ? decodeSeqCursor(limitOrOptions.before, scope) : null;
   const applicant = first(
     await db
       .select({ ownerAccountId: schema.applicants.ownerAccountId })
@@ -220,7 +250,9 @@ export async function listAuditEventsForApplicant(
       .where(eq(schema.applicants.id, applicantId))
       .limit(1),
   );
-  if (!applicant || applicant.ownerAccountId !== actorAccountId) return [];
+  if (!applicant || applicant.ownerAccountId !== actorAccountId) {
+    return paged ? { items: [], nextCursor: null } : [];
+  }
   const rows = await db
     .select({
       seq: schema.auditEvents.seq,
@@ -239,12 +271,20 @@ export async function listAuditEventsForApplicant(
     })
     .from(schema.auditEvents)
     .leftJoin(schema.accounts, eq(schema.accounts.id, schema.auditEvents.actorAccountId))
-    .where(eq(schema.auditEvents.applicantId, applicantId))
+    .where(
+      before
+        ? and(
+            eq(schema.auditEvents.applicantId, applicantId),
+            belowSeq(schema.auditEvents.seq, before),
+          )
+        : eq(schema.auditEvents.applicantId, applicantId),
+    )
     .orderBy(desc(schema.auditEvents.seq))
-    .limit(limit);
-  return rows.map(({ agencyName, agencyAppHost, ...r }) => ({
+    .limit(paged ? limit + 1 : limit);
+  const events = rows.map(({ agencyName, agencyAppHost, ...r }) => ({
     ...r,
     actorEmail: r.actorEmail ?? null,
     agencyAi: agencyName ? { agencyName, appHost: agencyAppHost ?? null } : null,
   }));
+  return paged ? toPage(events, limit, (last) => encodeSeqCursor(last.seq, scope)) : events;
 }
