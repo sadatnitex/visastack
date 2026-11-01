@@ -345,6 +345,8 @@ describe('product event categories (OPS-04)', () => {
       'agency_invites',
       // S16 (ADR 0021 section 7): the AI connector.
       'ai_connector',
+      // LC-F (resource lifecycle programme, section 9): archive, replace and removal.
+      'resource_lifecycle',
     ]);
     for (const category of PRODUCT_EVENT_CATEGORIES) {
       expect(category.eventTypes.length, category.key).toBeGreaterThan(0);

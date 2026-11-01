@@ -1,0 +1,15 @@
+{
+  "documents": [
+    "missions#computeReadiness",
+    "missions#generateCoverLetter",
+    "missions#getEvidenceCandidates",
+    "missions#listCaseEvidenceIds",
+    "missions#planPrepareAgain",
+    "missions#prepareCaseAgain",
+    "missions#selectEvidence",
+    "missions#snapshotMission"
+  ],
+  "applicants": [
+    "missions#listMissionsByItineraryRef"
+  ]
+}

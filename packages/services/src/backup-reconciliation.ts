@@ -8,7 +8,8 @@ import { purgeMissionUnconditionally } from './case-retention';
 import { getConsents } from './consent';
 import { type Db, first, schema } from './db';
 import { executeAccountDeletion } from './deletion';
-import { enqueueErasureJob, safeCopyDrawingIds } from './erasure';
+import { DOCUMENT_ROW_REASONS, type ErasureJobReason, enqueueErasureJob, safeCopyDrawingIds } from './erasure';
+import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { isMissingRelationError } from './missing-relation';
 import { redactionMasksTablePresent } from './redaction-table';
@@ -53,9 +54,11 @@ import { redactionMasksTablePresent } from './redaction-table';
  *   own current hold/complaint state may be stale or have genuinely
  *   diverged. Reconciliation forces the exact end state that was already
  *   decided, nothing more.
- * - Erasure (`ERASURE_VERIFIED`, `erasure.ts`) has exactly two enqueue
- *   sources -- account deletion (a single, ungated storage-object delete)
- *   and `retention.ts`'s `purgeExpiredDocuments` (gated behind every
+ * - Erasure (`ERASURE_VERIFIED`, `erasure.ts`) has two kinds of enqueue
+ *   source -- account deletion (a single, ungated storage-object delete)
+ *   and the document-row reasons (`DOCUMENT_ROW_REASONS`: `retention.ts`'s
+ *   `purgeExpiredDocuments`, and a lifecycle removal from
+ *   `enqueueDocumentRemoval`), each gated behind every
  *   sibling storage object a document ever referenced also reaching
  *   VERIFIED, per `finalizeVerifiedJob`'s own completion check). Rather
  *   than reconstructing that job-by-job gating state machine on the
@@ -973,7 +976,9 @@ async function forceErasureVerified(
       .returning({ id: schema.storageObjects.id });
     return deleted.length > 0;
   }
-  if (reason === 'RETENTION_PURGE') {
+  // A lifecycle removal (owner decision D10) is never brought back by a restore, exactly like an
+  // expired document: the same document-row path.
+  if (reason !== undefined && DOCUMENT_ROW_REASONS.has(reason as ErasureJobReason)) {
     const job = first(
       await oldDb
         .select({ documentId: schema.erasureJobs.documentId })
@@ -1007,6 +1012,9 @@ async function forceErasureVerified(
       for (const missionId of await missionsSelectingDocument(tx, documentId)) {
         await incrementMaterialRevision(tx, missionId);
       }
+      // The restored Removal Record reads Removed, as it did on the old branch: read before the
+      // delete, which takes the document's lifecycle row with it.
+      if (reason === 'DOCUMENT_REMOVAL') await markRestoredRemovalComplete(tx, documentId);
       const deletedDocuments = await tx
         .delete(schema.documents)
         .where(eq(schema.documents.id, documentId))
@@ -1022,6 +1030,40 @@ async function forceErasureVerified(
   throw new Error(
     `unrecognized ERASURE_VERIFIED reason on storage object ${resourceId}: ${String(reason)}`,
   );
+}
+
+/**
+ * A restored branch can hold the Removal Record of a document whose removal finished on the old
+ * branch, still reading Scheduled or Removing: move it forward to Removed, the only way the
+ * receipt guard of migration 0113 allows. Nothing to do before that migration.
+ */
+async function markRestoredRemovalComplete(tx: Db, documentId: string): Promise<void> {
+  if (!(await lifecycleTablesPresent(tx))) return;
+  const row = first(
+    await tx
+      .select({ receiptId: schema.documentLifecycle.receiptId })
+      .from(schema.documentLifecycle)
+      .where(eq(schema.documentLifecycle.documentId, documentId)),
+  );
+  if (!row?.receiptId) return;
+  const receipt = first(
+    await tx
+      .select({ status: schema.deletionReceipts.status })
+      .from(schema.deletionReceipts)
+      .where(eq(schema.deletionReceipts.id, row.receiptId))
+      .for('update'),
+  );
+  if (!receipt || receipt.status === 'REMOVED' || receipt.status === 'RESTORED') return;
+  if (receipt.status !== 'REMOVING') {
+    await tx
+      .update(schema.deletionReceipts)
+      .set({ status: 'REMOVING' })
+      .where(eq(schema.deletionReceipts.id, row.receiptId));
+  }
+  await tx
+    .update(schema.deletionReceipts)
+    .set({ status: 'REMOVED', verifiedGoneAt: new Date() })
+    .where(eq(schema.deletionReceipts.id, row.receiptId));
 }
 
 /** Which counter and audit resourceType each event type drives, once applied. */

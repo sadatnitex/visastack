@@ -2246,3 +2246,51 @@ export {
   ownInvoiceDocument,
   ownReceiptDocument,
 } from './person-billing-history';
+
+// --- Resource lifecycle programme (docs/roadmap/lifecycle/PROGRAMME.md section 5.2) ---
+// One anchor per lane: each lane inserts its exports only directly below its own anchor.
+// LC-F exports
+export {
+  DOCUMENT_ACTIONS,
+  DOCUMENT_LIFECYCLE_STATES,
+  DELETION_RECEIPT_STATUSES,
+  LIFECYCLE_RELATIONS,
+  type AdvanceDeletionReceiptPatch,
+  type DeletionReceiptStatus,
+  type DeletionReceiptView,
+  type DocumentAction,
+  type DocumentActionView,
+  type DocumentLifecycle,
+  type DocumentLifecycleState,
+  type DuplicateBlockReason,
+  type EnqueueDocumentRemovalInput,
+  type EnqueueDocumentRemovalOutcome,
+  type LifecycleAccess,
+  type OpenDeletionReceiptInput,
+  type ReceiptEffects,
+  advanceDeletionReceipt,
+  availableDocumentActions,
+  enqueueDocumentRemoval,
+  everydayApplicantCondition,
+  everydayDocumentCondition,
+  getDocumentLifecycle,
+  getDocumentLifecycles,
+  lifecycleTablesPresent,
+  listDeletionReceipts,
+  mergeReceiptEffects,
+  openDeletionReceipt,
+  presentApplicantCondition,
+  presentDocumentCondition,
+  receiptEffectsSchema,
+  receiptMoveAllowed,
+} from './lifecycle/foundation';
+
+// LC-A1 exports
+
+// LC-B exports
+
+// LC-C exports
+
+// LC-D exports
+
+// LC-E exports

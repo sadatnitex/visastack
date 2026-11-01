@@ -5133,14 +5133,14 @@ export const DELETION_RECEIPT_STATUSES = [
 
 /** What a removal changed, counted by the zod schema in packages/services (lifecycle/foundation). */
 export interface DeletionReceiptEffects {
-  readonly casesSwitched?: readonly string[];
-  readonly casesFlagged?: readonly string[];
-  readonly acknowledgementsReset?: number;
-  readonly sharesAffected?: number;
-  readonly aiChoicesMoved?: number;
-  readonly aiChoicesRemoved?: number;
-  readonly agencyRequestsAffected?: readonly string[];
-  readonly bytesFreed?: number;
+  readonly casesSwitched?: readonly string[] | undefined;
+  readonly casesFlagged?: readonly string[] | undefined;
+  readonly acknowledgementsReset?: number | undefined;
+  readonly sharesAffected?: number | undefined;
+  readonly aiChoicesMoved?: number | undefined;
+  readonly aiChoicesRemoved?: number | undefined;
+  readonly agencyRequestsAffected?: readonly string[] | undefined;
+  readonly bytesFreed?: number | undefined;
 }
 
 // One row per removal: kept as the person's Removal Record. A database trigger (migration
