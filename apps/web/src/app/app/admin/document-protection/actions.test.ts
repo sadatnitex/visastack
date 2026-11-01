@@ -252,4 +252,20 @@ describe('setDocumentProtectionAction', () => {
     expect(result.message).toBe('Nothing to change. This switch already works this way.');
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
+
+  it('returns from the fresh sign-in check to the category tab the switch is on', async () => {
+    mocks.setDocumentProtection.mockResolvedValue(stepUpNeeded);
+    mocks.tryEstablishStepUp.mockResolvedValue({ kind: 'not_configured' });
+    const fields = { choice: 'off', confirmed: 'yes', reason: 'Agencies asked for it' };
+    await setDocumentProtectionAction(INITIAL, form({ ...fields, category: 'financial' }));
+    expect(mocks.tryEstablishStepUp.mock.calls[0]?.[1]).toBe(
+      '/app/admin/document-protection?category=financial#document-categories',
+    );
+    // A category value that is not a plain key never reaches the return address.
+    for (const category of ['//evil.example', 'a b', '../x', 'x'.repeat(65), '']) {
+      mocks.tryEstablishStepUp.mockClear();
+      await setDocumentProtectionAction(INITIAL, form({ ...fields, category }));
+      expect(mocks.tryEstablishStepUp.mock.calls[0]?.[1]).toBe('/app/admin/document-protection');
+    }
+  });
 });

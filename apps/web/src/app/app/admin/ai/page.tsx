@@ -1,7 +1,12 @@
-import { aiDailyLimitLabel } from '@visastack/core/ai-features';
+import {
+  AI_FEATURES,
+  type AiFeatureAudience,
+  aiDailyLimitLabel,
+} from '@visastack/core/ai-features';
 import { type AiFeatureSettingView, listAiFeatureSettings } from '@visastack/services';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
+import { StickyDetails } from '../../../../components/sticky-details';
 import { PageHeader, StatusBadge } from '../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { AI_FEATURE_RETRY_COOKIE, decodeAiFeatureRetry } from '../../../../lib/ai-feature-retry';
@@ -28,6 +33,21 @@ export const maxDuration = 300;
 const UNAVAILABLE =
   'AI features cannot be changed yet. Until they can, each AI feature keeps its standard setting, and everything else works as usual.';
 
+/** The feature groups, by whose plan and daily count a feature uses (WP-SB7). */
+const AUDIENCE_TITLES = {
+  traveller: 'For Travellers',
+  agency: 'For Agencies',
+} as const satisfies Record<AiFeatureAudience, string>;
+const AUDIENCES = (Object.keys(AUDIENCE_TITLES) as AiFeatureAudience[]).map((key) => ({
+  key,
+  title: AUDIENCE_TITLES[key],
+}));
+
+/**
+ * One feature: its state and limit always showing, the description, history and form folded
+ * under "Change ..." (WP-SB7). The fold remembers being opened, so a save's result stays in view;
+ * it starts open when values typed before a fresh sign-in check come back for this feature.
+ */
 function Feature({
   feature,
   retry,
@@ -36,20 +56,16 @@ function Feature({
   readonly retry: AiFeatureValues | undefined;
 }) {
   return (
-    <article className="card u-mb-150" aria-labelledby={`ai-feature-${feature.feature}`}>
-      <h3 className="card-title" id={`ai-feature-${feature.feature}`}>
-        {feature.name}
-      </h3>
-      <p className="card-body">{feature.description}</p>
-      <div className="rows rows-grid u-mb-100">
-        <div className="row">
-          <span className="row-key">Now</span>
-          <span className="row-val">
-            <StatusBadge tone={feature.enabled ? 'success' : 'neutral'}>
-              {feature.enabled ? 'On' : 'Off'}
-            </StatusBadge>
-          </span>
-        </div>
+    <article className="card u-mb-100" aria-labelledby={`ai-feature-${feature.feature}`}>
+      <div className="card-head">
+        <h4 className="card-title" id={`ai-feature-${feature.feature}`}>
+          {feature.name}
+        </h4>
+        <StatusBadge tone={feature.enabled ? 'success' : 'neutral'}>
+          {feature.enabled ? 'On' : 'Off'}
+        </StatusBadge>
+      </div>
+      <div className="rows rows-grid">
         {feature.planIncluded ? null : (
           <div className="row">
             <span className="row-key">Plan</span>
@@ -63,20 +79,26 @@ function Feature({
           </span>
         </div>
       </div>
-      <p className="muted u-fs-085">
-        {feature.updatedAt
-          ? `Last changed on ${formatTimestamp(feature.updatedAt)}.`
-          : 'Never changed: it uses its standard setting.'}
-      </p>
-      <h4 className="card-title">Change {feature.name}</h4>
-      <AiFeatureForm
-        feature={feature.feature}
-        name={feature.name}
-        enabled={feature.enabled}
-        adminDailyLimit={feature.adminDailyLimit}
-        planDailyLimit={feature.planDailyLimit}
-        {...(retry ? { retry } : {})}
-      />
+      <StickyDetails
+        initiallyOpen={retry !== undefined}
+        className="sb7-fold"
+        summary={`Change ${feature.name}`}
+      >
+        <p className="card-body">{feature.description}</p>
+        <p className="muted u-fs-085">
+          {feature.updatedAt
+            ? `Last changed on ${formatTimestamp(feature.updatedAt)}.`
+            : 'Never changed: it uses its standard setting.'}
+        </p>
+        <AiFeatureForm
+          feature={feature.feature}
+          name={feature.name}
+          enabled={feature.enabled}
+          adminDailyLimit={feature.adminDailyLimit}
+          planDailyLimit={feature.planDailyLimit}
+          {...(retry ? { retry } : {})}
+        />
+      </StickyDetails>
     </article>
   );
 }
@@ -133,21 +155,31 @@ export default async function AiAreaPage() {
                 <p className="card-body">{WHAT_OFF_DOES}</p>
                 <p className="card-body">{PRECEDENCE_NOTE}</p>
               </article>
-              {data.features.features.map((feature) => (
-                <Feature
-                  key={feature.feature}
-                  feature={feature}
-                  retry={
-                    data.features?.kind === 'ready' &&
-                    data.features.retry?.feature === feature.feature
-                      ? {
-                          enabled: data.features.retry.enabled,
-                          dailyLimit: data.features.retry.dailyLimit,
+              {AUDIENCES.map(({ key, title }) => {
+                const ready = data.features?.kind === 'ready' ? data.features : null;
+                const group = (ready?.features ?? []).filter(
+                  (feature) => AI_FEATURES[feature.feature].audience === key,
+                );
+                if (group.length === 0) return null;
+                return (
+                  <section key={key} aria-labelledby={`ai-audience-${key}`}>
+                    <h3 className="card-title u-mb-100" id={`ai-audience-${key}`}>
+                      {title}
+                    </h3>
+                    {group.map((feature) => (
+                      <Feature
+                        key={feature.feature}
+                        feature={feature}
+                        retry={
+                          ready?.retry?.feature === feature.feature
+                            ? { enabled: ready.retry.enabled, dailyLimit: ready.retry.dailyLimit }
+                            : undefined
                         }
-                      : undefined
-                  }
-                />
-              ))}
+                      />
+                    ))}
+                  </section>
+                );
+              })}
             </>
           )}
         </section>
