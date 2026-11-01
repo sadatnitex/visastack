@@ -6,7 +6,8 @@ import { expectFixedPanel, expectWithinBudget, renderFixture } from './support';
  * WP-SB5: the agency Cases, Activity, Clients and Dashboard pages at their row caps with
  * worst-case data (200 cases, 300 notes, 400 invitations and 300 requests). The Cases budget
  * (3 screens with 200 cases) and the Activity log panel are the plan's acceptance and are
- * enforced; Clients and the Dashboard table are measured and reported. The page tests prove the
+ * enforced; Clients (both sizes) and the Dashboard table (phone) are over budget and reported,
+ * the Dashboard table enforces on a desktop (docs/uiux/SCROLL-BUDGET.md). The page tests prove the
  * real pages apply these caps and read data for the one open case only.
  */
 
@@ -57,7 +58,15 @@ test.describe('WP-SB5 scroll budget', () => {
     await expect(page.locator('#agency-evidence-request-list .row')).toHaveCount(15);
     await expect(page.locator('details#invite-client')).not.toHaveAttribute('open', '');
     for (const viewport of ['phone', 'desktop'] as const) {
-      await expectWithinBudget(page, { screens: 3, viewport });
+      // Over budget (phone 4.22, desktop 3.64 screens, WP-SB10): reported, not enforced, until
+      // the two 15-row lists are settled; still fails above its ceiling. Recorded in
+      // docs/uiux/SCROLL-BUDGET.md section 2.
+      await expectWithinBudget(page, {
+        screens: 3,
+        viewport,
+        mode: 'report',
+        ceiling: viewport === 'phone' ? 4.5 : 4,
+      });
     }
     await noSeriousAxe(page);
   });
@@ -67,7 +76,15 @@ test.describe('WP-SB5 scroll budget', () => {
     await expect(page.locator('#agency-case-table-rows tr')).toHaveCount(10);
     await expect(page.getByRole('link', { name: 'View All Cases' })).toBeVisible();
     for (const viewport of ['phone', 'desktop'] as const) {
-      await expectWithinBudget(page, { screens: 3, viewport });
+      // Over budget on a phone (3.1 screens, WP-SB10): reported, not enforced, until the table
+      // rows are settled; still fails above its ceiling. Recorded in docs/uiux/SCROLL-BUDGET.md
+      // section 2; a desktop enforces.
+      await expectWithinBudget(page, {
+        screens: 3,
+        viewport,
+        mode: viewport === 'phone' ? 'report' : 'enforce',
+        ...(viewport === 'phone' ? { ceiling: 3.5 } : {}),
+      });
     }
     await noSeriousAxe(page);
   });

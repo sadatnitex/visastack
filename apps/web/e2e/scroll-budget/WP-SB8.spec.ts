@@ -8,8 +8,8 @@ import { VIEWPORTS, expectWithinBudget, renderFixture } from './support';
  * component with every country in the catalogue. This file enforces its budgets.
  *
  * Budgets: the landing page 6 phone screens (plan section 1, "Public landing"); the country list
- * 3 screens (a list page: 12 rows, then Show More). The trust page is reported only: its route list
- * is capped at 12, but the trust story above it belongs to the shared trust component.
+ * 3 screens (a list page: 12 rows, then Show More). The trust page is held to 6 screens since
+ * WP-SB10: its route list is capped at 12, the trust story above it is the shared trust component.
  */
 
 const FIXTURE = 'WP-SB8';
@@ -34,8 +34,8 @@ test.describe('WP-SB8 landing page', () => {
     await expect(page.locator('#land-hero-title')).toBeInViewport({ ratio: 1 });
     await expect(page.locator('.c1-cta .c1-pill').first()).toBeInViewport({ ratio: 1 });
     await expectWithinBudget(page, { screens: 6, viewport: 'phone', mode: 'enforce' });
-    // Desktop is reported (the plan's budget column is for phones).
-    await expectWithinBudget(page, { screens: 6, viewport: 'desktop', mode: 'report' });
+    // Desktop holds the same number of screens (enforced since WP-SB10).
+    await expectWithinBudget(page, { screens: 6, viewport: 'desktop' });
   });
 
   test('opening every story group still leaves no sideways scroll, and the closed page breaks without the groups', async ({
@@ -108,12 +108,14 @@ test.describe('WP-SB8 landing page', () => {
 });
 
 test.describe('WP-SB8 trust page', () => {
-  test('is measured on a phone and a desktop (report only)', async ({ page }) => {
+  test('fits 6 screens on a phone and a desktop', async ({ page }) => {
     await page.setViewportSize(VIEWPORTS.phone);
     const response = await page.goto('/trust');
-    expect(response?.status()).toBeLessThan(500);
-    await expectWithinBudget(page, { screens: 6, viewport: 'phone', mode: 'report' });
-    await expectWithinBudget(page, { screens: 6, viewport: 'desktop', mode: 'report' });
+    // Measure the real page, never a not-found or error page that would pass trivially.
+    expect(response?.status()).toBe(200);
+    await expect(page.locator('h1').first()).toBeVisible();
+    await expectWithinBudget(page, { screens: 6, viewport: 'phone' });
+    await expectWithinBudget(page, { screens: 6, viewport: 'desktop' });
   });
 });
 
