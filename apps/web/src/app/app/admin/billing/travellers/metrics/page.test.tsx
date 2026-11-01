@@ -308,12 +308,12 @@ describe('Platform > Traveller Plan Metrics', () => {
     const typed = { success: '70', minutes: '30', stuck: '3', check: '4' };
     const html = await renderServer(Page({ searchParams: Promise.resolve(typed) }));
     const form = html.split('id="thresholds-title"')[1] ?? '';
-    const valueOf = (name: string) =>
+    const inputValue = (name: string) =>
       form.match(new RegExp(`<input[^>]*name="${name}"[^>]*value="([^"]*)"`))?.[1];
-    expect(valueOf('checkoutSuccessMinPercent')).toBe('70');
-    expect(valueOf('confirmationMaxMinutes')).toBe('30');
-    expect(valueOf('stuckConfirmingMax')).toBe('3');
-    expect(valueOf('needsCheckMax')).toBe('4');
+    expect(inputValue('checkoutSuccessMinPercent')).toBe('70');
+    expect(inputValue('confirmationMaxMinutes')).toBe('30');
+    expect(inputValue('stuckConfirmingMax')).toBe('3');
+    expect(inputValue('needsCheckMax')).toBe('4');
     // Anything odd in the address, or one missing, and the saved thresholds show instead.
     for (const odd of [
       { ...typed, stuck: '1.5' },
