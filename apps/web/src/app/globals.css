@@ -12169,3 +12169,58 @@ html:has(.sticky-action-bar) {
 .lc-archive-buttons .btn {
   min-height: 44px;
 }
+
+/* WP-SB11 scroll budget exceptions: on a phone the agency Dashboard case table packs each case
+   into a compact card: the case and its destination on top, then its six facts flowing together,
+   each after its own small label. The readiness ring's drawing is hidden there; its words
+   ("9 of 12 items ready") stay. Same cells, same words, so the 5 most urgent cases fit the
+   dashboard's two screens. */
+@media (max-width: 40rem) {
+  .agency-case-table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.85rem;
+    padding: 0.6rem 0;
+  }
+  .agency-case-table tbody th[scope="row"] {
+    flex: 1 1 100%;
+    padding: 0;
+  }
+  .agency-case-table .cell-main {
+    margin-bottom: 0;
+  }
+  .agency-case-table th .cell-sub {
+    display: inline;
+    margin: 0 0 0 0.4rem;
+  }
+  .agency-case-table td {
+    display: inline-flex;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.15rem 0.4rem;
+    min-width: 0;
+    padding: 0;
+    font-size: var(--text-small);
+    overflow-wrap: anywhere;
+  }
+  .agency-case-table td::before {
+    flex: none;
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+  }
+  .agency-case-table td > * {
+    flex: 0 1 auto;
+  }
+  .agency-case-table .cell-sub {
+    margin-top: 0;
+  }
+  .agency-case-table .progress-ring-row {
+    display: inline-flex;
+    margin: 0;
+  }
+  .agency-case-table .progress-ring-graphic {
+    display: none;
+  }
+}

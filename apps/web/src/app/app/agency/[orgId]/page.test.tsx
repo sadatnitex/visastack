@@ -448,27 +448,44 @@ describe('agency Dashboard: within the scroll budget (WP-SB5)', () => {
       title: `Case ${i}`,
     }));
 
-  it('shows the 10 most urgent of 200 cases, with Show More and a way to every case', async () => {
+  it('shows the 5 most urgent of 200 cases, with Show More and a way to every case (WP-SB11)', async () => {
     mocks.loadCases.mockResolvedValue({ admin: true, cases: [...many(199), needsAttention] });
     const html = await renderServer(Page(pageProps({ quick: 'mine' })));
     const rows = html.split('id="agency-case-table-rows"')[1]?.split('</tbody>')[0] ?? '';
-    expect(rows.match(/<tr>/g)).toHaveLength(10);
+    expect(rows.match(/<tr>/g)).toHaveLength(5);
     const text = textOf(html);
-    expect(text).toContain('Showing 10 of 199 cases.');
+    expect(text).toContain('Showing 5 of 199 cases.');
     // The filters stay on the Show More link.
-    expect(html).toContain('href="/app/agency/o1?quick=mine&amp;show=20#agency-case-table-rows"');
+    expect(html).toContain('href="/app/agency/o1?quick=mine&amp;show=10#agency-case-table-rows"');
     expect(html).toContain('href="/app/agency/o1/cases" class="btn btn-secondary u-btn-sm"');
     expect(text).toContain('View All Cases');
   });
 
-  it('grows the table by 10 when asked, and never past what exists', async () => {
+  it('marks the table for the compact phone rows, every cell keeping its label (WP-SB11)', async () => {
+    mocks.loadCases.mockResolvedValue({ admin: true, cases: many(12) });
+    const html = await renderServer(Page(pageProps()));
+    expect(html).toContain('<table class="data-table agency-case-table u-mt-100">');
+    const rows = html.split('id="agency-case-table-rows"')[1]?.split('</tbody>')[0] ?? '';
+    const first = rows.split('</tr>')[0] ?? '';
+    expect([...first.matchAll(/data-label="([^"]+)"/g)].map((m) => m[1])).toEqual([
+      'Stage',
+      'Readiness',
+      'Deadline',
+      'Needs Attention',
+      'Assigned',
+      'Traveller Confirmed',
+    ]);
+  });
+
+  it('grows the table by 5 when asked, and never past what exists', async () => {
     mocks.loadCases.mockResolvedValue({ admin: true, cases: many(25) });
     const html = await renderServer(Page(pageProps({ show: '20' })));
     const rows = html.split('id="agency-case-table-rows"')[1]?.split('</tbody>')[0] ?? '';
     expect(rows.match(/<tr>/g)).toHaveLength(20);
+    expect(html).toContain('show=25#agency-case-table-rows');
     const all = await renderServer(Page(pageProps({ show: '30' })));
     expect(textOf(all)).toContain('Showing all 25 cases.');
-    expect(all).not.toContain('show=40');
+    expect(all).not.toContain('show=30#agency-case-table-rows');
   });
 
   it('caps the reassignment queue at 10 with Show More', async () => {

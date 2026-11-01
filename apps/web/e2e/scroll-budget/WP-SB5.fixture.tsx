@@ -1,6 +1,9 @@
 import { ActivityLog, type ActivityLogEntry } from '../../src/components/activity-log';
+import { CaseReadinessRing } from '../../src/components/case-readiness-ring';
 import { CollapsibleGroup } from '../../src/components/collapsible-group';
+import { ReferenceCode } from '../../src/components/reference-code';
 import { ShowMore } from '../../src/components/show-more';
+import { StatusBadge } from '../../src/components/ui';
 
 /**
  * WP-SB5 scroll budget fixture: the capped parts of the agency Cases, Activity, Clients and
@@ -14,6 +17,8 @@ export interface Sb5FixtureProps {
   readonly total: number;
   /** Rows the page shows at once (the cap). */
   readonly shown: number;
+  /** Clients only: the pending invitations group starts open (WP-SB11). */
+  readonly invitationsOpen?: boolean;
 }
 
 const STAGES = ['Intake', 'In Review', 'Draft', 'Submission Ready'];
@@ -127,7 +132,13 @@ function Activity({ total, shown }: { total: number; shown: number }) {
   );
 }
 
-function Clients({ total, shown }: { total: number; shown: number }) {
+function Clients({
+  total,
+  shown,
+  invitationsOpen,
+}: { total: number; shown: number; invitationsOpen: boolean }) {
+  // WP-SB11: the Clients page lists requests 10 at a time (invitations stay at 15, folded).
+  const requestsShown = Math.min(shown, 10);
   return (
     <>
       <article className="card u-mb-150">
@@ -138,36 +149,46 @@ function Clients({ total, shown }: { total: number; shown: number }) {
           profiles the resulting case attaches to, and their acceptance is what actually grants this
           organization access, never the invitation itself.
         </p>
-        <div className="rows u-mb-100" id="client-invitation-list">
-          {rows(shown).map((n) => (
-            <div className="row" key={n}>
-              <span className="row-key">
-                Client Number {n}
-                <span
-                  className="muted"
-                  style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
-                >
-                  client-{n}@example.test
-                </span>
-              </span>
-              <span className="row-end">
-                <span className="badge badge-warning">Invited &middot; expires 20 Dec 2026</span>
-                <button type="button" className="btn btn-secondary u-btn-sm">
-                  Revoke
-                </button>
-              </span>
-            </div>
-          ))}
-        </div>
-        <ShowMore
-          id="client-invitation-more"
-          landOn="client-invitation-list"
-          pathname="/app/agency/o1/clients"
-          next={shown < total ? { invitesBefore: 'next' } : null}
-          shown={shown}
-          total={total}
+        {/* WP-SB11: the pending invitations fold into their own group, closed while there are
+            requests to follow, as on the real page. */}
+        <CollapsibleGroup
+          id="client-invitations"
+          title="Pending Invitations"
+          count={total}
           noun={{ one: 'pending invitation', other: 'pending invitations' }}
-        />
+          open={invitationsOpen}
+        >
+          <div className="rows u-mb-100" id="client-invitation-list">
+            {rows(shown).map((n) => (
+              <div className="row" key={n}>
+                <span className="row-key">
+                  Client Number {n}
+                  <span
+                    className="muted"
+                    style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
+                  >
+                    client-{n}@example.test
+                  </span>
+                </span>
+                <span className="row-end">
+                  <span className="badge badge-warning">Invited &middot; expires 20 Dec 2026</span>
+                  <button type="button" className="btn btn-secondary u-btn-sm">
+                    Revoke
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+          <ShowMore
+            id="client-invitation-more"
+            landOn="client-invitation-list"
+            pathname="/app/agency/o1/clients"
+            next={shown < total ? { invitesBefore: 'next' } : null}
+            shown={shown}
+            total={total}
+            noun={{ one: 'pending invitation', other: 'pending invitations' }}
+          />
+        </CollapsibleGroup>
         <CollapsibleGroup id="invite-client" title="Invite a Client">
           <p>The invitation form.</p>
         </CollapsibleGroup>
@@ -202,7 +223,7 @@ function Clients({ total, shown }: { total: number; shown: number }) {
           )}
         </nav>
         <div className="rows u-mt-050" id="agency-evidence-request-list">
-          {rows(shown).map((n) => (
+          {rows(requestsShown).map((n) => (
             <div
               className="row"
               key={n}
@@ -214,6 +235,10 @@ function Clients({ total, shown }: { total: number; shown: number }) {
                 <span className="badge badge-warning">Open</span>
               </div>
               <span className="muted u-fs-085">Traveller Number {n} · due 20 Dec 2026</span>
+              <ReferenceCode
+                code={`R-${String(n).padStart(4, '0')}-7K2Q`}
+                label="Request Reference"
+              />
             </div>
           ))}
         </div>
@@ -221,8 +246,8 @@ function Clients({ total, shown }: { total: number; shown: number }) {
           id="agency-evidence-request-more"
           landOn="agency-evidence-request-list"
           pathname="/app/agency/o1/clients"
-          next={shown < total ? { requestsBefore: 'next' } : null}
-          shown={shown}
+          next={requestsShown < total ? { requests: requestsShown + 10 } : null}
+          shown={requestsShown}
           total={total}
           noun={{ one: 'request', other: 'requests' }}
         />
@@ -231,6 +256,11 @@ function Clients({ total, shown }: { total: number; shown: number }) {
   );
 }
 
+/**
+ * The dashboard's case table with the same seven columns, badges and readiness ring as the real
+ * page, worst case for height: every row has a ring, two attention badges and an assignee
+ * (WP-SB11 brought this in line with the page, which the earlier five-column copy understated).
+ */
 function Dashboard({ total, shown }: { total: number; shown: number }) {
   return (
     <section className="card" aria-labelledby="inbox-heading">
@@ -238,15 +268,31 @@ function Dashboard({ total, shown }: { total: number; shown: number }) {
         Cases and Attention
       </h2>
       <p className="card-body u-mb-100">Cases that need action come first.</p>
-      <table className="data-table u-mt-100">
+      <nav className="quick-views u-mt-100" aria-label="Quick views of the case list">
+        {['All 200', 'Mine 40', 'Needs Assignment 12', 'Overdue 9', 'Waiting on Traveller 30'].map(
+          (label, n) => (
+            <a
+              key={label}
+              href="/app/agency/o1?quick=mine"
+              className={`quick-view${n === 0 ? ' quick-view-on' : ''}`}
+              aria-current={n === 0 ? 'true' : undefined}
+            >
+              {label}
+            </a>
+          ),
+        )}
+      </nav>
+      <table className="data-table agency-case-table u-mt-100">
         <caption className="sr-only">Cases, Most Urgent First</caption>
         <thead>
           <tr>
             <th scope="col">Case</th>
             <th scope="col">Stage</th>
+            <th scope="col">Readiness</th>
             <th scope="col">Deadline</th>
             <th scope="col">Needs Attention</th>
             <th scope="col">Assigned</th>
+            <th scope="col">Traveller Confirmed</th>
           </tr>
         </thead>
         <tbody id="agency-case-table-rows">
@@ -259,13 +305,26 @@ function Dashboard({ total, shown }: { total: number; shown: number }) {
                 <span className="cell-sub">{DESTINATIONS[n % DESTINATIONS.length]}</span>
               </th>
               <td data-label="Stage">{STAGES[n % STAGES.length]}</td>
+              <td data-label="Readiness">
+                <StatusBadge tone="neutral">3 missing</StatusBadge>
+                <span className="progress-ring-row">
+                  <CaseReadinessRing
+                    size="sm"
+                    readiness={{ requiredCount: 12, satisfiedRequired: 9 }}
+                  />
+                </span>
+              </td>
               <td data-label="Deadline">20 Dec 2026</td>
               <td data-label="Needs Attention">
-                <span className="badge badge-warning">1 open request</span>
+                <span className="case-row-badges">
+                  <StatusBadge tone="warning">1 open request</StatusBadge>
+                  <StatusBadge tone="danger">2 overdue tasks</StatusBadge>
+                </span>
               </td>
               <td data-label="Assigned">
                 <span className="cell-sub">case@agency.test</span>
               </td>
+              <td data-label="Traveller Confirmed">Not yet acknowledged</td>
             </tr>
           ))}
         </tbody>
@@ -275,7 +334,7 @@ function Dashboard({ total, shown }: { total: number; shown: number }) {
           id="agency-case-table-more"
           landOn="agency-case-table-rows"
           pathname="/app/agency/o1"
-          next={shown < total ? { show: shown + 10 } : null}
+          next={shown < total ? { show: shown + 5 } : null}
           shown={shown}
           total={total}
           noun={{ one: 'case', other: 'cases' }}
@@ -288,9 +347,11 @@ function Dashboard({ total, shown }: { total: number; shown: number }) {
   );
 }
 
-export default function Sb5Fixture({ view, total, shown }: Sb5FixtureProps) {
+export default function Sb5Fixture({ view, total, shown, invitationsOpen }: Sb5FixtureProps) {
   if (view === 'cases') return <Cases total={total} shown={shown} />;
   if (view === 'activity') return <Activity total={total} shown={shown} />;
-  if (view === 'clients') return <Clients total={total} shown={shown} />;
+  if (view === 'clients') {
+    return <Clients total={total} shown={shown} invitationsOpen={invitationsOpen ?? false} />;
+  }
   return <Dashboard total={total} shown={shown} />;
 }

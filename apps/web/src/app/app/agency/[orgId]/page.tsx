@@ -54,8 +54,14 @@ function Stat({
 
 export const metadata: Metadata = { title: 'Agency Dashboard' };
 
-/** How many cases and queued cases the Dashboard shows before Show More (WP-SB5). */
+/** How many queued cases the Dashboard shows before Show More (WP-SB5). */
 const DASHBOARD_CASE_STEP = 10;
+/**
+ * How many of the most urgent cases the Dashboard table shows before Show More (WP-SB11, was 10):
+ * a case with all seven of its facts is about 245 px tall as a phone card, so 5 keep the
+ * Dashboard within its two-screen budget. View All Cases still opens every case.
+ */
+const DASHBOARD_TABLE_STEP = 5;
 
 export const dynamic = 'force-dynamic';
 
@@ -93,7 +99,7 @@ export default async function AgencyDashboardPage({
   } = query;
   // WP-SB5: the case table shows the 10 most urgent cases, then Show More; the reassignment
   // queue the same. The Cases page lists every case.
-  const casesShown = parseShow(query.show, { step: DASHBOARD_CASE_STEP });
+  const casesShown = parseShow(query.show, { step: DASHBOARD_TABLE_STEP });
   const queueShown = parseShow(query.queue, { step: DASHBOARD_CASE_STEP });
 
   const data = await withSession(async ({ db, accountId }) => {
@@ -481,7 +487,7 @@ export default async function AgencyDashboardPage({
             ) : searched.length === 0 ? (
               <p className="card-body u-mt-100">No cases match that search.</p>
             ) : (
-              <table className="data-table u-mt-100">
+              <table className="data-table agency-case-table u-mt-100">
                 <caption className="sr-only">Cases, Most Urgent First</caption>
                 <thead>
                   <tr>
@@ -615,7 +621,7 @@ export default async function AgencyDashboardPage({
                   pathname={base}
                   searchParams={dashboardQuery}
                   next={(() => {
-                    const more = nextShow(casesShown, { step: DASHBOARD_CASE_STEP });
+                    const more = nextShow(casesShown, { step: DASHBOARD_TABLE_STEP });
                     return more !== null && searched.length > casesShown ? { show: more } : null;
                   })()}
                   shown={Math.min(casesShown, searched.length)}

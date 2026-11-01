@@ -54,11 +54,12 @@ function content(requirements: number) {
   };
 }
 
-const render = async () =>
+const render = async (query: Record<string, string> = {}) =>
   new (await import('jsdom')).JSDOM(
     await renderServer(
       await SnapshotPage({
         params: Promise.resolve({ id: 'synthetic-case', snapshotId: 'snap-1' }),
+        searchParams: Promise.resolve(query),
       }),
     ),
   ).window.document;
@@ -92,7 +93,7 @@ describe('a snapshot in groups', () => {
       '30',
     ]);
     expect(groups.map((g) => g.hasAttribute('open'))).toEqual([true, false, false]);
-    expect(groups[1]?.querySelectorAll('.row')).toHaveLength(40);
+    expect(groups[1]?.querySelectorAll('.row')).toHaveLength(8);
     expect(page.querySelector('[data-stub="AcknowledgementPanel"]')).not.toBeNull();
   });
 
@@ -104,5 +105,73 @@ describe('a snapshot in groups', () => {
     const groups = [...page.querySelectorAll('details.collapsible-group')];
     expect(groups.map((g) => g.id)).toEqual(['snapshot-facts', 'snapshot-documents']);
     expect(groups.map((g) => g.hasAttribute('open'))).toEqual([true, false]);
+  });
+});
+
+/**
+ * WP-SB11: an open part shows 8 rows, then Show More inside it adds 8 more and keeps that part
+ * open, up to the part's own length, so no row is ever out of reach.
+ */
+describe('a snapshot part shows 8 rows, then Show More', () => {
+  const PATH = '/app/mission/synthetic-case/snapshots/snap-1';
+
+  beforeEach(() => {
+    mocks.getMissionSnapshot.mockResolvedValue(
+      ok({ id: 'snap-1', version: 3, checksum: 'abc', content: content(60) }),
+    );
+  });
+
+  it('caps each part at 8 rows with a Show More link that opens the same part', async () => {
+    const page = await render();
+    for (const [key, total, noun] of [
+      ['requirements', 60, 'requirements'],
+      ['facts', 40, 'facts'],
+      ['documents', 30, 'documents'],
+    ] as const) {
+      const group = page.getElementById(`snapshot-${key}`);
+      expect(group?.querySelectorAll('.row')).toHaveLength(8);
+      expect(group?.querySelector('.show-more-count')?.textContent).toBe(
+        `Showing 8 of ${total} ${noun}.`,
+      );
+      expect(group?.querySelector('a.show-more-link')?.getAttribute('href')).toBe(
+        `${PATH}?${key}=16&open=${key}#snapshot-${key}-row-8`,
+      );
+      expect(group?.querySelector(`#snapshot-${key}-row-7`)).not.toBeNull();
+    }
+  });
+
+  it('opens the part named by its Show More and grows only that part', async () => {
+    const page = await render({ facts: '16', open: 'facts' });
+    const groups = [...page.querySelectorAll('details.collapsible-group')];
+    expect(groups.map((g) => g.hasAttribute('open'))).toEqual([false, true, false]);
+    expect(page.querySelectorAll('#snapshot-facts .row')).toHaveLength(16);
+    expect(page.querySelectorAll('#snapshot-requirements .row')).toHaveLength(8);
+    expect(page.getElementById('snapshot-facts-row-8')).not.toBeNull();
+  });
+
+  it('reaches every row of the longest part and then offers no more', async () => {
+    const page = await render({ requirements: '64' });
+    expect(page.querySelectorAll('#snapshot-requirements .row')).toHaveLength(60);
+    expect(page.querySelector('#snapshot-requirements a.show-more-link')).toBeNull();
+    expect(page.querySelector('#snapshot-requirements .show-more-count')?.textContent).toBe(
+      'Showing all 60 requirements.',
+    );
+  });
+
+  it('keeps a part longer than 100 rows fully reachable', async () => {
+    mocks.getMissionSnapshot.mockResolvedValue(
+      ok({ id: 'snap-1', version: 3, checksum: 'abc', content: content(137) }),
+    );
+    const page = await render({ requirements: '140' });
+    expect(page.querySelectorAll('#snapshot-requirements .row')).toHaveLength(137);
+    expect(page.querySelector('#snapshot-requirements a.show-more-link')).toBeNull();
+  });
+
+  it('falls back to 8 rows and the first part for anything malformed in the address', async () => {
+    const page = await render({ requirements: '-5', facts: 'many', open: 'everything' });
+    const groups = [...page.querySelectorAll('details.collapsible-group')];
+    expect(groups.map((g) => g.hasAttribute('open'))).toEqual([true, false, false]);
+    expect(page.querySelectorAll('#snapshot-requirements .row')).toHaveLength(8);
+    expect(page.querySelectorAll('#snapshot-facts .row')).toHaveLength(8);
   });
 });

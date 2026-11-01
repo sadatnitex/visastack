@@ -18,10 +18,13 @@ import { CASE_STATE_LABELS } from '../../src/lib/case-stages';
  *   complaints and feedback show only at the Everything level, so they are not part of it.
  * - `case-uncapped`: the same case laid out as before WP-SB2 (every group open, every row listed),
  *   which proves the budget check fails on it.
- * - `snapshot`: a snapshot with 60 requirements, 40 facts and 30 documents in groups.
+ * - `snapshot`: a snapshot with 60 requirements, 40 facts and 30 documents in groups, 8 rows a
+ *   group then Show More inside it (WP-SB11).
+ * - `snapshot-uncapped`: the same snapshot with every row of a group drawn, which proves the open
+ *   snapshot's budget check fails without the cap.
  */
 export interface Sb2FixtureProps {
-  readonly view: 'case' | 'case-uncapped' | 'snapshot';
+  readonly view: 'case' | 'case-uncapped' | 'snapshot' | 'snapshot-uncapped';
 }
 
 const ids = (prefix: string, count: number) =>
@@ -285,17 +288,35 @@ function CaseView({ capped }: { readonly capped: boolean }) {
   );
 }
 
-function SnapshotView() {
+function SnapshotView({ capped }: { readonly capped: boolean }) {
+  // WP-SB11: as on the real page, an open part draws 8 rows and then Show More inside the part.
+  const shownOf = (count: number) => (capped ? Math.min(8, count) : count);
   const group = (key: string, title: string, count: number) => ({
     key,
     title,
     count,
     content: (
-      <div className="rows">
-        {ids(`snapshot-${key}`, count).map((id, n) => (
-          <Row key={id} id={id} title={`Made-up ${key} ${n + 1}`} note="Made-up citation text" />
-        ))}
-      </div>
+      <>
+        <div className="rows u-mt-050">
+          {ids(`snapshot-${key}-row`, shownOf(count)).map((id, n) => (
+            <Row
+              key={id}
+              id={id}
+              title={`Made-up ${key} ${n + 1} with a longer name`}
+              note="Made-up citation text from the requirement pack, as of this snapshot"
+            />
+          ))}
+        </div>
+        <ShowMore
+          id={`snapshot-${key}-more`}
+          landOn={`snapshot-${key}-row-${shownOf(count)}`}
+          pathname="/app/mission/synthetic-case/snapshots/synthetic-snapshot"
+          next={shownOf(count) < count ? { [key]: shownOf(count) + 8, open: key } : null}
+          shown={shownOf(count)}
+          total={count}
+          noun={{ one: key, other: key }}
+        />
+      </>
     ),
   });
   return (
@@ -304,6 +325,7 @@ function SnapshotView() {
         back={{ href: '/app/mission/synthetic-case', label: 'Made-up visitor visa case' }}
         eyebrow="Working Snapshot"
         title="Version 60"
+        description="Captured while IN_PROGRESS · checksum 4f1c0a9e5b7d2c3e8a6f1b0d9c4e7a2f"
       />
       <CollapsibleGroups
         idPrefix="snapshot"
@@ -318,6 +340,8 @@ function SnapshotView() {
 }
 
 export default function Sb2Fixture({ view }: Sb2FixtureProps) {
-  if (view === 'snapshot') return <SnapshotView />;
+  if (view === 'snapshot' || view === 'snapshot-uncapped') {
+    return <SnapshotView capped={view === 'snapshot'} />;
+  }
   return <CaseView capped={view === 'case'} />;
 }
