@@ -7,7 +7,7 @@ import { expectFixedPanel, expectWithinBudget, renderFixture } from './support';
  * at a time, 400 members shown 20, 300 active holds shown 25 in a fixed box, 12 document
  * categories as tabs, 10 AI features folded, a pack version with 140 requirements shown 25).
  * Privacy, Document Protection and AI Settings are settings pages and are held to 3 phone screens
- * here; the capped lists are measured and reported, their caps proven by the page tests.
+ * here; the capped lists enforce by default since WP-SB10, their caps proven by the page tests.
  */
 
 const FIXTURE = 'WP-SB7';

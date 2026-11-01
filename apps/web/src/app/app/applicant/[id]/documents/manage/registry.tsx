@@ -1,5 +1,6 @@
 import type { DocumentAction } from '@visastack/services';
 import type { ComponentType } from 'react';
+import { ArchiveAction, RestoreAction } from './archive/archive-action';
 import { ReplaceAction } from './replace/replace-action';
 import { CancelRemovalRequestAction } from './request/cancel-action';
 import { RequestRemovalAction } from './request/request-action';
@@ -28,6 +29,8 @@ export interface ManageActionEntry {
  */
 export const MANAGE_ACTIONS: Readonly<Partial<Record<DocumentAction, ManageActionEntry>>> = {
   // LC-A1 actions
+  ARCHIVE: { label: 'Archive', Component: ArchiveAction },
+  RESTORE: { label: 'Restore', Component: RestoreAction },
   // LC-B actions
   REPLACE: { label: 'Replace with a Newer Document', Component: ReplaceAction },
   // LC-C actions

@@ -2301,6 +2301,11 @@ export {
 } from './lifecycle/foundation';
 
 // LC-A1 exports
+export {
+  type DocumentArchiveOutcome,
+  archiveDocument,
+  restoreDocument,
+} from './lifecycle/archive';
 
 // LC-B exports
 export {
