@@ -1,6 +1,6 @@
 'use server';
 
-import { createOrganization } from '@visastack/services';
+import { createOrganization, isUuid, withdrawOrganizationApplication } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { withSession } from '../../../lib/session';
@@ -32,4 +32,24 @@ export async function createOrganizationAction(
     redirect(`/app/agency/${outcome.id}`);
   }
   return outcome.state;
+}
+
+/**
+ * Withdraw an agency application that is still waiting for review. The service decides who may
+ * (an owner) and when (only while pending); this only reports the outcome back to the page, which
+ * shows it as a status line.
+ */
+export async function withdrawOrganizationApplicationAction(formData: FormData): Promise<void> {
+  const organizationId = String(formData.get('organizationId') ?? '');
+  let withdrawn = false;
+  if (isUuid(organizationId)) {
+    const result = await withSession(async ({ db, accountId }) =>
+      withdrawOrganizationApplication(db, { actorAccountId: accountId, organizationId }),
+    );
+    withdrawn = result.ok;
+  }
+  revalidatePath('/app/agency');
+  redirect(
+    withdrawn ? `/app/agency?withdrawn=${organizationId}` : '/app/agency?withdrawal=refused',
+  );
 }

@@ -8,9 +8,13 @@ import type { Metadata } from 'next';
 import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { formatTimestamp } from '../../../../lib/format-date';
+import { type SearchParamsRecord, firstParam } from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
 import { AdminRestricted } from '../admin-restricted';
+import { SectionTabs } from '../privacy/section-tabs';
 import { ProtectionSwitch } from './forms';
+
+const PATHNAME = '/app/admin/document-protection';
 
 export const metadata: Metadata = { title: 'Document Protection' };
 
@@ -72,8 +76,19 @@ function LastChange({
   );
 }
 
-/** Platform admins switch the restricted-document rule on and off here, based on feedback. */
-export default async function DocumentProtectionPage() {
+/**
+ * Platform admins switch the restricted-document rule on and off here, based on feedback. The
+ * unsorted-documents rule stays on top; the categories are tabs, one open at a time (WP-SB7), each
+ * its own address (`?category=<key>`), so the page stays short however many categories there are.
+ */
+export default async function DocumentProtectionPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<SearchParamsRecord>;
+}) {
+  const query: SearchParamsRecord = (await searchParams) ?? {};
+  const { category: categoryParam } = query;
+  const wanted = firstParam(categoryParam);
   const data = await withSession(async ({ db, accountId, email }) => {
     const staff = await staffPrincipal(
       db,
@@ -89,6 +104,11 @@ export default async function DocumentProtectionPage() {
       ? { kind: 'restricted' as const }
       : { kind: 'unavailable' as const };
   });
+
+  const category =
+    data.kind === 'ready'
+      ? (data.overview.categories.find((c) => c.key === wanted) ?? data.overview.categories[0])
+      : undefined;
 
   return (
     <section className="section container">
@@ -129,13 +149,28 @@ export default async function DocumentProtectionPage() {
             />
           </article>
 
-          <h2 className="card-title">Document Categories</h2>
+          <h2 className="card-title" id="document-categories">
+            Document Categories
+          </h2>
           <p className="muted u-mb-125">
             A category switch covers every document in it, including ones added later. A switch on a
             single document beats its category.
           </p>
-          <div className="grid">
-            {data.overview.categories.map((category) => (
+          {category ? (
+            <>
+              <SectionTabs
+                label="Document Categories"
+                active={category.key}
+                tabs={data.overview.categories.map((c, index) => ({
+                  key: c.key,
+                  label: c.label,
+                  href:
+                    index === 0
+                      ? `${PATHNAME}#document-categories`
+                      : `${PATHNAME}?category=${encodeURIComponent(c.key)}#document-categories`,
+                  count: c.types.length,
+                }))}
+              />
               <article className="card" key={category.key} id={`category-${category.key}`}>
                 <h3 className="card-title">{category.label}</h3>
                 <p className="card-body">{category.description}</p>
@@ -148,6 +183,7 @@ export default async function DocumentProtectionPage() {
                 <LastChange view={category} />
                 <ProtectionSwitch
                   scope="CATEGORY"
+                  category={category.key}
                   switchKey={category.key}
                   name={category.label}
                   restricted={category.restricted}
@@ -177,6 +213,7 @@ export default async function DocumentProtectionPage() {
                         {type.overridden ? <LastChange view={type} resetLabel="If reset" /> : null}
                         <ProtectionSwitch
                           scope="DOCUMENT_TYPE"
+                          category={category.key}
                           switchKey={type.key}
                           name={type.label}
                           restricted={type.restricted}
@@ -188,8 +225,8 @@ export default async function DocumentProtectionPage() {
                   </ul>
                 </Disclosure>
               </article>
-            ))}
-          </div>
+            </>
+          ) : null}
         </>
       )}
     </section>

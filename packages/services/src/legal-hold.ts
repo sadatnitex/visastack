@@ -5,6 +5,17 @@ import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { missionsSelectingDocument } from './material-revision';
 import { enqueueNotificationBothChannels } from './notifications';
+import {
+  type Page,
+  type PageRequest,
+  clampLimit,
+  cursorOrder,
+  cursorTime,
+  decodeTimeCursor,
+  encodeTimeCursor,
+  olderThan,
+  toPage,
+} from './paging';
 import { listActivePlatformRoles } from './platform-roles';
 import { listAccessForApplicantDetailed } from './sharing';
 
@@ -291,10 +302,45 @@ export async function listLegalHolds(db: Db, applicantId: string): Promise<Legal
   return db.select().from(schema.legalHolds).where(eq(schema.legalHolds.applicantId, applicantId));
 }
 
-/** All currently active legal holds (platform-admin overview), newest first. */
-export async function listActiveLegalHolds(db: Db): Promise<LegalHold[]> {
-  const rows = await db.select().from(schema.legalHolds).where(eq(schema.legalHolds.active, true));
-  return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+/** The cursor scope of the platform-wide active holds list (WP-SB7). */
+const ACTIVE_HOLDS_CURSOR_SCOPE = 'platform:legal-holds:active';
+
+/**
+ * All currently active legal holds (platform-admin overview), newest first. Callers check the
+ * platform role. With `page`, at most `limit` holds (default 50, at most 100) and a cursor for the
+ * next, older page; a cursor from anywhere else gives the first page.
+ */
+export async function listActiveLegalHolds(db: Db): Promise<LegalHold[]>;
+export async function listActiveLegalHolds(db: Db, page: PageRequest): Promise<Page<LegalHold>>;
+export async function listActiveLegalHolds(
+  db: Db,
+  page?: PageRequest,
+): Promise<LegalHold[] | Page<LegalHold>> {
+  if (!page) {
+    const rows = await db
+      .select()
+      .from(schema.legalHolds)
+      .where(eq(schema.legalHolds.active, true));
+    return [...rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  const limit = clampLimit(page.limit);
+  const cursor = decodeTimeCursor(page.before, ACTIVE_HOLDS_CURSOR_SCOPE);
+  const table = schema.legalHolds;
+  const rows = await db
+    .select({ hold: table, at: cursorTime(table.createdAt) })
+    .from(table)
+    .where(
+      and(
+        eq(table.active, true),
+        cursor ? olderThan(table.createdAt, table.id, cursor) : undefined,
+      ),
+    )
+    .orderBy(...cursorOrder(table.createdAt, table.id))
+    .limit(limit + 1);
+  const result = toPage(rows, limit, (last) =>
+    encodeTimeCursor({ at: last.at, id: last.hold.id }, ACTIVE_HOLDS_CURSOR_SCOPE),
+  );
+  return { items: result.items.map((row) => row.hold), nextCursor: result.nextCursor };
 }
 
 /**

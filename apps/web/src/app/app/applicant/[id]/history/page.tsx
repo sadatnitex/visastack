@@ -1,20 +1,29 @@
 import {
-  type MissionUsingField,
-  getApplicant,
+  accountPrincipal,
   listApplicantProfile,
-  listFactHistory,
   listMissionsUsingField,
+  requireAccess,
 } from '@visastack/services';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { ActivityLogEntry } from '../../../../../components/activity-log';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
-import { fieldLabel } from '../../../../../lib/master-profile';
+import { evidenceFieldGroups, fieldLabel } from '../../../../../lib/master-profile';
+import {
+  type SearchParamsRecord,
+  firstParam,
+  pagingHref,
+  parseCursor,
+} from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
+import { HISTORY_LOG_ID, HistoryLog } from './history-log';
 
 export const metadata: Metadata = { title: 'History' };
 
 export const dynamic = 'force-dynamic';
+
+/** How many saved versions one load shows (the log budget: 50 per load, older ones on request). */
+const HISTORY_PAGE_SIZE = 50;
 
 const STATUS_LABELS: Record<string, string> = {
   DECLARED: 'Declared',
@@ -34,6 +43,12 @@ const METHOD_LABELS: Record<string, string> = {
   SYSTEM: 'System',
 };
 
+const ACTOR_LABELS = {
+  owner: 'You',
+  someone_else: 'Someone Else',
+  not_recorded: 'Not Recorded',
+} as const;
+
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
     year: 'numeric',
@@ -44,48 +59,102 @@ function formatDateTime(iso: string): string {
   });
 }
 
+/** The parts of the profile a person can narrow the history to, in the order the profile uses. */
+function profileParts(): readonly { readonly key: string; readonly label: string }[] {
+  return evidenceFieldGroups().map((group) => ({ key: group.key, label: group.label }));
+}
+
+/**
+ * Profile History (WP-SB1): every saved version of every detail, newest first, in one log that
+ * stays the same height. Fifty versions load at a time; Show Older Entries asks the server for the
+ * next fifty. A part of the profile can be chosen on the server, and the log filters what is loaded
+ * by detail, by who saved it and by when. Owner only.
+ */
 export default async function HistoryPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
+  readonly searchParams?: Promise<
+    SearchParamsRecord & {
+      readonly section?: string | string[];
+      readonly before?: string | string[];
+    }
+  >;
 }) {
   const { id } = await params;
+  const query = (await searchParams) ?? {};
+  const parts = profileParts();
+  const wanted = firstParam(query.section);
+  const section = parts.some((part) => part.key === wanted) ? wanted : undefined;
+  const before = parseCursor(query.before);
 
   const data = await withSession(async ({ db, accountId }) => {
-    const applicant = await getApplicant(db, id);
-    if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const entries = await listApplicantProfile(db, id);
+    const gate = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'VIEW_METADATA',
+      { applicantId: id },
+      { purpose: 'profile_view' },
+    );
+    if (!gate.ok) return null;
+    // The service lets only the owner read the history; anyone else is refused.
+    const read = await listApplicantProfile(db, gate.value, {
+      history: {
+        limit: HISTORY_PAGE_SIZE,
+        ...(before ? { before } : {}),
+        ...(section ? { pack: section } : {}),
+      },
+    });
+    if (!read.ok) return null;
+    const page = read.value;
 
-    const uniqueFieldKeys = [...new Set(entries.map((e) => e.fieldKey))];
-    const missionUseByFieldKey = new Map<string, MissionUsingField[]>();
+    // Where each detail that is in use now is used, read once per detail on this page.
+    const currentKeys = [...new Set(page.items.filter((v) => v.isCurrent).map((v) => v.fieldKey))];
+    const usedBy = new Map<string, readonly string[]>();
     await Promise.all(
-      uniqueFieldKeys.map(async (fieldKey) => {
+      currentKeys.map(async (fieldKey) => {
         const result = await listMissionsUsingField(db, accountId, id, fieldKey);
-        missionUseByFieldKey.set(fieldKey, result.ok ? result.value : []);
+        usedBy.set(fieldKey, result.ok ? result.value.map((m) => m.title) : []);
       }),
     );
 
-    const withHistory = await Promise.all(
-      entries.map(async (entry) => ({
-        fieldKey: entry.fieldKey,
-        repeatingRecordKey: entry.repeatingRecordKey,
-        missionUse: missionUseByFieldKey.get(entry.fieldKey) ?? [],
-        versions: (await listFactHistory(db, entry.factId)).map((v) => ({
+    return {
+      total: page.total,
+      nextCursor: page.nextCursor,
+      entries: page.items.map((v): ActivityLogEntry => {
+        const at = v.createdAt.toISOString();
+        const value =
+          v.value ?? (v.isProtected ? 'Protected Detail (Hidden Here)' : 'No Value Recorded');
+        const record = v.repeatingRecordKey ? ` (record ${v.repeatingRecordKey.slice(0, 8)})` : '';
+        const uses = v.isCurrent ? (usedBy.get(v.fieldKey) ?? []) : [];
+        const detail = [
+          value,
+          STATUS_LABELS[v.status] ?? v.status,
+          METHOD_LABELS[v.method] ?? v.method,
+          v.reason,
+          uses.length > 0 ? `Used by ${uses.join(', ')}` : null,
+        ].filter((part): part is string => Boolean(part));
+        return {
           id: v.id,
-          value: v.value,
-          // A protected detail is stored locked, so its text is not on this page.
-          isProtected: v.protectedKeyVersion !== null,
-          status: v.status,
-          method: v.method,
-          reason: v.reason,
-          createdAt: v.createdAt.toISOString(),
-        })),
-      })),
-    );
-    return { applicant, facts: withHistory };
+          what: `${fieldLabel(v.fieldKey) ?? v.fieldKey}${record}`,
+          detail: detail.join(' · '),
+          who: ACTOR_LABELS[v.actor],
+          outcome: v.isCurrent
+            ? { label: 'Current', tone: 'success' }
+            : { label: 'Superseded', tone: 'neutral' },
+          at,
+          when: formatDateTime(at),
+        };
+      }),
+    };
   });
 
   if (!data) notFound();
+
+  const pathname = `/app/applicant/${id}/history`;
+  const nothingSaved = data.total === 0 && !section;
+  const partLabel = parts.find((part) => part.key === section)?.label;
 
   return (
     <>
@@ -95,7 +164,7 @@ export default async function HistoryPage({
         description="Every value is an immutable version - nothing is ever overwritten. This is the full, ordered trail with its provenance."
       />
 
-      {data.facts.length === 0 ? (
+      {nothingSaved ? (
         <article className="card">
           <EmptyState
             icon="activity"
@@ -109,77 +178,22 @@ export default async function HistoryPage({
           </EmptyState>
         </article>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {data.facts.map((fact) => (
-            <article
-              className="card"
-              key={`${fact.fieldKey}-${fact.repeatingRecordKey ?? 'single'}`}
-            >
-              <h2 className="card-title u-mb-100">
-                {fieldLabel(fact.fieldKey) ?? fact.fieldKey}
-                {fact.repeatingRecordKey ? (
-                  <span
-                    className="muted"
-                    style={{
-                      fontSize: 'var(--text-caption)',
-                      fontWeight: 400,
-                      marginLeft: '0.5rem',
-                    }}
-                  >
-                    (record {fact.repeatingRecordKey.slice(0, 8)})
-                  </span>
-                ) : null}
-              </h2>
-              {fact.missionUse.length > 0 ? (
-                <p
-                  className="muted"
-                  style={{ fontSize: 'var(--text-small)', marginBottom: '0.75rem' }}
-                >
-                  Used by:{' '}
-                  {fact.missionUse.map((m, i) => (
-                    <span key={m.missionId}>
-                      {i > 0 ? ', ' : ''}
-                      <Link href={`/app/mission/${m.missionId}`}>{m.title}</Link>
-                    </span>
-                  ))}
-                </p>
-              ) : null}
-              <div className="rows">
-                {fact.versions.map((v, i) => (
-                  <div
-                    className="row"
-                    key={v.id}
-                    style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.35rem' }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '0.75rem',
-                      }}
-                    >
-                      <span className="row-key" style={{ fontFamily: 'var(--font-mono)' }}>
-                        {v.value ??
-                          (v.isProtected ? 'Protected Detail (Hidden Here)' : 'No Value Recorded')}
-                      </span>
-                      <span
-                        className={`badge ${i === fact.versions.length - 1 ? 'badge-success' : 'badge-neutral'}`}
-                      >
-                        {i === fact.versions.length - 1 ? 'Current' : 'Superseded'}
-                      </span>
-                    </div>
-                    <span className="muted" style={{ fontSize: 'var(--text-caption)' }}>
-                      {STATUS_LABELS[v.status] ?? v.status} · {METHOD_LABELS[v.method] ?? v.method}{' '}
-                      · {formatDateTime(v.createdAt)}
-                      {v.reason ? ` · ${v.reason}` : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
+        <HistoryLog
+          pathname={pathname}
+          parts={parts}
+          section={section}
+          partLabel={partLabel}
+          entries={data.entries}
+          total={data.total}
+          {...(data.nextCursor
+            ? {
+                olderHref: pagingHref(pathname, query, { before: data.nextCursor }, HISTORY_LOG_ID),
+              }
+            : {})}
+          {...(before
+            ? { newestHref: pagingHref(pathname, query, { before: null }, HISTORY_LOG_ID) }
+            : {})}
+        />
       )}
     </>
   );

@@ -803,7 +803,14 @@ export interface InAppNotificationView {
 export async function listNotificationsForAccount(
   db: Db,
   accountId: string,
-  options: { readonly limit?: number } = {},
+  options: {
+    readonly limit?: number;
+    /**
+     * Unread notifications before read ones (each group newest first), so a short list always
+     * starts with what still needs the person (WP-SB1). Left out, newest first as before.
+     */
+    readonly unreadFirst?: boolean;
+  } = {},
 ): Promise<InAppNotificationView[]> {
   const n = schema.notifications;
   const now = new Date();
@@ -839,7 +846,11 @@ export async function listNotificationsForAccount(
           ),
         ),
       )
-      .orderBy(desc(n.createdAt))
+      .orderBy(
+        ...(options.unreadFirst
+          ? [sql`case when ${n.status} = 'SENT' then 0 else 1 end`, desc(n.createdAt), desc(n.id)]
+          : [desc(n.createdAt)]),
+      )
       .limit(options.limit ?? 50),
   );
   return rows.map((row) => {

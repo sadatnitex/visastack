@@ -19,6 +19,8 @@ export interface ProtectionSwitchProps {
   readonly overridden: boolean;
   /** An extra sentence shown before turning this protection off. */
   readonly offWarning?: string;
+  /** The category tab this switch sits on, so a fresh sign-in check returns to it. */
+  readonly category?: string;
 }
 
 const REASON_MAX = 500;
@@ -40,6 +42,7 @@ export function ProtectionSwitch({
   defaultRestricted,
   overridden,
   offWarning,
+  category,
 }: ProtectionSwitchProps) {
   const [state, formAction, pending] = useActionState(setDocumentProtectionAction, NO_RESULT);
   const [confirming, setConfirming] = useState<Removal | null>(null);
@@ -75,6 +78,7 @@ export function ProtectionSwitch({
     <form action={formAction} className="field-list form-compact">
       <input type="hidden" name="scope" value={scope} />
       <input type="hidden" name="key" value={switchKey} />
+      {category ? <input type="hidden" name="category" value={category} /> : null}
 
       {confirming ? (
         <p id={warningId} className="notice notice-warn">

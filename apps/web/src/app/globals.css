@@ -11419,6 +11419,330 @@ html:has(.sticky-action-bar) {
   font-size: var(--text-small);
 }
 
+/* WP-SB1 traveller records and logs: the profile-part choice above Profile History, Case History
+   as closed groups with each case's records in a fixed panel, and the notification panel. */
+.history-part-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.history-part-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: min(16rem, 100%);
+}
+.history-part-form .btn {
+  min-height: 44px;
+}
+.memory-cases {
+  gap: var(--space-2);
+}
+.memory-events-scroll .memory-timeline {
+  margin: 0.75rem 0;
+}
+.notifications-mark-all {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-2);
+}
+.notifications-mark-all .btn {
+  min-height: 44px;
+}
+.notifications-scroll .row:last-child {
+  border-bottom: 0;
+}
+.notification-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+.notification-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+.notification-new {
+  margin-left: 0.5rem;
+}
+.notification-summary {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.notification-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* WP-SB4 traveller tasks and forms: Select All in a group of calendar dates, the calendar preview
+   in a fixed panel, the three steps of Briefs and Summaries, and the selected document as a sheet
+   with its own scroll, so the paged list beside or above it stays within the page budget. */
+.calendar-select-all {
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+.calendar-preview-scroll {
+  margin: var(--space-3) 0;
+}
+/* An open group of dates keeps the log panel's fixed height and scrolls inside. */
+.calendar-group .calendar-dates {
+  max-height: 26rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.calendar-preview-scroll .calendar-preview-list {
+  margin-block: var(--space-2);
+}
+/* A long list of cases on the AI app screens scrolls inside a short box; every case stays on the
+   page, so the chosen one is always reachable. */
+.ai-case-scroll {
+  max-height: 16rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+}
+.output-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.output-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-pill);
+}
+.output-step[aria-current="step"] {
+  border-color: var(--brand);
+  background: var(--brand-bg);
+  font-weight: 600;
+}
+.output-step-number {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--hairline-soft);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+.output-step[aria-current="step"] .output-step-number {
+  background: var(--brand);
+  color: #fff;
+}
+.wallet-selected-document {
+  position: sticky;
+  top: calc(var(--header-height) + 1rem);
+  max-height: calc(100dvh - var(--header-height) - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-margin-top: calc(var(--header-height) + 1rem);
+}
+@media (max-width: 1100px) {
+  /* Under the list, the sheet keeps a fixed height and scrolls inside, like a log panel. It stays
+     a positioned box, so text kept for screen readers inside it scrolls with it too, instead of
+     stretching the page. */
+  .wallet-selected-document {
+    position: relative;
+    top: auto;
+    max-height: 32rem;
+  }
+}
+@media (max-width: 760px) {
+  .wallet-selected-document {
+    max-height: 22rem;
+  }
+  .calendar-group .calendar-dates {
+    max-height: 22rem;
+  }
+}
+
+/* WP-LC-G3 Withdraw Application on the Agencies page: the row, then a disclosure holding a plain confirmation */
+.lc-g3-withdrawal-status {
+  display: block;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-size: var(--text-body);
+}
+.lc-g3-org {
+  border-bottom: 1px solid var(--hairline-soft);
+  padding-bottom: 0.75rem;
+}
+.lc-g3-org:last-child {
+  border-bottom: none;
+}
+.lc-g3-org > .row {
+  border-bottom: none;
+}
+.lc-g3-withdraw > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+.lc-g3-withdraw > summary::-webkit-details-marker {
+  display: none;
+}
+.lc-g3-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+}
+.lc-g3-confirm-text {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-body);
+  overflow-wrap: break-word;
+}
+.lc-g3-confirm .btn {
+  min-height: 44px;
+}
+
+/* WP-SB7 staff data and settings within the scroll budget: the filter bars on Organizations and
+   Members, the row menu that folds an organization's rarer actions, the section tabs on Privacy and
+   Document Protection, the legal hold applicant picker (search as you type), and compact stacked
+   rows for holds, erasure jobs and pack requirements. Flat, shared tokens; every target 44px. */
+.sb7-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.sb7-filter-bar .field-row {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.sb7-filter-bar .btn,
+.sb7-filter-bar a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.sb7-row-menu > summary,
+.sb7-fold > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.sb7-row-menu[open] > summary,
+.sb7-fold[open] > summary {
+  color: var(--text);
+}
+.sb7-row-menu-items {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+.sb7-section-tabs {
+  margin-bottom: var(--space-3);
+}
+.sb7-section-tabs a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.sb7-tab-count {
+  color: var(--text-tertiary);
+}
+.row.sb7-stack-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+.sb7-stack-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2) 0.75rem;
+}
+.sb7-break {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.sb7-mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.sb7-pack-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.sb7-requirements {
+  margin-bottom: var(--space-3);
+}
+.sb7-picker {
+  position: relative;
+  display: grid;
+  gap: 0.35rem;
+}
+.sb7-picker-list {
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  max-height: 16rem;
+  overflow-y: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.sb7-picker-list[hidden] {
+  display: none;
+}
+.sb7-picker-option {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.sb7-picker-option:hover {
+  background: var(--bg-subtle);
+}
+.sb7-picker-option[aria-selected="true"] {
+  background: var(--bg-subtle);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+@media (forced-colors: active) {
+  .sb7-picker-option[aria-selected="true"] {
+    outline-color: Highlight;
+  }
+}
+
 /* WP-SB8 scroll budget for public pages and countries: the route search on the public trust page
    (a plain form that works without script) and the end of the capped country list. */
 .trust-search {
