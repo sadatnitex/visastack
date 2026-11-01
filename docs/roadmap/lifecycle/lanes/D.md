@@ -36,4 +36,6 @@ Self-service duplicate delete and purge (C), Replace (B), central docs (Z).
 - Checks seen green:
 - Live / hidden until migration / behind switch:
 - Not verified:
-- Blocked:
+- Blocked (asked the coordinator 1 Nov 2026):
+  1. `apps/web/src/lib/a11y-forms.test.tsx` must register the staff decide form (`admin/removals/decide-form.tsx`, a `useActionState` form); the guard fails until it does. Need: one import and one scan entry in that file.
+  2. The visible Removal Requests sidebar link: `platformTabs` in `navigation.ts` (D's file, entry added) has no live caller; the live sidebar is `lib/workspace-navigation.ts` with flags from `lib/workspace-chrome.ts`. Need: one flag and one tools entry there (plus their tests). Until then the queue opens by its address and from the staff alert.

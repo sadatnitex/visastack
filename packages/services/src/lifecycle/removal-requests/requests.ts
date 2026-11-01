@@ -1,5 +1,6 @@
 import { type Result, err, formatReferenceCode, ok } from '@visastack/core';
-import { and, asc, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import { withCaseExclusions } from '../../access/grant-scope';
 import { type StaffScope, SystemScope, staffScopeProblem } from '../../access/principal';
 import { AuthorizedApplicant } from '../../access/require-access';
 import { appendAuditEvent } from '../../audit';
@@ -9,8 +10,8 @@ import { documentBlockedByLegalHold } from '../../legal-hold';
 // Imported by the foundation's path, which the read-path guard recognises.
 import { presentDocumentCondition } from '../../lifecycle/foundation/conditions';
 import { incrementMaterialRevision } from '../../material-revision';
-import { createTask } from '../../missions';
 import { enqueueNotification, enqueueNotificationBothChannels } from '../../notifications';
+import { listActivePlatformRoles } from '../../platform-roles';
 import { recordProductEvent } from '../../product-events';
 import {
   assignReferenceCode,
@@ -18,12 +19,14 @@ import {
   referenceCodesFor,
 } from '../../reference-codes';
 import { lifecycleCommandCovers } from '../foundation/access';
+import { availableDocumentActions } from '../foundation/actions';
 import { isUuid } from '../foundation/ids';
 import { lifecycleTablesPresent } from '../foundation/presence';
 import { openDeletionReceipt } from '../foundation/receipts';
 import { enqueueDocumentRemoval } from '../foundation/removal';
 import { getDocumentLifecycle } from '../foundation/state';
-import { workingDaysBetween } from './working-days';
+import { FINISHED_CASE_STATES_FOR_REPLACE } from '../replace/replace';
+import { REMOVAL_ALERT_WORKING_DAYS, workingDaysBetween } from './working-days';
 
 /*
  * Ask Us to Remove This File (LC-D, PROGRAMME owner decisions D1, D3, D7, D8; lanes/D.md).
@@ -42,7 +45,7 @@ import { workingDaysBetween } from './working-days';
  * Case states that are over (owner decision D5: closed, cancelled, submitted). A removal leaves
  * them exactly as they were: their snapshot stays, their selection is never edited here.
  */
-export const FINISHED_CASE_STATES_FOR_REMOVAL = ['CLOSED', 'CANCELLED', 'SUBMITTED'] as const;
+export const FINISHED_CASE_STATES_FOR_REMOVAL = FINISHED_CASE_STATES_FOR_REPLACE;
 
 /** What approving one removal request changes. The queue preview and the receipt read the same counts. */
 export interface RemovalImpact {
@@ -50,9 +53,13 @@ export interface RemovalImpact {
   readonly openCaseIds: readonly string[];
   /** Finished cases that selected it: their snapshots stay as they are. */
   readonly finishedCases: number;
-  /** For each open case, the agencies working it (owner agency or a live grant to an agency). */
+  /**
+   * For each open case, the agencies that can see it: an active, started, unexpired grant to the
+   * agency that reaches the case (a grant for that case, or an all-cases grant without an
+   * exception for it), the same rule the agency's own case list uses.
+   */
   readonly agenciesByCase: ReadonlyMap<string, readonly string[]>;
-  /** Live shares that name this document. */
+  /** Active, unexpired shares that name this document. */
   readonly sharesAffected: number;
   /** Stored bytes the removal frees once every file is verified gone. */
   readonly storageBytes: number;
@@ -70,11 +77,7 @@ async function removalImpact(
   now: Date,
 ): Promise<RemovalImpact> {
   const cases = await db
-    .selectDistinct({
-      missionId: schema.missions.id,
-      state: schema.missions.state,
-      ownerOrganizationId: schema.missions.ownerOrganizationId,
-    })
+    .selectDistinct({ missionId: schema.missions.id, state: schema.missions.state })
     .from(schema.selectedEvidence)
     .innerJoin(schema.missions, eq(schema.missions.id, schema.selectedEvidence.missionId))
     .where(
@@ -89,33 +92,26 @@ async function removalImpact(
     .sort((a, b) => a.missionId.localeCompare(b.missionId));
   const openCaseIds = open.map((row) => row.missionId);
 
-  const agenciesByCase = new Map<string, string[]>();
-  for (const row of open) {
-    agenciesByCase.set(row.missionId, row.ownerOrganizationId ? [row.ownerOrganizationId] : []);
-  }
+  const liveGrant = and(
+    eq(schema.grants.applicantId, applicantId),
+    eq(schema.grants.status, 'ACTIVE'),
+    lte(schema.grants.startAt, now),
+    or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+  );
+  const agenciesByCase = new Map<string, readonly string[]>();
   if (openCaseIds.length > 0) {
-    const grants = await db
-      .select({
-        organizationId: schema.grants.recipientOrganizationId,
-        missionId: schema.grants.missionId,
-      })
-      .from(schema.grants)
-      .where(
-        and(
-          eq(schema.grants.applicantId, applicantId),
-          eq(schema.grants.status, 'ACTIVE'),
-          or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
-          or(isNull(schema.grants.missionId), inArray(schema.grants.missionId, openCaseIds)),
-        ),
-      );
-    for (const grant of grants) {
-      if (!grant.organizationId) continue;
-      const targets = grant.missionId ? [grant.missionId] : openCaseIds;
-      for (const missionId of targets) {
-        const list = agenciesByCase.get(missionId);
-        if (list && !list.includes(grant.organizationId)) list.push(grant.organizationId);
+    await withCaseExclusions(db, async (covers) => {
+      for (const missionId of openCaseIds) {
+        const rows = await db
+          .selectDistinct({ organizationId: schema.grants.recipientOrganizationId })
+          .from(schema.grants)
+          .where(and(liveGrant, covers(missionId)));
+        agenciesByCase.set(
+          missionId,
+          rows.flatMap((row) => (row.organizationId ? [row.organizationId] : [])).sort(),
+        );
       }
-    }
+    });
   }
 
   const [shares] = await db
@@ -124,7 +120,7 @@ async function removalImpact(
     .where(
       and(
         eq(schema.grants.applicantId, applicantId),
-        notInArray(schema.grants.status, ['REVOKED', 'EXPIRED']),
+        liveGrant,
         sql`${documentId}::uuid = any(${schema.grants.documentIds})`,
       ),
     );
@@ -184,6 +180,7 @@ export const REMOVAL_REQUEST_REFUSALS = {
   reason: 'choose a reason from the list',
   declineCode: 'choose why the request is declined',
   notStaff: 'only a compliance administrator can decide removal requests',
+  gone: 'the document is already gone; the request closes at the next daily check',
 } as const;
 
 const OWNER_ROLE = 'applicant_owner';
@@ -253,8 +250,21 @@ export async function requestRemoval(
     if (!lifecycle || (lifecycle.state !== 'CURRENT' && lifecycle.state !== 'ARCHIVED')) {
       return err(serviceError('invalid', REMOVAL_REQUEST_REFUSALS.notLive));
     }
-    if (await documentBlockedByLegalHold(tx, { applicantId, documentId })) {
-      return err(serviceError('invalid', REMOVAL_REQUEST_REFUSALS.legalHold));
+    const legalHold = await documentBlockedByLegalHold(tx, { applicantId, documentId });
+    if (legalHold) return err(serviceError('invalid', REMOVAL_REQUEST_REFUSALS.legalHold));
+    // The one place visibility is decided (PROGRAMME 3.2). Whether this is a deletable duplicate
+    // is lane C's fact; until it is known the request stays allowed, as the menu shows it.
+    const allowed = availableDocumentActions({
+      state: lifecycle.state,
+      replaced: lifecycle.replaced,
+      isDuplicate: false,
+      duplicateBlockReason: null,
+      pendingRequest: false,
+      legalHold,
+      requestsSwitchOn: true,
+    });
+    if (!allowed.includes('REQUEST_REMOVAL')) {
+      return err(serviceError('invalid', REMOVAL_REQUEST_REFUSALS.notLive));
     }
     const requests = schema.documentRemovalRequests;
     const waiting = first(
@@ -384,6 +394,8 @@ export interface RemovalQueueRow {
   /** Whole working days the request has waited. */
   readonly waitingWorkingDays: number;
   readonly legalHold: boolean;
+  /** The document already left VisaStack; the request closes at the next daily check. */
+  readonly documentGone: boolean;
   readonly openCases: number;
   readonly finishedCases: number;
   readonly agencies: number;
@@ -434,34 +446,38 @@ export async function listRemovalQueue(
     .orderBy(asc(requests.requestedAt), asc(requests.id))
     .limit(limit + 1);
   const page = rows.slice(0, limit);
-  const result: RemovalQueueRow[] = [];
-  for (const row of page) {
-    const impact = row.documentId
-      ? await removalImpact(db, row.applicantId, row.documentId, now)
-      : null;
-    const agencies = new Set<string>();
-    for (const list of impact?.agenciesByCase.values() ?? []) {
-      for (const organizationId of list) agencies.add(organizationId);
-    }
-    result.push({
-      id: row.id,
-      documentCode: row.documentCode,
-      reason: row.reason,
-      requestedAt: row.requestedAt,
-      waitingWorkingDays: workingDaysBetween(row.requestedAt, now),
-      legalHold: row.documentId
-        ? await documentBlockedByLegalHold(db, {
-            applicantId: row.applicantId,
-            documentId: row.documentId,
-          })
-        : false,
-      openCases: impact?.openCaseIds.length ?? 0,
-      finishedCases: impact?.finishedCases ?? 0,
-      agencies: agencies.size,
-      sharesAffected: impact?.sharesAffected ?? 0,
-      storageBytes: impact?.storageBytes ?? 0,
-    });
-  }
+  // Rows are read side by side; each is a handful of small indexed queries.
+  const result = await Promise.all(
+    page.map(async (row): Promise<RemovalQueueRow> => {
+      const [impact, legalHold] = row.documentId
+        ? await Promise.all([
+            removalImpact(db, row.applicantId, row.documentId, now),
+            documentBlockedByLegalHold(db, {
+              applicantId: row.applicantId,
+              documentId: row.documentId,
+            }),
+          ])
+        : [null, false];
+      const agencies = new Set<string>();
+      for (const list of impact?.agenciesByCase.values() ?? []) {
+        for (const organizationId of list) agencies.add(organizationId);
+      }
+      return {
+        id: row.id,
+        documentCode: row.documentCode,
+        reason: row.reason,
+        requestedAt: row.requestedAt,
+        waitingWorkingDays: workingDaysBetween(row.requestedAt, now),
+        legalHold,
+        documentGone: row.documentId === null,
+        openCases: impact?.openCaseIds.length ?? 0,
+        finishedCases: impact?.finishedCases ?? 0,
+        agencies: agencies.size,
+        sharesAffected: impact?.sharesAffected ?? 0,
+        storageBytes: impact?.storageBytes ?? 0,
+      };
+    }),
+  );
   return ok({ rows: result, hasMore: rows.length > limit });
 }
 
@@ -590,7 +606,7 @@ export async function decideRemovalRequest(
           applicantId,
           payload: {
             subject: 'Your removal request was not approved',
-            summary: `We could not remove document ${request.documentCode}. ${DECLINE_REASON_WORDS[input.decisionCode]} It stays in your documents.`,
+            summary: `We could not remove document ${request.documentCode}. ${DECLINE_REASON_WORDS[input.decisionCode]}${request.documentId ? ' It stays in your documents.' : ''}`,
             deepLinkPath: `/app/applicant/${applicantId}/documents`,
           },
         });
@@ -601,7 +617,7 @@ export async function decideRemovalRequest(
     }
 
     // Approve.
-    if (!request.documentId) return err(serviceError('stale', REMOVAL_REQUEST_REFUSALS.notPending));
+    if (!request.documentId) return err(serviceError('stale', REMOVAL_REQUEST_REFUSALS.gone));
     const documentId = request.documentId;
     const document = first(
       await tx
@@ -647,12 +663,26 @@ export async function decideRemovalRequest(
           ),
         );
       await incrementMaterialRevision(tx, missionId);
-      const task = await createTask(tx, {
-        actorAccountId: ownerAccountId,
+      // Written here rather than through createTask (an owner-only command) so the audit trail
+      // names the staff member who approved, not the traveller.
+      const task = first(
+        await tx
+          .insert(schema.missionTasks)
+          .values({ missionId, description: OPEN_CASE_TASK })
+          .returning({ id: schema.missionTasks.id }),
+      );
+      if (!task) throw new Error('removal request: case task not written');
+      await appendAuditEvent(tx, {
+        eventType: 'MISSION_TASK_CREATED',
+        actorAccountId: staffAccountId,
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        applicantId,
         missionId,
-        description: OPEN_CASE_TASK,
+        resourceType: 'mission_task',
+        resourceId: task.id,
+        metadata: { cause: 'DOCUMENT_REMOVAL_REQUEST', requestId: request.id },
       });
-      if (!task.ok) throw new Error(`removal request: case task refused (${task.error.code})`);
     }
 
     const casesFlagged = impact.openCaseIds.flatMap((id) => {
@@ -738,35 +768,58 @@ export async function decideRemovalRequest(
         .where(eq(requests.id, request.id));
     }
 
-    // Agencies working an open case that used the document are told, never with its name.
+    // Agencies that can see an open case that used the document are told, never with its name,
+    // and only the members who see that case: owners and admins, and members assigned to it
+    // (the same rule as the agency's case list, listVisibleMissionsForMember).
     const told = new Set<string>();
-    if (impact.openCaseIds.length > 0) {
-      const organizationIds = [...new Set([...impact.agenciesByCase.values()].flat())];
-      const members =
-        organizationIds.length > 0
-          ? await tx
-              .select({
-                accountId: schema.memberships.accountId,
-                organizationId: schema.memberships.organizationId,
-              })
-              .from(schema.memberships)
-              .innerJoin(
-                schema.organizations,
-                eq(schema.organizations.id, schema.memberships.organizationId),
-              )
-              .where(
-                and(
-                  inArray(schema.memberships.organizationId, organizationIds),
-                  eq(schema.memberships.active, true),
-                  eq(schema.organizations.status, 'ACTIVE'),
-                ),
-              )
-          : [];
+    const organizationIds = [...new Set([...impact.agenciesByCase.values()].flat())];
+    if (organizationIds.length > 0) {
+      const members = await tx
+        .select({
+          accountId: schema.memberships.accountId,
+          organizationId: schema.memberships.organizationId,
+          role: schema.memberships.role,
+        })
+        .from(schema.memberships)
+        .innerJoin(
+          schema.organizations,
+          eq(schema.organizations.id, schema.memberships.organizationId),
+        )
+        .where(
+          and(
+            inArray(schema.memberships.organizationId, organizationIds),
+            eq(schema.memberships.active, true),
+            eq(schema.organizations.status, 'ACTIVE'),
+          ),
+        );
+      const assigned = await tx
+        .select({
+          missionId: schema.assignments.missionId,
+          organizationId: schema.assignments.organizationId,
+          accountId: schema.assignments.memberAccountId,
+        })
+        .from(schema.assignments)
+        .where(
+          and(
+            inArray(schema.assignments.organizationId, organizationIds),
+            inArray(schema.assignments.missionId, impact.openCaseIds),
+          ),
+        );
       for (const [missionId, organizations] of impact.agenciesByCase) {
         const code = caseCodes.get(missionId);
         for (const member of members) {
           if (!organizations.includes(member.organizationId)) continue;
           if (member.accountId === ownerAccountId) continue;
+          const seesCase =
+            member.role === 'OWNER' ||
+            member.role === 'ADMIN' ||
+            assigned.some(
+              (row) =>
+                row.missionId === missionId &&
+                row.organizationId === member.organizationId &&
+                row.accountId === member.accountId,
+            );
+          if (!seesCase) continue;
           told.add(member.organizationId);
           await enqueueNotification(tx, {
             eventType: 'DOCUMENT_REMOVED_BY_TRAVELLER',
@@ -831,16 +884,27 @@ function uploaderRole(
 }
 
 export interface RemovalSweepResult {
+  /** Requests closed: the file was verified gone, or the document had already left. */
   readonly completed: number;
+  /** Approved requests whose file a legal hold now keeps; the person was told. */
+  readonly kept: number;
+  /** Requests staff were alerted about. */
   readonly alerted: number;
 }
 
+const SWEEP_ALERT_EVENT = 'DOCUMENT_REMOVAL_REQUEST_WAITING';
+
 /**
- * Completion and alert sweep for removal requests, run by the daily notification sweep. Marks an
- * approved request Completed once its Removal Record reads Removed (the erasure worker verified
- * every file gone) and tells the person. With `alerts`, tells every compliance administrator and
- * platform owner about each request waiting more than `alertAfterWorkingDays` working days (once
- * per request).
+ * The daily pass over removal requests, run by the notification sweep:
+ * - an approved request whose Removal Record reads Removed (the erasure worker verified every
+ *   file gone) is marked Completed and the person is told;
+ * - an approved request whose Removal Record reads Kept (a legal hold placed after approval
+ *   stopped the removal) stays as it is and the person is told once;
+ * - a waiting request whose document has already left VisaStack (for example through the
+ *   retention purge) is closed as Completed and the person is told;
+ * - with `alerts`, every compliance administrator and platform owner is told about each request
+ *   waiting more than `alertAfterWorkingDays` working days, once per request (requests already
+ *   alerted are skipped in the query, so a long queue never hides a newer overdue one).
  */
 export async function sweepRemovalRequests(
   system: SystemScope<'process-notification-sweeps'>,
@@ -848,65 +912,124 @@ export async function sweepRemovalRequests(
   options: {
     readonly now?: Date;
     readonly alerts: boolean;
-    readonly alertAfterWorkingDays: number;
+    readonly alertAfterWorkingDays?: number;
     readonly limit?: number;
   },
 ): Promise<Result<RemovalSweepResult, ServiceError>> {
   if (!SystemScope.isGenuine(system) || system.job !== 'process-notification-sweeps') {
     return err(serviceError('forbidden', 'only the notification sweep runs this'));
   }
-  if (!(await lifecycleTablesPresent(db))) return ok({ completed: 0, alerted: 0 });
+  if (!(await lifecycleTablesPresent(db))) return ok({ completed: 0, kept: 0, alerted: 0 });
   const now = options.now ?? new Date();
   const limit = Math.min(Math.max(Math.trunc(options.limit ?? 200), 1), 500);
+  const alertAfter = options.alertAfterWorkingDays ?? REMOVAL_ALERT_WORKING_DAYS;
   const requests = schema.documentRemovalRequests;
   const receipts = schema.deletionReceipts;
+  const documentsPage = (applicantId: string) => `/app/applicant/${applicantId}/documents`;
 
-  const done = await db
-    .select({
-      id: requests.id,
-      applicantId: requests.applicantId,
-      documentCode: requests.documentCode,
-      requestedByAccountId: requests.requestedByAccountId,
-    })
+  const recipientOf = async (
+    tx: Db,
+    row: { readonly requestedByAccountId: string | null; readonly applicantId: string },
+  ): Promise<string | null> =>
+    row.requestedByAccountId ??
+    first(
+      await tx
+        .select({ ownerAccountId: schema.applicants.ownerAccountId })
+        .from(schema.applicants)
+        .where(eq(schema.applicants.id, row.applicantId)),
+    )?.ownerAccountId ??
+    null;
+
+  const columns = {
+    id: requests.id,
+    applicantId: requests.applicantId,
+    documentCode: requests.documentCode,
+    requestedByAccountId: requests.requestedByAccountId,
+  };
+
+  /** Close one request as Completed (if still in `from`) and tell the person. */
+  const complete = async (
+    row: {
+      id: string;
+      applicantId: string;
+      documentCode: string;
+      requestedByAccountId: string | null;
+    },
+    from: 'APPROVED' | 'PENDING',
+    summary: string,
+  ): Promise<boolean> =>
+    db.transaction(async (tx) => {
+      const updated = await tx
+        .update(requests)
+        .set({ status: 'COMPLETED', completedAt: now })
+        .where(and(eq(requests.id, row.id), eq(requests.status, from)))
+        .returning({ id: requests.id });
+      if (updated.length === 0) return false;
+      const recipient = await recipientOf(tx, row);
+      if (recipient) {
+        await enqueueNotificationBothChannels(tx, {
+          eventType: 'DOCUMENT_REMOVAL_COMPLETED',
+          recipientAccountId: recipient,
+          resourceId: row.id,
+          applicantId: row.applicantId,
+          payload: {
+            subject: 'Your document was removed',
+            summary,
+            deepLinkPath: documentsPage(row.applicantId),
+          },
+        });
+      }
+      return true;
+    });
+
+  let completed = 0;
+  const removed = await db
+    .select(columns)
     .from(requests)
     .innerJoin(receipts, eq(receipts.id, requests.receiptId))
     .where(and(eq(requests.status, 'APPROVED'), eq(receipts.status, 'REMOVED')))
     .limit(limit);
-  let completed = 0;
-  for (const row of done) {
-    await db.transaction(async (tx) => {
-      const updated = await tx
-        .update(requests)
-        .set({ status: 'COMPLETED', completedAt: now })
-        .where(and(eq(requests.id, row.id), eq(requests.status, 'APPROVED')))
-        .returning({ id: requests.id });
-      if (updated.length === 0) return;
-      completed += 1;
-      const recipient =
-        row.requestedByAccountId ??
-        first(
-          await tx
-            .select({ ownerAccountId: schema.applicants.ownerAccountId })
-            .from(schema.applicants)
-            .where(eq(schema.applicants.id, row.applicantId)),
-        )?.ownerAccountId;
-      if (!recipient) return;
-      await enqueueNotificationBothChannels(tx, {
-        eventType: 'DOCUMENT_REMOVAL_COMPLETED',
-        recipientAccountId: recipient,
-        resourceId: row.id,
-        applicantId: row.applicantId,
-        payload: {
-          subject: 'Your document was removed',
-          summary: `Document ${row.documentCode} was removed from VisaStack. Backup copies expire within 90 days and are never brought back.`,
-          deepLinkPath: `/app/applicant/${row.applicantId}/removal-records`,
-        },
-      });
+  for (const row of removed) {
+    const summary = `Document ${row.documentCode} was removed from VisaStack. Backup copies expire within 90 days and are never brought back.`;
+    if (await complete(row, 'APPROVED', summary)) completed += 1;
+  }
+  const gone = await db
+    .select(columns)
+    .from(requests)
+    .where(and(eq(requests.status, 'PENDING'), isNull(requests.documentId)))
+    .limit(limit);
+  for (const row of gone) {
+    const summary = `Document ${row.documentCode} is no longer in VisaStack, so your removal request is closed.`;
+    if (await complete(row, 'PENDING', summary)) completed += 1;
+  }
+
+  let kept = 0;
+  const blocked = await db
+    .select(columns)
+    .from(requests)
+    .innerJoin(receipts, eq(receipts.id, requests.receiptId))
+    .where(and(eq(requests.status, 'APPROVED'), eq(receipts.status, 'BLOCKED')))
+    .limit(limit);
+  for (const row of blocked) {
+    const recipient = await recipientOf(db, row);
+    if (!recipient) continue;
+    const queued = await enqueueNotificationBothChannels(db, {
+      eventType: 'DOCUMENT_REMOVAL_KEPT',
+      recipientAccountId: recipient,
+      resourceId: row.id,
+      applicantId: row.applicantId,
+      payload: {
+        subject: 'Your document is being kept for now',
+        summary: `We could not remove document ${row.documentCode} yet because of a legal requirement. It is kept safely and removed once that ends.`,
+        deepLinkPath: documentsPage(row.applicantId),
+      },
     });
+    if (queued > 0) kept += 1;
   }
 
   let alerted = 0;
   if (options.alerts) {
+    const notices = schema.notifications;
     const waiting = await db
       .select({
         id: requests.id,
@@ -914,36 +1037,39 @@ export async function sweepRemovalRequests(
         requestedAt: requests.requestedAt,
       })
       .from(requests)
-      .where(and(eq(requests.status, 'PENDING'), lt(requests.requestedAt, now)))
-      .orderBy(asc(requests.requestedAt))
+      .where(
+        and(
+          eq(requests.status, 'PENDING'),
+          lt(requests.requestedAt, now),
+          sql`not exists (select 1 from ${notices} where ${notices.eventType} = ${SWEEP_ALERT_EVENT} and ${notices.resourceId} = ${requests.id}::text)`,
+        ),
+      )
+      .orderBy(asc(requests.requestedAt), asc(requests.id))
       .limit(limit);
-    const overdue = waiting.filter(
-      (row) => workingDaysBetween(row.requestedAt, now) > options.alertAfterWorkingDays,
-    );
+    const overdue = waiting.filter((row) => workingDaysBetween(row.requestedAt, now) > alertAfter);
     if (overdue.length > 0) {
-      const roles = schema.platformRoles;
-      const staffRows = await db
-        .selectDistinct({ accountId: roles.accountId })
-        .from(roles)
-        .where(
-          and(
-            isNull(roles.revokedAt),
-            or(eq(roles.role, 'COMPLIANCE_ADMIN'), eq(roles.role, 'PLATFORM_OWNER')),
+      const staffIds = [
+        ...new Set(
+          (await listActivePlatformRoles(db)).flatMap((grant) =>
+            grant.accountId &&
+            (grant.role === 'COMPLIANCE_ADMIN' || grant.role === 'PLATFORM_OWNER')
+              ? [grant.accountId]
+              : [],
           ),
-        );
-      const staffIds = staffRows.flatMap((row) => (row.accountId ? [row.accountId] : []));
+        ),
+      ];
       for (const row of overdue) {
         let any = false;
         for (const accountId of staffIds) {
           const queued = await enqueueNotification(db, {
-            eventType: 'DOCUMENT_REMOVAL_REQUEST_WAITING',
+            eventType: SWEEP_ALERT_EVENT,
             channel: 'IN_APP',
             recipientAccountId: accountId,
             resourceId: row.id,
-            threshold: `${options.alertAfterWorkingDays}-working-days`,
+            threshold: `${alertAfter}-working-days`,
             payload: {
               subject: 'A removal request is waiting',
-              summary: `The request to remove document ${row.documentCode} has waited more than ${options.alertAfterWorkingDays} working days. Decide it in Removal Requests.`,
+              summary: `The request to remove document ${row.documentCode} has waited more than ${alertAfter} working days. Decide it in Removal Requests.`,
               deepLinkPath: '/app/admin/removals',
             },
           });
@@ -953,5 +1079,5 @@ export async function sweepRemovalRequests(
       }
     }
   }
-  return ok({ completed, alerted });
+  return ok({ completed, kept, alerted });
 }

@@ -1,4 +1,8 @@
-import { type RemovalQueueRow, listRemovalQueue } from '@visastack/services';
+import {
+  REMOVAL_ALERT_WORKING_DAYS,
+  type RemovalQueueRow,
+  listRemovalQueue,
+} from '@visastack/services';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ShowMore } from '../../../../components/show-more';
@@ -18,8 +22,12 @@ import { DecideRemovalForm } from './decide-form';
 import { REASON_LABELS, count, sizeLabel, waitingLabel } from './labels';
 
 const PATHNAME = '/app/admin/removals';
-/** A request waiting longer than this many working days is shown as overdue (lanes/D.md item 6). */
-const OVERDUE_AFTER = 3;
+/** The outcome line after a decision (the decided request has left the list). */
+const DECISION_MESSAGES: Readonly<Record<string, string>> = {
+  approved: 'Approved. The file is being removed securely, and the person has been told.',
+  removed: 'Approved. The document had no stored file and is gone. The person has been told.',
+  declined: 'Declined. The person has been told why.',
+};
 
 export const metadata: Metadata = { title: 'Removal Requests' };
 
@@ -51,7 +59,8 @@ export default async function RemovalRequestsPage({
 }) {
   if (!documentRemovalRequestsOn()) notFound();
   const query: SearchParamsRecord = (await searchParams) ?? {};
-  const { show: showParam } = query;
+  const { show: showParam, done: doneParam } = query;
+  const done = DECISION_MESSAGES[typeof doneParam === 'string' ? doneParam : ''];
   const shown = parseShow(showParam, { step: TEAM_LIST_STEP });
   const data = await withSession(async ({ db, accountId, email }) => {
     const staff = await staffPrincipal(
@@ -72,6 +81,11 @@ export default async function RemovalRequestsPage({
         title="Removal Requests"
         description="Travellers ask us to remove a file for good. Check what approving would change, then approve or decline. Try to decide within 3 working days."
       />
+      <div id="removal-requests-status" tabIndex={-1}>
+        {done && data.kind === 'ready' ? (
+          <output className="notice notice-ok">{done}</output>
+        ) : null}
+      </div>
       {data.kind === 'restricted' ? (
         <AdminRestricted />
       ) : data.queue.rows.length === 0 ? (
@@ -83,7 +97,7 @@ export default async function RemovalRequestsPage({
               <li key={row.id} id={`removal-${row.id}`} className="card lc-removal-row">
                 <div className="lc-removal-head">
                   <h2 className="card-title lc-removal-code">Document {row.documentCode}</h2>
-                  {row.waitingWorkingDays > OVERDUE_AFTER ? (
+                  {row.waitingWorkingDays > REMOVAL_ALERT_WORKING_DAYS ? (
                     <StatusBadge tone="warning">Overdue</StatusBadge>
                   ) : null}
                   {row.legalHold ? (
@@ -94,18 +108,24 @@ export default async function RemovalRequestsPage({
                   {REASON_LABELS[row.reason]}. Asked on {formatTimestampDate(row.requestedAt)}.{' '}
                   {waitingLabel(row.waitingWorkingDays)}.
                 </p>
-                <p className="lc-removal-impact">{impactLine(row)}</p>
+                <p className="lc-removal-impact">
+                  {row.documentGone
+                    ? 'The document already left VisaStack. This request closes at the next daily check, and the person is told.'
+                    : impactLine(row)}
+                </p>
                 {row.legalHold ? (
                   <p className="notice notice-warn">
                     A legal hold covers this document, so it cannot be removed. Decline the request
                     with the legal requirement reason.
                   </p>
                 ) : null}
-                <DecideRemovalForm
-                  requestId={row.id}
-                  documentCode={row.documentCode}
-                  legalHold={row.legalHold}
-                />
+                {row.documentGone ? null : (
+                  <DecideRemovalForm
+                    requestId={row.id}
+                    documentCode={row.documentCode}
+                    legalHold={row.legalHold}
+                  />
+                )}
               </li>
             ))}
           </ul>

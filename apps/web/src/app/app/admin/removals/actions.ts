@@ -36,6 +36,10 @@ const REFUSAL_WORDS: ReadonlyMap<string, string> = new Map([
     'This document is already being removed or was deleted. Reload the page to see the latest.',
   ],
   [REMOVAL_REQUEST_REFUSALS.declineCode, 'Choose why the request is declined.'],
+  [
+    REMOVAL_REQUEST_REFUSALS.gone,
+    'This document already left VisaStack, so there is nothing to remove. The request closes at the next daily check, and the person is told.',
+  ],
 ]);
 
 /**
@@ -63,7 +67,7 @@ export async function decideRemovalAction(
     return { ok: false, message: 'Choose why the request is declined.', field: 'decisionCode' };
   }
 
-  return withSession(async ({ db, accountId, email }): Promise<FormResult> => {
+  const outcome = await withSession(async ({ db, accountId, email }): Promise<FormResult> => {
     const staff = await staffPrincipal(
       db,
       { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
@@ -102,13 +106,11 @@ export async function decideRemovalAction(
       };
     }
     revalidatePath(PATH);
-    if (result.value.decision === 'DECLINED') {
-      return { ok: true, message: 'Declined. The person has been told why.' };
-    }
-    const removing =
-      result.value.removal === 'REMOVED'
-        ? 'The document had no stored file and is gone.'
-        : 'The file is being removed securely.';
-    return { ok: true, message: `Approved. ${removing} The person has been told.` };
+    if (result.value.decision === 'DECLINED') return { ok: true, message: 'declined' };
+    return { ok: true, message: result.value.removal === 'REMOVED' ? 'removed' : 'approved' };
   });
+  if (!outcome.ok) return outcome;
+  // The decided request leaves the list, taking its form with it, so the outcome is said at the
+  // top of the page instead (DECISION_MESSAGES on the page).
+  redirect(`${PATH}?done=${outcome.message}#removal-requests-status`);
 }

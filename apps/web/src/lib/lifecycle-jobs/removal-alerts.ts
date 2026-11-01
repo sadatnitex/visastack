@@ -12,7 +12,7 @@ import { reportServerError } from '../server-error';
 
 export type RemovalAlertsOutcome = RemovalSweepResult & { readonly unavailable?: true };
 
-const NOTHING: RemovalSweepResult = { completed: 0, alerted: 0 };
+const NOTHING: RemovalSweepResult = { completed: 0, kept: 0, alerted: 0 };
 
 /**
  * Removal requests in the daily notification sweep (resource lifecycle lane D): marks approved

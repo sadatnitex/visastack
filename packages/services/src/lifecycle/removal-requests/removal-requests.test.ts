@@ -24,7 +24,9 @@ import {
 } from '../../packs';
 import { acceptGrant, createGrant } from '../../sharing';
 import {
+  REMOVAL_DECLINE_CODES,
   REMOVAL_QUEUE_PAGE,
+  REMOVAL_REQUEST_REASONS,
   REMOVAL_REQUEST_REFUSALS,
   addWorkingDays,
   cancelRemovalRequest,
@@ -239,6 +241,15 @@ async function notificationsFor(db: Db, accountId: string) {
     .where(eq(schema.notifications.recipientAccountId, accountId));
 }
 
+describe('the fixed lists', () => {
+  it('match the database CHECK lists of migration 0113', () => {
+    expect([...REMOVAL_REQUEST_REASONS]).toEqual([...schema.REMOVAL_REQUEST_REASONS]);
+    expect([...REMOVAL_DECLINE_CODES, 'APPROVED'].sort()).toEqual(
+      [...schema.REMOVAL_DECISION_CODES].sort(),
+    );
+  });
+});
+
 describe('working days', () => {
   it('skips Saturdays and Sundays', () => {
     // Friday 6 Nov 2026, 10:00 UTC.
@@ -280,7 +291,7 @@ describe('removal requests with the lifecycle tables missing', () => {
           alertAfterWorkingDays: 3,
         },
       );
-      expect(swept.ok && swept.value).toEqual({ completed: 0, alerted: 0 });
+      expect(swept.ok && swept.value).toEqual({ completed: 0, kept: 0, alerted: 0 });
       expect(
         await db
           .select({ id: schema.documents.id })
@@ -546,6 +557,35 @@ describe('removal requests with the lifecycle tables', () => {
         .set({ state: 'CLOSED', closedAt: new Date() })
         .where(eq(schema.missions.id, finished));
       const agency = await agencyWithGrant(db, owner, open);
+      // A reviewer of the same agency who is not assigned to the case does not see it.
+      const reviewer = await provisionAccount(db, { email: 'reviewer-unassigned@example.com' });
+      if (!isOk(reviewer)) throw new Error('reviewer');
+      await db.insert(schema.memberships).values({
+        accountId: reviewer.value.id,
+        organizationId: agency.organizationId,
+        role: 'REVIEWER',
+      });
+      // An agency shared on all cases except this one is not told about it.
+      const excluded = await agencyWithGrant(db, owner);
+      const [excludedGrant] = await db
+        .select({ id: schema.grants.id })
+        .from(schema.grants)
+        .where(eq(schema.grants.recipientOrganizationId, excluded.organizationId));
+      await db.insert(schema.grantCaseExclusions).values({
+        grantId: excludedGrant?.id ?? '',
+        missionId: open,
+        applicantId: owner.applicantId,
+      });
+      // An agency named on the case whose grant was revoked is not told either.
+      const former = await agencyWithGrant(db, owner, open);
+      await db
+        .update(schema.grants)
+        .set({ status: 'REVOKED' })
+        .where(eq(schema.grants.recipientOrganizationId, former.organizationId));
+      await db
+        .update(schema.missions)
+        .set({ ownerOrganizationId: former.organizationId })
+        .where(eq(schema.missions.id, open));
       const [before] = await db
         .select({ revision: schema.missions.materialRevision })
         .from(schema.missions)
@@ -627,6 +667,25 @@ describe('removal requests with the lifecycle tables', () => {
       expect(told[0]?.payload.summary).toMatch(/case C-/);
       expect(JSON.stringify(told)).not.toContain('Private Name');
       expect(JSON.stringify(told)).not.toContain('Passport');
+      for (const outsider of [reviewer.value.id, excluded.agentAccountId, former.agentAccountId]) {
+        expect(
+          (await notificationsFor(db, outsider)).filter(
+            (n) => n.eventType === 'DOCUMENT_REMOVED_BY_TRAVELLER',
+          ),
+        ).toHaveLength(0);
+      }
+      // The case task is recorded as the staff member's action, not the traveller's.
+      const [taskAudit] = await db
+        .select({ actor: schema.auditEvents.actorAccountId })
+        .from(schema.auditEvents)
+        .where(
+          and(
+            eq(schema.auditEvents.eventType, 'MISSION_TASK_CREATED'),
+            eq(schema.auditEvents.missionId, open),
+            eq(schema.auditEvents.actorAccountId, staffId),
+          ),
+        );
+      expect(taskAudit?.actor).toBe(staffId);
       const ownerNotices = await notificationsFor(db, owner.accountId);
       expect(
         ownerNotices.filter((n) => n.eventType === 'DOCUMENT_REMOVAL_DECIDED').length,
@@ -664,6 +723,67 @@ describe('removal requests with the lifecycle tables', () => {
       );
       expect(removedNotice.length).toBeGreaterThan(0);
       expect(removedNotice[0]?.payload.summary).toContain('90 days');
+      expect(removedNotice[0]?.payload.deepLinkPath).toBe(
+        `/app/applicant/${owner.applicantId}/documents`,
+      );
+    },
+    HEAVY,
+  );
+
+  it(
+    'tells the person when a legal hold keeps an approved file, and closes a request whose document left',
+    async () => {
+      const proof = await manage(db, owner);
+      const kept = await addDocument(db, owner, 'kept.pdf');
+      const keptAsk = await requestRemoval(proof, { documentId: kept, reason: 'NO_LONGER_NEEDED' });
+      if (!keptAsk.ok) throw new Error('ask');
+      const approved = await decideRemovalRequest(
+        await decider(db, staffId),
+        { id: keptAsk.value.id, decision: 'APPROVE', stepUpSatisfied: true },
+        { db },
+      );
+      expect(approved.ok).toBe(true);
+      await db
+        .update(schema.deletionReceipts)
+        .set({ status: 'BLOCKED' })
+        .where(eq(schema.deletionReceipts.subjectCode, keptAsk.value.documentCode));
+
+      const leaving = await addDocument(db, owner, 'leaving.pdf', { withFile: false });
+      const leavingAsk = await requestRemoval(proof, {
+        documentId: leaving,
+        reason: 'NO_LONGER_NEEDED',
+      });
+      if (!leavingAsk.ok) throw new Error('ask');
+      // The retention purge removes the document row while the request waits.
+      await db.delete(schema.documents).where(eq(schema.documents.id, leaving));
+      const refused = await decideRemovalRequest(
+        await decider(db, staffId),
+        { id: leavingAsk.value.id, decision: 'APPROVE', stepUpSatisfied: true },
+        { db },
+      );
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.error.message).toBe(REMOVAL_REQUEST_REFUSALS.gone);
+      const queue = await listRemovalQueue(await reader(db, staffId), { db });
+      expect(
+        queue.ok && queue.value.rows.find((r) => r.id === leavingAsk.value.id)?.documentGone,
+      ).toBe(true);
+
+      const system = systemScopeForTest('process-notification-sweeps');
+      const swept = await sweepRemovalRequests(system, db, { alerts: false });
+      expect(swept.ok && swept.value).toEqual({ completed: 1, kept: 1, alerted: 0 });
+      expect((await requestRow(db, keptAsk.value.id))?.status).toBe('APPROVED');
+      expect((await requestRow(db, leavingAsk.value.id))?.status).toBe('COMPLETED');
+      const again = await sweepRemovalRequests(system, db, { alerts: false });
+      expect(again.ok && again.value).toEqual({ completed: 0, kept: 0, alerted: 0 });
+      const notices = await notificationsFor(db, owner.accountId);
+      expect(notices.some((n) => n.eventType === 'DOCUMENT_REMOVAL_KEPT')).toBe(true);
+      expect(
+        notices.some(
+          (n) =>
+            n.eventType === 'DOCUMENT_REMOVAL_COMPLETED' &&
+            n.payload.summary.includes('no longer in VisaStack'),
+        ),
+      ).toBe(true);
     },
     HEAVY,
   );

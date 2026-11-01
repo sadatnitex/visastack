@@ -34,6 +34,7 @@ const { default: Page } = await import('./page');
 const row = (overrides: Record<string, unknown> = {}) => ({
   id: '11111111-1111-4111-8111-111111111111',
   documentCode: 'D-7K2Q9',
+  documentGone: false,
   reason: 'PRIVACY_CONCERN',
   requestedAt: new Date('2026-11-02T09:00:00Z'),
   waitingWorkingDays: 4,
@@ -94,6 +95,27 @@ describe('Removal Requests (staff queue)', () => {
     const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Kept (Legal Requirement)');
     expect(text).not.toContain('Overdue');
+  });
+
+  it('says what happened after a decision, and nothing for an unknown value', async () => {
+    const text = textOf(
+      await renderServer(Page({ searchParams: Promise.resolve({ done: 'declined' }) })),
+    );
+    expect(text).toContain('Declined. The person has been told why.');
+    const odd = textOf(
+      await renderServer(Page({ searchParams: Promise.resolve({ done: '<script>' }) })),
+    );
+    expect(odd).not.toContain('Declined');
+  });
+
+  it('offers no decision for a request whose document already left', async () => {
+    mocks.listRemovalQueue.mockResolvedValue({
+      ok: true,
+      value: { rows: [row({ documentGone: true })], hasMore: false },
+    });
+    const html = await renderServer(Page({}));
+    expect(textOf(html)).toContain('already left VisaStack');
+    expect(stubProps(html, 'DecideRemovalForm')).toEqual([]);
   });
 
   it('says plainly when nothing is waiting', async () => {

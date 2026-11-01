@@ -72,11 +72,9 @@ describe('deciding a removal request', () => {
       value: { decision: 'APPROVED', removal: 'QUEUED', openCasesUpdated: 1, agenciesTold: 1 },
     });
     mocks.tryEstablishStepUp.mockResolvedValue({ kind: 'established' });
-    const result = await decideRemovalAction(INITIAL, form({ decision: 'APPROVE' }));
-    expect(result).toEqual({
-      ok: true,
-      message: 'Approved. The file is being removed securely. The person has been told.',
-    });
+    await expect(decideRemovalAction(INITIAL, form({ decision: 'APPROVE' }))).rejects.toThrow(
+      'NEXT_REDIRECT:/app/admin/removals?done=approved#removal-requests-status',
+    );
     expect(mocks.decideRemovalRequest.mock.calls[0]?.[1]).toEqual({
       id: ID,
       decision: 'APPROVE',
@@ -110,11 +108,9 @@ describe('deciding a removal request', () => {
       ok: true,
       value: { decision: 'DECLINED', decisionCode: 'LEGAL_HOLD' },
     });
-    const declined = await decideRemovalAction(
-      INITIAL,
-      form({ decision: 'DECLINE', decisionCode: 'LEGAL_HOLD' }),
-    );
-    expect(declined.ok).toBe(true);
+    await expect(
+      decideRemovalAction(INITIAL, form({ decision: 'DECLINE', decisionCode: 'LEGAL_HOLD' })),
+    ).rejects.toThrow('NEXT_REDIRECT:/app/admin/removals?done=declined#removal-requests-status');
     expect(mocks.decideRemovalRequest.mock.calls[0]?.[1]).toMatchObject({
       decision: 'DECLINE',
       decisionCode: 'LEGAL_HOLD',

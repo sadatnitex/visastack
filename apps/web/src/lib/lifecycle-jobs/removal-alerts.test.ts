@@ -18,7 +18,7 @@ describe('removal request alerts in the notification sweep', () => {
   const before = process.env[NAME];
   beforeEach(() => {
     sweep.mockReset();
-    sweep.mockResolvedValue({ ok: true, value: { completed: 1, alerted: 2 } });
+    sweep.mockResolvedValue({ ok: true, value: { completed: 1, kept: 0, alerted: 2 } });
   });
   afterEach(() => {
     if (before === undefined) delete process.env[NAME];
@@ -28,7 +28,7 @@ describe('removal request alerts in the notification sweep', () => {
   it('completes removals but sends no staff alerts while the switch is off', async () => {
     delete process.env[NAME];
     const result = await runRemovalAlerts(scope, { db });
-    expect(result).toEqual({ completed: 1, alerted: 2 });
+    expect(result).toEqual({ completed: 1, kept: 0, alerted: 2 });
     expect(sweep).toHaveBeenCalledWith(scope, db, { alerts: false, alertAfterWorkingDays: 3 });
   });
 
