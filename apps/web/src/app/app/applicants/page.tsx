@@ -7,6 +7,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import type { ReactElement } from 'react';
 import { ShowMore } from '../../../components/show-more';
 import { EmptyState, PageHeader } from '../../../components/ui';
 import { formatTimestampDate } from '../../../lib/format-date';
@@ -116,12 +117,17 @@ function ParkedTravellers({
   );
 }
 
-export default async function ApplicantsPage({
-  searchParams,
-}: {
+interface ApplicantsPageProps {
   readonly searchParams?: Promise<SearchParamsRecord>;
-} = {}) {
-  const query = (await searchParams) ?? {};
+}
+
+// Callable without props as well (older page tests render it that way); Next passes the props.
+export default async function ApplicantsPage(): Promise<ReactElement>;
+export default async function ApplicantsPage(props: ApplicantsPageProps): Promise<ReactElement>;
+export default async function ApplicantsPage(
+  props: ApplicantsPageProps = {},
+): Promise<ReactElement> {
+  const query = (await props.searchParams) ?? {};
   const t = createTranslator(await getLocale());
   const data = await withSession(async ({ db, accountId }) => {
     const [applicants, archived, deleted, consents] = await Promise.all([

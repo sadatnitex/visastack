@@ -15,7 +15,13 @@ export interface AgencyContext {
 }
 
 export interface WorkspaceAccess {
+  /** The travellers in everyday use: the ones the switcher offers. */
   readonly travellers: readonly TravellerContext[];
+  /**
+   * Archived travellers (LC-E). Never offered in the switcher, but a page of one opened by link
+   * keeps its frame and tabs. A traveller in Recently Deleted is in neither list.
+   */
+  readonly archivedTravellers?: readonly TravellerContext[];
   readonly agencies: readonly AgencyContext[];
   readonly platform: null | {
     readonly owner: boolean;
@@ -136,7 +142,8 @@ export function workspaceNavigation(
         ? caseSubject.applicantId
         : undefined;
   const person = subjectId
-    ? access.travellers.find((item) => item.id === subjectId)
+    ? (access.travellers.find((item) => item.id === subjectId) ??
+      access.archivedTravellers?.find((item) => item.id === subjectId))
     : !casePath
       ? (access.travellers.find((item) => item.relationship === 'SELF') ??
         (access.travellers.length === 1 ? access.travellers[0] : undefined))

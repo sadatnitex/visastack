@@ -300,11 +300,16 @@ export default async function TravellerPlanPage({
   const purchaseParam = typeof purchaseValue === 'string' ? purchaseValue : null;
   const selling = travellerPlansEnabled();
   const data = await withSession(async ({ db, accountId, self }) => {
-    const [summary, aiUsage, owned] = await Promise.all([
+    const [summary, aiUsage, everyday, archived, recentlyDeleted] = await Promise.all([
       getTravellerPlanSummary(db, { actorAccountId: accountId }),
       readAiUsage(db, accountId),
       listApplicants(db, accountId),
+      // Archived travellers and those in Recently Deleted still hold stored files, and the upload
+      // limits count them, so the meter does too (LC-E).
+      listApplicants(db, accountId, { view: 'archived' }),
+      listApplicants(db, accountId, { view: 'recentlyDeleted' }),
     ]);
+    const owned = [...everyday, ...archived, ...recentlyDeleted];
     // Only the profiles this account owns, counted exactly as the upload limits count them.
     const profiles = await Promise.all(
       owned.map(async (applicant) => ({

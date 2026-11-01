@@ -81,7 +81,7 @@ describe('Archived and Recently Deleted travellers (LC-E)', () => {
 
   it('shows neither list while nothing is archived or deleted (and before the migration)', async () => {
     lists([person('b', 'SELF')]);
-    const html = renderToStaticMarkup(await ApplicantsPage({}));
+    const html = renderToStaticMarkup(await ApplicantsPage());
     expect(html).not.toContain('Archived Travellers');
     expect(html).not.toContain('Recently Deleted Records');
     expect(html).not.toContain('Restore Traveller');
@@ -89,7 +89,7 @@ describe('Archived and Recently Deleted travellers (LC-E)', () => {
 
   it('lists archived and deleted travellers apart from everyday ones, each with Restore Traveller', async () => {
     lists([person('b', 'SELF')], [archivedPerson('arch')], [deletedPerson('gone')]);
-    const html = renderToStaticMarkup(await ApplicantsPage({}));
+    const html = renderToStaticMarkup(await ApplicantsPage());
     expect(html).toContain('Archived Travellers');
     expect(html).toContain('href="/app/applicant/arch"');
     expect(html).toContain('Recently Deleted Records');
@@ -108,7 +108,7 @@ describe('Archived and Recently Deleted travellers (LC-E)', () => {
   it('shows 10 archived travellers, then Show More', async () => {
     const many = Array.from({ length: 12 }, (_, index) => archivedPerson(`a${index}`));
     lists([person('b', 'SELF')], many);
-    const first = renderToStaticMarkup(await ApplicantsPage({}));
+    const first = renderToStaticMarkup(await ApplicantsPage());
     expect(first.match(/class="row lc-traveller-row"/g)).toHaveLength(10);
     expect(first).toContain('Show More');
     const more = renderToStaticMarkup(

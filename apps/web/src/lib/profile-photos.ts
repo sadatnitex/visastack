@@ -79,7 +79,10 @@ async function ownedPhotoUrls(
 }
 
 export interface OwnedTravellers {
+  /** The travellers in everyday use. */
   readonly people: readonly Applicant[];
+  /** Archived travellers (LC-E): left out of every list, but their own pages still open by link. */
+  readonly archived: readonly Applicant[];
   /** Photo address by traveller id; a traveller without a photo is absent. */
   readonly photos: ReadonlyMap<string, string>;
 }
@@ -95,13 +98,16 @@ export function loadOwnedTravellers(db: Db, accountId: string): Promise<OwnedTra
   const cached = memo.get(accountId);
   if (cached) return cached;
   const loading = (async () => {
-    const people = await listApplicants(db, accountId);
+    const [people, archived] = await Promise.all([
+      listApplicants(db, accountId),
+      listApplicants(db, accountId, { view: 'archived' }),
+    ]);
     const photos = await ownedPhotoUrls(
       db,
       accountId,
-      people.map((person) => person.id),
+      [...people, ...archived].map((person) => person.id),
     );
-    return { people, photos };
+    return { people, archived, photos };
   })();
   memo.set(accountId, loading);
   loading.catch(() => memo.delete(accountId));
@@ -109,9 +115,8 @@ export function loadOwnedTravellers(db: Db, accountId: string): Promise<OwnedTra
 }
 
 /**
- * One traveller's photo address for this account, or null. Never fails. An archived traveller is
- * not in the everyday list, but their own pages still open by link (LC-E), so their photo is asked
- * for on its own, through the same gate.
+ * One traveller's photo address for this account, or null. Never fails. Archived travellers are
+ * included (LC-E): their own pages still open by link.
  */
 export async function ownedPhotoUrl(
   db: Db,
@@ -119,9 +124,7 @@ export async function ownedPhotoUrl(
   applicantId: string,
 ): Promise<string | null> {
   try {
-    const { people, photos } = await loadOwnedTravellers(db, accountId);
-    if (people.some((person) => person.id === applicantId)) return photos.get(applicantId) ?? null;
-    return (await ownedPhotoUrls(db, accountId, [applicantId])).get(applicantId) ?? null;
+    return (await loadOwnedTravellers(db, accountId)).photos.get(applicantId) ?? null;
   } catch (error) {
     logPhotoFailure('photo', error);
     return null;
