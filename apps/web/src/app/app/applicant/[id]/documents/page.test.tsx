@@ -846,7 +846,9 @@ describe('archive, Recently Deleted and the Manage menu (resource lifecycle, mig
       value: Array.from({ length: 14 }, (_, i) => doc(`d${i}`, 'APPROVED')),
     });
     mocks.getDocumentLifecycles.mockResolvedValue(
-      new Map(Array.from({ length: 14 }, (_, i) => [`d${i}`, state(i === 13 ? 'ARCHIVED' : 'CURRENT')])),
+      new Map(
+        Array.from({ length: 14 }, (_, i) => [`d${i}`, state(i === 13 ? 'ARCHIVED' : 'CURRENT')]),
+      ),
     );
     const html = await render();
     const menus = stubProps<{ documentId: string; actions: string[] }>(html, 'ManageMenu');
@@ -866,10 +868,15 @@ describe('archive, Recently Deleted and the Manage menu (resource lifecycle, mig
       new Map(Array.from({ length: 14 }, (_, i) => [`d${i}`, state('CURRENT')])),
     );
     const archiveLink = await render(undefined, { manage: 'd13', action: 'ARCHIVE' });
-    const first = stubProps<{ documentId: string; initialAction?: string }>(archiveLink, 'ManageMenu')[0];
+    const first = stubProps<{ documentId: string; initialAction?: string }>(
+      archiveLink,
+      'ManageMenu',
+    )[0];
     expect(first).toMatchObject({ documentId: 'd13', initialAction: 'ARCHIVE' });
     const ignored = await render(undefined, { manage: 'd13', action: 'DESTROY' });
-    expect(stubProps<{ initialAction?: string }>(ignored, 'ManageMenu')[0]?.initialAction).toBeUndefined();
+    expect(
+      stubProps<{ initialAction?: string }>(ignored, 'ManageMenu')[0]?.initialAction,
+    ).toBeUndefined();
   });
 
   it('splits the documents into Current, Archived and Recently Deleted once there is something to show', async () => {

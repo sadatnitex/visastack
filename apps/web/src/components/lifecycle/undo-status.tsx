@@ -62,8 +62,8 @@ export function UndoStatus({
           ref={undoButton}
           type="button"
           className="btn btn-secondary lc-undo-button"
-          disabled={phase === 'working'}
-          onClick={undo}
+          aria-disabled={phase === 'working'}
+          onClick={phase === 'working' ? undefined : undo}
         >
           Undo
         </button>
