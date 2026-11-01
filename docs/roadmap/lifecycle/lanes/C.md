@@ -32,8 +32,8 @@ Support requests (D), any other read site (A2), Replace (B), travellers (E).
 ## Status (lane fills in)
 
 - Started on main: 19ec6a15ec99e0ea7877454560b51bbf3ba1be46 (1 Nov 2026).
-- PR / merged SHA: (filled at merge)
-- Checks seen green: (filled at merge)
+- PR / merged SHA: #396, squash 9c8b664ee2c0aac06e600271e110e89e3f40b3f1 (head a333049c, 1 Nov 2026).
+- Checks seen green: on head a333049c: Lint · Build · Typecheck · Test, No-secret Playwright checks, No-secret smoke check, CodeQL. After merge on 9c8b664e: Vercel production deployment, Deploy Smoke, Playwright Deploy Smoke, Live signed-in check, CI on main; GET /api/health/ready returns ready.
 - Tests added:
   - `packages/services/src/lifecycle/recently-deleted/recently-deleted.test.ts`: tables missing (nothing offered, deleted or purged); the D2 rule (usable copy, no fingerprint, other person); red first: a survivor in Recently Deleted refuses, a finished case blocks, a hold placed during the 30 days stops the purge (each proven able to fail by breaking the real code once); the other D5 blocks; open cases and AI app choices switch, one material revision bump, no switch back on Undo; purge only after 30 days through verified erasure; owner only; reading queued again on restore (A2 follow-up); Tidy Up counts.
   - Web: `manage/delete/delete-action.test.tsx`, `(home)/tidy-up.test.tsx`, `lib/lifecycle-jobs/purge.test.ts`, upload route, upload client and uploader tests for Remove This New Copy.
