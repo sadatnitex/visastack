@@ -5,20 +5,33 @@ import { formatTimestampDate } from '../../../../../../../lib/format-date';
 import { acceptAttribute } from '../../../../../../../lib/upload-rules';
 import { uploadDocumentAction } from '../../../actions';
 import type { ManageActionProps } from '../registry';
-import { type ReplaceOptionsResult, replaceDocumentAction, replaceOptionsAction } from './actions';
+import {
+  type ReplaceCandidateView,
+  type ReplaceOptionsResult,
+  replaceDocumentAction,
+  replaceOptionsAction,
+} from './actions';
 import { confirmMessage } from './messages';
 
 type Options = Extract<ReplaceOptionsResult, { ok: true }>;
+type Step = 'choose' | 'confirm' | 'done';
 
-/** How often, and how many times, the list is read again while a new upload is being checked. */
+/** How often, and how many times, the list is read again while a document is being checked. */
 export const RECHECK_EVERY_MS = 3000;
 export const RECHECK_TIMES = 10;
 
+const STATUS_WORDS: Record<ReplaceCandidateView['status'], string> = {
+  READY: '',
+  CHECKING: '. Still being checked',
+  CANNOT_USE: '. Cannot be used',
+};
+
 /**
- * Replace With a Newer Document (lane LC-B), opened from the Manage menu or a reminder's
+ * Replace with a Newer Document (lane LC-B), opened from the Manage menu or a reminder's
  * "Replace It" link. Three steps: choose the newer document (one already kept, or add it now),
  * confirm with the cases that will be updated named, then the result line. Focus moves to each
- * step's heading so a keyboard or screen reader user always knows where they are.
+ * step's heading so a keyboard or screen reader user always knows where they are. Buttons stay
+ * focusable while work runs (aria-disabled), so focus is never lost.
  */
 export function ReplaceAction({
   applicantId,
@@ -30,17 +43,20 @@ export function ReplaceAction({
   const [options, setOptions] = useState<Options | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
-  const [step, setStep] = useState<'choose' | 'confirm' | 'done'>('choose');
+  const [step, setStep] = useState<Step>('choose');
   const [busy, setBusy] = useState(false);
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [rechecks, setRechecks] = useState(0);
+  const [stillChecking, setStillChecking] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const moveFocus = useRef(false);
   const headingId = useId();
+  const choiceHintId = useId();
   const fileId = useId();
   const fileHintId = useId();
-  const moveFocus = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -58,39 +74,57 @@ export function ReplaceAction({
     }
   }, [applicantId, documentId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const watchChecks = useCallback(() => {
+    setStillChecking(false);
+    setRechecks(RECHECK_TIMES);
+  }, []);
 
-  // A just-added document is checked before it can be chosen: read the list again a few times.
+  // First load. A document still being checked starts the short watch below.
+  useEffect(() => {
+    void load().then((loaded) => {
+      if (loaded?.candidates.some((c) => c.status === 'CHECKING')) watchChecks();
+    });
+  }, [load, watchChecks]);
+
+  // Opened straight from a reminder's link, nothing has focus here yet: take it and come into
+  // view. Opened from the Manage menu, the menu has already moved focus into the panel.
+  useEffect(() => {
+    if (root.current?.contains(document.activeElement)) return;
+    heading.current?.focus();
+    heading.current?.scrollIntoView?.({ block: 'center' });
+  }, []);
+
+  // While a document is being checked, read the list again a few times, then offer Check Again.
   useEffect(() => {
     if (rechecks <= 0) return;
     const timer = setTimeout(async () => {
       const loaded = await load();
-      const waiting = loaded?.candidates.some((c) => !c.ready) ?? false;
+      const waiting = loaded?.candidates.some((c) => c.status === 'CHECKING') ?? false;
       setRechecks(waiting ? rechecks - 1 : 0);
+      if (waiting && rechecks === 1) setStillChecking(true);
     }, RECHECK_EVERY_MS);
     return () => clearTimeout(timer);
   }, [rechecks, load]);
 
-  // Each new step takes focus on its heading (not the first one: the menu already focused the
-  // panel). Set by `goTo`, applied once the new step has rendered.
+  // Each new step takes focus on its heading, once that step has rendered.
   useEffect(() => {
     if (!moveFocus.current) return;
     moveFocus.current = false;
     heading.current?.focus();
   });
-  const goTo = (next: 'choose' | 'confirm' | 'done') => {
+  const goTo = (next: Step) => {
     moveFocus.current = true;
     setStep(next);
   };
 
-  const kind = options?.kindLabel ?? 'document';
-  const readyCandidates = options?.candidates.filter((c) => c.ready) ?? [];
-  const chosenCandidate = options?.candidates.find((c) => c.documentId === chosen && c.ready);
+  const chosenCandidate = options?.candidates.find(
+    (c) => c.documentId === chosen && c.status === 'READY',
+  );
+  const checking = options?.candidates.some((c) => c.status === 'CHECKING') ?? false;
 
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
     const file = fileRef.current?.files?.[0];
     if (!file || !options) {
       setUploadNote('Choose the file of the newer document first.');
@@ -111,8 +145,7 @@ export function ReplaceAction({
       if (fileRef.current) fileRef.current.value = '';
       setUploadNote('Added. We are checking it now; you can choose it in a moment.');
       await load();
-      setRechecks(RECHECK_TIMES);
-      router.refresh();
+      watchChecks();
     } catch {
       setUploadNote('The file could not be added. Check your connection and try again.');
     } finally {
@@ -121,7 +154,7 @@ export function ReplaceAction({
   }
 
   async function replace() {
-    if (!chosenCandidate) return;
+    if (!chosenCandidate || busy) return;
     setBusy(true);
     setProblem(null);
     try {
@@ -136,7 +169,6 @@ export function ReplaceAction({
       }
       setResult(replaced.message);
       goTo('done');
-      router.refresh();
     } catch {
       setProblem('We could not replace it. Check your connection and try again.');
     } finally {
@@ -144,15 +176,29 @@ export function ReplaceAction({
     }
   }
 
+  const problemLine = problem ? (
+    <p className="lc-replace-problem" role="alert">
+      {problem}
+    </p>
+  ) : null;
+
   if (step === 'done') {
     return (
-      <div className="lc-replace" aria-labelledby={headingId}>
+      <div ref={root} className="lc-replace" aria-labelledby={headingId}>
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-replace-heading">
           Document Replaced
         </h3>
         <output className="lc-replace-result">{result}</output>
         <div className="lc-replace-actions">
-          <button type="button" className="btn btn-primary" onClick={onClose}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              onClose();
+              // The documents list and the cases change only now, so the line above was read.
+              router.refresh();
+            }}
+          >
             Done
           </button>
         </div>
@@ -162,7 +208,7 @@ export function ReplaceAction({
 
   if (step === 'confirm' && chosenCandidate && options) {
     return (
-      <div className="lc-replace" aria-labelledby={headingId}>
+      <div ref={root} className="lc-replace" aria-labelledby={headingId}>
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-replace-heading">
           Replace {documentName}?
         </h3>
@@ -178,23 +224,25 @@ export function ReplaceAction({
           </ul>
         ) : null}
         <p className="lc-replace-note">
-          The old document stays in your records, marked Replaced. Nothing you already sent or
-          confirmed is changed.
+          The old document stays in your records, marked Replaced. Anything you already sent stays
+          exactly as it was.
         </p>
-        {problem ? (
-          <p className="lc-replace-problem" role="alert">
-            {problem}
-          </p>
-        ) : null}
+        {problemLine}
         <div className="lc-replace-actions">
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={replace}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            aria-disabled={busy || undefined}
+            onClick={replace}
+          >
             {busy ? 'Replacing' : 'Replace'}
           </button>
           <button
             type="button"
             className="btn btn-secondary"
-            disabled={busy}
+            aria-disabled={busy || undefined}
             onClick={() => {
+              if (busy) return;
               setProblem(null);
               goTo('choose');
             }}
@@ -207,54 +255,63 @@ export function ReplaceAction({
   }
 
   return (
-    <div className="lc-replace" aria-labelledby={headingId}>
+    <div ref={root} className="lc-replace" aria-labelledby={headingId}>
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-replace-heading">
-        Replace With a Newer Document
+        Replace with a Newer Document
       </h3>
-      {problem ? (
-        <p className="lc-replace-problem" role="alert">
-          {problem}
-        </p>
-      ) : null}
+      {problemLine}
       {!options && !problem ? <output>Loading your documents</output> : null}
       {options ? (
         <>
-          <fieldset className="lc-replace-choices">
-            <legend>
-              Choose the newer {kind.toLowerCase()} to use instead of {documentName}
-            </legend>
+          <fieldset className="lc-replace-choices" aria-describedby={choiceHintId}>
+            <legend className="lc-replace-legend">Choose the Newer Document</legend>
+            <p id={choiceHintId} className="lc-replace-note">
+              It takes the place of {documentName}.
+            </p>
             {options.candidates.length === 0 ? (
               <p className="lc-replace-note">
-                You have no other {kind.toLowerCase()} yet. Add the new one below.
+                You have no other document of this kind yet. Add the new one below.
               </p>
             ) : (
               options.candidates.map((candidate) => (
                 <label
                   key={candidate.documentId}
                   className="lc-replace-choice"
-                  data-ready={candidate.ready ? 'true' : 'false'}
+                  data-status={candidate.status}
                 >
                   <input
                     type="radio"
                     name={`replace-${documentId}`}
                     value={candidate.documentId}
                     checked={chosen === candidate.documentId}
-                    disabled={!candidate.ready || busy}
+                    disabled={candidate.status !== 'READY'}
                     onChange={() => setChosen(candidate.documentId)}
                   />
                   <span className="lc-replace-choice-text">
-                    <span>{candidate.name}</span>
+                    <span className="lc-replace-choice-name">{candidate.name}</span>
                     <span className="lc-replace-choice-meta">
                       Added {formatTimestampDate(candidate.uploadedAt)}
-                      {candidate.ready ? '' : '. Still being checked'}
+                      {STATUS_WORDS[candidate.status]}
                     </span>
                   </span>
                 </label>
               ))
             )}
+            {checking && stillChecking ? (
+              <div className="lc-replace-recheck">
+                <p className="lc-replace-note">
+                  A check can take a few minutes. You can close this and come back.
+                </p>
+                <button type="button" className="btn btn-secondary" onClick={watchChecks}>
+                  Check Again
+                </button>
+              </div>
+            ) : null}
           </fieldset>
           <form className="lc-replace-upload" onSubmit={upload}>
-            <label htmlFor={fileId}>Or add the newer document now</label>
+            <label htmlFor={fileId} className="lc-replace-legend">
+              Add the Newer Document
+            </label>
             <input
               id={fileId}
               ref={fileRef}
@@ -262,13 +319,12 @@ export function ReplaceAction({
               name="file"
               accept={acceptAttribute(options.pdfAccepted)}
               aria-describedby={fileHintId}
-              disabled={busy}
             />
             <p id={fileHintId} className="lc-replace-note">
               It is filed as {options.kindLabel ?? 'the same kind'} and checked before you can
               choose it.
             </p>
-            <button type="submit" className="btn btn-secondary" disabled={busy}>
+            <button type="submit" className="btn btn-secondary" aria-disabled={busy || undefined}>
               {busy ? 'Adding' : 'Add the Document'}
             </button>
             {uploadNote ? <output className="lc-replace-upload-note">{uploadNote}</output> : null}
@@ -277,20 +333,17 @@ export function ReplaceAction({
             <button
               type="button"
               className="btn btn-primary"
-              disabled={!chosenCandidate || busy}
-              onClick={() => goTo('confirm')}
+              aria-disabled={!chosenCandidate || busy || undefined}
+              onClick={() => {
+                if (chosenCandidate && !busy) goTo('confirm');
+              }}
             >
               Continue
             </button>
-            <button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
               Cancel
             </button>
           </div>
-          {readyCandidates.length === 0 && options.candidates.length > 0 ? (
-            <p className="lc-replace-note">
-              A document can be chosen once its check is finished. This list updates by itself.
-            </p>
-          ) : null}
         </>
       ) : null}
       {problem && !options ? (

@@ -29,7 +29,12 @@ import {
 } from '../../packs';
 import { acceptGrant, createGrant } from '../../sharing';
 import { supersedeDocument } from '../../wallet';
-import { documentLifecycleLabel, listReplacementOptions, replaceDocument } from './index';
+import {
+  REPLACE_REFUSALS,
+  documentLifecycleLabel,
+  listReplacementOptions,
+  replaceDocument,
+} from './index';
 
 const HEAVY = 60_000;
 
@@ -417,8 +422,8 @@ describe.each([
       expect(isOk(options)).toBe(true);
       if (isOk(options)) {
         expect(options.value.cases.map((c) => c.title)).toEqual(['Japan Visit', 'UK Visit']);
-        expect(options.value.candidates.map((c) => [c.documentId, c.ready])).toEqual([
-          [newer, true],
+        expect(options.value.candidates.map((c) => [c.documentId, c.status])).toEqual([
+          [newer, 'READY'],
         ]);
       }
 
@@ -497,10 +502,109 @@ describe.each([
       expect(isOk(options)).toBe(true);
       if (isOk(options)) {
         expect(options.value.docType).toBe('PASSPORT');
-        expect(options.value.candidates.map((c) => [c.documentId, c.ready])).toEqual([
-          [pending, false],
+        expect(options.value.candidates.map((c) => [c.documentId, c.status])).toEqual([
+          [pending, 'CHECKING'],
         ]);
         expect(options.value.cases).toEqual([]);
+      }
+    },
+    HEAVY,
+  );
+});
+
+describe('replaceDocument: what can be the newer document, and which cases change', () => {
+  let db: Db;
+  let owner: Owner;
+  beforeEach(async () => {
+    db = await freshDb();
+    owner = await seedOwner(db, 'replace-rules@example.com');
+  }, HEAVY);
+
+  const refusalOf = async (oldDocumentId: string, newDocumentId: string) => {
+    const result = await replaceDocument(await manage(db, owner), { oldDocumentId, newDocumentId });
+    return result.ok ? null : result.error.message;
+  };
+
+  it(
+    'says whether the newer document is still being checked, cannot be used or has expired',
+    async () => {
+      const old = await addDocument(db, owner, 'old.pdf');
+      const checking = await addDocument(db, owner, 'checking.pdf', { ready: false });
+      const failed = await addDocument(db, owner, 'failed.pdf');
+      await db
+        .update(schema.documentVersions)
+        .set({ safetyStatus: 'QUARANTINED', processingStatus: 'QUARANTINED' })
+        .where(eq(schema.documentVersions.documentId, failed));
+      const expired = await addDocument(db, owner, 'expired.pdf');
+      await db
+        .update(schema.documents)
+        .set({ expiresAt: new Date(Date.now() - 86_400_000) })
+        .where(eq(schema.documents.id, expired));
+      expect(await refusalOf(old, checking)).toBe(REPLACE_REFUSALS.checking);
+      expect(await refusalOf(old, failed)).toBe(REPLACE_REFUSALS.cannotUse);
+      expect(await refusalOf(old, expired)).toBe(REPLACE_REFUSALS.expired);
+      const options = await listReplacementOptions(await manage(db, owner), { oldDocumentId: old });
+      if (!isOk(options)) throw new Error('options');
+      expect(new Map(options.value.candidates.map((c) => [c.documentId, c.status]))).toEqual(
+        new Map([
+          [checking, 'CHECKING'],
+          [failed, 'CANNOT_USE'],
+          [expired, 'CANNOT_USE'],
+        ]),
+      );
+    },
+    HEAVY,
+  );
+
+  it(
+    'refuses a document kept only for a case it was handed in for (CAS-08)',
+    async () => {
+      const old = await addDocument(db, owner, 'old.pdf');
+      const handedIn = await addDocument(db, owner, 'handed-in.pdf');
+      await db
+        .update(schema.documents)
+        .set({ walletVisible: false })
+        .where(eq(schema.documents.id, handedIn));
+      expect(await refusalOf(old, handedIn)).toBe('document not found');
+      expect(await replacedBy(db, old)).toBeNull();
+    },
+    HEAVY,
+  );
+
+  it(
+    'leaves a finished case exactly as it was',
+    async () => {
+      const old = await addDocument(db, owner, 'old.pdf');
+      const newer = await addDocument(db, owner, 'new.pdf');
+      const open = await caseUsing(db, owner, old, 'Open Visit');
+      const finished: string[] = [];
+      for (const state of ['CLOSED', 'CANCELLED', 'SUBMITTED'] as const) {
+        const id = await caseUsing(db, owner, old, `Finished ${state}`);
+        await db.update(schema.missions).set({ state }).where(eq(schema.missions.id, id));
+        finished.push(id);
+      }
+      const revision = async (id: string) =>
+        (
+          await db
+            .select({ revision: schema.missions.materialRevision })
+            .from(schema.missions)
+            .where(eq(schema.missions.id, id))
+        )[0]?.revision;
+      const before = await Promise.all(finished.map(revision));
+      const proof = await manage(db, owner);
+      const options = await listReplacementOptions(proof, { oldDocumentId: old });
+      if (!isOk(options)) throw new Error('options');
+      expect(options.value.cases.map((c) => c.missionId)).toEqual([open]);
+      const replaced = await replaceDocument(proof, { oldDocumentId: old, newDocumentId: newer });
+      if (!isOk(replaced)) throw new Error('replace');
+      expect(replaced.value.flaggedMissionIds).toEqual([open]);
+      expect(await Promise.all(finished.map(revision))).toEqual(before);
+      for (const id of finished) {
+        const tasks = await db
+          .select()
+          .from(schema.missionTasks)
+          .where(eq(schema.missionTasks.missionId, id));
+        expect(tasks).toEqual([]);
       }
     },
     HEAVY,
@@ -583,5 +687,21 @@ describe('documentLifecycleLabel', () => {
         ),
       ).toBe('Removed by the traveller on 20 Oct');
     }
+  });
+});
+
+describe('REPLACE_REFUSALS', () => {
+  it('stays exactly as the web actions test copies it', () => {
+    expect(REPLACE_REFUSALS).toEqual({
+      notOwner: 'only the record owner can replace a document',
+      sameDocument: 'a document cannot replace itself',
+      alreadyReplaced: 'this document has already been replaced',
+      newerReplaced: 'the newer document has itself been replaced',
+      checking: 'the newer document is still being checked',
+      cannotUse: 'the newer document cannot be used',
+      expired: 'the newer document has expired',
+      notCurrent: 'only a current document can be replaced, with another current document',
+      otherKind: 'the newer document must be the same kind of document',
+    });
   });
 });

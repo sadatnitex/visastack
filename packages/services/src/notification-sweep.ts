@@ -325,7 +325,16 @@ export async function sweepExpiryReminders(
     })
     .from(schema.issuerVerifications)
     .innerJoin(schema.applicants, eq(schema.applicants.id, schema.issuerVerifications.applicantId))
-    .where(lifecycle ? everydayApplicantCondition() : undefined)
+    .where(
+      lifecycle
+        ? and(
+            everydayApplicantCondition(),
+            // A confirmation about a document that is archived, in Recently Deleted or being
+            // removed sends no reminder either.
+            sql`(${schema.issuerVerifications.documentId} is null or exists (select 1 from ${schema.documents} where ${schema.documents.id} = ${schema.issuerVerifications.documentId} and ${everydayDocumentCondition()}))`,
+          )
+        : undefined,
+    )
     .limit(options.limit ?? 200);
 
   for (const row of verificationRows) {

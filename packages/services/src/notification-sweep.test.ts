@@ -696,6 +696,44 @@ describe('reminders and the resource lifecycle (LC-B)', () => {
     expect(result.checked).toBe(2 + 0);
   }, 60_000);
 
+  it('sends no confirmation reminder about an archived or deleted document', async () => {
+    const db = await lifecycleDb(false);
+    const { account, applicantId } = await seedOwner(db, 'lc-b-verification@example.com');
+    const far = new Date(now.getTime() + 400 * DAY_MS);
+    const kept = await expiringDocument(db, account.id, applicantId, far);
+    const archived = await expiringDocument(db, account.id, applicantId, far);
+    const deleted = await expiringDocument(db, account.id, applicantId, far);
+    await db.insert(schema.documentLifecycle).values([
+      { documentId: archived, applicantId, archivedAt: now },
+      {
+        documentId: deleted,
+        applicantId,
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * DAY_MS),
+      },
+    ]);
+    for (const documentId of [kept, archived, deleted]) {
+      await db.insert(schema.issuerVerifications).values({
+        applicantId,
+        documentId,
+        issuerIdentity: 'Synthetic Bank',
+        contactMethod: 'phone',
+        exactClaim: 'account held',
+        response: 'confirmed',
+        validUntil: in30Days,
+        verifiedByAccountId: account.id,
+      });
+    }
+    const result = await sweepExpiryReminders(db, now);
+    expect(result.enqueued).toBe(1);
+    const rows = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'VERIFICATION_EXPIRY'));
+    expect(rows).toHaveLength(2);
+  }, 60_000);
+
   it('still makes a case that chose an archived document confirm again once it expires', async () => {
     const db = await lifecycleDb(false);
     const { account, applicantId } = await seedOwner(db, 'lc-b-archived-dirty@example.com');

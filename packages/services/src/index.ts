@@ -2303,11 +2303,14 @@ export {
 
 // LC-B exports
 export {
+  FINISHED_CASE_STATES_FOR_REPLACE,
+  REPLACE_REFUSALS,
   type DocumentLifecycleLabelInput,
   type ReplaceDocumentOutcome,
   type ReplacedInCase,
   type ReplacementCandidate,
   type ReplacementOptions,
+  type ReplacementStatus,
   documentLifecycleLabel,
   listReplacementOptions,
   replaceDocument,

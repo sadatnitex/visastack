@@ -4,15 +4,24 @@ const mocks = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   listReplacementOptions: vi.fn(),
   replaceDocument: vi.fn(),
-  revalidatePath: vi.fn(),
 }));
 vi.mock('@visastack/services', () => ({
   accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
   requireAccess: mocks.requireAccess,
   listReplacementOptions: mocks.listReplacementOptions,
   replaceDocument: mocks.replaceDocument,
+  REPLACE_REFUSALS: {
+    notOwner: 'only the record owner can replace a document',
+    sameDocument: 'a document cannot replace itself',
+    alreadyReplaced: 'this document has already been replaced',
+    newerReplaced: 'the newer document has itself been replaced',
+    checking: 'the newer document is still being checked',
+    cannotUse: 'the newer document cannot be used',
+    expired: 'the newer document has expired',
+    notCurrent: 'only a current document can be replaced, with another current document',
+    otherKind: 'the newer document must be the same kind of document',
+  },
 }));
-vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('../../../../../../../lib/session', () => ({
   withSession: (fn: (ctx: { db: object; accountId: string }) => unknown) =>
     fn({ db: {}, accountId: 'acct-1' }),
@@ -47,7 +56,7 @@ describe('replace actions', () => {
     expect(mocks.listReplacementOptions).not.toHaveBeenCalled();
   });
 
-  it('replace, then redraw the documents page with the result line', async () => {
+  it('replace and return the result line, leaving the redraw to the flow', async () => {
     mocks.requireAccess.mockResolvedValue(proof('a1'));
     mocks.replaceDocument.mockResolvedValue({
       ok: true,
@@ -56,7 +65,6 @@ describe('replace actions', () => {
     const result = await replaceDocumentAction('a1', 'old', 'new');
     expect(result.ok).toBe(true);
     expect(result.message).toContain('1 case was updated');
-    expect(mocks.revalidatePath).toHaveBeenCalledWith('/app/applicant/a1/documents');
   });
 
   it('turn a refusal into plain words', async () => {
@@ -65,13 +73,26 @@ describe('replace actions', () => {
       ok: false,
       error: {
         code: 'invalid',
-        message: 'the newer document is still being checked or cannot be opened',
+        message: 'the newer document is still being checked',
       },
     });
     expect((await replaceDocumentAction('a1', 'old', 'new')).message).toBe(
       'The newer document is still being checked. Try again in a moment.',
     );
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    mocks.replaceDocument.mockResolvedValue({
+      ok: false,
+      error: { code: 'invalid', message: 'the newer document has expired' },
+    });
+    expect((await replaceDocumentAction('a1', 'old', 'new')).message).toBe(
+      'The newer document has expired. Choose one that is still valid.',
+    );
+    mocks.replaceDocument.mockResolvedValue({
+      ok: false,
+      error: { code: 'invalid', message: 'something unexpected' },
+    });
+    expect((await replaceDocumentAction('a1', 'old', 'new')).message).toBe(
+      'This document cannot be replaced right now. Refresh the page and try again.',
+    );
   });
 
   it('list the options with readable kinds and dates', async () => {
@@ -85,7 +106,7 @@ describe('replace actions', () => {
             documentId: 'n',
             name: 'Passport, New',
             uploadedAt: new Date('2026-10-30T00:00:00Z'),
-            ready: true,
+            status: 'READY',
           },
         ],
         cases: [],
@@ -101,7 +122,7 @@ describe('replace actions', () => {
           documentId: 'n',
           name: 'Passport, New',
           uploadedAt: '2026-10-30T00:00:00.000Z',
-          ready: true,
+          status: 'READY',
         },
       ],
       cases: [],

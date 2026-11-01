@@ -36,13 +36,13 @@ const loaded = (overrides: Record<string, unknown> = {}) => ({
       documentId: PENDING,
       name: 'Passport, Newest',
       uploadedAt: '2026-11-01T00:00:00Z',
-      ready: false,
+      status: 'CHECKING',
     },
     {
       documentId: NEWER,
       name: 'Passport, Renewed',
       uploadedAt: '2026-10-30T00:00:00Z',
-      ready: true,
+      status: 'READY',
     },
   ],
   cases: [
@@ -91,9 +91,9 @@ async function click(element: Element | null | undefined) {
   });
 }
 
-describe('Replace With a Newer Document', () => {
+describe('Replace with a Newer Document', () => {
   it('is registered under its own words in the Manage menu', () => {
-    expect(MANAGE_ACTIONS.REPLACE?.label).toBe('Replace With a Newer Document');
+    expect(MANAGE_ACTIONS.REPLACE?.label).toBe('Replace with a Newer Document');
     expect(MANAGE_ACTIONS.REPLACE?.Component).toBe(ReplaceAction);
   });
 
@@ -104,12 +104,15 @@ describe('Replace With a Newer Document', () => {
     expect(mocks.options).toHaveBeenCalledWith('a1', OLD);
     expect(radio(PENDING)?.disabled).toBe(true);
     expect(container.textContent).toContain('Still being checked');
-    expect(button('Continue')?.disabled).toBe(true);
+    // Nothing chosen: Continue stays focusable but does nothing.
+    expect(button('Continue')?.getAttribute('aria-disabled')).toBe('true');
+    await click(button('Continue'));
+    expect(container.querySelector('h3')?.textContent).toBe('Replace with a Newer Document');
 
     await act(async () => {
       radio(NEWER)?.click();
     });
-    expect(button('Continue')?.disabled).toBe(false);
+    expect(button('Continue')?.getAttribute('aria-disabled')).toBeNull();
     await click(button('Continue'));
 
     const heading = container.querySelector('h3');
@@ -125,9 +128,12 @@ describe('Replace With a Newer Document', () => {
     await click(button('Replace'));
     expect(mocks.replace).toHaveBeenCalledWith('a1', OLD, NEWER);
     expect(container.querySelector('output')?.textContent).toBe(replacedMessage(2));
-    expect(mocks.refresh).toHaveBeenCalled();
+    expect(document.activeElement).toBe(container.querySelector('h3'));
+    // The page is redrawn only when the person is done reading the result line.
+    expect(mocks.refresh).not.toHaveBeenCalled();
     await click(button('Done'));
     expect(onClose).toHaveBeenCalledOnce();
+    expect(mocks.refresh).toHaveBeenCalledOnce();
   });
 
   it('shows a refusal in plain words and lets the person go back', async () => {
@@ -144,7 +150,7 @@ describe('Replace With a Newer Document', () => {
     await click(button('Replace'));
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('still being checked');
     await click(button('Back'));
-    expect(container.querySelector('h3')?.textContent).toBe('Replace With a Newer Document');
+    expect(container.querySelector('h3')?.textContent).toBe('Replace with a Newer Document');
   });
 
   it('adds a new document of the same kind, then reads the list again until it is checked', async () => {
@@ -158,7 +164,7 @@ describe('Replace With a Newer Document', () => {
               documentId: PENDING,
               name: 'Passport, New',
               uploadedAt: '2026-11-01T00:00:00Z',
-              ready: false,
+              status: 'CHECKING',
             },
           ],
           cases: [],
@@ -171,7 +177,7 @@ describe('Replace With a Newer Document', () => {
               documentId: PENDING,
               name: 'Passport, New',
               uploadedAt: '2026-11-01T00:00:00Z',
-              ready: true,
+              status: 'READY',
             },
           ],
           cases: [],
@@ -179,7 +185,7 @@ describe('Replace With a Newer Document', () => {
       );
     mocks.upload.mockResolvedValue({ ok: true, message: 'Added' });
     await render();
-    expect(container.textContent).toContain('You have no other passport yet.');
+    expect(container.textContent).toContain('You have no other document of this kind yet.');
     const input = container.querySelector<HTMLInputElement>('input[type="file"]');
     if (!input) throw new Error('no file input');
     const file = new File(['x'], 'passport.jpg', { type: 'image/jpeg' });
@@ -204,6 +210,45 @@ describe('Replace With a Newer Document', () => {
     });
     // Checked: the list stops being read again.
     expect(mocks.options.mock.calls.length).toBe(calls);
+  });
+
+  it('keeps watching a check that was already running, then offers Check Again', async () => {
+    vi.useFakeTimers();
+    mocks.options.mockResolvedValue(
+      loaded({
+        candidates: [
+          {
+            documentId: PENDING,
+            name: 'Passport, New',
+            uploadedAt: '2026-11-01T00:00:00Z',
+            status: 'CHECKING',
+          },
+          {
+            documentId: NEWER,
+            name: 'Passport, Failed',
+            uploadedAt: '2026-10-30T00:00:00Z',
+            status: 'CANNOT_USE',
+          },
+        ],
+      }),
+    );
+    await render();
+    expect(container.textContent).toContain('Cannot be used');
+    expect(radio(NEWER)?.disabled).toBe(true);
+    const first = mocks.options.mock.calls.length;
+    for (let i = 0; i < 10; i += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+    }
+    expect(mocks.options.mock.calls.length).toBe(first + 10);
+    expect(button('Check Again')).toBeDefined();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000);
+    });
+    expect(mocks.options.mock.calls.length).toBe(first + 10);
+    await click(button('Check Again'));
+    expect(button('Check Again')).toBeUndefined();
   });
 
   it('says why when the document cannot be replaced, with a way out', async () => {
@@ -235,17 +280,20 @@ describe('the Replace It link from a reminder', () => {
       );
     });
     expect(container.querySelector('section')?.getAttribute('aria-label')).toBe(
-      'Replace With a Newer Document',
+      'Replace with a Newer Document',
     );
     expect(mocks.options).toHaveBeenCalledWith('a1', OLD);
+    // Nothing had focus yet: the flow takes it, so the person lands in it.
+    expect(document.activeElement).toBe(container.querySelector('h3'));
   });
 });
 
 describe('the words', () => {
   it('counts cases exactly', () => {
-    expect(confirmMessage(0)).toBe('No case uses this document, so nothing else changes.');
+    expect(confirmMessage(0)).toBe('No open case uses this document, so nothing else changes.');
     expect(confirmMessage(1)).toBe('1 case will be updated and will need to be confirmed again.');
     expect(confirmMessage(2)).toBe('2 cases will be updated and will need to be confirmed again.');
+    expect(replacedMessage(2)).toContain('2 cases were updated and need to be confirmed again.');
     expect(replacedMessage(1)).toBe(
       'Replaced. 1 case was updated and needs to be confirmed again. The old document stays in your records, marked Replaced.',
     );

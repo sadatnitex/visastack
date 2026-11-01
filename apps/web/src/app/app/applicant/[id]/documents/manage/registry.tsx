@@ -27,7 +27,7 @@ export interface ManageActionEntry {
 export const MANAGE_ACTIONS: Readonly<Partial<Record<DocumentAction, ManageActionEntry>>> = {
   // LC-A1 actions
   // LC-B actions
-  REPLACE: { label: 'Replace With a Newer Document', Component: ReplaceAction },
+  REPLACE: { label: 'Replace with a Newer Document', Component: ReplaceAction },
   // LC-C actions
   // LC-D actions
 };

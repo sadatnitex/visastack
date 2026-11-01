@@ -30,9 +30,14 @@ Same person only; agency, stranger and guessed id refused; snapshots byte-identi
 
 ## Status (lane fills in)
 
-- Started on main:
-- PR / merged SHA:
-- Checks seen green:
-- Live / hidden until migration:
-- Not verified:
-- Blocked:
+- Started on main: 9d5bb99abdc23571021bebe1cfe152013209a793 (LC-F, #381).
+- PR / merged SHA: not opened yet (blocked, see below). Branch `claude/lc-b-replace` holds the finished work.
+- Checks seen green: none on CI yet. Locally: lint and typecheck of the changed packages; services tests for replace, wallet, notification sweep, email design, read paths, access ratchet, attention and application memory (all green); web tests for the documents folder, title case, accessible forms and vocabulary (all green except the two F assertions under Blocked). The guarded full check has not run yet.
+- Tests added: `lifecycle/replace/replace.test.ts` (red first: same document, loop, unusable replacement, already replaced and the two-at-once race; also other kind, expired, still checking, cannot be used, a document handed in for one case only, archived or deleted on either side, stranger, agency with a real MANAGE grant, read-level proof, guessed id, snapshots byte-identical, open cases flagged and revision bumped, finished cases untouched, audit and product event, the label helper), each run with the lifecycle tables present and missing; `notification-sweep.test.ts` (Replace link, expiry link while tables are missing, no reminder for an archived or deleted document or an archived traveller, no confirmation reminder about an archived or deleted document, an archived document that expires still makes its cases confirm again, no task reminder for a deleted traveller record); `email-design.test.ts` (Replace It button); web `replace/replace-action.test.tsx` and `replace/actions.test.ts`. Seven guards were broken once in the real code and went red, then restored.
+- Live / hidden until migration: nothing is live yet. Once merged, while migration 0113 has not run: reminders keep linking to the expiry list and the Manage menu stays hidden, so people see no change. After the migration: the Manage menu offers Replace with a Newer Document, expiry reminders link to it and the email shows a Replace It button.
+- Open task and final submission (PROGRAMME section 12): an open "confirm again" task does not block confirming the case again; nothing in submission reads case tasks (test: flags every case ... keeps snapshots exact).
+- Notes for the coordinator: `supersedeDocument` keeps its signature and delegates to the shared logic with `legacy: true`, which skips only the usable, expired, same-kind and wallet-visible checks, because `attention.test.ts` (not in this lane) replaces with a document that has no file. It has no caller outside tests. If `attention.test.ts` gives its renewed passport a clean version, `legacy` can go. The menu and heading read "Replace with a Newer Document" (small "with"), because `title-case.test.ts` refuses "With"; `docs/uiux/ccd/VOCABULARY.md` line 122 (lane F) should match. Finished cases (closed, cancelled, submitted, D5) are left exactly as they were by a replacement.
+- Not verified: browser and smoke checks, build, the full test run, CI, the Replace flow against a real upload and virus scan, the email in a real inbox, and anything on production.
+- Blocked: `apps/web/src/app/app/applicant/[id]/documents/manage/manage-menu.test.tsx` (lane F, not in this allowlist) asserts the registry ships empty, so registering REPLACE turns two of its tests red (lane A1 will hit the same). Exact changes asked for:
+  1. Line 53: `expect(Object.keys(MANAGE_ACTIONS)).toEqual([]);` becomes `for (const key of Object.keys(MANAGE_ACTIONS)) expect(DOCUMENT_ACTIONS).toContain(key);` (with `import { DOCUMENT_ACTIONS } from '@visastack/services';`, and the test renamed "lists only frozen actions").
+  2. Line 70: `actions={['ARCHIVE', 'REPLACE']}` becomes `actions={['ARCHIVE', 'REPLACE']} registry={{}}`, so "renders nothing when no allowed action is registered" keeps testing an empty registry.

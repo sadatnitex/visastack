@@ -11193,3 +11193,105 @@ html:has(.sticky-action-bar) {
 .wallet-document-manage {
   padding: 0 var(--space-3) var(--space-2);
 }
+/* WP-LC-B replace: Replace with a Newer Document, the choice list, the upload and the result line (44 px targets) */
+.lc-replace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+.lc-replace-heading {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.lc-replace-heading:focus {
+  outline: none;
+}
+.lc-replace-heading:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.lc-replace-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.lc-replace-legend {
+  padding: 0;
+  font-weight: 650;
+}
+.lc-replace-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.lc-replace-choice input {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+}
+.lc-replace-choice:has(input:checked) {
+  border-color: var(--accent);
+}
+.lc-replace-choice[data-status="CHECKING"],
+.lc-replace-choice[data-status="CANNOT_USE"] {
+  cursor: default;
+  color: var(--text-secondary);
+}
+.lc-replace-choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.lc-replace-choice-name {
+  overflow-wrap: anywhere;
+}
+.lc-replace-choice-meta,
+.lc-replace-note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.lc-replace-upload,
+.lc-replace-recheck {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.lc-replace-upload input[type="file"] {
+  min-height: 44px;
+  max-width: 100%;
+}
+.lc-replace-cases {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+.lc-replace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.lc-replace-actions .btn,
+.lc-replace-upload .btn,
+.lc-replace-recheck .btn {
+  min-height: 44px;
+}
+.lc-replace-problem {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
