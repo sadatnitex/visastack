@@ -39,7 +39,7 @@ export default async function PackStudioPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<SearchParamsRecord>;
-} = {}) {
+}) {
   const query: SearchParamsRecord = (await searchParams) ?? {};
   const { show } = query;
   const packsShown = parseShow(show, STEP);

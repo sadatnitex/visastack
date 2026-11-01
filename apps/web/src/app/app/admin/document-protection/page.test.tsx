@@ -138,7 +138,7 @@ const financialTab = () => Page({ searchParams: Promise.resolve({ category: 'fin
 
 describe('Platform > Settings > Document Protection', () => {
   it('shows the categories as tabs, the first open, and an unknown category falls back to it', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(html).toContain('aria-label="Document Categories"');
     expect(html).toMatch(
       /href="\/app\/admin\/document-protection#document-categories" aria-current="page"/,
@@ -163,7 +163,7 @@ describe('Platform > Settings > Document Protection', () => {
 
   it('shows only the restricted notice to someone without the permission', async () => {
     mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(textOf(html)).toContain('This area is restricted to platform administrators');
     expect(mocks.staffPrincipal.mock.calls[0]?.[2]).toBe('DOCUMENT_PROTECTION_MANAGE');
     expect(mocks.getDocumentProtectionOverview).not.toHaveBeenCalled();
@@ -171,7 +171,7 @@ describe('Platform > Settings > Document Protection', () => {
   });
 
   it('says in plain words what each switch does for travellers', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Document Protection');
     expect(text).toContain(
       'Ask for a fresh sign-in check before anyone previews or downloads these documents.',
@@ -196,7 +196,7 @@ describe('Platform > Settings > Document Protection', () => {
   });
 
   it('shows who changed a switch, when, why, and the standard setting', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Changed by security@example.com on');
     expect(text).toContain('Standard setting: On.');
     expect(text).toContain('Reason: Agencies said vaccination cards are routine');
@@ -204,7 +204,7 @@ describe('Platform > Settings > Document Protection', () => {
   });
 
   it('gives every category, document and the unsorted rule its own switch, one category tab at a time', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const switches = stubProps<{ scope: string; switchKey: string; offWarning?: string }>(
       html,
       'ProtectionSwitch',
@@ -239,7 +239,7 @@ describe('Platform > Settings > Document Protection', () => {
   });
 
   it('says when a group is off but some documents in it are still protected', async () => {
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain(
       'These documents open without a fresh sign-in check. 1 document in this group is still protected.',
     );
@@ -256,7 +256,7 @@ describe('Platform > Settings > Document Protection', () => {
       ok: false,
       error: { code: 'upstream_error', message: 'x' },
     });
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(textOf(html)).toContain(
       'Document protection settings are not available yet. Until they are, every document needs a fresh sign-in check before anyone previews or downloads it.',
     );
@@ -265,9 +265,9 @@ describe('Platform > Settings > Document Protection', () => {
   });
 
   it('warns clearly while the unsorted-documents check is off', async () => {
-    expect(textOf(await renderServer(Page()))).not.toContain('can expose them without a check');
+    expect(textOf(await renderServer(Page({})))).not.toContain('can expose them without a check');
     mocks.getDocumentProtectionOverview.mockResolvedValue({ ok: true, value: overview(false) });
-    const text = textOf(await renderServer(Page()));
+    const text = textOf(await renderServer(Page({})));
     expect(text).toContain(
       'Documents that are not sorted yet could be passports, bank statements or medical records, so turning this off can expose them without a check.',
     );

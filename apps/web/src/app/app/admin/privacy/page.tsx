@@ -75,7 +75,7 @@ export default async function AdminPrivacyPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<SearchParamsRecord>;
-} = {}) {
+}) {
   const query: SearchParamsRecord = (await searchParams) ?? {};
   const { tab: tabParam, before: cursorParam } = query;
   const tab = tabOf(firstParam(tabParam));

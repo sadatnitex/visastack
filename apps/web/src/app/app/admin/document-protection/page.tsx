@@ -85,7 +85,7 @@ export default async function DocumentProtectionPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<SearchParamsRecord>;
-} = {}) {
+}) {
   const query: SearchParamsRecord = (await searchParams) ?? {};
   const { category: categoryParam } = query;
   const wanted = firstParam(categoryParam);

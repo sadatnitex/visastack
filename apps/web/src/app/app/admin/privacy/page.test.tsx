@@ -119,7 +119,7 @@ const tab = (name: string, extra: Record<string, string> = {}) =>
 
 describe('Platform > Privacy', () => {
   it('opens on Retention with the four sections as tabs, and only the policies showing', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(text).toContain('Document Retention Policies');
     expect(text).toContain('Passport');
@@ -200,7 +200,7 @@ describe('Platform > Privacy', () => {
         lastError: null,
       })),
     );
-    expect(textOf(await renderServer(Page()))).toContain('Erasure (50+)');
+    expect(textOf(await renderServer(Page({})))).toContain('Erasure (50+)');
   });
 
   it('flags a hold with no review date and one whose review is overdue', async () => {

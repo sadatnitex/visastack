@@ -49,7 +49,7 @@ beforeEach(() => {
 
 describe('Platform > Organizations', () => {
   it('shows each organization with only the actions its status allows', async () => {
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(textOf(html)).toContain('Organizations');
     for (const org of orgs) expect(html).toContain(org.name);
     expect(
@@ -66,17 +66,17 @@ describe('Platform > Organizations', () => {
   });
 
   it('offers the Manage link only to a platform owner', async () => {
-    const asAdmin = await renderServer(Page());
+    const asAdmin = await renderServer(Page({}));
     expect(asAdmin).not.toContain('/app/admin/organizations/o-active');
     mocks.isPlatformOwnerAccount.mockResolvedValue(true);
-    const asOwner = await renderServer(Page());
+    const asOwner = await renderServer(Page({}));
     expect(asOwner).toContain('href="/app/admin/organizations/o-active"');
     expect(asOwner).toContain('>Manage<');
   });
 
   it('refuses anyone who is not a platform administrator, without reading anything', async () => {
     mocks.isPlatformAdmin.mockResolvedValue(false);
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(textOf(html)).toContain('restricted to platform administrators');
     expect(html).not.toContain('Active Visa Desk');
     expect(mocks.listAllOrganizations).not.toHaveBeenCalled();
@@ -87,7 +87,7 @@ describe('Platform > Organizations', () => {
     mocks.listAllOrganizations.mockRejectedValue(
       new Error('relation "organizations" does not exist'),
     );
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(textOf(html)).toContain('Some Sections Could Not Be Loaded');
     expect(textOf(html)).toContain('organizations');
     expect(textOf(html)).toContain('No Organizations Yet');
@@ -95,7 +95,7 @@ describe('Platform > Organizations', () => {
 
   it('keeps an unrelated failure of the permission check an error', async () => {
     mocks.isPlatformAdmin.mockRejectedValue(new Error('permission lookup failed'));
-    await expect(Page()).rejects.toThrow('permission lookup failed');
+    await expect(Page({})).rejects.toThrow('permission lookup failed');
   });
 
   it('reads one page of 25 with the filters from the address, and ignores an unknown status', async () => {
@@ -131,11 +131,11 @@ describe('Platform > Organizations', () => {
 
   it('keeps suspend, terminate and manage in a row menu named for its organization', async () => {
     mocks.isPlatformOwnerAccount.mockResolvedValue(true);
-    const html = await renderServer(Page());
+    const html = await renderServer(Page({}));
     expect(html.match(/class="sb7-row-menu"/g)).toHaveLength(4);
     expect(textOf(html)).toContain('More Actions for Active Visa Desk');
     mocks.isPlatformOwnerAccount.mockResolvedValue(false);
-    const asAdmin = await renderServer(Page());
+    const asAdmin = await renderServer(Page({}));
     // Pending and closed organizations have nothing behind a menu for a non-owner.
     expect(asAdmin.match(/class="sb7-row-menu"/g)).toHaveLength(2);
   });

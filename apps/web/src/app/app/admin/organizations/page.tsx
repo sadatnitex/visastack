@@ -48,7 +48,7 @@ export default async function AdminOrganizationsPage({
   searchParams,
 }: {
   readonly searchParams?: Promise<SearchParamsRecord>;
-} = {}) {
+}) {
   const query: SearchParamsRecord = (await searchParams) ?? {};
   const { q, status: statusParam, before: cursorParam } = query;
   const search = (firstParam(q) ?? '').trim().slice(0, SEARCH_MAX_CHARS);
