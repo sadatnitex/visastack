@@ -45,10 +45,12 @@ export const SIGNAL_NAMES: Readonly<Record<TravellerHealthSignal['key'], string>
 
 /** What each signal counts, in one line. */
 export const SIGNAL_MEANINGS: Readonly<Record<TravellerHealthSignal['key'], string>> = {
-  checkout_success: 'Of the traveller checkouts finished in the last day, the share that was paid.',
+  checkout_success:
+    'Of the traveller checkouts started in the last day and finished, the share where the money was taken.',
   confirmation_time:
     'How long a payment takes from the payment page to confirmed, for half of the payments in the last 7 days.',
-  stuck_confirming: 'Payments still confirming with the payment gateway after 30 minutes.',
+  stuck_confirming:
+    'Payments still confirming with the payment gateway after 30 minutes, however long ago they started.',
   needs_check: 'Traveller payments held for a check.',
 };
 
@@ -98,5 +100,5 @@ export function rateWords(rate: number | null): string {
 /** The one sentence about test payments, which are never in the other numbers. */
 export function testPaymentsSentence(count: number, days: number): string {
   const counted = count === 0 ? 'none' : count === 1 ? '1 payment' : `${count} payments`;
-  return `Test payments are counted apart and left out of Payments, Renewals Paid, Refunds and the rates: ${counted} in the last ${days} days. Views, Get taps and the other counts include tests.`;
+  return `Test payments are counted apart and left out of Payments, Renewals Paid, Refunds and the rates: ${counted} in the last ${days} days. Views, Get taps and the other counts include tests. While payments are in test mode only you can pay, so purchases travellers start then show as not paid.`;
 }

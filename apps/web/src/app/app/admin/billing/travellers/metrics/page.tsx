@@ -108,17 +108,17 @@ function Rates({ metrics }: { readonly metrics: TravellerPlanMetrics }) {
     {
       name: 'Conversion',
       rate: metrics.rates.conversion,
-      meaning: 'Of the checkouts started, the share that was paid.',
+      meaning: 'Of the purchases started in these days, the share that was paid.',
     },
     {
       name: 'Renewal',
       rate: metrics.rates.renewal,
-      meaning: 'Of the renewals made, the share that was paid.',
+      meaning: 'Of the renewals made in these days, the share that was paid.',
     },
     {
       name: 'Refund',
       rate: metrics.rates.refund,
-      meaning: 'Of the payments, the share that was refunded.',
+      meaning: 'Of the payments made in these days, the share refunded since.',
     },
   ];
   return (
@@ -179,7 +179,6 @@ function Health({ health }: { readonly health: TravellerHealth }) {
   );
 }
 
-/** The platform owner's traveller plan counts, rates, health signals and alert thresholds. */
 /** Thresholds typed before a sign-in check, back in the address: used only when all four are whole numbers. */
 function typedThresholds(
   query: Record<string, string | string[] | undefined>,
@@ -199,6 +198,16 @@ function typedThresholds(
     : null;
 }
 
+function sameThresholds(a: TravellerHealthThresholds, b: TravellerHealthThresholds): boolean {
+  return (
+    a.checkoutSuccessMinPercent === b.checkoutSuccessMinPercent &&
+    a.confirmationMaxMinutes === b.confirmationMaxMinutes &&
+    a.stuckConfirmingMax === b.stuckConfirmingMax &&
+    a.needsCheckMax === b.needsCheckMax
+  );
+}
+
+/** The platform owner's traveller plan counts, rates, health signals and alert thresholds. */
 export default async function TravellerPlanMetricsPage({
   searchParams,
 }: {
@@ -256,6 +265,12 @@ export default async function TravellerPlanMetricsPage({
               A health signal shows Needs Attention when it passes its threshold. Saving asks you to
               confirm it is you.
             </p>
+            {typed && !sameThresholds(typed, data.health.thresholds) ? (
+              <p className="notice u-mb-100">
+                These are the numbers you typed before confirming it was you. They are not saved
+                yet: press Save Thresholds to save them.
+              </p>
+            ) : null}
             <TravellerThresholdsForm
               thresholds={
                 typed ?? {

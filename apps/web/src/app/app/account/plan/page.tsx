@@ -302,12 +302,13 @@ export default async function TravellerPlanPage({
   const selling = travellerPlansEnabled();
   const data = await withSession(async ({ db, accountId, self }) => {
     // ADR 0025 section 12.6 (T6): one view counted, a number and never who, only while selling is
-    // on. Run beside the reads; it never fails the page.
+    // on, and not again for the page shown after Get to confirm the purchase. Run beside the
+    // reads; it never fails the page.
     const [summary, aiUsage, owned] = await Promise.all([
       getTravellerPlanSummary(db, { actorAccountId: accountId }),
       readAiUsage(db, accountId),
       listApplicants(db, accountId),
-      selling ? countTravellerPlanEvent(db, 'PLAN_VIEWED') : null,
+      selling && purchaseParam === null ? countTravellerPlanEvent(db, 'PLAN_VIEWED') : null,
     ]);
     // Only the profiles this account owns, counted exactly as the upload limits count them.
     const profiles = await Promise.all(

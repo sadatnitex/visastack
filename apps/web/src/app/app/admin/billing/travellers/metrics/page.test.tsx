@@ -213,13 +213,13 @@ describe('Platform > Traveller Plan Metrics', () => {
   it('gives the three rates as plain percentages with what each means, and counts test payments apart', async () => {
     const text = textOf(await renderServer(Page()));
     expect(text).toContain('Conversion: 50%');
-    expect(text).toContain('Of the checkouts started, the share that was paid.');
+    expect(text).toContain('Of the purchases started in these days, the share that was paid.');
     expect(text).toContain('Renewal: 50%');
-    expect(text).toContain('Of the renewals made, the share that was paid.');
+    expect(text).toContain('Of the renewals made in these days, the share that was paid.');
     expect(text).toContain('Refund: 25%');
-    expect(text).toContain('Of the payments, the share that was refunded.');
+    expect(text).toContain('Of the payments made in these days, the share refunded since.');
     expect(text).toContain(
-      'Test payments are counted apart and left out of Payments, Renewals Paid, Refunds and the rates: 2 payments in the last 14 days. Views, Get taps and the other counts include tests.',
+      'Test payments are counted apart and left out of Payments, Renewals Paid, Refunds and the rates: 2 payments in the last 14 days. Views, Get taps and the other counts include tests. While payments are in test mode only you can pay, so purchases travellers start then show as not paid.',
     );
     expect(text).not.toContain('Not enough data yet');
   });
@@ -264,7 +264,9 @@ describe('Platform > Traveller Plan Metrics', () => {
     // A badge for each, never colour alone.
     expect(section.match(/class="badge badge-warning"/g)).toHaveLength(2);
     expect(section.match(/class="badge badge-success"/g)).toHaveLength(2);
-    expect(text).toContain('Payments still confirming with the payment gateway after 30 minutes.');
+    expect(text).toContain(
+      'Payments still confirming with the payment gateway after 30 minutes, however long ago they started.',
+    );
 
     mocks.travellerPlanHealth.mockResolvedValue(
       health([
@@ -314,6 +316,15 @@ describe('Platform > Traveller Plan Metrics', () => {
     expect(inputValue('confirmationMaxMinutes')).toBe('30');
     expect(inputValue('stuckConfirmingMax')).toBe('3');
     expect(inputValue('needsCheckMax')).toBe('4');
+    expect(textOf(html)).toContain('They are not saved yet: press Save Thresholds to save them.');
+    expect(await axeViolations(html)).toEqual([]);
+    // Once saved, the same numbers in the address are simply the saved ones: no note.
+    const same = await renderServer(
+      Page({
+        searchParams: Promise.resolve({ success: '60', minutes: '20', stuck: '1', check: '2' }),
+      }),
+    );
+    expect(textOf(same)).not.toContain('not saved yet');
     // Anything odd in the address, or one missing, and the saved thresholds show instead.
     for (const odd of [
       { ...typed, stuck: '1.5' },

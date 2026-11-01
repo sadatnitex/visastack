@@ -419,6 +419,13 @@ describe('buying a paid plan on Plan & Usage (ADR 0025 T3c)', () => {
     expect(countingAlready).toBe(true);
   });
 
+  it('does not count the page shown after Get to confirm the purchase as another view (T6)', async () => {
+    await renderServer(
+      Page({ searchParams: Promise.resolve({ purchase: '00000000-0000-4000-8000-0000000000bb' }) }),
+    );
+    expect(mocks.count).not.toHaveBeenCalled();
+  });
+
   it('shows nothing to buy, and reads no plans, while selling is switched off', async () => {
     vi.stubEnv('TRAVELLER_PLANS_ENABLED', 'false');
     mocks.catalogue.mockClear();

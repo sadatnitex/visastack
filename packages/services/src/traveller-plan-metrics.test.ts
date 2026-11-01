@@ -143,6 +143,26 @@ describe('traveller plan metrics for the platform owner (ADR 0025 T6)', () => {
     expect(isOk(await startPersonCheckout(db, selfPrincipal(bob), { planId }))).toBe(true);
     const later = await travellerPlanMetrics(db, staff, { days: 7 });
     expect(isOk(later) && later.value.rates.conversion).toBe(0.5);
+    // A test payment page opened and never paid is a test too, never an unpaid purchase.
+    const carol = await account('carol-metrics@example.com');
+    const carolBuys = await startPersonCheckout(db, selfPrincipal(carol), { planId });
+    if (!isOk(carolBuys)) throw new Error('checkout');
+    await db.execute(sql`
+      insert into payment_attempts
+      select (jsonb_populate_record(null::payment_attempts, to_jsonb(a) || jsonb_build_object(
+        'id', gen_random_uuid(), 'invoice_id', ${carolBuys.value.invoiceId}::uuid,
+        'payer_account_id', ${carol}::uuid, 'merchant_tran_id', 'TEST-PAGE-ONLY',
+        'status', 'REDIRECTED', 'provider_val_id', null, 'bank_tran_id', null,
+        'recorded_at', null))).*
+      from payment_attempts a where a.payer_account_id = ${owner}::uuid and a.mode = 'TEST'`);
+    const withTest = await travellerPlanMetrics(db, staff, { days: 7 });
+    expect(isOk(withTest) && withTest.value.rates.conversion).toBe(0.5);
+    // A withdrawn (voided) purchase is never counted as one left unpaid.
+    await db.execute(
+      sql`update invoices set status = 'VOID' where payer_account_id = ${bob}::uuid`,
+    );
+    const voided = await travellerPlanMetrics(db, staff, { days: 7 });
+    expect(isOk(voided) && voided.value.rates.conversion).toBe(1);
     // Numbers and days only: no id, no email.
     const text = JSON.stringify(metrics.value);
     expect(text).not.toMatch(UUID);
@@ -153,9 +173,10 @@ describe('traveller plan metrics for the platform owner (ADR 0025 T6)', () => {
     const staff = await ownerScope();
     // A payment left at the gateway for an hour: stuck confirming.
     const stuck = await startPaying(alice);
+    // Stuck for weeks is the worst case: it still counts.
     await db
       .update(personPaymentAttempts)
-      .set({ createdAt: new Date(Date.now() - 60 * 60 * 1000) })
+      .set({ createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) })
       .where(eq(personPaymentAttempts.id, stuck.id));
     const first = await travellerPlanHealth(db, staff);
     if (!isOk(first)) throw new Error('health');

@@ -220,6 +220,7 @@ export async function travellerPlanMetrics(
   // The rates follow one group each (a cohort): the purchases and renewals made in the window,
   // and how many of those were paid with real money (test-mode ones are left out).
   let cohort = { purchases: 0, purchasesPaid: 0, renewals: 0, renewalsPaid: 0 };
+  let refundShare = { paid: 0, refunded: 0 };
   if (await personBillingPresent(db)) {
     const [made] = rowsOf<{
       purchases: number | string;
@@ -238,11 +239,17 @@ export async function travellerPlanMetrics(
             exists (select 1 from invoices prior where prior.subscription_id = i.subscription_id
               and prior.payer_account_id = i.payer_account_id and prior.period_end = i.period_start
               and prior.id <> i.id) as renewal,
-            exists (select 1 from invoice_payments p where p.invoice_id = i.id and p.kind = 'ONLINE'
-              and p.mode = 'LIVE') as paid,
-            exists (select 1 from invoice_payments p where p.invoice_id = i.id and p.mode = 'TEST') as test
+            -- Paid online, or with a held payment credited after its check.
+            exists (select 1 from invoice_payments p where p.invoice_id = i.id
+              and p.kind in ('ONLINE', 'CREDIT') and p.mode = 'LIVE') as paid,
+            -- Test money, or a test payment page opened, makes the whole invoice a test.
+            (exists (select 1 from invoice_payments p where p.invoice_id = i.id and p.mode = 'TEST')
+              or exists (select 1 from payment_attempts a where a.invoice_id = i.id
+                and a.mode = 'TEST')) as test
           from invoices i
-          where i.payer_account_id is not null and i.created_at >= ${since}
+          -- A voided invoice was withdrawn (Stop Renewing, a plan switch): never a purchase or a
+          -- renewal left unpaid.
+          where i.payer_account_id is not null and i.status <> 'VOID' and i.created_at >= ${since}
         ) x
         where not x.test`),
     );
@@ -265,7 +272,7 @@ export async function travellerPlanMetrics(
           count(*)::int as n
         from invoice_payments p
         join invoices i on i.id = p.invoice_id and i.payer_account_id is not null
-        where p.kind = 'ONLINE' and p.collected_date >= ${since}
+        where p.kind in ('ONLINE', 'CREDIT') and p.collected_date >= ${since}
         group by 1, 2, 3`),
     );
     add(
@@ -279,16 +286,34 @@ export async function travellerPlanMetrics(
     testPayments = payments
       .filter((r) => r.mode === 'TEST')
       .reduce((sum, r) => sum + Number(r.n), 0);
+    // A real payment refunded, counted once on the day its refund was first confirmed, however many
+    // parts it was refunded in; a held payment sent back counts too.
     const refunds = rowsOf<{ day: string; n: string | number }>(
       await db.execute(sql`
-        select ${localDay(sql`r.confirmed_at`)} as day, count(*)::int as n
-        from refund_requests r
-        join invoice_payments p on p.id = r.invoice_payment_id and p.mode = 'LIVE'
-        where r.payer_account_id is not null and r.status = 'CONFIRMED'
-          and r.confirmed_at >= ${since}
+        select day, count(*)::int as n from (
+          select ${localDay(sql`min(r.confirmed_at)`)} as day
+          from refund_requests r
+          left join invoice_payments p on p.id = r.invoice_payment_id
+          left join payment_attempts a on a.id = r.payment_attempt_id
+          where r.payer_account_id is not null and r.status = 'CONFIRMED'
+            and coalesce(p.mode::text, a.mode::text) = 'LIVE'
+          group by coalesce(r.invoice_payment_id, r.payment_attempt_id)
+          having min(r.confirmed_at) >= ${since}
+        ) refunded
         group by 1`),
     );
     add(refunds, 'refunds');
+    // The refund rate: of the real payments collected in these days, how many were refunded since.
+    const [share] = rowsOf<{ paid: number | string; refunded: number | string }>(
+      await db.execute(sql`
+        select count(*)::int as paid,
+          count(*) filter (where exists (select 1 from refund_requests r
+            where r.invoice_payment_id = p.id and r.status = 'CONFIRMED'))::int as refunded
+        from invoice_payments p
+        join invoices i on i.id = p.invoice_id and i.payer_account_id is not null
+        where p.kind in ('ONLINE', 'CREDIT') and p.mode = 'LIVE' and p.collected_date >= ${since}`),
+    );
+    if (share) refundShare = { paid: Number(share.paid), refunded: Number(share.refunded) };
   }
 
   const days = keys.map((day) => ({ day, ...(byDay.get(day) ?? EMPTY_DAY) }));
@@ -312,7 +337,7 @@ export async function travellerPlanMetrics(
     rates: {
       conversion: ratio(cohort.purchasesPaid, cohort.purchases),
       renewal: ratio(cohort.renewalsPaid, cohort.renewals),
-      refund: ratio(totals.refunds, totals.payments),
+      refund: ratio(refundShare.refunded, refundShare.paid),
     },
     testPayments,
     countsAvailable,
@@ -503,11 +528,18 @@ export async function travellerPlanHealth(
         select
           count(*) filter (where a.created_at >= ${dayAgo}::timestamptz
             and a.status in ('RECORDED', 'FAILED', 'CANCELLED', 'EXPIRED', 'HELD_FOR_REVIEW', 'REFUNDED'))::int as finished,
-          count(*) filter (where a.created_at >= ${dayAgo}::timestamptz and a.status in ('RECORDED', 'REFUNDED'))::int as paid,
+          -- Held money was taken from the traveller: a paid checkout, whatever the check decides.
+          count(*) filter (where a.created_at >= ${dayAgo}::timestamptz
+            and a.status in ('RECORDED', 'HELD_FOR_REVIEW', 'REFUNDED'))::int as paid,
+          -- Only payments the gateway confirmed: one released by hand after a check is not timed.
           percentile_cont(0.5) within group (order by extract(epoch from (a.recorded_at - coalesce(a.redirected_at, a.created_at))) / 60)
-            filter (where a.status = 'RECORDED' and a.recorded_at >= ${weekAgo}::timestamptz) as median_minutes,
-          count(*) filter (where a.status in ('REDIRECTED', 'VALIDATED') and a.created_at < ${stuckSince}::timestamptz
-            and a.created_at >= ${weekAgo}::timestamptz)::int as stuck,
+            filter (where a.status = 'RECORDED' and a.recorded_at >= ${weekAgo}::timestamptz
+              and not exists (select 1 from refund_requests rr where rr.payment_attempt_id = a.id)
+              and not exists (select 1 from invoice_payments cp where cp.kind = 'CREDIT'
+                and cp.source_id = a.id)) as median_minutes,
+          -- Every payment still confirming after 30 minutes, however long ago it started.
+          count(*) filter (where a.status in ('REDIRECTED', 'VALIDATED')
+            and a.created_at < ${stuckSince}::timestamptz)::int as stuck,
           count(*) filter (where a.status = 'HELD_FOR_REVIEW' and a.amount_minor_units > coalesce((
             select sum(rr.amount_minor_units) from refund_requests rr where rr.payment_attempt_id = a.id
               and rr.status in ('REQUESTED', 'SUBMITTED', 'CONFIRMED')), 0))::int as held
