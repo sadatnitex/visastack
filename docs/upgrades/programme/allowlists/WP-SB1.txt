@@ -18,6 +18,8 @@ packages/services/src/consent-history.test.ts
 packages/services/src/notifications.ts
 packages/services/src/notifications.test.ts
 apps/web/e2e/scroll-budget/WP-SB1.spec.ts
+# The spec's own fixture (test support for the spec above; support.ts reads a package's fixture from this folder).
+apps/web/e2e/scroll-budget/scroll-budget-sb1.fixture.tsx
 apps/web/src/app/globals.css
 docs/commercial-v1/known-issues.md
 docs/upgrades/programme/COVERAGE-LEDGER.csv
