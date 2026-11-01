@@ -8,7 +8,13 @@ import { purgeMissionUnconditionally } from './case-retention';
 import { getConsents } from './consent';
 import { type Db, first, schema } from './db';
 import { executeAccountDeletion } from './deletion';
-import { enqueueErasureJob, safeCopyDrawingIds } from './erasure';
+import {
+  DOCUMENT_ROW_REASONS,
+  type ErasureJobReason,
+  enqueueErasureJob,
+  safeCopyDrawingIds,
+} from './erasure';
+import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { isMissingRelationError } from './missing-relation';
 import { redactionMasksTablePresent } from './redaction-table';
@@ -53,9 +59,11 @@ import { redactionMasksTablePresent } from './redaction-table';
  *   own current hold/complaint state may be stale or have genuinely
  *   diverged. Reconciliation forces the exact end state that was already
  *   decided, nothing more.
- * - Erasure (`ERASURE_VERIFIED`, `erasure.ts`) has exactly two enqueue
- *   sources -- account deletion (a single, ungated storage-object delete)
- *   and `retention.ts`'s `purgeExpiredDocuments` (gated behind every
+ * - Erasure (`ERASURE_VERIFIED`, `erasure.ts`) has two kinds of enqueue
+ *   source -- account deletion (a single, ungated storage-object delete)
+ *   and the document-row reasons (`DOCUMENT_ROW_REASONS`: `retention.ts`'s
+ *   `purgeExpiredDocuments`, and a lifecycle removal from
+ *   `enqueueDocumentRemoval`), each gated behind every
  *   sibling storage object a document ever referenced also reaching
  *   VERIFIED, per `finalizeVerifiedJob`'s own completion check). Rather
  *   than reconstructing that job-by-job gating state machine on the
@@ -99,6 +107,9 @@ const RECONCILED_EVENT_TYPES = [
   'DOCUMENT_REDACTION_CLEARED',
   'GRANT_AI_ASSIST_CHANGED',
   'ORGANIZATION_AI_SETTING_UPDATED',
+  // LC-F: a deleted document with no stored file is removed at once (no erasure job, so no
+  // ERASURE_VERIFIED); its `removed: true` event is replayed here instead (owner decision D10).
+  'DOCUMENT_REMOVAL_QUEUED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -973,7 +984,9 @@ async function forceErasureVerified(
       .returning({ id: schema.storageObjects.id });
     return deleted.length > 0;
   }
-  if (reason === 'RETENTION_PURGE') {
+  // A lifecycle removal (owner decision D10) is never brought back by a restore, exactly like an
+  // expired document: the same document-row path.
+  if (reason !== undefined && DOCUMENT_ROW_REASONS.has(reason as ErasureJobReason)) {
     const job = first(
       await oldDb
         .select({ documentId: schema.erasureJobs.documentId })
@@ -1007,6 +1020,9 @@ async function forceErasureVerified(
       for (const missionId of await missionsSelectingDocument(tx, documentId)) {
         await incrementMaterialRevision(tx, missionId);
       }
+      // The restored Removal Record reads Removed, as it did on the old branch: read before the
+      // delete, which takes the document's lifecycle row with it.
+      await markRestoredRemovalComplete(tx, documentId);
       const deletedDocuments = await tx
         .delete(schema.documents)
         .where(eq(schema.documents.id, documentId))
@@ -1022,6 +1038,67 @@ async function forceErasureVerified(
   throw new Error(
     `unrecognized ERASURE_VERIFIED reason on storage object ${resourceId}: ${String(reason)}`,
   );
+}
+
+/**
+ * A restored branch can hold the Removal Record of a document whose removal finished on the old
+ * branch, still reading Scheduled or Removing: move it forward to Removed, the only way the
+ * receipt guard of migration 0113 allows. Nothing to do before that migration.
+ */
+async function markRestoredRemovalComplete(tx: Db, documentId: string): Promise<void> {
+  if (!(await lifecycleTablesPresent(tx))) return;
+  const row = first(
+    await tx
+      .select({ receiptId: schema.documentLifecycle.receiptId })
+      .from(schema.documentLifecycle)
+      .where(eq(schema.documentLifecycle.documentId, documentId)),
+  );
+  if (!row?.receiptId) return;
+  const receipt = first(
+    await tx
+      .select({ status: schema.deletionReceipts.status })
+      .from(schema.deletionReceipts)
+      .where(eq(schema.deletionReceipts.id, row.receiptId))
+      .for('update'),
+  );
+  if (!receipt || receipt.status === 'REMOVED' || receipt.status === 'RESTORED') return;
+  if (receipt.status !== 'REMOVING') {
+    await tx
+      .update(schema.deletionReceipts)
+      .set({ status: 'REMOVING' })
+      .where(eq(schema.deletionReceipts.id, row.receiptId));
+  }
+  await tx
+    .update(schema.deletionReceipts)
+    .set({ status: 'REMOVED', verifiedGoneAt: new Date() })
+    .where(eq(schema.deletionReceipts.id, row.receiptId));
+}
+
+/**
+ * A document removed with no stored file on the old branch is removed on the restored one too:
+ * every case selecting it moves on, its Removal Record reads Removed, then the row goes. Running
+ * again finds no row and does nothing.
+ */
+async function forceDocumentRemovedWithoutFiles(newDb: Db, documentId: string): Promise<boolean> {
+  return newDb.transaction(async (tx) => {
+    const present = first(
+      await tx
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .where(eq(schema.documents.id, documentId))
+        .for('update'),
+    );
+    if (!present) return false;
+    for (const missionId of await missionsSelectingDocument(tx, documentId)) {
+      await incrementMaterialRevision(tx, missionId);
+    }
+    await markRestoredRemovalComplete(tx, documentId);
+    const deleted = await tx
+      .delete(schema.documents)
+      .where(eq(schema.documents.id, documentId))
+      .returning({ id: schema.documents.id });
+    return deleted.length > 0;
+  });
 }
 
 /** Which counter and audit resourceType each event type drives, once applied. */
@@ -1053,6 +1130,7 @@ const EVENT_META: Readonly<
   DOCUMENT_REDACTION_CLEARED: { counter: 'redactionMasksReconciled', resourceType: 'document' },
   GRANT_AI_ASSIST_CHANGED: { counter: 'aiAssistRemoved', resourceType: 'grant' },
   ORGANIZATION_AI_SETTING_UPDATED: { counter: 'agencyAiSettingsOff', resourceType: 'organization' },
+  DOCUMENT_REMOVAL_QUEUED: { counter: 'erasuresVerified', resourceType: 'document' },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -1100,6 +1178,11 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
     case 'ORGANIZATION_AI_SETTING_UPDATED':
       return metadataFlag(event.metadata, 'after') === false
         ? forceAgencyAiSettingOff(newDb, resourceId)
+        : false;
+    case 'DOCUMENT_REMOVAL_QUEUED':
+      // Only a removal already complete is replayed; a queued one ends in ERASURE_VERIFIED.
+      return metadataFlag(event.metadata, 'removed') === true
+        ? forceDocumentRemovedWithoutFiles(newDb, resourceId)
         : false;
     default:
       return false;
