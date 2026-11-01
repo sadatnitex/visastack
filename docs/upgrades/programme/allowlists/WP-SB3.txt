@@ -16,6 +16,8 @@ packages/services/src/insights-read.test.ts
 packages/services/src/agency.ts
 packages/services/src/evidence-requests-page.test.ts
 apps/web/e2e/scroll-budget/WP-SB3.spec.ts
+# The spec's own fixture, in the spec's folder where WP-SB0's renderFixture looks first (a test file).
+apps/web/e2e/scroll-budget/WP-SB3.fixture.tsx
 apps/web/src/app/globals.css
 docs/commercial-v1/known-issues.md
 docs/upgrades/programme/COVERAGE-LEDGER.csv

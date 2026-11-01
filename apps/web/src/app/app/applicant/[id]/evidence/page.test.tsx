@@ -10,10 +10,35 @@ const mocks = vi.hoisted(() => ({
   requireAccess: vi.fn(),
   listRequestItemExtras: vi.fn(),
 }));
+/**
+ * The page asks for one page of requests (WP-SB3). Fixtures stay plain lists: this turns a list
+ * into the page the service returns, first `limit` requests plus counts over all of them.
+ */
+async function requestPage(...args: unknown[]) {
+  const listed = (await mocks.listEvidenceRequestsForApplicant(...args)) as
+    | { ok: true; value: { status: string }[] }
+    | { ok: false };
+  const options = args[3] as { limit?: number } | undefined;
+  if (!listed.ok || !Array.isArray(listed.value) || !options) return listed;
+  const limit = options.limit ?? 100;
+  return {
+    ok: true,
+    value: {
+      items: listed.value.slice(0, limit),
+      more: listed.value.length > limit,
+      counts: {
+        total: listed.value.length,
+        awaiting: listed.value.filter(
+          (item) => item.status === 'OPEN' || item.status === 'NEEDS_REPLACEMENT',
+        ).length,
+      },
+    },
+  };
+}
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   getApplicant: mocks.getApplicant,
-  listEvidenceRequestsForApplicant: mocks.listEvidenceRequestsForApplicant,
+  listEvidenceRequestsForApplicant: requestPage,
   referenceCodesFor: mocks.referenceCodesFor,
   listApplicantProfile: async () => [],
   listDocumentsDetailed: mocks.listDocumentsDetailed,
@@ -309,5 +334,45 @@ describe('what the checklist says and the questions already asked', () => {
     const html = await render();
     expect(stubProps(html, 'AskAboutItemForm')).toHaveLength(0);
     expect(textOf(html)).toContain('You have asked several questions about this item');
+  });
+});
+
+describe('a long list of requests stays short (WP-SB3)', () => {
+  const many = () =>
+    Array.from({ length: 30 }, (_, index) => ({
+      ...request,
+      id: `r${index}`,
+      status: index < 12 ? 'OPEN' : 'ACCEPTED',
+      createdAt: new Date(Date.UTC(2026, 9, 1, 0, index)),
+    }));
+  const renderAt = (search: Record<string, string>) =>
+    renderServer(
+      EvidencePage({
+        params: Promise.resolve({ id: 'a1' }),
+        searchParams: Promise.resolve(search),
+      }),
+    );
+
+  it('reads ten requests, counts every waiting one, and offers Show More', async () => {
+    withRequests(...many());
+    const html = await render();
+    expect(mocks.listEvidenceRequestsForApplicant).toHaveBeenCalledWith({}, 'owner', 'a1', {
+      limit: 10,
+    });
+    expect(html.match(/class="case-row request-item /g)).toHaveLength(10);
+    const text = textOf(html);
+    expect(text).toContain('12 requests are waiting for you.');
+    expect(text).toContain('Showing 10 of 30 requests.');
+    expect(html).toContain('href="/app/applicant/a1/evidence?show=20#evidence-row-11"');
+  });
+
+  it('grows by ten and never claims nothing is waiting while more exist', async () => {
+    withRequests(...many().map((item) => ({ ...item, status: 'ACCEPTED' })));
+    const html = await renderAt({ show: '20' });
+    expect(mocks.listEvidenceRequestsForApplicant).toHaveBeenLastCalledWith({}, 'owner', 'a1', {
+      limit: 20,
+    });
+    expect(html.match(/class="case-row request-item /g)).toHaveLength(20);
+    expect(textOf(html)).not.toContain('Nothing is waiting for you.');
   });
 });

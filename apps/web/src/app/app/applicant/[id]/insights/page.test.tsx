@@ -273,3 +273,55 @@ describe('the document insights page', () => {
     expect(html).toContain('href="/app/applicant/a1/missions#start-case"');
   });
 });
+
+describe('a traveller with 100 documents (WP-SB3)', () => {
+  function large() {
+    return buildTravellerInsights({
+      documents: Array.from({ length: 100 }, (_, index) => ({
+        id: `doc-${index}`,
+        docType: index % 2 === 0 ? 'PASSPORT' : 'BANK_STATEMENT',
+        expiresAt: new Date(Date.UTC(2026, 10, 1 + index)).toISOString(),
+        lifecycle: 'CURRENT' as const,
+        safetyStatus: 'CLEAN' as const,
+        createdAt: '2026-01-01T00:00:00Z',
+        reminderThresholds: [90, 60, 30, 7, 0],
+      })),
+      facts: [],
+      pendingReadings: [],
+      pendingCheckDocumentIds: [],
+      sections: { activated: new Set(), notApplicable: new Set(), noneDeclared: new Set() },
+      cases: Array.from({ length: 12 }, (_, index) => ({
+        id: `case-${index}`,
+        title: `Case ${index}`,
+        hasChecklist: true,
+        readiness: null,
+      })),
+      now: new Date('2026-10-25T12:00:00Z'),
+    });
+  }
+
+  it('caps every card at five rows with a link to the page that has them all', async () => {
+    mocks.getTravellerInsights.mockResolvedValue({ ok: true, value: large() });
+    const html = await render();
+    const text = textOf(html);
+    const timeline = html.split('class="insights-list insights-timeline"')[1]?.split('</ol>')[0];
+    expect(timeline?.match(/class="insights-row"/g)).toHaveLength(5);
+    expect(text).toContain('Showing 5 of 100 dates.');
+    expect(text).toContain('Showing 5 of 12 cases.');
+    expect(text).toContain('Showing 5 of 100 documents.');
+    expect(html).toContain('href="/app/applicant/a1/missions"');
+    expect(html).toContain('href="/app/applicant/a1/expiry"');
+    expect(html.match(/href="\/app\/mission\/case-\d+"/g)?.length ?? 0).toBeLessThanOrEqual(10);
+  });
+
+  it('makes all six cards collapsible and opens only what needs the person', async () => {
+    mocks.getTravellerInsights.mockResolvedValue({ ok: true, value: large() });
+    const html = await render();
+    expect(html.match(/<details class="insights-card-fold"/g)).toHaveLength(6);
+    // Dates run out soon, so the timeline opens; nothing differs, so Details to Check stays shut.
+    expect(html.match(/<details class="insights-card-fold" open/g)).toHaveLength(1);
+    expect(html).toMatch(
+      /<details class="insights-card-fold" open=""><summary[^>]*>.*?Expiry Timeline/,
+    );
+  });
+});

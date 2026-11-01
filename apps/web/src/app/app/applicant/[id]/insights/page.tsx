@@ -2,6 +2,7 @@ import { accountPrincipal, getTravellerInsights, requireAccess } from '@visastac
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { ReactNode } from 'react';
 import {
   type AttentionEntry,
   AttentionList,
@@ -25,6 +26,74 @@ import { createKeyManagementPort } from '../../../../../lib/providers';
 import { withSession } from '../../../../../lib/session';
 
 export const metadata: Metadata = { title: 'Document Insights' };
+
+/** WP-SB3: each card lists at most this many rows; the rest are on the card's own page. */
+const CARD_ROWS = 5;
+
+/** Under a capped card list: how many rows show, and the page that lists them all. */
+function MoreOnItsPage({
+  shown,
+  total,
+  noun,
+  href,
+  label,
+}: {
+  readonly shown: number;
+  readonly total: number;
+  readonly noun: string;
+  readonly href: string;
+  readonly label: string;
+}) {
+  if (total <= shown) return null;
+  return (
+    <p className="insights-more">
+      <span className="insights-note">{`Showing ${shown} of ${total} ${noun}.`}</span>{' '}
+      <Link className="btn btn-secondary insights-action" href={href}>
+        {label}
+      </Link>
+    </p>
+  );
+}
+
+/**
+ * One insights card that opens and closes (WP-SB3). The heading stays the card's name and sits in
+ * the summary, so the card is still found by its heading and the count is read with it.
+ */
+function InsightsCard({
+  id,
+  kicker,
+  title,
+  count,
+  open,
+  children,
+}: {
+  readonly id: string;
+  readonly kicker: string;
+  readonly title: string;
+  readonly count: number;
+  readonly open: boolean;
+  readonly children: ReactNode;
+}) {
+  return (
+    <section className="card insights-card" aria-labelledby={id}>
+      <details className="insights-card-fold" open={open || undefined}>
+        <summary className="insights-card-summary">
+          <span className="insights-card-heading">
+            <span className="card-kicker">{kicker}</span>
+            <h3 className="card-title" id={id}>
+              {title}
+            </h3>
+          </span>
+          <span className="insights-card-count" aria-hidden="true">
+            {count}
+          </span>
+          <span className="sr-only">{`, ${count}`}</span>
+        </summary>
+        <div className="insights-card-body">{children}</div>
+      </details>
+    </section>
+  );
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -139,6 +208,11 @@ export default async function DocumentInsightsPage({
   ];
   const missingSections = insights.coverage.sections.filter((section) => !section.covered);
   const coveredSections = insights.coverage.sections.filter((section) => section.covered);
+  const profileHref = `/app/applicant/${id}/profile`;
+  // The cards that need the person start open; with nothing to act on, the first one does.
+  const expiringNow = insights.summary.expired + insights.summary.expiringSoon > 0;
+  const checkOpen = toCheck.length > 0 || !expiringNow;
+  const originalCases = insights.originals.cases.slice(0, CARD_ROWS);
 
   return (
     <>
@@ -154,11 +228,13 @@ export default async function DocumentInsightsPage({
       </ul>
 
       <div className="insights-grid">
-        <section className="card insights-card" aria-labelledby="insights-check">
-          <p className="card-kicker">Differences</p>
-          <h3 className="card-title" id="insights-check">
-            Details to Check
-          </h3>
+        <InsightsCard
+          id="insights-check"
+          kicker="Differences"
+          title="Details to Check"
+          count={toCheck.length}
+          open={checkOpen}
+        >
           {toCheck.length === 0 ? (
             <EmptyState icon="check" title="Nothing to Check">
               No saved detail differs from what was read in your documents.
@@ -168,7 +244,14 @@ export default async function DocumentInsightsPage({
               <p className="insights-note">
                 We only say that two details differ and where. Open each one to see both and decide.
               </p>
-              <AttentionList items={toCheck} />
+              <AttentionList items={toCheck.slice(0, CARD_ROWS)} />
+              <MoreOnItsPage
+                shown={Math.min(CARD_ROWS, toCheck.length)}
+                total={toCheck.length}
+                noun="details to check"
+                href={documentsHref}
+                label="Open Documents"
+              />
             </>
           )}
           {insights.notCompared > 0 ? (
@@ -178,20 +261,22 @@ export default async function DocumentInsightsPage({
               <Link href={documentsHref}>Documents page</Link>.
             </p>
           ) : null}
-        </section>
+        </InsightsCard>
 
-        <section className="card insights-card" aria-labelledby="insights-expiry">
-          <p className="card-kicker">Coming Up</p>
-          <h3 className="card-title" id="insights-expiry">
-            Expiry Timeline
-          </h3>
+        <InsightsCard
+          id="insights-expiry"
+          kicker="Coming Up"
+          title="Expiry Timeline"
+          count={insights.expiry.length}
+          open={expiringNow}
+        >
           {insights.expiry.length === 0 ? (
             <EmptyState icon="calendar" title="No Expiry Dates Yet">
               Documents with an end date, such as a passport, appear here in the order they run out.
             </EmptyState>
           ) : (
             <ol className="insights-list insights-timeline">
-              {insights.expiry.map((entry) => {
+              {insights.expiry.slice(0, CARD_ROWS).map((entry) => {
                 const badge = EXPIRY_BADGE[entry.urgency];
                 return (
                   <li key={entry.document.id} className="insights-row">
@@ -208,16 +293,21 @@ export default async function DocumentInsightsPage({
               })}
             </ol>
           )}
+          {insights.expiry.length > CARD_ROWS ? (
+            <p className="insights-note">{`Showing ${CARD_ROWS} of ${insights.expiry.length} dates.`}</p>
+          ) : null}
           <Link className="btn btn-secondary insights-action" href={`/app/applicant/${id}/expiry`}>
             Open Dates &amp; Expiry
           </Link>
-        </section>
+        </InsightsCard>
 
-        <section className="card insights-card" aria-labelledby="insights-cases">
-          <p className="card-kicker">Cases</p>
-          <h3 className="card-title" id="insights-cases">
-            Readiness by Case
-          </h3>
+        <InsightsCard
+          id="insights-cases"
+          kicker="Cases"
+          title="Readiness by Case"
+          count={insights.cases.length}
+          open={false}
+        >
           {insights.cases.length === 0 ? (
             <EmptyState
               icon="folder"
@@ -228,7 +318,7 @@ export default async function DocumentInsightsPage({
             </EmptyState>
           ) : (
             <ul className="insights-list">
-              {insights.cases.map((entry) => {
+              {insights.cases.slice(0, CARD_ROWS).map((entry) => {
                 const badge = READINESS_BADGE[entry.state];
                 return (
                   <li key={entry.caseId} className="insights-row">
@@ -247,19 +337,32 @@ export default async function DocumentInsightsPage({
               })}
             </ul>
           )}
-        </section>
+          <MoreOnItsPage
+            shown={Math.min(CARD_ROWS, insights.cases.length)}
+            total={insights.cases.length}
+            noun="cases"
+            href={`/app/applicant/${id}/missions`}
+            label="Open Cases"
+          />
+        </InsightsCard>
 
-        <section className="card insights-card" aria-labelledby="insights-originals">
-          <p className="card-kicker">Paper Copies</p>
-          <h3 className="card-title" id="insights-originals">
-            Originals to Bring
-          </h3>
+        <InsightsCard
+          id="insights-originals"
+          kicker="Paper Copies"
+          title="Originals to Bring"
+          count={
+            insights.originals.cases.length > 0
+              ? insights.originals.cases.length
+              : insights.originals.onFile.length
+          }
+          open={false}
+        >
           <p className="insights-note">
             Embassies usually want these handed in as the original paper. The scan on file keeps
             your application ready; keep the original safe.
           </p>
           {insights.originals.cases.length > 0 ? (
-            insights.originals.cases.map((entry) => (
+            originalCases.map((entry) => (
               <div key={entry.caseId} className="insights-group">
                 <h4 className="insights-group-title">{entry.title}</h4>
                 {entry.unavailable ? (
@@ -269,7 +372,7 @@ export default async function DocumentInsightsPage({
                   </p>
                 ) : (
                   <ul className="insights-list">
-                    {entry.items.map((item) => {
+                    {entry.items.slice(0, CARD_ROWS).map((item) => {
                       // The case's own verdict, so this list and Readiness by Case always agree.
                       const badge = ORIGINAL_STATE_BADGE[item.state];
                       const needsUpload =
@@ -303,11 +406,20 @@ export default async function DocumentInsightsPage({
                     })}
                   </ul>
                 )}
+                {entry.unavailable ? null : (
+                  <MoreOnItsPage
+                    shown={Math.min(CARD_ROWS, entry.items.length)}
+                    total={entry.items.length}
+                    noun="documents"
+                    href={`/app/mission/${entry.caseId}`}
+                    label="Open the Case"
+                  />
+                )}
               </div>
             ))
           ) : insights.originals.onFile.length > 0 ? (
             <ul className="insights-list">
-              {insights.originals.onFile.map((ref) => (
+              {insights.originals.onFile.slice(0, CARD_ROWS).map((ref) => (
                 <li key={ref.id} className="insights-row">
                   <span className="insights-row-label">{documentName(ref)}</span>
                   <StatusBadge tone="neutral">Usually Original</StatusBadge>
@@ -320,13 +432,32 @@ export default async function DocumentInsightsPage({
               appears here.
             </EmptyState>
           )}
-        </section>
+          {insights.originals.cases.length > 0 ? (
+            <MoreOnItsPage
+              shown={originalCases.length}
+              total={insights.originals.cases.length}
+              noun="cases"
+              href={`/app/applicant/${id}/missions`}
+              label="Open Cases"
+            />
+          ) : (
+            <MoreOnItsPage
+              shown={Math.min(CARD_ROWS, insights.originals.onFile.length)}
+              total={insights.originals.onFile.length}
+              noun="documents"
+              href={documentsHref}
+              label="Open Documents"
+            />
+          )}
+        </InsightsCard>
 
-        <section className="card insights-card" aria-labelledby="insights-coverage">
-          <p className="card-kicker">Profile Coverage</p>
-          <h3 className="card-title" id="insights-coverage">
-            Sections Backed by a Document
-          </h3>
+        <InsightsCard
+          id="insights-coverage"
+          kicker="Profile Coverage"
+          title="Sections Backed by a Document"
+          count={insights.coverage.sections.length}
+          open={false}
+        >
           {insights.coverage.sections.length === 0 ? (
             <EmptyState icon="folder" title="No Sections to Back Yet">
               Open a profile section that a document can back, and it appears here.
@@ -342,7 +473,7 @@ export default async function DocumentInsightsPage({
                 <div className="insights-group">
                   <h4 className="insights-group-title">No Document Yet</h4>
                   <ul className="insights-list">
-                    {missingSections.map((section) => {
+                    {missingSections.slice(0, CARD_ROWS).map((section) => {
                       const first = section.kinds[0];
                       return (
                         <li key={section.key} className="insights-row">
@@ -378,7 +509,7 @@ export default async function DocumentInsightsPage({
                 <div className="insights-group">
                   <h4 className="insights-group-title">Backed</h4>
                   <ul className="insights-list">
-                    {coveredSections.map((section) => (
+                    {coveredSections.slice(0, CARD_ROWS).map((section) => (
                       <li key={section.key} className="insights-row">
                         <span className="insights-row-text">
                           <span className="insights-row-label">{section.label}</span>
@@ -395,15 +526,27 @@ export default async function DocumentInsightsPage({
                   </ul>
                 </div>
               ) : null}
+              <MoreOnItsPage
+                shown={
+                  Math.min(CARD_ROWS, missingSections.length) +
+                  Math.min(CARD_ROWS, coveredSections.length)
+                }
+                total={insights.coverage.sections.length}
+                noun="sections"
+                href={profileHref}
+                label="Open Profile"
+              />
             </>
           )}
-        </section>
+        </InsightsCard>
 
-        <section className="card insights-card" aria-labelledby="insights-evidence">
-          <p className="card-kicker">Evidence Map</p>
-          <h3 className="card-title" id="insights-evidence">
-            Documents Behind Your Details
-          </h3>
+        <InsightsCard
+          id="insights-evidence"
+          kicker="Evidence Map"
+          title="Documents Behind Your Details"
+          count={insights.evidence.length}
+          open={false}
+        >
           {insights.evidence.length === 0 ? (
             <EmptyState
               icon="file"
@@ -414,7 +557,7 @@ export default async function DocumentInsightsPage({
             </EmptyState>
           ) : (
             <ul className="insights-list">
-              {insights.evidence.map((entry) => (
+              {insights.evidence.slice(0, CARD_ROWS).map((entry) => (
                 <li key={entry.document.id} className="insights-row insights-row-stack">
                   <span className="insights-row-label">
                     {documentName(entry.document)}
@@ -443,7 +586,14 @@ export default async function DocumentInsightsPage({
               ))}
             </ul>
           )}
-        </section>
+          <MoreOnItsPage
+            shown={Math.min(CARD_ROWS, insights.evidence.length)}
+            total={insights.evidence.length}
+            noun="documents"
+            href={documentsHref}
+            label="Open Documents"
+          />
+        </InsightsCard>
       </div>
     </>
   );
