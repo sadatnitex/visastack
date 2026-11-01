@@ -6,10 +6,13 @@ import type { Membership } from '@visastack/policy';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { accountPrincipal } from './access/principal';
+import { EACH_GRANT, requireAccess } from './access/require-access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
+import { latestUsableVersion } from './document-access';
 import { readDocumentAccessToken } from './document-access-token';
 import {
   addDocumentVersion,
@@ -31,6 +34,7 @@ import {
 } from './documents';
 import { enqueueErasureJob } from './erasure';
 import { createOrganization, reviewOrganization } from './organizations';
+import { type PhotoSizingDeps, checkVisaPhoto, produceVisaPhotoSize } from './photo-sizing';
 import { seedStaffAccount, staffScopeFor } from './platform-roles.test-support';
 import { acceptGrant, createGrant } from './sharing';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
@@ -1987,5 +1991,157 @@ describe('documents and the resource lifecycle (LC-A2)', () => {
       documentDate: '2026-01-01',
     });
     expect(isOk(dated)).toBe(true);
+  });
+});
+
+describe('every byte path refuses a Recently Deleted document (LC-A2, latestUsableVersion)', () => {
+  /** A photo sizer and store that record what was reached, so a refusal can be shown to read nothing. */
+  function photoDeps(): PhotoSizingDeps & { readonly calls: string[] } {
+    const calls: string[] = [];
+    return {
+      calls,
+      storage: {
+        async getObject() {
+          calls.push('getObject');
+          return { contentType: 'image/jpeg', bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]) };
+        },
+      },
+      sizer: {
+        async measure() {
+          calls.push('measure');
+          return {
+            width: 1200,
+            height: 1500,
+            meanLuma: 150,
+            lumaStdDev: 50,
+            sharpness: 300,
+            borderStdDev: 4,
+            borderMeanLuma: 240,
+          };
+        },
+        async preview() {
+          calls.push('preview');
+          return { bytes: new Uint8Array([1]), width: 384, height: 480 };
+        },
+        async produce() {
+          calls.push('produce');
+          return {
+            bytes: new Uint8Array([9]),
+            widthPx: 413,
+            heightPx: 531,
+            dpi: 300,
+            quality: 92,
+            cropBox: { left: 0, top: 0, width: 1167, height: 1500 },
+            withinFileSizeRange: true,
+          };
+        },
+      },
+    };
+  }
+
+  async function seedPhoto(db: Db, email: string) {
+    const provisioned = await provisionAccount(db, { email });
+    if (!isOk(provisioned)) throw new Error('provision failed');
+    const ownerId = provisioned.value.id;
+    await setConsent(db, {
+      actorAccountId: ownerId,
+      accountId: ownerId,
+      type: 'CORE_PROCESSING',
+      granted: true,
+    });
+    const applicant = await createApplicant(db, {
+      actorAccountId: ownerId,
+      ownerAccountId: ownerId,
+      displayName: 'Owner',
+    });
+    if (!isOk(applicant)) throw new Error('applicant failed');
+    const doc = await registerDocument(db, {
+      actorAccountId: ownerId,
+      applicantId: applicant.value.id,
+      originalName: 'me.jpg',
+      docType: 'PHOTOGRAPH',
+    });
+    if (!isOk(doc)) throw new Error('document failed');
+    const version = await addDocumentVersion(db, {
+      actorAccountId: ownerId,
+      documentId: doc.value.id,
+      bucket: 'CLEAN',
+      objectKey: `photo-${email}`,
+      sizeBytes: 4,
+      safetyStatus: 'CLEAN',
+      processingStatus: 'APPROVED',
+    });
+    if (!isOk(version)) throw new Error('version failed');
+    const gate = async () => {
+      const access = await requireAccess(
+        db,
+        accountPrincipal(ownerId),
+        'DOWNLOAD_REDACTED',
+        { documentId: doc.value.id },
+        { purpose: EACH_GRANT },
+      );
+      if (!isOk(access)) throw new Error(`gate: ${access.error.code}`);
+      return access.value;
+    };
+    return { applicantId: applicant.value.id, documentId: doc.value.id, gate };
+  }
+
+  async function markDeleted(db: Db, documentId: string, applicantId: string) {
+    const now = new Date();
+    await db.insert(schema.documentLifecycle).values({
+      documentId,
+      applicantId,
+      deletedAt: now,
+      deletePath: 'DUPLICATE',
+      purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+    });
+  }
+
+  it('refuses photo sizing and the shared byte path for a deleted photo, and reads nothing', async () => {
+    const db = await freshDb();
+    const photo = await seedPhoto(db, 'lc-photo-deleted@example.com');
+    const before = photoDeps();
+    expect(isOk(await checkVisaPhoto(await photo.gate(), before))).toBe(true);
+    expect((await latestUsableVersion(await photo.gate())).kind).toBe('usable');
+
+    await markDeleted(db, photo.documentId, photo.applicantId);
+
+    const deps = photoDeps();
+    expect(isErr(await checkVisaPhoto(await photo.gate(), deps))).toBe(true);
+    const sized = await produceVisaPhotoSize(await photo.gate(), deps, {
+      specId: 'us-2x2',
+      crop: { offsetX: 0, offsetY: 0, zoom: 1 },
+    });
+    expect(isErr(sized)).toBe(true);
+    // No stored bytes were read and no image work ran.
+    expect(deps.calls).toEqual([]);
+    // The one rule every byte path shares (Safe Copy, AI original file, photo sizing).
+    expect(await latestUsableVersion(await photo.gate())).toEqual({
+      kind: 'refused',
+      reason: 'no_stored_version',
+    });
+  });
+
+  it('keeps an archived photo usable', async () => {
+    const db = await freshDb();
+    const photo = await seedPhoto(db, 'lc-photo-archived@example.com');
+    await db.insert(schema.documentLifecycle).values({
+      documentId: photo.documentId,
+      applicantId: photo.applicantId,
+      archivedAt: new Date(),
+    });
+    expect(isOk(await checkVisaPhoto(await photo.gate(), photoDeps()))).toBe(true);
+    expect((await latestUsableVersion(await photo.gate())).kind).toBe('usable');
+  });
+
+  it('serves the photo exactly as before while the lifecycle tables are missing', async () => {
+    const client = await createMigratedPglite();
+    await client.exec(
+      'drop table document_removal_requests, document_lifecycle, applicant_lifecycle, deletion_receipts cascade',
+    );
+    const db = drizzle(client, { schema }) as unknown as Db;
+    const photo = await seedPhoto(db, 'lc-photo-missing@example.com');
+    expect(isOk(await checkVisaPhoto(await photo.gate(), photoDeps()))).toBe(true);
+    expect((await latestUsableVersion(await photo.gate())).kind).toBe('usable');
   });
 });

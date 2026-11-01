@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { type PermissionAction, type Result, err, ok } from '@visastack/core';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { AuthorizedApplicant, EACH_GRANT } from './access/require-access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { hasActiveOrVerifiedErasureJob } from './erasure';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import type { StoredBytes } from './storage';
 
 /**
@@ -127,6 +128,17 @@ export type LatestUsableVersion =
 export async function latestUsableVersion(proof: DocumentProof): Promise<LatestUsableVersion> {
   if (proof.resource.kind !== 'document') return { kind: 'refused', reason: 'no_stored_version' };
   const db = proof.tx;
+  // Every byte path (Safe Copy, AI original file, photo sizing) comes through here: a document in
+  // Recently Deleted or being removed answers like one with no file (presentDocumentCondition,
+  // LC-A2). The proof loaded the record whatever its lifecycle state; an archived one stays usable.
+  if (await lifecycleTablesPresent(db)) {
+    const present = await db
+      .select({ id: schema.documents.id })
+      .from(schema.documents)
+      .where(and(eq(schema.documents.id, proof.resource.document.id), presentDocumentCondition()))
+      .limit(1);
+    if (present.length === 0) return { kind: 'refused', reason: 'no_stored_version' };
+  }
   const version = first(
     await db
       .select()

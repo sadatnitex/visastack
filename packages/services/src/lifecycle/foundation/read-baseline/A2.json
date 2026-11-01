@@ -4,8 +4,6 @@
     "access/with-ai-connection#withAiFileConnection",
     "access/with-ai-connection#withAiSuggestionConnection",
     "ai-suggestions#recordProfileSuggestion",
-    "application-memory#listChangesSinceConfirmed",
-    "application-memory#listChangesSinceSnapshot",
     "quotas#getAccountEvidenceBytes",
     "quotas#getApplicantEvidenceBytes",
     "quotas#getOrganizationEvidenceBytes"

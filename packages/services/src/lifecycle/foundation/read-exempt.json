@@ -2,6 +2,8 @@
   "documents": {
     "access/require-access#requireAccess": "authorisation: loads the one named record to decide who may act; what is offered is decided by the lifecycle conditions at the read that lists it",
     "access/step-up-proof#stepUpForAiOriginalFile": "authorisation: binds a fresh sign-in check to the one named record",
+    "application-memory#listChangesSinceConfirmed": "Case History, a permanent exception (PROGRAMME 5.3)",
+    "application-memory#listChangesSinceSnapshot": "Case History, a permanent exception (PROGRAMME 5.3)",
     "backup-reconciliation#reconcileRestoredBranch": "backup restore reconciliation: re-applies removals and must see every restored document",
     "deletion#executeAccountDeletion": "account and traveller deletion: removes every record, archived or deleted included",
     "deletion#getDeletionImpactSummary": "account and traveller deletion: removes every record, archived or deleted included",

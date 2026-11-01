@@ -906,6 +906,29 @@ describe('archive, Recently Deleted and the Manage menu (resource lifecycle, mig
     expect(textOf(deleted)).not.toContain('shelved.pdf');
   });
 
+  it('asks the service for every document, so the Recently Deleted tab lists a deleted one (LC-A2)', async () => {
+    // The service's default list leaves Recently Deleted documents out; only `all` keeps them.
+    mocks.listDocumentsDetailed.mockImplementation(
+      async (_db: unknown, _account: unknown, _id: unknown, options?: { lifecycle?: string }) => ({
+        ok: true,
+        value:
+          options?.lifecycle === 'all'
+            ? [doc('kept', 'APPROVED'), doc('binned', 'APPROVED')]
+            : [doc('kept', 'APPROVED')],
+      }),
+    );
+    mocks.lifecycleTablesPresent.mockResolvedValue(true);
+    mocks.getDocumentLifecycles.mockResolvedValue(
+      new Map([
+        ['kept', state('CURRENT')],
+        ['binned', state('RECENTLY_DELETED')],
+      ]),
+    );
+    const deleted = await render(undefined, { view: 'deleted' });
+    expect(textOf(deleted)).toContain('binned.pdf');
+    expect(textOf(deleted)).not.toContain('kept.pdf');
+  });
+
   it('links to the Removal Records only when there are some', async () => {
     mocks.lifecycleTablesPresent.mockResolvedValue(true);
     mocks.getDocumentLifecycles.mockResolvedValue(new Map([['kept', state('CURRENT')]]));

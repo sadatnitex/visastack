@@ -226,7 +226,7 @@ export default async function ApplicantDocumentsPage({
       pendingInconsistencyFlags,
       wallet,
     ] = await Promise.all([
-      listDocumentsDetailed(db, accountId, id),
+      listDocumentsDetailed(db, accountId, id, { lifecycle: 'all' }),
       hasConsent(db, accountId, 'CORE_PROCESSING'),
       hasConsent(db, accountId, 'AI_EXTRACTION'),
       hasConsent(db, accountId, 'AI_OCR'),
