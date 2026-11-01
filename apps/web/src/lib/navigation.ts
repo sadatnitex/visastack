@@ -76,12 +76,6 @@ export function agencyTabs(orgId: string, access: { readonly admin: boolean }): 
     .map(({ adminOnly: _adminOnly, ...link }) => link);
 }
 
-/** The staff queue of removal requests (resource lifecycle lane D), under privacy access. */
-export const REMOVAL_REQUESTS_LINK: NavLink = {
-  href: '/app/admin/removals',
-  label: 'Removal Requests',
-};
-
 /**
  * The sections of platform administration (directive Part 9 section 1:
  * Organizations, Rules, AI, Operations, Privacy, Audit), in that order. Operations
@@ -96,8 +90,6 @@ export function platformTabs(access: {
   readonly complaints: boolean;
   readonly audit: boolean;
   readonly privacy: boolean;
-  /** Removal requests are switched on (DOCUMENT_REMOVAL_REQUESTS); the queue also needs privacy access. */
-  readonly removalRequests?: boolean;
 }): readonly NavLink[] {
   return [
     { href: '/app/admin/organizations', label: 'Organizations' },
@@ -105,7 +97,6 @@ export function platformTabs(access: {
     ...(access.ai ? [{ href: '/app/admin/ai', label: 'AI' }] : []),
     { href: '/app/admin', label: 'Operations', exact: true },
     ...(access.privacy ? [{ href: '/app/admin/privacy', label: 'Privacy' }] : []),
-    ...(access.privacy && access.removalRequests === true ? [REMOVAL_REQUESTS_LINK] : []),
     ...(access.audit ? [{ href: '/app/admin/audit', label: 'Audit' }] : []),
     { href: '/app/admin/access', label: 'Access' },
     ...(access.complaints ? [{ href: '/app/admin/complaints', label: 'Complaints' }] : []),

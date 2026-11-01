@@ -23,6 +23,8 @@ export interface WorkspaceAccess {
     readonly complaints: boolean;
     readonly audit: boolean;
     readonly privacy: boolean;
+    /** Privacy access and DOCUMENT_REMOVAL_REQUESTS on: the Removal Requests queue (lifecycle lane D). */
+    readonly removals?: boolean;
   };
 }
 
@@ -86,6 +88,9 @@ export function workspaceNavigation(
         ...(access.platform.ai ? [{ href: '/app/admin/ai', label: 'AI Settings' }] : []),
         ...(access.platform.privacy
           ? [{ href: '/app/admin/privacy', label: 'Privacy Operations' }]
+          : []),
+        ...(access.platform.removals === true
+          ? [{ href: '/app/admin/removals', label: 'Removal Requests' }]
           : []),
         { href: '/app/admin/access', label: 'Platform Access' },
         ...(access.platform.complaints
