@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { axeViolations } from '../../../../lib/axe.test-support';
 import {
   navigationState,
   renderServer,
@@ -235,5 +236,32 @@ describe('Platform > Plans (S29)', () => {
     mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     await renderServer(Page());
     expect(mocks.listPlansForAdmin).not.toHaveBeenCalled();
+  });
+});
+
+describe('Platform > Plans within the scroll budget (WP-SB9)', () => {
+  it('shows one compact row per plan, all closed, with who it is for, price, count and status', async () => {
+    const html = await renderServer(Page());
+    const rows = html.match(/<details class="billing-row"[^>]*>/g) ?? [];
+    expect(rows).toHaveLength(3);
+    for (const row of rows) expect(row).not.toMatch(/\sopen/);
+    expect(textOf(html)).toMatch(/Agency Growth\s*Agencies, .*every 30 days, 3 Agencies\s*Offered/);
+    // Creating a plan is folded too, behind its own control.
+    expect(textOf(html)).toContain('Create an Agency Plan');
+    expect(textOf(html)).toContain('Create a Traveller Plan');
+  });
+
+  it('reopens only the row whose save needs fixing', async () => {
+    mocks.retry.mockReturnValue({
+      form: '00000000-0000-4000-8000-000000000001',
+      fields: { name: 'Agency Growth' },
+    });
+    const html = await renderServer(Page());
+    expect(html.match(/<details class="billing-row"[^>]*\sopen/g)).toHaveLength(1);
+    expect(html).toContain('id="plan-00000000-0000-4000-8000-000000000001-card" open');
+  });
+
+  it('passes the automated accessibility rules', async () => {
+    expect(await axeViolations(await renderServer(Page()))).toEqual([]);
   });
 });

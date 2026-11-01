@@ -16,9 +16,48 @@ const mocks = vi.hoisted(() => ({
   getAiFeatureStates: vi.fn(),
   aiAssistAvailable: vi.fn(async () => false),
 }));
+type GrantFixture = { status: string; expiryAt: Date | null };
+/**
+ * The page asks for one page of grants (WP-SB3). Fixtures stay plain lists: this turns a list
+ * into the page the service returns, first `limit` grants plus counts over all of them.
+ */
+async function grantPage(...args: unknown[]) {
+  const listed = (await mocks.listAccessForApplicantDetailed(...args)) as
+    | { ok: true; value: GrantFixture[] }
+    | { ok: false };
+  const options = args[3] as { limit?: number } | undefined;
+  if (!listed.ok || !Array.isArray(listed.value) || !options) return listed;
+  const holds = (grant: GrantFixture) =>
+    (grant.status === 'ACTIVE' || grant.status === 'PAUSED') &&
+    (grant.expiryAt === null || new Date(grant.expiryAt).getTime() > Date.now());
+  return {
+    ok: true,
+    value: {
+      items: listed.value.slice(0, options.limit ?? 100),
+      counts: {
+        total: listed.value.length,
+        active: listed.value.filter((grant) => grant.status === 'ACTIVE').length,
+        holdingAccess: listed.value.filter(holds).length,
+        holdingAccessShown: listed.value.slice(0, options.limit ?? 100).filter(holds).length,
+      },
+    },
+  };
+}
+/** The access log is read one page at a time (WP-SB3): a plain fixture list becomes that page. */
+async function auditPage(...args: unknown[]) {
+  const events = (await mocks.listAuditEventsForApplicant(...args)) as unknown[];
+  const options = args[3] as { limit?: number } | undefined;
+  const limit = options?.limit ?? 50;
+  return {
+    items: events.slice(0, limit),
+    nextCursor: events.length > limit ? 'next-page-cursor' : null,
+  };
+}
 vi.mock('@visastack/services', async (original) => ({
   ...(await original<typeof import('@visastack/services')>()),
   ...mocks,
+  listAccessForApplicantDetailed: grantPage,
+  listAuditEventsForApplicant: auditPage,
 }));
 vi.mock('../../../../../lib/locale', () => ({ getLocale: async () => 'en' }));
 vi.mock('../../../../../lib/session', () => ({
@@ -577,5 +616,129 @@ describe('agency AI tools on an agency grant (S22)', () => {
       },
     ]);
     expect(textOf(await render())).toContain('Agency AI Tools: Harbor Visas via claude.ai');
+  });
+});
+
+describe('a long list of grants stays short (WP-SB3)', () => {
+  const many = () =>
+    Array.from({ length: 40 }, (_, index) =>
+      grant(index < 8 ? 'ACTIVE' : index < 20 ? 'PENDING_ACCEPTANCE' : 'REVOKED', `g${index}`),
+    );
+  const renderAt = (search: Record<string, string>) =>
+    renderServer(
+      Page({ params: Promise.resolve({ id: 'owned' }), searchParams: Promise.resolve(search) }),
+    );
+
+  it('reads five grants with counts over all 40, and offers Show More', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: true, value: many() });
+    const html = await render();
+    expect(mocks.listAccessForApplicantDetailed).toHaveBeenCalledWith({}, 'owner', 'owned', {
+      limit: 5,
+    });
+    expect(html.split('class="row sharing-grant"')).toHaveLength(6);
+    const text = textOf(html);
+    expect(text).toContain('Showing 5 of 40 grants.');
+    expect(text).toContain('8 active grants.');
+    expect(text).toContain('32 more are waiting to be accepted or have ended.');
+    expect(html).toContain('href="/app/applicant/owned/sharing?show=10#sharing-grant-6"');
+    expect(html).toContain('id="sharing-grant-5"');
+  });
+
+  it('keeps each grant’s details behind its own Grant Details expander', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: true, value: many() });
+    const html = await render();
+    expect(html.match(/<details class="sharing-grant-details"/g)).toHaveLength(5);
+    expect(html).not.toMatch(/<details class="sharing-grant-details"[^>]*open/);
+    expect(textOf(html)).toContain('Grant Details for Synthetic recipient');
+  });
+
+  it('grows by five with each Show More and clamps a hand-edited address', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: true, value: many() });
+    await renderAt({ show: '10' });
+    expect(mocks.listAccessForApplicantDetailed).toHaveBeenLastCalledWith({}, 'owner', 'owned', {
+      limit: 10,
+    });
+    await renderAt({ show: '99999' });
+    expect(mocks.listAccessForApplicantDetailed).toHaveBeenLastCalledWith({}, 'owner', 'owned', {
+      limit: 500,
+    });
+    const html = await renderAt({ show: '<script>' });
+    expect(mocks.listAccessForApplicantDetailed).toHaveBeenLastCalledWith({}, 'owner', 'owned', {
+      limit: 5,
+    });
+    expect(html).not.toContain('<script>');
+  });
+
+  it('never carries a one-time notice or a sign-in return into Show More', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: true, value: many() });
+    const html = await renderAt({
+      done: 'paused',
+      ai: 'off',
+      ai_change: 'c1',
+      choice_layers: 'all',
+      document: 'passport',
+      show: '5',
+    });
+    expect(html).toContain('href="/app/applicant/owned/sharing?show=10#sharing-grant-6"');
+  });
+
+  it('says every grant shows, with no link, once they all fit', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: many().slice(0, 3),
+    });
+    const html = await render();
+    expect(textOf(html)).toContain('Showing all 3 grants.');
+    expect(html).not.toContain('show=10');
+  });
+
+  it('previews new matches only for the grants on the page', async () => {
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({
+      ok: true,
+      value: many().map((item) => ({ ...item, categories: ['IDENTITY'] })),
+    });
+    mocks.previewScopeExpansion.mockResolvedValue({ ok: true, value: [] });
+    await render();
+    expect(mocks.previewScopeExpansion).toHaveBeenCalledTimes(5);
+  });
+
+  it('keeps the access log in its fixed panel with its filters', async () => {
+    mocks.listAuditEventsForApplicant.mockResolvedValue(
+      Array.from({ length: 300 }, (_, index) => ({
+        seq: 1000 - index,
+        eventType: 'DOCUMENT_VIEWED',
+        actorEmail: `viewer${index % 3}@example.test`,
+        action: 'VIEW',
+        result: 'ALLOWED',
+        occurredAt: new Date(Date.UTC(2026, 9, 1, 0, index)),
+        agencyAi: null,
+      })),
+    );
+    const html = await render();
+    expect(html).toContain('activity-log-scroll');
+    expect(html).toContain('aria-label="Access Log Entries"');
+    expect(mocks.listAuditEventsForApplicant).toHaveBeenCalledWith({}, 'owner', 'owned', {
+      limit: 50,
+    });
+    expect(html.match(/<li class="row activity-log-row"/g)).toHaveLength(50);
+    expect(textOf(html)).toContain('Show Older Entries');
+    expect(html).toContain('href="/app/applicant/owned/sharing?log=next-page-cursor#access-log"');
+    expect(html).not.toContain('Show Newest Entries');
+  });
+
+  it('passes a well-formed older-page cursor to the service and drops a malformed one', async () => {
+    const page = (search: Record<string, string>) =>
+      renderServer(
+        Page({ params: Promise.resolve({ id: 'owned' }), searchParams: Promise.resolve(search) }),
+      );
+    await page({ log: 'eyJ2IjoxfQ' });
+    expect(mocks.listAuditEventsForApplicant).toHaveBeenLastCalledWith({}, 'owner', 'owned', {
+      limit: 50,
+      before: 'eyJ2IjoxfQ',
+    });
+    await page({ log: '"><script>' });
+    expect(mocks.listAuditEventsForApplicant).toHaveBeenLastCalledWith({}, 'owner', 'owned', {
+      limit: 50,
+    });
   });
 });

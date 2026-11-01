@@ -668,20 +668,112 @@ export interface GrantWithRecipient extends GrantWithExceptions {
   readonly recipient: GrantRecipient;
 }
 
-/** Same as `listAccessForApplicant`, but resolves WHO each grant was given to. */
+/** WP-SB3: how many grants the sharing page asks for at once (`limit`, clamped 1 to 500). */
+export interface GrantListOptions {
+  readonly limit?: number;
+}
+
+/**
+ * WP-SB3: the first grants of one record, plus counts over all of them, so the sharing page can
+ * show a few grants and still say how many exist and how many hold access right now.
+ */
+export interface GrantListPage {
+  readonly items: GrantWithRecipient[];
+  readonly counts: {
+    /** Every grant on the record, whatever its state. */
+    readonly total: number;
+    /** Grants whose status is ACTIVE. */
+    readonly active: number;
+    /** Active or paused grants that have not ended (the sharing page's Glance list). */
+    readonly holdingAccess: number;
+    /** How many of the returned grants hold access, judged at the same moment as the above. */
+    readonly holdingAccessShown: number;
+  };
+}
+
+/**
+ * Every grant must stay reachable, because each one carries its own Pause and Revoke: the list
+ * grows past the usual 100-row page, up to this many. Every grant row is read anyway (see below).
+ */
+const GRANT_LIST_LIMIT_MAX = 500;
+
+/** A grant that has been revoked, has expired, or whose end date has passed. */
+function grantHasEnded(grant: Pick<Grant, 'status' | 'expiryAt'>, now: number): boolean {
+  return (
+    grant.status === 'REVOKED' ||
+    grant.status === 'EXPIRED' ||
+    (grant.expiryAt !== null && grant.expiryAt.getTime() <= now)
+  );
+}
+
+/** 0 holds access now, 1 is waiting to be accepted, 2 has ended: the order the page lists them. */
+function grantListRank(grant: Pick<Grant, 'status' | 'expiryAt'>, now: number): number {
+  if (grantHasEnded(grant, now)) return 2;
+  return grant.status === 'ACTIVE' || grant.status === 'PAUSED' ? 0 : 1;
+}
+
+/**
+ * Same as `listAccessForApplicant`, but resolves WHO each grant was given to.
+ *
+ * With `options` (WP-SB3) it returns only the first `limit` grants, in a stable order (holding
+ * access, then waiting, then ended; newest first inside each, then by id), with counts over every
+ * grant. The same owner check applies, and every grant row is still read, because a grant's
+ * per-case exceptions depend on the recipient's other grants; only the recipient lookups, which
+ * cost one read per grant, are limited to the grants returned.
+ */
 export async function listAccessForApplicantDetailed(
   db: Db,
   actorAccountId: string,
   applicantId: string,
-): Promise<Result<GrantWithRecipient[], ServiceError>> {
+): Promise<Result<GrantWithRecipient[], ServiceError>>;
+export async function listAccessForApplicantDetailed(
+  db: Db,
+  actorAccountId: string,
+  applicantId: string,
+  options: GrantListOptions,
+): Promise<Result<GrantListPage, ServiceError>>;
+export async function listAccessForApplicantDetailed(
+  db: Db,
+  actorAccountId: string,
+  applicantId: string,
+  options?: GrantListOptions,
+): Promise<Result<GrantWithRecipient[] | GrantListPage, ServiceError>> {
   const listed = await listAccessForApplicant(db, actorAccountId, applicantId);
   if (!listed.ok) return listed;
 
-  const result: GrantWithRecipient[] = [];
-  for (const grant of listed.value) {
-    result.push({ ...grant, recipient: await resolveGrantRecipient(db, grant) });
+  if (options === undefined) {
+    const result: GrantWithRecipient[] = [];
+    for (const grant of listed.value) {
+      result.push({ ...grant, recipient: await resolveGrantRecipient(db, grant) });
+    }
+    return ok(result);
   }
-  return ok(result);
+
+  const now = Date.now();
+  const wanted = options.limit;
+  const limit =
+    wanted === undefined || !Number.isFinite(wanted)
+      ? GRANT_LIST_LIMIT_MAX
+      : Math.min(GRANT_LIST_LIMIT_MAX, Math.max(1, Math.floor(wanted)));
+  const ordered = [...listed.value].sort(
+    (a, b) =>
+      grantListRank(a, now) - grantListRank(b, now) ||
+      b.createdAt.getTime() - a.createdAt.getTime() ||
+      (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+  );
+  const items: GrantWithRecipient[] = [];
+  for (const grant of ordered.slice(0, limit)) {
+    items.push({ ...grant, recipient: await resolveGrantRecipient(db, grant) });
+  }
+  return ok({
+    items,
+    counts: {
+      total: listed.value.length,
+      active: listed.value.filter((grant) => grant.status === 'ACTIVE').length,
+      holdingAccess: listed.value.filter((grant) => grantListRank(grant, now) === 0).length,
+      holdingAccessShown: items.filter((grant) => grantListRank(grant, now) === 0).length,
+    },
+  });
 }
 
 async function resolveGrantRecipient(
