@@ -1,0 +1,28 @@
+# WP-SB7 Staff data and settings (Scroll Budget programme, docs/upgrades/programme/SCROLL-BUDGET-PLAN.md section 6 "SB7").
+# Drafted from the SB7 seed (plan section 4 plus tests and shared files). The owner approved this allowlist
+# in advance on 31 Oct 2026 (relayed by the coordinator session).
+# In organizations.ts only listAllOrganizations may change (LC lane G3 owns withdrawOrganizationApplication there).
+# In legal-hold.ts only the holds list read by the privacy page (listActiveLegalHolds; the plan calls it listLegalHolds).
+# In platform-reads.ts only the applicant directory read used by the privacy picker.
+# admin/organizations/[orgId], admin/plans and admin/billing are frozen and not edited.
+# globals.css takes only an appended block starting with "/* WP-SB7". STATUS.md is not edited (only WP-SB10).
+apps/web/src/app/app/admin/packs/**
+apps/web/src/app/app/admin/privacy/**
+apps/web/src/app/app/admin/ai/**
+apps/web/src/app/app/admin/document-protection/**
+apps/web/src/app/app/admin/organizations/page.tsx
+apps/web/src/app/app/admin/organizations/page.test.tsx
+apps/web/src/app/app/admin/members/**
+packages/services/src/organizations.ts
+packages/services/src/organizations.test.ts
+packages/services/src/legal-hold.ts
+packages/services/src/legal-hold.test.ts
+packages/services/src/platform-reads.ts
+packages/services/src/platform-reads.test.ts
+packages/services/src/staff-data-paging.test.ts
+apps/web/e2e/scroll-budget/WP-SB7.spec.ts
+apps/web/e2e/scroll-budget/WP-SB7.fixture.tsx
+apps/web/src/app/globals.css
+docs/commercial-v1/known-issues.md
+docs/upgrades/programme/COVERAGE-LEDGER.csv
+docs/upgrades/programme/allowlists/WP-SB7.txt
