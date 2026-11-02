@@ -12674,6 +12674,98 @@ html:has(.sticky-action-bar) {
   margin: 1rem 0 0;
 }
 
+/* WP-UMPE-P8 guest desk: the agency-branded Document Collection Desk on /collect (the two choices,
+   the code step, the issued checklist read-only and the retention choice). Flat, 44 px targets,
+   tokens only; the agency's accent arrives through the brand scope's variables. */
+.collect-page .collect-card-wide {
+  max-width: 52rem;
+}
+.collect-page .collect-agency-name {
+  margin: 0;
+  font-weight: 600;
+}
+.collect-page .collect-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+}
+.collect-page .collect-choices .btn,
+.collect-page .collect-back,
+.collect-retention-option {
+  min-height: 44px;
+}
+.collect-page .collect-back {
+  display: inline-flex;
+  align-items: center;
+  margin-top: var(--space-3);
+}
+.collect-page .collect-step-title {
+  margin-top: 0;
+}
+.collect-page .collect-notice {
+  display: block;
+  margin-block: var(--space-3);
+}
+.collect-page .collect-code-input {
+  max-width: 12rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2em;
+}
+.collect-checklist {
+  display: grid;
+  gap: var(--space-4);
+  margin-block: var(--space-4);
+}
+.collect-section-title {
+  margin: 0 0 var(--space-2);
+  font-size: 1rem;
+}
+.collect-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+.collect-item {
+  display: grid;
+  gap: 0.125rem;
+  padding: var(--space-3);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+}
+.collect-item-group {
+  gap: var(--space-2);
+}
+.collect-item-group > .collect-items .collect-item {
+  border-style: dashed;
+}
+.collect-item-label,
+.collect-group-label {
+  font-weight: 600;
+}
+.collect-retention-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.collect-retention-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.collect-page .collect-leave {
+  margin-top: var(--space-4);
+}
+.collect-page .collect-attribution {
+  margin-top: var(--space-5);
+}
+
 /* WP-UMPE-P4 trip package: the case page's Trip Package card and the Start a Trip form. */
 .package-panel > p,
 .package-panel section > p {

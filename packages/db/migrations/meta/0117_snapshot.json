@@ -1,5 +1,5 @@
 {
-  "id": "cd9c7f1d-89f2-4c4b-ba34-66e778f3c332",
+  "id": "9df24d9e-bb08-4e20-a540-63d7d81cde9e",
   "prevId": "9cd0643b-9903-4e85-ae71-3f28cf184e9b",
   "version": "7",
   "dialect": "postgresql",
@@ -562,6 +562,424 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.agency_collection_guest_codes": {
+      "name": "agency_collection_guest_codes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_id": {
+          "name": "link_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "agency_collection_guest_codes_session_idx": {
+          "name": "agency_collection_guest_codes_session_idx",
+          "columns": [
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agency_collection_guest_codes_link_idx": {
+          "name": "agency_collection_guest_codes_link_idx",
+          "columns": [
+            {
+              "expression": "link_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agency_collection_guest_codes_session_id_agency_collection_guest_sessions_id_fk": {
+          "name": "agency_collection_guest_codes_session_id_agency_collection_guest_sessions_id_fk",
+          "tableFrom": "agency_collection_guest_codes",
+          "tableTo": "agency_collection_guest_sessions",
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agency_collection_guest_codes_link_id_agency_collection_links_id_fk": {
+          "name": "agency_collection_guest_codes_link_id_agency_collection_links_id_fk",
+          "tableFrom": "agency_collection_guest_codes",
+          "tableTo": "agency_collection_links",
+          "columnsFrom": ["link_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "agency_collection_guest_codes_hash": {
+          "name": "agency_collection_guest_codes_hash",
+          "value": "\"agency_collection_guest_codes\".\"code_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "agency_collection_guest_codes_attempts": {
+          "name": "agency_collection_guest_codes_attempts",
+          "value": "\"agency_collection_guest_codes\".\"attempts\" >= 0 and \"agency_collection_guest_codes\".\"attempts\" <= 5"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.agency_collection_guest_drafts": {
+      "name": "agency_collection_guest_drafts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "link_id": {
+          "name": "link_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision_id": {
+          "name": "revision_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "retention_days": {
+          "name": "retention_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "agency_collection_guest_drafts_request_idx": {
+          "name": "agency_collection_guest_drafts_request_idx",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agency_collection_guest_drafts_revision_idx": {
+          "name": "agency_collection_guest_drafts_revision_idx",
+          "columns": [
+            {
+              "expression": "revision_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agency_collection_guest_drafts_link_id_agency_collection_links_id_fk": {
+          "name": "agency_collection_guest_drafts_link_id_agency_collection_links_id_fk",
+          "tableFrom": "agency_collection_guest_drafts",
+          "tableTo": "agency_collection_links",
+          "columnsFrom": ["link_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agency_collection_guest_drafts_request_id_agency_collection_requests_id_fk": {
+          "name": "agency_collection_guest_drafts_request_id_agency_collection_requests_id_fk",
+          "tableFrom": "agency_collection_guest_drafts",
+          "tableTo": "agency_collection_requests",
+          "columnsFrom": ["request_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agency_collection_guest_drafts_revision_id_agency_collection_request_revisions_id_fk": {
+          "name": "agency_collection_guest_drafts_revision_id_agency_collection_request_revisions_id_fk",
+          "tableFrom": "agency_collection_guest_drafts",
+          "tableTo": "agency_collection_request_revisions",
+          "columnsFrom": ["revision_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "agency_collection_guest_drafts_link_id_unique": {
+          "name": "agency_collection_guest_drafts_link_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["link_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "agency_collection_guest_drafts_retention_days": {
+          "name": "agency_collection_guest_drafts_retention_days",
+          "value": "\"agency_collection_guest_drafts\".\"retention_days\" is null or \"agency_collection_guest_drafts\".\"retention_days\" in (3, 7, 15, 30, 60, 90, 180)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.agency_collection_guest_sessions": {
+      "name": "agency_collection_guest_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "session_hash": {
+          "name": "session_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_id": {
+          "name": "link_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision_id": {
+          "name": "revision_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "agency_collection_guest_sessions_link_idx": {
+          "name": "agency_collection_guest_sessions_link_idx",
+          "columns": [
+            {
+              "expression": "link_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agency_collection_guest_sessions_request_idx": {
+          "name": "agency_collection_guest_sessions_request_idx",
+          "columns": [
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "agency_collection_guest_sessions_revision_idx": {
+          "name": "agency_collection_guest_sessions_revision_idx",
+          "columns": [
+            {
+              "expression": "revision_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agency_collection_guest_sessions_link_id_agency_collection_links_id_fk": {
+          "name": "agency_collection_guest_sessions_link_id_agency_collection_links_id_fk",
+          "tableFrom": "agency_collection_guest_sessions",
+          "tableTo": "agency_collection_links",
+          "columnsFrom": ["link_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agency_collection_guest_sessions_request_id_agency_collection_requests_id_fk": {
+          "name": "agency_collection_guest_sessions_request_id_agency_collection_requests_id_fk",
+          "tableFrom": "agency_collection_guest_sessions",
+          "tableTo": "agency_collection_requests",
+          "columnsFrom": ["request_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agency_collection_guest_sessions_revision_id_agency_collection_request_revisions_id_fk": {
+          "name": "agency_collection_guest_sessions_revision_id_agency_collection_request_revisions_id_fk",
+          "tableFrom": "agency_collection_guest_sessions",
+          "tableTo": "agency_collection_request_revisions",
+          "columnsFrom": ["revision_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "agency_collection_guest_sessions_session_hash_unique": {
+          "name": "agency_collection_guest_sessions_session_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": ["session_hash"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "agency_collection_guest_sessions_hash": {
+          "name": "agency_collection_guest_sessions_hash",
+          "value": "\"agency_collection_guest_sessions\".\"session_hash\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.agency_collection_links": {
@@ -17585,698 +18003,6 @@
         "traveller_plan_health_settings_counts_range": {
           "name": "traveller_plan_health_settings_counts_range",
           "value": "\"traveller_plan_health_settings\".\"stuck_confirming_max\" between 0 and 1000 and \"traveller_plan_health_settings\".\"needs_check_max\" between 0 and 1000"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.umpe_package_changes": {
-      "name": "umpe_package_changes",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "mission_id": {
-          "name": "mission_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "applicant_id": {
-          "name": "applicant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "signature": {
-          "name": "signature",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "detail": {
-          "name": "detail",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "change_count": {
-          "name": "change_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "first_seen_at": {
-          "name": "first_seen_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "last_seen_at": {
-          "name": "last_seen_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "resolved_at": {
-          "name": "resolved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "resolution": {
-          "name": "resolution",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "umpe_package_changes_open": {
-          "name": "umpe_package_changes_open",
-          "columns": [
-            {
-              "expression": "mission_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"umpe_package_changes\".\"resolved_at\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "umpe_package_changes_applicant_idx": {
-          "name": "umpe_package_changes_applicant_idx",
-          "columns": [
-            {
-              "expression": "applicant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "umpe_package_changes_mission_id_missions_id_fk": {
-          "name": "umpe_package_changes_mission_id_missions_id_fk",
-          "tableFrom": "umpe_package_changes",
-          "tableTo": "missions",
-          "columnsFrom": ["mission_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "umpe_package_changes_applicant_id_applicants_id_fk": {
-          "name": "umpe_package_changes_applicant_id_applicants_id_fk",
-          "tableFrom": "umpe_package_changes",
-          "tableTo": "applicants",
-          "columnsFrom": ["applicant_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "umpe_package_changes_kind_known": {
-          "name": "umpe_package_changes_kind_known",
-          "value": "\"umpe_package_changes\".\"kind\" in ('NEWER_DOCUMENT', 'FACT_CHANGED', 'EVIDENCE_EXPIRED', 'PACK_CHANGED', 'PACK_WITHDRAWN', 'SOURCE_CHANGING')"
-        },
-        "umpe_package_changes_source_known": {
-          "name": "umpe_package_changes_source_known",
-          "value": "\"umpe_package_changes\".\"source\" in ('CASE_OPENED', 'SWEEP')"
-        },
-        "umpe_package_changes_resolution_known": {
-          "name": "umpe_package_changes_resolution_known",
-          "value": "(\"umpe_package_changes\".\"resolved_at\" is null) = (\"umpe_package_changes\".\"resolution\" is null) and (\"umpe_package_changes\".\"resolution\" is null or \"umpe_package_changes\".\"resolution\" in ('REVIEWED', 'NO_LONGER_APPLIES'))"
-        },
-        "umpe_package_changes_signature_cap": {
-          "name": "umpe_package_changes_signature_cap",
-          "value": "char_length(\"umpe_package_changes\".\"signature\") <= 512"
-        },
-        "umpe_package_changes_count_positive": {
-          "name": "umpe_package_changes_count_positive",
-          "value": "\"umpe_package_changes\".\"change_count\" >= 1"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.umpe_package_choices": {
-      "name": "umpe_package_choices",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "mission_id": {
-          "name": "mission_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "applicant_id": {
-          "name": "applicant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "pack_requirement_id": {
-          "name": "pack_requirement_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "choice": {
-          "name": "choice",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "document_id": {
-          "name": "document_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "document_version_id": {
-          "name": "document_version_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "fact_id": {
-          "name": "fact_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "fact_version_id": {
-          "name": "fact_version_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "chosen_by_account_id": {
-          "name": "chosen_by_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "superseded_at": {
-          "name": "superseded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "umpe_package_choices_live": {
-          "name": "umpe_package_choices_live",
-          "columns": [
-            {
-              "expression": "mission_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "pack_requirement_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"umpe_package_choices\".\"superseded_at\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "umpe_package_choices_applicant_idx": {
-          "name": "umpe_package_choices_applicant_idx",
-          "columns": [
-            {
-              "expression": "applicant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "umpe_package_choices_requirement_idx": {
-          "name": "umpe_package_choices_requirement_idx",
-          "columns": [
-            {
-              "expression": "pack_requirement_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "umpe_package_choices_document_version_idx": {
-          "name": "umpe_package_choices_document_version_idx",
-          "columns": [
-            {
-              "expression": "document_version_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "umpe_package_choices_fact_version_idx": {
-          "name": "umpe_package_choices_fact_version_idx",
-          "columns": [
-            {
-              "expression": "fact_version_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "umpe_package_choices_document_idx": {
-          "name": "umpe_package_choices_document_idx",
-          "columns": [
-            {
-              "expression": "document_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "umpe_package_choices_fact_idx": {
-          "name": "umpe_package_choices_fact_idx",
-          "columns": [
-            {
-              "expression": "fact_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "umpe_package_choices_chosen_by_idx": {
-          "name": "umpe_package_choices_chosen_by_idx",
-          "columns": [
-            {
-              "expression": "chosen_by_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "umpe_package_choices_mission_id_missions_id_fk": {
-          "name": "umpe_package_choices_mission_id_missions_id_fk",
-          "tableFrom": "umpe_package_choices",
-          "tableTo": "missions",
-          "columnsFrom": ["mission_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "umpe_package_choices_applicant_id_applicants_id_fk": {
-          "name": "umpe_package_choices_applicant_id_applicants_id_fk",
-          "tableFrom": "umpe_package_choices",
-          "tableTo": "applicants",
-          "columnsFrom": ["applicant_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "umpe_package_choices_pack_requirement_id_pack_requirements_id_fk": {
-          "name": "umpe_package_choices_pack_requirement_id_pack_requirements_id_fk",
-          "tableFrom": "umpe_package_choices",
-          "tableTo": "pack_requirements",
-          "columnsFrom": ["pack_requirement_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "umpe_package_choices_document_id_documents_id_fk": {
-          "name": "umpe_package_choices_document_id_documents_id_fk",
-          "tableFrom": "umpe_package_choices",
-          "tableTo": "documents",
-          "columnsFrom": ["document_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "umpe_package_choices_document_version_id_document_versions_id_fk": {
-          "name": "umpe_package_choices_document_version_id_document_versions_id_fk",
-          "tableFrom": "umpe_package_choices",
-          "tableTo": "document_versions",
-          "columnsFrom": ["document_version_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "umpe_package_choices_fact_id_facts_id_fk": {
-          "name": "umpe_package_choices_fact_id_facts_id_fk",
-          "tableFrom": "umpe_package_choices",
-          "tableTo": "facts",
-          "columnsFrom": ["fact_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "umpe_package_choices_fact_version_id_fact_versions_id_fk": {
-          "name": "umpe_package_choices_fact_version_id_fact_versions_id_fk",
-          "tableFrom": "umpe_package_choices",
-          "tableTo": "fact_versions",
-          "columnsFrom": ["fact_version_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "umpe_package_choices_chosen_by_account_id_accounts_id_fk": {
-          "name": "umpe_package_choices_chosen_by_account_id_accounts_id_fk",
-          "tableFrom": "umpe_package_choices",
-          "tableTo": "accounts",
-          "columnsFrom": ["chosen_by_account_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "umpe_package_choices_choice_known": {
-          "name": "umpe_package_choices_choice_known",
-          "value": "\"umpe_package_choices\".\"choice\" in ('USE_COPY', 'EXCLUDE', 'LEAVE_MISSING')"
-        },
-        "umpe_package_choices_copy_shape": {
-          "name": "umpe_package_choices_copy_shape",
-          "value": "(\"umpe_package_choices\".\"choice\" = 'USE_COPY') = ((\"umpe_package_choices\".\"document_version_id\" is not null and \"umpe_package_choices\".\"document_id\" is not null and \"umpe_package_choices\".\"fact_version_id\" is null and \"umpe_package_choices\".\"fact_id\" is null) or (\"umpe_package_choices\".\"fact_version_id\" is not null and \"umpe_package_choices\".\"fact_id\" is not null and \"umpe_package_choices\".\"document_version_id\" is null and \"umpe_package_choices\".\"document_id\" is null))"
-        },
-        "umpe_package_choices_exclude_reason": {
-          "name": "umpe_package_choices_exclude_reason",
-          "value": "\"umpe_package_choices\".\"choice\" <> 'EXCLUDE' or char_length(coalesce(\"umpe_package_choices\".\"reason\", '')) between 1 and 500"
-        },
-        "umpe_package_choices_reason_cap": {
-          "name": "umpe_package_choices_reason_cap",
-          "value": "\"umpe_package_choices\".\"reason\" is null or char_length(\"umpe_package_choices\".\"reason\") <= 500"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.umpe_package_handoffs": {
-      "name": "umpe_package_handoffs",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "mission_id": {
-          "name": "mission_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "applicant_id": {
-          "name": "applicant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mission_snapshot_id": {
-          "name": "mission_snapshot_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "pack_version_id": {
-          "name": "pack_version_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pack_checksum": {
-          "name": "pack_checksum",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "manifest_format": {
-          "name": "manifest_format",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "material_revision_at_capture": {
-          "name": "material_revision_at_capture",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "content": {
-          "name": "content",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "content_checksum": {
-          "name": "content_checksum",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "confirmed_by_account_id": {
-          "name": "confirmed_by_account_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "confirmed_at": {
-          "name": "confirmed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "umpe_package_handoffs_mission_idx": {
-          "name": "umpe_package_handoffs_mission_idx",
-          "columns": [
-            {
-              "expression": "mission_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "confirmed_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "umpe_package_handoffs_applicant_idx": {
-          "name": "umpe_package_handoffs_applicant_idx",
-          "columns": [
-            {
-              "expression": "applicant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "umpe_package_handoffs_snapshot_idx": {
-          "name": "umpe_package_handoffs_snapshot_idx",
-          "columns": [
-            {
-              "expression": "mission_snapshot_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "umpe_package_handoffs_pack_version_idx": {
-          "name": "umpe_package_handoffs_pack_version_idx",
-          "columns": [
-            {
-              "expression": "pack_version_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "umpe_package_handoffs_confirmed_by_idx": {
-          "name": "umpe_package_handoffs_confirmed_by_idx",
-          "columns": [
-            {
-              "expression": "confirmed_by_account_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "umpe_package_handoffs_mission_id_missions_id_fk": {
-          "name": "umpe_package_handoffs_mission_id_missions_id_fk",
-          "tableFrom": "umpe_package_handoffs",
-          "tableTo": "missions",
-          "columnsFrom": ["mission_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "umpe_package_handoffs_applicant_id_applicants_id_fk": {
-          "name": "umpe_package_handoffs_applicant_id_applicants_id_fk",
-          "tableFrom": "umpe_package_handoffs",
-          "tableTo": "applicants",
-          "columnsFrom": ["applicant_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "umpe_package_handoffs_mission_snapshot_id_mission_snapshots_id_fk": {
-          "name": "umpe_package_handoffs_mission_snapshot_id_mission_snapshots_id_fk",
-          "tableFrom": "umpe_package_handoffs",
-          "tableTo": "mission_snapshots",
-          "columnsFrom": ["mission_snapshot_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "umpe_package_handoffs_pack_version_id_pack_versions_id_fk": {
-          "name": "umpe_package_handoffs_pack_version_id_pack_versions_id_fk",
-          "tableFrom": "umpe_package_handoffs",
-          "tableTo": "pack_versions",
-          "columnsFrom": ["pack_version_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "umpe_package_handoffs_confirmed_by_account_id_accounts_id_fk": {
-          "name": "umpe_package_handoffs_confirmed_by_account_id_accounts_id_fk",
-          "tableFrom": "umpe_package_handoffs",
-          "tableTo": "accounts",
-          "columnsFrom": ["confirmed_by_account_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "umpe_package_handoffs_checksum_shape": {
-          "name": "umpe_package_handoffs_checksum_shape",
-          "value": "\"umpe_package_handoffs\".\"content_checksum\" ~ '^[0-9a-f]{64}$'"
         }
       },
       "isRLSEnabled": false

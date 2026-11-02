@@ -31,6 +31,8 @@ export interface EmailContent {
   readonly fact: string;
   /** Why it matters, in one or two calm sentences. */
   readonly why?: string;
+  /** A one-time code to type, shown large on its own (UMPE P8 guest code). */
+  readonly code?: string;
   readonly action: { readonly label: string; readonly url: string };
   /** What happens next, or a reassurance. */
   readonly after?: string;
@@ -86,6 +88,7 @@ export function renderEmail(
     content.heading,
     '',
     content.fact,
+    ...(content.code ? ['', `Your code: ${content.code}`] : []),
     ...(content.why ? ['', content.why] : []),
     '',
     `${content.action.label}: ${url}`,
@@ -126,6 +129,7 @@ export function renderEmail(
 <p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${ACCENT};">${e(content.eyebrow)}</p>
 <h1 style="margin:0 0 16px;font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.02em;color:${INK};">${e(content.heading)}</h1>
 ${paragraph(content.fact, INK, 16, '0 0 12px')}
+${content.code ? `<p style="margin:8px 0 20px;font-size:32px;line-height:1.2;font-weight:700;letter-spacing:0.3em;font-family:Menlo,Consolas,monospace;color:${INK};">${e(content.code)}</p>` : ''}
 ${content.why ? paragraph(content.why, BODY, 15, '0 0 24px') : '<div style="height:12px;"></div>'}
 <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
 <td style="border-radius:980px;background:${ACCENT};">
@@ -157,6 +161,8 @@ export interface NotificationEmailInput {
   readonly timing?: 'upcoming' | 'today' | 'overdue';
   /** The heading this one notice asked for (billing status changes, the 7-day reminder; S30). */
   readonly heading?: string;
+  /** A guest's one-time code, unsealed at send time (UMPE P8). */
+  readonly code?: string;
 }
 
 interface Copy {
@@ -194,7 +200,8 @@ type EmailEventType =
   | 'CLIENT_INVITATION_CREATED'
   | 'SHARING_INVITATION_CREATED'
   | 'CONTRIBUTOR_REQUEST_CREATED'
-  | 'AGENCY_COLLECTION_REQUEST_SENT';
+  | 'AGENCY_COLLECTION_REQUEST_SENT'
+  | 'AGENCY_COLLECTION_GUEST_CODE';
 
 export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
   EVIDENCE_REQUEST_CREATED: {
@@ -394,6 +401,14 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     heading: 'An agency asked you for documents',
     action: 'Open the Request',
   },
+  // UMPE P8: the code only, never the person, the route or the documents.
+  AGENCY_COLLECTION_GUEST_CODE: {
+    eyebrow: 'Your Code',
+    heading: 'Your one-time code',
+    why: 'Type it on the page where you asked for it. It works once, for 10 minutes.',
+    action: 'Return to the Request',
+    after: 'VisaStack will never ask you for this code by phone or message.',
+  },
 };
 
 export function notificationEmail(input: NotificationEmailInput): EmailContent {
@@ -411,6 +426,7 @@ export function notificationEmail(input: NotificationEmailInput): EmailContent {
     eyebrow: copy?.eyebrow ?? 'VisaStack',
     heading,
     fact: input.summary,
+    ...(input.code ? { code: input.code } : {}),
     ...(copy?.why ? { why: copy.why } : {}),
     action: {
       label: copy
