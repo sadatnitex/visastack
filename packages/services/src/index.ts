@@ -1546,6 +1546,14 @@ export {
   setPlanRenewal,
   startPersonCheckout,
 } from './person-billing';
+// Owner decision (2 Nov 2026): a traveller's payment lost in a restore, recovered from the gateway.
+export {
+  type RecoverPersonPaymentInput,
+  type RecoverablePlan,
+  type RecoveredPersonPayment,
+  listRecoverablePlans,
+  recoverPersonPayment,
+} from './person-payment-recovery';
 // ADR 0025 T4: the daily run's person step (renewals, reminders, lapses).
 export type { PersonRenewalSummary } from './person-renewals';
 

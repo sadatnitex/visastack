@@ -12,6 +12,7 @@ import {
   type TravellerBillingResult,
   type TravellerNeedsCheckItem,
   getTravellerBilling,
+  listRecoverablePlans,
   listTravellerNeedsCheck,
 } from '@visastack/services';
 import type { Metadata } from 'next';
@@ -29,6 +30,7 @@ import { withSession } from '../../../../../lib/session';
 import { AdminRestricted } from '../../admin-restricted';
 import { LazyDisclosure, RefundFeedback } from '../../organizations/[orgId]/refund-feedback';
 import { TravellerRefundForm } from './forms';
+import { RecoverPaymentForm } from './recover-form';
 
 /**
  * Traveller Billing (ADR 0025, T6b): the platform owner's view of one traveller's own purchases,
@@ -555,6 +557,30 @@ function Results({
   );
 }
 
+/**
+ * Recover a Payment (owner decision, 2 Nov 2026): after a restore from backup, a traveller's
+ * purchase made after the restore point is recovered from the payment gateway's own record.
+ */
+function RecoverPayment({
+  plans,
+}: {
+  readonly plans: readonly { readonly key: string; readonly name: string }[];
+}) {
+  return (
+    <article className="card u-mb-150" aria-labelledby="recover-payment-title">
+      <h2 className="card-title" id="recover-payment-title">
+        Recover a Payment
+      </h2>
+      <p className="card-body u-mb-100">
+        After a restore from backup, a traveller who paid in the meantime can be missing their plan.
+        Check the payment in the payment gateway's merchant records first. VisaStack then asks the
+        gateway what was paid and records exactly that, with a receipt, as if they had just paid.
+      </p>
+      <RecoverPaymentForm plans={plans} />
+    </article>
+  );
+}
+
 function firstOf(value: string | readonly string[] | undefined): string {
   const one = Array.isArray(value) ? value[0] : value;
   return typeof one === 'string' ? one.trim().slice(0, 64) : '';
@@ -575,14 +601,21 @@ export default async function TravellerBillingPage({
       'BILLING_REFUND_MANAGE',
     );
     if (!staff.ok) return { kind: 'restricted' as const };
-    const needs = await listTravellerNeedsCheck(db, staff.value, { now });
+    const [needs, plansResult] = await Promise.all([
+      listTravellerNeedsCheck(db, staff.value, { now }),
+      listRecoverablePlans(db, staff.value),
+    ]);
     if (!needs.ok) return { kind: 'restricted' as const };
-    if (code.length === 0) return { kind: 'ready' as const, needs: needs.value, found: null };
+    const plans = plansResult.ok ? plansResult.value : [];
+    if (code.length === 0) {
+      return { kind: 'ready' as const, needs: needs.value, found: null, plans };
+    }
     const found = await getTravellerBilling(db, staff.value, { code, now });
     if (!found.ok && found.error.code === 'forbidden') return { kind: 'restricted' as const };
     return {
       kind: 'ready' as const,
       needs: needs.value,
+      plans,
       found: found.ok
         ? { ok: true as const, value: found.value }
         : { ok: false as const, message: found.error.message },
@@ -616,6 +649,7 @@ export default async function TravellerBillingPage({
           {data.found?.ok ? (
             <Results result={data.found.value} now={now} latestDate={dayField(now)} />
           ) : null}
+          <RecoverPayment plans={data.plans} />
         </>
       )}
     </section>

@@ -45,6 +45,7 @@ export type RefusalReason =
   | AiFeatureReason
   | PaymentProviderReason
   | PersonBillingReason
+  | PaymentRecoveryReason
   | StorageLimitReason;
 
 /**
@@ -53,6 +54,12 @@ export type RefusalReason =
  * for one person's record, or for the owner's whole account.
  */
 export type StorageLimitReason = 'person_storage_limit' | 'account_storage_limit';
+
+/**
+ * Which part of Recover a Payment a refusal is about (owner decision, 2 Nov 2026), so the form
+ * marks that box without reading the message: the traveller, the plan, or the transaction.
+ */
+export type PaymentRecoveryReason = 'recovery_account' | 'recovery_plan' | 'recovery_transaction';
 
 /**
  * Why a traveller cannot buy or pay for a paid plan right now (ADR 0025): selling is switched off,

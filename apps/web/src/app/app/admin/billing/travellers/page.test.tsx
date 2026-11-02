@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   staffPrincipal: vi.fn(),
   getTravellerBilling: vi.fn(),
   listTravellerNeedsCheck: vi.fn(),
+  listRecoverablePlans: vi.fn(),
 }));
 
 vi.mock('../../../../../lib/session', () => ({
@@ -21,6 +22,10 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   getTravellerBilling: (...args: unknown[]) => mocks.getTravellerBilling(...args),
   listTravellerNeedsCheck: (...args: unknown[]) => mocks.listTravellerNeedsCheck(...args),
+  listRecoverablePlans: (...args: unknown[]) => mocks.listRecoverablePlans(...args),
+}));
+vi.mock('./recover-action', () => ({
+  recoverTravellerPaymentAction: async () => ({ ok: true, message: '' }),
 }));
 vi.mock('./actions', () => ({
   recordTravellerRefundAction: async () => ({ ok: true, message: '' }),
@@ -224,6 +229,10 @@ beforeEach(() => {
   mocks.staffPrincipal.mockResolvedValue({ ok: true, value: SCOPE });
   mocks.listTravellerNeedsCheck.mockResolvedValue({ ok: true, value: NEEDS });
   mocks.getTravellerBilling.mockResolvedValue(found([person()]));
+  mocks.listRecoverablePlans.mockResolvedValue({
+    ok: true,
+    value: [{ key: 'traveller_plus', name: 'Traveller Plus' }],
+  });
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -396,6 +405,29 @@ describe('Platform > Traveller Billing (ADR 0025 T6b)', () => {
     expect(text).toContain('Refund Reference');
     expect(text).toContain('Refunded On');
     expect(text).toContain('Reason');
+  });
+
+  it('offers Recover a Payment to the platform owner, with the paid plans and no id on the page', async () => {
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('Recover a Payment');
+    expect(text).toContain('Traveller Account Id');
+    expect(text).toContain('Plan They Paid For');
+    expect(text).toContain('Transaction Id');
+    expect(html).toContain(
+      '<option value="traveller_plus">Traveller Plus (traveller_plus)</option>',
+    );
+    expect(mocks.listRecoverablePlans.mock.calls[0]?.[1]).toBe(SCOPE);
+    expect(html).not.toMatch(UUID);
+    expect(await axeViolations(html)).toEqual([]);
+    // Not for anyone else.
+    mocks.staffPrincipal.mockResolvedValue({
+      ok: false,
+      error: { code: 'forbidden', message: 'x' },
+    });
+    mocks.listRecoverablePlans.mockClear();
+    expect(textOf(await render())).not.toContain('Recover a Payment');
+    expect(mocks.listRecoverablePlans).not.toHaveBeenCalled();
   });
 
   it('never shows a name, an email or an account id', async () => {

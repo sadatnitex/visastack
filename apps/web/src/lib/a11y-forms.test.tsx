@@ -60,6 +60,7 @@ vi.mock('../app/app/admin/actions', standIn);
 vi.mock('../app/app/admin/ai-settings/actions', standIn);
 vi.mock('../app/app/admin/billing/actions', standIn);
 vi.mock('../app/app/admin/billing/travellers/actions', standIn);
+vi.mock('../app/app/admin/billing/travellers/recover-action', standIn);
 vi.mock('../app/app/admin/billing/travellers/metrics/actions', standIn);
 vi.mock('../app/app/admin/ai/actions', standIn);
 vi.mock('../app/app/applicant/[id]/sharing/ai-draft-actions', standIn);
@@ -104,6 +105,7 @@ const protectionForms = await import('../app/app/admin/document-protection/forms
 const removalForms = await import('../app/app/admin/removals/decide-form');
 const billingRulesForms = await import('../app/app/admin/billing/forms');
 const travellerBillingForms = await import('../app/app/admin/billing/travellers/forms');
+const travellerRecoverForm = await import('../app/app/admin/billing/travellers/recover-form');
 const travellerThresholdsForms = await import('../app/app/admin/billing/travellers/metrics/forms');
 const aiFeatureForms = await import('../app/app/admin/ai/forms');
 const planForms = await import('../app/app/admin/plans/forms');
@@ -1903,6 +1905,15 @@ const ADMIN: readonly Case[] = [
     ),
     fields: ['reference', 'refundedOn', 'reason'],
     repeated: true,
+  },
+  {
+    name: "recover a traveller's payment lost in a restore",
+    element: () => (
+      <travellerRecoverForm.RecoverPaymentForm
+        plans={[{ key: 'traveller_plus', name: 'Traveller Plus' }]}
+      />
+    ),
+    fields: ['code', 'planKey', 'transactionId'],
   },
   {
     name: "record a traveller's refund (held, past the 7 days)",
