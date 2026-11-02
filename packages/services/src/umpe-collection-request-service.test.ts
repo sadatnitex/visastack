@@ -538,10 +538,11 @@ describe('agency document requests before any traveller record (UMPE P6)', () =>
       const first = await issued(requestId);
       const view = await openCollectionLink(db, collectionLinkProof(first.link.rawToken) as never);
       expect(view).toEqual({
+        linkId: first.link.id,
         agency: { name: 'Synthetic Agency One', accentColor: null },
         expiresAt: first.link.expiresAt,
       });
-      expect(Object.keys(view ?? {}).sort()).toEqual(['agency', 'expiresAt']);
+      expect(Object.keys(view ?? {}).sort()).toEqual(['agency', 'expiresAt', 'linkId']);
 
       const second = await issued(requestId);
       const replaced = await openCollectionLink(

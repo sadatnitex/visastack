@@ -1089,6 +1089,8 @@ async function openLinkFor(
 
 /** What the public request page may show: never the person, route, checklist or any account. */
 export interface PublicCollectionView {
+  /** Which link is open, so a page can bind its cookie to it. Never shown. */
+  readonly linkId: string;
   /** The agency, only when VisaStack has reviewed it (ACTIVE); otherwise an unnamed agency. */
   readonly agency: BrandSnapshot | null;
   readonly expiresAt: Date;
@@ -1116,7 +1118,7 @@ export async function openCollectionLink(
   );
   if (!updated) return null;
   const { brand } = await organizationBrand(db, open.organizationId);
-  return { agency: brand, expiresAt: updated.expiresAt };
+  return { linkId: open.linkId, agency: brand, expiresAt: updated.expiresAt };
 }
 
 /**

@@ -75,6 +75,7 @@ vi.mock('../app/app/admin/packs/sources/actions', standIn);
 vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
+vi.mock('../app/app/agency/[orgId]/collection/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/plan/invoices/actions', standIn);
 vi.mock('../app/app/applicant/[id]/actions', standIn);
 vi.mock('../app/app/applicant/[id]/section-actions', standIn);
@@ -126,6 +127,7 @@ const refundForms = await import('../app/app/admin/organizations/[orgId]/refund-
 const packForms = await import('../app/app/admin/packs/pack-forms');
 const packVersionButtons = await import('../app/app/admin/packs/pack-version-buttons');
 const sourceForms = await import('../app/app/admin/packs/sources/source-forms');
+const collectionForms = await import('../app/app/agency/[orgId]/collection/collection-forms');
 const { PurgeButton } = await import('../app/app/admin/purge-button');
 const { ReconcileButtons } = await import('../app/app/admin/reconcile-buttons');
 const { BrandingForm } = await import('../app/app/agency/[orgId]/branding-form');
@@ -2068,6 +2070,106 @@ const ADMIN: readonly Case[] = [
   {
     name: 'stop checking an official page',
     element: () => <sourceForms.DeactivateSourceButton sourceId="s1" sourceTitle="Visit the UK" />,
+  },
+  {
+    name: 'start an agency document request',
+    element: () => (
+      <collectionForms.NewRequestForm
+        organizationId="o1"
+        countries={[{ iso2: 'GB', name: 'United Kingdom' }]}
+        purposeGroups={[{ label: 'Visit', options: [{ key: 'tourism', label: 'Tourism' }] }]}
+      />
+    ),
+    fields: ['destination', 'purpose', 'dueAt'],
+  },
+  {
+    name: 'add an agency item to a document request',
+    element: () => (
+      <collectionForms.AddItemForm
+        organizationId="o1"
+        requestId="r1"
+        necessities={[
+          { value: 'MANDATORY', label: 'Mandatory' },
+          { value: 'RECOMMENDED', label: 'Recommended' },
+          { value: 'OPTIONAL', label: 'Optional' },
+        ]}
+      />
+    ),
+    fields: ['label'],
+  },
+  {
+    name: 'edit an official item of a document request',
+    element: () => (
+      <collectionForms.ItemEditForm
+        organizationId="o1"
+        requestId="r1"
+        item={{ id: 'i1', label: 'Passport', note: null, necessity: 'MANDATORY', agency: false }}
+        first
+        last={false}
+        removable={false}
+        necessities={[
+          { value: 'MANDATORY', label: 'Mandatory' },
+          { value: 'RECOMMENDED', label: 'Recommended' },
+          { value: 'OPTIONAL', label: 'Optional' },
+        ]}
+      />
+    ),
+  },
+  {
+    name: 'edit an agency item of a document request',
+    element: () => (
+      <collectionForms.ItemEditForm
+        organizationId="o1"
+        requestId="r1"
+        item={{
+          id: 'i2',
+          label: 'Employer Letter',
+          note: 'On letterhead',
+          necessity: 'OPTIONAL',
+          agency: true,
+        }}
+        first={false}
+        last
+        removable
+        necessities={[
+          { value: 'MANDATORY', label: 'Mandatory' },
+          { value: 'RECOMMENDED', label: 'Recommended' },
+          { value: 'OPTIONAL', label: 'Optional' },
+        ]}
+      />
+    ),
+  },
+  {
+    name: 'choose the official checklist of a document request',
+    element: () => (
+      <collectionForms.PackChoiceForm
+        organizationId="o1"
+        requestId="r1"
+        current={null}
+        choices={[{ packVersionId: 'pv1', label: 'Synthetic UK Visit (Version 1)' }]}
+      />
+    ),
+  },
+  {
+    name: 'issue a document request',
+    element: () => (
+      <collectionForms.IssueRequestForm organizationId="o1" requestId="r1" reissue={false} />
+    ),
+  },
+  {
+    name: 'make a new document request link',
+    element: () => <collectionForms.NewLinkForm organizationId="o1" requestId="r1" />,
+  },
+  {
+    name: 'email a document request link',
+    element: () => (
+      <collectionForms.EmailLinkForm organizationId="o1" requestId="r1" defaultEmail={null} />
+    ),
+    fields: ['email'],
+  },
+  {
+    name: 'close or revoke a document request',
+    element: () => <collectionForms.EndRequestForm organizationId="o1" requestId="r1" />,
   },
   {
     name: 'decide on a detected page change',

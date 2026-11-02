@@ -83,6 +83,20 @@ describe('current contextual navigation contract', () => {
     expect(nav.primary.every((link) => link.href.startsWith(`/app/agency/${o1}`))).toBe(true);
     expect(nav.tools).toContainEqual({ href: `/app/agency/${o1}/plan`, label: 'Plan & Usage' });
   });
+  it('offers Document Requests only to an owner or admin while the switch is on (UMPE P6)', () => {
+    const at = `/app/agency/${o1}`;
+    expect(labels(at)).not.toContain('Document Requests');
+    const on = (admin: boolean): WorkspaceAccess => ({
+      ...access,
+      agencies: [{ id: o1, name: 'Synthetic Agency One', admin, collectionRequests: true }],
+    });
+    const link = workspaceNavigation(at, on(true)).primary.find(
+      (item) => item.label === 'Document Requests',
+    );
+    expect(link?.href).toBe(`/app/agency/${o1}/collection`);
+    expect(labels(at, on(false))).not.toContain('Document Requests');
+  });
+
   it('does not offer administrator-only agency actions to a case worker', () => {
     const nav = workspaceNavigation(`/app/agency/${o2}/cases`, access);
     expect(nav.primary.map((link) => link.label)).toEqual([
