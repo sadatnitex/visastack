@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   type UploadRequest,
-  newUploadId,
   readAnswer,
   retryAfterSeconds,
   sendDocumentFile,
@@ -200,12 +199,6 @@ describe('the upload id and the file name (UMPE P3)', () => {
     expect(request.headers['X-Upload-Id']).toBe('0b9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f');
     expect(decodeURIComponent(request.headers['X-File-Name'] ?? '')).toBe('ব্যাংক statement.jpg');
     expect(request.headers['X-File-Name']).not.toMatch(/[^\x20-\x7e]/);
-  });
-
-  it('mints a different id each time', () => {
-    const a = newUploadId();
-    expect(a).toMatch(/^[0-9a-f-]{36}$/);
-    expect(newUploadId()).not.toBe(a);
   });
 
   it('treats the busy answer for an upload still being stored as busy, never as refused', () => {

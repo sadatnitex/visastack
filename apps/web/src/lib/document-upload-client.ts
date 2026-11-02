@@ -75,11 +75,6 @@ export interface SendFileInput {
   readonly createRequest?: () => UploadRequest;
 }
 
-/** A new upload id: one per file, kept for every attempt at sending that file. */
-export function newUploadId(): string {
-  return globalThis.crypto.randomUUID();
-}
-
 /** A slow phone connection can take minutes for a few megabytes; past this the answer is unknown. */
 const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 

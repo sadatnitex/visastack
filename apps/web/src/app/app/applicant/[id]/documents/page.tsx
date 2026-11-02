@@ -297,11 +297,14 @@ export default async function ApplicantDocumentsPage({
       : undefined;
     // UMPE P3: the files needing one decision, through the same owner proof; and whether the
     // server keeps upload receipts, which lets the import send a file with no answer again safely.
+    // Both are extras: if either cannot be read, the page shows no list and the import keeps
+    // its no-automatic-retry rule, never an error.
+    const noDecisions = { exceptions: [], confirmed: [] };
     const [understanding, uploadReceiptsReady] = await Promise.all([
       readingAccess.ok
-        ? listDocumentExceptions(readingAccess.value)
-        : Promise.resolve({ exceptions: [], confirmed: [] }),
-      documentUploadReceiptsReady(db),
+        ? listDocumentExceptions(readingAccess.value).catch(() => noDecisions)
+        : Promise.resolve(noDecisions),
+      documentUploadReceiptsReady(db).catch(() => false),
     ]);
     const detailsAvailable =
       (await resolveAiExtractionAvailability(db, encryption !== undefined)) === 'available';

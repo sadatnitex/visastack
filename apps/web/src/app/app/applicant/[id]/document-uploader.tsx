@@ -5,11 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { UndoStatus } from '../../../../components/lifecycle/undo-status';
 import { UpgradeLine, type UpgradeLineKind } from '../../../../components/upgrade-line';
-import {
-  type UploadOutcome,
-  newUploadId,
-  sendDocumentFile,
-} from '../../../../lib/document-upload-client';
+import { type UploadOutcome, sendDocumentFile } from '../../../../lib/document-upload-client';
+import { newUploadId } from '../../../../lib/document-upload-client-id';
 import { formatFileSize } from '../../../../lib/format-size';
 import { useDropZone } from '../../../../lib/import/use-drop-zone';
 import type { ChoiceGroup } from '../../../../lib/master-profile-types';

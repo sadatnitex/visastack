@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import { UndoStatus } from '../../../../../components/lifecycle/undo-status';
 import { UpgradeLine } from '../../../../../components/upgrade-line';
+import { newUploadId } from '../../../../../lib/document-upload-client-id';
 import { formatFileSize } from '../../../../../lib/format-size';
 import {
   type FolderReadResult,
@@ -343,7 +344,7 @@ export function ImportPanel({
         // choosing the folder again after a reload can never store a file twice.
         uploadIdFor: async (file) =>
           uploadIdFromHash(await sha256Hex(`${applicantId}\u0000${fingerprintOf(file)}`)) ??
-          globalThis.crypto.randomUUID(),
+          newUploadId(),
         retryUnknown,
       }),
   );

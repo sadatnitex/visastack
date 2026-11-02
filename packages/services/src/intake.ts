@@ -764,23 +764,7 @@ async function recordDocumentUnderstanding(
   const comparableVersionIds = comparable
     .map((other) => latestVersion.get(other.id)?.id)
     .filter((id): id is string => typeof id === 'string');
-  const readings =
-    comparableVersionIds.length > 0
-      ? await tx
-          .select({
-            documentVersionId: schema.extractionRuns.documentVersionId,
-            text: schema.extractionRuns.extractedText,
-            createdAt: schema.extractionRuns.createdAt,
-          })
-          .from(schema.extractionRuns)
-          .where(
-            and(
-              inArray(schema.extractionRuns.documentVersionId, comparableVersionIds),
-              eq(schema.extractionRuns.status, 'SUCCEEDED'),
-            ),
-          )
-          .orderBy(desc(schema.extractionRuns.createdAt))
-      : [];
+  // The kind each other document was read as (only when no kind was saved on it).
   const classified =
     comparableVersionIds.length > 0
       ? await tx
@@ -793,32 +777,51 @@ async function recordDocumentUnderstanding(
           .where(inArray(schema.documentClassifications.documentVersionId, comparableVersionIds))
           .orderBy(desc(schema.documentClassifications.createdAt))
       : [];
-  const textOf = new Map<string, string>();
-  for (const row of readings) {
-    if (row.text && !textOf.has(row.documentVersionId)) textOf.set(row.documentVersionId, row.text);
-  }
   const readTypeOf = new Map<string, string | null>();
   for (const row of classified) {
     if (!readTypeOf.has(row.documentVersionId)) {
       readTypeOf.set(row.documentVersionId, row.reviewRequired ? null : row.classifiedType);
     }
   }
+  const typeOf = (other: (typeof others)[number]): string | null => {
+    const latest = latestVersion.get(other.id);
+    return other.docType ?? (latest ? (readTypeOf.get(latest.id) ?? null) : null);
+  };
+  // Text is read only for the newest documents of the same kind, at most the limit.
+  const sameKindVersionIds = comparable
+    .filter((other) => typeOf(other) === docType)
+    .slice(0, RELATION_CANDIDATE_LIMIT)
+    .map((other) => latestVersion.get(other.id)?.id)
+    .filter((id): id is string => typeof id === 'string');
+  const readings =
+    sameKindVersionIds.length > 0
+      ? await tx
+          .select({
+            documentVersionId: schema.extractionRuns.documentVersionId,
+            text: schema.extractionRuns.extractedText,
+          })
+          .from(schema.extractionRuns)
+          .where(
+            and(
+              inArray(schema.extractionRuns.documentVersionId, sameKindVersionIds),
+              eq(schema.extractionRuns.status, 'SUCCEEDED'),
+            ),
+          )
+          .orderBy(desc(schema.extractionRuns.createdAt))
+      : [];
+  const textOf = new Map<string, string>();
+  for (const row of readings) {
+    if (row.text && !textOf.has(row.documentVersionId)) textOf.set(row.documentVersionId, row.text);
+  }
 
-  let compared = 0;
   const candidates = others.map((other) => {
     const latest = latestVersion.get(other.id);
-    const otherType = other.docType ?? (latest ? (readTypeOf.get(latest.id) ?? null) : null);
-    const readSignals =
-      docType !== null && otherType === docType && compared < RELATION_CANDIDATE_LIMIT;
-    if (readSignals) compared++;
+    const otherType = typeOf(other);
     return {
       documentId: other.id,
       versionHashes: hashes.get(other.id) ?? [],
       docType: otherType,
-      signals: readDocumentSignals(
-        readSignals && latest ? (textOf.get(latest.id) ?? null) : null,
-        otherType,
-      ),
+      signals: readDocumentSignals(latest ? (textOf.get(latest.id) ?? null) : null, otherType),
       createdAt: other.createdAt,
     };
   });

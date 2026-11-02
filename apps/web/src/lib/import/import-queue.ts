@@ -27,6 +27,7 @@
 
 import type { UpgradeLineKind } from '../../components/upgrade-line';
 import { type UploadOutcome, sendDocumentFile } from '../document-upload-client';
+import { newUploadId } from '../document-upload-client-id';
 import { checkChosenFile } from '../upload-rules';
 
 export type ImportState =
@@ -222,8 +223,6 @@ export function uploadIdFromHash(hex: string | null): string | null {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-const randomUploadId = (): string => globalThis.crypto.randomUUID();
-
 /** Whether Try Again is offered: the file is still at hand and another send may succeed. */
 export function canTryAgain(item: Pick<ImportItem, 'state' | 'skipReason'>): boolean {
   return (
@@ -323,7 +322,7 @@ export class ImportQueue {
     this.send = options.send ?? sendThroughUploadRoute;
     this.wait = options.wait ?? defaultWait;
     this.progressIntervalMs = options.progressIntervalMs ?? PROGRESS_INTERVAL_MS;
-    this.newUploadId = options.newUploadId ?? randomUploadId;
+    this.newUploadId = options.newUploadId ?? newUploadId;
     this.snapshot = this.makeSnapshot();
   }
 
