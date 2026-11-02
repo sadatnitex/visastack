@@ -2,6 +2,7 @@
 
 import {
   type Db,
+  TRIP_MAX_TRAVELLERS,
   accountPrincipal,
   addTravellerToTrip,
   addTripEvidence,
@@ -26,7 +27,6 @@ import { linkTripChecklist } from './trip-checklist';
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MAX_TRAVELLERS = 12;
 const TRAVELLER_UNAVAILABLE = 'One of these travellers is not available to you.';
 const TRIP_UNAVAILABLE = 'This trip is not available to you.';
 const FAILED = 'Something went wrong. Try again.';
@@ -42,7 +42,7 @@ function ticked(formData: FormData): string[] {
         .map((v) => String(v))
         .filter((v) => UUID.test(v)),
     ),
-  ].slice(0, MAX_TRAVELLERS);
+  ].slice(0, TRIP_MAX_TRAVELLERS);
 }
 
 async function travellerProof(db: Db, accountId: string, applicantId: string) {
@@ -141,15 +141,20 @@ export async function startGroupTripAction(
   } catch (error) {
     unstable_rethrow(error);
     reportServerError('startGroupTripAction', error);
-    return { ok: false, message: FAILED };
+    outcome = { ok: false, message: FAILED };
   }
   if (tripId) {
+    // The trip exists even if a later traveller was refused or a step failed: always go to it, so
+    // trying again adds the others there instead of starting a second trip.
     revalidatePath('/app/trips');
-    // The trip exists even if a later traveller was refused; its page says who is on it.
-    if (outcome.ok) redirect(`/app/trips/${tripId}`);
-    return { ...outcome, message: `${outcome.message} Open the trip to see who is on it.` };
+    redirect(`/app/trips/${tripId}${outcome.ok ? '' : '?done=partial'}`);
   }
   return outcome;
+}
+
+/** After a change that removes the form it came from, the trip page says what happened. */
+function backToTrip(tripId: string, done: 'added' | 'removed' | 'shared' | 'unshared'): never {
+  redirect(`/app/trips/${tripId}?done=${done}`);
 }
 
 /** Runs `run` for a trip id from the form, refreshing the trip page after a success. */
@@ -179,17 +184,11 @@ export async function addTravellersAction(
   if (travellers.length === 0) {
     return { ok: false, message: 'Choose who else is travelling.', field: 'traveller' };
   }
-  return onTrip(formData, 'addTravellersAction', async (db, accountId, tripId) => {
-    const outcome = await addEach(db, accountId, tripId, travellers);
-    if (!outcome.ok) return outcome;
-    return {
-      ok: true,
-      message:
-        travellers.length === 1
-          ? 'Traveller added with their own case.'
-          : 'Travellers added, each with their own case.',
-    };
-  });
+  const outcome = await onTrip(formData, 'addTravellersAction', (db, accountId, tripId) =>
+    addEach(db, accountId, tripId, travellers),
+  );
+  if (outcome.ok) backToTrip(String(formData.get('tripId')), 'added');
+  return outcome;
 }
 
 export async function removeTravellerAction(
@@ -198,13 +197,15 @@ export async function removeTravellerAction(
 ): Promise<ActionState> {
   const applicantId = String(formData.get('applicantId') ?? '');
   if (!UUID.test(applicantId)) return { ok: false, message: TRAVELLER_UNAVAILABLE };
-  return onTrip(formData, 'removeTravellerAction', async (db, accountId, tripId) => {
+  const outcome = await onTrip(formData, 'removeTravellerAction', async (db, accountId, tripId) => {
     const proof = await travellerProof(db, accountId, applicantId);
     if (!proof.ok) return { ok: false, message: TRAVELLER_UNAVAILABLE };
     const removed = await removeTravellerFromTrip(proof.value, tripId);
     if (!removed.ok) return { ok: false, message: removed.error.message };
-    return { ok: true, message: 'Removed from the trip. Their case is kept as it is.' };
+    return { ok: true, message: '' };
   });
+  if (outcome.ok) backToTrip(String(formData.get('tripId')), 'removed');
+  return outcome;
 }
 
 export async function addTripEvidenceAction(
@@ -215,7 +216,7 @@ export async function addTripEvidenceAction(
   if (!UUID.test(documentId)) {
     return { ok: false, message: 'Choose a travel document to share.', field: 'documentId' };
   }
-  return onTrip(formData, 'addTripEvidenceAction', async (db, accountId, tripId) => {
+  const outcome = await onTrip(formData, 'addTripEvidenceAction', async (db, accountId, tripId) => {
     const proof = await requireAccess(
       db,
       accountPrincipal(accountId),
@@ -228,13 +229,10 @@ export async function addTripEvidenceAction(
     }
     const added = await addTripEvidence(proof.value, tripId);
     if (!added.ok) return { ok: false, message: added.error.message, field: 'documentId' };
-    return {
-      ok: true,
-      message: added.value.added
-        ? 'Added to the trip. Choose who it may be used for.'
-        : 'This document is already on the trip.',
-    };
+    return { ok: true, message: '' };
   });
+  if (outcome.ok) backToTrip(String(formData.get('tripId')), 'shared');
+  return outcome;
 }
 
 export async function tripEvidenceAllowanceAction(
@@ -270,14 +268,17 @@ export async function removeTripEvidenceAction(
   if (!UUID.test(evidenceId) || !UUID.test(applicantId)) {
     return { ok: false, message: 'That shared document is not available.' };
   }
-  return onTrip(formData, 'removeTripEvidenceAction', async (db, accountId, tripId) => {
-    const proof = await travellerProof(db, accountId, applicantId);
-    if (!proof.ok) return { ok: false, message: TRAVELLER_UNAVAILABLE };
-    const removed = await removeTripEvidence(proof.value, tripId, evidenceId);
-    if (!removed.ok) return { ok: false, message: removed.error.message };
-    return {
-      ok: true,
-      message: 'No longer shared across the trip. The document stays in its own place.',
-    };
-  });
+  const outcome = await onTrip(
+    formData,
+    'removeTripEvidenceAction',
+    async (db, accountId, tripId) => {
+      const proof = await travellerProof(db, accountId, applicantId);
+      if (!proof.ok) return { ok: false, message: TRAVELLER_UNAVAILABLE };
+      const removed = await removeTripEvidence(proof.value, tripId, evidenceId);
+      if (!removed.ok) return { ok: false, message: removed.error.message };
+      return { ok: true, message: '' };
+    },
+  );
+  if (outcome.ok) backToTrip(String(formData.get('tripId')), 'unshared');
+  return outcome;
 }

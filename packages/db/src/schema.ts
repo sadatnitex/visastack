@@ -6114,6 +6114,7 @@ export const umpeTripTravellers = pgTable(
     uniqueIndex('umpe_trip_travellers_live')
       .on(table.tripId, table.applicantId)
       .where(sql`${table.removedAt} is null`),
+    index('umpe_trip_travellers_trip_idx').on(table.tripId),
     index('umpe_trip_travellers_applicant_idx').on(table.applicantId),
     index('umpe_trip_travellers_mission_idx').on(table.missionId),
     index('umpe_trip_travellers_added_by_idx').on(table.addedByAccountId),
@@ -6146,6 +6147,7 @@ export const umpeTripEvidence = pgTable(
     uniqueIndex('umpe_trip_evidence_live')
       .on(table.tripId, table.documentId)
       .where(sql`${table.removedAt} is null`),
+    index('umpe_trip_evidence_trip_idx').on(table.tripId),
     index('umpe_trip_evidence_source_idx').on(table.sourceApplicantId),
     index('umpe_trip_evidence_document_idx').on(table.documentId),
     index('umpe_trip_evidence_added_by_idx').on(table.addedByAccountId),
@@ -6174,6 +6176,7 @@ export const umpeTripEvidenceAllowances = pgTable(
     uniqueIndex('umpe_trip_evidence_allowances_live')
       .on(table.tripEvidenceId, table.applicantId)
       .where(sql`${table.revokedAt} is null`),
+    index('umpe_trip_evidence_allowances_evidence_idx').on(table.tripEvidenceId),
     index('umpe_trip_evidence_allowances_applicant_idx').on(table.applicantId),
     index('umpe_trip_evidence_allowances_allowed_by_idx').on(table.allowedByAccountId),
   ],

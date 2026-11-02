@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { PageHeader } from '../../../components/ui';
-import { withSession } from '../../../lib/session';
-import { loadTripList } from './trip-data';
+import { PageHeader } from '../../../../components/ui';
+import { withSession } from '../../../../lib/session';
+import { loadTripList } from '../trip-data';
 
 export const metadata: Metadata = { title: 'Group Trips' };
 

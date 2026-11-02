@@ -8,7 +8,6 @@ import {
   listApplicants,
   listDocuments,
   listTripEvidence,
-  listTripEvidenceForTraveller,
   listTrips,
   requireAccess,
   tripNextAction,
@@ -48,6 +47,14 @@ export async function loadTripList(
   return { trips: trips.ok ? trips.value : [], hasTravellers: true };
 }
 
+/** True when this trip belongs to the signed-in account (the layout's 404 gate). */
+export async function tripExists(db: Db, accountId: string, tripId: string): Promise<boolean> {
+  const applicants = await listApplicants(db, accountId);
+  const proof = await accountProof(db, accountId, applicants[0]?.id);
+  if (!proof) return false;
+  return (await getTrip(proof, tripId)).ok;
+}
+
 export interface TripPageData {
   readonly id: string;
   readonly title: string;
@@ -82,8 +89,6 @@ export async function loadTripPage(
       { purpose: PURPOSE },
     );
     const pkg = caseProof.ok ? await getCasePackage(caseProof.value, t.missionId) : null;
-    const travellerProof = await accountProof(db, accountId, t.applicantId);
-    const own = travellerProof ? await listTripEvidenceForTraveller(travellerProof, tripId) : null;
     travellers.push({
       applicantId: t.applicantId,
       missionId: t.missionId,
@@ -99,9 +104,16 @@ export async function loadTripPage(
             active: pkg.value.active,
           })
         : 'VIEW_CASE',
-      tripDocuments: own?.ok
-        ? own.value.map((d) => ({ id: d.id, name: d.documentName, own: d.own }))
-        : [],
+      // Their own shared documents and the ones allowed for them, nothing else.
+      tripDocuments: shared
+        .filter(
+          (d) => d.sourceApplicantId === t.applicantId || d.allowedFor.includes(t.applicantId),
+        )
+        .map((d) => ({
+          id: d.id,
+          name: d.documentName,
+          own: d.sourceApplicantId === t.applicantId,
+        })),
     });
   }
 

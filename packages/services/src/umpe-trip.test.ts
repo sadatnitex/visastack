@@ -550,6 +550,99 @@ describe('UMPE P5 group trips (database)', () => {
   );
 
   it(
+    'ends the link of a purged case so the traveller can join again, and never counts it',
+    async () => {
+      const owner = await account(db, 'p5-purge@example.com');
+      const anna = await traveller(db, owner, 'Synthetic Anna');
+      const ben = await traveller(db, owner, 'Synthetic Ben', 'FAMILY_MEMBER');
+      const started = await startTrip(db, owner, anna);
+      const first = await addTraveller(db, owner, started.tripId, ben);
+      // As the retention purge does for a closed case.
+      await db
+        .update(schema.missions)
+        .set({ state: 'CLOSED', purgedAt: new Date() })
+        .where(eq(schema.missions.id, first.missionId));
+
+      const listed = await listTrips(await view(db, owner, anna));
+      expect(isOk(listed) && listed.value.map((t) => t.travellerCount)).toEqual([1]);
+      const again = await addTraveller(db, owner, started.tripId, ben);
+      expect(again.alreadyOnTrip).toBe(false);
+      expect(again.missionId).not.toBe(first.missionId);
+      const trip = await getTrip(await view(db, owner, anna), started.tripId);
+      expect(isOk(trip) && trip.value.travellers.map((t) => t.missionId)).toEqual([
+        started.missionId,
+        again.missionId,
+      ]);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'stops showing, and refuses new allowances for, a shared document later retyped as personal',
+    async () => {
+      const owner = await account(db, 'p5-retype@example.com');
+      const anna = await traveller(db, owner, 'Synthetic Anna');
+      const ben = await traveller(db, owner, 'Synthetic Ben', 'FAMILY_MEMBER');
+      const cara = await traveller(db, owner, 'Synthetic Cara', 'MINOR_GUARDIAN');
+      const started = await startTrip(db, owner, anna);
+      await addTraveller(db, owner, started.tripId, ben);
+      await addTraveller(db, owner, started.tripId, cara);
+      const hotel = await document(db, owner, anna, 'hotel_booking');
+      const added = await addTripEvidence(await manageDocument(db, owner, hotel), started.tripId);
+      if (!isOk(added)) throw new Error('evidence');
+      await setTripEvidenceAllowance(
+        await manage(db, owner, ben),
+        started.tripId,
+        added.value.evidenceId,
+        true,
+      );
+      await db
+        .update(schema.documents)
+        .set({ docType: 'passport' })
+        .where(eq(schema.documents.id, hotel));
+
+      const forBen = await listTripEvidenceForTraveller(await view(db, owner, ben), started.tripId);
+      expect(isOk(forBen) && forBen.value).toEqual([]);
+      const all = await listTripEvidence(await view(db, owner, anna), started.tripId);
+      expect(isOk(all) && all.value).toEqual([]);
+      const refused = await setTripEvidenceAllowance(
+        await manage(db, owner, cara),
+        started.tripId,
+        added.value.evidenceId,
+        true,
+      );
+      expect(isErr(refused) && refused.error.code).toBe('invalid');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'links nothing without processing consent, even when the case already exists',
+    async () => {
+      const owner = await account(db, 'p5-consent@example.com');
+      const anna = await traveller(db, owner, 'Synthetic Anna');
+      const started = await startTrip(db, owner, anna);
+      const auditBefore = await db.select().from(schema.auditEvents);
+      await setConsent(db, {
+        actorAccountId: owner,
+        accountId: owner,
+        type: 'CORE_PROCESSING',
+        granted: false,
+      });
+      // Anna already has an active case for this destination and purpose.
+      const refused = await startGroupTrip(await manage(db, owner, anna), TRIP);
+      expect(isErr(refused) && refused.error.code).toBe('consent_required');
+      const trips = await db.select().from(schema.umpeTrips);
+      expect(trips.map((t) => t.id)).toEqual([started.tripId]);
+      const events = (await db.select().from(schema.auditEvents))
+        .slice(auditBefore.length)
+        .map((e) => e.eventType);
+      expect(events.filter((e) => e.startsWith('UMPE_TRIP'))).toEqual([]);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
     'answers "no trips" and refuses plainly while the tables are missing',
     async () => {
       const owner = await account(db, 'p5-missing@example.com');

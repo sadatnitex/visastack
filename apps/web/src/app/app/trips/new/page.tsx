@@ -1,4 +1,4 @@
-import { listApplicants } from '@visastack/services';
+import { listApplicants, tripTablesReady } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
@@ -12,9 +12,13 @@ export const dynamic = 'force-dynamic';
 
 /** UMPE P5: start one trip for several travellers the account holder manages. */
 export default async function GroupTripStartPage() {
-  const travellers = await withSession(async ({ db, accountId }) =>
-    (await listApplicants(db, accountId)).map((a) => ({ applicantId: a.id, name: a.displayName })),
-  );
+  const { travellers, ready } = await withSession(async ({ db, accountId }) => ({
+    travellers: (await listApplicants(db, accountId)).map((a) => ({
+      applicantId: a.id,
+      name: a.displayName,
+    })),
+    ready: await tripTablesReady(db),
+  }));
   return (
     <>
       <PageHeader
@@ -23,7 +27,12 @@ export default async function GroupTripStartPage() {
         back={{ href: '/app/trips', label: 'Group Trips' }}
       />
       <article className="card">
-        {travellers.length > 0 ? (
+        {!ready ? (
+          <p className="u-m-0">
+            Group trips are not switched on yet. <Link href="/app/mission/start">Start a Trip</Link>{' '}
+            gives each traveller their own case for now.
+          </p>
+        ) : travellers.length > 0 ? (
           <GroupTripStartForm
             countries={caseCountryOptions()}
             purposes={casePurposeGroups()}

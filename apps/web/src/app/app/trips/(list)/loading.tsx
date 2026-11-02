@@ -1,4 +1,4 @@
-import { PageLoading } from '../../../components/page-loading';
+import { PageLoading } from '../../../../components/page-loading';
 
 /** Shown while the Group Trips page reads the account's trips. */
 export default function TripsLoading() {

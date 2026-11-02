@@ -12898,3 +12898,7 @@ html:has(.sticky-action-bar) {
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+.trip-notice {
+  display: block;
+  margin: 0 0 1rem;
+}

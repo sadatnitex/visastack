@@ -181,6 +181,8 @@ export function AddTravellersForm({
     <form ref={form} action={formAction} className="trip-add-form">
       <input type="hidden" name="tripId" value={tripId} />
       <TravellerChecklist
+        // A new list of travellers (one added or removed) starts with nothing ticked.
+        key={travellers.map((t) => t.applicantId).join(',')}
         legend="Who Else Is Travelling?"
         travellers={travellers}
         state={state}

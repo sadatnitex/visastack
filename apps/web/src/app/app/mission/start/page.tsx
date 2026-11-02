@@ -1,4 +1,4 @@
-import { listApplicants } from '@visastack/services';
+import { listApplicants, tripTablesReady } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
@@ -12,9 +12,14 @@ export const dynamic = 'force-dynamic';
 
 /** UMPE P4 (R13): start a trip from where, why and who; one case per traveller. */
 export default async function TripStartPage() {
-  const travellers = await withSession(async ({ db, accountId }) =>
-    (await listApplicants(db, accountId)).map((a) => ({ applicantId: a.id, name: a.displayName })),
-  );
+  const { travellers, groupTrips } = await withSession(async ({ db, accountId }) => ({
+    travellers: (await listApplicants(db, accountId)).map((a) => ({
+      applicantId: a.id,
+      name: a.displayName,
+    })),
+    // UMPE P5: offered only once the group trip tables exist.
+    groupTrips: await tripTablesReady(db),
+  }));
   return (
     <>
       <PageHeader
@@ -34,7 +39,7 @@ export default async function TripStartPage() {
           </p>
         )}
       </article>
-      {travellers.length > 1 ? (
+      {groupTrips && travellers.length > 1 ? (
         <p className="muted u-fs-085">
           Travelling together? <Link href="/app/trips/new">Start a Group Trip</Link> to keep
           everyone&apos;s cases together on one page.

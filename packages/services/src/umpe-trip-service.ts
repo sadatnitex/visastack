@@ -27,6 +27,7 @@ import { type Result, err, ok } from '@visastack/core';
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
+import { hasConsent } from './consent';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import {
@@ -175,35 +176,62 @@ async function ownedTrip(
   return trip ? ok(trip) : err(serviceError('not_found', TRIP_NOT_AVAILABLE));
 }
 
+/**
+ * The traveller's live link on this trip whose case still exists. A link whose case the retention
+ * purge emptied is ended here first, so the traveller can join again with a case of their own.
+ */
 async function liveTraveller(db: Db, tripId: string, applicantId: string) {
-  return first(
-    await db
-      .select({ id: schema.umpeTripTravellers.id, missionId: schema.umpeTripTravellers.missionId })
-      .from(schema.umpeTripTravellers)
-      .where(
-        and(
-          eq(schema.umpeTripTravellers.tripId, tripId),
-          eq(schema.umpeTripTravellers.applicantId, applicantId),
-          isNull(schema.umpeTripTravellers.removedAt),
-        ),
-      )
-      .limit(1),
-  );
+  const rows = await db
+    .select({
+      id: schema.umpeTripTravellers.id,
+      missionId: schema.umpeTripTravellers.missionId,
+      purgedAt: schema.missions.purgedAt,
+    })
+    .from(schema.umpeTripTravellers)
+    .innerJoin(schema.missions, eq(schema.missions.id, schema.umpeTripTravellers.missionId))
+    .where(
+      and(
+        eq(schema.umpeTripTravellers.tripId, tripId),
+        eq(schema.umpeTripTravellers.applicantId, applicantId),
+        isNull(schema.umpeTripTravellers.removedAt),
+      ),
+    )
+    .limit(1);
+  const row = rows[0];
+  if (!row) return undefined;
+  if (row.purgedAt === null) return { id: row.id, missionId: row.missionId };
+  await db
+    .update(schema.umpeTripTravellers)
+    .set({ removedAt: new Date() })
+    .where(
+      and(eq(schema.umpeTripTravellers.id, row.id), isNull(schema.umpeTripTravellers.removedAt)),
+    );
+  return undefined;
 }
 
+/** Live links whose case still exists (a purged case no longer counts toward the limit). */
 async function liveTravellerCount(db: Db, tripId: string): Promise<number> {
   const row = first(
     await db
       .select({ n: count() })
       .from(schema.umpeTripTravellers)
+      .innerJoin(schema.missions, eq(schema.missions.id, schema.umpeTripTravellers.missionId))
       .where(
         and(
           eq(schema.umpeTripTravellers.tripId, tripId),
           isNull(schema.umpeTripTravellers.removedAt),
+          isNull(schema.missions.purgedAt),
         ),
       ),
   );
   return Number(row?.n ?? 0);
+}
+
+/** Core processing consent of the account holder, checked before anything is linked or shared. */
+async function consentProblem(db: Db, ownerAccountId: string): Promise<ServiceError | null> {
+  return (await hasConsent(db, ownerAccountId, 'CORE_PROCESSING'))
+    ? null
+    : serviceError('consent_required', 'Core processing consent is required');
 }
 
 function cleanIntention(
@@ -227,70 +255,105 @@ function itineraryLabel(title: string, tripId: string): string {
   return `${title.slice(0, TITLE_MAX - suffix.length)}${suffix}`;
 }
 
+/** Everything checked before a traveller's case is opened for a trip. */
+async function joinProblem(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  ownerAccountId: string,
+): Promise<ServiceError | null> {
+  const problem = travellerAuthorityProblem(proof.applicant);
+  if (problem) return serviceError('forbidden', AUTHORITY_WORDS[problem]);
+  return consentProblem(proof.tx, ownerAccountId);
+}
+
+type LinkOutcome =
+  | { readonly kind: 'linked'; readonly labelled: number }
+  | { readonly kind: 'already'; readonly missionId: string }
+  | { readonly kind: 'full' };
+
 /**
- * Open or start the traveller's own case for this trip and link it, inside one audited
- * transaction for the link. The case itself is created by P4's start (which checks ownership,
- * consent and the case name); the link never edits anything of the traveller's but an empty
+ * Link the traveller's opened case to the trip, inside the caller's transaction. The trip row is
+ * locked first, so two adds to one trip are taken one after the other: the limit holds and a
+ * traveller is never linked twice. The link never edits anything of the traveller's but an empty
  * itinerary label.
+ */
+async function insertLink(
+  tx: Db,
+  trip: Trip,
+  applicantId: string,
+  missionId: string,
+  ownerAccountId: string,
+): Promise<LinkOutcome> {
+  await tx
+    .select({ id: schema.umpeTrips.id })
+    .from(schema.umpeTrips)
+    .where(eq(schema.umpeTrips.id, trip.id))
+    .for('update');
+  const already = await liveTraveller(tx, trip.id, applicantId);
+  if (already) return { kind: 'already', missionId: already.missionId };
+  if ((await liveTravellerCount(tx, trip.id)) >= TRIP_MAX_TRAVELLERS) return { kind: 'full' };
+  await tx.insert(schema.umpeTripTravellers).values({
+    tripId: trip.id,
+    applicantId,
+    missionId,
+    addedByAccountId: ownerAccountId,
+  });
+  // The existing "Family Trip Label" keeps working: an empty label is filled, a chosen one kept.
+  const labelled = await tx
+    .update(schema.missions)
+    .set({ itineraryRef: trip.itineraryRef, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.missions.id, missionId),
+        eq(schema.missions.applicantId, applicantId),
+        isNull(schema.missions.itineraryRef),
+      ),
+    )
+    .returning({ id: schema.missions.id });
+  return { kind: 'linked', labelled: labelled.length };
+}
+
+const FULL = `A trip holds up to ${TRIP_MAX_TRAVELLERS} travellers.`;
+
+/**
+ * Open or start the traveller's own case for this trip (P4's start, which checks ownership,
+ * consent and the case name), then link it in one audited transaction.
  */
 async function linkTraveller(
   proof: AuthorizedApplicant<'MANAGE'>,
   trip: Trip,
 ): Promise<Result<AddTravellerOutcome, ServiceError>> {
-  const problem = travellerAuthorityProblem(proof.applicant);
-  if (problem) return err(serviceError('forbidden', AUTHORITY_WORDS[problem]));
-  const already = await liveTraveller(proof.tx, trip.id, proof.applicant.id);
-  if (already) {
-    return ok({
-      missionId: already.missionId,
-      existingCase: true,
-      alreadyOnTrip: true,
+  const ownerAccountId = proof.applicant.ownerAccountId;
+  const problem = await joinProblem(proof, ownerAccountId);
+  if (problem) return err(problem);
+  const outcome = (missionId: string, existingCase: boolean, alreadyOnTrip: boolean) =>
+    ok({
+      missionId,
+      existingCase,
+      alreadyOnTrip,
       destination: trip.destination,
       purpose: trip.purpose,
     });
-  }
+  const already = await liveTraveller(proof.tx, trip.id, proof.applicant.id);
+  if (already) return outcome(already.missionId, true, true);
   if ((await liveTravellerCount(proof.tx, trip.id)) >= TRIP_MAX_TRAVELLERS) {
-    return err(serviceError('invalid', `A trip holds up to ${TRIP_MAX_TRAVELLERS} travellers.`));
+    return err(serviceError('invalid', FULL));
   }
   const opened = await openOrStartTripCase(proof, {
     destination: trip.destination,
     purpose: trip.purpose,
   });
   if (!opened.ok) return opened;
-  const ownerAccountId = proof.applicant.ownerAccountId;
   return proof.tx.transaction(async (tx) => {
-    // A second request racing this one may have linked the traveller first: keep one live link.
-    const inserted = await tx
-      .insert(schema.umpeTripTravellers)
-      .values({
-        tripId: trip.id,
-        applicantId: proof.applicant.id,
-        missionId: opened.value.missionId,
-        addedByAccountId: ownerAccountId,
-      })
-      .onConflictDoNothing()
-      .returning({ id: schema.umpeTripTravellers.id });
-    if (inserted.length === 0) {
-      return ok({
-        missionId: opened.value.missionId,
-        existingCase: opened.value.existing,
-        alreadyOnTrip: true,
-        destination: trip.destination,
-        purpose: trip.purpose,
-      });
-    }
-    // The existing "Family Trip Label" keeps working: an empty label is filled, a chosen one kept.
-    const labelled = await tx
-      .update(schema.missions)
-      .set({ itineraryRef: trip.itineraryRef, updatedAt: new Date() })
-      .where(
-        and(
-          eq(schema.missions.id, opened.value.missionId),
-          eq(schema.missions.applicantId, proof.applicant.id),
-          isNull(schema.missions.itineraryRef),
-        ),
-      )
-      .returning({ id: schema.missions.id });
+    const linked = await insertLink(
+      tx,
+      trip,
+      proof.applicant.id,
+      opened.value.missionId,
+      ownerAccountId,
+    );
+    // Another request linked this traveller first: report its case, never ours.
+    if (linked.kind === 'already') return outcome(linked.missionId, true, true);
+    if (linked.kind === 'full') return err(serviceError('invalid', FULL));
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_TRAVELLER_ADDED',
       actorAccountId: ownerAccountId,
@@ -303,24 +366,20 @@ async function linkTraveller(
       metadata: {
         relationship: proof.applicant.relationship,
         existingCase: opened.value.existing,
-        labelled: labelled.length,
+        labelled: linked.labelled,
       },
     });
-    return ok({
-      missionId: opened.value.missionId,
-      existingCase: opened.value.existing,
-      alreadyOnTrip: false,
-      destination: trip.destination,
-      purpose: trip.purpose,
-    });
+    return outcome(opened.value.missionId, opened.value.existing, false);
   });
 }
 
 // --- Public API -------------------------------------------------------------------------------
 
 /**
- * Start a group trip with its first traveller (the one this MANAGE proof is for). The traveller's
- * case is opened or started first, so a refusal there (consent, authority) leaves no empty trip.
+ * Start a group trip with its first traveller (the one this MANAGE proof is for). Authority and
+ * consent are checked and the traveller's case is opened or started first; only then are the
+ * trip, its first link and their audit records written, in one transaction, so a refusal or a
+ * failure leaves no trip behind.
  */
 export async function startGroupTrip(
   proof: AuthorizedApplicant<'MANAGE'>,
@@ -331,11 +390,16 @@ export async function startGroupTrip(
   if (!(await tripTablesPresent(proof.tx))) return err(serviceError('invalid', NOT_SWITCHED_ON));
   const intention = cleanIntention(input);
   if (!intention.ok) return intention;
-  const problem = travellerAuthorityProblem(proof.applicant);
-  if (problem) return err(serviceError('forbidden', AUTHORITY_WORDS[problem]));
+  const problem = await joinProblem(proof, owner.value);
+  if (problem) return err(problem);
+  const opened = await openOrStartTripCase(proof, {
+    destination: intention.value.destination,
+    purpose: intention.value.purpose,
+  });
+  if (!opened.ok) return opened;
   const tripId = randomUUID();
-  const trip = await proof.tx.transaction(async (tx) => {
-    const row = first(
+  return proof.tx.transaction(async (tx) => {
+    const trip = first(
       await tx
         .insert(schema.umpeTrips)
         .values({
@@ -348,29 +412,41 @@ export async function startGroupTrip(
         })
         .returning(),
     );
+    if (!trip) return err(serviceError('invalid', 'The trip could not be started. Try again.'));
+    const linked = await insertLink(
+      tx,
+      trip,
+      proof.applicant.id,
+      opened.value.missionId,
+      owner.value,
+    );
+    if (linked.kind !== 'linked') {
+      throw new Error('a new trip already had this traveller or was full');
+    }
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_STARTED',
       actorAccountId: owner.value,
       method: 'MANUAL',
       result: 'ALLOWED',
+      applicantId: proof.applicant.id,
+      missionId: opened.value.missionId,
       resourceType: 'umpe_trip',
       resourceId: tripId,
-      metadata: { travellers: 1 },
+      metadata: {
+        relationship: proof.applicant.relationship,
+        existingCase: opened.value.existing,
+        labelled: linked.labelled,
+      },
     });
-    return row;
+    return ok({
+      tripId,
+      missionId: opened.value.missionId,
+      existingCase: opened.value.existing,
+      alreadyOnTrip: false,
+      destination: trip.destination,
+      purpose: trip.purpose,
+    });
   });
-  if (!trip) return err(serviceError('invalid', 'The trip could not be started. Try again.'));
-  const linked = await linkTraveller(proof, trip);
-  if (!linked.ok) {
-    // Nothing of the traveller's was linked: remove the empty trip again so none is left behind.
-    await proof.tx
-      .delete(schema.umpeTrips)
-      .where(
-        and(eq(schema.umpeTrips.id, trip.id), eq(schema.umpeTrips.ownerAccountId, owner.value)),
-      );
-    return linked;
-  }
-  return ok({ tripId: trip.id, ...linked.value });
 }
 
 /**
@@ -514,6 +590,7 @@ export async function listTrips(
     .select({ tripId: schema.umpeTripTravellers.tripId, n: count() })
     .from(schema.umpeTripTravellers)
     .innerJoin(schema.applicants, eq(schema.applicants.id, schema.umpeTripTravellers.applicantId))
+    .innerJoin(schema.missions, eq(schema.missions.id, schema.umpeTripTravellers.missionId))
     .where(
       and(
         inArray(
@@ -521,6 +598,7 @@ export async function listTrips(
           trips.map((t) => t.id),
         ),
         isNull(schema.umpeTripTravellers.removedAt),
+        isNull(schema.missions.purgedAt),
         eq(schema.applicants.ownerAccountId, owner.value),
         lifecycle ? presentApplicantCondition() : undefined,
       ),
@@ -619,30 +697,10 @@ export async function addTripEvidence(
   if (!(await liveTraveller(proof.tx, trip.value.id, proof.applicant.id))) {
     return err(serviceError('invalid', 'Add this traveller to the trip first.'));
   }
-  if (!isCommonTripEvidenceType(resource.document.docType)) {
-    return err(
-      serviceError(
-        'invalid',
-        'Only travel documents such as bookings, itineraries and invitations can be shared across a trip.',
-      ),
-    );
-  }
-  if (await lifecycleTablesPresent(proof.tx)) {
-    const present = first(
-      await proof.tx
-        .select({ id: schema.documents.id })
-        .from(schema.documents)
-        .where(
-          and(
-            eq(schema.documents.id, resource.document.id),
-            eq(schema.documents.applicantId, proof.applicant.id),
-            presentDocumentCondition(),
-          ),
-        )
-        .limit(1),
-    );
-    if (!present) return err(serviceError('not_found', 'That document is not available.'));
-  }
+  const shareable = await shareableDocument(proof.tx, resource.document.id, proof.applicant.id);
+  if (shareable) return err(shareable);
+  const consent = await consentProblem(proof.tx, owner.value);
+  if (consent) return err(consent);
   return proof.tx.transaction(async (tx) => {
     const inserted = await tx
       .insert(schema.umpeTripEvidence)
@@ -678,12 +736,43 @@ export async function addTripEvidence(
       method: 'MANUAL',
       result: 'ALLOWED',
       applicantId: proof.applicant.id,
-      resourceType: 'umpe_trip',
-      resourceId: trip.value.id,
+      resourceType: 'umpe_trip_evidence',
+      resourceId: row.id,
       metadata: { allowances: 0 },
     });
     return ok({ evidenceId: row.id, added: true });
   });
+}
+
+const NOT_SHAREABLE =
+  'Only travel documents such as bookings, itineraries and invitations can be shared across a trip.';
+
+/**
+ * Why this document cannot be common trip evidence right now, or null when it can: it must still
+ * belong to the traveller, be present (not in Recently Deleted) and be a shareable travel type.
+ * Checked when it is added and again on every new allowance, because a document can be retyped.
+ */
+async function shareableDocument(
+  db: Db,
+  documentId: string,
+  applicantId: string,
+): Promise<ServiceError | null> {
+  const lifecycle = await lifecycleTablesPresent(db);
+  const doc = first(
+    await db
+      .select({ docType: schema.documents.docType })
+      .from(schema.documents)
+      .where(
+        and(
+          eq(schema.documents.id, documentId),
+          eq(schema.documents.applicantId, applicantId),
+          lifecycle ? presentDocumentCondition() : undefined,
+        ),
+      )
+      .limit(1),
+  );
+  if (!doc) return serviceError('not_found', 'That document is not available.');
+  return isCommonTripEvidenceType(doc.docType) ? null : serviceError('invalid', NOT_SHAREABLE);
 }
 
 /** The live common document `evidenceId` of this trip, or a refusal that looks missing. */
@@ -748,8 +837,8 @@ export async function removeTripEvidence(
       method: 'MANUAL',
       result: 'ALLOWED',
       applicantId: proof.applicant.id,
-      resourceType: 'umpe_trip',
-      resourceId: trip.value.id,
+      resourceType: 'umpe_trip_evidence',
+      resourceId: evidence.id,
       metadata: { allowancesRevoked: revoked.length },
     });
     return ok({ removed: true });
@@ -777,8 +866,19 @@ export async function setTripEvidenceAllowance(
   if (evidence.sourceApplicantId === proof.applicant.id) {
     return err(serviceError('invalid', 'This document already belongs to this traveller.'));
   }
-  if (allowed && !(await liveTraveller(proof.tx, trip.value.id, proof.applicant.id))) {
-    return err(serviceError('invalid', 'Add this traveller to the trip first.'));
+  if (allowed) {
+    if (!(await liveTraveller(proof.tx, trip.value.id, proof.applicant.id))) {
+      return err(serviceError('invalid', 'Add this traveller to the trip first.'));
+    }
+    // The document may have been retyped or deleted since it was shared: check it again.
+    const shareable = await shareableDocument(
+      proof.tx,
+      evidence.documentId,
+      evidence.sourceApplicantId,
+    );
+    if (shareable) return err(shareable);
+    const consent = await consentProblem(proof.tx, owner.value);
+    if (consent) return err(consent);
   }
   return proof.tx.transaction(async (tx) => {
     const changed = allowed
@@ -809,8 +909,8 @@ export async function setTripEvidenceAllowance(
       method: 'MANUAL',
       result: 'ALLOWED',
       applicantId: proof.applicant.id,
-      resourceType: 'umpe_trip',
-      resourceId: trip.value.id,
+      resourceType: 'umpe_trip_evidence',
+      resourceId: evidence.id,
       metadata: { allowances: changed.length },
     });
     return ok({ changed: true });
@@ -853,7 +953,8 @@ async function evidenceRows(db: Db, tripId: string, ownerAccountId: string) {
         lifecycle ? presentApplicantCondition() : undefined,
       ),
     )
-    .orderBy(schema.umpeTripEvidence.addedAt);
+    .orderBy(schema.umpeTripEvidence.addedAt)
+    .then((rows) => rows.filter((r) => isCommonTripEvidenceType(r.docType)));
 }
 
 /**

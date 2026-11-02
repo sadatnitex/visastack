@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../components/ui';
 import { withSession } from '../../../../lib/session';
 import { loadTripPage } from '../trip-data';
@@ -9,14 +8,30 @@ export const metadata: Metadata = { title: 'Group Trip' };
 
 export const dynamic = 'force-dynamic';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** What the page says after a change that removed the form it came from (fixed words only). */
+const NOTICES: Readonly<Record<string, string>> = {
+  added: 'Added to the trip, each with their own case.',
+  removed: 'Removed from the trip. Their case is kept as it is.',
+  shared: 'Added to the trip. Choose who it may be used for.',
+  unshared: 'No longer shared across the trip. The document stays in its own place.',
+  partial:
+    'The trip was started, but not everyone could be added. Add the others below, or check their profile first.',
+};
 
 /** UMPE P5: one group trip, each traveller's readiness and their one next action. */
-export default async function GroupTripPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function GroupTripPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ done?: string | string[] }>;
+}) {
   const { id } = await params;
-  if (!UUID.test(id)) notFound();
+  const { done } = await searchParams;
+  const notice = typeof done === 'string' ? NOTICES[done] : undefined;
   const data = await withSession(({ db, accountId }) => loadTripPage(db, accountId, id));
-  if (!data) notFound();
+  // The layout already answered 404 for a missing trip; this covers one removed in between.
+  if (!data) return <p>This trip is not available.</p>;
   return (
     <>
       <PageHeader
@@ -24,6 +39,7 @@ export default async function GroupTripPage({ params }: { params: Promise<{ id: 
         description={`${data.destination} for ${data.purpose}. Each traveller below has their own case.`}
         back={{ href: '/app/trips', label: 'Group Trips' }}
       />
+      {notice ? <output className="trip-notice">{notice}</output> : null}
       <TripOverview
         tripId={data.id}
         travellers={data.travellers}
