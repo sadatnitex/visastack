@@ -54,12 +54,6 @@ function encodedHeader(request: Request, name: string): string {
   }
 }
 
-/**
- * The upload rate limit's own refusal (packages/services rate-limit.ts with the label "upload").
- * The action passes only its message on, so the route recognises it by that sentence.
- */
-const UPLOAD_RATE_LIMITED = /^too many upload requests in a short time\b/i;
-
 /** The longest wait ever asked for: the whole window, when the wait cannot be worked out. */
 const SAFE_RETRY_AFTER_SECONDS = 3600;
 
@@ -118,7 +112,7 @@ export async function POST(request: Request): Promise<Response> {
     const result = await uploadDocumentAction({ ok: false, message: '' }, form);
     // Turned away by the hourly upload limit before anything was stored: a definite "not now",
     // with how long until the window frees, so a batch import waits instead of guessing.
-    if (!result.ok && UPLOAD_RATE_LIMITED.test(result.message)) {
+    if (!result.ok && result.refusal === 'rate_limited') {
       return json(result.message, 429, undefined, result.upgrade, undefined, {
         'Retry-After': String(uploadRetryAfterSeconds()),
       });

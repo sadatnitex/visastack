@@ -126,7 +126,7 @@ describe('authenticated raw document upload', () => {
 
   it('answers the hourly upload limit with 429, its own line and how long until it frees', async () => {
     const line = 'too many upload requests in a short time - please try again later';
-    upload.mockResolvedValueOnce({ ok: false, message: line });
+    upload.mockResolvedValueOnce({ ok: false, message: line, refusal: 'rate_limited' });
     const limited = await POST(request());
     expect(limited.status).toBe(429);
     expect(await limited.json()).toEqual({ message: line });
@@ -134,7 +134,9 @@ describe('authenticated raw document upload', () => {
     expect(Number.isInteger(wait)).toBe(true);
     expect(wait).toBeGreaterThanOrEqual(1);
     expect(wait).toBeLessThanOrEqual(3600);
-    // Any other refusal stays a plain 400 with no Retry-After.
+    // Any other refusal stays a plain 400 with no Retry-After, even in the same words.
+    upload.mockResolvedValueOnce({ ok: false, message: line });
+    expect((await POST(request())).status).toBe(400);
     upload.mockResolvedValueOnce({ ok: false, message: 'Full.' });
     const full = await POST(request());
     expect(full.status).toBe(400);
@@ -146,5 +148,19 @@ describe('authenticated raw document upload', () => {
     expect(uploadRetryAfterSeconds(10 * hour)).toBe(3600);
     expect(uploadRetryAfterSeconds(10 * hour + 59 * 60 * 1000)).toBe(60);
     expect(uploadRetryAfterSeconds(11 * hour - 1)).toBe(1);
+  });
+
+  it('answers the hourly limit by its refusal code, whatever its wording', async () => {
+    upload.mockResolvedValueOnce({
+      ok: false,
+      message: 'You have added a lot of files this hour. Try again later.',
+      refusal: 'rate_limited',
+    });
+    const limited = await POST(request());
+    expect(limited.status).toBe(429);
+    expect(await limited.json()).toEqual({
+      message: 'You have added a lot of files this hour. Try again later.',
+    });
+    expect(Number(limited.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
   });
 });
