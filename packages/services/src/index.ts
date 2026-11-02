@@ -2574,3 +2574,49 @@ export {
   isRelationDecision,
   listDocumentExceptions,
 } from './umpe-document-exceptions';
+// UMPE P4
+export {
+  type AttentionReason as PackageAttentionReason,
+  type OutsideStep,
+  type OutsideStepKind,
+  type PackageChange,
+  type PackageChangeKind,
+  type PackagePhrase,
+  OUTSIDE_STEP_LABELS,
+  PACKAGE_CHANGE_KINDS,
+  PACKAGE_CHANGE_LABELS,
+  PACKAGE_PHRASES,
+  PACKAGE_PHRASE_LABELS,
+  derivePackagePhrase,
+  outsideSteps,
+  pickPackageChange,
+} from './umpe-package-phrases';
+export {
+  type CasePackage,
+  type FreshnessCaveat,
+  type FreshnessReport,
+  type PackageChangeView,
+  type PackageChoiceInput,
+  type PackageChoiceKind,
+  type PackageChoiceView,
+  type PackageCopy,
+  type PackageHandoffContent,
+  type PackageHandoffSummary,
+  type PackageItem,
+  type PackageQuestion,
+  PACKAGE_HANDOFF_FORMAT,
+  PACKAGE_SWEEP_DEFAULT_LIMIT,
+  confirmPackageHandoff,
+  getCasePackage,
+  handoffChecksum,
+  listPackageHandoffs,
+  markPackageChangeReviewed,
+  recordPackageChoice,
+  sweepPackageChanges,
+} from './umpe-package-service';
+export {
+  type TripCaseOutcome,
+  type TripIntention,
+  openOrStartTripCase,
+} from './umpe-package-start';
+export { packageTablesPresent as packageTablesReady } from './umpe-package-tables';
