@@ -77,8 +77,10 @@ vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/collection/actions', standIn);
 vi.mock('../app/collect/account/actions', standIn);
+vi.mock('../app/collect/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/plan/invoices/actions', standIn);
 vi.mock('../app/app/applicant/[id]/actions', standIn);
+vi.mock('../app/app/applicant/[id]/documents/needs-decision-actions', standIn);
 vi.mock('../app/app/applicant/[id]/section-actions', standIn);
 vi.mock('../app/app/applicant/[id]/evidence/actions', standIn);
 vi.mock('../app/app/applicant/[id]/missions/actions', standIn);
@@ -130,6 +132,7 @@ const packVersionButtons = await import('../app/app/admin/packs/pack-version-but
 const sourceForms = await import('../app/app/admin/packs/sources/source-forms');
 const collectionForms = await import('../app/app/agency/[orgId]/collection/collection-forms');
 const responseForms = await import('../app/collect/account/response-form');
+const guestForms = await import('../app/collect/guest-forms');
 const { PurgeButton } = await import('../app/app/admin/purge-button');
 const { ReconcileButtons } = await import('../app/app/admin/reconcile-buttons');
 const { BrandingForm } = await import('../app/app/agency/[orgId]/branding-form');
@@ -155,6 +158,9 @@ const { RequireDifferentReviewerToggle } = await import(
 const { CreateOrgForm } = await import('../app/app/agency/create-org-form');
 const aiReview = await import('../app/app/applicant/[id]/ai-review');
 const { DocumentUploader } = await import('../app/app/applicant/[id]/document-uploader');
+const { NeedsDecision, RelationDecisionForm } = await import(
+  '../app/app/applicant/[id]/documents/needs-decision'
+);
 const { DocumentRenameForm } = await import('../app/app/applicant/[id]/document-rename-form');
 const { SubmitResponseForm } = await import(
   '../app/app/applicant/[id]/evidence/submit-response-form'
@@ -302,6 +308,47 @@ const DOCS: readonly Case[] = [
     }),
     fields: ['name'],
   },
+  {
+    name: 'decide the files that need one decision',
+    element: () => (
+      <>
+        <NeedsDecision
+          applicantId="a1"
+          items={[
+            {
+              kind: 'relation',
+              proposalId: 'p1',
+              documentId: 'd2',
+              title: 'Bank Statement April',
+              relatedDocumentId: 'd1',
+              relatedTitle: 'Bank Statement March',
+              relation: 'NEW_PERIOD',
+              labels: { newDocument: 'New Period', relatedDocument: 'Earlier Period' },
+            },
+            { kind: 'unknown_type', documentId: 'd3', title: 'Untitled Document' },
+          ]}
+          linked={[
+            {
+              documentId: 'd5',
+              title: 'Passport Renewed',
+              relatedDocumentId: 'd4',
+              relatedTitle: 'Passport Old',
+              labels: { newDocument: 'Renewed', relatedDocument: 'Earlier Copy' },
+            },
+          ]}
+        />
+      </>
+    ),
+  },
+  row('confirm or keep separate a suggested link', () => (
+    <RelationDecisionForm
+      applicantId="a1"
+      proposalId="p1"
+      title="Bank Statement April"
+      action={() => undefined}
+      pending={false}
+    />
+  )),
   row('review a suggested file name', () => (
     <NameReview
       applicantId="a1"
@@ -2173,6 +2220,29 @@ const ADMIN: readonly Case[] = [
     name: 'close or revoke a document request',
     element: () => <collectionForms.EndRequestForm organizationId="o1" requestId="r1" />,
   },
+  // UMPE P8: the guest desk on /collect.
+  { name: 'email a guest a one-time code', element: () => <guestForms.SendCodeForm /> },
+  { name: 'ask for a new guest code', element: () => <guestForms.SendCodeForm again /> },
+  {
+    name: 'enter a guest one-time code',
+    element: () => <guestForms.VerifyCodeForm />,
+    fields: ['code'],
+  },
+  {
+    name: 'choose how long the agency may keep guest files',
+    element: () => (
+      <guestForms.RetentionForm
+        agencyName="Synthetic Agency One"
+        value={null}
+        periods={[3, 7, 15, 30, 60, 90, 180]}
+      />
+    ),
+  },
+  {
+    name: 'change a saved guest retention choice',
+    element: () => <guestForms.RetentionForm agencyName={null} value={30} periods={[3, 7, 30]} />,
+  },
+  { name: 'leave the guest desk', element: () => <guestForms.LeaveForm /> },
   {
     name: 'answer an agency request from your own record',
     element: () => (

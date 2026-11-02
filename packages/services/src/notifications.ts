@@ -17,18 +17,21 @@ import {
 } from 'drizzle-orm';
 import { collectionLinkProof } from './access/collection-scope';
 import { orgCaseRecordVisibleSql, withCaseExclusions } from './access/grant-scope';
+import { guestCodeDeliveryProof } from './access/guest-collection';
 import { type SelfScope, selfScopeProblem } from './access/principal';
 import { type Db, first, schema } from './db';
 import { notificationEmail, renderEmail } from './email-design';
 import { type ServiceError, serviceError } from './errors';
 import {
   COLLECTION_REQUEST_EMAIL_EVENT,
+  GUEST_CODE_EMAIL_EVENT,
   type SealedInvitationLink,
   revealInvitationLink,
 } from './invitation-email';
 import { listMembershipsForAccount } from './organizations';
 import type { EmailPort, KeyManagementPort } from './ports';
 import { collectionLinkStillOpen } from './umpe-collection-request-service';
+import { guestCodeStillDeliverable } from './umpe-guest-collection';
 
 /**
  * The Notification Outbox (NTF-02 + Part 5 §3): a transactional outbox.
@@ -584,6 +587,36 @@ async function collectionEmailCheck(
   return (await collectionLinkStillOpen(db, proof, notification.resourceId)) ? { path } : 'closed';
 }
 
+/**
+ * A guest's one-time code email (UMPE P8) is sent only while the code may still be used: unused,
+ * unexpired, with tries left, its desk session live and its link still open. The worker proves the
+ * code by the sealed code itself. `unknown` when that cannot be checked now: retried, never sent
+ * unchecked. When it may go, the unsealed code is returned so it is unwrapped only once.
+ */
+async function guestCodeEmailCheck(
+  db: Db,
+  notification: Notification,
+  payload: NotificationPayload,
+  encryption: KeyManagementPort | undefined,
+): Promise<'closed' | 'unknown' | { readonly code: string }> {
+  if (!notification.resourceId || !payload.sealedInvitationLink) return 'closed';
+  if (!encryption) return 'unknown';
+  let code: string;
+  try {
+    code = await revealInvitationLink(
+      payload.sealedInvitationLink,
+      'guest_code',
+      notification.resourceId,
+      encryption,
+    );
+  } catch {
+    return 'unknown';
+  }
+  const proof = guestCodeDeliveryProof(notification.resourceId, code);
+  if (!proof) return 'closed';
+  return (await guestCodeStillDeliverable(db, proof)) ? { code } : 'closed';
+}
+
 async function dispatchOne(
   db: Db,
   notification: Notification,
@@ -654,7 +687,11 @@ async function dispatchOne(
     notification.eventType === COLLECTION_REQUEST_EMAIL_EVENT
       ? await collectionEmailCheck(db, notification, payload, encryption)
       : null;
-  if (collection === 'closed') {
+  const guestCode =
+    notification.eventType === GUEST_CODE_EMAIL_EVENT
+      ? await guestCodeEmailCheck(db, notification, payload, encryption)
+      : null;
+  if (collection === 'closed' || guestCode === 'closed') {
     const updated = await db
       .update(schema.notifications)
       .set({
@@ -672,8 +709,11 @@ async function dispatchOne(
   try {
     let path = payload.deepLinkPath;
     if (collection === 'unknown') throw new Error('Request link could not be checked');
+    if (guestCode === 'unknown') throw new Error('Guest code could not be checked');
     if (collection !== null) {
       path = collection.path;
+    } else if (guestCode !== null) {
+      // The code goes in the email body; the button leads back to the desk.
     } else if (payload.sealedInvitationLink) {
       if (!encryption || !notification.resourceId)
         throw new Error('Invitation email encryption unavailable');
@@ -700,6 +740,7 @@ async function dispatchOne(
         url: `${baseUrl}${path}`,
         ...(payload.timing ? { timing: payload.timing } : {}),
         ...(payload.heading ? { heading: payload.heading } : {}),
+        ...(guestCode !== null ? { code: guestCode.code } : {}),
       }),
       { baseUrl, recipient: recipient.email },
     );

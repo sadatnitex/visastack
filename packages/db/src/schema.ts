@@ -5707,6 +5707,213 @@ export const agencyCollectionLinks = pgTable(
   ],
 );
 
+// --- UMPE P3: document understanding ------------------------------------------------------------
+
+/**
+ * One row per upload id an account has sent (ledger I16). The browser mints the id once per file
+ * and sends it on every attempt, so a repeat of the same upload (a retry after no answer came back)
+ * gets the original answer instead of a second stored copy. A row is claimed (PENDING) before any
+ * quota is reserved and COMPLETED with the document it produced; a failed upload deletes its own
+ * claim so the same id can be tried again. `originalFileName` is the file's name as the person's
+ * device gave it, sanitized: private to this account, never in audit metadata, never shown to an
+ * agency, used only to suggest a readable name.
+ */
+export const documentUploadReceipts = pgTable(
+  'document_upload_receipts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    uploadId: uuid('upload_id').notNull(),
+    /** Fences a takeover: only the request holding this token may complete or release the claim. */
+    claimToken: uuid('claim_token').notNull(),
+    status: text('status').notNull().default('PENDING'),
+    uploadIntentId: uuid('upload_intent_id').references(() => uploadIntents.id, {
+      onDelete: 'set null',
+    }),
+    // Cascade, not set null: when a document is removed for good, its receipt and the private
+    // file name kept on it go with it.
+    documentId: uuid('document_id').references(() => documents.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id').references(() => documentVersions.id, {
+      onDelete: 'cascade',
+    }),
+    originalFileName: text('original_file_name'),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('document_upload_receipts_account_upload').on(table.accountId, table.uploadId),
+    index('document_upload_receipts_version_idx').on(table.documentVersionId),
+    index('document_upload_receipts_applicant_idx').on(table.applicantId),
+    check(
+      'document_upload_receipts_status_known',
+      sql`${table.status} in ('PENDING', 'COMPLETED')`,
+    ),
+    check(
+      'document_upload_receipts_name_cap',
+      sql`${table.originalFileName} is null or char_length(${table.originalFileName}) <= 180`,
+    ),
+  ],
+);
+
+/**
+ * A proposed relation between a newly arrived document version and another document of the same
+ * person (ledger I13), found from deterministic signals only (file hash, document type, passport
+ * machine lines, statement period). Never applied on its own: the traveller confirms or keeps the
+ * two separate. Confirming never merges or deletes anything. `signals` holds codes only (which
+ * signals agreed), never a value read from the document. One proposal per new version.
+ */
+export const documentRelationProposals = pgTable(
+  'document_relation_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    relatedDocumentId: uuid('related_document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    relation: text('relation').notNull(),
+    /** True when the new document is the one to keep as the Current Copy (later period or expiry). */
+    newIsCurrent: boolean('new_is_current').notNull().default(true),
+    signals: jsonb('signals').$type<readonly string[]>().notNull(),
+    status: text('status').notNull().default('PENDING'),
+    decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('document_relation_proposals_version').on(table.documentVersionId),
+    index('document_relation_proposals_applicant_status_idx').on(table.applicantId, table.status),
+    index('document_relation_proposals_document_idx').on(table.documentId),
+    index('document_relation_proposals_related_idx').on(table.relatedDocumentId),
+    check(
+      'document_relation_proposals_relation_known',
+      sql`${table.relation} in ('EXACT_DUPLICATE', 'CORRECTED_SCAN', 'NEW_PERIOD', 'RENEWED')`,
+    ),
+    check(
+      'document_relation_proposals_status_known',
+      sql`${table.status} in ('PENDING', 'CONFIRMED', 'DISMISSED')`,
+    ),
+    check(
+      'document_relation_proposals_not_self',
+      sql`${table.documentId} <> ${table.relatedDocumentId}`,
+    ),
+  ],
+);
+
+// --- UMPE P8: guest proof for an agency document request -----------------------------------------
+// A guest answers an agency's request with no account: a bounded, request-scoped desk session, never
+// an account, applicant, case, grant or reusable profile. Like the request tables these carry no
+// person column and are read only through a gate (`GuestCollectionSessionProof` or
+// `GuestCodeDeliveryProof`, packages/services/src/access/guest-collection.ts), held to it by the
+// access ratchet.
+
+// One desk session: the SHA-256 of a random id held in an httpOnly cookie (the raw id is never
+// stored), bound to one link and the revision that link issued. Verification rotates the id in place.
+export const agencyCollectionGuestSessions = pgTable(
+  'agency_collection_guest_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionHash: text('session_hash').notNull().unique(),
+    linkId: uuid('link_id')
+      .notNull()
+      .references(() => agencyCollectionLinks.id, { onDelete: 'cascade' }),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => agencyCollectionRequests.id, { onDelete: 'cascade' }),
+    revisionId: uuid('revision_id')
+      .notNull()
+      .references(() => agencyCollectionRequestRevisions.id, { onDelete: 'restrict' }),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    // The hard end of the session, whatever happens: 12 hours after it began.
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('agency_collection_guest_sessions_link_idx').on(table.linkId),
+    index('agency_collection_guest_sessions_request_idx').on(table.requestId),
+    index('agency_collection_guest_sessions_revision_idx').on(table.revisionId),
+    check('agency_collection_guest_sessions_hash', sql`${table.sessionHash} ~ '^[0-9a-f]{64}$'`),
+  ],
+);
+
+// A six-digit code sent to the email address the agency entered for the link. Only a salted
+// SHA-256 is kept; the code is useless without the session that asked for it.
+export const agencyCollectionGuestCodes = pgTable(
+  'agency_collection_guest_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => agencyCollectionGuestSessions.id, { onDelete: 'cascade' }),
+    linkId: uuid('link_id')
+      .notNull()
+      .references(() => agencyCollectionLinks.id, { onDelete: 'cascade' }),
+    codeHash: text('code_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    // Used, or replaced by a newer code: never accepted again.
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('agency_collection_guest_codes_session_idx').on(table.sessionId, table.createdAt),
+    index('agency_collection_guest_codes_link_idx').on(table.linkId),
+    check('agency_collection_guest_codes_hash', sql`${table.codeHash} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'agency_collection_guest_codes_attempts',
+      sql`${table.attempts} >= 0 and ${table.attempts} <= 5`,
+    ),
+  ],
+);
+
+// The guest's pending submission for one link, kept across sessions so a resume on another device
+// finds it. P8 stores only the retention choice; files arrive with P9.
+export const agencyCollectionGuestDrafts = pgTable(
+  'agency_collection_guest_drafts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    linkId: uuid('link_id')
+      .notNull()
+      .unique()
+      .references(() => agencyCollectionLinks.id, { onDelete: 'cascade' }),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => agencyCollectionRequests.id, { onDelete: 'cascade' }),
+    revisionId: uuid('revision_id')
+      .notNull()
+      .references(() => agencyCollectionRequestRevisions.id, { onDelete: 'restrict' }),
+    // How long the agency may keep the files after the request closes; null until the guest
+    // chooses (nothing is preselected). A legal hold overrides it.
+    retentionDays: integer('retention_days'),
+    ...timestamps,
+  },
+  (table) => [
+    index('agency_collection_guest_drafts_request_idx').on(table.requestId),
+    index('agency_collection_guest_drafts_revision_idx').on(table.revisionId),
+    check(
+      'agency_collection_guest_drafts_retention_days',
+      sql`${table.retentionDays} is null or ${table.retentionDays} in (3, 7, 15, 30, 60, 90, 180)`,
+    ),
+  ],
+);
+
 // UMPE P7: a signed-in traveller's answer to an agency document request. Append-only: a trigger
 // refuses every UPDATE, and every DELETE that is not part of removing the person, their document
 // or the request's agency (see the migration). A withdrawal is its own record (below). The agency

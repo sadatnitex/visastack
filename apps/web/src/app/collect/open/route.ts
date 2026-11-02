@@ -1,50 +1,54 @@
 import { NextResponse } from 'next/server';
 import {
   COLLECT_COOKIE,
+  COLLECT_COOKIE_OPTIONS,
   COLLECT_COOKIE_SECONDS,
   COLLECT_PAGE,
   collectSwitchOn,
-  cookieValue,
-  loadCollectPage,
+  openLinkIntoSession,
 } from '../load';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * The first visit to an agency's request link (UMPE P6): the token arrives in the address once,
- * moves into a short-lived httpOnly, Secure, SameSite=Lax cookie bound to the link's id (only
- * while the link is open), and the browser is sent on to `/collect` with no token, so it never stays
- * in the address bar, the history or a Referer. Every link answers the same way.
+ * The first visit to an agency's request link (UMPE P6, P8): the token arrives in the address once
+ * and is exchanged for a server-side desk session; the browser keeps only the session's random id
+ * in an httpOnly, Secure, SameSite=Lax cookie, and is sent on to `/collect` with no token, so the
+ * token never stays in the address bar, the history, a Referer or a cookie. A live session of the
+ * same link on this device is kept. Every closed link answers the same way.
  */
 export async function GET(request: Request): Promise<Response> {
   if (!collectSwitchOn()) return new Response('Not Found', { status: 404 });
   const token = new URL(request.url).searchParams.get('token');
-  const page = await loadCollectPage(request.headers, token);
+  const current = cookieValue(request.headers.get('cookie'));
+  const opened = await openLinkIntoSession(request.headers, token, current);
   const response = new NextResponse(null, {
     status: 303,
     headers: {
-      Location: page.state === 'busy' ? COLLECT_PAGE.busyHref : COLLECT_PAGE.href,
+      Location: opened.state === 'busy' ? COLLECT_PAGE.busyHref : COLLECT_PAGE.href,
       'Cache-Control': 'no-store',
       'Referrer-Policy': 'no-referrer',
     },
   });
-  if (page.state === 'open' && token) {
-    response.cookies.set(COLLECT_COOKIE, cookieValue(page.view.linkId, token), {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      path: '/collect',
-      maxAge: COLLECT_COOKIE_SECONDS,
-    });
-  } else {
-    // Closed or busy: an older link's cookie must not stand in for this one.
-    response.cookies.set(COLLECT_COOKIE, '', {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      path: '/collect',
-      maxAge: 0,
-    });
+  if (opened.state === 'open') {
+    if (opened.rawSessionId) {
+      response.cookies.set(COLLECT_COOKIE, opened.rawSessionId, {
+        ...COLLECT_COOKIE_OPTIONS,
+        maxAge: COLLECT_COOKIE_SECONDS,
+      });
+    }
+  } else if (opened.state === 'closed') {
+    // Closed: an older session must not stand in for this link. Busy checked no link, so a live
+    // session is kept (someone exhausting the shared limits cannot push the recipient out).
+    response.cookies.set(COLLECT_COOKIE, '', { ...COLLECT_COOKIE_OPTIONS, maxAge: 0 });
   }
   return response;
+}
+
+function cookieValue(header: string | null): string | undefined {
+  for (const part of (header ?? '').split(';')) {
+    const [name, ...rest] = part.trim().split('=');
+    if (name === COLLECT_COOKIE) return rest.join('=');
+  }
+  return undefined;
 }

@@ -38,6 +38,9 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
   // Documents, uploads in progress and what was read from them.
   { table: 'documents', column: 'applicant_id', kind: 'DATA', unindexed: true },
   { table: 'upload_intents', column: 'applicant_id', kind: 'DATA' },
+  // UMPE P3: upload receipts (with the private file name) and proposed links between documents.
+  { table: 'document_upload_receipts', column: 'applicant_id', kind: 'DATA' },
+  { table: 'document_relation_proposals', column: 'applicant_id', kind: 'DATA' },
   { table: 'document_type_proposals', column: 'applicant_id', kind: 'DATA' },
   { table: 'document_inconsistency_flags', column: 'applicant_id', kind: 'DATA' },
   { table: 'ocr_runs', column: 'applicant_id', kind: 'DATA' },

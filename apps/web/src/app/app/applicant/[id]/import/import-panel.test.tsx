@@ -180,8 +180,13 @@ describe('importing many files', () => {
     expect(FakeRequest.sent).toHaveLength(2);
     expect(counts()).toBe('Importing: 85 Waiting.');
     expect(rows()).toHaveLength(LINES_SHOWN_FIRST);
-    // No name or folder path travels with a file.
-    expect(Object.keys(FakeRequest.sent[0]?.headers ?? {})).toEqual(['Content-Type']);
+    // UMPE P3: the file's own name and its upload id travel with it; the folder path never does.
+    const headers = FakeRequest.sent[0]?.headers ?? {};
+    expect(Object.keys(headers)).toEqual(['Content-Type', 'X-Upload-Id', 'X-File-Name']);
+    expect(decodeURIComponent(headers['X-File-Name'] ?? '')).toMatch(/^scan-\d+\.jpg$/);
+    expect(headers['X-Upload-Id']).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
 
     for (let index = 0; index < 85; index++) {
       await answer(index);

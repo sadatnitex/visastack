@@ -12,9 +12,14 @@
  * answer (HTTP 429 or 503: turned away before anything was stored), only when the server asks for
  * a wait of at most `AUTO_RETRY_LIMIT_SECONDS`, and at most `maxAttempts` sends in all. A longer
  * wait is the hourly upload limit: the file, and every file still waiting, is held until the
- * person chooses Try Again for All Paused Files. A file with no usable answer (a timeout, a
- * dropped connection, a server error) may well have been stored, so it is NEVER sent again on its
- * own: it stays unknown until the person checks and chooses Try Again.
+ * person chooses Try Again for All Paused Files.
+ *
+ * A file with no usable answer (a timeout, a dropped connection, a server error) may well have
+ * been stored. Every file carries one upload id (UMPE P3) on every attempt, and a server that keeps
+ * upload receipts answers a repeat with the copy it already stored. Only when the page says the
+ * server keeps them (`retryUnknown`) is such a file sent again on its own, with the SAME id, within
+ * the same `maxAttempts`; otherwise it stays unknown until the person checks and chooses Try Again
+ * (which also reuses the id). Send Again, an explicit new copy, gets a new id.
  *
  * Before each send `beforeSend` runs and is awaited, so the saved list can record the file as
  * unconfirmed first: a reload while it is on its way then shows it as not confirmed, not as new.
@@ -22,6 +27,7 @@
 
 import type { UpgradeLineKind } from '../../components/upgrade-line';
 import { type UploadOutcome, sendDocumentFile } from '../document-upload-client';
+import { newUploadId } from '../document-upload-client-id';
 import { checkChosenFile } from '../upload-rules';
 
 export type ImportState =
@@ -89,6 +95,8 @@ export interface ImportItem {
   readonly waitingToRetry: boolean;
   /** Settled in an earlier visit to this page (from the saved list), so it was not sent now. */
   readonly earlier: boolean;
+  /** The id sent with every attempt at this file, so the server never stores it twice. */
+  readonly uploadId: string;
 }
 
 /** A file to import and where it sat in the folder. */
@@ -114,6 +122,10 @@ export type ImportSend = (request: {
   readonly applicantId: string;
   readonly file: Blob;
   readonly contentType: string;
+  /** The same on every attempt at this file. */
+  readonly uploadId: string;
+  /** The file's own name, kept privately by the server to suggest a readable name. */
+  readonly fileName: string;
   readonly onProgress: (fraction: number) => void;
 }) => Promise<UploadOutcome>;
 
@@ -153,6 +165,19 @@ export interface ImportQueueOptions {
   readonly beforeSend?: (item: ImportItem) => void | Promise<void>;
   /** Called each time a file reaches an ending in this visit (held counts: nothing was stored). */
   readonly onSettled?: (item: ImportItem) => void;
+  /**
+   * The upload id for a file when it joins the queue. Default: a random one. The import page
+   * derives it from the traveller and the file's name, size and date, so choosing the same folder
+   * again after a reload sends the same id.
+   */
+  readonly uploadIdFor?: (file: FileIdentity) => string | Promise<string>;
+  /** A fresh random id, for Send Again (an explicit new copy). */
+  readonly newUploadId?: () => string;
+  /**
+   * Whether the server keeps upload receipts, so a file with no answer may be sent again on its
+   * own with the same id. Default false: without receipts a repeat could store a second copy.
+   */
+  readonly retryUnknown?: boolean;
 }
 
 export interface ImportSnapshot {
@@ -188,6 +213,16 @@ export function fingerprintOf(file: FileIdentity): string {
   return `${file.name}\u0000${file.size}\u0000${file.lastModified}`;
 }
 
+/**
+ * An upload id shaped as a version 4 UUID from the first 32 hex digits of a SHA-256, so the same
+ * traveller and file always give the same id. Null when the hash is not 64 hex digits.
+ */
+export function uploadIdFromHash(hex: string | null): string | null {
+  if (!hex || !/^[0-9a-f]{64}$/.test(hex)) return null;
+  const variant = ((Number.parseInt(hex.charAt(16), 16) & 0x3) | 0x8).toString(16);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
 /** Whether Try Again is offered: the file is still at hand and another send may succeed. */
 export function canTryAgain(item: Pick<ImportItem, 'state' | 'skipReason'>): boolean {
   return (
@@ -221,6 +256,8 @@ export const sendThroughUploadRoute: ImportSend = (request) =>
     contentType: request.contentType,
     docType: '',
     subject: '',
+    uploadId: request.uploadId,
+    fileName: request.fileName,
     onProgress: request.onProgress,
   });
 
@@ -254,6 +291,7 @@ export class ImportQueue {
   private readonly send: ImportSend;
   private readonly wait: (ms: number) => Promise<void>;
   private readonly progressIntervalMs: number;
+  private readonly newUploadId: () => string;
   private readonly files = new Map<number, { file: Blob; contentType: string }>();
   private readonly listeners = new Set<() => void>();
   private readonly idleWaiters: (() => void)[] = [];
@@ -284,6 +322,7 @@ export class ImportQueue {
     this.send = options.send ?? sendThroughUploadRoute;
     this.wait = options.wait ?? defaultWait;
     this.progressIntervalMs = options.progressIntervalMs ?? PROGRESS_INTERVAL_MS;
+    this.newUploadId = options.newUploadId ?? newUploadId;
     this.snapshot = this.makeSnapshot();
   }
 
@@ -334,6 +373,20 @@ export class ImportQueue {
     candidates: readonly ImportCandidate[],
     skipped: readonly SkippedEntry[],
   ): Promise<void> {
+    const uploadIds = await Promise.all(
+      candidates.map(async ({ file }) => {
+        try {
+          const id = await this.options.uploadIdFor?.({
+            name: file.name || 'Photo',
+            size: file.size,
+            lastModified: file.lastModified,
+          });
+          return typeof id === 'string' && id !== '' ? id : this.newUploadId();
+        } catch {
+          return this.newUploadId();
+        }
+      }),
+    );
     const earlier = await Promise.all(
       candidates.map(async ({ file }) => {
         try {
@@ -366,6 +419,7 @@ export class ImportQueue {
         size: file.size,
         lastModified: file.lastModified,
         fingerprint,
+        uploadId: uploadIds[index] ?? this.newUploadId(),
       };
       if (seen.has(fingerprint)) {
         added.push({ ...base, state: 'skipped', skipReason: 'repeat' });
@@ -406,6 +460,7 @@ export class ImportQueue {
         }),
         state: 'skipped',
         skipReason: entry.reason,
+        uploadId: this.newUploadId(),
       });
     }
     if (added.length === 0) return;
@@ -463,11 +518,14 @@ export class ImportQueue {
     this.requeue(item);
   }
 
-  /** Send Again on a line an earlier visit added: offered only where `canSendAgain` says so. */
+  /**
+   * Send Again on a line an earlier visit added: offered only where `canSendAgain` says so. The
+   * person asks for a new copy, so it goes with a new upload id.
+   */
   sendAgain(id: number): void {
     const item = this.byId.get(id);
     if (!item || !canSendAgain(item) || !this.files.has(id)) return;
-    this.requeue(item);
+    this.requeue({ ...item, uploadId: this.newUploadId() });
   }
 
   /** Try Again for All Paused Files: every file held by the hourly limit goes back in line. */
@@ -566,14 +624,40 @@ export class ImportQueue {
             applicantId: this.options.applicantId,
             file: held.file,
             contentType: held.contentType,
+            uploadId: sending?.uploadId ?? this.newUploadId(),
+            fileName: sending?.name ?? '',
             onProgress: (fraction) => this.progress(id, fraction),
           });
         } catch {
           outcome = { kind: 'unknown' };
         }
-        if (outcome.kind !== 'busy') {
+        // No answer: sent again on its own only when the server keeps upload receipts, so the
+        // repeat (same id) is answered with the copy already stored, never a second one.
+        const retryingUnknown =
+          outcome.kind === 'unknown' &&
+          this.options.retryUnknown === true &&
+          attempts < this.maxAttempts;
+        if (outcome.kind !== 'busy' && !retryingUnknown) {
           this.settle(id, outcomeChange(outcome));
           return;
+        }
+        if (outcome.kind !== 'busy') {
+          // It may have been stored, so it is never listed as not added: Stop or Pause during the
+          // wait leaves it unknown, with Try Again (same id) for the person.
+          this.update(id, { waitingToRetry: true, progress: 0 });
+          await this.wait(
+            retryDelayMs(
+              null,
+              attempts,
+              this.options.baseDelayMs ?? BASE_DELAY_MS,
+              this.options.maxDelayMs ?? MAX_DELAY_MS,
+            ),
+          );
+          if (this.generation !== generation || this.paused) {
+            this.settle(id, { state: 'unknown', message: '', progress: 0 });
+            return;
+          }
+          continue;
         }
         const message = outcome.message ?? '';
         const asked = outcome.retryAfterSeconds;

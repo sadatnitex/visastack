@@ -124,6 +124,9 @@ const COLLECTION_GATE_TYPES = [
   'CollectionLinkProof',
   // UMPE P7: made only from a fresh AgencyCollectionScope for one of that agency's own responses.
   'CollectionResponseAccess',
+  // UMPE P8: the request-scoped guest desk gates (access/guest-collection.ts).
+  'GuestCollectionSessionProof',
+  'GuestCodeDeliveryProof',
 ] as const;
 const COLLECTION_SAFE_CALLS: ReadonlySet<string> = new Set([
   'audit#appendAuditEvent',
@@ -132,6 +135,9 @@ const COLLECTION_SAFE_CALLS: ReadonlySet<string> = new Set([
 ]);
 /** The agency document request tables (packages/db/src/schema.ts), judged by their own ratchet. */
 const COLLECTION_TABLES = [
+  'agencyCollectionGuestCodes',
+  'agencyCollectionGuestDrafts',
+  'agencyCollectionGuestSessions',
   'agencyCollectionLinks',
   'agencyCollectionRequestRevisions',
   'agencyCollectionRequests',
@@ -311,6 +317,7 @@ function gateDeclarations(
     'require-access.ts',
     'collection-scope.ts',
     'collection-response-access.ts',
+    'guest-collection.ts',
   ]) {
     const sf = sourceFileAt(program, path.join(accessDir, file));
     const moduleSymbol = checker.getSymbolAtLocation(sf);
@@ -1156,6 +1163,31 @@ function collectionLinkProofUsers(): string[] {
   return users.sort();
 }
 
+/**
+ * Code files outside access/ and the services index that mention `name`, other than those in
+ * `allowedFiles` or under `allowedDirs`. Plain text on purpose, as for collectionLinkProof. Tests
+ * are left out.
+ */
+function mintUsers(
+  name: string,
+  allowedFiles: readonly string[],
+  allowedDirs: readonly string[],
+): string[] {
+  const indexFile = path.join(srcDir, 'index.ts');
+  const allowed = new Set(allowedFiles);
+  const pattern = new RegExp(`\\b${name}\\b`);
+  const users: string[] = [];
+  for (const file of codeFilesOfRepo().map(real)) {
+    if (file.startsWith(accessDir + path.sep) || file === indexFile || allowed.has(file)) continue;
+    if (allowedDirs.some((dir) => file.startsWith(dir + path.sep))) continue;
+    if (/\.test\.(ts|tsx)$|\.test-support\.ts$|\.test-d\.ts$/.test(file)) continue;
+    if (pattern.test(readFileSync(file, 'utf8'))) {
+      users.push(path.relative(repoDir, file).replace(/\\/g, '/'));
+    }
+  }
+  return users.sort();
+}
+
 function isCall(call: ts.CallExpression, name: string): boolean {
   return ts.isIdentifier(call.expression) && call.expression.text === name;
 }
@@ -1227,6 +1259,9 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
       'umpe-collection-request-service#listCollectionRequests',
       'umpe-collection-request-service#openCollectionLink',
       'umpe-collection-request-service#collectionLinkStillOpen',
+      'umpe-guest-collection#readGuestDesk',
+      'umpe-guest-collection#verifyGuestCode',
+      'umpe-guest-collection#guestCodeStillDeliverable',
     ]) {
       expect(exportedFunctionIds.has(id), `${id} exists`).toBe(true);
     }
@@ -1237,6 +1272,14 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
     expect(
       collectionLinkProofUsers(),
       'only the /collect route and the notification worker may make a CollectionLinkProof',
+    ).toEqual([]);
+    expect(
+      mintUsers('guestCollectionSessionProof', [], [path.join(webSrcDir, 'app', 'collect')]),
+      'only the /collect route may make a GuestCollectionSessionProof',
+    ).toEqual([]);
+    expect(
+      mintUsers('guestCodeDeliveryProof', [path.join(srcDir, 'notifications.ts')], []),
+      'only the notification worker may make a GuestCodeDeliveryProof',
     ).toEqual([]);
     for (const id of COLLECTION_SAFE_CALLS) {
       expect(exportedFunctionIds.has(id), `${id} is listed but no longer exists`).toBe(true);
@@ -1258,6 +1301,14 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
       {
         decls: gateDeclarations(program, checker, ['CollectionResponseAccess']),
         check: (call: ts.CallExpression) => isCall(call, 'collectionResponseAccessProblem'),
+      },
+      {
+        decls: gateDeclarations(program, checker, ['GuestCollectionSessionProof']),
+        check: (call: ts.CallExpression) => isIsGenuine(call, 'GuestCollectionSessionProof'),
+      },
+      {
+        decls: gateDeclarations(program, checker, ['GuestCodeDeliveryProof']),
+        check: (call: ts.CallExpression) => isIsGenuine(call, 'GuestCodeDeliveryProof'),
       },
     ];
     const found: string[] = [];
@@ -1302,6 +1353,9 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
         'umpe-collection-request-service#openCollectionLink',
         'umpe-collection-response-service#readCollectionResponse',
         'documents#downloadCollectionResponseVersion',
+        'umpe-guest-collection#readGuestDesk',
+        'umpe-guest-collection#startGuestSession',
+        'umpe-guest-collection#guestCodeStillDeliverable',
       ]),
     );
     expect(problems).toEqual([]);
