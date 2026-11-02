@@ -78,6 +78,7 @@ vi.mock('../app/app/agency/[orgId]/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/collection/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/plan/invoices/actions', standIn);
 vi.mock('../app/app/applicant/[id]/actions', standIn);
+vi.mock('../app/app/applicant/[id]/documents/needs-decision-actions', standIn);
 vi.mock('../app/app/applicant/[id]/section-actions', standIn);
 vi.mock('../app/app/applicant/[id]/evidence/actions', standIn);
 vi.mock('../app/app/applicant/[id]/missions/actions', standIn);
@@ -153,6 +154,9 @@ const { RequireDifferentReviewerToggle } = await import(
 const { CreateOrgForm } = await import('../app/app/agency/create-org-form');
 const aiReview = await import('../app/app/applicant/[id]/ai-review');
 const { DocumentUploader } = await import('../app/app/applicant/[id]/document-uploader');
+const { NeedsDecision, RelationDecisionForm } = await import(
+  '../app/app/applicant/[id]/documents/needs-decision'
+);
 const { DocumentRenameForm } = await import('../app/app/applicant/[id]/document-rename-form');
 const { SubmitResponseForm } = await import(
   '../app/app/applicant/[id]/evidence/submit-response-form'
@@ -300,6 +304,47 @@ const DOCS: readonly Case[] = [
     }),
     fields: ['name'],
   },
+  {
+    name: 'decide the files that need one decision',
+    element: () => (
+      <>
+        <NeedsDecision
+          applicantId="a1"
+          items={[
+            {
+              kind: 'relation',
+              proposalId: 'p1',
+              documentId: 'd2',
+              title: 'Bank Statement April',
+              relatedDocumentId: 'd1',
+              relatedTitle: 'Bank Statement March',
+              relation: 'NEW_PERIOD',
+              labels: { newDocument: 'New Period', relatedDocument: 'Earlier Period' },
+            },
+            { kind: 'unknown_type', documentId: 'd3', title: 'Untitled Document' },
+          ]}
+          linked={[
+            {
+              documentId: 'd5',
+              title: 'Passport Renewed',
+              relatedDocumentId: 'd4',
+              relatedTitle: 'Passport Old',
+              labels: { newDocument: 'Renewed', relatedDocument: 'Earlier Copy' },
+            },
+          ]}
+        />
+      </>
+    ),
+  },
+  row('confirm or keep separate a suggested link', () => (
+    <RelationDecisionForm
+      applicantId="a1"
+      proposalId="p1"
+      title="Bank Statement April"
+      action={() => undefined}
+      pending={false}
+    />
+  )),
   row('review a suggested file name', () => (
     <NameReview
       applicantId="a1"

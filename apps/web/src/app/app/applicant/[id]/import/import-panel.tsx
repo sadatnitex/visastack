@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import { UndoStatus } from '../../../../../components/lifecycle/undo-status';
 import { UpgradeLine } from '../../../../../components/upgrade-line';
+import { newUploadId } from '../../../../../lib/document-upload-client-id';
 import { formatFileSize } from '../../../../../lib/format-size';
 import {
   type FolderReadResult,
@@ -15,7 +16,7 @@ import {
   readChosenFiles,
   readDrop,
 } from '../../../../../lib/import/folder-entries';
-import { ImportManifest } from '../../../../../lib/import/import-manifest';
+import { ImportManifest, sha256Hex } from '../../../../../lib/import/import-manifest';
 import {
   type ImportCounts,
   type ImportItem,
@@ -23,6 +24,8 @@ import {
   canSendAgain,
   canTryAgain,
   countItems,
+  fingerprintOf,
+  uploadIdFromHash,
 } from '../../../../../lib/import/import-queue';
 import { useDropZone } from '../../../../../lib/import/use-drop-zone';
 import { uploadLimitsText } from '../../../../../lib/upload-rules';
@@ -297,6 +300,7 @@ export function ImportPanel({
   limitBytes = DEFAULT_LIMIT_BYTES,
   limitLabel = '4 MB',
   pdfAccepted = false,
+  retryUnknown = false,
 }: {
   readonly applicantId: string;
   /** The largest file accepted, in bytes (the same limit the single upload uses). */
@@ -305,6 +309,11 @@ export function ImportPanel({
   readonly limitLabel?: string;
   /** True only when PDF files are admitted (they need a real virus scanner). */
   readonly pdfAccepted?: boolean;
+  /**
+   * True when the server keeps upload receipts (UMPE P3): a file with no answer is then sent again
+   * on its own with the same upload id, which the server answers with the copy already stored.
+   */
+  readonly retryUnknown?: boolean;
 }) {
   const router = useRouter();
   const limitsId = useId();
@@ -331,6 +340,12 @@ export function ImportPanel({
           }
           void manifest.current?.record(item);
         },
+        // The same traveller and file (name, size, date) always send the same upload id, so
+        // choosing the folder again after a reload can never store a file twice.
+        uploadIdFor: async (file) =>
+          uploadIdFromHash(await sha256Hex(`${applicantId}\u0000${fingerprintOf(file)}`)) ??
+          newUploadId(),
+        retryUnknown,
       }),
   );
   const snapshot = useSyncExternalStore(queue.subscribe, queue.getSnapshot, queue.getSnapshot);

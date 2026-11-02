@@ -11,6 +11,9 @@ import {
   approveClearProposals,
   approveDocumentTypeProposal,
   approveProposal,
+  attachUploadIntent,
+  claimUploadReceipt,
+  completeUploadReceipt,
   decideDocumentName,
   decideDocumentSuggestion,
   dismissInconsistencyFlag,
@@ -34,6 +37,7 @@ import {
   registerFieldDefinition,
   rejectDocumentTypeProposal,
   rejectProposal,
+  releaseUploadReceipt,
   renameDocument,
   renderOcrSourceImage,
   requestDocumentReExtraction,
@@ -99,8 +103,13 @@ export interface ActionState {
   /**
    * Why an upload was turned away, when the reason is one a caller acts on: `rate_limited` is the
    * hourly upload limit (nothing was stored), which the upload route answers with 429.
+   * `in_progress` (UMPE P3): the same upload id is being stored by another request right now; the
+   * route answers 503 with a short Retry-After. `upload_conflict`: the upload id was already used
+   * for another traveller; the route answers 409.
    */
-  readonly refusal?: 'rate_limited';
+  readonly refusal?: 'rate_limited' | 'in_progress' | 'upload_conflict';
+  /** With `in_progress`: seconds until the same upload can be checked again. */
+  readonly retryAfterSeconds?: number;
 }
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
@@ -186,6 +195,9 @@ export async function saveFactAction(_prev: ActionState, formData: FormData): Pr
   return result;
 }
 
+/** The answer to a repeat of an upload that already produced its document (UMPE P3). */
+const ALREADY_ADDED_LINE = 'This file was already added, so it was not added again.';
+
 /**
  * Upload a document: reserve → store bytes → verify → register → version →
  * queue intake processing → finalize the reservation.
@@ -234,11 +246,73 @@ export async function uploadDocumentAction(
   if (!kind.ok) return { ok: false, message: kind.error.message, field: 'docType' };
 
   const declaredType = file.type || 'application/octet-stream';
+  // UMPE P3: the browser's id for this one file (the same on every attempt) and the file's own
+  // name, private to the owner. Both optional: an older page sends neither and uploads as before.
+  const uploadId = String(formData.get('uploadId') ?? '');
+  const originalFileName = String(formData.get('originalFileName') ?? '');
 
   const result = await withSession(async ({ db, accountId, self }) => {
     if (!(await assertOwned(db, accountId, applicantId))) {
       return { ok: false, message: 'Not authorized.' } satisfies ActionState;
     }
+
+    // Idempotency (ledger I16): claimed before any quota is reserved, so a repeat of an upload
+    // that already produced a document is answered with that document and stores nothing.
+    const receiptAccess = uploadId
+      ? await requireAccess(
+          db,
+          accountPrincipal(accountId),
+          'MANAGE',
+          { applicantId },
+          { purpose: 'owner_document_upload' },
+        )
+      : null;
+    if (receiptAccess && !receiptAccess.ok) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const receiptProof = receiptAccess?.value ?? null;
+    const claim = receiptProof
+      ? await claimUploadReceipt(receiptProof, { uploadId, originalFileName })
+      : ({ kind: 'untracked' } as const);
+    if (claim.kind === 'replay') {
+      // Finish what the first attempt may not have, before it could answer: its reading queued
+      // (an upsert, so repeating it is safe) and its reservation closed. Never a second copy.
+      await enqueueIntakeJob(db, { documentVersionId: claim.documentVersionId });
+      if (claim.uploadIntentId) {
+        await finalizeUpload(db, claim.uploadIntentId, claim.documentVersionId);
+      }
+      after(() => triggerIntakeAndReading());
+      return {
+        ok: true,
+        message: ALREADY_ADDED_LINE,
+        ...(claim.title ? { title: claim.title } : {}),
+      } satisfies ActionState;
+    }
+    if (claim.kind === 'in_progress') {
+      return {
+        ok: false,
+        message: 'This file is still being added. Try again in a minute or two.',
+        refusal: 'in_progress',
+        retryAfterSeconds: claim.retryAfterSeconds,
+      } satisfies ActionState;
+    }
+    if (claim.kind === 'conflict') {
+      return {
+        ok: false,
+        message: 'This file was already sent for another person. Choose it again to add it here.',
+        refusal: 'upload_conflict',
+      } satisfies ActionState;
+    }
+    const held = claim.kind === 'claimed' && receiptProof ? { proof: receiptProof, claim } : null;
+    // A failed upload stored nothing: the claim is let go so Try Again with the same id works.
+    const release = async () => {
+      if (!held) return;
+      try {
+        await releaseUploadReceipt(held.proof, held.claim);
+      } catch {
+        // Left in progress, the claim is checked and taken over once it is stale.
+      }
+    };
 
     const reservation = await reserveUpload(
       db,
@@ -246,6 +320,7 @@ export async function uploadDocumentAction(
       quotaConfig,
     );
     if (!reservation.ok) {
+      await release();
       // The record's owner, for themselves (checked above): the line when a paid plan would help.
       return {
         ok: false,
@@ -255,6 +330,16 @@ export async function uploadDocumentAction(
       } satisfies ActionState;
     }
     let intent = reservation.value;
+    if (held) {
+      try {
+        await attachUploadIntent(held.proof, { ...held.claim, uploadIntentId: intent.id });
+      } catch (error) {
+        // Same rule as every failure after the reservation: release it, and the claim with it.
+        await failUpload(db, intent.id, error instanceof Error ? error.message : String(error));
+        await release();
+        return { ok: false, message: 'Upload failed unexpectedly. Please try again.' };
+      }
+    }
     // Opaque key only — never the applicant id, email, or filename (§10).
     // The bucket/applicant association lives solely in the domain tables
     // (documents/document_versions/storage_objects), never in the object
@@ -406,6 +491,7 @@ export async function uploadDocumentAction(
     })();
 
     if (!outcome.ok) {
+      await release();
       return {
         ok: false,
         message: outcome.message,
@@ -419,6 +505,15 @@ export async function uploadDocumentAction(
     // fires the worker once the response has been sent for near-instant
     // processing in the common case; the periodic sweep at
     // /api/jobs/process-intake is the durability backstop if that doesn't run.
+    // The receipt is finished before the reading is queued, so the reading can find the file's
+    // own name for a suggested title.
+    if (held) {
+      await completeUploadReceipt(held.proof, {
+        ...held.claim,
+        documentId: outcome.version.version.documentId,
+        documentVersionId: outcome.version.version.id,
+      });
+    }
     await enqueueIntakeJob(db, { documentVersionId: outcome.version.version.id });
     await finalizeUpload(db, intent.id, outcome.version.version.id);
     after(() => triggerIntakeAndReading());
