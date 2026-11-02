@@ -9,8 +9,11 @@
  * 2. Fields deliberately outside the checksum (notes, freshness, condition,
  *    source evidence) stay outside it.
  * 3. Tampering with a checksummed field is still detected.
- * 4. A rule condition over an unknown fact evaluates to 'unknown', never to
- *    'true' or 'false' (unknown is "needs verification", not "not applicable").
+ * 4. Rows that ICU collation calls equal still get one stable order.
+ * 5. Requirement states keep their meaning: only a false condition is Not
+ *    Applicable, an unknown condition is Unverified, an optional gap never
+ *    blocks. (Kleene evaluation of unknown facts is pinned in
+ *    rule-conditions.test.ts.)
  *
  * If a test here fails, the change under test is breaking historic truth.
  * Do not update the golden values; add a new, versioned serializer instead.
@@ -23,6 +26,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
+import { resolveRequirementResultState } from './missions';
 import {
   type PackRequirement,
   addPackVersion,
@@ -33,7 +37,6 @@ import {
   listRequirements,
   verifyPackChecksum,
 } from './packs';
-import { evaluateCondition } from './rule-conditions';
 
 /** Synthetic rows: mixed kinds, optional flags, null keys, case and a non-ASCII citation. */
 const GOLDEN_ROWS = [
@@ -154,12 +157,10 @@ describe('UMPE P0: approved pack versions keep verifying', () => {
       .from(schema.packVersions)
       .where(eq(schema.packVersions.id, versionId));
     expect(stored?.checksum).toBe(GOLDEN_CHECKSUM);
-    // Postgres jsonb normalises key order, so the stored manifest is equal in
-    // content but NOT byte-identical to the checksummed serialization. A
-    // verifier must therefore never hash the stored jsonb text; it recomputes
-    // from rows (verifyPackChecksum) or canonicalises first.
+    // Postgres jsonb may normalise key order, so compare content, never the
+    // stored text: a verifier recomputes from rows (verifyPackChecksum) or
+    // canonicalises first (ADR 0026 D1).
     expect(stored?.manifest).toEqual(JSON.parse(GOLDEN_MANIFEST_JSON));
-    expect(JSON.stringify(stored?.manifest)).not.toBe(GOLDEN_MANIFEST_JSON);
     expect(await verifyPackChecksum(db, versionId)).toBe(true);
   });
 
@@ -191,32 +192,74 @@ describe('UMPE P0: approved pack versions keep verifying', () => {
   });
 });
 
-describe('UMPE P0: unknown facts stay unknown', () => {
-  const now = new Date('2026-11-02T00:00:00Z');
-  const empty = { now, getValue: () => undefined };
+describe('UMPE P0: rows that collation calls equal get one stable order', () => {
+  // NFC and NFD spellings of the same citation are distinct strings that ICU
+  // collation compares as equal; before the tie-break their order (and so the
+  // checksum) followed the order the database returned rows in.
+  const nfc = 'Annexe \u00c9 section 3';
+  const nfd = 'Annexe E\u0301 section 3';
+  const tied = [
+    { kind: 'FIELD', fieldKey: 'travel.purpose', docType: null, citation: nfc, optional: false },
+    { kind: 'FIELD', fieldKey: 'travel.purpose', docType: null, citation: nfd, optional: false },
+  ] as unknown as PackRequirement[];
 
-  it.each([
-    [{ op: 'exists', field: 'sponsor.name' }],
-    [{ op: 'equals', field: 'applicant.nationality', value: 'BD' }],
-    [{ op: 'notEquals', field: 'applicant.nationality', value: 'BD' }],
-    [{ op: 'memberOf', field: 'applicant.residence', values: ['BD', 'SG'] }],
-  ] as const)('%j over a missing fact is unknown', (condition) => {
-    expect(evaluateCondition(condition, empty)).toBe('unknown');
+  it('collation really does tie on these two strings in this runtime', () => {
+    expect(nfc).not.toBe(nfd);
+    expect(nfc.localeCompare(nfd)).toBe(0);
   });
 
-  it('an AND with one unknown and no false member is unknown, not true', () => {
-    const ctx = { now, getValue: (f: string) => (f === 'a' ? 'x' : undefined) };
+  it('gives the same checksum whatever order the rows arrive in', () => {
+    expect(buildManifest(tied).checksum).toBe(buildManifest([...tied].reverse()).checksum);
+  });
+});
+
+describe('UMPE P0: requirement states keep their meaning', () => {
+  const base = { satisfied: false, optional: false, hasConflict: false, hasStale: false };
+
+  it('a condition that is false is the only way to Not Applicable', () => {
+    expect(resolveRequirementResultState({ ...base, conditionResult: 'false' })).toBe(
+      'NOT_APPLICABLE',
+    );
+  });
+
+  it('an unknown condition is Unverified, never Not Applicable or a gap', () => {
+    expect(resolveRequirementResultState({ ...base, conditionResult: 'unknown' })).toBe(
+      'UNVERIFIED',
+    );
     expect(
-      evaluateCondition(
-        {
-          op: 'and',
-          conditions: [
-            { op: 'equals', field: 'a', value: 'x' },
-            { op: 'exists', field: 'b' },
-          ],
-        },
-        ctx,
-      ),
-    ).toBe('unknown');
+      resolveRequirementResultState({ ...base, optional: true, conditionResult: 'unknown' }),
+    ).toBe('UNVERIFIED');
+  });
+
+  it('a missing required item is a critical gap; a missing optional item never is', () => {
+    expect(resolveRequirementResultState({ ...base, conditionResult: null })).toBe('CRITICAL_GAP');
+    expect(resolveRequirementResultState({ ...base, optional: true, conditionResult: null })).toBe(
+      'ATTENTION',
+    );
+    expect(
+      resolveRequirementResultState({ ...base, optional: true, conditionResult: 'true' }),
+    ).toBe('ATTENTION');
+  });
+
+  it('satisfied evidence is Satisfied unless it conflicts or is stale', () => {
+    expect(
+      resolveRequirementResultState({ ...base, satisfied: true, conditionResult: 'true' }),
+    ).toBe('SATISFIED');
+    expect(
+      resolveRequirementResultState({
+        ...base,
+        satisfied: true,
+        hasConflict: true,
+        conditionResult: 'true',
+      }),
+    ).toBe('CONFLICTING');
+    expect(
+      resolveRequirementResultState({
+        ...base,
+        satisfied: true,
+        hasStale: true,
+        conditionResult: 'true',
+      }),
+    ).toBe('EXPIRING_STALE');
   });
 });

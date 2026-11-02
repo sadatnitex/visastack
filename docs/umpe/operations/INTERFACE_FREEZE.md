@@ -1,5 +1,7 @@
 # UMPE shared interface contract (proposed; verify and freeze before implementation)
 
+> Superseded where they differ by the verified freeze `docs/adr/0026-umpe-interface-freeze.md` (2 November 2026). Lanes code against the ADR names.
+
 This is an integration contract **for discussion with actual repository types**. No example names here certify an existing API or authorize a new parallel source of truth. The lead must audit, choose canonical names, write the resulting ADR and tests, and publish the final signatures to workers. This prevents months of schema repair and inference from accidental naming.
 
 ## Canonical entities to reuse and protect

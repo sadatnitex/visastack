@@ -26,4 +26,5 @@ Newest first. One line per change of state. The requirement-level truth is `docs
 5. Real-data activation remains switched off (controlled pilot).
 
 ## Log
+- 2026-11-02: P0 review (`/code-review high`, 10 findings): 9 fixed (format 1 sort tie-break, UTF-16 wording for format 2, necessity vs provenance names, ratchet extension required for request and guest tables, lane persistence rule, locked-source check in CI, known-issues chunk, golden test no longer pins a storage detail, readiness state mapping pinned instead of duplicated rule tests); 1 not applicable (SESSION-START is updated in the same PR by the repo's own rule).
 - 2026-11-02: P0 complete locally: golden manifest test (11 tests) proven to fail when a manifest key is added; ledger filled from code (17 implemented, 29 partial, 18 missing, 1 content, 2 owner-blocked, 1 tested, 19 not yet audited); ADR 0026 written; Lanes A and E started in separate worktrees.
