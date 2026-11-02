@@ -71,6 +71,7 @@ vi.mock('../app/app/admin/complaints/actions', standIn);
 vi.mock('../app/app/admin/organizations/[orgId]/actions', standIn);
 vi.mock('../app/app/admin/organizations/[orgId]/refund-actions', standIn);
 vi.mock('../app/app/admin/packs/actions', standIn);
+vi.mock('../app/app/admin/packs/sources/actions', standIn);
 vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
@@ -124,6 +125,7 @@ const organisationForms = await import('../app/app/admin/organizations/[orgId]/f
 const refundForms = await import('../app/app/admin/organizations/[orgId]/refund-forms');
 const packForms = await import('../app/app/admin/packs/pack-forms');
 const packVersionButtons = await import('../app/app/admin/packs/pack-version-buttons');
+const sourceForms = await import('../app/app/admin/packs/sources/source-forms');
 const { PurgeButton } = await import('../app/app/admin/purge-button');
 const { ReconcileButtons } = await import('../app/app/admin/reconcile-buttons');
 const { BrandingForm } = await import('../app/app/agency/[orgId]/branding-form');
@@ -2054,6 +2056,25 @@ const ADMIN: readonly Case[] = [
     ),
   },
   { name: 'document expiry policy', element: () => <packForms.SetDocumentExpiryPolicyForm /> },
+  {
+    name: 'register an official page',
+    element: () => <sourceForms.RegisterSourceForm packs={[{ id: 'pk1', name: 'UK Visitor' }]} />,
+  },
+  { name: 'check every official page now', element: () => <sourceForms.CheckNowButton /> },
+  {
+    name: 'check one official page now',
+    element: () => <sourceForms.CheckNowButton sourceId="s1" sourceTitle="Visit the UK" />,
+  },
+  {
+    name: 'stop checking an official page',
+    element: () => <sourceForms.DeactivateSourceButton sourceId="s1" sourceTitle="Visit the UK" />,
+  },
+  {
+    name: 'decide on a detected page change',
+    element: () => (
+      <sourceForms.CandidateDecisionForm candidateId="c1" status="NEW" sourceTitle="Visit the UK" />
+    ),
+  },
   {
     name: 'open a pack version',
     element: () => <packVersionButtons.OpenVersionButton packId="pk1" />,
