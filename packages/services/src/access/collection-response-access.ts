@@ -122,6 +122,36 @@ export function liveCollectionResponse(): SQL {
   return sql`(not exists (select 1 from agency_collection_response_withdrawals w where w.response_id = ${responses.id}) and exists (select 1 from agency_collection_requests r where r.id = ${responses.requestId} and r.status <> 'REVOKED'))`;
 }
 
+/**
+ * Whether a response is still live for its agency, for the notification worker's send-time check
+ * of a "Submitted to Agency" notice: it exists for that agency, is not withdrawn or replaced, its
+ * request is not revoked and the agency is still reviewed. Reads nothing of the person.
+ */
+export async function collectionResponseStillLive(
+  db: Db,
+  responseId: string,
+  organizationId: string,
+): Promise<boolean> {
+  if (!isUuid(responseId) || !isUuid(organizationId)) return false;
+  if (!(await collectionResponsesPresent(db))) return false;
+  if (!(await agencyMayReceiveAnswers(db, organizationId))) return false;
+  const responses = schema.agencyCollectionResponses;
+  const row = first(
+    await db
+      .select({ id: responses.id })
+      .from(responses)
+      .where(
+        and(
+          eq(responses.id, responseId),
+          eq(responses.organizationId, organizationId),
+          liveCollectionResponse(),
+        ),
+      )
+      .limit(1),
+  );
+  return row !== undefined;
+}
+
 /** The newest responses one request may list at once. */
 export const COLLECTION_RESPONSE_LIST_LIMIT = 100;
 

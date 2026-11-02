@@ -10,6 +10,7 @@ import {
   type CollectionResponseAccess,
   collectionResponseAccess,
   collectionResponseAccesses,
+  collectionResponseStillLive,
 } from './access/collection-response-access';
 import {
   type AgencyCollectionScope,
@@ -17,6 +18,10 @@ import {
   agencyCollectionPrincipal,
   collectionLinkProof,
 } from './access/collection-scope';
+import {
+  type GuestCollectionSessionProof,
+  guestCollectionSessionProof,
+} from './access/guest-collection';
 import { accountPrincipal, selfPrincipal } from './access/principal';
 import { type AuthorizedApplicant, requireAccess } from './access/require-access';
 import { verifyStepUp } from './access/step-up-proof';
@@ -59,6 +64,7 @@ import {
   submitCollectionResponse,
   withdrawCollectionResponse,
 } from './umpe-collection-response-service';
+import { startGuestSession } from './umpe-guest-collection';
 
 /** Synthetic data only. A signed-in traveller answers an agency request from their record (UMPE P7). */
 
@@ -253,10 +259,14 @@ describe('a signed-in traveller answers an agency request from their own record 
     return { requestId: created.value.id, token: issued.value.link.rawToken };
   }
 
-  function link(token: string): CollectionLinkProof {
+  /** A desk session for this link, the way the request page opens one (P8). */
+  async function link(token: string): Promise<GuestCollectionSessionProof> {
     const proof = collectionLinkProof(token);
     if (!proof) throw new Error('no link proof');
-    return proof;
+    const started = await startGuestSession(db, proof, null);
+    const session = guestCollectionSessionProof(started?.rawSessionId ?? undefined);
+    if (!session) throw new Error('no desk session');
+    return session;
   }
 
   async function viewProof(ownerId: string, applicantId: string) {
@@ -419,7 +429,7 @@ describe('a signed-in traveller answers an agency request from their own record 
   async function submitPassportOnly(token: string) {
     const proposal = await proposeCollectionResponse(
       db,
-      link(token),
+      await link(token),
       await viewProof(travellerId, personId),
       { encryption },
     );
@@ -428,7 +438,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     expect(passportItem.proposedKey).toBe(documentKey(passport.versionId));
     const submitted = await submitCollectionResponse(
       db,
-      link(token),
+      await link(token),
       await shareProof(travellerId, personId),
       {
         selections: { [passportItem.item.id]: [documentKey(passport.versionId)] },
@@ -443,7 +453,11 @@ describe('a signed-in traveller answers an agency request from their own record 
 
   it('opening the link grants nothing, and the checklist proposes the matching current copies and details', async () => {
     const { token, requestId } = await issuedRequest();
-    const desk = await openCollectionResponseDesk(db, link(token), selfPrincipal(travellerId));
+    const desk = await openCollectionResponseDesk(
+      db,
+      await link(token),
+      selfPrincipal(travellerId),
+    );
     expect(desk.ok).toBe(true);
     expect(await count(db, 'agency_collection_responses')).toBe(0);
     expect(await count(db, 'grants')).toBe(0);
@@ -451,7 +465,7 @@ describe('a signed-in traveller answers an agency request from their own record 
 
     const proposal = await proposeCollectionResponse(
       db,
-      link(token),
+      await link(token),
       await viewProof(travellerId, personId),
       { encryption },
     );
@@ -515,7 +529,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     const { token, requestId } = await issuedRequest();
     const proposal = await proposeCollectionResponse(
       db,
-      link(token),
+      await link(token),
       await viewProof(travellerId, personId),
       { encryption },
     );
@@ -525,7 +539,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     if (!chosen || chosen.kind !== 'FIELD') throw new Error('no detail');
     const submitted = await submitCollectionResponse(
       db,
-      link(token),
+      await link(token),
       await shareProof(travellerId, personId),
       {
         selections: { [detail.item.id]: [factKey(chosen.factVersionId)] },
@@ -577,19 +591,25 @@ describe('a signed-in traveller answers an agency request from their own record 
     });
     if (!emailed.ok) throw new Error('emailed link');
     const token = emailed.value.link.rawToken;
-    const wrong = await openCollectionResponseDesk(db, link(token), selfPrincipal(strangerId));
+    const wrong = await openCollectionResponseDesk(
+      db,
+      await link(token),
+      selfPrincipal(strangerId),
+    );
     const unknown = await openCollectionResponseDesk(
       db,
-      link(randomBytes(32).toString('base64url')),
+      guestCollectionSessionProof(
+        randomBytes(32).toString('base64url'),
+      ) as GuestCollectionSessionProof,
       selfPrincipal(strangerId),
     );
     expect(wrong.ok).toBe(false);
     expect(unknown.ok).toBe(false);
     if (!wrong.ok && !unknown.ok) expect(wrong.error).toEqual(unknown.error);
-    await openCollectionResponseDesk(db, link(token), selfPrincipal(strangerId));
+    await openCollectionResponseDesk(db, await link(token), selfPrincipal(strangerId));
     const proposal = await proposeCollectionResponse(
       db,
-      link(token),
+      await link(token),
       await viewProof(strangerId, strangerPersonId),
     );
     expect(proposal.ok).toBe(false);
@@ -600,7 +620,11 @@ describe('a signed-in traveller answers an agency request from their own record 
     expect(audits).toHaveLength(1);
     expect(audits[0]?.actorAccountId).toBe(strangerId);
 
-    const right = await openCollectionResponseDesk(db, link(token), selfPrincipal(travellerId));
+    const right = await openCollectionResponseDesk(
+      db,
+      await link(token),
+      selfPrincipal(travellerId),
+    );
     expect(right.ok).toBe(true);
   });
 
@@ -641,7 +665,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     );
     if (!shared.ok) throw new Error('shared view');
     expect(shared.value.actor.kind).toBe('individual_recipient');
-    const refused = await proposeCollectionResponse(db, link(token), shared.value);
+    const refused = await proposeCollectionResponse(db, await link(token), shared.value);
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.error.code).toBe('not_found');
   });
@@ -650,16 +674,18 @@ describe('a signed-in traveller answers an agency request from their own record 
     const first = await issuedRequest();
     const proposal = await proposeCollectionResponse(
       db,
-      link(first.token),
+      await link(first.token),
       await viewProof(travellerId, personId),
     );
     if (!proposal.ok) throw new Error('proposal');
     const passportItem = item(proposal.value.proposals, 'passport');
+    // The desk session was opened before the agency revoked the request.
+    const heldSession = await link(first.token);
     const ended = await endCollectionRequest(db, await scope(), first.requestId, 'REVOKED');
     expect(ended.ok).toBe(true);
     const revoked = await submitCollectionResponse(
       db,
-      link(first.token),
+      heldSession,
       await shareProof(travellerId, personId),
       {
         selections: { [passportItem.item.id]: [documentKey(passport.versionId)] },
@@ -674,13 +700,13 @@ describe('a signed-in traveller answers an agency request from their own record 
     const second = await issuedRequest();
     const open = await openCollectionResponseDesk(
       db,
-      link(second.token),
+      await link(second.token),
       selfPrincipal(travellerId),
     );
     if (!open.ok) throw new Error('desk');
     const expired = await submitCollectionResponse(
       db,
-      link(second.token),
+      await link(second.token),
       await shareProof(travellerId, personId),
       {
         selections: {},
@@ -699,7 +725,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     const { token } = await issuedRequest();
     const proposal = await proposeCollectionResponse(
       db,
-      link(token),
+      await link(token),
       await viewProof(travellerId, personId),
     );
     if (!proposal.ok) throw new Error('proposal');
@@ -707,7 +733,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     const foreignDocument = await document(strangerPersonId, strangerId, 'passport', 'theirs.pdf');
     const smuggled = await submitCollectionResponse(
       db,
-      link(token),
+      await link(token),
       await shareProof(travellerId, personId),
       {
         selections: { [passportItem.item.id]: [documentKey(foreignDocument.versionId)] },
@@ -719,7 +745,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     expect(smuggled.ok).toBe(false);
     const noConsent = await submitCollectionResponse(
       db,
-      link(token),
+      await link(token),
       await shareProof(travellerId, personId),
       {
         selections: {},
@@ -894,7 +920,7 @@ describe('a signed-in traveller answers an agency request from their own record 
 
   it('a copied link binds to nobody: whoever holds it and signs in may answer, even when the request names an address', async () => {
     const { token } = await issuedRequest('traveller@people.example.test');
-    const desk = await openCollectionResponseDesk(db, link(token), selfPrincipal(strangerId));
+    const desk = await openCollectionResponseDesk(db, await link(token), selfPrincipal(strangerId));
     expect(desk.ok).toBe(true);
   });
 
@@ -903,7 +929,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     const second = await issuedRequest();
     const proposal = await proposeCollectionResponse(
       db,
-      link(first.token),
+      await link(first.token),
       await viewProof(travellerId, personId),
     );
     if (!proposal.ok) throw new Error('proposal');
@@ -911,7 +937,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     // Same pack, so the item ids match; the browser now holds the second request's link.
     const crossed = await submitCollectionResponse(
       db,
-      link(second.token),
+      await link(second.token),
       await shareProof(travellerId, personId),
       {
         selections: { [passportItem.item.id]: [documentKey(passport.versionId)] },
@@ -959,13 +985,17 @@ describe('a signed-in traveller answers an agency request from their own record 
     const issued = await issueCollectionRequest(db, pendingScope.value, created.value.id);
     if (!issued.ok) throw new Error(`pending issue: ${issued.error.message}`);
     const token = issued.value.link.rawToken;
-    const desk = await openCollectionResponseDesk(db, link(token), selfPrincipal(travellerId));
+    const desk = await openCollectionResponseDesk(
+      db,
+      await link(token),
+      selfPrincipal(travellerId),
+    );
     if (!desk.ok) throw new Error('desk');
     expect(desk.value.agencyReviewed).toBe(false);
     expect(desk.value.agency).toBeNull();
     const refused = await submitCollectionResponse(
       db,
-      link(token),
+      await link(token),
       await shareProof(travellerId, personId),
       {
         selections: {},
@@ -1022,7 +1052,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     const { token, requestId } = await issuedRequest();
     const proposal = await proposeCollectionResponse(
       db,
-      link(token),
+      await link(token),
       await viewProof(travellerId, personId),
     );
     if (!proposal.ok) throw new Error('proposal');
@@ -1030,7 +1060,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     const statementItem = item(proposal.value.proposals, 'bank_statement');
     const submitted = await submitCollectionResponse(
       db,
-      link(token),
+      await link(token),
       await shareProof(travellerId, personId),
       {
         selections: {
@@ -1096,4 +1126,54 @@ describe('a signed-in traveller answers an agency request from their own record 
       'served',
     );
   });
+
+  it('queues "Submitted to Agency" for the agency owners and admins only, naming the agency and never the person', async () => {
+    const { token } = await issuedRequest();
+    const { submitted } = await submitPassportOnly(token);
+    const notices = await db
+      .select()
+      .from(schema.notifications)
+      .where(eq(schema.notifications.eventType, 'AGENCY_COLLECTION_RESPONSE_SUBMITTED'));
+    expect(notices.map((n) => n.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
+    expect(new Set(notices.map((n) => n.recipientAccountId))).toEqual(new Set([adminId]));
+    expect(
+      notices.every((n) => n.applicantId === null && n.resourceId === submitted.responseId),
+    ).toBe(true);
+    const text = JSON.stringify(notices.map((n) => n.payload));
+    expect(text).toContain('Synthetic Agency One');
+    expect(text).not.toContain('Synthetic Traveller');
+    expect(text).not.toContain('passport');
+    // The worker sends it only while the answer is still live.
+    expect(await collectionResponseStillLive(db, submitted.responseId, orgId)).toBe(true);
+    await withdrawCollectionResponse(
+      db,
+      await manageProof(travellerId, personId),
+      submitted.responseId,
+    );
+    expect(await collectionResponseStillLive(db, submitted.responseId, orgId)).toBe(false);
+  });
+
+  it('one account may send only so many answers in an hour', async () => {
+    const { token } = await issuedRequest();
+    for (let i = 0; i < 10; i++) await submitPassportOnly(token);
+    const desk = await openCollectionResponseDesk(
+      db,
+      await link(token),
+      selfPrincipal(travellerId),
+    );
+    if (!desk.ok) throw new Error('desk');
+    const refused = await submitCollectionResponse(
+      db,
+      await link(token),
+      await shareProof(travellerId, personId),
+      {
+        selections: {},
+        consentVersion: RESPONSE_CONSENT_VERSION,
+        linkId: desk.value.linkId,
+        revisionId: desk.value.revisionId,
+      },
+    );
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.code).toBe('rate_limited');
+  }, 60_000);
 });

@@ -72,9 +72,9 @@ export async function submitResponseAction(
   }
   const link = await heldCollectionLink();
   const linkId = text(formData, 'linkId');
-  // The answer goes only to the request this page was opened for: a cookie since replaced by
-  // another request's link (another tab) is refused, never quietly answered.
-  if (!link || link.linkId !== linkId) return OUT_OF_DATE;
+  // The answer goes only to the request this page was opened for: the service refuses it when the
+  // session now opens another request's link (another tab), never quietly answering that one.
+  if (!link || linkId.length === 0) return OUT_OF_DATE;
 
   const outcome = await withSession(async ({ db, accountId }) => {
     const selections = selectionsFrom(formData, itemIds);

@@ -79,8 +79,7 @@ export default async function CollectAccountPage({
 
   const loaded: Loaded = await withSession(async ({ db, accountId, self }) => {
     const desk = await openCollectionResponseDesk(db, link.proof, self);
-    // The cookie is bound to the link it was made for: any other link reads as closed.
-    if (!desk.ok || desk.value.linkId !== link.linkId) return { state: 'closed' } as const;
+    if (!desk.ok) return { state: 'closed' } as const;
     const heading: Heading = {
       agency: desk.value.agency,
       destination: desk.value.destination,

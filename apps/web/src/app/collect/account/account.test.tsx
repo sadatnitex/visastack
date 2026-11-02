@@ -44,7 +44,7 @@ vi.mock('next/headers', () => ({
 const { default: AccountPage, metadata } = await import('./page');
 const { default: AnswersPage } = await import('./answers/page');
 
-const TOKEN = 'A'.repeat(43);
+const SESSION = 'S'.repeat(43);
 const LINK = '11111111-2222-4333-8444-555555555555';
 const PERSON = '22222222-2222-4333-8444-555555555555';
 const DESK = {
@@ -87,7 +87,7 @@ const LETTER = {
 
 beforeEach(() => {
   vi.stubEnv('AGENCY_COLLECTION_REQUESTS', 'true');
-  mocks.cookie = `${LINK}.${TOKEN}`;
+  mocks.cookie = SESSION;
   for (const fn of [mocks.desk, mocks.people, mocks.access, mocks.propose, mocks.own]) {
     fn.mockReset();
   }
@@ -145,7 +145,7 @@ describe('/collect/account', () => {
     const answers: string[] = [];
     mocks.cookie = undefined;
     answers.push(textOf(await renderServer(AccountPage({}))));
-    mocks.cookie = `${LINK}.${TOKEN}`;
+    mocks.cookie = SESSION;
     mocks.desk.mockResolvedValue({ ok: false, error: { code: 'not_found', message: 'closed' } });
     answers.push(textOf(await renderServer(AccountPage({}))));
     expect(new Set(answers).size).toBe(1);
@@ -190,16 +190,6 @@ describe('/collect/account', () => {
     expect(text).toContain('Submit to Agency');
     expect(text).not.toMatch(/Reviewed|Accepted/);
   });
-  it('reads a cookie bound to another link as closed', async () => {
-    mocks.desk.mockResolvedValue({
-      ok: true,
-      value: { ...DESK, linkId: '99999999-2222-4333-8444-555555555555' },
-    });
-    const text = textOf(await renderServer(AccountPage({})));
-    expect(text).toContain('This Link Is Not Open');
-    expect(mocks.propose).not.toHaveBeenCalled();
-  });
-
   it('offers nothing to share with an agency VisaStack has not reviewed', async () => {
     mocks.desk.mockResolvedValue({
       ok: true,

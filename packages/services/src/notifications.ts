@@ -15,6 +15,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
+import { collectionResponseStillLive } from './access/collection-response-access';
 import { collectionLinkProof } from './access/collection-scope';
 import { orgCaseRecordVisibleSql, withCaseExclusions } from './access/grant-scope';
 import { guestCodeDeliveryProof } from './access/guest-collection';
@@ -98,7 +99,10 @@ export type NotificationEventType =
   | 'PERSON_PLAN_RENEWAL_DUE'
   | 'PERSON_PLAN_ENDED'
   // ADR 0025 T6: a refund of the person's own purchase was made; no amount.
-  | 'PERSON_REFUND_RECORDED';
+  | 'PERSON_REFUND_RECORDED'
+  // UMPE P7: a traveller submitted an answer to one of the agency's document requests; for the
+  // agency's owners and admins only, never naming the person or what was shared.
+  | 'AGENCY_COLLECTION_RESPONSE_SUBMITTED';
 
 /**
  * Billing notices (S17): an agency's invoices, reminders and billing status are for its owners
@@ -113,7 +117,12 @@ const BILLING_NOTICE_LIST = [
   'INVOICE_REFUNDED',
   'INVOICE_CREDIT_APPLIED',
 ];
-const BILLING_NOTICE_TYPES: ReadonlySet<string> = new Set(BILLING_NOTICE_LIST);
+/**
+ * Notices for an agency's owners and admins only, checked again when sent and when listed: the
+ * billing notices, and (UMPE P7) a traveller's answer submitted to one of the agency's requests.
+ */
+const ADMIN_NOTICE_LIST = [...BILLING_NOTICE_LIST, 'AGENCY_COLLECTION_RESPONSE_SUBMITTED'];
+const BILLING_NOTICE_TYPES: ReadonlySet<string> = new Set(ADMIN_NOTICE_LIST);
 
 /**
  * The same rule at read time, for notices already delivered in the app: a billing notice stays in
@@ -129,7 +138,7 @@ export function billingNoticeStillAllowedSql(row: {
   const m = schema.memberships;
   const o = schema.organizations;
   return sql`(${row.eventType} not in (${sql.join(
-    BILLING_NOTICE_LIST.map((type) => sql`${type}`),
+    ADMIN_NOTICE_LIST.map((type) => sql`${type}`),
     sql`, `,
   )}) or exists (select 1 from ${m} join ${o} on ${o.id} = ${m.organizationId} where ${m.accountId} = ${row.recipientAccountId} and ${m.organizationId} = ${row.organizationId} and ${m.active} = true and ${m.role} in ('OWNER', 'ADMIN') and ${o.status} = 'ACTIVE'))`;
 }
@@ -691,7 +700,16 @@ async function dispatchOne(
     notification.eventType === GUEST_CODE_EMAIL_EVENT
       ? await guestCodeEmailCheck(db, notification, payload, encryption)
       : null;
-  if (collection === 'closed' || guestCode === 'closed') {
+  // UMPE P7: a "Submitted to Agency" notice goes only while the answer is still live (not
+  // withdrawn or replaced, request not revoked) and the agency is still reviewed.
+  const answerGone =
+    notification.eventType === 'AGENCY_COLLECTION_RESPONSE_SUBMITTED' &&
+    !(await collectionResponseStillLive(
+      db,
+      notification.resourceId ?? '',
+      notification.organizationId ?? '',
+    ));
+  if (collection === 'closed' || guestCode === 'closed' || answerGone) {
     const updated = await db
       .update(schema.notifications)
       .set({

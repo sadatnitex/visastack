@@ -10,7 +10,7 @@ import {
   lineOf,
   liveCollectionResponse,
 } from './access/collection-response-access';
-import { CollectionLinkProof } from './access/collection-scope';
+import { GuestCollectionSessionProof } from './access/guest-collection';
 import { type SelfScope, selfScopeProblem } from './access/principal';
 import { AuthorizedApplicant } from './access/require-access';
 import { StepUpProof } from './access/step-up-proof';
@@ -25,8 +25,10 @@ import {
 } from './lifecycle/foundation/conditions';
 import { isUuid } from './lifecycle/foundation/ids';
 import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
+import { enqueueNotificationBothChannels } from './notifications';
 import type { KeyManagementPort } from './ports';
 import { isProtectedPlaceholder, revealFactVersionValue } from './profile';
+import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 import {
   type BrandSnapshot,
   type CollectionItem,
@@ -100,11 +102,11 @@ function closed(): ServiceError {
 /** The open, intact request this link names, for an account allowed to answer it, or null. */
 async function loadDesk(
   db: Db,
-  link: CollectionLinkProof,
+  session: GuestCollectionSessionProof,
   accountId: string,
   now: Date,
 ): Promise<ResponseDesk | null> {
-  const row = await collectionResponseRecipient(db, link, now);
+  const row = await collectionResponseRecipient(db, session, now);
   if (!row) return null;
   const revision = first(
     await db
@@ -163,13 +165,13 @@ async function loadDesk(
  */
 export async function openCollectionResponseDesk(
   db: Db,
-  link: CollectionLinkProof,
+  session: GuestCollectionSessionProof,
   self: SelfScope,
   now: Date = new Date(),
 ): Promise<Result<ResponseDesk, ServiceError>> {
-  if (!CollectionLinkProof.isGenuine(link)) return err(closed());
+  if (!GuestCollectionSessionProof.isGenuine(session)) return err(closed());
   if (selfScopeProblem(self)) return err(closed());
-  const desk = await loadDesk(db, link, self.accountId, now);
+  const desk = await loadDesk(db, session, self.accountId, now);
   return desk ? ok(desk) : err(closed());
 }
 
@@ -325,16 +327,16 @@ export interface ResponseProposal {
  */
 export async function proposeCollectionResponse(
   db: Db,
-  link: CollectionLinkProof,
+  session: GuestCollectionSessionProof,
   person: AuthorizedApplicant<'VIEW_METADATA'>,
   options: { readonly encryption?: KeyManagementPort; readonly now?: Date } = {},
 ): Promise<Result<ResponseProposal, ServiceError>> {
-  if (!CollectionLinkProof.isGenuine(link)) return err(closed());
+  if (!GuestCollectionSessionProof.isGenuine(session)) return err(closed());
   if (!AuthorizedApplicant.isGenuine(person, 'VIEW_METADATA') || notOwner(person)) {
     return err(serviceError('not_found', 'record not found'));
   }
   const now = options.now ?? new Date();
-  const desk = await loadDesk(db, link, person.applicant.ownerAccountId, now);
+  const desk = await loadDesk(db, session, person.applicant.ownerAccountId, now);
   if (!desk) return err(closed());
   const evidence = await personEvidence(db, person.applicant.id, desk.items, options.encryption);
   return ok({
@@ -388,11 +390,11 @@ const SELECTION_MESSAGES = {
  */
 export async function submitCollectionResponse(
   db: Db,
-  link: CollectionLinkProof,
+  session: GuestCollectionSessionProof,
   person: AuthorizedApplicant<'SHARE'>,
   input: SubmitResponseInput,
 ): Promise<Result<SubmittedResponse, ServiceError>> {
-  if (!CollectionLinkProof.isGenuine(link)) return err(closed());
+  if (!GuestCollectionSessionProof.isGenuine(session)) return err(closed());
   if (!AuthorizedApplicant.isGenuine(person, 'SHARE') || notOwner(person)) {
     return err(serviceError('not_found', 'record not found'));
   }
@@ -403,6 +405,22 @@ export async function submitCollectionResponse(
   if (!(await collectionResponsesPresent(db))) {
     return err(serviceError('upstream_error', 'Answering requests is not available yet.'));
   }
+  // Every answer is kept for good, so one account may send only so many in an hour.
+  const limited = await checkRateLimits(db, [
+    {
+      input: {
+        subjectId: `account:${accountId}`,
+        action: 'collect.response_submit',
+        label: 'answer',
+      },
+      config: RATE_LIMITS.COLLECTION_RESPONSE_SUBMIT_ACCOUNT,
+    },
+  ]);
+  if (!limited.allowed) {
+    return err(
+      serviceError('rate_limited', 'Too many answers were sent just now. Try again in an hour.'),
+    );
+  }
   const applicantId = person.applicant.id;
   return db.transaction(async (tx) => {
     // One answer at a time per person and request: two submits cannot both stay live.
@@ -411,7 +429,7 @@ export async function submitCollectionResponse(
     );
     // The time is read once the lock is held, so answers are always stored in the order they won.
     const now = input.now ?? new Date();
-    const desk = await loadDesk(tx, link, accountId, now);
+    const desk = await loadDesk(tx, session, accountId, now);
     if (!desk) return err(closed());
     // What the person reviewed and agreed to must be exactly what this link opens now; a cookie
     // replaced by another request's link (another tab) must never receive this answer.
@@ -531,6 +549,12 @@ export async function submitCollectionResponse(
         replaced: earlier.length,
       },
     });
+    await noticeAgencyAdmins(tx, {
+      organizationId,
+      requestId: desk.requestId,
+      responseId: created.id,
+      agencyName: desk.agency?.name ?? null,
+    });
     return ok({
       responseId: created.id,
       submittedAt: created.submittedAt,
@@ -538,6 +562,48 @@ export async function submitCollectionResponse(
       replaced: earlier.length,
     });
   });
+}
+
+/**
+ * "Submitted to Agency" for the agency's active owners and admins, in the app and by email,
+ * queued with the answer. Names the agency only: never the person, the route or what was shared.
+ * The worker sends it only while the answer is still live (`collectionResponseStillLive`) and the
+ * recipient is still an owner or admin of the reviewed agency.
+ */
+async function noticeAgencyAdmins(
+  tx: Db,
+  input: {
+    readonly organizationId: string;
+    readonly requestId: string;
+    readonly responseId: string;
+    readonly agencyName: string | null;
+  },
+): Promise<void> {
+  const admins = await tx
+    .select({ accountId: schema.memberships.accountId })
+    .from(schema.memberships)
+    .where(
+      and(
+        eq(schema.memberships.organizationId, input.organizationId),
+        eq(schema.memberships.active, true),
+        inArray(schema.memberships.role, ['OWNER', 'ADMIN']),
+      ),
+    );
+  for (const admin of admins) {
+    await enqueueNotificationBothChannels(tx, {
+      eventType: 'AGENCY_COLLECTION_RESPONSE_SUBMITTED',
+      resourceId: input.responseId,
+      recipientAccountId: admin.accountId,
+      organizationId: input.organizationId,
+      payload: {
+        subject: 'Submitted to Agency',
+        summary: input.agencyName
+          ? `An answer to one of your document requests was submitted to ${input.agencyName}.`
+          : 'An answer to one of your document requests was submitted to your agency.',
+        deepLinkPath: `/app/agency/${input.organizationId}/collection/request?id=${input.requestId}#collection-responses`,
+      },
+    });
+  }
 }
 
 function countLines(lines: readonly ResponseLine[]): {
