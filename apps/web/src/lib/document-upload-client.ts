@@ -65,7 +65,19 @@ export interface SendFileInput {
   readonly subject: string;
   /** Called with the share of the file sent so far, from 0 to 1. */
   readonly onProgress: (fraction: number) => void;
+  /**
+   * This file's upload id (UMPE P3): minted once per file and sent on every attempt, so the server
+   * answers a repeat with the document the first attempt stored instead of storing a second copy.
+   */
+  readonly uploadId?: string;
+  /** The file's own name, kept privately on the server to suggest a readable name. */
+  readonly fileName?: string;
   readonly createRequest?: () => UploadRequest;
+}
+
+/** A new upload id: one per file, kept for every attempt at sending that file. */
+export function newUploadId(): string {
+  return globalThis.crypto.randomUUID();
 }
 
 /** A slow phone connection can take minutes for a few megabytes; past this the answer is unknown. */
@@ -85,6 +97,8 @@ export function sendDocumentFile(input: SendFileInput): Promise<UploadOutcome> {
       request.setRequestHeader('X-Document-Kind', encodeURIComponent(input.docType));
     if (input.subject)
       request.setRequestHeader('X-Document-Name', encodeURIComponent(input.subject));
+    if (input.uploadId) request.setRequestHeader('X-Upload-Id', input.uploadId);
+    if (input.fileName) request.setRequestHeader('X-File-Name', encodeURIComponent(input.fileName));
     request.timeout = UPLOAD_TIMEOUT_MS;
     request.upload.onprogress = (event) => {
       if (event.lengthComputable && event.total > 0) input.onProgress(event.loaded / event.total);

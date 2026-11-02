@@ -1,6 +1,6 @@
 import type { DocumentState } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, gt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
 import type { SystemScope } from './access';
 import { isAiDispatchAllowed } from './ai-provider-config';
 import { READER_VERSION, aiReadingIdempotencyKey } from './ai-reading-job';
@@ -21,6 +21,14 @@ import {
 import { type MrzReading, mrzFieldDefinitions, mrzFieldReadings } from './mrz-suggestions';
 import { buildProposedName, extensionOf } from './naming';
 import { registerFieldDefinitions } from './profile';
+import { readableNameFromFileName } from './umpe-document-names';
+import {
+  MACHINE_READABLE_IDENTITY_TYPES,
+  PERIOD_DOCUMENT_TYPES,
+  proposeDocumentRelation,
+  readDocumentSignals,
+} from './umpe-document-relations';
+import { relationProposalsTablePresent, uploadReceiptsTablePresent } from './umpe-document-tables';
 
 /**
  * Document intake pipeline (Build Spec §6): quarantine → scan → normalize →
@@ -442,6 +450,7 @@ async function runExtractionStep(
         id: schema.documents.id,
         applicantId: schema.documents.applicantId,
         originalName: schema.documents.originalName,
+        docType: schema.documents.docType,
         issuer: schema.documents.issuer,
         expiresAt: schema.documents.expiresAt,
       })
@@ -658,9 +667,211 @@ async function runExtractionStep(
         proposedName,
       });
     }
+
+    // UMPE P3: a proposed relation to another of the person's documents, and a readable name
+    // from the file's own name when the reader could not name the kind. Both are suggestions
+    // only. In a savepoint: if either fails, the reading above is still kept.
+    try {
+      await tx.transaction((inner) =>
+        recordDocumentUnderstanding(inner, {
+          document,
+          version,
+          text: result.text,
+          readType:
+            classification.classifiedType && !classification.reviewRequired
+              ? classification.classifiedType
+              : null,
+        }),
+      );
+    } catch {
+      // Suggestions are optional; the reading itself must never be lost to them.
+    }
     return true;
   });
   return recorded ? 'ok' : 'lost-lease';
+}
+
+/** The most other documents of the same kind compared with a new one. */
+const RELATION_CANDIDATE_LIMIT = 25;
+
+/**
+ * UMPE P3, private to intake (a system step with no person's proof): proposes one relation
+ * (`document_relation_proposals`) and, when the kind is unknown, a readable name from the file's
+ * own name. Deterministic signals only; never applies, merges or deletes anything. Does nothing
+ * while the new tables are missing.
+ */
+async function recordDocumentUnderstanding(
+  tx: Db,
+  input: {
+    readonly document: {
+      readonly id: string;
+      readonly applicantId: string;
+      readonly originalName: string;
+      readonly docType: string | null;
+    };
+    readonly version: DocumentVersion;
+    readonly text: string;
+    /** The kind the reader recognised with confidence, or null. */
+    readonly readType: string | null;
+  },
+): Promise<void> {
+  const { document, version } = input;
+  if (input.readType === null && document.docType === null) {
+    await proposeNameFromOriginalFile(tx, document, version.id);
+  }
+  if (!(await relationProposalsTablePresent(tx))) return;
+  const docType = document.docType ?? input.readType;
+  const lifecycle = await lifecycleTablesPresent(tx);
+  const others = await tx
+    .select({
+      id: schema.documents.id,
+      docType: schema.documents.docType,
+      createdAt: schema.documents.createdAt,
+    })
+    .from(schema.documents)
+    .where(
+      and(
+        eq(schema.documents.applicantId, document.applicantId),
+        ne(schema.documents.id, document.id),
+        lifecycle ? presentDocumentCondition() : undefined,
+      ),
+    )
+    .orderBy(desc(schema.documents.createdAt));
+  if (others.length === 0) return;
+  const otherIds = others.map((other) => other.id);
+  const versions = await tx
+    .select({
+      id: schema.documentVersions.id,
+      documentId: schema.documentVersions.documentId,
+      versionNumber: schema.documentVersions.versionNumber,
+      sha256: schema.documentVersions.sha256,
+    })
+    .from(schema.documentVersions)
+    .where(inArray(schema.documentVersions.documentId, otherIds));
+  const hashes = new Map<string, string[]>();
+  const latestVersion = new Map<string, { readonly id: string; readonly versionNumber: number }>();
+  for (const row of versions) {
+    if (row.sha256) hashes.set(row.documentId, [...(hashes.get(row.documentId) ?? []), row.sha256]);
+    const held = latestVersion.get(row.documentId);
+    if (!held || row.versionNumber > held.versionNumber) latestVersion.set(row.documentId, row);
+  }
+
+  // Signals are read only for documents that could be the same kind, newest first, bounded.
+  const comparable =
+    docType && (PERIOD_DOCUMENT_TYPES.has(docType) || MACHINE_READABLE_IDENTITY_TYPES.has(docType))
+      ? others
+      : [];
+  const comparableVersionIds = comparable
+    .map((other) => latestVersion.get(other.id)?.id)
+    .filter((id): id is string => typeof id === 'string');
+  const readings =
+    comparableVersionIds.length > 0
+      ? await tx
+          .select({
+            documentVersionId: schema.extractionRuns.documentVersionId,
+            text: schema.extractionRuns.extractedText,
+            createdAt: schema.extractionRuns.createdAt,
+          })
+          .from(schema.extractionRuns)
+          .where(
+            and(
+              inArray(schema.extractionRuns.documentVersionId, comparableVersionIds),
+              eq(schema.extractionRuns.status, 'SUCCEEDED'),
+            ),
+          )
+          .orderBy(desc(schema.extractionRuns.createdAt))
+      : [];
+  const classified =
+    comparableVersionIds.length > 0
+      ? await tx
+          .select({
+            documentVersionId: schema.documentClassifications.documentVersionId,
+            classifiedType: schema.documentClassifications.classifiedType,
+            reviewRequired: schema.documentClassifications.reviewRequired,
+          })
+          .from(schema.documentClassifications)
+          .where(inArray(schema.documentClassifications.documentVersionId, comparableVersionIds))
+          .orderBy(desc(schema.documentClassifications.createdAt))
+      : [];
+  const textOf = new Map<string, string>();
+  for (const row of readings) {
+    if (row.text && !textOf.has(row.documentVersionId)) textOf.set(row.documentVersionId, row.text);
+  }
+  const readTypeOf = new Map<string, string | null>();
+  for (const row of classified) {
+    if (!readTypeOf.has(row.documentVersionId)) {
+      readTypeOf.set(row.documentVersionId, row.reviewRequired ? null : row.classifiedType);
+    }
+  }
+
+  let compared = 0;
+  const candidates = others.map((other) => {
+    const latest = latestVersion.get(other.id);
+    const otherType = other.docType ?? (latest ? (readTypeOf.get(latest.id) ?? null) : null);
+    const readSignals =
+      docType !== null && otherType === docType && compared < RELATION_CANDIDATE_LIMIT;
+    if (readSignals) compared++;
+    return {
+      documentId: other.id,
+      versionHashes: hashes.get(other.id) ?? [],
+      docType: otherType,
+      signals: readDocumentSignals(
+        readSignals && latest ? (textOf.get(latest.id) ?? null) : null,
+        otherType,
+      ),
+      createdAt: other.createdAt,
+    };
+  });
+  const proposal = proposeDocumentRelation(
+    {
+      documentId: document.id,
+      sha256: version.sha256,
+      docType,
+      signals: readDocumentSignals(input.text, docType),
+    },
+    candidates,
+  );
+  if (!proposal) return;
+  await tx
+    .insert(schema.documentRelationProposals)
+    .values({
+      applicantId: document.applicantId,
+      documentId: document.id,
+      documentVersionId: version.id,
+      relatedDocumentId: proposal.relatedDocumentId,
+      relation: proposal.relation,
+      newIsCurrent: proposal.newIsCurrent,
+      signals: [...proposal.signals],
+    })
+    .onConflictDoNothing({ target: schema.documentRelationProposals.documentVersionId });
+}
+
+/**
+ * A readable name from the file's own name (kept privately on the upload receipt), offered as a
+ * suggestion the person accepts or not. Never saved as the name, never written to an audit record.
+ */
+async function proposeNameFromOriginalFile(
+  tx: Db,
+  document: { readonly id: string; readonly originalName: string },
+  versionId: string,
+): Promise<void> {
+  if (!(await uploadReceiptsTablePresent(tx))) return;
+  const receipt = first(
+    await tx
+      .select({ originalFileName: schema.documentUploadReceipts.originalFileName })
+      .from(schema.documentUploadReceipts)
+      .where(eq(schema.documentUploadReceipts.documentVersionId, versionId))
+      .limit(1),
+  );
+  const readable = readableNameFromFileName(receipt?.originalFileName);
+  if (!readable) return;
+  const extension = extensionOf(document.originalName)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+  await proposeDocumentName(tx, {
+    documentId: document.id,
+    proposedName: extension ? `${readable}.${extension}` : readable,
+  });
 }
 
 /** Where the text an AI reading starts from came from. */

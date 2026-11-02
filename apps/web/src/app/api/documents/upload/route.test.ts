@@ -164,4 +164,40 @@ describe('authenticated raw document upload', () => {
     });
     expect(Number(limited.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
   });
+  it('forwards a valid upload id and the file name, and drops a malformed id (UMPE P3)', async () => {
+    const withIds = request();
+    withIds.headers.set('x-upload-id', '0B9F8C1E-2D3A-4C5B-8E7F-6A5B4C3D2E1F');
+    withIds.headers.set('x-file-name', encodeURIComponent('bank statement.pdf'));
+    expect((await POST(withIds)).status).toBe(201);
+    const form = upload.mock.calls[0]?.[1] as FormData;
+    expect(form.get('uploadId')).toBe('0b9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f');
+    expect(form.get('originalFileName')).toBe('bank statement.pdf');
+    // The stored file is still never named by the caller.
+    expect((form.get('file') as File).name).toBe('document');
+
+    const malformed = request();
+    malformed.headers.set('x-upload-id', 'not-a-uuid; drop table');
+    malformed.headers.set('x-file-name', '%E0%A4%A');
+    await POST(malformed);
+    const second = upload.mock.calls[1]?.[1] as FormData;
+    expect(second.get('uploadId')).toBeNull();
+    expect(second.get('originalFileName')).toBeNull();
+  });
+
+  it('answers a repeat still being stored with 503 and a short wait, and a crossed id with 409', async () => {
+    upload.mockResolvedValueOnce({
+      ok: false,
+      message: 'Still being added.',
+      refusal: 'in_progress',
+    });
+    const busy = await POST(request());
+    expect(busy.status).toBe(503);
+    expect(busy.headers.get('retry-after')).toBe('5');
+    upload.mockResolvedValueOnce({
+      ok: false,
+      message: 'Sent for another person.',
+      refusal: 'upload_conflict',
+    });
+    expect((await POST(request())).status).toBe(409);
+  });
 });

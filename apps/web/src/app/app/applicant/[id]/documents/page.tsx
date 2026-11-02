@@ -10,6 +10,7 @@ import {
   availableDocumentActions,
   classifyExpiry,
   documentCategory,
+  documentUploadReceiptsReady,
   duplicateStatuses,
   getAiFeatureStates,
   getApplicant,
@@ -24,6 +25,7 @@ import {
   lifecycleTablesPresent,
   listApplicantProfile,
   listDeletionReceipts,
+  listDocumentExceptions,
   listDocumentReadingStates,
   listDocumentsDetailed,
   listIssuerVerificationsForDocument,
@@ -103,6 +105,7 @@ import { ManageMenu } from './manage/manage-menu';
 import { registeredActions } from './manage/registry';
 import { removalRequestFacts } from './manage/request/facts';
 import { documentActionView, isDocumentAction } from './manage/view';
+import { NeedsDecision } from './needs-decision';
 
 const ORIGINAL_KINDS: readonly string[] = [...ORIGINAL_DOCUMENT_KEYS];
 
@@ -292,6 +295,14 @@ export default async function ApplicantDocumentsPage({
           documentRows.flatMap((doc) => (doc.latestVersionId ? [doc.latestVersionId] : [])),
         )
       : undefined;
+    // UMPE P3: the files needing one decision, through the same owner proof; and whether the
+    // server keeps upload receipts, which lets the import send a file with no answer again safely.
+    const [understanding, uploadReceiptsReady] = await Promise.all([
+      readingAccess.ok
+        ? listDocumentExceptions(readingAccess.value)
+        : Promise.resolve({ exceptions: [], confirmed: [] }),
+      documentUploadReceiptsReady(db),
+    ]);
     const detailsAvailable =
       (await resolveAiExtractionAvailability(db, encryption !== undefined)) === 'available';
     // Each AI button's own switch (S28), through the same owner proof. If it cannot be read, the
@@ -362,6 +373,8 @@ export default async function ApplicantDocumentsPage({
       documentRows.map((doc) => doc.id),
     );
     return {
+      understanding,
+      uploadReceiptsReady,
       protection,
       referenceCodes,
       lifecycle,
@@ -556,6 +569,25 @@ export default async function ApplicantDocumentsPage({
 
         {offer ? <ReadingOfferCard offer={offer} /> : null}
 
+        <NeedsDecision
+          applicantId={id}
+          items={data.understanding.exceptions.map((item) =>
+            item.kind === 'relation'
+              ? {
+                  kind: 'relation' as const,
+                  proposalId: item.proposalId,
+                  documentId: item.documentId,
+                  title: item.title,
+                  relatedDocumentId: item.relatedDocumentId,
+                  relatedTitle: item.relatedTitle,
+                  relation: item.relation,
+                  labels: item.labels,
+                }
+              : { kind: item.kind, documentId: item.documentId, title: item.title },
+          )}
+          linked={data.understanding.confirmed}
+        />
+
         {data.lifecycle ? (
           <div {...atLevel('browse')}>
             <LifecycleTabs
@@ -675,7 +707,7 @@ export default async function ApplicantDocumentsPage({
                   }
                 : {}),
               details: (
-                <div key={doc.id} {...atLevel('browse')}>
+                <div key={doc.id} id={`document-${doc.id}`} {...atLevel('browse')}>
                   <div
                     className="wallet-document-actions"
                     style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
@@ -1104,6 +1136,7 @@ export default async function ApplicantDocumentsPage({
                     limitBytes={uploadLimitBytes(data.quota)}
                     limitLabel={mbLabel(uploadLimitBytes(data.quota))}
                     pdfAccepted={pdfUploadsAccepted()}
+                    retryUnknown={data.uploadReceiptsReady}
                   />
                 </article>
               </>

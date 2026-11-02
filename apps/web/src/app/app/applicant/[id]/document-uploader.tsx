@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { UndoStatus } from '../../../../components/lifecycle/undo-status';
 import { UpgradeLine, type UpgradeLineKind } from '../../../../components/upgrade-line';
-import { type UploadOutcome, sendDocumentFile } from '../../../../lib/document-upload-client';
+import {
+  type UploadOutcome,
+  newUploadId,
+  sendDocumentFile,
+} from '../../../../lib/document-upload-client';
 import { formatFileSize } from '../../../../lib/format-size';
 import { useDropZone } from '../../../../lib/import/use-drop-zone';
 import type { ChoiceGroup } from '../../../../lib/master-profile-types';
@@ -56,6 +60,11 @@ interface UploadItem {
   readonly removal: 'none' | 'busy' | 'removed' | { readonly problem: string };
   /** Days the removed copy stays in Recently Deleted. */
   readonly removedDays: number;
+  /**
+   * This file's upload id (UMPE P3), the same on every attempt including Try Again, so a repeat
+   * after no answer came back is answered with the copy already stored, never a second one.
+   */
+  readonly uploadId: string;
 }
 
 const ACTIVE: ReadonlySet<ItemStatus> = new Set(['waiting', 'sending', 'checking']);
@@ -185,6 +194,7 @@ export function DocumentUploader({
         removableCopyId: null,
         removal: 'none' as const,
         removedDays: 0,
+        uploadId: newUploadId(),
       };
       if (index >= MAX_FILES_AT_ONCE) {
         return {
@@ -226,6 +236,8 @@ export function DocumentUploader({
       contentType: next.contentType,
       docType: next.docType,
       subject: next.subject,
+      uploadId: next.uploadId,
+      fileName: file.name,
       onProgress: (fraction) =>
         update(
           next.id,

@@ -5706,3 +5706,111 @@ export const agencyCollectionLinks = pgTable(
     ),
   ],
 );
+
+// --- UMPE P3: document understanding ------------------------------------------------------------
+
+/**
+ * One row per upload id an account has sent (ledger I16). The browser mints the id once per file
+ * and sends it on every attempt, so a repeat of the same upload (a retry after no answer came back)
+ * gets the original answer instead of a second stored copy. A row is claimed (PENDING) before any
+ * quota is reserved and COMPLETED with the document it produced; a failed upload deletes its own
+ * claim so the same id can be tried again. `originalFileName` is the file's name as the person's
+ * device gave it, sanitized: private to this account, never in audit metadata, never shown to an
+ * agency, used only to suggest a readable name.
+ */
+export const documentUploadReceipts = pgTable(
+  'document_upload_receipts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    uploadId: uuid('upload_id').notNull(),
+    /** Fences a takeover: only the request holding this token may complete or release the claim. */
+    claimToken: uuid('claim_token').notNull(),
+    status: text('status').notNull().default('PENDING'),
+    uploadIntentId: uuid('upload_intent_id').references(() => uploadIntents.id, {
+      onDelete: 'set null',
+    }),
+    // Cascade, not set null: when a document is removed for good, its receipt and the private
+    // file name kept on it go with it.
+    documentId: uuid('document_id').references(() => documents.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id').references(() => documentVersions.id, {
+      onDelete: 'cascade',
+    }),
+    originalFileName: text('original_file_name'),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('document_upload_receipts_account_upload').on(table.accountId, table.uploadId),
+    index('document_upload_receipts_version_idx').on(table.documentVersionId),
+    index('document_upload_receipts_applicant_idx').on(table.applicantId),
+    check(
+      'document_upload_receipts_status_known',
+      sql`${table.status} in ('PENDING', 'COMPLETED')`,
+    ),
+    check(
+      'document_upload_receipts_name_cap',
+      sql`${table.originalFileName} is null or char_length(${table.originalFileName}) <= 180`,
+    ),
+  ],
+);
+
+/**
+ * A proposed relation between a newly arrived document version and another document of the same
+ * person (ledger I13), found from deterministic signals only (file hash, document type, passport
+ * machine lines, statement period). Never applied on its own: the traveller confirms or keeps the
+ * two separate. Confirming never merges or deletes anything. `signals` holds codes only (which
+ * signals agreed), never a value read from the document. One proposal per new version.
+ */
+export const documentRelationProposals = pgTable(
+  'document_relation_proposals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    relatedDocumentId: uuid('related_document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    relation: text('relation').notNull(),
+    /** True when the new document is the one to keep as the Current Copy (later period or expiry). */
+    newIsCurrent: boolean('new_is_current').notNull().default(true),
+    signals: jsonb('signals').$type<readonly string[]>().notNull(),
+    status: text('status').notNull().default('PENDING'),
+    decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('document_relation_proposals_version').on(table.documentVersionId),
+    index('document_relation_proposals_applicant_status_idx').on(table.applicantId, table.status),
+    index('document_relation_proposals_document_idx').on(table.documentId),
+    index('document_relation_proposals_related_idx').on(table.relatedDocumentId),
+    check(
+      'document_relation_proposals_relation_known',
+      sql`${table.relation} in ('EXACT_DUPLICATE', 'CORRECTED_SCAN', 'NEW_PERIOD', 'RENEWED')`,
+    ),
+    check(
+      'document_relation_proposals_status_known',
+      sql`${table.status} in ('PENDING', 'CONFIRMED', 'DISMISSED')`,
+    ),
+    check(
+      'document_relation_proposals_not_self',
+      sql`${table.documentId} <> ${table.relatedDocumentId}`,
+    ),
+  ],
+);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   type UploadRequest,
+  newUploadId,
   readAnswer,
   retryAfterSeconds,
   sendDocumentFile,
@@ -174,6 +175,44 @@ describe('reading the answer', () => {
       kind: 'busy',
       message: 'Too many uploads.',
       retryAfterSeconds: 42,
+    });
+  });
+});
+
+describe('the upload id and the file name (UMPE P3)', () => {
+  it('sends the upload id as given and the file name percent-encoded', async () => {
+    const request = fakeRequest();
+    const sending = sendDocumentFile({
+      applicantId: 'a-1',
+      file: new Blob(['x']),
+      contentType: 'image/jpeg',
+      docType: '',
+      subject: '',
+      uploadId: '0b9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f',
+      fileName: 'ব্যাংক statement.jpg',
+      onProgress: () => undefined,
+      createRequest: () => request as unknown as UploadRequest,
+    });
+    request.status = 201;
+    request.responseText = JSON.stringify({ message: 'Added.' });
+    request.onload?.();
+    await sending;
+    expect(request.headers['X-Upload-Id']).toBe('0b9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f');
+    expect(decodeURIComponent(request.headers['X-File-Name'] ?? '')).toBe('ব্যাংক statement.jpg');
+    expect(request.headers['X-File-Name']).not.toMatch(/[^\x20-\x7e]/);
+  });
+
+  it('mints a different id each time', () => {
+    const a = newUploadId();
+    expect(a).toMatch(/^[0-9a-f-]{36}$/);
+    expect(newUploadId()).not.toBe(a);
+  });
+
+  it('treats the busy answer for an upload still being stored as busy, never as refused', () => {
+    expect(readAnswer(503, JSON.stringify({ message: 'Still being added.' }), '5')).toEqual({
+      kind: 'busy',
+      message: 'Still being added.',
+      retryAfterSeconds: 5,
     });
   });
 });

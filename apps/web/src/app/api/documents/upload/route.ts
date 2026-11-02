@@ -12,6 +12,12 @@ import { uploadRetryAfterSeconds } from '../../../../lib/upload-retry-after';
 import { uploadDocumentAction } from '../../../app/applicant/[id]/actions';
 
 export const runtime = 'nodejs';
+
+const UPLOAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Characters read from `X-File-Name` before the action cleans and caps it further. */
+const ORIGINAL_NAME_HEADER_LIMIT = 400;
+/** Seconds a repeat of an upload still being stored waits before it asks again. */
+const IN_PROGRESS_RETRY_AFTER_SECONDS = 5;
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
@@ -45,11 +51,11 @@ const json = (
  * A header value sent percent-encoded (so a name in any script survives the trip), or '' when it
  * is missing or not valid encoding.
  */
-function encodedHeader(request: Request, name: string): string {
+function encodedHeader(request: Request, name: string, limit = 200): string {
   const raw = request.headers.get(name);
-  if (!raw) return '';
+  if (!raw || raw.length > limit * 12) return '';
   try {
-    return decodeURIComponent(raw).slice(0, 200);
+    return decodeURIComponent(raw).slice(0, limit);
   } catch {
     return '';
   }
@@ -92,6 +98,12 @@ export async function POST(request: Request): Promise<Response> {
     form.set('applicantId', applicantId);
     form.set('docType', encodedHeader(request, 'x-document-kind'));
     form.set('subject', encodedHeader(request, 'x-document-name'));
+    // UMPE P3: the browser's id for this file (the same on every attempt), checked as a UUID, and
+    // the file's own name, kept privately on the upload receipt only (the action cleans it).
+    const uploadId = request.headers.get('x-upload-id')?.trim() ?? '';
+    if (UPLOAD_ID.test(uploadId)) form.set('uploadId', uploadId.toLowerCase());
+    const originalFileName = encodedHeader(request, 'x-file-name', ORIGINAL_NAME_HEADER_LIMIT);
+    if (originalFileName) form.set('originalFileName', originalFileName);
     // Do not accept a caller-controlled path or header as the stored filename.
     form.set('file', new File([Buffer.from(bytes)], 'document', { type: contentType }));
     const result = await uploadDocumentAction({ ok: false, message: '' }, form);
@@ -102,6 +114,14 @@ export async function POST(request: Request): Promise<Response> {
         'Retry-After': String(uploadRetryAfterSeconds()),
       });
     }
+    // The same upload is being stored by another request right now: nothing was stored by this
+    // one, so it is a definite "not yet" the browser asks again after.
+    if (!result.ok && result.refusal === 'in_progress') {
+      return json(result.message, 503, undefined, undefined, undefined, {
+        'Retry-After': String(IN_PROGRESS_RETRY_AFTER_SECONDS),
+      });
+    }
+    if (!result.ok && result.refusal === 'upload_conflict') return json(result.message, 409);
     return json(
       result.message,
       result.ok ? 201 : 400,
