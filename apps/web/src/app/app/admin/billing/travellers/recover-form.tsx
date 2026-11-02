@@ -24,11 +24,6 @@ function typedValue(values: Readonly<Record<string, string>> | undefined, name: 
   return values?.[name] ?? '';
 }
 
-function describedBy(...ids: (string | undefined)[]): string | undefined {
-  const joined = ids.filter(Boolean).join(' ');
-  return joined.length > 0 ? joined : undefined;
-}
-
 export function RecoverPaymentForm({
   plans,
 }: {
@@ -41,13 +36,8 @@ export function RecoverPaymentForm({
   const formRef = useRef<HTMLFormElement>(null);
   useFocusInvalidField(formRef, state);
   const messageId = `${ID}-message`;
-  const field = (name: string, hintId?: string) => {
-    const problem = fieldProblem(state, name, messageId);
-    return {
-      'aria-invalid': problem['aria-invalid'],
-      'aria-describedby': describedBy(hintId, problem['aria-describedby']),
-    };
-  };
+  const field = (name: string, hintId?: string) =>
+    hintId ? fieldProblem(state, name, messageId, hintId) : fieldProblem(state, name, messageId);
   return (
     <form
       ref={formRef}
@@ -56,7 +46,7 @@ export function RecoverPaymentForm({
       onSubmit={(event) => {
         if (
           !window.confirm(
-            'Recover this payment? VisaStack asks the payment gateway what was paid and records exactly that, with a receipt.',
+            "Recover this payment? First check in the merchant panel that it is this traveller's payment. VisaStack then asks the payment gateway what was paid and records exactly that, with a receipt.",
           )
         ) {
           event.preventDefault();
@@ -81,7 +71,7 @@ export function RecoverPaymentForm({
             {...field('code', `${ID}-code-hint`)}
           />
           <p id={`${ID}-code-hint`} className="muted u-fs-085">
-            The full 32-character code the restore report lists for this traveller.
+            The traveller's account id from the restore report, with or without dashes.
           </p>
         </div>
         <div className="field-row">
@@ -99,7 +89,7 @@ export function RecoverPaymentForm({
             <option value="">Choose a Plan</option>
             {plans.map((plan) => (
               <option key={plan.key} value={plan.key}>
-                {plan.name}
+                {`${plan.name} (${plan.key})`}
               </option>
             ))}
           </select>

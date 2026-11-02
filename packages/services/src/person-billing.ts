@@ -1049,7 +1049,7 @@ export interface RecoveredPersonPaymentInput {
   readonly planId: string;
   /** VisaStack's own transaction id for the payment, as the gateway's merchant records show it. */
   readonly merchantTranId: string;
-  /** What the gateway confirms was paid: the invoice is made for exactly this. */
+  /** What the gateway confirms was paid: the invoice it pays is for exactly this. */
   readonly amountMinorUnits: number;
   readonly currency: string;
   readonly provider: string;
@@ -1060,28 +1060,44 @@ export interface RecoveredPersonPaymentInput {
 export type RecoveredPersonPaymentRefusal =
   | 'not_found'
   | 'not_a_traveller_plan'
+  | 'amount_mismatch'
   | 'already_recorded'
   | 'already_covered';
 
+export type RecoveredPersonPayment =
+  | {
+      readonly ok: true;
+      readonly invoiceId: string;
+      readonly invoiceRef: string;
+      /** An earlier recovery of this same payment was not finished: it goes on from where it was. */
+      readonly resumed: boolean;
+      /** The payment paid the traveller's open renewal rather than a new purchase. */
+      readonly renewal: boolean;
+    }
+  | { readonly ok: false; readonly refusal: RecoveredPersonPaymentRefusal };
+
 /**
- * Makes, in one transaction, a purchase invoice for `planId` (from now, for the plan's period, for
- * the confirmed amount) and the payment attempt that paid it, under the person's locks (open
- * renewals, then billing), as a purchase does. Refuses a transaction id already on any payment, an
- * account that does not exist, a plan that is not a traveller plan, and a person a paid period
- * already covers (the recording would hold the money). Audited as PERSON_PAYMENT_RECOVERY_STARTED.
+ * In one transaction, under the person's locks (open renewals, then billing, as a purchase takes
+ * them), makes the payment attempt a lost payment had and the invoice it pays. The invoice is the
+ * traveller's open renewal of this plan when one is waiting for exactly this amount (a renewal paid
+ * early), and otherwise a new purchase from now for the plan's period. Refuses:
+ * - an account that does not exist, a plan that is not a paid traveller plan (never Traveller
+ *   Free), or an amount that is not a price this plan has had (the wrong plan chosen);
+ * - a transaction id already on a payment, unless it is an unfinished recovery of this payment,
+ *   which goes on from where it was (its attempt waits for the gateway, so the regular checks also
+ *   finish it);
+ * - a new purchase for a person a paid period already covers (the recording would hold the money).
+ * Audited as PERSON_PAYMENT_RECOVERY_STARTED.
  */
 export async function prepareRecoveredPersonPayment(
   db: Db,
   staff: StaffScope<'BILLING_REFUND_MANAGE'>,
   input: RecoveredPersonPaymentInput,
-): Promise<
-  | { readonly ok: true; readonly invoiceId: string; readonly invoiceRef: string }
-  | { readonly ok: false; readonly refusal: RecoveredPersonPaymentRefusal }
-> {
+): Promise<RecoveredPersonPayment> {
   refundStaffProblem(staff);
-  return db.transaction(async (tx) => {
+  return db.transaction(async (tx): Promise<RecoveredPersonPayment> => {
+    // Takes the person's open renewals, then their billing lock.
     await lockOwnRenewals(tx, input.accountId);
-    await lockPersonBilling(tx, input.accountId);
     const person = first(
       await tx
         .select({ id: schema.accounts.id })
@@ -1089,62 +1105,131 @@ export async function prepareRecoveredPersonPayment(
         .where(eq(schema.accounts.id, input.accountId))
         .limit(1),
     );
-    if (!person) return { ok: false, refusal: 'not_found' } as const;
+    if (!person) return { ok: false, refusal: 'not_found' };
     const plan = first(
       await tx
         .select({ id: schema.plans.id, periodDays: schema.plans.periodDays })
         .from(schema.plans)
-        .where(and(eq(schema.plans.id, input.planId), eq(schema.plans.audience, 'TRAVELLER')))
+        .where(
+          and(
+            eq(schema.plans.id, input.planId),
+            eq(schema.plans.audience, 'TRAVELLER'),
+            ne(schema.plans.key, TRAVELLER_PLAN_KEY),
+          ),
+        )
         .limit(1),
     );
-    if (!plan || plan.periodDays <= 0)
-      return { ok: false, refusal: 'not_a_traveller_plan' } as const;
+    if (!plan || plan.periodDays <= 0) return { ok: false, refusal: 'not_a_traveller_plan' };
+    const priced = first(
+      await tx
+        .select({ id: schema.planPrices.id })
+        .from(schema.planPrices)
+        .where(
+          and(
+            eq(schema.planPrices.planId, plan.id),
+            eq(schema.planPrices.priceMinorUnits, input.amountMinorUnits),
+            eq(schema.planPrices.currency, input.currency),
+          ),
+        )
+        .limit(1),
+    );
+    if (!priced) return { ok: false, refusal: 'amount_mismatch' };
+    const i = personInvoices;
+    const a = personPaymentAttempts;
     const seen = first(
       await tx
-        .select({ id: personPaymentAttempts.id })
-        .from(personPaymentAttempts)
-        .where(eq(personPaymentAttempts.merchantTranId, input.merchantTranId))
+        .select({
+          invoiceId: a.invoiceId,
+          status: a.status,
+          reasonCode: a.reasonCode,
+          payer: a.payerAccountId,
+        })
+        .from(a)
+        .where(eq(a.merchantTranId, input.merchantTranId))
         .limit(1),
     );
-    if (seen) return { ok: false, refusal: 'already_recorded' } as const;
-    if (await coveringPaidPeriod(tx, input.accountId, input.now)) {
-      return { ok: false, refusal: 'already_covered' } as const;
+    if (seen) {
+      const unfinished =
+        seen.reasonCode === RECOVERED_AFTER_RESTORE &&
+        seen.payer === input.accountId &&
+        (IN_FLIGHT_ATTEMPTS as readonly string[]).includes(seen.status);
+      if (!unfinished) return { ok: false, refusal: 'already_recorded' };
+      const ref = first(
+        await tx.select({ ref: i.invoiceRef }).from(i).where(eq(i.id, seen.invoiceId)).limit(1),
+      );
+      return {
+        ok: true,
+        invoiceId: seen.invoiceId,
+        invoiceRef: ref?.ref ?? '',
+        resumed: true,
+        renewal: false,
+      };
     }
-    const i = personInvoices;
-    const invoiceRef = await nextPersonInvoiceRef(tx, input.accountId);
-    const invoice = required(
-      first(
-        await tx
-          .insert(i)
-          .values({
-            organizationId: null,
-            payerAccountId: input.accountId,
-            subscriptionId: null,
-            planId: plan.id,
-            periodStart: input.now,
-            periodEnd: new Date(input.now.getTime() + plan.periodDays * DAY_MS),
-            invoiceRef,
-            invoicedAmountMinorUnits: input.amountMinorUnits,
-            currency: input.currency,
-            dueDate: input.now,
-            status: 'OPEN',
-          })
-          .returning({ id: i.id }),
-      ),
-      'recovered person invoice',
+    // A renewal paid early: its period follows the one that covers them now.
+    const renewal = first(
+      await tx
+        .select({ id: i.id, ref: i.invoiceRef })
+        .from(i)
+        .where(
+          and(
+            eq(i.payerAccountId, input.accountId),
+            eq(i.planId, plan.id),
+            eq(i.status, 'OPEN'),
+            isNotNull(i.subscriptionId),
+            eq(i.invoicedAmountMinorUnits, input.amountMinorUnits),
+            eq(i.currency, input.currency),
+            sql`not ${invoiceHasRefundSql(sql`${i.id}`)}`,
+          ),
+        )
+        .orderBy(desc(i.periodStart))
+        .limit(1),
     );
-    await tx.insert(personPaymentAttempts).values({
-      invoiceId: invoice.id,
+    let target: { readonly id: string; readonly ref: string };
+    if (renewal) {
+      target = renewal;
+    } else {
+      if (await coveringPaidPeriod(tx, input.accountId, input.now)) {
+        return { ok: false, refusal: 'already_covered' };
+      }
+      const invoiceRef = await nextPersonInvoiceRef(tx, input.accountId);
+      const created = required(
+        first(
+          await tx
+            .insert(i)
+            .values({
+              organizationId: null,
+              payerAccountId: input.accountId,
+              subscriptionId: null,
+              planId: plan.id,
+              periodStart: input.now,
+              periodEnd: new Date(input.now.getTime() + plan.periodDays * DAY_MS),
+              invoiceRef,
+              invoicedAmountMinorUnits: input.amountMinorUnits,
+              currency: input.currency,
+              dueDate: input.now,
+              status: 'OPEN',
+            })
+            .returning({ id: i.id }),
+        ),
+        'recovered person invoice',
+      );
+      target = { id: created.id, ref: invoiceRef };
+    }
+    // Waiting for the gateway, as a payment whose page was opened is: the regular checks ask the
+    // gateway about it too, so a recovery cut short is still finished.
+    await tx.insert(a).values({
+      invoiceId: target.id,
       organizationId: null,
       payerAccountId: input.accountId,
       provider: input.provider,
       merchantTranId: input.merchantTranId,
       amountMinorUnits: input.amountMinorUnits,
       currency: input.currency,
-      status: 'CREATED',
+      status: 'REDIRECTED',
+      redirectedAt: input.now,
       mode: input.mode,
       initiatedByAccountId: staff.accountId,
-      reasonCode: 'recovered_after_restore',
+      reasonCode: RECOVERED_AFTER_RESTORE,
     });
     await appendAuditEvent(tx, {
       eventType: 'PERSON_PAYMENT_RECOVERY_STARTED',
@@ -1153,18 +1238,28 @@ export async function prepareRecoveredPersonPayment(
       method: 'MANUAL',
       result: 'ALLOWED',
       resourceType: 'invoice',
-      resourceId: invoice.id,
-      reason: 'recovered_after_restore',
+      resourceId: target.id,
+      reason: RECOVERED_AFTER_RESTORE,
       metadata: {
         planId: plan.id,
         amountMinorUnits: input.amountMinorUnits,
         currency: input.currency,
         provider: input.provider,
+        renewal: renewal !== undefined,
       },
     });
-    return { ok: true, invoiceId: invoice.id, invoiceRef } as const;
+    return {
+      ok: true,
+      invoiceId: target.id,
+      invoiceRef: target.ref,
+      resumed: false,
+      renewal: renewal !== undefined,
+    };
   });
 }
+
+/** Marks a payment attempt made to recover a payment lost in a restore. */
+export const RECOVERED_AFTER_RESTORE = 'recovered_after_restore';
 
 /**
  * After a refund's own source is locked and before it writes: the person's open renewal invoices,

@@ -414,7 +414,9 @@ describe('Platform > Traveller Billing (ADR 0025 T6b)', () => {
     expect(text).toContain('Traveller Code');
     expect(text).toContain('Plan They Paid For');
     expect(text).toContain('Transaction Id');
-    expect(html).toContain('<option value="traveller_plus">Traveller Plus</option>');
+    expect(html).toContain(
+      '<option value="traveller_plus">Traveller Plus (traveller_plus)</option>',
+    );
     expect(mocks.listRecoverablePlans.mock.calls[0]?.[1]).toBe(SCOPE);
     expect(html).not.toMatch(UUID);
     expect(await axeViolations(html)).toEqual([]);

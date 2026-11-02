@@ -66,6 +66,13 @@ beforeEach(async () => {
     .returning({ id: schema.plans.id });
   if (!plan) throw new Error('plan');
   planId = plan.id;
+  await db.insert(schema.planPrices).values({
+    planId,
+    priceMinorUnits: PRICE,
+    currency: 'BDT',
+    effectiveFrom: new Date('2001-01-01T00:00:00Z'),
+    createdAt: new Date('2001-01-01T00:00:00Z'),
+  });
   alice = await account('alice-recover@example.com');
 }, 60_000);
 
@@ -87,6 +94,7 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
       accountId: alice,
       planKey: 'traveller_plus_recover',
       merchantTranId: tranId,
+      stepUpSatisfied: true,
     });
     if (!isOk(recovered)) throw new Error(`recover: ${recovered.error.message}`);
     expect(recovered.value).toMatchObject({ amountMinorUnits: PRICE, currency: 'BDT' });
@@ -159,6 +167,7 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
         accountId: alice,
         planKey: 'traveller_plus_recover',
         merchantTranId: tranId,
+        stepUpSatisfied: true,
       });
       expect(isErr(refused), label).toBe(true);
     }
@@ -173,6 +182,7 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
         accountId: alice,
         planKey: 'traveller_plus_recover',
         merchantTranId: newMerchantTranId(),
+        stepUpSatisfied: true,
         ...input,
       });
       return isErr(result) ? result.error.message : 'ok';
@@ -187,11 +197,11 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
       .insert(schema.plans)
       .values({ key: 'agency_recover', name: 'Agency', audience: 'AGENCY' });
     expect(await words({ merchantTranId: tranId, planKey: 'agency_recover' })).toBe(
-      'Choose a traveller plan.',
+      'Choose a paid traveller plan.',
     );
     expect(await words({ merchantTranId: tranId })).toBe('ok');
     // The same payment again, and a second payment while the first covers them.
-    expect(await words({ merchantTranId: tranId })).toBe('This payment is already recorded.');
+    expect(await words({ merchantTranId: tranId })).toContain('already recorded');
     const second = newMerchantTranId();
     port.succeed(second, PRICE);
     expect(await words({ merchantTranId: second })).toContain('already has a paid plan');
@@ -202,8 +212,128 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
       accountId: alice,
       planKey: 'traveller_plus_recover',
       merchantTranId: newMerchantTranId(),
+      stepUpSatisfied: true,
     });
     expect(isErr(result) && result.error.message).toContain('not set up');
+  });
+
+  it('refuses an amount that is not a price of the chosen plan, and Traveller Free', async () => {
+    const staff = await ownerScope();
+    const cheap = newMerchantTranId();
+    port.succeed(cheap, PRICE - 100);
+    const wrongAmount = await recoverPersonPayment(db, onePort(port), staff, {
+      accountId: alice,
+      planKey: 'traveller_plus_recover',
+      merchantTranId: cheap,
+      stepUpSatisfied: true,
+    });
+    expect(isErr(wrongAmount) && wrongAmount.error).toMatchObject({ reason: 'recovery_plan' });
+    expect(isErr(wrongAmount) && wrongAmount.error.message).toContain('not a price this plan');
+    const free = newMerchantTranId();
+    port.succeed(free, PRICE);
+    const toFree = await recoverPersonPayment(db, onePort(port), staff, {
+      accountId: alice,
+      planKey: 'traveller_free',
+      merchantTranId: free,
+      stepUpSatisfied: true,
+    });
+    expect(isErr(toFree) && toFree.error.reason).toBe('recovery_plan');
+    expect(await aliceInvoices()).toEqual([]);
+    expect(await db.select().from(personPaymentAttempts)).toEqual([]);
+  });
+
+  it('finishes a recovery cut short when it is sent again, and records it only once', async () => {
+    const staff = await ownerScope();
+    const tranId = newMerchantTranId();
+    port.succeed(tranId, PRICE);
+    // The gateway answers the first question, then is down for the recording's own check.
+    let calls = 0;
+    const flaky = Object.assign(Object.create(port) as FakePaymentPort, {
+      queryByMerchantTranId: async (id: string) => {
+        calls += 1;
+        if (calls === 2) throw new Error('gateway down');
+        return port.queryByMerchantTranId(id);
+      },
+    });
+    const input = {
+      accountId: alice,
+      planKey: 'traveller_plus_recover',
+      merchantTranId: tranId,
+      stepUpSatisfied: true,
+    };
+    const first = await recoverPersonPayment(db, onePort(flaky), staff, input);
+    expect(isErr(first) && first.error.message).toContain('Send Recover Payment again');
+    const [waiting] = await db
+      .select()
+      .from(personPaymentAttempts)
+      .where(eq(personPaymentAttempts.merchantTranId, tranId));
+    // Waiting for the gateway, so the regular checks would finish it too.
+    expect(waiting).toMatchObject({ status: 'REDIRECTED', reasonCode: 'recovered_after_restore' });
+    expect(waiting?.redirectedAt).not.toBeNull();
+    const again = await recoverPersonPayment(db, onePort(flaky), staff, input);
+    expect(isOk(again)).toBe(true);
+    expect(await aliceInvoices()).toHaveLength(1);
+    expect(await coveringPaidPeriod(db, alice, new Date())).toBeDefined();
+    const third = await recoverPersonPayment(db, onePort(port), staff, input);
+    expect(isErr(third) && third.error.message).toContain('already recorded');
+  });
+
+  it("pays a renewal paid early, the traveller's open renewal, rather than a new purchase", async () => {
+    const staff = await ownerScope();
+    const bought = newMerchantTranId();
+    port.succeed(bought, PRICE);
+    const base = {
+      accountId: alice,
+      planKey: 'traveller_plus_recover',
+      stepUpSatisfied: true,
+    };
+    expect(
+      isOk(
+        await recoverPersonPayment(db, onePort(port), staff, { ...base, merchantTranId: bought }),
+      ),
+    ).toBe(true);
+    const [paid] = await aliceInvoices();
+    // The renewal the daily run made, still open on the restored branch.
+    const renewalId = (
+      (await db.execute(sql`insert into invoices (payer_account_id, plan_id, subscription_id,
+          period_start, period_end, invoice_ref, invoiced_amount_minor_units, currency, due_date)
+        values (${alice}::uuid, ${planId}::uuid, ${paid?.subscriptionId}::uuid, ${paid?.periodEnd.toISOString()}::timestamptz,
+          ${paid?.periodEnd.toISOString()}::timestamptz + interval '30 days', 'TP-RECOVER-RENEW', ${PRICE},
+          'BDT', ${paid?.periodEnd.toISOString()}::timestamptz) returning id`)) as unknown as {
+        rows: { id: string }[];
+      }
+    ).rows[0]?.id;
+    const early = newMerchantTranId().toUpperCase().replace('VSP', 'vsp');
+    port.succeed(
+      early.replace(/^vsp/, 'VSP').replace(/[A-F]/g, (c) => c.toLowerCase()),
+      PRICE,
+    );
+    const renewed = await recoverPersonPayment(db, onePort(port), staff, {
+      ...base,
+      merchantTranId: early,
+    });
+    if (!isOk(renewed)) throw new Error(`renewal: ${renewed.error.message}`);
+    expect(renewed.value.renewal).toBe(true);
+    const [renewal] = await db
+      .select()
+      .from(personInvoices)
+      .where(eq(personInvoices.id, renewalId ?? ''));
+    expect(renewal?.status).toBe('PAID');
+    expect(await aliceInvoices()).toHaveLength(2);
+  });
+
+  it('needs a fresh sign-in', async () => {
+    const staff = await ownerScope();
+    const tranId = newMerchantTranId();
+    port.succeed(tranId, PRICE);
+    const refusedNow = await recoverPersonPayment(db, onePort(port), staff, {
+      accountId: alice,
+      planKey: 'traveller_plus_recover',
+      merchantTranId: tranId,
+      stepUpSatisfied: false,
+    });
+    expect(isErr(refusedNow) && refusedNow.error.code).toBe('step_up_required');
+    expect(port.queryCalls).toEqual([]);
   });
 
   it('is for the platform owner only', async () => {
@@ -225,6 +355,7 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
       accountId: alice,
       planKey: 'traveller_plus_recover',
       merchantTranId: tranId,
+      stepUpSatisfied: true,
     });
     expect(isErr(refused) && refused.error.code).toBe('forbidden');
     expect(await aliceInvoices()).toEqual([]);

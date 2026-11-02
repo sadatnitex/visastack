@@ -31,13 +31,12 @@ function accountIdOf(raw: string): string | null {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-/** Which field a service refusal is about, when it is about one. */
-function fieldOf(message: string): string | undefined {
-  if (message.includes('transaction')) return 'transactionId';
-  if (message.includes('traveller plan')) return 'planKey';
-  if (message.includes('No traveller')) return 'code';
-  return undefined;
-}
+/** Which box a service refusal is about, from its reason (never from its wording). */
+const FIELD_BY_REASON: Readonly<Record<string, string>> = {
+  recovery_account: 'code',
+  recovery_plan: 'planKey',
+  recovery_transaction: 'transactionId',
+};
 
 export async function recoverTravellerPaymentAction(
   _prev: RecoverFormState,
@@ -48,7 +47,7 @@ export async function recoverTravellerPaymentAction(
     field === undefined ? { ok: false, message, values } : { ok: false, message, field, values };
   const accountId = accountIdOf(text(formData, 'code'));
   if (!accountId) {
-    return fail("Enter the traveller's full 32-character code from the restore report.", 'code');
+    return fail("Enter the traveller's account id from the restore report.", 'code');
   }
   const planKey = text(formData, 'planKey');
   if (!/^[a-z0-9_]{1,64}$/.test(planKey)) return fail('Choose the plan they paid for.', 'planKey');
@@ -79,16 +78,18 @@ export async function recoverTravellerPaymentAction(
       accountId,
       planKey,
       merchantTranId: transactionId,
+      stepUpSatisfied: true,
     });
     if (!done.ok) {
       if (done.error.code === 'forbidden') return fail(DENIED_MESSAGE);
       if (done.error.code === 'step_up_required') return fail(STEP_UP_AGAIN);
-      return fail(done.error.message, fieldOf(done.error.message));
+      return fail(done.error.message, FIELD_BY_REASON[done.error.reason ?? '']);
     }
     const amount = formatAmountForCurrency(done.value.amountMinorUnits, done.value.currency);
+    const what = done.value.renewal ? 'their renewal' : 'their plan';
     return {
       ok: true,
-      message: `Payment recovered: ${amount} for ${done.value.invoiceRef}. The traveller has their plan, and their receipt is ready.`,
+      message: `Payment recovered: ${amount} for ${done.value.invoiceRef}. The traveller has ${what}, and their receipt is ready.`,
       values: {},
     } satisfies RecoverFormState;
   });

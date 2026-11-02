@@ -84,6 +84,7 @@ describe('Recover a Payment (owner tool)', () => {
       accountId: ACCOUNT,
       planKey: PLAN,
       merchantTranId: TRAN,
+      stepUpSatisfied: true,
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith(PAGE);
   });
@@ -136,6 +137,7 @@ describe('Recover a Payment (owner tool)', () => {
       ok: false,
       error: {
         code: 'invalid',
+        reason: 'recovery_transaction',
         message:
           'The payment gateway does not show this transaction as paid, so nothing was recorded.',
       },

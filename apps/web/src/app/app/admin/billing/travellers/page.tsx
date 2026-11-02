@@ -601,9 +601,11 @@ export default async function TravellerBillingPage({
       'BILLING_REFUND_MANAGE',
     );
     if (!staff.ok) return { kind: 'restricted' as const };
-    const needs = await listTravellerNeedsCheck(db, staff.value, { now });
+    const [needs, plansResult] = await Promise.all([
+      listTravellerNeedsCheck(db, staff.value, { now }),
+      listRecoverablePlans(db, staff.value),
+    ]);
     if (!needs.ok) return { kind: 'restricted' as const };
-    const plansResult = await listRecoverablePlans(db, staff.value);
     const plans = plansResult.ok ? plansResult.value : [];
     if (code.length === 0) {
       return { kind: 'ready' as const, needs: needs.value, found: null, plans };
