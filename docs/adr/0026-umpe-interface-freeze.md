@@ -49,3 +49,9 @@ P2 is a client-side bounded queue over the existing per-file upload route. An `U
 
 ## Consequences
 Lanes A (import) and E (source monitoring) can build now. Lane B (P1 necessity and alternatives) takes the next schema slot after Lane E lands. Lanes C and D start after P1, with D gated on the owner's guest-proof decision. Contract changes are made by superseding this ADR, never by editing a frozen format.
+
+## Addendum, 2 November 2026 (owner decisions and P1 facts)
+- D5 guest proof (owner): a six-digit one-time code sent by email to the address the agency entered for that request; no account is created. A request without an email hint has no guest path (the guest is told to ask the agency).
+- D5 guest retention (owner): at submission the guest chooses how long the agency may keep their files after the request closes: 3, 7, 15, 30, 60, 90 or 180 days, with no preselected value; legal holds override.
+- D3 in code: `packages/core/src/requirement-necessity.ts` is the single definition; migration 0116 adds the nullable columns. Format 2 manifests sort by UTF-16 code units and append new keys only when non-null.
+- D3 consequence recorded: cases carry no route yet, so a pack that names a route is listed but never auto-linked to a case (no published public pack had a route in production on 2 November).
