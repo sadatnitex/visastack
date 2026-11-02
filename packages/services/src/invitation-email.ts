@@ -4,10 +4,18 @@ import { enqueueNotification } from './notifications';
 import type { KeyManagementPort } from './ports';
 
 /**
- * Which link a sealed email carries: an invitation, a request for one document from someone else,
- * or an agency's document request sent before any traveller record (`collection`, UMPE P6).
+ * Which secret a sealed email carries: an invitation link, a request for one document from someone
+ * else, an agency's document request sent before any traveller record (`collection`, UMPE P6), or a
+ * guest's six-digit one-time code for that request's desk (`guest_code`, UMPE P8; the sealed value
+ * is the code itself, never a link).
  */
-export type InvitationLinkKind = 'team' | 'client' | 'sharing' | 'contributor' | 'collection';
+export type InvitationLinkKind =
+  | 'team'
+  | 'client'
+  | 'sharing'
+  | 'contributor'
+  | 'collection'
+  | 'guest_code';
 
 /**
  * The path a link of this kind opens. A contributor request opens its own page, not an invitation;
@@ -15,6 +23,10 @@ export type InvitationLinkKind = 'team' | 'client' | 'sharing' | 'contributor' |
  * and drops it from the address at once.
  */
 function linkPath(kind: InvitationLinkKind, rawToken: string): string {
+  if (kind === 'guest_code') {
+    if (!GUEST_CODE_SHAPE.test(rawToken)) throw new Error('a guest code must be six digits');
+    return rawToken;
+  }
   const token = encodeURIComponent(rawToken);
   if (kind === 'contributor') return `/app/contributor-requests/accept?token=${token}`;
   if (kind === 'collection') return `/collect/open?token=${token}`;
@@ -24,12 +36,18 @@ function linkPath(kind: InvitationLinkKind, rawToken: string): string {
 /** The notification event of an agency document request email (UMPE P6). */
 export const COLLECTION_REQUEST_EMAIL_EVENT = 'AGENCY_COLLECTION_REQUEST_SENT';
 
+/** The notification event of a guest's one-time code email (UMPE P8). */
+export const GUEST_CODE_EMAIL_EVENT = 'AGENCY_COLLECTION_GUEST_CODE';
+
+const GUEST_CODE_SHAPE = /^\d{6}$/;
+
 const EMAIL_EVENT: Record<InvitationLinkKind, string> = {
   team: 'TEAM_INVITATION_CREATED',
   client: 'CLIENT_INVITATION_CREATED',
   sharing: 'SHARING_INVITATION_CREATED',
   contributor: 'CONTRIBUTOR_REQUEST_CREATED',
   collection: COLLECTION_REQUEST_EMAIL_EVENT,
+  guest_code: GUEST_CODE_EMAIL_EVENT,
 };
 
 const EMAIL_SUBJECT: Record<InvitationLinkKind, string> = {
@@ -38,6 +56,7 @@ const EMAIL_SUBJECT: Record<InvitationLinkKind, string> = {
   sharing: 'Your VisaStack sharing invitation',
   contributor: 'Someone asked you for a document on VisaStack',
   collection: 'An agency asked you for documents through VisaStack',
+  guest_code: 'Your VisaStack code',
 };
 
 const EMAIL_SUMMARY: Record<InvitationLinkKind, string> = {
@@ -50,7 +69,12 @@ const EMAIL_SUMMARY: Record<InvitationLinkKind, string> = {
     'Someone you know has asked you, through VisaStack, for one document for their visa case. Open the link, create an account or sign in using this email address, then see exactly what is asked and why before you decide. You can upload it or leave it. The link expires in 7 days. If you were not expecting it, ignore this email.',
   collection:
     'An agency has asked you, through VisaStack, for documents. Open the link to see who is asking. Opening it shares nothing. The link expires in 14 days. If you were not expecting it, ignore this email.',
+  guest_code: guestCodeSummary('an agency'),
 };
+
+function guestCodeSummary(who: string): string {
+  return `Someone asked for a code to answer a document request from ${who} on VisaStack. The code works for 10 minutes, on the page where it was asked for. If this was not you, ignore this email: nothing is shared without the code.`;
+}
 
 /**
  * The subject and summary of an agency document request email. Never the route, the documents or
@@ -67,6 +91,21 @@ function collectionCopy(agencyName: string | null | undefined): {
   return {
     subject: `${name} asked you for documents through VisaStack`,
     summary: `${name} has asked you, through VisaStack, for documents. Open the link to see the request. Opening it shares nothing. The link expires in 14 days. If you were not expecting it, ignore this email.`,
+  };
+}
+
+/**
+ * The subject and summary of a guest code email (UMPE P8). Never the route, the documents, the
+ * person or the code (it travels sealed and is added only when the email is written at send time).
+ */
+function guestCodeCopy(agencyName: string | null | undefined): {
+  readonly subject: string;
+  readonly summary: string;
+} {
+  const name = agencyName?.replace(/\s+/g, ' ').trim().slice(0, 120) ?? '';
+  return {
+    subject: EMAIL_SUBJECT.guest_code,
+    summary: name.length > 0 ? guestCodeSummary(name) : EMAIL_SUMMARY.guest_code,
   };
 }
 
@@ -90,7 +129,7 @@ export async function queueInvitationEmail(
     readonly email: string;
     readonly rawToken: string;
     readonly encryption: KeyManagementPort;
-    /** `collection` only: the agency's name, given only for an ACTIVE agency. */
+    /** `collection` and `guest_code` only: the agency's name, given only for an ACTIVE agency. */
     readonly agencyName?: string | null;
   },
 ): Promise<void> {
@@ -103,7 +142,9 @@ export async function queueInvitationEmail(
   const copy =
     input.kind === 'collection'
       ? collectionCopy(input.agencyName)
-      : { subject: EMAIL_SUBJECT[input.kind], summary: EMAIL_SUMMARY[input.kind] };
+      : input.kind === 'guest_code'
+        ? guestCodeCopy(input.agencyName)
+        : { subject: EMAIL_SUBJECT[input.kind], summary: EMAIL_SUMMARY[input.kind] };
   await enqueueNotification(tx, {
     eventType: EMAIL_EVENT[input.kind],
     channel: 'EMAIL',
@@ -118,7 +159,9 @@ export async function queueInvitationEmail(
           ? '/app/contributor-requests/accept'
           : input.kind === 'collection'
             ? '/collect'
-            : '/invitation',
+            : input.kind === 'guest_code'
+              ? '/collect?step=guest'
+              : '/invitation',
       sealedInvitationLink: {
         keyVersion: dataKey.keyVersion,
         wrappedKey: Buffer.from(dataKey.wrappedDataKey).toString('base64'),
@@ -154,7 +197,9 @@ export async function revealInvitationLink(
       ? /^\/app\/contributor-requests\/accept\?token=[A-Za-z0-9_-]{43}$/.test(path)
       : kind === 'collection'
         ? /^\/collect\/open\?token=[A-Za-z0-9_-]{43}$/.test(path)
-        : /^\/invitation\?kind=(team|client|sharing)&token=[A-Za-z0-9_-]{43}$/.test(path);
+        : kind === 'guest_code'
+          ? GUEST_CODE_SHAPE.test(path)
+          : /^\/invitation\?kind=(team|client|sharing)&token=[A-Za-z0-9_-]{43}$/.test(path);
   if (!valid) throw new Error('Invalid invitation link');
   return path;
 }

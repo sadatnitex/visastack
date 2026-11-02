@@ -2574,3 +2574,36 @@ export {
   isRelationDecision,
   listDocumentExceptions,
 } from './umpe-document-exceptions';
+
+// UMPE P8
+// Guest proof and the branded Document Collection Desk (request-scoped, no account).
+export {
+  GuestCodeDeliveryProof,
+  GuestCollectionSessionProof,
+  guestCollectionSessionProof,
+  normalizeGuestCode,
+} from './access/guest-collection';
+export { GUEST_CODE_EMAIL_EVENT } from './invitation-email';
+export {
+  GUEST_CODE_MAX_ATTEMPTS,
+  GUEST_CODE_TTL_MS,
+  GUEST_RETENTION_DAYS,
+  GUEST_SESSION_IDLE_MS,
+  GUEST_SESSION_MAX_MS,
+  type GuestChecklistItem,
+  type GuestCodeRefusal,
+  type GuestCodeSent,
+  type GuestDesk,
+  type GuestDeskAgency,
+  type GuestRetentionDays,
+  type StartedGuestSession,
+  endGuestSession,
+  guestSessionLink,
+  isGuestRetentionDays,
+  readGuestDesk,
+  readGuestDeskLogo,
+  saveGuestRetentionChoice,
+  sendGuestCode,
+  startGuestSession,
+  verifyGuestCode,
+} from './umpe-guest-collection';
