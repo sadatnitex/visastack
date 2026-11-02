@@ -361,19 +361,19 @@ export async function startGuestSession(
   const rawSessionId = generateInvitationToken();
   try {
     await db.transaction(async (tx) => {
-      // Sessions of this link that ended a day ago or more are removed (their codes go with them),
-      // so link scanners and old devices leave nothing behind.
-      await tx
-        .delete(schema.agencyCollectionGuestSessions)
-        .where(
-          and(
-            eq(schema.agencyCollectionGuestSessions.linkId, view.linkId),
-            lt(
-              schema.agencyCollectionGuestSessions.expiresAt,
-              new Date(now.getTime() - GUEST_SESSION_KEEP_AFTER_END_MS),
-            ),
+      // Sessions of this link that ended a day ago or more and never asked for a code are removed,
+      // so link scanners and idle devices leave nothing behind.
+      await tx.delete(schema.agencyCollectionGuestSessions).where(
+        and(
+          eq(schema.agencyCollectionGuestSessions.linkId, view.linkId),
+          lt(
+            schema.agencyCollectionGuestSessions.expiresAt,
+            new Date(now.getTime() - GUEST_SESSION_KEEP_AFTER_END_MS),
           ),
-        );
+          // Sessions that asked for a code stay: the link's lifetime limits count their codes.
+          sql`not exists (select 1 from ${schema.agencyCollectionGuestCodes} where ${schema.agencyCollectionGuestCodes.sessionId} = ${schema.agencyCollectionGuestSessions.id})`,
+        ),
+      );
       const created = first(
         await tx
           .insert(schema.agencyCollectionGuestSessions)

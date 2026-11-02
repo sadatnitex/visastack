@@ -595,6 +595,24 @@ describe('guest proof and the Document Collection Desk (UMPE P8)', () => {
     expect(fromOther.ok).toBe(false);
   }, 60_000);
 
+  it('keeps the lifetime limits when old sessions are cleared away', async () => {
+    const link = await issuedLink();
+    const raw = await open(link.rawToken);
+    await sendGuestCode(
+      db,
+      proofOf(raw),
+      { encryption, networkSubject: NET, generateCode: () => CODE },
+      t0,
+    );
+    await verifyGuestCode(db, proofOf(raw), { code: '000000', networkSubject: NET }, t0);
+    await open(link.rawToken, t0);
+    // Two days later the link opens again: the idle session goes, the one that asked for a code stays.
+    await open(link.rawToken, at(2 * 24 * 60 * 60 * 1000));
+    const codes = await db.select().from(schema.agencyCollectionGuestCodes);
+    expect(codes.map((c) => c.attempts)).toEqual([1]);
+    expect(await count(db, 'agency_collection_guest_sessions')).toBe(2);
+  });
+
   it('closes exactly when the public link page closes (parity with the P6 rules)', async () => {
     type Case = {
       readonly name: string;
