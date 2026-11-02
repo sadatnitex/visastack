@@ -201,6 +201,8 @@ const HOTEL_RECOMMENDED: RequirementInput = {
 
 describe('UMPE P4 phrases (pure)', () => {
   const base = {
+    requiredLeftMissing: false,
+    pinnedCopyReplaced: false,
     pinnedCopyUnusable: false,
     packWithdrawn: false,
     packReplaced: false,
@@ -232,6 +234,31 @@ describe('UMPE P4 phrases (pure)', () => {
         packWithdrawn: true,
       }).phrase,
     ).toBe('NEEDS_ATTENTION');
+  });
+
+  it('never reads prepared while something needs attention, even with a matching confirmation', () => {
+    const aged = derivePackagePhrase({
+      ...base,
+      overallState: 'NEEDS_ACTION',
+      handoffCurrent: true,
+      pinnedCopyUnusable: true,
+    });
+    expect(aged.phrase).toBe('NEEDS_ATTENTION');
+    expect(aged.reasons).toEqual(['REQUIRED_GAP', 'PINNED_COPY_UNUSABLE']);
+    expect(
+      derivePackagePhrase({
+        ...base,
+        overallState: 'READY_FOR_APPLICANT_REVIEW',
+        requiredLeftMissing: true,
+      }).reasons,
+    ).toEqual(['REQUIRED_GAP']);
+    expect(
+      derivePackagePhrase({
+        ...base,
+        overallState: 'READY_FOR_APPLICANT_REVIEW',
+        handoffCurrent: true,
+      }).phrase,
+    ).toBe('PREPARED_FOR_HANDOFF');
   });
 
   it('lists the standard outside steps and adds the ones a note names', () => {
@@ -313,6 +340,8 @@ describe('UMPE P4 trip package', () => {
       expect(after.items[0]?.newerCopy?.documentVersionId).toBe(secondVersion);
       expect(after.change?.kind).toBe('NEWER_DOCUMENT');
       expect(after.phrase).toBe('NEEDS_ATTENTION');
+      // The case decides again before another handoff, so the frozen copy and the snapshot agree.
+      expect(after.reasons).toContain('PINNED_COPY_REPLACED');
       expect(after.latestHandoff?.current).toBe(false);
 
       // The database itself refuses to change a handoff.
@@ -396,6 +425,48 @@ describe('UMPE P4 trip package', () => {
       const after = await pkg(db, actor, missionId);
       expect(after.phrase).toBe('NEEDS_ATTENTION');
       expect(after.reasons).toContain('REQUIRED_GAP');
+      const handoff = await confirmPackageHandoff(await manageProof(db, actor, missionId), {
+        missionId,
+        outsideStepsSeen: true,
+      });
+      expect(isErr(handoff)).toBe(true);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'treats Leave Missing on a required item as a gap, and saving the same choice twice as nothing',
+    async () => {
+      const { actor, applicantId } = await seed(db);
+      const versionId = await publishedPack(db, actor, [PASSPORT]);
+      const missionId = await caseOn(db, actor, applicantId, versionId);
+      await document(db, actor, applicantId, 'passport');
+      const item = (await pkg(db, actor, missionId)).items[0];
+      const revision = async () =>
+        (await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)))[0]
+          ?.materialRevision;
+
+      const choose = async () =>
+        recordPackageChoice(await manageProof(db, actor, missionId), {
+          missionId,
+          packRequirementId: item?.packRequirementId ?? '',
+          choice: 'USE_COPY',
+          documentVersionId: item?.proposed?.documentVersionId ?? '',
+        });
+      expect(isOk(await choose())).toBe(true);
+      const afterFirst = await revision();
+      expect(isOk(await choose())).toBe(true);
+      expect(await revision()).toBe(afterFirst);
+
+      const left = await recordPackageChoice(await manageProof(db, actor, missionId), {
+        missionId,
+        packRequirementId: item?.packRequirementId ?? '',
+        choice: 'LEAVE_MISSING',
+      });
+      expect(isOk(left)).toBe(true);
+      const after = await pkg(db, actor, missionId);
+      expect(after.phrase).toBe('NEEDS_ATTENTION');
+      expect(after.reasons).toEqual(['REQUIRED_GAP']);
       const handoff = await confirmPackageHandoff(await manageProof(db, actor, missionId), {
         missionId,
         outsideStepsSeen: true,

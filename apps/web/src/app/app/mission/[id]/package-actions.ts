@@ -9,6 +9,7 @@ import {
   requireAccess,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { unstable_rethrow } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
@@ -66,6 +67,8 @@ async function withCaseProof<T extends ActionState>(
     if (outcome.ok) revalidatePath(`/app/mission/${missionId}`);
     return outcome;
   } catch (error) {
+    // Signing in again (a redirect) goes ahead; anything else is a failed try they can repeat.
+    unstable_rethrow(error);
     reportServerError('packageAction', error);
     return { ok: false, message: 'Something went wrong. Try again.' };
   }

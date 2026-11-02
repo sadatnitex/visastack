@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useId, useRef } from 'react';
+import { useActionState, useEffect, useId, useRef, useState } from 'react';
 import {
   FormMessage,
   type FormResult,
@@ -52,6 +52,9 @@ export function PackageItemChoiceForm({
   const id = useId();
   const messageId = `${id}-msg`;
   const reasonHint = `${id}-reason-hint`;
+  // Controlled, so the list shows what is saved (the page's `current`), never a stale default.
+  const [value, setValue] = useState(current);
+  useEffect(() => setValue(current), [current]);
   return (
     <form ref={form} action={formAction} className="package-choice-form">
       <input type="hidden" name="missionId" value={missionId} />
@@ -63,7 +66,8 @@ export function PackageItemChoiceForm({
         id={`${id}-choice`}
         name="choice"
         className="input"
-        defaultValue={current}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
         {...fieldProblem(state, 'choice', messageId)}
       >
         {options.map((option) => (

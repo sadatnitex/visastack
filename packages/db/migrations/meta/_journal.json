@@ -820,13 +820,6 @@
       "when": 1793642756115,
       "tag": "0118_umpe_document_understanding",
       "breakpoints": true
-    },
-    {
-      "idx": 117,
-      "version": "7",
-      "when": 1793650549899,
-      "tag": "0119_umpe_trip_package",
-      "breakpoints": true
     }
   ]
 }

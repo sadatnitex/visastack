@@ -48,12 +48,13 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import { AuthorizedApplicant, type SystemScope } from './access';
+import { AuthorizedApplicant, SystemScope } from './access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { incrementMaterialRevision } from './material-revision';
 import {
   type EvidenceCandidateEntry,
@@ -67,6 +68,7 @@ import {
 } from './missions';
 import { type PackRequirement, listRequirements } from './packs';
 import { CASE_TRAVEL_END_KEY, CASE_TRAVEL_START_KEY } from './rule-conditions';
+import { canonicalJson } from './umpe-collection-request-items';
 import {
   type AttentionReason,
   type OutsideStep,
@@ -74,6 +76,7 @@ import {
   type PackageChangeKind,
   type PackageChangeSignal,
   type PackagePhrase,
+  type PhraseInput,
   derivePackagePhrase,
   outsideSteps,
   pickPackageChange,
@@ -329,6 +332,8 @@ async function olderVersionsUsable(
         and(
           inArray(schema.documentVersions.id, [...documentVersionIds]),
           eq(schema.documents.applicantId, applicantId),
+          // A document in Recently Deleted or being removed is never a usable pin.
+          (await lifecycleTablesPresent(tx)) ? presentDocumentCondition() : undefined,
         ),
       );
     const erased = await activeOrVerifiedErasureStorageObjectIds(
@@ -536,6 +541,8 @@ async function checkFreshness(
 
 interface BuiltPackage {
   readonly pkg: CasePackage;
+  /** What the phrase was read from, so a change recorded afterwards is reflected cheaply. */
+  readonly phraseInput: PhraseInput;
   readonly signals: readonly PackageChangeSignal[];
   readonly choices: readonly ChoiceRow[];
   readonly latestHandoff: HandoffRow | null;
@@ -633,15 +640,19 @@ async function buildPackage(
   const active = isActive(mission);
 
   if (!mission.packVersionId) {
-    const phrase = derivePackagePhrase({
+    const phraseInput: PhraseInput = {
       overallState: null,
+      requiredLeftMissing: false,
       pinnedCopyUnusable: false,
+      pinnedCopyReplaced: false,
       packWithdrawn: false,
       packReplaced: false,
       openChange: openChange !== null,
       handoffCurrent: false,
-    });
+    };
+    const phrase = derivePackagePhrase(phraseInput);
     return ok({
+      phraseInput,
       pkg: {
         missionId: mission.id,
         ...phrase,
@@ -700,6 +711,8 @@ async function buildPackage(
 
   const signals: PackageChangeSignal[] = [];
   let pinnedCopyUnusable = false;
+  let pinnedCopyReplaced = false;
+  let requiredLeftMissing = false;
   const items: PackageItem[] = requirements.map((req) => {
     const result = results.get(req.id);
     const entry = candidatesById.get(req.id);
@@ -762,6 +775,10 @@ async function buildPackage(
             conflicting: false,
           };
           if (sameRecord?.usable) {
+            // The record has a newer version than the one chosen. The case's snapshot always
+            // captures the current version, so the traveller decides again before a handoff:
+            // the two must never disagree about which copy is handed over.
+            if (state !== 'NOT_APPLICABLE') pinnedCopyReplaced = true;
             newerCopy = sameRecord;
             signals.push({
               kind: req.kind === 'DOCUMENT' ? 'NEWER_DOCUMENT' : 'FACT_CHANGED',
@@ -798,6 +815,7 @@ async function buildPackage(
           });
         }
       }
+      if (choiceRow.choice === 'LEAVE_MISSING' && blocking) requiredLeftMissing = true;
       chosen = {
         choice: choiceRow.choice as PackageChoiceKind,
         copy,
@@ -857,16 +875,20 @@ async function buildPackage(
       .map((r) => r.packRequirementId),
   );
   const questions = await questionsFor(tx, mission, requirements, unverified);
-  const phrase = derivePackagePhrase({
+  const phraseInput: PhraseInput = {
     overallState: readiness.value.overallState,
+    requiredLeftMissing,
     pinnedCopyUnusable,
+    pinnedCopyReplaced,
     packWithdrawn: freshness?.packWithdrawn ?? false,
     packReplaced: freshness?.packReplaced ?? false,
     openChange: openChange !== null,
     handoffCurrent: handoffIsCurrent(latestHandoff, mission),
-  });
+  };
+  const phrase = derivePackagePhrase(phraseInput);
 
   return ok({
+    phraseInput,
     pkg: {
       missionId: mission.id,
       ...phrase,
@@ -950,8 +972,41 @@ async function recordChange(
     return true;
   }
   if (open?.signature === change.signature) return false;
-  if (!open && latest?.signature === change.signature && latest.resolution === 'REVIEWED') {
-    return false;
+  // A situation the person already reviewed stays quiet, whatever came and went in between.
+  const reviewed = first(
+    await tx
+      .select({ id: schema.umpePackageChanges.id })
+      .from(schema.umpePackageChanges)
+      .where(
+        and(
+          eq(schema.umpePackageChanges.missionId, mission.id),
+          eq(schema.umpePackageChanges.signature, change.signature),
+          eq(schema.umpePackageChanges.resolution, 'REVIEWED'),
+        ),
+      )
+      .limit(1),
+  );
+  if (reviewed) {
+    if (!open) return false;
+    // The open item is about something that no longer applies.
+    await tx
+      .update(schema.umpePackageChanges)
+      .set({ resolvedAt: now, resolution: 'NO_LONGER_APPLIES', lastSeenAt: now })
+      .where(
+        and(
+          eq(schema.umpePackageChanges.id, open.id),
+          eq(schema.umpePackageChanges.missionId, mission.id),
+        ),
+      );
+    await auditChange(
+      tx,
+      mission,
+      'UMPE_PACKAGE_CHANGE_CLEARED',
+      open.kind,
+      actorAccountId,
+      source,
+    );
+    return true;
   }
   const detail = {
     signals: change.signals.map((s) => ({
@@ -1047,16 +1102,20 @@ export async function getCasePackage(
   const built = await buildPackage(proof.tx, mission, proof.applicant.ownerAccountId, now);
   if (!built.ok) return built;
   if (!built.value.pkg.available || !built.value.pkg.active) return ok(built.value.pkg);
-  const wrote = await recordChange(
-    proof.tx,
-    mission,
-    pickPackageChange(built.value.signals),
-    'CASE_OPENED',
-    proof.applicant.ownerAccountId,
-  );
-  if (!wrote) return ok(built.value.pkg);
-  const again = await buildPackage(proof.tx, mission, proof.applicant.ownerAccountId, now);
-  return again.ok ? ok(again.value.pkg) : again;
+  // The change row and its audit record are written in one transaction, under the audit lock.
+  const open = await proof.tx.transaction(async (tx) => {
+    const wrote = await recordChange(
+      tx,
+      mission,
+      pickPackageChange(built.value.signals),
+      'CASE_OPENED',
+      proof.applicant.ownerAccountId,
+    );
+    return wrote ? { row: await loadOpenChange(tx, mission.id, true) } : null;
+  });
+  if (!open) return ok(built.value.pkg);
+  const phrase = derivePackagePhrase({ ...built.value.phraseInput, openChange: open.row !== null });
+  return ok({ ...built.value.pkg, ...phrase, change: open.row ? changeView(open.row) : null });
 }
 
 export type PackageChoiceInput =
@@ -1177,6 +1236,31 @@ export async function recordPackageChoice(
           factId: fact?.factId ?? null,
           factVersionId: fact?.factVersionId ?? null,
         };
+  }
+
+  // Saving the same choice again changes nothing: no new row, no new revision, and a confirmed
+  // handoff or a live acknowledgement stays as it is.
+  const live = first(
+    await tx
+      .select()
+      .from(schema.umpePackageChoices)
+      .where(
+        and(
+          eq(schema.umpePackageChoices.missionId, mission.id),
+          eq(schema.umpePackageChoices.packRequirementId, requirement.id),
+          isNull(schema.umpePackageChoices.supersededAt),
+        ),
+      )
+      .limit(1),
+  );
+  if (
+    live &&
+    live.choice === input.choice &&
+    live.documentVersionId === pin.documentVersionId &&
+    live.factVersionId === pin.factVersionId &&
+    (live.reason ?? '') === reason
+  ) {
+    return ok({ choiceId: live.id });
   }
 
   return tx.transaction(async (inner) => {
@@ -1304,18 +1388,11 @@ export interface PackageHandoffContent {
   readonly confirmedAt: string;
 }
 
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
-  const object = value as Record<string, unknown>;
-  return `{${Object.keys(object)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${stableStringify(object[key])}`)
-    .join(',')}}`;
-}
+/** Raised inside the handoff transaction so the snapshot it just took is rolled back too. */
+class HandoffMismatch extends Error {}
 
 export function handoffChecksum(content: PackageHandoffContent): string {
-  return createHash('sha256').update(stableStringify(content)).digest('hex');
+  return createHash('sha256').update(canonicalJson(content)).digest('hex');
 }
 
 /**
@@ -1379,94 +1456,124 @@ export async function confirmPackageHandoff(
     'pack version',
   );
 
-  return tx.transaction(async (inner) => {
-    const snapshot = await snapshotMission(inner, {
-      actorAccountId: ownerAccountId,
-      missionId: mission.id,
+  try {
+    return await tx.transaction(async (inner) => {
+      const snapshot = await snapshotMission(inner, {
+        actorAccountId: ownerAccountId,
+        missionId: mission.id,
+      });
+      if (!snapshot.ok) return snapshot;
+      const caveats = new Set<string>(pkg.freshness?.caveats ?? []);
+      for (const item of pkg.items) {
+        if (item.state === 'NOT_APPLICABLE') continue;
+        const copy = item.chosen ? item.chosen.copy : item.proposed;
+        if (item.chosen?.choice === 'EXCLUDE') caveats.add('OPTIONAL_LEFT_OUT');
+        else if (!copy && !item.blocking) caveats.add('OPTIONAL_MISSING');
+        else if (copy && !copy.usable && !item.blocking) caveats.add('OPTIONAL_COPY_UNUSABLE');
+        if (item.newerCopy) caveats.add('NEWER_COPY_AVAILABLE');
+      }
+      const content: PackageHandoffContent = {
+        formatVersion: PACKAGE_HANDOFF_FORMAT,
+        missionId: mission.id,
+        missionSnapshotId: snapshot.value.id,
+        missionSnapshotChecksum: snapshot.value.checksum,
+        packVersionId,
+        packChecksum: version.checksum,
+        manifestFormat: version.manifestFormat ?? 1,
+        materialRevision: mission.materialRevision,
+        selections: pkg.items.map((item) => {
+          const copy =
+            item.chosen?.choice === 'USE_COPY'
+              ? item.chosen.copy
+              : item.chosen
+                ? null
+                : item.proposed;
+          return {
+            packRequirementId: item.packRequirementId,
+            kind: item.kind,
+            key: item.key,
+            necessity: item.necessity,
+            state: item.state,
+            choice: item.chosen ? item.chosen.choice : copy ? 'PROPOSED' : 'NONE',
+            documentId: copy?.documentId ?? null,
+            documentVersionId: copy?.documentVersionId ?? null,
+            factId: copy?.factId ?? null,
+            factVersionId: copy?.factVersionId ?? null,
+            excludedReasonGiven: item.chosen?.choice === 'EXCLUDE' && !!item.chosen.reason,
+          };
+        }),
+        caveats: [...caveats].sort(),
+        freshness: pkg.freshness,
+        outsideSteps: pkg.outsideSteps.map((s) => s.kind),
+        confirmedAt: now.toISOString(),
+      };
+      // The frozen selections and the snapshot must name the same copies, or nothing is frozen.
+      const captured = snapshot.value.content as {
+        readonly documents?: readonly { readonly documentVersionId?: string }[];
+        readonly facts?: readonly { readonly factVersionId?: string | null }[];
+      };
+      const capturedVersions = new Set([
+        ...(captured.documents ?? []).map((d) => d.documentVersionId),
+        ...(captured.facts ?? []).map((f) => f.factVersionId),
+      ]);
+      const disagrees = content.selections.some(
+        (sel) =>
+          (sel.documentVersionId !== null && !capturedVersions.has(sel.documentVersionId)) ||
+          (sel.factVersionId !== null && !capturedVersions.has(sel.factVersionId)),
+      );
+      if (disagrees) {
+        throw new HandoffMismatch();
+      }
+      const checksum = handoffChecksum(content);
+      const row = required(
+        first(
+          await inner
+            .insert(schema.umpePackageHandoffs)
+            .values({
+              missionId: mission.id,
+              applicantId: mission.applicantId,
+              missionSnapshotId: snapshot.value.id,
+              packVersionId,
+              packChecksum: version.checksum,
+              manifestFormat: version.manifestFormat ?? 1,
+              materialRevisionAtCapture: mission.materialRevision,
+              content,
+              contentChecksum: checksum,
+              confirmedByAccountId: ownerAccountId,
+              confirmedAt: now,
+            })
+            .returning({ id: schema.umpePackageHandoffs.id }),
+        ),
+        'package handoff',
+      );
+      await appendAuditEvent(inner, {
+        eventType: 'UMPE_PACKAGE_HANDOFF_CONFIRMED',
+        actorAccountId: ownerAccountId,
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        applicantId: mission.applicantId,
+        missionId: mission.id,
+        resourceType: 'umpe_package_handoff',
+        resourceId: row.id,
+        metadata: {
+          selections: content.selections.length,
+          caveats: content.caveats.length,
+          checksum,
+        },
+      });
+      return ok({ handoffId: row.id, content });
     });
-    if (!snapshot.ok) return snapshot;
-    const caveats = new Set<string>(pkg.freshness?.caveats ?? []);
-    for (const item of pkg.items) {
-      if (item.state === 'NOT_APPLICABLE') continue;
-      const copy = item.chosen ? item.chosen.copy : item.proposed;
-      if (item.chosen?.choice === 'EXCLUDE') caveats.add('OPTIONAL_LEFT_OUT');
-      else if (!copy && !item.blocking) caveats.add('OPTIONAL_MISSING');
-      if (item.newerCopy) caveats.add('NEWER_COPY_AVAILABLE');
+  } catch (error) {
+    if (error instanceof HandoffMismatch) {
+      return err(
+        serviceError(
+          'stale',
+          'Something changed while preparing the handoff. Review the package and try again.',
+        ),
+      );
     }
-    const content: PackageHandoffContent = {
-      formatVersion: PACKAGE_HANDOFF_FORMAT,
-      missionId: mission.id,
-      missionSnapshotId: snapshot.value.id,
-      missionSnapshotChecksum: snapshot.value.checksum,
-      packVersionId,
-      packChecksum: version.checksum,
-      manifestFormat: version.manifestFormat ?? 1,
-      materialRevision: mission.materialRevision,
-      selections: pkg.items.map((item) => {
-        const copy =
-          item.chosen?.choice === 'USE_COPY'
-            ? item.chosen.copy
-            : item.chosen
-              ? null
-              : item.proposed;
-        return {
-          packRequirementId: item.packRequirementId,
-          kind: item.kind,
-          key: item.key,
-          necessity: item.necessity,
-          state: item.state,
-          choice: item.chosen ? item.chosen.choice : copy ? 'PROPOSED' : 'NONE',
-          documentId: copy?.documentId ?? null,
-          documentVersionId: copy?.documentVersionId ?? null,
-          factId: copy?.factId ?? null,
-          factVersionId: copy?.factVersionId ?? null,
-          excludedReasonGiven: item.chosen?.choice === 'EXCLUDE' && !!item.chosen.reason,
-        };
-      }),
-      caveats: [...caveats].sort(),
-      freshness: pkg.freshness,
-      outsideSteps: pkg.outsideSteps.map((s) => s.kind),
-      confirmedAt: now.toISOString(),
-    };
-    const checksum = handoffChecksum(content);
-    const row = required(
-      first(
-        await inner
-          .insert(schema.umpePackageHandoffs)
-          .values({
-            missionId: mission.id,
-            applicantId: mission.applicantId,
-            missionSnapshotId: snapshot.value.id,
-            packVersionId,
-            packChecksum: version.checksum,
-            manifestFormat: version.manifestFormat ?? 1,
-            materialRevisionAtCapture: mission.materialRevision,
-            content,
-            contentChecksum: checksum,
-            confirmedByAccountId: ownerAccountId,
-            confirmedAt: now,
-          })
-          .returning({ id: schema.umpePackageHandoffs.id }),
-      ),
-      'package handoff',
-    );
-    await appendAuditEvent(inner, {
-      eventType: 'UMPE_PACKAGE_HANDOFF_CONFIRMED',
-      actorAccountId: ownerAccountId,
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      applicantId: mission.applicantId,
-      missionId: mission.id,
-      resourceType: 'umpe_package_handoff',
-      resourceId: row.id,
-      metadata: {
-        selections: content.selections.length,
-        caveats: content.caveats.length,
-        checksum,
-      },
-    });
-    return ok({ handoffId: row.id, content });
-  });
+    throw error;
+  }
 }
 
 /** The case's confirmed handoffs, newest first (at most 20), each with whether it still matches. */
@@ -1510,30 +1617,32 @@ export async function markPackageChangeReviewed(
   if (!(await packageTablesPresent(proof.tx))) return ok({ reviewed: false });
   const mission = await freshMission(proof.tx, proof.applicant.id, missionId);
   if (!mission) return err(serviceError('not_found', NOT_AVAILABLE));
-  const now = new Date();
-  const rows = await proof.tx
-    .update(schema.umpePackageChanges)
-    .set({ resolvedAt: now, resolution: 'REVIEWED', lastSeenAt: now })
-    .where(
-      and(
-        eq(schema.umpePackageChanges.missionId, mission.id),
-        eq(schema.umpePackageChanges.applicantId, proof.applicant.id),
-        isNull(schema.umpePackageChanges.resolvedAt),
-      ),
-    )
-    .returning({ kind: schema.umpePackageChanges.kind });
-  const reviewed = rows[0];
-  if (reviewed) {
-    await auditChange(
-      proof.tx,
-      mission,
-      'UMPE_PACKAGE_CHANGE_REVIEWED',
-      reviewed.kind,
-      proof.applicant.ownerAccountId,
-      'CASE_OPENED',
-    );
-  }
-  return ok({ reviewed: reviewed !== undefined });
+  return proof.tx.transaction(async (tx) => {
+    const now = new Date();
+    const rows = await tx
+      .update(schema.umpePackageChanges)
+      .set({ resolvedAt: now, resolution: 'REVIEWED', lastSeenAt: now })
+      .where(
+        and(
+          eq(schema.umpePackageChanges.missionId, mission.id),
+          eq(schema.umpePackageChanges.applicantId, proof.applicant.id),
+          isNull(schema.umpePackageChanges.resolvedAt),
+        ),
+      )
+      .returning({ kind: schema.umpePackageChanges.kind });
+    const reviewed = rows[0];
+    if (reviewed) {
+      await auditChange(
+        tx,
+        mission,
+        'UMPE_PACKAGE_CHANGE_REVIEWED',
+        reviewed.kind,
+        proof.applicant.ownerAccountId,
+        'CASE_OPENED',
+      );
+    }
+    return ok({ reviewed: reviewed !== undefined });
+  });
 }
 
 export const PACKAGE_SWEEP_DEFAULT_LIMIT = 50;
@@ -1551,7 +1660,9 @@ export async function sweepPackageChanges(
   db: Db,
   options: { readonly after?: string | null; readonly limit?: number; readonly now?: Date } = {},
 ): Promise<{ readonly checked: number; readonly recorded: number; readonly next: string | null }> {
-  if (scope.job !== 'process-notification-sweeps') return { checked: 0, recorded: 0, next: null };
+  if (!SystemScope.isGenuine(scope) || scope.job !== 'process-notification-sweeps') {
+    return { checked: 0, recorded: 0, next: null };
+  }
   if (!(await packageTablesPresent(db))) return { checked: 0, recorded: 0, next: null };
   const limit = Math.min(
     Math.max(1, Math.floor(options.limit ?? PACKAGE_SWEEP_DEFAULT_LIMIT)),

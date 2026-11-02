@@ -9,7 +9,9 @@ import {
   type PackageItem,
   type PackagePhrase,
 } from '@visastack/services';
+import Link from 'next/link';
 import { humanizeCode } from '../../../../lib/format-code';
+import { formatTimestampDate } from '../../../../lib/format-date';
 import { fieldLabel } from '../../../../lib/master-profile';
 import {
   PackageChangeReviewedForm,
@@ -38,6 +40,8 @@ const REASON_WORDS: Readonly<Record<PackageAttentionReason, string>> = {
   REQUIRED_GAP: 'A required item is missing, too old or has a conflict.',
   NEEDS_ANSWER: 'We need an answer from you before we know whether some items apply.',
   PINNED_COPY_UNUSABLE: 'A copy you chose can no longer be used. Choose another one.',
+  PINNED_COPY_REPLACED:
+    'A newer copy replaced one you chose. Choose which copy to use before you prepare the handoff.',
   CHECKLIST_WITHDRAWN: 'The checklist for this trip was withdrawn.',
   CHECKLIST_REPLACED: 'A newer checklist was published for this trip.',
   SOMETHING_CHANGED: 'Something changed since you last looked. Review it below.',
@@ -236,10 +240,14 @@ export function PackagePanel({ pkg }: { readonly pkg: CasePackage }) {
       {pkg.latestHandoff ? (
         <p className="muted u-fs-085">
           {pkg.latestHandoff.current
-            ? `Prepared for Handoff on ${pkg.latestHandoff.confirmedAt.slice(0, 10)}.`
-            : `Prepared for Handoff on ${pkg.latestHandoff.confirmedAt.slice(0, 10)}, before a later change. That record is kept as it was.`}
+            ? `Prepared for Handoff on ${formatTimestampDate(pkg.latestHandoff.confirmedAt)}.`
+            : `Prepared for Handoff on ${formatTimestampDate(pkg.latestHandoff.confirmedAt)}, before a later change. That record is kept as it was.`}
         </p>
       ) : null}
+      <p className="muted u-fs-085">
+        Travelling with others? <Link href="/app/mission/start">Start a Trip</Link> gives each
+        traveller their own case.
+      </p>
       {editable && pkg.phrase === 'READY_FOR_FINAL_REVIEW' ? (
         <PackageHandoffForm missionId={pkg.missionId} />
       ) : null}

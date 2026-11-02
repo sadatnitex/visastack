@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useId, useRef } from 'react';
+import { useActionState, useId, useRef, useState } from 'react';
 import {
   FormMessage,
   SubmitButton,
@@ -37,6 +37,19 @@ export function TripStartForm({
   useFocusInvalidField(form, state);
   const id = useId();
   const messageId = `${id}-msg`;
+  // Controlled, so a refused try (for example nobody ticked) keeps what was already chosen.
+  const [destination, setDestination] = useState('');
+  const [purpose, setPurpose] = useState('');
+  const [chosen, setChosen] = useState<ReadonlySet<string>>(
+    () => new Set(travellers.length === 1 && travellers[0] ? [travellers[0].applicantId] : []),
+  );
+  const toggle = (applicantId: string, on: boolean) =>
+    setChosen((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(applicantId);
+      else next.delete(applicantId);
+      return next;
+    });
   return (
     <form ref={form} action={formAction} className="trip-start-form">
       <label className="label" htmlFor={`${id}-destination`}>
@@ -46,7 +59,8 @@ export function TripStartForm({
         id={`${id}-destination`}
         name="destination"
         className="input"
-        defaultValue=""
+        value={destination}
+        onChange={(e) => setDestination(e.target.value)}
         {...fieldProblem(state, 'destination', messageId)}
       >
         <option value="" disabled>
@@ -65,7 +79,8 @@ export function TripStartForm({
         id={`${id}-purpose`}
         name="purpose"
         className="input"
-        defaultValue=""
+        value={purpose}
+        onChange={(e) => setPurpose(e.target.value)}
         {...fieldProblem(state, 'purpose', messageId)}
       >
         <option value="" disabled>
@@ -89,7 +104,8 @@ export function TripStartForm({
               type="checkbox"
               name="traveller"
               value={t.applicantId}
-              defaultChecked={travellers.length === 1}
+              checked={chosen.has(t.applicantId)}
+              onChange={(e) => toggle(t.applicantId, e.target.checked)}
               {...(index === 0 ? fieldProblem(state, 'traveller', messageId) : {})}
             />
             <span>{t.name}</span>
@@ -104,7 +120,7 @@ export function TripStartForm({
         <SubmitButton pending={pending} idle="Start Trip" busy="Starting…" />
         <FormMessage id={messageId} result={state} />
       </div>
-      {state.ok && state.cases && state.cases.length > 0 ? (
+      {state.cases && state.cases.length > 0 ? (
         <ul className="trip-start-cases">
           {state.cases.map((c) => (
             <li key={c.missionId}>

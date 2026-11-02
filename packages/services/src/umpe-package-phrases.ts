@@ -33,6 +33,7 @@ export type AttentionReason =
   | 'REQUIRED_GAP'
   | 'NEEDS_ANSWER'
   | 'PINNED_COPY_UNUSABLE'
+  | 'PINNED_COPY_REPLACED'
   | 'CHECKLIST_WITHDRAWN'
   | 'CHECKLIST_REPLACED'
   | 'SOMETHING_CHANGED';
@@ -40,8 +41,12 @@ export type AttentionReason =
 export interface PhraseInput {
   /** Null when the case has no checklist yet. */
   readonly overallState: OverallReadinessState | null;
+  /** The traveller chose Leave Missing on an item that can hold the case back. */
+  readonly requiredLeftMissing: boolean;
   /** A blocking requirement's chosen copy can no longer be used (unsafe, removed or expired). */
   readonly pinnedCopyUnusable: boolean;
+  /** A chosen copy has since been replaced by a newer version of the same record. */
+  readonly pinnedCopyReplaced: boolean;
   /** The pack version is withdrawn, or a newer one replaced it (freshness check). */
   readonly packWithdrawn: boolean;
   readonly packReplaced: boolean;
@@ -58,7 +63,8 @@ export interface PhraseResult {
 
 /**
  * The plain phrase for a case. Prepared for Handoff only while the traveller's own confirmation
- * still matches the case; Ready for Final Review only when the existing readiness says every
+ * still matches the case and nothing needs attention (time alone can make a chosen copy too old
+ * without any edit to the case); Ready for Final Review only when the existing readiness says every
  * required item is covered and nothing material is open. Everything else is Needs Attention,
  * with its reasons: an unknown condition (Unverified) is never read as ready, and a recommended
  * or optional gap never holds a case back (readiness already leaves those out).
@@ -69,16 +75,16 @@ export function derivePackagePhrase(input: PhraseInput): PhraseResult {
   else if (input.overallState === 'MANUAL_ONLY') reasons.push('MANUAL_CHECK');
   else if (input.overallState === 'NEEDS_ACTION') reasons.push('REQUIRED_GAP');
   else if (input.overallState === 'NEEDS_REVIEW') reasons.push('NEEDS_ANSWER');
+  if (input.requiredLeftMissing && !reasons.includes('REQUIRED_GAP')) reasons.push('REQUIRED_GAP');
   if (input.pinnedCopyUnusable) reasons.push('PINNED_COPY_UNUSABLE');
+  if (input.pinnedCopyReplaced) reasons.push('PINNED_COPY_REPLACED');
   if (input.packWithdrawn) reasons.push('CHECKLIST_WITHDRAWN');
   else if (input.packReplaced) reasons.push('CHECKLIST_REPLACED');
   if (input.openChange) reasons.push('SOMETHING_CHANGED');
-  if (input.handoffCurrent && !input.packWithdrawn) {
-    return { phrase: 'PREPARED_FOR_HANDOFF', reasons };
-  }
-  return reasons.length === 0
-    ? { phrase: 'READY_FOR_FINAL_REVIEW', reasons }
-    : { phrase: 'NEEDS_ATTENTION', reasons };
+  if (reasons.length > 0) return { phrase: 'NEEDS_ATTENTION', reasons };
+  return input.handoffCurrent
+    ? { phrase: 'PREPARED_FOR_HANDOFF', reasons }
+    : { phrase: 'READY_FOR_FINAL_REVIEW', reasons };
 }
 
 // --- Steps outside VisaStack (R23) ------------------------------------------------------------

@@ -8,7 +8,7 @@ import {
   requireAccess,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
 import { checklistToLink } from '../../../../lib/case-checklist-match';
 import {
@@ -104,7 +104,7 @@ export async function startTripAction(
           { purpose: 'owner_trip_start' },
         );
         if (!proof.ok) {
-          return { ok: false, message: 'One of these travellers is not available to you.' };
+          return { ok: false, message: 'One of these travellers is not available to you.', cases };
         }
         const opened = await openOrStartTripCase(proof.value, {
           destination: country.name,
@@ -117,6 +117,7 @@ export async function startTripAction(
               opened.error.code === 'consent_required'
                 ? 'Turn on Let VisaStack Process My Details on Home, then start the trip.'
                 : opened.error.message,
+            cases,
           };
         }
         if (!opened.value.existing) {
@@ -131,6 +132,7 @@ export async function startTripAction(
       return { ok: true, message: '', cases };
     });
   } catch (error) {
+    unstable_rethrow(error);
     reportServerError('startTripAction', error);
     return { ok: false, message: 'Something went wrong. Try again.' };
   }
