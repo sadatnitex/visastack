@@ -104,6 +104,26 @@ const SELF_SAFE_CALLS: ReadonlySet<string> = new Set([
   // person's own account (Stop Renewing); reads nothing back. Its test: person-renewals.test.ts.
   'notifications#cancelOwnQueuedNotifications',
 ]);
+
+/**
+ * UMPE P6 (ADR 0026 D4): the agency document request gates. A function taking one of them also
+ * passes the applicant ratchet, but only when it reaches applicant-owned tables through these calls
+ * alone: an audit record is written, a sealed request email is queued for an address the agency
+ * typed, or queued notices about one of the request's own links (fresh ids) are cancelled. Nothing
+ * of anyone's record is read.
+ */
+const COLLECTION_GATE_TYPES = ['AgencyCollectionScope', 'CollectionLinkProof'] as const;
+const COLLECTION_SAFE_CALLS: ReadonlySet<string> = new Set([
+  'audit#appendAuditEvent',
+  'invitation-email#queueInvitationEmail',
+  'notifications#cancelQueuedNotificationsForResource',
+]);
+/** The agency document request tables (packages/db/src/schema.ts), judged by their own ratchet. */
+const COLLECTION_TABLES = [
+  'agencyCollectionLinks',
+  'agencyCollectionRequestRevisions',
+  'agencyCollectionRequests',
+] as const;
 /**
  * Exported person billing functions that take no gate, each with why. Fixed, not a baseline: a new
  * function cannot be added here without a reason a reviewer reads, and an entry that no longer
@@ -274,7 +294,7 @@ function gateDeclarations(
 ): Set<ts.Node> {
   const decls = new Set<ts.Node>();
   const found = new Set<string>();
-  for (const file of ['principal.ts', 'require-access.ts']) {
+  for (const file of ['principal.ts', 'require-access.ts', 'collection-scope.ts']) {
     const sf = sourceFileAt(program, path.join(accessDir, file));
     const moduleSymbol = checker.getSymbolAtLocation(sf);
     if (!moduleSymbol) throw new Error(`no module symbol for ${file}`);
@@ -656,6 +676,12 @@ function analyse(): Analysis {
         decls: gateDeclarations(program, checker, ['SelfScope']),
         safe: SELF_SAFE_CALLS,
       },
+      selfGates: [
+        {
+          decls: gateDeclarations(program, checker, COLLECTION_GATE_TYPES),
+          safe: COLLECTION_SAFE_CALLS,
+        },
+      ],
     }),
     ownedTableNames: tables.names,
     systemScopeUsers: systemScopeUsers(configFileNames),
@@ -677,6 +703,11 @@ function ratchet(
     readonly trusted?: ReadonlySet<string>;
     /** A gate that counts only when the tables are reached through `safe` calls alone. */
     readonly selfGate?: { readonly decls: Set<ts.Node>; readonly safe: ReadonlySet<string> };
+    /** More gates of the same kind as `selfGate`, each with its own safe calls (UMPE P6). */
+    readonly selfGates?: readonly {
+      readonly decls: Set<ts.Node>;
+      readonly safe: ReadonlySet<string>;
+    }[];
   } = {},
 ): { violations: Set<string>; exportedFunctionIds: Set<string> } {
   interface ExportedFn {
@@ -736,28 +767,30 @@ function ratchet(
     changed = false;
     for (const entry of exported) {
       if (violations.has(entry.id) || entry.inAccess || options.trusted?.has(entry.id)) continue;
-      const self = options.selfGate;
+      const selves = [
+        ...(options.selfGate ? [options.selfGate] : []),
+        ...(options.selfGates ?? []),
+      ];
       // A listed safe call that itself takes a SelfScope acts only on that person's own rows
       // (reviewed with its reason in SELF_SAFE_CALLS); one without a SelfScope is judged as usual.
       if (
-        self?.safe.has(entry.id) &&
-        !entry.shape.opaque &&
-        complies(checker, entry.shape.fns, self.decls)
+        selves.some(
+          (self) =>
+            self.safe.has(entry.id) &&
+            !entry.shape.opaque &&
+            complies(checker, entry.shape.fns, self.decls),
+        )
       ) {
         continue;
       }
       entry.scan.memo.clear();
       const touches = entry.shape.roots.some((root) => touchesOwnedTable(entry.scan, root));
       let gated = !entry.shape.opaque && complies(checker, entry.shape.fns, gateDecls);
-      if (
-        touches &&
-        !gated &&
-        self &&
-        !entry.shape.opaque &&
-        complies(checker, entry.shape.fns, self.decls)
-      ) {
-        // Gated by a SelfScope alone: allowed only if, leaving out the safe calls, it touches
-        // nothing (no table of its own, no other ungated function).
+      for (const self of selves) {
+        if (!touches || gated || entry.shape.opaque) break;
+        if (!complies(checker, entry.shape.fns, self.decls)) continue;
+        // Gated by a SelfScope (or an agency request gate) alone: allowed only if, leaving out its
+        // safe calls, it touches nothing (no table of its own, no other ungated function).
         const safeEntries = exported.filter((e) => self.safe.has(e.id));
         const safeDecls = new Set(safeEntries.flatMap((e) => e.decls));
         const safeNames = new Set(safeEntries.map((e) => e.name));
@@ -1056,6 +1089,161 @@ describe('functions taking a SelfScope (ADR 0025)', () => {
         'person-billing#startPersonCheckout',
         'payments#startPersonPayment',
         'person-billing#payablePersonInvoice',
+      ]),
+    );
+    expect(problems).toEqual([]);
+  }, 180_000);
+});
+
+/** The `pgTable` declarations of schema.ts with these exported names. */
+function namedTables(
+  sf: ts.SourceFile,
+  wanted: readonly string[],
+): { decls: Set<ts.Node>; names: Set<string> } {
+  const decls = new Set<ts.Node>();
+  const names = new Set<string>();
+  for (const statement of sf.statements) {
+    if (!ts.isVariableStatement(statement) || !hasExportModifier(statement)) continue;
+    for (const decl of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(decl.name) || !wanted.includes(decl.name.text) || !decl.initializer) {
+        continue;
+      }
+      const init = unwrapExpression(decl.initializer);
+      if (!ts.isCallExpression(init) || !ts.isIdentifier(init.expression)) continue;
+      if (init.expression.text !== 'pgTable') continue;
+      decls.add(decl);
+      names.add(decl.name.text);
+    }
+  }
+  return { decls, names };
+}
+
+/**
+ * Code files outside access/ and the services index that mention `collectionLinkProof`, other than
+ * the notification worker (it proves the link sealed in a queued email) and the public `/collect`
+ * route. Plain text on purpose, as for systemPrincipal. Tests are left out.
+ */
+function collectionLinkProofUsers(): string[] {
+  const indexFile = path.join(srcDir, 'index.ts');
+  const allowed = new Set([path.join(srcDir, 'notifications.ts')]);
+  const collectDir = path.join(webSrcDir, 'app', 'collect');
+  const users: string[] = [];
+  for (const file of codeFilesOfRepo().map(real)) {
+    if (file.startsWith(accessDir + path.sep) || file === indexFile || allowed.has(file)) continue;
+    if (file.startsWith(collectDir + path.sep)) continue;
+    if (/\.test\.(ts|tsx)$|\.test-support\.ts$|\.test-d\.ts$/.test(file)) continue;
+    if (/\bcollectionLinkProof\b/.test(readFileSync(file, 'utf8'))) {
+      users.push(path.relative(repoDir, file).replace(/\\/g, '/'));
+    }
+  }
+  return users.sort();
+}
+
+function isCall(call: ts.CallExpression, name: string): boolean {
+  return ts.isIdentifier(call.expression) && call.expression.text === name;
+}
+
+function isIsGenuine(call: ts.CallExpression, className: string): boolean {
+  const callee = call.expression;
+  return (
+    ts.isPropertyAccessExpression(callee) &&
+    callee.name.text === 'isGenuine' &&
+    ts.isIdentifier(callee.expression) &&
+    callee.expression.text === className
+  );
+}
+
+describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
+  it('every exported function touching a request table takes an AgencyCollectionScope or a CollectionLinkProof, with no exceptions', () => {
+    const { program } = programOnce();
+    const checker = program.getTypeChecker();
+    const tables = namedTables(sourceFileAt(program, schemaFile), COLLECTION_TABLES);
+    // Guard the analysis itself: the three declarations are found, and none is applicant-owned
+    // (the tables hold no person column; this ratchet is what guards them).
+    expect([...tables.names].sort()).toEqual([...COLLECTION_TABLES]);
+    const owned = ownedTables(sourceFileAt(program, schemaFile));
+    for (const name of COLLECTION_TABLES) expect(owned.names.has(name)).toBe(false);
+
+    const { violations, exportedFunctionIds } = ratchet(
+      program,
+      checker,
+      tables,
+      gateDeclarations(program, checker, COLLECTION_GATE_TYPES),
+    );
+    // Guard: the services are found and judged.
+    for (const id of [
+      'umpe-collection-request-service#listCollectionRequests',
+      'umpe-collection-request-service#openCollectionLink',
+      'umpe-collection-request-service#collectionLinkStillOpen',
+    ]) {
+      expect(exportedFunctionIds.has(id), `${id} exists`).toBe(true);
+    }
+    expect(
+      [...violations].sort(),
+      'These exported functions touch agency document request tables without an AgencyCollectionScope or CollectionLinkProof parameter',
+    ).toEqual([]);
+    expect(
+      collectionLinkProofUsers(),
+      'only the /collect route and the notification worker may make a CollectionLinkProof',
+    ).toEqual([]);
+    for (const id of COLLECTION_SAFE_CALLS) {
+      expect(exportedFunctionIds.has(id), `${id} is listed but no longer exists`).toBe(true);
+    }
+  }, 180_000);
+
+  it('every function taking an agency request gate checks it at run time first', () => {
+    const { program } = programOnce();
+    const checker = program.getTypeChecker();
+    const gates = [
+      {
+        decls: gateDeclarations(program, checker, ['AgencyCollectionScope']),
+        check: (call: ts.CallExpression) => isCall(call, 'agencyCollectionScopeProblem'),
+      },
+      {
+        decls: gateDeclarations(program, checker, ['CollectionLinkProof']),
+        check: (call: ts.CallExpression) => isIsGenuine(call, 'CollectionLinkProof'),
+      },
+    ];
+    const found: string[] = [];
+    const problems: string[] = [];
+    for (const sf of program.getSourceFiles()) {
+      const fileName = real(sf.fileName);
+      if (sf.isDeclarationFile || !fileName.startsWith(srcDir + path.sep) || isTestFile(fileName)) {
+        continue;
+      }
+      if (fileName.startsWith(accessDir + path.sep)) continue;
+      for (const [name, shape] of exportedFunctions(checker, sf)) {
+        for (const fn of shape.fns) {
+          const id = `${moduleId(fileName)}#${name}`;
+          for (const gate of gates) {
+            const params = fn.parameters.filter((p) =>
+              isGateType(checker.getTypeAtLocation(p), gate.decls),
+            );
+            if (params.length === 0) continue;
+            found.push(id);
+            // A real call on the gate parameter itself (not text in a comment).
+            const names = new Set(params.map((p) => p.name.getText()));
+            let checks = false;
+            const visit = (node: ts.Node) => {
+              if (
+                ts.isCallExpression(node) &&
+                gate.check(node) &&
+                node.arguments.some((a) => ts.isIdentifier(a) && names.has(a.text))
+              ) {
+                checks = true;
+              }
+              ts.forEachChild(node, visit);
+            };
+            if (fn.body) visit(fn.body);
+            if (!checks) problems.push(`${id} does not check its gate at run time`);
+          }
+        }
+      }
+    }
+    expect(found).toEqual(
+      expect.arrayContaining([
+        'umpe-collection-request-service#issueCollectionRequest',
+        'umpe-collection-request-service#openCollectionLink',
       ]),
     );
     expect(problems).toEqual([]);

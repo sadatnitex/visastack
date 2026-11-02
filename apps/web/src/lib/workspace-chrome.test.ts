@@ -6,12 +6,14 @@ const mocks = vi.hoisted(() => ({
   holdsPlatformRole: vi.fn(),
   isPlatformOwnerAccount: vi.fn(),
   hasPlatformPermission: vi.fn(),
+  agencyCollectionRequestsEnabled: vi.fn(() => false),
 }));
 vi.mock('server-only', () => ({}));
 vi.mock('@visastack/services', () => ({
   listApplicants: mocks.listApplicants,
   listMembershipsForAccount: mocks.listMembershipsForAccount,
   loadWorkspaceToolbarState: mocks.loadWorkspaceToolbarState,
+  agencyCollectionRequestsEnabled: mocks.agencyCollectionRequestsEnabled,
 }));
 vi.mock('./admin', () => ({
   holdsPlatformRole: mocks.holdsPlatformRole,
@@ -45,6 +47,19 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
     expect(data.accountName).toBe('Synthetic Self');
     expect(data.platform).toBeNull();
     expect(mocks.hasPlatformPermission).not.toHaveBeenCalled();
+  });
+
+  it('marks Document Requests for owners and admins only while the switch is on (UMPE P6)', async () => {
+    mocks.listMembershipsForAccount.mockResolvedValue([
+      { organization: { id: 'own', name: 'Own Agency' }, active: true, role: 'OWNER' },
+      { organization: { id: 'work', name: 'Work Agency' }, active: true, role: 'CASE_MANAGER' },
+    ]);
+    mocks.agencyCollectionRequestsEnabled.mockReturnValueOnce(true);
+    const data = await loadWorkspaceChrome({} as never, actor);
+    expect(data.agencies).toEqual([
+      { id: 'own', name: 'Own Agency', admin: true, collectionRequests: true },
+      { id: 'work', name: 'Work Agency', admin: false },
+    ]);
   });
   it('uses the signed-in account name before any traveller record without changing permissions', async () => {
     const namedActor = { ...actor, displayName: 'Synthetic Noor Agency Owner' };

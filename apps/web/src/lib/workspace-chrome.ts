@@ -2,6 +2,7 @@ import 'server-only';
 import {
   type Db,
   type WorkspaceToolbarState,
+  agencyCollectionRequestsEnabled,
   listMembershipsForAccount,
   loadWorkspaceToolbarState,
 } from '@visastack/services';
@@ -59,6 +60,11 @@ export async function loadWorkspaceChrome(
         id: membership.organization.id,
         name: membership.organization.name,
         admin: membership.role === 'OWNER' || membership.role === 'ADMIN',
+        // UMPE P6: shown only to owners and admins, and only while the switch is on.
+        ...((membership.role === 'OWNER' || membership.role === 'ADMIN') &&
+        agencyCollectionRequestsEnabled()
+          ? { collectionRequests: true }
+          : {}),
       })),
     platform: permissions
       ? {

@@ -1,0 +1,230 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  navigationState,
+  renderServer,
+  stubProps,
+  textOf,
+} from '../../../../../lib/next-mocks.test-support';
+
+/** Document Requests pages (UMPE P6). Synthetic values only; the services are stand-ins here. */
+
+const mocks = vi.hoisted(() => ({
+  principal: vi.fn(),
+  list: vi.fn(),
+  get: vi.fn(),
+  choices: vi.fn(),
+}));
+
+vi.mock('../../../../../lib/session', () => ({
+  withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
+    fn({ db: {}, accountId: 'acct-1', email: 'admin@example.test' }),
+}));
+vi.mock('@visastack/services', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@visastack/services')>()),
+  agencyCollectionPrincipal: mocks.principal,
+  listCollectionRequests: mocks.list,
+  getCollectionRequest: mocks.get,
+  listCollectionPackChoices: mocks.choices,
+}));
+vi.mock('./collection-forms', async () => {
+  const { stub } = await import('../../../../../lib/next-mocks.test-support');
+  return {
+    NewRequestForm: stub('NewRequestForm'),
+    AddItemForm: stub('AddItemForm'),
+    ItemEditForm: stub('ItemEditForm'),
+    PackChoiceForm: stub('PackChoiceForm'),
+    IssueRequestForm: stub('IssueRequestForm'),
+    NewLinkForm: stub('NewLinkForm'),
+    EmailLinkForm: stub('EmailLinkForm'),
+    EndRequestForm: stub('EndRequestForm'),
+  };
+});
+
+const { default: ListPage } = await import('./page');
+const { default: NewPage } = await import('./new/page');
+const { default: DetailPage } = await import('./request/page');
+
+const ORG = '20000000-0000-4000-8000-000000000001';
+const REQ = '30000000-0000-4000-8000-000000000001';
+const props = { params: Promise.resolve({ orgId: ORG }) };
+const detailProps = {
+  params: Promise.resolve({ orgId: ORG }),
+  searchParams: Promise.resolve({ id: REQ }),
+};
+
+const official = {
+  id: 'r1',
+  label: 'Passport',
+  kind: 'DOCUMENT',
+  fieldKey: null,
+  docType: 'passport',
+  necessity: 'MANDATORY',
+  provenance: 'OFFICIAL',
+  groupKey: null,
+  note: null,
+  order: 0,
+  source: 'r1',
+  citation: 'Synthetic rule 1',
+};
+const agencyItem = {
+  ...official,
+  id: 'a1',
+  label: 'Employer Letter',
+  docType: null,
+  necessity: 'RECOMMENDED',
+  provenance: 'AGENCY_ADDED',
+  source: 'agency',
+  citation: null,
+  order: 1,
+};
+
+function detail(overrides: Record<string, unknown> = {}) {
+  return {
+    id: REQ,
+    status: 'DRAFT',
+    storedStatus: 'DRAFT',
+    destination: 'GB',
+    purpose: 'Tourism',
+    route: null,
+    travelFrom: null,
+    travelTo: null,
+    dueAt: null,
+    nationality: null,
+    residence: null,
+    applicationPlace: null,
+    recipientNameHint: 'Synthetic Person',
+    recipientEmailHint: null,
+    createdAt: new Date('2026-11-02T00:00:00Z'),
+    draftPack: { packVersionId: 'pv1', packName: 'Synthetic UK Visit', version: 1 },
+    draftItems: [official, agencyItem],
+    revisions: [],
+    links: [],
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  navigationState.pathname = `/app/agency/${ORG}/collection`;
+  mocks.principal.mockResolvedValue({ ok: true, value: {} });
+  mocks.choices.mockResolvedValue({ ok: true, value: [] });
+});
+afterEach(() => vi.unstubAllEnvs());
+
+describe('Document Requests pages', () => {
+  it('are not found when the scope is refused (switch off, not an owner or admin, other agency)', async () => {
+    mocks.principal.mockResolvedValue({ ok: false, error: { code: 'not_found' } });
+    await expect(ListPage(props)).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(NewPage(props)).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(DetailPage(detailProps)).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+
+  it('are not found for a request this agency cannot see', async () => {
+    mocks.get.mockResolvedValue({ ok: false, error: { code: 'not_found' } });
+    await expect(DetailPage(detailProps)).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+
+  it('list every status in plain words', async () => {
+    const at = new Date('2026-11-02T00:00:00Z');
+    mocks.list.mockResolvedValue({
+      ok: true,
+      value: ['DRAFT', 'SENT', 'EXPIRED', 'REVOKED', 'CLOSED'].map((status, i) => ({
+        id: `3000000${i}-0000-4000-8000-000000000001`,
+        status,
+        destination: 'GB',
+        purpose: i === 0 ? null : 'Tourism',
+        route: null,
+        recipientNameHint: null,
+        dueAt: null,
+        createdAt: at,
+        updatedAt: at,
+      })),
+    });
+    const text = textOf(await renderServer(ListPage(props)));
+    for (const word of ['Draft', 'Sent', 'Expired', 'Revoked', 'Closed', 'Not Sure Yet']) {
+      expect(text).toContain(word);
+    }
+    expect(text).toContain('United Kingdom');
+  });
+
+  it('show official items as official and the agency items as the agency own', async () => {
+    mocks.get.mockResolvedValue({ ok: true, value: detail() });
+    const html = await renderServer(DetailPage(detailProps));
+    const text = textOf(html);
+    expect(text).toContain('Passport');
+    expect(text).toContain('Mandatory · Official Requirement');
+    expect(text).toContain('Recommended · Requested by Your Agency');
+    expect(text).not.toMatch(/Employer Letter\s+Recommended · Official/);
+    const edits = stubProps<{ removable: boolean; item: { agency: boolean } }>(
+      html,
+      'ItemEditForm',
+    );
+    expect(edits.map((e) => [e.item.agency, e.removable])).toEqual([
+      [false, false],
+      [true, true],
+    ]);
+    expect(stubProps(html, 'IssueRequestForm')).toHaveLength(1);
+    expect(stubProps(html, 'NewLinkForm')).toHaveLength(0);
+  });
+
+  it('label a request with no official checklist as the agency own, never official', async () => {
+    mocks.get.mockResolvedValue({
+      ok: true,
+      value: detail({ draftPack: null, draftItems: [agencyItem], purpose: null }),
+    });
+    const text = textOf(await renderServer(DetailPage(detailProps)));
+    expect(text).toContain("Your agency's own checklist. It is not an official checklist");
+    expect(text).not.toContain('Official Requirement');
+  });
+
+  it('offer sharing once sent, and never show an issued revision that no longer verifies', async () => {
+    mocks.get.mockResolvedValue({
+      ok: true,
+      value: detail({
+        status: 'SENT',
+        storedStatus: 'SENT',
+        revisions: [
+          {
+            id: 'rev1',
+            revisionNo: 1,
+            issuedAt: new Date('2026-11-02T00:00:00Z'),
+            packVersionId: 'pv1',
+            packChecksum: 'a'.repeat(64),
+            intact: false,
+            items: [],
+            brand: null,
+          },
+        ],
+        links: [
+          {
+            id: 'l1',
+            revisionNo: 1,
+            state: 'OPEN',
+            emailed: false,
+            createdAt: new Date('2026-11-02T00:00:00Z'),
+            expiresAt: new Date('2026-11-16T00:00:00Z'),
+            lastOpenedAt: null,
+          },
+        ],
+      }),
+    });
+    const html = await renderServer(DetailPage(detailProps));
+    const text = textOf(html);
+    expect(stubProps(html, 'NewLinkForm')).toHaveLength(1);
+    expect(stubProps(html, 'EmailLinkForm')).toHaveLength(1);
+    expect(text).toContain('This revision no longer matches what was issued');
+    expect(text).toContain('Copied Link');
+    expect(text).not.toMatch(/\bdelivered\b/i);
+  });
+
+  it('end: a revoked request offers no editing, sharing or ending', async () => {
+    mocks.get.mockResolvedValue({
+      ok: true,
+      value: detail({ status: 'REVOKED', storedStatus: 'REVOKED' }),
+    });
+    const html = await renderServer(DetailPage(detailProps));
+    for (const form of ['ItemEditForm', 'IssueRequestForm', 'NewLinkForm', 'EndRequestForm']) {
+      expect(stubProps(html, form)).toHaveLength(0);
+    }
+  });
+});

@@ -12564,3 +12564,71 @@ html:has(.sticky-action-bar) {
   font-size: var(--text-body);
   font-weight: 600;
 }
+
+/* WP-UMPE-P6 agency document requests: the agency's request checklist (items, their edit row and
+   the issued revisions), the private link panel, and the neutral public /collect page. Flat, 44 px
+   targets, tokens only. */
+.collection-items {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: var(--space-4);
+}
+.collection-item-summary p {
+  margin: 0;
+}
+.collection-item-edit,
+.collection-link-panel {
+  margin-top: var(--space-2);
+}
+.collection-item-edit .action-row,
+.collection-link-panel .action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.collection-item-edit .btn,
+.collection-link-panel .btn {
+  min-height: 44px;
+}
+.collection-link-panel .input {
+  overflow-wrap: anywhere;
+}
+.collection-facts {
+  display: grid;
+  grid-template-columns: minmax(8rem, max-content) 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+.collection-facts dt {
+  font-weight: 600;
+}
+.collection-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.collection-revision {
+  margin-top: var(--space-3);
+}
+.collection-revision summary {
+  /* Kept a list item so the browser's own open and closed marker still shows. */
+  display: list-item;
+  min-height: 44px;
+  padding-block: var(--space-2);
+  cursor: pointer;
+}
+.collect-page .collect-card {
+  max-width: 40rem;
+  margin: 0 auto;
+}
+.collect-page .collect-agency {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+@media (max-width: 40rem) {
+  .collection-facts {
+    grid-template-columns: 1fr;
+  }
+}

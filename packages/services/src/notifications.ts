@@ -15,14 +15,20 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
+import { collectionLinkProof } from './access/collection-scope';
 import { orgCaseRecordVisibleSql, withCaseExclusions } from './access/grant-scope';
 import { type SelfScope, selfScopeProblem } from './access/principal';
 import { type Db, first, schema } from './db';
 import { notificationEmail, renderEmail } from './email-design';
 import { type ServiceError, serviceError } from './errors';
-import { type SealedInvitationLink, revealInvitationLink } from './invitation-email';
+import {
+  COLLECTION_REQUEST_EMAIL_EVENT,
+  type SealedInvitationLink,
+  revealInvitationLink,
+} from './invitation-email';
 import { listMembershipsForAccount } from './organizations';
 import type { EmailPort, KeyManagementPort } from './ports';
+import { collectionLinkStillOpen } from './umpe-collection-request-service';
 
 /**
  * The Notification Outbox (NTF-02 + Part 5 §3): a transactional outbox.
@@ -545,6 +551,39 @@ async function checkRecipient(
   return { authorized: true, email: account.email };
 }
 
+/**
+ * An agency document request email (UMPE P6) is sent only while the link it carries is still open:
+ * not revoked, replaced or expired, its request still sent, its agency still open and its issuer
+ * still an owner or admin. The worker proves the link by the token sealed in the email itself.
+ * `unknown` when that cannot be checked now (no key service, or it failed): the send is retried,
+ * never made unchecked. When open, the revealed path is returned so it is unwrapped only once.
+ */
+async function collectionEmailCheck(
+  db: Db,
+  notification: Notification,
+  payload: NotificationPayload,
+  encryption: KeyManagementPort | undefined,
+): Promise<'closed' | 'unknown' | { readonly path: string }> {
+  if (!notification.resourceId || !payload.sealedInvitationLink) return 'closed';
+  if (!encryption) return 'unknown';
+  let path: string;
+  try {
+    path = await revealInvitationLink(
+      payload.sealedInvitationLink,
+      'collection',
+      notification.resourceId,
+      encryption,
+    );
+  } catch {
+    return 'unknown';
+  }
+  const proof = collectionLinkProof(
+    new URL(path, 'https://link.invalid').searchParams.get('token'),
+  );
+  if (!proof) return 'closed';
+  return (await collectionLinkStillOpen(db, proof, notification.resourceId)) ? { path } : 'closed';
+}
+
 async function dispatchOne(
   db: Db,
   notification: Notification,
@@ -611,9 +650,31 @@ async function dispatchOne(
     return updated.length ? 'failed' : 'deferred';
   }
 
+  const collection =
+    notification.eventType === COLLECTION_REQUEST_EMAIL_EVENT
+      ? await collectionEmailCheck(db, notification, payload, encryption)
+      : null;
+  if (collection === 'closed') {
+    const updated = await db
+      .update(schema.notifications)
+      .set({
+        status: 'FAILED',
+        attempts,
+        lastError: 'recipient no longer authorized',
+        leaseOwner: null,
+        leaseExpiresAt: null,
+      })
+      .where(ownedQueue)
+      .returning({ id: schema.notifications.id });
+    return updated.length ? 'failed' : 'deferred';
+  }
+
   try {
     let path = payload.deepLinkPath;
-    if (payload.sealedInvitationLink) {
+    if (collection === 'unknown') throw new Error('Request link could not be checked');
+    if (collection !== null) {
+      path = collection.path;
+    } else if (payload.sealedInvitationLink) {
       if (!encryption || !notification.resourceId)
         throw new Error('Invitation email encryption unavailable');
       const kind =

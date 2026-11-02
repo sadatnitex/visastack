@@ -12,6 +12,8 @@ export interface AgencyContext {
   readonly id: string;
   readonly name: string;
   readonly admin: boolean;
+  /** An owner or admin with AGENCY_COLLECTION_REQUESTS on: the Document Requests page (UMPE P6). */
+  readonly collectionRequests?: boolean;
 }
 
 export interface WorkspaceAccess {
@@ -127,6 +129,9 @@ export function workspaceNavigation(
                 exact: true,
               },
             ]
+          : []),
+        ...(agency.admin && agency.collectionRequests === true
+          ? [{ href: `${base}/collection`, label: 'Document Requests' }]
           : []),
         ...(agency.admin ? [{ href: `${base}/team`, label: 'Team' }] : []),
         { href: `${base}/activity`, label: 'Case Activity' },
