@@ -1,4 +1,4 @@
-import { RATE_LIMITS, getApplicant } from '@visastack/services';
+import { getApplicant } from '@visastack/services';
 import type { UpgradeLineKind } from '../../../../components/upgrade-line';
 import { withSession } from '../../../../lib/session';
 import {
@@ -8,6 +8,7 @@ import {
   readBoundedUpload,
   validateUploadBytes,
 } from '../../../../lib/upload-preflight';
+import { uploadRetryAfterSeconds } from '../../../../lib/upload-retry-after';
 import { uploadDocumentAction } from '../../../app/applicant/[id]/actions';
 
 export const runtime = 'nodejs';
@@ -52,22 +53,6 @@ function encodedHeader(request: Request, name: string): string {
   } catch {
     return '';
   }
-}
-
-/** The longest wait ever asked for: the whole window, when the wait cannot be worked out. */
-const SAFE_RETRY_AFTER_SECONDS = 3600;
-
-/**
- * Seconds until the hourly upload window frees up. The limit counts in fixed windows (each one
- * starts at a multiple of its length), so the wait is what is left of the current one.
- */
-export function uploadRetryAfterSeconds(now: number = Date.now()): number {
-  const windowMs = RATE_LIMITS?.UPLOAD_RESERVE?.windowMs;
-  if (typeof windowMs !== 'number' || !Number.isFinite(windowMs) || windowMs <= 0) {
-    return SAFE_RETRY_AFTER_SECONDS;
-  }
-  const left = Math.ceil((windowMs - (now % windowMs)) / 1000);
-  return Math.min(SAFE_RETRY_AFTER_SECONDS, Math.max(1, left));
 }
 
 /**

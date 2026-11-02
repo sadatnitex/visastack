@@ -266,6 +266,20 @@ describe('each file ends in an honest state', () => {
     await queue.whenIdle();
     expect(steps).toEqual(['mark a.jpg 1', 'send a.jpg', 'mark a.jpg 2', 'send a.jpg']);
   });
+
+  it('starts sends in queue order even when an earlier before-send step is the slower one', async () => {
+    const network = handNetwork();
+    const queue = queueWith(network.send, {
+      beforeSend: async (item) => {
+        // The first file's step takes many turns, the second's none: without ordering the second
+        // file would reach the network first.
+        if (item.name === 's0.jpg') for (let turn = 0; turn < 5; turn += 1) await settle();
+      },
+    });
+    await queue.add(files(2, 's'));
+    for (let turn = 0; turn < 10; turn += 1) await settle();
+    expect(network.calls.map((call) => call.name)).toEqual(['s0.jpg', 's1.jpg']);
+  });
 });
 
 describe('the hourly upload limit', () => {

@@ -267,6 +267,12 @@ export class ImportQueue {
   private active = 0;
   /** Bumped by Stop, so a file waiting to retry knows not to go out again. */
   private generation = 0;
+  /**
+   * Sends start in queue order. Each file's `beforeSend` (an async fingerprint and save) waits for
+   * the one before it, so two files in flight never swap places because one hash finished first;
+   * which request is "the first" is then the same on every machine, however loaded.
+   */
+  private startGate: Promise<void> = Promise.resolve();
   private progressTimer: ReturnType<typeof setTimeout> | null = null;
   /** Adds run one after another, so a second add sees every line of the first. */
   private adding: Promise<void> = Promise.resolve();
@@ -542,12 +548,17 @@ export class ImportQueue {
         const attempts = (this.byId.get(id)?.attempts ?? 0) + 1;
         this.update(id, { attempts, progress: 0, state: 'uploading', waitingToRetry: false });
         const sending = this.byId.get(id);
-        if (sending) {
-          try {
-            await this.options.beforeSend?.(sending);
-          } catch {
-            // The saved list is a convenience; the upload goes ahead without it.
-          }
+        const beforeSend = this.options.beforeSend;
+        if (sending && beforeSend) {
+          const turn = this.startGate.then(async () => {
+            try {
+              await beforeSend(sending);
+            } catch {
+              // The saved list is a convenience; the upload goes ahead without it.
+            }
+          });
+          this.startGate = turn;
+          await turn;
         }
         let outcome: UploadOutcome;
         try {

@@ -63,8 +63,31 @@ class FakeRequest {
 let host: HTMLDivElement;
 let root: Root;
 
+/**
+ * A stand-in for Web Crypto's digest that answers within the same turn. The real one works on a
+ * background thread and, on a busy machine, can outlast the one timer tick these tests wait for,
+ * which made the order of sends a matter of luck. Distinct text still gives a distinct result
+ * (eight FNV-1a words with different seeds), so repeat detection stays real.
+ */
+function quickDigest(_algorithm: AlgorithmIdentifier, data: BufferSource): Promise<ArrayBuffer> {
+  const bytes =
+    data instanceof ArrayBuffer
+      ? new Uint8Array(data)
+      : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  const out = new DataView(new ArrayBuffer(32));
+  for (let word = 0; word < 8; word += 1) {
+    let hash = (0x811c9dc5 ^ (word * 0x9e3779b1)) >>> 0;
+    for (const byte of bytes) hash = Math.imul(hash ^ byte, 0x01000193) >>> 0;
+    out.setUint32(word * 4, hash);
+  }
+  return Promise.resolve(out.buffer);
+}
+
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  vi.spyOn(globalThis.crypto.subtle, 'digest').mockImplementation(
+    quickDigest as typeof globalThis.crypto.subtle.digest,
+  );
   FakeRequest.sent = [];
   vi.stubGlobal('XMLHttpRequest', FakeRequest);
   window.localStorage.clear();
@@ -77,6 +100,7 @@ afterEach(() => {
   act(() => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   refresh.mockClear();
 });
 

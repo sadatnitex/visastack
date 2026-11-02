@@ -1,6 +1,7 @@
 import { MADE_UP_HEIC_SMALL } from '@visastack/adapters/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { POST, uploadRetryAfterSeconds } from './route';
+import { uploadRetryAfterSeconds } from '../../../../lib/upload-retry-after';
+import { POST } from './route';
 const { session, applicant, upload } = vi.hoisted(() => ({
   session: vi.fn(),
   applicant: vi.fn(),
