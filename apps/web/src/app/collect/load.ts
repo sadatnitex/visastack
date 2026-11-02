@@ -20,7 +20,7 @@ import { reportServerError } from '../../lib/server-error';
  */
 
 /** Where the first visit lands once the token is in the cookie: the page itself, with no token. */
-export const COLLECT_PAGE = { href: '/collect' } as const;
+export const COLLECT_PAGE = { href: '/collect', busyHref: '/collect?busy=1' } as const;
 
 /** The cookie holding the open link, bound to the link's id: `<link id>.<token>`. */
 export const COLLECT_COOKIE = 'vs_collect';
@@ -58,6 +58,9 @@ export async function loadCollectPage(
   token: string | null,
   expectLinkId?: string,
 ): Promise<CollectPage> {
+  // The first visit (no link id yet) counts against the address and the link; a later look with
+  // the cookie counts against its own address budget, so a first visit is never charged twice.
+  const first = expectLinkId === undefined;
   const proof = collectionLinkProof(token);
   try {
     return await withPublicDb(async (db) => {
@@ -66,12 +69,12 @@ export async function loadCollectPage(
         {
           input: {
             subjectId: hashedSubject('net', address),
-            action: 'collect.open_ip',
+            action: first ? 'collect.open_ip' : 'collect.view_ip',
             label: 'visit',
           },
           config: RATE_LIMITS.COLLECTION_OPEN_IP,
         },
-        ...(proof
+        ...(proof && first
           ? [
               {
                 input: {

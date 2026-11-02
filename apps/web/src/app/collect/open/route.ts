@@ -23,7 +23,7 @@ export async function GET(request: Request): Promise<Response> {
   const response = new NextResponse(null, {
     status: 303,
     headers: {
-      Location: COLLECT_PAGE.href,
+      Location: page.state === 'busy' ? COLLECT_PAGE.busyHref : COLLECT_PAGE.href,
       'Cache-Control': 'no-store',
       'Referrer-Policy': 'no-referrer',
     },
@@ -36,7 +36,8 @@ export async function GET(request: Request): Promise<Response> {
       path: '/collect',
       maxAge: COLLECT_COOKIE_SECONDS,
     });
-  } else if (page.state === 'closed') {
+  } else {
+    // Closed or busy: an older link's cookie must not stand in for this one.
     response.cookies.set(COLLECT_COOKIE, '', {
       httpOnly: true,
       secure: true,

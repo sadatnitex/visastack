@@ -1,4 +1,5 @@
 import {
+  COLLECTION_LIST_LIMIT,
   COLLECTION_STATUS_LABELS,
   agencyCollectionPrincipal,
   listCollectionRequests,
@@ -46,6 +47,11 @@ export default async function CollectionRequestsPage({
           New Request
         </Link>
       </header>
+      {requests.length >= COLLECTION_LIST_LIMIT ? (
+        <p className="notice notice-warn">
+          Showing your newest {COLLECTION_LIST_LIMIT} requests. Close requests you no longer need.
+        </p>
+      ) : null}
       {requests.length === 0 ? (
         <EmptyState title="No Document Requests Yet">
           Start one with New Request. You can issue it as a private link or by email.
@@ -66,7 +72,9 @@ export default async function CollectionRequestsPage({
             {requests.map((request) => (
               <tr key={request.id}>
                 <td>
-                  <Link href={`${base}/${request.id}`}>{destinationName(request.destination)}</Link>
+                  <Link href={`${base}/request?id=${request.id}`}>
+                    {destinationName(request.destination)}
+                  </Link>
                 </td>
                 <td>{request.purpose ?? 'Not Sure Yet'}</td>
                 <td>{request.recipientNameHint ?? 'Not Given'}</td>

@@ -55,9 +55,15 @@ function linkUrl(rawToken: string): string {
   return `${resolveBaseUrl()}/collect/open?token=${encodeURIComponent(rawToken)}`;
 }
 
-function pathFor(organizationId: string, requestId?: string): string {
-  const base = `/app/agency/${organizationId}/collection`;
-  return requestId ? `${base}/${requestId}` : base;
+/** The request page's address (the request id rides in the query, never in a folder name). */
+function detailHref(organizationId: string, requestId: string): string {
+  return `/app/agency/${organizationId}/collection/request?id=${encodeURIComponent(requestId)}`;
+}
+
+/** Both pages of Document Requests are drawn again after a change. */
+function refresh(organizationId: string): void {
+  revalidatePath(`/app/agency/${organizationId}/collection`);
+  revalidatePath(`/app/agency/${organizationId}/collection/request`);
 }
 
 async function withScope<T>(
@@ -89,7 +95,8 @@ export async function createRequestAction(
   }
   const due = text(formData, 'dueAt');
   const dueAt = due.length > 0 ? new Date(`${due}T23:59:59Z`) : null;
-  if (dueAt && Number.isNaN(dueAt.getTime())) {
+  // Strict: 30 February is refused, never rolled into March.
+  if (dueAt && (Number.isNaN(dueAt.getTime()) || dueAt.toISOString().slice(0, 10) !== due)) {
     return { ok: false, message: 'Enter a valid due date.', field: 'dueAt' };
   }
   const optional = (name: string) => {
@@ -118,8 +125,8 @@ export async function createRequestAction(
     return { ok: true, message: '', id: result.value.id };
   });
   if (!created.ok || !created.id) return { ok: false, message: created.message };
-  revalidatePath(pathFor(organizationId));
-  redirect(pathFor(organizationId, created.id));
+  refresh(organizationId);
+  redirect(detailHref(organizationId, created.id));
 }
 
 function draftEdit(formData: FormData): DraftEdit | null {
@@ -167,7 +174,7 @@ export async function editDraftAction(
     }
     return { ok: true, message: 'Checklist updated.' };
   });
-  if (result.ok) revalidatePath(pathFor(organizationId, requestId));
+  if (result.ok) refresh(organizationId);
   return result;
 }
 
@@ -178,6 +185,8 @@ export async function choosePackAction(
 ): Promise<CollectionActionState> {
   const organizationId = text(formData, 'organizationId');
   const requestId = text(formData, 'requestId');
+  // A choice must be made on purpose: no choice is not the agency's own list.
+  if (!formData.has('packVersionId')) return { ok: false, message: 'Choose a checklist.' };
   const chosen = text(formData, 'packVersionId');
   const result = await withScope(organizationId, NOT_FOUND, async (db, scope) => {
     const detail = await getCollectionRequest(db, scope, requestId);
@@ -192,7 +201,7 @@ export async function choosePackAction(
       message: chosen.length > 0 ? 'Official checklist applied.' : 'Now your agency checklist.',
     };
   });
-  if (result.ok) revalidatePath(pathFor(organizationId, requestId));
+  if (result.ok) refresh(organizationId);
   return result;
 }
 
@@ -212,7 +221,7 @@ export async function issueRequestAction(
       linkUrl: linkUrl(issued.value.link.rawToken),
     };
   });
-  if (result.ok) revalidatePath(pathFor(organizationId, requestId));
+  if (result.ok) refresh(organizationId);
   return result;
 }
 
@@ -232,7 +241,7 @@ export async function newLinkAction(
       linkUrl: linkUrl(created.value.link.rawToken),
     };
   });
-  if (result.ok) revalidatePath(pathFor(organizationId, requestId));
+  if (result.ok) refresh(organizationId);
   return result;
 }
 
@@ -272,7 +281,7 @@ export async function emailLinkAction(
   }
   const outcome = await sendEmailNow(queued.id);
   after(() => triggerNotificationWorker().then(() => undefined));
-  revalidatePath(pathFor(organizationId, requestId));
+  refresh(organizationId);
   return { ok: outcome !== 'failed', message: EMAIL_WORDS[outcome] };
 }
 
@@ -295,6 +304,6 @@ export async function endRequestAction(
           : 'Request revoked. Its links no longer work.',
     };
   });
-  if (result.ok) revalidatePath(pathFor(organizationId, requestId));
+  if (result.ok) refresh(organizationId);
   return result;
 }

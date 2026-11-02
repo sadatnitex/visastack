@@ -452,6 +452,7 @@ export function PackChoiceForm({
             <input
               type="radio"
               name="packVersionId"
+              required
               value={choice.packVersionId}
               defaultChecked={current === choice.packVersionId}
             />{' '}
@@ -459,7 +460,13 @@ export function PackChoiceForm({
           </label>
         ))}
         <label className="check">
-          <input type="radio" name="packVersionId" value="" defaultChecked={current === null} />{' '}
+          <input
+            type="radio"
+            name="packVersionId"
+            required
+            value=""
+            defaultChecked={current === null}
+          />{' '}
           Your Agency's Own Checklist
         </label>
       </fieldset>

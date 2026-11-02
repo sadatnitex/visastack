@@ -160,7 +160,10 @@ export type DraftEdit =
   | { readonly type: 'note'; readonly itemId: string; readonly note: string | null }
   | { readonly type: 'necessity'; readonly itemId: string; readonly necessity: string };
 
-function cleanText(value: string | null | undefined, max: number): string | null | 'too_long' {
+export function cleanText(
+  value: string | null | undefined,
+  max: number,
+): string | null | 'too_long' {
   const text = (value ?? '').replace(/\s+/g, ' ').trim();
   if (text.length === 0) return null;
   return text.length > max ? 'too_long' : text;

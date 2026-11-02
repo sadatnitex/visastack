@@ -11,7 +11,9 @@ import { isEmailAddress } from './email-address';
 import { type ServiceError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
+import { isUuid } from './lifecycle/foundation/ids';
 import { cancelQueuedNotificationsForResource } from './notifications';
+import { OPEN_ORGANIZATION_STATUSES } from './organization-admission';
 import { type PackMatch, type PackMatchTerms, listFittingPublicPacks } from './pack-matching';
 import { getPackVersion, listRequirements, verifyPackChecksum } from './packs';
 import type { KeyManagementPort } from './ports';
@@ -21,6 +23,7 @@ import {
   type CollectionItem,
   type DraftEdit,
   applyDraftEdit,
+  cleanText,
   parseBrandSnapshot,
   parseItems,
   proposeFromPack,
@@ -50,7 +53,8 @@ export const COLLECTION_LINK_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Open links one request may have at once (each email or copied link is one). */
 const MAX_OPEN_LINKS = 10;
-const LIST_LIMIT = 200;
+/** The newest requests the list shows. */
+export const COLLECTION_LIST_LIMIT = 200;
 
 export type CollectionRequestStatus = 'DRAFT' | 'SENT' | 'REVOKED' | 'CLOSED';
 /** What the list shows: a sent request whose links have all run out reads as Expired. */
@@ -64,7 +68,6 @@ export const COLLECTION_STATUS_LABELS: Readonly<Record<CollectionDisplayStatus, 
   CLOSED: 'Closed',
 };
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function missing(): ServiceError {
@@ -96,12 +99,6 @@ export interface CollectionRequestInput {
   readonly packTerms: PackMatchTerms | null;
 }
 
-function cleanOptional(value: string | null | undefined, max: number): string | null | 'too_long' {
-  const text = (value ?? '').replace(/\s+/g, ' ').trim();
-  if (text.length === 0) return null;
-  return text.length > max ? 'too_long' : text;
-}
-
 function validDate(value: string): boolean {
   if (!ISO_DATE.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00Z`);
@@ -126,13 +123,13 @@ function cleanRequest(input: CollectionRequestInput, now: Date): CleanRequest | 
   const destination = input.destination.trim().toUpperCase();
   if (!/^[A-Z]{2}$/.test(destination)) return 'Choose a destination.';
   const fields = {
-    purpose: cleanOptional(input.purpose, 200),
-    route: cleanOptional(input.route, 200),
-    nationality: cleanOptional(input.nationality, 100),
-    residence: cleanOptional(input.residence, 100),
-    applicationPlace: cleanOptional(input.applicationPlace, 100),
-    recipientNameHint: cleanOptional(input.recipientNameHint, 200),
-    recipientEmailHint: cleanOptional(input.recipientEmailHint?.toLowerCase(), 320),
+    purpose: cleanText(input.purpose, 200),
+    route: cleanText(input.route, 200),
+    nationality: cleanText(input.nationality, 100),
+    residence: cleanText(input.residence, 100),
+    applicationPlace: cleanText(input.applicationPlace, 100),
+    recipientNameHint: cleanText(input.recipientNameHint, 200),
+    recipientEmailHint: cleanText(input.recipientEmailHint?.toLowerCase(), 320),
   };
   for (const value of Object.values(fields)) {
     if (value === 'too_long') return 'One of the answers is too long. Shorten it and try again.';
@@ -141,8 +138,8 @@ function cleanRequest(input: CollectionRequestInput, now: Date): CleanRequest | 
   if (email !== null && !isEmailAddress(email)) {
     return 'Enter a valid email address for the person, like name@example.com, or leave it empty.';
   }
-  const travelFrom = cleanOptional(input.travelFrom, 10);
-  const travelTo = cleanOptional(input.travelTo, 10);
+  const travelFrom = cleanText(input.travelFrom, 10);
+  const travelTo = cleanText(input.travelTo, 10);
   for (const value of [travelFrom, travelTo]) {
     if (value !== null && (value === 'too_long' || !validDate(value))) {
       return 'Enter travel dates as full dates.';
@@ -295,7 +292,7 @@ export async function listCollectionRequests(
     .from(schema.agencyCollectionRequests)
     .where(eq(schema.agencyCollectionRequests.organizationId, scope.organizationId))
     .orderBy(desc(schema.agencyCollectionRequests.createdAt))
-    .limit(LIST_LIMIT);
+    .limit(COLLECTION_LIST_LIMIT);
   const ids = rows.map((row) => row.id);
   const open =
     ids.length === 0
@@ -343,7 +340,11 @@ export interface CollectionRevisionView {
   readonly brand: BrandSnapshot | null;
 }
 
-export type CollectionLinkState = 'OPEN' | 'EXPIRED' | 'REVOKED' | 'REPLACED';
+/**
+ * `ISSUER_GONE`: the person who made the link is no longer an owner or admin, so the link no longer
+ * opens (the public page already refuses it); make a new link.
+ */
+export type CollectionLinkState = 'OPEN' | 'EXPIRED' | 'REVOKED' | 'REPLACED' | 'ISSUER_GONE';
 
 export interface CollectionLinkView {
   readonly id: string;
@@ -395,7 +396,7 @@ async function loadRequest(
   requestId: string,
   forUpdate = false,
 ): Promise<RequestRow | undefined> {
-  if (!UUID.test(requestId)) return undefined;
+  if (!isUuid(requestId)) return undefined;
   const query = db
     .select()
     .from(schema.agencyCollectionRequests)
@@ -481,6 +482,7 @@ export async function getCollectionRequest(
         recipientEmailHint: schema.agencyCollectionLinks.recipientEmailHint,
         createdAt: schema.agencyCollectionLinks.createdAt,
         lastOpenedAt: schema.agencyCollectionLinks.lastOpenedAt,
+        createdBy: schema.agencyCollectionLinks.createdByAccountId,
       })
       .from(schema.agencyCollectionLinks)
       .innerJoin(
@@ -512,10 +514,31 @@ export async function getCollectionRequest(
       : Promise.resolve([]),
   ]);
 
+  const issuers = [...new Set(links.flatMap((row) => (row.createdBy ? [row.createdBy] : [])))];
+  const admins = new Set(
+    issuers.length === 0
+      ? []
+      : (
+          await db
+            .select({ accountId: schema.memberships.accountId })
+            .from(schema.memberships)
+            .where(
+              and(
+                eq(schema.memberships.organizationId, scope.organizationId),
+                inArray(schema.memberships.accountId, issuers),
+                eq(schema.memberships.active, true),
+                inArray(schema.memberships.role, ['OWNER', 'ADMIN']),
+              ),
+            )
+        ).map((row) => row.accountId),
+  );
   const linkViews = links.map((row) => ({
     id: row.id,
     revisionNo: row.revisionNo,
-    state: linkState(row, now),
+    state:
+      linkState(row, now) === 'OPEN' && !(row.createdBy && admins.has(row.createdBy))
+        ? ('ISSUER_GONE' as const)
+        : linkState(row, now),
     emailed: row.recipientEmailHint !== null,
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
@@ -784,11 +807,15 @@ export async function issueCollectionRequest(
     const packVersionId = request.draftPackVersionId;
     if (packVersionId) {
       const version = await getPackVersion(tx, packVersionId);
-      if (!version?.checksum || !(await verifyPackChecksum(tx, packVersionId))) {
+      if (
+        version?.status !== 'PUBLISHED' ||
+        !version.checksum ||
+        !(await verifyPackChecksum(tx, packVersionId))
+      ) {
         return err(
           serviceError(
             'stale',
-            'The official checklist no longer matches its published version, so the request was not issued.',
+            'The official checklist is no longer published as it was, so the request was not issued. Choose a checklist again.',
           ),
         );
       }
@@ -1035,7 +1062,8 @@ interface OpenLink {
 
 /**
  * The link the proof names, only while it is open: not revoked, not replaced, not expired, its
- * request still sent, its agency not suspended, and the person who made it still an active owner or
+ * request still sent, its agency still open (active or awaiting review; never suspended, rejected
+ * or terminated), and the person who made it still an active owner or
  * admin of that agency. Anything else is null, all alike.
  */
 async function openLinkFor(
@@ -1070,7 +1098,7 @@ async function openLinkFor(
       )
       .limit(1),
   );
-  if (!row || row.orgStatus === 'SUSPENDED' || !row.createdBy) return null;
+  if (!row || !OPEN_ORGANIZATION_STATUSES.includes(row.orgStatus) || !row.createdBy) return null;
   const issuer = first(
     await db
       .select({ role: schema.memberships.role, active: schema.memberships.active })

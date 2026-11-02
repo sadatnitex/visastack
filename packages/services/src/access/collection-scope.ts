@@ -2,7 +2,9 @@ import { type Result, err, ok } from '@visastack/core';
 import type { Db } from '../db';
 import { type ServiceError, serviceError } from '../errors';
 import { hashInvitationToken } from '../invitation-tokens';
-import { isOrgAdmin } from '../organizations';
+import { isUuid } from '../lifecycle/foundation/ids';
+import { OPEN_ORGANIZATION_STATUSES } from '../organization-admission';
+import { getOrganization, isOrgAdmin } from '../organizations';
 import { agencyCollectionRequestsEnabled } from '../umpe-collection-request-switch';
 
 /**
@@ -11,8 +13,9 @@ import { agencyCollectionRequestsEnabled } from '../umpe-collection-request-swit
  * proof, and the access ratchet (`enforcement.test.ts`) holds every exported service that touches
  * them to taking one of these.
  *
- * - `AgencyCollectionScope`: an agency OWNER or ADMIN acting for exactly one organization, checked
- *   live against the membership and the `AGENCY_COLLECTION_REQUESTS` switch when it is made. Only
+ * - `AgencyCollectionScope`: an agency OWNER or ADMIN acting for exactly one open organization
+ *   (active or awaiting review), checked live against the membership, the organization's status and
+ *   the `AGENCY_COLLECTION_REQUESTS` switch when it is made. Only
  *   `agencyCollectionPrincipal` makes one. Services call `agencyCollectionScopeProblem` first and put
  *   the scope's organization id in every WHERE.
  * - `CollectionLinkProof`: possession of a request link's raw token, the bearer secret the agency
@@ -120,12 +123,15 @@ export async function agencyCollectionPrincipal(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<Result<AgencyCollectionScope, ServiceError>> {
   if (!agencyCollectionRequestsEnabled(env)) return err(missing());
-  if (!UUID.test(accountId) || !UUID.test(organizationId)) return err(missing());
+  if (!isUuid(accountId) || !isUuid(organizationId)) return err(missing());
   if (!(await isOrgAdmin(db, accountId, organizationId))) return err(missing());
+  // A suspended, rejected or terminated agency asks for nothing (the rule invitations follow).
+  const organization = await getOrganization(db, organizationId);
+  if (!organization || !OPEN_ORGANIZATION_STATUSES.includes(organization.status)) {
+    return err(missing());
+  }
   return ok(mintAgencyScope(accountId, organizationId));
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** How long an agency scope stays good for: minted for one request, never kept. */
 const AGENCY_SCOPE_MAX_AGE_MS = 5 * 60 * 1000;

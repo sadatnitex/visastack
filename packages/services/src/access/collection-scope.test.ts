@@ -10,7 +10,11 @@ import {
 
 /** The agency document request gates cannot be forged, copied or kept (UMPE P6). */
 
-vi.mock('../organizations', () => ({ isOrgAdmin: async () => true }));
+const org = vi.hoisted(() => ({ status: 'ACTIVE' }));
+vi.mock('../organizations', () => ({
+  isOrgAdmin: async () => true,
+  getOrganization: async () => ({ status: org.status }),
+}));
 
 const ACCOUNT = '00000000-0000-4000-8000-000000000001';
 const ORG = '00000000-0000-4000-8000-000000000002';
@@ -53,8 +57,15 @@ describe('AgencyCollectionScope', () => {
     expect(agencyCollectionScopeProblem(scope)?.code).toBe('not_found');
   });
 
-  it('is refused while the switch is off, and for malformed ids', async () => {
+  it('is refused while the switch is off, for malformed ids, and for an agency that is not open', async () => {
     expect((await agencyCollectionPrincipal({} as Db, 'x', ORG)).ok).toBe(false);
+    for (const status of ['SUSPENDED', 'REJECTED', 'CLOSED']) {
+      org.status = status;
+      expect((await agencyCollectionPrincipal({} as Db, ACCOUNT, ORG)).ok).toBe(false);
+    }
+    org.status = 'PENDING_VERIFICATION';
+    expect((await agencyCollectionPrincipal({} as Db, ACCOUNT, ORG)).ok).toBe(true);
+    org.status = 'ACTIVE';
     vi.stubEnv('AGENCY_COLLECTION_REQUESTS', 'false');
     expect((await agencyCollectionPrincipal({} as Db, ACCOUNT, ORG)).ok).toBe(false);
   });

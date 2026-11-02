@@ -17,12 +17,19 @@ export const dynamic = 'force-dynamic';
  * VisaStack has reviewed; never the person, the route, the checklist or whether anyone has an
  * account. Responding opens in a later release, and the page says so plainly.
  */
-export default async function CollectPage() {
+export default async function CollectPage({
+  searchParams,
+}: {
+  readonly searchParams?: Promise<{ readonly busy?: string | string[] }>;
+}) {
   if (!collectSwitchOn()) notFound();
+  const busy = (await searchParams)?.busy === '1';
   const held = parseCookie((await cookies()).get(COLLECT_COOKIE)?.value);
-  const page = held
-    ? await loadCollectPage(await headers(), held.token, held.linkId)
-    : ({ state: 'closed' } as const);
+  const page = busy
+    ? ({ state: 'busy' } as const)
+    : held
+      ? await loadCollectPage(await headers(), held.token, held.linkId)
+      : ({ state: 'closed' } as const);
   const agency = page.state === 'open' ? page.view.agency : null;
   const brand = agency
     ? agencyBrand({ name: agency.name, accentColor: agency.accentColor, logoUrl: null })
@@ -66,7 +73,8 @@ export default async function CollectPage() {
           <div className="card-body">
             <h1 className="page-title">This Link Is Not Open</h1>
             <p>
-              The link may have expired or been replaced, or the request may have ended. Ask the
+              The link may have expired or been replaced, or the request may have ended. If it
+              reached you recently, open it again from the message you received. Otherwise ask the
               agency that sent it for a new link.
             </p>
           </div>

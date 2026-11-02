@@ -1,4 +1,9 @@
-import { ANY_OF_LABEL, NECESSITY_LABELS, PROVENANCE_LABELS } from '@visastack/core';
+import {
+  ANY_OF_LABEL,
+  NECESSITY_LABELS,
+  PROVENANCE_LABELS,
+  necessityCanBlock,
+} from '@visastack/core';
 import {
   AGENCY_ITEM_NECESSITIES,
   COLLECTION_STATUS_LABELS,
@@ -25,7 +30,7 @@ import {
 } from '../collection-forms';
 import { STATUS_TONES, collectionPackTerms, destinationName } from '../terms';
 
-export const metadata: Metadata = { title: 'Document Request', referrer: 'no-referrer' };
+export const metadata: Metadata = { title: 'Agency Document Request', referrer: 'no-referrer' };
 export const dynamic = 'force-dynamic';
 
 const LINK_STATES: Readonly<Record<CollectionLinkState, string>> = {
@@ -33,6 +38,7 @@ const LINK_STATES: Readonly<Record<CollectionLinkState, string>> = {
   EXPIRED: 'Expired',
   REVOKED: 'Revoked',
   REPLACED: 'Replaced',
+  ISSUER_GONE: 'Closed, Issuer Is No Longer an Admin',
 };
 
 const NECESSITY_OPTIONS = AGENCY_ITEM_NECESSITIES.map((value) => ({
@@ -67,22 +73,29 @@ function ItemSummary({ item }: { readonly item: CollectionItem }) {
  */
 export default async function CollectionRequestPage({
   params,
+  searchParams,
 }: {
-  readonly params: Promise<{ orgId: string; requestId: string }>;
+  readonly params: Promise<{ orgId: string }>;
+  readonly searchParams: Promise<{ readonly id?: string | string[] }>;
 }) {
-  const { orgId, requestId } = await params;
+  const { orgId } = await params;
+  const { id } = await searchParams;
+  const requestId = typeof id === 'string' ? id : '';
   const data = await withSession(async ({ db, accountId }) => {
     const scope = await agencyCollectionPrincipal(db, accountId, orgId);
     if (!scope.ok) return null;
     const detail = await getCollectionRequest(db, scope.value, requestId);
     if (!detail.ok) return null;
-    const choices = await listCollectionPackChoices(
-      db,
-      scope.value,
-      requestId,
-      collectionPackTerms(detail.value),
-    );
-    return { detail: detail.value, choices: choices.ok ? choices.value : [] };
+    const ended = detail.value.storedStatus === 'REVOKED' || detail.value.storedStatus === 'CLOSED';
+    const choices = ended
+      ? null
+      : await listCollectionPackChoices(
+          db,
+          scope.value,
+          requestId,
+          collectionPackTerms(detail.value),
+        );
+    return { detail: detail.value, choices: choices?.ok ? choices.value : [] };
   });
   if (!data) notFound();
   const { detail, choices } = data;
@@ -169,9 +182,7 @@ export default async function CollectionRequestPage({
                       first={index === 0}
                       last={index === items.length - 1}
                       removable={
-                        item.provenance === 'AGENCY_ADDED' ||
-                        item.necessity === 'RECOMMENDED' ||
-                        item.necessity === 'OPTIONAL'
+                        item.provenance === 'AGENCY_ADDED' || !necessityCanBlock(item.necessity)
                       }
                       necessities={NECESSITY_OPTIONS}
                     />

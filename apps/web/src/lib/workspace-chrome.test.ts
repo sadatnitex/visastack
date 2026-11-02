@@ -54,13 +54,12 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
       { organization: { id: 'own', name: 'Own Agency' }, active: true, role: 'OWNER' },
       { organization: { id: 'work', name: 'Work Agency' }, active: true, role: 'CASE_MANAGER' },
     ]);
-    mocks.agencyCollectionRequestsEnabled.mockReturnValue(true);
+    mocks.agencyCollectionRequestsEnabled.mockReturnValueOnce(true);
     const data = await loadWorkspaceChrome({} as never, actor);
     expect(data.agencies).toEqual([
       { id: 'own', name: 'Own Agency', admin: true, collectionRequests: true },
       { id: 'work', name: 'Work Agency', admin: false },
     ]);
-    mocks.agencyCollectionRequestsEnabled.mockReturnValue(false);
   });
   it('uses the signed-in account name before any traveller record without changing permissions', async () => {
     const namedActor = { ...actor, displayName: 'Synthetic Noor Agency Owner' };

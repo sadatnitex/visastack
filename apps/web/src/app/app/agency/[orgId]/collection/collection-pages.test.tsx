@@ -42,12 +42,15 @@ vi.mock('./collection-forms', async () => {
 
 const { default: ListPage } = await import('./page');
 const { default: NewPage } = await import('./new/page');
-const { default: DetailPage } = await import('./[requestId]/page');
+const { default: DetailPage } = await import('./request/page');
 
 const ORG = '20000000-0000-4000-8000-000000000001';
 const REQ = '30000000-0000-4000-8000-000000000001';
 const props = { params: Promise.resolve({ orgId: ORG }) };
-const detailProps = { params: Promise.resolve({ orgId: ORG, requestId: REQ }) };
+const detailProps = {
+  params: Promise.resolve({ orgId: ORG }),
+  searchParams: Promise.resolve({ id: REQ }),
+};
 
 const official = {
   id: 'r1',

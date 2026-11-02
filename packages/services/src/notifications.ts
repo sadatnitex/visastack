@@ -553,18 +553,19 @@ async function checkRecipient(
 
 /**
  * An agency document request email (UMPE P6) is sent only while the link it carries is still open:
- * not revoked, replaced or expired, its request still sent, its agency not suspended and its issuer
+ * not revoked, replaced or expired, its request still sent, its agency still open and its issuer
  * still an owner or admin. The worker proves the link by the token sealed in the email itself.
- * Null when that cannot be checked now (no key service), so the send is retried rather than lost.
+ * `unknown` when that cannot be checked now (no key service, or it failed): the send is retried,
+ * never made unchecked. When open, the revealed path is returned so it is unwrapped only once.
  */
-async function collectionEmailStillWanted(
+async function collectionEmailCheck(
   db: Db,
   notification: Notification,
   payload: NotificationPayload,
   encryption: KeyManagementPort | undefined,
-): Promise<boolean | null> {
-  if (!encryption || !notification.resourceId) return null;
-  if (!payload.sealedInvitationLink) return false;
+): Promise<'closed' | 'unknown' | { readonly path: string }> {
+  if (!notification.resourceId || !payload.sealedInvitationLink) return 'closed';
+  if (!encryption) return 'unknown';
   let path: string;
   try {
     path = await revealInvitationLink(
@@ -574,13 +575,13 @@ async function collectionEmailStillWanted(
       encryption,
     );
   } catch {
-    return null;
+    return 'unknown';
   }
   const proof = collectionLinkProof(
     new URL(path, 'https://link.invalid').searchParams.get('token'),
   );
-  if (!proof) return false;
-  return collectionLinkStillOpen(db, proof, notification.resourceId);
+  if (!proof) return 'closed';
+  return (await collectionLinkStillOpen(db, proof, notification.resourceId)) ? { path } : 'closed';
 }
 
 async function dispatchOne(
@@ -649,10 +650,11 @@ async function dispatchOne(
     return updated.length ? 'failed' : 'deferred';
   }
 
-  if (
-    notification.eventType === COLLECTION_REQUEST_EMAIL_EVENT &&
-    (await collectionEmailStillWanted(db, notification, payload, encryption)) === false
-  ) {
+  const collection =
+    notification.eventType === COLLECTION_REQUEST_EMAIL_EVENT
+      ? await collectionEmailCheck(db, notification, payload, encryption)
+      : null;
+  if (collection === 'closed') {
     const updated = await db
       .update(schema.notifications)
       .set({
@@ -669,7 +671,10 @@ async function dispatchOne(
 
   try {
     let path = payload.deepLinkPath;
-    if (payload.sealedInvitationLink) {
+    if (collection === 'unknown') throw new Error('Request link could not be checked');
+    if (collection !== null) {
+      path = collection.path;
+    } else if (payload.sealedInvitationLink) {
       if (!encryption || !notification.resourceId)
         throw new Error('Invitation email encryption unavailable');
       const kind =
@@ -679,9 +684,7 @@ async function dispatchOne(
             ? 'sharing'
             : notification.eventType === 'CONTRIBUTOR_REQUEST_CREATED'
               ? 'contributor'
-              : notification.eventType === COLLECTION_REQUEST_EMAIL_EVENT
-                ? 'collection'
-                : 'client';
+              : 'client';
       path = await revealInvitationLink(
         payload.sealedInvitationLink,
         kind,

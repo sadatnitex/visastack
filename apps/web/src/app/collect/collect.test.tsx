@@ -6,6 +6,7 @@ import { renderServer, textOf } from '../../lib/next-mocks.test-support';
  * bound to the link carries it, and every closed link reads the same. Synthetic values only.
  */
 
+const limit = vi.hoisted(() => ({ allowed: true }));
 const mocks = vi.hoisted(() => ({
   open: vi.fn(),
   cookie: undefined as string | undefined,
@@ -14,7 +15,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   openCollectionLink: mocks.open,
-  checkRateLimits: async () => ({ allowed: true }),
+  checkRateLimits: async () =>
+    limit.allowed ? { allowed: true } : { allowed: false, reason: 'busy' },
 }));
 vi.mock('../../lib/public-db', () => ({
   withPublicDb: async (fn: (db: unknown) => Promise<unknown>) => fn({}),
@@ -86,10 +88,26 @@ describe('/collect/open', () => {
   });
 });
 
+describe('/collect/open when busy', () => {
+  it('says the network is busy on the page and drops any older cookie', async () => {
+    mocks.open.mockResolvedValue(OPEN);
+    limit.allowed = false;
+    const response = await visit(TOKEN);
+    limit.allowed = true;
+    expect(response.headers.get('location')).toBe('/collect?busy=1');
+    expect(response.headers.get('set-cookie') ?? '').toMatch(/vs_collect=;/);
+    expect(mocks.open).not.toHaveBeenCalled();
+    const text = textOf(
+      await renderServer(CollectPage({ searchParams: Promise.resolve({ busy: '1' }) })),
+    );
+    expect(text).toContain('Please Try Again Later');
+  });
+});
+
 describe('/collect', () => {
   it('is not found while the switch is off', async () => {
     vi.stubEnv('AGENCY_COLLECTION_REQUESTS', '');
-    await expect(CollectPage()).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(CollectPage({})).rejects.toThrow('NEXT_NOT_FOUND');
   });
 
   it('sends no referrer and is never indexed', () => {
@@ -100,7 +118,7 @@ describe('/collect', () => {
   it('shows a reviewed agency and says plainly that responding opens later, and nothing else', async () => {
     mocks.cookie = `${LINK}.${TOKEN}`;
     mocks.open.mockResolvedValue(OPEN);
-    const text = textOf(await renderServer(CollectPage()));
+    const text = textOf(await renderServer(CollectPage({})));
     expect(text).toContain('Synthetic Agency One Asked You for Documents');
     expect(text).toContain('Responding through this link opens in a later release');
     expect(text).toContain('Opening it has shared nothing');
@@ -109,21 +127,21 @@ describe('/collect', () => {
   it('names no agency that VisaStack has not reviewed', async () => {
     mocks.cookie = `${LINK}.${TOKEN}`;
     mocks.open.mockResolvedValue({ ...OPEN, agency: null });
-    const text = textOf(await renderServer(CollectPage()));
+    const text = textOf(await renderServer(CollectPage({})));
     expect(text).toContain('An Agency Asked You for Documents');
     expect(text).not.toContain('Synthetic Agency One');
   });
 
   it('gives one answer for no cookie, a closed link and a cookie made for another link', async () => {
     const answers: string[] = [];
-    answers.push(textOf(await renderServer(CollectPage())));
+    answers.push(textOf(await renderServer(CollectPage({}))));
     mocks.cookie = `${LINK}.${TOKEN}`;
     mocks.open.mockResolvedValue(null);
-    answers.push(textOf(await renderServer(CollectPage())));
+    answers.push(textOf(await renderServer(CollectPage({}))));
     mocks.open.mockResolvedValue({ ...OPEN, linkId: '99999999-2222-4333-8444-555555555555' });
-    answers.push(textOf(await renderServer(CollectPage())));
+    answers.push(textOf(await renderServer(CollectPage({}))));
     mocks.cookie = 'not-a-cookie-of-ours';
-    answers.push(textOf(await renderServer(CollectPage())));
+    answers.push(textOf(await renderServer(CollectPage({}))));
     expect(new Set(answers).size).toBe(1);
     expect(answers[0]).toContain('This Link Is Not Open');
   });

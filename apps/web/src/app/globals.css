@@ -12611,9 +12611,10 @@ html:has(.sticky-action-bar) {
   margin-top: var(--space-3);
 }
 .collection-revision summary {
+  /* Kept a list item so the browser's own open and closed marker still shows. */
+  display: list-item;
   min-height: 44px;
-  display: flex;
-  align-items: center;
+  padding-block: var(--space-2);
   cursor: pointer;
 }
 .collect-page .collect-card {

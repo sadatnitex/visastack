@@ -432,6 +432,16 @@ describe('agency document requests before any traveller record (UMPE P6)', () =>
       ).toBeNull();
     });
 
+    it('refuses to issue from an official checklist that is no longer published', async () => {
+      const requestId = await createdRequest();
+      await db
+        .update(schema.packVersions)
+        .set({ status: 'WITHDRAWN' })
+        .where(eq(schema.packVersions.id, packVersionId));
+      const refused = await issueCollectionRequest(db, await scope(), requestId);
+      expect(!refused.ok && refused.error.code).toBe('stale');
+    });
+
     it('refuses to issue when the pack no longer matches its checksum', async () => {
       const requestId = await createdRequest();
       await db
@@ -608,6 +618,15 @@ describe('agency document requests before any traveller record (UMPE P6)', () =>
         .set({ status: 'SUSPENDED' })
         .where(eq(schema.organizations.id, otherOrgId));
       expect(await openCollectionLink(db, proof())).toBeNull();
+      for (const status of ['CLOSED', 'REJECTED'] as const) {
+        await db
+          .update(schema.organizations)
+          .set({ status })
+          .where(eq(schema.organizations.id, otherOrgId));
+        expect(await openCollectionLink(db, proof())).toBeNull();
+        // Nor can its admins act on requests any more.
+        expect((await agencyCollectionPrincipal(db, otherAdminId, otherOrgId)).ok).toBe(false);
+      }
     });
   });
 
@@ -678,6 +697,32 @@ describe('agency document requests before any traveller record (UMPE P6)', () =>
         .where(eq(schema.notifications.resourceId, emailed.value.link.id));
       expect(row?.status).toBe('FAILED');
       expect(row?.lastError).toBe('recipient no longer authorized');
+    });
+
+    it('never sends unchecked: when the link cannot be checked the email waits for a retry', async () => {
+      const requestId = await createdRequest();
+      await issued(requestId);
+      const emailed = await createCollectionLink(db, await scope(), requestId, {
+        email: { address: 'person@example.test', encryption },
+      });
+      if (!emailed.ok) throw new Error('email');
+      const broken: KeyManagementPort = {
+        ...encryption,
+        async unwrapDataKey() {
+          throw new Error('key service unavailable');
+        },
+      };
+      const first = await runNotificationWorker(db, emailPort, 'https://app.example.test', {
+        encryption: broken,
+      });
+      expect(first.sent).toBe(0);
+      expect(sent).toEqual([]);
+      const [row] = await db
+        .select()
+        .from(schema.notifications)
+        .where(eq(schema.notifications.resourceId, emailed.value.link.id));
+      expect(row?.status).toBe('QUEUED');
+      expect(row?.nextAttemptAt).not.toBeNull();
     });
 
     it('cancels a queued email when the request is revoked', async () => {
