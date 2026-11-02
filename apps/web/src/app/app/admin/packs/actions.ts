@@ -12,6 +12,7 @@ import {
   addPackVersion,
   addRequirement,
   approvePackVersion,
+  assessRuleImpact,
   clearOfficialFeeStale,
   clearRequirementSourceInaccessible,
   createPack,
@@ -29,8 +30,9 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { hasPlatformPermission } from '../../../../lib/admin';
+import { bootstrapAdminEmails, hasPlatformPermission, staffPrincipal } from '../../../../lib/admin';
 import { parseDocumentTypeInput, parseFieldKeyInput } from '../../../../lib/catalogue-input';
+import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 
 /** Result surfaced back to the client for inline feedback. */
@@ -310,6 +312,31 @@ export async function verifyChecksumAction(
   });
 }
 
+/**
+ * UMPE P11: after a publish, flag active cases pinned to an older version and queue their notes,
+ * with a fresh pack management scope. Returns how many cases were flagged (0 on any failure).
+ */
+async function flagActiveCases(
+  db: Parameters<typeof staffPrincipal>[0],
+  accountId: string,
+  email: string,
+  packVersionId: string,
+): Promise<number> {
+  try {
+    const staff = await staffPrincipal(
+      db,
+      { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+      'PACK_MANAGE',
+    );
+    if (!staff.ok) return 0;
+    const assessed = await assessRuleImpact(db, staff.value, { packVersionId });
+    return assessed.ok ? assessed.value.casesFlagged : 0;
+  } catch (error) {
+    reportServerError('assessRuleImpact', error);
+    return 0;
+  }
+}
+
 /** Publish an APPROVED version, making it attachable by missions. Platform-admin only. */
 export async function publishVersionAction(
   _prev: ActionState,
@@ -324,9 +351,15 @@ export async function publishVersionAction(
     if (!published.ok) {
       return { ok: false, message: published.error.message } satisfies ActionState;
     }
+    // UMPE P11: tell the owners of active cases on an older version. Publishing already happened;
+    // if this step fails the daily sweep finishes it, so it never turns a publish into an error.
+    const flagged = await flagActiveCases(db, accountId, email, packVersionId);
     return {
       ok: true,
-      message: 'Version published - attachable by cases now.',
+      message:
+        flagged > 0
+          ? `Version published - attachable by cases now. ${flagged} active ${flagged === 1 ? 'case was' : 'cases were'} marked for review.`
+          : 'Version published - attachable by cases now.',
     } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);

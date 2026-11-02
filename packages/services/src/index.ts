@@ -2654,3 +2654,40 @@ export {
 } from './umpe-package-start';
 export { packageTablesPresent as packageTablesReady } from './umpe-package-tables';
 export { PACKAGE_CHANGED_EVENT } from './notifications';
+// UMPE P11
+export {
+  type CorrectionCategory,
+  type CorrectionDecision,
+  type CorrectionInput,
+  type CorrectionQueue,
+  type CorrectionStatus,
+  type CorrectionView,
+  type SuggestedCorrection,
+  CORRECTION_CATEGORIES,
+  CORRECTION_CATEGORY_LABELS,
+  CORRECTION_DETAIL_MAX,
+  CORRECTION_STATUS_LABELS,
+  CORRECTION_STATUSES,
+  CORRECTION_URL_MAX,
+  cleanOfficialUrl,
+  listChecklistCorrections,
+  reviewChecklistCorrection,
+  suggestAgencyChecklistCorrection,
+  suggestCaseChecklistCorrection,
+} from './umpe-correction-service';
+export {
+  type CollectionRuleImpact,
+  type RuleChangeItem,
+  type RuleChangeKind,
+  type RuleImpactProgress,
+  type RuleImpactRunView,
+  RULE_IMPACT_NOTE_LIMIT,
+  assessRuleImpact,
+  collectionRuleImpact,
+  listRuleImpactRuns,
+  preciseRuleChange,
+  ruleChangeSentence,
+  sweepRuleImpacts,
+} from './umpe-rule-impact-service';
+export { CORRECTIONS_NOT_READY } from './umpe-correction-tables';
+export { RULE_CHANGED_EVENT } from './notifications';

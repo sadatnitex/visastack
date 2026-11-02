@@ -20,6 +20,7 @@ import { type ServiceError, serviceError } from './errors';
 import { isHttpUrl } from './external-url';
 import { recordProductEvent } from './product-events';
 import { type RuleCondition, isValidRuleCondition } from './rule-conditions';
+import { queueRuleImpact } from './umpe-rule-impact-queue';
 
 /**
  * Requirement Packs & Pack Studio (Build Spec §4.5; PRD §4; Commercial V1
@@ -1034,6 +1035,9 @@ export async function publishPackVersion(
         metadata: { supersededByPackVersionId: updated.id },
       });
     }
+    // UMPE P11: note that this version's impact on active cases needs assessing. No person data
+    // is read or written here; a gated step flags the cases (see umpe-rule-impact-service.ts).
+    await queueRuleImpact(tx, { packId: version.packId, packVersionId: updated.id });
 
     return ok(updated);
   });

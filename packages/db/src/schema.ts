@@ -6061,3 +6061,165 @@ export const umpePackageChanges = pgTable(
     check('umpe_package_changes_count_positive', sql`${table.changeCount} >= 1`),
   ],
 );
+
+// --- Checklist corrections and published-rule change impact (UMPE P11, S06 and S07) -----------
+// A suggestion is moderated input for pack editors, never a rule: nothing here edits a pack, a
+// case, a handoff or an issued agency revision. The submitter's account is kept only for the
+// limit and for duplicates, and is never shown to editors.
+export const umpeChecklistCorrections = pgTable(
+  'umpe_checklist_corrections',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    packId: uuid('pack_id')
+      .notNull()
+      .references(() => packs.id, { onDelete: 'cascade' }),
+    packVersionId: uuid('pack_version_id')
+      .notNull()
+      .references(() => packVersions.id, { onDelete: 'cascade' }),
+    packRequirementId: uuid('pack_requirement_id').references(() => packRequirements.id, {
+      onDelete: 'set null',
+    }),
+    category: text('category').notNull(),
+    officialUrl: text('official_url'),
+    detail: text('detail'),
+    submitterKind: text('submitter_kind').notNull(),
+    submittedByAccountId: uuid('submitted_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'set null',
+    }),
+    status: text('status').notNull().default('RECEIVED'),
+    reviewerAccountId: uuid('reviewer_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewNote: text('review_note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('umpe_checklist_corrections_status_idx').on(table.status, table.createdAt),
+    index('umpe_checklist_corrections_pack_idx').on(table.packId),
+    index('umpe_checklist_corrections_version_idx').on(table.packVersionId),
+    index('umpe_checklist_corrections_requirement_idx').on(table.packRequirementId),
+    index('umpe_checklist_corrections_submitter_idx').on(table.submittedByAccountId),
+    index('umpe_checklist_corrections_org_idx').on(table.organizationId),
+    index('umpe_checklist_corrections_reviewer_idx').on(table.reviewerAccountId),
+    check(
+      'umpe_checklist_corrections_category_known',
+      sql`${table.category} in ('MISSING', 'OUTDATED', 'WRONG', 'WRONG_NECESSITY', 'ALTERNATIVE_ACCEPTED', 'SOURCE_DISCREPANCY', 'OTHER')`,
+    ),
+    check(
+      'umpe_checklist_corrections_submitter_known',
+      sql`${table.submitterKind} in ('TRAVELLER', 'AGENCY')`,
+    ),
+    check(
+      'umpe_checklist_corrections_status_known',
+      sql`${table.status} in ('RECEIVED', 'IN_REVIEW', 'DISMISSED', 'ACCEPTED_FOR_DRAFT')`,
+    ),
+    check(
+      'umpe_checklist_corrections_url_https',
+      sql`${table.officialUrl} is null or (${table.officialUrl} like 'https://%' and char_length(${table.officialUrl}) <= 2048)`,
+    ),
+    check(
+      'umpe_checklist_corrections_text_caps',
+      sql`coalesce(char_length(${table.detail}), 0) <= 1000 and coalesce(char_length(${table.reviewNote}), 0) <= 1000`,
+    ),
+  ],
+);
+
+// One assessment per published version. It names no person: the publish step writes it in the
+// same transaction, and a gated step (staff right after publishing, or the scheduled sweep) fills
+// in the impacts.
+export const umpeRuleImpactRuns = pgTable(
+  'umpe_rule_impact_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    packId: uuid('pack_id')
+      .notNull()
+      .references(() => packs.id, { onDelete: 'cascade' }),
+    packVersionId: uuid('pack_version_id')
+      .notNull()
+      .unique()
+      .references(() => packVersions.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    assessedAt: timestamp('assessed_at', { withTimezone: true }),
+    casesFlagged: integer('cases_flagged').notNull().default(0),
+    notesQueued: integer('notes_queued').notNull().default(0),
+  },
+  (table) => [
+    index('umpe_rule_impact_runs_pack_idx').on(table.packId, table.createdAt),
+    index('umpe_rule_impact_runs_pending_idx')
+      .on(table.createdAt)
+      .where(sql`${table.assessedAt} is null`),
+    check(
+      'umpe_rule_impact_runs_counts_non_negative',
+      sql`${table.casesFlagged} >= 0 and ${table.notesQueued} >= 0`,
+    ),
+  ],
+);
+
+// One affected subject of one published version, with its one precise item (the most important
+// difference from the version it is pinned to). Ids, kinds and rule codes only. A newer
+// publication closes the older open row of the same subject as superseded.
+export const umpeRuleImpacts = pgTable(
+  'umpe_rule_impacts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => umpeRuleImpactRuns.id, { onDelete: 'cascade' }),
+    packVersionId: uuid('pack_version_id')
+      .notNull()
+      .references(() => packVersions.id, { onDelete: 'cascade' }),
+    previousPackVersionId: uuid('previous_pack_version_id')
+      .notNull()
+      .references(() => packVersions.id, { onDelete: 'cascade' }),
+    subjectKind: text('subject_kind').notNull(),
+    missionId: uuid('mission_id').references(() => missions.id, { onDelete: 'cascade' }),
+    collectionRequestId: uuid('collection_request_id').references(
+      () => agencyCollectionRequests.id,
+      { onDelete: 'cascade' },
+    ),
+    organizationId: uuid('organization_id').references(() => organizations.id, {
+      onDelete: 'cascade',
+    }),
+    changeKind: text('change_kind').notNull(),
+    itemKind: text('item_kind'),
+    itemKey: text('item_key'),
+    changedCount: integer('changed_count').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    notifiedAt: timestamp('notified_at', { withTimezone: true }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolution: text('resolution'),
+  },
+  (table) => [
+    unique('umpe_rule_impacts_case').on(table.packVersionId, table.missionId),
+    unique('umpe_rule_impacts_request').on(table.packVersionId, table.collectionRequestId),
+    index('umpe_rule_impacts_run_idx').on(table.runId),
+    index('umpe_rule_impacts_previous_idx').on(table.previousPackVersionId),
+    index('umpe_rule_impacts_mission_idx').on(table.missionId),
+    index('umpe_rule_impacts_request_idx').on(table.collectionRequestId),
+    index('umpe_rule_impacts_org_idx').on(table.organizationId),
+    index('umpe_rule_impacts_unnotified_idx')
+      .on(table.runId)
+      .where(sql`${table.notifiedAt} is null and ${table.resolvedAt} is null`),
+    check(
+      'umpe_rule_impacts_subject_shape',
+      sql`(${table.subjectKind} = 'CASE' and ${table.missionId} is not null and ${table.collectionRequestId} is null) or (${table.subjectKind} = 'AGENCY_REQUEST' and ${table.collectionRequestId} is not null and ${table.organizationId} is not null and ${table.missionId} is null)`,
+    ),
+    check(
+      'umpe_rule_impacts_change_known',
+      sql`${table.changeKind} in ('ADDED', 'CHANGED', 'REMOVED', 'NONE') and (${table.itemKind} is null or ${table.itemKind} in ('FIELD', 'DOCUMENT'))`,
+    ),
+    check(
+      'umpe_rule_impacts_item_cap',
+      sql`${table.itemKey} is null or char_length(${table.itemKey}) <= 300`,
+    ),
+    check('umpe_rule_impacts_count_non_negative', sql`${table.changedCount} >= 0`),
+    check(
+      'umpe_rule_impacts_resolution_known',
+      sql`(${table.resolvedAt} is null) = (${table.resolution} is null) and (${table.resolution} is null or ${table.resolution} in ('SUPERSEDED', 'NO_LONGER_APPLIES'))`,
+    ),
+  ],
+);

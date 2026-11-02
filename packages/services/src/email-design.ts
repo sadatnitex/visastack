@@ -416,6 +416,14 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     action: 'Review the Trip Package',
     after: 'Nothing was shared or sent to anyone. Your earlier choices stay as they were.',
   },
+  // UMPE P11: the rule change only, never the person's documents or answers.
+  CASE_RULE_CHANGED: {
+    eyebrow: 'Your Trip',
+    heading: 'A checklist for one of your trips was updated',
+    why: 'A newer official checklist was published. Your trip still follows the earlier one until you review it.',
+    action: 'Review the Trip Package',
+    after: 'Nothing in your trip was changed, shared or sent to anyone.',
+  },
 };
 
 export function notificationEmail(input: NotificationEmailInput): EmailContent {

@@ -8,6 +8,7 @@ import {
   desc,
   eq,
   gt,
+  gte,
   inArray,
   isNotNull,
   isNull,
@@ -102,7 +103,9 @@ export type NotificationEventType =
   // ADR 0025 T6: a refund of the person's own purchase was made; no amount.
   | 'PERSON_REFUND_RECORDED'
   // UMPE P4: something changed for a traveller's own trip package; one note per change.
-  | typeof PACKAGE_CHANGED_EVENT;
+  | typeof PACKAGE_CHANGED_EVENT
+  // UMPE P11: a newer checklist was published for a traveller's active case; one note per impact.
+  | typeof RULE_CHANGED_EVENT;
 
 // --- UMPE P4: trip package change notes ----------------------------------------------------------
 /** A note to a traveller that something changed for one of their trip packages (UMPE P4, R19). */
@@ -135,6 +138,62 @@ async function packageChangeStillOpen(db: Db, notification: Notification): Promi
   return row !== undefined;
 }
 // --- end UMPE P4 ---------------------------------------------------------------------------------
+
+// --- UMPE P11: published rule change notes --------------------------------------------------------
+/** A note to a traveller that a newer checklist was published for one of their active cases. */
+export const RULE_CHANGED_EVENT = 'CASE_RULE_CHANGED';
+
+/**
+ * Send-time recheck: the note goes only while its impact is still open, the case is still active
+ * and still pinned to the older version, the newer version is still published, and P4 has not
+ * already queued or sent its own package change note for the case since the impact (one note per
+ * situation). Ids only; nothing is edited here.
+ */
+async function ruleChangeStillOpen(db: Db, notification: Notification): Promise<boolean> {
+  if (!notification.resourceId || !notification.missionId || !notification.applicantId)
+    return false;
+  const row = first(
+    await db
+      .select({ createdAt: schema.umpeRuleImpacts.createdAt })
+      .from(schema.umpeRuleImpacts)
+      .innerJoin(schema.missions, eq(schema.missions.id, schema.umpeRuleImpacts.missionId))
+      .innerJoin(
+        schema.packVersions,
+        eq(schema.packVersions.id, schema.umpeRuleImpacts.packVersionId),
+      )
+      .where(
+        and(
+          eq(schema.umpeRuleImpacts.id, notification.resourceId),
+          eq(schema.umpeRuleImpacts.missionId, notification.missionId),
+          eq(schema.missions.applicantId, notification.applicantId),
+          isNull(schema.umpeRuleImpacts.resolvedAt),
+          isNull(schema.missions.purgedAt),
+          notInArray(schema.missions.state, [...INACTIVE_CASE_STATES]),
+          eq(schema.missions.packVersionId, schema.umpeRuleImpacts.previousPackVersionId),
+          eq(schema.packVersions.status, 'PUBLISHED'),
+        ),
+      )
+      .limit(1),
+  );
+  if (!row) return false;
+  const packageNote = first(
+    await db
+      .select({ id: schema.notifications.id })
+      .from(schema.notifications)
+      .where(
+        and(
+          eq(schema.notifications.eventType, PACKAGE_CHANGED_EVENT),
+          eq(schema.notifications.missionId, notification.missionId),
+          eq(schema.notifications.channel, notification.channel),
+          notInArray(schema.notifications.status, ['CANCELLED', 'FAILED']),
+          gte(schema.notifications.createdAt, row.createdAt),
+        ),
+      )
+      .limit(1),
+  );
+  return packageNote === undefined;
+}
+// --- end UMPE P11 --------------------------------------------------------------------------------
 
 /**
  * Billing notices (S17): an agency's invoices, reminders and billing status are for its owners
@@ -697,8 +756,11 @@ async function dispatchOne(
 
   // UMPE P4: a package change note that no longer applies is cancelled, on either channel.
   if (
-    notification.eventType === PACKAGE_CHANGED_EVENT &&
-    !(await packageChangeStillOpen(db, notification))
+    (notification.eventType === PACKAGE_CHANGED_EVENT &&
+      !(await packageChangeStillOpen(db, notification))) ||
+    // UMPE P11: a rule change note that no longer applies is cancelled the same way.
+    (notification.eventType === RULE_CHANGED_EVENT &&
+      !(await ruleChangeStillOpen(db, notification)))
   ) {
     const updated = await db
       .update(schema.notifications)

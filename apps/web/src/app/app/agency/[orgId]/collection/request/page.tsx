@@ -10,6 +10,7 @@ import {
   type CollectionItem,
   type CollectionLinkState,
   agencyCollectionPrincipal,
+  collectionRuleImpact,
   getCollectionRequest,
   listCollectionPackChoices,
 } from '@visastack/services';
@@ -29,6 +30,7 @@ import {
   PackChoiceForm,
 } from '../collection-forms';
 import { STATUS_TONES, collectionPackTerms, destinationName } from '../terms';
+import { ChecklistCorrectionCard } from './checklist-correction';
 
 export const metadata: Metadata = { title: 'Agency Document Request', referrer: 'no-referrer' };
 export const dynamic = 'force-dynamic';
@@ -95,10 +97,16 @@ export default async function CollectionRequestPage({
           requestId,
           collectionPackTerms(detail.value),
         );
-    return { detail: detail.value, choices: choices?.ok ? choices.value : [] };
+    // UMPE P11: a newer published official checklist, through this agency's own scope.
+    const impact = await collectionRuleImpact(db, scope.value, requestId);
+    return {
+      detail: detail.value,
+      choices: choices?.ok ? choices.value : [],
+      impact: impact.ok ? impact.value : null,
+    };
   });
   if (!data) notFound();
-  const { detail, choices } = data;
+  const { detail, choices, impact } = data;
   const editable = detail.storedStatus === 'DRAFT' || detail.storedStatus === 'SENT';
   const items = detail.draftItems ?? [];
   const official = detail.draftPack !== null;
@@ -309,6 +317,17 @@ export default async function CollectionRequestPage({
             ))}
           </div>
         </section>
+      ) : null}
+
+      {official || detail.revisions.some((revision) => revision.packVersionId) ? (
+        <ChecklistCorrectionCard
+          organizationId={orgId}
+          requestId={detail.id}
+          impact={impact}
+          officialItems={items
+            .filter((item) => item.provenance === 'OFFICIAL' && item.source !== 'agency')
+            .map((item) => ({ value: item.source, label: item.label }))}
+        />
       ) : null}
 
       {editable ? (

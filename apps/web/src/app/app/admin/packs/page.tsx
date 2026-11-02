@@ -129,6 +129,9 @@ export default async function PackStudioPage({
             <Link href="/app/admin/packs/sources" className="u-fs-085">
               Official Sources and Detected Changes →
             </Link>
+            <Link href="/app/admin/packs/corrections" className="u-fs-085">
+              Checklist Corrections from Travellers and Agencies →
+            </Link>
             {data.reviewQueue.length === 0 ? (
               <p className="card-body" style={{ marginTop: '0.75rem' }}>
                 Nothing due for review.

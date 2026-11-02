@@ -130,6 +130,9 @@ export const RATE_LIMITS = {
   // person may start 6 an hour and everyone together 20, keeping the sites and the host unburdened.
   SOURCE_CHECK_MANUAL: { limit: 6, windowMs: HOUR_MS },
   SOURCE_CHECK_MANUAL_ALL: { limit: 20, windowMs: HOUR_MS },
+  // Suggest a Checklist Correction (UMPE P11), per account across cases and agency requests: a
+  // person notices a few wrong items at a time, so 10 an hour keeps the editors' queue usable.
+  CHECKLIST_CORRECTION: { limit: 10, windowMs: HOUR_MS },
   // Agency document requests (UMPE P6): creating one, and issuing it or making a link or email for
   // it, per operator and per agency, like client invitations. The public request page counts each
   // look per network address (kept only as a hash) and per link, so links cannot be tried in bulk

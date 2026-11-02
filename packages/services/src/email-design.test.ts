@@ -125,6 +125,7 @@ describe('the words of every email', () => {
       [
         'AGENCY_COLLECTION_GUEST_CODE',
         'CASE_PACKAGE_CHANGED',
+        'CASE_RULE_CHANGED',
         'AGENCY_COLLECTION_REQUEST_SENT',
         'APPOINTMENT_SCHEDULED',
         'BILLING_STATUS_CHANGED',

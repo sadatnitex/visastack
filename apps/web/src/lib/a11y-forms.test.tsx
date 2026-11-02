@@ -72,6 +72,10 @@ vi.mock('../app/app/admin/organizations/[orgId]/actions', standIn);
 vi.mock('../app/app/admin/organizations/[orgId]/refund-actions', standIn);
 vi.mock('../app/app/admin/packs/actions', standIn);
 vi.mock('../app/app/admin/packs/sources/actions', standIn);
+// UMPE P11: checklist corrections.
+vi.mock('../app/app/admin/packs/corrections/actions', standIn);
+vi.mock('../app/app/mission/[id]/suggest-correction-actions', standIn);
+vi.mock('../app/app/agency/[orgId]/collection/request/checklist-correction-actions', standIn);
 vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
@@ -129,6 +133,9 @@ const refundForms = await import('../app/app/admin/organizations/[orgId]/refund-
 const packForms = await import('../app/app/admin/packs/pack-forms');
 const packVersionButtons = await import('../app/app/admin/packs/pack-version-buttons');
 const sourceForms = await import('../app/app/admin/packs/sources/source-forms');
+const correctionForms = await import('../app/app/admin/packs/corrections/correction-forms');
+const correctionForm = await import('../components/checklist-correction-form');
+const caseCorrectionActions = await import('../app/app/mission/[id]/suggest-correction-actions');
 const collectionForms = await import('../app/app/agency/[orgId]/collection/collection-forms');
 const guestForms = await import('../app/collect/guest-forms');
 const { PurgeButton } = await import('../app/app/admin/purge-button');
@@ -2310,6 +2317,45 @@ const ADMIN: readonly Case[] = [
     element: () => (
       <sourceForms.CandidateDecisionForm candidateId="c1" status="NEW" sourceTitle="Visit the UK" />
     ),
+  },
+  {
+    name: 'decide on a checklist correction',
+    element: () => (
+      <correctionForms.CorrectionDecisionForm
+        correctionId="k1"
+        status="RECEIVED"
+        itemName="Bank Statement"
+      />
+    ),
+    repeated: true,
+  },
+  {
+    name: 'suggest a correction on one case checklist line',
+    element: () => (
+      <correctionForm.ChecklistCorrectionForm
+        action={caseCorrectionActions.suggestCaseCorrectionAction}
+        hidden={{ missionId: 'm1', packRequirementId: 'r1' }}
+        categories={[
+          { value: 'OUTDATED', label: 'Out of Date' },
+          { value: 'OTHER', label: 'Something Else' },
+        ]}
+        itemName="Bank Statement"
+      />
+    ),
+    fields: ['category', 'officialUrl', 'detail'],
+    repeated: true,
+  },
+  {
+    name: 'suggest a correction on an agency request checklist',
+    element: () => (
+      <correctionForm.ChecklistCorrectionForm
+        action={caseCorrectionActions.suggestCaseCorrectionAction}
+        hidden={{ organizationId: 'o1', requestId: 'q1' }}
+        categories={[{ value: 'MISSING', label: 'Something Is Missing' }]}
+        items={[{ value: 'r1', label: 'Passport' }]}
+      />
+    ),
+    fields: ['packRequirementId', 'category', 'officialUrl', 'detail'],
   },
   {
     name: 'open a pack version',
