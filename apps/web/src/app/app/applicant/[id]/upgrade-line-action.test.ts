@@ -145,6 +145,21 @@ beforeEach(() => {
   mocks.getLatestExtractedText.mockResolvedValue('Some text read from the file.');
 });
 
+describe('an upload refused by the hourly upload limit', () => {
+  it('passes the refusal code on with the unchanged words, and no upgrade line', async () => {
+    const error = {
+      code: 'rate_limited',
+      message: 'too many upload requests in a short time - please try again later',
+    };
+    mocks.reserveUpload.mockResolvedValueOnce({ ok: false, error });
+    expect(await uploadDocumentAction(initial, upload())).toEqual({
+      ok: false,
+      message: error.message,
+      refusal: 'rate_limited',
+    });
+  });
+});
+
 describe('an upload refused for storage (the record’s owner, for themselves)', () => {
   it('adds the line after the unchanged refusal, for their record’s room and their whole account', async () => {
     for (const [refusal, kind] of [

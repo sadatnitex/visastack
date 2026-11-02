@@ -95,6 +95,7 @@ import { DocumentSuggestionCard } from '../document-suggestion-card';
 import { DocumentTypeForm } from '../document-type-form';
 import { DocumentUploader } from '../document-uploader';
 import { downloadOriginalAction } from '../download-actions';
+import { ImportPanel } from '../import/import-panel';
 import { ReadingOfferCard, ReadingStatus } from '../reading-status';
 import { UsageMeter } from '../usage-meter';
 import { type LifecycleTab, LifecycleTabs, lifecycleTabOf } from './manage/lifecycle-tabs';
@@ -1089,6 +1090,20 @@ export default async function ApplicantDocumentsPage({
                     kindGroups={documentGroups}
                     initialKind={initialKind}
                     originalKinds={ORIGINAL_KINDS}
+                  />
+                </article>
+                <article className="card u-mb-150">
+                  <p className="card-kicker">Import</p>
+                  <h2 className="card-title">Add a Whole Folder</h2>
+                  <p className="card-body u-mb-125">
+                    Add a folder, with the folders inside it, or many files in one go. Each file is
+                    added the same way as above, a few at a time, and each gets its own line.
+                  </p>
+                  <ImportPanel
+                    applicantId={id}
+                    limitBytes={uploadLimitBytes(data.quota)}
+                    limitLabel={mbLabel(uploadLimitBytes(data.quota))}
+                    pdfAccepted={pdfUploadsAccepted()}
                   />
                 </article>
               </>
