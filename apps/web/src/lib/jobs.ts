@@ -58,7 +58,6 @@ import {
   sweepLegalHoldReviewReminders,
   sweepPackageChanges,
   sweepTaskDeadlineReminders,
-  systemPrincipal,
 } from '@visastack/services';
 import { createAiReadingPorts } from './ai-reading-ports';
 import { resolveBaseUrl } from './base-url';
@@ -575,6 +574,7 @@ export async function triggerAbandonedUploadSweep(
  * connection; a failure is reported and never fails the daily reminder sweep that calls it.
  */
 export async function triggerPackageChangeSweep(
+  scope: SystemScope<'process-notification-sweeps'>,
   options: { readonly pageSize?: number; readonly maxPages?: number } = {},
 ): Promise<{ readonly checked: number; readonly recorded: number; readonly complete: boolean }> {
   const connectionString = resolveDatabaseUrl(process.env);
@@ -592,7 +592,6 @@ export async function triggerPackageChangeSweep(
   let recorded = 0;
   try {
     const handle = db as unknown as Parameters<typeof sweepPackageChanges>[1];
-    const scope = systemPrincipal('process-notification-sweeps');
     let after: string | null = null;
     for (let page = 0; page < maxPages; page += 1) {
       const result = await sweepPackageChanges(scope, handle, { after, limit: pageSize });

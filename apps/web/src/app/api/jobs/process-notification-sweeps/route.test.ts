@@ -41,6 +41,7 @@ describe('daily notification sweeps (UMPE P4 package changes wired in)', () => {
     const response = await GET(authorized());
     expect(response.status).toBe(200);
     expect(mocks.packages).toHaveBeenCalledTimes(1);
+    expect(mocks.packages).toHaveBeenCalledWith({ job: 'process-notification-sweeps' });
     expect(await response.json()).toMatchObject({
       queued: 2,
       packages: { checked: 5, recorded: 1, complete: true },
