@@ -1,7 +1,11 @@
 import { systemPrincipal } from '@visastack/services';
 import { after } from 'next/server';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
-import { triggerNotificationSweeps, triggerNotificationWorker } from '../../../../lib/jobs';
+import {
+  triggerNotificationSweeps,
+  triggerNotificationWorker,
+  triggerPackageChangeSweep,
+} from '../../../../lib/jobs';
 import { runRemovalAlerts } from '../../../../lib/lifecycle-jobs/removal-alerts';
 
 /**
@@ -41,7 +45,10 @@ export async function GET(request: Request): Promise<Response> {
   // Removal requests (resource lifecycle lane D): completed removals and staff alerts. Its own
   // failure is reported inside and never fails the reminder sweep above.
   const removals = await runRemovalAlerts(systemPrincipal('process-notification-sweeps'));
+  // UMPE P4: one "something changed" item per active case package (never a handed-off snapshot);
+  // its own failure is reported inside and never fails the sweeps above.
+  const packages = await triggerPackageChangeSweep();
   // Emails this run queued go out now, not at the next day's sending run.
   after(() => triggerNotificationWorker().then(() => undefined));
-  return Response.json({ ...result, removals });
+  return Response.json({ ...result, removals, packages });
 }

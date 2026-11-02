@@ -56,7 +56,9 @@ import {
   sweepInactiveAccountDeletionRequests,
   sweepInactiveAccountNotices,
   sweepLegalHoldReviewReminders,
+  sweepPackageChanges,
   sweepTaskDeadlineReminders,
+  systemPrincipal,
 } from '@visastack/services';
 import { createAiReadingPorts } from './ai-reading-ports';
 import { resolveBaseUrl } from './base-url';
@@ -561,6 +563,48 @@ export async function triggerAbandonedUploadSweep(
   } catch (error) {
     reportServerError('triggerAbandonedUploadSweep', error, { step: 'sweep failed' });
     return { checked: 0, cleaned: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * UMPE P4 continuous matching: records one "something changed" item per active case whose package
+ * is affected by a new document version, a confirmed fact, an expiry or a pack change, and queues
+ * its notice. Pages through every active case in bounded steps on its own short-lived pooled
+ * connection; a failure is reported and never fails the daily reminder sweep that calls it.
+ */
+export async function triggerPackageChangeSweep(
+  options: { readonly pageSize?: number; readonly maxPages?: number } = {},
+): Promise<{ readonly checked: number; readonly recorded: number; readonly complete: boolean }> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerPackageChangeSweep] database not configured');
+    return { checked: 0, recorded: 0, complete: false };
+  }
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    reportServerError('triggerPackageChangeSweep', error, { step: 'idle pool connection error' });
+  });
+  const pageSize = options.pageSize ?? 200;
+  const maxPages = options.maxPages ?? 10;
+  let checked = 0;
+  let recorded = 0;
+  try {
+    const handle = db as unknown as Parameters<typeof sweepPackageChanges>[1];
+    const scope = systemPrincipal('process-notification-sweeps');
+    let after: string | null = null;
+    for (let page = 0; page < maxPages; page += 1) {
+      const result = await sweepPackageChanges(scope, handle, { after, limit: pageSize });
+      checked += result.checked;
+      recorded += result.recorded;
+      if (!result.next) return { checked, recorded, complete: true };
+      after = result.next;
+    }
+    return { checked, recorded, complete: false };
+  } catch (error) {
+    reportServerError('triggerPackageChangeSweep', error, { step: 'sweep failed' });
+    return { checked, recorded, complete: false };
   } finally {
     await pool.end();
   }
