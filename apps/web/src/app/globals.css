@@ -12632,6 +12632,48 @@ html:has(.sticky-action-bar) {
     grid-template-columns: 1fr;
   }
 }
+
+/* WP-UMPE-P3 document understanding: the Needs One Decision list on the documents page. */
+.umpe-p3-decision-list,
+.umpe-p3-linked-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.umpe-p3-decision-item {
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-md, 12px);
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.umpe-p3-decision-item > p {
+  margin: 0;
+}
+.umpe-p3-decision-item > .btn {
+  justify-self: start;
+  min-height: 44px;
+}
+.umpe-p3-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.umpe-p3-decision-actions .btn {
+  min-height: 44px;
+  min-width: 44px;
+}
+.umpe-p3-decision-note {
+  display: block;
+  margin-top: 0.5rem;
+}
+.umpe-p3-linked-title {
+  font-size: var(--text-body, 1rem);
+  margin: 1rem 0 0;
+}
+
 /* WP-UMPE-P8 guest desk: the agency-branded Document Collection Desk on /collect (the two choices,
    the code step, the issued checklist read-only and the retention choice). Flat, 44 px targets,
    tokens only; the agency's accent arrives through the brand scope's variables. */

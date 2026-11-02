@@ -2526,6 +2526,54 @@ export {
   listCollectionRequests,
   openCollectionLink,
 } from './umpe-collection-request-service';
+// UMPE P3: document understanding (upload receipts and idempotency, private original file name,
+// proposed relations between documents, and the person's list of files needing one decision).
+export {
+  MAX_ORIGINAL_FILE_NAME_LENGTH,
+  readableNameFromFileName,
+  sanitizeOriginalFileName,
+} from './umpe-document-names';
+export {
+  DOCUMENT_RELATIONS,
+  type DocumentRelation,
+  type DocumentSignals,
+  MACHINE_READABLE_IDENTITY_TYPES,
+  PERIOD_DOCUMENT_TYPES,
+  type ProposedRelation,
+  type RelationCandidate,
+  type RelationSignal,
+  type RelationSubject,
+  type StatementPeriod,
+  isDocumentRelation,
+  parseStatementDate,
+  proposeDocumentRelation,
+  readAccountEnding,
+  readDocumentSignals,
+  readStatementPeriod,
+  relationLabels,
+} from './umpe-document-relations';
+export {
+  type ClaimUploadReceiptInput,
+  UPLOAD_CLAIM_STALE_MS,
+  UPLOAD_REPLAY_WINDOW_MS,
+  type UploadReceiptClaim,
+  attachUploadIntent,
+  claimUploadReceipt,
+  completeUploadReceipt,
+  isUploadId,
+  releaseUploadReceipt,
+} from './umpe-document-receipts';
+export { uploadReceiptsTablePresent as documentUploadReceiptsReady } from './umpe-document-tables';
+export {
+  type ConfirmedRelation,
+  type DocumentException,
+  type DocumentExceptionsView,
+  type RelationDecision,
+  type RelationDecisionOutcome,
+  decideDocumentRelation,
+  isRelationDecision,
+  listDocumentExceptions,
+} from './umpe-document-exceptions';
 
 // UMPE P8
 // Guest proof and the branded Document Collection Desk (request-scoped, no account).

@@ -10,6 +10,7 @@ import {
   canTryAgain,
   countItems,
   retryDelayMs,
+  uploadIdFromHash,
 } from './import-queue';
 
 /**
@@ -474,5 +475,171 @@ describe('how long to wait before another attempt', () => {
     expect(retryDelayMs(600, 1)).toBe(AUTO_RETRY_LIMIT_SECONDS * 1000);
     expect(retryDelayMs(null, 1, 2000)).toBe(2000);
     expect(retryDelayMs(null, 2, 2000)).toBe(4000);
+  });
+});
+
+describe('upload ids: a file is never stored twice (UMPE P3)', () => {
+  /**
+   * A stand-in server that keeps upload receipts: the first send of an id stores one document, a
+   * repeat of the id answers with that same document. `lose` drops the answer of the next sends,
+   * the way a timeout does after the server has stored the file.
+   */
+  function receiptServer() {
+    const stored = new Map<string, string>();
+    const sent: { readonly name: string; readonly uploadId: string; readonly fileName: string }[] =
+      [];
+    let lose = 0;
+    const send: ImportSend = async (request) => {
+      sent.push({
+        name: (request.file as File).name,
+        uploadId: request.uploadId,
+        fileName: request.fileName,
+      });
+      if (!stored.has(request.uploadId)) stored.set(request.uploadId, `doc-${stored.size + 1}`);
+      if (lose > 0) {
+        lose--;
+        return UNKNOWN;
+      }
+      return ADDED;
+    };
+    return {
+      send,
+      sent,
+      stored,
+      loseNext: (count: number) => {
+        lose = count;
+      },
+    };
+  }
+
+  let counter = 0;
+  const ids = () => `00000000-0000-4000-8000-${String(++counter).padStart(12, '0')}`;
+
+  it('sends a file with no answer again on its own, with the same id, and stores it once', async () => {
+    const server = receiptServer();
+    server.loseNext(1);
+    const queue = queueWith(server.send, { retryUnknown: true, newUploadId: ids });
+    await queue.add([{ file: photo('statement.jpg'), path: '' }]);
+    await queue.whenIdle();
+    expect(byName(queue, 'statement.jpg')).toMatchObject({ state: 'added', attempts: 2 });
+    expect(server.sent.map((s) => s.uploadId)).toEqual([
+      byName(queue, 'statement.jpg').uploadId,
+      byName(queue, 'statement.jpg').uploadId,
+    ]);
+    expect(server.sent[0]?.fileName).toBe('statement.jpg');
+    expect(server.stored.size).toBe(1);
+  });
+
+  it('stops sending again after the most attempts, and leaves it unknown', async () => {
+    const server = receiptServer();
+    server.loseNext(10);
+    const queue = queueWith(server.send, { retryUnknown: true, newUploadId: ids });
+    await queue.add([{ file: photo('lost.jpg'), path: '' }]);
+    await queue.whenIdle();
+    expect(byName(queue, 'lost.jpg')).toMatchObject({ state: 'unknown', attempts: 3 });
+    expect(new Set(server.sent.map((s) => s.uploadId)).size).toBe(1);
+    expect(server.stored.size).toBe(1);
+  });
+
+  it('never sends an unknown file again on its own when the server keeps no receipts', async () => {
+    const server = receiptServer();
+    server.loseNext(1);
+    const queue = queueWith(server.send, { newUploadId: ids });
+    await queue.add([{ file: photo('lost.jpg'), path: '' }]);
+    await queue.whenIdle();
+    expect(byName(queue, 'lost.jpg')).toMatchObject({ state: 'unknown', attempts: 1 });
+    expect(server.sent).toHaveLength(1);
+  });
+
+  it('reuses the id on Try Again, and gives Send Again a new one', async () => {
+    const server = receiptServer();
+    server.loseNext(1);
+    const queue = queueWith(server.send, { newUploadId: ids });
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await queue.whenIdle();
+    const first = byName(queue, 'a.jpg').uploadId;
+    queue.retry(byName(queue, 'a.jpg').id);
+    await queue.whenIdle();
+    expect(byName(queue, 'a.jpg')).toMatchObject({ state: 'added', uploadId: first });
+    expect(server.stored.size).toBe(1);
+
+    const earlier = queueWith(server.send, {
+      newUploadId: ids,
+      earlierState: () => 'added',
+    });
+    await earlier.add([{ file: photo('b.jpg'), path: '' }]);
+    const before = byName(earlier, 'b.jpg').uploadId;
+    earlier.sendAgain(byName(earlier, 'b.jpg').id);
+    await earlier.whenIdle();
+    expect(byName(earlier, 'b.jpg').uploadId).not.toBe(before);
+    expect(server.sent.at(-1)?.uploadId).toBe(byName(earlier, 'b.jpg').uploadId);
+  });
+
+  it('keeps the same id through a busy answer and its automatic retry', async () => {
+    const answers = [busy(1), ADDED];
+    const sent: string[] = [];
+    const queue = queueWith(
+      async (request) => {
+        sent.push(request.uploadId);
+        return answers.shift() ?? ADDED;
+      },
+      { newUploadId: ids },
+    );
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await queue.whenIdle();
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toBe(sent[1]);
+  });
+
+  it('leaves a file waiting to be sent again as unknown, never as not added, on Stop', async () => {
+    const server = receiptServer();
+    server.loseNext(1);
+    let release: () => void = () => undefined;
+    const queue = queueWith(server.send, {
+      retryUnknown: true,
+      newUploadId: ids,
+      wait: () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    });
+    await queue.add([{ file: photo('a.jpg'), path: '' }]);
+    await settle();
+    await settle();
+    queue.stop();
+    release();
+    await queue.whenIdle();
+    await settle();
+    expect(byName(queue, 'a.jpg')).toMatchObject({ state: 'unknown' });
+    expect(server.sent).toHaveLength(1);
+  });
+
+  it('takes the id from uploadIdFor, so the same file chosen again sends the same id', async () => {
+    const sent: string[] = [];
+    const send: ImportSend = async (request) => {
+      sent.push(request.uploadId);
+      return ADDED;
+    };
+    const derive = (file: { name: string; size: number; lastModified: number }) =>
+      `11111111-1111-4111-8111-${String(file.size).padStart(12, '0')}`;
+    const one = queueWith(send, { uploadIdFor: derive });
+    await one.add([{ file: photo('same.jpg', 42), path: '' }]);
+    await one.whenIdle();
+    const two = queueWith(send, { uploadIdFor: derive });
+    await two.add([{ file: photo('same.jpg', 42), path: '' }]);
+    await two.whenIdle();
+    expect(sent).toEqual([
+      '11111111-1111-4111-8111-000000000042',
+      '11111111-1111-4111-8111-000000000042',
+    ]);
+  });
+
+  it('shapes a SHA-256 as a version 4 id, and refuses anything else', () => {
+    const hex = 'ab'.repeat(32);
+    const id = uploadIdFromHash(hex);
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(uploadIdFromHash(hex)).toBe(id);
+    expect(uploadIdFromHash('ab'.repeat(31))).toBeNull();
+    expect(uploadIdFromHash(null)).toBeNull();
   });
 });
