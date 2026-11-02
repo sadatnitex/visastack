@@ -1038,6 +1038,134 @@ function refundStaffProblem(staff: StaffScope<'BILLING_REFUND_MANAGE'>): void {
   }
 }
 
+// --- A payment lost in a restore, recovered (owner decision, 2 Nov 2026) --------------------------
+//
+// A restore from backup cannot bring back a purchase made after the restore point. The platform
+// owner recovers it from the payment gateway's own record (person-payment-recovery.ts): this makes
+// the invoice and the payment attempt the purchase had, and the usual recording then settles it.
+
+export interface RecoveredPersonPaymentInput {
+  readonly accountId: string;
+  readonly planId: string;
+  /** VisaStack's own transaction id for the payment, as the gateway's merchant records show it. */
+  readonly merchantTranId: string;
+  /** What the gateway confirms was paid: the invoice is made for exactly this. */
+  readonly amountMinorUnits: number;
+  readonly currency: string;
+  readonly provider: string;
+  readonly mode: 'TEST' | 'LIVE';
+  readonly now: Date;
+}
+
+export type RecoveredPersonPaymentRefusal =
+  | 'not_found'
+  | 'not_a_traveller_plan'
+  | 'already_recorded'
+  | 'already_covered';
+
+/**
+ * Makes, in one transaction, a purchase invoice for `planId` (from now, for the plan's period, for
+ * the confirmed amount) and the payment attempt that paid it, under the person's locks (open
+ * renewals, then billing), as a purchase does. Refuses a transaction id already on any payment, an
+ * account that does not exist, a plan that is not a traveller plan, and a person a paid period
+ * already covers (the recording would hold the money). Audited as PERSON_PAYMENT_RECOVERY_STARTED.
+ */
+export async function prepareRecoveredPersonPayment(
+  db: Db,
+  staff: StaffScope<'BILLING_REFUND_MANAGE'>,
+  input: RecoveredPersonPaymentInput,
+): Promise<
+  | { readonly ok: true; readonly invoiceId: string; readonly invoiceRef: string }
+  | { readonly ok: false; readonly refusal: RecoveredPersonPaymentRefusal }
+> {
+  refundStaffProblem(staff);
+  return db.transaction(async (tx) => {
+    await lockOwnRenewals(tx, input.accountId);
+    await lockPersonBilling(tx, input.accountId);
+    const person = first(
+      await tx
+        .select({ id: schema.accounts.id })
+        .from(schema.accounts)
+        .where(eq(schema.accounts.id, input.accountId))
+        .limit(1),
+    );
+    if (!person) return { ok: false, refusal: 'not_found' } as const;
+    const plan = first(
+      await tx
+        .select({ id: schema.plans.id, periodDays: schema.plans.periodDays })
+        .from(schema.plans)
+        .where(and(eq(schema.plans.id, input.planId), eq(schema.plans.audience, 'TRAVELLER')))
+        .limit(1),
+    );
+    if (!plan || plan.periodDays <= 0)
+      return { ok: false, refusal: 'not_a_traveller_plan' } as const;
+    const seen = first(
+      await tx
+        .select({ id: personPaymentAttempts.id })
+        .from(personPaymentAttempts)
+        .where(eq(personPaymentAttempts.merchantTranId, input.merchantTranId))
+        .limit(1),
+    );
+    if (seen) return { ok: false, refusal: 'already_recorded' } as const;
+    if (await coveringPaidPeriod(tx, input.accountId, input.now)) {
+      return { ok: false, refusal: 'already_covered' } as const;
+    }
+    const i = personInvoices;
+    const invoiceRef = await nextPersonInvoiceRef(tx, input.accountId);
+    const invoice = required(
+      first(
+        await tx
+          .insert(i)
+          .values({
+            organizationId: null,
+            payerAccountId: input.accountId,
+            subscriptionId: null,
+            planId: plan.id,
+            periodStart: input.now,
+            periodEnd: new Date(input.now.getTime() + plan.periodDays * DAY_MS),
+            invoiceRef,
+            invoicedAmountMinorUnits: input.amountMinorUnits,
+            currency: input.currency,
+            dueDate: input.now,
+            status: 'OPEN',
+          })
+          .returning({ id: i.id }),
+      ),
+      'recovered person invoice',
+    );
+    await tx.insert(personPaymentAttempts).values({
+      invoiceId: invoice.id,
+      organizationId: null,
+      payerAccountId: input.accountId,
+      provider: input.provider,
+      merchantTranId: input.merchantTranId,
+      amountMinorUnits: input.amountMinorUnits,
+      currency: input.currency,
+      status: 'CREATED',
+      mode: input.mode,
+      initiatedByAccountId: staff.accountId,
+      reasonCode: 'recovered_after_restore',
+    });
+    await appendAuditEvent(tx, {
+      eventType: 'PERSON_PAYMENT_RECOVERY_STARTED',
+      actorAccountId: staff.accountId,
+      action: 'MANAGE',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'invoice',
+      resourceId: invoice.id,
+      reason: 'recovered_after_restore',
+      metadata: {
+        planId: plan.id,
+        amountMinorUnits: input.amountMinorUnits,
+        currency: input.currency,
+        provider: input.provider,
+      },
+    });
+    return { ok: true, invoiceId: invoice.id, invoiceRef } as const;
+  });
+}
+
 /**
  * After a refund's own source is locked and before it writes: the person's open renewal invoices,
  * then their billing lock, the order every person billing step takes.
