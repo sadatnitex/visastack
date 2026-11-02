@@ -113,9 +113,9 @@ const DATE_PATTERN = `(?:\\d{4}-\\d{1,2}-\\d{1,2}|\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{
 /** Reads one date found by `DATE_PATTERN`, or null when it is not a real calendar day. */
 export function parseStatementDate(text: string): string | null {
   const value = text.trim();
-  let match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(value);
+  let match = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (match) return iso(Number(match[1]), Number(match[2]), Number(match[3]));
-  match = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(value);
+  match = value.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
   if (match) {
     const a = Number(match[1]);
     const b = Number(match[2]);
@@ -123,12 +123,12 @@ export function parseStatementDate(text: string): string | null {
     // Day first (the convention where VisaStack is used), unless that cannot be a date.
     return b > 12 ? iso(year, a, b) : iso(year, b, a);
   }
-  match = new RegExp(`^(\\d{1,2})[\\s-](${MONTH_WORD})[\\s,-]+(\\d{4})$`, 'i').exec(value);
+  match = value.match(new RegExp(`^(\\d{1,2})[\\s-](${MONTH_WORD})[\\s,-]+(\\d{4})$`, 'i'));
   if (match?.[2]) {
     const month = monthNumber(match[2]);
     return month ? iso(Number(match[3]), month, Number(match[1])) : null;
   }
-  match = new RegExp(`^(${MONTH_WORD})\\s+(\\d{1,2}),?\\s+(\\d{4})$`, 'i').exec(value);
+  match = value.match(new RegExp(`^(${MONTH_WORD})\\s+(\\d{1,2}),?\\s+(\\d{4})$`, 'i'));
   if (match?.[1]) {
     const month = monthNumber(match[1]);
     return month ? iso(Number(match[3]), month, Number(match[2])) : null;
@@ -142,20 +142,24 @@ export function parseStatementDate(text: string): string | null {
  * for the Month of March 2026"). Null when the text names none, or names an end before its start.
  */
 export function readStatementPeriod(text: string): StatementPeriod | null {
-  const range = new RegExp(
-    `(?:period|from|statement\\s+date|for\\s+the\\s+period)[^\\n\\d]{0,24}(${DATE_PATTERN})\\s*(?:to|till|until|through|-|\\u2013)\\s*(${DATE_PATTERN})`,
-    'i',
-  ).exec(text);
+  const range = text.match(
+    new RegExp(
+      `(?:period|from|statement\\s+date|for\\s+the\\s+period)[^\\n\\d]{0,24}(${DATE_PATTERN})\\s*(?:to|till|until|through|-|\\u2013)\\s*(${DATE_PATTERN})`,
+      'i',
+    ),
+  );
   if (range?.[1] && range[2]) {
     const start = parseStatementDate(range[1]);
     const end = parseStatementDate(range[2]);
     if (start && end && start <= end) return { start, end };
     return null;
   }
-  const month = new RegExp(
-    `(?:statement|slip|payslip|month|period)\\s+(?:for\\s+)?(?:the\\s+month\\s+of\\s+|of\\s+)?[:\\s]*(${MONTH_WORD})[\\s,-]+(\\d{4})`,
-    'i',
-  ).exec(text);
+  const month = text.match(
+    new RegExp(
+      `(?:statement|slip|payslip|month|period)\\s+(?:for\\s+)?(?:the\\s+month\\s+of\\s+|of\\s+)?[:\\s]*(${MONTH_WORD})[\\s,-]+(\\d{4})`,
+      'i',
+    ),
+  );
   if (month?.[1] && month[2]) {
     const number = monthNumber(month[1]);
     const year = Number(month[2]);
@@ -168,8 +172,7 @@ export function readStatementPeriod(text: string): StatementPeriod | null {
 
 /** The last four digits of an account number named in the text ("Account Number: XXXX1234"). */
 export function readAccountEnding(text: string): string | null {
-  const match =
-    /account\s*(?:no\.?|number|#)\s*[:-]?\s*([X*\d][\dX* \t-]{3,30})/i.exec(text) ?? null;
+  const match = text.match(/account\s*(?:no\.?|number|#)\s*[:-]?\s*([X*\d][\dX* \t-]{3,30})/i);
   if (!match?.[1]) return null;
   const digits = match[1].replace(/\D/g, '');
   return digits.length >= 4 ? digits.slice(-4) : null;

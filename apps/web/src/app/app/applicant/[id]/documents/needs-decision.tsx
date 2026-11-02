@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useRef } from 'react';
-import { SubmitButton } from '../../../../../components/form-feedback';
+import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { type RelationDecisionState, decideRelationAction } from './needs-decision-actions';
 
 /** One file needing one decision, as the documents page passes it (UMPE P3). */
@@ -129,17 +129,7 @@ export function NeedsDecision({
         Needs One Decision
       </h2>
       <div ref={statusRef} tabIndex={-1} className="umpe-p3-decision-status">
-        {state.message ? (
-          state.ok ? (
-            <output className="umpe-p3-decision-note" aria-live="polite">
-              {state.message}
-            </output>
-          ) : (
-            <p className="umpe-p3-decision-note" role="alert">
-              {state.message}
-            </p>
-          )
-        ) : null}
+        <FormMessage result={state} />
       </div>
       {items.length > 0 ? (
         <>
