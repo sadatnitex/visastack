@@ -258,15 +258,19 @@ function omitKeys<T extends Record<string, unknown>, K extends keyof T>(
   >;
 }
 
-const LEGACY_REQUIREMENT_COLUMNS = omitKeys(getTableColumns(schema.packRequirements), [
-  'necessity',
-  'provenance',
-  'groupKey',
-  'groupMode',
-]);
-const LEGACY_PACK_VERSION_COLUMNS = omitKeys(getTableColumns(schema.packVersions), [
-  'manifestFormat',
-]);
+// Built on first use, never while this module loads: modules that load packs.ts with a
+// stand-in for @visastack/db (adapter and route tests) must not touch the schema at import.
+function legacyRequirementColumns() {
+  return omitKeys(getTableColumns(schema.packRequirements), [
+    'necessity',
+    'provenance',
+    'groupKey',
+    'groupMode',
+  ]);
+}
+function legacyPackVersionColumns() {
+  return omitKeys(getTableColumns(schema.packVersions), ['manifestFormat']);
+}
 
 export async function selectRequirementRows(
   db: Db,
@@ -276,7 +280,7 @@ export async function selectRequirementRows(
     return db.select().from(schema.packRequirements).where(where);
   }
   const rows = await db
-    .select(LEGACY_REQUIREMENT_COLUMNS)
+    .select(legacyRequirementColumns())
     .from(schema.packRequirements)
     .where(where);
   return rows.map((row) => ({
@@ -292,7 +296,7 @@ async function selectPackVersionRows(db: Db, where: SQL | undefined): Promise<Pa
   if (await packRuleColumnsReady(db)) {
     return db.select().from(schema.packVersions).where(where);
   }
-  const rows = await db.select(LEGACY_PACK_VERSION_COLUMNS).from(schema.packVersions).where(where);
+  const rows = await db.select(legacyPackVersionColumns()).from(schema.packVersions).where(where);
   return rows.map((row) => ({ ...row, manifestFormat: null }));
 }
 
@@ -1526,7 +1530,7 @@ export async function getPublicTrustRoute(
   // The public read never needs the manifest format, so it reads only the original columns.
   const version = first(
     await db
-      .select(LEGACY_PACK_VERSION_COLUMNS)
+      .select(legacyPackVersionColumns())
       .from(schema.packVersions)
       .where(
         and(eq(schema.packVersions.packId, pack.id), eq(schema.packVersions.status, 'PUBLISHED')),
@@ -1541,7 +1545,7 @@ export async function getPublicTrustRoute(
 /** Every route currently live on the public trust surface (admin overview, Pack Studio catalog page), most-recently-published first. */
 export async function listPublicTrustPublished(db: Db): Promise<PublicTrustRoute[]> {
   const rows = await db
-    .select({ pack: schema.packs, version: LEGACY_PACK_VERSION_COLUMNS })
+    .select({ pack: schema.packs, version: legacyPackVersionColumns() })
     .from(schema.packVersions)
     .innerJoin(schema.packs, eq(schema.packs.id, schema.packVersions.packId))
     .where(
