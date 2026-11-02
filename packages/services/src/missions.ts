@@ -1,6 +1,14 @@
 import { createHash } from 'node:crypto';
 import type { FactStatus, MissionState, PermissionAction } from '@visastack/core';
-import { type Result, err, ok } from '@visastack/core';
+import {
+  type RequirementNecessity,
+  type RequirementProvenance,
+  type Result,
+  err,
+  necessityCanBlock,
+  ok,
+  requirementNecessity,
+} from '@visastack/core';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { AuthorizedApplicant, accountPrincipal, requireAccess } from './access';
 import { lockCaseSharing } from './access/grant-scope';
@@ -24,7 +32,12 @@ import {
 } from './lifecycle/foundation';
 import { getLiveAcknowledgement, incrementMaterialRevision } from './material-revision';
 import { cancelQueuedNotificationsForResource } from './notifications';
-import { type PackRequirement, listRequirements } from './packs';
+import {
+  type PackRequirement,
+  getManifestFormat,
+  listRequirements,
+  selectRequirementRows,
+} from './packs';
 import {
   type Page,
   type PageRequest,
@@ -502,7 +515,7 @@ export async function attachPackVersion(
   if (!owned.ok) return owned;
   const packVersion = first(
     await db
-      .select()
+      .select({ status: schema.packVersions.status })
       .from(schema.packVersions)
       .where(eq(schema.packVersions.id, input.packVersionId))
       .limit(1),
@@ -544,6 +557,13 @@ export interface MissingRequirement {
   readonly optional: boolean;
   /** Distinguishes "never provided" from "provided but not currently trustworthy" from "provided but too old for this route (NTF-01)". */
   readonly reason: 'not_provided' | 'unresolved_conflict' | 'stale_evidence';
+  /**
+   * UMPE P1: present only for a group of alternatives, which is one missing entry however many
+   * members it has; `kind`/`key` name its first applicable member and `alternatives` lists every
+   * applicable member, any one of which would satisfy it.
+   */
+  readonly groupKey?: string;
+  readonly alternatives?: readonly { readonly kind: 'FIELD' | 'DOCUMENT'; readonly key: string }[];
 }
 
 /**
@@ -583,6 +603,17 @@ export interface RequirementResultSummary {
    * it. Present only when true, so every other result keeps its shape.
    */
   readonly selectedButReplacedOrArchived?: true;
+  /**
+   * UMPE P1 (ADR 0026 D3): present only when the requirement's necessity, provenance or group was
+   * authored, so a legacy requirement keeps exactly its old shape. A member of a group of
+   * alternatives that another member already satisfies reads as not required (`optional` true,
+   * a gap shown as Attention), because the obligation is met.
+   */
+  readonly necessity?: RequirementNecessity;
+  readonly provenance?: RequirementProvenance;
+  readonly groupKey?: string;
+  /** UMPE P1: present only when another member of its group already meets the requirement. */
+  readonly coveredByAlternative?: true;
 }
 
 export interface Readiness {
@@ -1017,60 +1048,78 @@ export async function computeReadiness(
     return err(serviceError('invalid', 'case has no attached pack version'));
   }
 
-  const requirements = await listRequirements(db, mission.packVersionId);
+  const { requirements, failClosed } = await loadPackRules(db, mission.packVersionId);
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
   const documentPool = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, missionId);
   const context = buildFactEvaluationContext(factsByKey, now, mission);
-  const mapping = buildRequirementMapping(
-    requirements,
-    factsByKey,
-    documentPool,
-    selections,
-    now,
-    context,
+  // UMPE P1: a group of alternatives is one obligation, so readiness counts units (a single
+  // requirement, or a whole group) while the per-requirement results stay listed one by one,
+  // each member already read in the light of its group (`withAlternatives`).
+  const { mapping, units } = withAlternatives(
+    buildRequirementMapping(
+      requirements,
+      factsByKey,
+      documentPool,
+      selections,
+      now,
+      context,
+      failClosed,
+    ),
   );
 
+  const requirementResults: RequirementResultSummary[] = mapping.map((entry) => ({
+    packRequirementId: entry.packRequirementId,
+    kind: entry.kind,
+    key: entry.key,
+    optional: entry.optional,
+    state: entry.resultState,
+    ...(entry.selectedButReplacedOrArchived ? { selectedButReplacedOrArchived: true } : {}),
+    ...(entry.necessity ? { necessity: entry.necessity } : {}),
+    ...(entry.provenance ? { provenance: entry.provenance } : {}),
+    ...(entry.groupKey ? { groupKey: entry.groupKey } : {}),
+    ...(entry.coveredByAlternative ? { coveredByAlternative: true } : {}),
+  }));
+
   const missing: MissingRequirement[] = [];
-  const requirementResults: RequirementResultSummary[] = [];
   let requiredCount = 0;
   let satisfiedRequired = 0;
-  for (const entry of mapping) {
-    requirementResults.push({
-      packRequirementId: entry.packRequirementId,
-      kind: entry.kind,
-      key: entry.key,
-      optional: entry.optional,
-      state: entry.resultState,
-      ...(entry.selectedButReplacedOrArchived ? { selectedButReplacedOrArchived: true } : {}),
-    });
-    // A NOT_APPLICABLE requirement never counts toward "what must still be
-    // done": it is not required, not missing, not satisfied; it simply
-    // does not apply to this case (RUL-04). `total` below stays the full
-    // pack-defined count regardless, so a UI can still say "N total, M not
-    // applicable to your case."
-    if (entry.resultState === 'NOT_APPLICABLE') continue;
-    if (!entry.optional) {
+  for (const unit of units) {
+    // A NOT_APPLICABLE requirement (or a group none of whose members applies) never counts
+    // toward "what must still be done": it is not required, not missing, not satisfied; it simply
+    // does not apply to this case (RUL-04). `total` below stays the full pack-defined count
+    // regardless, so a UI can still say "N total, M not applicable to your case."
+    if (unit.state === 'NOT_APPLICABLE') continue;
+    if (unit.blocking) {
       requiredCount++;
-      if (entry.satisfied) satisfiedRequired++;
+      if (unit.satisfied) satisfiedRequired++;
     }
-    if (!entry.satisfied) {
-      const anyConflicted =
-        entry.kind === 'FIELD' && (entry.facts ?? []).some((f) => f.status === 'CONFLICTED');
-      const anyStale =
+    if (unit.satisfied) continue;
+    const applicable = unit.members.filter((m) => m.resultState !== 'NOT_APPLICABLE');
+    const anyConflicted = applicable.some(
+      (entry) =>
+        entry.kind === 'FIELD' && (entry.facts ?? []).some((f) => f.status === 'CONFLICTED'),
+    );
+    const anyStale = applicable.some(
+      (entry) =>
         entry.kind === 'DOCUMENT' &&
-        (entry.documents ?? []).some((d) => d.eligible && d.staleness.status === 'stale');
-      missing.push({
-        kind: entry.kind,
-        key: entry.key,
-        optional: entry.optional,
-        reason: anyConflicted
-          ? 'unresolved_conflict'
-          : anyStale
-            ? 'stale_evidence'
-            : 'not_provided',
-      });
-    }
+        (entry.documents ?? []).some((d) => d.eligible && d.staleness.status === 'stale'),
+    );
+    const named = applicable[0];
+    if (!named) continue;
+    missing.push({
+      kind: named.kind,
+      key: named.key,
+      // A single requirement keeps its stored flag exactly; a group is optional unless it blocks.
+      optional: unit.groupKey === null ? named.optional : !unit.blocking,
+      reason: anyConflicted ? 'unresolved_conflict' : anyStale ? 'stale_evidence' : 'not_provided',
+      ...(unit.groupKey === null
+        ? {}
+        : {
+            groupKey: unit.groupKey,
+            alternatives: applicable.map((m) => ({ kind: m.kind, key: m.key })),
+          }),
+    });
   }
 
   const ready = requiredCount > 0 && satisfiedRequired === requiredCount;
@@ -1083,9 +1132,144 @@ export async function computeReadiness(
     requirementResults,
     overallState: deriveOverallReadinessState({
       manualMode: mission.manualMode,
-      requirementResults,
+      units,
       ready,
     }),
+  });
+}
+
+/**
+ * The requirements of one pack version and how strictly to read their stored conditions. A
+ * format 2 version (UMPE P1, ADR 0026 D2/D3) fails closed: a stored condition that is not a
+ * recognised rule reads as unknown. A format 1 version keeps today's reading exactly.
+ */
+async function loadPackRules(
+  db: Db,
+  packVersionId: string,
+): Promise<{ requirements: PackRequirement[]; failClosed: boolean }> {
+  const [requirements, format] = await Promise.all([
+    listRequirements(db, packVersionId),
+    getManifestFormat(db, packVersionId),
+  ]);
+  return { requirements, failClosed: format !== 1 };
+}
+
+/**
+ * The mapping with every group member read in the light of its group, and the readiness units.
+ * When a group is met, each other applicable member is no longer needed: it is marked
+ * `coveredByAlternative`, reads as not required (`optional` true) and a missing one is a gap shown
+ * as Attention, never a critical gap. When the group is met cleanly (some member Satisfied), a
+ * member whose own evidence conflicts or is stale is covered too; when it is met only through such
+ * a member, that member keeps its problem and stays required, because it is what must be fixed.
+ * Every consumer of the mapping (readiness, snapshots, the case page) therefore agrees.
+ */
+function withAlternatives(raw: readonly RequirementMappingEntry[]): {
+  mapping: RequirementMappingEntry[];
+  units: ReadinessUnit[];
+} {
+  const units = readinessUnits(raw);
+  const covered = new Set<string>();
+  for (const unit of units) {
+    if (unit.groupKey === null || !unit.satisfied) continue;
+    const clean = unit.state === 'SATISFIED';
+    for (const member of unit.members) {
+      if (member.resultState === 'NOT_APPLICABLE' || member.resultState === 'SATISFIED') continue;
+      if (clean || !member.satisfied) covered.add(member.packRequirementId);
+    }
+  }
+  const mapping = raw.map((entry): RequirementMappingEntry => {
+    if (!covered.has(entry.packRequirementId)) return entry;
+    return {
+      ...entry,
+      optional: true,
+      resultState: entry.resultState === 'CRITICAL_GAP' ? 'ATTENTION' : entry.resultState,
+      coveredByAlternative: true,
+    };
+  });
+  return { mapping, units };
+}
+
+/** One thing readiness counts: a single requirement, or a whole group of alternatives. */
+interface ReadinessUnit {
+  readonly groupKey: string | null;
+  readonly members: readonly RequirementMappingEntry[];
+  /** Whether a gap here can block: a group blocks only through a member whose necessity can. */
+  readonly blocking: boolean;
+  readonly satisfied: boolean;
+  readonly state: RequirementResultState;
+}
+
+/** How urgent a state is inside a group with nothing satisfied, most urgent first. */
+const GROUP_STATE_ORDER: readonly RequirementResultState[] = [
+  'CONFLICTING',
+  'EXPIRING_STALE',
+  'CRITICAL_GAP',
+  'UNVERIFIED',
+  'ATTENTION',
+];
+
+function entryBlocks(entry: RequirementMappingEntry): boolean {
+  return necessityCanBlock(
+    requirementNecessity({ optional: entry.optional, necessity: entry.necessity ?? null }),
+  );
+}
+
+/**
+ * Collapse a requirement mapping into readiness units (UMPE P1, R04). An ungrouped requirement is
+ * its own unit, read exactly as before. The members of an ANY_OF group form one unit: members
+ * whose condition is false do not take part; the group is satisfied when any applicable member is
+ * (OR, never AND); it counts once; it can block only through a Mandatory or Mandatory If It
+ * Applies member, so a recommended or optional member never makes it blocking; with nothing
+ * satisfied it takes the most urgent state among the members that decide it. Units keep the
+ * order in which their first member appears.
+ */
+function readinessUnits(mapping: readonly RequirementMappingEntry[]): ReadinessUnit[] {
+  const groups = new Map<string, RequirementMappingEntry[]>();
+  const order: (RequirementMappingEntry | string)[] = [];
+  for (const entry of mapping) {
+    if (!entry.groupKey) {
+      order.push(entry);
+      continue;
+    }
+    const members = groups.get(entry.groupKey);
+    if (members) members.push(entry);
+    else {
+      groups.set(entry.groupKey, [entry]);
+      order.push(entry.groupKey);
+    }
+  }
+  return order.map((item): ReadinessUnit => {
+    if (typeof item !== 'string') {
+      return {
+        groupKey: null,
+        members: [item],
+        blocking: entryBlocks(item),
+        satisfied: item.satisfied,
+        state: item.resultState,
+      };
+    }
+    const members = groups.get(item) ?? [];
+    const applicable = members.filter((m) => m.resultState !== 'NOT_APPLICABLE');
+    const blockingMembers = applicable.filter(entryBlocks);
+    const met = applicable.filter((m) => m.satisfied);
+    // Nothing met: the members that can block decide; met only through members whose evidence
+    // conflicts or is stale: that problem is the group's (as for a single requirement).
+    const deciding =
+      met.length > 0 ? met : blockingMembers.length > 0 ? blockingMembers : applicable;
+    const state: RequirementResultState =
+      applicable.length === 0
+        ? 'NOT_APPLICABLE'
+        : applicable.some((m) => m.resultState === 'SATISFIED')
+          ? 'SATISFIED'
+          : (GROUP_STATE_ORDER.find((s) => deciding.some((m) => m.resultState === s)) ??
+            'CRITICAL_GAP');
+    return {
+      groupKey: item,
+      members,
+      blocking: blockingMembers.length > 0,
+      satisfied: applicable.some((m) => m.satisfied),
+      state,
+    };
   });
 }
 
@@ -1277,6 +1461,12 @@ export interface RequirementMappingEntry {
   }>;
   /** LC-A1: a selected document has been replaced or archived since it was chosen (see `RequirementResultSummary`). */
   readonly selectedButReplacedOrArchived?: true;
+  /** UMPE P1: present only when authored, so a legacy entry (and every snapshot of it) keeps its exact shape. */
+  readonly necessity?: RequirementNecessity;
+  readonly provenance?: RequirementProvenance;
+  readonly groupKey?: string;
+  /** UMPE P1: another member of this group already meets it, so this one is not needed (`withAlternatives`). */
+  readonly coveredByAlternative?: true;
 }
 
 /**
@@ -1371,11 +1561,13 @@ export function resolveRequirementResultState(input: {
  */
 function deriveOverallReadinessState(input: {
   readonly manualMode: boolean;
-  readonly requirementResults: readonly RequirementResultSummary[];
+  readonly units: readonly { readonly blocking: boolean; readonly state: RequirementResultState }[];
   readonly ready: boolean;
 }): OverallReadinessState {
   if (input.manualMode) return 'MANUAL_ONLY';
-  const required = input.requirementResults.filter((r) => !r.optional);
+  // A unit is one requirement or one whole group of alternatives (UMPE P1); only a unit whose
+  // necessity can block takes part, so a recommended or optional item never holds a case back.
+  const required = input.units.filter((r) => r.blocking);
   if (
     required.some(
       (r) =>
@@ -1393,11 +1585,35 @@ function deriveOverallReadinessState(input: {
   return 'NEEDS_ACTION';
 }
 
-/** This requirement's condition result, or `null` for the (today, universal) case of no condition at all: never evaluated, never NOT_APPLICABLE/UNVERIFIED. An unparseable stored value (should never happen; `addRequirement` validates before storing) fails open the same way, rather than throwing. */
+/**
+ * This requirement's condition result, or `null` for the case of no condition at all: never
+ * evaluated, never NOT_APPLICABLE/UNVERIFIED.
+ *
+ * Format 1 (legacy) reading: an unparseable stored value (should never happen; `addRequirement`
+ * validates before storing) fails open the same way, rather than throwing, which demands the item
+ * rather than hiding it. Kept exactly for every format 1 version.
+ *
+ * Fail-closed reading (UMPE P1, ADR 0026 D3), for a format 2 version and for any row with an
+ * authored rule field: an unrecognised stored condition, or a Mandatory If It Applies row with
+ * no condition at all, is `'unknown'`, so the item reads as Unverified and never as satisfied,
+ * not applicable or simply demanded.
+ */
 function evaluateRequirementCondition(
   req: PackRequirement,
   context: EvaluationContext,
+  failClosed = false,
 ): RuleConditionResult | null {
+  const strict =
+    failClosed ||
+    req.necessity != null ||
+    req.provenance != null ||
+    req.groupKey != null ||
+    req.groupMode != null;
+  if (strict) {
+    if (req.condition == null) return req.necessity === 'CONDITIONAL' ? 'unknown' : null;
+    if (!isValidRuleCondition(req.condition)) return 'unknown';
+    return evaluateCondition(req.condition, context);
+  }
   if (req.condition == null || !isValidRuleCondition(req.condition)) return null;
   return evaluateCondition(req.condition, context);
 }
@@ -1438,9 +1654,18 @@ function buildRequirementMapping(
   selections: SelectionSets,
   now: Date,
   context: EvaluationContext,
+  failClosed = false,
 ): RequirementMappingEntry[] {
   return requirements.map((req): RequirementMappingEntry => {
-    const conditionResult = evaluateRequirementCondition(req, context);
+    const conditionResult = evaluateRequirementCondition(req, context, failClosed);
+    // Whether a gap in this requirement can block (ADR 0026 D3). For a legacy row this is
+    // exactly `!optional`; an authored necessity decides it otherwise.
+    const gapIsOptional = !necessityCanBlock(requirementNecessity(req));
+    const authored = {
+      ...(req.necessity ? { necessity: req.necessity } : {}),
+      ...(req.provenance ? { provenance: req.provenance } : {}),
+      ...(req.groupKey ? { groupKey: req.groupKey } : {}),
+    };
     if (req.kind === 'FIELD') {
       const key = req.fieldKey ?? '';
       let instances = factsByKey.get(key) ?? [];
@@ -1467,12 +1692,13 @@ function buildRequirementMapping(
         satisfied,
         resultState: resolveRequirementResultState({
           satisfied,
-          optional: req.optional,
+          optional: gapIsOptional,
           conditionResult,
           hasConflict: facts.some((f) => f.status === 'CONFLICTED'),
           hasStale: false,
         }),
         facts,
+        ...authored,
       };
     }
     const key = req.docType ?? '';
@@ -1503,13 +1729,14 @@ function buildRequirementMapping(
       satisfied,
       resultState: resolveRequirementResultState({
         satisfied,
-        optional: req.optional,
+        optional: gapIsOptional,
         conditionResult,
         hasConflict: false,
         hasStale: documents.some((d) => d.eligible && d.staleness.status === 'stale'),
       }),
       documents,
       ...(flagged ? { selectedButReplacedOrArchived: true } : {}),
+      ...authored,
     };
   });
 }
@@ -1539,16 +1766,19 @@ async function loadCaseEvidence(db: Db, mission: Mission) {
         .where(eq(schema.packVersions.id, mission.packVersionId))
         .limit(1),
     );
-    const requirements = await listRequirements(db, mission.packVersionId);
+    const { requirements, failClosed } = await loadPackRules(db, mission.packVersionId);
     const snapshotNow = new Date();
-    requirementMapping = buildRequirementMapping(
-      requirements,
-      factsByKey,
-      documentPool,
-      selections,
-      snapshotNow,
-      buildFactEvaluationContext(factsByKey, snapshotNow, mission),
-    );
+    requirementMapping = withAlternatives(
+      buildRequirementMapping(
+        requirements,
+        factsByKey,
+        documentPool,
+        selections,
+        snapshotNow,
+        buildFactEvaluationContext(factsByKey, snapshotNow, mission),
+        failClosed,
+      ),
+    ).mapping;
     packVersionSnapshot = packVersion ?? null;
   }
 
@@ -1809,16 +2039,13 @@ async function loadOwnedRequirement(
     return err(serviceError('invalid', 'case has no attached pack version'));
   }
   const requirement = first(
-    await db
-      .select()
-      .from(schema.packRequirements)
-      .where(
-        and(
-          eq(schema.packRequirements.id, packRequirementId),
-          eq(schema.packRequirements.packVersionId, mission.packVersionId),
-        ),
-      )
-      .limit(1),
+    await selectRequirementRows(
+      db,
+      and(
+        eq(schema.packRequirements.id, packRequirementId),
+        eq(schema.packRequirements.packVersionId, mission.packVersionId),
+      ),
+    ),
   );
   if (!requirement) {
     return err(serviceError('not_found', "requirement not found on this case's attached pack"));
@@ -2726,7 +2953,7 @@ export async function generateCoverLetter(
     return err(serviceError('invalid', 'case has no attached pack version'));
   }
 
-  const requirements = await listRequirements(db, mission.packVersionId);
+  const { requirements, failClosed } = await loadPackRules(db, mission.packVersionId);
   const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
   const documentPool = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, mission.id);
@@ -2738,6 +2965,7 @@ export async function generateCoverLetter(
     selections,
     letterNow,
     buildFactEvaluationContext(factsByKey, letterNow, mission),
+    failClosed,
   );
   const { content, groundedReferences } = buildCoverLetterContent(mission, mapping);
   if (groundedReferences.length === 0) {

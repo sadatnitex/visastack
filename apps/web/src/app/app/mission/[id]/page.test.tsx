@@ -416,6 +416,54 @@ describe('case journey view (WP-X1)', () => {
     expect(textOf(await render())).toMatch(/Finish 1 open task(?!s)/);
   });
 
+  it('UMPE P1: shows necessity, who asked, and alternatives as one item; legacy rows unchanged', async () => {
+    setUp({ requirements: ['CRITICAL_GAP'] });
+    const legacy = textOf(await render());
+    expect(legacy).not.toMatch(/Mandatory|Any One of These|Requested by/);
+
+    setUp({ requirements: ['CRITICAL_GAP'] });
+    const row = (id: string, key: string, extra: Record<string, unknown>) => ({
+      packRequirementId: id,
+      kind: 'DOCUMENT' as const,
+      key,
+      optional: false,
+      state: 'CRITICAL_GAP',
+      ...extra,
+    });
+    const results = [
+      row('g1', 'bank_statement', { necessity: 'MANDATORY', groupKey: 'funds' }),
+      row('g2', 'sponsor_letter', { necessity: 'MANDATORY', groupKey: 'funds' }),
+      row('h1', 'hotel_booking', {
+        necessity: 'RECOMMENDED',
+        provenance: 'AGENCY_ADDED',
+        optional: true,
+        state: 'ATTENTION',
+      }),
+    ];
+    mocks.computeReadiness.mockResolvedValue(
+      ok({
+        overallState: 'NEEDS_ACTION',
+        requirementResults: results,
+        requiredCount: 1,
+        satisfiedRequired: 0,
+      }),
+    );
+    mocks.listRequirements.mockResolvedValue(
+      results.map((r) => ({
+        id: r.packRequirementId,
+        citation: 'rule',
+        sourceInaccessibleAt: null,
+      })),
+    );
+    const text = textOf(await render());
+    expect(text).toContain('Bank Statement · Mandatory');
+    expect(text).toContain('Any One of These: Bank Statement or Sponsor Letter');
+    expect(text).toContain('Hotel Booking · Recommended');
+    expect(text).toContain('Requested by Your Agency');
+    // Two alternatives are one item to provide.
+    expect(text).toMatch(/Fix 1 required item(?!s)/);
+  });
+
   it('reminds that a prepared file is not a submission, after the next step, on every case', async () => {
     const reminder =
       'Preparing a file is not the same as submitting it. VisaStack does not submit applications or predict decisions.';

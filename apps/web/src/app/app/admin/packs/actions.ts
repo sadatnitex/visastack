@@ -1,12 +1,21 @@
 'use server';
 
 import {
+  type RequirementGroupMode,
+  type RequirementNecessity,
+  type RequirementProvenance,
+  isRequirementNecessity,
+  isRequirementProvenance,
+} from '@visastack/core';
+import {
+  type RuleCondition,
   addPackVersion,
   addRequirement,
   approvePackVersion,
   clearOfficialFeeStale,
   clearRequirementSourceInaccessible,
   createPack,
+  isValidRuleCondition,
   markOfficialFeeStale,
   markRequirementSourceInaccessible,
   publishPackVersion,
@@ -101,6 +110,64 @@ export async function openVersionAction(
   return result;
 }
 
+/** The rule for when a requirement applies may be at most this long, as text. */
+const CONDITION_TEXT_MAX_LENGTH = 4000;
+
+type RuleFields =
+  | {
+      readonly ok: true;
+      readonly fields: {
+        readonly necessity?: RequirementNecessity;
+        readonly provenance?: RequirementProvenance;
+        readonly condition?: RuleCondition;
+        readonly groupKey?: string;
+        readonly groupMode?: RequirementGroupMode;
+      };
+    }
+  | { readonly ok: false; readonly message: string };
+
+/**
+ * UMPE P1: how necessary the item is, who asked for it, the rule for when it applies, and its
+ * group of alternatives. The service checks how these fit together; this only reads the form.
+ */
+function readRuleFields(formData: FormData): RuleFields {
+  const necessityRaw = String(formData.get('necessity') ?? '').trim();
+  const provenanceRaw = String(formData.get('provenance') ?? '').trim();
+  const conditionRaw = String(formData.get('condition') ?? '').trim();
+  const groupKey = String(formData.get('groupKey') ?? '').trim();
+  if (necessityRaw && !isRequirementNecessity(necessityRaw)) {
+    return { ok: false, message: 'Choose how necessary this requirement is.' };
+  }
+  if (provenanceRaw && !isRequirementProvenance(provenanceRaw)) {
+    return { ok: false, message: 'Choose who asked for this requirement.' };
+  }
+  let condition: RuleCondition | undefined;
+  if (conditionRaw) {
+    let parsed: unknown;
+    try {
+      parsed =
+        conditionRaw.length <= CONDITION_TEXT_MAX_LENGTH ? JSON.parse(conditionRaw) : undefined;
+    } catch {
+      parsed = undefined;
+    }
+    if (!isValidRuleCondition(parsed)) {
+      return { ok: false, message: 'The rule for when it applies is not in a recognised shape.' };
+    }
+    condition = parsed;
+  }
+  return {
+    ok: true,
+    fields: {
+      ...(necessityRaw && isRequirementNecessity(necessityRaw) ? { necessity: necessityRaw } : {}),
+      ...(provenanceRaw && isRequirementProvenance(provenanceRaw)
+        ? { provenance: provenanceRaw }
+        : {}),
+      ...(condition ? { condition } : {}),
+      ...(groupKey ? { groupKey, groupMode: 'ANY_OF' as const } : {}),
+    },
+  };
+}
+
 /** Add a cited requirement to a DRAFT version. Platform-admin only. */
 export async function addRequirementAction(
   _prev: ActionState,
@@ -111,7 +178,9 @@ export async function addRequirementAction(
   const kind = String(formData.get('kind') ?? '') === 'DOCUMENT' ? 'DOCUMENT' : 'FIELD';
   const key = String(formData.get('key') ?? '').trim();
   const citation = String(formData.get('citation') ?? '').trim();
-  const optional = String(formData.get('optional') ?? '') === 'on';
+  // The necessity sets the optional flag (`optionalFlagFor` in the service).
+  const rule = readRuleFields(formData);
+  if (!rule.ok) return { ok: false, message: rule.message };
   const sourceUrl = String(formData.get('sourceUrl') ?? '').trim();
   const sourceTitle = String(formData.get('sourceTitle') ?? '').trim();
   const publisher = String(formData.get('publisher') ?? '').trim();
@@ -150,7 +219,7 @@ export async function addRequirementAction(
       kind,
       ...(kind === 'FIELD' ? { fieldKey: named.key } : { docType: named.key }),
       citation,
-      optional,
+      ...rule.fields,
       ...(sourceUrl ? { sourceUrl } : {}),
       ...(sourceTitle ? { sourceTitle } : {}),
       ...(publisher ? { publisher } : {}),

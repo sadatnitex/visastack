@@ -59,6 +59,7 @@ describe('findMatchingPublicPack', () => {
     readonly nationality?: readonly string[];
     readonly residence?: readonly string[];
     readonly authoritative?: boolean;
+    readonly route?: string;
   }) {
     n += 1;
     const [row] = await db
@@ -72,6 +73,7 @@ describe('findMatchingPublicPack', () => {
         nationalityApplicability: input.nationality ? [...input.nationality] : null,
         residenceApplicability: input.residence ? [...input.residence] : null,
         authoritative: input.authoritative ?? true,
+        route: input.route ?? null,
       })
       .returning();
     if (!row) throw new Error('pack');
@@ -96,6 +98,40 @@ describe('findMatchingPublicPack', () => {
       packName: uk.name,
       version: 1,
       coversTraveller: true,
+      coversRoute: true,
+    });
+  });
+
+  describe('route (UMPE P1, R05)', () => {
+    it('leaves out a pack for another known route', async () => {
+      await pack({ jurisdiction: 'UK', purpose: 'Tourism', route: 'Standard Visitor' });
+      const trip = { ...ukTrip(), route: ['Transit Visitor'] };
+      expect(await listFittingPublicPacks(db, trip)).toEqual([]);
+      expect(await findMatchingPublicPack(db, trip)).toBeNull();
+    });
+
+    it('links a pack whose route matches the known route, whatever names it uses', async () => {
+      const uk = await pack({ jurisdiction: 'UK', purpose: 'Tourism', route: 'Standard_Visitor' });
+      expect(
+        await findMatchingPublicPack(db, { ...ukTrip(), route: ['standard visitor'] }),
+      ).toMatchObject({ packVersionId: uk.versionIds[0], coversRoute: true });
+    });
+
+    it('lists a route-specific pack when the route is unknown, and never links it', async () => {
+      const uk = await pack({ jurisdiction: 'UK', purpose: 'Tourism', route: 'Standard Visitor' });
+      for (const trip of [ukTrip(), { ...ukTrip(), route: [] }, { ...ukTrip(), route: [' '] }]) {
+        expect(await findMatchingPublicPack(db, trip)).toBeNull();
+        expect(await listFittingPublicPacks(db, trip)).toEqual([
+          expect.objectContaining({ packVersionId: uk.versionIds[0], coversRoute: false }),
+        ]);
+      }
+    });
+
+    it('a pack with no route still links when the case route is known', async () => {
+      const uk = await pack({ jurisdiction: 'UK', purpose: 'Tourism' });
+      expect(
+        await findMatchingPublicPack(db, { ...ukTrip(), route: ['Standard Visitor'] }),
+      ).toMatchObject({ packVersionId: uk.versionIds[0], coversRoute: true });
     });
   });
 
