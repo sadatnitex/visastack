@@ -827,13 +827,6 @@
       "when": 1793650358081,
       "tag": "0119_p8_guest_collection",
       "breakpoints": true
-    },
-    {
-      "idx": 118,
-      "version": "7",
-      "when": 1793657797833,
-      "tag": "0120_umpe_p7_collection_responses",
-      "breakpoints": true
     }
   ]
 }
