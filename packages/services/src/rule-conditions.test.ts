@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   type EvaluationContext,
+  MAX_RULE_CONDITION_DEPTH,
   type RuleCondition,
   evaluateCondition,
   isValidRuleCondition,
@@ -285,5 +286,16 @@ describe('isValidRuleCondition - rejects anything not an allowlisted operator sh
     expect(
       isValidRuleCondition({ op: 'dateBefore', date: { kind: 'bogus' }, than: { kind: 'now' } }),
     ).toBe(false);
+  });
+
+  it('UMPE P1: refuses nesting deeper than the limit, so a crafted rule cannot exhaust the stack', () => {
+    const nested = (levels: number): unknown => {
+      let rule: unknown = { op: 'exists', field: 'sponsor.name' };
+      for (let i = 0; i < levels; i++) rule = { op: 'not', condition: rule };
+      return rule;
+    };
+    expect(isValidRuleCondition(nested(MAX_RULE_CONDITION_DEPTH))).toBe(true);
+    expect(isValidRuleCondition(nested(MAX_RULE_CONDITION_DEPTH + 1))).toBe(false);
+    expect(isValidRuleCondition(nested(100_000))).toBe(false);
   });
 });

@@ -1,6 +1,17 @@
 import { createHash } from 'node:crypto';
-import { type Result, err, ok } from '@visastack/core';
-import { and, eq, isNotNull, lte, ne } from 'drizzle-orm';
+import {
+  REQUIREMENT_GROUP_MODES,
+  type RequirementGroupMode,
+  type RequirementNecessity,
+  type RequirementProvenance,
+  type Result,
+  err,
+  isRequirementNecessity,
+  isRequirementProvenance,
+  ok,
+  optionalFlagFor,
+} from '@visastack/core';
+import { type SQL, and, eq, getTableColumns, isNotNull, lte, ne, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -51,13 +62,103 @@ export interface RequirementInput {
   readonly sourceType?: string;
   readonly observedDate?: Date;
   readonly changeReason?: string;
+  /**
+   * UMPE P1 (ADR 0026 D3): how necessary this requirement is. When given, the stored `optional`
+   * flag is derived from it (`optionalFlagFor`) so older readers keep agreeing; a conflicting
+   * `optional` is refused. CONDITIONAL needs a valid `condition`.
+   */
+  readonly necessity?: RequirementNecessity;
+  /** Who asked for it. Omitted means an official requirement. */
+  readonly provenance?: RequirementProvenance;
+  /** Alternatives: requirements of one version sharing a group key are satisfied by any one of them. Needs `groupMode`. */
+  readonly groupKey?: string;
+  /** How the group is satisfied; ANY_OF is the only mode. Needs `groupKey`. */
+  readonly groupMode?: RequirementGroupMode;
 }
 
-/** Deterministic manifest for a set of requirements, plus its checksum. */
-export function buildManifest(requirements: readonly PackRequirement[]): {
-  manifest: { requirements: unknown[] };
+/**
+ * Which serializer a manifest uses (ADR 0026 D1, D2). Format 1 is frozen forever: every version
+ * approved before the UMPE rule upgrade, and every later version that uses no new rule field.
+ * Format 2 carries the new rule fields.
+ */
+export type ManifestFormat = 1 | 2;
+
+/** The stored format of a version: NULL is format 1; anything unknown is null (never verified). */
+export function manifestFormatOf(version: {
+  readonly manifestFormat: number | null;
+}): ManifestFormat | null {
+  if (version.manifestFormat === null || version.manifestFormat === 1) return 1;
+  return version.manifestFormat === 2 ? 2 : null;
+}
+
+/** Whether any requirement uses a rule field that only format 2 can record. */
+export function usesFormat2Fields(requirements: readonly PackRequirement[]): boolean {
+  return requirements.some(
+    (r) => r.necessity != null || r.provenance != null || r.groupKey != null || r.groupMode != null,
+  );
+}
+
+/** UTF-16 code unit order (JavaScript's default comparison), locale independent. */
+function codeUnitCompare(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+/**
+ * A JSON value with every object's keys in UTF-16 code unit order, so the format 2 checksum of
+ * a condition never depends on how the database or a driver happened to order its keys.
+ */
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
+      codeUnitCompare(a, b),
+    );
+    return Object.fromEntries(entries.map(([key, inner]) => [key, canonicalJson(inner)]));
+  }
+  return value;
+}
+
+/** One format 2 item: the five legacy keys first, then each new key only when it is set. */
+function format2Item(r: PackRequirement): Record<string, unknown> {
+  return {
+    kind: r.kind,
+    fieldKey: r.fieldKey,
+    docType: r.docType,
+    citation: r.citation,
+    optional: r.optional,
+    ...(r.necessity != null ? { necessity: r.necessity } : {}),
+    ...(r.provenance != null ? { provenance: r.provenance } : {}),
+    ...(r.groupKey != null ? { groupKey: r.groupKey } : {}),
+    ...(r.groupMode != null ? { groupMode: r.groupMode } : {}),
+    ...(r.condition != null ? { condition: canonicalJson(r.condition) } : {}),
+  };
+}
+
+/**
+ * Deterministic manifest for a set of requirements, plus its checksum.
+ *
+ * Format 1 (the default) is byte-identical forever (ADR 0026 D1; pinned by
+ * umpe-no-loss-golden.test.ts). Format 2 is `{ formatVersion: 2, requirements }`, items sorted by
+ * UTF-16 code unit order of each item's JSON (a verifier in another language must compare UTF-16
+ * code units, not code points), and the new keys appear only when set (ADR 0026 D2).
+ */
+export function buildManifest(
+  requirements: readonly PackRequirement[],
+  format: ManifestFormat = 1,
+): {
+  manifest: { formatVersion?: 2; requirements: unknown[] };
   checksum: string;
 } {
+  if (format === 2) {
+    const keyed = requirements.map((r) => {
+      const item = format2Item(r);
+      return { item, text: JSON.stringify(item) };
+    });
+    keyed.sort((a, b) => codeUnitCompare(a.text, b.text));
+    const manifest = { formatVersion: 2 as const, requirements: keyed.map((k) => k.item) };
+    const checksum = createHash('sha256').update(JSON.stringify(manifest)).digest('hex');
+    return { manifest, checksum };
+  }
   // NTF-01's `maxAgeDays` is deliberately NOT included here: this manifest's
   // shape is checksummed and re-verified against every already-published
   // pack version's stored `checksum` (`VerifyChecksumForm`) - adding a key
@@ -92,6 +193,92 @@ export function buildManifest(requirements: readonly PackRequirement[]): {
   const manifest = { requirements: items };
   const checksum = createHash('sha256').update(JSON.stringify(manifest)).digest('hex');
   return { manifest, checksum };
+}
+
+/**
+ * Migration 0116 (UMPE P1) adds four columns to `pack_requirements` and one to `pack_versions`.
+ * The code deploys before the migration runs, and a plain `select()` (or any insert, which names
+ * every column) would fail until then. So reads ask once whether the columns exist and, until
+ * they do, select the original columns and report the new ones as empty, which is exactly what
+ * every row holds. Pack Studio changes wait for the migration (`packStudioWaiting`). Only a
+ * positive answer is remembered: columns are never removed, and a missing answer is asked again.
+ */
+const PACK_RULE_COLUMN_COUNT = 5;
+let packRuleColumnsPresent = false;
+
+export async function packRuleColumnsReady(db: Db): Promise<boolean> {
+  if (packRuleColumnsPresent) return true;
+  const result = await db.execute(sql`
+    select count(*)::int as present from information_schema.columns
+    where table_schema = current_schema()
+      and ((table_name = 'pack_requirements'
+            and column_name in ('necessity', 'provenance', 'group_key', 'group_mode'))
+        or (table_name = 'pack_versions' and column_name = 'manifest_format'))`);
+  const rows = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows;
+  const present = Number((rows?.[0] as { present?: unknown } | undefined)?.present ?? 0);
+  packRuleColumnsPresent = present === PACK_RULE_COLUMN_COUNT;
+  return packRuleColumnsPresent;
+}
+
+/** Tests that drop the 0116 columns from their own database forget the remembered answer. */
+export function resetPackRuleColumnsCheckForTests(): void {
+  packRuleColumnsPresent = false;
+}
+
+function omitKeys<T extends Record<string, unknown>, K extends keyof T>(
+  value: T,
+  keys: readonly K[],
+): Omit<T, K> {
+  const omitted = new Set<PropertyKey>(keys);
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !omitted.has(key))) as Omit<
+    T,
+    K
+  >;
+}
+
+const LEGACY_REQUIREMENT_COLUMNS = omitKeys(getTableColumns(schema.packRequirements), [
+  'necessity',
+  'provenance',
+  'groupKey',
+  'groupMode',
+]);
+const LEGACY_PACK_VERSION_COLUMNS = omitKeys(getTableColumns(schema.packVersions), [
+  'manifestFormat',
+]);
+
+async function selectRequirementRows(db: Db, where: SQL | undefined): Promise<PackRequirement[]> {
+  if (await packRuleColumnsReady(db)) {
+    return db.select().from(schema.packRequirements).where(where);
+  }
+  const rows = await db
+    .select(LEGACY_REQUIREMENT_COLUMNS)
+    .from(schema.packRequirements)
+    .where(where);
+  return rows.map((row) => ({
+    ...row,
+    necessity: null,
+    provenance: null,
+    groupKey: null,
+    groupMode: null,
+  }));
+}
+
+async function selectPackVersionRows(db: Db, where: SQL | undefined): Promise<PackVersion[]> {
+  if (await packRuleColumnsReady(db)) {
+    return db.select().from(schema.packVersions).where(where);
+  }
+  const rows = await db.select(LEGACY_PACK_VERSION_COLUMNS).from(schema.packVersions).where(where);
+  return rows.map((row) => ({ ...row, manifestFormat: null }));
+}
+
+const PACK_STUDIO_WAITING =
+  'Pack Studio is waiting for a database update before packs can change. Try again after it runs.';
+
+/** A refusal while migration 0116 has not run (every pack write names the new columns), else null. */
+async function packStudioWaiting(db: Db): Promise<Result<never, ServiceError> | null> {
+  return (await packRuleColumnsReady(db))
+    ? null
+    : err(serviceError('invalid', PACK_STUDIO_WAITING));
 }
 
 /** A published, attachable pack version resolved with its pack identity. */
@@ -195,6 +382,8 @@ export async function addPackVersion(
   db: Db,
   input: { readonly actorAccountId: string; readonly packId: string },
 ): Promise<Result<PackVersion, ServiceError>> {
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
   const pack = first(
     await db.select().from(schema.packs).where(eq(schema.packs.id, input.packId)).limit(1),
   );
@@ -234,9 +423,91 @@ export async function addPackVersion(
 }
 
 async function loadVersion(db: Db, id: string): Promise<PackVersion | undefined> {
-  return first(
-    await db.select().from(schema.packVersions).where(eq(schema.packVersions.id, id)).limit(1),
-  );
+  return first(await selectPackVersionRows(db, eq(schema.packVersions.id, id)));
+}
+
+const GROUP_KEY_MAX_LENGTH = 80;
+
+interface AuthoredRuleFields {
+  readonly optional: boolean;
+  readonly necessity: RequirementNecessity | null;
+  readonly provenance: RequirementProvenance | null;
+  readonly groupKey: string | null;
+  readonly groupMode: RequirementGroupMode | null;
+}
+
+/**
+ * The UMPE P1 rule fields of one new requirement, checked (ADR 0026 D3). Necessity and
+ * provenance come only from the shared lists. When necessity is given the stored `optional` flag
+ * follows it, so older readers of the row keep agreeing; a contradicting `optional` is refused
+ * rather than silently overwritten. Mandatory If It Applies needs the rule saying when; a plain
+ * Mandatory item with such a rule is refused, because that is what Mandatory If It Applies means.
+ * A group key and its mode come together.
+ */
+function authoredRuleFields(input: RequirementInput): Result<AuthoredRuleFields, string> {
+  const necessity = input.necessity ?? null;
+  if (necessity !== null && !isRequirementNecessity(necessity)) {
+    return err('necessity is not one of the known words');
+  }
+  const provenance = input.provenance ?? null;
+  if (provenance !== null && !isRequirementProvenance(provenance)) {
+    return err('who asked for it is not one of the known sources');
+  }
+  let optional = input.optional ?? false;
+  if (necessity !== null) {
+    const implied = optionalFlagFor(necessity);
+    if (input.optional !== undefined && input.optional !== implied) {
+      return err('the optional flag does not match the necessity');
+    }
+    optional = implied;
+    if (necessity === 'CONDITIONAL' && input.condition === undefined) {
+      return err('Mandatory If It Applies needs a rule saying when it applies');
+    }
+    if (necessity === 'MANDATORY' && input.condition !== undefined) {
+      return err('a requirement that applies only sometimes is Mandatory If It Applies');
+    }
+  }
+  const groupKey = input.groupKey === undefined ? null : input.groupKey.trim();
+  const groupMode = input.groupMode ?? null;
+  if (groupKey === '') return err('a group of alternatives needs a name');
+  if (groupKey !== null && groupKey.length > GROUP_KEY_MAX_LENGTH) {
+    return err(`a group name can be at most ${GROUP_KEY_MAX_LENGTH} characters`);
+  }
+  if ((groupKey === null) !== (groupMode === null)) {
+    return err('a group of alternatives needs both its name and how it is satisfied');
+  }
+  if (groupMode !== null && !(REQUIREMENT_GROUP_MODES as readonly string[]).includes(groupMode)) {
+    return err('a group of alternatives can only be satisfied by any one of its items');
+  }
+  return ok({ optional, necessity, provenance, groupKey, groupMode });
+}
+
+/**
+ * Why a requirement set may not be approved or published, or null (UMPE P1, R07). Every stored
+ * condition must still be a recognised rule; a Mandatory If It Applies item must carry one; a
+ * group of alternatives must have at least two items and one mode. Checked again at approval and
+ * at publication, because a stored row can only be trusted as far as these checks go.
+ */
+function ruleSetProblem(requirements: readonly PackRequirement[]): string | null {
+  for (const r of requirements) {
+    if (r.condition != null && !isValidRuleCondition(r.condition)) {
+      return 'a requirement has a rule for when it applies that is not in a recognised shape; fix it in a new draft version';
+    }
+    if (r.necessity === 'CONDITIONAL' && r.condition == null) {
+      return 'a Mandatory If It Applies requirement has no rule saying when it applies';
+    }
+    if ((r.groupKey === null) !== (r.groupMode === null)) {
+      return 'a group of alternatives is missing its name or how it is satisfied';
+    }
+  }
+  const groupSizes = new Map<string, number>();
+  for (const r of requirements) {
+    if (r.groupKey !== null) groupSizes.set(r.groupKey, (groupSizes.get(r.groupKey) ?? 0) + 1);
+  }
+  for (const [group, size] of groupSizes) {
+    if (size < 2) return `the group of alternatives "${group}" needs at least two items`;
+  }
+  return null;
 }
 
 /** Add a cited requirement to a DRAFT pack version. */
@@ -244,6 +515,8 @@ export async function addRequirement(
   db: Db,
   input: { readonly actorAccountId: string; readonly packVersionId: string } & RequirementInput,
 ): Promise<Result<PackRequirement, ServiceError>> {
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
   return db.transaction(async (tx) => {
     const version = first(
       await tx
@@ -279,6 +552,8 @@ export async function addRequirement(
     if (input.condition !== undefined && !isValidRuleCondition(input.condition)) {
       return err(serviceError('invalid', 'condition is not a recognized rule shape'));
     }
+    const rule = authoredRuleFields(input);
+    if (!rule.ok) return err(serviceError('invalid', rule.error));
     if (
       input.sourceUrl !== undefined &&
       input.sourceUrl.trim() !== '' &&
@@ -297,7 +572,11 @@ export async function addRequirement(
             fieldKey: input.fieldKey ?? null,
             docType: input.docType ?? null,
             citation: input.citation.trim(),
-            optional: input.optional ?? false,
+            optional: rule.value.optional,
+            necessity: rule.value.necessity,
+            provenance: rule.value.provenance,
+            groupKey: rule.value.groupKey,
+            groupMode: rule.value.groupMode,
             notes: input.notes ?? null,
             maxAgeDays: input.maxAgeDays ?? null,
             condition: input.condition ?? null,
@@ -328,6 +607,9 @@ export async function addRequirement(
         docType: input.docType ?? null,
         maxAgeDays: input.maxAgeDays ?? null,
         hasCondition: input.condition !== undefined,
+        necessity: rule.value.necessity,
+        provenance: rule.value.provenance,
+        groupKey: rule.value.groupKey,
       },
     });
     return ok(requirement);
@@ -346,6 +628,8 @@ export async function recordRequirementSourceReview(
     readonly observedDate: Date;
   },
 ): Promise<Result<PackRequirement, ServiceError>> {
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
   const now = new Date();
   if (
     !isHttpUrl(input.sourceUrl) ||
@@ -413,10 +697,20 @@ export async function recordRequirementSourceReview(
 }
 
 export async function listRequirements(db: Db, packVersionId: string): Promise<PackRequirement[]> {
-  return db
-    .select()
-    .from(schema.packRequirements)
-    .where(eq(schema.packRequirements.packVersionId, packVersionId));
+  return selectRequirementRows(db, eq(schema.packRequirements.packVersionId, packVersionId));
+}
+
+/**
+ * The manifest format of one pack version (NULL is format 1), or null when the version is
+ * missing or records a format this code does not know. Before migration 0116 every version is
+ * format 1.
+ */
+export async function getManifestFormat(
+  db: Db,
+  packVersionId: string,
+): Promise<ManifestFormat | null> {
+  const version = await loadVersion(db, packVersionId);
+  return version ? manifestFormatOf(version) : null;
 }
 
 /** Every pack (Pack Studio overview), newest first. */
@@ -432,17 +726,12 @@ export async function getPack(db: Db, packId: string): Promise<Pack | undefined>
 
 /** Load one pack version by id (case-readiness UI, §10: resolving a mission's attached version back to its pack for the authoritative/custom distinction). */
 export async function getPackVersion(db: Db, id: string): Promise<PackVersion | undefined> {
-  return first(
-    await db.select().from(schema.packVersions).where(eq(schema.packVersions.id, id)).limit(1),
-  );
+  return loadVersion(db, id);
 }
 
 /** Versions of a pack, highest version first. */
 export async function listPackVersions(db: Db, packId: string): Promise<PackVersion[]> {
-  const rows = await db
-    .select()
-    .from(schema.packVersions)
-    .where(eq(schema.packVersions.packId, packId));
+  const rows = await selectPackVersionRows(db, eq(schema.packVersions.packId, packId));
   return [...rows].sort((a, b) => b.version - a.version);
 }
 
@@ -488,6 +777,8 @@ export async function approvePackVersion(
     readonly effectiveDate?: Date;
   },
 ): Promise<Result<PackVersion, ServiceError>> {
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
   return db.transaction(async (tx) => {
     const version = first(
       await tx
@@ -547,7 +838,13 @@ export async function approvePackVersion(
       }
     }
 
-    const { manifest, checksum } = buildManifest(requirements);
+    const problem = ruleSetProblem(requirements);
+    if (problem) return err(serviceError('invalid', problem));
+
+    // Format 2 only when a row uses a new rule field; every other version stays format 1, the
+    // exact bytes every older version was approved with (ADR 0026 D2).
+    const manifestFormat: ManifestFormat = usesFormat2Fields(requirements) ? 2 : 1;
+    const { manifest, checksum } = buildManifest(requirements, manifestFormat);
 
     const updated = required(
       first(
@@ -557,6 +854,7 @@ export async function approvePackVersion(
             status: 'APPROVED',
             manifest,
             checksum,
+            manifestFormat,
             approvedByAccountId: input.actorAccountId,
             approvedAt: now,
             nextReviewDate,
@@ -577,7 +875,7 @@ export async function approvePackVersion(
       result: 'ALLOWED',
       resourceType: 'pack_version',
       resourceId: updated.id,
-      metadata: { checksum, nextReviewDate: nextReviewDate.toISOString() },
+      metadata: { checksum, manifestFormat, nextReviewDate: nextReviewDate.toISOString() },
     });
     // OPS-04 source review: a reviewer signing off a version's sources.
     await recordProductEvent(tx, {
@@ -602,6 +900,8 @@ export async function publishPackVersion(
   db: Db,
   input: { readonly actorAccountId: string; readonly packVersionId: string },
 ): Promise<Result<PackVersion, ServiceError>> {
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
   return db.transaction(async (tx) => {
     const version = first(
       await tx
@@ -616,9 +916,11 @@ export async function publishPackVersion(
       return err(serviceError('invalid', 'only an APPROVED version can be published'));
     }
     const pack = await getPack(tx, version.packId);
+    const requirements = await listRequirements(tx, version.id);
+    const problem = ruleSetProblem(requirements);
+    if (problem) return err(serviceError('invalid', problem));
     if (pack?.authoritative) {
       const now = new Date();
-      const requirements = await listRequirements(tx, version.id);
       if (
         !version.approvedByAccountId ||
         !version.approvedAt ||
@@ -698,6 +1000,8 @@ export async function withdrawPackVersion(
     readonly reason: string;
   },
 ): Promise<Result<PackVersion, ServiceError>> {
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
   const reason = input.reason.trim();
   if (reason.length === 0) return err(serviceError('invalid', 'a reason is required'));
   const version = await loadVersion(db, input.packVersionId);
@@ -758,6 +1062,8 @@ async function setRequirementSourceInaccessible(
   input: { readonly actorAccountId: string; readonly requirementId: string },
   sourceInaccessibleAt: Date | null,
 ): Promise<Result<PackRequirement, ServiceError>> {
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
   const requirement = first(
     await db
       .select()
@@ -824,6 +1130,8 @@ export async function setPublicTrustContent(
     readonly officialReportingUrl?: string;
   },
 ): Promise<Result<PackVersion, ServiceError>> {
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
   const version = await loadVersion(db, input.packVersionId);
   if (!version) return err(serviceError('not_found', 'pack version not found'));
   if (version.status !== 'DRAFT') {
@@ -922,6 +1230,8 @@ export async function publishToPublicTrust(
   db: Db,
   input: { readonly actorAccountId: string; readonly packVersionId: string },
 ): Promise<Result<PackVersion, ServiceError>> {
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
   const version = await loadVersion(db, input.packVersionId);
   if (!version) return err(serviceError('not_found', 'pack version not found'));
   if (version.status !== 'PUBLISHED') {
@@ -974,6 +1284,8 @@ export async function unpublishFromPublicTrust(
   db: Db,
   input: { readonly actorAccountId: string; readonly packVersionId: string },
 ): Promise<Result<PackVersion, ServiceError>> {
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
   const version = await loadVersion(db, input.packVersionId);
   if (!version) return err(serviceError('not_found', 'pack version not found'));
   if (!version.publicTrustPublishedAt) {
@@ -1027,6 +1339,8 @@ async function setOfficialFeeStale(
   input: { readonly actorAccountId: string; readonly packVersionId: string },
   officialFeeStaleAt: Date | null,
 ): Promise<Result<PackVersion, ServiceError>> {
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
   const version = await loadVersion(db, input.packVersionId);
   if (!version) return err(serviceError('not_found', 'pack version not found'));
 
@@ -1090,7 +1404,7 @@ export interface PublicTrustRoute {
 async function toPublicTrustRoute(
   db: Db,
   pack: Pack,
-  version: PackVersion,
+  version: Omit<PackVersion, 'manifestFormat'>,
   now: Date,
 ): Promise<PublicTrustRoute> {
   const feeCurrent =
@@ -1159,9 +1473,10 @@ export async function getPublicTrustRoute(
   );
   if (!pack || !pack.authoritative) return null;
 
+  // The public read never needs the manifest format, so it reads only the original columns.
   const version = first(
     await db
-      .select()
+      .select(LEGACY_PACK_VERSION_COLUMNS)
       .from(schema.packVersions)
       .where(
         and(eq(schema.packVersions.packId, pack.id), eq(schema.packVersions.status, 'PUBLISHED')),
@@ -1176,7 +1491,7 @@ export async function getPublicTrustRoute(
 /** Every route currently live on the public trust surface (admin overview, Pack Studio catalog page), most-recently-published first. */
 export async function listPublicTrustPublished(db: Db): Promise<PublicTrustRoute[]> {
   const rows = await db
-    .select({ pack: schema.packs, version: schema.packVersions })
+    .select({ pack: schema.packs, version: LEGACY_PACK_VERSION_COLUMNS })
     .from(schema.packVersions)
     .innerJoin(schema.packs, eq(schema.packs.id, schema.packVersions.packId))
     .where(
@@ -1199,7 +1514,10 @@ export async function listPublicTrustPublished(db: Db): Promise<PublicTrustRoute
 export async function verifyPackChecksum(db: Db, packVersionId: string): Promise<boolean> {
   const version = await loadVersion(db, packVersionId);
   if (!version || !version.checksum) return false;
-  const { checksum } = buildManifest(await listRequirements(db, packVersionId));
+  // Each version is verified with the serializer that produced its checksum (ADR 0026 D2).
+  const format = manifestFormatOf(version);
+  if (format === null) return false;
+  const { checksum } = buildManifest(await listRequirements(db, packVersionId), format);
   return checksum === version.checksum;
 }
 
@@ -1271,6 +1589,10 @@ const DIFFABLE_SCALAR_FIELDS = [
   'interpretation',
   'sourceType',
   'changeReason',
+  'necessity',
+  'provenance',
+  'groupKey',
+  'groupMode',
 ] as const satisfies readonly (keyof PackRequirement)[];
 
 /** Every field name that differs between two requirements sharing the same natural key. Empty when they are equivalent. */

@@ -65,15 +65,21 @@ export function CasePreparationSummary({
   readonly readiness: Readiness;
   readonly acknowledged: boolean;
 }) {
+  // A group of alternatives (UMPE P1) is one item however many alternatives it lists, so each
+  // state counts a group once; every other requirement counts as itself, exactly as before.
+  const count = (match: (state: Readiness['requirementResults'][number]['state']) => boolean) =>
+    new Set(
+      readiness.requirementResults
+        .filter((r) => match(r.state))
+        .map((r) => (r.groupKey ? `group:${r.groupKey}` : r.packRequirementId)),
+    ).size;
   const counts = {
-    satisfied: readiness.requirementResults.filter((r) => r.state === 'SATISFIED').length,
-    missing: readiness.requirementResults.filter((r) => r.state === 'CRITICAL_GAP').length,
-    review: readiness.requirementResults.filter(
-      (r) => r.state === 'CONFLICTING' || r.state === 'EXPIRING_STALE',
-    ).length,
-    unknown: readiness.requirementResults.filter((r) => r.state === 'UNVERIFIED').length,
-    notApplicable: readiness.requirementResults.filter((r) => r.state === 'NOT_APPLICABLE').length,
-    optionalMissing: readiness.requirementResults.filter((r) => r.state === 'ATTENTION').length,
+    satisfied: count((state) => state === 'SATISFIED'),
+    missing: count((state) => state === 'CRITICAL_GAP'),
+    review: count((state) => state === 'CONFLICTING' || state === 'EXPIRING_STALE'),
+    unknown: count((state) => state === 'UNVERIFIED'),
+    notApplicable: count((state) => state === 'NOT_APPLICABLE'),
+    optionalMissing: count((state) => state === 'ATTENTION'),
   };
   const progress =
     readiness.requiredCount > 0

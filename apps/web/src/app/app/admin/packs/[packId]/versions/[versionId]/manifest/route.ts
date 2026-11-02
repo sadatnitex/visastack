@@ -1,4 +1,10 @@
-import { buildManifest, listRequirements } from '@visastack/services';
+import {
+  buildManifest,
+  getPackVersion,
+  listRequirements,
+  manifestFormatOf,
+  usesFormat2Fields,
+} from '@visastack/services';
 import { isPlatformAdmin } from '../../../../../../../../lib/admin';
 import { withSession } from '../../../../../../../../lib/session';
 
@@ -6,7 +12,8 @@ import { withSession } from '../../../../../../../../lib/session';
  * Downloads a pack version's deterministic manifest — the exact requirement
  * set its frozen checksum was computed over (Build Spec §4.1). Platform-admin
  * only; recomputed from the current requirement rows, never stored bytes, so
- * it always reflects reality.
+ * it always reflects reality. An approved version is serialized in its own
+ * manifest format (ADR 0026 D2); a draft in the format approval would choose.
  */
 export const dynamic = 'force-dynamic';
 
@@ -16,13 +23,29 @@ export async function GET(
 ): Promise<Response> {
   const { versionId } = await params;
 
-  const manifest = await withSession(async ({ db, accountId, email }) => {
-    if (!(await isPlatformAdmin(db, { accountId, email }))) return null;
+  const outcome = await withSession(async ({ db, accountId, email }) => {
+    if (!(await isPlatformAdmin(db, { accountId, email }))) return 'forbidden' as const;
+    const version = await getPackVersion(db, versionId);
+    if (!version) return 'missing' as const;
     const requirements = await listRequirements(db, versionId);
-    return buildManifest(requirements).manifest;
+    const format =
+      version.status === 'DRAFT'
+        ? usesFormat2Fields(requirements)
+          ? 2
+          : 1
+        : manifestFormatOf(version);
+    if (format === null) return 'unknown_format' as const;
+    return buildManifest(requirements, format).manifest;
   });
 
-  if (!manifest) return new Response('not authorized', { status: 403 });
+  if (outcome === 'forbidden') return new Response('not authorized', { status: 403 });
+  if (outcome === 'missing') return new Response('not found', { status: 404 });
+  if (outcome === 'unknown_format') {
+    return new Response('this version uses a manifest format this release cannot read', {
+      status: 409,
+    });
+  }
+  const manifest = outcome;
 
   return new Response(JSON.stringify(manifest, null, 2), {
     status: 200,

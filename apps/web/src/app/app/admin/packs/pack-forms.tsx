@@ -1,5 +1,12 @@
 'use client';
 
+import {
+  ANY_OF_LABEL,
+  NECESSITY_LABELS,
+  PROVENANCE_LABELS,
+  REQUIREMENT_NECESSITIES,
+  REQUIREMENT_PROVENANCES,
+} from '@visastack/core';
 import { useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
@@ -193,10 +200,70 @@ export function AddRequirementForm({
               placeholder="e.g. 90 - leave blank for no freshness rule"
             />
           </div>
-          <label className="check">
-            <input type="checkbox" name="optional" />
-            <span>Optional requirement</span>
-          </label>
+        </div>
+      </fieldset>
+      <fieldset className="form-section">
+        <legend>How Necessary</legend>
+        <div className="form-grid">
+          <div className="field-row">
+            <label className="field-label" htmlFor="necessity">
+              Necessity
+            </label>
+            <select id="necessity" name="necessity" className="input" defaultValue="MANDATORY">
+              {REQUIREMENT_NECESSITIES.map((necessity) => (
+                <option key={necessity} value={necessity}>
+                  {NECESSITY_LABELS[necessity]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor="provenance">
+              Who Asked for It
+            </label>
+            <select id="provenance" name="provenance" className="input" defaultValue="OFFICIAL">
+              {REQUIREMENT_PROVENANCES.map((provenance) => (
+                <option key={provenance} value={provenance}>
+                  {PROVENANCE_LABELS[provenance]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field-row field-wide">
+            <label className="field-label" htmlFor="condition">
+              When It Applies
+            </label>
+            <textarea
+              id="condition"
+              name="condition"
+              className="input"
+              rows={3}
+              maxLength={4000}
+              aria-describedby="condition-hint"
+            />
+            <span id="condition-hint" className="muted u-fs-085">
+              Needed for {NECESSITY_LABELS.CONDITIONAL}. Write the rule in the rule format, for
+              example {'{"op":"equals","field":"visa_purpose","value":"business"}'}. Leave it empty
+              for a requirement that always applies.
+            </span>
+          </div>
+          <div className="field-row field-wide">
+            <label className="field-label" htmlFor="groupKey">
+              {ANY_OF_LABEL} Group
+            </label>
+            <input
+              id="groupKey"
+              name="groupKey"
+              type="text"
+              className="input"
+              maxLength={80}
+              aria-describedby="groupKey-hint"
+            />
+            <span id="groupKey-hint" className="muted u-fs-085">
+              Give alternatives the same group name: any one of them meets the requirement. Leave it
+              empty for a requirement on its own.
+            </span>
+          </div>
         </div>
       </fieldset>
       <fieldset className="form-section">

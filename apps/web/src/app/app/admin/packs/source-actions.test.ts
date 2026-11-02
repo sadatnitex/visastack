@@ -86,3 +86,45 @@ it('saves a draft source review through the existing permission boundary', async
   );
   expect(mocks.review).not.toHaveBeenCalled();
 });
+
+it('UMPE P1: passes necessity, who asked for it, the rule and the group to the service', async () => {
+  const data = form();
+  data.set('necessity', 'CONDITIONAL');
+  data.set('provenance', 'AUTHORITY_REQUESTED');
+  data.set('condition', '{"op":"equals","field":"visa_purpose","value":"business"}');
+  data.set('groupKey', ' funds ');
+  data.set('optional', 'on');
+  expect((await addRequirementAction({ ok: true, message: '' }, data)).ok).toBe(true);
+  const sent = mocks.add.mock.calls[0]?.[1];
+  expect(sent).toMatchObject({
+    necessity: 'CONDITIONAL',
+    provenance: 'AUTHORITY_REQUESTED',
+    condition: { op: 'equals', field: 'visa_purpose', value: 'business' },
+    groupKey: 'funds',
+    groupMode: 'ANY_OF',
+  });
+  // A chosen necessity decides the optional flag; the older checkbox is not sent with it.
+  expect(sent).not.toHaveProperty('optional');
+});
+
+it('UMPE P1: refuses an unknown necessity or source and a rule it cannot read', async () => {
+  for (const [key, value] of [
+    ['necessity', 'ALTERNATIVE_GROUP'],
+    ['provenance', 'ADDITIONAL_REQUEST'],
+    ['condition', '{"op":"eval","code":"1"}'],
+    ['condition', 'not json'],
+  ] as const) {
+    const data = form();
+    data.set(key, value);
+    expect((await addRequirementAction({ ok: true, message: '' }, data)).ok).toBe(false);
+  }
+  expect(mocks.add).not.toHaveBeenCalled();
+});
+
+it('UMPE P1: without a necessity the older optional checkbox still works', async () => {
+  const data = form();
+  data.set('optional', 'on');
+  expect((await addRequirementAction({ ok: true, message: '' }, data)).ok).toBe(true);
+  expect(mocks.add.mock.calls[0]?.[1]).toMatchObject({ optional: true });
+  expect(mocks.add.mock.calls[0]?.[1]).not.toHaveProperty('necessity');
+});

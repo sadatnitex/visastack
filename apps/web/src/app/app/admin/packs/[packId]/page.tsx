@@ -1,3 +1,4 @@
+import { ANY_OF_LABEL, NECESSITY_LABELS, PROVENANCE_LABELS } from '@visastack/core';
 import {
   type PackRequirement,
   getPack,
@@ -248,10 +249,26 @@ export default async function PackDetailPage({
                                 </span>
                               ) : null}
                               <span className="badge badge-neutral">
-                                {req.optional ? 'Optional' : 'Required'}
+                                {req.necessity
+                                  ? NECESSITY_LABELS[req.necessity]
+                                  : req.optional
+                                    ? 'Optional'
+                                    : 'Required'}
                               </span>
                             </span>
                           </div>
+                          {req.provenance || req.groupKey ? (
+                            <span className="muted u-fs-085 sb7-break">
+                              {req.provenance ? PROVENANCE_LABELS[req.provenance] : null}
+                              {req.provenance && req.groupKey ? ' · ' : null}
+                              {req.groupKey ? `${ANY_OF_LABEL}: ${req.groupKey}` : null}
+                            </span>
+                          ) : null}
+                          {req.condition ? (
+                            <span className="muted u-fs-085 sb7-break">
+                              When it applies: <code>{JSON.stringify(req.condition)}</code>
+                            </span>
+                          ) : null}
                           <span className="muted u-fs-085 sb7-break">Cite: {req.citation}</span>
                           <details className="sb7-fold">
                             <summary>
