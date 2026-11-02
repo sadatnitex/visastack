@@ -116,6 +116,7 @@ describe('the upload id (UMPE P3, ledger I16)', () => {
       documentId: 'd-1',
       documentVersionId: 'v-1',
       title: 'Passport, Nazmus',
+      uploadIntentId: 'intent-0',
     });
     const result = await uploadDocumentAction(
       initial,
@@ -130,14 +131,18 @@ describe('the upload id (UMPE P3, ledger I16)', () => {
     expect(mocks.reserveUpload).not.toHaveBeenCalled();
     expect(mocks.putObject).not.toHaveBeenCalled();
     expect(mocks.registerDocumentWithVersion).not.toHaveBeenCalled();
-    expect(mocks.enqueueIntakeJob).not.toHaveBeenCalled();
+    // What the first attempt may not have finished is finished now: reading queued, reservation
+    // closed, both safe to repeat.
+    expect(mocks.enqueueIntakeJob.mock.calls[0]?.[1]).toEqual({ documentVersionId: 'v-1' });
+    expect(mocks.finalizeUpload.mock.calls[0]?.slice(1)).toEqual(['intent-0', 'v-1']);
   });
 
   it('tells a repeat still being stored to wait, and refuses an id used for another person', async () => {
-    mocks.claimUploadReceipt.mockResolvedValueOnce({ kind: 'in_progress' });
+    mocks.claimUploadReceipt.mockResolvedValueOnce({ kind: 'in_progress', retryAfterSeconds: 87 });
     expect(await uploadDocumentAction(initial, upload({ uploadId: UPLOAD_ID }))).toMatchObject({
       ok: false,
       refusal: 'in_progress',
+      retryAfterSeconds: 87,
     });
     mocks.claimUploadReceipt.mockResolvedValueOnce({ kind: 'conflict' });
     expect(await uploadDocumentAction(initial, upload({ uploadId: UPLOAD_ID }))).toMatchObject({
@@ -196,5 +201,14 @@ describe('the upload id (UMPE P3, ledger I16)', () => {
     expect(result.ok).toBe(true);
     expect(mocks.claimUploadReceipt).not.toHaveBeenCalled();
     expect(mocks.completeUploadReceipt).not.toHaveBeenCalled();
+  });
+
+  it('releases the reservation and the claim when recording the reservation fails', async () => {
+    mocks.attachUploadIntent.mockRejectedValueOnce(new Error('database hiccup'));
+    const result = await uploadDocumentAction(initial, upload({ uploadId: UPLOAD_ID }));
+    expect(result.ok).toBe(false);
+    expect(mocks.failUpload).toHaveBeenCalled();
+    expect(mocks.releaseUploadReceipt).toHaveBeenCalledTimes(1);
+    expect(mocks.putObject).not.toHaveBeenCalled();
   });
 });

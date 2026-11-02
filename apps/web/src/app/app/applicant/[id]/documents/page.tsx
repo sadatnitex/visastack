@@ -710,7 +710,7 @@ export default async function ApplicantDocumentsPage({
                   }
                 : {}),
               details: (
-                <div key={doc.id} id={`document-${doc.id}`} {...atLevel('browse')}>
+                <div key={doc.id} {...atLevel('browse')}>
                   <div
                     className="wallet-document-actions"
                     style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}

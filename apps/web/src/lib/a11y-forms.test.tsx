@@ -308,8 +308,6 @@ const DOCS: readonly Case[] = [
     name: 'decide the files that need one decision',
     element: () => (
       <>
-        {/* The document's own row, which Choose What It Is leads to on the page. */}
-        <div id="document-d3" />
         <NeedsDecision
           applicantId="a1"
           items={[
@@ -339,7 +337,13 @@ const DOCS: readonly Case[] = [
     ),
   },
   row('confirm or keep separate a suggested link', () => (
-    <RelationDecisionForm applicantId="a1" proposalId="p1" title="Bank Statement April" />
+    <RelationDecisionForm
+      applicantId="a1"
+      proposalId="p1"
+      title="Bank Statement April"
+      action={() => undefined}
+      pending={false}
+    />
   )),
   row('review a suggested file name', () => (
     <NameReview

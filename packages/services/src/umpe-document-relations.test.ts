@@ -80,6 +80,9 @@ describe('reading the period a statement covers', () => {
     expect(readAccountEnding('Account No. 0012345678')).toBe('5678');
     expect(readAccountEnding('Account Number: 12')).toBeNull();
     expect(readAccountEnding('no account here')).toBeNull();
+    // Never runs onto the next line.
+    expect(readAccountEnding('Account No: 0123456789\n01/03/2026 Opening Balance')).toBe('6789');
+    expect(readAccountEnding('Account Number: XXXX1234\n2026 Annual Summary')).toBe('1234');
   });
 });
 

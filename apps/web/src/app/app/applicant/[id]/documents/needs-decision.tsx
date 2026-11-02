@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useRef } from 'react';
 import { SubmitButton } from '../../../../../components/form-feedback';
 import { type RelationDecisionState, decideRelationAction } from './needs-decision-actions';
 
@@ -62,15 +62,19 @@ export function RelationDecisionForm({
   applicantId,
   proposalId,
   title,
+  action,
+  pending,
 }: {
   readonly applicantId: string;
   readonly proposalId: string;
   /** The new file's name, so each button says which file it is about. */
   readonly title: string;
+  /** The list's own action, so its answer outlives this form (the item goes once decided). */
+  readonly action: (formData: FormData) => void;
+  readonly pending: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(decideRelationAction, INITIAL);
   return (
-    <form action={formAction} className="umpe-p3-decision-form">
+    <form action={action} className="umpe-p3-decision-form">
       <input type="hidden" name="applicantId" value={applicantId} />
       <input type="hidden" name="proposalId" value={proposalId} />
       <div className="umpe-p3-decision-actions">
@@ -93,24 +97,15 @@ export function RelationDecisionForm({
           className="btn btn-secondary"
         />
       </div>
-      {state.message ? (
-        state.ok ? (
-          <output className="umpe-p3-decision-note" aria-live="polite">
-            {state.message}
-          </output>
-        ) : (
-          <p className="umpe-p3-decision-note" role="alert">
-            {state.message}
-          </p>
-        )
-      ) : null}
     </form>
   );
 }
 
 /**
  * The person's files that need one decision (ledger I07, I11), and the files already linked.
- * Routine files never appear here. Renders nothing when there is nothing to decide or show.
+ * Routine files never appear here. The answer to a decision is shown for the whole list, so it
+ * stays on screen (and is announced, with focus moved to it) after the decided item goes.
+ * Renders nothing when there is nothing to decide, show or report.
  */
 export function NeedsDecision({
   applicantId,
@@ -121,13 +116,31 @@ export function NeedsDecision({
   readonly items: readonly NeedsDecisionItem[];
   readonly linked: readonly LinkedCopy[];
 }) {
-  if (items.length === 0 && linked.length === 0) return null;
+  const [state, formAction, pending] = useActionState(decideRelationAction, INITIAL);
+  const statusRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (state.message) statusRef.current?.focus();
+  }, [state]);
+  if (items.length === 0 && linked.length === 0 && !state.message) return null;
   return (
     <section className="card u-mb-150 umpe-p3-needs-decision" aria-labelledby="needs-decision">
       <p className="card-kicker">Check</p>
       <h2 className="card-title" id="needs-decision">
         Needs One Decision
       </h2>
+      <div ref={statusRef} tabIndex={-1} className="umpe-p3-decision-status">
+        {state.message ? (
+          state.ok ? (
+            <output className="umpe-p3-decision-note" aria-live="polite">
+              {state.message}
+            </output>
+          ) : (
+            <p className="umpe-p3-decision-note" role="alert">
+              {state.message}
+            </p>
+          )
+        ) : null}
+      </div>
       {items.length > 0 ? (
         <>
           <p className="card-body">
@@ -147,6 +160,8 @@ export function NeedsDecision({
                     applicantId={applicantId}
                     proposalId={item.proposalId}
                     title={item.title}
+                    action={formAction}
+                    pending={pending}
                   />
                 </li>
               ) : (
@@ -156,7 +171,11 @@ export function NeedsDecision({
                       ? `We could not tell what ${item.title} is.`
                       : `We are not sure what ${item.title} is.`}
                   </p>
-                  <a className="btn btn-secondary" href={`#document-${item.documentId}`}>
+                  <a
+                    className="btn btn-secondary"
+                    href={`/app/applicant/${applicantId}/documents?document=${item.documentId}#wallet-selected-document`}
+                    aria-label={`Choose What It Is: ${item.title}`}
+                  >
                     Choose What It Is
                   </a>
                 </li>

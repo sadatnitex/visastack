@@ -14,6 +14,7 @@ import { documentVersionBelongsToApplicant } from './document-version-owner';
 import { type ServiceError, serviceError } from './errors';
 import type { DocumentConverterPort } from './extraction';
 import {
+  everydayDocumentCondition,
   lifecycleTablesPresent,
   presentApplicantCondition,
   presentDocumentCondition,
@@ -683,8 +684,12 @@ async function runExtractionStep(
               : null,
         }),
       );
-    } catch {
-      // Suggestions are optional; the reading itself must never be lost to them.
+    } catch (error) {
+      // Suggestions are optional; the reading itself must never be lost to them. Reported (the
+      // kind of error only, never a value read from the file) so a broken step is noticed.
+      console.warn(
+        `[document-understanding] suggestion step failed: ${error instanceof Error ? error.name : 'unknown'}`,
+      );
     }
     return true;
   });
@@ -733,7 +738,8 @@ async function recordDocumentUnderstanding(
       and(
         eq(schema.documents.applicantId, document.applicantId),
         ne(schema.documents.id, document.id),
-        lifecycle ? presentDocumentCondition() : undefined,
+        // Automatic matching uses everyday documents only: archived ones are put away on purpose.
+        lifecycle ? everydayDocumentCondition() : undefined,
       ),
     )
     .orderBy(desc(schema.documents.createdAt));
@@ -744,16 +750,29 @@ async function recordDocumentUnderstanding(
       id: schema.documentVersions.id,
       documentId: schema.documentVersions.documentId,
       versionNumber: schema.documentVersions.versionNumber,
-      sha256: schema.documentVersions.sha256,
     })
     .from(schema.documentVersions)
     .where(inArray(schema.documentVersions.documentId, otherIds));
-  const hashes = new Map<string, string[]>();
   const latestVersion = new Map<string, { readonly id: string; readonly versionNumber: number }>();
   for (const row of versions) {
-    if (row.sha256) hashes.set(row.documentId, [...(hashes.get(row.documentId) ?? []), row.sha256]);
     const held = latestVersion.get(row.documentId);
     if (!held || row.versionNumber > held.versionNumber) latestVersion.set(row.documentId, row);
+  }
+  // Only the versions with the very same bytes, if any (any version counts as the same file).
+  const sameBytes = version.sha256
+    ? await tx
+        .select({ documentId: schema.documentVersions.documentId })
+        .from(schema.documentVersions)
+        .where(
+          and(
+            eq(schema.documentVersions.sha256, version.sha256),
+            inArray(schema.documentVersions.documentId, otherIds),
+          ),
+        )
+    : [];
+  const hashes = new Map<string, string[]>();
+  for (const row of sameBytes) {
+    if (version.sha256) hashes.set(row.documentId, [version.sha256]);
   }
 
   // Signals are read only for documents that could be the same kind, newest first, bounded.
@@ -796,7 +815,7 @@ async function recordDocumentUnderstanding(
   const readings =
     sameKindVersionIds.length > 0
       ? await tx
-          .select({
+          .selectDistinctOn([schema.extractionRuns.documentVersionId], {
             documentVersionId: schema.extractionRuns.documentVersionId,
             text: schema.extractionRuns.extractedText,
           })
@@ -807,7 +826,8 @@ async function recordDocumentUnderstanding(
               eq(schema.extractionRuns.status, 'SUCCEEDED'),
             ),
           )
-          .orderBy(desc(schema.extractionRuns.createdAt))
+          // The latest successful reading of each version only.
+          .orderBy(schema.extractionRuns.documentVersionId, desc(schema.extractionRuns.createdAt))
       : [];
   const textOf = new Map<string, string>();
   for (const row of readings) {

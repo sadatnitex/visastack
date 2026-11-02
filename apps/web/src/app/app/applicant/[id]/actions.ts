@@ -108,6 +108,8 @@ export interface ActionState {
    * for another traveller; the route answers 409.
    */
   readonly refusal?: 'rate_limited' | 'in_progress' | 'upload_conflict';
+  /** With `in_progress`: seconds until the same upload can be checked again. */
+  readonly retryAfterSeconds?: number;
 }
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
@@ -273,6 +275,13 @@ export async function uploadDocumentAction(
       ? await claimUploadReceipt(receiptProof, { uploadId, originalFileName })
       : ({ kind: 'untracked' } as const);
     if (claim.kind === 'replay') {
+      // Finish what the first attempt may not have, before it could answer: its reading queued
+      // (an upsert, so repeating it is safe) and its reservation closed. Never a second copy.
+      await enqueueIntakeJob(db, { documentVersionId: claim.documentVersionId });
+      if (claim.uploadIntentId) {
+        await finalizeUpload(db, claim.uploadIntentId, claim.documentVersionId);
+      }
+      after(() => triggerIntakeAndReading());
       return {
         ok: true,
         message: ALREADY_ADDED_LINE,
@@ -282,8 +291,9 @@ export async function uploadDocumentAction(
     if (claim.kind === 'in_progress') {
       return {
         ok: false,
-        message: 'This file is still being added. It is checked again in a moment.',
+        message: 'This file is still being added. Try again in a minute or two.',
         refusal: 'in_progress',
+        retryAfterSeconds: claim.retryAfterSeconds,
       } satisfies ActionState;
     }
     if (claim.kind === 'conflict') {
@@ -320,7 +330,16 @@ export async function uploadDocumentAction(
       } satisfies ActionState;
     }
     let intent = reservation.value;
-    if (held) await attachUploadIntent(held.proof, { ...held.claim, uploadIntentId: intent.id });
+    if (held) {
+      try {
+        await attachUploadIntent(held.proof, { ...held.claim, uploadIntentId: intent.id });
+      } catch (error) {
+        // Same rule as every failure after the reservation: release it, and the claim with it.
+        await failUpload(db, intent.id, error instanceof Error ? error.message : String(error));
+        await release();
+        return { ok: false, message: 'Upload failed unexpectedly. Please try again.' };
+      }
+    }
     // Opaque key only — never the applicant id, email, or filename (§10).
     // The bucket/applicant association lives solely in the domain tables
     // (documents/document_versions/storage_objects), never in the object

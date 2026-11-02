@@ -77,7 +77,9 @@ describe('the files that need one decision (UMPE P3)', () => {
       />,
     );
     expect(html).toContain('We are not sure what Untitled Document is.');
-    expect(html).toContain('href="#document-d9"');
+    expect(html).toContain(
+      'href="/app/applicant/a1/documents?document=d9#wallet-selected-document"',
+    );
     expect(html).toContain('Choose What It Is');
     expect(html).toContain('Linked Copies');
     expect(html).toContain('>New Period<');

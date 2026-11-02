@@ -231,6 +231,7 @@ describe('upload receipts: the same upload never stores a second copy (I16)', ()
       documentId: stored.version.documentId,
       documentVersionId: stored.version.id,
       title: stored.document.approvedName,
+      uploadIntentId: expect.any(String),
     });
     expect(await documentCount(db, owner.applicantId)).toBe(1);
   });
@@ -245,7 +246,12 @@ describe('upload receipts: the same upload never stores a second copy (I16)', ()
       uploadId: UPLOAD_ID,
       now: new Date(t0.getTime() + UPLOAD_CLAIM_STALE_MS - 1),
     });
-    expect(during).toEqual({ kind: 'in_progress' });
+    expect(during).toEqual({ kind: 'in_progress', retryAfterSeconds: 1 });
+    const early = await claimUploadReceipt(proof, { uploadId: UPLOAD_ID, now: t0 });
+    expect(early).toEqual({
+      kind: 'in_progress',
+      retryAfterSeconds: UPLOAD_CLAIM_STALE_MS / 1000,
+    });
   });
 
   it('finishes a crashed claim with the document it stored, never storing again', async () => {
@@ -260,6 +266,8 @@ describe('upload receipts: the same upload never stores a second copy (I16)', ()
       now: new Date(t0.getTime() + UPLOAD_CLAIM_STALE_MS + 1),
     });
     expect(later).toMatchObject({ kind: 'replay', documentId: stored.version.documentId });
+    // The caller is handed the reservation, to finish what the crashed request may not have.
+    expect(later.kind === 'replay' && later.uploadIntentId).toBeTruthy();
     expect(await documentCount(db, owner.applicantId)).toBe(1);
   });
 
@@ -420,8 +428,13 @@ describe('relations proposed by intake and decided by the traveller (I13, I07, I
       .where(eq(schema.documents.id, older.documentId));
     expect(oldRow?.supersededByDocumentId).toBeNull();
 
-    // Confirming asks Replace With a Newer Document (with its own rules) to mark the older
-    // passport as the Earlier Copy: both are kept, the older one links forward, nothing deleted.
+    // The older passport's kind was accepted; the new one's is not saved yet (the common case).
+    await db
+      .update(schema.documents)
+      .set({ docType: 'PASSPORT' })
+      .where(eq(schema.documents.id, older.documentId));
+    // Confirming says the new file is a passport too, then asks Replace With a Newer Document
+    // (with its own rules) to mark the older one as the Earlier Copy: both kept, nothing deleted.
     const decided = await decideDocumentRelation(
       await manage(db, owner.accountId, owner.applicantId),
       {
@@ -435,6 +448,11 @@ describe('relations proposed by intake and decided by the traveller (I13, I07, I
       .from(schema.documents)
       .where(eq(schema.documents.id, older.documentId));
     expect(linked?.supersededByDocumentId).toBe(newer.documentId);
+    const [newRow] = await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, newer.documentId));
+    expect(newRow?.docType).toBe('PASSPORT');
     expect(await documentCount(db, owner.applicantId)).toBe(2);
   });
 
@@ -447,8 +465,8 @@ describe('relations proposed by intake and decided by the traveller (I13, I07, I
       relatedDocumentId: older.documentId,
     });
 
-    // When the replace path refuses (here the new copy is being checked again), the traveller's
-    // confirmation still stands, nothing is marked, and the reason comes back.
+    // When the replace path refuses (here the new copy is being checked again), nothing is
+    // recorded or marked, the reason comes back, and the suggestion can be answered later.
     await db
       .update(schema.documentVersions)
       .set({ processingStatus: 'SCANNING' })
@@ -460,7 +478,9 @@ describe('relations proposed by intake and decided by the traveller (I13, I07, I
         decision: 'CONFIRM',
       },
     );
-    expect(decided.ok && decided.value).toMatchObject({ status: 'CONFIRMED', replaced: false });
+    expect(decided).toMatchObject({ ok: false, error: { code: 'invalid' } });
+    const [stillPending] = await proposals();
+    expect(stillPending?.status).toBe('PENDING');
     const [kept] = await db
       .select()
       .from(schema.documents)
@@ -551,7 +571,11 @@ describe('relations proposed by intake and decided by the traveller (I13, I07, I
     });
     const audits = await db.select().from(schema.auditEvents);
     const decidedRow = audits.find((row) => row.eventType === 'DOCUMENT_RELATION_DECIDED');
-    expect(decidedRow?.metadata).toEqual({ relation: 'NEW_PERIOD', decision: 'DISMISSED' });
+    expect(decidedRow?.metadata).toEqual({
+      relation: 'NEW_PERIOD',
+      decision: 'DISMISSED',
+      replaced: false,
+    });
     expect(decidedRow?.resourceId).toBe(april.documentId);
     expect(JSON.stringify(audits)).not.toMatch(/Secret/i);
   });
@@ -571,6 +595,41 @@ describe('relations proposed by intake and decided by the traveller (I13, I07, I
     expect(row?.approvedName).not.toContain('Travel');
     const camera = await addAndRead(UNCLEAR, { fileName: 'IMG_2041.jpg' });
     expect(await pending(camera.documentId)).toEqual([]);
+  });
+
+  it('drops a suggestion about a version that is no longer the latest', async () => {
+    await addAndRead(MARCH);
+    const april = await addAndRead(APRIL);
+    const [proposal] = await proposals();
+    if (!proposal) throw new Error('proposal');
+    const object = await db
+      .insert(schema.storageObjects)
+      .values({ bucket: 'QUARANTINE', objectKey: 'p3-second-version' })
+      .returning();
+    await db.insert(schema.documentVersions).values({
+      documentId: april.documentId,
+      versionNumber: 2,
+      storageObjectId: object[0]?.id ?? '',
+    });
+    const listed = await listDocumentExceptions(await view(db, owner.accountId, owner.applicantId));
+    expect(listed.exceptions.some((item) => item.kind === 'relation')).toBe(false);
+    const refused = await decideDocumentRelation(
+      await manage(db, owner.accountId, owner.applicantId),
+      { proposalId: proposal.id, decision: 'CONFIRM' },
+    );
+    expect(refused).toMatchObject({ ok: false, error: { code: 'not_found' } });
+  });
+
+  it('never matches against an archived document', async () => {
+    const original = await addAndRead(UNCLEAR, { sha256: 'archived-bytes' });
+    await db.insert(schema.documentLifecycle).values({
+      documentId: original.documentId,
+      applicantId: owner.applicantId,
+      archivedAt: new Date('2026-11-01T00:00:00Z'),
+      archivedByAccountId: owner.accountId,
+    });
+    await addAndRead(UNCLEAR, { sha256: 'archived-bytes' });
+    expect(await proposals()).toEqual([]);
   });
 
   it('lets only the traveller see and decide, and refuses a forged proof', async () => {

@@ -18,11 +18,9 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
+import { setDocumentType } from './documents';
 import { type ServiceError, serviceError } from './errors';
-import {
-  everydayDocumentCondition,
-  presentDocumentCondition,
-} from './lifecycle/foundation/conditions';
+import { everydayDocumentCondition } from './lifecycle/foundation/conditions';
 import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { replaceDocument } from './lifecycle/replace/replace';
 import {
@@ -80,6 +78,28 @@ function isReadingProof(value: unknown): value is ReadingProof {
   );
 }
 
+/** The latest version id of each document. */
+async function latestVersionIds(
+  db: Db,
+  documentIds: readonly string[],
+): Promise<Map<string, string>> {
+  const latest = new Map<string, { readonly id: string; readonly versionNumber: number }>();
+  if (documentIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      id: schema.documentVersions.id,
+      documentId: schema.documentVersions.documentId,
+      versionNumber: schema.documentVersions.versionNumber,
+    })
+    .from(schema.documentVersions)
+    .where(inArray(schema.documentVersions.documentId, [...new Set(documentIds)]));
+  for (const row of rows) {
+    const held = latest.get(row.documentId);
+    if (!held || row.versionNumber > held.versionNumber) latest.set(row.documentId, row);
+  }
+  return new Map(Array.from(latest, ([documentId, row]) => [documentId, row.id] as const));
+}
+
 function titleOf(row: { readonly approvedName: string | null }): string {
   return row.approvedName?.trim() || 'Untitled Document';
 }
@@ -123,10 +143,22 @@ export async function listDocumentExceptions(proof: ReadingProof): Promise<Docum
         ),
       )
       .orderBy(desc(schema.documentRelationProposals.createdAt));
+    // A pending suggestion is about one version: once the document has a newer version, the
+    // suggestion no longer describes it and is not offered.
+    const latestOf = await latestVersionIds(
+      db,
+      proposals.filter((p) => p.status === 'PENDING').map((p) => p.documentId),
+    );
     for (const proposal of proposals) {
       const subject = byId.get(proposal.documentId);
       const related = byId.get(proposal.relatedDocumentId);
       if (!subject || !related || !isDocumentRelation(proposal.relation)) continue;
+      if (
+        proposal.status === 'PENDING' &&
+        latestOf.get(proposal.documentId) !== proposal.documentVersionId
+      ) {
+        continue;
+      }
       const labels = relationLabels(proposal.relation, proposal.newIsCurrent);
       if (proposal.status === 'CONFIRMED') {
         confirmed.push({
@@ -233,18 +265,20 @@ const SUPERSEDING: ReadonlySet<DocumentRelation> = new Set(['CORRECTED_SCAN', 'R
  */
 export interface RelationDecisionOutcome {
   readonly status: 'CONFIRMED' | 'DISMISSED';
-  /**
-   * For a confirmed corrected scan or renewal: whether the older document is now marked as the
-   * Earlier Copy. False with `notReplacedReason` when the replace path refused (for example the
-   * newer file is still being checked); the confirmation itself still stands.
-   */
+  /** For a confirmed corrected scan or renewal: the older document is now the Earlier Copy. */
   readonly replaced: boolean;
-  readonly notReplacedReason?: string;
 }
 
 /**
  * The traveller's answer to one proposed relation. Only the traveller's own account decides; a
- * proposal already decided, or one whose documents are gone, answers as not found.
+ * proposal already decided, one about a version that is no longer the latest, or one whose
+ * documents are gone, answers as not found.
+ *
+ * Confirming a corrected scan or a renewal is the traveller saying the new file is the same kind
+ * as the older one: when the new file's kind is not saved yet, the older one's kind is saved on
+ * it, then Replace With a Newer Document marks the older one. If that path refuses (for example
+ * the new file is still being checked), nothing is recorded and the reason comes back as
+ * `invalid`, so the suggestion stays and can be answered again later.
  */
 export async function decideDocumentRelation(
   proof: AuthorizedApplicant<'MANAGE'>,
@@ -259,45 +293,77 @@ export async function decideDocumentRelation(
   if (!isRelationDecision(input.decision)) {
     return err(serviceError('invalid', 'choose Confirm or Keep Separate'));
   }
-  if (!(await relationProposalsTablePresent(proof.tx))) {
-    return err(serviceError('not_found', 'suggestion not found'));
-  }
+  const notFound = err(serviceError('not_found', 'suggestion not found'));
+  if (!(await relationProposalsTablePresent(proof.tx))) return notFound;
+  const db = proof.tx;
   const actorAccountId = proof.applicant.ownerAccountId;
   const applicantId = proof.applicant.id;
-  const lifecycle = await lifecycleTablesPresent(proof.tx);
+  const lifecycle = await lifecycleTablesPresent(db);
 
-  const decided = await proof.tx.transaction(async (tx: Db) => {
-    const proposal = first(
-      await tx
-        .select()
-        .from(schema.documentRelationProposals)
-        .where(
-          and(
-            eq(schema.documentRelationProposals.id, input.proposalId),
-            eq(schema.documentRelationProposals.applicantId, applicantId),
-            eq(schema.documentRelationProposals.status, 'PENDING'),
-          ),
-        )
-        .limit(1)
-        .for('update'),
-    );
-    if (!proposal || !isDocumentRelation(proposal.relation)) return null;
-    const present = await tx
-      .select({ id: schema.documents.id })
-      .from(schema.documents)
+  const proposal = first(
+    await db
+      .select()
+      .from(schema.documentRelationProposals)
       .where(
         and(
-          inArray(schema.documents.id, [proposal.documentId, proposal.relatedDocumentId]),
-          eq(schema.documents.applicantId, applicantId),
-          lifecycle ? presentDocumentCondition() : undefined,
+          eq(schema.documentRelationProposals.id, input.proposalId),
+          eq(schema.documentRelationProposals.applicantId, applicantId),
+          eq(schema.documentRelationProposals.status, 'PENDING'),
         ),
-      );
-    if (present.length !== 2) return null;
-    const status = input.decision === 'CONFIRM' ? ('CONFIRMED' as const) : ('DISMISSED' as const);
-    await tx
+      )
+      .limit(1),
+  );
+  if (!proposal || !isDocumentRelation(proposal.relation)) return notFound;
+  const documents = await db
+    .select({ id: schema.documents.id, docType: schema.documents.docType })
+    .from(schema.documents)
+    .where(
+      and(
+        inArray(schema.documents.id, [proposal.documentId, proposal.relatedDocumentId]),
+        eq(schema.documents.applicantId, applicantId),
+        lifecycle ? everydayDocumentCondition() : undefined,
+      ),
+    );
+  if (documents.length !== 2) return notFound;
+  const latest = await latestVersionIds(db, [proposal.documentId]);
+  if (latest.get(proposal.documentId) !== proposal.documentVersionId) return notFound;
+
+  const status = input.decision === 'CONFIRM' ? ('CONFIRMED' as const) : ('DISMISSED' as const);
+  let replaced = false;
+  if (status === 'CONFIRMED' && SUPERSEDING.has(proposal.relation)) {
+    const [olderId, newerId] = proposal.newIsCurrent
+      ? [proposal.relatedDocumentId, proposal.documentId]
+      : [proposal.documentId, proposal.relatedDocumentId];
+    const older = documents.find((doc) => doc.id === olderId);
+    const newer = documents.find((doc) => doc.id === newerId);
+    if (newer && older?.docType && newer.docType === null) {
+      const typed = await setDocumentType(db, {
+        actorAccountId,
+        documentId: newer.id,
+        docType: older.docType,
+      });
+      if (!typed.ok) return err(serviceError('invalid', typed.error.message));
+    }
+    const replacement = await replaceDocument(proof, {
+      oldDocumentId: olderId,
+      newDocumentId: newerId,
+    });
+    if (!replacement.ok) return err(serviceError('invalid', replacement.error.message));
+    replaced = true;
+  }
+
+  const decided = await db.transaction(async (tx: Db) => {
+    const updated = await tx
       .update(schema.documentRelationProposals)
       .set({ status, decidedByAccountId: actorAccountId, decidedAt: new Date() })
-      .where(eq(schema.documentRelationProposals.id, proposal.id));
+      .where(
+        and(
+          eq(schema.documentRelationProposals.id, proposal.id),
+          eq(schema.documentRelationProposals.status, 'PENDING'),
+        ),
+      )
+      .returning({ id: schema.documentRelationProposals.id });
+    if (updated.length === 0) return false;
     await appendAuditEvent(tx, {
       eventType: 'DOCUMENT_RELATION_DECIDED',
       actorAccountId,
@@ -307,21 +373,11 @@ export async function decideDocumentRelation(
       resourceType: 'document',
       resourceId: proposal.documentId,
       // Kinds only: never a name, a file name or any value read from the document.
-      metadata: { relation: proposal.relation, decision: status },
+      metadata: { relation: proposal.relation, decision: status, replaced },
     });
-    return { status, proposal, relation: proposal.relation };
+    return true;
   });
-  if (!decided) return err(serviceError('not_found', 'suggestion not found'));
-  if (decided.status !== 'CONFIRMED' || !SUPERSEDING.has(decided.relation)) {
-    return ok({ status: decided.status, replaced: false });
-  }
-  // After the decision is saved, through the existing replace path and its own rules.
-  const { proposal } = decided;
-  const [older, newer] = proposal.newIsCurrent
-    ? [proposal.relatedDocumentId, proposal.documentId]
-    : [proposal.documentId, proposal.relatedDocumentId];
-  const replaced = await replaceDocument(proof, { oldDocumentId: older, newDocumentId: newer });
-  return replaced.ok
-    ? ok({ status: decided.status, replaced: true })
-    : ok({ status: decided.status, replaced: false, notReplacedReason: replaced.error.message });
+  // Answered at the same moment by another tab: the first answer stands.
+  if (!decided && !replaced) return notFound;
+  return ok({ status, replaced });
 }

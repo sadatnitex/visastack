@@ -10,6 +10,9 @@ const { session, applicant, upload } = vi.hoisted(() => ({
 vi.mock('../../../../lib/session', () => ({ withSession: session }));
 vi.mock('@visastack/services', () => ({
   getApplicant: applicant,
+  isUploadId: (value: unknown) =>
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value),
   RATE_LIMITS: { UPLOAD_RESERVE: { limit: 200, windowMs: 60 * 60 * 1000 } },
 }));
 vi.mock('../../../app/applicant/[id]/actions', () => ({ uploadDocumentAction: upload }));

@@ -169,7 +169,7 @@ export function readStatementPeriod(text: string): StatementPeriod | null {
 /** The last four digits of an account number named in the text ("Account Number: XXXX1234"). */
 export function readAccountEnding(text: string): string | null {
   const match =
-    /account\s*(?:no\.?|number|#)\s*[:-]?\s*([X*\d][\dX*\s-]{3,30})/i.exec(text) ?? null;
+    /account\s*(?:no\.?|number|#)\s*[:-]?\s*([X*\d][\dX* \t-]{3,30})/i.exec(text) ?? null;
   if (!match?.[1]) return null;
   const digits = match[1].replace(/\D/g, '');
   return digits.length >= 4 ? digits.slice(-4) : null;

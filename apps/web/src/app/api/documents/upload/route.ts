@@ -1,4 +1,4 @@
-import { getApplicant } from '@visastack/services';
+import { getApplicant, isUploadId } from '@visastack/services';
 import type { UpgradeLineKind } from '../../../../components/upgrade-line';
 import { withSession } from '../../../../lib/session';
 import {
@@ -13,10 +13,9 @@ import { uploadDocumentAction } from '../../../app/applicant/[id]/actions';
 
 export const runtime = 'nodejs';
 
-const UPLOAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Characters read from `X-File-Name` before the action cleans and caps it further. */
 const ORIGINAL_NAME_HEADER_LIMIT = 400;
-/** Seconds a repeat of an upload still being stored waits before it asks again. */
+/** Seconds a repeat of an upload still being stored waits, when the action did not say. */
 const IN_PROGRESS_RETRY_AFTER_SECONDS = 5;
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -101,7 +100,7 @@ export async function POST(request: Request): Promise<Response> {
     // UMPE P3: the browser's id for this file (the same on every attempt), checked as a UUID, and
     // the file's own name, kept privately on the upload receipt only (the action cleans it).
     const uploadId = request.headers.get('x-upload-id')?.trim() ?? '';
-    if (UPLOAD_ID.test(uploadId)) form.set('uploadId', uploadId.toLowerCase());
+    if (isUploadId(uploadId)) form.set('uploadId', uploadId.toLowerCase());
     const originalFileName = encodedHeader(request, 'x-file-name', ORIGINAL_NAME_HEADER_LIMIT);
     if (originalFileName) form.set('originalFileName', originalFileName);
     // Do not accept a caller-controlled path or header as the stored filename.
@@ -118,7 +117,7 @@ export async function POST(request: Request): Promise<Response> {
     // one, so it is a definite "not yet" the browser asks again after.
     if (!result.ok && result.refusal === 'in_progress') {
       return json(result.message, 503, undefined, undefined, undefined, {
-        'Retry-After': String(IN_PROGRESS_RETRY_AFTER_SECONDS),
+        'Retry-After': String(result.retryAfterSeconds ?? IN_PROGRESS_RETRY_AFTER_SECONDS),
       });
     }
     if (!result.ok && result.refusal === 'upload_conflict') return json(result.message, 409);

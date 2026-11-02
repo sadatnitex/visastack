@@ -42,7 +42,17 @@ export async function decideRelationAction(
     // A refused check reads exactly like a missing suggestion.
     if (!access.ok) return { ok: false, message: GONE };
     const decided = await decideDocumentRelation(access.value, { proposalId, decision });
-    if (!decided.ok) return { ok: false, message: GONE };
+    if (!decided.ok) {
+      // The replace path said not yet (for example the newer file is still being checked):
+      // nothing changed, and the suggestion stays to be answered later.
+      return decided.error.code === 'invalid'
+        ? {
+            ok: false,
+            message:
+              'Nothing was changed yet: the newer file cannot replace the older one right now. Try again once both files have finished being checked.',
+          }
+        : { ok: false, message: GONE };
+    }
     if (decided.value.status === 'DISMISSED') {
       return { ok: true, message: 'Kept separate. Both files stay as they are.' };
     }
@@ -54,7 +64,7 @@ export async function decideRelationAction(
     }
     return {
       ok: true,
-      message: 'Confirmed. Both files are kept, and the list now shows how they belong together.',
+      message: 'Confirmed. Both files are kept, and Linked Copies shows how they belong together.',
     };
   });
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');

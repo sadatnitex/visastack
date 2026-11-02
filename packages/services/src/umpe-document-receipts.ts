@@ -27,9 +27,10 @@ import { uploadReceiptsTablePresent } from './umpe-document-tables';
 export const UPLOAD_REPLAY_WINDOW_MS = 24 * 60 * 60 * 1000;
 /**
  * How long a claim may stay in progress before another request with the same id may check it and
- * take it over. Well past the route's own 60-second limit and the browser's 5-minute timeout.
+ * take it over: twice the upload route's own 60-second limit, so a live request is never taken
+ * over and a dead one blocks its file for two minutes at most.
  */
-export const UPLOAD_CLAIM_STALE_MS = 10 * 60 * 1000;
+export const UPLOAD_CLAIM_STALE_MS = 2 * 60 * 1000;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,9 +50,17 @@ export type UploadReceiptClaim =
       readonly documentId: string;
       readonly documentVersionId: string;
       readonly title: string | null;
+      /**
+       * The reservation the first attempt stored under, so the caller can finish what that attempt
+       * may not have (queue the reading, close the reservation). Null when unknown.
+       */
+      readonly uploadIntentId: string | null;
     }
-  /** Another request with the same id is storing it right now: answer busy, try again soon. */
-  | { readonly kind: 'in_progress' }
+  /**
+   * Another request with the same id is storing it right now: answer busy. `retryAfterSeconds`
+   * is when the claim can be checked again (it is taken over or finished by then).
+   */
+  | { readonly kind: 'in_progress'; readonly retryAfterSeconds: number }
   /** The id was already used for a different traveller: refuse, never cross people. */
   | { readonly kind: 'conflict' };
 
@@ -208,7 +217,7 @@ export async function claimUploadReceipt(
       );
       return retried
         ? { kind: 'claimed', receiptId: retried.id, claimToken }
-        : { kind: 'in_progress' };
+        : { kind: 'in_progress', retryAfterSeconds: 1 };
     }
     if (receipt.applicantId !== applicantId) return { kind: 'conflict' };
 
@@ -226,14 +235,19 @@ export async function claimUploadReceipt(
           documentId: document.id,
           documentVersionId: receipt.documentVersionId,
           title: document.approvedName,
+          uploadIntentId: receipt.uploadIntentId,
         };
       }
       // Older than the window, or the document has since been removed: this is a new upload.
       return takeOver(tx, receipt, originalFileName, now);
     }
 
-    if (now.getTime() - receipt.claimedAt.getTime() < UPLOAD_CLAIM_STALE_MS) {
-      return { kind: 'in_progress' };
+    const age = now.getTime() - receipt.claimedAt.getTime();
+    if (age < UPLOAD_CLAIM_STALE_MS) {
+      return {
+        kind: 'in_progress',
+        retryAfterSeconds: Math.max(1, Math.ceil((UPLOAD_CLAIM_STALE_MS - age) / 1000)),
+      };
     }
     // A claim left by a request that never finished. If it registered the document before it
     // stopped, finish the receipt with that document and answer with it: never a second copy.
@@ -257,6 +271,7 @@ export async function claimUploadReceipt(
           documentId: document.id,
           documentVersionId: stored.versionId,
           title: document.approvedName,
+          uploadIntentId: receipt.uploadIntentId,
         };
       }
     }
