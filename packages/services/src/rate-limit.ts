@@ -130,6 +130,16 @@ export const RATE_LIMITS = {
   // person may start 6 an hour and everyone together 20, keeping the sites and the host unburdened.
   SOURCE_CHECK_MANUAL: { limit: 6, windowMs: HOUR_MS },
   SOURCE_CHECK_MANUAL_ALL: { limit: 20, windowMs: HOUR_MS },
+  // Agency document requests (UMPE P6): creating one, and issuing it or making a link or email for
+  // it, per operator and per agency, like client invitations. The public request page counts each
+  // look per network address (kept only as a hash) and per link, so links cannot be tried in bulk
+  // and one link cannot be hammered.
+  COLLECTION_REQUEST_CREATE: { limit: 60, windowMs: HOUR_MS },
+  COLLECTION_REQUEST_CREATE_ORG: { limit: 200, windowMs: HOUR_MS },
+  COLLECTION_LINK_CREATE: { limit: 60, windowMs: HOUR_MS },
+  COLLECTION_LINK_CREATE_ORG: { limit: 200, windowMs: HOUR_MS },
+  COLLECTION_OPEN_IP: { limit: 60, windowMs: HOUR_MS },
+  COLLECTION_OPEN_LINK: { limit: 30, windowMs: HOUR_MS },
   // A private calendar subscription link (v1.2 B05 live feed). Calendar apps check a link every
   // few minutes to every few hours, so one link is bounded well above that. Only unknown links are
   // counted per network address, so a large calendar service fetching many people's real links

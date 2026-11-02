@@ -193,7 +193,8 @@ type EmailEventType =
   | 'TEAM_INVITATION_CREATED'
   | 'CLIENT_INVITATION_CREATED'
   | 'SHARING_INVITATION_CREATED'
-  | 'CONTRIBUTOR_REQUEST_CREATED';
+  | 'CONTRIBUTOR_REQUEST_CREATED'
+  | 'AGENCY_COLLECTION_REQUEST_SENT';
 
 export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
   EVIDENCE_REQUEST_CREATED: {
@@ -386,6 +387,12 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     eyebrow: 'A Request for You',
     heading: 'Someone asked you for one document',
     action: 'See the Request',
+  },
+  // UMPE P6: never the route, the documents or the person; opening the link shares nothing.
+  AGENCY_COLLECTION_REQUEST_SENT: {
+    eyebrow: 'A Request for You',
+    heading: 'An agency asked you for documents',
+    action: 'Open the Request',
   },
 };
 

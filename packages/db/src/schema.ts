@@ -5547,3 +5547,134 @@ export const sourceChangeCandidates = pgTable(
     ),
   ],
 );
+
+// --- Agency document requests before any traveller record (UMPE P6, ADR 0026 D4) -------------
+// An agency asks for documents before it has a client, case or account for the person. These
+// tables carry no applicant, case, owner account or document column on purpose: no person record
+// exists yet. They are not exempt from access control: every service that reads them takes an
+// `AgencyCollectionScope` or a `CollectionLinkProof` (packages/services/src/access/collection-scope.ts),
+// and the access ratchet holds them to it.
+export const agencyCollectionRequests = pgTable(
+  'agency_collection_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    // DRAFT until first issued; SENT once a revision is issued; REVOKED or CLOSED end it.
+    // "Expired" is never stored: it is a SENT request whose links have all run out.
+    status: text('status').notNull().default('DRAFT'),
+    destination: text('destination').notNull(),
+    route: text('route'),
+    purpose: text('purpose'),
+    travelFrom: date('travel_from'),
+    travelTo: date('travel_to'),
+    dueAt: timestamp('due_at', { withTimezone: true }),
+    nationality: text('nationality'),
+    residence: text('residence'),
+    applicationPlace: text('application_place'),
+    recipientNameHint: text('recipient_name_hint'),
+    recipientEmailHint: text('recipient_email_hint'),
+    // The working checklist the operator edits; each issue freezes a copy into a revision.
+    draftPackVersionId: uuid('draft_pack_version_id').references(() => packVersions.id, {
+      onDelete: 'set null',
+    }),
+    draftItems: jsonb('draft_items').notNull().default(sql`'[]'::jsonb`),
+    currentRevisionId: uuid('current_revision_id'),
+    ...timestamps,
+  },
+  (table) => [
+    index('agency_collection_requests_org_idx').on(table.organizationId, table.createdAt),
+    index('agency_collection_requests_creator_idx').on(table.createdByAccountId),
+    index('agency_collection_requests_pack_idx').on(table.draftPackVersionId),
+    check(
+      'agency_collection_requests_status_known',
+      sql`${table.status} in ('DRAFT', 'SENT', 'REVOKED', 'CLOSED')`,
+    ),
+    check('agency_collection_requests_destination_iso2', sql`${table.destination} ~ '^[A-Z]{2}$'`),
+    check(
+      'agency_collection_requests_text_caps',
+      sql`coalesce(char_length(${table.route}), 0) <= 200 and coalesce(char_length(${table.purpose}), 0) <= 200 and coalesce(char_length(${table.nationality}), 0) <= 100 and coalesce(char_length(${table.residence}), 0) <= 100 and coalesce(char_length(${table.applicationPlace}), 0) <= 100 and coalesce(char_length(${table.recipientNameHint}), 0) <= 200 and coalesce(char_length(${table.recipientEmailHint}), 0) <= 320`,
+    ),
+    check(
+      'agency_collection_requests_travel_order',
+      sql`${table.travelFrom} is null or ${table.travelTo} is null or ${table.travelFrom} <= ${table.travelTo}`,
+    ),
+  ],
+);
+
+// Append-only: a trigger refuses every UPDATE and DELETE (see the migration). An issued checklist
+// is never edited; a reissue adds the next revision and earlier ones stay readable.
+export const agencyCollectionRequestRevisions = pgTable(
+  'agency_collection_request_revisions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => agencyCollectionRequests.id, { onDelete: 'restrict' }),
+    revisionNo: integer('revision_no').notNull(),
+    packVersionId: uuid('pack_version_id').references(() => packVersions.id, {
+      onDelete: 'restrict',
+    }),
+    packChecksum: text('pack_checksum'),
+    items: jsonb('items').notNull(),
+    // Only for an ACTIVE agency at issue time: its name and accent colour.
+    brandSnapshot: jsonb('brand_snapshot'),
+    contentSha256: text('content_sha256').notNull(),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
+    // A plain id, like the audit trail's actor: a revision can never be changed, so a foreign key
+    // could neither be cleared nor let the issuer's account be deleted.
+    issuedByAccountId: uuid('issued_by_account_id').notNull(),
+  },
+  (table) => [
+    unique('agency_collection_request_revisions_number').on(table.requestId, table.revisionNo),
+    index('agency_collection_request_revisions_pack_idx').on(table.packVersionId),
+    index('agency_collection_request_revisions_issuer_idx').on(table.issuedByAccountId),
+    check('agency_collection_request_revisions_number_positive', sql`${table.revisionNo} >= 1`),
+    check(
+      'agency_collection_request_revisions_pack_pair',
+      sql`(${table.packVersionId} is null) = (${table.packChecksum} is null)`,
+    ),
+    check(
+      'agency_collection_request_revisions_sha256',
+      sql`${table.contentSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+  ],
+);
+
+export const agencyCollectionLinks = pgTable(
+  'agency_collection_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => agencyCollectionRequests.id, { onDelete: 'cascade' }),
+    revisionId: uuid('revision_id')
+      .notNull()
+      .references(() => agencyCollectionRequestRevisions.id, { onDelete: 'restrict' }),
+    // Only the SHA-256 of the link's token is stored; the token itself is shown once.
+    tokenHash: text('token_hash').notNull().unique(),
+    recipientEmailHint: text('recipient_email_hint'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    replacedById: uuid('replaced_by_id'),
+    createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastOpenedAt: timestamp('last_opened_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('agency_collection_links_request_idx').on(table.requestId),
+    index('agency_collection_links_revision_idx').on(table.revisionId),
+    index('agency_collection_links_creator_idx').on(table.createdByAccountId),
+    check('agency_collection_links_token_hash', sql`${table.tokenHash} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'agency_collection_links_email_cap',
+      sql`coalesce(char_length(${table.recipientEmailHint}), 0) <= 320`,
+    ),
+  ],
+);

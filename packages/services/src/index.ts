@@ -2470,3 +2470,54 @@ export {
   type SourceFetcher,
   createSourceFetcher,
 } from './source-fetch';
+// UMPE P6: agency document requests before any traveller record (ADR 0026 D4).
+export {
+  AgencyCollectionScope,
+  CollectionLinkProof,
+  agencyCollectionPrincipal,
+  agencyCollectionScopeProblem,
+  collectionLinkProof,
+} from './access/collection-scope';
+export {
+  AGENCY_COLLECTION_REQUESTS_SWITCH,
+  agencyCollectionRequestsEnabled,
+} from './umpe-collection-request-switch';
+export {
+  AGENCY_ITEM_NECESSITIES,
+  type AgencyItemNecessity,
+  type BrandSnapshot,
+  type CollectionItem,
+  type CollectionItemProvenance,
+  type DraftEdit,
+  MAX_ITEMS as COLLECTION_MAX_ITEMS,
+  MAX_LABEL_LENGTH as COLLECTION_MAX_LABEL_LENGTH,
+  MAX_NOTE_LENGTH as COLLECTION_MAX_NOTE_LENGTH,
+} from './umpe-collection-request-items';
+export {
+  COLLECTION_LINK_DAYS,
+  COLLECTION_STATUS_LABELS,
+  type CollectionDisplayStatus,
+  type CollectionLinkState,
+  type CollectionLinkView,
+  type CollectionRequestDetail,
+  type CollectionRequestInput,
+  type CollectionRequestStatus,
+  type CollectionRequestSummary,
+  type CollectionRevisionView,
+  type CreatedCollectionLink,
+  type CreatedCollectionRequest,
+  type IssuedCollectionRequest,
+  type IssuedLink,
+  type PublicCollectionView,
+  chooseCollectionPack,
+  collectionLinkStillOpen,
+  createCollectionLink,
+  createCollectionRequest,
+  editCollectionDraft,
+  endCollectionRequest,
+  getCollectionRequest,
+  issueCollectionRequest,
+  listCollectionPackChoices,
+  listCollectionRequests,
+  openCollectionLink,
+} from './umpe-collection-request-service';
