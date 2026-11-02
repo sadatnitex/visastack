@@ -8,6 +8,7 @@ import {
   readBoundedUpload,
   validateUploadBytes,
 } from '../../../../lib/upload-preflight';
+import { uploadRetryAfterSeconds } from '../../../../lib/upload-retry-after';
 import { uploadDocumentAction } from '../../../app/applicant/[id]/actions';
 
 export const runtime = 'nodejs';
@@ -20,6 +21,7 @@ const json = (
   title?: string,
   upgrade?: UpgradeLineKind,
   removableCopyId?: string,
+  extraHeaders: Readonly<Record<string, string>> = {},
 ) =>
   Response.json(
     {
@@ -31,7 +33,11 @@ const json = (
     },
     {
       status,
-      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+        ...extraHeaders,
+      },
     },
   );
 
@@ -89,6 +95,13 @@ export async function POST(request: Request): Promise<Response> {
     // Do not accept a caller-controlled path or header as the stored filename.
     form.set('file', new File([Buffer.from(bytes)], 'document', { type: contentType }));
     const result = await uploadDocumentAction({ ok: false, message: '' }, form);
+    // Turned away by the hourly upload limit before anything was stored: a definite "not now",
+    // with how long until the window frees, so a batch import waits instead of guessing.
+    if (!result.ok && result.refusal === 'rate_limited') {
+      return json(result.message, 429, undefined, result.upgrade, undefined, {
+        'Retry-After': String(uploadRetryAfterSeconds()),
+      });
+    }
     return json(
       result.message,
       result.ok ? 201 : 400,

@@ -2,11 +2,12 @@
 
 import { isOtherDocumentType } from '@visastack/core';
 import { useRouter } from 'next/navigation';
-import { type DragEvent, useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { UndoStatus } from '../../../../components/lifecycle/undo-status';
 import { UpgradeLine, type UpgradeLineKind } from '../../../../components/upgrade-line';
 import { type UploadOutcome, sendDocumentFile } from '../../../../lib/document-upload-client';
 import { formatFileSize } from '../../../../lib/format-size';
+import { useDropZone } from '../../../../lib/import/use-drop-zone';
 import type { ChoiceGroup } from '../../../../lib/master-profile-types';
 import { acceptAttribute, checkChosenFile, uploadLimitsText } from '../../../../lib/upload-rules';
 import { deleteDuplicateAction, restoreDeletedAction } from './documents/manage/delete/actions';
@@ -19,6 +20,10 @@ import { deletedLine } from './documents/manage/delete/messages';
  */
 export const UPLOAD_UNKNOWN_OUTCOME =
   'We could not confirm whether this upload finished. Check the list of documents below before uploading it again. If it is not there, try again.';
+
+/** What a file's line says when the service turned it away for now and gave no line of its own. */
+export const UPLOAD_BUSY_LINE =
+  'We are busy just now, so this file was not added. Try again in a few minutes.';
 
 /** Files taken in one go; more are listed as not added, so one drop cannot queue hundreds. */
 export const MAX_FILES_AT_ONCE = 20;
@@ -105,6 +110,10 @@ function outcomeToItem(outcome: UploadOutcome): Partial<UploadItem> {
   if (outcome.kind === 'refused') {
     return { status: 'refused', message: outcome.message, upgrade: outcome.upgrade ?? null };
   }
+  // Turned away for now before anything was stored: a plain refusal, with the server's line.
+  if (outcome.kind === 'busy') {
+    return { status: 'refused', message: outcome.message ?? UPLOAD_BUSY_LINE, upgrade: null };
+  }
   return { status: 'unknown', message: '' };
 }
 
@@ -147,7 +156,6 @@ export function DocumentUploader({
   const [kind, setKind] = useState(initialKind);
   const [kindName, setKindName] = useState('');
   const [items, setItems] = useState<readonly UploadItem[]>([]);
-  const [dragging, setDragging] = useState(false);
   const pickerRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const nextId = useRef(1);
@@ -234,35 +242,10 @@ export function DocumentUploader({
       });
   }, [items, applicantId, router, update]);
 
-  // A file dropped beside the box would make the browser leave the page and drop the list.
-  useEffect(() => {
-    const keep = (event: globalThis.DragEvent) => {
-      if (event.dataTransfer?.types.includes('Files')) event.preventDefault();
-    };
-    window.addEventListener('dragover', keep);
-    window.addEventListener('drop', keep);
-    return () => {
-      window.removeEventListener('dragover', keep);
-      window.removeEventListener('drop', keep);
-    };
-  }, []);
-
-  const onDragOver = (event: DragEvent<HTMLElement>) => {
-    if (!event.dataTransfer.types.includes('Files')) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'copy';
-    setDragging(true);
-  };
-  const onDragLeave = (event: DragEvent<HTMLElement>) => {
-    const to = event.relatedTarget;
-    if (to instanceof Node && event.currentTarget.contains(to)) return;
-    setDragging(false);
-  };
-  const onDrop = (event: DragEvent<HTMLElement>) => {
-    event.preventDefault();
-    setDragging(false);
-    addFiles(Array.from(event.dataTransfer.files));
-  };
+  // The drop area, and the page guard against a file dropped beside it (shared with the import).
+  const { dragging, handlers: dropHandlers } = useDropZone((transfer) =>
+    addFiles(Array.from(transfer.files)),
+  );
 
   const finished = items.length > 0 && !items.some((item) => ACTIVE.has(item.status));
 
@@ -330,10 +313,7 @@ export function DocumentUploader({
         data-dragging={dragging ? 'true' : undefined}
         aria-labelledby={dropTitleId}
         aria-describedby={dropHintId}
-        onDragEnter={onDragOver}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
+        {...dropHandlers}
       >
         <p className="upload-drop-title" id={dropTitleId}>
           Drop Files Here

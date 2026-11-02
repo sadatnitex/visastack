@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { type UploadRequest, readAnswer, sendDocumentFile } from './document-upload-client';
+import {
+  type UploadRequest,
+  readAnswer,
+  retryAfterSeconds,
+  sendDocumentFile,
+} from './document-upload-client';
 
 function fakeRequest() {
   const request = {
@@ -125,6 +130,50 @@ describe('reading the answer', () => {
       kind: 'added',
       message: 'Added.',
       title: null,
+    });
+  });
+
+  it('reads 429 and 503 as a definite busy answer with the wait the server asked for', () => {
+    expect(
+      readAnswer(429, JSON.stringify({ message: 'Too many uploads. Try again later.' }), '120'),
+    ).toEqual({
+      kind: 'busy',
+      message: 'Too many uploads. Try again later.',
+      retryAfterSeconds: 120,
+    });
+    // A host page with no JSON and no Retry-After is still busy, never unknown.
+    expect(readAnswer(503, '<html>Unavailable</html>')).toEqual({
+      kind: 'busy',
+      message: null,
+      retryAfterSeconds: null,
+    });
+    const now = Date.parse('2026-11-02T10:00:00Z');
+    expect(retryAfterSeconds('Mon, 02 Nov 2026 10:00:30 GMT', now)).toBe(30);
+    expect(retryAfterSeconds('soon', now)).toBeNull();
+    expect(retryAfterSeconds(null, now)).toBeNull();
+  });
+
+  it('passes the Retry-After header of a busy answer through', async () => {
+    const request = {
+      ...fakeRequest(),
+      getResponseHeader: (name: string) => (name === 'Retry-After' ? '42' : null),
+    };
+    const sent = sendDocumentFile({
+      applicantId: 'a1',
+      file: new Blob(['x']),
+      contentType: 'image/png',
+      docType: '',
+      subject: '',
+      onProgress: () => undefined,
+      createRequest: () => request as unknown as UploadRequest,
+    });
+    request.status = 429;
+    request.responseText = JSON.stringify({ message: 'Too many uploads.' });
+    request.onload?.();
+    expect(await sent).toEqual({
+      kind: 'busy',
+      message: 'Too many uploads.',
+      retryAfterSeconds: 42,
     });
   });
 });

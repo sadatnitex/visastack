@@ -96,6 +96,11 @@ export interface ActionState {
    * (LC-C): the upload result then offers Remove This New Copy. Absent before migration 0113.
    */
   readonly removableCopyId?: string;
+  /**
+   * Why an upload was turned away, when the reason is one a caller acts on: `rate_limited` is the
+   * hourly upload limit (nothing was stored), which the upload route answers with 429.
+   */
+  readonly refusal?: 'rate_limited';
 }
 
 /** Variable-keyed env read (satisfies both TS index-signature and Biome rules). */
@@ -246,6 +251,7 @@ export async function uploadDocumentAction(
         ok: false,
         message: reservation.error.message,
         ...(await upgradeLineForRefusal(db, self, reservation.error)),
+        ...(reservation.error.code === 'rate_limited' ? { refusal: 'rate_limited' as const } : {}),
       } satisfies ActionState;
     }
     let intent = reservation.value;
