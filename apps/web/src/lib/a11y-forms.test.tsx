@@ -76,6 +76,7 @@ vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/collection/actions', standIn);
+vi.mock('../app/collect/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/plan/invoices/actions', standIn);
 vi.mock('../app/app/applicant/[id]/actions', standIn);
 vi.mock('../app/app/applicant/[id]/section-actions', standIn);
@@ -128,6 +129,7 @@ const packForms = await import('../app/app/admin/packs/pack-forms');
 const packVersionButtons = await import('../app/app/admin/packs/pack-version-buttons');
 const sourceForms = await import('../app/app/admin/packs/sources/source-forms');
 const collectionForms = await import('../app/app/agency/[orgId]/collection/collection-forms');
+const guestForms = await import('../app/collect/guest-forms');
 const { PurgeButton } = await import('../app/app/admin/purge-button');
 const { ReconcileButtons } = await import('../app/app/admin/reconcile-buttons');
 const { BrandingForm } = await import('../app/app/agency/[orgId]/branding-form');
@@ -2171,6 +2173,23 @@ const ADMIN: readonly Case[] = [
     name: 'close or revoke a document request',
     element: () => <collectionForms.EndRequestForm organizationId="o1" requestId="r1" />,
   },
+  // UMPE P8: the guest desk on /collect.
+  { name: 'email a guest a one-time code', element: () => <guestForms.SendCodeForm /> },
+  { name: 'ask for a new guest code', element: () => <guestForms.SendCodeForm again /> },
+  {
+    name: 'enter a guest one-time code',
+    element: () => <guestForms.VerifyCodeForm />,
+    fields: ['code'],
+  },
+  {
+    name: 'choose how long the agency may keep guest files',
+    element: () => <guestForms.RetentionForm agencyName="Synthetic Agency One" value={null} />,
+  },
+  {
+    name: 'change a saved guest retention choice',
+    element: () => <guestForms.RetentionForm agencyName={null} value={30} />,
+  },
+  { name: 'leave the guest desk', element: () => <guestForms.LeaveForm /> },
   {
     name: 'decide on a detected page change',
     element: () => (
