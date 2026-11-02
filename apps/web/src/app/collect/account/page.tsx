@@ -168,8 +168,8 @@ export default async function CollectAccountPage({
           />
           <p className="muted u-fs-085">
             Something missing from your record? <Link href="/app">Add It to Your Record</Link>, then
-            come back to this page. See <Link href="/collect/account/answers">Your Answers</Link> to
-            withdraw one at any time.
+            open the request again from the message you received. See{' '}
+            <Link href="/collect/account/answers">Your Answers</Link> to withdraw one at any time.
           </p>
         </>
       )}

@@ -405,22 +405,6 @@ export async function submitCollectionResponse(
   if (!(await collectionResponsesPresent(db))) {
     return err(serviceError('upstream_error', 'Answering requests is not available yet.'));
   }
-  // Every answer is kept for good, so one account may send only so many in an hour.
-  const limited = await checkRateLimits(db, [
-    {
-      input: {
-        subjectId: `account:${accountId}`,
-        action: 'collect.response_submit',
-        label: 'answer',
-      },
-      config: RATE_LIMITS.COLLECTION_RESPONSE_SUBMIT_ACCOUNT,
-    },
-  ]);
-  if (!limited.allowed) {
-    return err(
-      serviceError('rate_limited', 'Too many answers were sent just now. Try again in an hour.'),
-    );
-  }
   const applicantId = person.applicant.id;
   return db.transaction(async (tx) => {
     // One answer at a time per person and request: two submits cannot both stay live.
@@ -453,6 +437,32 @@ export async function submitCollectionResponse(
     const made = linesFromSelections(proposals, input.selections);
     if (!made.ok) return err(serviceError('invalid', SELECTION_MESSAGES[made.problem]));
     const lines = made.lines;
+    // Every answer is kept for good and notifies the agency, so one account, and one request,
+    // receive only so many in an hour. Counted here, once the answer is valid, inside the
+    // transaction: an attempt refused for any reason above is never counted.
+    const limited = await checkRateLimits(tx, [
+      {
+        input: {
+          subjectId: `account:${accountId}`,
+          action: 'collect.response_submit',
+          label: 'answer',
+        },
+        config: RATE_LIMITS.COLLECTION_RESPONSE_SUBMIT_ACCOUNT,
+      },
+      {
+        input: {
+          subjectId: `request:${desk.requestId}`,
+          action: 'collect.response_request',
+          label: 'answer',
+        },
+        config: RATE_LIMITS.COLLECTION_RESPONSE_SUBMIT_REQUEST,
+      },
+    ]);
+    if (!limited.allowed) {
+      return err(
+        serviceError('rate_limited', 'Too many answers were sent just now. Try again in an hour.'),
+      );
+    }
     const responses = schema.agencyCollectionResponses;
     const earlier = await tx
       .select({ id: responses.id })

@@ -1176,4 +1176,51 @@ describe('a signed-in traveller answers an agency request from their own record 
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.error.code).toBe('rate_limited');
   }, 60_000);
+
+  it('a refused attempt never counts against the limit, and the in-app notice also waits for a live answer', async () => {
+    const { token } = await issuedRequest();
+    const desk = await openCollectionResponseDesk(
+      db,
+      await link(token),
+      selfPrincipal(travellerId),
+    );
+    if (!desk.ok) throw new Error('desk');
+    for (let i = 0; i < 12; i++) {
+      const stale = await submitCollectionResponse(
+        db,
+        await link(token),
+        await shareProof(travellerId, personId),
+        {
+          selections: {},
+          consentVersion: RESPONSE_CONSENT_VERSION,
+          linkId: desk.value.linkId,
+          revisionId: '00000000-0000-4000-8000-000000000000',
+        },
+      );
+      expect(stale.ok).toBe(false);
+    }
+    const { submitted } = await submitPassportOnly(token);
+    await withdrawCollectionResponse(
+      db,
+      await manageProof(travellerId, personId),
+      submitted.responseId,
+    );
+    const { runNotificationWorker: run } = await import('./notifications');
+    await run(
+      db,
+      { send: async () => ({ ok: true, messageId: 'synthetic' }) } as never,
+      'https://app.example.test',
+      { encryption },
+    );
+    const inApp = await db
+      .select()
+      .from(schema.notifications)
+      .where(
+        and(
+          eq(schema.notifications.eventType, 'AGENCY_COLLECTION_RESPONSE_SUBMITTED'),
+          eq(schema.notifications.channel, 'IN_APP'),
+        ),
+      );
+    expect(inApp.map((n) => n.status)).toEqual(['FAILED']);
+  }, 60_000);
 });

@@ -34,7 +34,9 @@ const OUT_OF_DATE: ResponseActionState = {
 
 const CLOSED: ResponseActionState = {
   ok: false,
-  message: 'This request link is not open any more. Open it again from the message you received.',
+  // A desk visit times out after a while away (or the request may have ended): say both, plainly.
+  message:
+    'This visit has timed out, or the request has ended. Open the request again from the message you received, check your choices and submit.',
 };
 
 function text(formData: FormData, name: string): string {

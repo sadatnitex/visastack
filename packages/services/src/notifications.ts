@@ -668,6 +668,30 @@ async function dispatchOne(
 
   const payload = notification.payload as NotificationPayload;
 
+  // UMPE P7: a "Submitted to Agency" notice, in the app or by email, goes only while the answer is
+  // still live (not withdrawn or replaced, request not revoked) and the agency is still reviewed.
+  if (
+    notification.eventType === 'AGENCY_COLLECTION_RESPONSE_SUBMITTED' &&
+    !(await collectionResponseStillLive(
+      db,
+      notification.resourceId ?? '',
+      notification.organizationId ?? '',
+    ))
+  ) {
+    const updated = await db
+      .update(schema.notifications)
+      .set({
+        status: 'FAILED',
+        attempts,
+        lastError: 'answer no longer live',
+        leaseOwner: null,
+        leaseExpiresAt: null,
+      })
+      .where(ownedQueue)
+      .returning({ id: schema.notifications.id });
+    return updated.length ? 'failed' : 'deferred';
+  }
+
   if (notification.channel === 'IN_APP') {
     const updated = await db
       .update(schema.notifications)
@@ -700,16 +724,7 @@ async function dispatchOne(
     notification.eventType === GUEST_CODE_EMAIL_EVENT
       ? await guestCodeEmailCheck(db, notification, payload, encryption)
       : null;
-  // UMPE P7: a "Submitted to Agency" notice goes only while the answer is still live (not
-  // withdrawn or replaced, request not revoked) and the agency is still reviewed.
-  const answerGone =
-    notification.eventType === 'AGENCY_COLLECTION_RESPONSE_SUBMITTED' &&
-    !(await collectionResponseStillLive(
-      db,
-      notification.resourceId ?? '',
-      notification.organizationId ?? '',
-    ));
-  if (collection === 'closed' || guestCode === 'closed' || answerGone) {
+  if (collection === 'closed' || guestCode === 'closed') {
     const updated = await db
       .update(schema.notifications)
       .set({
