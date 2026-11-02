@@ -1,15 +1,17 @@
 # P7 plan (Lane C2, account response), branch umpe/p7-account-response
 
-Base: origin/main 5aea5d63 (P6 merged as #414).
+Base: origin/main 5aea5d63 (P6 merged as #414). Owner decision (2 Nov): sharing option B, a response-scoped read path; build it.
 
-1. Investigate first (brief, binding): can an existing grant or sharing exception give an agency ONLY the exact document versions and fact versions a traveller approves, with a later new version staying unshared?
-2. If yes: build /collect/account (sign-in return, recipient email check with isIntendedRecipient semantics, person picker through requireAccess, proposed evidence per issued item, item-by-item approval, Still Missing, Submit), an append-only response table, and the narrowest grant.
-3. If no: stop before any sharing code and hand back the options with trade-offs. Building the screen and the response record without a decided sharing path would either show "Submitted to Agency" for something the agency cannot open, or force rework once the path is chosen.
+## Round 1 finding (kept for the record)
+Grants scope to whole documents and the agency read path serves the latest version, so a grant would leak later versions. Options A to D are in handoffs/P7.md history; the owner chose B.
 
-## Result of step 1: no
-- Grants scope to whole documents only (grants.document_ids, category snapshot of document ids). No column, policy field or resource field names a document version (packages/policy/src/authorize.ts:96-124, types.ts:41).
-- The agency's own read path, accessDocument in packages/services/src/documents.ts:1328-1336, always serves the LATEST version of an authorized document. A document-level grant would therefore show the agency any version uploaded after submission.
-- Facts are reachable only through category grants, which cover the category live; there is no fact or fact-version allow-list.
-- ADR 0017 exceptions remove a case from an all-cases grant; documents keep their own scope, so they cannot narrow to versions either.
+## Build (option B)
+1. Schema (TEMP migration, last commit): `agency_collection_responses` (request, exact revision, link, person, submitter, destination and revision number snapshot, consent version, content SHA-256, submitted, withdrawn once) and `agency_collection_response_items` (one line per issued item: exact document version, exact fact version, or Still Missing). Append-only triggers; only a withdrawal may be recorded, and only a cascade (person, document, agency removed) may delete.
+2. Gate `CollectionResponseAccess` (access/collection-response-access.ts): minted only from a fresh `AgencyCollectionScope` for one live response of that agency; registered in both access ratchets. Recipient email check (same semantics as client invitations, refusal audited once) lives there too.
+3. documents.ts (one shared lease): one link-minting helper for every file path; `previewCollectionResponseVersion` serves exactly the listed version; `recheckDocumentAccess` replays a response link against the live response (never a grant).
+4. Services (`umpe-collection-response-*`): open desk, propose (owner proof, matching current copies and confirmed details), submit (SHARE with step-up, choices re-checked against server proposals inside a per-person lock, earlier live answer withdrawn), own list, withdraw, agency read (exact fact version values, audited with counts).
+5. Web: `/collect/account` (signed-in via the request filter and its return path, choose person, item-by-item ticks, Still Missing, consent, Submit to Agency), `/collect/account/answers` (Withdraw Answer), agency Answers panel with exact-version previews. One CSS block, forms registered in a11y-forms.
+6. Tests: wrong account neutral and audited once; another traveller's person refused; only approved versions visible through the agency's own read path; later version not shared; revoked or expired request blocks submission; switch off not found; no grant or case created; withdrawal ends access including issued links; append-only triggers.
 
-So step 3 applies. See handoffs/P7.md for the options.
+## Not in this lane
+No notification event or rate limit (P8 owns those files). No uploads (P9). No automatic case.
