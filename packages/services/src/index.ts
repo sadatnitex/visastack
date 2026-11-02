@@ -2526,6 +2526,49 @@ export {
   listCollectionRequests,
   openCollectionLink,
 } from './umpe-collection-request-service';
+// UMPE P7: a signed-in traveller answers an agency document request from their own record.
+export {
+  COLLECTION_RESPONSE_LIST_LIMIT,
+  CollectionResponseAccess,
+  collectionResponseAccess,
+  collectionResponseAccesses,
+  collectionResponseAccessProblem,
+} from './access/collection-response-access';
+export {
+  type CollectionResponseRecipient,
+  collectionResponseRecipient,
+} from './umpe-collection-response-recipient';
+export {
+  type CollectionResponseDownloadInput,
+  downloadCollectionResponseVersion,
+} from './documents';
+export {
+  type DocumentCandidate,
+  type EvidenceCandidate,
+  type EvidenceLabel,
+  type FactCandidate,
+  type ItemProposal,
+  MAX_CHOICES_PER_ITEM as COLLECTION_RESPONSE_MAX_CHOICES,
+  RESPONSE_CONSENT_TEXT,
+  RESPONSE_CONSENT_VERSION,
+} from './umpe-collection-response-evidence';
+export {
+  type CollectionResponseItemView,
+  type CollectionResponseVersion,
+  type CollectionResponseView,
+  type OwnCollectionResponse,
+  type ResponseDesk,
+  type ResponseProposal,
+  type SubmitResponseInput,
+  type SubmittedResponse,
+  listOwnCollectionResponses,
+  openCollectionResponseDesk,
+  protectedDetailsStepUp,
+  proposeCollectionResponse,
+  readCollectionResponse,
+  submitCollectionResponse,
+  withdrawCollectionResponse,
+} from './umpe-collection-response-service';
 // UMPE P3: document understanding (upload receipts and idempotency, private original file name,
 // proposed relations between documents, and the person's list of files needing one decision).
 export {

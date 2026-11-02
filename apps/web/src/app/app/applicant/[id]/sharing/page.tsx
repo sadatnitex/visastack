@@ -53,6 +53,7 @@ import { nextShow, pagingHref, parseCursor, parseShow } from '../../../../../lib
 import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
 import { accessDoneLine } from '../../../../../lib/success-lines';
+import { CollectionAnswersSharingLine } from '../../../../collect/account/sharing-line';
 import { revokeSharingInvitationAction } from './actions';
 import {
   type AiChangeReturn,
@@ -417,6 +418,7 @@ export default async function SharingPage({
               <p className="card-kicker">Controlled Collaboration</p>
               <h2 className="card-title">Who Has Access</h2>
               {doneLine ? <DoneNotice line={doneLine} /> : null}
+              <CollectionAnswersSharingLine applicantId={id} />
               <p className="card-body">
                 {data.accessAvailable
                   ? `${plural(data.grantCounts.active, 'active grant')}. Pending, paused and ended grants are labelled separately below.`

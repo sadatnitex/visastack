@@ -147,6 +147,12 @@ export const RATE_LIMITS = {
   COLLECTION_GUEST_CODE_IP: { limit: 20, windowMs: HOUR_MS },
   COLLECTION_GUEST_VERIFY_LINK: { limit: 20, windowMs: HOUR_MS },
   COLLECTION_GUEST_VERIFY_IP: { limit: 40, windowMs: HOUR_MS },
+  // A signed-in traveller's answers to agency requests (UMPE P7), per account: each one is kept
+  // for good, so a script cannot pile them up; a person correcting an answer has room to spare.
+  COLLECTION_RESPONSE_SUBMIT_ACCOUNT: { limit: 10, windowMs: HOUR_MS },
+  // And per request: a copied link binds to nobody, so many accounts could answer one request and
+  // flood its agency's admins with notices.
+  COLLECTION_RESPONSE_SUBMIT_REQUEST: { limit: 30, windowMs: HOUR_MS },
   // A private calendar subscription link (v1.2 B05 live feed). Calendar apps check a link every
   // few minutes to every few hours, so one link is bounded well above that. Only unknown links are
   // counted per network address, so a large calendar service fetching many people's real links

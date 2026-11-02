@@ -12832,3 +12832,52 @@ html:has(.sticky-action-bar) {
   margin: 0.5rem 0 0;
   padding-left: 1.25rem;
 }
+
+/* WP-UMPE-P7 answer from your own record: the traveller's checklist (one fieldset per issued item,
+   each choice a 44px tick row, Still Missing shown in words and colour), their answers list, and the
+   agency's Answers panel. Flat surfaces and existing tokens only. */
+.collect-response-items,
+.collect-response-answers,
+.collect-response-people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.collect-response-people {
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+}
+.collect-response-item .form-section {
+  margin: 0;
+}
+.collect-response-choice {
+  min-height: 44px;
+  align-items: flex-start;
+  padding-block: var(--space-2);
+}
+.collect-response-more summary {
+  display: list-item;
+  min-height: 44px;
+  padding-block: var(--space-2);
+  cursor: pointer;
+}
+.collect-response-missing {
+  color: var(--warning);
+  font-weight: 600;
+}
+.collect-response-answer + .collect-response-answer,
+.collection-response + .collection-response {
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: var(--space-3);
+}
+.collection-response-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+.collection-response-file .btn {
+  min-height: 44px;
+}
