@@ -45,7 +45,7 @@ export function cookieValue(linkId: string, token: string): string {
 export function parseCookie(
   value: string | undefined,
 ): { readonly linkId: string; readonly token: string } | null {
-  const match = /^([0-9a-f-]{36})\.([A-Za-z0-9_-]{43})$/.exec(value ?? '');
+  const match = (value ?? '').match(/^([0-9a-f-]{36})\.([A-Za-z0-9_-]{43})$/);
   return match?.[1] && match[2] ? { linkId: match[1], token: match[2] } : null;
 }
 
