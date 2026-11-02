@@ -6061,3 +6061,120 @@ export const umpePackageChanges = pgTable(
     check('umpe_package_changes_count_positive', sql`${table.changeCount} >= 1`),
   ],
 );
+
+// --- Group trips and family packages (UMPE P5) ------------------------------------------------
+// One trip is a shared travel intention owned by one account. It composes the account's own
+// travellers' ordinary cases (each traveller keeps their own case, checklist, documents and
+// permissions); it is never a merged person record and never an access mechanism by itself.
+export const umpeTrips = pgTable(
+  'umpe_trips',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerAccountId: uuid('owner_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    destination: text('destination').notNull(),
+    purpose: text('purpose').notNull(),
+    /** The label written into a traveller's case `itinerary_ref` when that case has none. */
+    itineraryRef: text('itinerary_ref').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index('umpe_trips_owner_idx').on(table.ownerAccountId, table.createdAt),
+    check('umpe_trips_title_cap', sql`char_length(${table.title}) between 1 and 200`),
+    check('umpe_trips_destination_cap', sql`char_length(${table.destination}) between 1 and 120`),
+    check('umpe_trips_purpose_cap', sql`char_length(${table.purpose}) between 1 and 120`),
+    check('umpe_trips_itinerary_cap', sql`char_length(${table.itineraryRef}) between 1 and 200`),
+  ],
+);
+
+// Who is travelling: one row per traveller and trip, each pointing at that traveller's own case.
+// Removing a traveller sets `removedAt`; their case is never touched.
+export const umpeTripTravellers = pgTable(
+  'umpe_trip_travellers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tripId: uuid('trip_id')
+      .notNull()
+      .references(() => umpeTrips.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    addedByAccountId: uuid('added_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+    removedAt: timestamp('removed_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('umpe_trip_travellers_live')
+      .on(table.tripId, table.applicantId)
+      .where(sql`${table.removedAt} is null`),
+    index('umpe_trip_travellers_applicant_idx').on(table.applicantId),
+    index('umpe_trip_travellers_mission_idx').on(table.missionId),
+    index('umpe_trip_travellers_added_by_idx').on(table.addedByAccountId),
+  ],
+);
+
+// Common trip evidence (a shared booking, itinerary, invitation or sponsor letter): a reference to
+// one traveller's own document, never a copy. Another traveller sees it only through an explicit
+// allowance below. Removing it, or its traveller, ends every allowance.
+export const umpeTripEvidence = pgTable(
+  'umpe_trip_evidence',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tripId: uuid('trip_id')
+      .notNull()
+      .references(() => umpeTrips.id, { onDelete: 'cascade' }),
+    sourceApplicantId: uuid('source_applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    addedByAccountId: uuid('added_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+    removedAt: timestamp('removed_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('umpe_trip_evidence_live')
+      .on(table.tripId, table.documentId)
+      .where(sql`${table.removedAt} is null`),
+    index('umpe_trip_evidence_source_idx').on(table.sourceApplicantId),
+    index('umpe_trip_evidence_document_idx').on(table.documentId),
+    index('umpe_trip_evidence_added_by_idx').on(table.addedByAccountId),
+  ],
+);
+
+// One traveller's owner allowing one common trip document to be referenced for that traveller.
+// Never created automatically; revoking sets `revokedAt` and keeps the history.
+export const umpeTripEvidenceAllowances = pgTable(
+  'umpe_trip_evidence_allowances',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tripEvidenceId: uuid('trip_evidence_id')
+      .notNull()
+      .references(() => umpeTripEvidence.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    allowedByAccountId: uuid('allowed_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    allowedAt: timestamp('allowed_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('umpe_trip_evidence_allowances_live')
+      .on(table.tripEvidenceId, table.applicantId)
+      .where(sql`${table.revokedAt} is null`),
+    index('umpe_trip_evidence_allowances_applicant_idx').on(table.applicantId),
+    index('umpe_trip_evidence_allowances_allowed_by_idx').on(table.allowedByAccountId),
+  ],
+);

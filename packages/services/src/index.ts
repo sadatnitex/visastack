@@ -2654,3 +2654,36 @@ export {
 } from './umpe-package-start';
 export { packageTablesPresent as packageTablesReady } from './umpe-package-tables';
 export { PACKAGE_CHANGED_EVENT } from './notifications';
+
+// UMPE P5
+export {
+  type TravellerAuthorityProblem,
+  type TripNextAction,
+  type TripRelationship,
+  COMMON_TRIP_EVIDENCE_TYPES,
+  TRIP_MAX_TRAVELLERS,
+  TRIP_NEXT_ACTION_LABELS,
+  isCommonTripEvidenceType,
+  travellerAuthorityProblem,
+  tripNextAction,
+} from './umpe-trip-rules';
+export {
+  type AddTravellerOutcome,
+  type TravellerTripEvidenceView,
+  type TripEvidenceView,
+  type TripIntentionInput,
+  type TripSummary,
+  type TripTravellerView,
+  type TripView,
+  addTravellerToTrip,
+  addTripEvidence,
+  getTrip,
+  listTripEvidence,
+  listTripEvidenceForTraveller,
+  listTrips,
+  removeTravellerFromTrip,
+  removeTripEvidence,
+  setTripEvidenceAllowance,
+  startGroupTrip,
+} from './umpe-trip-service';
+export { tripTablesPresent as tripTablesReady } from './umpe-trip-tables';
