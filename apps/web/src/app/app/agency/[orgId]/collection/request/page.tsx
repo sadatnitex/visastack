@@ -28,6 +28,7 @@ import {
   NewLinkForm,
   PackChoiceForm,
 } from '../collection-forms';
+import { CollectionResponsesPanel, loadCollectionResponses } from '../responses-panel';
 import { STATUS_TONES, collectionPackTerms, destinationName } from '../terms';
 
 export const metadata: Metadata = { title: 'Agency Document Request', referrer: 'no-referrer' };
@@ -76,10 +77,13 @@ export default async function CollectionRequestPage({
   searchParams,
 }: {
   readonly params: Promise<{ orgId: string }>;
-  readonly searchParams: Promise<{ readonly id?: string | string[] }>;
+  readonly searchParams: Promise<{
+    readonly id?: string | string[];
+    readonly file?: string | string[];
+  }>;
 }) {
   const { orgId } = await params;
-  const { id } = await searchParams;
+  const { id, file } = await searchParams;
   const requestId = typeof id === 'string' ? id : '';
   const data = await withSession(async ({ db, accountId }) => {
     const scope = await agencyCollectionPrincipal(db, accountId, orgId);
@@ -95,10 +99,14 @@ export default async function CollectionRequestPage({
           requestId,
           collectionPackTerms(detail.value),
         );
-    return { detail: detail.value, choices: choices?.ok ? choices.value : [] };
+    const responses =
+      detail.value.revisions.length > 0
+        ? await loadCollectionResponses(db, scope.value, requestId)
+        : [];
+    return { detail: detail.value, choices: choices?.ok ? choices.value : [], responses };
   });
   if (!data) notFound();
-  const { detail, choices } = data;
+  const { detail, choices, responses } = data;
   const editable = detail.storedStatus === 'DRAFT' || detail.storedStatus === 'SENT';
   const items = detail.draftItems ?? [];
   const official = detail.draftPack !== null;
@@ -244,6 +252,15 @@ export default async function CollectionRequestPage({
             />
           </div>
         </section>
+      ) : null}
+
+      {detail.revisions.length > 0 ? (
+        <CollectionResponsesPanel
+          organizationId={orgId}
+          requestId={detail.id}
+          responses={responses}
+          fileUnavailable={file === 'unavailable'}
+        />
       ) : null}
 
       {detail.links.length > 0 ? (
