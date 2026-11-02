@@ -5706,3 +5706,100 @@ export const agencyCollectionLinks = pgTable(
     ),
   ],
 );
+
+// UMPE P7: a signed-in traveller's answer to an agency document request. Append-only: a trigger
+// refuses every UPDATE except recording a withdrawal once, and every DELETE that is not part of
+// removing the person, their document or the request's agency (see the migration). The agency
+// reaches ONLY the exact document versions and fact versions listed in the items, through the
+// response itself; no grant is ever made, so nothing broader can leak and a later version of the
+// same document is never visible.
+export const agencyCollectionResponses = pgTable(
+  'agency_collection_responses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // The agency, request and exact revision answered. Removing any of them (or the person) removes
+    // the response with it; nothing else may.
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => agencyCollectionRequests.id, { onDelete: 'cascade' }),
+    revisionId: uuid('revision_id')
+      .notNull()
+      .references(() => agencyCollectionRequestRevisions.id, { onDelete: 'cascade' }),
+    // Plain ids, like the revisions' issuer: a response never changes, so these are never cleared.
+    linkId: uuid('link_id').notNull(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    submittedByAccountId: uuid('submitted_by_account_id').notNull(),
+    // What was answered, as the traveller saw it, so their own list never reads the request side.
+    destination: text('destination').notNull(),
+    revisionNo: integer('revision_no').notNull(),
+    consentVersion: text('consent_version').notNull(),
+    contentSha256: text('content_sha256').notNull(),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+    withdrawnByAccountId: uuid('withdrawn_by_account_id'),
+  },
+  (table) => [
+    index('agency_collection_responses_request_idx').on(
+      table.organizationId,
+      table.requestId,
+      table.submittedAt,
+    ),
+    index('agency_collection_responses_applicant_idx').on(table.applicantId, table.submittedAt),
+    index('agency_collection_responses_revision_idx').on(table.revisionId),
+    check('agency_collection_responses_sha256', sql`${table.contentSha256} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'agency_collection_responses_consent_cap',
+      sql`char_length(${table.consentVersion}) between 1 and 64`,
+    ),
+    check(
+      'agency_collection_responses_withdrawal_pair',
+      sql`(${table.withdrawnAt} is null) = (${table.withdrawnByAccountId} is null)`,
+    ),
+  ],
+);
+
+// One line per issued checklist item: exactly what was approved for it, or that it was left
+// missing. Exactly one target for a provided line (a document version or a fact version).
+export const agencyCollectionResponseItems = pgTable(
+  'agency_collection_response_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    responseId: uuid('response_id')
+      .notNull()
+      .references(() => agencyCollectionResponses.id, { onDelete: 'cascade' }),
+    itemId: text('item_id').notNull(),
+    kind: text('kind').notNull(),
+    documentId: uuid('document_id').references(() => documents.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id').references(() => documentVersions.id, {
+      onDelete: 'cascade',
+    }),
+    factId: uuid('fact_id').references(() => facts.id, { onDelete: 'cascade' }),
+    factVersionId: uuid('fact_version_id').references(() => factVersions.id, {
+      onDelete: 'cascade',
+    }),
+  },
+  (table) => [
+    index('agency_collection_response_items_response_idx').on(table.responseId),
+    index('agency_collection_response_items_version_idx').on(table.documentVersionId),
+    index('agency_collection_response_items_fact_version_idx').on(table.factVersionId),
+    unique('agency_collection_response_items_one_line').on(
+      table.responseId,
+      table.itemId,
+      table.documentVersionId,
+      table.factVersionId,
+    ),
+    check(
+      'agency_collection_response_items_kind_known',
+      sql`${table.kind} in ('DOCUMENT', 'FIELD', 'MISSING')`,
+    ),
+    check(
+      'agency_collection_response_items_target',
+      sql`(${table.kind} = 'DOCUMENT' and ${table.documentId} is not null and ${table.documentVersionId} is not null and ${table.factId} is null and ${table.factVersionId} is null) or (${table.kind} = 'FIELD' and ${table.factId} is not null and ${table.factVersionId} is not null and ${table.documentId} is null and ${table.documentVersionId} is null) or (${table.kind} = 'MISSING' and ${table.documentId} is null and ${table.documentVersionId} is null and ${table.factId} is null and ${table.factVersionId} is null)`,
+    ),
+  ],
+);

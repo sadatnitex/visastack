@@ -2526,3 +2526,40 @@ export {
   listCollectionRequests,
   openCollectionLink,
 } from './umpe-collection-request-service';
+// UMPE P7: a signed-in traveller answers an agency document request from their own record.
+export {
+  COLLECTION_RESPONSE_LIST_LIMIT,
+  CollectionResponseAccess,
+  collectionResponseAccess,
+  collectionResponseAccesses,
+  collectionResponseAccessProblem,
+} from './access/collection-response-access';
+export {
+  type CollectionResponsePreviewInput,
+  previewCollectionResponseVersion,
+} from './documents';
+export {
+  type DocumentCandidate,
+  type EvidenceCandidate,
+  type EvidenceLabel,
+  type FactCandidate,
+  type ItemProposal,
+  MAX_CHOICES_PER_ITEM as COLLECTION_RESPONSE_MAX_CHOICES,
+  RESPONSE_CONSENT_TEXT,
+  RESPONSE_CONSENT_VERSION,
+} from './umpe-collection-response-evidence';
+export {
+  type AgencyResponseLine,
+  type AgencyResponseView,
+  type OwnCollectionResponse,
+  type ResponseDesk,
+  type ResponseProposal,
+  type SubmitResponseInput,
+  type SubmittedResponse,
+  listOwnCollectionResponses,
+  openCollectionResponseDesk,
+  proposeCollectionResponse,
+  readCollectionResponse,
+  submitCollectionResponse,
+  withdrawCollectionResponse,
+} from './umpe-collection-response-service';

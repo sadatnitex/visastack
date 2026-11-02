@@ -45,7 +45,14 @@ const OWNED_COLUMNS = new Set([
   'document_version_id',
   'owner_account_id',
 ]);
-const GATE_TYPES = ['AuthorizedApplicant', 'SystemScope', 'StaffScope'] as const;
+const GATE_TYPES = [
+  'AuthorizedApplicant',
+  'SystemScope',
+  'StaffScope',
+  // UMPE P7: one live response of one agency, naming exactly one person and listing the exact
+  // versions it may read (access/collection-response-access.ts).
+  'CollectionResponseAccess',
+] as const;
 
 /**
  * ADR 0025: the person billing tables (a person's own plan, invoices, payments and receipts) are
@@ -112,7 +119,12 @@ const SELF_SAFE_CALLS: ReadonlySet<string> = new Set([
  * typed, or queued notices about one of the request's own links (fresh ids) are cancelled. Nothing
  * of anyone's record is read.
  */
-const COLLECTION_GATE_TYPES = ['AgencyCollectionScope', 'CollectionLinkProof'] as const;
+const COLLECTION_GATE_TYPES = [
+  'AgencyCollectionScope',
+  'CollectionLinkProof',
+  // UMPE P7: made only from a fresh AgencyCollectionScope for one of that agency's own responses.
+  'CollectionResponseAccess',
+] as const;
 const COLLECTION_SAFE_CALLS: ReadonlySet<string> = new Set([
   'audit#appendAuditEvent',
   'invitation-email#queueInvitationEmail',
@@ -294,7 +306,12 @@ function gateDeclarations(
 ): Set<ts.Node> {
   const decls = new Set<ts.Node>();
   const found = new Set<string>();
-  for (const file of ['principal.ts', 'require-access.ts', 'collection-scope.ts']) {
+  for (const file of [
+    'principal.ts',
+    'require-access.ts',
+    'collection-scope.ts',
+    'collection-response-access.ts',
+  ]) {
     const sf = sourceFileAt(program, path.join(accessDir, file));
     const moduleSymbol = checker.getSymbolAtLocation(sf);
     if (!moduleSymbol) throw new Error(`no module symbol for ${file}`);
@@ -1203,6 +1220,10 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
         decls: gateDeclarations(program, checker, ['CollectionLinkProof']),
         check: (call: ts.CallExpression) => isIsGenuine(call, 'CollectionLinkProof'),
       },
+      {
+        decls: gateDeclarations(program, checker, ['CollectionResponseAccess']),
+        check: (call: ts.CallExpression) => isCall(call, 'collectionResponseAccessProblem'),
+      },
     ];
     const found: string[] = [];
     const problems: string[] = [];
@@ -1244,6 +1265,8 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
       expect.arrayContaining([
         'umpe-collection-request-service#issueCollectionRequest',
         'umpe-collection-request-service#openCollectionLink',
+        'umpe-collection-response-service#readCollectionResponse',
+        'documents#previewCollectionResponseVersion',
       ]),
     );
     expect(problems).toEqual([]);

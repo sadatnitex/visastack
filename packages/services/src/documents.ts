@@ -10,7 +10,14 @@ import type {
 import { err, isOtherDocumentType, ok } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { type Actor, type Grant as PolicyGrant, authorize } from '@visastack/policy';
-import { and, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
+import {
+  type CollectionResponseAccess,
+  collectionResponseAccessProblem,
+  collectionResponsePurpose,
+  collectionResponseStillCovers,
+  responseIdFromPurpose,
+} from './access/collection-response-access';
 import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
@@ -31,6 +38,7 @@ import {
   lifecycleTablesPresent,
   presentDocumentCondition,
 } from './lifecycle/foundation';
+import { isUuid } from './lifecycle/foundation/ids';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { AUTOMATIC_TITLE_REASON, buildDocumentTitle } from './naming';
 import { listMembershipsForAccount } from './organizations';
@@ -1404,6 +1412,44 @@ async function accessDocument(
     return err(serviceError('forbidden', 'this document is not yet available'));
   }
 
+  return issueVersionReadRef(db, storage, {
+    document,
+    version,
+    disposition,
+    variant: effectiveVariant,
+    now,
+    accessTokenSecret: input.accessTokenSecret,
+    context: {
+      ...actorAccessContext(input.actor),
+      action,
+      purpose: input.purpose,
+      stepUpSatisfied: input.stepUpSatisfied ?? false,
+    },
+  });
+}
+
+/**
+ * The storage link for one exact, already authorized and servable version, with the second signed
+ * token the serving route replays at redemption. Shared by every way a file is opened, so a link is
+ * always minted, named and bound the same way.
+ */
+async function issueVersionReadRef(
+  db: Db,
+  storage: StoragePort,
+  input: {
+    readonly document: Document;
+    readonly version: DocumentVersion;
+    readonly disposition: 'preview' | 'download';
+    readonly variant: AccessVariant;
+    readonly now: Date;
+    readonly accessTokenSecret: string;
+    readonly context: Omit<
+      DocumentAccessTokenFields,
+      'sig' | 'exp' | 'documentId' | 'documentVersionId'
+    >;
+  },
+): Promise<Result<AccessRef, ServiceError>> {
+  const { document, version } = input;
   const storageObject = first(
     await db
       .select()
@@ -1416,8 +1462,8 @@ async function accessDocument(
   const ref = await storage.issueReadRef({
     bucket: storageObject.bucket,
     objectKey: storageObject.objectKey,
-    disposition,
-    variant: effectiveVariant,
+    disposition: input.disposition,
+    variant: input.variant,
     expiresInSeconds: DEFAULT_ACCESS_TTL_SECONDS,
     // The current approved name if one exists, else the preserved original,
     // never the opaque storage key (master directive §10/§18/§21E).
@@ -1432,17 +1478,121 @@ async function accessDocument(
   const accessTokenFields: Omit<DocumentAccessTokenFields, 'sig'> = {
     documentId: document.id,
     documentVersionId: version.id,
-    ...actorAccessContext(input.actor),
-    action,
-    purpose: input.purpose,
-    stepUpSatisfied: input.stepUpSatisfied ?? false,
-    exp: Math.floor(now.getTime() / 1000) + DEFAULT_ACCESS_TTL_SECONDS,
+    ...input.context,
+    exp: Math.floor(input.now.getTime() / 1000) + DEFAULT_ACCESS_TTL_SECONDS,
   };
   const signedAccessTokenFields: DocumentAccessTokenFields = {
     ...accessTokenFields,
     sig: signDocumentAccessToken(input.accessTokenSecret, accessTokenFields),
   };
   return ok({ ...ref, url: appendDocumentAccessToken(ref.url, signedAccessTokenFields) });
+}
+
+export interface CollectionResponsePreviewInput {
+  readonly documentVersionId: string;
+  readonly accessTokenSecret: string;
+  readonly now?: Date;
+}
+
+/**
+ * UMPE P7: a safe preview of exactly one document version a traveller approved in their answer to
+ * this agency's request. Never "the latest version": the version is the one the response lists,
+ * so a later upload of the same document is never reachable this way, and a document the response
+ * does not list is not found, exactly like a missing one. Preview only (the rendered, active-content
+ * stripped copy, as for every other preview); the same servability and erasure checks as every
+ * other file, one audit event per request, and a link the serving route re-checks against the live
+ * response (`recheckDocumentAccess`).
+ */
+export async function previewCollectionResponseVersion(
+  db: Db,
+  storage: StoragePort,
+  access: CollectionResponseAccess,
+  input: CollectionResponsePreviewInput,
+): Promise<Result<AccessRef, ServiceError>> {
+  const problem = collectionResponseAccessProblem(access);
+  if (problem) return err(problem);
+  const notFound = err(serviceError('not_found', 'document not found'));
+  if (!isUuid(input.documentVersionId)) return notFound;
+  const items = schema.agencyCollectionResponseItems;
+  const responses = schema.agencyCollectionResponses;
+  const line = first(
+    await db
+      .select({ documentId: items.documentId })
+      .from(items)
+      .innerJoin(responses, eq(responses.id, items.responseId))
+      .where(
+        and(
+          eq(items.responseId, access.responseId),
+          eq(responses.organizationId, access.organizationId),
+          eq(responses.applicantId, access.applicantId),
+          isNull(responses.withdrawnAt),
+          eq(items.kind, 'DOCUMENT'),
+          eq(items.documentVersionId, input.documentVersionId),
+        ),
+      )
+      .limit(1),
+  );
+  if (!line?.documentId) return notFound;
+  const document = await findPresentDocument(db, line.documentId);
+  if (!document || document.applicantId !== access.applicantId) return notFound;
+  const version = first(
+    await db
+      .select()
+      .from(schema.documentVersions)
+      .where(
+        and(
+          eq(schema.documentVersions.id, input.documentVersionId),
+          eq(schema.documentVersions.documentId, document.id),
+        ),
+      )
+      .limit(1),
+  );
+  if (!version) return notFound;
+  const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
+  const servable = isDocumentVersionUsable({
+    safetyStatus: version.safetyStatus,
+    processingStatus: version.processingStatus,
+    erased,
+  });
+  const now = input.now ?? new Date();
+  await db.transaction(async (tx) => {
+    await appendAuditEvent(tx, {
+      eventType: 'DOCUMENT_ACCESS',
+      actorAccountId: access.accountId,
+      actorRole: 'org:collection_response',
+      action: 'PREVIEW',
+      result: servable ? 'ALLOWED' : 'DENIED',
+      method: 'API',
+      applicantId: document.applicantId,
+      resourceType: 'document',
+      resourceId: document.id,
+      reason: servable ? null : erased ? 'bytes_already_erased' : 'not_yet_safe_to_serve',
+      metadata: {
+        variant: 'redacted',
+        disposition: 'preview',
+        purpose: 'collection_response',
+        organizationId: access.organizationId,
+        responseId: access.responseId,
+      },
+    });
+  });
+  if (!servable) return err(serviceError('forbidden', 'this document is not yet available'));
+  return issueVersionReadRef(db, storage, {
+    document,
+    version,
+    disposition: 'preview',
+    variant: 'redacted',
+    now,
+    accessTokenSecret: input.accessTokenSecret,
+    context: {
+      actorKind: 'collection_response',
+      actorAccountId: access.accountId,
+      organizationId: access.organizationId,
+      action: 'PREVIEW',
+      purpose: collectionResponsePurpose(access.responseId),
+      stepUpSatisfied: false,
+    },
+  });
 }
 
 export type RecheckDocumentAccessResult =
@@ -1469,6 +1619,25 @@ export async function recheckDocumentAccess(
 ): Promise<RecheckDocumentAccessResult> {
   const document = await findPresentDocument(db, fields.documentId);
   if (!document) return { allowed: false, reason: 'document_not_found' };
+
+  // UMPE P7: a response file link is replayed against the live response, never against a grant
+  // (there is none): the same exact version, still listed, by a still active agency admin.
+  if (fields.actorKind === 'collection_response') {
+    const responseId = responseIdFromPurpose(fields.purpose);
+    if (!responseId || !fields.actorAccountId || !fields.organizationId) {
+      return { allowed: false, reason: 'missing_collection_response_context' };
+    }
+    if (fields.action !== 'PREVIEW') return { allowed: false, reason: 'action_not_granted' };
+    const covered = await collectionResponseStillCovers(db, {
+      responseId,
+      accountId: fields.actorAccountId,
+      organizationId: fields.organizationId,
+      documentId: document.id,
+      documentVersionId: fields.documentVersionId,
+    });
+    if (!covered.allowed) return covered;
+    return servableAtRedemption(db, document, fields.documentVersionId);
+  }
 
   let actor: Actor;
   switch (fields.actorKind) {
@@ -1534,11 +1703,20 @@ export async function recheckDocumentAccess(
   // since been erased or otherwise made unusable, and the reverse (a newer
   // sibling being unsafe) must never block redemption of a still-servable
   // minted version either.
+  return servableAtRedemption(db, document, fields.documentVersionId);
+}
+
+/** Whether the exact version a link was minted for is still servable right now. */
+async function servableAtRedemption(
+  db: Db,
+  document: Document,
+  documentVersionId: string,
+): Promise<RecheckDocumentAccessResult> {
   const version = first(
     await db
       .select()
       .from(schema.documentVersions)
-      .where(eq(schema.documentVersions.id, fields.documentVersionId))
+      .where(eq(schema.documentVersions.id, documentVersionId))
       .limit(1),
   );
   if (!version || version.documentId !== document.id) {
