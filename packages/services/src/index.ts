@@ -703,6 +703,7 @@ export {
   listPublicTrustPublished,
   listPublishedPackVersions,
   listRequirements,
+  manifestFormatFor,
   manifestFormatOf,
   markOfficialFeeStale,
   markRequirementSourceInaccessible,
@@ -710,7 +711,6 @@ export {
   publishToPublicTrust,
   setPublicTrustContent,
   unpublishFromPublicTrust,
-  usesFormat2Fields,
   verifyPackChecksum,
   withdrawPackVersion,
 } from './packs';

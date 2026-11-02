@@ -449,7 +449,11 @@ describe('case journey view (WP-X1)', () => {
       }),
     );
     mocks.listRequirements.mockResolvedValue(
-      results.map((r) => ({ id: r.packRequirementId, citation: 'rule', sourceInaccessibleAt: null })),
+      results.map((r) => ({
+        id: r.packRequirementId,
+        citation: 'rule',
+        sourceInaccessibleAt: null,
+      })),
     );
     const text = textOf(await render());
     expect(text).toContain('Bank Statement · Mandatory');

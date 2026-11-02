@@ -57,6 +57,17 @@ export function CaseStageTracker({
   );
 }
 
+/** Most urgent first: an unmet group of alternatives is counted under the first state it has. */
+const STATE_URGENCY: readonly Readiness['requirementResults'][number]['state'][] = [
+  'CRITICAL_GAP',
+  'CONFLICTING',
+  'EXPIRING_STALE',
+  'UNVERIFIED',
+  'ATTENTION',
+  'SATISFIED',
+  'NOT_APPLICABLE',
+];
+
 /** Exact computed requirement states; no score or probability is invented. */
 export function CasePreparationSummary({
   readiness,
@@ -65,14 +76,20 @@ export function CasePreparationSummary({
   readonly readiness: Readiness;
   readonly acknowledged: boolean;
 }) {
-  // A group of alternatives (UMPE P1) is one item however many alternatives it lists, so each
-  // state counts a group once; every other requirement counts as itself, exactly as before.
-  const count = (match: (state: Readiness['requirementResults'][number]['state']) => boolean) =>
-    new Set(
-      readiness.requirementResults
-        .filter((r) => match(r.state))
-        .map((r) => (r.groupKey ? `group:${r.groupKey}` : r.packRequirementId)),
-    ).size;
+  // A group of alternatives (UMPE P1) is one item however many alternatives it lists: an
+  // alternative another member already covers is not counted, and an unmet group counts once,
+  // under its most urgent state. Every other requirement counts as itself, exactly as before.
+  type State = Readiness['requirementResults'][number]['state'];
+  const itemState = new Map<string, State>();
+  for (const r of readiness.requirementResults) {
+    if (r.coveredByAlternative) continue;
+    const key = r.groupKey ? `group:${r.groupKey}` : r.packRequirementId;
+    const seen = itemState.get(key);
+    if (seen === undefined || STATE_URGENCY.indexOf(r.state) < STATE_URGENCY.indexOf(seen)) {
+      itemState.set(key, r.state);
+    }
+  }
+  const count = (match: (state: State) => boolean) => [...itemState.values()].filter(match).length;
   const counts = {
     satisfied: count((state) => state === 'SATISFIED'),
     missing: count((state) => state === 'CRITICAL_GAP'),

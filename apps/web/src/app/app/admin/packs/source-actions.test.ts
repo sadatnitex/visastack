@@ -93,7 +93,6 @@ it('UMPE P1: passes necessity, who asked for it, the rule and the group to the s
   data.set('provenance', 'AUTHORITY_REQUESTED');
   data.set('condition', '{"op":"equals","field":"visa_purpose","value":"business"}');
   data.set('groupKey', ' funds ');
-  data.set('optional', 'on');
   expect((await addRequirementAction({ ok: true, message: '' }, data)).ok).toBe(true);
   const sent = mocks.add.mock.calls[0]?.[1];
   expect(sent).toMatchObject({
@@ -103,7 +102,7 @@ it('UMPE P1: passes necessity, who asked for it, the rule and the group to the s
     groupKey: 'funds',
     groupMode: 'ANY_OF',
   });
-  // A chosen necessity decides the optional flag; the older checkbox is not sent with it.
+  // The necessity decides the optional flag in the service.
   expect(sent).not.toHaveProperty('optional');
 });
 
@@ -119,12 +118,4 @@ it('UMPE P1: refuses an unknown necessity or source and a rule it cannot read', 
     expect((await addRequirementAction({ ok: true, message: '' }, data)).ok).toBe(false);
   }
   expect(mocks.add).not.toHaveBeenCalled();
-});
-
-it('UMPE P1: without a necessity the older optional checkbox still works', async () => {
-  const data = form();
-  data.set('optional', 'on');
-  expect((await addRequirementAction({ ok: true, message: '' }, data)).ok).toBe(true);
-  expect(mocks.add.mock.calls[0]?.[1]).toMatchObject({ optional: true });
-  expect(mocks.add.mock.calls[0]?.[1]).not.toHaveProperty('necessity');
 });

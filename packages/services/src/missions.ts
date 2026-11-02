@@ -32,7 +32,12 @@ import {
 } from './lifecycle/foundation';
 import { getLiveAcknowledgement, incrementMaterialRevision } from './material-revision';
 import { cancelQueuedNotificationsForResource } from './notifications';
-import { type PackRequirement, getManifestFormat, listRequirements } from './packs';
+import {
+  type PackRequirement,
+  getManifestFormat,
+  listRequirements,
+  selectRequirementRows,
+} from './packs';
 import {
   type Page,
   type PageRequest,
@@ -607,6 +612,8 @@ export interface RequirementResultSummary {
   readonly necessity?: RequirementNecessity;
   readonly provenance?: RequirementProvenance;
   readonly groupKey?: string;
+  /** UMPE P1: present only when another member of its group already meets the requirement. */
+  readonly coveredByAlternative?: true;
 }
 
 export interface Readiness {
@@ -1046,42 +1053,33 @@ export async function computeReadiness(
   const documentPool = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, missionId);
   const context = buildFactEvaluationContext(factsByKey, now, mission);
-  const mapping = buildRequirementMapping(
-    requirements,
-    factsByKey,
-    documentPool,
-    selections,
-    now,
-    context,
-    failClosed,
+  // UMPE P1: a group of alternatives is one obligation, so readiness counts units (a single
+  // requirement, or a whole group) while the per-requirement results stay listed one by one,
+  // each member already read in the light of its group (`withAlternatives`).
+  const { mapping, units } = withAlternatives(
+    buildRequirementMapping(
+      requirements,
+      factsByKey,
+      documentPool,
+      selections,
+      now,
+      context,
+      failClosed,
+    ),
   );
 
-  // UMPE P1: a group of alternatives is one obligation, so readiness counts units (a single
-  // requirement, or a whole group) while the per-requirement results stay listed one by one.
-  const units = readinessUnits(mapping);
-  const coveredByAlternative = new Set<string>();
-  for (const unit of units) {
-    if (unit.groupKey === null || !unit.satisfied) continue;
-    for (const member of unit.members) {
-      if (!member.satisfied) coveredByAlternative.add(member.packRequirementId);
-    }
-  }
-
-  const requirementResults: RequirementResultSummary[] = mapping.map((entry) => {
-    const covered = coveredByAlternative.has(entry.packRequirementId);
-    return {
-      packRequirementId: entry.packRequirementId,
-      kind: entry.kind,
-      key: entry.key,
-      // A member another alternative already satisfies is not needed, so it is never a gap.
-      optional: covered ? true : entry.optional,
-      state: covered && entry.resultState === 'CRITICAL_GAP' ? 'ATTENTION' : entry.resultState,
-      ...(entry.selectedButReplacedOrArchived ? { selectedButReplacedOrArchived: true } : {}),
-      ...(entry.necessity ? { necessity: entry.necessity } : {}),
-      ...(entry.provenance ? { provenance: entry.provenance } : {}),
-      ...(entry.groupKey ? { groupKey: entry.groupKey } : {}),
-    } satisfies RequirementResultSummary;
-  });
+  const requirementResults: RequirementResultSummary[] = mapping.map((entry) => ({
+    packRequirementId: entry.packRequirementId,
+    kind: entry.kind,
+    key: entry.key,
+    optional: entry.optional,
+    state: entry.resultState,
+    ...(entry.selectedButReplacedOrArchived ? { selectedButReplacedOrArchived: true } : {}),
+    ...(entry.necessity ? { necessity: entry.necessity } : {}),
+    ...(entry.provenance ? { provenance: entry.provenance } : {}),
+    ...(entry.groupKey ? { groupKey: entry.groupKey } : {}),
+    ...(entry.coveredByAlternative ? { coveredByAlternative: true } : {}),
+  }));
 
   const missing: MissingRequirement[] = [];
   let requiredCount = 0;
@@ -1156,6 +1154,41 @@ async function loadPackRules(
   return { requirements, failClosed: format !== 1 };
 }
 
+/**
+ * The mapping with every group member read in the light of its group, and the readiness units.
+ * When a group is met, each other applicable member is no longer needed: it is marked
+ * `coveredByAlternative`, reads as not required (`optional` true) and a missing one is a gap shown
+ * as Attention, never a critical gap. When the group is met cleanly (some member Satisfied), a
+ * member whose own evidence conflicts or is stale is covered too; when it is met only through such
+ * a member, that member keeps its problem and stays required, because it is what must be fixed.
+ * Every consumer of the mapping (readiness, snapshots, the case page) therefore agrees.
+ */
+function withAlternatives(raw: readonly RequirementMappingEntry[]): {
+  mapping: RequirementMappingEntry[];
+  units: ReadinessUnit[];
+} {
+  const units = readinessUnits(raw);
+  const covered = new Set<string>();
+  for (const unit of units) {
+    if (unit.groupKey === null || !unit.satisfied) continue;
+    const clean = unit.state === 'SATISFIED';
+    for (const member of unit.members) {
+      if (member.resultState === 'NOT_APPLICABLE' || member.resultState === 'SATISFIED') continue;
+      if (clean || !member.satisfied) covered.add(member.packRequirementId);
+    }
+  }
+  const mapping = raw.map((entry): RequirementMappingEntry => {
+    if (!covered.has(entry.packRequirementId)) return entry;
+    return {
+      ...entry,
+      optional: true,
+      resultState: entry.resultState === 'CRITICAL_GAP' ? 'ATTENTION' : entry.resultState,
+      coveredByAlternative: true,
+    };
+  });
+  return { mapping, units };
+}
+
 /** One thing readiness counts: a single requirement, or a whole group of alternatives. */
 interface ReadinessUnit {
   readonly groupKey: string | null;
@@ -1218,7 +1251,11 @@ function readinessUnits(mapping: readonly RequirementMappingEntry[]): ReadinessU
     const members = groups.get(item) ?? [];
     const applicable = members.filter((m) => m.resultState !== 'NOT_APPLICABLE');
     const blockingMembers = applicable.filter(entryBlocks);
-    const deciding = blockingMembers.length > 0 ? blockingMembers : applicable;
+    const met = applicable.filter((m) => m.satisfied);
+    // Nothing met: the members that can block decide; met only through members whose evidence
+    // conflicts or is stale: that problem is the group's (as for a single requirement).
+    const deciding =
+      met.length > 0 ? met : blockingMembers.length > 0 ? blockingMembers : applicable;
     const state: RequirementResultState =
       applicable.length === 0
         ? 'NOT_APPLICABLE'
@@ -1428,6 +1465,8 @@ export interface RequirementMappingEntry {
   readonly necessity?: RequirementNecessity;
   readonly provenance?: RequirementProvenance;
   readonly groupKey?: string;
+  /** UMPE P1: another member of this group already meets it, so this one is not needed (`withAlternatives`). */
+  readonly coveredByAlternative?: true;
 }
 
 /**
@@ -1729,15 +1768,17 @@ async function loadCaseEvidence(db: Db, mission: Mission) {
     );
     const { requirements, failClosed } = await loadPackRules(db, mission.packVersionId);
     const snapshotNow = new Date();
-    requirementMapping = buildRequirementMapping(
-      requirements,
-      factsByKey,
-      documentPool,
-      selections,
-      snapshotNow,
-      buildFactEvaluationContext(factsByKey, snapshotNow, mission),
-      failClosed,
-    );
+    requirementMapping = withAlternatives(
+      buildRequirementMapping(
+        requirements,
+        factsByKey,
+        documentPool,
+        selections,
+        snapshotNow,
+        buildFactEvaluationContext(factsByKey, snapshotNow, mission),
+        failClosed,
+      ),
+    ).mapping;
     packVersionSnapshot = packVersion ?? null;
   }
 
@@ -1998,16 +2039,13 @@ async function loadOwnedRequirement(
     return err(serviceError('invalid', 'case has no attached pack version'));
   }
   const requirement = first(
-    await db
-      .select()
-      .from(schema.packRequirements)
-      .where(
-        and(
-          eq(schema.packRequirements.id, packRequirementId),
-          eq(schema.packRequirements.packVersionId, mission.packVersionId),
-        ),
-      )
-      .limit(1),
+    await selectRequirementRows(
+      db,
+      and(
+        eq(schema.packRequirements.id, packRequirementId),
+        eq(schema.packRequirements.packVersionId, mission.packVersionId),
+      ),
+    ),
   );
   if (!requirement) {
     return err(serviceError('not_found', "requirement not found on this case's attached pack"));

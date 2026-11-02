@@ -178,11 +178,9 @@ export async function addRequirementAction(
   const kind = String(formData.get('kind') ?? '') === 'DOCUMENT' ? 'DOCUMENT' : 'FIELD';
   const key = String(formData.get('key') ?? '').trim();
   const citation = String(formData.get('citation') ?? '').trim();
+  // The necessity sets the optional flag (`optionalFlagFor` in the service).
   const rule = readRuleFields(formData);
   if (!rule.ok) return { ok: false, message: rule.message };
-  // A chosen necessity sets the optional flag itself; the older checkbox applies only without one.
-  const optional =
-    rule.fields.necessity === undefined && String(formData.get('optional') ?? '') === 'on';
   const sourceUrl = String(formData.get('sourceUrl') ?? '').trim();
   const sourceTitle = String(formData.get('sourceTitle') ?? '').trim();
   const publisher = String(formData.get('publisher') ?? '').trim();
@@ -221,7 +219,6 @@ export async function addRequirementAction(
       kind,
       ...(kind === 'FIELD' ? { fieldKey: named.key } : { docType: named.key }),
       citation,
-      ...(rule.fields.necessity === undefined ? { optional } : {}),
       ...rule.fields,
       ...(sourceUrl ? { sourceUrl } : {}),
       ...(sourceTitle ? { sourceTitle } : {}),

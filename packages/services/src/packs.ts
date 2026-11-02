@@ -10,6 +10,8 @@ import {
   isRequirementProvenance,
   ok,
   optionalFlagFor,
+  requirementNecessity,
+  requirementProvenance,
 } from '@visastack/core';
 import { type SQL, and, eq, getTableColumns, isNotNull, lte, ne, sql } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
@@ -96,6 +98,15 @@ export function usesFormat2Fields(requirements: readonly PackRequirement[]): boo
   return requirements.some(
     (r) => r.necessity != null || r.provenance != null || r.groupKey != null || r.groupMode != null,
   );
+}
+
+/**
+ * The format approval gives a set of requirements: format 2 only when a row uses a new rule
+ * field, otherwise format 1, the exact bytes every older version was approved with (ADR 0026 D2).
+ * The one rule both approval and the draft manifest download use.
+ */
+export function manifestFormatFor(requirements: readonly PackRequirement[]): ManifestFormat {
+  return usesFormat2Fields(requirements) ? 2 : 1;
 }
 
 /** UTF-16 code unit order (JavaScript's default comparison), locale independent. */
@@ -204,10 +215,19 @@ export function buildManifest(
  * positive answer is remembered: columns are never removed, and a missing answer is asked again.
  */
 const PACK_RULE_COLUMN_COUNT = 5;
+/** How long a "not yet" answer is trusted before asking again, so pages do not ask every read. */
+const MISSING_ANSWER_TTL_MS = 60_000;
 let packRuleColumnsPresent = false;
+let packRuleColumnsMissingSince: number | null = null;
 
 export async function packRuleColumnsReady(db: Db): Promise<boolean> {
   if (packRuleColumnsPresent) return true;
+  if (
+    packRuleColumnsMissingSince !== null &&
+    Date.now() - packRuleColumnsMissingSince < MISSING_ANSWER_TTL_MS
+  ) {
+    return false;
+  }
   const result = await db.execute(sql`
     select count(*)::int as present from information_schema.columns
     where table_schema = current_schema()
@@ -217,12 +237,14 @@ export async function packRuleColumnsReady(db: Db): Promise<boolean> {
   const rows = Array.isArray(result) ? result : (result as { rows?: unknown[] }).rows;
   const present = Number((rows?.[0] as { present?: unknown } | undefined)?.present ?? 0);
   packRuleColumnsPresent = present === PACK_RULE_COLUMN_COUNT;
+  packRuleColumnsMissingSince = packRuleColumnsPresent ? null : Date.now();
   return packRuleColumnsPresent;
 }
 
 /** Tests that drop the 0116 columns from their own database forget the remembered answer. */
 export function resetPackRuleColumnsCheckForTests(): void {
   packRuleColumnsPresent = false;
+  packRuleColumnsMissingSince = null;
 }
 
 function omitKeys<T extends Record<string, unknown>, K extends keyof T>(
@@ -246,7 +268,10 @@ const LEGACY_PACK_VERSION_COLUMNS = omitKeys(getTableColumns(schema.packVersions
   'manifestFormat',
 ]);
 
-async function selectRequirementRows(db: Db, where: SQL | undefined): Promise<PackRequirement[]> {
+export async function selectRequirementRows(
+  db: Db,
+  where: SQL | undefined,
+): Promise<PackRequirement[]> {
   if (await packRuleColumnsReady(db)) {
     return db.select().from(schema.packRequirements).where(where);
   }
@@ -424,6 +449,18 @@ export async function addPackVersion(
 
 async function loadVersion(db: Db, id: string): Promise<PackVersion | undefined> {
   return first(await selectPackVersionRows(db, eq(schema.packVersions.id, id)));
+}
+
+/** The row just written, read back through the reader that works before migration 0116. */
+async function reloadVersion(db: Db, id: string): Promise<PackVersion> {
+  return required(await loadVersion(db, id), 'pack version');
+}
+
+async function reloadRequirement(db: Db, id: string): Promise<PackRequirement> {
+  return required(
+    first(await selectRequirementRows(db, eq(schema.packRequirements.id, id))),
+    'requirement',
+  );
 }
 
 const GROUP_KEY_MAX_LENGTH = 80;
@@ -709,7 +746,21 @@ export async function getManifestFormat(
   db: Db,
   packVersionId: string,
 ): Promise<ManifestFormat | null> {
-  const version = await loadVersion(db, packVersionId);
+  if (!(await packRuleColumnsReady(db))) {
+    const exists = await db
+      .select({ id: schema.packVersions.id })
+      .from(schema.packVersions)
+      .where(eq(schema.packVersions.id, packVersionId))
+      .limit(1);
+    return exists.length > 0 ? 1 : null;
+  }
+  const version = first(
+    await db
+      .select({ manifestFormat: schema.packVersions.manifestFormat })
+      .from(schema.packVersions)
+      .where(eq(schema.packVersions.id, packVersionId))
+      .limit(1),
+  );
   return version ? manifestFormatOf(version) : null;
 }
 
@@ -841,9 +892,7 @@ export async function approvePackVersion(
     const problem = ruleSetProblem(requirements);
     if (problem) return err(serviceError('invalid', problem));
 
-    // Format 2 only when a row uses a new rule field; every other version stays format 1, the
-    // exact bytes every older version was approved with (ADR 0026 D2).
-    const manifestFormat: ManifestFormat = usesFormat2Fields(requirements) ? 2 : 1;
+    const manifestFormat = manifestFormatFor(requirements);
     const { manifest, checksum } = buildManifest(requirements, manifestFormat);
 
     const updated = required(
@@ -1000,8 +1049,6 @@ export async function withdrawPackVersion(
     readonly reason: string;
   },
 ): Promise<Result<PackVersion, ServiceError>> {
-  const waiting = await packStudioWaiting(db);
-  if (waiting) return waiting;
   const reason = input.reason.trim();
   if (reason.length === 0) return err(serviceError('invalid', 'a reason is required'));
   const version = await loadVersion(db, input.packVersionId);
@@ -1012,21 +1059,24 @@ export async function withdrawPackVersion(
 
   return db.transaction(async (tx) => {
     const now = new Date();
-    const updated = required(
-      first(
-        await tx
-          .update(schema.packVersions)
-          .set({
-            status: 'WITHDRAWN',
-            withdrawnAt: now,
-            withdrawnByAccountId: input.actorAccountId,
-            withdrawnReason: reason,
-            updatedAt: now,
-          })
-          .where(eq(schema.packVersions.id, input.packVersionId))
-          .returning(),
-      ),
-      'pack version',
+    const updated = await reloadVersion(
+      tx,
+      required(
+        first(
+          await tx
+            .update(schema.packVersions)
+            .set({
+              status: 'WITHDRAWN',
+              withdrawnAt: now,
+              withdrawnByAccountId: input.actorAccountId,
+              withdrawnReason: reason,
+              updatedAt: now,
+            })
+            .where(eq(schema.packVersions.id, input.packVersionId))
+            .returning({ id: schema.packVersions.id }),
+        ),
+        'pack version',
+      ).id,
     );
     await appendAuditEvent(tx, {
       eventType: 'PACK_VERSION_WITHDRAWN',
@@ -1062,27 +1112,24 @@ async function setRequirementSourceInaccessible(
   input: { readonly actorAccountId: string; readonly requirementId: string },
   sourceInaccessibleAt: Date | null,
 ): Promise<Result<PackRequirement, ServiceError>> {
-  const waiting = await packStudioWaiting(db);
-  if (waiting) return waiting;
   const requirement = first(
-    await db
-      .select()
-      .from(schema.packRequirements)
-      .where(eq(schema.packRequirements.id, input.requirementId))
-      .limit(1),
+    await selectRequirementRows(db, eq(schema.packRequirements.id, input.requirementId)),
   );
   if (!requirement) return err(serviceError('not_found', 'requirement not found'));
 
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.packRequirements)
-          .set({ sourceInaccessibleAt })
-          .where(eq(schema.packRequirements.id, input.requirementId))
-          .returning(),
-      ),
-      'requirement',
+    const updated = await reloadRequirement(
+      tx,
+      required(
+        first(
+          await tx
+            .update(schema.packRequirements)
+            .set({ sourceInaccessibleAt })
+            .where(eq(schema.packRequirements.id, input.requirementId))
+            .returning({ id: schema.packRequirements.id }),
+        ),
+        'requirement',
+      ).id,
     );
     await appendAuditEvent(tx, {
       eventType:
@@ -1230,8 +1277,6 @@ export async function publishToPublicTrust(
   db: Db,
   input: { readonly actorAccountId: string; readonly packVersionId: string },
 ): Promise<Result<PackVersion, ServiceError>> {
-  const waiting = await packStudioWaiting(db);
-  if (waiting) return waiting;
   const version = await loadVersion(db, input.packVersionId);
   if (!version) return err(serviceError('not_found', 'pack version not found'));
   if (version.status !== 'PUBLISHED') {
@@ -1256,15 +1301,18 @@ export async function publishToPublicTrust(
 
   return db.transaction(async (tx) => {
     const now = new Date();
-    const updated = required(
-      first(
-        await tx
-          .update(schema.packVersions)
-          .set({ publicTrustPublishedAt: now, updatedAt: now })
-          .where(eq(schema.packVersions.id, input.packVersionId))
-          .returning(),
-      ),
-      'pack version',
+    const updated = await reloadVersion(
+      tx,
+      required(
+        first(
+          await tx
+            .update(schema.packVersions)
+            .set({ publicTrustPublishedAt: now, updatedAt: now })
+            .where(eq(schema.packVersions.id, input.packVersionId))
+            .returning({ id: schema.packVersions.id }),
+        ),
+        'pack version',
+      ).id,
     );
     await appendAuditEvent(tx, {
       eventType: 'PACK_VERSION_PUBLIC_TRUST_PUBLISHED',
@@ -1284,8 +1332,6 @@ export async function unpublishFromPublicTrust(
   db: Db,
   input: { readonly actorAccountId: string; readonly packVersionId: string },
 ): Promise<Result<PackVersion, ServiceError>> {
-  const waiting = await packStudioWaiting(db);
-  if (waiting) return waiting;
   const version = await loadVersion(db, input.packVersionId);
   if (!version) return err(serviceError('not_found', 'pack version not found'));
   if (!version.publicTrustPublishedAt) {
@@ -1295,15 +1341,18 @@ export async function unpublishFromPublicTrust(
   }
 
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.packVersions)
-          .set({ publicTrustPublishedAt: null, updatedAt: new Date() })
-          .where(eq(schema.packVersions.id, input.packVersionId))
-          .returning(),
-      ),
-      'pack version',
+    const updated = await reloadVersion(
+      tx,
+      required(
+        first(
+          await tx
+            .update(schema.packVersions)
+            .set({ publicTrustPublishedAt: null, updatedAt: new Date() })
+            .where(eq(schema.packVersions.id, input.packVersionId))
+            .returning({ id: schema.packVersions.id }),
+        ),
+        'pack version',
+      ).id,
     );
     await appendAuditEvent(tx, {
       eventType: 'PACK_VERSION_PUBLIC_TRUST_UNPUBLISHED',
@@ -1339,21 +1388,22 @@ async function setOfficialFeeStale(
   input: { readonly actorAccountId: string; readonly packVersionId: string },
   officialFeeStaleAt: Date | null,
 ): Promise<Result<PackVersion, ServiceError>> {
-  const waiting = await packStudioWaiting(db);
-  if (waiting) return waiting;
   const version = await loadVersion(db, input.packVersionId);
   if (!version) return err(serviceError('not_found', 'pack version not found'));
 
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.packVersions)
-          .set({ officialFeeStaleAt, updatedAt: new Date() })
-          .where(eq(schema.packVersions.id, input.packVersionId))
-          .returning(),
-      ),
-      'pack version',
+    const updated = await reloadVersion(
+      tx,
+      required(
+        first(
+          await tx
+            .update(schema.packVersions)
+            .set({ officialFeeStaleAt, updatedAt: new Date() })
+            .where(eq(schema.packVersions.id, input.packVersionId))
+            .returning({ id: schema.packVersions.id }),
+        ),
+        'pack version',
+      ).id,
     );
     await appendAuditEvent(tx, {
       eventType:
@@ -1589,8 +1639,6 @@ const DIFFABLE_SCALAR_FIELDS = [
   'interpretation',
   'sourceType',
   'changeReason',
-  'necessity',
-  'provenance',
   'groupKey',
   'groupMode',
 ] as const satisfies readonly (keyof PackRequirement)[];
@@ -1598,6 +1646,9 @@ const DIFFABLE_SCALAR_FIELDS = [
 /** Every field name that differs between two requirements sharing the same natural key. Empty when they are equivalent. */
 function changedRequirementFields(from: PackRequirement, to: PackRequirement): string[] {
   const changed: string[] = DIFFABLE_SCALAR_FIELDS.filter((field) => from[field] !== to[field]);
+  // A legacy row and a row that spells out the same meaning are not a change (UMPE P1).
+  if (requirementNecessity(from) !== requirementNecessity(to)) changed.push('necessity');
+  if (requirementProvenance(from) !== requirementProvenance(to)) changed.push('provenance');
   if (JSON.stringify(from.condition) !== JSON.stringify(to.condition)) changed.push('condition');
   const fromObserved = from.observedDate?.getTime() ?? null;
   const toObserved = to.observedDate?.getTime() ?? null;

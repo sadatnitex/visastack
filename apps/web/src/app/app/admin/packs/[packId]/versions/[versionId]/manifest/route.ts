@@ -2,8 +2,8 @@ import {
   buildManifest,
   getPackVersion,
   listRequirements,
+  manifestFormatFor,
   manifestFormatOf,
-  usesFormat2Fields,
 } from '@visastack/services';
 import { isPlatformAdmin } from '../../../../../../../../lib/admin';
 import { withSession } from '../../../../../../../../lib/session';
@@ -29,11 +29,7 @@ export async function GET(
     if (!version) return 'missing' as const;
     const requirements = await listRequirements(db, versionId);
     const format =
-      version.status === 'DRAFT'
-        ? usesFormat2Fields(requirements)
-          ? 2
-          : 1
-        : manifestFormatOf(version);
+      version.status === 'DRAFT' ? manifestFormatFor(requirements) : manifestFormatOf(version);
     if (format === null) return 'unknown_format' as const;
     return buildManifest(requirements, format).manifest;
   });

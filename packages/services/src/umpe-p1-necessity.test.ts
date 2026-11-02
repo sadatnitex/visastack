@@ -32,7 +32,13 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
-import { attachPackVersion, computeReadiness, createMission } from './missions';
+import {
+  attachPackVersion,
+  computeReadiness,
+  createMission,
+  createTask,
+  snapshotMission,
+} from './missions';
 import {
   type PackRequirement,
   type RequirementInput,
@@ -41,12 +47,14 @@ import {
   approvePackVersion,
   buildManifest,
   createPack,
+  diffPackVersions,
   getPackVersion,
   listPackVersions,
   listRequirements,
   publishPackVersion,
   resetPackRuleColumnsCheckForTests,
   verifyPackChecksum,
+  withdrawPackVersion,
 } from './packs';
 import { editFact, registerFieldDefinition } from './profile';
 
@@ -352,6 +360,35 @@ describe('UMPE P1: authoring and approval', () => {
   );
 
   it(
+    'a version diff treats a spelled-out Mandatory Official item as the same as a legacy one',
+    async () => {
+      const legacy = await draftWith(db, actor, [FIELD('a'), FIELD('b', { optional: true })]);
+      const pack = (await getPackVersion(db, legacy))?.packId ?? '';
+      const next = await addPackVersion(db, { actorAccountId: actor, packId: pack });
+      if (!isOk(next)) throw new Error('version');
+      for (const row of [
+        FIELD('a', { necessity: 'MANDATORY', provenance: 'OFFICIAL' }),
+        FIELD('b', { necessity: 'RECOMMENDED' }),
+      ]) {
+        const added = await addRequirement(db, {
+          actorAccountId: actor,
+          packVersionId: next.value.id,
+          citation: 'Synthetic rule',
+          ...row,
+        });
+        if (!isOk(added)) throw new Error('requirement');
+      }
+      const diff = await diffPackVersions(db, legacy, next.value.id);
+      if (!isOk(diff)) throw new Error('diff');
+      const byKey = Object.fromEntries(diff.value.entries.map((e) => [e.key, e.changedFields]));
+      expect(byKey['FIELD:a']).toEqual([]);
+      // A legacy optional item read as Optional is really changed when it becomes Recommended.
+      expect(byKey['FIELD:b']).toEqual(['necessity']);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
     'a version using a new field is approved as format 2 and detects tampering with it',
     async () => {
       const versionId = await draftWith(db, actor, [
@@ -468,7 +505,21 @@ describe('UMPE P1: readiness with necessity and alternatives', () => {
       expect(one.overallState).toBe('READY_FOR_APPLICANT_REVIEW');
       // The other alternative is not needed now, so it is never a gap.
       const bank = one.requirementResults.find((r) => r.key === 'funds.bank');
-      expect(bank).toMatchObject({ state: 'ATTENTION', optional: true, groupKey: 'funds' });
+      expect(bank).toMatchObject({
+        state: 'ATTENTION',
+        optional: true,
+        groupKey: 'funds',
+        coveredByAlternative: true,
+      });
+      // A snapshot of the case reads the group the same way as the live readiness.
+      const snapshot = await snapshotMission(db, { actorAccountId: actor, missionId });
+      if (!isOk(snapshot)) throw new Error('snapshot');
+      const mapped = (
+        snapshot.value.content as {
+          requirementMapping: { key: string; resultState: string; optional: boolean }[];
+        }
+      ).requirementMapping.find((m) => m.key === 'funds.bank');
+      expect(mapped).toMatchObject({ resultState: 'ATTENTION', optional: true });
 
       // Both alternatives present still counts the group once.
       await fact(db, actor, applicantId, 'funds.bank', 'Synthetic Bank');
@@ -663,7 +714,23 @@ describe('UMPE P1: before migration 0116 runs', () => {
         'ATTENTION',
         'SATISFIED',
       ]);
+      // A case action on one checklist item still works.
+      const task = await createTask(db, {
+        actorAccountId: actor,
+        missionId,
+        description: 'Synthetic task',
+        packRequirementId: result.requirementResults[0]?.packRequirementId ?? '',
+      });
+      expect(isOk(task)).toBe(true);
+      // So do the controls for a live version: withdrawing it for cause.
+      const withdrawn = await withdrawPackVersion(db, {
+        actorAccountId: actor,
+        packVersionId: versionId,
+        reason: 'Synthetic source turned out wrong',
+      });
+      expect(isOk(withdrawn) && withdrawn.value.status).toBe('WITHDRAWN');
 
+      // Authoring waits for the migration.
       const draft = await addPackVersion(db, {
         actorAccountId: actor,
         packId: (await getPackVersion(db, versionId))?.packId ?? '',
