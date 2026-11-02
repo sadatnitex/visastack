@@ -95,11 +95,16 @@ describe('Recover a Payment (owner tool)', () => {
       [{ planKey: 'Not A Plan!' }, 'planKey'],
       [{ transactionId: 'TX-123' }, 'transactionId'],
     ];
+    const replies = new Set<string | undefined>();
     for (const [fields, field] of cases) {
       const result = await recoverTravellerPaymentAction(INITIAL, form(fields));
       expect(result).toMatchObject({ ok: false, field });
       expect(result.values).toMatchObject(fields);
+      replies.add(result.replyId);
     }
+    // Every reply is new, so the form draws its boxes again with what was typed.
+    expect(replies.size).toBe(cases.length);
+    expect(replies.has(undefined)).toBe(false);
     expect(mocks.staffPrincipal).not.toHaveBeenCalled();
     expect(mocks.recoverPersonPayment).not.toHaveBeenCalled();
   });

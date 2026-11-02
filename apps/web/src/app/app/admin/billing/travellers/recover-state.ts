@@ -9,6 +9,11 @@ export interface RecoverFormState {
   readonly field?: string;
   /** What was typed, shown again after a refusal; empty once a payment was recovered. */
   readonly values?: Readonly<Record<string, string>>;
+  /**
+   * New with every reply: the boxes are drawn again from `values`, so the browser's reset after a
+   * reply never empties what was typed.
+   */
+  readonly replyId?: string;
 }
 
 export const RECOVER_NO_REPLY: RecoverFormState = { ok: true, message: '' };

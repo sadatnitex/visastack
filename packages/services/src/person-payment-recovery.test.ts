@@ -262,7 +262,7 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
       stepUpSatisfied: true,
     };
     const first = await recoverPersonPayment(db, onePort(flaky), staff, input);
-    expect(isErr(first) && first.error.message).toContain('Send Recover Payment again');
+    expect(isErr(first) && first.error.message).toContain('Try Recover Payment again');
     const [waiting] = await db
       .select()
       .from(personPaymentAttempts)

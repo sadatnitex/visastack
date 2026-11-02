@@ -48,13 +48,13 @@ const BAD_ID = 'That is not a VisaStack transaction id. It starts with VSP.';
 const GATEWAY_DOWN = 'The payment gateway did not answer. Try again in a few minutes.';
 const NOT_PAID =
   'The payment gateway does not show this transaction as paid, so nothing was recorded.';
-const ALREADY = 'This transaction is already recorded, so nothing new was recorded.';
+const ALREADY = 'This payment is already recorded. Nothing new was recorded.';
 const COVERED = 'This traveller already has a paid plan now, so nothing was recorded.';
 const NOT_TRAVELLER_PLAN = 'Choose a paid traveller plan.';
 const AMOUNT = 'The amount paid is not a price this plan has had. Check the plan they paid for.';
-const NO_ACCOUNT = 'No traveller has that code. Check the code in the restore report.';
+const NO_ACCOUNT = 'No traveller has that account id. Check it in the restore report.';
 const NOT_SETTLED =
-  'The payment gateway has not confirmed it yet. Send Recover Payment again in a few minutes to finish: nothing is recorded twice.';
+  'The payment gateway has not confirmed it yet. Try Recover Payment again in a few minutes. Nothing is recorded twice.';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { formatAmountForCurrency, recoverPersonPayment } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -43,8 +44,13 @@ export async function recoverTravellerPaymentAction(
   formData: FormData,
 ): Promise<RecoverFormState> {
   const values = Object.fromEntries(RECOVER_FIELDS.map((name) => [name, text(formData, name)]));
-  const fail = (message: string, field?: string): RecoverFormState =>
-    field === undefined ? { ok: false, message, values } : { ok: false, message, field, values };
+  const fail = (message: string, field?: string): RecoverFormState => ({
+    ok: false,
+    message,
+    values,
+    replyId: randomUUID(),
+    ...(field === undefined ? {} : { field }),
+  });
   const accountId = accountIdOf(text(formData, 'code'));
   if (!accountId) {
     return fail("Enter the traveller's account id from the restore report.", 'code');
@@ -94,5 +100,5 @@ export async function recoverTravellerPaymentAction(
     } satisfies RecoverFormState;
   });
   if (ran) revalidatePath(PAGE);
-  return result;
+  return { ...result, replyId: randomUUID() };
 }

@@ -53,10 +53,12 @@ export function RecoverPaymentForm({
         }
       }}
     >
-      <div key={state.ok && state.message ? state.message : 'form'} className="form-grid">
+      {/* A reply draws the boxes again from what it sent back, so the browser's reset after a
+          reply never empties what was typed. */}
+      <div key={state.replyId ?? 'form'} className="form-grid">
         <div className="field-row">
           <label className="field-label" htmlFor={`${ID}-code`}>
-            Traveller Code
+            Traveller Account Id
           </label>
           <input
             id={`${ID}-code`}
@@ -71,7 +73,7 @@ export function RecoverPaymentForm({
             {...field('code', `${ID}-code-hint`)}
           />
           <p id={`${ID}-code-hint`} className="muted u-fs-085">
-            The traveller's account id from the restore report, with or without dashes.
+            From the restore report, with or without dashes.
           </p>
         </div>
         <div className="field-row">

@@ -411,7 +411,7 @@ describe('Platform > Traveller Billing (ADR 0025 T6b)', () => {
     const html = await render();
     const text = textOf(html);
     expect(text).toContain('Recover a Payment');
-    expect(text).toContain('Traveller Code');
+    expect(text).toContain('Traveller Account Id');
     expect(text).toContain('Plan They Paid For');
     expect(text).toContain('Transaction Id');
     expect(html).toContain(
