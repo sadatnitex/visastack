@@ -34,6 +34,12 @@ export default async function TripStartPage() {
           </p>
         )}
       </article>
+      {travellers.length > 1 ? (
+        <p className="muted u-fs-085">
+          Travelling together? <Link href="/app/trips/new">Start a Group Trip</Link> to keep
+          everyone&apos;s cases together on one page.
+        </p>
+      ) : null}
     </>
   );
 }

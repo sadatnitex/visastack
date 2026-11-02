@@ -120,6 +120,9 @@ export interface AddTravellerOutcome {
   readonly existingCase: boolean;
   /** True when the traveller was already on the trip (nothing changed). */
   readonly alreadyOnTrip: boolean;
+  /** The trip's own destination and purpose, as the traveller's case was opened with them. */
+  readonly destination: string;
+  readonly purpose: string;
 }
 
 type Trip = typeof schema.umpeTrips.$inferSelect;
@@ -238,7 +241,13 @@ async function linkTraveller(
   if (problem) return err(serviceError('forbidden', AUTHORITY_WORDS[problem]));
   const already = await liveTraveller(proof.tx, trip.id, proof.applicant.id);
   if (already) {
-    return ok({ missionId: already.missionId, existingCase: true, alreadyOnTrip: true });
+    return ok({
+      missionId: already.missionId,
+      existingCase: true,
+      alreadyOnTrip: true,
+      destination: trip.destination,
+      purpose: trip.purpose,
+    });
   }
   if ((await liveTravellerCount(proof.tx, trip.id)) >= TRIP_MAX_TRAVELLERS) {
     return err(serviceError('invalid', `A trip holds up to ${TRIP_MAX_TRAVELLERS} travellers.`));
@@ -266,6 +275,8 @@ async function linkTraveller(
         missionId: opened.value.missionId,
         existingCase: opened.value.existing,
         alreadyOnTrip: true,
+        destination: trip.destination,
+        purpose: trip.purpose,
       });
     }
     // The existing "Family Trip Label" keeps working: an empty label is filled, a chosen one kept.
@@ -299,6 +310,8 @@ async function linkTraveller(
       missionId: opened.value.missionId,
       existingCase: opened.value.existing,
       alreadyOnTrip: false,
+      destination: trip.destination,
+      purpose: trip.purpose,
     });
   });
 }
