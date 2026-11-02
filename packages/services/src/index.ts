@@ -2535,8 +2535,8 @@ export {
   collectionResponseAccessProblem,
 } from './access/collection-response-access';
 export {
-  type CollectionResponsePreviewInput,
-  previewCollectionResponseVersion,
+  type CollectionResponseDownloadInput,
+  downloadCollectionResponseVersion,
 } from './documents';
 export {
   type DocumentCandidate,
@@ -2558,6 +2558,7 @@ export {
   type SubmittedResponse,
   listOwnCollectionResponses,
   openCollectionResponseDesk,
+  protectedDetailsStepUp,
   proposeCollectionResponse,
   readCollectionResponse,
   submitCollectionResponse,

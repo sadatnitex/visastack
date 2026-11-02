@@ -1,5 +1,6 @@
 import {
   RESPONSE_CONSENT_TEXT,
+  RESPONSE_CONSENT_VERSION,
   accountPrincipal,
   listApplicants,
   openCollectionResponseDesk,
@@ -40,7 +41,10 @@ type Loaded =
       readonly person: { readonly id: string; readonly displayName: string };
       readonly items: readonly ItemView[];
       readonly otherPeople: boolean;
-    };
+      readonly linkId: string;
+      readonly revisionId: string;
+    }
+  | { readonly state: 'not_reviewed'; readonly heading: Heading };
 
 interface Heading {
   readonly agency: { readonly name: string; readonly accentColor: string | null } | null;
@@ -69,19 +73,27 @@ export default async function CollectAccountPage({
   if (!link) return <ClosedLink />;
 
   const loaded: Loaded = await withSession(async ({ db, accountId, self }) => {
-    const desk = await openCollectionResponseDesk(db, link, self);
-    if (!desk.ok) return { state: 'closed' } as const;
+    const desk = await openCollectionResponseDesk(db, link.proof, self);
+    // The cookie is bound to the link it was made for: any other link reads as closed.
+    if (!desk.ok || desk.value.linkId !== link.linkId) return { state: 'closed' } as const;
     const heading: Heading = {
       agency: desk.value.agency,
       destination: desk.value.destination,
       purpose: desk.value.purpose,
       dueAt: desk.value.dueAt,
     };
+    if (!desk.value.agencyReviewed) return { state: 'not_reviewed', heading } as const;
     const people = (await listApplicants(db, accountId)).map((p) => ({
       id: p.id,
       displayName: p.displayName,
     }));
-    const personId = personParam ?? (people.length === 1 ? (people[0]?.id ?? null) : null);
+    // Only a person in everyday use is offered (never one archived or in Recently Deleted).
+    const personId =
+      personParam !== null
+        ? (people.find((p) => p.id === personParam)?.id ?? null)
+        : people.length === 1
+          ? (people[0]?.id ?? null)
+          : null;
     if (!personId) return { state: 'choose', heading, people } as const;
     const person = await requireAccess(
       db,
@@ -94,7 +106,7 @@ export default async function CollectAccountPage({
       return { state: 'choose', heading, people } as const;
     }
     const encryption = createKeyManagementPort();
-    const proposal = await proposeCollectionResponse(db, link, person.value, {
+    const proposal = await proposeCollectionResponse(db, link.proof, person.value, {
       ...(encryption ? { encryption } : {}),
     });
     if (!proposal.ok) return { state: 'closed' } as const;
@@ -104,6 +116,8 @@ export default async function CollectAccountPage({
       person: proposal.value.person,
       items: itemViews(proposal.value.proposals, desk.value.agency?.name ?? null),
       otherPeople: people.length > 1,
+      linkId: proposal.value.desk.linkId,
+      revisionId: proposal.value.desk.revisionId,
     } as const;
   });
 
@@ -111,7 +125,17 @@ export default async function CollectAccountPage({
   return (
     <section className="section container collect-page stack">
       <RequestHeading heading={loaded.heading} />
-      {loaded.state === 'choose' ? (
+      {loaded.state === 'not_reviewed' ? (
+        <div className="card">
+          <div className="card-body stack">
+            <h2>This Agency Is Not Reviewed Yet</h2>
+            <p>
+              VisaStack has not finished reviewing the agency that sent this request, so nothing can
+              be shared with it yet. Nothing has been shared. Try again later, or ask the agency.
+            </p>
+          </div>
+        </div>
+      ) : loaded.state === 'choose' ? (
         <ChoosePerson people={loaded.people} />
       ) : (
         <>
@@ -130,9 +154,13 @@ export default async function CollectAccountPage({
             </div>
           </div>
           <ResponseForm
+            key={loaded.person.id}
             personId={loaded.person.id}
+            linkId={loaded.linkId}
+            revisionId={loaded.revisionId}
             items={loaded.items}
             consentText={RESPONSE_CONSENT_TEXT}
+            consentVersion={RESPONSE_CONSENT_VERSION}
           />
           <p className="muted u-fs-085">
             Something missing from your record? <Link href="/app">Add It to Your Record</Link>, then

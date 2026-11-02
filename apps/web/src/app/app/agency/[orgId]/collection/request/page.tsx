@@ -6,19 +6,23 @@ import {
 } from '@visastack/core';
 import {
   AGENCY_ITEM_NECESSITIES,
+  type AgencyResponseView,
   COLLECTION_STATUS_LABELS,
   type CollectionItem,
   type CollectionLinkState,
   agencyCollectionPrincipal,
   getCollectionRequest,
   listCollectionPackChoices,
+  protectedDetailsStepUp,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { StatusBadge } from '../../../../../../components/ui';
 import { formatDateOnly, formatTimestampDate } from '../../../../../../lib/format-date';
+import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
+import { establishStepUpProof } from '../../../../../../lib/step-up';
 import {
   AddItemForm,
   EmailLinkForm,
@@ -80,10 +84,12 @@ export default async function CollectionRequestPage({
   readonly searchParams: Promise<{
     readonly id?: string | string[];
     readonly file?: string | string[];
+    readonly details?: string | string[];
   }>;
 }) {
   const { orgId } = await params;
-  const { id, file } = await searchParams;
+  const { id, file, details } = await searchParams;
+  const revealId = typeof details === 'string' ? details : null;
   const requestId = typeof id === 'string' ? id : '';
   const data = await withSession(async ({ db, accountId }) => {
     const scope = await agencyCollectionPrincipal(db, accountId, orgId);
@@ -99,13 +105,36 @@ export default async function CollectionRequestPage({
           requestId,
           collectionPackTerms(detail.value),
         );
-    const responses =
-      detail.value.revisions.length > 0
-        ? await loadCollectionResponses(db, scope.value, requestId)
-        : [];
-    return { detail: detail.value, choices: choices?.ok ? choices.value : [], responses };
+    let responses: AgencyResponseView[] = [];
+    let reauth: string | null = null;
+    if (detail.value.revisions.length > 0) {
+      try {
+        // Protected details open only after a fresh identity check, bound to that one answer.
+        const step = revealId ? protectedDetailsStepUp({ accountId, responseId: revealId }) : null;
+        const proof = step
+          ? await establishStepUpProof(
+              step,
+              `/app/agency/${orgId}/collection/request?id=${encodeURIComponent(requestId)}&details=${encodeURIComponent(step.resourceId)}`,
+            )
+          : null;
+        if (proof?.kind === 'reauth_required') reauth = proof.reauthUrl;
+        responses = await loadCollectionResponses(
+          db,
+          scope.value,
+          requestId,
+          step && proof?.kind === 'proof'
+            ? { responseId: step.resourceId, stepUp: proof.proof }
+            : undefined,
+        );
+      } catch (error) {
+        // The answers never take the request page down with them.
+        reportServerError('collectionResponses', error, { step: 'answers failed' });
+      }
+    }
+    return { detail: detail.value, choices: choices?.ok ? choices.value : [], responses, reauth };
   });
   if (!data) notFound();
+  if (data.reauth) redirect(data.reauth);
   const { detail, choices, responses } = data;
   const editable = detail.storedStatus === 'DRAFT' || detail.storedStatus === 'SENT';
   const items = detail.draftItems ?? [];

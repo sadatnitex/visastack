@@ -7,12 +7,10 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { StatusBadge } from '../../../../components/ui';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { destinationName } from '../../../app/agency/[orgId]/collection/terms';
-import { collectSwitchOn } from '../../load';
 import { WithdrawAnswerButton } from '../response-form';
 
 export const metadata: Metadata = {
@@ -46,12 +44,22 @@ function countsLine(answer: OwnCollectionResponse): string {
 export default async function YourAnswersPage({
   searchParams,
 }: {
-  readonly searchParams?: Promise<{ readonly sent?: string | string[] }>;
+  readonly searchParams?: Promise<{
+    readonly sent?: string | string[];
+    readonly withdrawn?: string | string[];
+  }>;
 }) {
-  if (!collectSwitchOn()) notFound();
-  const sent = (await searchParams)?.sent === '1';
+  // Always open, whatever the switch says: what was shared can always be seen and withdrawn.
+  const query = await searchParams;
+  const sent = query?.sent === '1';
+  const withdrawn = query?.withdrawn === '1';
   const people: PersonAnswers[] = await withSession(async ({ db, accountId }) => {
-    const owned = await listApplicants(db, accountId);
+    // Every person, archived and Recently Deleted too: an answer stays visible and withdrawable.
+    const owned = [
+      ...(await listApplicants(db, accountId)),
+      ...(await listApplicants(db, accountId, { view: 'archived' })),
+      ...(await listApplicants(db, accountId, { view: 'recentlyDeleted' })),
+    ];
     const found: PersonAnswers[] = [];
     for (const person of owned) {
       const proof = await requireAccess(
@@ -83,6 +91,11 @@ export default async function YourAnswersPage({
           it.
         </output>
       ) : null}
+      {withdrawn ? (
+        <output className="notice notice-ok">
+          Withdrawn. The agency can no longer open anything in that answer.
+        </output>
+      ) : null}
       {people.length === 0 ? (
         <p className="muted">You have not answered any agency requests yet.</p>
       ) : (
@@ -98,7 +111,7 @@ export default async function YourAnswersPage({
                 {person.answers.map((answer) => (
                   <li key={answer.id} className="collect-response-answer">
                     <p>
-                      <strong>{answer.agencyName}</strong>, for{' '}
+                      <strong>{answer.agencyName ?? 'An Agency Not Yet Reviewed'}</strong>, for{' '}
                       {destinationName(answer.destination)} (Request Version {answer.revisionNo})
                     </p>
                     <p className="u-fs-085">
@@ -115,7 +128,7 @@ export default async function YourAnswersPage({
                       <WithdrawAnswerButton
                         personId={person.personId}
                         responseId={answer.id}
-                        agencyName={answer.agencyName}
+                        agencyName={answer.agencyName ?? 'The agency'}
                       />
                     )}
                   </li>

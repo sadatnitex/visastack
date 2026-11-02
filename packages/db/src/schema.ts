@@ -5737,6 +5737,8 @@ export const agencyCollectionResponses = pgTable(
     // What was answered, as the traveller saw it, so their own list never reads the request side.
     destination: text('destination').notNull(),
     revisionNo: integer('revision_no').notNull(),
+    // The person's name as it was when they answered: a later rename is never shown to the agency.
+    personName: text('person_name').notNull(),
     consentVersion: text('consent_version').notNull(),
     contentSha256: text('content_sha256').notNull(),
     submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
@@ -5755,6 +5757,10 @@ export const agencyCollectionResponses = pgTable(
     check(
       'agency_collection_responses_consent_cap',
       sql`char_length(${table.consentVersion}) between 1 and 64`,
+    ),
+    check(
+      'agency_collection_responses_person_name_cap',
+      sql`char_length(${table.personName}) between 1 and 200`,
     ),
     check(
       'agency_collection_responses_withdrawal_pair',
@@ -5782,17 +5788,17 @@ export const agencyCollectionResponseItems = pgTable(
     factVersionId: uuid('fact_version_id').references(() => factVersions.id, {
       onDelete: 'cascade',
     }),
+    // A document line's name as it was when sent (the agency's file name); null otherwise.
+    title: text('title'),
   },
   (table) => [
     index('agency_collection_response_items_response_idx').on(table.responseId),
     index('agency_collection_response_items_version_idx').on(table.documentVersionId),
     index('agency_collection_response_items_fact_version_idx').on(table.factVersionId),
-    unique('agency_collection_response_items_one_line').on(
-      table.responseId,
-      table.itemId,
-      table.documentVersionId,
-      table.factVersionId,
-    ),
+    // Nulls count as equal, so a Still Missing line or a repeated choice can never be added twice.
+    unique('agency_collection_response_items_one_line')
+      .on(table.responseId, table.itemId, table.documentVersionId, table.factVersionId)
+      .nullsNotDistinct(),
     check(
       'agency_collection_response_items_kind_known',
       sql`${table.kind} in ('DOCUMENT', 'FIELD', 'MISSING')`,

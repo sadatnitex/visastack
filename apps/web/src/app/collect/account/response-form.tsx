@@ -27,12 +27,18 @@ function initialChoices(items: readonly ItemView[]): Record<string, readonly str
  */
 export function ResponseForm({
   personId,
+  linkId,
+  revisionId,
   items,
   consentText,
+  consentVersion,
 }: {
   readonly personId: string;
+  readonly linkId: string;
+  readonly revisionId: string;
   readonly items: readonly ItemView[];
   readonly consentText: string;
+  readonly consentVersion: string;
 }) {
   const [state, formAction, pending] = useActionState(submitResponseAction, INITIAL);
   const [chosen, setChosen] = useState(() => initialChoices(items));
@@ -49,8 +55,19 @@ export function ResponseForm({
   const missing = items.filter((item) => (chosen[item.id] ?? []).length === 0).length;
 
   return (
-    <form ref={form} action={formAction} className="stack">
+    <form
+      ref={form}
+      action={formAction}
+      className="stack"
+      // React resets a form after every send, accepted or refused. Here that would put the ticks
+      // back to the first proposal while the screen still shows the person's own choices, so a
+      // refused send could share something they had unticked. The person's choices always stand.
+      onReset={(event) => event.preventDefault()}
+    >
       <input type="hidden" name="personId" value={personId} />
+      <input type="hidden" name="linkId" value={linkId} />
+      <input type="hidden" name="revisionId" value={revisionId} />
+      <input type="hidden" name="consentVersion" value={consentVersion} />
       <ol className="collect-response-items">
         {items.map((item) => {
           const ticked = new Set(chosen[item.id] ?? []);

@@ -1,11 +1,11 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import { appendAuditEvent } from '../audit';
 import { type Db, first, schema } from '../db';
 import { type ServiceError, serviceError } from '../errors';
 import { isUuid } from '../lifecycle/foundation/ids';
-import { OPEN_ORGANIZATION_STATUSES } from '../organization-admission';
 import { getOrganization, isOrgAdmin } from '../organizations';
 import { agencyCollectionRequestsEnabled } from '../umpe-collection-request-switch';
+import { type ResponseLine, responseContentSha256 } from '../umpe-collection-response-evidence';
 import { type AgencyCollectionScope, agencyCollectionScopeProblem } from './collection-scope';
 
 /**
@@ -39,6 +39,17 @@ interface AccessFields {
 /** Not found, whatever the reason: a refused lookup must look exactly like a missing one. */
 function missing(): ServiceError {
   return serviceError('not_found', 'no such response');
+}
+
+/**
+ * Only an agency VisaStack has reviewed (ACTIVE) receives or reads a traveller's answer, the rule
+ * every grant follows (`organization_not_active`). An agency still awaiting review may send a
+ * request, but nothing of anyone's record reaches it until it is reviewed.
+ */
+export async function agencyMayReceiveAnswers(db: Db, organizationId: string): Promise<boolean> {
+  if (!isUuid(organizationId)) return false;
+  const organization = await getOrganization(db, organizationId);
+  return organization?.status === 'ACTIVE';
 }
 
 export class CollectionResponseAccess {
@@ -117,6 +128,7 @@ export async function collectionResponseAccesses(
 ): Promise<CollectionResponseAccess[]> {
   if (agencyCollectionScopeProblem(scope)) return [];
   if (!isUuid(requestId) || !(await collectionResponsesPresent(db))) return [];
+  if (!(await agencyMayReceiveAnswers(db, scope.organizationId))) return [];
   const responses = schema.agencyCollectionResponses;
   const rows = await db
     .select({
@@ -153,6 +165,9 @@ export async function collectionResponseAccess(
 ): Promise<{ ok: true; value: CollectionResponseAccess } | { ok: false; error: ServiceError }> {
   if (agencyCollectionScopeProblem(scope)) return { ok: false, error: missing() };
   if (!isUuid(responseId) || !(await collectionResponsesPresent(db))) {
+    return { ok: false, error: missing() };
+  }
+  if (!(await agencyMayReceiveAnswers(db, scope.organizationId))) {
     return { ok: false, error: missing() };
   }
   const responses = schema.agencyCollectionResponses;
@@ -217,10 +232,62 @@ export function responseIdFromPurpose(purpose: string): string | null {
 }
 
 /**
+ * Whether a response's stored lines still make exactly the content it was submitted with. A line
+ * added after submission, or one removed with its document, changes the fingerprint, and a changed
+ * answer releases nothing: no file link is minted or honoured for it.
+ */
+export async function collectionResponseIntact(db: Db, responseId: string): Promise<boolean> {
+  if (!isUuid(responseId)) return false;
+  const responses = schema.agencyCollectionResponses;
+  const response = first(
+    await db
+      .select({
+        requestId: responses.requestId,
+        revisionId: responses.revisionId,
+        applicantId: responses.applicantId,
+        consentVersion: responses.consentVersion,
+        contentSha256: responses.contentSha256,
+      })
+      .from(responses)
+      .where(eq(responses.id, responseId))
+      .limit(1),
+  );
+  if (!response) return false;
+  const rows = await db
+    .select()
+    .from(schema.agencyCollectionResponseItems)
+    .where(eq(schema.agencyCollectionResponseItems.responseId, responseId));
+  return responseContentSha256({ ...response, lines: rows.map(lineOf) }) === response.contentSha256;
+}
+
+/** A stored line as the content fingerprint reads it (title is presentation, never content). */
+export function lineOf(
+  row: typeof schema.agencyCollectionResponseItems.$inferSelect,
+): ResponseLine {
+  if (row.kind === 'DOCUMENT' && row.documentId && row.documentVersionId) {
+    return {
+      itemId: row.itemId,
+      kind: 'DOCUMENT',
+      documentId: row.documentId,
+      documentVersionId: row.documentVersionId,
+    };
+  }
+  if (row.kind === 'FIELD' && row.factId && row.factVersionId) {
+    return {
+      itemId: row.itemId,
+      kind: 'FIELD',
+      factId: row.factId,
+      factVersionId: row.factVersionId,
+    };
+  }
+  return { itemId: row.itemId, kind: 'MISSING' };
+}
+
+/**
  * Re-checked when a response file link is opened (the serving route, through
  * `recheckDocumentAccess`), against live state only: the switch is on, the account is still an
- * active OWNER or ADMIN of an open agency, the response is that agency's and not withdrawn, and
- * it still lists exactly this document version. Anything else is refused with a reason that is
+ * active OWNER or ADMIN of an agency VisaStack has reviewed, the response is that agency's, not
+ * withdrawn and unchanged since it was sent, and it still lists exactly this document version. Anything else is refused with a reason that is
  * logged, never shown.
  */
 export async function collectionResponseStillCovers(
@@ -246,9 +313,11 @@ export async function collectionResponseStillCovers(
   if (!(await isOrgAdmin(db, fields.accountId, fields.organizationId))) {
     return { allowed: false, reason: 'not_an_agency_admin' };
   }
-  const organization = await getOrganization(db, fields.organizationId);
-  if (!organization || !OPEN_ORGANIZATION_STATUSES.includes(organization.status)) {
-    return { allowed: false, reason: 'organization_not_open' };
+  if (!(await agencyMayReceiveAnswers(db, fields.organizationId))) {
+    return { allowed: false, reason: 'organization_not_active' };
+  }
+  if (!(await collectionResponseIntact(db, fields.responseId))) {
+    return { allowed: false, reason: 'response_changed' };
   }
   const responses = schema.agencyCollectionResponses;
   const items = schema.agencyCollectionResponseItems;
@@ -273,13 +342,17 @@ export async function collectionResponseStillCovers(
   return { allowed: true };
 }
 
+/** How far back a wrong-account refusal for the same account and link counts as already recorded. */
+const WRONG_ACCOUNT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 /**
  * Whether this signed-in account may answer a request link. A link with no recipient address may be
  * answered by whoever holds it and signs in (the agency handed it out). A link with one may be
  * answered only by an account with exactly that address, compared as account addresses are stored
  * (trimmed, lower case), the rule client invitations follow. A wrong account gets the same answer
  * as a closed link, and the refusal is recorded once per account and link (who, never what), so a
- * reload or a retry does not fill the audit trail. Lives here with the other gate decisions,
+ * reload or a retry does not fill the audit trail (looked up within the link's lifetime, on the
+ * trail's time index). Lives here with the other gate decisions,
  * because it decides who may act on the link.
  */
 export async function collectionRecipientAllowed(
@@ -309,6 +382,8 @@ export async function collectionRecipientAllowed(
         .from(schema.auditEvents)
         .where(
           and(
+            // The time index bounds the look: a link lives 14 days, so 30 days covers its life.
+            gt(schema.auditEvents.occurredAt, new Date(Date.now() - WRONG_ACCOUNT_WINDOW_MS)),
             eq(schema.auditEvents.eventType, 'AGENCY_COLLECTION_RESPONSE_WRONG_ACCOUNT'),
             eq(schema.auditEvents.actorAccountId, input.accountId),
             eq(schema.auditEvents.resourceId, input.linkId),

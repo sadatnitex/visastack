@@ -27,7 +27,7 @@ import type { Db } from './db';
 import { readDocumentAccessToken } from './document-access-token';
 import {
   addDocumentVersion,
-  previewCollectionResponseVersion,
+  downloadCollectionResponseVersion,
   recheckDocumentAccess,
   registerDocument,
 } from './documents';
@@ -38,6 +38,7 @@ import { acceptGrant, createGrant } from './sharing';
 import { issueStepUpAssurance } from './step-up';
 import type { AccessRef, IssueReadRefInput, StoragePort } from './storage';
 import {
+  createCollectionLink,
   createCollectionRequest,
   endCollectionRequest,
   issueCollectionRequest,
@@ -53,6 +54,7 @@ import {
   listOwnCollectionResponses,
   openCollectionResponseDesk,
   proposeCollectionResponse,
+  protectedDetailsStepUp,
   readCollectionResponse,
   submitCollectionResponse,
   withdrawCollectionResponse,
@@ -314,20 +316,44 @@ describe('a signed-in traveller answers an agency request from their own record 
     return first;
   }
 
+  function adminStepUp(action: 'DOWNLOAD_ORIGINAL' | 'VIEW_METADATA', resourceId: string) {
+    const request = { accountId: adminId, action, resourceId };
+    const proof = verifyStepUp(
+      STEP_UP_SECRET,
+      issueStepUpAssurance(STEP_UP_SECRET, request),
+      request,
+    );
+    if (!proof) throw new Error('admin step up');
+    return proof;
+  }
+
+  /** A file link for one version through the agency's own path, with a fresh identity check. */
+  async function agencyLink(access: CollectionResponseAccess, documentVersionId: string) {
+    return downloadCollectionResponseVersion(db, storage, access, {
+      documentVersionId,
+      accessTokenSecret: SECRET,
+      stepUp: adminStepUp('DOWNLOAD_ORIGINAL', documentVersionId),
+    });
+  }
+
+  /** The two tokens of a link, as the serving route reads them. */
+  function linkParts(url: string) {
+    const parsed = new URL(url);
+    const fields = readDocumentAccessToken(parsed.searchParams);
+    if (!fields) throw new Error('no access token on the link');
+    const { sig: _sig, exp: _exp, ...rest } = fields;
+    return { fields: rest, objectKey: decodeURIComponent(parsed.pathname.slice(1)) };
+  }
+
   /** The agency's own read path for one file version, through to the serving route's recheck. */
   async function agencyOpens(
     access: CollectionResponseAccess,
     documentVersionId: string,
   ): Promise<'served' | 'not_found' | 'refused_at_redemption' | 'forbidden'> {
-    const ref = await previewCollectionResponseVersion(db, storage, access, {
-      documentVersionId,
-      accessTokenSecret: SECRET,
-    });
+    const ref = await agencyLink(access, documentVersionId);
     if (!ref.ok) return ref.error.code === 'not_found' ? 'not_found' : 'forbidden';
-    const fields = readDocumentAccessToken(new URL(ref.value.url).searchParams);
-    if (!fields) throw new Error('no access token on the link');
-    const { sig: _sig, exp: _exp, ...rest } = fields;
-    const recheck = await recheckDocumentAccess(db, rest);
+    const { fields, objectKey } = linkParts(ref.value.url);
+    const recheck = await recheckDocumentAccess(db, fields, new Date(), objectKey);
     return recheck.allowed ? 'served' : 'refused_at_redemption';
   }
 
@@ -402,6 +428,8 @@ describe('a signed-in traveller answers an agency request from their own record 
       {
         selections: { [passportItem.item.id]: [documentKey(passport.versionId)] },
         consentVersion: RESPONSE_CONSENT_VERSION,
+        linkId: proposal.value.desk.linkId,
+        revisionId: proposal.value.desk.revisionId,
       },
     );
     if (!submitted.ok) throw new Error(`submit: ${submitted.error.message}`);
@@ -497,6 +525,8 @@ describe('a signed-in traveller answers an agency request from their own record 
       {
         selections: { [detail.item.id]: [factKey(chosen.factVersionId)] },
         consentVersion: RESPONSE_CONSENT_VERSION,
+        linkId: proposal.value.desk.linkId,
+        revisionId: proposal.value.desk.revisionId,
       },
     );
     expect(submitted.ok).toBe(true);
@@ -508,14 +538,37 @@ describe('a signed-in traveller answers an agency request from their own record 
       encryption,
     });
     expect(isOk(edited)).toBe(true);
-    const view = await readCollectionResponse(db, await onlyAccess(requestId), { encryption });
+    const access = await onlyAccess(requestId);
+    // A protected detail stays closed until the admin confirms it is them.
+    const closedView = await readCollectionResponse(db, access, { encryption });
+    if (!closedView.ok) throw new Error('view');
+    expect(closedView.value.hasProtectedDetails).toBe(true);
+    expect(closedView.value.lines.flatMap((l) => l.details)).toEqual([
+      { value: null, protected: true },
+    ]);
+    const step = protectedDetailsStepUp(access);
+    const view = await readCollectionResponse(db, access, {
+      encryption,
+      stepUp: adminStepUp(step.action, step.resourceId),
+    });
     if (!view.ok) throw new Error('view');
     const values = view.value.lines.flatMap((l) => l.details.map((d) => d.value));
     expect(values).toEqual(['SYN12345']);
+    const reads = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'AGENCY_COLLECTION_RESPONSE_PROTECTED_DETAILS_READ'));
+    expect(reads).toHaveLength(1);
+    expect(JSON.stringify(reads[0]?.metadata)).not.toContain('SYN');
   });
 
   it('a wrong account gets the same neutral refusal as a closed link, recorded once', async () => {
-    const { token } = await issuedRequest('traveller@people.example.test');
+    const { requestId } = await issuedRequest('traveller@people.example.test');
+    const emailed = await createCollectionLink(db, await scope(), requestId, {
+      email: { address: 'traveller@people.example.test', encryption },
+    });
+    if (!emailed.ok) throw new Error('emailed link');
+    const token = emailed.value.link.rawToken;
     const wrong = await openCollectionResponseDesk(db, link(token), selfPrincipal(strangerId));
     const unknown = await openCollectionResponseDesk(
       db,
@@ -603,12 +656,20 @@ describe('a signed-in traveller answers an agency request from their own record 
       {
         selections: { [passportItem.item.id]: [documentKey(passport.versionId)] },
         consentVersion: RESPONSE_CONSENT_VERSION,
+        linkId: proposal.value.desk.linkId,
+        revisionId: proposal.value.desk.revisionId,
       },
     );
     expect(revoked.ok).toBe(false);
     if (!revoked.ok) expect(revoked.error.code).toBe('not_found');
 
     const second = await issuedRequest();
+    const open = await openCollectionResponseDesk(
+      db,
+      link(second.token),
+      selfPrincipal(travellerId),
+    );
+    if (!open.ok) throw new Error('desk');
     const expired = await submitCollectionResponse(
       db,
       link(second.token),
@@ -616,6 +677,8 @@ describe('a signed-in traveller answers an agency request from their own record 
       {
         selections: {},
         consentVersion: RESPONSE_CONSENT_VERSION,
+        linkId: open.value.linkId,
+        revisionId: open.value.revisionId,
         now: new Date(Date.now() + 30 * DAY_MS),
       },
     );
@@ -641,6 +704,8 @@ describe('a signed-in traveller answers an agency request from their own record 
       {
         selections: { [passportItem.item.id]: [documentKey(foreignDocument.versionId)] },
         consentVersion: RESPONSE_CONSENT_VERSION,
+        linkId: proposal.value.desk.linkId,
+        revisionId: proposal.value.desk.revisionId,
       },
     );
     expect(smuggled.ok).toBe(false);
@@ -648,7 +713,12 @@ describe('a signed-in traveller answers an agency request from their own record 
       db,
       link(token),
       await shareProof(travellerId, personId),
-      { selections: {}, consentVersion: 'old-wording' },
+      {
+        selections: {},
+        consentVersion: 'old-wording',
+        linkId: proposal.value.desk.linkId,
+        revisionId: proposal.value.desk.revisionId,
+      },
     );
     expect(noConsent.ok).toBe(false);
     expect(await count(db, 'agency_collection_responses')).toBe(0);
@@ -658,40 +728,27 @@ describe('a signed-in traveller answers an agency request from their own record 
     const { token, requestId } = await issuedRequest();
     await submitPassportOnly(token);
     const access = await onlyAccess(requestId);
-    const ref = await previewCollectionResponseVersion(db, storage, access, {
-      documentVersionId: passport.versionId,
-      accessTokenSecret: SECRET,
-    });
+    const ref = await agencyLink(access, passport.versionId);
     if (!ref.ok) throw new Error('ref');
-    const fields = readDocumentAccessToken(new URL(ref.value.url).searchParams);
-    if (!fields) throw new Error('fields');
-    const { sig: _sig, exp: _exp, ...rest } = fields;
+    const { fields, objectKey } = linkParts(ref.value.url);
 
     vi.stubEnv(AGENCY_COLLECTION_REQUESTS_SWITCH, '');
     expect(collectionLinkProof(token)).toBeNull();
     expect((await readCollectionResponse(db, access)).ok).toBe(false);
-    const again = await previewCollectionResponseVersion(db, storage, access, {
-      documentVersionId: passport.versionId,
-      accessTokenSecret: SECRET,
-    });
+    const again = await agencyLink(access, passport.versionId);
     expect(again.ok).toBe(false);
     if (!again.ok) expect(again.error.code).toBe('not_found');
-    expect((await recheckDocumentAccess(db, rest)).allowed).toBe(false);
+    expect((await recheckDocumentAccess(db, fields, new Date(), objectKey)).allowed).toBe(false);
   });
 
   it('withdrawing ends the agency access at once, including a file link already handed out', async () => {
     const { token, requestId } = await issuedRequest();
     const { submitted } = await submitPassportOnly(token);
     const access = await onlyAccess(requestId);
-    const ref = await previewCollectionResponseVersion(db, storage, access, {
-      documentVersionId: passport.versionId,
-      accessTokenSecret: SECRET,
-    });
+    const ref = await agencyLink(access, passport.versionId);
     if (!ref.ok) throw new Error('ref');
-    const fields = readDocumentAccessToken(new URL(ref.value.url).searchParams);
-    if (!fields) throw new Error('fields');
-    const { sig: _sig, exp: _exp, ...rest } = fields;
-    expect((await recheckDocumentAccess(db, rest)).allowed).toBe(true);
+    const { fields: rest, objectKey } = linkParts(ref.value.url);
+    expect((await recheckDocumentAccess(db, rest, new Date(), objectKey)).allowed).toBe(true);
 
     const own = await listOwnCollectionResponses(db, await viewProof(travellerId, personId));
     if (!own.ok) throw new Error('own');
@@ -710,7 +767,7 @@ describe('a signed-in traveller answers an agency request from their own record 
       submitted.responseId,
     );
     expect(withdrawn.ok).toBe(true);
-    expect((await recheckDocumentAccess(db, rest)).allowed).toBe(false);
+    expect((await recheckDocumentAccess(db, rest, new Date(), objectKey)).allowed).toBe(false);
     expect((await readCollectionResponse(db, access)).ok).toBe(false);
     expect(await collectionResponseAccesses(db, await scope(), requestId)).toEqual([]);
     const twice = await withdrawCollectionResponse(
@@ -726,6 +783,16 @@ describe('a signed-in traveller answers an agency request from their own record 
     const first = await submitPassportOnly(token);
     const second = await submitPassportOnly(token);
     expect(second.submitted.replaced).toBe(1);
+    const replaced = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(
+        and(
+          eq(schema.auditEvents.eventType, 'AGENCY_COLLECTION_RESPONSE_WITHDRAWN'),
+          eq(schema.auditEvents.resourceId, first.submitted.responseId),
+        ),
+      );
+    expect(replaced.map((r) => r.reason)).toEqual(['replaced_by_new_answer']);
     const access = await onlyAccess(requestId);
     expect(access.responseId).toBe(second.submitted.responseId);
     const old = await collectionResponseAccess(db, await scope(), first.submitted.responseId);
@@ -792,11 +859,192 @@ describe('a signed-in traveller answers an agency request from their own record 
     ) as unknown as CollectionResponseAccess;
     expect(
       (
-        await previewCollectionResponseVersion(db, storage, cast, {
+        await downloadCollectionResponseVersion(db, storage, cast, {
           documentVersionId: passport.versionId,
           accessTokenSecret: SECRET,
         })
       ).ok,
     ).toBe(false);
+  });
+
+  it('a copied link binds to nobody: whoever holds it and signs in may answer, even when the request names an address', async () => {
+    const { token } = await issuedRequest('traveller@people.example.test');
+    const desk = await openCollectionResponseDesk(db, link(token), selfPrincipal(strangerId));
+    expect(desk.ok).toBe(true);
+  });
+
+  it('an answer reviewed on one request can never land on another request whose link replaced the cookie', async () => {
+    const first = await issuedRequest();
+    const second = await issuedRequest();
+    const proposal = await proposeCollectionResponse(
+      db,
+      link(first.token),
+      await viewProof(travellerId, personId),
+    );
+    if (!proposal.ok) throw new Error('proposal');
+    const passportItem = item(proposal.value.proposals, 'passport');
+    // Same pack, so the item ids match; the browser now holds the second request's link.
+    const crossed = await submitCollectionResponse(
+      db,
+      link(second.token),
+      await shareProof(travellerId, personId),
+      {
+        selections: { [passportItem.item.id]: [documentKey(passport.versionId)] },
+        consentVersion: RESPONSE_CONSENT_VERSION,
+        linkId: proposal.value.desk.linkId,
+        revisionId: proposal.value.desk.revisionId,
+      },
+    );
+    expect(crossed.ok).toBe(false);
+    if (!crossed.ok) expect(crossed.error.code).toBe('invalid');
+    expect(await count(db, 'agency_collection_responses')).toBe(0);
+  });
+
+  it('an agency VisaStack has not reviewed receives nothing: the desk says so and submitting is refused', async () => {
+    const pendingAdmin = await account('admin@agency-pending.example.test');
+    const pending = await createOrganization(db, {
+      actorAccountId: pendingAdmin,
+      name: 'Synthetic Pending Agency',
+    });
+    if (!isOk(pending)) throw new Error('pending org');
+    const pendingScope = await agencyCollectionPrincipal(db, pendingAdmin, pending.value.id);
+    if (!pendingScope.ok) throw new Error('pending scope');
+    const created = await createCollectionRequest(db, pendingScope.value, {
+      destination: 'GB',
+      purpose: 'Tourism',
+      route: null,
+      travelFrom: null,
+      travelTo: null,
+      dueAt: null,
+      nationality: null,
+      residence: null,
+      applicationPlace: null,
+      recipientNameHint: null,
+      recipientEmailHint: null,
+      packTerms: {
+        country: ['GB', 'United Kingdom'],
+        purpose: ['tourism', 'Tourism'],
+        traveller: {
+          nationality: { terms: [], known: false },
+          residence: { terms: [], known: false },
+        },
+      },
+    });
+    if (!created.ok) throw new Error('pending request');
+    const issued = await issueCollectionRequest(db, pendingScope.value, created.value.id);
+    if (!issued.ok) throw new Error(`pending issue: ${issued.error.message}`);
+    const token = issued.value.link.rawToken;
+    const desk = await openCollectionResponseDesk(db, link(token), selfPrincipal(travellerId));
+    if (!desk.ok) throw new Error('desk');
+    expect(desk.value.agencyReviewed).toBe(false);
+    expect(desk.value.agency).toBeNull();
+    const refused = await submitCollectionResponse(
+      db,
+      link(token),
+      await shareProof(travellerId, personId),
+      {
+        selections: {},
+        consentVersion: RESPONSE_CONSENT_VERSION,
+        linkId: desk.value.linkId,
+        revisionId: desk.value.revisionId,
+      },
+    );
+    expect(refused.ok).toBe(false);
+    expect(await count(db, 'agency_collection_responses')).toBe(0);
+  });
+
+  it('every original download needs a fresh identity check of the agency admin, and a refusal is audited', async () => {
+    const { token, requestId } = await issuedRequest();
+    await submitPassportOnly(token);
+    const access = await onlyAccess(requestId);
+    const bare = await downloadCollectionResponseVersion(db, storage, access, {
+      documentVersionId: passport.versionId,
+      accessTokenSecret: SECRET,
+    });
+    expect(bare.ok).toBe(false);
+    if (!bare.ok) expect(bare.error.code).toBe('step_up_required');
+    // A check made for another version does not count.
+    const other = await downloadCollectionResponseVersion(db, storage, access, {
+      documentVersionId: passport.versionId,
+      accessTokenSecret: SECRET,
+      stepUp: adminStepUp('DOWNLOAD_ORIGINAL', statement.versionId),
+    });
+    expect(other.ok).toBe(false);
+    const denied = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(
+        and(
+          eq(schema.auditEvents.eventType, 'DOCUMENT_ACCESS'),
+          eq(schema.auditEvents.reason, 'step_up_required'),
+        ),
+      );
+    expect(denied).toHaveLength(2);
+  });
+
+  it('the serving route refuses a link whose storage key is not the listed version', async () => {
+    const { token, requestId } = await issuedRequest();
+    await submitPassportOnly(token);
+    const access = await onlyAccess(requestId);
+    const ref = await agencyLink(access, passport.versionId);
+    if (!ref.ok) throw new Error('ref');
+    const { fields } = linkParts(ref.value.url);
+    const mixed = await recheckDocumentAccess(db, fields, new Date(), 'synthetic/someone-else');
+    expect(mixed).toEqual({ allowed: false, reason: 'object_key_mismatch' });
+  });
+
+  it('an answer that changed since it was sent releases nothing, including links already handed out', async () => {
+    const { token, requestId } = await issuedRequest();
+    const proposal = await proposeCollectionResponse(
+      db,
+      link(token),
+      await viewProof(travellerId, personId),
+    );
+    if (!proposal.ok) throw new Error('proposal');
+    const passportItem = item(proposal.value.proposals, 'passport');
+    const statementItem = item(proposal.value.proposals, 'bank_statement');
+    const submitted = await submitCollectionResponse(
+      db,
+      link(token),
+      await shareProof(travellerId, personId),
+      {
+        selections: {
+          [passportItem.item.id]: [documentKey(passport.versionId)],
+          [statementItem.item.id]: [documentKey(statement.versionId)],
+        },
+        consentVersion: RESPONSE_CONSENT_VERSION,
+        linkId: proposal.value.desk.linkId,
+        revisionId: proposal.value.desk.revisionId,
+      },
+    );
+    expect(submitted.ok).toBe(true);
+    const access = await onlyAccess(requestId);
+    const issuedLink = await agencyLink(access, passport.versionId);
+    if (!issuedLink.ok) throw new Error('link');
+    const { fields, objectKey } = linkParts(issuedLink.value.url);
+    // The person removes the statement: its line goes, and the answer no longer matches.
+    await db.delete(schema.documents).where(eq(schema.documents.id, statement.documentId));
+    expect(await agencyOpens(access, passport.versionId)).toBe('not_found');
+    expect((await recheckDocumentAccess(db, fields, new Date(), objectKey)).allowed).toBe(false);
+    const view = await readCollectionResponse(db, access);
+    if (!view.ok) throw new Error('view');
+    expect(view.value).toMatchObject({ intact: false, lines: [] });
+  });
+
+  it('the agency sees the names as they were when sent, never a later rename', async () => {
+    const { token, requestId } = await issuedRequest();
+    await submitPassportOnly(token);
+    await db
+      .update(schema.applicants)
+      .set({ displayName: 'Renamed Later' })
+      .where(eq(schema.applicants.id, personId));
+    await db
+      .update(schema.documents)
+      .set({ approvedName: 'Renamed File' })
+      .where(eq(schema.documents.id, passport.documentId));
+    const view = await readCollectionResponse(db, await onlyAccess(requestId));
+    if (!view.ok) throw new Error('view');
+    expect(view.value.personName).toBe('Synthetic Traveller');
+    expect(JSON.stringify(view.value)).not.toContain('Renamed');
   });
 });

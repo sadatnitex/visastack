@@ -58,6 +58,7 @@ const DESK = {
   dueAt: null,
   expiresAt: new Date('2027-01-01T00:00:00Z'),
   items: [],
+  agencyReviewed: true,
 };
 const PASSPORT = {
   id: 'item-1',
@@ -90,8 +91,11 @@ beforeEach(() => {
   for (const fn of [mocks.desk, mocks.people, mocks.access, mocks.propose, mocks.own]) {
     fn.mockReset();
   }
+
   mocks.desk.mockResolvedValue({ ok: true, value: DESK });
-  mocks.people.mockResolvedValue([{ id: PERSON, displayName: 'Synthetic Traveller' }]);
+  mocks.people.mockImplementation(async (_db: unknown, _account: string, options?: object) =>
+    options ? [] : [{ id: PERSON, displayName: 'Synthetic Traveller' }],
+  );
   mocks.access.mockResolvedValue({
     ok: true,
     value: { actor: { kind: 'applicant_owner' }, applicant: { id: PERSON } },
@@ -185,6 +189,34 @@ describe('/collect/account', () => {
     expect(text).toContain('I agree to share only the files and details I chose above');
     expect(text).toContain('Submit to Agency');
     expect(text).not.toMatch(/Reviewed|Accepted/);
+  });
+  it('reads a cookie bound to another link as closed', async () => {
+    mocks.desk.mockResolvedValue({
+      ok: true,
+      value: { ...DESK, linkId: '99999999-2222-4333-8444-555555555555' },
+    });
+    const text = textOf(await renderServer(AccountPage({})));
+    expect(text).toContain('This Link Is Not Open');
+    expect(mocks.propose).not.toHaveBeenCalled();
+  });
+
+  it('offers nothing to share with an agency VisaStack has not reviewed', async () => {
+    mocks.desk.mockResolvedValue({
+      ok: true,
+      value: { ...DESK, agency: null, agencyReviewed: false },
+    });
+    const text = textOf(await renderServer(AccountPage({})));
+    expect(text).toContain('This Agency Is Not Reviewed Yet');
+    expect(text).not.toContain('Submit to Agency');
+    expect(mocks.people).not.toHaveBeenCalled();
+  });
+
+  it('never answers for a person who is not in everyday use, even when named in the address', async () => {
+    const text = textOf(
+      await renderServer(AccountPage({ searchParams: Promise.resolve({ person: 'archived-1' }) })),
+    );
+    expect(text).toContain('Who Is This For?');
+    expect(mocks.access).not.toHaveBeenCalled();
   });
 });
 

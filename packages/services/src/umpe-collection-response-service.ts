@@ -3,19 +3,25 @@ import { documentTypeName } from '@visastack/core/catalogue/documents';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import {
   type CollectionResponseAccess,
+  agencyMayReceiveAnswers,
   collectionRecipientAllowed,
   collectionResponseAccessProblem,
   collectionResponsesPresent,
+  lineOf,
 } from './access/collection-response-access';
 import { CollectionLinkProof } from './access/collection-scope';
 import { type SelfScope, selfScopeProblem } from './access/principal';
 import { AuthorizedApplicant } from './access/require-access';
+import { StepUpProof } from './access/step-up-proof';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
-import { hasActiveOrVerifiedErasureJob } from './erasure';
+import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
-import { everydayDocumentCondition } from './lifecycle/foundation/conditions';
+import {
+  everydayDocumentCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation/conditions';
 import { isUuid } from './lifecycle/foundation/ids';
 import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import type { KeyManagementPort } from './ports';
@@ -73,6 +79,11 @@ export interface ResponseDesk {
   readonly dueAt: Date | null;
   readonly expiresAt: Date;
   readonly items: readonly CollectionItem[];
+  /**
+   * Whether VisaStack has reviewed the agency (ACTIVE), checked live. Only a reviewed agency can be
+   * answered: the page explains the wait instead of offering Submit.
+   */
+  readonly agencyReviewed: boolean;
 }
 
 function closed(): ServiceError {
@@ -97,7 +108,6 @@ async function loadDesk(
         linkHint: links.recipientEmailHint,
         expiresAt: links.expiresAt,
         requestId: requests.id,
-        requestHint: requests.recipientEmailHint,
         destination: requests.destination,
         purpose: requests.purpose,
         dueAt: requests.dueAt,
@@ -138,7 +148,8 @@ async function loadDesk(
   const allowed = await collectionRecipientAllowed(db, {
     linkId: open.linkId,
     organizationId: open.organizationId,
-    emailHint: row.linkHint ?? row.requestHint,
+    // The address this link was sent to, when it was emailed; a copied link binds to nobody.
+    emailHint: row.linkHint,
     accountId,
   });
   if (!allowed) return null;
@@ -153,6 +164,7 @@ async function loadDesk(
     dueAt: row.dueAt,
     expiresAt: row.expiresAt,
     items,
+    agencyReviewed: await agencyMayReceiveAnswers(db, open.organizationId),
   };
 }
 
@@ -242,13 +254,16 @@ async function personEvidence(
         newest.set(version.documentId, version);
       }
     }
+    const leaving = await activeOrVerifiedErasureStorageObjectIds(
+      db,
+      [...newest.values()].map((version) => version.storageObjectId),
+    );
     for (const version of newest.values()) {
-      const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
       if (
         isDocumentVersionUsable({
           safetyStatus: version.safetyStatus,
           processingStatus: version.processingStatus,
-          erased,
+          erased: leaving.has(version.storageObjectId),
         })
       ) {
         versions.push({
@@ -359,6 +374,9 @@ export async function proposeCollectionResponse(
 }
 
 export interface SubmitResponseInput {
+  /** The link and exact revision the person reviewed: a submit for anything else is refused. */
+  readonly linkId: string;
+  readonly revisionId: string;
   /** Issued item id to the candidate keys chosen for it; an item left out is Still Missing. */
   readonly selections: Readonly<Record<string, readonly string[]>>;
   /** The consent wording version the traveller agreed to; must be the current one. */
@@ -408,15 +426,26 @@ export async function submitCollectionResponse(
   if (!(await collectionResponsesPresent(db))) {
     return err(serviceError('upstream_error', 'Answering requests is not available yet.'));
   }
-  const now = input.now ?? new Date();
   const applicantId = person.applicant.id;
   return db.transaction(async (tx) => {
     // One answer at a time per person and request: two submits cannot both stay live.
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtext(${`visastack:collection-response:${applicantId}`}))`,
     );
+    // The time is read once the lock is held, so answers are always stored in the order they won.
+    const now = input.now ?? new Date();
     const desk = await loadDesk(tx, link, accountId, now);
     if (!desk) return err(closed());
+    // What the person reviewed and agreed to must be exactly what this link opens now; a cookie
+    // replaced by another request's link (another tab) must never receive this answer.
+    if (desk.linkId !== input.linkId || desk.revisionId !== input.revisionId) {
+      return err(
+        serviceError('invalid', 'This page is out of date. Open the request again and check it.'),
+      );
+    }
+    if (!desk.agencyReviewed) {
+      return err(serviceError('forbidden', 'This agency has not been reviewed by VisaStack yet.'));
+    }
     const organizationId = await deskOrganization(tx, desk);
     if (!organizationId) return err(closed());
     const evidence = await personEvidence(tx, applicantId, desk.items, undefined);
@@ -443,6 +472,21 @@ export async function submitCollectionResponse(
         ),
       )
       .returning({ id: responses.id });
+    for (const replaced of earlier) {
+      await appendAuditEvent(tx, {
+        eventType: 'AGENCY_COLLECTION_RESPONSE_WITHDRAWN',
+        actorAccountId: accountId,
+        action: 'SHARE',
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        applicantId,
+        resourceType: 'agency_collection_response',
+        resourceId: replaced.id,
+        reason: 'replaced_by_new_answer',
+        metadata: { organizationId },
+      });
+    }
+    const titles = new Map(evidence.documents.map((d) => [d.id, d.title] as const));
     const contentSha256 = responseContentSha256({
       requestId: desk.requestId,
       revisionId: desk.revisionId,
@@ -462,6 +506,7 @@ export async function submitCollectionResponse(
           submittedByAccountId: accountId,
           destination: desk.destination,
           revisionNo: desk.revisionNo,
+          personName: person.applicant.displayName.slice(0, 200) || 'Traveller',
           consentVersion: RESPONSE_CONSENT_VERSION,
           contentSha256,
           submittedAt: now,
@@ -478,6 +523,7 @@ export async function submitCollectionResponse(
         documentVersionId: line.kind === 'DOCUMENT' ? line.documentVersionId : null,
         factId: line.kind === 'FIELD' ? line.factId : null,
         factVersionId: line.kind === 'FIELD' ? line.factVersionId : null,
+        title: line.kind === 'DOCUMENT' ? (titles.get(line.documentId) ?? null) : null,
       })),
     );
     const counts = countLines(lines);
@@ -523,7 +569,8 @@ function countLines(lines: readonly ResponseLine[]): {
 /** One of the person's answers, as their owner sees it. */
 export interface OwnCollectionResponse {
   readonly id: string;
-  readonly agencyName: string;
+  /** The agency's name, or null while VisaStack has not reviewed it (it is never shown then). */
+  readonly agencyName: string | null;
   readonly destination: string;
   readonly revisionNo: number;
   readonly submittedAt: Date;
@@ -557,6 +604,7 @@ export async function listOwnCollectionResponses(
     .select({
       id: responses.id,
       agencyName: schema.organizations.name,
+      agencyStatus: schema.organizations.status,
       destination: responses.destination,
       revisionNo: responses.revisionNo,
       submittedAt: responses.submittedAt,
@@ -565,7 +613,12 @@ export async function listOwnCollectionResponses(
     .from(responses)
     .innerJoin(schema.organizations, eq(schema.organizations.id, responses.organizationId))
     .where(eq(responses.applicantId, person.applicant.id))
-    .orderBy(desc(responses.submittedAt), desc(responses.id))
+    // Live answers first, so one that can still be withdrawn never drops off the list.
+    .orderBy(
+      sql`${responses.withdrawnAt} is not null`,
+      desc(responses.submittedAt),
+      desc(responses.id),
+    )
     .limit(OWN_RESPONSE_LIST_LIMIT);
   if (rows.length === 0) return ok([]);
   const counts = await lineCounts(
@@ -573,8 +626,10 @@ export async function listOwnCollectionResponses(
     rows.map((r) => r.id),
   );
   return ok(
-    rows.map((row) => ({
+    rows.map(({ agencyStatus, agencyName, ...row }) => ({
       ...row,
+      // Named only while VisaStack has reviewed the agency, as everywhere a traveller sees one.
+      agencyName: agencyStatus === 'ACTIVE' ? agencyName : null,
       ...(counts.get(row.id) ?? { documents: 0, details: 0, missing: 0 }),
     })),
   );
@@ -660,7 +715,8 @@ export interface AgencyResponseLine {
     readonly title: string;
     readonly versionNumber: number;
   }[];
-  readonly details: readonly { readonly value: string }[];
+  /** A protected detail's value is null until the agency admin confirms it is them. */
+  readonly details: readonly { readonly value: string | null; readonly protected: boolean }[];
   readonly missing: boolean;
 }
 
@@ -668,28 +724,46 @@ export interface AgencyResponseView {
   readonly id: string;
   /** Always "Submitted to Agency": a response is never Reviewed or Accepted by being received. */
   readonly status: 'SUBMITTED_TO_AGENCY';
+  /** The person's name as it was when they answered. */
   readonly personName: string;
   readonly revisionNo: number;
   readonly submittedAt: Date;
   readonly consentVersion: string;
   /** False when the stored response no longer matches what was submitted (never shown as if it did). */
   readonly intact: boolean;
+  /** Whether any chosen detail is protected (shown only after a fresh identity check). */
+  readonly hasProtectedDetails: boolean;
   readonly lines: readonly AgencyResponseLine[];
 }
 
 /** Shown to the agency for a detail whose protected value cannot be opened here. */
 const UNREADABLE_VALUE = 'Could Not Be Shown';
 
+/** The identity check that opens an answer's protected details: bound to the admin and the answer. */
+export function protectedDetailsStepUp(access: {
+  readonly accountId: string;
+  readonly responseId: string;
+}): {
+  readonly accountId: string;
+  readonly action: 'VIEW_METADATA';
+  readonly resourceId: string;
+} {
+  return { accountId: access.accountId, action: 'VIEW_METADATA', resourceId: access.responseId };
+}
+
 /**
- * One answer, as the agency sees it: the person's name, the issued items and, for each, exactly
- * the chosen document versions (by name and version number) and fact versions (their values, from
- * those exact versions, never the current ones), or Still Missing. Reading the values is audited
- * with counts. Nothing else of the person is read.
+ * One answer, as the agency sees it: the person's name and the file names as they were when sent,
+ * the issued items and, for each, exactly the chosen document versions (by name and version
+ * number) and fact versions (their values, from those exact versions, never the current ones), or
+ * Still Missing. A protected detail (a passport number, for example) is opened only with a recent
+ * identity confirmation of this admin for this answer (`protectedDetailsStepUp`), and each such
+ * opening is audited with counts. A changed answer shows nothing and opens nothing. Nothing else of
+ * the person is read.
  */
 export async function readCollectionResponse(
   db: Db,
   access: CollectionResponseAccess,
-  options: { readonly encryption?: KeyManagementPort } = {},
+  options: { readonly encryption?: KeyManagementPort; readonly stepUp?: StepUpProof } = {},
 ): Promise<Result<AgencyResponseView, ServiceError>> {
   const problem = collectionResponseAccessProblem(access);
   if (problem) return err(problem);
@@ -704,10 +778,10 @@ export async function readCollectionResponse(
         consentVersion: responses.consentVersion,
         contentSha256: responses.contentSha256,
         submittedAt: responses.submittedAt,
-        personName: schema.applicants.displayName,
+        personName: responses.personName,
+        revisionNo: responses.revisionNo,
       })
       .from(responses)
-      .innerJoin(schema.applicants, eq(schema.applicants.id, responses.applicantId))
       .where(
         and(
           eq(responses.id, access.responseId),
@@ -736,24 +810,8 @@ export async function readCollectionResponse(
     .select()
     .from(schema.agencyCollectionResponseItems)
     .where(eq(schema.agencyCollectionResponseItems.responseId, response.id));
-  const lines: ResponseLine[] = itemRows.map((row) =>
-    row.kind === 'DOCUMENT' && row.documentId && row.documentVersionId
-      ? {
-          itemId: row.itemId,
-          kind: 'DOCUMENT',
-          documentId: row.documentId,
-          documentVersionId: row.documentVersionId,
-        }
-      : row.kind === 'FIELD' && row.factId && row.factVersionId
-        ? {
-            itemId: row.itemId,
-            kind: 'FIELD',
-            factId: row.factId,
-            factVersionId: row.factVersionId,
-          }
-        : { itemId: row.itemId, kind: 'MISSING' },
-  );
-  // A line removed with its document (the person deleted it) changes the content: the view says so.
+  const lines = itemRows.map(lineOf);
+  // A line removed with its document, or one added after submission, changes the content.
   const intact =
     items !== null &&
     responseContentSha256({
@@ -763,7 +821,23 @@ export async function readCollectionResponse(
       consentVersion: response.consentVersion,
       lines,
     }) === response.contentSha256;
+  const base = {
+    id: response.id,
+    status: 'SUBMITTED_TO_AGENCY' as const,
+    personName: response.personName,
+    revisionNo: response.revisionNo,
+    submittedAt: response.submittedAt,
+    consentVersion: response.consentVersion,
+  };
+  if (!intact || !items) {
+    return ok({ ...base, intact: false, hasProtectedDetails: false, lines: [] });
+  }
 
+  const titles = new Map(
+    itemRows.flatMap((row) =>
+      row.documentVersionId && row.title ? [[row.documentVersionId, row.title] as const] : [],
+    ),
+  );
   const versionIds = lines.flatMap((l) => (l.kind === 'DOCUMENT' ? [l.documentVersionId] : []));
   const documents = new Map<string, { title: string; versionNumber: number }>();
   if (versionIds.length > 0) {
@@ -771,7 +845,6 @@ export async function readCollectionResponse(
       .select({
         versionId: schema.documentVersions.id,
         versionNumber: schema.documentVersions.versionNumber,
-        approvedName: schema.documents.approvedName,
         originalName: schema.documents.originalName,
         docType: schema.documents.docType,
       })
@@ -781,19 +854,23 @@ export async function readCollectionResponse(
         and(
           inArray(schema.documentVersions.id, versionIds),
           eq(schema.documents.applicantId, response.applicantId),
+          // A document the person moved to Recently Deleted is no longer offered (archived stays).
+          (await lifecycleTablesPresent(db)) ? presentDocumentCondition() : undefined,
         ),
       );
     for (const row of rows) {
       documents.set(row.versionId, {
         title:
-          row.approvedName ??
-          (row.docType ? (documentTypeName(row.docType) ?? row.originalName) : row.originalName),
+          titles.get(row.versionId) ??
+          (row.docType ? (documentTypeName(row.docType) ?? 'Document') : 'Document'),
         versionNumber: row.versionNumber,
       });
     }
   }
   const factVersionIds = lines.flatMap((l) => (l.kind === 'FIELD' ? [l.factVersionId] : []));
-  const values = new Map<string, string>();
+  const values = new Map<string, { value: string | null; protected: boolean }>();
+  const mayOpenProtected = StepUpProof.covers(options.stepUp, protectedDetailsStepUp(access));
+  let opened = 0;
   if (factVersionIds.length > 0) {
     const rows = await db
       .select({ version: schema.factVersions })
@@ -807,17 +884,27 @@ export async function readCollectionResponse(
       );
     for (const { version } of rows) {
       if (version.protectedKeyVersion === null) {
-        values.set(version.id, version.value ?? '');
+        values.set(version.id, { value: version.value ?? '', protected: false });
+        continue;
+      }
+      if (!mayOpenProtected) {
+        values.set(version.id, { value: null, protected: true });
         continue;
       }
       const revealed = options.encryption
         ? await revealFactVersionValue(db, options.encryption, version)
         : null;
-      values.set(version.id, revealed?.ok ? revealed.value : UNREADABLE_VALUE);
+      if (revealed?.ok) opened++;
+      values.set(version.id, {
+        value: revealed?.ok ? revealed.value : UNREADABLE_VALUE,
+        protected: true,
+      });
     }
+  }
+  if (opened > 0) {
     await db.transaction(async (tx) => {
       await appendAuditEvent(tx, {
-        eventType: 'AGENCY_COLLECTION_RESPONSE_DETAILS_READ',
+        eventType: 'AGENCY_COLLECTION_RESPONSE_PROTECTED_DETAILS_READ',
         actorAccountId: access.accountId,
         actorRole: 'org:collection_response',
         action: 'VIEW_METADATA',
@@ -826,12 +913,12 @@ export async function readCollectionResponse(
         applicantId: response.applicantId,
         resourceType: 'agency_collection_response',
         resourceId: response.id,
-        metadata: { organizationId: access.organizationId, details: values.size },
+        metadata: { organizationId: access.organizationId, details: opened },
       });
     });
   }
 
-  const view: AgencyResponseLine[] = (items ?? []).map((item) => {
+  const view: AgencyResponseLine[] = items.map((item) => {
     const own = lines.filter((l) => l.itemId === item.id);
     return {
       item,
@@ -840,22 +927,18 @@ export async function readCollectionResponse(
         const document = documents.get(l.documentVersionId);
         return document ? [{ documentVersionId: l.documentVersionId, ...document }] : [];
       }),
-      details: own.flatMap((l) =>
-        l.kind === 'FIELD' && values.has(l.factVersionId)
-          ? [{ value: values.get(l.factVersionId) ?? '' }]
-          : [],
-      ),
+      details: own.flatMap((l) => {
+        if (l.kind !== 'FIELD') return [];
+        const detail = values.get(l.factVersionId);
+        return detail ? [detail] : [];
+      }),
       missing: own.length === 0 || own.every((l) => l.kind === 'MISSING'),
     };
   });
   return ok({
-    id: response.id,
-    status: 'SUBMITTED_TO_AGENCY',
-    personName: response.personName,
-    revisionNo: revision?.revisionNo ?? 0,
-    submittedAt: response.submittedAt,
-    consentVersion: response.consentVersion,
-    intact,
-    lines: intact ? view : [],
+    ...base,
+    intact: true,
+    hasProtectedDetails: [...values.values()].some((v) => v.protected),
+    lines: view,
   });
 }

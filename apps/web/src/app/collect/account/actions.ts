@@ -1,7 +1,6 @@
 'use server';
 
 import {
-  RESPONSE_CONSENT_VERSION,
   accountPrincipal,
   requireAccess,
   submitCollectionResponse,
@@ -27,6 +26,11 @@ export interface ResponseActionState {
   readonly message: string;
   readonly field?: string;
 }
+
+const OUT_OF_DATE: ResponseActionState = {
+  ok: false,
+  message: 'This page is out of date. Open the request again from your message and check it.',
+};
 
 const CLOSED: ResponseActionState = {
   ok: false,
@@ -67,7 +71,10 @@ export async function submitResponseAction(
     };
   }
   const link = await heldCollectionLink();
-  if (!link) return CLOSED;
+  const linkId = text(formData, 'linkId');
+  // The answer goes only to the request this page was opened for: a cookie since replaced by
+  // another request's link (another tab) is refused, never quietly answered.
+  if (!link || link.linkId !== linkId) return OUT_OF_DATE;
 
   const outcome = await withSession(async ({ db, accountId }) => {
     const stepUp = await establishStepUpProof(
@@ -92,9 +99,12 @@ export async function submitResponseAction(
         state: { ok: false, message: 'Choose one of your own people.', field: 'personId' },
       } as const;
     }
-    const submitted = await submitCollectionResponse(db, link, person.value, {
+    const submitted = await submitCollectionResponse(db, link.proof, person.value, {
       selections: selectionsFrom(formData, itemIds),
-      consentVersion: RESPONSE_CONSENT_VERSION,
+      // The wording version this page showed; a newer one is refused, never assumed.
+      consentVersion: text(formData, 'consentVersion'),
+      linkId,
+      revisionId: text(formData, 'revisionId'),
     });
     if (!submitted.ok) {
       return {
@@ -114,7 +124,7 @@ export async function withdrawResponseAction(
   _prev: ResponseActionState,
   formData: FormData,
 ): Promise<ResponseActionState> {
-  if (!collectSwitchOn()) return { ok: false, message: 'This answer is not available.' };
+  // Taking access away always works, whatever the switch says.
   const personId = text(formData, 'personId');
   const responseId = text(formData, 'responseId');
   const result = await withSession(async ({ db, accountId }) => {
@@ -133,5 +143,5 @@ export async function withdrawResponseAction(
     return { ok: false, message: 'This answer was already withdrawn or is not available.' };
   }
   revalidatePath('/collect/account/answers');
-  return { ok: true, message: 'Withdrawn. The agency can no longer open anything in it.' };
+  redirect('/collect/account/answers?withdrawn=1');
 }

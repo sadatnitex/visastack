@@ -2178,6 +2178,9 @@ const ADMIN: readonly Case[] = [
     element: () => (
       <responseForms.ResponseForm
         personId="p1"
+        linkId="l1"
+        revisionId="v1"
+        consentVersion="umpe-p7-consent-1"
         consentText="I agree to share only the files and details I chose above with this agency."
         items={[
           {

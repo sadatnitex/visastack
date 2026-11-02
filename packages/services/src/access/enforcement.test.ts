@@ -1170,6 +1170,41 @@ function isIsGenuine(call: ts.CallExpression, className: string): boolean {
   );
 }
 
+/**
+ * UMPE P7: a `CollectionResponseAccess` counts as a full gate, so its scope (one response of one
+ * agency, and only the exact versions that response lists) rests on each function's own WHERE
+ * clauses. Every function taking it is therefore listed here, each reviewed for that scoping and
+ * tested in umpe-collection-response-service.test.ts. A new one fails until it is reviewed and
+ * added; an entry that no longer exists fails too.
+ */
+const RESPONSE_ACCESS_FUNCTIONS = [
+  'documents#downloadCollectionResponseVersion',
+  'umpe-collection-response-service#readCollectionResponse',
+] as const;
+
+describe('traveller answer gate (UMPE P7)', () => {
+  it('only the reviewed functions take a CollectionResponseAccess', () => {
+    const { program } = programOnce();
+    const checker = program.getTypeChecker();
+    const decls = gateDeclarations(program, checker, ['CollectionResponseAccess']);
+    const found: string[] = [];
+    for (const sf of program.getSourceFiles()) {
+      const fileName = real(sf.fileName);
+      if (sf.isDeclarationFile || !fileName.startsWith(srcDir + path.sep) || isTestFile(fileName)) {
+        continue;
+      }
+      if (fileName.startsWith(accessDir + path.sep)) continue;
+      for (const [name, shape] of exportedFunctions(checker, sf)) {
+        const takes = shape.fns.some((fn) =>
+          fn.parameters.some((p) => isGateType(checker.getTypeAtLocation(p), decls)),
+        );
+        if (takes) found.push(`${moduleId(fileName)}#${name}`);
+      }
+    }
+    expect(found.sort()).toEqual([...RESPONSE_ACCESS_FUNCTIONS]);
+  }, 180_000);
+});
+
 describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
   it('every exported function touching a request table takes an AgencyCollectionScope or a CollectionLinkProof, with no exceptions', () => {
     const { program } = programOnce();
@@ -1266,7 +1301,7 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
         'umpe-collection-request-service#issueCollectionRequest',
         'umpe-collection-request-service#openCollectionLink',
         'umpe-collection-response-service#readCollectionResponse',
-        'documents#previewCollectionResponseVersion',
+        'documents#downloadCollectionResponseVersion',
       ]),
     );
     expect(problems).toEqual([]);

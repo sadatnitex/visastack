@@ -9,7 +9,14 @@ import { COLLECT_COOKIE, parseCookie } from '../load';
  * the answer page sees exactly the link the person opened, and nothing when they opened none.
  * When the link moves to a request-scoped session (P8), this is the one place that changes.
  */
-export async function heldCollectionLink(): Promise<CollectionLinkProof | null> {
+export async function heldCollectionLink(): Promise<HeldLink | null> {
   const held = parseCookie((await cookies()).get(COLLECT_COOKIE)?.value);
-  return held ? collectionLinkProof(held.token) : null;
+  const proof = held ? collectionLinkProof(held.token) : null;
+  return held && proof ? { proof, linkId: held.linkId } : null;
+}
+
+/** The link proof and the link id the cookie was bound to (a different open link reads closed). */
+export interface HeldLink {
+  readonly proof: CollectionLinkProof;
+  readonly linkId: string;
 }

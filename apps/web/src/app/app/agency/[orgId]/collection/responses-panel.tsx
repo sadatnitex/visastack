@@ -2,24 +2,38 @@ import {
   type AgencyCollectionScope,
   type AgencyResponseView,
   type Db,
+  type StepUpProof,
   collectionResponseAccesses,
   readCollectionResponse,
 } from '@visastack/services';
+import Link from 'next/link';
 import { StatusBadge } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { createKeyManagementPort } from '../../../../../lib/providers';
-import { previewResponseFileAction } from './response-actions';
+import { downloadResponseFileAction } from './response-actions';
+
+/** The newest answers the panel shows at once. */
+export const PANEL_RESPONSE_LIMIT = 20;
 
 /** Every live answer to this request, read through the agency's own scope (none for any refusal). */
 export async function loadCollectionResponses(
   db: Db,
   scope: AgencyCollectionScope,
   requestId: string,
+  /** A fresh identity check that opens one answer's protected details (`protectedDetailsStepUp`). */
+  reveal?: { readonly responseId: string; readonly stepUp: StepUpProof },
 ): Promise<AgencyResponseView[]> {
   const encryption = createKeyManagementPort();
+  const accesses = (await collectionResponseAccesses(db, scope, requestId)).slice(
+    0,
+    PANEL_RESPONSE_LIMIT,
+  );
   const found: AgencyResponseView[] = [];
-  for (const access of await collectionResponseAccesses(db, scope, requestId)) {
-    const view = await readCollectionResponse(db, access, encryption ? { encryption } : {});
+  for (const access of accesses) {
+    const view = await readCollectionResponse(db, access, {
+      ...(encryption ? { encryption } : {}),
+      ...(reveal?.responseId === access.responseId ? { stepUp: reveal.stepUp } : {}),
+    });
     if (view.ok) found.push(view.value);
   }
   return found;
@@ -44,13 +58,21 @@ export function CollectionResponsesPanel({
   readonly fileUnavailable: boolean;
 }) {
   return (
-    <section className="card" aria-labelledby="collection-responses" id="collection-responses">
+    <section
+      className="card"
+      aria-labelledby="collection-responses-title"
+      id="collection-responses"
+    >
       <div className="card-body stack">
-        <h2 id="collection-responses">Answers</h2>
+        <h2 id="collection-responses-title">Answers</h2>
+        <p className="muted u-fs-085">
+          Each answer holds only what the person chose, exactly as it was when they sent it. Files
+          download as the originals, after you confirm it is you.
+        </p>
         {fileUnavailable ? (
           <p className="notice notice-warn" role="alert">
-            That file cannot be opened right now. The person may have withdrawn their answer, or the
-            file is still being checked.
+            That file cannot be downloaded right now. The person may have withdrawn or changed their
+            answer, or the file is still being checked.
           </p>
         ) : null}
         {responses.length === 0 ? (
@@ -67,45 +89,57 @@ export function CollectionResponsesPanel({
                 {formatTimestampDate(response.submittedAt)} · Revision {response.revisionNo}
               </p>
               {response.intact ? (
-                <ol className="collection-items">
-                  {response.lines.map((line) => (
-                    <li key={line.item.id}>
-                      <p className="collection-item-label">
-                        <strong>{line.item.label}</strong>
-                      </p>
-                      {line.missing ? (
-                        <p className="collect-response-missing u-fs-085">Still Missing</p>
-                      ) : null}
-                      {line.documents.map((document) => (
-                        <form
-                          key={document.documentVersionId}
-                          action={previewResponseFileAction}
-                          className="collection-response-file"
-                        >
-                          <input type="hidden" name="organizationId" value={organizationId} />
-                          <input type="hidden" name="requestId" value={requestId} />
-                          <input type="hidden" name="responseId" value={response.id} />
-                          <input
-                            type="hidden"
-                            name="documentVersionId"
-                            value={document.documentVersionId}
-                          />
-                          <span>
-                            {document.title}, Version {document.versionNumber}
-                          </span>{' '}
-                          <button type="submit" className="btn btn-secondary">
-                            Preview {document.title}
-                          </button>
-                        </form>
-                      ))}
-                      {line.details.map((detail, index) => (
-                        <p key={`${line.item.id}-${index}`} className="u-fs-085">
-                          {detail.value}
+                <>
+                  <ol className="collection-items">
+                    {response.lines.map((line) => (
+                      <li key={line.item.id}>
+                        <p className="collection-item-label">
+                          <strong>{line.item.label}</strong>
                         </p>
-                      ))}
-                    </li>
-                  ))}
-                </ol>
+                        {line.missing ? (
+                          <p className="collect-response-missing u-fs-085">Still Missing</p>
+                        ) : null}
+                        {line.documents.map((document) => (
+                          <form
+                            key={document.documentVersionId}
+                            action={downloadResponseFileAction}
+                            className="collection-response-file"
+                          >
+                            <input type="hidden" name="organizationId" value={organizationId} />
+                            <input type="hidden" name="requestId" value={requestId} />
+                            <input type="hidden" name="responseId" value={response.id} />
+                            <input
+                              type="hidden"
+                              name="documentVersionId"
+                              value={document.documentVersionId}
+                            />
+                            <span>
+                              {document.title}, Version {document.versionNumber}
+                            </span>{' '}
+                            <button type="submit" className="btn btn-secondary">
+                              Download {document.title}
+                            </button>
+                          </form>
+                        ))}
+                        {line.details.map((detail, index) => (
+                          <p key={`${line.item.id}-${index}`} className="u-fs-085">
+                            {detail.value ?? 'Protected Detail'}
+                          </p>
+                        ))}
+                      </li>
+                    ))}
+                  </ol>
+                  {response.lines.some((l) => l.details.some((d) => d.value === null)) ? (
+                    <p className="u-fs-085">
+                      <Link
+                        href={`/app/agency/${encodeURIComponent(organizationId)}/collection/request?id=${encodeURIComponent(requestId)}&details=${encodeURIComponent(response.id)}#collection-responses`}
+                      >
+                        Show Protected Details
+                      </Link>{' '}
+                      (you confirm it is you first)
+                    </p>
+                  ) : null}
+                </>
               ) : (
                 <p className="notice notice-warn">
                   This answer has changed since it was sent, usually because the person removed a

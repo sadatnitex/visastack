@@ -14,10 +14,12 @@ import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import {
   type CollectionResponseAccess,
   collectionResponseAccessProblem,
+  collectionResponseIntact,
   collectionResponsePurpose,
   collectionResponseStillCovers,
   responseIdFromPurpose,
 } from './access/collection-response-access';
+import { StepUpProof } from './access/step-up-proof';
 import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
@@ -1443,6 +1445,8 @@ async function issueVersionReadRef(
     readonly variant: AccessVariant;
     readonly now: Date;
     readonly accessTokenSecret: string;
+    /** The name the file is saved under; the document's current name when not given. */
+    readonly filename?: string;
     readonly context: Omit<
       DocumentAccessTokenFields,
       'sig' | 'exp' | 'documentId' | 'documentVersionId'
@@ -1467,7 +1471,7 @@ async function issueVersionReadRef(
     expiresInSeconds: DEFAULT_ACCESS_TTL_SECONDS,
     // The current approved name if one exists, else the preserved original,
     // never the opaque storage key (master directive §10/§18/§21E).
-    filename: document.approvedName ?? document.originalName,
+    filename: input.filename ?? document.approvedName ?? document.originalName,
   });
 
   // A second, separate signed token (EVI-06/SEC-05) riding alongside the
@@ -1488,26 +1492,33 @@ async function issueVersionReadRef(
   return ok({ ...ref, url: appendDocumentAccessToken(ref.url, signedAccessTokenFields) });
 }
 
-export interface CollectionResponsePreviewInput {
+export interface CollectionResponseDownloadInput {
   readonly documentVersionId: string;
   readonly accessTokenSecret: string;
+  /**
+   * A recent identity confirmation by this agency admin for exactly this version
+   * (`verifyStepUp`, action `DOWNLOAD_ORIGINAL`), as every original download needs.
+   */
+  readonly stepUp?: StepUpProof;
   readonly now?: Date;
 }
 
 /**
- * UMPE P7: a safe preview of exactly one document version a traveller approved in their answer to
- * this agency's request. Never "the latest version": the version is the one the response lists,
- * so a later upload of the same document is never reachable this way, and a document the response
- * does not list is not found, exactly like a missing one. Preview only (the rendered, active-content
- * stripped copy, as for every other preview); the same servability and erasure checks as every
- * other file, one audit event per request, and a link the serving route re-checks against the live
- * response (`recheckDocumentAccess`).
+ * UMPE P7: the original file of exactly one document version a traveller chose to send this agency
+ * in their answer. Never "the latest version": the version is the one the response lists, so a
+ * later upload of the same document is never reachable this way, and a document the response does
+ * not list is not found, exactly like a missing one. A download of the original, never a preview:
+ * a preview for anyone but the owner must be the masked rendering (ADR 0022 decision 6), while an
+ * original goes to a third party only with `DOWNLOAD_ORIGINAL` and a recent identity confirmation,
+ * which this asks for too. The same servability and erasure checks as every other file, a refusal
+ * for an answer that changed since it was sent, one audit event per request, the file name as it was
+ * when sent, and a link the serving route re-checks against the live response.
  */
-export async function previewCollectionResponseVersion(
+export async function downloadCollectionResponseVersion(
   db: Db,
   storage: StoragePort,
   access: CollectionResponseAccess,
-  input: CollectionResponsePreviewInput,
+  input: CollectionResponseDownloadInput,
 ): Promise<Result<AccessRef, ServiceError>> {
   const problem = collectionResponseAccessProblem(access);
   if (problem) return err(problem);
@@ -1517,7 +1528,7 @@ export async function previewCollectionResponseVersion(
   const responses = schema.agencyCollectionResponses;
   const line = first(
     await db
-      .select({ documentId: items.documentId })
+      .select({ documentId: items.documentId, title: items.title })
       .from(items)
       .innerJoin(responses, eq(responses.id, items.responseId))
       .where(
@@ -1533,6 +1544,7 @@ export async function previewCollectionResponseVersion(
       .limit(1),
   );
   if (!line?.documentId) return notFound;
+  if (!(await collectionResponseIntact(db, access.responseId))) return notFound;
   const document = await findPresentDocument(db, line.documentId);
   if (!document || document.applicantId !== access.applicantId) return notFound;
   const version = first(
@@ -1548,6 +1560,36 @@ export async function previewCollectionResponseVersion(
       .limit(1),
   );
   if (!version) return notFound;
+  const metadata = {
+    variant: 'original',
+    disposition: 'download',
+    purpose: 'collection_response',
+    organizationId: access.organizationId,
+    responseId: access.responseId,
+  };
+  const stepUpSatisfied = StepUpProof.covers(input.stepUp, {
+    accountId: access.accountId,
+    action: 'DOWNLOAD_ORIGINAL',
+    resourceId: version.id,
+  });
+  if (!stepUpSatisfied) {
+    await db.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: 'DOCUMENT_ACCESS',
+        actorAccountId: access.accountId,
+        actorRole: 'org:collection_response',
+        action: 'DOWNLOAD_ORIGINAL',
+        result: 'DENIED',
+        method: 'API',
+        applicantId: document.applicantId,
+        resourceType: 'document',
+        resourceId: document.id,
+        reason: 'step_up_required',
+        metadata,
+      });
+    });
+    return err(serviceError('step_up_required', 'confirm it is you to download this file'));
+  }
   const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
   const servable = isDocumentVersionUsable({
     safetyStatus: version.safetyStatus,
@@ -1560,37 +1602,32 @@ export async function previewCollectionResponseVersion(
       eventType: 'DOCUMENT_ACCESS',
       actorAccountId: access.accountId,
       actorRole: 'org:collection_response',
-      action: 'PREVIEW',
+      action: 'DOWNLOAD_ORIGINAL',
       result: servable ? 'ALLOWED' : 'DENIED',
       method: 'API',
       applicantId: document.applicantId,
       resourceType: 'document',
       resourceId: document.id,
       reason: servable ? null : erased ? 'bytes_already_erased' : 'not_yet_safe_to_serve',
-      metadata: {
-        variant: 'redacted',
-        disposition: 'preview',
-        purpose: 'collection_response',
-        organizationId: access.organizationId,
-        responseId: access.responseId,
-      },
+      metadata,
     });
   });
   if (!servable) return err(serviceError('forbidden', 'this document is not yet available'));
   return issueVersionReadRef(db, storage, {
     document,
     version,
-    disposition: 'preview',
-    variant: 'redacted',
+    disposition: 'download',
+    variant: 'original',
     now,
     accessTokenSecret: input.accessTokenSecret,
+    ...(line.title ? { filename: line.title } : {}),
     context: {
       actorKind: 'collection_response',
       actorAccountId: access.accountId,
       organizationId: access.organizationId,
-      action: 'PREVIEW',
+      action: 'DOWNLOAD_ORIGINAL',
       purpose: collectionResponsePurpose(access.responseId),
-      stepUpSatisfied: false,
+      stepUpSatisfied: true,
     },
   });
 }
@@ -1616,6 +1653,12 @@ export async function recheckDocumentAccess(
   db: Db,
   fields: Omit<DocumentAccessTokenFields, 'sig' | 'exp'>,
   now: Date = new Date(),
+  /**
+   * The storage key the serving route was asked for. When given, it must be the stored object of
+   * exactly the version the access token names, so the two tokens on a link can never be mixed
+   * from two different links.
+   */
+  objectKey?: string,
 ): Promise<RecheckDocumentAccessResult> {
   const document = await findPresentDocument(db, fields.documentId);
   if (!document) return { allowed: false, reason: 'document_not_found' };
@@ -1627,7 +1670,9 @@ export async function recheckDocumentAccess(
     if (!responseId || !fields.actorAccountId || !fields.organizationId) {
       return { allowed: false, reason: 'missing_collection_response_context' };
     }
-    if (fields.action !== 'PREVIEW') return { allowed: false, reason: 'action_not_granted' };
+    if (fields.action !== 'DOWNLOAD_ORIGINAL' || !fields.stepUpSatisfied) {
+      return { allowed: false, reason: 'action_not_granted' };
+    }
     const covered = await collectionResponseStillCovers(db, {
       responseId,
       accountId: fields.actorAccountId,
@@ -1636,7 +1681,7 @@ export async function recheckDocumentAccess(
       documentVersionId: fields.documentVersionId,
     });
     if (!covered.allowed) return covered;
-    return servableAtRedemption(db, document, fields.documentVersionId);
+    return servableAtRedemption(db, document, fields.documentVersionId, objectKey);
   }
 
   let actor: Actor;
@@ -1703,7 +1748,7 @@ export async function recheckDocumentAccess(
   // since been erased or otherwise made unusable, and the reverse (a newer
   // sibling being unsafe) must never block redemption of a still-servable
   // minted version either.
-  return servableAtRedemption(db, document, fields.documentVersionId);
+  return servableAtRedemption(db, document, fields.documentVersionId, objectKey);
 }
 
 /** Whether the exact version a link was minted for is still servable right now. */
@@ -1711,6 +1756,7 @@ async function servableAtRedemption(
   db: Db,
   document: Document,
   documentVersionId: string,
+  objectKey: string | undefined,
 ): Promise<RecheckDocumentAccessResult> {
   const version = first(
     await db
@@ -1729,6 +1775,16 @@ async function servableAtRedemption(
     erased,
   });
   if (!servable) return { allowed: false, reason: 'not_yet_safe_to_serve' };
+  if (objectKey !== undefined) {
+    const stored = first(
+      await db
+        .select({ objectKey: schema.storageObjects.objectKey })
+        .from(schema.storageObjects)
+        .where(eq(schema.storageObjects.id, version.storageObjectId))
+        .limit(1),
+    );
+    if (stored?.objectKey !== objectKey) return { allowed: false, reason: 'object_key_mismatch' };
+  }
 
   return { allowed: true };
 }
