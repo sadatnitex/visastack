@@ -25,6 +25,15 @@ export type UploadOutcome =
    * room (ADR 0025 section 12.2).
    */
   | { readonly kind: 'refused'; readonly message: string; readonly upgrade?: UpgradeLineKind }
+  /**
+   * Turned away for now before anything was stored (HTTP 429 or 503): busy, or the hourly upload
+   * limit. `retryAfterSeconds` is how long the server asked to wait, when it said.
+   */
+  | {
+      readonly kind: 'busy';
+      readonly message: string | null;
+      readonly retryAfterSeconds: number | null;
+    }
   /** No usable answer came back: the file may or may not have arrived. */
   | { readonly kind: 'unknown' };
 
@@ -37,6 +46,8 @@ export interface UploadRequest {
   readonly status: number;
   readonly responseText: string;
   readonly upload: { onprogress: ((event: ProgressEvent) => void) | null };
+  /** Reads a response header (Retry-After); optional so a stand-in may leave it out. */
+  getResponseHeader?(name: string): string | null;
   onload: (() => void) | null;
   onerror: (() => void) | null;
   ontimeout: (() => void) | null;
@@ -78,7 +89,15 @@ export function sendDocumentFile(input: SendFileInput): Promise<UploadOutcome> {
     request.upload.onprogress = (event) => {
       if (event.lengthComputable && event.total > 0) input.onProgress(event.loaded / event.total);
     };
-    request.onload = () => resolve(readAnswer(request.status, request.responseText));
+    request.onload = () => {
+      let retryAfter: string | null = null;
+      try {
+        retryAfter = request.getResponseHeader?.('Retry-After') ?? null;
+      } catch {
+        retryAfter = null;
+      }
+      resolve(readAnswer(request.status, request.responseText, retryAfter));
+    };
     request.onerror = () => resolve({ kind: 'unknown' });
     request.ontimeout = () => resolve({ kind: 'unknown' });
     request.onabort = () => resolve({ kind: 'unknown' });
@@ -86,8 +105,48 @@ export function sendDocumentFile(input: SendFileInput): Promise<UploadOutcome> {
   });
 }
 
-/** What the route said. Anything that is not its own JSON answer (a sign-in page, a host error page) is unknown. */
-export function readAnswer(status: number, body: string): UploadOutcome {
+/**
+ * Seconds to wait from a Retry-After value (whole seconds, or an HTTP date), or null when there is
+ * none or it cannot be read.
+ */
+export function retryAfterSeconds(value: string | null, now: number = Date.now()): number | null {
+  if (!value) return null;
+  const text = value.trim();
+  if (/^\d+$/.test(text)) return Number(text);
+  const date = Date.parse(text);
+  if (Number.isNaN(date)) return null;
+  return Math.max(0, Math.ceil((date - now) / 1000));
+}
+
+/** The server's own line from a JSON body, or null. */
+function messageOf(body: string): string | null {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const { message } = parsed as { message?: unknown };
+    return typeof message === 'string' && message.trim() !== '' ? message : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What the route said. Anything that is not its own JSON answer (a sign-in page, a host error
+ * page) is unknown, except HTTP 429 and 503: those turn a request away before it is stored, so
+ * they are a definite busy answer whatever the body.
+ */
+export function readAnswer(
+  status: number,
+  body: string,
+  retryAfter: string | null = null,
+): UploadOutcome {
+  if (status === 429 || status === 503) {
+    return {
+      kind: 'busy',
+      message: messageOf(body),
+      retryAfterSeconds: retryAfterSeconds(retryAfter),
+    };
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(body);

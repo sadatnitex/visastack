@@ -1,13 +1,16 @@
 import { MADE_UP_HEIC_SMALL } from '@visastack/adapters/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { POST } from './route';
+import { POST, uploadRetryAfterSeconds } from './route';
 const { session, applicant, upload } = vi.hoisted(() => ({
   session: vi.fn(),
   applicant: vi.fn(),
   upload: vi.fn(),
 }));
 vi.mock('../../../../lib/session', () => ({ withSession: session }));
-vi.mock('@visastack/services', () => ({ getApplicant: applicant }));
+vi.mock('@visastack/services', () => ({
+  getApplicant: applicant,
+  RATE_LIMITS: { UPLOAD_RESERVE: { limit: 200, windowMs: 60 * 60 * 1000 } },
+}));
 vi.mock('../../../app/applicant/[id]/actions', () => ({ uploadDocumentAction: upload }));
 const id = '00000000-0000-4000-8000-000000000001';
 const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -119,5 +122,29 @@ describe('authenticated raw document upload', () => {
     expect((await POST(request('https://app.example', png, 'image/heic'))).status).toBe(415);
     expect((await POST(request('https://app.example', heic, 'image/png'))).status).toBe(415);
     expect(upload).not.toHaveBeenCalled();
+  });
+
+  it('answers the hourly upload limit with 429, its own line and how long until it frees', async () => {
+    const line = 'too many upload requests in a short time - please try again later';
+    upload.mockResolvedValueOnce({ ok: false, message: line });
+    const limited = await POST(request());
+    expect(limited.status).toBe(429);
+    expect(await limited.json()).toEqual({ message: line });
+    const wait = Number(limited.headers.get('retry-after'));
+    expect(Number.isInteger(wait)).toBe(true);
+    expect(wait).toBeGreaterThanOrEqual(1);
+    expect(wait).toBeLessThanOrEqual(3600);
+    // Any other refusal stays a plain 400 with no Retry-After.
+    upload.mockResolvedValueOnce({ ok: false, message: 'Full.' });
+    const full = await POST(request());
+    expect(full.status).toBe(400);
+    expect(full.headers.get('retry-after')).toBeNull();
+  });
+
+  it('works out the wait from the fixed hourly window', () => {
+    const hour = 60 * 60 * 1000;
+    expect(uploadRetryAfterSeconds(10 * hour)).toBe(3600);
+    expect(uploadRetryAfterSeconds(10 * hour + 59 * 60 * 1000)).toBe(60);
+    expect(uploadRetryAfterSeconds(11 * hour - 1)).toBe(1);
   });
 });

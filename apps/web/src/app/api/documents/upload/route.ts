@@ -1,4 +1,4 @@
-import { getApplicant } from '@visastack/services';
+import { RATE_LIMITS, getApplicant } from '@visastack/services';
 import type { UpgradeLineKind } from '../../../../components/upgrade-line';
 import { withSession } from '../../../../lib/session';
 import {
@@ -20,6 +20,7 @@ const json = (
   title?: string,
   upgrade?: UpgradeLineKind,
   removableCopyId?: string,
+  extraHeaders: Readonly<Record<string, string>> = {},
 ) =>
   Response.json(
     {
@@ -31,7 +32,11 @@ const json = (
     },
     {
       status,
-      headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+        ...extraHeaders,
+      },
     },
   );
 
@@ -47,6 +52,28 @@ function encodedHeader(request: Request, name: string): string {
   } catch {
     return '';
   }
+}
+
+/**
+ * The upload rate limit's own refusal (packages/services rate-limit.ts with the label "upload").
+ * The action passes only its message on, so the route recognises it by that sentence.
+ */
+const UPLOAD_RATE_LIMITED = /^too many upload requests in a short time\b/i;
+
+/** The longest wait ever asked for: the whole window, when the wait cannot be worked out. */
+const SAFE_RETRY_AFTER_SECONDS = 3600;
+
+/**
+ * Seconds until the hourly upload window frees up. The limit counts in fixed windows (each one
+ * starts at a multiple of its length), so the wait is what is left of the current one.
+ */
+export function uploadRetryAfterSeconds(now: number = Date.now()): number {
+  const windowMs = RATE_LIMITS?.UPLOAD_RESERVE?.windowMs;
+  if (typeof windowMs !== 'number' || !Number.isFinite(windowMs) || windowMs <= 0) {
+    return SAFE_RETRY_AFTER_SECONDS;
+  }
+  const left = Math.ceil((windowMs - (now % windowMs)) / 1000);
+  return Math.min(SAFE_RETRY_AFTER_SECONDS, Math.max(1, left));
 }
 
 /**
@@ -89,6 +116,13 @@ export async function POST(request: Request): Promise<Response> {
     // Do not accept a caller-controlled path or header as the stored filename.
     form.set('file', new File([Buffer.from(bytes)], 'document', { type: contentType }));
     const result = await uploadDocumentAction({ ok: false, message: '' }, form);
+    // Turned away by the hourly upload limit before anything was stored: a definite "not now",
+    // with how long until the window frees, so a batch import waits instead of guessing.
+    if (!result.ok && UPLOAD_RATE_LIMITED.test(result.message)) {
+      return json(result.message, 429, undefined, result.upgrade, undefined, {
+        'Retry-After': String(uploadRetryAfterSeconds()),
+      });
+    }
     return json(
       result.message,
       result.ok ? 201 : 400,

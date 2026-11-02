@@ -15,8 +15,11 @@
 
 import type { ImportCandidate, SkippedEntry } from './import-queue';
 
-/** The most files one import sends. */
-export const MAX_IMPORT_FILES = 500;
+/**
+ * The most files one import sends: the hourly upload limit (200 an hour per account), so one
+ * import can finish within an hour when nothing else was uploaded.
+ */
+export const MAX_IMPORT_FILES = 200;
 
 /**
  * The most entries one walk looks at (files sent, files listed as not added). Past this the walk

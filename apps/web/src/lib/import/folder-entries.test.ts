@@ -62,20 +62,20 @@ function dirEntry(fullPath: string, children: readonly EntryLike[]) {
 
 describe('walking a dropped folder', () => {
   it('goes to the bottom of nested folders and keeps calling readEntries past 100 entries', async () => {
-    const many = Array.from({ length: 250 }, (_, i) => fileEntry(`/Trip/Bank/statement-${i}.jpg`));
+    const many = Array.from({ length: 150 }, (_, i) => fileEntry(`/Trip/Bank/statement-${i}.jpg`));
     const bank = dirEntry('/Trip/Bank', many);
     const deep = dirEntry('/Trip/Family/Child', [fileEntry('/Trip/Family/Child/birth.jpg')]);
     const family = dirEntry('/Trip/Family', [deep, fileEntry('/Trip/Family/marriage.jpg')]);
     const trip = dirEntry('/Trip', [bank, family, fileEntry('/Trip/passport.jpg')]);
 
     const result = await readDrop({ entries: [trip], loose: [] });
-    expect(result.files).toHaveLength(253);
+    expect(result.files).toHaveLength(153);
     expect(result.skipped).toEqual([]);
     expect(result.truncated).toBe(false);
-    // 250 entries need three full calls and one empty one to know the folder is done.
-    expect(bank.calls()).toBe(4);
+    // 150 entries need a full call, a part call and an empty one to know the folder is done.
+    expect(bank.calls()).toBe(3);
     const paths = result.files.map((each) => each.path);
-    expect(paths).toContain('Trip/Bank/statement-249.jpg');
+    expect(paths).toContain('Trip/Bank/statement-149.jpg');
     expect(paths).toContain('Trip/Family/Child/birth.jpg');
     expect(paths).toContain('Trip/passport.jpg');
   });
@@ -122,14 +122,14 @@ describe('walking a dropped folder', () => {
   it(`sends at most ${MAX_IMPORT_FILES} files and lists every one past that as over the limit`, async () => {
     const tree = dirEntry(
       '/Big',
-      Array.from({ length: 520 }, (_, i) => fileEntry(`/Big/f-${i}.jpg`)),
+      Array.from({ length: MAX_IMPORT_FILES + 20 }, (_, i) => fileEntry(`/Big/f-${i}.jpg`)),
     );
     const result = await readDrop({ entries: [tree], loose: [] });
     expect(result.files).toHaveLength(MAX_IMPORT_FILES);
     expect(result.skipped).toHaveLength(20);
     expect(result.skipped.every((each) => each.reason === 'over-limit')).toBe(true);
-    expect(result.skipped[0]?.path).toBe('Big/f-500.jpg');
-    expect(result.files.length + result.skipped.length).toBe(520);
+    expect(result.skipped[0]?.path).toBe(`Big/f-${MAX_IMPORT_FILES}.jpg`);
+    expect(result.files.length + result.skipped.length).toBe(MAX_IMPORT_FILES + 20);
   });
 
   it('stops looking past a ceiling and says so', async () => {

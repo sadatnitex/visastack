@@ -12554,7 +12554,13 @@ html:has(.sticky-action-bar) {
 .import-panel > .btn {
   min-height: 44px;
 }
-.import-panel .import-earlier .field-hint {
+.import-panel .import-earlier .field-hint,
+.import-panel .import-controls .field-hint {
   margin: 0;
   flex: 1 1 18rem;
+}
+.import-panel .import-summary-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 600;
 }
