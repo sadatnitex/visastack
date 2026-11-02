@@ -12,6 +12,7 @@ import {
   isNotNull,
   isNull,
   lte,
+  notInArray,
   or,
   sql,
 } from 'drizzle-orm';
@@ -32,6 +33,7 @@ import { listMembershipsForAccount } from './organizations';
 import type { EmailPort, KeyManagementPort } from './ports';
 import { collectionLinkStillOpen } from './umpe-collection-request-service';
 import { guestCodeStillDeliverable } from './umpe-guest-collection';
+import { INACTIVE_CASE_STATES } from './umpe-package-tables';
 
 /**
  * The Notification Outbox (NTF-02 + Part 5 §3): a transactional outbox.
@@ -98,7 +100,41 @@ export type NotificationEventType =
   | 'PERSON_PLAN_RENEWAL_DUE'
   | 'PERSON_PLAN_ENDED'
   // ADR 0025 T6: a refund of the person's own purchase was made; no amount.
-  | 'PERSON_REFUND_RECORDED';
+  | 'PERSON_REFUND_RECORDED'
+  // UMPE P4: something changed for a traveller's own trip package; one note per change.
+  | typeof PACKAGE_CHANGED_EVENT;
+
+// --- UMPE P4: trip package change notes ----------------------------------------------------------
+/** A note to a traveller that something changed for one of their trip packages (UMPE P4, R19). */
+export const PACKAGE_CHANGED_EVENT = 'CASE_PACKAGE_CHANGED';
+
+/**
+ * Send-time recheck: the note goes only while that change is still open (not reviewed, not gone)
+ * on an active case of the same traveller. Ids only; the change row is read, never edited.
+ */
+async function packageChangeStillOpen(db: Db, notification: Notification): Promise<boolean> {
+  if (!notification.resourceId || !notification.missionId || !notification.applicantId)
+    return false;
+  const row = first(
+    await db
+      .select({ id: schema.umpePackageChanges.id })
+      .from(schema.umpePackageChanges)
+      .innerJoin(schema.missions, eq(schema.missions.id, schema.umpePackageChanges.missionId))
+      .where(
+        and(
+          eq(schema.umpePackageChanges.id, notification.resourceId),
+          eq(schema.umpePackageChanges.missionId, notification.missionId),
+          eq(schema.umpePackageChanges.applicantId, notification.applicantId),
+          isNull(schema.umpePackageChanges.resolvedAt),
+          isNull(schema.missions.purgedAt),
+          notInArray(schema.missions.state, [...INACTIVE_CASE_STATES]),
+        ),
+      )
+      .limit(1),
+  );
+  return row !== undefined;
+}
+// --- end UMPE P4 ---------------------------------------------------------------------------------
 
 /**
  * Billing notices (S17): an agency's invoices, reminders and billing status are for its owners
@@ -658,6 +694,25 @@ async function dispatchOne(
   }
 
   const payload = notification.payload as NotificationPayload;
+
+  // UMPE P4: a package change note that no longer applies is cancelled, on either channel.
+  if (
+    notification.eventType === PACKAGE_CHANGED_EVENT &&
+    !(await packageChangeStillOpen(db, notification))
+  ) {
+    const updated = await db
+      .update(schema.notifications)
+      .set({
+        status: 'CANCELLED',
+        attempts,
+        lastError: 'no longer applies',
+        leaseOwner: null,
+        leaseExpiresAt: null,
+      })
+      .where(ownedQueue)
+      .returning({ id: schema.notifications.id });
+    return updated.length ? 'failed' : 'deferred';
+  }
 
   if (notification.channel === 'IN_APP') {
     const updated = await db

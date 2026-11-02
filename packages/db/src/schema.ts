@@ -5913,3 +5913,151 @@ export const agencyCollectionGuestDrafts = pgTable(
     ),
   ],
 );
+
+// --- Trip package assembly (UMPE P4) ----------------------------------------------------------
+// A case-local overlay over the official checklist: what the traveller chose for each requirement.
+// It never edits a requirement or a pack. Append-only: a new choice supersedes the live one (sets
+// `supersededAt`), so the history of what was chosen, and when, is kept. One live row per case
+// and requirement.
+export const umpePackageChoices = pgTable(
+  'umpe_package_choices',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    packRequirementId: uuid('pack_requirement_id')
+      .notNull()
+      .references(() => packRequirements.id, { onDelete: 'cascade' }),
+    /** USE_COPY pins one exact version; EXCLUDE drops an item that can never block; LEAVE_MISSING keeps the gap. */
+    choice: text('choice').notNull(),
+    documentId: uuid('document_id').references(() => documents.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id').references(() => documentVersions.id, {
+      onDelete: 'cascade',
+    }),
+    factId: uuid('fact_id').references(() => facts.id, { onDelete: 'cascade' }),
+    factVersionId: uuid('fact_version_id').references(() => factVersions.id, {
+      onDelete: 'cascade',
+    }),
+    reason: text('reason'),
+    chosenByAccountId: uuid('chosen_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    supersededAt: timestamp('superseded_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('umpe_package_choices_live')
+      .on(table.missionId, table.packRequirementId)
+      .where(sql`${table.supersededAt} is null`),
+    index('umpe_package_choices_applicant_idx').on(table.applicantId),
+    index('umpe_package_choices_requirement_idx').on(table.packRequirementId),
+    index('umpe_package_choices_document_version_idx').on(table.documentVersionId),
+    index('umpe_package_choices_fact_version_idx').on(table.factVersionId),
+    index('umpe_package_choices_document_idx').on(table.documentId),
+    index('umpe_package_choices_fact_idx').on(table.factId),
+    index('umpe_package_choices_chosen_by_idx').on(table.chosenByAccountId),
+    check(
+      'umpe_package_choices_choice_known',
+      sql`${table.choice} in ('USE_COPY', 'EXCLUDE', 'LEAVE_MISSING')`,
+    ),
+    check(
+      'umpe_package_choices_copy_shape',
+      sql`(${table.choice} = 'USE_COPY') = ((${table.documentVersionId} is not null and ${table.documentId} is not null and ${table.factVersionId} is null and ${table.factId} is null) or (${table.factVersionId} is not null and ${table.factId} is not null and ${table.documentVersionId} is null and ${table.documentId} is null))`,
+    ),
+    check(
+      'umpe_package_choices_exclude_reason',
+      sql`${table.choice} <> 'EXCLUDE' or char_length(coalesce(${table.reason}, '')) between 1 and 500`,
+    ),
+    check(
+      'umpe_package_choices_reason_cap',
+      sql`${table.reason} is null or char_length(${table.reason}) <= 500`,
+    ),
+  ],
+);
+
+// The traveller's explicit "Prepared for Handoff" confirmation: an immutable record of the exact
+// package (pack version and checksum, every selection by version id, the caveats still open, the
+// freshness check and the steps outside VisaStack) at that moment. A database trigger refuses any
+// edit; a later upload or a newer rule never rewrites it, it can only lead to a new confirmation.
+// It is not a submission: Submitted to Agency and Submitted to Authority stay separate records.
+export const umpePackageHandoffs = pgTable(
+  'umpe_package_handoffs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    missionSnapshotId: uuid('mission_snapshot_id')
+      .notNull()
+      .references(() => missionSnapshots.id, { onDelete: 'cascade' }),
+    packVersionId: uuid('pack_version_id').references(() => packVersions.id, {
+      onDelete: 'restrict',
+    }),
+    packChecksum: text('pack_checksum'),
+    manifestFormat: integer('manifest_format'),
+    materialRevisionAtCapture: integer('material_revision_at_capture').notNull(),
+    content: jsonb('content').notNull(),
+    contentChecksum: text('content_checksum').notNull(),
+    confirmedByAccountId: uuid('confirmed_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('umpe_package_handoffs_mission_idx').on(table.missionId, table.confirmedAt),
+    index('umpe_package_handoffs_applicant_idx').on(table.applicantId),
+    index('umpe_package_handoffs_snapshot_idx').on(table.missionSnapshotId),
+    index('umpe_package_handoffs_pack_version_idx').on(table.packVersionId),
+    index('umpe_package_handoffs_confirmed_by_idx').on(table.confirmedByAccountId),
+    check('umpe_package_handoffs_checksum_shape', sql`${table.contentChecksum} ~ '^[0-9a-f]{64}$'`),
+  ],
+);
+
+// Continuous matching: at most one open "something changed" item per case, rewritten in place with
+// the latest precise change while it stays open (so a person meets one next action, not a pile).
+// Ids and kinds only, never a value. Resolving it never edits a handoff or shares anything.
+export const umpePackageChanges = pgTable(
+  'umpe_package_changes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    signature: text('signature').notNull(),
+    detail: jsonb('detail').notNull(),
+    changeCount: integer('change_count').notNull().default(1),
+    firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    source: text('source').notNull(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolution: text('resolution'),
+  },
+  (table) => [
+    uniqueIndex('umpe_package_changes_open')
+      .on(table.missionId)
+      .where(sql`${table.resolvedAt} is null`),
+    index('umpe_package_changes_applicant_idx').on(table.applicantId),
+    check(
+      'umpe_package_changes_kind_known',
+      sql`${table.kind} in ('NEWER_DOCUMENT', 'FACT_CHANGED', 'EVIDENCE_EXPIRED', 'PACK_CHANGED', 'PACK_WITHDRAWN', 'SOURCE_CHANGING')`,
+    ),
+    check('umpe_package_changes_source_known', sql`${table.source} in ('CASE_OPENED', 'SWEEP')`),
+    check(
+      'umpe_package_changes_resolution_known',
+      sql`(${table.resolvedAt} is null) = (${table.resolution} is null) and (${table.resolution} is null or ${table.resolution} in ('REVIEWED', 'NO_LONGER_APPLIES'))`,
+    ),
+    check('umpe_package_changes_signature_cap', sql`char_length(${table.signature}) <= 512`),
+    check('umpe_package_changes_count_positive', sql`${table.changeCount} >= 1`),
+  ],
+);

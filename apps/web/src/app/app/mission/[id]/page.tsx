@@ -19,6 +19,7 @@ import {
   computeTripChecks,
   getAiFeatureState,
   getApplicant,
+  getCasePackage,
   getDocumentLifecycles,
   getEvidenceCandidates,
   getLatestExplanationForRequirement,
@@ -110,6 +111,7 @@ import {
 } from './mission-buttons';
 import { OpenGroupOnLink } from './open-group-on-link';
 import { OutcomePanel } from './outcome-panel';
+import { PackagePanel } from './package-panel';
 import { ExplainGapButton } from './readiness-gap-explain';
 import { isPacketSnapshot } from './snapshot-packet';
 import { SubmissionReportPanel } from './submission-report-panel';
@@ -425,6 +427,15 @@ export default async function MissionPage({
             .catch(() => null)
         : Promise.resolve([]),
     ]);
+    // UMPE P4: the trip package, read through this case's own access proof. A refusal or an
+    // error leaves the panel out rather than showing a made-up state.
+    // A case without a checklist has nothing to assemble yet; its welcome note says so.
+    const casePackage = mission.packVersionId
+      ? await selfView()
+          .then((gate) => (gate.ok ? getCasePackage(gate.value, mission.id) : null))
+          .then((result) => (result?.ok ? result.value : null))
+          .catch(() => null)
+      : null;
     const complaintList = complaints.ok ? complaints.value.items : [];
     const complaintEventsById = new Map(
       await Promise.all(
@@ -671,6 +682,7 @@ export default async function MissionPage({
       requiredUnverifiedCount,
       explanationConfigured,
       tripChecks,
+      casePackage,
       explanationFeature,
       explanationsByRequirement,
       packInfo: pack
@@ -1172,6 +1184,7 @@ export default async function MissionPage({
         <nav className="jump-nav" aria-label="Sections of this case">
           {showTripChecks ? <a href="#trip-checks">Dates</a> : null}
           <a href="#readiness">Readiness</a>
+          {data.casePackage ? <a href="#trip-package">Trip Package</a> : null}
           <a href="#evidence">Evidence</a>
           <a href="#work">Tasks and Letters</a>
           <a href="#snapshots">Snapshots</a>
@@ -1288,6 +1301,12 @@ export default async function MissionPage({
                 </>
               )}
             </article>
+
+            {data.casePackage ? (
+              <article className="card" id="trip-package" {...atLevel('browse')}>
+                <PackagePanel pkg={data.casePackage} />
+              </article>
+            ) : null}
 
             <div className="depth-item" {...atLevel('everything')}>
               <Disclosure
