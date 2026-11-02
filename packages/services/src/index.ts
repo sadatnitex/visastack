@@ -2458,7 +2458,6 @@ export {
   type SourceMonitorOverview,
   deactivateOfficialSource,
   dhakaWeekKey,
-  isSaturdayInDhaka,
   registerOfficialSource,
   reviewSourceChangeCandidate,
   runSourceCheck,

@@ -108,12 +108,28 @@ it('runs Check Now as a manual run, one source when asked, and reports counts in
   const result = await checkNowAction(START, form({ sourceId: 's1' }));
   expect(result).toEqual({
     ok: true,
-    message: 'Checked 2 of 3. 1 changed and waiting for review. 1 could not be read.',
+    message: 'Checked 3 of 3. 1 changed and waiting for review. 1 could not be read.',
   });
   expect(mocks.run.mock.calls[0]?.[1]).toBe(mocks.staff);
   expect(mocks.run.mock.calls[0]?.[2]).toMatchObject({ sourceId: 's1' });
-  mocks.run.mockResolvedValue({ status: 'NOT_READY' });
-  expect((await checkNowAction(START, form({}))).ok).toBe(false);
+  // Never "40 of 40" when more sources exist.
+  mocks.run.mockResolvedValue({
+    status: 'PARTIAL',
+    sourcesDue: 52,
+    checked: 40,
+    changed: 0,
+    blocked: 0,
+    failed: 0,
+    unsupported: 0,
+    deferred: 12,
+  });
+  expect((await checkNowAction(START, form({}))).message).toBe(
+    'Checked 40 of 52, 12 Left for the Next Run.',
+  );
+  for (const status of ['NOT_READY', 'RATE_LIMITED', 'INVALID_SOURCE']) {
+    mocks.run.mockResolvedValue({ status });
+    expect((await checkNowAction(START, form({}))).ok).toBe(false);
+  }
 });
 
 it('records a decision only: accepting never approves or publishes a pack version', async () => {

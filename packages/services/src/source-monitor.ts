@@ -5,7 +5,9 @@ import { type StaffScope, SystemScope, staffScopeProblem } from './access/princi
 import { appendAuditEvent } from './audit';
 import { type Db, first, isUniqueViolation, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { isUuid } from './lifecycle/foundation/ids';
 import { cacheOwner, connectionKey } from './plans-schema';
+import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 import {
   SOURCE_FETCH_TIMEOUT_MS,
   type SourceFetchOutcome,
@@ -302,8 +304,6 @@ function isAuthorityTier(value: string): value is SourceAuthorityTier {
   return (SOURCE_AUTHORITY_TIERS as readonly string[]).includes(value);
 }
 
-const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** Registers one official page for a route. The page is not fetched here. */
 export async function registerOfficialSource(
   db: Db,
@@ -342,7 +342,7 @@ export async function registerOfficialSource(
     return err(serviceError('invalid', 'Choose who the source speaks for.'));
   }
   const packId = input.packId?.trim() ?? '';
-  if (packId.length > 0 && !UUID_SHAPE.test(packId)) {
+  if (packId.length > 0 && !isUuid(packId)) {
     return err(serviceError('not_found', 'That pack was not found.'));
   }
   if (!(await sourceMonitorReady(db))) return err(serviceError('stale', SOURCE_MONITOR_NOT_READY));
@@ -408,7 +408,7 @@ export async function deactivateOfficialSource(
 ): Promise<Result<{ readonly id: string }, ServiceError>> {
   const denied = staffScopeProblem(staff, 'PACK_MANAGE');
   if (denied) return err(denied);
-  if (!UUID_SHAPE.test(input.sourceId)) return err(serviceError('not_found', 'Source not found.'));
+  if (!isUuid(input.sourceId)) return err(serviceError('not_found', 'Source not found.'));
   if (!(await sourceMonitorReady(db))) return err(serviceError('stale', SOURCE_MONITOR_NOT_READY));
   return db.transaction(async (tx) => {
     const t = tx as unknown as Db;
@@ -459,7 +459,7 @@ export async function reviewSourceChangeCandidate(
     readonly note?: string;
   },
 ): Promise<Result<{ readonly id: string; readonly status: SourceCandidateStatus }, ServiceError>> {
-  if (!UUID_SHAPE.test(input.candidateId)) {
+  if (!isUuid(input.candidateId)) {
     return err(serviceError('not_found', 'Change not found.'));
   }
   const allowedFrom = ALLOWED_FROM[input.decision];
@@ -503,26 +503,37 @@ export async function reviewSourceChangeCandidate(
 // --- The check ----------------------------------------------------------------------------------
 
 export interface SourceCheckCounts {
+  /** Active sources in this run's scope (every active source, or the one Check Now named). */
   readonly sourcesDue: number;
+  /** Read, or confirmed unchanged by the site (304). */
   readonly checked: number;
+  /** Detected changes waiting for a person, made in this run. */
   readonly changed: number;
   readonly blocked: number;
+  /** Timed out, redirect refused, too large or another error. */
   readonly failed: number;
   readonly unsupported: number;
+  /** Active sources not tried in this run yet: left for the next run. */
   readonly deferred: number;
 }
 
 export interface SourceCheckSummary extends SourceCheckCounts {
   /**
-   * NOT_ALLOWED: the scope was not the Saturday job or a fresh pack management scope.
-   * NOT_READY: migration 0115 has not run. ALREADY_DONE: this week's run (or this manual run)
-   * already finished. IN_PROGRESS: another call is running it now. COMPLETED: every due source was
-   * tried. PARTIAL: the time budget ran out; the rest are counted as deferred and a later call in
-   * the same week picks them up.
+   * NOT_ALLOWED: the scope was not the source check job or a fresh pack management scope.
+   * NOT_READY: migration 0115 has not run. INVALID_SOURCE: Check Now named something that is not
+   * a source id. RATE_LIMITED: too many Check Now runs this hour. NOT_DUE: the daily call on a
+   * day other than Saturday found no unfinished run this week, so it did nothing. ALREADY_DONE:
+   * this week's run (or this manual run) already finished. IN_PROGRESS: another call is running
+   * it now. COMPLETED: every active source was tried in this run. PARTIAL: some are left (the
+   * per-call cap or the time budget); `deferred` says how many, and the next daily call in the
+   * same week tries them first.
    */
   readonly status:
     | 'NOT_ALLOWED'
     | 'NOT_READY'
+    | 'INVALID_SOURCE'
+    | 'RATE_LIMITED'
+    | 'NOT_DUE'
     | 'ALREADY_DONE'
     | 'IN_PROGRESS'
     | 'COMPLETED'
@@ -556,6 +567,9 @@ const ZERO: SourceCheckCounts = {
   deferred: 0,
 };
 
+/** Every manual run together is also bounded, whoever starts it. */
+const ALL_MANUAL_RUNS_SUBJECT = 'platform';
+
 function runKeyFor(options: RunContext): string {
   if (options.trigger === 'SCHEDULED') return `scheduled:${dhakaWeekKey(options.now)}`;
   const minute = options.now.toISOString().slice(0, 16);
@@ -581,6 +595,11 @@ function bucketOf(outcome: SourceFetchOutcome): 'checked' | 'blocked' | 'unsuppo
   return 'failed';
 }
 
+async function findRun(db: Db, runKey: string) {
+  const r = schema.sourceCheckRuns;
+  return first(await db.select().from(r).where(eq(r.runKey, runKey)).limit(1));
+}
+
 /** Claims the run for this call: a new row, or an unfinished one nobody has touched lately. */
 async function claimRun(
   db: Db,
@@ -600,7 +619,7 @@ async function claimRun(
       .returning({ id: r.id }),
   );
   if (created) return { kind: 'claimed', runId: created.id, fresh: true };
-  const existing = first(await db.select().from(r).where(eq(r.runKey, runKey)).limit(1));
+  const existing = await findRun(db, runKey);
   if (!existing) throw new Error('source check run vanished while being claimed');
   if (existing.finishedAt !== null) return { kind: 'done', counts: countsOf(existing) };
   const reclaimed = first(
@@ -625,54 +644,83 @@ interface DueSource {
   readonly url: string;
 }
 
+function inScope(sourceId: string | undefined) {
+  const s = schema.officialSources;
+  return sourceId === undefined ? eq(s.active, true) : and(eq(s.active, true), eq(s.id, sourceId));
+}
+
+function notTriedIn(runId: string) {
+  const s = schema.officialSources;
+  const o = schema.sourceObservations;
+  return sql`not exists (select 1 from ${o} where ${o.sourceId} = ${s.id} and ${o.runId} = ${runId})`;
+}
+
+/**
+ * The active sources this run has not tried yet, at most SOURCE_CHECK_MAX_SOURCES, least recently
+ * tried first (never tried at all before anything else), so what one call leaves the next call
+ * takes first.
+ */
 async function dueSources(
   db: Db,
   runId: string,
   sourceId: string | undefined,
-): Promise<{ readonly all: readonly DueSource[]; readonly pending: readonly DueSource[] }> {
+): Promise<readonly DueSource[]> {
   const s = schema.officialSources;
-  const conditions = [eq(s.active, true)];
-  if (sourceId !== undefined) conditions.push(eq(s.id, sourceId));
-  const all = await db
+  const o = schema.sourceObservations;
+  const last = db
+    .select({ sourceId: o.sourceId, at: max(o.fetchedAt).as('last_at') })
+    .from(o)
+    .groupBy(o.sourceId)
+    .as('last_observation');
+  return db
     .select({ id: s.id, url: s.url })
     .from(s)
-    .where(and(...conditions))
-    .orderBy(asc(s.createdAt), asc(s.id))
+    .leftJoin(last, eq(last.sourceId, s.id))
+    .where(and(inScope(sourceId), notTriedIn(runId)))
+    .orderBy(sql`${last.at} asc nulls first`, asc(s.createdAt), asc(s.id))
     .limit(SOURCE_CHECK_MAX_SOURCES);
-  if (all.length === 0) return { all, pending: [] };
-  const done = await db
-    .select({ sourceId: schema.sourceObservations.sourceId })
-    .from(schema.sourceObservations)
-    .where(eq(schema.sourceObservations.runId, runId));
-  const seen = new Set(done.map((row) => row.sourceId));
-  return { all, pending: all.filter((source) => !seen.has(source.id)) };
 }
 
-/** The last successful fetch of a source outside this run: the baseline and the conditional keys. */
+/** Active sources in scope, and how many of them this run has not tried yet. */
+async function scopeCounts(
+  db: Db,
+  runId: string,
+  sourceId: string | undefined,
+): Promise<{ readonly total: number; readonly remaining: number }> {
+  const s = schema.officialSources;
+  const row = first(
+    await db
+      .select({
+        total: count(),
+        remaining: sql<number>`count(*) filter (where ${notTriedIn(runId)})`,
+      })
+      .from(s)
+      .where(inScope(sourceId)),
+  );
+  return { total: Number(row?.total ?? 0), remaining: Number(row?.remaining ?? 0) };
+}
+
+/**
+ * In one query, the source's latest FETCHED observation outside this run (the baseline a change is
+ * measured against) and its latest NOT_MODIFIED one; the newer of the two gives the conditional
+ * request its tags.
+ */
 async function previousObservations(db: Db, sourceId: string, runId: string) {
   const o = schema.sourceObservations;
-  const fetched = first(
-    await db
-      .select()
-      .from(o)
-      .where(and(eq(o.sourceId, sourceId), ne(o.runId, runId), eq(o.outcome, 'FETCHED')))
-      .orderBy(desc(o.fetchedAt))
-      .limit(1),
-  );
-  const conditional = first(
-    await db
-      .select({ etag: o.etag, lastModified: o.lastModified })
-      .from(o)
-      .where(
-        and(
-          eq(o.sourceId, sourceId),
-          ne(o.runId, runId),
-          inArray(o.outcome, ['FETCHED', 'NOT_MODIFIED']),
-        ),
-      )
-      .orderBy(desc(o.fetchedAt))
-      .limit(1),
-  );
+  const isFetched = sql`${o.outcome} = 'FETCHED'`;
+  const rows = await db
+    .selectDistinctOn([isFetched])
+    .from(o)
+    .where(
+      and(
+        eq(o.sourceId, sourceId),
+        ne(o.runId, runId),
+        inArray(o.outcome, ['FETCHED', 'NOT_MODIFIED']),
+      ),
+    )
+    .orderBy(isFetched, desc(o.fetchedAt));
+  const fetched = rows.find((row) => row.outcome === 'FETCHED');
+  const conditional = [...rows].sort((a, b) => b.fetchedAt.getTime() - a.fetchedAt.getTime())[0];
   return { fetched, conditional };
 }
 
@@ -730,7 +778,8 @@ async function checkOne(
     if (!observation || outcome !== 'FETCHED' || normalized === null || normalizedSha256 === null) {
       return;
     }
-    // The first successful fetch is the baseline: there is nothing to compare it with.
+    // The first successful fetch is the baseline: there is nothing to compare it with. After that,
+    // every difference from the previous successful fetch is a change, even back to older text.
     if (!previous || previous.normalizedSha256 === normalizedSha256) return;
     const excerpts = changeExcerpts(previous.excerpt, normalized);
     await t
@@ -743,12 +792,7 @@ async function checkOne(
         oldExcerpt: excerpts.oldExcerpt,
         newExcerpt: excerpts.newExcerpt,
       })
-      .onConflictDoNothing({
-        target: [
-          schema.sourceChangeCandidates.sourceId,
-          schema.sourceChangeCandidates.normalizedSha256,
-        ],
-      });
+      .onConflictDoNothing({ target: schema.sourceChangeCandidates.observationId });
   });
 }
 
@@ -776,14 +820,20 @@ async function tallyRun(
 }
 
 /**
- * Runs the source check once. Scheduled runs are keyed by the Asia/Dhaka week, so a retry or a
- * late start in the same week never runs twice and never duplicates a candidate; an interrupted
- * run is picked up where it stopped. At most 40 sources, 2 at a time, each under the fetcher's
- * 8 s deadline, and no new fetch starts unless it can finish inside the time budget. Writes only
- * the four monitoring tables and one audit record with counts.
+ * Runs the source check once.
  *
- * The Saturday job runs it under its own job scope (a scheduled run); Check Now runs it under the
- * pressing person's fresh pack management scope (a manual run, which may name one source).
+ * The job calls it every day at 03:00 UTC (09:00 in Dhaka) under its own job scope. Scheduled runs
+ * are keyed by the Asia/Dhaka week that starts on Saturday: on a Dhaka Saturday the call starts the
+ * week's run; on any other day it only carries on with that week's run when it is unfinished, and
+ * otherwise does nothing without touching a source. So a retry or a late start never runs twice
+ * and never duplicates a candidate, and what one call could not reach the next call finishes.
+ *
+ * Check Now runs it under the pressing person's fresh pack management scope (a manual run, which
+ * may name one source), at most 6 an hour per person and 20 an hour in all.
+ *
+ * Each call tries at most 40 sources, least recently tried first, 2 at a time, each under the
+ * fetcher's 8 s deadline, and starts no fetch that could not finish inside the time budget. Writes
+ * only the four monitoring tables, rate-limit counters and one audit record with counts.
  */
 export async function runSourceCheck(
   db: Db,
@@ -804,6 +854,9 @@ export async function runSourceCheck(
   } else {
     return { status: 'NOT_ALLOWED', ...ZERO };
   }
+  if (options.sourceId !== undefined && !isUuid(options.sourceId)) {
+    return { status: 'INVALID_SOURCE', ...ZERO };
+  }
   if (!(await sourceMonitorReady(db))) return { status: 'NOT_READY', ...ZERO };
   const clock = options.clock ?? Date.now;
   const startedAt = clock();
@@ -811,37 +864,65 @@ export async function runSourceCheck(
   const fetchTimeoutMs = options.fetchTimeoutMs ?? SOURCE_FETCH_TIMEOUT_MS;
   const runKey = runKeyFor(options);
 
+  if (options.trigger === 'SCHEDULED' && !isSaturdayInDhaka(options.now)) {
+    // Not Saturday: only finish this week's run, never start one.
+    const existing = await findRun(db, runKey);
+    if (!existing) return { status: 'NOT_DUE', ...ZERO };
+    if (existing.finishedAt !== null) return { status: 'ALREADY_DONE', ...countsOf(existing) };
+  }
+  if (options.trigger === 'MANUAL' && options.actorAccountId !== null) {
+    const limited = await checkRateLimits(
+      db,
+      [
+        {
+          input: {
+            subjectId: options.actorAccountId,
+            action: 'source_check.manual',
+            label: 'source check',
+          },
+          config: RATE_LIMITS.SOURCE_CHECK_MANUAL,
+        },
+        {
+          input: {
+            subjectId: ALL_MANUAL_RUNS_SUBJECT,
+            action: 'source_check.manual_all',
+            label: 'source check',
+          },
+          config: RATE_LIMITS.SOURCE_CHECK_MANUAL_ALL,
+        },
+      ],
+      options.now,
+    );
+    if (!limited.allowed) return { status: 'RATE_LIMITED', ...ZERO };
+  }
+
   const claim = await claimRun(db, runKey, options);
   if (claim.kind === 'done') return { status: 'ALREADY_DONE', ...claim.counts };
   if (claim.kind === 'busy') return { status: 'IN_PROGRESS', ...claim.counts };
   const { runId } = claim;
 
-  const { all, pending } = await dueSources(db, runId, options.sourceId);
-  const queue = [...pending];
-  let deferred = 0;
+  const queue = [...(await dueSources(db, runId, options.sourceId))];
   const worker = async () => {
     for (;;) {
+      // Never start a fetch that could run past the budget: the rest wait for a later call.
+      if (clock() - startedAt + fetchTimeoutMs + 2000 > budgetMs) return;
       const source = queue.shift();
       if (source === undefined) return;
-      // Never start a fetch that could run past the budget: the rest wait for a later call.
-      if (clock() - startedAt + fetchTimeoutMs + 2000 > budgetMs) {
-        deferred += 1;
-        continue;
-      }
       await checkOne(db, source, runId, options);
     }
   };
   await Promise.all(Array.from({ length: SOURCE_CHECK_CONCURRENCY }, worker));
 
   const tally = await tallyRun(db, runId);
-  const counts: SourceCheckCounts = { sourcesDue: all.length, ...tally, deferred };
+  const { total, remaining } = await scopeCounts(db, runId, options.sourceId);
+  const counts: SourceCheckCounts = { sourcesDue: total, ...tally, deferred: remaining };
   await db.transaction(async (tx) => {
     const t = tx as unknown as Db;
     await t
       .update(schema.sourceCheckRuns)
       .set({
         ...counts,
-        finishedAt: deferred > 0 ? null : new Date(options.now.getTime() + (clock() - startedAt)),
+        finishedAt: remaining > 0 ? null : new Date(options.now.getTime() + (clock() - startedAt)),
       })
       .where(eq(schema.sourceCheckRuns.id, runId));
     await appendAuditEvent(t, {
@@ -854,7 +935,7 @@ export async function runSourceCheck(
       metadata: { trigger: options.trigger, resumed: !claim.fresh, ...counts },
     });
   });
-  return { status: deferred > 0 ? 'PARTIAL' : 'COMPLETED', ...counts };
+  return { status: remaining > 0 ? 'PARTIAL' : 'COMPLETED', ...counts };
 }
 
 // --- Reading for the admin page -----------------------------------------------------------------
@@ -909,7 +990,9 @@ export interface SourceMonitorOverview {
   readonly openCandidates: readonly SourceChangeCandidateView[];
   /** How many detected changes a person has decided (dismissed or accepted). */
   readonly reviewedCount: number;
-  readonly lastRun: SourceCheckRunView | null;
+  /** The latest scheduled (weekly) run, and the latest Check Now, shown apart. */
+  readonly lastScheduledRun: SourceCheckRunView | null;
+  readonly lastManualRun: SourceCheckRunView | null;
 }
 
 const OVERVIEW_SOURCES_MAX = 200;
@@ -922,7 +1005,8 @@ export async function sourceMonitorOverview(db: Db): Promise<SourceMonitorOvervi
     sources: [],
     openCandidates: [],
     reviewedCount: 0,
-    lastRun: null,
+    lastScheduledRun: null,
+    lastManualRun: null,
   };
   if (!(await sourceMonitorReady(db))) return empty;
   const s = schema.officialSources;
@@ -996,13 +1080,17 @@ export async function sourceMonitorOverview(db: Db): Promise<SourceMonitorOvervi
       .from(c)
       .where(inArray(c.status, ['DISMISSED', 'ACCEPTED_FOR_DRAFT'])),
   );
-  const lastRun = first(
-    await db
-      .select()
-      .from(schema.sourceCheckRuns)
-      .orderBy(desc(schema.sourceCheckRuns.startedAt))
-      .limit(1),
-  );
+  const runs = schema.sourceCheckRuns;
+  const latestRuns = await db
+    .selectDistinctOn([runs.trigger])
+    .from(runs)
+    .orderBy(runs.trigger, desc(runs.startedAt));
+  const runView = (trigger: SourceCheckTrigger): SourceCheckRunView | null => {
+    const run = latestRuns.find((row) => row.trigger === trigger);
+    return run
+      ? { ...countsOf(run), trigger, startedAt: run.startedAt, finishedAt: run.finishedAt }
+      : null;
+  };
 
   return {
     ready: true,
@@ -1037,13 +1125,7 @@ export async function sourceMonitorOverview(db: Db): Promise<SourceMonitorOvervi
       detectedAt: candidate.createdAt,
     })),
     reviewedCount: Number(reviewed?.n ?? 0),
-    lastRun: lastRun
-      ? {
-          ...countsOf(lastRun),
-          trigger: lastRun.trigger as SourceCheckTrigger,
-          startedAt: lastRun.startedAt,
-          finishedAt: lastRun.finishedAt,
-        }
-      : null,
+    lastScheduledRun: runView('SCHEDULED'),
+    lastManualRun: runView('MANUAL'),
   };
 }

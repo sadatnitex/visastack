@@ -89,7 +89,7 @@
     },
     {
       "path": "/api/jobs/process-source-check",
-      "schedule": "0 3 * * 6"
+      "schedule": "0 3 * * *"
     }
   ],
   "git": {

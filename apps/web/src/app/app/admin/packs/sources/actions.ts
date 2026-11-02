@@ -116,21 +116,37 @@ export async function deactivateSourceAction(
 }
 
 function summaryMessage(summary: SourceCheckSummary): ActionState {
-  if (summary.status === 'NOT_ALLOWED') return DENIED;
-  if (summary.status === 'NOT_READY') {
-    return { ok: false, message: 'Source monitoring can be used once the database is updated.' };
+  switch (summary.status) {
+    case 'NOT_ALLOWED':
+      return DENIED;
+    case 'NOT_READY':
+      return { ok: false, message: 'Source monitoring can be used once the database is updated.' };
+    case 'INVALID_SOURCE':
+      return { ok: false, message: 'That source was not found. Refresh the page and try again.' };
+    case 'RATE_LIMITED':
+      return {
+        ok: false,
+        message: 'Check Now was used many times this hour. Try again later.',
+      };
+    case 'IN_PROGRESS':
+      return { ok: false, message: 'A check is already running. Try again in a few minutes.' };
+    case 'ALREADY_DONE':
+    case 'NOT_DUE':
+      return { ok: false, message: 'This check just ran. Try again in a minute.' };
+    default:
+      break;
   }
-  if (summary.status === 'IN_PROGRESS') {
-    return { ok: false, message: 'A check is already running. Try again in a few minutes.' };
-  }
-  if (summary.status === 'ALREADY_DONE') {
-    return { ok: false, message: 'This check just ran. Try again in a minute.' };
-  }
+  // Tried pages out of every active one; pages that could not be read are said separately, so a
+  // blocked page is never passed off as a checked one.
+  const tried = summary.sourcesDue - summary.deferred;
   const unread = summary.blocked + summary.failed + summary.unsupported;
-  const parts = [`Checked ${summary.checked} of ${summary.sourcesDue}.`];
+  const parts = [
+    summary.deferred > 0
+      ? `Checked ${tried} of ${summary.sourcesDue}, ${summary.deferred} Left for the Next Run.`
+      : `Checked ${tried} of ${summary.sourcesDue}.`,
+  ];
   if (summary.changed > 0) parts.push(`${summary.changed} changed and waiting for review.`);
   if (unread > 0) parts.push(`${unread} could not be read.`);
-  if (summary.deferred > 0) parts.push(`${summary.deferred} left for the next check.`);
   return { ok: true, message: parts.join(' ') };
 }
 

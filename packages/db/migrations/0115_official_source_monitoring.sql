@@ -1,11 +1,12 @@
 -- Written to be re-runnable: production applies each statement on its own, so a run
 -- interrupted part way must be able to start again from the top.
--- Official-source monitoring (UMPE P10): four new tables for the Saturday source check. Additive:
+-- Official-source monitoring (UMPE P10): four new tables for the weekly source check. Additive:
 -- nothing existing is touched, and no pack, pack version or pack requirement is ever written by
 -- this feature. official_sources is the register of official pages per route; source_check_runs
 -- holds one row per run with counts only; source_observations records what each fetch found
 -- (outcome, fingerprints, a short excerpt); source_change_candidates holds machine-detected
--- changes waiting for a person. Until this runs the code finds the tables missing and does nothing.
+-- changes waiting for a person, one per observation. Until this runs the code finds the tables
+-- missing and does nothing.
 CREATE TABLE IF NOT EXISTS "official_sources" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"jurisdiction" text NOT NULL,
@@ -76,7 +77,7 @@ CREATE TABLE IF NOT EXISTS "source_change_candidates" (
 	"reviewed_at" timestamp with time zone,
 	"review_note" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "source_change_candidates_source_hash" UNIQUE("source_id","normalized_sha256"),
+	CONSTRAINT "source_change_candidates_observation" UNIQUE("observation_id"),
 	CONSTRAINT "source_change_candidates_status_known" CHECK ("source_change_candidates"."status" in ('NEW', 'IN_REVIEW', 'DISMISSED', 'ACCEPTED_FOR_DRAFT')),
 	CONSTRAINT "source_change_candidates_excerpt_cap" CHECK (("source_change_candidates"."old_excerpt" is null or char_length("source_change_candidates"."old_excerpt") <= 2000) and ("source_change_candidates"."new_excerpt" is null or char_length("source_change_candidates"."new_excerpt") <= 2000)),
 	CONSTRAINT "source_change_candidates_note_cap" CHECK ("source_change_candidates"."review_note" is null or char_length("source_change_candidates"."review_note") <= 1000)
@@ -88,12 +89,6 @@ DO $fk$ BEGIN
 	END IF;
 	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'official_sources_created_by_account_id_accounts_id_fk') THEN
 		ALTER TABLE "official_sources" ADD CONSTRAINT "official_sources_created_by_account_id_accounts_id_fk" FOREIGN KEY ("created_by_account_id") REFERENCES "public"."accounts"("id") ON DELETE set null ON UPDATE no action;
-	END IF;
-	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'source_observations_source_id_official_sources_id_fk') THEN
-		ALTER TABLE "source_observations" ADD CONSTRAINT "source_observations_source_id_official_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "public"."official_sources"("id") ON DELETE cascade ON UPDATE no action;
-	END IF;
-	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'source_observations_run_id_source_check_runs_id_fk') THEN
-		ALTER TABLE "source_observations" ADD CONSTRAINT "source_observations_run_id_source_check_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."source_check_runs"("id") ON DELETE cascade ON UPDATE no action;
 	END IF;
 	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'source_change_candidates_source_id_official_sources_id_fk') THEN
 		ALTER TABLE "source_change_candidates" ADD CONSTRAINT "source_change_candidates_source_id_official_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "public"."official_sources"("id") ON DELETE cascade ON UPDATE no action;
@@ -107,6 +102,12 @@ DO $fk$ BEGIN
 	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'source_change_candidates_reviewer_account_id_accounts_id_fk') THEN
 		ALTER TABLE "source_change_candidates" ADD CONSTRAINT "source_change_candidates_reviewer_account_id_accounts_id_fk" FOREIGN KEY ("reviewer_account_id") REFERENCES "public"."accounts"("id") ON DELETE set null ON UPDATE no action;
 	END IF;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'source_observations_source_id_official_sources_id_fk') THEN
+		ALTER TABLE "source_observations" ADD CONSTRAINT "source_observations_source_id_official_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "public"."official_sources"("id") ON DELETE cascade ON UPDATE no action;
+	END IF;
+	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'source_observations_run_id_source_check_runs_id_fk') THEN
+		ALTER TABLE "source_observations" ADD CONSTRAINT "source_observations_run_id_source_check_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."source_check_runs"("id") ON DELETE cascade ON UPDATE no action;
+	END IF;
 END $fk$;
 --> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "official_sources_active_url" ON "official_sources" USING btree ("url") WHERE "official_sources"."active";
@@ -115,14 +116,14 @@ CREATE INDEX IF NOT EXISTS "official_sources_pack_idx" ON "official_sources" USI
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "official_sources_created_by_idx" ON "official_sources" USING btree ("created_by_account_id");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "source_observations_source_fetched_idx" ON "source_observations" USING btree ("source_id","fetched_at");
---> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "source_observations_run_idx" ON "source_observations" USING btree ("run_id");
+CREATE INDEX IF NOT EXISTS "source_change_candidates_source_idx" ON "source_change_candidates" USING btree ("source_id");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "source_change_candidates_status_idx" ON "source_change_candidates" USING btree ("status");
---> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "source_change_candidates_observation_idx" ON "source_change_candidates" USING btree ("observation_id");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "source_change_candidates_previous_idx" ON "source_change_candidates" USING btree ("previous_observation_id");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "source_change_candidates_reviewer_idx" ON "source_change_candidates" USING btree ("reviewer_account_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "source_observations_source_fetched_idx" ON "source_observations" USING btree ("source_id","fetched_at");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "source_observations_run_idx" ON "source_observations" USING btree ("run_id");

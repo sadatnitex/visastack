@@ -54,7 +54,9 @@ export function RegisterSourceForm({
               {...fieldProblem(state, 'url', messageId, 'source-url-hint')}
             />
             <p id="source-url-hint" className="muted u-fs-085">
-              The full https address of a government, consulate or official application page.
+              The full https address of a government, consulate or official application page, as it
+              finally opens in a browser. A page that moves to another site is reported, not
+              followed (only a move within the same site, with or without www., is followed).
             </p>
             <FieldError result={state} field="url" />
           </div>

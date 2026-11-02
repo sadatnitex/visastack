@@ -126,6 +126,10 @@ export const RATE_LIMITS = {
   // Reporting a payment made another way (S12): a person fills this in a few times a day at most.
   MANUAL_CLAIM_SUBMIT: { limit: 10, windowMs: HOUR_MS },
   MANUAL_CLAIM_SUBMIT_ORG: { limit: 30, windowMs: HOUR_MS },
+  // Check Now on Official Sources (UMPE P10): each run may fetch up to 40 official pages, so one
+  // person may start 6 an hour and everyone together 20, keeping the sites and the host unburdened.
+  SOURCE_CHECK_MANUAL: { limit: 6, windowMs: HOUR_MS },
+  SOURCE_CHECK_MANUAL_ALL: { limit: 20, windowMs: HOUR_MS },
   // A private calendar subscription link (v1.2 B05 live feed). Calendar apps check a link every
   // few minutes to every few hours, so one link is bounded well above that. Only unknown links are
   // counted per network address, so a large calendar service fetching many people's real links

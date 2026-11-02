@@ -5526,9 +5526,11 @@ export const sourceChangeCandidates = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    unique('source_change_candidates_source_hash').on(table.sourceId, table.normalizedSha256),
+    // One candidate per observation: a rerun never duplicates one, while a page that changes
+    // back and forth gets a candidate for every change.
+    unique('source_change_candidates_observation').on(table.observationId),
+    index('source_change_candidates_source_idx').on(table.sourceId),
     index('source_change_candidates_status_idx').on(table.status),
-    index('source_change_candidates_observation_idx').on(table.observationId),
     index('source_change_candidates_previous_idx').on(table.previousObservationId),
     index('source_change_candidates_reviewer_idx').on(table.reviewerAccountId),
     check(

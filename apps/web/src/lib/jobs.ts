@@ -980,9 +980,10 @@ export async function triggerBillingCycle(
 }
 
 /**
- * The Saturday official-source check (UMPE P10, 09:00 Asia/Dhaka): fetches the registered official
- * pages under the safe fetcher's rules and records what changed for a person to review. Never
- * touches a pack. Keyed by the Dhaka week, so a retry or a late start runs nothing twice. On its
+ * The weekly official-source check (UMPE P10), called daily: starts on a Dhaka Saturday (09:00),
+ * finishes what was left on the following days, fetches the registered official pages under the
+ * safe fetcher's rules and records what changed for a person to review. Never touches a pack.
+ * Keyed by the Dhaka week, so a retry or a late start runs nothing twice. On its
  * own short-lived pooled connection, like the jobs above. Counts only.
  */
 export async function triggerSourceCheck(

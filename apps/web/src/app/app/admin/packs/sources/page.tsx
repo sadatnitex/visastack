@@ -1,6 +1,7 @@
 import {
   type OfficialSourceView,
   type SourceChangeCandidateView,
+  type SourceCheckRunView,
   listPacks,
   sourceMonitorOverview,
 } from '@visastack/services';
@@ -38,6 +39,36 @@ const OUTCOME_LABELS = {
 } as const;
 
 const STATUS_LABELS = { NEW: 'New', IN_REVIEW: 'In Review' } as const;
+
+/** One run's counts. "Pages Tried" never claims more than were reached; the rest are shown. */
+function RunCounts({ run }: { readonly run: SourceCheckRunView }) {
+  const rows = [
+    ['Active Pages', run.sourcesDue],
+    ['Pages Tried', run.sourcesDue - run.deferred],
+    ['Read or Unchanged', run.checked],
+    ['Changed', run.changed],
+    ['Blocked', run.blocked],
+    ['Could Not Be Read', run.failed],
+    ['Unsupported Format', run.unsupported],
+    ['Left for the Next Run', run.deferred],
+  ] as const;
+  return (
+    <>
+      <p className="muted u-fs-085 u-mt-050">
+        {formatTimestamp(run.startedAt)}
+        {run.finishedAt ? '' : ' (not finished yet)'}
+      </p>
+      <dl className="rows rows-grid u-mt-050">
+        {rows.map(([label, value]) => (
+          <div className="row" key={label}>
+            <dt className="row-key">{label}</dt>
+            <dd className="row-val">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </>
+  );
+}
 
 function SourceRow({ source }: { readonly source: OfficialSourceView }) {
   const exception =
@@ -172,40 +203,32 @@ export default async function OfficialSourcesPage() {
       ) : (
         <div className="grid">
           <article className="card">
-            <p className="card-kicker">Latest Check</p>
+            <p className="card-kicker">Weekly Check</p>
             <h2 className="card-title">Saturday Check</h2>
-            {data.overview.lastRun ? (
-              <>
-                <p className="muted u-fs-085 u-mt-050">
-                  {data.overview.lastRun.trigger === 'MANUAL' ? 'Check Now' : 'Scheduled'},{' '}
-                  {formatTimestamp(data.overview.lastRun.startedAt)}
-                  {data.overview.lastRun.finishedAt ? '' : ' (not finished)'}
-                </p>
-                <dl className="rows rows-grid u-mt-050">
-                  {(
-                    [
-                      ['Pages Due', data.overview.lastRun.sourcesDue],
-                      ['Checked', data.overview.lastRun.checked],
-                      ['Changed', data.overview.lastRun.changed],
-                      ['Blocked', data.overview.lastRun.blocked],
-                      ['Could Not Be Read', data.overview.lastRun.failed],
-                      ['Unsupported Format', data.overview.lastRun.unsupported],
-                      ['Left for Later', data.overview.lastRun.deferred],
-                    ] as const
-                  ).map(([label, value]) => (
-                    <div className="row" key={label}>
-                      <dt className="row-key">{label}</dt>
-                      <dd className="row-val">{value}</dd>
-                    </div>
-                  ))}
-                  <div className="row">
-                    <dt className="row-key">Changes Reviewed</dt>
-                    <dd className="row-val">{data.overview.reviewedCount}</dd>
-                  </div>
-                </dl>
-              </>
+            <p className="muted u-fs-085 u-mt-050">
+              Starts every Saturday at 09:00 Bangladesh time. Pages it could not reach that day are
+              checked on the following days of the same week.
+            </p>
+            {data.overview.lastScheduledRun ? (
+              <RunCounts run={data.overview.lastScheduledRun} />
             ) : (
-              <p className="card-body">No check has run yet.</p>
+              <p className="card-body u-mt-050">No Saturday check has run yet.</p>
+            )}
+            <dl className="rows rows-grid u-m-0">
+              <div className="row">
+                <dt className="row-key">Changes Reviewed</dt>
+                <dd className="row-val">{data.overview.reviewedCount}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <article className="card">
+            <p className="card-kicker">On Demand</p>
+            <h2 className="card-title">Last Check Now</h2>
+            {data.overview.lastManualRun ? (
+              <RunCounts run={data.overview.lastManualRun} />
+            ) : (
+              <p className="card-body u-mt-050">Check Now has not been used yet.</p>
             )}
             <div className="u-mt-050">
               <CheckNowButton />

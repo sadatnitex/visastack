@@ -1,5 +1,5 @@
 {
-  "id": "43acb0fb-14e0-4734-ac16-b6d7cf9fd3a6",
+  "id": "5b8cfec0-234a-490c-a82c-2bb3204fb54f",
   "prevId": "2b91d313-a2f4-447c-bcc4-557f3e533e7f",
   "version": "7",
   "dialect": "postgresql",
@@ -15547,11 +15547,11 @@
         }
       },
       "indexes": {
-        "source_change_candidates_status_idx": {
-          "name": "source_change_candidates_status_idx",
+        "source_change_candidates_source_idx": {
+          "name": "source_change_candidates_source_idx",
           "columns": [
             {
-              "expression": "status",
+              "expression": "source_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -15562,11 +15562,11 @@
           "method": "btree",
           "with": {}
         },
-        "source_change_candidates_observation_idx": {
-          "name": "source_change_candidates_observation_idx",
+        "source_change_candidates_status_idx": {
+          "name": "source_change_candidates_status_idx",
           "columns": [
             {
-              "expression": "observation_id",
+              "expression": "status",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -15648,10 +15648,10 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "source_change_candidates_source_hash": {
-          "name": "source_change_candidates_source_hash",
+        "source_change_candidates_observation": {
+          "name": "source_change_candidates_observation",
           "nullsNotDistinct": false,
-          "columns": ["source_id", "normalized_sha256"]
+          "columns": ["observation_id"]
         }
       },
       "policies": {},

@@ -141,7 +141,7 @@ describe('migration 0115: official-source monitoring (UMPE P10)', () => {
           ),
         ).rejects.toThrow();
 
-        // Candidates: one per source and fingerprint, known statuses only.
+        // Candidates: one per observation, known statuses only.
         const candidate = (hash: string, status = 'NEW') =>
           client.query(
             `insert into source_change_candidates (source_id, observation_id, normalized_sha256, status)

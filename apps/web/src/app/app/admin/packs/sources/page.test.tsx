@@ -85,7 +85,8 @@ const overview = {
     },
   ],
   reviewedCount: 4,
-  lastRun: {
+  lastManualRun: null,
+  lastScheduledRun: {
     trigger: 'SCHEDULED',
     startedAt: new Date('2026-11-07T03:00:00Z'),
     finishedAt: new Date('2026-11-07T03:00:20Z'),
@@ -135,6 +136,11 @@ describe('Pack Studio > Official Sources', () => {
     const html = await render();
     const text = textOf(html);
     expect(text).toContain('Changes Reviewed');
+    // The weekly run and Check Now are shown apart.
+    expect(text).toContain('Saturday Check');
+    expect(text).toContain('Last Check Now');
+    expect(text).toContain('Check Now has not been used yet.');
+    expect(text).toContain('Left for the Next Run');
     expect(text).toContain('Fee 100');
     expect(text).toContain('Fee 120');
     expect(html).toContain('href="/app/admin/packs/p1"');

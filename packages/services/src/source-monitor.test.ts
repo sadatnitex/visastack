@@ -18,6 +18,7 @@ import {
 } from './packs';
 import { grantPlatformRole } from './platform-roles';
 import { createSourceFetcher } from './source-fetch';
+import { PUBLIC_ADDRESS, fakeTransport } from './source-fetch.test-support';
 import {
   SOURCE_CHECK_MAX_SOURCES,
   changeExcerpts,
@@ -88,30 +89,27 @@ interface Page {
   hang?: boolean;
 }
 
+/** Resolves like the public internet, except this one name, which points inside a network. */
+const PRIVATE_HOST = 'www.visas.synthetic-gov.example';
+
 function fakeWeb() {
-  const pages = new Map<string, Page | ((init: RequestInit) => Page)>();
-  const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
-    const entry = pages.get(String(input));
-    const page = typeof entry === 'function' ? entry(init ?? {}) : (entry ?? { status: 404 });
-    if (page.hang) {
-      return new Promise<Response>((_resolve, reject) => {
-        init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
-      });
-    }
-    const status = page.status ?? 200;
-    const nullBody = status === 304 || (status >= 300 && status < 400);
-    return new Response(nullBody ? null : (page.body ?? ''), {
-      status,
-      headers: { 'content-type': page.type ?? 'text/html', ...(page.headers ?? {}) },
-    });
-  };
+  const pages = new Map<string, Page | ((headers: Readonly<Record<string, string>>) => Page)>();
+  const fake = fakeTransport((url, headers) => {
+    const entry = pages.get(url);
+    const answer = typeof entry === 'function' ? entry(headers) : (entry ?? { status: 404 });
+    return {
+      status: answer.status ?? 200,
+      body: answer.body ?? '',
+      hang: answer.hang ?? false,
+      headers: { 'content-type': answer.type ?? 'text/html', ...(answer.headers ?? {}) },
+    };
+  });
   const fetcher = createSourceFetcher({
-    fetch: fetchImpl as unknown as typeof fetch,
-    lookup: async (host) =>
-      host === 'private.synthetic-gov.example' ? ['10.1.2.3'] : ['93.184.216.34'],
+    transport: fake.transport,
+    resolve: async (host) => (host === PRIVATE_HOST ? ['10.1.2.3'] : [PUBLIC_ADDRESS]),
     timeoutMs: 100,
   });
-  return { pages, fetcher };
+  return { pages, fetcher, requests: fake.requests };
 }
 
 function page(rule: string, extra = ''): string {
@@ -277,8 +275,8 @@ describe('official-source monitoring', () => {
       web.pages.set(url('/tagged'), { body: page('Rule A'), headers: { etag: '"a"' } });
       await run(SAT_1);
       let seen: string | undefined;
-      web.pages.set(url('/tagged'), (init) => {
-        seen = (init.headers as Record<string, string>)['if-none-match'];
+      web.pages.set(url('/tagged'), (headers) => {
+        seen = headers['if-none-match'];
         return { status: 304 };
       });
       const result = await run(SAT_2);
@@ -320,13 +318,14 @@ describe('official-source monitoring', () => {
       const runs = await db.select().from(schema.sourceCheckRuns);
       expect(runs).toHaveLength(3);
 
-      // Back and forth: the old text again is a change; the new text again is the same candidate.
+      // Back and forth (A, B, A, B): every change from the previous fetch is a candidate.
       web.pages.set(url('/rule'), { body: page('You must apply 3 weeks before travel.') });
       expect(await run(SAT_4)).toMatchObject({ changed: 1 });
       web.pages.set(url('/rule'), { body: page('You must apply 4 weeks before travel.') });
-      expect(await run(new Date('2026-12-05T03:00:00Z'))).toMatchObject({ changed: 0 });
+      expect(await run(new Date('2026-12-05T03:00:00Z'))).toMatchObject({ changed: 1 });
       found = await candidates();
-      expect(found).toHaveLength(2);
+      expect(found).toHaveLength(3);
+      expect(new Set(found.map((c) => c.observationId)).size).toBe(3);
     },
     TEST_TIMEOUT_MS,
   );
@@ -341,7 +340,7 @@ describe('official-source monitoring', () => {
         '/away': { status: 302, headers: { location: 'https://elsewhere.example/visit' } },
         '/inward': {
           status: 302,
-          headers: { location: 'https://private.synthetic-gov.example/visit' },
+          headers: { location: `https://${PRIVATE_HOST}/visit` },
         },
         '/huge': { body: 'x'.repeat(600 * 1024) },
       };
@@ -385,11 +384,14 @@ describe('official-source monitoring', () => {
     async () => {
       await register(db, admin, '/w');
       web.pages.set(url('/w'), { body: page('Rule') });
-      expect((await run(new Date('2026-11-06T17:59:00Z'))).status).toBe('COMPLETED');
+      // Friday 23:59 in Dhaka: not Saturday and no run this week, so nothing happens at all.
+      expect((await run(new Date('2026-11-06T17:59:00Z'))).status).toBe('NOT_DUE');
+      expect(web.requests).toHaveLength(0);
+      // Saturday 00:00 in Dhaka starts the week's run; the 09:00 call finds it done.
       expect((await run(new Date('2026-11-06T18:00:00Z'))).status).toBe('COMPLETED');
       expect((await run(SAT_1)).status).toBe('ALREADY_DONE');
       const keys = (await db.select().from(schema.sourceCheckRuns)).map((r) => r.runKey).sort();
-      expect(keys).toEqual(['scheduled:2026-10-31', 'scheduled:2026-11-07']);
+      expect(keys).toEqual(['scheduled:2026-11-07']);
     },
     TEST_TIMEOUT_MS,
   );
@@ -427,34 +429,117 @@ describe('official-source monitoring', () => {
   );
 
   it(
-    'checks at most 40 sources per run, 2 at a time, and says how long it took',
+    'checks at most 40 sources a call, 2 at a time, and finishes the rest on Sunday',
     async () => {
-      for (let i = 0; i < SOURCE_CHECK_MAX_SOURCES + 5; i++) {
+      const total = SOURCE_CHECK_MAX_SOURCES + 12;
+      for (let i = 0; i < total; i++) {
         await register(db, admin, `/many-${i}`);
         web.pages.set(url(`/many-${i}`), { body: page(`Rule ${i}`) });
       }
       let inFlight = 0;
       let peak = 0;
+      const fetcher: typeof web.fetcher = async (request) => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          return await web.fetcher(request);
+        } finally {
+          inFlight -= 1;
+        }
+      };
       const started = Date.now();
-      const result = await runSourceCheck(db, JOB, {
-        fetcher: async (request) => {
-          inFlight += 1;
-          peak = Math.max(peak, inFlight);
-          try {
-            await new Promise((resolve) => setTimeout(resolve, 5));
-            return await web.fetcher(request);
-          } finally {
-            inFlight -= 1;
-          }
-        },
-        now: SAT_1,
-      });
+      const saturday = await runSourceCheck(db, JOB, { fetcher, now: SAT_1 });
       const elapsed = Date.now() - started;
-      expect(result).toMatchObject({ status: 'COMPLETED', sourcesDue: 40, checked: 40 });
+      expect(saturday).toMatchObject({
+        status: 'PARTIAL',
+        sourcesDue: total,
+        checked: 40,
+        deferred: 12,
+      });
       expect(peak).toBe(2);
       // Measured for the hand-back; a faked network, so this is the database and parsing cost.
       console.info(`[source-check] 40 faked sources checked in ${elapsed} ms`);
       expect(elapsed).toBeLessThan(45_000);
+
+      // Sunday's daily call carries on with the same week's run and takes only the 12 left.
+      const sunday = await runSourceCheck(db, JOB, {
+        fetcher,
+        now: new Date('2026-11-08T03:00:00Z'),
+      });
+      expect(sunday).toMatchObject({
+        status: 'COMPLETED',
+        sourcesDue: total,
+        checked: total,
+        deferred: 0,
+      });
+      expect(await db.select().from(schema.sourceCheckRuns)).toHaveLength(1);
+      const observed = await db
+        .select({ sourceId: schema.sourceObservations.sourceId })
+        .from(schema.sourceObservations);
+      expect(observed).toHaveLength(total);
+      expect(new Set(observed.map((o) => o.sourceId)).size).toBe(total);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'does nothing on Monday after the week is finished, without touching a source',
+    async () => {
+      await register(db, admin, '/monday');
+      web.pages.set(url('/monday'), { body: page('Rule') });
+      expect((await run(SAT_1)).status).toBe('COMPLETED');
+      const before = web.requests.length;
+      expect((await run(new Date('2026-11-09T03:00:00Z'))).status).toBe('ALREADY_DONE');
+      expect(web.requests.length).toBe(before);
+      expect(await db.select().from(schema.sourceCheckRuns)).toHaveLength(1);
+      expect(await db.select().from(schema.sourceObservations)).toHaveLength(1);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'tries the least recently tried sources first',
+    async () => {
+      const old = await register(db, admin, '/old');
+      const fresh = await register(db, admin, '/fresh');
+      const never = await register(db, admin, '/never');
+      for (const path of ['/old', '/fresh', '/never'])
+        web.pages.set(url(path), { body: page(path) });
+      await run(SAT_1, 'MANUAL', { sourceId: old });
+      await run(new Date(SAT_1.getTime() + 60_000), 'MANUAL', { sourceId: fresh });
+      web.requests.length = 0;
+      await run(SAT_2);
+      expect(web.requests.map((r) => r.url).slice(0, 3)).toEqual([
+        url('/never'),
+        url('/old'),
+        url('/fresh'),
+      ]);
+      expect(never).toBeTruthy();
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses a Check Now that names no real source id, and limits Check Now per hour',
+    async () => {
+      await register(db, admin, '/limited');
+      web.pages.set(url('/limited'), { body: page('Rule') });
+      expect((await run(SAT_1, 'MANUAL', { sourceId: 'not-a-source' })).status).toBe(
+        'INVALID_SOURCE',
+      );
+      expect(await db.select().from(schema.sourceCheckRuns)).toHaveLength(0);
+      for (let minute = 1; minute <= 6; minute++) {
+        expect((await run(new Date(SAT_1.getTime() + minute * 60_000), 'MANUAL')).status).toBe(
+          'COMPLETED',
+        );
+      }
+      expect((await run(new Date(SAT_1.getTime() + 7 * 60_000), 'MANUAL')).status).toBe(
+        'RATE_LIMITED',
+      );
+      expect(await db.select().from(schema.sourceCheckRuns)).toHaveLength(6);
+      // The weekly run is never limited by people pressing Check Now.
+      expect((await run(SAT_1)).status).toBe('COMPLETED');
     },
     TEST_TIMEOUT_MS,
   );
