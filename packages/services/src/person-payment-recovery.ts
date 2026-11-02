@@ -1,7 +1,9 @@
 import { type Result, err, ok } from '@visastack/core';
+import { and, asc, eq, gt, ne } from 'drizzle-orm';
 import type { StaffScope } from './access/principal';
 import { staffScopeProblem } from './access/principal';
-import type { Db } from './db';
+import { type Db, schema } from './db';
+import { TRAVELLER_PLAN_KEY } from './entitlements';
 import { type ServiceError, serviceError } from './errors';
 import { isMerchantTranId, settlePaymentAttempt } from './payments';
 import { prepareRecoveredPersonPayment } from './person-billing';
@@ -20,7 +22,8 @@ import { personBillingPresent } from './traveller-billing';
 
 export interface RecoverPersonPaymentInput {
   readonly accountId: string;
-  readonly planId: string;
+  /** The plan's key (for example traveller_plus), as the restore report names it. */
+  readonly planKey: string;
   /** VisaStack's transaction id (starts with VSP), as the gateway's merchant records show it. */
   readonly merchantTranId: string;
   readonly now?: Date;
@@ -91,9 +94,17 @@ export async function recoverPersonPayment(
   }
   const amountMinorUnits = validation.amountMinorUnits as number;
 
+  const plan = (
+    await db
+      .select({ id: schema.plans.id })
+      .from(schema.plans)
+      .where(eq(schema.plans.key, input.planKey.trim()))
+      .limit(1)
+  )[0];
+  if (!plan) return err(serviceError('invalid', NOT_TRAVELLER_PLAN));
   const prepared = await prepareRecoveredPersonPayment(db, staff, {
     accountId: input.accountId,
-    planId: input.planId,
+    planId: plan.id,
     merchantTranId,
     amountMinorUnits,
     currency: 'BDT',
@@ -127,4 +138,35 @@ export async function recoverPersonPayment(
     amountMinorUnits,
     currency: 'BDT',
   });
+}
+
+/** A paid traveller plan a recovered payment can be for: its key and name only. */
+export interface RecoverablePlan {
+  readonly key: string;
+  readonly name: string;
+}
+
+/**
+ * Every paid traveller plan (not Traveller Free), whether or not it is for sale today: a payment
+ * made after a restore point may be for a plan retired since. Owner only.
+ */
+export async function listRecoverablePlans(
+  db: Db,
+  staff: StaffScope<'BILLING_REFUND_MANAGE'>,
+): Promise<Result<readonly RecoverablePlan[], ServiceError>> {
+  if (staffScopeProblem(staff, 'BILLING_REFUND_MANAGE')) {
+    return err(serviceError('forbidden', NOT_ALLOWED));
+  }
+  const plans = await db
+    .select({ key: schema.plans.key, name: schema.plans.name })
+    .from(schema.plans)
+    .where(
+      and(
+        eq(schema.plans.audience, 'TRAVELLER'),
+        ne(schema.plans.key, TRAVELLER_PLAN_KEY),
+        gt(schema.plans.periodDays, 0),
+      ),
+    )
+    .orderBy(asc(schema.plans.name));
+  return ok(plans);
 }

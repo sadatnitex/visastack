@@ -222,3 +222,14 @@ This supersedes the "Not replayed (known limit)" paragraph above. Every way a pl
 The report's `plansToCheck` has one line per agency or traveller whose plan the restore ended: the ended plan, the reason, `planNow` (on the restored branch) and `planToHave` (what the last recorded ending put in its place; none after a closing, the owner ending it, a lapse or a refund). `needsAction` is true when they differ. `pnpm --filter @visastack/adapters reconcile:restored-branch` prints it; lines marked ACTION need you.
 
 Giving it back: for an agency, Platform > Organizations > the agency > Plan. A traveller who switched to a plan they paid for after the restore point is listed with ACTION: their payment record is not restored, and there is no screen to give a traveller a plan without a payment, so note the traveller and follow up with them (a refund or a fresh purchase); this needs its own decision before paid plans go live. Money records (invoices, payments, refunds) after the restore point, and notices that were queued but not yet sent (for example "your plan has ended"), are not replayed by this step.
+
+## After a restore: travellers' payments, money and notices (2026-11-02, owner decisions)
+
+**A traveller who paid after the restore point** (a line in `plansToCheck` for a traveller account, marked ACTION, usually a plan switch or a first purchase):
+
+1. Read the line: the traveller's account id (their full 32-character code) and the plan they should have.
+2. In the SSLCOMMERZ merchant panel, find their payment for the window from the restore point to the incident and note its transaction id (VisaStack's own, starting with VSP). Confirm it was paid to this store, in BDT.
+3. In VisaStack: Platform > Traveller Billing > Recover a Payment. Enter the traveller's code, choose the plan, enter the transaction id, and confirm it is you. VisaStack asks the gateway what was paid for that transaction and records exactly that, the usual way: the money as an online payment, the receipt, the plan period from today, the monthly accounting file. Nothing is recorded unless the gateway confirms the payment. Refunds then work as for any purchase.
+4. Write a short note in the incident record: the traveller's code, when, and the transaction id.
+
+**Money and notices in the window (a fixed step after every restore):** reconcile payments and refunds against the SSLCOMMERZ settlement records for the window from the restore point to the incident (every payment there is either recovered as above or refunded; every refund made in the panel is recorded with Record Refund). Review the notices that were queued but not yet sent on the pre-incident branch before re-sending any of them, so nobody is told twice or told something no longer true.

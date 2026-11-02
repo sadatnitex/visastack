@@ -85,7 +85,7 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
 
     const recovered = await recoverPersonPayment(db, onePort(port), staff, {
       accountId: alice,
-      planId,
+      planKey: 'traveller_plus_recover',
       merchantTranId: tranId,
     });
     if (!isOk(recovered)) throw new Error(`recover: ${recovered.error.message}`);
@@ -157,7 +157,7 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
       arrange();
       const refused = await recoverPersonPayment(db, onePort(port), staff, {
         accountId: alice,
-        planId,
+        planKey: 'traveller_plus_recover',
         merchantTranId: tranId,
       });
       expect(isErr(refused), label).toBe(true);
@@ -168,10 +168,10 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
 
   it('says plainly when the id is wrong, the gateway is down or not set up, or nothing is left to do', async () => {
     const staff = await ownerScope();
-    const words = async (input: Partial<{ merchantTranId: string; planId: string }>) => {
+    const words = async (input: Partial<{ merchantTranId: string; planKey: string }>) => {
       const result = await recoverPersonPayment(db, onePort(port), staff, {
         accountId: alice,
-        planId,
+        planKey: 'traveller_plus_recover',
         merchantTranId: newMerchantTranId(),
         ...input,
       });
@@ -183,11 +183,10 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
     port.outage = false;
     const tranId = newMerchantTranId();
     port.succeed(tranId, PRICE);
-    const [agencyPlan] = await db
+    await db
       .insert(schema.plans)
-      .values({ key: 'agency_recover', name: 'Agency', audience: 'AGENCY' })
-      .returning({ id: schema.plans.id });
-    expect(await words({ merchantTranId: tranId, planId: agencyPlan?.id ?? '' })).toBe(
+      .values({ key: 'agency_recover', name: 'Agency', audience: 'AGENCY' });
+    expect(await words({ merchantTranId: tranId, planKey: 'agency_recover' })).toBe(
       'Choose a traveller plan.',
     );
     expect(await words({ merchantTranId: tranId })).toBe('ok');
@@ -201,7 +200,7 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
     const notSetUp = Object.assign(new FakePaymentPort(), { configured: false });
     const result = await recoverPersonPayment(db, onePort(notSetUp), staff, {
       accountId: alice,
-      planId,
+      planKey: 'traveller_plus_recover',
       merchantTranId: newMerchantTranId(),
     });
     expect(isErr(result) && result.error.message).toContain('not set up');
@@ -224,7 +223,7 @@ describe('recovering a payment lost in a restore (owner tool)', () => {
     } as never;
     const refused = await recoverPersonPayment(db, onePort(port), forged, {
       accountId: alice,
-      planId,
+      planKey: 'traveller_plus_recover',
       merchantTranId: tranId,
     });
     expect(isErr(refused) && refused.error.code).toBe('forbidden');

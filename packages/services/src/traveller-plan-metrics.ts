@@ -534,6 +534,7 @@ export async function travellerPlanHealth(
           -- Only payments the gateway confirmed: one released by hand after a check is not timed.
           percentile_cont(0.5) within group (order by extract(epoch from (a.recorded_at - coalesce(a.redirected_at, a.created_at))) / 60)
             filter (where a.status = 'RECORDED' and a.recorded_at >= ${weekAgo}::timestamptz
+              and a.reason_code is distinct from 'recovered_after_restore'
               and not exists (select 1 from refund_requests rr where rr.payment_attempt_id = a.id)
               and not exists (select 1 from invoice_payments cp where cp.kind = 'CREDIT'
                 and cp.source_id = a.id)) as median_minutes,
