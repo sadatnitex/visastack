@@ -2437,3 +2437,36 @@ export {
   travellerThresholdsProblem,
   updateTravellerHealthSettings,
 } from './traveller-plan-metrics';
+
+// UMPE P10: official-source monitoring, the Saturday source check (migration 0115).
+export {
+  SOURCE_AUTHORITY_TIERS,
+  SOURCE_CANDIDATE_STATUSES,
+  SOURCE_CHECK_MAX_SOURCES,
+  SOURCE_MONITOR_NOT_READY,
+  type OfficialSourceView,
+  type RegisterOfficialSourceInput,
+  type RunSourceCheckOptions,
+  type SourceAuthorityTier,
+  type SourceCandidateDecision,
+  type SourceCandidateStatus,
+  type SourceChangeCandidateView,
+  type SourceCheckCounts,
+  type SourceCheckRunView,
+  type SourceCheckSummary,
+  type SourceCheckTrigger,
+  type SourceMonitorOverview,
+  deactivateOfficialSource,
+  dhakaWeekKey,
+  registerOfficialSource,
+  reviewSourceChangeCandidate,
+  runSourceCheck,
+  sourceMonitorOverview,
+  sourceMonitorReady,
+} from './source-monitor';
+export {
+  SOURCE_FETCH_OUTCOMES,
+  type SourceFetchOutcome,
+  type SourceFetcher,
+  createSourceFetcher,
+} from './source-fetch';

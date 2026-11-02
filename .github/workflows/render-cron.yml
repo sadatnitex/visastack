@@ -94,6 +94,7 @@ jobs:
         40 5 * * *  /api/jobs/process-whatsapp-inbox
         15 6 * * *  /api/jobs/process-billing-cycle
         7 11 * * *  /api/jobs/process-database-backup
+        0 3 * * *   /api/jobs/process-source-check
     steps:
       - name: Choose the jobs to run
         env:

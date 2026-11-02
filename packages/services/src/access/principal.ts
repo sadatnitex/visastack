@@ -55,6 +55,7 @@ export const SYSTEM_JOBS = [
   'process-notifications',
   'process-payment-reconciliation',
   'process-rate-limit-prune',
+  'process-source-check',
   'process-whatsapp-inbox',
   'rewrap-data-keys',
 ] as const;

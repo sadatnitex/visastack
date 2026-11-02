@@ -23,10 +23,12 @@ import {
   RATE_LIMITS,
   type ReconciliationSummary,
   type RefundCheckSummary,
+  type SourceCheckSummary,
   type SweepResult,
   type SystemScope,
   applyEmailDeliveryEvent,
   checkRateLimit,
+  createSourceFetcher,
   deleteExpiredAiTokens,
   deleteStaleAiClients,
   executeAccountDeletion,
@@ -43,6 +45,7 @@ import {
   runErasureWorker,
   runIntakeWorker,
   runNotificationWorker,
+  runSourceCheck,
   sweepAbandonedClientInvitations,
   sweepAbandonedOrganizationInvitations,
   sweepAbandonedUploads,
@@ -970,6 +973,36 @@ export async function triggerBillingCycle(
     return summary;
   } catch (error) {
     reportServerError('triggerBillingCycle', error, { step: 'billing run failed' });
+    return { error: 'failed' };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * The weekly official-source check (UMPE P10), called daily: starts on a Dhaka Saturday (09:00),
+ * finishes what was left on the following days, fetches the registered official pages under the
+ * safe fetcher's rules and records what changed for a person to review. Never touches a pack.
+ * Keyed by the Dhaka week, so a retry or a late start runs nothing twice. On its
+ * own short-lived pooled connection, like the jobs above. Counts only.
+ */
+export async function triggerSourceCheck(
+  scope: SystemScope<'process-source-check'>,
+): Promise<SourceCheckSummary | { readonly error: string }> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) return { error: 'not_configured' };
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    reportServerError('triggerSourceCheck', error, { step: 'idle pool connection error' });
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof runSourceCheck>[0];
+    return await runSourceCheck(handle, scope, {
+      fetcher: createSourceFetcher(),
+      now: new Date(),
+    });
+  } catch (error) {
+    reportServerError('triggerSourceCheck', error, { step: 'source check failed' });
     return { error: 'failed' };
   } finally {
     await pool.end();

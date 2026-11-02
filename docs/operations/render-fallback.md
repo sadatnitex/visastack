@@ -103,6 +103,8 @@ A built-in guard stops double runs. Before any job, the workflow asks the public
 
 The daily billing run, reminders, notifications, retention, account exports, payment checks and the backup check then run every day at the times in `apps/web/vercel.json`. GitHub sometimes starts scheduled runs a few minutes late; all these jobs are daily, so that is harmless. GitHub also turns off scheduled workflows in a repository with no activity for 60 days; any push resets that.
 
+Note (2 Nov 2026, official-source check): `/api/jobs/process-source-check` also runs every day at 03:00 UTC (09:00 Bangladesh time). On a Bangladesh Saturday it starts that week's check of the official pages; on the other days it only finishes that week's check if some pages were left, and otherwise does nothing. A late or repeated start therefore never checks a page twice in the same week.
+
 ## Step 7: verify the live site
 
 1. https://vs.obsidianglobal.studio/api/health/ready says ready.

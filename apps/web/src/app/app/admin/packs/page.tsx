@@ -126,6 +126,9 @@ export default async function PackStudioPage({
             <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: 'var(--text-small)' }}>
               Published versions whose next-review date has passed, most overdue first.
             </p>
+            <Link href="/app/admin/packs/sources" className="u-fs-085">
+              Official Sources and Detected Changes →
+            </Link>
             {data.reviewQueue.length === 0 ? (
               <p className="card-body" style={{ marginTop: '0.75rem' }}>
                 Nothing due for review.
