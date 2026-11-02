@@ -11,6 +11,7 @@
  * 6. Exclude is refused for an item that can block; choices pin exact version ids.
  * 7. The intention-first start opens an existing active case instead of a duplicate.
  */
+import { randomUUID } from 'node:crypto';
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
@@ -25,6 +26,7 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import { addDocumentVersion, registerDocument, setDocumentDate } from './documents';
 import { attachPackVersion, createMission, transitionMission } from './missions';
+import { PACKAGE_CHANGED_EVENT, runNotificationWorker } from './notifications';
 import {
   type RequirementInput,
   addPackVersion,
@@ -535,6 +537,13 @@ describe('UMPE P4 trip package', () => {
       expect(after.change?.kind).toBe('PACK_WITHDRAWN');
       // Opening the case again records nothing new.
       expect((await pkg(db, actor, missionId)).change?.changeCount).toBe(1);
+      // The person is looking at the case: no note is queued for what they already see.
+      expect(
+        await db
+          .select()
+          .from(schema.notifications)
+          .where(eq(schema.notifications.eventType, PACKAGE_CHANGED_EVENT)),
+      ).toEqual([]);
     },
     TEST_TIMEOUT_MS,
   );
@@ -587,6 +596,71 @@ describe('UMPE P4 trip package', () => {
         db,
       );
       expect(again.recorded).toBe(0);
+
+      // The sweep tells the owner once, on both channels, and never about the cancelled case.
+      const notes = await db
+        .select()
+        .from(schema.notifications)
+        .where(eq(schema.notifications.eventType, PACKAGE_CHANGED_EVENT));
+      expect(notes.map((n) => n.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
+      expect(notes.every((n) => n.missionId === active && n.recipientAccountId === actor)).toBe(
+        true,
+      );
+
+      const sent: string[] = [];
+      const emailPort = {
+        send: async (m: { to: string }) => {
+          sent.push(m.to);
+          return { providerMessageId: randomUUID() };
+        },
+      } as never;
+      const statuses = async () =>
+        (
+          await db
+            .select()
+            .from(schema.notifications)
+            .where(eq(schema.notifications.eventType, PACKAGE_CHANGED_EVENT))
+        )
+          .map((n) => `${n.resourceId === notes[0]?.resourceId ? 'first' : 'second'}:${n.status}`)
+          .sort();
+
+      // A note about a change that is still open is delivered.
+      await runNotificationWorker(db, emailPort, 'https://app.example.test');
+      expect(sent).toEqual(['p4-owner@example.com']);
+      expect(await statuses()).toEqual(['first:SENT', 'first:SENT']);
+
+      // A different change replaces the open item: one new pair of notes is queued for it.
+      await newVersion(db, actor, passportId);
+      const replaced = await sweepPackageChanges(
+        systemScopeForTest('process-notification-sweeps'),
+        db,
+      );
+      expect(replaced.recorded).toBe(1);
+      const queued = (
+        await db
+          .select()
+          .from(schema.notifications)
+          .where(eq(schema.notifications.eventType, PACKAGE_CHANGED_EVENT))
+      ).filter((n) => n.status === 'QUEUED');
+      expect(queued).toHaveLength(2);
+
+      // If the item closes by any other route, the worker's own check still stops the notes.
+      await db
+        .update(schema.umpePackageChanges)
+        .set({ resolvedAt: new Date(), resolution: 'NO_LONGER_APPLIES' })
+        .where(eq(schema.umpePackageChanges.missionId, active));
+      await runNotificationWorker(db, emailPort, 'https://app.example.test');
+      expect(sent).toEqual(['p4-owner@example.com']);
+      expect(
+        (
+          await db
+            .select()
+            .from(schema.notifications)
+            .where(eq(schema.notifications.eventType, PACKAGE_CHANGED_EVENT))
+        )
+          .filter((n) => queued.some((q) => q.id === n.id))
+          .map((n) => n.status),
+      ).toEqual(['CANCELLED', 'CANCELLED']);
     },
     TEST_TIMEOUT_MS,
   );

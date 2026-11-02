@@ -10,8 +10,8 @@ import { AuthorizedApplicant } from './access';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { createMission } from './missions';
+import { INACTIVE_CASE_STATES } from './umpe-package-tables';
 
-const INACTIVE_CASE_STATES = ['CLOSED', 'CANCELLED', 'SUBMITTED'] as const;
 const NAME_MAX = 120;
 const TITLE_MAX = 200;
 

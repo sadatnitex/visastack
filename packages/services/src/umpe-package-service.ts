@@ -66,12 +66,18 @@ import {
   isFactStatusEligible,
   snapshotMission,
 } from './missions';
+import {
+  PACKAGE_CHANGED_EVENT,
+  cancelQueuedNotificationsForResource,
+  enqueueNotificationBothChannels,
+} from './notifications';
 import { type PackRequirement, listRequirements } from './packs';
 import { CASE_TRAVEL_END_KEY, CASE_TRAVEL_START_KEY } from './rule-conditions';
 import { canonicalJson } from './umpe-collection-request-items';
 import {
   type AttentionReason,
   type OutsideStep,
+  PACKAGE_CHANGE_LABELS,
   type PackageChange,
   type PackageChangeKind,
   type PackageChangeSignal,
@@ -81,10 +87,12 @@ import {
   outsideSteps,
   pickPackageChange,
 } from './umpe-package-phrases';
-import { packageTablesPresent, sourceTablesPresent } from './umpe-package-tables';
+import {
+  INACTIVE_CASE_STATES,
+  packageTablesPresent,
+  sourceTablesPresent,
+} from './umpe-package-tables';
 
-/** Case states whose package is no longer worked on: nothing is re-evaluated or changed there. */
-const INACTIVE_CASE_STATES = ['CLOSED', 'CANCELLED', 'SUBMITTED'] as const;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const REASON_MAX = 500;
 const HANDOFF_LIST_LIMIT = 20;
@@ -935,6 +943,8 @@ async function recordChange(
   change: PackageChange | null,
   source: ChangeSource,
   actorAccountId: string | null,
+  /** The case owner, for the note the sweep sends (null when the person opened the case). */
+  notifyAccountId: string | null = null,
 ): Promise<boolean> {
   if (!isActive(mission)) return false;
   const latest = first(
@@ -952,6 +962,7 @@ async function recordChange(
   const now = new Date();
   if (!change) {
     if (!open) return false;
+    await cancelQueuedNotificationsForResource(tx, open.id);
     await tx
       .update(schema.umpePackageChanges)
       .set({ resolvedAt: now, resolution: 'NO_LONGER_APPLIES', lastSeenAt: now })
@@ -989,6 +1000,7 @@ async function recordChange(
   if (reviewed) {
     if (!open) return false;
     // The open item is about something that no longer applies.
+    await cancelQueuedNotificationsForResource(tx, open.id);
     await tx
       .update(schema.umpePackageChanges)
       .set({ resolvedAt: now, resolution: 'NO_LONGER_APPLIES', lastSeenAt: now })
@@ -1015,7 +1027,11 @@ async function recordChange(
       subjectId: s.subjectId,
     })),
   };
+  let changeId: string;
   if (open) {
+    changeId = open.id;
+    // A note queued about what this item said before must never go out after it changed.
+    await cancelQueuedNotificationsForResource(tx, open.id);
     await tx
       .update(schema.umpePackageChanges)
       .set({
@@ -1045,8 +1061,11 @@ async function recordChange(
       })
       .onConflictDoNothing()
       .returning({ id: schema.umpePackageChanges.id });
-    if (inserted.length === 0) return false;
+    const row = inserted[0];
+    if (!row) return false;
+    changeId = row.id;
   }
+  if (notifyAccountId) await notePackageChange(tx, mission, notifyAccountId, changeId, change);
   await auditChange(
     tx,
     mission,
@@ -1057,6 +1076,34 @@ async function recordChange(
     change.signals.length,
   );
   return true;
+}
+
+/**
+ * Tell the traveller, in the same transaction, that something changed for a case they are not
+ * looking at (the sweep found it). One note per distinct change: the idempotency key carries a
+ * hash of the change's signature, and the worker checks the change is still open before sending.
+ * Plain words only; no document name, value or reason.
+ */
+async function notePackageChange(
+  tx: Db,
+  mission: Mission,
+  ownerAccountId: string,
+  changeId: string,
+  change: PackageChange,
+): Promise<void> {
+  await enqueueNotificationBothChannels(tx, {
+    eventType: PACKAGE_CHANGED_EVENT,
+    resourceId: changeId,
+    threshold: createHash('sha256').update(change.signature).digest('hex').slice(0, 16),
+    recipientAccountId: ownerAccountId,
+    applicantId: mission.applicantId,
+    missionId: mission.id,
+    payload: {
+      subject: 'Something changed for one of your trips',
+      summary: PACKAGE_CHANGE_LABELS[change.kind],
+      deepLinkPath: `/app/mission/${mission.id}#trip-package`,
+    },
+  });
 }
 
 async function auditChange(
@@ -1629,8 +1676,9 @@ export async function markPackageChangeReviewed(
           isNull(schema.umpePackageChanges.resolvedAt),
         ),
       )
-      .returning({ kind: schema.umpePackageChanges.kind });
+      .returning({ id: schema.umpePackageChanges.id, kind: schema.umpePackageChanges.kind });
     const reviewed = rows[0];
+    for (const row of rows) await cancelQueuedNotificationsForResource(tx, row.id);
     if (reviewed) {
       await auditChange(
         tx,
@@ -1652,7 +1700,8 @@ const PACKAGE_SWEEP_MAX_LIMIT = 200;
  * Continuous matching for the scheduled sweep: re-evaluate one bounded page of ACTIVE cases that
  * have a package worth watching (a choice or a confirmed handoff), in id order from `after`, and
  * record each case's one change item. Closed, cancelled and submitted cases are never read, a
- * confirmed handoff is never rewritten, nothing is shared or sent. Returns the cursor for the
+ * confirmed handoff is never rewritten and nothing is shared. Each newly recorded change queues one
+ * note to the case owner (in-app and email), checked again before it is sent. Returns the cursor for the
  * next page (null when done).
  */
 export async function sweepPackageChanges(
@@ -1699,7 +1748,14 @@ export async function sweepPackageChanges(
       if (!fresh || !isActive(fresh)) return false;
       const built = await buildPackage(tx, fresh, owner.ownerAccountId, options.now ?? new Date());
       if (!built.ok) return false;
-      return recordChange(tx, fresh, pickPackageChange(built.value.signals), 'SWEEP', null);
+      return recordChange(
+        tx,
+        fresh,
+        pickPackageChange(built.value.signals),
+        'SWEEP',
+        null,
+        owner.ownerAccountId,
+      );
     });
     if (wrote) recorded++;
   }

@@ -8,6 +8,9 @@
 import { sql } from 'drizzle-orm';
 import type { Db } from './db';
 
+/** Case states whose package is no longer worked on: nothing is re-evaluated, changed or sent. */
+export const INACTIVE_CASE_STATES = ['CLOSED', 'CANCELLED', 'SUBMITTED'] as const;
+
 const PACKAGE_TABLES = ['umpe_package_choices', 'umpe_package_handoffs', 'umpe_package_changes'];
 const SOURCE_TABLES = ['official_sources', 'source_change_candidates'];
 

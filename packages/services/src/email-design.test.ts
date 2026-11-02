@@ -124,6 +124,7 @@ describe('the words of every email', () => {
     expect(Object.keys(NOTIFICATION_EMAIL_COPY).sort()).toEqual(
       [
         'AGENCY_COLLECTION_GUEST_CODE',
+        'CASE_PACKAGE_CHANGED',
         'AGENCY_COLLECTION_REQUEST_SENT',
         'APPOINTMENT_SCHEDULED',
         'BILLING_STATUS_CHANGED',

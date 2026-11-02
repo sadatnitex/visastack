@@ -2653,3 +2653,4 @@ export {
   openOrStartTripCase,
 } from './umpe-package-start';
 export { packageTablesPresent as packageTablesReady } from './umpe-package-tables';
+export { PACKAGE_CHANGED_EVENT } from './notifications';
