@@ -101,7 +101,7 @@ GitHub, the repository, **Settings**, **Secrets and variables**, **Actions**:
 
 A built-in guard stops double runs. Before any job, the workflow asks the public address (`PUBLIC_SITE_URL`) for its light liveness page. If Vercel answers it, and Vercel is not paused, Vercel's own scheduler is running the jobs, so every job is skipped, the run still ends green, and the summary shows a warning saying to turn `CRON_HOST` off. If Render answers, or Vercel answers "paused" (402, when Vercel runs no jobs), the jobs run. The guard cannot see the case where Vercel is running again but the address still points at Render; see "Switching back to Vercel".
 
-The daily billing run, reminders, notifications, retention, account exports, payment checks and the backup check then run every day at the times in `apps/web/vercel.json`. GitHub sometimes starts scheduled runs a few minutes late; all these jobs are daily, so that is harmless. GitHub also turns off scheduled workflows in a repository with no activity for 60 days; any push resets that.
+The daily billing run, reminders, notifications, retention, account exports, payment checks and the backup check then run every day at the times in `apps/web/vercel.json`, and the official-source check runs once a week, on Saturday at 09:00 Bangladesh time (03:00 UTC). GitHub sometimes starts scheduled runs a few minutes late; that is harmless, because the daily jobs are safe to repeat and the weekly source check runs only once per Bangladesh week, however late or often it is started. GitHub also turns off scheduled workflows in a repository with no activity for 60 days; any push resets that.
 
 ## Step 7: verify the live site
 

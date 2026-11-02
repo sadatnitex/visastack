@@ -5384,3 +5384,164 @@ export const travellerPlanHealthSettings = pgTable(
     ),
   ],
 );
+
+// --- Official-source monitoring (UMPE P10, migration 0115) ---
+
+/**
+ * An official page registered for a supported route, checked by the Saturday source check. A
+ * registered page is not a verified rule: a person still reviews every change in Pack Studio.
+ * Until migration 0115 runs the code finds these tables missing and does nothing.
+ */
+export const officialSources = pgTable(
+  'official_sources',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    jurisdiction: text('jurisdiction').notNull(),
+    route: text('route'),
+    purpose: text('purpose'),
+    url: text('url').notNull(),
+    title: text('title').notNull(),
+    publisher: text('publisher').notNull(),
+    authorityTier: text('authority_tier').notNull(),
+    packId: uuid('pack_id').references(() => packs.id, { onDelete: 'set null' }),
+    active: boolean('active').notNull().default(true),
+    createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('official_sources_active_url').on(table.url).where(sql`${table.active}`),
+    index('official_sources_pack_idx').on(table.packId),
+    index('official_sources_created_by_idx').on(table.createdByAccountId),
+    check('official_sources_jurisdiction_shape', sql`${table.jurisdiction} ~ '^[A-Z]{2}$'`),
+    check(
+      'official_sources_url_https',
+      sql`${table.url} like 'https://%' and char_length(${table.url}) <= 2048`,
+    ),
+    check(
+      'official_sources_authority_tier_known',
+      sql`${table.authorityTier} in ('GOVERNMENT', 'CONSULATE', 'OFFICIAL_APPLICATION', 'AUTHORIZED_VAC')`,
+    ),
+    check(
+      'official_sources_active_matches_deactivated',
+      sql`${table.active} = (${table.deactivatedAt} is null)`,
+    ),
+  ],
+);
+
+/** One Saturday (or manual) source check: when it ran and what it counted, never page content. */
+export const sourceCheckRuns = pgTable(
+  'source_check_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    runKey: text('run_key').notNull().unique(),
+    trigger: text('trigger').notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    sourcesDue: integer('sources_due').notNull().default(0),
+    checked: integer('checked').notNull().default(0),
+    changed: integer('changed').notNull().default(0),
+    blocked: integer('blocked').notNull().default(0),
+    failed: integer('failed').notNull().default(0),
+    unsupported: integer('unsupported').notNull().default(0),
+    deferred: integer('deferred').notNull().default(0),
+  },
+  (table) => [
+    check('source_check_runs_trigger_known', sql`${table.trigger} in ('SCHEDULED', 'MANUAL')`),
+    check(
+      'source_check_runs_counts_non_negative',
+      sql`${table.sourcesDue} >= 0 and ${table.checked} >= 0 and ${table.changed} >= 0 and ${table.blocked} >= 0 and ${table.failed} >= 0 and ${table.unsupported} >= 0 and ${table.deferred} >= 0`,
+    ),
+  ],
+);
+
+/** What one fetch of one source found in one run: the outcome, fingerprints and a short excerpt. */
+export const sourceObservations = pgTable(
+  'source_observations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => officialSources.id, { onDelete: 'cascade' }),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => sourceCheckRuns.id, { onDelete: 'cascade' }),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull(),
+    httpStatus: integer('http_status'),
+    outcome: text('outcome').notNull(),
+    etag: text('etag'),
+    lastModified: text('last_modified'),
+    contentSha256: text('content_sha256'),
+    normalizedSha256: text('normalized_sha256'),
+    byteLength: integer('byte_length'),
+    excerpt: text('excerpt'),
+  },
+  (table) => [
+    unique('source_observations_source_run').on(table.sourceId, table.runId),
+    index('source_observations_source_fetched_idx').on(table.sourceId, table.fetchedAt),
+    index('source_observations_run_idx').on(table.runId),
+    check(
+      'source_observations_outcome_known',
+      sql`${table.outcome} in ('FETCHED', 'NOT_MODIFIED', 'BLOCKED', 'TIMEOUT', 'REDIRECT_REFUSED', 'TOO_LARGE', 'UNSUPPORTED_FORMAT', 'ERROR')`,
+    ),
+    check(
+      'source_observations_excerpt_cap',
+      sql`${table.excerpt} is null or char_length(${table.excerpt}) <= 2000`,
+    ),
+    check(
+      'source_observations_fetched_has_hash',
+      sql`${table.outcome} <> 'FETCHED' or ${table.normalizedSha256} is not null`,
+    ),
+  ],
+);
+
+/**
+ * A machine-detected change on an official page, waiting for a person. Deciding one records the
+ * decision only: it never creates, approves or publishes any pack content.
+ */
+export const sourceChangeCandidates = pgTable(
+  'source_change_candidates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => officialSources.id, { onDelete: 'cascade' }),
+    observationId: uuid('observation_id')
+      .notNull()
+      .references(() => sourceObservations.id, { onDelete: 'cascade' }),
+    previousObservationId: uuid('previous_observation_id').references(() => sourceObservations.id, {
+      onDelete: 'set null',
+    }),
+    normalizedSha256: text('normalized_sha256').notNull(),
+    status: text('status').notNull().default('NEW'),
+    oldExcerpt: text('old_excerpt'),
+    newExcerpt: text('new_excerpt'),
+    reviewerAccountId: uuid('reviewer_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewNote: text('review_note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('source_change_candidates_source_hash').on(table.sourceId, table.normalizedSha256),
+    index('source_change_candidates_status_idx').on(table.status),
+    index('source_change_candidates_observation_idx').on(table.observationId),
+    index('source_change_candidates_previous_idx').on(table.previousObservationId),
+    index('source_change_candidates_reviewer_idx').on(table.reviewerAccountId),
+    check(
+      'source_change_candidates_status_known',
+      sql`${table.status} in ('NEW', 'IN_REVIEW', 'DISMISSED', 'ACCEPTED_FOR_DRAFT')`,
+    ),
+    check(
+      'source_change_candidates_excerpt_cap',
+      sql`(${table.oldExcerpt} is null or char_length(${table.oldExcerpt}) <= 2000) and (${table.newExcerpt} is null or char_length(${table.newExcerpt}) <= 2000)`,
+    ),
+    check(
+      'source_change_candidates_note_cap',
+      sql`${table.reviewNote} is null or char_length(${table.reviewNote}) <= 1000`,
+    ),
+  ],
+);

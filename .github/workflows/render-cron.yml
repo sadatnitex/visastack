@@ -2,8 +2,9 @@ name: Render Cron
 
 # Scheduled jobs for the Render fallback host (docs/operations/render-fallback.md). Vercel runs
 # these jobs itself from apps/web/vercel.json; Render's free plan has no scheduler, so while the
-# site runs on Render this workflow calls the same job addresses on the same daily schedules (UTC),
-# signed with the same CRON_SECRET the site already checks (apps/web/src/lib/cron-auth.ts).
+# site runs on Render this workflow calls the same job addresses on the same schedules (UTC; daily,
+# plus the weekly Saturday source check), signed with the same CRON_SECRET the site already checks
+# (apps/web/src/lib/cron-auth.ts).
 #
 # OFF by default. Nothing runs unless the repository variable CRON_HOST is exactly `render`. Turn
 # it off again (delete CRON_HOST, or set any other value) as soon as the site is back on Vercel,
@@ -24,7 +25,9 @@ name: Render Cron
 #
 # The job list below must match apps/web/vercel.json exactly, path and schedule;
 # scripts/render-cron.test.mjs fails when they drift apart. GitHub may start a scheduled run some
-# minutes late; every job here is daily, so that is harmless.
+# minutes late. That is harmless: the daily jobs are written to be repeated, and the weekly source
+# check (0 3 * * 6, Saturday 09:00 Asia/Dhaka) is keyed by the Dhaka week, so a late or repeated
+# start in the same week does nothing twice.
 on:
   schedule:
     - cron: '0 3 * * *'
@@ -47,6 +50,7 @@ on:
     - cron: '40 5 * * *'
     - cron: '15 6 * * *'
     - cron: '7 11 * * *'
+    - cron: '0 3 * * 6'
   workflow_dispatch:
     inputs:
       job:
@@ -94,6 +98,7 @@ jobs:
         40 5 * * *  /api/jobs/process-whatsapp-inbox
         15 6 * * *  /api/jobs/process-billing-cycle
         7 11 * * *  /api/jobs/process-database-backup
+        0 3 * * 6   /api/jobs/process-source-check
     steps:
       - name: Choose the jobs to run
         env:
