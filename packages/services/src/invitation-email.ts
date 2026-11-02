@@ -157,9 +157,11 @@ export async function queueInvitationEmail(
       deepLinkPath:
         input.kind === 'contributor'
           ? '/app/contributor-requests/accept'
-          : input.kind === 'collection' || input.kind === 'guest_code'
+          : input.kind === 'collection'
             ? '/collect'
-            : '/invitation',
+            : input.kind === 'guest_code'
+              ? '/collect?step=guest'
+              : '/invitation',
       sealedInvitationLink: {
         keyVersion: dataKey.keyVersion,
         wrappedKey: Buffer.from(dataKey.wrappedDataKey).toString('base64'),

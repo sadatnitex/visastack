@@ -37,8 +37,9 @@ export async function GET(request: Request): Promise<Response> {
         maxAge: COLLECT_COOKIE_SECONDS,
       });
     }
-  } else {
-    // Closed or busy: an older session must not stand in for this link.
+  } else if (opened.state === 'closed') {
+    // Closed: an older session must not stand in for this link. Busy checked no link, so a live
+    // session is kept (someone exhausting the shared limits cannot push the recipient out).
     response.cookies.set(COLLECT_COOKIE, '', { ...COLLECT_COOKIE_OPTIONS, maxAge: 0 });
   }
   return response;

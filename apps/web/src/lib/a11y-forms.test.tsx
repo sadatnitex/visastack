@@ -2183,11 +2183,17 @@ const ADMIN: readonly Case[] = [
   },
   {
     name: 'choose how long the agency may keep guest files',
-    element: () => <guestForms.RetentionForm agencyName="Synthetic Agency One" value={null} />,
+    element: () => (
+      <guestForms.RetentionForm
+        agencyName="Synthetic Agency One"
+        value={null}
+        periods={[3, 7, 15, 30, 60, 90, 180]}
+      />
+    ),
   },
   {
     name: 'change a saved guest retention choice',
-    element: () => <guestForms.RetentionForm agencyName={null} value={30} />,
+    element: () => <guestForms.RetentionForm agencyName={null} value={30} periods={[3, 7, 30]} />,
   },
   { name: 'leave the guest desk', element: () => <guestForms.LeaveForm /> },
   {

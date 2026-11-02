@@ -1,3 +1,4 @@
+import { GUEST_RETENTION_DAYS } from '@visastack/services';
 import type { Metadata } from 'next';
 import { cookies, headers } from 'next/headers';
 import Link from 'next/link';
@@ -119,7 +120,11 @@ export default async function CollectPage({
           Adding your files here opens in a later release. Until then, nothing has been sent to{' '}
           {agencyName ?? 'the agency'}.
         </p>
-        <RetentionForm agencyName={agencyName} value={desk.retentionDays} />
+        <RetentionForm
+          agencyName={agencyName}
+          value={desk.retentionDays}
+          periods={GUEST_RETENTION_DAYS}
+        />
         <div className="collect-leave">
           <LeaveForm />
         </div>
@@ -152,12 +157,13 @@ export default async function CollectPage({
             request.
           </p>
         </>
-      ) : !desk.guestAvailable ? (
+      ) : !desk.guestAvailable || desk.guestSpent ? (
         <>
           <h2 className="collect-step-title">Continue Without an Account</h2>
           <p>
-            This link was not sent to an email address, so it cannot be opened without an account.
-            Ask {agencyName ?? 'the agency'} to email the request to you, or sign in to respond.
+            {desk.guestSpent
+              ? `This link can no longer be opened without an account. Ask ${agencyName ?? 'the agency'} for a new link, or sign in to respond.`
+              : `This link was not sent to an email address, so it cannot be opened without an account. Ask ${agencyName ?? 'the agency'} to email the request to you, or sign in to respond.`}
           </p>
           <Link className="btn btn-secondary" href="/collect">
             Back

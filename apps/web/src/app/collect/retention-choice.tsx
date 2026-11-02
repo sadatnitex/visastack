@@ -5,11 +5,10 @@
  * form that comes with uploads (P9) can reuse it as it is.
  */
 
-export const RETENTION_PERIODS = [3, 7, 15, 30, 60, 90, 180] as const;
-
 export function RetentionChoice({
   agencyName,
   value,
+  periods,
   name = 'retentionDays',
   idPrefix = 'retention',
   describedBy,
@@ -19,6 +18,8 @@ export function RetentionChoice({
   readonly agencyName: string | null;
   /** The saved choice, or null when none has been made (nothing is preselected). */
   readonly value: number | null;
+  /** The offered periods in days, from the service (`GUEST_RETENTION_DAYS`), so they never drift. */
+  readonly periods: readonly number[];
   readonly name?: string;
   readonly idPrefix?: string;
   /** The id of a message that explains a problem with the choice. */
@@ -39,7 +40,7 @@ export function RetentionChoice({
         they are deleted, unless the law requires them to be kept longer.
       </p>
       <div className="collect-retention-options">
-        {RETENTION_PERIODS.map((days) => (
+        {periods.map((days) => (
           <label key={days} className="collect-retention-option" htmlFor={`${idPrefix}-${days}`}>
             <input
               id={`${idPrefix}-${days}`}

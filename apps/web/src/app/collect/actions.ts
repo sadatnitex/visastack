@@ -8,8 +8,6 @@ import {
 } from '@visastack/services';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { after } from 'next/server';
-import { triggerNotificationWorker } from '../../lib/jobs';
 import { createKeyManagementPort } from '../../lib/providers';
 import { withPublicDb } from '../../lib/public-db';
 import { sendEmailNow } from '../../lib/send-now';
@@ -79,8 +77,8 @@ export async function sendCodeAction(
     return { ok: false, message: 'The code could not be sent. Try again in a minute.' };
   }
   if (codeId) {
+    // Only this code's email, while the guest waits; a failed try is retried by the regular worker.
     const outcome = await sendEmailNow(codeId);
-    after(() => triggerNotificationWorker().then(() => undefined));
     if (outcome === 'failed') {
       return { ok: false, message: 'The code could not be sent. Ask the agency for help.' };
     }

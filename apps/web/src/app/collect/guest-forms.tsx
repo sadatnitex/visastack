@@ -79,9 +79,11 @@ export function VerifyCodeForm() {
 export function RetentionForm({
   agencyName,
   value,
+  periods,
 }: {
   readonly agencyName: string | null;
   readonly value: number | null;
+  readonly periods: readonly number[];
 }) {
   const [state, formAction, pending] = useActionState(retentionAction, INITIAL);
   const form = useRef<HTMLFormElement>(null);
@@ -93,6 +95,7 @@ export function RetentionForm({
       <RetentionChoice
         agencyName={agencyName}
         value={value}
+        periods={periods}
         invalid={invalid}
         {...(invalid ? { describedBy: messageId } : {})}
       />

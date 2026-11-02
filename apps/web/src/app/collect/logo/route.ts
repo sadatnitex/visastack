@@ -1,10 +1,10 @@
-import { readGuestDeskLogo } from '@visastack/services';
-import { cookies } from 'next/headers';
+import { RATE_LIMITS, checkRateLimits, readGuestDeskLogo } from '@visastack/services';
+import { cookies, headers } from 'next/headers';
 import { logoResponse } from '../../../lib/logo-response';
 import { withPublicDb } from '../../../lib/public-db';
 import { reportServerError } from '../../../lib/server-error';
 import { createStorage } from '../../../lib/storage';
-import { COLLECT_COOKIE, collectSwitchOn, sessionProofFrom } from '../load';
+import { COLLECT_COOKIE, collectSwitchOn, networkSubject, sessionProofFrom } from '../load';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +19,17 @@ export async function GET(): Promise<Response> {
   const proof = sessionProofFrom((await cookies()).get(COLLECT_COOKIE)?.value);
   if (!proof) return new Response('Not Found', { status: 404 });
   try {
-    const logo = await withPublicDb((db) => readGuestDeskLogo(db, createStorage(db), proof));
+    const subject = networkSubject(await headers());
+    const logo = await withPublicDb(async (db) => {
+      // Counted per network address (a short hash), like the invitation logo.
+      const decision = await checkRateLimits(db, [
+        {
+          input: { subjectId: subject, action: 'collect.logo_ip', label: 'logo' },
+          config: RATE_LIMITS.INVITATION_LOGO_IP,
+        },
+      ]);
+      return decision.allowed ? readGuestDeskLogo(db, createStorage(db), proof) : undefined;
+    });
     if (!logo) return new Response('Not Found', { status: 404 });
     return logoResponse(logo, 'private, no-store');
   } catch (error) {

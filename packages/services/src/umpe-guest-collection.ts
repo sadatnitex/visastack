@@ -1,6 +1,6 @@
 import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { type SQL, and, desc, eq, gt, isNull, lt } from 'drizzle-orm';
+import { type SQL, and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { CollectionLinkProof } from './access/collection-scope';
 import {
   GuestCodeDeliveryProof,
@@ -56,6 +56,16 @@ export const GUEST_SESSION_IDLE_MS = 30 * 60 * 1000;
 export const GUEST_SESSION_MAX_MS = 12 * 60 * 60 * 1000;
 export const GUEST_CODE_TTL_MS = 10 * 60 * 1000;
 export const GUEST_CODE_MAX_ATTEMPTS = 5;
+/**
+ * Over a link's whole life, at most this many codes are sent and this many wrong tries made (on
+ * top of the hourly limits). Past either, the guest path of that link is closed for good and the
+ * guest is told to ask the agency for a new link: a forwarded link cannot be used to guess codes
+ * for two weeks or to flood the recipient's inbox.
+ */
+export const GUEST_LINK_MAX_CODES = 20;
+export const GUEST_LINK_MAX_WRONG_TRIES = 25;
+/** Sessions of a link that ended this long ago are removed when the link next opens. */
+const GUEST_SESSION_KEEP_AFTER_END_MS = 24 * 60 * 60 * 1000;
 
 /**
  * How long, after the request closes, the guest lets the agency keep their files (owner, 2 Nov).
@@ -190,16 +200,19 @@ async function findLiveSession(db: Db, match: SQL, now: Date): Promise<LiveSessi
   };
 }
 
+/** The live session a proof names; any use of it keeps it from going idle. */
 async function liveSessionFor(
   db: Db,
   proof: GuestCollectionSessionProof,
   now: Date,
 ): Promise<LiveSession | null> {
-  return findLiveSession(
+  const session = await findLiveSession(
     db,
     eq(schema.agencyCollectionGuestSessions.sessionHash, proof.sessionHash),
     now,
   );
+  if (session) await touch(db, session, now);
+  return session;
 }
 
 /** Keep a live session from going idle. */
@@ -258,6 +271,45 @@ function audit(
   });
 }
 
+/** Whether this link's guest path is used up: too many codes sent or wrong tries made, ever. */
+async function linkGuestPathSpent(db: Db, linkId: string): Promise<boolean> {
+  const usage = first(
+    await db
+      .select({
+        codes: sql<number>`count(*)::int`,
+        wrong: sql<number>`coalesce(sum(${schema.agencyCollectionGuestCodes.attempts}), 0)::int`,
+      })
+      .from(schema.agencyCollectionGuestCodes)
+      .where(eq(schema.agencyCollectionGuestCodes.linkId, linkId)),
+  );
+  return (
+    Number(usage?.codes ?? 0) >= GUEST_LINK_MAX_CODES ||
+    Number(usage?.wrong ?? 0) >= GUEST_LINK_MAX_WRONG_TRIES
+  );
+}
+
+const SPENT_MESSAGE =
+  'This link can no longer be opened without an account. Ask the agency for a new link.';
+
+/** Lock this session's row for the rest of the transaction, or undefined when it is gone. */
+async function lockSession(tx: Db, session: LiveSession, sessionHash: string) {
+  return first(
+    await tx
+      .select({ id: schema.agencyCollectionGuestSessions.id })
+      .from(schema.agencyCollectionGuestSessions)
+      .where(
+        and(
+          eq(schema.agencyCollectionGuestSessions.id, session.sessionId),
+          eq(schema.agencyCollectionGuestSessions.sessionHash, sessionHash),
+          isNull(schema.agencyCollectionGuestSessions.revokedAt),
+          isNull(schema.agencyCollectionGuestSessions.verifiedAt),
+        ),
+      )
+      .limit(1)
+      .for('update'),
+  );
+}
+
 // --- Starting a desk session ---------------------------------------------------------------------
 
 export interface StartedGuestSession {
@@ -284,10 +336,7 @@ export async function startGuestSession(
     current && GuestCollectionSessionProof.isGenuine(current)
       ? await liveSessionFor(db, current, now)
       : null;
-  if (kept && kept.linkId === view.linkId) {
-    await touch(db, kept, now);
-    return { rawSessionId: null };
-  }
+  if (kept && kept.linkId === view.linkId) return { rawSessionId: null };
   const linkRow = first(
     await db
       .select({
@@ -312,6 +361,19 @@ export async function startGuestSession(
   const rawSessionId = generateInvitationToken();
   try {
     await db.transaction(async (tx) => {
+      // Sessions of this link that ended a day ago or more are removed (their codes go with them),
+      // so link scanners and old devices leave nothing behind.
+      await tx
+        .delete(schema.agencyCollectionGuestSessions)
+        .where(
+          and(
+            eq(schema.agencyCollectionGuestSessions.linkId, view.linkId),
+            lt(
+              schema.agencyCollectionGuestSessions.expiresAt,
+              new Date(now.getTime() - GUEST_SESSION_KEEP_AFTER_END_MS),
+            ),
+          ),
+        );
       const created = first(
         await tx
           .insert(schema.agencyCollectionGuestSessions)
@@ -369,6 +431,8 @@ export type GuestDesk =
       readonly agency: GuestDeskAgency | null;
       /** False when the agency gave no email address for this link: there is no guest path. */
       readonly guestAvailable: boolean;
+      /** The link's guest path is used up (too many codes or wrong tries, ever). */
+      readonly guestSpent: boolean;
       /** A code was sent and can still be used. */
       readonly codePending: boolean;
     }
@@ -400,7 +464,6 @@ export async function readGuestDesk(
   if (!GuestCollectionSessionProof.isGenuine(proof)) return null;
   const session = await liveSessionFor(db, proof, now);
   if (!session) return null;
-  await touch(db, session, now);
   const agency = await activeBrand(db, session.organizationId);
   if (!session.verified) {
     const pending = first(
@@ -422,6 +485,7 @@ export async function readGuestDesk(
       stage: 'landing',
       agency,
       guestAvailable: usableEmail(session.emailHint) !== null,
+      guestSpent: await linkGuestPathSpent(db, session.linkId),
       codePending: pending !== undefined,
     };
   }
@@ -553,11 +617,15 @@ export async function sendGuestCode(
     now,
   );
   if (!decision.allowed) return err(serviceError('rate_limited', decision.reason));
+  if (await linkGuestPathSpent(db, session.linkId))
+    return err(serviceError('invalid', SPENT_MESSAGE));
   const code = (input.generateCode ?? sixDigits)();
   if (normalizeGuestCode(code) !== code) throw new Error('a guest code must be six digits');
   const codeId = randomUUID();
   const agency = await activeBrand(db, session.organizationId);
-  await db.transaction(async (tx) => {
+  const queued = await db.transaction(async (tx) => {
+    // One code request at a time per session, so two at once cannot leave two codes open.
+    if (!(await lockSession(tx, session, proof.sessionHash))) return false;
     const replaced = await tx
       .update(schema.agencyCollectionGuestCodes)
       .set({ consumedAt: now })
@@ -589,8 +657,9 @@ export async function sendGuestCode(
     await audit(tx, session, 'AGENCY_COLLECTION_GUEST_CODE_SENT', 'ALLOWED', {
       codesReplaced: replaced.length,
     });
+    return true;
   });
-  return ok({ codeId });
+  return queued ? ok({ codeId }) : err(missing());
 }
 
 export type GuestCodeRefusal = 'wrong' | 'expired';
@@ -631,7 +700,15 @@ export async function verifyGuestCode(
   );
   if (!decision.allowed) return err(serviceError('rate_limited', decision.reason));
   const code = normalizeGuestCode(input.code);
+  // A typo of the wrong shape is not a guess: it costs no try.
+  if (code === null) {
+    return err({ code: 'wrong' as const, message: 'Enter the six digits from the email.' });
+  }
+  if (await linkGuestPathSpent(db, session.linkId)) {
+    return err({ code: 'expired' as const, message: SPENT_MESSAGE });
+  }
   return db.transaction(async (tx) => {
+    if (!(await lockSession(tx, session, proof.sessionHash))) return err(missing());
     const current = first(
       await tx
         .select()
@@ -659,8 +736,8 @@ export async function verifyGuestCode(
       });
     }
     const expected = Buffer.from(current.codeHash, 'hex');
-    const given = Buffer.from(guestCodeHash(current.id, code ?? 'not-a-code'), 'hex');
-    const right = code !== null && timingSafeEqual(expected, given);
+    const given = Buffer.from(guestCodeHash(current.id, code), 'hex');
+    const right = timingSafeEqual(expected, given);
     if (!right) {
       const attempts = current.attempts + 1;
       await tx
@@ -695,7 +772,7 @@ export async function verifyGuestCode(
       .where(eq(schema.agencyCollectionGuestCodes.id, current.id));
     const rawSessionId = generateInvitationToken();
     // Rotate: the id the visitor held before proving who they are stops working.
-    await tx
+    const rotated = await tx
       .update(schema.agencyCollectionGuestSessions)
       .set({ sessionHash: hashInvitationToken(rawSessionId), verifiedAt: now, lastSeenAt: now })
       .where(
@@ -703,7 +780,9 @@ export async function verifyGuestCode(
           eq(schema.agencyCollectionGuestSessions.id, session.sessionId),
           eq(schema.agencyCollectionGuestSessions.sessionHash, proof.sessionHash),
         ),
-      );
+      )
+      .returning({ id: schema.agencyCollectionGuestSessions.id });
+    if (rotated.length === 0) throw new Error('guest session changed while it was verified');
     await tx
       .insert(schema.agencyCollectionGuestDrafts)
       .values({

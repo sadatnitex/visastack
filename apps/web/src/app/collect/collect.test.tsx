@@ -60,7 +60,13 @@ const TOKEN = 'A'.repeat(43);
 const SESSION = 'S'.repeat(43);
 const ROTATED = 'R'.repeat(43);
 const AGENCY = { name: 'Synthetic Agency One', accentColor: null, hasLogo: false };
-const LANDING = { stage: 'landing', agency: AGENCY, guestAvailable: true, codePending: false };
+const LANDING = {
+  stage: 'landing',
+  agency: AGENCY,
+  guestAvailable: true,
+  guestSpent: false,
+  codePending: false,
+};
 const VERIFIED = {
   stage: 'verified',
   agency: AGENCY,
@@ -178,12 +184,12 @@ describe('/collect/open', () => {
     }
   });
 
-  it('says the network is busy and drops any older cookie', async () => {
+  it('says the network is busy and keeps a live session (no link was checked)', async () => {
     limit.allowed = false;
-    const response = await visit(TOKEN);
+    const response = await visit(TOKEN, SESSION);
     limit.allowed = true;
     expect(response.headers.get('location')).toBe('/collect?busy=1');
-    expect(response.headers.get('set-cookie') ?? '').toMatch(/vs_collect=;/);
+    expect(response.headers.get('set-cookie')).toBeNull();
     expect(mocks.start).not.toHaveBeenCalled();
     expect(await page({ busy: '1' })).toContain('Please Try Again Later');
   });
@@ -263,6 +269,35 @@ describe('/collect', () => {
     }
     for (const days of [3, 7, 15, 30, 60, 90, 180]) expect(text).toContain(`${days} Days`);
     expect(html).not.toMatch(/checked=""/);
+  });
+
+  it('shows a lone member of an alternatives group as a plain item, and a split group whole in its strongest section', async () => {
+    mocks.cookie = SESSION;
+    const base = VERIFIED.items[0] as (typeof VERIFIED.items)[number];
+    mocks.desk.mockResolvedValue({
+      ...VERIFIED,
+      items: [
+        { ...base, id: 'a', label: 'Lone Member', groupKey: 'solo', necessity: 'RECOMMENDED' },
+        { ...base, id: 'b', label: 'Strong Member', groupKey: 'pair', necessity: 'MANDATORY' },
+        { ...base, id: 'c', label: 'Weak Member', groupKey: 'pair', necessity: 'OPTIONAL' },
+      ],
+    });
+    const html = await renderServer(CollectPage({ searchParams: Promise.resolve({}) }));
+    expect(textOf(html).match(/Any One of These/g)?.length).toBe(1);
+    const mandatory = html.slice(html.indexOf('aria-label="Mandatory"'));
+    expect(mandatory.indexOf('Weak Member')).toBeLessThan(
+      mandatory.indexOf('aria-label="Recommended"'),
+    );
+    expect(html).not.toContain('aria-label="Optional"');
+    expect(html).not.toContain('<h3');
+  });
+
+  it('says to ask the agency once the link guest path is used up', async () => {
+    mocks.cookie = SESSION;
+    mocks.desk.mockResolvedValue({ ...LANDING, guestSpent: true });
+    const text = await page({ step: 'guest' });
+    expect(text).toContain('Ask Synthetic Agency One for a new link');
+    expect(text).not.toContain('Email Me a Code');
   });
 
   it('gives one answer for no cookie, a closed session and a cookie that is not ours', async () => {

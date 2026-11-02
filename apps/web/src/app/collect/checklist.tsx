@@ -20,29 +20,54 @@ const ORDER: readonly RequirementNecessity[] = [
   'OPTIONAL',
 ];
 
-/** Items that share a group key form one any-one-of group, shown where its first member sits. */
+/**
+ * Items that share a group key form one any-one-of group. A group is shown whole, in the section
+ * of its strongest member (each member keeps its own necessity label), and a "group" of one is a
+ * plain item: nothing is labelled as alternatives unless there really is a choice.
+ */
 type Row =
   | { readonly kind: 'item'; readonly item: GuestChecklistItem }
   | { readonly kind: 'group'; readonly key: string; readonly items: readonly GuestChecklistItem[] };
 
-function rows(items: readonly GuestChecklistItem[]): Row[] {
-  const out: Row[] = [];
+interface Placed {
+  readonly section: string;
+  readonly row: Row;
+}
+
+function rank(necessity: RequirementNecessity): number {
+  return ORDER.indexOf(necessity);
+}
+
+function sectionOf(item: GuestChecklistItem): string {
+  return item.provenance === 'AGENCY_ADDED' ? 'AGENCY' : item.necessity;
+}
+
+/** Every item placed once, in issue order, under the section it belongs to. */
+function place(items: readonly GuestChecklistItem[]): Placed[] {
   const groups = new Map<string, GuestChecklistItem[]>();
   for (const item of items) {
-    if (!item.groupKey) {
-      out.push({ kind: 'item', item });
-      continue;
-    }
-    const existing = groups.get(item.groupKey);
-    if (existing) {
-      existing.push(item);
-      continue;
-    }
-    const members = [item];
-    groups.set(item.groupKey, members);
-    out.push({ kind: 'group', key: item.groupKey, items: members });
+    if (item.groupKey) groups.set(item.groupKey, [...(groups.get(item.groupKey) ?? []), item]);
   }
-  return out;
+  const placed: Placed[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const members = item.groupKey ? (groups.get(item.groupKey) ?? []) : [];
+    if (members.length < 2 || !item.groupKey) {
+      placed.push({ section: sectionOf(item), row: { kind: 'item', item } });
+      continue;
+    }
+    if (seen.has(item.groupKey)) continue;
+    seen.add(item.groupKey);
+    const official = members.filter((member) => member.provenance !== 'AGENCY_ADDED');
+    const strongest = [...(official.length > 0 ? official : members)].sort(
+      (a, b) => rank(a.necessity) - rank(b.necessity),
+    )[0];
+    placed.push({
+      section: strongest ? sectionOf(strongest) : sectionOf(item),
+      row: { kind: 'group', key: item.groupKey, items: members },
+    });
+  }
+  return placed;
 }
 
 function ItemLine({ item }: { readonly item: GuestChecklistItem }) {
@@ -57,19 +82,13 @@ function ItemLine({ item }: { readonly item: GuestChecklistItem }) {
   );
 }
 
-function Section({
-  title,
-  items,
-}: {
-  readonly title: string;
-  readonly items: readonly GuestChecklistItem[];
-}) {
-  if (items.length === 0) return null;
+function Section({ title, rows }: { readonly title: string; readonly rows: readonly Row[] }) {
+  if (rows.length === 0) return null;
   return (
     <section className="collect-section" aria-label={title}>
-      <h3 className="collect-section-title">{title}</h3>
+      <h2 className="collect-section-title">{title}</h2>
       <ul className="collect-items">
-        {rows(items).map((row) =>
+        {rows.map((row) =>
           row.kind === 'item' ? (
             <li key={row.item.id} className="collect-item">
               <ItemLine item={row.item} />
@@ -93,18 +112,15 @@ function Section({
 }
 
 export function GuestChecklist({ items }: { readonly items: readonly GuestChecklistItem[] }) {
-  const official = items.filter((item) => item.provenance !== 'AGENCY_ADDED');
-  const agency = items.filter((item) => item.provenance === 'AGENCY_ADDED');
+  const placed = place(items);
+  const rowsIn = (section: string) =>
+    placed.filter((entry) => entry.section === section).map((entry) => entry.row);
   return (
     <div className="collect-checklist">
       {ORDER.map((necessity) => (
-        <Section
-          key={necessity}
-          title={NECESSITY_LABELS[necessity]}
-          items={official.filter((item) => item.necessity === necessity)}
-        />
+        <Section key={necessity} title={NECESSITY_LABELS[necessity]} rows={rowsIn(necessity)} />
       ))}
-      <Section title={PROVENANCE_LABELS.AGENCY_ADDED} items={agency} />
+      <Section title={PROVENANCE_LABELS.AGENCY_ADDED} rows={rowsIn('AGENCY')} />
     </div>
   );
 }

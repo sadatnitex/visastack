@@ -210,6 +210,7 @@ describe('guest proof and the Document Collection Desk (UMPE P8)', () => {
       stage: 'landing',
       agency: { name: 'Synthetic Agency One', accentColor: null, hasLogo: false },
       guestAvailable: true,
+      guestSpent: false,
       codePending: false,
     });
 
@@ -532,6 +533,132 @@ describe('guest proof and the Document Collection Desk (UMPE P8)', () => {
     expect(await readGuestDesk(db, earlier, t0)).toBeNull();
     expect(await openCollectionLink(db, collectionLinkProof(link.rawToken) as never)).toBeNull();
   });
+
+  it('a typo of the wrong shape costs no try', async () => {
+    const link = await issuedLink();
+    const raw = await open(link.rawToken);
+    await sendGuestCode(
+      db,
+      proofOf(raw),
+      { encryption, networkSubject: NET, generateCode: () => CODE },
+      t0,
+    );
+    const typo = await verifyGuestCode(
+      db,
+      proofOf(raw),
+      { code: '24681 ', networkSubject: NET },
+      t0,
+    );
+    expect(typo.ok).toBe(false);
+    const [row] = await db.select().from(schema.agencyCollectionGuestCodes);
+    expect(row?.attempts).toBe(0);
+  });
+
+  it('closes the guest path of a link for good after too many wrong tries over its life', async () => {
+    const link = await issuedLink();
+    const raw = await open(link.rawToken);
+    // Twenty-five wrong tries spread over five codes, five hours apart (each hour's limits reset).
+    for (let hour = 0; hour < 5; hour += 1) {
+      const now = at(hour * 60 * 60 * 1000);
+      const sentCode = await sendGuestCode(
+        db,
+        proofOf(raw),
+        { encryption, networkSubject: NET, generateCode: () => CODE },
+        now,
+      );
+      expect(sentCode.ok).toBe(true);
+      for (let i = 0; i < 5; i += 1) {
+        await verifyGuestCode(db, proofOf(raw), { code: '000000', networkSubject: NET }, now);
+      }
+      // Keep the session from going idle between hours.
+      await readGuestDesk(db, proofOf(raw), at(hour * 60 * 60 * 1000 + 20 * 60_000));
+      await readGuestDesk(db, proofOf(raw), at(hour * 60 * 60 * 1000 + 40 * 60_000));
+    }
+    const later = at(5 * 60 * 60 * 1000);
+    const desk = await readGuestDesk(db, proofOf(raw), later);
+    expect(desk?.stage === 'landing' && desk.guestSpent).toBe(true);
+    const again = await sendGuestCode(
+      db,
+      proofOf(raw),
+      { encryption, networkSubject: NET, generateCode: () => CODE },
+      later,
+    );
+    expect(again.ok).toBe(false);
+    // A fresh session on another device is refused too: the cap belongs to the link.
+    const other = await open(link.rawToken, later);
+    const fromOther = await sendGuestCode(
+      db,
+      proofOf(other),
+      { encryption, networkSubject: 'net:other', generateCode: () => CODE },
+      later,
+    );
+    expect(fromOther.ok).toBe(false);
+  }, 60_000);
+
+  it('closes exactly when the public link page closes (parity with the P6 rules)', async () => {
+    type Case = {
+      readonly name: string;
+      readonly close: (linkId: string, requestId: string) => Promise<unknown>;
+      readonly reopen?: (linkId: string, requestId: string) => Promise<unknown>;
+    };
+    const cases: Case[] = [
+      {
+        name: 'link expired',
+        close: (linkId) =>
+          db
+            .update(schema.agencyCollectionLinks)
+            .set({ expiresAt: new Date(t0.getTime() - 1000) })
+            .where(eq(schema.agencyCollectionLinks.id, linkId)),
+      },
+      {
+        name: 'request closed',
+        close: (_linkId, requestId) =>
+          db
+            .update(schema.agencyCollectionRequests)
+            .set({ status: 'CLOSED' })
+            .where(eq(schema.agencyCollectionRequests.id, requestId)),
+      },
+      {
+        name: 'issuer removed',
+        close: () =>
+          db
+            .update(schema.memberships)
+            .set({ active: false })
+            .where(eq(schema.memberships.accountId, adminId)),
+        reopen: () =>
+          db
+            .update(schema.memberships)
+            .set({ active: true })
+            .where(eq(schema.memberships.accountId, adminId)),
+      },
+      {
+        name: 'agency suspended',
+        close: () =>
+          db
+            .update(schema.organizations)
+            .set({ status: 'SUSPENDED' })
+            .where(eq(schema.organizations.id, orgId)),
+        reopen: () =>
+          db
+            .update(schema.organizations)
+            .set({ status: 'ACTIVE' })
+            .where(eq(schema.organizations.id, orgId)),
+      },
+    ];
+    for (const item of cases) {
+      const link = await issuedLink();
+      const { after } = await verified(link.rawToken);
+      await item.close(link.id, link.requestId);
+      const linkPage = await openCollectionLink(
+        db,
+        collectionLinkProof(link.rawToken) as never,
+        t0,
+      );
+      const desk = await readGuestDesk(db, proofOf(after), t0);
+      expect([item.name, linkPage === null, desk === null]).toEqual([item.name, true, true]);
+      await item.reopen?.(link.id, link.requestId);
+    }
+  }, 60_000);
 
   it('a copied proof object is refused', async () => {
     const link = await issuedLink();
