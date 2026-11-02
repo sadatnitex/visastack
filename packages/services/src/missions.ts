@@ -1338,7 +1338,7 @@ function buildFactEvaluationContext(
  * 5. Otherwise: ATTENTION for an optional gap, CRITICAL_GAP for a required
  *    one, the pre-existing required/optional split, now named.
  */
-function resolveRequirementResultState(input: {
+export function resolveRequirementResultState(input: {
   readonly satisfied: boolean;
   readonly optional: boolean;
   readonly conditionResult: RuleConditionResult | null;

@@ -76,7 +76,19 @@ export function buildManifest(requirements: readonly PackRequirement[]): {
       citation: r.citation,
       optional: r.optional,
     }))
-    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    .sort((a, b) => {
+      const left = JSON.stringify(a);
+      const right = JSON.stringify(b);
+      // Format 1 order is ICU collation (frozen: ADR 0026 D1). Collation is
+      // not a total order: distinct strings can compare equal (NFC vs NFD,
+      // zero-width characters), which left their order to whatever order the
+      // database returned rows in. The UTF-16 tie-break only orders pairs the
+      // collation called equal, so every manifest without such a tie keeps
+      // its exact bytes and checksum.
+      const collated = left.localeCompare(right);
+      if (collated !== 0) return collated;
+      return left < right ? -1 : left > right ? 1 : 0;
+    });
   const manifest = { requirements: items };
   const checksum = createHash('sha256').update(JSON.stringify(manifest)).digest('hex');
   return { manifest, checksum };
