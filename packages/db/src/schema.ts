@@ -5706,3 +5706,102 @@ export const agencyCollectionLinks = pgTable(
     ),
   ],
 );
+
+// --- UMPE P8: guest proof for an agency document request -----------------------------------------
+// A guest answers an agency's request with no account: a bounded, request-scoped desk session, never
+// an account, applicant, case, grant or reusable profile. Like the request tables these carry no
+// person column and are read only through a gate (`GuestCollectionSessionProof` or
+// `GuestCodeDeliveryProof`, packages/services/src/access/guest-collection.ts), held to it by the
+// access ratchet.
+
+// One desk session: the SHA-256 of a random id held in an httpOnly cookie (the raw id is never
+// stored), bound to one link and the revision that link issued. Verification rotates the id in place.
+export const agencyCollectionGuestSessions = pgTable(
+  'agency_collection_guest_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionHash: text('session_hash').notNull().unique(),
+    linkId: uuid('link_id')
+      .notNull()
+      .references(() => agencyCollectionLinks.id, { onDelete: 'cascade' }),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => agencyCollectionRequests.id, { onDelete: 'cascade' }),
+    revisionId: uuid('revision_id')
+      .notNull()
+      .references(() => agencyCollectionRequestRevisions.id, { onDelete: 'restrict' }),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    // The hard end of the session, whatever happens: 12 hours after it began.
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('agency_collection_guest_sessions_link_idx').on(table.linkId),
+    index('agency_collection_guest_sessions_request_idx').on(table.requestId),
+    index('agency_collection_guest_sessions_revision_idx').on(table.revisionId),
+    check('agency_collection_guest_sessions_hash', sql`${table.sessionHash} ~ '^[0-9a-f]{64}$'`),
+  ],
+);
+
+// A six-digit code sent to the email address the agency entered for the link. Only a salted
+// SHA-256 is kept; the code is useless without the session that asked for it.
+export const agencyCollectionGuestCodes = pgTable(
+  'agency_collection_guest_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => agencyCollectionGuestSessions.id, { onDelete: 'cascade' }),
+    linkId: uuid('link_id')
+      .notNull()
+      .references(() => agencyCollectionLinks.id, { onDelete: 'cascade' }),
+    codeHash: text('code_hash').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    // Used, or replaced by a newer code: never accepted again.
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('agency_collection_guest_codes_session_idx').on(table.sessionId, table.createdAt),
+    index('agency_collection_guest_codes_link_idx').on(table.linkId),
+    check('agency_collection_guest_codes_hash', sql`${table.codeHash} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'agency_collection_guest_codes_attempts',
+      sql`${table.attempts} >= 0 and ${table.attempts} <= 5`,
+    ),
+  ],
+);
+
+// The guest's pending submission for one link, kept across sessions so a resume on another device
+// finds it. P8 stores only the retention choice; files arrive with P9.
+export const agencyCollectionGuestDrafts = pgTable(
+  'agency_collection_guest_drafts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    linkId: uuid('link_id')
+      .notNull()
+      .unique()
+      .references(() => agencyCollectionLinks.id, { onDelete: 'cascade' }),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => agencyCollectionRequests.id, { onDelete: 'cascade' }),
+    revisionId: uuid('revision_id')
+      .notNull()
+      .references(() => agencyCollectionRequestRevisions.id, { onDelete: 'restrict' }),
+    // How long the agency may keep the files after the request closes; null until the guest
+    // chooses (nothing is preselected). A legal hold overrides it.
+    retentionDays: integer('retention_days'),
+    ...timestamps,
+  },
+  (table) => [
+    index('agency_collection_guest_drafts_request_idx').on(table.requestId),
+    index('agency_collection_guest_drafts_revision_idx').on(table.revisionId),
+    check(
+      'agency_collection_guest_drafts_retention_days',
+      sql`${table.retentionDays} is null or ${table.retentionDays} in (3, 7, 15, 30, 60, 90, 180)`,
+    ),
+  ],
+);

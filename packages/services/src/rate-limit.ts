@@ -140,6 +140,13 @@ export const RATE_LIMITS = {
   COLLECTION_LINK_CREATE_ORG: { limit: 200, windowMs: HOUR_MS },
   COLLECTION_OPEN_IP: { limit: 60, windowMs: HOUR_MS },
   COLLECTION_OPEN_LINK: { limit: 30, windowMs: HOUR_MS },
+  // A guest's one-time code (UMPE P8): sending one, per link and per network address (a hash), so
+  // nobody can flood the recipient's inbox; and trying one, per link and per address, on top of the
+  // five tries each code allows, so codes cannot be guessed by asking for many.
+  COLLECTION_GUEST_CODE_LINK: { limit: 5, windowMs: HOUR_MS },
+  COLLECTION_GUEST_CODE_IP: { limit: 20, windowMs: HOUR_MS },
+  COLLECTION_GUEST_VERIFY_LINK: { limit: 20, windowMs: HOUR_MS },
+  COLLECTION_GUEST_VERIFY_IP: { limit: 40, windowMs: HOUR_MS },
   // A private calendar subscription link (v1.2 B05 live feed). Calendar apps check a link every
   // few minutes to every few hours, so one link is bounded well above that. Only unknown links are
   // counted per network address, so a large calendar service fetching many people's real links
