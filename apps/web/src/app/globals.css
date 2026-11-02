@@ -12532,3 +12532,29 @@ html:has(.sticky-action-bar) {
 .snapshot-rows-more[open] .snapshot-rows-more-open {
   display: inline;
 }
+
+/* WP-UMPE-P2 batch and folder import: the import panel reuses the uploader's drop area and lines;
+   this adds only the folder path under a name, the Pause and Stop row, and the earlier-import note
+   (flat, 44 px targets). */
+.import-panel .import-item-path {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.import-panel .import-controls,
+.import-panel .import-earlier {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.import-panel .import-controls .btn,
+.import-panel .import-earlier .btn,
+.import-panel > .btn {
+  min-height: 44px;
+}
+.import-panel .import-earlier .field-hint {
+  margin: 0;
+  flex: 1 1 18rem;
+}
