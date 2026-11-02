@@ -104,11 +104,15 @@ function lastDayOfMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
+/**
+ * Every repeat in these readers has a small upper bound, so a long run of spaces or punctuation in
+ * a scanned text can never make a match slow (no unbounded repeats next to each other).
+ */
 const MONTH_WORD =
   '(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)';
 
 /** One date in any of the forms statements use; day first when the order is ambiguous. */
-const DATE_PATTERN = `(?:\\d{4}-\\d{1,2}-\\d{1,2}|\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}|\\d{1,2}[\\s-]${MONTH_WORD}[\\s,-]+\\d{4}|${MONTH_WORD}\\s+\\d{1,2},?\\s+\\d{4})`;
+const DATE_PATTERN = `(?:\\d{4}-\\d{1,2}-\\d{1,2}|\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}|\\d{1,2}[\\s-]${MONTH_WORD}[\\s,-]{1,3}\\d{4}|${MONTH_WORD}\\s{1,3}\\d{1,2},?\\s{1,3}\\d{4})`;
 
 /** Reads one date found by `DATE_PATTERN`, or null when it is not a real calendar day. */
 export function parseStatementDate(text: string): string | null {
@@ -123,12 +127,12 @@ export function parseStatementDate(text: string): string | null {
     // Day first (the convention where VisaStack is used), unless that cannot be a date.
     return b > 12 ? iso(year, a, b) : iso(year, b, a);
   }
-  match = value.match(new RegExp(`^(\\d{1,2})[\\s-](${MONTH_WORD})[\\s,-]+(\\d{4})$`, 'i'));
+  match = value.match(new RegExp(`^(\\d{1,2})[\\s-](${MONTH_WORD})[\\s,-]{1,3}(\\d{4})$`, 'i'));
   if (match?.[2]) {
     const month = monthNumber(match[2]);
     return month ? iso(Number(match[3]), month, Number(match[1])) : null;
   }
-  match = value.match(new RegExp(`^(${MONTH_WORD})\\s+(\\d{1,2}),?\\s+(\\d{4})$`, 'i'));
+  match = value.match(new RegExp(`^(${MONTH_WORD})\\s{1,3}(\\d{1,2}),?\\s{1,3}(\\d{4})$`, 'i'));
   if (match?.[1]) {
     const month = monthNumber(match[1]);
     return month ? iso(Number(match[3]), month, Number(match[2])) : null;
@@ -144,7 +148,7 @@ export function parseStatementDate(text: string): string | null {
 export function readStatementPeriod(text: string): StatementPeriod | null {
   const range = text.match(
     new RegExp(
-      `(?:period|from|statement\\s+date|for\\s+the\\s+period)[^\\n\\d]{0,24}(${DATE_PATTERN})\\s*(?:to|till|until|through|-|\\u2013)\\s*(${DATE_PATTERN})`,
+      `(?:period|from|statement\\s{1,3}date|for\\s{1,3}the\\s{1,3}period)[^\\n\\d]{0,24}(${DATE_PATTERN})\\s{0,3}(?:to|till|until|through|-|\\u2013)\\s{0,3}(${DATE_PATTERN})`,
       'i',
     ),
   );
@@ -156,7 +160,7 @@ export function readStatementPeriod(text: string): StatementPeriod | null {
   }
   const month = text.match(
     new RegExp(
-      `(?:statement|slip|payslip|month|period)\\s+(?:for\\s+)?(?:the\\s+month\\s+of\\s+|of\\s+)?[:\\s]*(${MONTH_WORD})[\\s,-]+(\\d{4})`,
+      `(?:statement|slip|payslip|month|period)\\s{1,3}(?:for\\s{1,3})?(?:the\\s{1,3}month\\s{1,3}of\\s{1,3}|of\\s{1,3})?[:\\s]{0,3}(${MONTH_WORD})[\\s,-]{1,3}(\\d{4})`,
       'i',
     ),
   );
@@ -172,7 +176,9 @@ export function readStatementPeriod(text: string): StatementPeriod | null {
 
 /** The last four digits of an account number named in the text ("Account Number: XXXX1234"). */
 export function readAccountEnding(text: string): string | null {
-  const match = text.match(/account\s*(?:no\.?|number|#)\s*[:-]?\s*([X*\d][\dX* \t-]{3,30})/i);
+  const match = text.match(
+    /account\s{0,3}(?:no\.?|number|#)[ \t]{0,3}[:-]?\s{0,3}([X*\d][\dX* \t-]{3,30})/i,
+  );
   if (!match?.[1]) return null;
   const digits = match[1].replace(/\D/g, '');
   return digits.length >= 4 ? digits.slice(-4) : null;
