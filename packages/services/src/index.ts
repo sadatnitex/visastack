@@ -2535,6 +2535,10 @@ export {
   collectionResponseAccessProblem,
 } from './access/collection-response-access';
 export {
+  type CollectionResponseRecipient,
+  collectionResponseRecipient,
+} from './umpe-collection-response-recipient';
+export {
   type CollectionResponseDownloadInput,
   downloadCollectionResponseVersion,
 } from './documents';
@@ -2549,8 +2553,9 @@ export {
   RESPONSE_CONSENT_VERSION,
 } from './umpe-collection-response-evidence';
 export {
-  type AgencyResponseLine,
-  type AgencyResponseView,
+  type CollectionResponseItemView,
+  type CollectionResponseVersion,
+  type CollectionResponseView,
   type OwnCollectionResponse,
   type ResponseDesk,
   type ResponseProposal,

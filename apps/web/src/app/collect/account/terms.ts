@@ -26,6 +26,8 @@ export interface ItemView {
   readonly blocking: boolean;
   readonly kind: 'DOCUMENT' | 'FIELD';
   readonly proposedKey: string | null;
+  /** What starts ticked: the person's own earlier picks when they came back, else the proposal. */
+  readonly initialKeys: readonly string[];
   readonly choices: readonly ChoiceView[];
 }
 
@@ -60,6 +62,8 @@ function choiceView(candidate: EvidenceCandidate): ChoiceView {
 export function itemViews(
   proposals: readonly ItemProposal[],
   agencyName: string | null,
+  /** Keys the person had ticked before confirming it was them; only keys still on offer count. */
+  picks?: ReadonlySet<string>,
 ): ItemView[] {
   return proposals.map(({ item, candidates, proposedKey }) => ({
     id: item.id,
@@ -73,6 +77,11 @@ export function itemViews(
     blocking: necessityCanBlock(item.necessity),
     kind: item.kind,
     proposedKey,
+    initialKeys: picks
+      ? candidates.flatMap((c) => (picks.has(c.key) ? [c.key] : []))
+      : proposedKey
+        ? [proposedKey]
+        : [],
     choices: candidates.map(choiceView),
   }));
 }
@@ -82,7 +91,21 @@ export function choiceFieldName(itemId: string): string {
   return `choice:${itemId}`;
 }
 
-/** The address of the answer page for one person. */
-export function answerHref(personId?: string): string {
-  return personId ? `/collect/account?person=${encodeURIComponent(personId)}` : '/collect/account';
+/** The address of the answer page for one person, optionally keeping what they had ticked. */
+export function answerHref(personId?: string, picks?: readonly string[]): string {
+  if (!personId) return '/collect/account';
+  const base = `/collect/account?person=${encodeURIComponent(personId)}`;
+  if (!picks) return base;
+  const kept = `${base}&pick=${encodeURIComponent(picks.join(','))}`;
+  // A very long list is not kept in the address; nothing starts ticked, so nothing is shared
+  // by surprise, and the person ticks again.
+  return kept.length <= MAX_RETURN_LENGTH ? kept : `${base}&pick=`;
+}
+
+const MAX_RETURN_LENGTH = 1800;
+
+/** The picks a returning address carries, or undefined when it carries none. */
+export function picksFrom(value: string | string[] | undefined): ReadonlySet<string> | undefined {
+  if (typeof value !== 'string') return undefined;
+  return new Set(value.split(',').filter((key) => /^(document|detail):[0-9a-f-]{36}$/.test(key)));
 }

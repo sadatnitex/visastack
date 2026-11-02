@@ -5708,8 +5708,8 @@ export const agencyCollectionLinks = pgTable(
 );
 
 // UMPE P7: a signed-in traveller's answer to an agency document request. Append-only: a trigger
-// refuses every UPDATE except recording a withdrawal once, and every DELETE that is not part of
-// removing the person, their document or the request's agency (see the migration). The agency
+// refuses every UPDATE, and every DELETE that is not part of removing the person, their document
+// or the request's agency (see the migration). A withdrawal is its own record (below). The agency
 // reaches ONLY the exact document versions and fact versions listed in the items, through the
 // response itself; no grant is ever made, so nothing broader can leak and a later version of the
 // same document is never visible.
@@ -5742,8 +5742,6 @@ export const agencyCollectionResponses = pgTable(
     consentVersion: text('consent_version').notNull(),
     contentSha256: text('content_sha256').notNull(),
     submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
-    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
-    withdrawnByAccountId: uuid('withdrawn_by_account_id'),
   },
   (table) => [
     index('agency_collection_responses_request_idx').on(
@@ -5753,6 +5751,8 @@ export const agencyCollectionResponses = pgTable(
     ),
     index('agency_collection_responses_applicant_idx').on(table.applicantId, table.submittedAt),
     index('agency_collection_responses_revision_idx').on(table.revisionId),
+    // For the cascade when a request is removed.
+    index('agency_collection_responses_request_only_idx').on(table.requestId),
     check('agency_collection_responses_sha256', sql`${table.contentSha256} ~ '^[0-9a-f]{64}$'`),
     check(
       'agency_collection_responses_consent_cap',
@@ -5762,9 +5762,32 @@ export const agencyCollectionResponses = pgTable(
       'agency_collection_responses_person_name_cap',
       sql`char_length(${table.personName}) between 1 and 200`,
     ),
+  ],
+);
+
+// Ending an answer: one row per withdrawn response (by the person, or replaced by their newer
+// answer to the same request). Append-only like the response; the response stays as history and the
+// agency's access ends at its next request.
+export const agencyCollectionResponseWithdrawals = pgTable(
+  'agency_collection_response_withdrawals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    responseId: uuid('response_id')
+      .notNull()
+      .unique()
+      .references(() => agencyCollectionResponses.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    withdrawnByAccountId: uuid('withdrawn_by_account_id').notNull(),
+    reason: text('reason').notNull(),
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('agency_collection_response_withdrawals_applicant_idx').on(table.applicantId),
     check(
-      'agency_collection_responses_withdrawal_pair',
-      sql`(${table.withdrawnAt} is null) = (${table.withdrawnByAccountId} is null)`,
+      'agency_collection_response_withdrawals_reason_known',
+      sql`${table.reason} in ('WITHDRAWN', 'REPLACED')`,
     ),
   ],
 );
@@ -5795,6 +5818,9 @@ export const agencyCollectionResponseItems = pgTable(
     index('agency_collection_response_items_response_idx').on(table.responseId),
     index('agency_collection_response_items_version_idx').on(table.documentVersionId),
     index('agency_collection_response_items_fact_version_idx').on(table.factVersionId),
+    // For the cascades when a document or a detail is removed.
+    index('agency_collection_response_items_document_idx').on(table.documentId),
+    index('agency_collection_response_items_fact_idx').on(table.factId),
     // Nulls count as equal, so a Still Missing line or a repeated choice can never be added twice.
     unique('agency_collection_response_items_one_line')
       .on(table.responseId, table.itemId, table.documentVersionId, table.factVersionId)

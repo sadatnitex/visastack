@@ -4,9 +4,11 @@ import { textOf } from '../../../../../lib/next-mocks.test-support';
 
 /** The agency's Answers panel (UMPE P7), from stand-in data. Synthetic values only. */
 
-vi.mock('./response-actions', () => ({ downloadResponseFileAction: async () => undefined }));
+vi.mock('./collection-response-actions', () => ({
+  downloadResponseFileAction: async () => undefined,
+}));
 
-const { CollectionResponsesPanel } = await import('./responses-panel');
+const { CollectionResponsesPanel } = await import('./collection-response-panel');
 
 const ITEM = {
   id: 'item-1',
@@ -43,15 +45,25 @@ function render(intact: boolean) {
             lines: intact
               ? [
                   {
+                    itemId: ITEM.id,
                     item: ITEM,
-                    documents: [{ documentVersionId: 'v1', title: 'Passport', versionNumber: 2 }],
-                    details: [{ value: null, protected: true }],
+                    source: 'account' as const,
+                    versions: [
+                      {
+                        kind: 'DOCUMENT' as const,
+                        documentVersionId: 'v1',
+                        title: 'Passport',
+                        versionNumber: 2,
+                      },
+                      { kind: 'FIELD' as const, value: null, protected: true },
+                    ],
                     missing: false,
                   },
                   {
+                    itemId: 'item-2',
                     item: { ...ITEM, id: 'item-2', label: 'Bank Statement' },
-                    documents: [],
-                    details: [],
+                    source: 'account' as const,
+                    versions: [],
                     missing: true,
                   },
                 ]

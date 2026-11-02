@@ -37,21 +37,24 @@ export async function downloadResponseFileAction(formData: FormData): Promise<vo
     if (!scope.ok) return null;
     const access = await collectionResponseAccess(db, scope.value, responseId);
     if (!access.ok) return null;
-    const stepUp = await establishStepUpProof(
-      { accountId, action: 'DOWNLOAD_ORIGINAL', resourceId: documentVersionId },
-      page,
-    );
-    if (stepUp.kind === 'reauth_required') return stepUp.reauthUrl;
-    if (stepUp.kind !== 'proof') return null;
     try {
+      const stepUp = await establishStepUpProof(
+        { accountId, action: 'DOWNLOAD_ORIGINAL', resourceId: documentVersionId },
+        page,
+      );
+      if (stepUp.kind === 'reauth_required') return stepUp.reauthUrl;
+      if (stepUp.kind !== 'proof') return null;
       const ref = await downloadCollectionResponseVersion(db, createStorage(db), access.value, {
         documentVersionId,
         accessTokenSecret,
         stepUp: stepUp.proof,
       });
-      return ref.ok ? ref.value.url : null;
+      if (!ref.ok) return null;
+      // Keep delivery on this deployment's authorization route, never an upstream bearer URL.
+      const url = new URL(ref.value.url, 'https://visastack.invalid');
+      return url.pathname.startsWith('/api/blob/') ? `${url.pathname}${url.search}` : null;
     } catch (error) {
-      reportServerError('collectionResponsePreview', error, { step: 'preview failed' });
+      reportServerError('collectionResponseDownload', error, { step: 'download failed' });
       return null;
     }
   });

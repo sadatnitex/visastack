@@ -2191,6 +2191,7 @@ const ADMIN: readonly Case[] = [
             blocking: true,
             kind: 'DOCUMENT',
             proposedKey: 'document:v1',
+            initialKeys: ['document:v1'],
             choices: [
               {
                 key: 'document:v1',
@@ -2216,6 +2217,7 @@ const ADMIN: readonly Case[] = [
             blocking: false,
             kind: 'DOCUMENT',
             proposedKey: null,
+            initialKeys: [],
             choices: [],
           },
         ]}

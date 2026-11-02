@@ -111,8 +111,11 @@ export default async function YourAnswersPage({
                 {person.answers.map((answer) => (
                   <li key={answer.id} className="collect-response-answer">
                     <p>
-                      <strong>{answer.agencyName ?? 'An Agency Not Yet Reviewed'}</strong>, for{' '}
-                      {destinationName(answer.destination)} (Request Version {answer.revisionNo})
+                      <strong>
+                        {answer.agencyName ?? 'An Agency No Longer Active on VisaStack'}
+                      </strong>
+                      , for {destinationName(answer.destination)} (Request Version{' '}
+                      {answer.revisionNo})
                     </p>
                     <p className="u-fs-085">
                       {answer.withdrawnAt ? (

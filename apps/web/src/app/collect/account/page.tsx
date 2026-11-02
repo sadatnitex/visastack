@@ -19,7 +19,7 @@ import { AgencyBrandScope, AgencyMark } from '../../app/agency/[orgId]/org-brand
 import { collectSwitchOn } from '../load';
 import { heldCollectionLink } from './link';
 import { ResponseForm } from './response-form';
-import { type ItemView, answerHref, itemViews } from './terms';
+import { type ItemView, answerHref, itemViews, picksFrom } from './terms';
 
 export const metadata: Metadata = {
   title: 'Answer a Document Request',
@@ -64,10 +64,15 @@ interface Heading {
 export default async function CollectAccountPage({
   searchParams,
 }: {
-  readonly searchParams?: Promise<{ readonly person?: string | string[] }>;
+  readonly searchParams?: Promise<{
+    readonly person?: string | string[];
+    readonly pick?: string | string[];
+  }>;
 }) {
   if (!collectSwitchOn()) notFound();
-  const chosen = (await searchParams)?.person;
+  const query = await searchParams;
+  const chosen = query?.person;
+  const picks = picksFrom(query?.pick);
   const personParam = typeof chosen === 'string' ? chosen : null;
   const link = await heldCollectionLink();
   if (!link) return <ClosedLink />;
@@ -114,7 +119,7 @@ export default async function CollectAccountPage({
       state: 'answer',
       heading,
       person: proposal.value.person,
-      items: itemViews(proposal.value.proposals, desk.value.agency?.name ?? null),
+      items: itemViews(proposal.value.proposals, desk.value.agency?.name ?? null, picks),
       otherPeople: people.length > 1,
       linkId: proposal.value.desk.linkId,
       revisionId: proposal.value.desk.revisionId,

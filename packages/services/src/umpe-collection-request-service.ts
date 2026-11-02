@@ -1055,7 +1055,7 @@ export async function endCollectionRequest(
 
 // --- Public: the bearer link ---------------------------------------------------------------------
 
-export interface OpenLink {
+interface OpenLink {
   readonly linkId: string;
   readonly organizationId: string;
 }
@@ -1066,7 +1066,7 @@ export interface OpenLink {
  * or terminated), and the person who made it still an active owner or
  * admin of that agency. Anything else is null, all alike.
  */
-export async function openLinkFor(
+async function openLinkFor(
   db: Db,
   proof: CollectionLinkProof,
   now: Date,

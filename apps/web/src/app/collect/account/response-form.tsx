@@ -15,7 +15,7 @@ const INITIAL: ResponseActionState = { ok: true, message: '' };
 
 function initialChoices(items: readonly ItemView[]): Record<string, readonly string[]> {
   const chosen: Record<string, readonly string[]> = {};
-  for (const item of items) chosen[item.id] = item.proposedKey ? [item.proposedKey] : [];
+  for (const item of items) chosen[item.id] = item.initialKeys;
   return chosen;
 }
 

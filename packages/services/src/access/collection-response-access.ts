@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { type SQL, and, desc, eq, gt, sql } from 'drizzle-orm';
 import { appendAuditEvent } from '../audit';
 import { type Db, first, schema } from '../db';
 import { type ServiceError, serviceError } from '../errors';
@@ -106,20 +106,30 @@ export async function collectionResponsesPresent(db: Db): Promise<boolean> {
   const row = first(
     await db
       .select({
-        present: sql<boolean>`to_regclass('agency_collection_responses') is not null and to_regclass('agency_collection_response_items') is not null`,
+        present: sql<boolean>`to_regclass('agency_collection_responses') is not null and to_regclass('agency_collection_response_items') is not null and to_regclass('agency_collection_response_withdrawals') is not null`,
       })
       .from(sql`(select 1) as probe`),
   );
   return row?.present === true;
 }
 
+/**
+ * A response the agency may still reach: it has no withdrawal (by the person, or replaced by their
+ * newer answer) and its request was not revoked. Built at call time, never at module load.
+ */
+export function liveCollectionResponse(): SQL {
+  const responses = schema.agencyCollectionResponses;
+  return sql`(not exists (select 1 from agency_collection_response_withdrawals w where w.response_id = ${responses.id}) and exists (select 1 from agency_collection_requests r where r.id = ${responses.requestId} and r.status <> 'REVOKED'))`;
+}
+
 /** The newest responses one request may list at once. */
 export const COLLECTION_RESPONSE_LIST_LIMIT = 100;
 
 /**
- * One access per live (not withdrawn) response to this agency's request, newest first, or none at
- * all when the scope is not genuine and fresh, the switch is off or the request is not this
- * agency's. Withdrawn responses are never opened again.
+ * One access per live response to this agency's request (not withdrawn, request not revoked),
+ * newest first, or none at all when the scope is not genuine and fresh, the switch is off, the
+ * agency is not reviewed or the request is not this agency's. A withdrawn answer is never opened
+ * again.
  */
 export async function collectionResponseAccesses(
   db: Db,
@@ -141,7 +151,7 @@ export async function collectionResponseAccesses(
       and(
         eq(responses.organizationId, scope.organizationId),
         eq(responses.requestId, requestId),
-        isNull(responses.withdrawnAt),
+        liveCollectionResponse(),
       ),
     )
     .orderBy(desc(responses.submittedAt), desc(responses.id))
@@ -179,7 +189,7 @@ export async function collectionResponseAccess(
         and(
           eq(responses.id, responseId),
           eq(responses.organizationId, scope.organizationId),
-          isNull(responses.withdrawnAt),
+          liveCollectionResponse(),
         ),
       )
       .limit(1),
@@ -330,7 +340,7 @@ export async function collectionResponseStillCovers(
         and(
           eq(responses.id, fields.responseId),
           eq(responses.organizationId, fields.organizationId),
-          isNull(responses.withdrawnAt),
+          liveCollectionResponse(),
           eq(items.kind, 'DOCUMENT'),
           eq(items.documentId, fields.documentId),
           eq(items.documentVersionId, fields.documentVersionId),
@@ -376,35 +386,35 @@ export async function collectionRecipientAllowed(
   );
   if (account && account.email.trim().toLowerCase() === hint) return true;
   try {
-    const already = first(
-      await db
-        .select({ seq: schema.auditEvents.seq })
-        .from(schema.auditEvents)
-        .where(
-          and(
-            // The time index bounds the look: a link lives 14 days, so 30 days covers its life.
-            gt(schema.auditEvents.occurredAt, new Date(Date.now() - WRONG_ACCOUNT_WINDOW_MS)),
-            eq(schema.auditEvents.eventType, 'AGENCY_COLLECTION_RESPONSE_WRONG_ACCOUNT'),
-            eq(schema.auditEvents.actorAccountId, input.accountId),
-            eq(schema.auditEvents.resourceId, input.linkId),
-          ),
-        )
-        .limit(1),
-    );
-    if (!already) {
-      await db.transaction(async (tx) => {
-        await appendAuditEvent(tx, {
-          eventType: 'AGENCY_COLLECTION_RESPONSE_WRONG_ACCOUNT',
-          actorAccountId: input.accountId,
-          method: 'MANUAL',
-          result: 'DENIED',
-          resourceType: 'agency_collection_link',
-          resourceId: input.linkId,
-          reason: 'wrong_recipient',
-          metadata: { organizationId: input.organizationId },
-        });
+    // In its own savepoint: a failed look or write never aborts a caller's transaction.
+    await db.transaction(async (tx) => {
+      const already = first(
+        await tx
+          .select({ seq: schema.auditEvents.seq })
+          .from(schema.auditEvents)
+          .where(
+            and(
+              // The time index bounds the look: a link lives 14 days, so 30 days covers its life.
+              gt(schema.auditEvents.occurredAt, new Date(Date.now() - WRONG_ACCOUNT_WINDOW_MS)),
+              eq(schema.auditEvents.eventType, 'AGENCY_COLLECTION_RESPONSE_WRONG_ACCOUNT'),
+              eq(schema.auditEvents.actorAccountId, input.accountId),
+              eq(schema.auditEvents.resourceId, input.linkId),
+            ),
+          )
+          .limit(1),
+      );
+      if (already) return;
+      await appendAuditEvent(tx, {
+        eventType: 'AGENCY_COLLECTION_RESPONSE_WRONG_ACCOUNT',
+        actorAccountId: input.accountId,
+        method: 'MANUAL',
+        result: 'DENIED',
+        resourceType: 'agency_collection_link',
+        resourceId: input.linkId,
+        reason: 'wrong_recipient',
+        metadata: { organizationId: input.organizationId },
       });
-    }
+    });
   } catch {
     // The refusal stands whether or not it could be recorded.
   }

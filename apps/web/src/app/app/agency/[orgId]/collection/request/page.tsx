@@ -6,11 +6,12 @@ import {
 } from '@visastack/core';
 import {
   AGENCY_ITEM_NECESSITIES,
-  type AgencyResponseView,
   COLLECTION_STATUS_LABELS,
   type CollectionItem,
   type CollectionLinkState,
+  type CollectionResponseView,
   agencyCollectionPrincipal,
+  collectionResponseAccess,
   getCollectionRequest,
   listCollectionPackChoices,
   protectedDetailsStepUp,
@@ -32,7 +33,7 @@ import {
   NewLinkForm,
   PackChoiceForm,
 } from '../collection-forms';
-import { CollectionResponsesPanel, loadCollectionResponses } from '../responses-panel';
+import { CollectionResponsesPanel, loadCollectionResponses } from '../collection-response-panel';
 import { STATUS_TONES, collectionPackTerms, destinationName } from '../terms';
 
 export const metadata: Metadata = { title: 'Agency Document Request', referrer: 'no-referrer' };
@@ -105,12 +106,17 @@ export default async function CollectionRequestPage({
           requestId,
           collectionPackTerms(detail.value),
         );
-    let responses: AgencyResponseView[] = [];
+    let responses: CollectionResponseView[] = [];
     let reauth: string | null = null;
     if (detail.value.revisions.length > 0) {
       try {
         // Protected details open only after a fresh identity check, bound to that one answer.
-        const step = revealId ? protectedDetailsStepUp({ accountId, responseId: revealId }) : null;
+        // Only an answer of this very request may ask for the check (never any id in the address).
+        const target = revealId ? await collectionResponseAccess(db, scope.value, revealId) : null;
+        const step =
+          target?.ok && target.value.requestId === requestId
+            ? protectedDetailsStepUp({ accountId, responseId: target.value.responseId })
+            : null;
         const proof = step
           ? await establishStepUpProof(
               step,

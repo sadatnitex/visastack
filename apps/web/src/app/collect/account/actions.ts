@@ -77,9 +77,11 @@ export async function submitResponseAction(
   if (!link || link.linkId !== linkId) return OUT_OF_DATE;
 
   const outcome = await withSession(async ({ db, accountId }) => {
+    const selections = selectionsFrom(formData, itemIds);
     const stepUp = await establishStepUpProof(
       { accountId, action: 'SHARE', resourceId: personId },
-      answerHref(personId),
+      // Back to the same page with exactly what was ticked, never the first proposal again.
+      answerHref(personId, Object.values(selections).flat()),
     );
     if (stepUp.kind === 'reauth_required') return { next: stepUp.reauthUrl } as const;
     if (stepUp.kind !== 'proof') {
@@ -100,7 +102,7 @@ export async function submitResponseAction(
       } as const;
     }
     const submitted = await submitCollectionResponse(db, link.proof, person.value, {
-      selections: selectionsFrom(formData, itemIds),
+      selections,
       // The wording version this page showed; a newer one is refused, never assumed.
       consentVersion: text(formData, 'consentVersion'),
       linkId,

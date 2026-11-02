@@ -1,6 +1,6 @@
 import { type Result, err, ok } from '@visastack/core';
 import { documentTypeName } from '@visastack/core/catalogue/documents';
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import {
   type CollectionResponseAccess,
   agencyMayReceiveAnswers,
@@ -8,6 +8,7 @@ import {
   collectionResponseAccessProblem,
   collectionResponsesPresent,
   lineOf,
+  liveCollectionResponse,
 } from './access/collection-response-access';
 import { CollectionLinkProof } from './access/collection-scope';
 import { type SelfScope, selfScopeProblem } from './access/principal';
@@ -33,7 +34,6 @@ import {
   parseItems,
   revisionContentSha256,
 } from './umpe-collection-request-items';
-import { openLinkFor } from './umpe-collection-request-service';
 import {
   type DocumentLike,
   type FactLike,
@@ -45,6 +45,7 @@ import {
   proposeEvidence,
   responseContentSha256,
 } from './umpe-collection-response-evidence';
+import { collectionResponseRecipient } from './umpe-collection-response-recipient';
 
 /**
  * A signed-in traveller answers an agency document request from their own record (UMPE P7,
@@ -69,6 +70,7 @@ import {
 /** Everything the traveller may see about an open request they are allowed to answer. */
 export interface ResponseDesk {
   readonly linkId: string;
+  readonly organizationId: string;
   readonly requestId: string;
   readonly revisionId: string;
   readonly revisionNo: number;
@@ -86,6 +88,11 @@ export interface ResponseDesk {
   readonly agencyReviewed: boolean;
 }
 
+/** No withdrawal recorded for the response (whatever the request's state). */
+function notWithdrawn() {
+  return sql`not exists (select 1 from agency_collection_response_withdrawals w where w.response_id = ${schema.agencyCollectionResponses.id})`;
+}
+
 function closed(): ServiceError {
   return serviceError('not_found', 'this request link is not open');
 }
@@ -97,26 +104,7 @@ async function loadDesk(
   accountId: string,
   now: Date,
 ): Promise<ResponseDesk | null> {
-  const open = await openLinkFor(db, link, now);
-  if (!open) return null;
-  const links = schema.agencyCollectionLinks;
-  const requests = schema.agencyCollectionRequests;
-  const row = first(
-    await db
-      .select({
-        revisionId: links.revisionId,
-        linkHint: links.recipientEmailHint,
-        expiresAt: links.expiresAt,
-        requestId: requests.id,
-        destination: requests.destination,
-        purpose: requests.purpose,
-        dueAt: requests.dueAt,
-      })
-      .from(links)
-      .innerJoin(requests, eq(requests.id, links.requestId))
-      .where(and(eq(links.id, open.linkId), eq(requests.organizationId, open.organizationId)))
-      .limit(1),
-  );
+  const row = await collectionResponseRecipient(db, link, now);
   if (!row) return null;
   const revision = first(
     await db
@@ -146,15 +134,16 @@ async function loadDesk(
     }) === revision.contentSha256;
   if (!intact) return null;
   const allowed = await collectionRecipientAllowed(db, {
-    linkId: open.linkId,
-    organizationId: open.organizationId,
+    linkId: row.linkId,
+    organizationId: row.organizationId,
     // The address this link was sent to, when it was emailed; a copied link binds to nobody.
-    emailHint: row.linkHint,
+    emailHint: row.emailHint,
     accountId,
   });
   if (!allowed) return null;
   return {
-    linkId: open.linkId,
+    linkId: row.linkId,
+    organizationId: row.organizationId,
     requestId: row.requestId,
     revisionId: revision.id,
     revisionNo: revision.revisionNo,
@@ -164,20 +153,8 @@ async function loadDesk(
     dueAt: row.dueAt,
     expiresAt: row.expiresAt,
     items,
-    agencyReviewed: await agencyMayReceiveAnswers(db, open.organizationId),
+    agencyReviewed: await agencyMayReceiveAnswers(db, row.organizationId),
   };
-}
-
-/** The organization a desk belongs to, read again for the write (never trusted from the page). */
-async function deskOrganization(db: Db, desk: ResponseDesk): Promise<string | null> {
-  const row = first(
-    await db
-      .select({ organizationId: schema.agencyCollectionRequests.organizationId })
-      .from(schema.agencyCollectionRequests)
-      .where(eq(schema.agencyCollectionRequests.id, desk.requestId))
-      .limit(1),
-  );
-  return row?.organizationId ?? null;
 }
 
 /**
@@ -446,8 +423,7 @@ export async function submitCollectionResponse(
     if (!desk.agencyReviewed) {
       return err(serviceError('forbidden', 'This agency has not been reviewed by VisaStack yet.'));
     }
-    const organizationId = await deskOrganization(tx, desk);
-    if (!organizationId) return err(closed());
+    const organizationId = desk.organizationId;
     const evidence = await personEvidence(tx, applicantId, desk.items, undefined);
     const proposals = proposeEvidence(
       desk.items,
@@ -461,17 +437,27 @@ export async function submitCollectionResponse(
     const lines = made.lines;
     const responses = schema.agencyCollectionResponses;
     const earlier = await tx
-      .update(responses)
-      .set({ withdrawnAt: now, withdrawnByAccountId: accountId })
+      .select({ id: responses.id })
+      .from(responses)
       .where(
         and(
           eq(responses.requestId, desk.requestId),
           eq(responses.organizationId, organizationId),
           eq(responses.applicantId, applicantId),
-          isNull(responses.withdrawnAt),
+          notWithdrawn(),
         ),
-      )
-      .returning({ id: responses.id });
+      );
+    if (earlier.length > 0) {
+      await tx.insert(schema.agencyCollectionResponseWithdrawals).values(
+        earlier.map((replaced) => ({
+          responseId: replaced.id,
+          applicantId,
+          withdrawnByAccountId: accountId,
+          reason: 'REPLACED',
+          withdrawnAt: now,
+        })),
+      );
+    }
     for (const replaced of earlier) {
       await appendAuditEvent(tx, {
         eventType: 'AGENCY_COLLECTION_RESPONSE_WITHDRAWN',
@@ -608,14 +594,18 @@ export async function listOwnCollectionResponses(
       destination: responses.destination,
       revisionNo: responses.revisionNo,
       submittedAt: responses.submittedAt,
-      withdrawnAt: responses.withdrawnAt,
+      withdrawnAt: schema.agencyCollectionResponseWithdrawals.withdrawnAt,
     })
     .from(responses)
     .innerJoin(schema.organizations, eq(schema.organizations.id, responses.organizationId))
+    .leftJoin(
+      schema.agencyCollectionResponseWithdrawals,
+      eq(schema.agencyCollectionResponseWithdrawals.responseId, responses.id),
+    )
     .where(eq(responses.applicantId, person.applicant.id))
     // Live answers first, so one that can still be withdrawn never drops off the list.
     .orderBy(
-      sql`${responses.withdrawnAt} is not null`,
+      sql`${schema.agencyCollectionResponseWithdrawals.withdrawnAt} is not null`,
       desc(responses.submittedAt),
       desc(responses.id),
     )
@@ -659,7 +649,7 @@ async function lineCounts(
 /**
  * Withdraw one of the person's answers. The agency loses access to everything in it at its next
  * request (a file link already handed out is re-checked when opened, and refused). The answer
- * itself stays as history, marked withdrawn. Owner only; taking access away needs no fresh sign-in.
+ * itself stays as history; the withdrawal is its own append-only record. Owner only; taking access away needs no fresh sign-in.
  */
 export async function withdrawCollectionResponse(
   db: Db,
@@ -675,23 +665,30 @@ export async function withdrawCollectionResponse(
   const actorAccountId = person.applicant.ownerAccountId;
   return db.transaction(async (tx) => {
     const responses = schema.agencyCollectionResponses;
-    const updated = first(
+    const own = first(
       await tx
-        .update(responses)
-        .set({ withdrawnAt: now, withdrawnByAccountId: actorAccountId })
-        .where(
-          and(
-            eq(responses.id, responseId),
-            eq(responses.applicantId, person.applicant.id),
-            isNull(responses.withdrawnAt),
-          ),
-        )
-        .returning({
-          organizationId: responses.organizationId,
-          withdrawnAt: responses.withdrawnAt,
-        }),
+        .select({ organizationId: responses.organizationId })
+        .from(responses)
+        .where(and(eq(responses.id, responseId), eq(responses.applicantId, person.applicant.id)))
+        .limit(1),
     );
-    if (!updated?.withdrawnAt) return notFound;
+    if (!own) return notFound;
+    // One withdrawal per answer (unique): a second attempt changes nothing and says so.
+    const recorded = first(
+      await tx
+        .insert(schema.agencyCollectionResponseWithdrawals)
+        .values({
+          responseId,
+          applicantId: person.applicant.id,
+          withdrawnByAccountId: actorAccountId,
+          reason: 'WITHDRAWN',
+          withdrawnAt: now,
+        })
+        .onConflictDoNothing()
+        .returning({ withdrawnAt: schema.agencyCollectionResponseWithdrawals.withdrawnAt }),
+    );
+    if (!recorded) return notFound;
+    const updated = { organizationId: own.organizationId, withdrawnAt: recorded.withdrawnAt };
     await appendAuditEvent(tx, {
       eventType: 'AGENCY_COLLECTION_RESPONSE_WITHDRAWN',
       actorAccountId,
@@ -707,20 +704,34 @@ export async function withdrawCollectionResponse(
   });
 }
 
-/** What the agency sees of one answer: exactly the chosen copies, per issued item. */
-export interface AgencyResponseLine {
+/** One exact copy an answer holds for an item. */
+export type CollectionResponseVersion =
+  | {
+      readonly kind: 'DOCUMENT';
+      readonly documentVersionId: string;
+      readonly title: string;
+      readonly versionNumber: number;
+    }
+  | {
+      readonly kind: 'FIELD';
+      /** A protected detail's value is null until the agency admin confirms it is them. */
+      readonly value: string | null;
+      readonly protected: boolean;
+    };
+
+/**
+ * What the agency sees of one answer, per issued item: exactly the chosen copies. The shape is
+ * shared with guest answers (P9), which carry `source: 'guest'` through the same review queue.
+ */
+export interface CollectionResponseItemView {
+  readonly itemId: string;
   readonly item: CollectionItem;
-  readonly documents: readonly {
-    readonly documentVersionId: string;
-    readonly title: string;
-    readonly versionNumber: number;
-  }[];
-  /** A protected detail's value is null until the agency admin confirms it is them. */
-  readonly details: readonly { readonly value: string | null; readonly protected: boolean }[];
+  readonly source: 'account' | 'guest';
+  readonly versions: readonly CollectionResponseVersion[];
   readonly missing: boolean;
 }
 
-export interface AgencyResponseView {
+export interface CollectionResponseView {
   readonly id: string;
   /** Always "Submitted to Agency": a response is never Reviewed or Accepted by being received. */
   readonly status: 'SUBMITTED_TO_AGENCY';
@@ -733,7 +744,7 @@ export interface AgencyResponseView {
   readonly intact: boolean;
   /** Whether any chosen detail is protected (shown only after a fresh identity check). */
   readonly hasProtectedDetails: boolean;
-  readonly lines: readonly AgencyResponseLine[];
+  readonly lines: readonly CollectionResponseItemView[];
 }
 
 /** Shown to the agency for a detail whose protected value cannot be opened here. */
@@ -756,15 +767,15 @@ export function protectedDetailsStepUp(access: {
  * the issued items and, for each, exactly the chosen document versions (by name and version
  * number) and fact versions (their values, from those exact versions, never the current ones), or
  * Still Missing. A protected detail (a passport number, for example) is opened only with a recent
- * identity confirmation of this admin for this answer (`protectedDetailsStepUp`), and each such
- * opening is audited with counts. A changed answer shows nothing and opens nothing. Nothing else of
+ * identity confirmation of this admin for this answer (`protectedDetailsStepUp`). Every read is
+ * audited with counts (and how many protected details were opened). A changed answer shows nothing and opens nothing. Nothing else of
  * the person is read.
  */
 export async function readCollectionResponse(
   db: Db,
   access: CollectionResponseAccess,
   options: { readonly encryption?: KeyManagementPort; readonly stepUp?: StepUpProof } = {},
-): Promise<Result<AgencyResponseView, ServiceError>> {
+): Promise<Result<CollectionResponseView, ServiceError>> {
   const problem = collectionResponseAccessProblem(access);
   if (problem) return err(problem);
   const responses = schema.agencyCollectionResponses;
@@ -787,7 +798,7 @@ export async function readCollectionResponse(
           eq(responses.id, access.responseId),
           eq(responses.organizationId, access.organizationId),
           eq(responses.applicantId, access.applicantId),
-          isNull(responses.withdrawnAt),
+          liveCollectionResponse(),
         ),
       )
       .limit(1),
@@ -829,7 +840,24 @@ export async function readCollectionResponse(
     submittedAt: response.submittedAt,
     consentVersion: response.consentVersion,
   };
+  // Every agency read is audited, with counts and kinds only.
+  const audit = async (counts: Readonly<Record<string, number | boolean>>) =>
+    db.transaction(async (tx) => {
+      await appendAuditEvent(tx, {
+        eventType: 'AGENCY_COLLECTION_RESPONSE_READ',
+        actorAccountId: access.accountId,
+        actorRole: 'org:collection_response',
+        action: 'VIEW_METADATA',
+        method: 'API',
+        result: 'ALLOWED',
+        applicantId: response.applicantId,
+        resourceType: 'agency_collection_response',
+        resourceId: response.id,
+        metadata: { organizationId: access.organizationId, ...counts },
+      });
+    });
   if (!intact || !items) {
+    await audit({ intact: false });
     return ok({ ...base, intact: false, hasProtectedDetails: false, lines: [] });
   }
 
@@ -901,37 +929,33 @@ export async function readCollectionResponse(
       });
     }
   }
-  if (opened > 0) {
-    await db.transaction(async (tx) => {
-      await appendAuditEvent(tx, {
-        eventType: 'AGENCY_COLLECTION_RESPONSE_PROTECTED_DETAILS_READ',
-        actorAccountId: access.accountId,
-        actorRole: 'org:collection_response',
-        action: 'VIEW_METADATA',
-        method: 'API',
-        result: 'ALLOWED',
-        applicantId: response.applicantId,
-        resourceType: 'agency_collection_response',
-        resourceId: response.id,
-        metadata: { organizationId: access.organizationId, details: opened },
-      });
-    });
-  }
+  await audit({
+    intact: true,
+    documents: versionIds.length,
+    details: factVersionIds.length,
+    protectedOpened: opened,
+  });
 
-  const view: AgencyResponseLine[] = items.map((item) => {
+  const view: CollectionResponseItemView[] = items.map((item) => {
     const own = lines.filter((l) => l.itemId === item.id);
-    return {
-      item,
-      documents: own.flatMap((l) => {
-        if (l.kind !== 'DOCUMENT') return [];
+    const versions: CollectionResponseVersion[] = own.flatMap((l): CollectionResponseVersion[] => {
+      if (l.kind === 'DOCUMENT') {
         const document = documents.get(l.documentVersionId);
-        return document ? [{ documentVersionId: l.documentVersionId, ...document }] : [];
-      }),
-      details: own.flatMap((l) => {
-        if (l.kind !== 'FIELD') return [];
+        return document
+          ? [{ kind: 'DOCUMENT', documentVersionId: l.documentVersionId, ...document }]
+          : [];
+      }
+      if (l.kind === 'FIELD') {
         const detail = values.get(l.factVersionId);
-        return detail ? [detail] : [];
-      }),
+        return detail ? [{ kind: 'FIELD', ...detail }] : [];
+      }
+      return [];
+    });
+    return {
+      itemId: item.id,
+      item,
+      source: 'account',
+      versions,
       missing: own.length === 0 || own.every((l) => l.kind === 'MISSING'),
     };
   });

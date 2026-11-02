@@ -1,6 +1,6 @@
 import {
   type AgencyCollectionScope,
-  type AgencyResponseView,
+  type CollectionResponseView,
   type Db,
   type StepUpProof,
   collectionResponseAccesses,
@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { StatusBadge } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { createKeyManagementPort } from '../../../../../lib/providers';
-import { downloadResponseFileAction } from './response-actions';
+import { downloadResponseFileAction } from './collection-response-actions';
 
 /** The newest answers the panel shows at once. */
 export const PANEL_RESPONSE_LIMIT = 20;
@@ -22,13 +22,13 @@ export async function loadCollectionResponses(
   requestId: string,
   /** A fresh identity check that opens one answer's protected details (`protectedDetailsStepUp`). */
   reveal?: { readonly responseId: string; readonly stepUp: StepUpProof },
-): Promise<AgencyResponseView[]> {
+): Promise<CollectionResponseView[]> {
   const encryption = createKeyManagementPort();
   const accesses = (await collectionResponseAccesses(db, scope, requestId)).slice(
     0,
     PANEL_RESPONSE_LIMIT,
   );
-  const found: AgencyResponseView[] = [];
+  const found: CollectionResponseView[] = [];
   for (const access of accesses) {
     const view = await readCollectionResponse(db, access, {
       ...(encryption ? { encryption } : {}),
@@ -54,7 +54,7 @@ export function CollectionResponsesPanel({
 }: {
   readonly organizationId: string;
   readonly requestId: string;
-  readonly responses: readonly AgencyResponseView[];
+  readonly responses: readonly CollectionResponseView[];
   readonly fileUnavailable: boolean;
 }) {
   return (
@@ -92,44 +92,50 @@ export function CollectionResponsesPanel({
                 <>
                   <ol className="collection-items">
                     {response.lines.map((line) => (
-                      <li key={line.item.id}>
+                      <li key={line.itemId}>
                         <p className="collection-item-label">
                           <strong>{line.item.label}</strong>
                         </p>
                         {line.missing ? (
                           <p className="collect-response-missing u-fs-085">Still Missing</p>
                         ) : null}
-                        {line.documents.map((document) => (
-                          <form
-                            key={document.documentVersionId}
-                            action={downloadResponseFileAction}
-                            className="collection-response-file"
-                          >
-                            <input type="hidden" name="organizationId" value={organizationId} />
-                            <input type="hidden" name="requestId" value={requestId} />
-                            <input type="hidden" name="responseId" value={response.id} />
-                            <input
-                              type="hidden"
-                              name="documentVersionId"
-                              value={document.documentVersionId}
-                            />
-                            <span>
-                              {document.title}, Version {document.versionNumber}
-                            </span>{' '}
-                            <button type="submit" className="btn btn-secondary">
-                              Download {document.title}
-                            </button>
-                          </form>
-                        ))}
-                        {line.details.map((detail, index) => (
-                          <p key={`${line.item.id}-${index}`} className="u-fs-085">
-                            {detail.value ?? 'Protected Detail'}
-                          </p>
-                        ))}
+                        {line.versions
+                          .flatMap((v) => (v.kind === 'DOCUMENT' ? [v] : []))
+                          .map((document) => (
+                            <form
+                              key={document.documentVersionId}
+                              action={downloadResponseFileAction}
+                              className="collection-response-file"
+                            >
+                              <input type="hidden" name="organizationId" value={organizationId} />
+                              <input type="hidden" name="requestId" value={requestId} />
+                              <input type="hidden" name="responseId" value={response.id} />
+                              <input
+                                type="hidden"
+                                name="documentVersionId"
+                                value={document.documentVersionId}
+                              />
+                              <span>
+                                {document.title}, Version {document.versionNumber}
+                              </span>{' '}
+                              <button type="submit" className="btn btn-secondary">
+                                Download {document.title}
+                              </button>
+                            </form>
+                          ))}
+                        {line.versions
+                          .flatMap((v) => (v.kind === 'FIELD' ? [v] : []))
+                          .map((detail, index) => (
+                            <p key={`${line.itemId}-${index}`} className="u-fs-085">
+                              {detail.value ?? 'Protected Detail'}
+                            </p>
+                          ))}
                       </li>
                     ))}
                   </ol>
-                  {response.lines.some((l) => l.details.some((d) => d.value === null)) ? (
+                  {response.lines.some((l) =>
+                    l.versions.some((v) => v.kind === 'FIELD' && v.value === null),
+                  ) ? (
                     <p className="u-fs-085">
                       <Link
                         href={`/app/agency/${encodeURIComponent(organizationId)}/collection/request?id=${encodeURIComponent(requestId)}&details=${encodeURIComponent(response.id)}#collection-responses`}

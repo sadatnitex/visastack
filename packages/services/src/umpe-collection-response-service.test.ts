@@ -66,6 +66,11 @@ const SECRET = 'p7-test-access-token-secret';
 const STEP_UP_SECRET = 'p7-test-step-up-secret';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+type View = Awaited<ReturnType<typeof readCollectionResponse>>;
+type Line = Extract<View, { ok: true }>['value']['lines'][number];
+const docs = (l: Line) => l.versions.flatMap((v) => (v.kind === 'DOCUMENT' ? [v] : []));
+const facts = (l: Line) => l.versions.flatMap((v) => (v.kind === 'FIELD' ? [v] : []));
+
 const keys = new Map<string, Uint8Array>();
 const encryption: KeyManagementPort = {
   currentKeyVersion: () => 'test-v1',
@@ -472,7 +477,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     if (!view.ok) throw new Error('view');
     expect(view.value.status).toBe('SUBMITTED_TO_AGENCY');
     expect(view.value.intact).toBe(true);
-    const shown = view.value.lines.flatMap((l) => l.documents.map((d) => d.documentVersionId));
+    const shown = view.value.lines.flatMap((l) => docs(l).map((d) => d.documentVersionId));
     expect(shown).toEqual([passport.versionId]);
     expect(view.value.lines.filter((l) => l.missing)).toHaveLength(2);
 
@@ -500,7 +505,7 @@ describe('a signed-in traveller answers an agency request from their own record 
     expect(await agencyOpens(access, passport.versionId)).toBe('served');
     const view = await readCollectionResponse(db, access);
     if (!view.ok) throw new Error('view');
-    const shown = view.value.lines.flatMap((l) => l.documents);
+    const shown = view.value.lines.flatMap(docs);
     expect(shown).toEqual([
       expect.objectContaining({ documentVersionId: passport.versionId, versionNumber: 1 }),
     ]);
@@ -543,8 +548,8 @@ describe('a signed-in traveller answers an agency request from their own record 
     const closedView = await readCollectionResponse(db, access, { encryption });
     if (!closedView.ok) throw new Error('view');
     expect(closedView.value.hasProtectedDetails).toBe(true);
-    expect(closedView.value.lines.flatMap((l) => l.details)).toEqual([
-      { value: null, protected: true },
+    expect(closedView.value.lines.flatMap(facts)).toEqual([
+      { kind: 'FIELD', value: null, protected: true },
     ]);
     const step = protectedDetailsStepUp(access);
     const view = await readCollectionResponse(db, access, {
@@ -552,13 +557,16 @@ describe('a signed-in traveller answers an agency request from their own record 
       stepUp: adminStepUp(step.action, step.resourceId),
     });
     if (!view.ok) throw new Error('view');
-    const values = view.value.lines.flatMap((l) => l.details.map((d) => d.value));
+    const values = view.value.lines.flatMap((l) => facts(l).map((d) => d.value));
     expect(values).toEqual(['SYN12345']);
     const reads = await db
       .select()
       .from(schema.auditEvents)
-      .where(eq(schema.auditEvents.eventType, 'AGENCY_COLLECTION_RESPONSE_PROTECTED_DETAILS_READ'));
-    expect(reads).toHaveLength(1);
+      .where(eq(schema.auditEvents.eventType, 'AGENCY_COLLECTION_RESPONSE_READ'));
+    // Every agency read is audited; only the second opened a protected detail.
+    expect(reads.map((r) => (r.metadata as { protectedOpened?: number }).protectedOpened)).toEqual([
+      0, 1,
+    ]);
     expect(JSON.stringify(reads[0]?.metadata)).not.toContain('SYN');
   });
 
@@ -826,6 +834,23 @@ describe('a signed-in traveller answers an agency request from their own record 
         sql`update agency_collection_responses set consent_version = 'x' where id = ${submitted.responseId}`,
       ),
     ).rejects.toThrow();
+    // A withdrawal is its own record, written once and never changed.
+    const withdrawn = await withdrawCollectionResponse(
+      db,
+      await manageProof(travellerId, personId),
+      submitted.responseId,
+    );
+    expect(withdrawn.ok).toBe(true);
+    await expect(
+      db.execute(
+        sql`update agency_collection_response_withdrawals set reason = 'REPLACED' where response_id = ${submitted.responseId}`,
+      ),
+    ).rejects.toThrow();
+    await expect(
+      db.execute(
+        sql`delete from agency_collection_response_withdrawals where response_id = ${submitted.responseId}`,
+      ),
+    ).rejects.toThrow();
     await expect(
       db.execute(
         sql`delete from agency_collection_response_items where response_id = ${submitted.responseId}`,
@@ -1046,5 +1071,29 @@ describe('a signed-in traveller answers an agency request from their own record 
     if (!view.ok) throw new Error('view');
     expect(view.value.personName).toBe('Synthetic Traveller');
     expect(JSON.stringify(view.value)).not.toContain('Renamed');
+  });
+
+  it('revoking the request ends the agency access to its answers; closing it keeps them', async () => {
+    const revokedOne = await issuedRequest();
+    await submitPassportOnly(revokedOne.token);
+    const access = await onlyAccess(revokedOne.requestId);
+    const ref = await agencyLink(access, passport.versionId);
+    if (!ref.ok) throw new Error('ref');
+    const { fields, objectKey } = linkParts(ref.value.url);
+    expect(
+      (await endCollectionRequest(db, await scope(), revokedOne.requestId, 'REVOKED')).ok,
+    ).toBe(true);
+    expect(await collectionResponseAccesses(db, await scope(), revokedOne.requestId)).toEqual([]);
+    expect((await readCollectionResponse(db, access)).ok).toBe(false);
+    expect((await recheckDocumentAccess(db, fields, new Date(), objectKey)).allowed).toBe(false);
+
+    const closedOne = await issuedRequest();
+    await submitPassportOnly(closedOne.token);
+    expect((await endCollectionRequest(db, await scope(), closedOne.requestId, 'CLOSED')).ok).toBe(
+      true,
+    );
+    expect(await agencyOpens(await onlyAccess(closedOne.requestId), passport.versionId)).toBe(
+      'served',
+    );
   });
 });

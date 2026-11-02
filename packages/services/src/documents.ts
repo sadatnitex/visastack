@@ -10,13 +10,14 @@ import type {
 import { err, isOtherDocumentType, ok } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { type Actor, type Grant as PolicyGrant, authorize } from '@visastack/policy';
-import { and, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import {
   type CollectionResponseAccess,
   collectionResponseAccessProblem,
   collectionResponseIntact,
   collectionResponsePurpose,
   collectionResponseStillCovers,
+  liveCollectionResponse,
   responseIdFromPurpose,
 } from './access/collection-response-access';
 import { StepUpProof } from './access/step-up-proof';
@@ -1536,7 +1537,7 @@ export async function downloadCollectionResponseVersion(
           eq(items.responseId, access.responseId),
           eq(responses.organizationId, access.organizationId),
           eq(responses.applicantId, access.applicantId),
-          isNull(responses.withdrawnAt),
+          liveCollectionResponse(),
           eq(items.kind, 'DOCUMENT'),
           eq(items.documentVersionId, input.documentVersionId),
         ),
