@@ -7203,3 +7203,11 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Tests: lane full check green on every step; lead after merging P3: db 77, services 139, web 1,252, typecheck, lint, web build. Guards proven red: session rotation removed, send-time code recheck skipped.
 - Review: `/code-review max` 15 findings, 13 fixed (2 left: copied link rules guarded by a parity test, one extra brand read); `/security-review` none at 8 or above, one note fixed.
 - Not covered: copied (WhatsApp) links carry no email until P9 stamps the request's recipient email on every link; expired session purge job is P9; uploads and submission are P9.
+
+## 2026-11-02: UMPE P4 (trip package: exact copies, three readiness steps, handoff snapshot, freshness, change tracking, migration 0120)
+- What: a trip starts from Where Are You Going, Why and Who Is Travelling, opening one existing per-person case per traveller. Each requirement proposes the exact current copy; the traveller can use another copy, exclude an optional item with a reason or leave it missing. Readiness reads Needs Attention, Ready for Final Review, Prepared for Handoff; handoff freezes an immutable snapshot (pack version and checksum, pinned versions, caveats). Final review and handoff re-check that the pack is still published, sources reachable, no pending official-page change and evidence still fresh. A daily sweep records one change item per active case and sends one notice; nothing is shared automatically and handed-off snapshots never change.
+- Database: migration 0120 adds umpe_package_choices, umpe_package_handoffs (trigger refuses edits) and umpe_package_changes.
+- Lead wiring: the daily process-notification-sweeps job now runs the package sweep (bounded pages, own connection, failure never fails the run); route test proves the call and is red without it.
+- Tests: lane full check green (services 3,484, web 4,732, Playwright 299); lead: route tests 9, typecheck, lint, web build. Guards proven red: handoff trigger removed, exclude on a blocking item, send-time recheck bypassed, sweep call removed.
+- Review: `/code-review max` two rounds, all findings fixed; `/security-review` none.
+- Not covered: Home and Needs Attention do not list package changes yet (P13), older versions of the same document not offered as alternatives, Clear does not restore removed selections.

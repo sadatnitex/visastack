@@ -3,6 +3,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { missionBlockedByLegalHold } from './legal-hold';
 import { enqueueNotificationBothChannels } from './notifications';
+import { packageTablesPresent } from './umpe-package-tables';
 
 /**
  * Closed-case retention notice (PRV-02, master directive Part 7 §11):
@@ -278,6 +279,20 @@ export async function purgeMissionUnconditionally(
     .from(schema.missionSubmissions)
     .where(eq(schema.missionSubmissions.missionId, mission.missionId));
   const referencedSnapshotIds = referencedSnapshotRows.map((r) => r.id);
+  // UMPE P4: the case's package choices (which can hold a reason the traveller typed), its
+  // confirmed handoffs and its change items are case workflow content too. Before their
+  // migration runs the tables are missing and there is nothing to delete.
+  if (await packageTablesPresent(db)) {
+    await db
+      .delete(schema.umpePackageChoices)
+      .where(eq(schema.umpePackageChoices.missionId, mission.missionId));
+    await db
+      .delete(schema.umpePackageHandoffs)
+      .where(eq(schema.umpePackageHandoffs.missionId, mission.missionId));
+    await db
+      .delete(schema.umpePackageChanges)
+      .where(eq(schema.umpePackageChanges.missionId, mission.missionId));
+  }
   await db
     .delete(schema.missionSnapshots)
     .where(

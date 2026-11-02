@@ -62,6 +62,10 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
   { table: 'contributor_requests', column: 'applicant_id', kind: 'DATA' },
   { table: 'client_invitations', column: 'accepted_applicant_id', kind: 'DATA', unindexed: true },
   { table: 'acknowledgements', column: 'subject_applicant_id', kind: 'DATA', unindexed: true },
+  // UMPE P4: a case's package choices, confirmed handoffs and its one "something changed" item.
+  { table: 'umpe_package_choices', column: 'applicant_id', kind: 'DATA' },
+  { table: 'umpe_package_handoffs', column: 'applicant_id', kind: 'DATA' },
+  { table: 'umpe_package_changes', column: 'applicant_id', kind: 'DATA' },
   // Connections and messages.
   { table: 'ai_connections', column: 'applicant_id', kind: 'DATA' },
   { table: 'calendar_feeds', column: 'applicant_id', kind: 'DATA' },

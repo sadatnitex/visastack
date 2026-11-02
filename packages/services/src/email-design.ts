@@ -416,6 +416,13 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     action: 'Return to the Request',
     after: 'VisaStack will never ask you for this code by phone or message.',
   },
+  CASE_PACKAGE_CHANGED: {
+    eyebrow: 'Your Trip',
+    heading: 'Something changed for one of your trips',
+    why: 'A document, an answer or the checklist behind your trip package changed.',
+    action: 'Review the Trip Package',
+    after: 'Nothing was shared or sent to anyone. Your earlier choices stay as they were.',
+  },
 };
 
 export function notificationEmail(input: NotificationEmailInput): EmailContent {

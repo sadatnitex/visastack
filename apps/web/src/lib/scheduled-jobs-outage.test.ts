@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({ intake: vi.fn(), sweeps: vi.fn() }));
 vi.mock('./jobs', () => ({
   triggerIntakeWorker: mocks.intake,
   triggerNotificationSweeps: mocks.sweeps,
+  triggerPackageChangeSweep: vi.fn(),
 }));
 beforeEach(() => {
   vi.stubEnv('CRON_SECRET', 'synthetic-cron');
