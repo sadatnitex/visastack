@@ -102,7 +102,7 @@ export default async function CollectionRequestPage({
     return {
       detail: detail.value,
       choices: choices?.ok ? choices.value : [],
-      impact: impact.ok ? impact.value : null,
+      impact: impact.ok ? impact.value : undefined,
     };
   });
   if (!data) notFound();
@@ -324,6 +324,7 @@ export default async function CollectionRequestPage({
           organizationId={orgId}
           requestId={detail.id}
           impact={impact}
+          open={editable}
           officialItems={items
             .filter((item) => item.provenance === 'OFFICIAL' && item.source !== 'agency')
             .map((item) => ({ value: item.source, label: item.label }))}

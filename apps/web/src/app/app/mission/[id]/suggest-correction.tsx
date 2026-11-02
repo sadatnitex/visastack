@@ -22,7 +22,9 @@ export function SuggestCorrection({
 }) {
   return (
     <details className="correction-suggest">
-      <summary>Suggest a Correction</summary>
+      <summary>
+        Suggest a Correction<span className="sr-only"> for {itemName}</span>
+      </summary>
       <p className="muted u-fs-085 u-m-0">
         Tell us if this item looks wrong. Pack editors check it against the official source; your
         checklist does not change until a corrected version is published.

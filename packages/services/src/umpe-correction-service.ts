@@ -16,12 +16,13 @@
  * - Audit records carry ids and kinds only: never the detail, the link or the item's words.
  */
 import { type Result, err, ok } from '@visastack/core';
-import { and, asc, count, desc, eq, inArray, isNull, notInArray } from 'drizzle-orm';
-import { AuthorizedApplicant, StaffScope } from './access';
+import { and, asc, count, desc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
+import { AuthorizedApplicant, type StaffScope } from './access';
 import {
   type AgencyCollectionScope,
   agencyCollectionScopeProblem,
 } from './access/collection-scope';
+import { staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -112,7 +113,8 @@ export function cleanOfficialUrl(
 
 /** The detail as stored: trimmed, unsafe characters removed, null when empty. */
 function cleanDetail(raw: string | null | undefined): string | null | { error: string } {
-  const text = (raw ?? '').replace(UNSAFE_ALL, '').trim();
+  // A browser sends each line break as two characters; count it as the one the person typed.
+  const text = (raw ?? '').replace(/\r\n?/g, '\n').replace(UNSAFE_ALL, '').trim();
   if (text.length === 0) return null;
   if (text.length > CORRECTION_DETAIL_MAX) {
     return { error: 'Keep the detail under 1,000 characters.' };
@@ -426,10 +428,11 @@ export interface CorrectionQueue {
   readonly openCount: number;
 }
 
+/** A genuine, fresh pack management scope (the shared five-minute rule), or the refusal. */
 function staffProblem(staff: StaffScope<'PACK_MANAGE'>): ServiceError | undefined {
-  return StaffScope.isGenuine(staff) && staff.platformAction === 'PACK_MANAGE'
-    ? undefined
-    : serviceError('forbidden', 'Not authorized.');
+  return staffScopeProblem(staff, 'PACK_MANAGE')
+    ? serviceError('forbidden', 'Not authorized.')
+    : undefined;
 }
 
 type CorrectionRow = typeof schema.umpeChecklistCorrections.$inferSelect;
@@ -601,7 +604,8 @@ export async function reviewChecklistCorrection(
           status: input.decision,
           reviewerAccountId: staff.accountId,
           reviewedAt: new Date(),
-          reviewNote: note,
+          // An empty note keeps the one written at Mark in Review.
+          reviewNote: note ?? sql`${c.reviewNote}`,
         })
         .where(and(eq(c.id, input.correctionId), inArray(c.status, [...allowedFrom])))
         .returning({ id: c.id }),

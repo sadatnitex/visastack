@@ -25,27 +25,19 @@
  * (`collectionRuleImpact`): issued revisions stay as they are and reissuing is the agency's choice.
  */
 import { type Result, err, ok } from '@visastack/core';
-import {
-  type SQL,
-  and,
-  asc,
-  desc,
-  eq,
-  inArray,
-  isNull,
-  lt,
-  notInArray,
-  or,
-  sql,
-} from 'drizzle-orm';
-import { StaffScope, SystemScope } from './access';
+import { CATALOGUE_FIELDS } from '@visastack/core/catalogue';
+import { documentTypeName } from '@visastack/core/catalogue/documents';
+import { type SQL, and, asc, desc, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
+import { type StaffScope, SystemScope } from './access';
 import {
   type AgencyCollectionScope,
   agencyCollectionScopeProblem,
 } from './access/collection-scope';
+import { staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
 import { isUuid } from './lifecycle/foundation/ids';
 import { RULE_CHANGED_EVENT, enqueueNotificationBothChannels } from './notifications';
 import { type RequirementDiffEntry, diffPackVersions } from './packs';
@@ -67,9 +59,32 @@ export interface RuleChangeItem {
 const CHANGE_ORDER: readonly RequirementDiffEntry['change'][] = ['added', 'changed', 'removed'];
 const ITEM_KEY_MAX = 300;
 
-/** The most important difference (added, then changed, then removed; by key within a kind). */
+/**
+ * The differences that change what a traveller must provide. A refreshed source record (its link,
+ * title, publisher, extract, observed date, citation wording or change reason) is not a new rule,
+ * so it never flags a case or sends a note.
+ */
+const MATERIAL_FIELDS: ReadonlySet<string> = new Set([
+  'optional',
+  'necessity',
+  'maxAgeDays',
+  'condition',
+  'groupKey',
+  'groupMode',
+  'provenance',
+]);
+
+function isMaterial(entry: RequirementDiffEntry): boolean {
+  if (entry.change === 'added' || entry.change === 'removed') return true;
+  return entry.change === 'changed' && entry.changedFields.some((f) => MATERIAL_FIELDS.has(f));
+}
+
+/**
+ * The most important material difference (added, then changed, then removed; by key within a
+ * kind). NONE when the newer version asks for the same things.
+ */
 export function preciseRuleChange(entries: readonly RequirementDiffEntry[]): RuleChangeItem {
-  const differing = entries.filter((e) => e.change !== 'unchanged');
+  const differing = entries.filter(isMaterial);
   for (const change of CHANGE_ORDER) {
     const entry = differing
       .filter((e) => e.change === change)
@@ -87,14 +102,25 @@ export function preciseRuleChange(entries: readonly RequirementDiffEntry[]): Rul
   return { changeKind: 'NONE', itemKind: null, itemKey: null, changedCount: 0 };
 }
 
-/** A rule code in plain words ("bank_statement" reads "Bank Statement"). */
+const FIELD_LABELS: ReadonlyMap<string, string> = new Map(
+  CATALOGUE_FIELDS.map((field) => [field.key, field.label] as const),
+);
+
 function codeWords(code: string): string {
   return code
-    .replace(/[_.-]+/g, ' ')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
+    .split(/[_\s]+/)
+    .filter((word) => word.length > 0)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+/** The item's catalogue name ("NID" reads "National ID Card"), the same words checklists use. */
+export function ruleChangeItemName(item: Pick<RuleChangeItem, 'itemKind' | 'itemKey'>): string {
+  if (!item.itemKey) return 'An item';
+  if (item.itemKind === 'DOCUMENT') {
+    return documentTypeName(item.itemKey) ?? codeWords(item.itemKey);
+  }
+  return FIELD_LABELS.get(item.itemKey) ?? codeWords(item.itemKey);
 }
 
 /** The note's sentence about the change, in plain words. Rule content only, never a person's. */
@@ -104,14 +130,13 @@ export function ruleChangeSentence(item: RuleChangeItem): string {
   if (item.changeKind === 'NONE' || !item.itemKey) {
     return 'A newer version of the checklist for one of your trips was published.';
   }
-  const name = codeWords(item.itemKey);
   const verb =
     item.changeKind === 'ADDED'
       ? 'was added to'
       : item.changeKind === 'REMOVED'
         ? 'was removed from'
         : 'changed in';
-  return `${name} ${verb} the checklist for one of your trips${more}.`;
+  return `${ruleChangeItemName(item)} ${verb} the checklist for one of your trips${more}.`;
 }
 
 // --- 1. The publish hook lives in umpe-rule-impact-queue.ts (no import cycle with packs.ts) ---
@@ -119,6 +144,7 @@ export function ruleChangeSentence(item: RuleChangeItem): string {
 // --- 2. Assessment -----------------------------------------------------------------------------------
 
 export const RULE_IMPACT_NOTE_LIMIT = 200;
+const SWEEP_RUN_LIMIT = 20;
 
 export interface RuleImpactProgress {
   /** Runs looked at in this call. */
@@ -165,60 +191,56 @@ async function flagCases(db: Db, runId: string, now: Date): Promise<number> {
     );
     let flagged = 0;
     if (version && version.status === 'PUBLISHED') {
-      const older = await tx
-        .select({ id: schema.packVersions.id })
-        .from(schema.packVersions)
-        .where(
-          and(
-            eq(schema.packVersions.packId, version.packId),
-            lt(schema.packVersions.version, version.version),
-          ),
-        );
-      for (const previous of older) {
-        const diff = await diffPackVersions(tx, previous.id, version.id);
-        const item = diff.ok
-          ? preciseRuleChange(diff.value.entries)
-          : { changeKind: 'NONE' as const, itemKind: null, itemKey: null, changedCount: 0 };
+      const inactive = sql.join(
+        INACTIVE_CASE_STATES.map((state) => sql`${state}`),
+        sql`, `,
+      );
+      // Only the older versions some active case is still pinned to: nothing else is compared.
+      const pinned = await tx.execute(sql`
+        select distinct m.pack_version_id as id
+          from ${schema.missions} m
+          join ${schema.packVersions} v on v.id = m.pack_version_id
+         where v.pack_id = ${version.packId}
+           and v.version < ${version.version}
+           and m.purged_at is null
+           and m.state::text not in (${inactive})`);
+      for (const previousId of idsOf(pinned)) {
+        const diff = await diffPackVersions(tx, previousId, version.id);
+        if (!diff.ok) continue;
+        const item = preciseRuleChange(diff.value.entries);
+        // The newer version asks for the same things: nothing to review, nobody to tell.
+        if (item.changeKind === 'NONE') continue;
         // One set-based insert per older version: only active, unpurged cases pinned to it.
         const inserted = await tx.execute(sql`
           insert into ${schema.umpeRuleImpacts}
             (run_id, pack_version_id, previous_pack_version_id, subject_kind, mission_id,
              change_kind, item_kind, item_key, changed_count, created_at)
-          select ${run.id}, ${version.id}, ${previous.id}, 'CASE', m.id,
+          select ${run.id}, ${version.id}, ${previousId}, 'CASE', m.id,
                  ${item.changeKind}, ${item.itemKind}, ${item.itemKey}, ${item.changedCount}, ${now}
             from ${schema.missions} m
-           where m.pack_version_id = ${previous.id}
+           where m.pack_version_id = ${previousId}
              and m.purged_at is null
-             and m.state::text not in (${sql.join(
-               INACTIVE_CASE_STATES.map((s) => sql`${s}`),
-               sql`, `,
-             )})
+             and m.state::text not in (${inactive})
           on conflict do nothing
           returning id`);
-        flagged += rowCount(inserted);
+        flagged += idsOf(inserted).length;
       }
-      // A newer publication closes the older open impact of the same case.
-      const superseded = await tx
-        .update(schema.umpeRuleImpacts)
-        .set({ resolvedAt: now, resolution: 'SUPERSEDED' })
-        .where(
-          and(
-            isNull(schema.umpeRuleImpacts.resolvedAt),
-            sql`${schema.umpeRuleImpacts.runId} <> ${run.id}`,
-            inArray(
-              schema.umpeRuleImpacts.missionId,
-              tx
-                .select({ id: schema.umpeRuleImpacts.missionId })
-                .from(schema.umpeRuleImpacts)
-                .where(eq(schema.umpeRuleImpacts.runId, run.id)),
-            ),
-          ),
-        )
-        .returning({ id: schema.umpeRuleImpacts.id });
-      await cancelNotes(
-        tx,
-        superseded.map((row) => row.id),
-      );
+      // A newer publication closes the older open impact of the same case, and cancels its
+      // waiting note in the same transaction (both set-based, however many cases there are).
+      await tx.execute(sql`
+        with superseded as (
+          update ${schema.umpeRuleImpacts} i
+             set resolved_at = ${now}, resolution = 'SUPERSEDED'
+           where i.resolved_at is null
+             and i.run_id <> ${run.id}
+             and i.mission_id in (
+               select n.mission_id from ${schema.umpeRuleImpacts} n where n.run_id = ${run.id})
+          returning i.id)
+        update ${schema.notifications}
+           set status = 'CANCELLED'
+         where event_type = ${RULE_CHANGED_EVENT}
+           and status = 'QUEUED'
+           and resource_id in (select id::text from superseded)`);
     }
     await tx
       .update(schema.umpeRuleImpactRuns)
@@ -236,31 +258,17 @@ async function flagCases(db: Db, runId: string, now: Date): Promise<number> {
   });
 }
 
-function rowCount(result: unknown): number {
-  if (result && typeof result === 'object') {
-    const rows = (result as { rows?: unknown }).rows;
-    if (Array.isArray(rows)) return rows.length;
-    const affected = (result as { affectedRows?: unknown; rowCount?: unknown }).affectedRows;
-    if (typeof affected === 'number') return affected;
-    const count = (result as { rowCount?: unknown }).rowCount;
-    if (typeof count === 'number') return count;
-  }
-  return 0;
-}
-
-/** Cancels the still-queued notes about these impacts (their resource id is the impact's id). */
-async function cancelNotes(tx: Db, impactIds: readonly string[]): Promise<void> {
-  if (impactIds.length === 0) return;
-  await tx
-    .update(schema.notifications)
-    .set({ status: 'CANCELLED' })
-    .where(
-      and(
-        eq(schema.notifications.eventType, RULE_CHANGED_EVENT),
-        eq(schema.notifications.status, 'QUEUED'),
-        inArray(schema.notifications.resourceId, [...impactIds]),
-      ),
-    );
+/** The `id` column of a raw query's rows, whichever driver ran it. */
+function idsOf(result: unknown): string[] {
+  const rows =
+    result && typeof result === 'object' && Array.isArray((result as { rows?: unknown }).rows)
+      ? ((result as { rows: unknown[] }).rows as unknown[])
+      : Array.isArray(result)
+        ? (result as unknown[])
+        : [];
+  return rows
+    .map((row) => (row && typeof row === 'object' ? (row as { id?: unknown }).id : null))
+    .filter((id): id is string => typeof id === 'string');
 }
 
 /**
@@ -274,6 +282,7 @@ async function queueNotes(
   now: Date,
 ): Promise<{ readonly queued: number; readonly more: boolean }> {
   if (limit <= 0) return { queued: 0, more: true };
+  const lifecycle = await lifecycleTablesPresent(db);
   return db.transaction(async (tx) => {
     const rows = await tx
       .select({
@@ -296,13 +305,15 @@ async function queueNotes(
           eq(schema.umpeRuleImpacts.subjectKind, 'CASE'),
           isNull(schema.umpeRuleImpacts.notifiedAt),
           isNull(schema.umpeRuleImpacts.resolvedAt),
+          // A deleted traveller record is never written to.
+          lifecycle ? presentApplicantCondition() : undefined,
         ),
       )
       .orderBy(asc(schema.umpeRuleImpacts.id))
       .limit(limit + 1)
       .for('update', { of: schema.umpeRuleImpacts, skipLocked: true });
     const page = rows.slice(0, limit);
-    let queued = 0;
+    const told: string[] = [];
     const gone: string[] = [];
     for (const row of page) {
       const stillApplies =
@@ -325,11 +336,14 @@ async function queueNotes(
           deepLinkPath: `/app/mission/${row.mission.id}#trip-package`,
         },
       });
+      told.push(row.impact.id);
+    }
+    const queued = told.length;
+    if (queued > 0) {
       await tx
         .update(schema.umpeRuleImpacts)
         .set({ notifiedAt: now })
-        .where(eq(schema.umpeRuleImpacts.id, row.impact.id));
-      queued++;
+        .where(inArray(schema.umpeRuleImpacts.id, told));
     }
     if (gone.length > 0) {
       await tx
@@ -381,9 +395,8 @@ export async function assessRuleImpact(
   input: { readonly packVersionId: string },
   now: Date = new Date(),
 ): Promise<Result<RuleImpactProgress, ServiceError>> {
-  if (!StaffScope.isGenuine(staff) || staff.platformAction !== 'PACK_MANAGE') {
-    return err(serviceError('forbidden', 'Not authorized.'));
-  }
+  const denied = staffScopeProblem(staff, 'PACK_MANAGE');
+  if (denied) return err(denied);
   if (!isUuid(input.packVersionId)) return err(serviceError('not_found', 'Version not found.'));
   if (!(await ruleImpactTablesPresent(db))) return ok(NO_PROGRESS);
   const run = first(
@@ -422,12 +435,13 @@ export async function sweepRuleImpacts(
     .from(schema.umpeRuleImpactRuns)
     .where(or(isNull(schema.umpeRuleImpactRuns.assessedAt), waiting))
     .orderBy(asc(schema.umpeRuleImpactRuns.createdAt), asc(schema.umpeRuleImpactRuns.id))
-    .limit(20);
+    .limit(SWEEP_RUN_LIMIT + 1);
   let flagged = 0;
   let queued = 0;
   let more = false;
   let looked = 0;
-  for (const run of runs) {
+  if (runs.length > SWEEP_RUN_LIMIT) more = true;
+  for (const run of runs.slice(0, SWEEP_RUN_LIMIT)) {
     if (budget <= 0) {
       more = true;
       break;
@@ -463,9 +477,8 @@ export async function listRuleImpactRuns(
   staff: StaffScope<'PACK_MANAGE'>,
   limit = 10,
 ): Promise<Result<readonly RuleImpactRunView[], ServiceError>> {
-  if (!StaffScope.isGenuine(staff) || staff.platformAction !== 'PACK_MANAGE') {
-    return err(serviceError('forbidden', 'Not authorized.'));
-  }
+  const denied = staffScopeProblem(staff, 'PACK_MANAGE');
+  if (denied) return err(denied);
   if (!(await ruleImpactTablesPresent(db))) return ok([]);
   const r = schema.umpeRuleImpactRuns;
   const rows = await db
@@ -478,7 +491,11 @@ export async function listRuleImpactRuns(
       assessedAt: r.assessedAt,
       casesFlagged: r.casesFlagged,
       notesQueued: r.notesQueued,
-      stillOpen: sql<number>`(select count(*)::int from ${schema.umpeRuleImpacts} i where i.run_id = ${r.id} and i.resolved_at is null)`,
+      // Live: still open, and the case is still active and still on the older version.
+      stillOpen: sql<number>`(select count(*)::int from ${schema.umpeRuleImpacts} i join ${schema.missions} m on m.id = i.mission_id where i.run_id = ${r.id} and i.resolved_at is null and m.purged_at is null and m.pack_version_id = i.previous_pack_version_id and m.state::text not in (${sql.join(
+        INACTIVE_CASE_STATES.map((state) => sql`${state}`),
+        sql`, `,
+      )}))`,
     })
     .from(r)
     .innerJoin(schema.packVersions, eq(schema.packVersions.id, r.packVersionId))
@@ -497,6 +514,8 @@ export interface CollectionRuleImpact {
   readonly newerVersion: number;
   readonly newerPackVersionId: string;
   readonly item: RuleChangeItem;
+  /** The item's catalogue name, null when nothing a traveller provides differs. */
+  readonly itemName: string | null;
   /** The working checklist still follows the older version (reissuing would need a new choice). */
   readonly draftPinned: boolean;
   /** The latest issued revision follows the older version; it stays exactly as issued. */
@@ -575,12 +594,14 @@ export async function collectionRuleImpact(
   if (!newest || newest.version <= pinned.version) return ok(null);
   const diff = await diffPackVersions(db, pinnedId, newest.id);
   if (!diff.ok) return ok(null);
+  const item = preciseRuleChange(diff.value.entries);
   return ok({
     packName: pinned.packName,
     pinnedVersion: pinned.version,
     newerVersion: newest.version,
     newerPackVersionId: newest.id,
-    item: preciseRuleChange(diff.value.entries),
+    item,
+    itemName: item.changeKind === 'NONE' ? null : ruleChangeItemName(item),
     draftPinned: request.draftPackVersionId === pinnedId,
     issuedPinned: issuedId !== null && issuedId !== newest.id,
   });

@@ -2686,6 +2686,7 @@ export {
   collectionRuleImpact,
   listRuleImpactRuns,
   preciseRuleChange,
+  ruleChangeItemName,
   ruleChangeSentence,
   sweepRuleImpacts,
 } from './umpe-rule-impact-service';

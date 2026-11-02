@@ -4,7 +4,6 @@ import {
   type CollectionRuleImpact,
 } from '@visastack/services';
 import { ChecklistCorrectionForm } from '../../../../../../components/checklist-correction-form';
-import { humanizeCode } from '../../../../../../lib/format-code';
 import { suggestAgencyCorrectionAction } from './checklist-correction-actions';
 
 const CATEGORIES = CORRECTION_CATEGORIES.map((value) => ({
@@ -17,8 +16,10 @@ function changeLine(impact: CollectionRuleImpact): string {
   const { item } = impact;
   const others = item.changedCount - 1;
   const more = others > 0 ? `, and ${others} other ${others === 1 ? 'change' : 'changes'}` : '';
-  if (item.changeKind === 'NONE' || !item.itemKey) return 'Its items are the same.';
-  const name = humanizeCode(item.itemKey);
+  if (item.changeKind === 'NONE' || !impact.itemName) {
+    return 'It asks for the same items; only its source details were updated.';
+  }
+  const name = impact.itemName;
   const verb =
     item.changeKind === 'ADDED'
       ? 'was added'
@@ -37,11 +38,15 @@ export function ChecklistCorrectionCard({
   organizationId,
   requestId,
   impact,
+  open,
   officialItems,
 }: {
   readonly organizationId: string;
   readonly requestId: string;
-  readonly impact: CollectionRuleImpact | null;
+  /** A newer version, null when none applies, undefined when it could not be checked now. */
+  readonly impact: CollectionRuleImpact | null | undefined;
+  /** The request is still a draft or sent (not revoked or closed). */
+  readonly open: boolean;
   /** The official items of the request's checklist (pack requirement id and its plain name). */
   readonly officialItems: readonly { readonly value: string; readonly label: string }[];
 }) {
@@ -64,9 +69,9 @@ export function ChecklistCorrectionCard({
               again.
             </p>
           </div>
-        ) : (
+        ) : open && impact === null ? (
           <p className="muted">This request follows the newest published official checklist.</p>
-        )}
+        ) : null}
         <h3>Suggest a Checklist Correction</h3>
         <p className="muted">
           If an official item looks missing, out of date or wrong, tell VisaStack. Pack editors

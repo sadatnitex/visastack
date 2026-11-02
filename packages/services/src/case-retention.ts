@@ -3,6 +3,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { missionBlockedByLegalHold } from './legal-hold';
 import { enqueueNotificationBothChannels } from './notifications';
+import { ruleImpactTablesPresent } from './umpe-correction-tables';
 import { packageTablesPresent } from './umpe-package-tables';
 
 /**
@@ -292,6 +293,13 @@ export async function purgeMissionUnconditionally(
     await db
       .delete(schema.umpePackageChanges)
       .where(eq(schema.umpePackageChanges.missionId, mission.missionId));
+  }
+  // UMPE P11: the case's rule change impacts (ids and kinds only) go with it. Before their
+  // migration runs the tables are missing and there is nothing to delete.
+  if (await ruleImpactTablesPresent(db)) {
+    await db
+      .delete(schema.umpeRuleImpacts)
+      .where(eq(schema.umpeRuleImpacts.missionId, mission.missionId));
   }
   await db
     .delete(schema.missionSnapshots)

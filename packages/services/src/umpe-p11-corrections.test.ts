@@ -55,6 +55,7 @@ import {
   collectionRuleImpact,
   listRuleImpactRuns,
   preciseRuleChange,
+  ruleChangeItemName,
   ruleChangeSentence,
   sweepRuleImpacts,
 } from './umpe-rule-impact-service';
@@ -620,7 +621,7 @@ describe('UMPE P11: checklist corrections and rule change impact', () => {
         expect(
           notes.every((n) => n.missionId === active && n.recipientAccountId === traveller),
         ).toBe(true);
-        expect(JSON.stringify(notes[0]?.payload)).toContain('Hotel Booking was added');
+        expect(JSON.stringify(notes[0]?.payload)).toContain('Hotel or Stay Booking was added');
 
         // Nothing about any case was rewritten: same rows, same pins, same snapshots.
         expect(await db.select().from(schema.missions).orderBy(asc(schema.missions.id))).toEqual(
@@ -728,14 +729,119 @@ describe('UMPE P11: checklist corrections and rule change impact', () => {
     );
   });
 
+  it(
+    'a version that only refreshes source records flags nobody, and the open count is live',
+    async () => {
+      const packId = await pack();
+      const v1 = await version(packId, V1_ROWS);
+      const missionId = await caseOn(v1);
+      const v2 = await version(
+        packId,
+        V1_ROWS.map((row) => ({ ...row, citation: `${row.citation} (rechecked)` })),
+      );
+      expect(await assessRuleImpact(db, await packScope(), { packVersionId: v2 })).toEqual({
+        ok: true,
+        value: { runs: 1, casesFlagged: 0, notesQueued: 0, more: false },
+      });
+      expect(
+        await db
+          .select()
+          .from(schema.notifications)
+          .where(eq(schema.notifications.eventType, RULE_CHANGED_EVENT)),
+      ).toHaveLength(0);
+
+      const v3 = await version(packId, V2_ROWS);
+      await assessRuleImpact(db, await packScope(), { packVersionId: v3 });
+      const open = async () => {
+        const runs = await listRuleImpactRuns(db, await packScope());
+        return runs.ok ? runs.value.find((run) => run.packVersionId === v3)?.stillOpen : null;
+      };
+      expect(await open()).toBe(1);
+      await db
+        .update(schema.missions)
+        .set({ state: 'CLOSED' })
+        .where(eq(schema.missions.id, missionId));
+      expect(await open()).toBe(0);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'keeps the in-review note when a decision comes without one',
+    async () => {
+      const packId = await pack();
+      const v1 = await version(packId, V1_ROWS);
+      const missionId = await caseOn(v1);
+      const made = await suggestCaseChecklistCorrection(await viewProof(missionId), {
+        missionId,
+        packRequirementId: await requirementId(v1, 'passport'),
+        category: 'OUTDATED',
+        detail: 'Line one\r\nLine two',
+      });
+      if (!made.ok) throw new Error(made.error.message);
+      await reviewChecklistCorrection(db, await packScope(), {
+        correctionId: made.value.id,
+        decision: 'IN_REVIEW',
+        note: 'Checking the embassy page.',
+      });
+      await reviewChecklistCorrection(db, await packScope(), {
+        correctionId: made.value.id,
+        decision: 'DISMISSED',
+      });
+      const [row] = await db.select().from(schema.umpeChecklistCorrections);
+      expect(row).toMatchObject({
+        status: 'DISMISSED',
+        reviewNote: 'Checking the embassy page.',
+        detail: 'Line one\nLine two',
+      });
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'before the migration runs: publishing works as before and every step degrades plainly',
+    async () => {
+      for (const table of [
+        'umpe_rule_impacts',
+        'umpe_rule_impact_runs',
+        'umpe_checklist_corrections',
+      ]) {
+        await db.execute(sql.raw(`drop table ${table}`));
+      }
+      const packId = await pack();
+      const v1 = await version(packId, V1_ROWS);
+      const missionId = await caseOn(v1);
+      const v2 = await version(packId, V2_ROWS);
+      expect(await assessRuleImpact(db, await packScope(), { packVersionId: v2 })).toEqual({
+        ok: true,
+        value: { runs: 0, casesFlagged: 0, notesQueued: 0, more: false },
+      });
+      expect(await sweepRuleImpacts(SWEEP, db)).toMatchObject({ runs: 0 });
+      const queue = await listChecklistCorrections(db, await packScope());
+      expect(queue.ok && queue.value.ready).toBe(false);
+      const refused = await suggestCaseChecklistCorrection(await viewProof(missionId), {
+        missionId,
+        packRequirementId: null,
+        category: 'MISSING',
+      });
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.error.code).toBe('stale');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
   it('picks the most important difference and words it plainly', () => {
-    const entry = (key: string, change: 'added' | 'changed' | 'removed' | 'unchanged') => ({
+    const entry = (
+      key: string,
+      change: 'added' | 'changed' | 'removed' | 'unchanged',
+      changedFields: string[] = change === 'changed' ? ['optional'] : [],
+    ) => ({
       key,
       kind: key.startsWith('FIELD:') ? ('FIELD' as const) : ('DOCUMENT' as const),
       change,
       from: null,
       to: null,
-      changedFields: [],
+      changedFields,
     });
     const item = preciseRuleChange([
       entry('DOCUMENT:passport', 'changed'),
@@ -752,6 +858,14 @@ describe('UMPE P11: checklist corrections and rule change impact', () => {
       'Passport changed in the checklist for one of your trips (and 1 other change).',
     );
     expect(preciseRuleChange([entry('DOCUMENT:passport', 'unchanged')]).changeKind).toBe('NONE');
+    // A refreshed source record is not a new rule.
+    expect(
+      preciseRuleChange([
+        entry('DOCUMENT:passport', 'changed', ['sourceUrl', 'observedDate', 'citation']),
+      ]).changeKind,
+    ).toBe('NONE');
+    // Catalogue names, never a mechanical spelling of the code.
+    expect(ruleChangeItemName({ itemKind: 'DOCUMENT', itemKey: 'NID' })).toBe('National ID Card');
     const dash = String.fromCharCode(0x2014);
     expect(ruleChangeSentence(item)).not.toContain(dash);
   });

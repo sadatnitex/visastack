@@ -24,7 +24,8 @@ export function readCorrectionFields(formData: FormData): CorrectionFields | For
   if (link !== null && typeof link === 'object') {
     return { ok: false, message: link.error, field: 'officialUrl' };
   }
-  const detail = text(formData, 'detail');
+  // A browser sends each line break as two characters; count it as the one the person typed.
+  const detail = text(formData, 'detail').replace(/\r\n?/g, '\n');
   if (detail.length > CORRECTION_DETAIL_MAX) {
     return { ok: false, message: 'Keep it under 1,000 characters.', field: 'detail' };
   }

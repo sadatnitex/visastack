@@ -329,8 +329,16 @@ async function flagActiveCases(
       'PACK_MANAGE',
     );
     if (!staff.ok) return 0;
-    const assessed = await assessRuleImpact(db, staff.value, { packVersionId });
-    return assessed.ok ? assessed.value.casesFlagged : 0;
+    // Up to 1,000 notes here (five rounds of 200); a larger publication leaves the rest for the
+    // scheduled sweep (sweepRuleImpacts), which picks up every run with notes still waiting.
+    let flagged = 0;
+    for (let round = 0; round < 5; round++) {
+      const assessed = await assessRuleImpact(db, staff.value, { packVersionId });
+      if (!assessed.ok) break;
+      flagged += assessed.value.casesFlagged;
+      if (!assessed.value.more) break;
+    }
+    return flagged;
   } catch (error) {
     reportServerError('assessRuleImpact', error);
     return 0;
@@ -352,7 +360,7 @@ export async function publishVersionAction(
       return { ok: false, message: published.error.message } satisfies ActionState;
     }
     // UMPE P11: tell the owners of active cases on an older version. Publishing already happened;
-    // if this step fails the daily sweep finishes it, so it never turns a publish into an error.
+    // if this step fails the scheduled sweep finishes it, so it never turns a publish into an error.
     const flagged = await flagActiveCases(db, accountId, email, packVersionId);
     return {
       ok: true,

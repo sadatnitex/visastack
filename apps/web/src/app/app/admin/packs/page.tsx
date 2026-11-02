@@ -126,12 +126,13 @@ export default async function PackStudioPage({
             <p className="muted" style={{ margin: '0.35rem 0 0', fontSize: 'var(--text-small)' }}>
               Published versions whose next-review date has passed, most overdue first.
             </p>
-            <Link href="/app/admin/packs/sources" className="u-fs-085">
-              Official Sources and Detected Changes →
-            </Link>
-            <Link href="/app/admin/packs/corrections" className="u-fs-085">
-              Checklist Corrections from Travellers and Agencies →
-            </Link>
+            <p className="u-fs-085 u-m-0">
+              <Link href="/app/admin/packs/sources">Official Sources and Detected Changes →</Link>
+              {' · '}
+              <Link href="/app/admin/packs/corrections">
+                Checklist Corrections from Travellers and Agencies →
+              </Link>
+            </p>
             {data.reviewQueue.length === 0 ? (
               <p className="card-body" style={{ marginTop: '0.75rem' }}>
                 Nothing due for review.
