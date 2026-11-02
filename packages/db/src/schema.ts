@@ -7,6 +7,9 @@ import {
   ORGANIZATION_STATUSES,
   PERMISSION_ACTIONS,
   PROPOSAL_TYPES,
+  REQUIREMENT_GROUP_MODES,
+  REQUIREMENT_NECESSITIES,
+  REQUIREMENT_PROVENANCES,
 } from '@visastack/core';
 import { sql } from 'drizzle-orm';
 import {
@@ -171,6 +174,13 @@ export const packVersionStatus = pgEnum('pack_version_status', [
   'WITHDRAWN',
 ]);
 export const requirementKind = pgEnum('requirement_kind', ['FIELD', 'DOCUMENT']);
+// UMPE P1 (ADR 0026 D3): how necessary a requirement is, who asked for it, and how a group of
+// alternatives is satisfied. The words come from the one shared definition in
+// packages/core/src/requirement-necessity.ts. All three columns are nullable: NULL is a legacy
+// row, read from its `optional` flag and never reinterpreted.
+export const requirementNecessity = pgEnum('requirement_necessity', REQUIREMENT_NECESSITIES);
+export const requirementProvenance = pgEnum('requirement_provenance', REQUIREMENT_PROVENANCES);
+export const requirementGroupMode = pgEnum('requirement_group_mode', REQUIREMENT_GROUP_MODES);
 export const notificationChannel = pgEnum('notification_channel', ['IN_APP', 'EMAIL']);
 // NTF-02/§3's exact delivery-state vocabulary: "QUEUED; SENT/provider
 // accepted; DELIVERED only if provider confirms; BOUNCED; FAILED; READ if
@@ -2158,6 +2168,9 @@ export const packVersions = pgTable(
     // approval; a published version is immutable and verifiable.
     manifest: jsonb('manifest'),
     checksum: text('checksum'),
+    // UMPE P1 (ADR 0026 D2): which manifest serializer produced `checksum`. NULL means format 1,
+    // which every version approved before this column existed used and keeps using forever.
+    manifestFormat: integer('manifest_format'),
     // RUL-02 "reviewer" -- the account that approved/froze this version's
     // content. `authoredByAccountId` below is the DRAFT's own author; RUL-02's
     // "author and reviewer must be distinct" (authoritative public packs
@@ -2302,9 +2315,24 @@ export const packRequirements = pgTable(
     // cause). Set when an admin re-checks a source and finds it unreachable;
     // cleared if a later re-check succeeds.
     sourceInaccessibleAt: timestamp('source_inaccessible_at', { withTimezone: true }),
+    // UMPE P1 (ADR 0026 D3). Authored necessity; NULL is a legacy row read from `optional`.
+    // When set, `optional` is written to agree with it so older readers keep agreeing.
+    necessity: requirementNecessity('necessity'),
+    // Who asked for it; NULL means an official requirement.
+    provenance: requirementProvenance('provenance'),
+    // Alternatives: rows of one version sharing a group key form one obligation that any one
+    // member satisfies (`group_mode` ANY_OF, the only mode in v1). Both set or both empty.
+    groupKey: text('group_key'),
+    groupMode: requirementGroupMode('group_mode'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index('pack_requirements_version_idx').on(table.packVersionId)],
+  (table) => [
+    index('pack_requirements_version_idx').on(table.packVersionId),
+    check(
+      'pack_requirements_group_key_with_mode',
+      sql`(${table.groupKey} is null) = (${table.groupMode} is null)`,
+    ),
+  ],
 );
 
 // NTF-01 (Part 5 §1): "Default expiry reminder thresholds: 90/60/30/7/expiry

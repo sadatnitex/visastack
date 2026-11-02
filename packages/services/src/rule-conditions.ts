@@ -266,8 +266,20 @@ function isValidOperand(operand: unknown): operand is RuleOperand {
  * trusted -- "treat source/rule text as untrusted content" (directive §12).
  * Rejects anything that isn't one of the allowlisted operator shapes,
  * including an unknown `op` value, rather than passing it through.
+ *
+ * UMPE P1 (R07): nesting deeper than `MAX_RULE_CONDITION_DEPTH` and/or/not
+ * levels is refused too, so a crafted rule can never exhaust the stack of
+ * the checker or the evaluator. Real route rules nest a few levels at most.
  */
 export function isValidRuleCondition(input: unknown): input is RuleCondition {
+  return isValidAtDepth(input, 0);
+}
+
+/** The deepest and/or/not nesting a rule may have. */
+export const MAX_RULE_CONDITION_DEPTH = 16;
+
+function isValidAtDepth(input: unknown, depth: number): input is RuleCondition {
+  if (depth > MAX_RULE_CONDITION_DEPTH) return false;
   if (!isPlainObject(input)) return false;
   const { op, field, value, values, date, than, from, to, days, min, max, conditions, condition } =
     input;
@@ -334,11 +346,13 @@ export function isValidRuleCondition(input: unknown): input is RuleCondition {
     case 'and':
     case 'or':
       return (
-        Array.isArray(conditions) && conditions.length > 0 && conditions.every(isValidRuleCondition)
+        Array.isArray(conditions) &&
+        conditions.length > 0 &&
+        conditions.every((inner) => isValidAtDepth(inner, depth + 1))
       );
 
     case 'not':
-      return isValidRuleCondition(condition);
+      return isValidAtDepth(condition, depth + 1);
 
     default:
       return false;

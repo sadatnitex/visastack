@@ -24,9 +24,13 @@ import { type Db, schema } from './db';
  * pack may still be theirs: it is listed for the person to pick, marked as not known to cover
  * them, and never linked on its own.
  *
- * A pack's `route` is not compared: a case has no route of its own. Two packs for different
- * routes of the same country and purpose are two fitting packs, so nothing is linked and the
- * person picks.
+ * A pack's `route` (UMPE P1, R05) is compared when the caller knows the case's route: a pack
+ * for another route is left out. A pack that names a route while the case's route is not known
+ * may still be the right one, so it is listed, marked as not known to fit the route, and never
+ * linked on its own (the same rule as an unknown nationality or residence). A pack with no
+ * route does not narrow by route. Cases have no route field yet, so today every route-specific
+ * pack is offered for the person to pick rather than linked. Two packs for different routes of
+ * the same country and purpose are two fitting packs, so nothing is linked and the person picks.
  *
  * Only an authoritative public pack counts (`packs.authoritative`, the reviewed public catalogue,
  * with no owning agency): an agency's own checklist, including one whose agency was deleted, is
@@ -57,6 +61,11 @@ export interface PackMatchTerms {
   readonly purpose: readonly string[];
   /** Who the case is for, so a pack meant for other people is left out. */
   readonly traveller: TravellerMatchTerms;
+  /**
+   * Every name that may stand for the case's route (visa type or subroute), when known. Omitted
+   * or empty means the route is not known: a route-specific pack is then listed, never linked.
+   */
+  readonly route?: readonly string[];
 }
 
 export interface PackMatch {
@@ -68,6 +77,11 @@ export interface PackMatch {
    * False when it may cover them but their nationality or residence is not known.
    */
   readonly coversTraveller: boolean;
+  /**
+   * True when the pack names no route, or names the case's known route. False when it names a
+   * route and the case's route is not known, so it may fit but is never linked on its own.
+   */
+  readonly coversRoute: boolean;
 }
 
 /** The traveller's confirmed values, as they were saved. */
@@ -113,6 +127,20 @@ function coverage(
 }
 
 /**
+ * Whether a pack's route fits the case's: no route on the pack covers every route; a known route
+ * fits only when the names match; an unknown case route may fit.
+ */
+function routeFit(
+  packRoute: string | null,
+  caseRoutes: ReadonlySet<string>,
+): 'covers' | 'may' | 'excludes' {
+  const named = packMatchKey(packRoute ?? '');
+  if (named.length === 0) return 'covers';
+  if (caseRoutes.size === 0) return 'may';
+  return caseRoutes.has(named) ? 'covers' : 'excludes';
+}
+
+/**
  * Every published catalogue pack that fits this country and purpose and is not known to be meant
  * for other people, newest version of each, in name order.
  */
@@ -128,6 +156,7 @@ export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Pro
     keys: keySet(terms.traveller.residence.terms),
     known: terms.traveller.residence.known,
   };
+  const routes = keySet(terms.route ?? []);
 
   const rows = await db
     .selectDistinctOn([schema.packVersions.packId], {
@@ -135,6 +164,7 @@ export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Pro
       packName: schema.packs.name,
       jurisdiction: schema.packs.jurisdiction,
       purpose: schema.packs.purpose,
+      route: schema.packs.route,
       nationalityApplicability: schema.packs.nationalityApplicability,
       residenceApplicability: schema.packs.residenceApplicability,
       packVersionId: schema.packVersions.id,
@@ -165,11 +195,14 @@ export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Pro
     const byNationality = coverage(row.nationalityApplicability, nationality);
     const byResidence = coverage(row.residenceApplicability, residence);
     if (byNationality === 'excludes' || byResidence === 'excludes') continue;
+    const byRoute = routeFit(row.route, routes);
+    if (byRoute === 'excludes') continue;
     fitting.push({
       packVersionId: row.packVersionId,
       packName: row.packName,
       version: row.version,
       coversTraveller: byNationality === 'covers' && byResidence === 'covers',
+      coversRoute: byRoute === 'covers',
     });
   }
   return fitting.sort((a, b) => a.packName.localeCompare(b.packName, 'en'));
@@ -177,7 +210,7 @@ export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Pro
 
 /**
  * The one published catalogue pack to link on its own, or null. It is linked only when it is the
- * only pack that may fit and it is known to cover the traveller; otherwise the person picks:
+ * only pack that may fit and it is known to cover the traveller and the case's route; otherwise the person picks:
  * guessing between routes, or for someone the pack may not be meant for, would put the wrong list
  * in front of them.
  */
@@ -186,7 +219,7 @@ export async function findMatchingPublicPack(
   terms: PackMatchTerms,
 ): Promise<PackMatch | null> {
   const [only, ...others] = await listFittingPublicPacks(db, terms);
-  return only && others.length === 0 && only.coversTraveller ? only : null;
+  return only && others.length === 0 && only.coversTraveller && only.coversRoute ? only : null;
 }
 
 /**

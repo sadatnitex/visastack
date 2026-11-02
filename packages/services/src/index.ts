@@ -673,6 +673,7 @@ export {
 } from './feedback';
 
 export {
+  type ManifestFormat,
   type Pack,
   type PackRequirement,
   type PackVersion,
@@ -692,6 +693,7 @@ export {
   clearRequirementSourceInaccessible,
   createPack,
   diffPackVersions,
+  getManifestFormat,
   getPack,
   getPackVersion,
   getPublicTrustRoute,
@@ -701,6 +703,8 @@ export {
   listPublicTrustPublished,
   listPublishedPackVersions,
   listRequirements,
+  manifestFormatFor,
+  manifestFormatOf,
   markOfficialFeeStale,
   markRequirementSourceInaccessible,
   publishPackVersion,

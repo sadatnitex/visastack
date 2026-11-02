@@ -1,4 +1,12 @@
-import { tripChecksApply, tripChecksNeedingAction } from '@visastack/core';
+import {
+  ANY_OF_LABEL,
+  NECESSITY_LABELS,
+  PROVENANCE_LABELS,
+  type RequirementNecessity,
+  type RequirementProvenance,
+  tripChecksApply,
+  tripChecksNeedingAction,
+} from '@visastack/core';
 import { aiAppLabel } from '@visastack/core/ai-features';
 import { createTranslator } from '@visastack/i18n';
 import {
@@ -289,6 +297,11 @@ interface RequirementDetailRow {
   readonly publisher: string | null;
   readonly observedDate: string | null;
   readonly sourceInaccessible: boolean;
+  /** UMPE P1: present only when authored; a legacy requirement shows exactly what it did. */
+  readonly necessity?: RequirementNecessity;
+  readonly provenance?: RequirementProvenance;
+  readonly groupKey?: string;
+  readonly coveredByAlternative?: true;
 }
 
 export default async function MissionPage({
@@ -443,6 +456,10 @@ export default async function MissionPage({
           publisher: row?.publisher ?? null,
           observedDate: row?.observedDate ? row.observedDate.toISOString() : null,
           sourceInaccessible: row?.sourceInaccessibleAt != null,
+          ...(r.necessity ? { necessity: r.necessity } : {}),
+          ...(r.provenance ? { provenance: r.provenance } : {}),
+          ...(r.groupKey ? { groupKey: r.groupKey } : {}),
+          ...(r.coveredByAlternative ? { coveredByAlternative: true } : {}),
         };
       })
       .sort(
@@ -476,13 +493,16 @@ export default async function MissionPage({
         !r.optional &&
         (r.state === 'CRITICAL_GAP' || r.state === 'CONFLICTING' || r.state === 'EXPIRING_STALE'),
     );
-    const requiredHardGapCount = requiredHardGaps.length;
+    // A group of alternatives is one item to provide, however many alternatives it lists.
+    const itemKey = (r: RequirementDetailRow) =>
+      r.groupKey ? `group:${r.groupKey}` : r.packRequirementId;
+    const requiredHardGapCount = new Set(requiredHardGaps.map(itemKey)).size;
     // The first in checklist order: the Next Step names it.
     const firstHardGap = requiredHardGaps[0];
     const firstHardGapLabel = firstHardGap ? requirementLabel(firstHardGap) : null;
-    const requiredUnverifiedCount = requirementDetails.filter(
-      (r) => !r.optional && r.state === 'UNVERIFIED',
-    ).length;
+    const requiredUnverifiedCount = new Set(
+      requirementDetails.filter((r) => !r.optional && r.state === 'UNVERIFIED').map(itemKey),
+    ).size;
     // Commercial V1 Part 4 §13: "An independent traveller may self-review:
     // label it self-reviewed." No organisation currently holding an ACTIVE,
     // accepted grant on this applicant means there is no external reviewer
@@ -826,6 +846,19 @@ export default async function MissionPage({
   const requirementRow = (r: RequirementDetailRow) => {
     const meta = REQUIREMENT_STATE_META[r.state];
     const label = requirementLabel(r);
+    // UMPE P1: the other items any one of which would meet the same requirement.
+    // A member whose rule says it does not apply to this case is no alternative.
+    const alternatives =
+      r.groupKey && r.state !== 'NOT_APPLICABLE'
+        ? data.requirementDetails
+            .filter(
+              (o) =>
+                o.groupKey === r.groupKey &&
+                o.packRequirementId !== r.packRequirementId &&
+                o.state !== 'NOT_APPLICABLE',
+            )
+            .map(requirementLabel)
+        : [];
     const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
     const sourceHref = safeHttpUrl(r.sourceUrl);
     const bookingReminder =
@@ -852,10 +885,24 @@ export default async function MissionPage({
         >
           <span className="row-key">
             {label || '(unnamed)'}
-            {r.optional ? ' · optional' : ''}
+            {r.coveredByAlternative
+              ? ' · met by an alternative'
+              : r.necessity
+                ? ` · ${NECESSITY_LABELS[r.necessity]}`
+                : r.optional
+                  ? ' · optional'
+                  : ''}
           </span>
           <span className={`badge ${meta.tone}`}>{meta.label}</span>
         </div>
+        {r.provenance && r.provenance !== 'OFFICIAL' ? (
+          <span className="muted u-fs-085">{PROVENANCE_LABELS[r.provenance]}</span>
+        ) : null}
+        {alternatives.length > 0 ? (
+          <span className="muted u-fs-085">
+            {ANY_OF_LABEL}: {[label, ...alternatives].join(' or ')}
+          </span>
+        ) : null}
         {meta.next ? (
           <span className="muted u-fs-085">
             {meta.next}

@@ -44,6 +44,43 @@ describe('case progress represents preparation and actual workflow state', () =>
     expect(html).toContain('<dt>Needs Review</dt><dd>2</dd>');
     expect(html).toContain('<dt>Not applicable</dt><dd>1</dd>');
   });
+  it('UMPE P1: counts a group of alternatives once, and never a covered alternative', () => {
+    const row = (
+      id: string,
+      state: Readiness['requirementResults'][number]['state'],
+      extra: Partial<Readiness['requirementResults'][number]> = {},
+    ): Readiness['requirementResults'][number] => ({
+      packRequirementId: id,
+      kind: 'DOCUMENT',
+      key: id,
+      optional: false,
+      state,
+      ...extra,
+    });
+    const html = renderToStaticMarkup(
+      <CasePreparationSummary
+        readiness={{
+          ...readiness,
+          requirementResults: [
+            // Met: one alternative on file, the other covered by it.
+            row('a1', 'SATISFIED', { groupKey: 'funds' }),
+            row('a2', 'ATTENTION', {
+              groupKey: 'funds',
+              optional: true,
+              coveredByAlternative: true,
+            }),
+            // Unmet: counted once, under its most urgent state.
+            row('b1', 'CRITICAL_GAP', { groupKey: 'id' }),
+            row('b2', 'UNVERIFIED', { groupKey: 'id' }),
+          ],
+        }}
+        acknowledged={false}
+      />,
+    );
+    expect(html).toContain('<dt>Missing required</dt><dd>1</dd>');
+    expect(html).toContain('<dt>Unknown applicability</dt><dd>0</dd>');
+    expect(html).toContain('<dt>Optional not provided</dt><dd>0</dd>');
+  });
   it('does not claim 100 percent when no required items exist', () => {
     const html = renderToStaticMarkup(
       <CasePreparationSummary
