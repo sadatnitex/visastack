@@ -205,6 +205,8 @@ const { ContributorRequestsPanel } = await import(
 );
 const missionButtons = await import('../app/app/mission/[id]/mission-buttons');
 const { OutcomePanel } = await import('../app/app/mission/[id]/outcome-panel');
+const packageForms = await import('../app/app/mission/[id]/package-forms');
+const { TripStartForm } = await import('../app/app/mission/start/start-form');
 const { ExplainGapButton } = await import('../app/app/mission/[id]/readiness-gap-explain');
 const { AcknowledgementPanel } = await import(
   '../app/app/mission/[id]/snapshots/[snapshotId]/acknowledgement-panel'
@@ -832,6 +834,68 @@ const CASES_MISSION: readonly Case[] = [
         ]}
       />
     ),
+  },
+  {
+    name: 'choose what a trip package item uses',
+    element: () => (
+      <packageForms.PackageItemChoiceForm
+        missionId="m1"
+        packRequirementId="r1"
+        itemName="Hotel Booking"
+        options={[{ value: 'd:v1', label: 'Use Hotel Booking (2026-10-01)' }]}
+        current="d:v1"
+        canExclude
+        hasChoice
+      />
+    ),
+    fields: ['choice', 'reason'],
+  },
+  {
+    name: 'choose what a required trip package item uses',
+    element: () => (
+      <packageForms.PackageItemChoiceForm
+        missionId="m1"
+        packRequirementId="r2"
+        itemName="Passport"
+        options={[]}
+        current="missing"
+        canExclude={false}
+        hasChoice={false}
+      />
+    ),
+    fields: ['choice'],
+  },
+  {
+    name: 'mark a trip package change as reviewed',
+    element: () => <packageForms.PackageChangeReviewedForm missionId="m1" />,
+  },
+  {
+    name: 'prepare a trip package for handoff',
+    element: () => <packageForms.PackageHandoffForm missionId="m1" />,
+    fields: ['outsideStepsSeen'],
+  },
+  {
+    name: 'start a trip',
+    element: () => (
+      <TripStartForm
+        countries={[
+          { iso2: 'JP', name: 'Japan' },
+          { iso2: 'TH', name: 'Thailand' },
+        ]}
+        purposes={[
+          {
+            family: 'visit',
+            label: 'Visit',
+            options: [{ key: 'tourism', label: 'Tourism' }],
+          },
+        ]}
+        travellers={[
+          { applicantId: 'a1', name: 'Synthetic Traveller' },
+          { applicantId: 'a2', name: 'Synthetic Child' },
+        ]}
+      />
+    ),
+    fields: ['destination', 'purpose', 'traveller'],
   },
   {
     name: 'case details',
