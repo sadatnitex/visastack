@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useId, useRef, useState } from 'react';
+import { useActionState, useEffect, useId, useRef, useState } from 'react';
 import {
   FormMessage,
   type FormResult,
@@ -10,6 +10,7 @@ import {
   useFocusInvalidField,
 } from '../../../components/form-feedback';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../lib/case-choices';
+import { AUTHORITY_SENTENCE } from '../add-applicant-form';
 import {
   addTravellersAction,
   addTripEvidenceAction,
@@ -31,21 +32,12 @@ export interface TripDocumentOption {
   readonly label: string;
 }
 
-/** The ticked-travellers list, controlled so a refused try keeps what was chosen. */
-function TravellerChecklist({
-  legend,
-  travellers,
-  state,
-  messageId,
-  initial,
-}: {
-  readonly legend: string;
-  readonly travellers: readonly TripTravellerOption[];
-  readonly state: FormResult;
-  readonly messageId: string;
-  readonly initial: readonly string[];
-}) {
-  const [chosen, setChosen] = useState<ReadonlySet<string>>(() => new Set(initial));
+/**
+ * The ticked travellers, kept by the form so a refused try keeps what was chosen and a family
+ * member made a moment ago can be ticked for the person.
+ */
+function useChosenTravellers(created: string | undefined) {
+  const [chosen, setChosen] = useState<ReadonlySet<string>>(() => new Set());
   const toggle = (applicantId: string, on: boolean) =>
     setChosen((prev) => {
       const next = new Set(prev);
@@ -53,6 +45,28 @@ function TravellerChecklist({
       else next.delete(applicantId);
       return next;
     });
+  useEffect(() => {
+    if (created) setChosen((prev) => new Set(prev).add(created));
+  }, [created]);
+  return { chosen, toggle };
+}
+
+/** The ticked-travellers list, controlled by the form that owns it. */
+function TravellerChecklist({
+  legend,
+  travellers,
+  state,
+  messageId,
+  chosen,
+  onToggle,
+}: {
+  readonly legend: string;
+  readonly travellers: readonly TripTravellerOption[];
+  readonly state: FormResult;
+  readonly messageId: string;
+  readonly chosen: ReadonlySet<string>;
+  readonly onToggle: (applicantId: string, on: boolean) => void;
+}) {
   return (
     <fieldset className="trip-travellers-choice">
       <legend className="label">{legend}</legend>
@@ -63,12 +77,119 @@ function TravellerChecklist({
             name="traveller"
             value={t.applicantId}
             checked={chosen.has(t.applicantId)}
-            onChange={(e) => toggle(t.applicantId, e.target.checked)}
+            onChange={(e) => onToggle(t.applicantId, e.target.checked)}
             {...(index === 0 ? fieldProblem(state, 'traveller', messageId) : {})}
           />
           <span>{t.name}</span>
         </label>
       ))}
+    </fieldset>
+  );
+}
+
+/**
+ * Add a Family Member, inside the trip form: a name, how they are related, and the authority
+ * confirmation the Home form asks for. The fields exist only while the section is open, so a
+ * closed section sends nothing. The person is made with the trip, on this account, with their own
+ * case; nothing is shared and no account is made for them.
+ */
+function FamilyMemberFields({
+  state,
+  messageId,
+  created,
+  open,
+  onOpenChange,
+}: {
+  readonly state: FormResult;
+  readonly messageId: string;
+  readonly created: string | undefined;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+}) {
+  // Opening or closing removes the button the person just pressed, so focus goes where they work.
+  const nameRef = useRef<HTMLInputElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const moved = useRef(false);
+  useEffect(() => {
+    if (!moved.current) return;
+    (open ? nameRef.current : toggleRef.current)?.focus();
+  }, [open]);
+  const show = (next: boolean) => {
+    moved.current = true;
+    onOpenChange(next);
+  };
+  const [kind, setKind] = useState<'FAMILY_MEMBER' | 'MINOR_GUARDIAN'>('FAMILY_MEMBER');
+  const id = useId();
+  // Once the person exists the section closes: their name is in the list above, ticked.
+  useEffect(() => {
+    if (created) onOpenChange(false);
+  }, [created, onOpenChange]);
+  if (!open) {
+    return (
+      <button
+        ref={toggleRef}
+        type="button"
+        className="btn btn-secondary trip-member-toggle"
+        aria-expanded={false}
+        onClick={() => show(true)}
+      >
+        Add a Family Member
+      </button>
+    );
+  }
+  return (
+    <fieldset className="trip-member-fields">
+      <legend className="label">Add a Family Member</legend>
+      <label className="label" htmlFor={`${id}-name`}>
+        Name as on the Passport
+      </label>
+      <input
+        ref={nameRef}
+        id={`${id}-name`}
+        name="newName"
+        required
+        maxLength={120}
+        autoComplete="off"
+        className="input"
+        {...fieldProblem(state, 'newName', messageId)}
+      />
+      <fieldset className="trip-member-kind">
+        <legend className="label">Relationship</legend>
+        <label className="package-check">
+          <input
+            type="radio"
+            name="newKind"
+            value="FAMILY_MEMBER"
+            checked={kind === 'FAMILY_MEMBER'}
+            onChange={() => setKind('FAMILY_MEMBER')}
+            {...fieldProblem(state, 'newKind', messageId)}
+          />
+          <span>Family Member</span>
+        </label>
+        <label className="package-check">
+          <input
+            type="radio"
+            name="newKind"
+            value="MINOR_GUARDIAN"
+            checked={kind === 'MINOR_GUARDIAN'}
+            onChange={() => setKind('MINOR_GUARDIAN')}
+          />
+          <span>Minor (Guardian)</span>
+        </label>
+      </fieldset>
+      <label className="package-check">
+        <input
+          type="checkbox"
+          name="newAuthority"
+          value="true"
+          required
+          {...fieldProblem(state, 'newAuthority', messageId)}
+        />
+        <span>{AUTHORITY_SENTENCE}</span>
+      </label>
+      <button type="button" className="btn btn-secondary" onClick={() => show(false)}>
+        Cancel
+      </button>
     </fieldset>
   );
 }
@@ -96,6 +217,8 @@ export function GroupTripStartForm({
   const messageId = `${id}-msg`;
   const [destination, setDestination] = useState('');
   const [purpose, setPurpose] = useState('');
+  const { chosen, toggle } = useChosenTravellers(state.created);
+  const [adding, setAdding] = useState(false);
   return (
     <form ref={form} action={formAction} className="trip-start-form">
       <label className="label" htmlFor={`${id}-destination`}>
@@ -147,7 +270,15 @@ export function GroupTripStartForm({
         travellers={travellers}
         state={state}
         messageId={messageId}
-        initial={[]}
+        chosen={chosen}
+        onToggle={toggle}
+      />
+      <FamilyMemberFields
+        state={state}
+        messageId={messageId}
+        created={state.created}
+        open={adding}
+        onOpenChange={setAdding}
       />
       <p className="muted u-fs-085 u-m-0">
         Each traveller keeps their own case, documents and privacy. Nothing is shared between
@@ -161,7 +292,11 @@ export function GroupTripStartForm({
   );
 }
 
-/** Add Travellers: more of the account holder's own travellers, each with their own case. */
+/**
+ * Add Travellers: more of the account holder's own people, each with their own case, or a family
+ * member added right here. When everyone they manage is already on the trip, the form is the
+ * family member section alone.
+ */
 export function AddTravellersForm({
   tripId,
   travellers,
@@ -177,20 +312,39 @@ export function AddTravellersForm({
   useFocusInvalidField(form, state);
   const id = useId();
   const messageId = `${id}-msg`;
+  const { chosen, toggle } = useChosenTravellers(state.created);
+  const [adding, setAdding] = useState(false);
+  const nobodyToTick = travellers.length === 0;
   return (
     <form ref={form} action={formAction} className="trip-add-form">
       <input type="hidden" name="tripId" value={tripId} />
-      <TravellerChecklist
-        // A new list of travellers (one added or removed) starts with nothing ticked.
-        key={travellers.map((t) => t.applicantId).join(',')}
-        legend="Who Else Is Travelling?"
-        travellers={travellers}
+      {travellers.length > 0 ? (
+        <TravellerChecklist
+          legend="Who Else Is Travelling?"
+          travellers={travellers}
+          state={state}
+          messageId={messageId}
+          chosen={chosen}
+          onToggle={toggle}
+        />
+      ) : (
+        <p className="u-m-0">Everyone you manage is already on this trip.</p>
+      )}
+      <FamilyMemberFields
         state={state}
         messageId={messageId}
-        initial={[]}
+        created={state.created}
+        open={adding}
+        onOpenChange={setAdding}
       />
       <div>
-        <SubmitButton pending={pending} idle="Add Travellers" busy="Adding…" />
+        {nobodyToTick && !adding ? null : (
+          <SubmitButton
+            pending={pending}
+            idle={nobodyToTick ? 'Add Family Member' : 'Add Travellers'}
+            busy="Adding…"
+          />
+        )}
         <FormMessage id={messageId} result={state} />
       </div>
     </form>

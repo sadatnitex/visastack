@@ -6,6 +6,7 @@ import {
   accountPrincipal,
   addTravellerToTrip,
   addTripEvidence,
+  createApplicant,
   removeTravellerFromTrip,
   removeTripEvidence,
   requireAccess,
@@ -19,6 +20,7 @@ import { caseCountry, casePurpose } from '../../../lib/case-choices';
 import { reportServerError } from '../../../lib/server-error';
 import { withSession } from '../../../lib/session';
 import { linkTripChecklist } from './trip-checklist';
+import { tripExists } from './trip-data';
 
 /**
  * UMPE P5: the group trip actions. Every one runs through the access gate as the owner of the one
@@ -43,6 +45,86 @@ function ticked(formData: FormData): string[] {
         .filter((v) => UUID.test(v)),
     ),
   ].slice(0, TRIP_MAX_TRAVELLERS);
+}
+
+/** The most characters a person's name may have (the trip service uses the same limit). */
+const NAME_MAX = 120;
+
+type ManagedKind = 'FAMILY_MEMBER' | 'MINOR_GUARDIAN';
+
+/** The "Add a Family Member" part of a form: absent, refused with a reason, or ready to make. */
+type NewMember =
+  | { readonly status: 'none' }
+  | { readonly status: 'refused'; readonly result: ActionState }
+  | { readonly status: 'ready'; readonly name: string; readonly kind: ManagedKind };
+
+/**
+ * Reads the family member typed into a trip form. The fields exist only while the section is
+ * open, so their absence means nobody is being added. A person is made only with a name, a
+ * relationship that is not "myself", and the same authority confirmation the Home form asks for.
+ */
+function readNewMember(formData: FormData): NewMember {
+  if (!formData.has('newName')) return { status: 'none' };
+  const refuse = (message: string, field: string): NewMember => ({
+    status: 'refused',
+    result: { ok: false, message, field },
+  });
+  const name = String(formData.get('newName') ?? '').trim();
+  if (name === '') return refuse('Enter their name, or close Add a Family Member.', 'newName');
+  if (name.length > NAME_MAX) return refuse(`Keep the name to ${NAME_MAX} characters.`, 'newName');
+  const kind = formData.get('newKind');
+  if (kind !== 'FAMILY_MEMBER' && kind !== 'MINOR_GUARDIAN') {
+    return refuse('Choose Family Member or Minor (Guardian).', 'newKind');
+  }
+  if (formData.get('newAuthority') !== 'true') {
+    return refuse('Confirm you have authority to create this record.', 'newAuthority');
+  }
+  return { status: 'ready', name, kind };
+}
+
+/** Whether the account holder manages every one of these travellers (checked before anything is made). */
+async function managesAll(db: Db, accountId: string, applicantIds: readonly string[]) {
+  for (const applicantId of applicantIds) {
+    if (!(await travellerProof(db, accountId, applicantId)).ok) return false;
+  }
+  return true;
+}
+
+/**
+ * Makes the family member the person typed, owned by the signed-in account and with the authority
+ * they confirmed, through the same service the Home form uses. Nothing is shared and no account
+ * is created for them.
+ */
+async function makeMember(
+  db: Db,
+  accountId: string,
+  member: Extract<NewMember, { status: 'ready' }>,
+): Promise<{ readonly applicantId: string } | { readonly refused: ActionState }> {
+  const made = await createApplicant(db, {
+    actorAccountId: accountId,
+    ownerAccountId: accountId,
+    displayName: member.name,
+    relationship: member.kind,
+    authorityConfirmed: true,
+  });
+  if (!made.ok) {
+    return {
+      refused: {
+        ok: false,
+        message: consentWords(made.error.code, made.error.message),
+        ...(made.error.code === 'invalid' ? { field: 'newName' } : {}),
+      },
+    };
+  }
+  revalidatePath('/app');
+  revalidatePath('/app/applicants');
+  revalidatePath('/app/trips/new');
+  return { applicantId: made.value.id };
+}
+
+/** A failure that comes after a person was made says so, so the form can tick them. */
+function afterMember(result: ActionState, createdId: string | undefined): ActionState {
+  return createdId && !result.ok ? { ...result, created: createdId } : result;
 }
 
 async function travellerProof(db: Db, accountId: string, applicantId: string) {
@@ -105,26 +187,53 @@ export async function startGroupTripAction(
   const purpose = casePurpose(String(formData.get('purpose') ?? ''));
   if (!purpose) return { ok: false, message: 'Choose why you are travelling.', field: 'purpose' };
   const travellers = ticked(formData);
-  const [firstTraveller, ...others] = travellers;
-  if (!firstTraveller) {
-    return { ok: false, message: 'Choose who is travelling.', field: 'traveller' };
+  const member = readNewMember(formData);
+  if (member.status === 'refused') return member.result;
+  if (travellers.length === 0 && member.status === 'none') {
+    return {
+      ok: false,
+      message: 'Choose who is travelling, or add a family member.',
+      field: 'traveller',
+    };
   }
   let tripId: string | null = null;
   let outcome: ActionState;
   try {
     outcome = await withSession(async ({ db, accountId }) => {
+      // Every ticked traveller is checked before anything is made, so a refused try leaves nothing behind.
+      if (!(await managesAll(db, accountId, travellers))) {
+        return { ok: false, message: TRAVELLER_UNAVAILABLE, field: 'traveller' };
+      }
+      const everyone = [...travellers];
+      let createdId: string | undefined;
+      if (member.status === 'ready') {
+        const made = await makeMember(db, accountId, member);
+        if ('refused' in made) return made.refused;
+        createdId = made.applicantId;
+        everyone.push(made.applicantId);
+      }
+      const [firstTraveller, ...others] = everyone;
+      if (!firstTraveller) return { ok: false, message: TRAVELLER_UNAVAILABLE, field: 'traveller' };
       const proof = await travellerProof(db, accountId, firstTraveller);
-      if (!proof.ok) return { ok: false, message: TRAVELLER_UNAVAILABLE, field: 'traveller' };
+      if (!proof.ok) {
+        return afterMember(
+          { ok: false, message: TRAVELLER_UNAVAILABLE, field: 'traveller' },
+          createdId,
+        );
+      }
       const started = await startGroupTrip(proof.value, {
         destination: country.name,
         purpose: purpose.label,
       });
       if (!started.ok) {
-        return {
-          ok: false,
-          message: `${proof.value.applicant.displayName}: ${consentWords(started.error.code, started.error.message)}`,
-          field: 'traveller',
-        };
+        return afterMember(
+          {
+            ok: false,
+            message: `${proof.value.applicant.displayName}: ${consentWords(started.error.code, started.error.message)}`,
+            field: 'traveller',
+          },
+          createdId,
+        );
       }
       tripId = started.value.tripId;
       if (!started.value.existingCase) {
@@ -181,12 +290,32 @@ export async function addTravellersAction(
   formData: FormData,
 ): Promise<ActionState> {
   const travellers = ticked(formData);
-  if (travellers.length === 0) {
-    return { ok: false, message: 'Choose who else is travelling.', field: 'traveller' };
+  const member = readNewMember(formData);
+  if (member.status === 'refused') return member.result;
+  if (travellers.length === 0 && member.status === 'none') {
+    return {
+      ok: false,
+      message: 'Choose who else is travelling, or add a family member.',
+      field: 'traveller',
+    };
   }
-  const outcome = await onTrip(formData, 'addTravellersAction', (db, accountId, tripId) =>
-    addEach(db, accountId, tripId, travellers),
-  );
+  const outcome = await onTrip(formData, 'addTravellersAction', async (db, accountId, tripId) => {
+    // The trip and every ticked traveller are checked before anyone is made, so a trip that is not
+    // this account's (or a refused try) leaves no record behind.
+    if (!(await tripExists(db, accountId, tripId))) return { ok: false, message: TRIP_UNAVAILABLE };
+    if (!(await managesAll(db, accountId, travellers))) {
+      return { ok: false, message: TRAVELLER_UNAVAILABLE, field: 'traveller' };
+    }
+    const everyone = [...travellers];
+    let createdId: string | undefined;
+    if (member.status === 'ready') {
+      const made = await makeMember(db, accountId, member);
+      if ('refused' in made) return made.refused;
+      createdId = made.applicantId;
+      everyone.push(made.applicantId);
+    }
+    return afterMember(await addEach(db, accountId, tripId, everyone), createdId);
+  });
   if (outcome.ok) backToTrip(String(formData.get('tripId')), 'added');
   return outcome;
 }

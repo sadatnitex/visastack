@@ -14050,3 +14050,31 @@ html:has(.sticky-action-bar) {
     display: none;
   }
 }
+
+/* WP-UMPE-UX6 group trip: Add a Family Member inside the trip forms. The section is a quiet bordered group so it reads as part of the form, and its button sits at the start of the row. */
+.trip-member-toggle {
+  justify-self: start;
+  align-self: flex-start;
+}
+.trip-member-fields {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+.trip-member-fields .btn {
+  justify-self: start;
+  min-height: 44px;
+}
+.trip-member-kind {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
