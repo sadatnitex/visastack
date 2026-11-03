@@ -76,6 +76,7 @@ vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/collection/actions', standIn);
+vi.mock('../app/collect/account/actions', standIn);
 vi.mock('../app/collect/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/plan/invoices/actions', standIn);
 vi.mock('../app/app/applicant/[id]/actions', standIn);
@@ -130,6 +131,7 @@ const packForms = await import('../app/app/admin/packs/pack-forms');
 const packVersionButtons = await import('../app/app/admin/packs/pack-version-buttons');
 const sourceForms = await import('../app/app/admin/packs/sources/source-forms');
 const collectionForms = await import('../app/app/agency/[orgId]/collection/collection-forms');
+const responseForms = await import('../app/collect/account/response-form');
 const guestForms = await import('../app/collect/guest-forms');
 const { PurgeButton } = await import('../app/app/admin/purge-button');
 const { ReconcileButtons } = await import('../app/app/admin/reconcile-buttons');
@@ -2382,6 +2384,68 @@ const ADMIN: readonly Case[] = [
     element: () => <guestForms.RetentionForm agencyName={null} value={30} periods={[3, 7, 30]} />,
   },
   { name: 'leave the guest desk', element: () => <guestForms.LeaveForm /> },
+  {
+    name: 'answer an agency request from your own record',
+    element: () => (
+      <responseForms.ResponseForm
+        personId="p1"
+        linkId="l1"
+        revisionId="v1"
+        consentVersion="umpe-p7-consent-1"
+        consentText="I agree to share only the files and details I chose above with this agency."
+        items={[
+          {
+            id: 'i1',
+            label: 'Passport',
+            meta: 'Mandatory · Official Requirement',
+            note: null,
+            blocking: true,
+            kind: 'DOCUMENT',
+            proposedKey: 'document:v1',
+            initialKeys: ['document:v1'],
+            choices: [
+              {
+                key: 'document:v1',
+                title: 'Passport',
+                label: 'Current Copy',
+                detail: 'Version 1, saved 1 Jan 2027',
+                matches: true,
+              },
+              {
+                key: 'document:v2',
+                title: 'Bank Statement',
+                label: 'Current Copy',
+                detail: 'Version 1, saved 1 Jan 2027',
+                matches: false,
+              },
+            ],
+          },
+          {
+            id: 'i2',
+            label: 'Employer Letter',
+            meta: 'Optional · Requested by Synthetic Agency',
+            note: 'On letterhead',
+            blocking: false,
+            kind: 'DOCUMENT',
+            proposedKey: null,
+            initialKeys: [],
+            choices: [],
+          },
+        ]}
+      />
+    ),
+    fields: ['consent'],
+  },
+  {
+    name: 'withdraw an answer to an agency',
+    element: () => (
+      <responseForms.WithdrawAnswerButton
+        personId="p1"
+        responseId="r1"
+        agencyName="Synthetic Agency"
+      />
+    ),
+  },
   {
     name: 'decide on a detected page change',
     element: () => (

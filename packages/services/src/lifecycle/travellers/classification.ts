@@ -56,6 +56,9 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
   { table: 'sharing_invitations', column: 'applicant_id', kind: 'DATA' },
   { table: 'support_grants', column: 'applicant_id', kind: 'DATA' },
   { table: 'evidence_requests', column: 'applicant_id', kind: 'DATA' },
+  // UMPE P7: a traveller's answer to an agency request (what they chose to share with it).
+  { table: 'agency_collection_responses', column: 'applicant_id', kind: 'DATA' },
+  { table: 'agency_collection_response_withdrawals', column: 'applicant_id', kind: 'DATA' },
   { table: 'contributor_requests', column: 'applicant_id', kind: 'DATA' },
   { table: 'client_invitations', column: 'accepted_applicant_id', kind: 'DATA', unindexed: true },
   { table: 'acknowledgements', column: 'subject_applicant_id', kind: 'DATA', unindexed: true },

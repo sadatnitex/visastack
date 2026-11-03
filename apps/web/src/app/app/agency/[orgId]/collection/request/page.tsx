@@ -9,16 +9,21 @@ import {
   COLLECTION_STATUS_LABELS,
   type CollectionItem,
   type CollectionLinkState,
+  type CollectionResponseView,
   agencyCollectionPrincipal,
+  collectionResponseAccess,
   getCollectionRequest,
   listCollectionPackChoices,
+  protectedDetailsStepUp,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { StatusBadge } from '../../../../../../components/ui';
 import { formatDateOnly, formatTimestampDate } from '../../../../../../lib/format-date';
+import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
+import { establishStepUpProof } from '../../../../../../lib/step-up';
 import {
   AddItemForm,
   EmailLinkForm,
@@ -28,6 +33,7 @@ import {
   NewLinkForm,
   PackChoiceForm,
 } from '../collection-forms';
+import { CollectionResponsesPanel, loadCollectionResponses } from '../collection-response-panel';
 import { STATUS_TONES, collectionPackTerms, destinationName } from '../terms';
 
 export const metadata: Metadata = { title: 'Agency Document Request', referrer: 'no-referrer' };
@@ -76,10 +82,15 @@ export default async function CollectionRequestPage({
   searchParams,
 }: {
   readonly params: Promise<{ orgId: string }>;
-  readonly searchParams: Promise<{ readonly id?: string | string[] }>;
+  readonly searchParams: Promise<{
+    readonly id?: string | string[];
+    readonly file?: string | string[];
+    readonly details?: string | string[];
+  }>;
 }) {
   const { orgId } = await params;
-  const { id } = await searchParams;
+  const { id, file, details } = await searchParams;
+  const revealId = typeof details === 'string' ? details : null;
   const requestId = typeof id === 'string' ? id : '';
   const data = await withSession(async ({ db, accountId }) => {
     const scope = await agencyCollectionPrincipal(db, accountId, orgId);
@@ -95,10 +106,42 @@ export default async function CollectionRequestPage({
           requestId,
           collectionPackTerms(detail.value),
         );
-    return { detail: detail.value, choices: choices?.ok ? choices.value : [] };
+    let responses: CollectionResponseView[] = [];
+    let reauth: string | null = null;
+    if (detail.value.revisions.length > 0) {
+      try {
+        // Protected details open only after a fresh identity check, bound to that one answer.
+        // Only an answer of this very request may ask for the check (never any id in the address).
+        const target = revealId ? await collectionResponseAccess(db, scope.value, revealId) : null;
+        const step =
+          target?.ok && target.value.requestId === requestId
+            ? protectedDetailsStepUp({ accountId, responseId: target.value.responseId })
+            : null;
+        const proof = step
+          ? await establishStepUpProof(
+              step,
+              `/app/agency/${orgId}/collection/request?id=${encodeURIComponent(requestId)}&details=${encodeURIComponent(step.resourceId)}`,
+            )
+          : null;
+        if (proof?.kind === 'reauth_required') reauth = proof.reauthUrl;
+        responses = await loadCollectionResponses(
+          db,
+          scope.value,
+          requestId,
+          step && proof?.kind === 'proof'
+            ? { responseId: step.resourceId, stepUp: proof.proof }
+            : undefined,
+        );
+      } catch (error) {
+        // The answers never take the request page down with them.
+        reportServerError('collectionResponses', error, { step: 'answers failed' });
+      }
+    }
+    return { detail: detail.value, choices: choices?.ok ? choices.value : [], responses, reauth };
   });
   if (!data) notFound();
-  const { detail, choices } = data;
+  if (data.reauth) redirect(data.reauth);
+  const { detail, choices, responses } = data;
   const editable = detail.storedStatus === 'DRAFT' || detail.storedStatus === 'SENT';
   const items = detail.draftItems ?? [];
   const official = detail.draftPack !== null;
@@ -244,6 +287,15 @@ export default async function CollectionRequestPage({
             />
           </div>
         </section>
+      ) : null}
+
+      {detail.revisions.length > 0 ? (
+        <CollectionResponsesPanel
+          organizationId={orgId}
+          requestId={detail.id}
+          responses={responses}
+          fileUnavailable={file === 'unavailable'}
+        />
       ) : null}
 
       {detail.links.length > 0 ? (

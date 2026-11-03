@@ -113,7 +113,9 @@ export async function GET(
   // (EVI-06/SEC-05: "redemption must recheck access"). A grant revoked, a
   // membership deactivated, or a document version erased since mint all
   // fail here even though both tokens' own signatures remain valid.
-  const recheck = await recheckDocumentAccess(db, accessTokenFields);
+  // The key asked for must be the stored object of exactly the version the access token names, so
+  // the two tokens on a link can never be mixed from two different links.
+  const recheck = await recheckDocumentAccess(db, accessTokenFields, new Date(), key);
   if (!recheck.allowed) {
     return new Response('forbidden', { status: 403 });
   }
