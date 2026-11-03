@@ -148,6 +148,10 @@ export default async function ApplicantOverviewPage({
   const attention = requests.length + readings.length + appSuggestions.length + flagged.length;
   // The three first steps to being ready to apply, in the order a new traveller takes them. Shown
   // only while one is left, and only when the three can be read (never a step guessed as undone).
+  // A file blocked by the safety check is not an added document, and a case that has finished is
+  // still a case started: the steps never send a returning traveller back to the beginning.
+  const cleanDocuments = documents.filter((d) => d.safetyStatus !== 'QUARANTINED');
+  const casesEver = data.missions.ok ? data.missions.value.length : 0;
   const pathSteps = [
     {
       key: 'essentials',
@@ -160,28 +164,29 @@ export default async function ApplicantOverviewPage({
     },
     {
       key: 'document',
-      title: documents.length > 0 ? 'Document Added' : 'Add a Document',
-      line: documents.length
-        ? `${plural(documents.length, 'document')} in your wallet`
+      title: cleanDocuments.length > 0 ? 'Document Added' : 'Add a Document',
+      line: cleanDocuments.length
+        ? `${plural(cleanDocuments.length, 'document')} in your wallet`
         : 'Start with your passport. It takes a minute.',
       href: `/app/applicant/${id}/documents/add`,
-      done: documents.length > 0,
+      done: cleanDocuments.length > 0,
     },
     {
       key: 'case',
-      title: data.active.length > 0 ? 'Case Started' : 'Start a Case',
+      title: casesEver > 0 ? 'Case Started' : 'Start a Case',
       line: data.active.length
         ? `${plural(data.active.length, 'active case')}`
-        : 'Check your documents against one visa route',
+        : casesEver > 0
+          ? 'Started before'
+          : 'Check your documents against one visa route',
       href: `/app/applicant/${id}/missions#start-case`,
-      done: data.active.length > 0,
+      done: casesEver > 0,
     },
   ];
   const pathDone = pathSteps.filter((step) => step.done).length;
   const pathNext = pathSteps.find((step) => !step.done)?.key;
   const showPath =
     data.coreGranted && data.documents.ok && data.missions.ok && pathDone < pathSteps.length;
-  const firstName = data.applicant.displayName.trim().split(/\s+/)[0] ?? '';
   const partial = !data.documents.ok || !data.missions.ok || !data.requests.ok || !data.access.ok;
   const topItem = data.attentionRead?.items[0];
   // The ranking decides first, with Account Home's wording. Without it (a failed read) the page
@@ -409,10 +414,10 @@ export default async function ApplicantOverviewPage({
                 <article className="card home-path" aria-labelledby="home-path-title">
                   <h3 id="home-path-title">
                     {pathDone === 0
-                      ? `Welcome, ${firstName}. Three Steps to Get Ready`
+                      ? 'Three Steps to Get Ready'
                       : `${pathDone} of ${pathSteps.length} Steps Done. Keep Going`}
                   </h3>
-                  <ol className="home-path-steps">
+                  <ol className="home-path-steps" aria-label="Steps to get ready">
                     {pathSteps.map((step, index) => (
                       <li key={step.key}>
                         <Link className="home-path-step plain-link" href={step.href}>
@@ -423,6 +428,9 @@ export default async function ApplicantOverviewPage({
                             {step.done ? '\u2713' : index + 1}
                           </span>
                           <span className="home-path-text">
+                            <span className="sr-only">
+                              Step {index + 1} of {pathSteps.length}.
+                            </span>
                             <strong>{step.title}</strong>
                             <span className="muted">{step.line}</span>
                           </span>
