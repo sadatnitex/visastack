@@ -1,7 +1,6 @@
-import { countHeldFiles } from '@visastack/services';
+import { type Db, countHeldFiles } from '@visastack/services';
 import Link from 'next/link';
 import { openOwnerGate } from '../../lib/owner-gate';
-import { withSession } from '../../lib/session';
 
 /** The one line's words: "1 File Needs a Person", "3 Files Need a Person". */
 export function heldFilesLabel(count: number): string {
@@ -9,18 +8,36 @@ export function heldFilesLabel(count: number): string {
 }
 
 /**
- * UMPE G4: one line on Home and on a traveller's Home while family files wait for Which Person?,
- * linking to the decision list. It reads its own count through the owner gate for the page's
- * person (the files belong to the account, so any of its own people opens the same list), and
- * shows nothing when there are none or the count cannot be read.
+ * UMPE G4: how many family files wait for Which Person?, read through the owner gate for one of
+ * the account's own people (the files belong to the account, so any of its people opens the same
+ * list). Never throws: a refused or failed read counts none, and the line is simply not shown.
  */
-export async function HeldFilesLine({ applicantId }: { readonly applicantId: string | undefined }) {
-  if (!applicantId) return null;
-  const count = await withSession(async ({ db, accountId }) => {
-    const gate = await openOwnerGate(db, accountId, applicantId).catch(() => null);
-    return gate ? countHeldFiles(gate).catch(() => 0) : 0;
-  });
-  if (count < 1) return null;
+export async function readHeldFileCount(
+  db: Db,
+  accountId: string,
+  applicantId: string | undefined,
+): Promise<number> {
+  if (!applicantId) return 0;
+  try {
+    const gate = await openOwnerGate(db, accountId, applicantId);
+    return gate ? await countHeldFiles(gate) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * UMPE G4: one line on Home and on a traveller's Home while family files wait for Which Person?,
+ * linking to the decision list. Nothing when there are none.
+ */
+export function HeldFilesLine({
+  applicantId,
+  count,
+}: {
+  readonly applicantId: string | undefined;
+  readonly count: number;
+}) {
+  if (!applicantId || !(count > 0)) return null;
   return (
     <p className="umpe-g4-held-line">
       <Link href={`/app/applicant/${applicantId}/documents#needs-decision`}>

@@ -68,7 +68,7 @@ import {
   FirstRunTask,
   SETUP_LATER_HREF,
 } from '../first-run';
-import { HeldFilesLine } from '../held-files-line';
+import { HeldFilesLine, readHeldFileCount } from '../held-files-line';
 import { TidyUpCard, tidyUpLine } from './tidy-up';
 
 export const metadata: Metadata = { title: 'Account Overview' };
@@ -271,6 +271,8 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     applicants,
     perApplicant,
     tidyUp: tidyUpSummary(perApplicant),
+    // UMPE G4: family files waiting for Which Person? (never throws; a failed read counts none).
+    heldFiles: await readHeldFileCount(db, accountId, perApplicant[0]?.applicant.id),
     clock,
     readinessByCase,
     unreadableCases,
@@ -664,7 +666,9 @@ export default async function AppPage({
 
         {coreGranted && data.tidyUp ? <TidyUpCard {...data.tidyUp} /> : null}
         {/* UMPE G4: family files waiting for Which Person? (one line, nothing when none). */}
-        {coreGranted ? <HeldFilesLine applicantId={data.perApplicant[0]?.applicant.id} /> : null}
+        {coreGranted ? (
+          <HeldFilesLine applicantId={data.perApplicant[0]?.applicant.id} count={data.heldFiles} />
+        ) : null}
 
         {coreGranted && rest.length > 0 ? (
           <section

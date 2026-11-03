@@ -38,7 +38,7 @@ import {
   loadDeadlineEntries,
   validUntilLine,
 } from '../../deadline-clock-data';
-import { HeldFilesLine } from '../../held-files-line';
+import { HeldFilesLine, readHeldFileCount } from '../../held-files-line';
 import { TravellerLifecycleBar } from './traveller-manage/lifecycle-bar';
 import { loadTravellerManage } from './traveller-manage/load';
 import { OUTCOME_PARAM } from './traveller-manage/messages';
@@ -88,6 +88,8 @@ export default async function ApplicantOverviewPage({
         return null;
       }
     })();
+    // UMPE G4: family files waiting for Which Person?; never throws (a failed read counts none).
+    const heldFilesRead = readHeldFileCount(db, accountId, id);
     // Archive, Restore and Remove Empty Record (LC-E); null hides them. Never throws.
     const manageReading = loadTravellerManage(db, accountId, id);
     const [profile, documents, coreGranted, proposals, missions, requests, access, sectionChoices] =
@@ -122,6 +124,7 @@ export default async function ApplicantOverviewPage({
       readiness,
       sectionChoices,
       manage: await manageReading,
+      heldFiles: await heldFilesRead,
     };
   });
   if (!data) notFound();
@@ -324,7 +327,7 @@ export default async function ApplicantOverviewPage({
         ) : null}
         <NextStepCard {...next} />
         {/* UMPE G4: family files waiting for Which Person? (one line, nothing when none). */}
-        <HeldFilesLine applicantId={id} />
+        <HeldFilesLine applicantId={id} count={data.heldFiles} />
         {data.featured ? (
           <p className="muted" data-only="glance">
             Your case: <Link href={`/app/mission/${data.featured.id}`}>{data.featured.title}</Link>
