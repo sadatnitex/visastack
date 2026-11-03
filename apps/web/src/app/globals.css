@@ -13398,7 +13398,8 @@ html:has(.sticky-action-bar) {
 .collect-retention-option:has(input:checked) {
   border-color: var(--text);
   background: var(--bg-subtle);
-  box-shadow: inset 0 0 0 1px var(--text);
+  outline: 1px solid var(--text);
+  outline-offset: -2px;
 }
 .collect-retention-option:has(input:focus-visible) {
   outline: 2px solid var(--text);
