@@ -51,6 +51,8 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
     kind: 'DATA',
     unindexed: true,
   },
+  // UMPE G4: what a file of the traveller's was before it was placed automatically.
+  { table: 'document_auto_placements', column: 'applicant_id', kind: 'DATA' },
   { table: 'document_type_proposals', column: 'applicant_id', kind: 'DATA' },
   { table: 'document_inconsistency_flags', column: 'applicant_id', kind: 'DATA' },
   { table: 'ocr_runs', column: 'applicant_id', kind: 'DATA' },
