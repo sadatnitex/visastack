@@ -12,7 +12,10 @@ export interface AgencyContext {
   readonly id: string;
   readonly name: string;
   readonly admin: boolean;
-  /** An owner or admin with AGENCY_COLLECTION_REQUESTS on: the Document Requests page (UMPE P6). */
+  /**
+   * AGENCY_COLLECTION_REQUESTS on and the member may send requests: an owner or admin (UMPE P6) or
+   * a member an admin gave May Request Documents (UMPE G3). The page itself checks again.
+   */
   readonly collectionRequests?: boolean;
 }
 
@@ -33,6 +36,8 @@ export interface WorkspaceAccess {
     readonly privacy: boolean;
     /** Privacy access and DOCUMENT_REMOVAL_REQUESTS on: the Removal Requests queue (lifecycle lane D). */
     readonly removals?: boolean;
+    /** FEEDBACK_VIEW: the Field Insights page (UMPE P12). */
+    readonly insights?: boolean;
   };
 }
 
@@ -100,6 +105,9 @@ export function workspaceNavigation(
         ...(access.platform.removals === true
           ? [{ href: '/app/admin/removals', label: 'Removal Requests' }]
           : []),
+        ...(access.platform.insights === true
+          ? [{ href: '/app/admin/insights', label: 'Field Insights' }]
+          : []),
         { href: '/app/admin/access', label: 'Platform Access' },
         ...(access.platform.complaints
           ? [{ href: '/app/admin/complaints', label: 'Complaints' }]
@@ -130,7 +138,7 @@ export function workspaceNavigation(
               },
             ]
           : []),
-        ...(agency.admin && agency.collectionRequests === true
+        ...(agency.collectionRequests === true
           ? [{ href: `${base}/collection`, label: 'Document Requests' }]
           : []),
         ...(agency.admin ? [{ href: `${base}/team`, label: 'Team' }] : []),

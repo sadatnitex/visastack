@@ -88,7 +88,7 @@ describe('current contextual navigation contract', () => {
     expect(nav.primary.every((link) => link.href.startsWith(`/app/agency/${o1}`))).toBe(true);
     expect(nav.tools).toContainEqual({ href: `/app/agency/${o1}/plan`, label: 'Plan & Usage' });
   });
-  it('offers Document Requests only to an owner or admin while the switch is on (UMPE P6)', () => {
+  it('offers Document Requests only where the chrome marked the member as a requester (UMPE P6, G3)', () => {
     const at = `/app/agency/${o1}`;
     expect(labels(at)).not.toContain('Document Requests');
     const on = (admin: boolean): WorkspaceAccess => ({
@@ -99,7 +99,14 @@ describe('current contextual navigation contract', () => {
       (item) => item.label === 'Document Requests',
     );
     expect(link?.href).toBe(`/app/agency/${o1}/collection`);
-    expect(labels(at, on(false))).not.toContain('Document Requests');
+    // A member with May Request Documents (G3): the chrome sets the mark, the page checks again.
+    expect(labels(at, on(false))).toContain('Document Requests');
+    // A worker without the mark never sees it, whatever the role flag says.
+    const unmarked: WorkspaceAccess = {
+      ...access,
+      agencies: [{ id: o1, name: 'Synthetic Agency One', admin: true }],
+    };
+    expect(labels(at, unmarked)).not.toContain('Document Requests');
   });
 
   it('does not offer administrator-only agency actions to a case worker', () => {
@@ -129,6 +136,23 @@ describe('current contextual navigation contract', () => {
       'Platform Access',
       'Complaints',
     ]);
+  });
+  it('shows Field Insights only with the feedback permission (UMPE P12)', () => {
+    const tools = (insights: boolean | undefined) =>
+      workspaceNavigation('/app/admin', {
+        ...access,
+        platform: {
+          owner: true,
+          ai: true,
+          complaints: true,
+          audit: true,
+          privacy: true,
+          ...(insights === undefined ? {} : { insights }),
+        },
+      }).tools.map((link) => [link.label, link.href]);
+    expect(tools(undefined).map(([label]) => label)).not.toContain('Field Insights');
+    expect(tools(false).map(([label]) => label)).not.toContain('Field Insights');
+    expect(tools(true)).toContainEqual(['Field Insights', '/app/admin/insights']);
   });
   it('shows Removal Requests after Privacy Operations only when the removal flag is on', () => {
     const tools = (removals: boolean | undefined) =>

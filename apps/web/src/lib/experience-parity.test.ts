@@ -44,7 +44,15 @@ const O = '20000000-0000-4000-8000-000000000013';
 const everything: WorkspaceAccess = {
   travellers: [{ id: P, name: 'Synthetic Self', relationship: 'SELF' }],
   agencies: [{ id: O, name: 'Synthetic Agency', admin: true, collectionRequests: true }],
-  platform: { owner: true, ai: true, complaints: true, audit: true, privacy: true, removals: true },
+  platform: {
+    owner: true,
+    ai: true,
+    complaints: true,
+    audit: true,
+    privacy: true,
+    removals: true,
+    insights: true,
+  },
 };
 const nobody: WorkspaceAccess = { travellers: [], agencies: [], platform: null };
 

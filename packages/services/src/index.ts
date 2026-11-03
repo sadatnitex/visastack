@@ -2865,6 +2865,7 @@ export {
 export {
   type AgencyCollectionAuthority,
   REQUEST_DOCUMENTS_CAPABILITY,
+  collectionAuthorityOf,
   agencyCollectionRequesterScopeProblem,
 } from './access/collection-scope';
 export { setMemberMayRequestDocuments } from './organizations';

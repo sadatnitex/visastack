@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   isPlatformOwnerAccount: vi.fn(),
   hasPlatformPermission: vi.fn(),
   agencyCollectionRequestsEnabled: vi.fn(() => false),
+  collectionAuthorityOf: vi.fn(async () => null),
 }));
 vi.mock('server-only', () => ({}));
 vi.mock('@visastack/services', () => ({
@@ -14,6 +15,7 @@ vi.mock('@visastack/services', () => ({
   listMembershipsForAccount: mocks.listMembershipsForAccount,
   loadWorkspaceToolbarState: mocks.loadWorkspaceToolbarState,
   agencyCollectionRequestsEnabled: mocks.agencyCollectionRequestsEnabled,
+  collectionAuthorityOf: mocks.collectionAuthorityOf,
 }));
 vi.mock('./admin', () => ({
   holdsPlatformRole: mocks.holdsPlatformRole,
@@ -61,6 +63,41 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
       { id: 'work', name: 'Work Agency', admin: false },
     ]);
   });
+  it('marks Document Requests for a member only with May Request Documents, read live (UMPE G3)', async () => {
+    mocks.listMembershipsForAccount.mockResolvedValue([
+      { organization: { id: 'own', name: 'Own Agency' }, active: true, role: 'OWNER' },
+      { organization: { id: 'work', name: 'Work Agency' }, active: true, role: 'CASE_MANAGER' },
+      { organization: { id: 'other', name: 'Other Agency' }, active: true, role: 'REVIEWER' },
+      { organization: { id: 'broken', name: 'Broken Agency' }, active: true, role: 'REVIEWER' },
+    ]);
+    mocks.collectionAuthorityOf.mockImplementation(async (_db, _account, organizationId) => {
+      if (organizationId === 'broken') throw new Error('Unavailable');
+      return organizationId === 'work' ? 'REQUESTER' : null;
+    });
+    mocks.agencyCollectionRequestsEnabled.mockReturnValueOnce(true);
+    const data = await loadWorkspaceChrome({} as never, actor);
+    expect(data.agencies).toEqual([
+      { id: 'own', name: 'Own Agency', admin: true, collectionRequests: true },
+      { id: 'work', name: 'Work Agency', admin: false, collectionRequests: true },
+      { id: 'other', name: 'Other Agency', admin: false },
+      { id: 'broken', name: 'Broken Agency', admin: false },
+    ]);
+    // Owners and admins need no extra read; members are asked about their own agency only.
+    expect(mocks.collectionAuthorityOf.mock.calls.map((call) => call[2])).toEqual([
+      'work',
+      'other',
+      'broken',
+    ]);
+    expect(mocks.collectionAuthorityOf).toHaveBeenCalledWith({}, actor.accountId, 'work');
+  });
+  it('asks nothing about request permission while the switch is off (UMPE G3)', async () => {
+    mocks.listMembershipsForAccount.mockResolvedValue([
+      { organization: { id: 'work', name: 'Work Agency' }, active: true, role: 'CASE_MANAGER' },
+    ]);
+    const data = await loadWorkspaceChrome({} as never, actor);
+    expect(data.agencies).toEqual([{ id: 'work', name: 'Work Agency', admin: false }]);
+    expect(mocks.collectionAuthorityOf).not.toHaveBeenCalled();
+  });
   it('uses the signed-in account name before any traveller record without changing permissions', async () => {
     const namedActor = { ...actor, displayName: 'Synthetic Noor Agency Owner' };
     const data = await loadWorkspaceChrome({} as never, namedActor);
@@ -90,6 +127,7 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
       audit: false,
       privacy: false,
       removals: false,
+      insights: false,
     });
     expect(mocks.isPlatformOwnerAccount).toHaveBeenCalledWith({}, actor);
   });

@@ -3,6 +3,7 @@ import {
   type Db,
   type WorkspaceToolbarState,
   agencyCollectionRequestsEnabled,
+  collectionAuthorityOf,
   listMembershipsForAccount,
   loadWorkspaceToolbarState,
 } from '@visastack/services';
@@ -33,8 +34,27 @@ export async function loadWorkspaceChrome(
         hasPlatformPermission(db, actor, 'COMPLAINT_MANAGE'),
         hasPlatformPermission(db, actor, 'AUDIT_TRAIL_VIEW'),
         hasPlatformPermission(db, actor, 'APPLICANT_DIRECTORY_VIEW'),
+        hasPlatformPermission(db, actor, 'FEEDBACK_VIEW'),
       ])
     : null;
+  // UMPE G3: a member (not an owner or admin) may send document requests only with May Request
+  // Documents; read live per agency, only while the switch is on, and a failed read hides the link.
+  const collectionsOn = agencyCollectionRequestsEnabled();
+  const requesters = new Set<string>();
+  if (collectionsOn) {
+    const members = memberships.filter(
+      (membership) =>
+        membership.active && membership.role !== 'OWNER' && membership.role !== 'ADMIN',
+    );
+    const authorities = await Promise.all(
+      members.map((membership) =>
+        collectionAuthorityOf(db, actor.accountId, membership.organization.id).catch(() => null),
+      ),
+    );
+    members.forEach((membership, index) => {
+      if (authorities[index] === 'REQUESTER') requesters.add(membership.organization.id);
+    });
+  }
   return {
     toolbar,
     accountName:
@@ -60,9 +80,11 @@ export async function loadWorkspaceChrome(
         id: membership.organization.id,
         name: membership.organization.name,
         admin: membership.role === 'OWNER' || membership.role === 'ADMIN',
-        // UMPE P6: shown only to owners and admins, and only while the switch is on.
-        ...((membership.role === 'OWNER' || membership.role === 'ADMIN') &&
-        agencyCollectionRequestsEnabled()
+        // UMPE P6 and G3: owners, admins and members with May Request Documents, switch on only.
+        ...(collectionsOn &&
+        (membership.role === 'OWNER' ||
+          membership.role === 'ADMIN' ||
+          requesters.has(membership.organization.id))
           ? { collectionRequests: true }
           : {}),
       })),
@@ -75,6 +97,8 @@ export async function loadWorkspaceChrome(
           privacy: permissions[4] === true,
           // The removal queue needs privacy access and the owner's switch (lifecycle lane D).
           removals: permissions[4] === true && documentRemovalRequestsOn(),
+          // UMPE P12: Field Insights uses the existing feedback permission.
+          insights: permissions[5] === true,
         }
       : null,
   };

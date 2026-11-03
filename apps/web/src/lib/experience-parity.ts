@@ -158,6 +158,7 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
   '/app/admin/ai': nav,
   '/app/admin/audit': nav,
   '/app/admin/complaints': nav,
+  '/app/admin/insights': nav,
   '/app/admin/members': nav,
   '/app/admin/organizations': nav,
   '/app/admin/packs': nav,
