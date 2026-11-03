@@ -143,14 +143,14 @@ describe('UMPE UX6 trip companions migration', () => {
     ).rejects.toThrow();
   });
 
-  it('follows its trip when the trip is deleted, and leaves a companion row when an account is erased', async () => {
+  it('follows its trip when the trip is deleted, and goes with the account when a joined companion is erased', async () => {
     const client = await seeded();
     await client.exec(row({ state: `'JOINED'`, joined_account_id: `'${GUEST}'` }));
+    // A companion who deletes their account takes their row (email and confirmed name) with it.
     await client.exec(`delete from accounts where id = '${GUEST}'`);
-    const kept = await client.query<{ joined_account_id: string | null }>(
-      'select joined_account_id from umpe_trip_companions',
-    );
-    expect(kept.rows).toEqual([{ joined_account_id: null }]);
+    const erased = await client.query('select 1 from umpe_trip_companions');
+    expect(erased.rows).toHaveLength(0);
+    await client.exec(row({ state: `'NAME_ONLY'` }));
     await client.exec(`delete from umpe_trips where id = '${TRIP}'`);
     const gone = await client.query('select 1 from umpe_trip_companions');
     expect(gone.rows).toHaveLength(0);
