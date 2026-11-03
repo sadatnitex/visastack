@@ -164,9 +164,7 @@ describe('the document insights page', () => {
     expect(text).toContain('Readiness could not be loaded just now.');
     expect(text).toContain('What this case needs could not be loaded just now.');
     expect(text).not.toContain('Choose a visa route');
-    expect(html).toContain(
-      'href="/app/applicant/a1/documents?type=BANK_STATEMENT#document-upload"',
-    );
+    expect(html).toContain('href="/app/applicant/a1/documents/add?type=BANK_STATEMENT"');
     // A restricted document is summarised by section, not by the details it holds.
     expect(text).toMatch(/Passport Protected Backs 1 saved detail in Passport\./);
     expect(text).toContain('Backs 1 saved detail: Job Title.');

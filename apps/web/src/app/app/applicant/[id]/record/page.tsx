@@ -137,7 +137,7 @@ export default async function ApplicantRecordPage({
         description={`Everything saved for ${data.applicant.displayName}, in one place. Find a detail or a document, see which copy is current, then use it in a case or share it.`}
         actions={
           <>
-            <Link className="btn btn-primary" href={`${base}/documents#document-upload`}>
+            <Link className="btn btn-primary" href={`${base}/documents/add`}>
               Add a Document
             </Link>
             <Link className="btn btn-secondary" href={`${base}/profile`}>

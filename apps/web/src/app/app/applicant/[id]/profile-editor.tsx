@@ -768,7 +768,7 @@ function SectionDocuments({
             )}
             <Link
               className="btn btn-secondary"
-              href={`/app/applicant/${applicantId}/documents?type=${document.key}#document-upload`}
+              href={`/app/applicant/${applicantId}/documents/add?type=${document.key}`}
             >
               {document.uploaded ? 'Add Another' : 'Upload'}
               <span className="sr-only"> {document.label}</span>

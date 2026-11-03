@@ -203,7 +203,7 @@ export function travellerEntryPoints(applicantId: string): readonly NavLink[] {
       label: MY_DOCUMENTS,
       // The Record hub and its sections (WP-V3 part 2) are where documents grow into a profile.
       alsoCurrentFor: recordSections(applicantId).map((section) => section.href),
-      action: { href: `${base}/documents#add-document`, label: 'Add Documents' },
+      action: { href: `${base}/documents/add`, label: 'Add Documents' },
     },
     {
       href: `${base}/missions`,

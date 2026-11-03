@@ -145,7 +145,7 @@ describe('each item: its title opens it, and at most one further action', () => 
       const [, item] = build([doc(overrides as Partial<RecordDocumentInput>)]);
       expect(item?.action).toEqual({
         label: 'Update or Replace',
-        href: `${base}/documents?type=passport#document-upload`,
+        href: `${base}/documents/add?type=passport`,
       });
     }
   });
@@ -191,7 +191,7 @@ describe('each item: its title opens it, and at most one further action', () => 
       doc({ typeKey: null, typeLabel: null, groupLabel: '', checked: false }),
     ]);
     expect(item?.group).toBe('Other Documents');
-    expect(item?.action?.href).toBe(`${base}/documents#document-upload`);
+    expect(item?.action?.href).toBe(`${base}/documents/add`);
   });
 
   it('a checked document whose kind needs a choice is never ready, and opens to choose it', () => {

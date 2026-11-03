@@ -7326,3 +7326,13 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Tests: 9 database-backed action tests and 6 form tests; the authority and trip checks proven red then restored. Code review high: 3 findings, fixed.
 - Not verified: a real phone, a screen reader, dark appearance, the live signed-in flow. Step 2 (friends and colleagues with or without an account) needs a database change and the owner's "migrate NNNN" word; the brief is in `docs/umpe/operations/handoffs/UX6-companions-brief.md`.
 
+## 2026-11-03: UMPE UX7 part A (Add Documents is one door, no migration)
+
+- The owner found that Add Documents opened the whole Documents screen and Upload then showed two sections. New page `/app/applicant/[id]/documents/add`: one drop area for files and folders, the camera and kind choice behind one line, three plain "What Happens Next" lines. Every entry point lands there; the Documents page keeps one link card and the old anchors.
+- No upload engine, consent, scan, receipt or approval rule changed. Parity map entries added for the removed Upload Document controls.
+- Parts B (results in place) and C (review and finish) are not built. Not verified: a real phone, a screen reader, dark appearance, the live flow.
+
+## 2026-11-03: UMPE UX5 (what came back, on the agency request list, no migration)
+
+- Owners and admins see an Answers column on the Document Requests list: a total, then Waiting for Review, Needs Correction and Accepted, plus a Waiting for Review filter. Counts only, read through the access directory, bound to the agency, empty for members and for an agency VisaStack has not reviewed. Code review high: 8 findings, 5 fixed and 3 explained. Hand-back: `docs/umpe/operations/handoffs/UX5.md`.
+

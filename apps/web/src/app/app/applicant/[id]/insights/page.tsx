@@ -161,8 +161,7 @@ export default async function DocumentInsightsPage({
   const profileHref = `/app/applicant/${id}/profile`;
   const documentHref = (documentId: string) =>
     `${documentsHref}?document=${encodeURIComponent(documentId)}`;
-  const uploadHref = (kind: string) =>
-    `${documentsHref}?type=${encodeURIComponent(kind)}#document-upload`;
+  const uploadHref = (kind: string) => `${documentsHref}/add?type=${encodeURIComponent(kind)}`;
 
   const toCheck: AttentionEntry[] = [
     ...insights.mismatches.map((mismatch) => {
@@ -579,7 +578,7 @@ export default async function DocumentInsightsPage({
             <EmptyState
               icon="file"
               title="No Documents Yet"
-              action={{ href: `${documentsHref}#document-upload`, label: 'Add a Document' }}
+              action={{ href: `${documentsHref}/add`, label: 'Add a Document' }}
             >
               Add a document and accept what was found in it, and this shows which details it backs.
             </EmptyState>

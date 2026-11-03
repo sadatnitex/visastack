@@ -4929,15 +4929,11 @@ body:has(.auth-shell) > .footer {
   border-radius: 12px;
   padding: 16px;
 }
-.wallet-upload-disclosure,
 .agency-setup-disclosure,
 .agency-attention-disclosure,
 .admin-overview-controls,
 .admin-signals-disclosure {
   margin-block: 16px;
-}
-.wallet-upload-disclosure > div {
-  margin-top: 16px;
 }
 .agency-setup-disclosure > summary,
 .agency-attention-disclosure > summary,
@@ -14094,5 +14090,62 @@ html:has(.sticky-action-bar) {
 @media (max-width: 1180px) {
   .request-table td[data-label="Answers"] {
     grid-column: 1 / -1;
+    grid-row: 4;
   }
+  /* Created stays beside Status on the third line, whether or not the Answers line follows. */
+  .request-table td[data-label="Created"] {
+    grid-row: 3;
+  }
+}
+
+/* WP-UMPE-UX7 Add Documents: one door. The drop area is the whole first view; the ways that need a choice sit behind one quiet line; what happens next is three short numbered lines. Flat, tokens only. */
+.add-door {
+  display: grid;
+  gap: var(--space-4);
+}
+.add-more {
+  min-width: 0;
+}
+.add-more-summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+}
+.add-more[open] > .add-more-summary {
+  margin-bottom: var(--space-3);
+}
+.add-next {
+  margin-top: var(--space-5, 1.5rem);
+}
+.add-next-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: add-step;
+}
+.add-next-list li {
+  position: relative;
+  display: grid;
+  gap: 0.15rem;
+  padding-left: 2.25rem;
+  counter-increment: add-step;
+}
+.add-next-list li::before {
+  content: counter(add-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid var(--edge-control);
+  border-radius: 50%;
+  font-size: var(--text-small);
+  font-weight: 700;
 }

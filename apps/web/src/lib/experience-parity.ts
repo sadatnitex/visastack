@@ -65,6 +65,7 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
   // One traveller: Home and the three entry points, their tasks and More Tools.
   '/app/applicant/[id]': nav,
   '/app/applicant/[id]/documents': nav,
+  '/app/applicant/[id]/documents/add': nav,
   '/app/applicant/[id]/record': nav,
   '/app/applicant/[id]/profile': nav,
   '/app/applicant/[id]/expiry': nav,

@@ -141,8 +141,8 @@ function documentItem(base: string, doc: RecordDocumentInput): RecordItem {
   const view = `${base}/documents?document=${encodeURIComponent(doc.id)}`;
   const share = `${base}/sharing?document=${encodeURIComponent(doc.id)}#new-sharing-request`;
   const replace = doc.typeKey
-    ? `${base}/documents?type=${encodeURIComponent(doc.typeKey)}#document-upload`
-    : `${base}/documents#document-upload`;
+    ? `${base}/documents/add?type=${encodeURIComponent(doc.typeKey)}`
+    : `${base}/documents/add`;
   // One further action, chosen by state: a ready copy can be shared; an old copy points at its
   // replacement instead of being reused; anything else can be updated or replaced.
   const action: RecordAction | null = state.previousVersion
