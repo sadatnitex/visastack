@@ -93,6 +93,7 @@ const SCORECARD_LABELS: Record<ProductEventType, string> = {
   DOCUMENT_DESTROYED: 'Documents Removed for Good',
   REMOVAL_REQUESTED: 'Removal Requests',
   REMOVAL_DECIDED: 'Removal Requests Decided',
+  DOCUMENT_SELF_DELETED: 'Files Deleted by Their Owners',
   TRAVELLER_ARCHIVED: 'Travellers Archived',
   TRAVELLER_RESTORED: 'Travellers Restored',
   TRAVELLER_REMOVED: 'Empty Travellers Removed',
