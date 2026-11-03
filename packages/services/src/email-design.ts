@@ -89,6 +89,11 @@ export interface EmailAgencyBrand {
 /** The longest agency name an email shows; longer names are cut, never wrapped into the layout. */
 const AGENCY_NAME_LIMIT = 120;
 
+/** An agency name as every email writes it: one line, no extra spaces, at most 120 characters. */
+export function cleanAgencyName(name: string | null | undefined): string {
+  return (name ?? '').replace(/\s+/g, ' ').trim().slice(0, AGENCY_NAME_LIMIT).trim();
+}
+
 /**
  * The agency brand an email may show, or null: a name with no line breaks or extra spaces, and an
  * accent only when it is a plain `#rrggbb` colour readable with white text on it (the product's own
@@ -98,7 +103,7 @@ export function emailAgencyBrand(
   brand: EmailAgencyBrand | null | undefined,
 ): { readonly name: string; readonly accent: string | null } | null {
   if (!brand) return null;
-  const name = brand.name.replace(/\s+/g, ' ').trim().slice(0, AGENCY_NAME_LIMIT).trim();
+  const name = cleanAgencyName(brand.name);
   if (name.length === 0) return null;
   const accent =
     typeof brand.accentColor === 'string' && isAccessibleAccentColor(brand.accentColor)

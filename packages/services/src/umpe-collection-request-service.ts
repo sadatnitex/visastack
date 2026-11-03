@@ -4,6 +4,7 @@ import {
   type AgencyCollectionScope,
   CollectionLinkProof,
   agencyCollectionRequesterScopeProblem,
+  agencyCollectionScopeProblem,
   collectionIssuerMayIssue,
 } from './access/collection-scope';
 import { appendAuditEvent } from './audit';
@@ -15,6 +16,9 @@ import { generateInvitationToken, hashInvitationToken } from './invitation-token
 import { isUuid } from './lifecycle/foundation/ids';
 import {
   type CollectionLinkEmailRecord,
+  NO_RECIPIENT_EMAIL,
+  PROVIDER_UNREACHABLE_ERRORS,
+  RECIPIENT_NO_LONGER_AUTHORIZED,
   cancelQueuedNotificationsForResource,
   collectionLinkEmailRecords,
 } from './notifications';
@@ -303,7 +307,10 @@ export async function listCollectionRequests(
     ids.length === 0
       ? []
       : await db
-          .select({ requestId: schema.agencyCollectionLinks.requestId })
+          .select({
+            requestId: schema.agencyCollectionLinks.requestId,
+            createdBy: schema.agencyCollectionLinks.createdByAccountId,
+          })
           .from(schema.agencyCollectionLinks)
           .innerJoin(
             schema.agencyCollectionRequests,
@@ -316,7 +323,15 @@ export async function listCollectionRequests(
               openLinkFilter(now),
             ),
           );
-  const withOpenLink = new Set(open.map((row) => row.requestId));
+  // A link whose sender may no longer send (admin role or May Request Documents gone) is closed.
+  const mayIssue = await issuersWhoMayIssue(
+    db,
+    scope.organizationId,
+    open.map((row) => row.createdBy),
+  );
+  const withOpenLink = new Set(
+    open.filter((row) => row.createdBy && mayIssue.has(row.createdBy)).map((row) => row.requestId),
+  );
   return ok(
     rows.map((row) => ({
       id: row.id,
@@ -373,6 +388,7 @@ export type CollectionEmailReason =
   | 'LINK_CLOSED'
   | 'NO_ADDRESS'
   | 'PROVIDER_REFUSED'
+  | 'PROVIDER_UNREACHABLE'
   | 'STOPPED'
   | 'NOT_QUEUED';
 
@@ -409,13 +425,19 @@ export const COLLECTION_EMAIL_REASON_LABELS: Readonly<Record<CollectionEmailReas
   LINK_CLOSED: 'The link closed before the email could go.',
   NO_ADDRESS: 'There was no address to send it to.',
   PROVIDER_REFUSED: 'The mail provider did not accept it.',
+  PROVIDER_UNREACHABLE:
+    'The mail service could not be reached, or did not answer, after several tries.',
   STOPPED: 'It was stopped because the link was replaced or ended.',
   NOT_QUEUED: 'No email was recorded for this link.',
 };
 
 type EmailRow = CollectionLinkEmailRecord;
 
-/** One outbox record in plain terms. Delivered needs the provider's own delivery time. */
+/**
+ * One outbox record in plain terms. Delivered needs the provider's own delivery time; a provider
+ * report after acceptance (a bounce, a later failure) reads Not Delivered, never Not Sent; and a
+ * spam complaint about a delivered email still reads Delivered (it arrived).
+ */
 export function collectionEmailState(
   row: EmailRow | undefined,
   emailed: boolean,
@@ -435,16 +457,22 @@ export function collectionEmailState(
         ? { ...base, status: 'DELIVERED', deliveredAt: row.deliveredAt }
         : { ...base, status: 'SENT' };
     case 'BOUNCED':
-      return { ...base, status: 'NOT_DELIVERED' };
+      return row.deliveredAt
+        ? { ...base, status: 'DELIVERED', deliveredAt: row.deliveredAt }
+        : { ...base, status: 'NOT_DELIVERED' };
     case 'CANCELLED':
       return { ...base, status: 'NOT_SENT', reason: 'STOPPED', sentAt: null };
     default: {
+      // Accepted first, then reported failed by the provider: it was handed over.
+      if (row.sentAt) return { ...base, status: 'NOT_DELIVERED' };
       const reason: CollectionEmailReason =
-        row.lastError === 'recipient no longer authorized'
+        row.lastError === RECIPIENT_NO_LONGER_AUTHORIZED
           ? 'LINK_CLOSED'
-          : row.lastError === 'no recipient email resolvable'
+          : row.lastError === NO_RECIPIENT_EMAIL
             ? 'NO_ADDRESS'
-            : 'PROVIDER_REFUSED';
+            : row.lastError !== null && PROVIDER_UNREACHABLE_ERRORS.has(row.lastError)
+              ? 'PROVIDER_UNREACHABLE'
+              : 'PROVIDER_REFUSED';
       return { ...base, status: 'NOT_SENT', reason, sentAt: null };
     }
   }
@@ -504,6 +532,20 @@ function requestsOf(scope: AgencyCollectionScope) {
   return scope.authority === 'ADMIN'
     ? org
     : and(org, eq(schema.agencyCollectionRequests.createdByAccountId, scope.accountId));
+}
+
+/** Which of these link senders may still keep their links open (each distinct one checked once). */
+async function issuersWhoMayIssue(
+  db: Db,
+  organizationId: string,
+  issuers: readonly (string | null)[],
+): Promise<ReadonlySet<string>> {
+  const mayIssue = new Set<string>();
+  for (const issuer of new Set(issuers)) {
+    if (issuer && (await collectionIssuerMayIssue(db, issuer, organizationId)))
+      mayIssue.add(issuer);
+  }
+  return mayIssue;
 }
 
 /** One request of this organization, or undefined; `forUpdate` locks it for the transaction. */
@@ -627,10 +669,7 @@ export async function getCollectionRequest(
   ]);
 
   const issuers = [...new Set(links.flatMap((row) => (row.createdBy ? [row.createdBy] : [])))];
-  const mayIssue = new Set<string>();
-  for (const issuer of issuers) {
-    if (await collectionIssuerMayIssue(db, issuer, scope.organizationId)) mayIssue.add(issuer);
-  }
+  const mayIssue = await issuersWhoMayIssue(db, scope.organizationId, issuers);
   const emailStates = await collectionLinkEmailRecords(
     db,
     scope,
@@ -1115,7 +1154,9 @@ export async function endCollectionRequest(
   outcome: 'REVOKED' | 'CLOSED',
   now: Date = new Date(),
 ): Promise<Result<{ readonly linksClosed: number }, ServiceError>> {
-  const problem = agencyCollectionRequesterScopeProblem(scope);
+  // Owners and admins only (UMPE G3): ending a request also takes every answer and guest file it
+  // received away from the agency, which a member who never sees them must not decide.
+  const problem = agencyCollectionScopeProblem(scope);
   if (problem) return err(problem);
   if (outcome !== 'REVOKED' && outcome !== 'CLOSED') return err(missing());
   return db.transaction(async (tx) => {

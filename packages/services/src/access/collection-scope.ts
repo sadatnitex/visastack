@@ -1,10 +1,9 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { type Db, first, schema } from '../db';
 import { type ServiceError, serviceError } from '../errors';
 import { hashInvitationToken } from '../invitation-tokens';
 import { isUuid } from '../lifecycle/foundation/ids';
-import { isMissingRelationError } from '../missing-relation';
 import { OPEN_ORGANIZATION_STATUSES } from '../organization-admission';
 import { getOrganization } from '../organizations';
 import { agencyCollectionRequestsEnabled } from '../umpe-collection-request-switch';
@@ -140,36 +139,41 @@ export class CollectionLinkProof {
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 
 /**
- * Whether the active member holds a capability, read in its own savepoint so a missing table
- * (before the G3 migration runs) never aborts a caller's transaction: then nobody holds it.
+ * Whether the G3 permission table exists yet. Code goes live before its migration runs, and a
+ * missing table means nobody holds a permission (none can have been given). `to_regclass` never
+ * raises, so a caller's transaction is never disturbed. Nothing is cached.
  */
+export async function memberCapabilitiesPresent(db: Db): Promise<boolean> {
+  const row = first(
+    await db
+      .select({ present: sql<boolean>`to_regclass('agency_member_capabilities') is not null` })
+      .from(sql`(select 1) as probe`),
+  );
+  return row?.present === true;
+}
+
+/** Whether the active member holds a capability (false before the G3 migration runs). */
 async function memberHoldsCapability(
   db: Db,
   membershipId: string,
   organizationId: string,
   capability: string,
 ): Promise<boolean> {
-  try {
-    return await db.transaction(async (tx) => {
-      const row = first(
-        await tx
-          .select({ id: schema.agencyMemberCapabilities.id })
-          .from(schema.agencyMemberCapabilities)
-          .where(
-            and(
-              eq(schema.agencyMemberCapabilities.membershipId, membershipId),
-              eq(schema.agencyMemberCapabilities.organizationId, organizationId),
-              eq(schema.agencyMemberCapabilities.capability, capability),
-            ),
-          )
-          .limit(1),
-      );
-      return row !== undefined;
-    });
-  } catch (error) {
-    if (isMissingRelationError(error)) return false;
-    throw error;
-  }
+  if (!(await memberCapabilitiesPresent(db))) return false;
+  const row = first(
+    await db
+      .select({ id: schema.agencyMemberCapabilities.id })
+      .from(schema.agencyMemberCapabilities)
+      .where(
+        and(
+          eq(schema.agencyMemberCapabilities.membershipId, membershipId),
+          eq(schema.agencyMemberCapabilities.organizationId, organizationId),
+          eq(schema.agencyMemberCapabilities.capability, capability),
+        ),
+      )
+      .limit(1),
+  );
+  return row !== undefined;
 }
 
 /**

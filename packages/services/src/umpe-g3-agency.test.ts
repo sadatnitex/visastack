@@ -33,6 +33,7 @@ import {
   createCollectionLink,
   createCollectionRequest,
   editCollectionDraft,
+  endCollectionRequest,
   getCollectionRequest,
   issueCollectionRequest,
   listCollectionRequests,
@@ -227,6 +228,10 @@ describe('UMPE G3: agency request permission, email truth and brand', () => {
       expect((await listCollectionReviews(db, worker, requestId)).size).toBe(0);
       const access = await collectionResponseAccess(db, worker, randomUUID());
       expect(access.ok).toBe(false);
+      // Ending a request also takes its answers away from the admins: owners and admins only.
+      const ended = await endCollectionRequest(db, worker, requestId, 'REVOKED');
+      expect(ended.ok).toBe(false);
+      if (!ended.ok) expect(ended.error.code).toBe('not_found');
       const review = await recordCollectionReview(db, worker, {
         source: 'guest',
         answerId: randomUUID(),
@@ -295,6 +300,11 @@ describe('UMPE G3: agency request permission, email truth and brand', () => {
       expect(await openCollectionLink(db, proof())).toBeNull();
       const seen = await getCollectionRequest(db, await scope(), requestId);
       expect(seen.ok && seen.value.links[0]?.state).toBe('ISSUER_GONE');
+      // The list agrees: no open link is left, so it no longer reads Sent.
+      const listed = await listCollectionRequests(db, await scope());
+      expect(listed.ok && listed.value.find((row) => row.id === requestId)?.status).not.toBe(
+        'SENT',
+      );
 
       await allowWorker();
       expect(await openCollectionLink(db, proof())).not.toBeNull();
@@ -413,6 +423,27 @@ describe('UMPE G3: agency request permission, email truth and brand', () => {
       });
       expect(collectionEmailState(row('READ'), true).status).toBe('SENT');
       expect(collectionEmailState(row('BOUNCED'), true).status).toBe('NOT_DELIVERED');
+      // A spam complaint about a delivered email: it still arrived.
+      expect(
+        collectionEmailState(row('BOUNCED', { deliveredAt: new Date(), sentAt: new Date() }), true)
+          .status,
+      ).toBe('DELIVERED');
+      // Accepted, then reported failed by the provider: handed over, so never Not Sent.
+      expect(
+        collectionEmailState(
+          row('FAILED', {
+            sentAt: new Date(),
+            lastError: 'The email provider rejected this message.',
+          }),
+          true,
+        ).status,
+      ).toBe('NOT_DELIVERED');
+      expect(
+        collectionEmailState(
+          row('FAILED', { lastError: 'Email provider unavailable or request timed out' }),
+          true,
+        ),
+      ).toMatchObject({ status: 'NOT_SENT', reason: 'PROVIDER_UNREACHABLE' });
       expect(collectionEmailState(row('CANCELLED'), true)).toMatchObject({
         status: 'NOT_SENT',
         reason: 'STOPPED',
@@ -494,6 +525,9 @@ describe('UMPE G3: agency request permission, email truth and brand', () => {
         .where(eq(schema.organizations.id, orgId));
       await run();
       expect(sent).toHaveLength(2);
+      // Nor does the subject or text name an agency that is no longer reviewed.
+      expect(sent[1]?.subject).toBe('An agency asked you for documents through VisaStack');
+      expect(`${sent[1]?.body} ${sent[1]?.html}`).not.toContain('Synthetic Harbor Agency');
       expect(sent[1]?.html).not.toContain('background:#0b5d3b');
       expect(sent[1]?.html).not.toContain('Powered by VisaStack');
     });

@@ -4,6 +4,7 @@ import {
   agencyCollectionScopeProblem,
 } from './access/collection-scope';
 import type { Db } from './db';
+import { cleanAgencyName } from './email-design';
 import { enqueueNotification } from './notifications';
 import type { KeyManagementPort } from './ports';
 
@@ -57,7 +58,7 @@ export function guestCorrectionCopy(agencyName: string | null | undefined): {
   readonly subject: string;
   readonly summary: string;
 } {
-  const name = agencyName?.replace(/\s+/g, ' ').trim().slice(0, 120) ?? '';
+  const name = cleanAgencyName(agencyName);
   if (name.length === 0) {
     return {
       subject: 'An agency asked you to correct your documents',
@@ -69,6 +70,21 @@ export function guestCorrectionCopy(agencyName: string | null | undefined): {
     subject: `${name} asked you to correct your documents`,
     summary: `${name} asked you, through VisaStack, to correct something in the documents you sent. Open the request to read their notes and send again.`,
   };
+}
+
+/**
+ * The subject and summary of an agency collection email as it is sent (UMPE G3): rebuilt from the
+ * agency's name read at send time, given only while VisaStack has reviewed it (ACTIVE), so an email
+ * never names an agency that is no longer reviewed. Null for any other email.
+ */
+export function agencyEmailCopyAtSend(
+  eventType: string,
+  agencyName: string | null,
+): { readonly subject: string; readonly summary: string } | null {
+  if (eventType === COLLECTION_REQUEST_EMAIL_EVENT) return collectionCopy(agencyName);
+  if (eventType === GUEST_CODE_EMAIL_EVENT) return guestCodeCopy(agencyName);
+  if (eventType === GUEST_CORRECTION_EMAIL_EVENT) return guestCorrectionCopy(agencyName);
+  return null;
 }
 
 /**
@@ -140,7 +156,7 @@ function collectionCopy(agencyName: string | null | undefined): {
   readonly subject: string;
   readonly summary: string;
 } {
-  const name = agencyName?.replace(/\s+/g, ' ').trim().slice(0, 120) ?? '';
+  const name = cleanAgencyName(agencyName);
   if (name.length === 0) {
     return { subject: EMAIL_SUBJECT.collection, summary: EMAIL_SUMMARY.collection };
   }
@@ -158,7 +174,7 @@ function guestCodeCopy(agencyName: string | null | undefined): {
   readonly subject: string;
   readonly summary: string;
 } {
-  const name = agencyName?.replace(/\s+/g, ' ').trim().slice(0, 120) ?? '';
+  const name = cleanAgencyName(agencyName);
   return {
     subject: EMAIL_SUBJECT.guest_code,
     summary: name.length > 0 ? guestCodeSummary(name) : EMAIL_SUMMARY.guest_code,

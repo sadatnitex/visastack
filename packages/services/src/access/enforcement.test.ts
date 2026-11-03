@@ -1398,4 +1398,43 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
     );
     expect(problems).toEqual([]);
   }, 180_000);
+
+  it('only the reviewed request services take a requester scope (UMPE G3)', () => {
+    // A member with May Request Documents may create, read, send and link their own requests, and
+    // the request page may read those links' email states. Answers, files, reviews, corrections,
+    // ending a request and everything else keep agencyCollectionScopeProblem (owners and admins).
+    const { program } = programOnce();
+    const found: string[] = [];
+    for (const sf of program.getSourceFiles()) {
+      const fileName = real(sf.fileName);
+      if (sf.isDeclarationFile || !fileName.startsWith(srcDir + path.sep) || isTestFile(fileName)) {
+        continue;
+      }
+      if (fileName.startsWith(accessDir + path.sep)) continue;
+      const visit = (node: ts.Node, owner: string | null) => {
+        let current = owner;
+        if (ts.isFunctionDeclaration(node) && node.name) current = node.name.text;
+        if (
+          ts.isCallExpression(node) &&
+          isCall(node, 'agencyCollectionRequesterScopeProblem') &&
+          current
+        ) {
+          found.push(`${moduleId(fileName)}#${current}`);
+        }
+        ts.forEachChild(node, (child) => visit(child, current));
+      };
+      visit(sf, null);
+    }
+    expect([...new Set(found)].sort()).toEqual([
+      'notifications#collectionLinkEmailRecords',
+      'umpe-collection-request-service#chooseCollectionPack',
+      'umpe-collection-request-service#createCollectionLink',
+      'umpe-collection-request-service#createCollectionRequest',
+      'umpe-collection-request-service#editCollectionDraft',
+      'umpe-collection-request-service#getCollectionRequest',
+      'umpe-collection-request-service#issueCollectionRequest',
+      'umpe-collection-request-service#listCollectionPackChoices',
+      'umpe-collection-request-service#listCollectionRequests',
+    ]);
+  }, 180_000);
 });

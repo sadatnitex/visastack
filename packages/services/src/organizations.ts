@@ -4,7 +4,9 @@ import { and, eq, ilike, inArray, isNull, ne } from 'drizzle-orm';
 import { endAgencyAiConnectionsOfMember } from './access/agency-ai-connections';
 import {
   type AgencyCollectionScope,
+  REQUEST_DOCUMENTS_CAPABILITY,
   agencyCollectionScopeProblem,
+  memberCapabilitiesPresent,
 } from './access/collection-scope';
 import { agencyAiAvailable } from './agency-ai-ready';
 import { appendAuditEvent } from './audit';
@@ -13,7 +15,6 @@ import { checkSeatEntitlement } from './entitlement-enforcement';
 import { type ServiceError, serviceError } from './errors';
 import { assignFoundingAccess } from './founding-access';
 import { isUuid } from './lifecycle/foundation/ids';
-import { isMissingRelationError } from './missing-relation';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import {
   type Page,
@@ -213,7 +214,11 @@ export async function listOrgMemberships(
     .from(schema.memberships)
     .innerJoin(schema.accounts, eq(schema.accounts.id, schema.memberships.accountId))
     .where(eq(schema.memberships.organizationId, organizationId));
-  const requesters = await membershipsWithCapability(db, organizationId, REQUEST_DOCUMENTS);
+  const requesters = await membershipsWithCapability(
+    db,
+    organizationId,
+    REQUEST_DOCUMENTS_CAPABILITY,
+  );
   return ok(
     rows.map((r) => ({
       membershipId: r.membershipId,
@@ -229,60 +234,44 @@ export async function listOrgMemberships(
 
 // --- UMPE G3: per-member capabilities (A18) -----------------------------------------------------
 
-/** The one capability so far: create and send document requests (never read answers or files). */
-const REQUEST_DOCUMENTS = 'REQUEST_DOCUMENTS';
-
 /**
- * The memberships of this organization holding a capability. Read in a savepoint, so before the G3
- * migration runs nobody holds one and a caller's transaction is never aborted.
+ * The memberships of this organization holding a capability (none before the G3 migration runs).
  */
 async function membershipsWithCapability(
   db: Db,
   organizationId: string,
   capability: string,
 ): Promise<ReadonlySet<string>> {
-  try {
-    const rows = await db.transaction((tx) =>
-      tx
-        .select({ membershipId: schema.agencyMemberCapabilities.membershipId })
-        .from(schema.agencyMemberCapabilities)
-        .where(
-          and(
-            eq(schema.agencyMemberCapabilities.organizationId, organizationId),
-            eq(schema.agencyMemberCapabilities.capability, capability),
-          ),
-        ),
+  if (!(await memberCapabilitiesPresent(db))) return new Set();
+  const rows = await db
+    .select({ membershipId: schema.agencyMemberCapabilities.membershipId })
+    .from(schema.agencyMemberCapabilities)
+    .where(
+      and(
+        eq(schema.agencyMemberCapabilities.organizationId, organizationId),
+        eq(schema.agencyMemberCapabilities.capability, capability),
+      ),
     );
-    return new Set(rows.map((row) => row.membershipId));
-  } catch (error) {
-    if (isMissingRelationError(error)) return new Set();
-    throw error;
-  }
+  return new Set(rows.map((row) => row.membershipId));
 }
 
-/** Every capability of one membership removed (it ended), in a savepoint; a count of rows. */
+/** Every capability of one membership removed (it ended); a count of rows. */
 async function clearMemberCapabilities(
   tx: Db,
   organizationId: string,
   membershipId: string,
 ): Promise<number> {
-  try {
-    return await tx.transaction(async (inner) => {
-      const removed = await inner
-        .delete(schema.agencyMemberCapabilities)
-        .where(
-          and(
-            eq(schema.agencyMemberCapabilities.organizationId, organizationId),
-            eq(schema.agencyMemberCapabilities.membershipId, membershipId),
-          ),
-        )
-        .returning({ id: schema.agencyMemberCapabilities.id });
-      return removed.length;
-    });
-  } catch (error) {
-    if (isMissingRelationError(error)) return 0;
-    throw error;
-  }
+  if (!(await memberCapabilitiesPresent(tx))) return 0;
+  const removed = await tx
+    .delete(schema.agencyMemberCapabilities)
+    .where(
+      and(
+        eq(schema.agencyMemberCapabilities.organizationId, organizationId),
+        eq(schema.agencyMemberCapabilities.membershipId, membershipId),
+      ),
+    )
+    .returning({ id: schema.agencyMemberCapabilities.id });
+  return removed.length;
 }
 
 const CAPABILITY_UNAVAILABLE =
@@ -307,79 +296,77 @@ export async function setMemberMayRequestDocuments(
   const organizationId = scope.organizationId;
   const notFound = serviceError('not_found', 'membership not found in this organization');
   if (!isUuid(input.membershipId)) return err(notFound);
-  try {
-    return await db.transaction(async (tx) => {
-      const target = first(
-        await tx
-          .select({
-            id: schema.memberships.id,
-            role: schema.memberships.role,
-            active: schema.memberships.active,
-          })
-          .from(schema.memberships)
-          .where(
-            and(
-              eq(schema.memberships.id, input.membershipId),
-              eq(schema.memberships.organizationId, organizationId),
-            ),
-          )
-          .for('update')
-          .limit(1),
-      );
-      if (!target || target.role === 'OWNER' || target.role === 'ADMIN') return err(notFound);
-      if (input.allowed && !target.active) {
-        return err(serviceError('invalid', 'Reactivate this member first.'));
-      }
-      // Re-checked in the transaction: an admin who lost the role meanwhile changes nothing.
-      if (!(await isOrgAdmin(tx, actorAccountId, organizationId))) return err(notFound);
-      let changed: number;
-      if (input.allowed) {
-        const inserted = await tx
-          .insert(schema.agencyMemberCapabilities)
-          .values({
-            organizationId,
-            membershipId: target.id,
-            capability: REQUEST_DOCUMENTS,
-            grantedByAccountId: actorAccountId,
-          })
-          .onConflictDoNothing()
-          .returning({ id: schema.agencyMemberCapabilities.id });
-        changed = inserted.length;
-      } else {
-        const removed = await tx
-          .delete(schema.agencyMemberCapabilities)
-          .where(
-            and(
-              eq(schema.agencyMemberCapabilities.organizationId, organizationId),
-              eq(schema.agencyMemberCapabilities.membershipId, target.id),
-              eq(schema.agencyMemberCapabilities.capability, REQUEST_DOCUMENTS),
-            ),
-          )
-          .returning({ id: schema.agencyMemberCapabilities.id });
-        changed = removed.length;
-      }
-      if (changed > 0) {
-        await appendAuditEvent(tx, {
-          eventType: input.allowed ? 'MEMBER_CAPABILITY_GRANTED' : 'MEMBER_CAPABILITY_REVOKED',
-          actorAccountId: actorAccountId,
-          action: 'MANAGE',
-          method: 'MANUAL',
-          result: 'ALLOWED',
-          resourceType: 'membership',
-          resourceId: target.id,
-          metadata: {
-            organizationId,
-            capability: REQUEST_DOCUMENTS,
-            targetRole: target.role,
-          },
-        });
-      }
-      return ok({ mayRequestDocuments: input.allowed });
-    });
-  } catch (error) {
-    if (isMissingRelationError(error)) return err(serviceError('invalid', CAPABILITY_UNAVAILABLE));
-    throw error;
+  if (!(await memberCapabilitiesPresent(db))) {
+    return err(serviceError('invalid', CAPABILITY_UNAVAILABLE));
   }
+  return await db.transaction(async (tx) => {
+    const target = first(
+      await tx
+        .select({
+          id: schema.memberships.id,
+          role: schema.memberships.role,
+          active: schema.memberships.active,
+        })
+        .from(schema.memberships)
+        .where(
+          and(
+            eq(schema.memberships.id, input.membershipId),
+            eq(schema.memberships.organizationId, organizationId),
+          ),
+        )
+        .for('update')
+        .limit(1),
+    );
+    if (!target || target.role === 'OWNER' || target.role === 'ADMIN') return err(notFound);
+    if (input.allowed && !target.active) {
+      return err(serviceError('invalid', 'Reactivate this member first.'));
+    }
+    // Re-checked in the transaction: an admin who lost the role meanwhile changes nothing.
+    if (!(await isOrgAdmin(tx, actorAccountId, organizationId))) return err(notFound);
+    let changed: number;
+    if (input.allowed) {
+      const inserted = await tx
+        .insert(schema.agencyMemberCapabilities)
+        .values({
+          organizationId,
+          membershipId: target.id,
+          capability: REQUEST_DOCUMENTS_CAPABILITY,
+          grantedByAccountId: actorAccountId,
+        })
+        .onConflictDoNothing()
+        .returning({ id: schema.agencyMemberCapabilities.id });
+      changed = inserted.length;
+    } else {
+      const removed = await tx
+        .delete(schema.agencyMemberCapabilities)
+        .where(
+          and(
+            eq(schema.agencyMemberCapabilities.organizationId, organizationId),
+            eq(schema.agencyMemberCapabilities.membershipId, target.id),
+            eq(schema.agencyMemberCapabilities.capability, REQUEST_DOCUMENTS_CAPABILITY),
+          ),
+        )
+        .returning({ id: schema.agencyMemberCapabilities.id });
+      changed = removed.length;
+    }
+    if (changed > 0) {
+      await appendAuditEvent(tx, {
+        eventType: input.allowed ? 'MEMBER_CAPABILITY_GRANTED' : 'MEMBER_CAPABILITY_REVOKED',
+        actorAccountId: actorAccountId,
+        action: 'MANAGE',
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        resourceType: 'membership',
+        resourceId: target.id,
+        metadata: {
+          organizationId,
+          capability: REQUEST_DOCUMENTS_CAPABILITY,
+          targetRole: target.role,
+        },
+      });
+    }
+    return ok({ mayRequestDocuments: input.allowed });
+  });
 }
 
 /** Create an organization (PENDING_VERIFICATION) with the creator as OWNER. */

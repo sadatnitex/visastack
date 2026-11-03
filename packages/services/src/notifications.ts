@@ -36,6 +36,7 @@ import {
   GUEST_CODE_EMAIL_EVENT,
   GUEST_CORRECTION_EMAIL_EVENT,
   type SealedInvitationLink,
+  agencyEmailCopyAtSend,
   revealInvitationLink,
 } from './invitation-email';
 import { listMembershipsForAccount } from './organizations';
@@ -673,6 +674,15 @@ const AGENCY_BRANDED_EMAILS: ReadonlySet<string> = new Set([
   GUEST_CORRECTION_EMAIL_EVENT,
 ]);
 
+/** The worker's fixed refusal words, shared with the agency's email state (UMPE G3). */
+export const RECIPIENT_NO_LONGER_AUTHORIZED = 'recipient no longer authorized';
+export const NO_RECIPIENT_EMAIL = 'no recipient email resolvable';
+/** Provider diagnostics meaning it was never reached, or did not answer (never a refusal). */
+export const PROVIDER_UNREACHABLE_ERRORS: ReadonlySet<string> = new Set([
+  'Email provider not configured',
+  'Email provider unavailable or request timed out',
+]);
+
 /** What a request link's email record says, without the address or the email itself. */
 export interface CollectionLinkEmailRecord {
   readonly status: string;
@@ -839,7 +849,7 @@ async function dispatchOne(
       .set({
         status: 'FAILED',
         attempts,
-        lastError: 'recipient no longer authorized',
+        lastError: RECIPIENT_NO_LONGER_AUTHORIZED,
         leaseOwner: null,
         leaseExpiresAt: null,
       })
@@ -917,7 +927,7 @@ async function dispatchOne(
       .set({
         status: 'FAILED',
         attempts,
-        lastError: 'no recipient email resolvable',
+        lastError: NO_RECIPIENT_EMAIL,
         leaseOwner: null,
         leaseExpiresAt: null,
       })
@@ -945,7 +955,7 @@ async function dispatchOne(
       .set({
         status: 'FAILED',
         attempts,
-        lastError: 'recipient no longer authorized',
+        lastError: RECIPIENT_NO_LONGER_AUTHORIZED,
         leaseOwner: null,
         leaseExpiresAt: null,
       })
@@ -980,21 +990,27 @@ async function dispatchOne(
         encryption,
       );
     }
+    // UMPE G3: an agency collection email names the agency only while it is reviewed, decided now.
+    const agency = await agencyEmailBrand(db, notification);
+    const copy = AGENCY_BRANDED_EMAILS.has(notification.eventType)
+      ? agencyEmailCopyAtSend(notification.eventType, agency?.name ?? null)
+      : null;
+    const subject = copy?.subject ?? payload.subject;
     const email = renderEmail(
       notificationEmail({
         eventType: notification.eventType,
-        subject: payload.subject,
-        summary: payload.summary,
+        subject,
+        summary: copy?.summary ?? payload.summary,
         url: `${baseUrl}${path}`,
         ...(payload.timing ? { timing: payload.timing } : {}),
         ...(payload.heading ? { heading: payload.heading } : {}),
         ...(guestCode !== null ? { code: guestCode.code } : {}),
       }),
-      { baseUrl, recipient: recipient.email, agency: await agencyEmailBrand(db, notification) },
+      { baseUrl, recipient: recipient.email, agency },
     );
     const sent = await emailPort.send({
       to: recipient.email,
-      subject: payload.subject,
+      subject,
       body: email.text,
       html: email.html,
       // A new key for the designed email: a retry of an attempt made before it carries a different

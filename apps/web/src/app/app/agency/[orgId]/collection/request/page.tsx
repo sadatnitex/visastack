@@ -431,7 +431,7 @@ export default async function CollectionRequestPage({
         />
       ) : null}
 
-      {editable ? (
+      {admin && editable ? (
         <section className="card" aria-labelledby="collection-end">
           <div className="card-body">
             <h2 id="collection-end">End This Request</h2>
