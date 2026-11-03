@@ -123,6 +123,21 @@ function viewOf(
 }
 
 /**
+ * The items whose only file is a suggestion from its name, so the guest has not confirmed any. The
+ * same rule as the Suggested state on a line, so the strip and the list always agree.
+ */
+export function suggestedOnlyIds(
+  items: readonly GuestChecklistItem[],
+  files: readonly GuestFileView[],
+  stillMissing: readonly string[],
+): string[] {
+  const progress = { files, stillMissing };
+  return items
+    .filter((item) => viewOf(item, progress, false).state === 'suggested')
+    .map((item) => item.id);
+}
+
+/**
  * The units a guest must cover to have every Mandatory item: each plain item is one unit, and an
  * any-one-of group is one unit, covered when any of its members is. A group counts as Mandatory by
  * its strongest official member, the same rule that places it in a section below, so the progress

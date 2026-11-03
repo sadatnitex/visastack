@@ -6,7 +6,7 @@ import { notFound } from 'next/navigation';
 import { agencyBrand } from '../../lib/agency-brand';
 import { pdfUploadsAccepted } from '../../lib/upload-preflight';
 import { AgencyBrandScope, AgencyMark } from '../app/agency/[orgId]/org-branding-header';
-import { GuestChecklist } from './checklist';
+import { GuestChecklist, suggestedOnlyIds } from './checklist';
 import { Fold } from './fold';
 import { GuestFileList, GuestSentHistory } from './guest-desk-files';
 import { SubmitDocumentsForm } from './guest-files';
@@ -130,7 +130,13 @@ export default async function CollectPage({
         />
       </Fold>
     );
-    const standing = uploads ? mandatoryStanding(desk.items, uploads.stillMissing) : null;
+    const standing = uploads
+      ? mandatoryStanding(
+          desk.items,
+          uploads.stillMissing,
+          suggestedOnlyIds(desk.items, files, uploads.stillMissing),
+        )
+      : null;
     const tally = fileTally(files);
     return (
       <Shell wide>
@@ -195,6 +201,7 @@ export default async function CollectPage({
           <GuestBar
             placed={tally.placed}
             left={standing.total - standing.done}
+            total={standing.total}
             needsLook={tally.needsLook}
           />
         ) : null}

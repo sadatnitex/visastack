@@ -13495,7 +13495,7 @@ html:has(.sticky-action-bar) {
 .collect-mark-placed {
   border-color: var(--success);
   background: var(--success);
-  color: #fff;
+  color: var(--bg-elevated);
 }
 .collect-mark-suggested {
   border-color: var(--warning);

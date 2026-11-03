@@ -22,26 +22,40 @@ export interface MandatoryStanding {
   readonly hasConditional: boolean;
 }
 
-function unitCovered(unit: MandatoryUnit, stillMissing: readonly string[]): boolean {
-  return unit.items.some((item) => !stillMissing.includes(item.id));
+/**
+ * A unit is covered when one of its items has a file the guest confirmed. A file placed only from
+ * its name is a suggestion, so it does not count here until the guest confirms it: Suggested is
+ * never read as Placed.
+ */
+function unitCovered(
+  unit: MandatoryUnit,
+  stillMissing: readonly string[],
+  suggestedOnly: readonly string[],
+): boolean {
+  return unit.items.some(
+    (item) => !stillMissing.includes(item.id) && !suggestedOnly.includes(item.id),
+  );
 }
 
 export function mandatoryStanding(
   items: readonly GuestChecklistItem[],
   stillMissing: readonly string[],
+  /** Items whose only file is a suggestion from its name (`suggestedOnlyIds`). */
+  suggestedOnly: readonly string[] = [],
 ): MandatoryStanding {
   const units = mandatoryUnits(items);
-  const open = units.filter((unit) => !unitCovered(unit, stillMissing));
+  const open = units.filter((unit) => !unitCovered(unit, stillMissing, suggestedOnly));
   const first = open[0];
-  const next = first
+  const label = first
     ? first.items.length > 1
       ? `One of ${first.items.map((item) => item.label).join(' or ')}`
       : (first.items[0]?.label ?? null)
     : null;
+  const awaitingCheck = first?.items.some((item) => suggestedOnly.includes(item.id)) ?? false;
   return {
     total: units.length,
     done: units.length - open.length,
-    next,
+    next: label === null ? null : awaitingCheck ? `Check the file suggested for ${label}` : label,
     hasConditional: items.some((item) => item.necessity === 'CONDITIONAL'),
   };
 }
@@ -49,13 +63,16 @@ export function mandatoryStanding(
 /** Files the guest has placed under an item, and ready files that still need a look. */
 export function fileTally(files: readonly GuestFileView[]): {
   readonly placed: number;
-  /** Ready files with no item, or placed only from their name: each needs the guest's look. */
+  /** Files with no item, placed only from their name, stalled or refused: each needs the guest. */
   readonly needsLook: number;
 } {
   const ready = files.filter((file) => file.status === 'ready');
   return {
     placed: ready.filter((file) => file.itemId !== null && file.mapping === 'chosen').length,
-    needsLook: ready.filter((file) => file.itemId === null || file.mapping === 'proposed').length,
+    // A file that stalled or was refused needs the guest too (remove it, or add it again).
+    needsLook:
+      ready.filter((file) => file.itemId === null || file.mapping === 'proposed').length +
+      files.filter((file) => file.status === 'stalled' || file.status === 'refused').length,
   };
 }
 
@@ -137,13 +154,15 @@ export function GuestProgress({
 export function GuestBar({
   placed,
   left,
+  total,
   needsLook,
 }: {
   readonly placed: number;
   /** Files with no item, or placed only from their name, which come first in what the bar says. */
   readonly needsLook: number;
-  /** How many Mandatory items are still open. */
+  /** How many Mandatory items are still open, and how many there are at all. */
   readonly left: number;
+  readonly total: number;
 }) {
   return (
     <section className="collect-bar" aria-label="Your submission">
@@ -154,9 +173,11 @@ export function GuestBar({
         <span>
           {needsLook > 0
             ? `${needsLook} ${needsLook === 1 ? 'file needs' : 'files need'} a look`
-            : left === 0
-              ? 'All mandatory placed'
-              : `${left} mandatory open`}
+            : total === 0
+              ? 'Nothing mandatory'
+              : left === 0
+                ? 'All mandatory placed'
+                : `${left} mandatory open`}
         </span>
       </p>
       <a className="btn btn-primary" href="#guest-submit">

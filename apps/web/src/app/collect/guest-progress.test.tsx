@@ -1,7 +1,7 @@
 import type { GuestChecklistItem, GuestFileView, GuestUploadDesk } from '@visastack/services';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { GuestChecklist, mandatoryUnits } from './checklist';
+import { GuestChecklist, mandatoryUnits, suggestedOnlyIds } from './checklist';
 import { GuestFileList } from './guest-desk-files';
 import {
   GuestBar,
@@ -120,6 +120,15 @@ describe('what counts as Mandatory', () => {
         file('d', 'h', { status: 'refused' }),
         file('e', 'b', { mapping: 'proposed' }),
       ]),
+      // No item, refused, and a name suggestion each need a look; a file still being checked does not.
+    ).toEqual({ placed: 1, needsLook: 3 });
+    // A stalled or refused file needs the guest too, so the pinned summary never reads all clear.
+    expect(
+      fileTally([
+        file('a', 'p'),
+        file('s', null, { status: 'stalled' }),
+        file('r', 'ph', { status: 'refused' }),
+      ]),
     ).toEqual({ placed: 1, needsLook: 2 });
   });
 });
@@ -153,6 +162,33 @@ describe('the progress strip', () => {
     expect(text).toContain('collect-progress-complete');
     expect(text).toContain('Harbour Travel Desk receives only what you choose to send.');
     expect(text.match(/collect-meter-on/g)).toHaveLength(2);
+  });
+
+  it('does not count a suggestion from a file name as placed, and says what to check', () => {
+    const open = mandatoryStanding(ALL, ['ph', 'b', 's', 'h', 'l'], ['p']);
+    expect(open).toMatchObject({
+      total: 2,
+      done: 0,
+      next: 'Check the file suggested for Passport',
+    });
+    const confirmed = mandatoryStanding(ALL, ['ph', 'b', 's', 'h', 'l'], []);
+    expect(confirmed).toMatchObject({ done: 1, next: 'Recent Photo' });
+    // A group is covered only by a confirmed member.
+    const group = [
+      item('x', 'Visa Photo', 'MANDATORY', { groupKey: 'g' }),
+      item('y', 'ID Card Photo', 'MANDATORY', { groupKey: 'g' }),
+    ];
+    expect(mandatoryStanding(group, ['y'], ['x'])).toMatchObject({ done: 0 });
+    expect(mandatoryStanding(group, ['y'], [])).toMatchObject({ done: 1 });
+  });
+
+  it('finds the items whose only file is a suggestion, by the rule a line uses', () => {
+    const files = [
+      file('f1', 'p', { mapping: 'proposed' }),
+      file('f2', 'ph'),
+      file('f3', 'ph', { mapping: 'proposed' }),
+    ];
+    expect(suggestedOnlyIds(ALL, files, ['b', 's', 'h', 'l'])).toEqual(['p']);
   });
 
   it('never says you can send while the Submit button is not ready', () => {
@@ -196,14 +232,19 @@ describe('the progress strip', () => {
   });
 
   it('pins a phone summary that names what needs the guest first', () => {
-    const bar = (placed: number, left: number, needsLook: number) =>
-      renderToStaticMarkup(<GuestBar placed={placed} left={left} needsLook={needsLook} />);
+    const bar = (placed: number, left: number, needsLook: number, total = 2) =>
+      renderToStaticMarkup(
+        <GuestBar placed={placed} left={left} total={total} needsLook={needsLook} />,
+      );
     expect(bar(1, 2, 0)).toContain('1 File Placed');
     expect(bar(3, 2, 0)).toContain('2 mandatory open');
     expect(bar(3, 0, 0)).toContain('All mandatory placed');
     expect(bar(3, 0, 2)).toContain('2 files need a look');
     expect(bar(3, 0, 1)).toContain('1 file needs a look');
     expect(bar(3, 0, 1)).toContain('href="#guest-submit"');
+    // With nothing Mandatory, it never claims every mandatory item is placed.
+    expect(bar(0, 0, 0, 0)).toContain('Nothing mandatory');
+    expect(bar(0, 0, 0, 0)).not.toContain('All mandatory placed');
   });
 });
 
