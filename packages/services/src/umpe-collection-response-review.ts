@@ -1,6 +1,9 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq } from 'drizzle-orm';
-import { collectionResponseAccess } from './access/collection-response-access';
+import {
+  agencyMayReceiveAnswers,
+  collectionResponseAccess,
+} from './access/collection-response-access';
 import {
   type AgencyCollectionScope,
   agencyCollectionScopeProblem,
@@ -100,6 +103,8 @@ export async function recordCollectionReview(
     if (!access.ok) return err(missing());
     requestId = access.value.requestId;
   } else if (input.source === 'guest') {
+    // As for every guest read: only an agency VisaStack has reviewed.
+    if (!(await agencyMayReceiveAnswers(db, scope.organizationId))) return err(missing());
     const submission = first(
       await db
         .select({

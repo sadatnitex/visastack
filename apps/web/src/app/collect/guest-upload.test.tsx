@@ -101,7 +101,10 @@ describe('guest upload route (UMPE P9)', () => {
   });
 
   it('answers like the vault route: kept, refused, not now', async () => {
-    mocks.add.mockResolvedValueOnce({ ok: true, value: { kind: 'stored', file: FILE, replay: false } });
+    mocks.add.mockResolvedValueOnce({
+      ok: true,
+      value: { kind: 'stored', file: FILE, replay: false },
+    });
     const kept = await POST(upload());
     expect(kept.status).toBe(201);
     expect(kept.headers.get('cache-control')).toBe('no-store');
@@ -149,8 +152,7 @@ function fakeRequest(answer: () => { status: number; body: string; retryAfter?: 
       setRequestHeader(name, value) {
         request.headers[name] = value;
       },
-      getResponseHeader: (name) =>
-        name === 'Retry-After' ? (current.retryAfter ?? null) : null,
+      getResponseHeader: (name) => (name === 'Retry-After' ? (current.retryAfter ?? null) : null),
       send() {
         current = answer();
         (request as { status: number }).status = current.status;

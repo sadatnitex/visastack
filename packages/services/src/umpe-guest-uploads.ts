@@ -11,6 +11,7 @@ import { enqueueNotificationBothChannels } from './notifications';
 import { OPEN_ORGANIZATION_STATUSES } from './organization-admission';
 import { RATE_LIMITS, checkRateLimits } from './rate-limit';
 import type { BlobStore } from './storage';
+import { registerStorageObject } from './storage-objects';
 import {
   type CollectionItem,
   parseBrandSnapshot,
@@ -215,7 +216,8 @@ function ownFiles(desk: VerifiedGuestDesk) {
 
 // --- Adding a file -------------------------------------------------------------------------------
 
-export type GuestFileStatus = 'checking' | 'ready' | 'refused';
+/** `stalled`: an upload that stopped before its checks finished; the guest removes it and adds it again. */
+export type GuestFileStatus = 'checking' | 'ready' | 'refused' | 'stalled';
 
 export interface GuestFileView {
   readonly id: string;
@@ -231,20 +233,46 @@ export interface GuestFileView {
   readonly sent: boolean;
 }
 
-function statusOf(safety: string): GuestFileStatus {
-  if (safety === SAFETY.clean) return 'ready';
-  if (safety === SAFETY.rejected) return 'refused';
-  return 'checking';
+/** Whether a row still being received was left by an attempt that stopped (past the claim window). */
+function stalled(row: Pick<FileRow, 'safetyStatus' | 'updatedAt'>, now: Date): boolean {
+  return (
+    row.safetyStatus === SAFETY.receiving &&
+    now.getTime() - row.updatedAt.getTime() >= GUEST_UPLOAD_CLAIM_STALE_MS
+  );
+}
+
+function statusOf(row: Pick<FileRow, 'safetyStatus' | 'updatedAt'>, now: Date): GuestFileStatus {
+  if (row.safetyStatus === SAFETY.clean) return 'ready';
+  if (row.safetyStatus === SAFETY.rejected) return 'refused';
+  return stalled(row, now) ? 'stalled' : 'checking';
+}
+
+/**
+ * Remove stored bytes, then their registration once the bytes are gone, so a failed delete stays
+ * findable by the orphan sweep (the rule `storage-objects.ts` follows). True when both went.
+ */
+async function discardGuestObject(
+  db: Db,
+  storage: Pick<BlobStore, 'deleteObject'>,
+  objectKey: string,
+): Promise<boolean> {
+  try {
+    await storage.deleteObject('QUARANTINE', objectKey);
+    await db.delete(schema.storageObjects).where(eq(schema.storageObjects.objectKey, objectKey));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 type FileRow = typeof schema.agencyCollectionGuestFiles.$inferSelect;
 
-function fileView(row: FileRow, sent: boolean): GuestFileView {
+function fileView(row: FileRow, sent: boolean, now: Date): GuestFileView {
   return {
     id: row.id,
     name: row.originalName,
     sizeBytes: row.sizeBytes,
-    status: statusOf(row.safetyStatus),
+    status: statusOf(row, now),
     virusScanned: row.virusScanned,
     itemId: row.itemId,
     mapping: row.itemId === null ? null : row.mappingSource === 'GUEST' ? 'chosen' : 'proposed',
@@ -309,11 +337,12 @@ export async function addGuestFile(
   if (!decision.allowed) return err(serviceError('rate_limited', decision.reason));
 
   const files = schema.agencyCollectionGuestFiles;
+  const inputSha256 = sha256Hex(input.bytes);
   type Claim =
     | { kind: 'replay'; row: FileRow }
     | { kind: 'busy'; retryAfterSeconds: number }
     | { kind: 'full'; message: string }
-    | { kind: 'claimed'; id: string; objectKey: string };
+    | { kind: 'claimed'; id: string; objectKey: string; abandonedKey: string | null };
   const claim: Claim = await db.transaction(async (tx) => {
     const existing = first(
       await tx
@@ -332,13 +361,15 @@ export async function addGuestFile(
           retryAfterSeconds: Math.max(1, Math.ceil((GUEST_UPLOAD_CLAIM_STALE_MS - age) / 1000)),
         };
       }
-      // A stale claim (its request died): this attempt takes it over with a fresh key.
+      // A stale claim (its request died): this attempt takes it over with a fresh key, and
+      // whatever the abandoned attempt stored under the old key is removed below.
       const objectKey = `guest-${randomUUID()}`;
+      await registerStorageObject(tx, 'QUARANTINE', objectKey, input.bytes, inputSha256);
       await tx
         .update(files)
         .set({ objectKey, contentType: input.contentType, sizeBytes: size, updatedAt: now })
         .where(and(eq(files.id, existing.id), ownFiles(desk)));
-      return { kind: 'claimed', id: existing.id, objectKey };
+      return { kind: 'claimed', id: existing.id, objectKey, abandonedKey: existing.objectKey };
     }
     const usage = first(
       await tx
@@ -362,6 +393,8 @@ export async function addGuestFile(
       };
     }
     const objectKey = `guest-${randomUUID()}`;
+    // Registered before any byte is written, so bytes with no registration never exist.
+    await registerStorageObject(tx, 'QUARANTINE', objectKey, input.bytes, inputSha256);
     const created = first(
       await tx
         .insert(files)
@@ -381,13 +414,13 @@ export async function addGuestFile(
         .returning({ id: files.id }),
     );
     if (!created) throw new Error('guest file insert returned nothing');
-    return { kind: 'claimed', id: created.id, objectKey };
+    return { kind: 'claimed', id: created.id, objectKey, abandonedKey: null };
   });
   if (claim.kind === 'busy') return err(IN_PROGRESS(claim.retryAfterSeconds));
   if (claim.kind === 'full') return err(serviceError('invalid', claim.message));
   if (claim.kind === 'replay') {
     const sent = await sentFileIds(db, [claim.row.id]);
-    const file = fileView(claim.row, sent.has(claim.row.id));
+    const file = fileView(claim.row, sent.has(claim.row.id), now);
     return ok(
       file.status === 'refused'
         ? { kind: 'refused', file, message: REFUSED_MESSAGE }
@@ -395,8 +428,10 @@ export async function addGuestFile(
     );
   }
 
+  if (claim.abandonedKey) await discardGuestObject(db, storage, claim.abandonedKey);
   // Store, read back, hash, check. Nothing is mapped or sendable until every check passed.
   let verdict: { safe: boolean; sha256: string | null };
+  let row: FileRow | null;
   try {
     await storage.putObject({
       bucket: 'QUARANTINE',
@@ -409,7 +444,7 @@ export async function addGuestFile(
       throw new Error('guest file failed read-back verification');
     }
     const sha256 = sha256Hex(stored.bytes);
-    if (sha256 !== sha256Hex(input.bytes)) throw new Error('guest file changed in storage');
+    if (sha256 !== inputSha256) throw new Error('guest file changed in storage');
     const scan = await input.checks.scanner.scan({
       bucket: 'QUARANTINE',
       objectKey: claim.objectKey,
@@ -421,29 +456,61 @@ export async function addGuestFile(
         })
       : null;
     verdict = { safe: scan.safe && limits?.withinLimits === true, sha256 };
+    if (!verdict.safe) await discardGuestObject(db, storage, claim.objectKey);
+    const items = verdict.safe ? await issuedItems(db, desk) : null;
+    const proposal = verdict.safe && items ? proposeGuestItem(name ?? '', items) : null;
+    row = await finishGuestFile(db, desk, claim, verdict, proposal, input.checks, now);
   } catch (error) {
-    // Nothing usable was stored: free the claim so the guest's retry starts clean.
-    await storage.deleteObject('QUARANTINE', claim.objectKey).catch(() => undefined);
+    // Nothing usable was kept: free this attempt's claim (only while it is still this attempt's
+    // key) so the guest's retry starts clean, and remove what this attempt stored.
+    await discardGuestObject(db, storage, claim.objectKey);
     await db
       .delete(files)
-      .where(and(eq(files.id, claim.id), ownFiles(desk), eq(files.safetyStatus, SAFETY.receiving)));
+      .where(
+        and(
+          eq(files.id, claim.id),
+          eq(files.objectKey, claim.objectKey),
+          ownFiles(desk),
+          eq(files.safetyStatus, SAFETY.receiving),
+        ),
+      )
+      .catch(() => undefined);
     throw error;
   }
-  if (!verdict.safe) {
-    await storage.deleteObject('QUARANTINE', claim.objectKey).catch(() => undefined);
+  if (!row) {
+    // Another attempt took the claim over meanwhile: this attempt's bytes are not referenced.
+    await discardGuestObject(db, storage, claim.objectKey);
+    return err(IN_PROGRESS(5));
   }
-  const items = verdict.safe ? await issuedItems(db, desk) : null;
-  const proposal = verdict.safe && items ? proposeGuestItem(name ?? '', items) : null;
-  const row = await db.transaction(async (tx) => {
+  const file = fileView(row, false, now);
+  return ok(
+    verdict.safe
+      ? { kind: 'stored', file, replay: false }
+      : { kind: 'refused', file, message: REFUSED_MESSAGE },
+  );
+}
+
+/** Record the checks' verdict on this attempt's claim, or null when the claim is no longer its own. */
+async function finishGuestFile(
+  db: Db,
+  desk: VerifiedGuestDesk,
+  claim: { readonly id: string; readonly objectKey: string },
+  verdict: { readonly safe: boolean; readonly sha256: string | null },
+  proposal: string | null,
+  checks: GuestFileChecks,
+  now: Date,
+): Promise<FileRow | null> {
+  const files = schema.agencyCollectionGuestFiles;
+  return db.transaction(async (tx) => {
     const updated = first(
       await tx
         .update(files)
         .set({
           safetyStatus: verdict.safe ? SAFETY.clean : SAFETY.rejected,
           sha256: verdict.safe ? verdict.sha256 : null,
-          scannerName: input.checks.scanner.name,
-          scannerVersion: input.checks.scanner.version,
-          virusScanned: verdict.safe && input.checks.virusScanner,
+          scannerName: checks.scanner.name,
+          scannerVersion: checks.scanner.version,
+          virusScanned: verdict.safe && checks.virusScanner,
           checkedAt: now,
           itemId: proposal,
           mappingSource: proposal ? 'PROPOSED' : null,
@@ -467,17 +534,6 @@ export async function addGuestFile(
     });
     return updated;
   });
-  if (!row) {
-    // Another attempt took the claim over meanwhile: this attempt's bytes are not referenced.
-    await storage.deleteObject('QUARANTINE', claim.objectKey).catch(() => undefined);
-    return err(IN_PROGRESS(5));
-  }
-  const file = fileView(row, false);
-  return ok(
-    verdict.safe
-      ? { kind: 'stored', file, replay: false }
-      : { kind: 'refused', file, message: REFUSED_MESSAGE },
-  );
 }
 
 const REFUSED_MESSAGE =
@@ -535,9 +591,10 @@ export async function setGuestFileItem(
 }
 
 /**
- * Remove a file from the guest's list. A file no submission holds is deleted with its bytes; one a
- * sent submission holds stays exactly as sent (the agency keeps that submission) and only leaves
- * the list for the next submission.
+ * Remove a file from the guest's list. A file no submission holds is deleted with its bytes (bytes
+ * first; if that fails the row stays hidden and the retention purge finishes it); one a sent
+ * submission holds stays exactly as sent (the agency keeps that submission) and only leaves the
+ * list for the next submission. An upload that stopped before its checks finished can be removed.
  */
 export async function removeGuestFile(
   db: Db,
@@ -559,21 +616,19 @@ export async function removeGuestFile(
         .limit(1)
         .for('update'),
     );
-    if (!row || row.safetyStatus === SAFETY.receiving) return null;
+    if (!row || (row.safetyStatus === SAFETY.receiving && !stalled(row, now))) return null;
     const sent = (await sentFileIds(tx, [row.id])).has(row.id);
-    if (sent) {
-      await tx
-        .update(files)
-        .set({ removedAt: now, updatedAt: now })
-        .where(and(eq(files.id, row.id), ownFiles(desk)));
-    } else {
-      await tx.delete(files).where(and(eq(files.id, row.id), ownFiles(desk)));
-    }
+    await tx
+      .update(files)
+      .set({ removedAt: now, updatedAt: now })
+      .where(and(eq(files.id, row.id), ownFiles(desk)));
     await guestAudit(tx, desk, 'AGENCY_COLLECTION_GUEST_FILE_REMOVED', { kept: sent });
-    return { kept: sent, objectKey: row.objectKey };
+    return { kept: sent, id: row.id, objectKey: row.objectKey };
   });
   if (!outcome) return err(missing());
-  if (!outcome.kept) await storage.deleteObject('QUARANTINE', outcome.objectKey);
+  if (!outcome.kept && (await discardGuestObject(db, storage, outcome.objectKey))) {
+    await db.delete(files).where(and(eq(files.id, outcome.id), ownFiles(desk)));
+  }
   return ok({ kept: outcome.kept });
 }
 
@@ -612,8 +667,8 @@ export interface GuestUploadDesk {
 
 /**
  * The guest's files, what is still missing, and every submission they sent (with the agency's
- * latest decision and its notes), or null for anything that is not a verified live desk. Before
- * the P9 migration runs this is an empty desk, never an error.
+ * latest decision and its notes), or null for anything that is not a verified live desk. Null too
+ * before the P9 migration runs, so the page offers no upload that would be refused.
  */
 export async function readGuestUploadDesk(
   db: Db,
@@ -622,10 +677,7 @@ export async function readGuestUploadDesk(
   now: Date = new Date(),
 ): Promise<GuestUploadDesk | null> {
   if (!GuestCollectionSessionProof.isGenuine(proof)) return null;
-  if (!(await guestUploadsPresent(db))) {
-    const desk = await verifiedGuestDesk(db, proof, now);
-    return desk ? { files: [], stillMissing: items.map((i) => i.id), submissions: [] } : null;
-  }
+  if (!(await guestUploadsPresent(db))) return null;
   const desk = await verifiedGuestDesk(db, proof, now);
   if (!desk) return null;
   const files = schema.agencyCollectionGuestFiles;
@@ -639,7 +691,7 @@ export async function readGuestUploadDesk(
     db,
     rows.map((r) => r.id),
   );
-  const views = rows.map((row) => fileView(row, sent.has(row.id)));
+  const views = rows.map((row) => fileView(row, sent.has(row.id), now));
   const covered = new Set(
     views.flatMap((v) => (v.status === 'ready' && v.itemId ? [v.itemId] : [])),
   );
@@ -865,7 +917,8 @@ async function submitInTransaction(
     .where(and(ownFiles(desk), isNull(files.removedAt)))
     .orderBy(asc(files.createdAt), asc(files.id))
     .for('update');
-  if (current.some((f) => f.safetyStatus === SAFETY.receiving)) {
+  // A file still being checked holds the submission; one whose upload stopped is left out.
+  if (current.some((f) => f.safetyStatus === SAFETY.receiving && !stalled(f, now))) {
     return err(serviceError('invalid', 'Wait until every file has been checked, then submit.'));
   }
   const byItem = new Map<string, FileRow[]>();

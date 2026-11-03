@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { agencyMayReceiveAnswers } from './access/collection-response-access';
 import {
   type AgencyCollectionScope,
@@ -160,11 +160,24 @@ export async function listGuestSubmissions(
         )
     ).map((r) => [r.id, parseItems(r.items)] as const),
   );
-  // Guests are numbered by first submission, so the agency can tell them apart without a name.
-  const guestOrder = [...rows]
-    .sort((a, b) => a.submittedAt.getTime() - b.submittedAt.getTime())
-    .map((r) => r.recipientKey);
-  const guestNo = (key: string) => [...new Set(guestOrder)].indexOf(key) + 1;
+  // Guests are numbered by their first submission to this request (all of them, not only the rows
+  // listed here), so a guest keeps the same number from page to page.
+  const firsts = await db
+    .select({
+      recipientKey: submissions.recipientKey,
+      first: sql<Date>`min(${submissions.submittedAt})`,
+    })
+    .from(submissions)
+    .where(
+      and(
+        eq(submissions.organizationId, scope.organizationId),
+        eq(submissions.requestId, requestId),
+      ),
+    )
+    .groupBy(submissions.recipientKey)
+    .orderBy(sql`min(${submissions.submittedAt})`, submissions.recipientKey);
+  const order = new Map(firsts.map((row, index) => [row.recipientKey, index + 1] as const));
+  const guestNo = (key: string) => order.get(key) ?? 0;
 
   const views = rows.map((row): GuestSubmissionView => {
     const own = lines.filter((l) => l.submissionId === row.id);

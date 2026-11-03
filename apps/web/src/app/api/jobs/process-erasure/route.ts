@@ -34,9 +34,6 @@ export async function GET(request: Request): Promise<Response> {
   // Deleted duplicates whose 30 days are over start their verified removal first, so the worker
   // below destroys them in this same run (LC-C). A legal hold keeps them; nothing is queued then.
   const recentlyDeleted = await runRecentlyDeletedPurge(systemPrincipal('process-erasure'));
-  // UMPE P9: guest answers to agency requests whose chosen period ended (never under a legal hold),
-  // and desk sessions that can never be used again. Its bytes go in its own pass, not the queue.
-  const guestRetention = await runGuestRetentionPurge(systemPrincipal('process-erasure'));
 
   let totalProcessed = 0;
   let totalBlocked = 0;
@@ -48,6 +45,11 @@ export async function GET(request: Request): Promise<Response> {
     totalFailed += result.failed;
     if (result.processed + result.blocked + result.failed < BATCH_SIZE) break; // caught up
   }
+
+  // UMPE P9, after the erasure worker so its daily safety net always runs first: guest answers to
+  // agency requests whose chosen period ended (never under a legal hold), and desk sessions that
+  // can never be used again. Bounded by its own time budget.
+  const guestRetention = await runGuestRetentionPurge(systemPrincipal('process-erasure'));
 
   return Response.json({
     processed: totalProcessed,

@@ -159,38 +159,42 @@ async function findLiveSession(
       }
     | undefined;
   try {
-    row = first(
-      await db
-        .select({
-          sessionId: schema.agencyCollectionGuestSessions.id,
-          linkId: schema.agencyCollectionLinks.id,
-          requestId: schema.agencyCollectionLinks.requestId,
-          revisionId: schema.agencyCollectionLinks.revisionId,
-          verifiedAt: schema.agencyCollectionGuestSessions.verifiedAt,
-          // UMPE P9: a link inherits the address the agency entered on the request, so a copied
-          // link (shared on WhatsApp, say) still has a guest path; the code goes to that address.
-          emailHint: sql<
-            string | null
-          >`coalesce(${schema.agencyCollectionLinks.recipientEmailHint}, ${schema.agencyCollectionRequests.recipientEmailHint})`,
-          createdBy: schema.agencyCollectionLinks.createdByAccountId,
-          organizationId: schema.agencyCollectionRequests.organizationId,
-          orgStatus: schema.organizations.status,
-        })
-        .from(schema.agencyCollectionGuestSessions)
-        .innerJoin(
-          schema.agencyCollectionLinks,
-          eq(schema.agencyCollectionLinks.id, schema.agencyCollectionGuestSessions.linkId),
-        )
-        .innerJoin(
-          schema.agencyCollectionRequests,
-          eq(schema.agencyCollectionRequests.id, schema.agencyCollectionLinks.requestId),
-        )
-        .innerJoin(
-          schema.organizations,
-          eq(schema.organizations.id, schema.agencyCollectionRequests.organizationId),
-        )
-        .where(and(match, liveSessionFilter(now, use), openLinkJoin(now)))
-        .limit(1),
+    // In its own savepoint: before the P9 column exists a signed-in look fails, and that failure
+    // must never abort a caller's transaction before the guest-window look below runs.
+    row = await db.transaction(async (tx) =>
+      first(
+        await tx
+          .select({
+            sessionId: schema.agencyCollectionGuestSessions.id,
+            linkId: schema.agencyCollectionLinks.id,
+            requestId: schema.agencyCollectionLinks.requestId,
+            revisionId: schema.agencyCollectionLinks.revisionId,
+            verifiedAt: schema.agencyCollectionGuestSessions.verifiedAt,
+            // UMPE P9: a link inherits the address the agency entered on the request, so a copied
+            // link (shared on WhatsApp, say) still has a guest path; the code goes to that address.
+            emailHint: sql<
+              string | null
+            >`coalesce(${schema.agencyCollectionLinks.recipientEmailHint}, ${schema.agencyCollectionRequests.recipientEmailHint})`,
+            createdBy: schema.agencyCollectionLinks.createdByAccountId,
+            organizationId: schema.agencyCollectionRequests.organizationId,
+            orgStatus: schema.organizations.status,
+          })
+          .from(schema.agencyCollectionGuestSessions)
+          .innerJoin(
+            schema.agencyCollectionLinks,
+            eq(schema.agencyCollectionLinks.id, schema.agencyCollectionGuestSessions.linkId),
+          )
+          .innerJoin(
+            schema.agencyCollectionRequests,
+            eq(schema.agencyCollectionRequests.id, schema.agencyCollectionLinks.requestId),
+          )
+          .innerJoin(
+            schema.organizations,
+            eq(schema.organizations.id, schema.agencyCollectionRequests.organizationId),
+          )
+          .where(and(match, liveSessionFilter(now, use), openLinkJoin(now)))
+          .limit(1),
+      ),
     );
   } catch (error) {
     // Before the P9 column exists, a signed-in use falls back to the guest's window.

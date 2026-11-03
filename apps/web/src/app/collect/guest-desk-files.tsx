@@ -19,6 +19,8 @@ export const DECISION_LABELS: Readonly<Record<CollectionReviewDecision, string>>
 function fileLine(file: GuestFileView): string {
   if (file.status === 'checking') return 'Being checked.';
   if (file.status === 'refused') return 'Did not pass the safety checks. It was not kept.';
+  if (file.status === 'stalled')
+    return 'This file did not finish uploading. Remove it, then add it again.';
   const checked = file.virusScanned
     ? 'Checked for viruses.'
     : 'File checked. Not scanned for viruses.';

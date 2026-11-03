@@ -67,9 +67,11 @@ export async function reviewAnswerAction(
     return {
       ok: true,
       message:
-        result.value.decision === 'NEEDS_CORRECTION'
-          ? 'Saved. The person sees your notes when they next open the request.'
-          : 'Saved.',
+        result.value.decision !== 'NEEDS_CORRECTION'
+          ? 'Saved.'
+          : source === 'guest'
+            ? 'Saved. The person sees your notes when they next open the request.'
+            : 'Saved for your team. A signed-in person does not see these notes yet: tell them directly what to correct.',
     };
   } catch (error) {
     reportServerError('collectionReview', error, { step: 'review failed', requestId });

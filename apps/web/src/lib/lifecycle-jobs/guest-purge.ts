@@ -1,8 +1,8 @@
 import 'server-only';
-import { createPooledDb, resolveDatabaseUrl } from '@visastack/db';
 import { type GuestPurgeResult, purgeGuestCollectionData } from '@visastack/services';
 import { reportServerError } from '../server-error';
 import { createStorage } from '../storage';
+import { connectJobPool } from './purge';
 
 /*
  * The retention end of guest answers to agency document requests (UMPE P9): called from the daily
@@ -58,11 +58,5 @@ export async function runGuestRetentionPurge(
 }
 
 function connectPooled(): { readonly db: PurgeDb; readonly end: () => Promise<void> } | null {
-  const connectionString = resolveDatabaseUrl(process.env);
-  if (!connectionString) return null;
-  const { db, pool } = createPooledDb(connectionString);
-  pool.on('error', (error) => {
-    reportServerError('runGuestRetentionPurge', error, { step: 'idle pool connection error' });
-  });
-  return { db: db as unknown as PurgeDb, end: () => pool.end() };
+  return connectJobPool<PurgeDb>('runGuestRetentionPurge');
 }

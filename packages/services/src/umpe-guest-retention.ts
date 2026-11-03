@@ -21,7 +21,9 @@ import type { BlobStore } from './storage';
  * link's lifetime code limits keep counting (P8).
  */
 
-export const GUEST_PURGE_BATCH = 50;
+export const GUEST_PURGE_BATCH = 20;
+/** A run stops starting new guests after this long, so the daily job keeps time for its other work. */
+export const GUEST_PURGE_BUDGET_MS = 20_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SESSION_KEEP_AFTER_END_MS = DAY_MS;
 const SESSION_PURGE_BATCH = 500;
@@ -60,31 +62,46 @@ function closedAtSql(now: Date) {
 interface DueGuest {
   readonly requestId: string;
   readonly recipientKey: string;
-  readonly held: boolean;
 }
 
-/** Guests whose retention has ended at `now`, bounded. */
-async function dueGuests(db: Db, now: Date, limit: number): Promise<DueGuest[]> {
+/** The SQL that picks the guests whose retention has ended at `now` (`g` the guest, `r` the request). */
+function dueSql(now: Date) {
   const closedAt = closedAtSql(now);
+  return sql`${closedAt} is not null and ${closedAt} + make_interval(days => coalesce((select max(s.retention_days) from agency_collection_guest_submissions s where s.request_id = g.request_id and s.recipient_key = g.recipient_key), 0)) <= ${now}`;
+}
+
+/** Built at call time, never at module load. */
+const heldSql = () =>
+  sql`exists (select 1 from agency_collection_guest_holds h where h.request_id = g.request_id and h.released_at is null)`;
+const guestsSql = () =>
+  sql`(select request_id, recipient_key from agency_collection_guest_files union select request_id, recipient_key from agency_collection_guest_submissions) as g join agency_collection_requests r on r.id = g.request_id`;
+
+/**
+ * Due guests at `now` that no hold keeps, bounded. Held guests are left out here (and counted on
+ * their own), so a pile of long holds can never fill every batch and starve everyone else.
+ */
+async function dueGuests(db: Db, now: Date, limit: number): Promise<DueGuest[]> {
   const rows = await db
-    .select({
-      requestId: sql<string>`g.request_id`,
-      recipientKey: sql<string>`g.recipient_key`,
-      held: sql<boolean>`exists (select 1 from agency_collection_guest_holds h where h.request_id = g.request_id and h.released_at is null)`,
-    })
-    .from(
-      sql`(select request_id, recipient_key from agency_collection_guest_files union select request_id, recipient_key from agency_collection_guest_submissions) as g join agency_collection_requests r on r.id = g.request_id`,
-    )
-    .where(
-      sql`${closedAt} is not null and ${closedAt} + make_interval(days => coalesce((select max(s.retention_days) from agency_collection_guest_submissions s where s.request_id = g.request_id and s.recipient_key = g.recipient_key), 0)) <= ${now}`,
-    )
+    .select({ requestId: sql<string>`g.request_id`, recipientKey: sql<string>`g.recipient_key` })
+    .from(guestsSql())
+    .where(sql`${dueSql(now)} and not ${heldSql()}`)
     .orderBy(sql`g.request_id`, sql`g.recipient_key`)
     .limit(limit);
   return rows.map((r) => ({
     requestId: String(r.requestId),
     recipientKey: String(r.recipientKey),
-    held: r.held === true,
   }));
+}
+
+/** How many due guests a legal hold keeps right now. */
+async function heldGuests(db: Db, now: Date): Promise<number> {
+  const row = first(
+    await db
+      .select({ held: sql<number>`count(*)::int` })
+      .from(guestsSql())
+      .where(sql`${dueSql(now)} and ${heldSql()}`),
+  );
+  return Number(row?.held ?? 0);
 }
 
 /**
@@ -133,6 +150,15 @@ async function purgeGuest(
       .from(files)
       .where(own);
     for (const file of fileRows) await storage.deleteObject('QUARANTINE', file.objectKey);
+    if (fileRows.length > 0) {
+      // The bytes are gone: their registrations go with them.
+      await tx.delete(schema.storageObjects).where(
+        inArray(
+          schema.storageObjects.objectKey,
+          fileRows.map((f) => f.objectKey),
+        ),
+      );
+    }
     // Only this transaction may delete submissions directly (the table refuses anyone else).
     await tx.execute(sql`select set_config('visastack.guest_purge', 'on', true)`);
     const submissions = await tx
@@ -215,21 +241,26 @@ export async function purgeGuestCollectionData(
   storage: Pick<BlobStore, 'deleteObject'>,
   scope: SystemScope<'process-erasure'>,
   now: Date = new Date(),
-  options: { readonly limit?: number } = {},
+  options: {
+    readonly limit?: number;
+    /** How long this run may keep starting new guests; the clock is read only for this. */
+    readonly budgetMs?: number;
+    readonly clock?: () => number;
+  } = {},
 ): Promise<GuestPurgeResult> {
   if (!SystemScope.isGenuine(scope) || scope.job !== 'process-erasure') return NOTHING;
   if (!(await guestUploadsPresent(db))) return NOTHING;
+  const clock = options.clock ?? Date.now;
+  const stopAt = clock() + (options.budgetMs ?? GUEST_PURGE_BUDGET_MS);
   const due = await dueGuests(db, now, Math.min(options.limit ?? GUEST_PURGE_BATCH, 500));
+  let held = await heldGuests(db, now);
   let guestsPurged = 0;
   let filesPurged = 0;
   let submissionsPurged = 0;
-  let held = 0;
   let failed = 0;
   for (const guest of due) {
-    if (guest.held) {
-      held++;
-      continue;
-    }
+    // The rest wait for the next run; nothing is half done, each guest is all or nothing.
+    if (clock() >= stopAt) break;
     try {
       const outcome = await purgeGuest(db, storage, guest);
       if (outcome === 'held') {

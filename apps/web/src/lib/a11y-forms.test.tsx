@@ -135,9 +135,7 @@ const collectionForms = await import('../app/app/agency/[orgId]/collection/colle
 const responseForms = await import('../app/collect/account/response-form');
 const guestForms = await import('../app/collect/guest-forms');
 const guestFileForms = await import('../app/collect/guest-files');
-const reviewForms = await import(
-  '../app/app/agency/[orgId]/collection/collection-review-forms'
-);
+const reviewForms = await import('../app/app/agency/[orgId]/collection/collection-review-forms');
 const { PurgeButton } = await import('../app/app/admin/purge-button');
 const { ReconcileButtons } = await import('../app/app/admin/reconcile-buttons');
 const { BrandingForm } = await import('../app/app/agency/[orgId]/branding-form');

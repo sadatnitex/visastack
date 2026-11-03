@@ -6215,9 +6215,8 @@ export const agencyCollectionGuestFiles = pgTable(
     requestId: uuid('request_id')
       .notNull()
       .references(() => agencyCollectionRequests.id, { onDelete: 'cascade' }),
-    linkId: uuid('link_id')
-      .notNull()
-      .references(() => agencyCollectionLinks.id, { onDelete: 'cascade' }),
+    // A plain id, like a submission's: a file a submission holds outlives the link it came through.
+    linkId: uuid('link_id').notNull(),
     recipientKey: text('recipient_key').notNull(),
     // The browser's id for this file, the same on every attempt: a repeat answers with this row.
     uploadId: uuid('upload_id').notNull(),
@@ -6252,7 +6251,6 @@ export const agencyCollectionGuestFiles = pgTable(
       table.createdAt,
     ),
     index('agency_collection_guest_files_org_idx').on(table.organizationId),
-    index('agency_collection_guest_files_link_idx').on(table.linkId),
     check(
       'agency_collection_guest_files_recipient_key',
       sql`${table.recipientKey} ~ '^[0-9a-f]{64}$'`,
@@ -6344,8 +6342,9 @@ export const agencyCollectionGuestSubmissionItems = pgTable(
       .references(() => agencyCollectionGuestSubmissions.id, { onDelete: 'cascade' }),
     itemId: text('item_id').notNull(),
     kind: text('kind').notNull(),
-    // No action (checked at the end of the statement): a file a submission holds is never removed
-    // before the submission is, while removing the whole request removes both together.
+    // Checked when the transaction commits (the migration makes it deferrable): a file a
+    // submission holds is never removed before the submission is, while removing the whole
+    // request or agency removes both together, whatever order the cascades run in.
     fileId: uuid('file_id').references(() => agencyCollectionGuestFiles.id, {
       onDelete: 'no action',
     }),

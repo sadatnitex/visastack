@@ -334,9 +334,7 @@ describe('guest uploads, exact submission and agency review (UMPE P9)', () => {
     const request = await copiedRequest();
     const proof = await verified(request.rawToken);
     const before = await Promise.all(
-      ['accounts', 'applicants', 'documents', 'document_versions', 'storage_objects'].map((t) =>
-        count(db, t),
-      ),
+      ['accounts', 'applicants', 'documents', 'document_versions'].map((t) => count(db, t)),
     );
     const added = await add(proof, 'my-passport-scan.pdf');
     if (!added.ok || added.value.kind !== 'stored') throw new Error('add');
@@ -350,9 +348,7 @@ describe('guest uploads, exact submission and agency review (UMPE P9)', () => {
       sent: false,
     });
     const after = await Promise.all(
-      ['accounts', 'applicants', 'documents', 'document_versions', 'storage_objects'].map((t) =>
-        count(db, t),
-      ),
+      ['accounts', 'applicants', 'documents', 'document_versions'].map((t) => count(db, t)),
     );
     expect(after).toEqual(before);
     const [row] = await db.select().from(schema.agencyCollectionGuestFiles);
@@ -710,5 +706,97 @@ describe('guest uploads, exact submission and agency review (UMPE P9)', () => {
     expect(proposeGuestItem('reservation.pdf', items)).toBe('c');
     expect(proposeGuestItem('IMG_0042.jpg', items)).toBeNull();
     expect(proposeGuestItem('passport and bank.pdf', items)).toBeNull();
+  });
+
+  it('an upload that stopped can be removed and never holds a submission', async () => {
+    const request = await copiedRequest();
+    const proof = await verified(request.rawToken);
+    const good = await add(proof, 'passport.pdf');
+    const stuck = await add(proof, 'statement.pdf');
+    if (!good.ok || !stuck.ok) throw new Error('add');
+    // As if the request storing it died before its checks finished, three minutes ago.
+    await db.execute(
+      sql`update agency_collection_guest_files set safety_status = 'RECEIVING', sha256 = null, updated_at = ${at(-3 * 60 * 1000)} where id = ${stuck.value.file.id}`,
+    );
+    const items = await itemIds(proof);
+    const desk = await readGuestUploadDesk(db, proof, items, t0);
+    expect(desk?.files.find((f) => f.id === stuck.value.file.id)?.status).toBe('stalled');
+    await saveGuestRetentionChoice(db, proof, 30, t0);
+    const sent = await submitGuestDocuments(db, proof, { consent: true }, t0);
+    expect(sent.ok && sent.value.files).toBe(1);
+    const removed = await removeGuestFile(db, storage, proof, stuck.value.file.id, t0);
+    expect(removed.ok).toBe(true);
+    expect(await count(db, 'agency_collection_guest_files')).toBe(1);
+  });
+
+  it('registers each stored file and removes the registration with its bytes', async () => {
+    const request = await copiedRequest();
+    const proof = await verified(request.rawToken);
+    const before = await count(db, 'storage_objects');
+    const added = await add(proof, 'passport.pdf');
+    if (!added.ok) throw new Error('add');
+    expect(await count(db, 'storage_objects')).toBe(before + 1);
+    await removeGuestFile(db, storage, proof, added.value.file.id, t0);
+    expect(await count(db, 'storage_objects')).toBe(before);
+    expect(storage.objects.size).toBe(0);
+    expect(await count(db, 'agency_collection_guest_files')).toBe(0);
+  });
+
+  it('a file a submission holds can never be deleted on its own', async () => {
+    const request = await copiedRequest();
+    const proof = await verified(request.rawToken);
+    await add(proof, 'passport.pdf');
+    await saveGuestRetentionChoice(db, proof, 30, t0);
+    expect((await submitGuestDocuments(db, proof, { consent: true }, t0)).ok).toBe(true);
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.execute(sql`delete from agency_collection_guest_files`);
+      }),
+    ).rejects.toThrow();
+    expect(await count(db, 'agency_collection_guest_files')).toBe(1);
+  });
+
+  it('a held guest never takes the place of a due one in a purge batch', async () => {
+    const job = systemScopeForTest('process-erasure');
+    const first = await copiedRequest();
+    const second = await copiedRequest();
+    for (const request of [first, second]) {
+      const proof = await verified(request.rawToken);
+      await add(proof, 'passport.pdf');
+      await endCollectionRequest(db, await scope(), request.requestId, 'CLOSED', t0);
+    }
+    const [heldRequest, freeRequest] = [first, second].sort((a, b) =>
+      a.requestId < b.requestId ? -1 : 1,
+    );
+    if (!heldRequest || !freeRequest) throw new Error('requests');
+    await placeGuestHold(db, await scope(), heldRequest.requestId, 'Synthetic dispute');
+    const result = await purgeGuestCollectionData(db, storage, job, at(DAY), { limit: 1 });
+    expect(result).toMatchObject({ guestsPurged: 1, held: 1 });
+    const left = await db
+      .select({ requestId: schema.agencyCollectionGuestFiles.requestId })
+      .from(schema.agencyCollectionGuestFiles);
+    expect(left.map((r) => r.requestId)).toEqual([heldRequest.requestId]);
+  });
+
+  it('an agency no longer reviewed cannot review a guest submission', async () => {
+    const request = await copiedRequest();
+    const proof = await verified(request.rawToken);
+    await add(proof, 'passport.pdf');
+    await saveGuestRetentionChoice(db, proof, 30, t0);
+    const one = await submitGuestDocuments(db, proof, { consent: true }, t0);
+    if (!one.ok) throw new Error('submit');
+    await db
+      .update(schema.organizations)
+      .set({ status: 'PENDING_VERIFICATION' })
+      .where(eq(schema.organizations.id, orgId));
+    const s = await scope();
+    const review = await recordCollectionReview(db, s, {
+      source: 'guest',
+      answerId: one.value.submissionId,
+      decision: 'NEEDS_CORRECTION',
+      note: 'Synthetic note',
+    });
+    expect(!review.ok && review.error.code).toBe('not_found');
+    expect(await listGuestSubmissions(db, s, request.requestId)).toEqual([]);
   });
 });
