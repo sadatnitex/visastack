@@ -1,7 +1,9 @@
 import 'server-only';
 import {
+  type GuestChecklistItem,
   type GuestCollectionSessionProof,
   type GuestDesk,
+  type GuestUploadDesk,
   RATE_LIMITS,
   agencyCollectionRequestsEnabled,
   checkRateLimits,
@@ -9,6 +11,7 @@ import {
   guestCollectionSessionProof,
   guestSessionLink,
   readGuestDesk,
+  readGuestUploadDesk,
   startGuestSession,
 } from '@visastack/services';
 import { clientAddressFrom, hashedSubject } from '../../lib/client-address';
@@ -41,6 +44,12 @@ export const COLLECT_COOKIE = 'vs_collect';
 /** The cookie lives no longer than a session can (12 hours); the server ends it sooner when idle. */
 export const COLLECT_COOKIE_SECONDS = 12 * 60 * 60;
 
+/**
+ * Scoped to `/collect` on purpose (P8, kept in P9): the desk session reaches only the desk, its
+ * upload route and its logo, never the signed-in app. A `__Host-` name would require `Path=/`,
+ * which would send the cookie with every request to the site, so it is not used; `Secure`,
+ * `HttpOnly` and no `Domain` (host-only) give the same origin binding without widening it.
+ */
 export const COLLECT_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: true,
@@ -168,6 +177,24 @@ export async function readCollectSession(
     return await withPublicDb((db) => guestSessionLink(db, proof));
   } catch (error) {
     reportServerError('collectionRequestLink', error, { step: 'session lookup failed' });
+    return null;
+  }
+}
+
+/**
+ * UMPE P9: the verified guest's files, what is still missing and what they sent, or null when the
+ * session is not a verified live one (then the page shows the closed answer).
+ */
+export async function loadGuestUploads(
+  cookie: string | undefined,
+  items: readonly GuestChecklistItem[],
+): Promise<GuestUploadDesk | null> {
+  const proof = sessionProofFrom(cookie);
+  if (!proof) return null;
+  try {
+    return await withPublicDb((db) => readGuestUploadDesk(db, proof, items));
+  } catch (error) {
+    reportServerError('guestCollectionFiles', error, { step: 'files lookup failed' });
     return null;
   }
 }

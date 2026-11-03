@@ -64,3 +64,9 @@ Lanes A (import) and E (source monitoring) can build now. Lane B (P1 necessity a
 - Published-rule impact on agency requests: an issued agency checklist is never rewritten. When a newer official version is published, the agency sees it on the request page (through its own organization scope) and may issue a new revision; agency requests are not added to the traveller rule-impact notes, because the collection tables accept only agency or link proofs.
 - One note per publication: once the rule impact tables (migration 0123) exist, the P4 package sweep leaves newer publications to the P11 rule impact notes; before that migration the P4 sweep still reports them.
 - Daily jobs: the package change sweep (P4) and the rule impact sweep (P11) run inside the existing daily process-notification-sweeps job; the job route alone creates the system scope (access ratchet rule).
+
+## Addendum 4, 3 November 2026 (P9 guest uploads, lead decisions under the owner's pre-approval)
+- A copied agency link inherits the address the agency entered on the request, for the guest path only and at read time. The signed-in account path keeps P7's rule that a copied link binds to nobody.
+- Guest submissions reuse the existing response-submitted event with an extended send-time check; no new event type in P9. The guest email on Needs Correction is added by gap package G3 with its own event and send-time check.
+- The guest session idle window stays 30 minutes; a signed-in visitor on the desk has its own 2-hour clock. The desk cookie stays scoped to /collect.
+- Guest purge (chosen period after the request closes, legal holds excluded) and expired session and code purge run inside the existing daily erasure job; the job route alone creates the system scope.

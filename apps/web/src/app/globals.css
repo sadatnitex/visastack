@@ -12989,3 +12989,112 @@ html:has(.sticky-action-bar) {
 .correction-link {
   overflow-wrap: anywhere;
 }
+
+/* WP-UMPE-P9 guest uploads and review: the guest's drop area, upload lines, file list with its
+   item choice, Still Missing, What You Sent, the Submit Documents consent, and the agency's review
+   form and guest hold. Flat, 44 px targets, tokens only. */
+.collect-upload,
+.collect-files,
+.collect-missing,
+.collect-sent,
+.collect-submit {
+  margin-block: var(--space-4);
+}
+.collect-drop {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px dashed var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.collect-drop-active {
+  border-color: var(--accent);
+}
+.collect-drop .btn,
+.collect-upload-line .btn,
+.collect-file-actions .btn,
+.collect-consent,
+.collection-review-option,
+.collection-review-form .btn,
+.collection-guest-hold .btn,
+.collection-response-file a.btn {
+  min-height: 44px;
+}
+.collect-upload-status {
+  display: block;
+  margin-block: var(--space-2);
+}
+.collect-upload-lines,
+.collect-file-list,
+.collect-sent-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+.collect-upload-line,
+.collect-file,
+.collect-sent-entry {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+}
+.collect-file-name {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.collect-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+.collect-place-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2);
+}
+.collect-place-form .field-label {
+  flex-basis: 100%;
+}
+.collect-place-form select {
+  min-height: 44px;
+  max-width: 100%;
+}
+.collect-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.collect-consent input {
+  margin-top: 0.25rem;
+}
+.collection-review-form {
+  margin-top: var(--space-3);
+}
+.collection-review-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.collection-review-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.collection-review-notes summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.collection-guest-hold {
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: var(--space-3);
+}

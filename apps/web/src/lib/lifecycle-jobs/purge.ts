@@ -46,11 +46,18 @@ export async function runRecentlyDeletedPurge(
 }
 
 function connectPooled(): { readonly db: PurgeDb; readonly end: () => Promise<void> } | null {
+  return connectJobPool<PurgeDb>('runRecentlyDeletedPurge');
+}
+
+/** A pooled connection for one daily job pass (shared with the guest retention pass, UMPE P9). */
+export function connectJobPool<D>(
+  source: string,
+): { readonly db: D; readonly end: () => Promise<void> } | null {
   const connectionString = resolveDatabaseUrl(process.env);
   if (!connectionString) return null;
   const { db, pool } = createPooledDb(connectionString);
   pool.on('error', (error) => {
-    reportServerError('runRecentlyDeletedPurge', error, { step: 'idle pool connection error' });
+    reportServerError(source, error, { step: 'idle pool connection error' });
   });
-  return { db: db as unknown as PurgeDb, end: () => pool.end() };
+  return { db: db as unknown as D, end: () => pool.end() };
 }

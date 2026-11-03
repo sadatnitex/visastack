@@ -793,6 +793,15 @@ export type CollectionResponseVersion =
       /** A protected detail's value is null until the agency admin confirms it is them. */
       readonly value: string | null;
       readonly protected: boolean;
+    }
+  /** UMPE P9: one exact file a guest sent, by its name as sent. */
+  | {
+      readonly kind: 'GUEST_FILE';
+      readonly fileId: string;
+      readonly title: string;
+      readonly sizeBytes: number;
+      /** False: only the file's structure was checked (no virus scanner is switched on). */
+      readonly virusScanned: boolean;
     };
 
 /**

@@ -34,7 +34,13 @@ import {
   NewLinkForm,
   PackChoiceForm,
 } from '../collection-forms';
-import { CollectionResponsesPanel, loadCollectionResponses } from '../collection-response-panel';
+import {
+  type CollectionQueueExtras,
+  CollectionResponsesPanel,
+  NO_QUEUE_EXTRAS,
+  loadCollectionQueueExtras,
+  loadCollectionResponses,
+} from '../collection-response-panel';
 import { STATUS_TONES, collectionPackTerms, destinationName } from '../terms';
 import { ChecklistCorrectionCard } from './checklist-correction';
 
@@ -109,6 +115,7 @@ export default async function CollectionRequestPage({
           collectionPackTerms(detail.value),
         );
     let responses: CollectionResponseView[] = [];
+    let extras: CollectionQueueExtras = NO_QUEUE_EXTRAS;
     let reauth: string | null = null;
     if (detail.value.revisions.length > 0) {
       try {
@@ -138,6 +145,11 @@ export default async function CollectionRequestPage({
         // The answers never take the request page down with them.
         reportServerError('collectionResponses', error, { step: 'answers failed' });
       }
+      try {
+        extras = await loadCollectionQueueExtras(db, scope.value, requestId);
+      } catch (error) {
+        reportServerError('collectionResponses', error, { step: 'guest answers failed' });
+      }
     }
     // UMPE P11: a newer published official checklist, through this agency's own scope.
     const impact = await collectionRuleImpact(db, scope.value, requestId);
@@ -145,13 +157,14 @@ export default async function CollectionRequestPage({
       detail: detail.value,
       choices: choices?.ok ? choices.value : [],
       responses,
+      extras,
       reauth,
       impact: impact.ok ? impact.value : undefined,
     };
   });
   if (!data) notFound();
   if (data.reauth) redirect(data.reauth);
-  const { detail, choices, responses, impact } = data;
+  const { detail, choices, responses, extras, impact } = data;
   const editable = detail.storedStatus === 'DRAFT' || detail.storedStatus === 'SENT';
   const items = detail.draftItems ?? [];
   const official = detail.draftPack !== null;
@@ -305,6 +318,7 @@ export default async function CollectionRequestPage({
           requestId={detail.id}
           responses={responses}
           fileUnavailable={file === 'unavailable'}
+          extras={extras}
         />
       ) : null}
 

@@ -5844,6 +5844,9 @@ export const agencyCollectionGuestSessions = pgTable(
     // The hard end of the session, whatever happens: 12 hours after it began.
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    // UMPE P9: when a signed-in person last used this session (the account path). Its idle window
+    // is longer than a guest's and never revives the guest's own 30 minute clock.
+    accountSeenAt: timestamp('account_seen_at', { withTimezone: true }),
   },
   (table) => [
     index('agency_collection_guest_sessions_link_idx').on(table.linkId),
@@ -6469,6 +6472,257 @@ export const umpeRuleImpacts = pgTable(
     check(
       'umpe_rule_impacts_resolution_known',
       sql`(${table.resolvedAt} is null) = (${table.resolution} is null) and (${table.resolution} is null or ${table.resolution} in ('SUPERSEDED', 'NO_LONGER_APPLIES'))`,
+    ),
+  ],
+);
+
+// --- Guest uploads, submissions and agency review (UMPE P9) -----------------------------------
+// Request-scoped like the guest desk: no account, applicant, document or case column. A guest is
+// known only as `recipient_key`, the SHA-256 of the email address the agency entered for the link,
+// so a reissued link to the same address finds the same files. Read only through a gate
+// (`GuestCollectionSessionProof`, `AgencyCollectionScope` or the purge's `SystemScope`), held to it
+// by the access ratchet.
+
+// One file a guest added to a request. The bytes sit in private storage under an opaque key; the
+// file's own name is kept privately (capped) to label it. The guest maps it to one issued item (a
+// proposal from its name first, which the guest may correct). Removed files that a submission
+// holds stay (with `removed_at`) until the request's retention ends.
+export const agencyCollectionGuestFiles = pgTable(
+  'agency_collection_guest_files',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => agencyCollectionRequests.id, { onDelete: 'cascade' }),
+    // A plain id, like a submission's: a file a submission holds outlives the link it came through.
+    linkId: uuid('link_id').notNull(),
+    recipientKey: text('recipient_key').notNull(),
+    // The browser's id for this file, the same on every attempt: a repeat answers with this row.
+    uploadId: uuid('upload_id').notNull(),
+    objectKey: text('object_key').notNull().unique(),
+    contentType: text('content_type').notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
+    // Null while the bytes are still being stored and checked.
+    sha256: text('sha256'),
+    originalName: text('original_name').notNull(),
+    // RECEIVING (being stored and checked), CLEAN (passed every check) or REJECTED (refused).
+    safetyStatus: text('safety_status').notNull().default('RECEIVING'),
+    scannerName: text('scanner_name'),
+    scannerVersion: text('scanner_version'),
+    // True only when a real virus scanner (not the structural check) passed the file.
+    virusScanned: boolean('virus_scanned').notNull().default(false),
+    checkedAt: timestamp('checked_at', { withTimezone: true }),
+    itemId: text('item_id'),
+    // PROPOSED (from the file name) or GUEST (the guest chose or confirmed it).
+    mappingSource: text('mapping_source'),
+    removedAt: timestamp('removed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    unique('agency_collection_guest_files_upload').on(
+      table.requestId,
+      table.recipientKey,
+      table.uploadId,
+    ),
+    index('agency_collection_guest_files_recipient_idx').on(
+      table.requestId,
+      table.recipientKey,
+      table.createdAt,
+    ),
+    index('agency_collection_guest_files_org_idx').on(table.organizationId),
+    check(
+      'agency_collection_guest_files_recipient_key',
+      sql`${table.recipientKey} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'agency_collection_guest_files_sha256',
+      sql`${table.sha256} is null or ${table.sha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'agency_collection_guest_files_status_known',
+      sql`${table.safetyStatus} in ('RECEIVING', 'CLEAN', 'REJECTED')`,
+    ),
+    check(
+      'agency_collection_guest_files_mapping_known',
+      sql`${table.mappingSource} is null or ${table.mappingSource} in ('PROPOSED', 'GUEST')`,
+    ),
+    check(
+      'agency_collection_guest_files_caps',
+      sql`char_length(${table.originalName}) between 1 and 180 and char_length(${table.contentType}) <= 100 and coalesce(char_length(${table.itemId}), 0) <= 64 and ${table.sizeBytes} > 0`,
+    ),
+  ],
+);
+
+// One explicit Submit Documents: an immutable manifest of exact files for one issued revision.
+// A trigger refuses every UPDATE, and every DELETE except a cascade or the retention purge's own
+// transaction (see the migration). A correction is the next `submission_no`, never an edit.
+export const agencyCollectionGuestSubmissions = pgTable(
+  'agency_collection_guest_submissions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => agencyCollectionRequests.id, { onDelete: 'cascade' }),
+    revisionId: uuid('revision_id')
+      .notNull()
+      .references(() => agencyCollectionRequestRevisions.id, { onDelete: 'cascade' }),
+    // A plain id: the submission outlives the link it came through.
+    linkId: uuid('link_id').notNull(),
+    recipientKey: text('recipient_key').notNull(),
+    revisionNo: integer('revision_no').notNull(),
+    submissionNo: integer('submission_no').notNull(),
+    retentionDays: integer('retention_days').notNull(),
+    consentVersion: text('consent_version').notNull(),
+    contentSha256: text('content_sha256').notNull(),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('agency_collection_guest_submissions_number').on(
+      table.requestId,
+      table.recipientKey,
+      table.submissionNo,
+    ),
+    index('agency_collection_guest_submissions_org_idx').on(
+      table.organizationId,
+      table.requestId,
+      table.submittedAt,
+    ),
+    index('agency_collection_guest_submissions_revision_idx').on(table.revisionId),
+    check(
+      'agency_collection_guest_submissions_recipient_key',
+      sql`${table.recipientKey} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'agency_collection_guest_submissions_sha256',
+      sql`${table.contentSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check('agency_collection_guest_submissions_number_positive', sql`${table.submissionNo} >= 1`),
+    check(
+      'agency_collection_guest_submissions_retention_days',
+      sql`${table.retentionDays} in (3, 7, 15, 30, 60, 90, 180)`,
+    ),
+    check(
+      'agency_collection_guest_submissions_consent_cap',
+      sql`char_length(${table.consentVersion}) between 1 and 64`,
+    ),
+  ],
+);
+
+// One line per issued item of a submission: an exact file (by id and SHA-256), or Still Missing.
+export const agencyCollectionGuestSubmissionItems = pgTable(
+  'agency_collection_guest_submission_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    submissionId: uuid('submission_id')
+      .notNull()
+      .references(() => agencyCollectionGuestSubmissions.id, { onDelete: 'cascade' }),
+    itemId: text('item_id').notNull(),
+    kind: text('kind').notNull(),
+    // Checked when the transaction commits (the migration makes it deferrable): a file a
+    // submission holds is never removed before the submission is, while removing the whole
+    // request or agency removes both together, whatever order the cascades run in.
+    fileId: uuid('file_id').references(() => agencyCollectionGuestFiles.id, {
+      onDelete: 'no action',
+    }),
+    fileSha256: text('file_sha256'),
+    // The file's name as it was when sent.
+    title: text('title'),
+  },
+  (table) => [
+    index('agency_collection_guest_submission_items_submission_idx').on(table.submissionId),
+    index('agency_collection_guest_submission_items_file_idx').on(table.fileId),
+    unique('agency_collection_guest_submission_items_one_line')
+      .on(table.submissionId, table.itemId, table.fileId)
+      .nullsNotDistinct(),
+    check(
+      'agency_collection_guest_submission_items_kind_known',
+      sql`${table.kind} in ('FILE', 'MISSING')`,
+    ),
+    check(
+      'agency_collection_guest_submission_items_target',
+      sql`(${table.kind} = 'FILE' and ${table.fileId} is not null and ${table.fileSha256} ~ '^[0-9a-f]{64}$') or (${table.kind} = 'MISSING' and ${table.fileId} is null and ${table.fileSha256} is null)`,
+    ),
+  ],
+);
+
+// The agency's review of one answer, either source: a signed-in traveller's response (P7) or a
+// guest submission. Append-only (a trigger refuses UPDATE and any DELETE that is not a cascade):
+// the latest decision is the answer's state, and every earlier one stays as history.
+export const agencyCollectionReviews = pgTable(
+  'agency_collection_reviews',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => agencyCollectionRequests.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    responseId: uuid('response_id').references(() => agencyCollectionResponses.id, {
+      onDelete: 'cascade',
+    }),
+    guestSubmissionId: uuid('guest_submission_id').references(
+      () => agencyCollectionGuestSubmissions.id,
+      { onDelete: 'cascade' },
+    ),
+    decision: text('decision').notNull(),
+    // [{ itemId, note }]: what to correct, per item. Agency words only, never a person's data.
+    itemNotes: jsonb('item_notes').notNull().default(sql`'[]'::jsonb`),
+    note: text('note'),
+    // A plain id, like the revisions' issuer: a decision never changes.
+    decidedByAccountId: uuid('decided_by_account_id').notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('agency_collection_reviews_response_idx').on(table.responseId, table.decidedAt),
+    index('agency_collection_reviews_guest_idx').on(table.guestSubmissionId, table.decidedAt),
+    index('agency_collection_reviews_request_idx').on(table.organizationId, table.requestId),
+    check(
+      'agency_collection_reviews_decision_known',
+      sql`${table.decision} in ('RECEIVED', 'NEEDS_CORRECTION', 'ACCEPTED')`,
+    ),
+    check(
+      'agency_collection_reviews_target',
+      sql`(${table.source} = 'account' and ${table.responseId} is not null and ${table.guestSubmissionId} is null) or (${table.source} = 'guest' and ${table.guestSubmissionId} is not null and ${table.responseId} is null)`,
+    ),
+    check(
+      'agency_collection_reviews_note_cap',
+      sql`coalesce(char_length(${table.note}), 0) <= 1000`,
+    ),
+  ],
+);
+
+// A legal hold an agency places on the guest files of one request: while active, the retention
+// purge leaves them (and their submissions) alone, whatever period the guest chose.
+export const agencyCollectionGuestHolds = pgTable(
+  'agency_collection_guest_holds',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => agencyCollectionRequests.id, { onDelete: 'cascade' }),
+    reason: text('reason').notNull(),
+    placedByAccountId: uuid('placed_by_account_id').notNull(),
+    placedAt: timestamp('placed_at', { withTimezone: true }).notNull().defaultNow(),
+    releasedByAccountId: uuid('released_by_account_id'),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('agency_collection_guest_holds_request_idx').on(table.requestId, table.releasedAt),
+    index('agency_collection_guest_holds_org_idx').on(table.organizationId),
+    check(
+      'agency_collection_guest_holds_reason_cap',
+      sql`char_length(${table.reason}) between 1 and 500`,
     ),
   ],
 );

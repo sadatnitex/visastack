@@ -1,6 +1,7 @@
 import { systemPrincipal } from '@visastack/services';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
 import { triggerErasureWorker } from '../../../../lib/jobs';
+import { runGuestRetentionPurge } from '../../../../lib/lifecycle-jobs/guest-purge';
 import { runRecentlyDeletedPurge } from '../../../../lib/lifecycle-jobs/purge';
 
 /**
@@ -45,10 +46,16 @@ export async function GET(request: Request): Promise<Response> {
     if (result.processed + result.blocked + result.failed < BATCH_SIZE) break; // caught up
   }
 
+  // UMPE P9, after the erasure worker so its daily safety net always runs first: guest answers to
+  // agency requests whose chosen period ended (never under a legal hold), and desk sessions that
+  // can never be used again. Bounded by its own time budget.
+  const guestRetention = await runGuestRetentionPurge(systemPrincipal('process-erasure'));
+
   return Response.json({
     processed: totalProcessed,
     blocked: totalBlocked,
     failed: totalFailed,
     recentlyDeleted,
+    guestRetention,
   });
 }

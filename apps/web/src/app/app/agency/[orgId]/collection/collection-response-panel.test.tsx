@@ -7,6 +7,10 @@ import { textOf } from '../../../../../lib/next-mocks.test-support';
 vi.mock('./collection-response-actions', () => ({
   downloadResponseFileAction: async () => undefined,
 }));
+vi.mock('./collection-review-actions', () => ({
+  reviewAnswerAction: async () => ({ ok: true, message: '' }),
+  guestHoldAction: async () => ({ ok: true, message: '' }),
+}));
 
 const { CollectionResponsesPanel } = await import('./collection-response-panel');
 
@@ -85,12 +89,81 @@ describe('the agency Answers panel', () => {
     expect(text).toContain('Protected Detail');
     expect(text).toContain('Show Protected Details');
     expect(text).toContain('Still Missing');
-    expect(text).not.toMatch(/Reviewed|Accepted/);
+    // No decision yet: arrival is never shown as Reviewed or Accepted (the form offers the choice).
+    expect(text).not.toMatch(/Reviewed|Decided/);
+    expect(text).toContain('Your Decision');
   });
 
   it('never shows an answer that no longer matches what was sent', () => {
     const text = render(false);
     expect(text).toContain('This answer has changed since it was sent');
     expect(text).not.toContain('Download');
+  });
+
+  it('lists guest submissions in the same queue, with their files, decisions and the hold', () => {
+    const text = textOf(
+      renderToStaticMarkup(
+        <CollectionResponsesPanel
+          organizationId="o1"
+          requestId="q1"
+          fileUnavailable={false}
+          responses={[]}
+          extras={{
+            guest: [
+              {
+                id: 'gs-1',
+                source: 'guest',
+                status: 'SUBMITTED_TO_AGENCY',
+                submissionNo: 2,
+                revisionNo: 1,
+                submittedAt: new Date('2026-12-03T00:00:00Z'),
+                retentionDays: 30,
+                consentVersion: 'guest-submit-2026-11-02',
+                guestNo: 1,
+                intact: true,
+                lines: [
+                  {
+                    itemId: ITEM.id,
+                    item: ITEM,
+                    source: 'guest',
+                    versions: [
+                      {
+                        kind: 'GUEST_FILE',
+                        fileId: 'f1',
+                        title: 'passport.pdf',
+                        sizeBytes: 2048,
+                        virusScanned: false,
+                      },
+                    ],
+                    missing: false,
+                  },
+                ],
+              },
+            ],
+            reviews: new Map([
+              [
+                'gs-1',
+                [
+                  {
+                    decision: 'NEEDS_CORRECTION' as const,
+                    note: null,
+                    itemNotes: [],
+                    decidedAt: new Date('2026-12-03T01:00:00Z'),
+                  },
+                ],
+              ],
+            ]),
+            hold: null,
+          }}
+        />,
+      ),
+    );
+    expect(text).toContain('Without an Account: Guest 1, Submission 2');
+    expect(text).toContain('passport.pdf');
+    expect(text).toContain('file checked, not scanned for viruses');
+    expect(text).toContain('Download passport.pdf');
+    expect(text).toContain('Needs Correction');
+    expect(text).toContain('Kept 30 days after the request closes');
+    expect(text).toContain('Place a Legal Hold');
   });
 });
