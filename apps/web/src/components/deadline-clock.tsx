@@ -28,7 +28,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 /** The day and short month of a `YYYY-MM-DD` date, read from its text so no time zone moves it. */
 export function tileParts(isoDate: string): { day: string; month: string } | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
   // A day that does not exist (31 Feb, the 0th) is not a date: draw nothing rather than a wrong one.
