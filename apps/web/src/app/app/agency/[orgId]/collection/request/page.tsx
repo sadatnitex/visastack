@@ -33,7 +33,13 @@ import {
   NewLinkForm,
   PackChoiceForm,
 } from '../collection-forms';
-import { CollectionResponsesPanel, loadCollectionResponses } from '../collection-response-panel';
+import {
+  type CollectionQueueExtras,
+  CollectionResponsesPanel,
+  NO_QUEUE_EXTRAS,
+  loadCollectionQueueExtras,
+  loadCollectionResponses,
+} from '../collection-response-panel';
 import { STATUS_TONES, collectionPackTerms, destinationName } from '../terms';
 
 export const metadata: Metadata = { title: 'Agency Document Request', referrer: 'no-referrer' };
@@ -107,6 +113,7 @@ export default async function CollectionRequestPage({
           collectionPackTerms(detail.value),
         );
     let responses: CollectionResponseView[] = [];
+    let extras: CollectionQueueExtras = NO_QUEUE_EXTRAS;
     let reauth: string | null = null;
     if (detail.value.revisions.length > 0) {
       try {
@@ -136,12 +143,23 @@ export default async function CollectionRequestPage({
         // The answers never take the request page down with them.
         reportServerError('collectionResponses', error, { step: 'answers failed' });
       }
+      try {
+        extras = await loadCollectionQueueExtras(db, scope.value, requestId);
+      } catch (error) {
+        reportServerError('collectionResponses', error, { step: 'guest answers failed' });
+      }
     }
-    return { detail: detail.value, choices: choices?.ok ? choices.value : [], responses, reauth };
+    return {
+      detail: detail.value,
+      choices: choices?.ok ? choices.value : [],
+      responses,
+      extras,
+      reauth,
+    };
   });
   if (!data) notFound();
   if (data.reauth) redirect(data.reauth);
-  const { detail, choices, responses } = data;
+  const { detail, choices, responses, extras } = data;
   const editable = detail.storedStatus === 'DRAFT' || detail.storedStatus === 'SENT';
   const items = detail.draftItems ?? [];
   const official = detail.draftPack !== null;
@@ -295,6 +313,7 @@ export default async function CollectionRequestPage({
           requestId={detail.id}
           responses={responses}
           fileUnavailable={file === 'unavailable'}
+          extras={extras}
         />
       ) : null}
 

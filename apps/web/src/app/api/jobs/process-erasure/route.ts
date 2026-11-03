@@ -1,6 +1,7 @@
 import { systemPrincipal } from '@visastack/services';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
 import { triggerErasureWorker } from '../../../../lib/jobs';
+import { runGuestRetentionPurge } from '../../../../lib/lifecycle-jobs/guest-purge';
 import { runRecentlyDeletedPurge } from '../../../../lib/lifecycle-jobs/purge';
 
 /**
@@ -33,6 +34,9 @@ export async function GET(request: Request): Promise<Response> {
   // Deleted duplicates whose 30 days are over start their verified removal first, so the worker
   // below destroys them in this same run (LC-C). A legal hold keeps them; nothing is queued then.
   const recentlyDeleted = await runRecentlyDeletedPurge(systemPrincipal('process-erasure'));
+  // UMPE P9: guest answers to agency requests whose chosen period ended (never under a legal hold),
+  // and desk sessions that can never be used again. Its bytes go in its own pass, not the queue.
+  const guestRetention = await runGuestRetentionPurge(systemPrincipal('process-erasure'));
 
   let totalProcessed = 0;
   let totalBlocked = 0;
@@ -50,5 +54,6 @@ export async function GET(request: Request): Promise<Response> {
     blocked: totalBlocked,
     failed: totalFailed,
     recentlyDeleted,
+    guestRetention,
   });
 }

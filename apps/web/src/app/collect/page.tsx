@@ -1,18 +1,23 @@
-import { GUEST_RETENTION_DAYS } from '@visastack/services';
+import { GUEST_CONSENT_TEXT, GUEST_RETENTION_DAYS } from '@visastack/services';
 import type { Metadata } from 'next';
 import { cookies, headers } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { agencyBrand } from '../../lib/agency-brand';
+import { pdfUploadsAccepted } from '../../lib/upload-preflight';
 import { AgencyBrandScope, AgencyMark } from '../app/agency/[orgId]/org-branding-header';
 import { GuestChecklist } from './checklist';
+import { GuestDeskFiles } from './guest-desk-files';
+import { SubmitDocumentsForm } from './guest-files';
 import { LeaveForm, RetentionForm, SendCodeForm, VerifyCodeForm } from './guest-forms';
+import { GuestUploader } from './guest-uploader';
 import {
   COLLECT_COOKIE,
   type CollectPage as CollectPageState,
   SIGN_IN_TO_RESPOND_HREF,
   collectSwitchOn,
   loadCollectPage,
+  loadGuestUploads,
 } from './load';
 
 export const metadata: Metadata = {
@@ -102,6 +107,13 @@ export default async function CollectPage({
     );
 
   if (desk.stage === 'verified') {
+    const uploads = desk.intact
+      ? await loadGuestUploads((await cookies()).get(COLLECT_COOKIE)?.value, desk.items)
+      : null;
+    const files = uploads?.files ?? [];
+    const ready =
+      files.some((f) => f.status === 'ready' && f.itemId !== null) &&
+      !files.some((f) => f.status === 'checking');
     return (
       <Shell wide>
         {header('Your Document Checklist')}
@@ -116,15 +128,29 @@ export default async function CollectPage({
             This checklist cannot be shown right now. Ask the agency to send the request again.
           </p>
         )}
-        <p className="muted u-fs-085">
-          Adding your files here opens in a later release. Until then, nothing has been sent to{' '}
-          {agencyName ?? 'the agency'}.
-        </p>
+        {uploads ? (
+          <>
+            <GuestUploader pdfAccepted={pdfUploadsAccepted()} />
+            <GuestDeskFiles desk={uploads} items={desk.items} />
+          </>
+        ) : null}
         <RetentionForm
           agencyName={agencyName}
           value={desk.retentionDays}
           periods={GUEST_RETENTION_DAYS}
         />
+        {uploads ? (
+          <SubmitDocumentsForm
+            agencyName={agencyName}
+            consentText={GUEST_CONSENT_TEXT}
+            ready={ready && desk.retentionDays !== null}
+            again={uploads.submissions.length > 0}
+          />
+        ) : null}
+        <p className="muted u-fs-085">
+          Nothing reaches {agencyName ?? 'the agency'} until you choose Submit Documents. Without an
+          account, no VisaStack profile is made for you: your files go only to this request.
+        </p>
         <div className="collect-leave">
           <LeaveForm />
         </div>

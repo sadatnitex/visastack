@@ -78,6 +78,7 @@ vi.mock('../app/app/agency/[orgId]/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/collection/actions', standIn);
 vi.mock('../app/collect/account/actions', standIn);
 vi.mock('../app/collect/actions', standIn);
+vi.mock('../app/app/agency/[orgId]/collection/collection-review-actions', standIn);
 vi.mock('../app/app/agency/[orgId]/plan/invoices/actions', standIn);
 vi.mock('../app/app/applicant/[id]/actions', standIn);
 vi.mock('../app/app/applicant/[id]/documents/needs-decision-actions', standIn);
@@ -133,6 +134,10 @@ const sourceForms = await import('../app/app/admin/packs/sources/source-forms');
 const collectionForms = await import('../app/app/agency/[orgId]/collection/collection-forms');
 const responseForms = await import('../app/collect/account/response-form');
 const guestForms = await import('../app/collect/guest-forms');
+const guestFileForms = await import('../app/collect/guest-files');
+const reviewForms = await import(
+  '../app/app/agency/[orgId]/collection/collection-review-forms'
+);
 const { PurgeButton } = await import('../app/app/admin/purge-button');
 const { ReconcileButtons } = await import('../app/app/admin/reconcile-buttons');
 const { BrandingForm } = await import('../app/app/agency/[orgId]/branding-form');
@@ -2307,6 +2312,59 @@ const ADMIN: readonly Case[] = [
     element: () => <guestForms.RetentionForm agencyName={null} value={30} periods={[3, 7, 30]} />,
   },
   { name: 'leave the guest desk', element: () => <guestForms.LeaveForm /> },
+  // UMPE P9: guest files, Submit Documents and the agency's review.
+  {
+    name: 'place a guest file under a checklist item',
+    element: () => (
+      <guestFileForms.PlaceFileForm
+        fileId="f1"
+        fileName="passport.pdf"
+        itemId={null}
+        items={[
+          { id: 'i1', label: 'Passport' },
+          { id: 'i2', label: 'Bank Statement' },
+        ]}
+      />
+    ),
+    fields: ['itemId'],
+  },
+  {
+    name: 'remove a guest file',
+    element: () => <guestFileForms.RemoveFileForm fileId="f1" fileName="passport.pdf" />,
+  },
+  {
+    name: 'submit guest documents',
+    element: () => (
+      <guestFileForms.SubmitDocumentsForm
+        agencyName="Synthetic Agency One"
+        consentText="I am sending these files to this agency for this request only."
+        ready
+        again={false}
+      />
+    ),
+    fields: ['consent'],
+  },
+  {
+    name: 'review an answer to a document request',
+    element: () => (
+      <reviewForms.ReviewAnswerForm
+        organizationId="o1"
+        requestId="r1"
+        source="guest"
+        answerId="s1"
+        items={[{ id: 'i1', label: 'Passport' }]}
+      />
+    ),
+  },
+  {
+    name: 'place a legal hold on guest files',
+    element: () => <reviewForms.GuestHoldForm organizationId="o1" requestId="r1" held={false} />,
+    fields: ['reason'],
+  },
+  {
+    name: 'release a legal hold on guest files',
+    element: () => <reviewForms.GuestHoldForm organizationId="o1" requestId="r1" held />,
+  },
   {
     name: 'answer an agency request from your own record',
     element: () => (

@@ -2,16 +2,21 @@
 
 import {
   endGuestSession,
+  removeGuestFile,
   saveGuestRetentionChoice,
   sendGuestCode,
+  setGuestFileItem,
+  submitGuestDocuments,
   verifyGuestCode,
 } from '@visastack/services';
+import { revalidatePath } from 'next/cache';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createKeyManagementPort } from '../../lib/providers';
 import { withPublicDb } from '../../lib/public-db';
 import { sendEmailNow } from '../../lib/send-now';
 import { reportServerError } from '../../lib/server-error';
+import { createStorage } from '../../lib/storage';
 import {
   COLLECT_COOKIE,
   COLLECT_COOKIE_OPTIONS,
@@ -146,6 +151,7 @@ export async function retentionAction(
         ? { ok: false, message: result.error.message, field: 'retentionDays' }
         : CLOSED;
     }
+    revalidatePath('/collect');
     return {
       ok: true,
       message: `Saved. The agency may keep your files for ${result.value.retentionDays} days after the request closes.`,
@@ -172,4 +178,97 @@ export async function leaveAction(
   }
   (await cookies()).set(COLLECT_COOKIE, '', { ...COLLECT_COOKIE_OPTIONS, maxAge: 0 });
   redirect('/collect?left=1');
+}
+
+// --- UMPE P9: files and Submit Documents ---------------------------------------------------------
+
+/** Put one file under an issued item, or under none. The guest's choice replaces a proposal. */
+export async function placeFileAction(
+  _prev: GuestActionState,
+  formData: FormData,
+): Promise<GuestActionState> {
+  const session = await proof();
+  if (!session) return CLOSED;
+  try {
+    const result = await withPublicDb((db) =>
+      setGuestFileItem(db, session, {
+        fileId: formData.get('fileId'),
+        itemId: formData.get('itemId'),
+      }),
+    );
+    if (!result.ok) {
+      return result.error.code === 'invalid'
+        ? { ok: false, message: result.error.message, field: 'itemId' }
+        : CLOSED;
+    }
+    revalidatePath('/collect');
+    return { ok: true, message: result.value.itemId ? 'Saved.' : 'Saved as not placed.' };
+  } catch (error) {
+    reportServerError('guestCollectionFiles', error, { step: 'place failed' });
+    return { ok: false, message: 'This could not be saved. Try again in a minute.' };
+  }
+}
+
+/** Remove one file from the list (a file already sent stays with what was sent). */
+export async function removeFileAction(
+  _prev: GuestActionState,
+  formData: FormData,
+): Promise<GuestActionState> {
+  const session = await proof();
+  if (!session) return CLOSED;
+  try {
+    const result = await withPublicDb((db) =>
+      removeGuestFile(db, createStorage(db), session, formData.get('fileId')),
+    );
+    if (!result.ok) return CLOSED;
+    revalidatePath('/collect');
+    return {
+      ok: true,
+      message: result.value.kept
+        ? 'Removed from your list. The copy you already sent stays with what you sent.'
+        : 'Removed.',
+    };
+  } catch (error) {
+    reportServerError('guestCollectionFiles', error, { step: 'remove failed' });
+    return { ok: false, message: 'This file could not be removed. Try again in a minute.' };
+  }
+}
+
+/** Submit Documents: send exactly the files placed under the checklist items. */
+export async function submitDocumentsAction(
+  _prev: GuestActionState,
+  formData: FormData,
+): Promise<GuestActionState> {
+  const session = await proof();
+  if (!session) return CLOSED;
+  if (formData.get('consent') !== 'yes') {
+    return {
+      ok: false,
+      message: 'Tick the box to confirm what you are sending.',
+      field: 'consent',
+    };
+  }
+  try {
+    const result = await withPublicDb((db) => submitGuestDocuments(db, session, { consent: true }));
+    if (!result.ok) {
+      if (result.error.code === 'rate_limited') {
+        return {
+          ok: false,
+          message: 'You sent documents several times just now. Try again later.',
+        };
+      }
+      return result.error.code === 'invalid' || result.error.code === 'stale'
+        ? { ok: false, message: result.error.message }
+        : CLOSED;
+    }
+    revalidatePath('/collect');
+    const { files, stillMissing } = result.value;
+    return {
+      ok: true,
+      message: `Sent ${files} ${files === 1 ? 'file' : 'files'} to the agency${stillMissing > 0 ? `, with ${stillMissing} ${stillMissing === 1 ? 'item' : 'items'} still missing` : ''}.`,
+    };
+  } catch (error) {
+    reportServerError('guestCollectionSubmit', error, { step: 'submit failed' });
+    return { ok: false, message: 'Your documents could not be sent. Try again in a minute.' };
+  }
 }
