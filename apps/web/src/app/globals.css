@@ -14491,3 +14491,39 @@ html:has(.sticky-action-bar) {
 .wallet-detail-jump {
   margin-left: var(--space-2);
 }
+
+/* WP-UMPE-UX6-P4 joined trip: the read-only page of a trip a person joined. Plain rows, one filled button for their own case, the sharing choice and papers in one quiet card, and a quiet Leave This Trip at the end. Flat, tokens only, 44 px targets. */
+.companion-people {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.companion-papers {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  padding: 0;
+  list-style: none;
+}
+.companion-papers > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+.companion-more .trip-add-form {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.companion-leave {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}

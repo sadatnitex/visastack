@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
+import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
-import { loadTripList } from '../trip-data';
+import { loadJoinedTrips, loadTripList } from '../trip-data';
 
 export const metadata: Metadata = { title: 'Group Trips' };
 
@@ -10,9 +11,12 @@ export const dynamic = 'force-dynamic';
 
 /** UMPE P5: the account holder's group trips. */
 export default async function TripsPage() {
-  const { trips, hasTravellers } = await withSession(({ db, accountId }) =>
-    loadTripList(db, accountId),
-  );
+  const { list, joined } = await withSession(async ({ db, accountId }) => ({
+    list: await loadTripList(db, accountId),
+    // Empty unless travelling with someone else is on and this account joined a trip or was invited.
+    joined: await loadJoinedTrips(db, accountId),
+  }));
+  const { trips, hasTravellers } = list;
   return (
     <>
       <PageHeader
@@ -46,6 +50,30 @@ export default async function TripsPage() {
           </p>
         )}
       </article>
+      {joined.length > 0 ? (
+        <section className="card trip-section" aria-labelledby="trips-joined-title">
+          <h2 id="trips-joined-title" className="card-title">
+            Trips You Joined
+          </h2>
+          <ul className="trip-list">
+            {joined.map((trip) => (
+              <li key={trip.key}>
+                {trip.joined ? (
+                  <Link href={`/app/trip-invitations/${trip.tripId}`}>{trip.title}</Link>
+                ) : (
+                  <span>{trip.title}</span>
+                )}{' '}
+                <span className="muted u-fs-085">
+                  {trip.destination}
+                  {trip.joined
+                    ? ''
+                    : `. Invitation ends ${formatTimestampDate(trip.endsAt)}. Open the link in your email to answer.`}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </>
   );
 }

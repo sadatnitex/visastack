@@ -42,4 +42,5 @@ Newest first. One line per change of state. The requirement-level truth is `docs
 - 2026-11-03: #434 (Home path card) merged and live. UX12 Delete My File built, reviewed at max, behind DOCUMENT_SELF_DELETE (off); UX6 package 3 (invitation email and accept page) with a helper.
 - 2026-11-03: #435 (Delete My File, switch off) merged. UX6 package 3 (companion invitation email and accept page, switch still off) built and reviewed at max; packages 4 and an owner decision on the pilot gate remain before the companions switch can go on.
 - 2026-11-03: #436 merged and live. DOCUMENT_SELF_DELETE turned on in Production on the owner's word (redeploy started; Delete My File live once ready). UX13 (documents list on a phone) built. UX6 package 4 with a helper.
+- 2026-11-03: #437 (documents list on a phone) merged and live; Delete My File on in Production. UX6 package 4 (companion pages, Plan My Own Case, Travel Bookings; migration 0131 written, not run) built and reviewed at max. All four companion packages exist; the switch stays off until the owner says migrate 0131 and walks it through.
 

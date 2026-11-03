@@ -312,7 +312,7 @@ describe('with the feature off', () => {
 
   it('says "not available" rather than failing when the table is missing', async () => {
     const { token } = await invite();
-    await db.execute(sql`drop table umpe_trip_companions`);
+    await db.execute(sql`drop table umpe_trip_companion_papers, umpe_trip_companions`);
     // A table seen once is remembered per database handle, so the page reads through a fresh one.
     state.db = drizzle(client, { schema }) as unknown as Db;
     const html = await page({ token });

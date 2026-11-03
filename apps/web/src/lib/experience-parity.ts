@@ -119,6 +119,11 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
     '/app/mission/${mission.id}/snapshots/${snap.id}',
   ),
   '/app/trips': nav,
+  // UX6 package 4: the read-only page of a trip a person joined, reached from Trips You Joined.
+  '/app/trip-invitations/[id]': link(
+    'app/app/trips/(list)/page.tsx',
+    '/app/trip-invitations/${trip.tripId}',
+  ),
   '/app/trips/new': link('app/app/trips/(list)/page.tsx', '/app/trips/new'),
   '/app/trips/[id]': link('app/app/trips/(list)/page.tsx', '/app/trips/${trip.id}'),
 

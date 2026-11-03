@@ -20,3 +20,21 @@ export async function tripCompanionsTablePresent(db: Db): Promise<boolean> {
   if (found) present.add(db);
   return found;
 }
+
+const papersPresent = new WeakSet<object>();
+
+/**
+ * The companion papers table (migration "umpe trip companion papers", UX6 package 4). It ships
+ * after the companions table, so everything about Travel Bookings papers answers "none" while it is
+ * missing: the level then behaves as it did before, and the choice list is empty. Same rules as
+ * above: never raises, only "present" is remembered.
+ */
+export async function tripCompanionPapersTablePresent(db: Db): Promise<boolean> {
+  if (papersPresent.has(db)) return true;
+  const rows = await db
+    .select({ present: sql<boolean>`to_regclass('umpe_trip_companion_papers') is not null` })
+    .from(sql`(select 1) as probe`);
+  const found = rows[0]?.present === true;
+  if (found) papersPresent.add(db);
+  return found;
+}

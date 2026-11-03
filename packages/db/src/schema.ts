@@ -6386,6 +6386,34 @@ export const umpeTripCompanions = pgTable(
   ],
 );
 
+// The papers a joined companion chose to show the organiser BY NAME ONLY while their sharing level
+// is Travel Bookings (UMPE UX6, package 4). A row is only a choice: it carries no copy of the
+// document, and deleting the document or the companion removes it. Code tolerates this table being
+// missing (it ships before its migration runs).
+export const umpeTripCompanionPapers = pgTable(
+  'umpe_trip_companion_papers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    companionId: uuid('companion_id').notNull(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Named by hand: the generated name is longer than the 63 characters a name may have, and a
+    // shortened one would never match the guarded re-run in the migration.
+    foreignKey({
+      name: 'umpe_trip_companion_papers_companion_fk',
+      columns: [table.companionId],
+      foreignColumns: [umpeTripCompanions.id],
+    }).onDelete('cascade'),
+    unique('umpe_trip_companion_papers_pair_unique').on(table.companionId, table.documentId),
+    index('umpe_trip_companion_papers_companion_idx').on(table.companionId),
+    index('umpe_trip_companion_papers_document_idx').on(table.documentId),
+  ],
+);
+
 // --- Checklist corrections and published-rule change impact (UMPE P11, S06 and S07) -----------
 // A suggestion is moderated input for pack editors, never a rule: nothing here edits a pack, a
 // case, a handoff or an issued agency revision. The submitter's account is kept only for the

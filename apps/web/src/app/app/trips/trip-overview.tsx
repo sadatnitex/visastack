@@ -140,6 +140,11 @@ function TripCompanions({
                 {c.planStatus ? `: ${c.planStatus}` : ''}
               </p>
             ) : null}
+            {c.status === 'JOINED' && c.papers.length > 0 ? (
+              <p className="muted u-fs-085 u-m-0">
+                Papers: {c.papers.map((paper) => `${paper.name} (${paper.kind})`).join(', ')}
+              </p>
+            ) : null}
             <div className="trip-companion-actions">
               {c.status === 'INVITED' || c.status === 'EXPIRED' ? (
                 <ResendCompanionForm tripId={tripId} companionId={c.id} name={c.name} />

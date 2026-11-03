@@ -1275,6 +1275,12 @@ describe('traveller answer gate (UMPE P7)', () => {
  * longer exists fails too. Each must also check the access at run time before anything else.
  */
 const COMPANION_ACCESS_FUNCTIONS = [
+  // UX6 package 4: papers (a companion's own papers, by name) and the companion's own case.
+  'umpe-trip-companion-case#myTripCaseId',
+  'umpe-trip-companion-case#planMyOwnCase',
+  'umpe-trip-companion-papers#chooseTripPaper',
+  'umpe-trip-companion-papers#listMyTripPapers',
+  'umpe-trip-companion-papers#removeTripPaper',
   'umpe-trip-companions#acceptCompanionInvitation',
   'umpe-trip-companions#declineCompanionInvitation',
   'umpe-trip-companions#getCompanionTrip',

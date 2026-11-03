@@ -9,6 +9,7 @@ import {
   listApplicants,
   listCompanions,
   listDocuments,
+  listMyCompanionTrips,
   listTripEvidence,
   listTrips,
   requireAccess,
@@ -48,6 +49,35 @@ export async function loadTripList(
   if (!proof) return { trips: [], hasTravellers: applicants.length > 0 };
   const trips = await listTrips(proof);
   return { trips: trips.ok ? trips.value : [], hasTravellers: true };
+}
+
+/** One row of Trips You Joined: a trip the person joined, or an invitation still waiting for them. */
+export interface JoinedTripRow {
+  readonly key: string;
+  readonly tripId: string;
+  readonly title: string;
+  readonly destination: string;
+  /** True for a trip they joined; false for an invitation that has not been answered. */
+  readonly joined: boolean;
+  /** When a waiting invitation ends (empty once joined). */
+  readonly endsAt: string;
+}
+
+/**
+ * The trips the signed-in account joined as someone travelling with an organiser, then invitations
+ * waiting for its verified email. Empty while travelling with someone else is off or the table is
+ * missing. A waiting invitation carries no link: only the emailed link can answer it.
+ */
+export async function loadJoinedTrips(db: Db, accountId: string): Promise<JoinedTripRow[]> {
+  const trips = await listMyCompanionTrips(db, accountId);
+  return trips.map((trip) => ({
+    key: `${trip.standing}-${trip.tripId}`,
+    tripId: trip.tripId,
+    title: trip.title,
+    destination: trip.destination,
+    joined: trip.standing === 'JOINED',
+    endsAt: trip.expiresAt ?? '',
+  }));
 }
 
 /** True when this trip belongs to the signed-in account (the layout's 404 gate). */

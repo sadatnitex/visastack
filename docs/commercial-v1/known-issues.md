@@ -7382,3 +7382,9 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 
 - The owner's phone screenshot: the Manage button touched the file card's border, and the Current, Archived and Recently Deleted tabs were underlined. The Manage wrapper had no style (now the card's padding, 8 px under the card); the tab links are `plain-link` (not underlined). Hand-back: `docs/umpe/operations/handoffs/UX13.md`. Not verified: a real phone, dark appearance.
 
+## 2026-11-03: UMPE UX6 package 4 (the companion's pages, Plan My Own Case, Travel Bookings; migration 0131 written, not run; switch still off)
+
+- Built behind `UMPE_TRIP_COMPANIONS_ENABLED` (off): Trips You Joined, a read-only joined trip page (only what the service returns; no family member is ever named), What You Share with the Organiser, Leave This Trip (asks once), Plan My Own Case for This Trip (the companion's own case on their own account; the organiser sees only the Plan Status phrase if chosen), and Travel Bookings papers (names only, from the companion's own record, common travel kinds only). Migration 0131 (`umpe_trip_companion_papers`) is written and NOT run: it needs the owner's word "migrate 0131"; everything tolerates the table missing.
+- Reviews: helper plus `/code-review max` (8 findings, the real ones fixed: archived papers, papers hidden behind older ones, typecheck and UI ratchet errors); guards proven red. Hand-back: `docs/umpe/operations/handoffs/UX6-P4.md`.
+- Pilot gate: investigated, nothing implemented (public beta bypasses it; see `UX6-P4-pilot-gate.md`). Not verified: a browser, a screen reader, real mail, the migration on Neon.
+
