@@ -7303,3 +7303,10 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Measured (made-up data, phone 390 wide, desktop 1184 wide): group trip phone 2.64 to 3.00 screens (inside the 3-screen budget), desktop 2.30 to 2.25; Home quiet 1.16 to 1.18 and 1.90 to 1.93.
 - Code review high: 10 findings, 8 fixed, 2 declined with reasons. axe found no violation on either page at 2 widths. New tests prove red when the traveller order, the month lookup or the card-link exclusion is broken.
 - Not verified: a live account, a screen reader, a real phone, the e2e browser checks. The agency request desk is not built.
+
+## 2026-11-03: UMPE UX3 (agency Document Requests list, no migration)
+
+- Built from the real page rendered first. The customer was the third column behind Destination, the New Request button sat against the description, there was no way to look at one status, and the table had no `data-label` attributes so on a tablet or phone every value showed beside a blank gutter. Now: the customer first and the way in ("Not Named Yet" when unnamed), status filters with counts (only statuses that exist, `?status=`, current one marked), the button beside the title, every cell labelled, and a three-line card on a phone. The Links table on a request page gets its labels too. One `WP-UMPE-UX3` block.
+- Measured (made-up data): phone 1.81 to 1.40 screens, desktop 1.00 to 1.00. Code review high: 10 findings in the combined review, those about this list fixed (doc order, a note that counts cover the newest requests), one explained (labels are not drawn on the phone card). axe found no violation at 2 widths. New tests go red when the filter is inverted.
+- Not built: a queue of what came back (Submitted for Review, Needs Correction, per-file Accept). The list service returns only a request's own status; counting answers across requests is a service change with its own brief and security review. Two platform tables (`admin/page.tsx`, `admin/insights/page.tsx`) have the same missing labels on narrow screens and are untouched.
+- Not verified: a signed-in agency account, a screen reader, a real phone, dark appearance, the e2e browser checks.
