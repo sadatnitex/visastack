@@ -65,7 +65,7 @@ export function expiredOnArrival(
       ? Number.isNaN(expiry.getTime())
         ? null
         : expiry.toISOString().slice(0, 10)
-      : (ISO_DAY.exec(expiry)?.[0] ?? null);
+      : (expiry.match(ISO_DAY)?.[0] ?? null);
   if (day === null) return false;
   return day < calendarDay(addedAt, timeZone);
 }
@@ -86,7 +86,7 @@ const MONTHS_LONG = [
 ] as const;
 
 function parts(isoDay: string): { year: number; month: number; day: number } | null {
-  const match = ISO_DAY.exec(isoDay);
+  const match = isoDay.match(ISO_DAY);
   if (!match?.[1] || !match[2] || !match[3]) return null;
   return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
 }

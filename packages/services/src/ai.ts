@@ -37,7 +37,11 @@ import { documentVersionBelongsToApplicant } from './document-version-owner';
 import { getDocumentTypeOfVersion } from './documents';
 import { type ServiceError, serviceError } from './errors';
 import { getLatestExtractedText } from './intake';
-import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
+import {
+  lifecycleTablesPresent,
+  presentApplicantCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
 import { buildProposedName, extensionOf } from './naming';
 import type {
   AiOcrCacheKeyComponents,
@@ -2396,7 +2400,8 @@ export async function suggestDocumentKind(
       displayName: proof.applicant.displayName,
       documentId: proof.resource.kind === 'document' ? proof.resource.document.id : null,
     },
-    { proof },
+    // Each entry asks the feature switch itself (S28); the shared part calls this at its step.
+    () => openAiFeatureGate(proof.tx, 'ai_document_kind', { proof }),
     ai,
     input,
   );
@@ -2434,6 +2439,7 @@ export async function suggestDocumentKindInBackground(
         and(
           eq(schema.documentVersions.id, input.documentVersionId),
           lifecycle ? presentDocumentCondition() : undefined,
+          lifecycle ? presentApplicantCondition() : undefined,
         ),
       )
       .limit(1),
@@ -2442,7 +2448,11 @@ export async function suggestDocumentKindInBackground(
   return suggestKindForOwner(
     db,
     { ...owner, documentId: null },
-    { system: scope, accountId: owner.ownerAccountId },
+    () =>
+      openAiFeatureGate(db, 'ai_document_kind', {
+        system: scope,
+        accountId: owner.ownerAccountId,
+      }),
     ai,
     input,
   );
@@ -2458,7 +2468,7 @@ async function suggestKindForOwner(
     /** The document the proof names, when it names one. */
     readonly documentId: string | null;
   },
-  gateContext: Parameters<typeof openAiFeatureGate>[2],
+  openGate: () => ReturnType<typeof openAiFeatureGate>,
   ai: AiClassifyPort,
   input: SuggestDocumentKindInput,
 ): Promise<Result<DocumentKindSuggestion, ServiceError>> {
@@ -2494,7 +2504,7 @@ async function suggestKindForOwner(
     return err(serviceError('invalid', 'this file has not finished its safety checks'));
   }
   // The feature first (S28), then consent.
-  const gate = await openAiFeatureGate(db, 'ai_document_kind', gateContext);
+  const gate = await openGate();
   if (!gate.ok) return err(aiFeatureRefusal(gate.error));
   if (!(await hasConsent(db, ownerAccountId, 'CORE_PROCESSING'))) {
     return err(serviceError('consent_required', 'processing consent is required'));
