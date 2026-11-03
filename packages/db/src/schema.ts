@@ -6726,3 +6726,158 @@ export const agencyCollectionGuestHolds = pgTable(
     ),
   ],
 );
+
+// UMPE P12: application attempts and what the authority did with each one (Lane F).
+//
+// One row per time a case went to an authority: a reapplication or a resubmission after a refusal is
+// its own attempt, so two attempts never share a decision or evidence. Each attempt keeps the exact
+// package record known when it was recorded (the P4 handoff, else the plain snapshot, else nothing),
+// copied as ids and checksums only. A person's own report stays SELF_REPORTED; DOCUMENT_SUPPLIED
+// means they attached a document. Nothing here is ever called verified, because no channel exists
+// that could verify an authority's action. Append-only by trigger (see the migration); rows go only
+// with their case or person, or when the case purge redacts the case (trigger on missions).
+export const umpeOutcomeAttempts = pgTable(
+  'umpe_outcome_attempts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    attemptNo: integer('attempt_no').notNull(),
+    // The older submission report this attempt is, when it came from one (never invented for one).
+    missionSubmissionId: uuid('mission_submission_id').references(() => missionSubmissions.id, {
+      onDelete: 'cascade',
+    }),
+    binding: text('binding').notNull(),
+    handoffId: uuid('handoff_id').references(() => umpePackageHandoffs.id, {
+      onDelete: 'set null',
+    }),
+    handoffChecksum: text('handoff_checksum'),
+    missionSnapshotId: uuid('mission_snapshot_id').references(() => missionSnapshots.id, {
+      onDelete: 'set null',
+    }),
+    packVersionId: uuid('pack_version_id').references(() => packVersions.id, {
+      onDelete: 'set null',
+    }),
+    packChecksum: text('pack_checksum'),
+    manifestFormat: integer('manifest_format'),
+    materialRevision: integer('material_revision'),
+    // { documentVersionIds: string[], factVersionIds: string[] }: ids only, never a value.
+    selectedVersions: jsonb('selected_versions').notNull(),
+    routeKey: text('route_key'),
+    purpose: text('purpose'),
+    jurisdiction: text('jurisdiction'),
+    destination: text('destination'),
+    travelStartDate: timestamp('travel_start_date', { withTimezone: true }),
+    travelEndDate: timestamp('travel_end_date', { withTimezone: true }),
+    channel: text('channel').notNull(),
+    submittedOn: date('submitted_on', { mode: 'string' }).notNull(),
+    evidenceBasis: text('evidence_basis').notNull(),
+    evidenceDocumentVersionId: uuid('evidence_document_version_id').references(
+      () => documentVersions.id,
+      { onDelete: 'set null' },
+    ),
+    recordedByAccountId: uuid('recorded_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('umpe_outcome_attempts_mission_no').on(table.missionId, table.attemptNo),
+    uniqueIndex('umpe_outcome_attempts_submission_once')
+      .on(table.missionSubmissionId)
+      .where(sql`${table.missionSubmissionId} is not null`),
+    index('umpe_outcome_attempts_applicant_idx').on(table.applicantId),
+    index('umpe_outcome_attempts_handoff_idx').on(table.handoffId),
+    index('umpe_outcome_attempts_snapshot_idx').on(table.missionSnapshotId),
+    index('umpe_outcome_attempts_pack_version_idx').on(table.packVersionId),
+    index('umpe_outcome_attempts_evidence_idx').on(table.evidenceDocumentVersionId),
+    index('umpe_outcome_attempts_recorded_by_idx').on(table.recordedByAccountId),
+    index('umpe_outcome_attempts_submitted_idx').on(table.submittedOn),
+    check('umpe_outcome_attempts_no_positive', sql`${table.attemptNo} >= 1`),
+    check(
+      'umpe_outcome_attempts_binding_known',
+      sql`${table.binding} in ('PACKAGE_HANDOFF', 'SNAPSHOT_ONLY', 'NONE')`,
+    ),
+    check(
+      'umpe_outcome_attempts_channel_known',
+      sql`${table.channel} in ('EMBASSY_PORTAL', 'EMAIL', 'IN_PERSON', 'COURIER', 'VISA_APPLICATION_CENTER', 'OTHER')`,
+    ),
+    check(
+      'umpe_outcome_attempts_basis_known',
+      sql`${table.evidenceBasis} in ('SELF_REPORTED', 'DOCUMENT_SUPPLIED')`,
+    ),
+    check(
+      'umpe_outcome_attempts_self_reported_has_no_document',
+      sql`${table.evidenceBasis} <> 'SELF_REPORTED' or ${table.evidenceDocumentVersionId} is null`,
+    ),
+    check(
+      'umpe_outcome_attempts_text_caps',
+      sql`coalesce(char_length(${table.routeKey}), 0) <= 200 and coalesce(char_length(${table.purpose}), 0) <= 500 and coalesce(char_length(${table.jurisdiction}), 0) <= 500 and coalesce(char_length(${table.destination}), 0) <= 500`,
+    ),
+  ],
+);
+
+// What happened after an attempt, each its own record: the authority's receipt, a request from the
+// authority for more ("The Embassy Asked for More", never an agency correction), or a decision as the
+// person recorded it. PENDING is a reported wait; an attempt with no decision at all reads Unknown.
+export const umpeOutcomeEvents = pgTable(
+  'umpe_outcome_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    attemptId: uuid('attempt_id')
+      .notNull()
+      .references(() => umpeOutcomeAttempts.id, { onDelete: 'cascade' }),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    decision: text('decision'),
+    requestSource: text('request_source'),
+    // Catalogue document kinds the authority asked for; never free text.
+    requestedDocTypes: text('requested_doc_types').array().notNull().default(sql`'{}'::text[]`),
+    occurredOn: date('occurred_on', { mode: 'string' }).notNull(),
+    evidenceBasis: text('evidence_basis').notNull(),
+    evidenceDocumentVersionId: uuid('evidence_document_version_id').references(
+      () => documentVersions.id,
+      { onDelete: 'set null' },
+    ),
+    recordedByAccountId: uuid('recorded_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('umpe_outcome_events_attempt_idx').on(table.attemptId, table.occurredOn),
+    index('umpe_outcome_events_mission_idx').on(table.missionId),
+    index('umpe_outcome_events_applicant_idx').on(table.applicantId),
+    index('umpe_outcome_events_evidence_idx').on(table.evidenceDocumentVersionId),
+    index('umpe_outcome_events_recorded_by_idx').on(table.recordedByAccountId),
+    check(
+      'umpe_outcome_events_kind_known',
+      sql`${table.kind} in ('AUTHORITY_RECEIPT', 'AUTHORITY_REQUEST', 'DECISION')`,
+    ),
+    check(
+      'umpe_outcome_events_decision_shape',
+      sql`(${table.kind} = 'DECISION') = (${table.decision} is not null) and (${table.decision} is null or ${table.decision} in ('PENDING', 'APPROVED', 'REFUSED', 'WITHDRAWN', 'CANCELLED', 'OTHER'))`,
+    ),
+    check(
+      'umpe_outcome_events_request_shape',
+      sql`(${table.kind} = 'AUTHORITY_REQUEST') = (${table.requestSource} is not null) and (${table.requestSource} is null or ${table.requestSource} in ('EMBASSY_OR_CONSULATE', 'VISA_APPLICATION_CENTER', 'IMMIGRATION_AUTHORITY', 'OTHER_AUTHORITY')) and (${table.kind} = 'AUTHORITY_REQUEST' or cardinality(${table.requestedDocTypes}) = 0) and cardinality(${table.requestedDocTypes}) <= 20`,
+    ),
+    check(
+      'umpe_outcome_events_basis_known',
+      sql`${table.evidenceBasis} in ('SELF_REPORTED', 'DOCUMENT_SUPPLIED')`,
+    ),
+    check(
+      'umpe_outcome_events_self_reported_has_no_document',
+      sql`${table.evidenceBasis} <> 'SELF_REPORTED' or ${table.evidenceDocumentVersionId} is null`,
+    ),
+  ],
+);

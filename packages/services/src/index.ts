@@ -2814,3 +2814,49 @@ export {
 } from './umpe-collection-response-review';
 export { type GuestPurgeResult, purgeGuestCollectionData } from './umpe-guest-retention';
 export { SIGNED_IN_SESSION_IDLE_MS } from './umpe-guest-collection';
+
+// UMPE P12
+export {
+  ATTEMPT_BINDINGS,
+  ATTEMPT_CHANNELS,
+  ATTEMPT_DECISIONS,
+  ATTEMPT_EVENT_KINDS,
+  AUTHORITY_REQUEST_SOURCES,
+  type AttemptBinding,
+  type AttemptChannel,
+  type AttemptDecision,
+  type AttemptEventKind,
+  type AuthorityRequestSource,
+  EVIDENCE_BASES,
+  type EvidenceBasis,
+  MAX_REQUESTED_DOC_TYPES,
+  outcomeTablesPresent,
+} from './umpe-outcome-tables';
+export {
+  type AttemptEventView,
+  type AttemptStanding,
+  type AttemptView,
+  type OutcomeAttemptsView,
+  type RecordAttemptEventInput,
+  type RecordAttemptInput,
+  attemptStanding,
+  listOutcomeAttempts,
+  localDate,
+  recordAttemptEvent,
+  recordOutcomeAttempt,
+  trackSubmissionAsAttempt,
+} from './umpe-outcome-service';
+export {
+  type Cell as InsightCell,
+  DEFAULT_INSIGHT_THRESHOLDS,
+  type InsightThresholds,
+} from './umpe-insights-suppression';
+export {
+  FUNNEL_STAGES,
+  type FieldInsightsReport,
+  type FunnelStageKey,
+  type FunnelUnit,
+  INSIGHT_PERIODS,
+  type InsightPeriod,
+  getFieldInsights,
+} from './umpe-insights-service';

@@ -159,6 +159,33 @@ function parseSnapshot(content: unknown): ParsedSnapshot {
   };
 }
 
+/**
+ * UMPE P12: the exact version ids one snapshot recorded, ids only, and the pack version it named.
+ * An older snapshot that did not record exact versions gives empty lists, never a guess.
+ */
+export function snapshotRecordedVersions(content: unknown): {
+  readonly exact: boolean;
+  readonly documentVersionIds: readonly string[];
+  readonly factVersionIds: readonly string[];
+  readonly packVersionId: string | null;
+  readonly packChecksum: string | null;
+  readonly manifestFormat: number | null;
+} {
+  const parsed = parseSnapshot(content);
+  const pack = asObject<{ id?: unknown; checksum?: unknown; manifestFormat?: unknown }>(
+    parsed.record.packVersion,
+  );
+  const packVersionId = stringOrNull(pack?.id);
+  return {
+    exact: parsed.exact,
+    documentVersionIds: parsed.documents.map((d) => d.documentVersionId),
+    factVersionIds: parsed.facts.map((f) => f.factVersionId),
+    packVersionId: packVersionId && UUID.test(packVersionId) ? packVersionId : null,
+    packChecksum: stringOrNull(pack?.checksum),
+    manifestFormat: typeof pack?.manifestFormat === 'number' ? pack.manifestFormat : null,
+  };
+}
+
 // --- Timeline ---------------------------------------------------------------
 
 export type MemoryEvent =

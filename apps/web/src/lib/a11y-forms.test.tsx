@@ -96,6 +96,7 @@ vi.mock('../app/app/client-invitations/accept/actions', standIn);
 vi.mock('../app/app/contributor-requests/accept/actions', standIn);
 vi.mock('../app/app/invitations/accept/actions', standIn);
 vi.mock('../app/app/mission/[id]/actions', standIn);
+vi.mock('../app/app/mission/[id]/attempt-actions', standIn);
 vi.mock('../app/app/mission/[id]/snapshots/[snapshotId]/actions', standIn);
 vi.mock('../app/app/privacy/actions', standIn);
 vi.mock('../app/app/staff-code/actions', standIn);
@@ -220,6 +221,7 @@ const { ContributorRequestsPanel } = await import(
 const missionButtons = await import('../app/app/mission/[id]/mission-buttons');
 const { OutcomePanel } = await import('../app/app/mission/[id]/outcome-panel');
 const packageForms = await import('../app/app/mission/[id]/package-forms');
+const attemptForms = await import('../app/app/mission/[id]/attempt-forms');
 const { TripStartForm } = await import('../app/app/mission/start/start-form');
 const tripForms = await import('../app/app/trips/trip-forms');
 const { ExplainGapButton } = await import('../app/app/mission/[id]/readiness-gap-explain');
@@ -879,6 +881,41 @@ const CASES_MISSION: readonly Case[] = [
       />
     ),
     fields: ['choice'],
+  },
+  {
+    name: 'track a submission report as an application attempt',
+    element: () => (
+      <attemptForms.TrackReportForm
+        missionId="m1"
+        missionSubmissionId="s1"
+        reportName="Submission Reported on 2 Nov 2026"
+      />
+    ),
+  },
+  {
+    name: 'record another application attempt',
+    element: () => (
+      <attemptForms.RecordAttemptForm
+        missionId="m1"
+        today="2026-11-03"
+        evidenceChoices={[{ value: 'v1', label: 'Receipt.pdf' }]}
+      />
+    ),
+    fields: ['channel', 'submittedOn'],
+  },
+  {
+    name: 'record what happened after an application attempt',
+    element: () => (
+      <attemptForms.AttemptEventForm
+        missionId="m1"
+        attemptId="a1"
+        attemptNo={1}
+        today="2026-11-03"
+        evidenceChoices={[{ value: 'v1', label: 'Letter.pdf' }]}
+        documentKinds={[{ value: 'BANK_STATEMENT', label: 'Bank Statement' }]}
+      />
+    ),
+    fields: ['kind', 'occurredOn'],
   },
   {
     name: 'mark a trip package change as reviewed',
