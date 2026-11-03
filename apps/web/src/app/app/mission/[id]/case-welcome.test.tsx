@@ -56,6 +56,27 @@ describe('caseWelcomeCopy: what a new case says to do first, from what it holds'
     expect(copy.action).toEqual({ href: '#pack', label: 'Pick a Checklist' });
   });
 
+  it('asks for the application post or travel dates a checklist depends on (UMPE G2, R05)', () => {
+    const copy = caseWelcomeCopy({
+      packName: null,
+      checklists: {
+        kind: 'pick',
+        travellerUnconfirmed: false,
+        caseDetailsNeeded: ['APPLICATION_POST', 'TRAVEL_DATES'],
+      },
+      firstGapHref: null,
+    });
+    const text = copy.body.join(' ');
+    expect(text).toContain(
+      'where you apply (the embassy, consulate or visa centre) and your travel dates',
+    );
+    expect(text).toContain('so none was linked');
+    expect(text).toContain('Edit Case Details');
+    // The match is not re-checked later, so nothing promises that it will be.
+    expect(text).not.toContain('VisaStack can tell');
+    expect(copy.action).toEqual({ href: '#pack', label: 'Pick a Checklist' });
+  });
+
   it('promises nothing when the check could not be made', () => {
     const copy = caseWelcomeCopy({
       packName: null,

@@ -77,6 +77,11 @@ export default async function PackVersionDiffPage({
           <h2 className="card-title">
             {data.diff.entries.length} requirement{data.diff.entries.length === 1 ? '' : 's'} total
           </h2>
+          {data.diff.routeConditionsChanged ? (
+            <p className="card-body">
+              Who the checklist is for changed: its application posts or travel dates differ.
+            </p>
+          ) : null}
           {data.diff.entries.length === 0 ? (
             <p className="card-body">Neither version has any requirements.</p>
           ) : (

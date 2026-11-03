@@ -131,6 +131,19 @@ describe('PackagePanel', () => {
     expect(html).toContain('I Have Reviewed This');
   });
 
+  it('shows how each document must be provided when the checklist says (UMPE G2, R12)', () => {
+    const html = renderToStaticMarkup(
+      <PackagePanel
+        pkg={pkg()}
+        formatLines={{
+          [passport.packRequirementId]: ['Accepted As: Certified Copy', 'Translation Needed'],
+        }}
+      />,
+    );
+    expect(html).toContain('How to Provide It: Accepted As: Certified Copy · Translation Needed');
+    expect(renderToStaticMarkup(<PackagePanel pkg={pkg()} />)).not.toContain('How to Provide It');
+  });
+
   it('shows a finished case as it is, with no forms', () => {
     const html = renderToStaticMarkup(<PackagePanel pkg={pkg({ active: false })} />);
     expect(html).not.toContain('<form');

@@ -2,6 +2,7 @@ import {
   buildManifest,
   getPackVersion,
   listRequirements,
+  loadManifestExtras,
   manifestFormatFor,
   manifestFormatOf,
 } from '@visastack/services';
@@ -28,10 +29,18 @@ export async function GET(
     const version = await getPackVersion(db, versionId);
     if (!version) return 'missing' as const;
     const requirements = await listRequirements(db, versionId);
+    // UMPE G2: the version's rule details and route conditions, part of a format 2 manifest.
+    const extras = await loadManifestExtras(
+      db,
+      versionId,
+      requirements.map((r) => r.id),
+    );
     const format =
-      version.status === 'DRAFT' ? manifestFormatFor(requirements) : manifestFormatOf(version);
+      version.status === 'DRAFT'
+        ? manifestFormatFor(requirements, extras)
+        : manifestFormatOf(version);
     if (format === null) return 'unknown_format' as const;
-    return buildManifest(requirements, format).manifest;
+    return buildManifest(requirements, format, extras).manifest;
   });
 
   if (outcome === 'forbidden') return new Response('not authorized', { status: 403 });

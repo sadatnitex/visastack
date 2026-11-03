@@ -82,9 +82,10 @@ describe('migration 0116: requirement necessity (UMPE P1)', () => {
         expect(await enumValues(client, 'requirement_necessity')).toEqual([
           ...REQUIREMENT_NECESSITIES,
         ]);
-        expect(await enumValues(client, 'requirement_provenance')).toEqual([
-          ...REQUIREMENT_PROVENANCES,
-        ]);
+        // 0116's own words; a later migration (UMPE G2) appends FIELD_OBSERVATION to the shared list.
+        expect(await enumValues(client, 'requirement_provenance')).toEqual(
+          REQUIREMENT_PROVENANCES.filter((word) => word !== 'FIELD_OBSERVATION'),
+        );
         expect(await enumValues(client, 'requirement_group_mode')).toEqual([
           ...REQUIREMENT_GROUP_MODES,
         ]);
