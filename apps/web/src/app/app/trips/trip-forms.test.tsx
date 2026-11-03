@@ -14,7 +14,7 @@ const actions = vi.hoisted(() => ({
   resendCompanionAction: vi.fn(),
 }));
 vi.mock('./actions', () => actions);
-const { AddTravellersForm, GroupTripStartForm } = await import('./trip-forms');
+const { AddTravellersForm, RemoveCompanionForm, GroupTripStartForm } = await import('./trip-forms');
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let root: Root;
@@ -246,5 +246,20 @@ describe('Add Someone Else in the trip forms', () => {
     act(() => root.render(<AddTravellersForm tripId="t1" travellers={[]} companionsOn={false} />));
     expect(container.textContent).not.toContain('Someone Else');
     expect(button('Add a Family Member')).toBeDefined();
+  });
+});
+
+describe('Remove for a companion asks once', () => {
+  it('shows one quiet Remove, then Yes, Remove and Keep, and sends nothing until it is confirmed', () => {
+    act(() =>
+      root.render(<RemoveCompanionForm tripId="t1" companionId="c1" name="Nadia Rahman" />),
+    );
+    expect(container.querySelector('button[type="submit"]')).toBeNull();
+    act(() => button('Remove')?.click());
+    expect(container.textContent).toContain('Remove Nadia Rahman? They lose access at once.');
+    expect(container.querySelector('button[type="submit"]')?.textContent).toBe('Yes, Remove');
+    act(() => button('Keep')?.click());
+    expect(container.querySelector('button[type="submit"]')).toBeNull();
+    expect(button('Remove')?.getAttribute('aria-label')).toBe('Remove: Nadia Rahman');
   });
 });

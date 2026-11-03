@@ -541,17 +541,37 @@ export function RemoveCompanionForm({
     NO_RESULT,
   );
   const id = useId();
+  // Taking someone off ends their access and discards what they chose to share, and cannot be
+  // undone from here, so it asks once.
+  const [asking, setAsking] = useState(false);
   return (
     <form action={formAction} className="trip-inline-form">
       <input type="hidden" name="tripId" value={tripId} />
       <input type="hidden" name="companionId" value={companionId} />
-      <SubmitButton
-        pending={pending}
-        idle="Remove"
-        busy="Removing…"
-        className="btn btn-secondary"
-        label={`Remove: ${name}`}
-      />
+      {asking ? (
+        <>
+          <span className="muted u-fs-085">Remove {name}? They lose access at once.</span>
+          <SubmitButton
+            pending={pending}
+            idle="Yes, Remove"
+            busy="Removing…"
+            className="btn btn-secondary"
+            label={`Yes, Remove: ${name}`}
+          />
+          <button type="button" className="btn btn-secondary" onClick={() => setAsking(false)}>
+            Keep
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          className="btn btn-secondary"
+          aria-label={`Remove: ${name}`}
+          onClick={() => setAsking(true)}
+        >
+          Remove
+        </button>
+      )}
       <FormMessage id={`${id}-msg`} result={state} />
     </form>
   );

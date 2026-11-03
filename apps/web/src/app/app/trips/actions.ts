@@ -2,6 +2,7 @@
 
 import {
   type AuthorizedApplicant,
+  COMPANION_INVITATION_DAYS,
   COMPANION_NAME_PROBLEM,
   COMPANION_NOT_SWITCHED_ON,
   type Db,
@@ -168,8 +169,7 @@ async function makeCompanion(
 }
 
 /**
- * The organiser's proof for a trip: one of their own travellers on it, as an owner with the right
- * to manage. Null when the trip is not theirs, so a forged or foreign trip id adds nobody.
+ * The organiser's proof for a trip: one of their own people, as an owner with the right to manage. Null when the trip is not theirs, so a forged or foreign trip id adds nobody.
  */
 async function organiserProof(db: Db, accountId: string, tripId: string) {
   const applicants = await listApplicants(db, accountId);
@@ -183,10 +183,10 @@ async function organiserProof(db: Db, accountId: string, tripId: string) {
     { purpose: 'owner_trip' },
   );
   if (!view.ok) return null;
-  const trip = await getTrip(view.value, tripId);
-  const onTrip = trip.ok ? trip.value.travellers[0]?.applicantId : undefined;
-  if (!onTrip) return null;
-  const proof = await travellerProof(db, accountId, onTrip);
+  // The trip must be this account's. Any of their own people can carry the proof (the services
+  // check the trip's owner again), so a trip whose travellers were all removed still works.
+  if (!(await getTrip(view.value, tripId)).ok) return null;
+  const proof = await travellerProof(db, accountId, first.id);
   return proof.ok ? proof.value : null;
 }
 
@@ -359,7 +359,11 @@ export async function startGroupTripAction(
         );
       }
       const added = await addEach(db, accountId, started.value.tripId, others);
-      if (!added.ok || person.status !== 'ready') return added;
+      if (!added.ok || person.status !== 'ready') {
+        // Someone else was typed but never tried: the trip says so, so they are not assumed added.
+        if (person.status === 'ready') companionFailed = true;
+        return added;
+      }
       // Someone else can only be added once the trip exists, so it comes last. A failure here
       // sends the person to the trip (see below), where Add Someone Else can be tried again.
       const companion = await makeCompanion(proof.value, started.value.tripId, person);
@@ -384,7 +388,14 @@ export async function startGroupTripAction(
 /** After a change that removes the form it came from, the trip page says what happened. */
 function backToTrip(
   tripId: string,
-  done: 'added' | 'added-someone' | 'removed' | 'removed-someone' | 'shared' | 'unshared',
+  done:
+    | 'added'
+    | 'added-someone'
+    | 'partial-someone'
+    | 'removed'
+    | 'removed-someone'
+    | 'shared'
+    | 'unshared',
 ): never {
   redirect(`/app/trips/${tripId}?done=${done}`);
 }
@@ -424,6 +435,9 @@ export async function addTravellersAction(
       field: 'traveller',
     };
   }
+  // True when the people ticked were added but the typed Someone Else was refused afterwards: the
+  // form is replaced by the trip, which then says so, so the refusal is never lost.
+  let someoneRefusedAfterOthers = false;
   const outcome = await onTrip(formData, 'addTravellersAction', async (db, accountId, tripId) => {
     // The trip and every ticked traveller are checked before anyone is made, so a trip that is not
     // this account's (or a refused try) leaves no record behind.
@@ -445,8 +459,11 @@ export async function addTravellersAction(
     if (!added.ok || person.status !== 'ready') return added;
     const proof = await organiserProof(db, accountId, tripId);
     if (!proof) return { ok: false, message: TRIP_UNAVAILABLE };
-    return makeCompanion(proof, tripId, person);
+    const companion = await makeCompanion(proof, tripId, person);
+    someoneRefusedAfterOthers = !companion.ok && everyone.length > 0;
+    return companion;
   });
+  if (someoneRefusedAfterOthers) backToTrip(String(formData.get('tripId')), 'partial-someone');
   if (outcome.ok) {
     const onlySomeoneElse = everyoneTicked(travellers, member) === 0;
     backToTrip(String(formData.get('tripId')), onlySomeoneElse ? 'added-someone' : 'added');
@@ -570,7 +587,7 @@ export async function removeCompanionAction(
 }
 
 /** What Send Again says when it worked. It promises no email: sending one is package 3. */
-const INVITATION_RENEWED = 'A new invitation is ready. It lasts 7 days.';
+const INVITATION_RENEWED = `A new invitation is ready. It lasts ${COMPANION_INVITATION_DAYS} days.`;
 
 /**
  * Make a fresh invitation for someone who has not joined yet. The service answers the same way for

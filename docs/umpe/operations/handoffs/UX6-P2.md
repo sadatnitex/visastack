@@ -12,7 +12,7 @@ Scope: the organiser's web layer only. Add Someone Else in the two trip forms, a
 | Trip list | "Travelling with You", shown only when the feature is on and there is at least one person. Each row: name, one state word (Not on VisaStack Yet, Invited, Invitation Expired, Joined), for Joined a quiet "Shares Name Only / Plan Status / Travel Bookings" and, for Plan Status, the service's phrase after a colon. Then Send Again (Invited or expired only) and Remove, both quiet secondary buttons with spoken names that include the person. | `trips/trip-overview.tsx` (`TripCompanions`), `RemoveCompanionForm`, `ResendCompanionForm` in `trip-forms.tsx` |
 | Remove, Send Again actions | `removeCompanionAction` (redirect to `?done=removed-someone`) and `resendCompanionAction` (answers in place). Both prove the trip as the organiser's own, then call the service and show its words. | `trips/actions.ts` |
 | Services index | Exports added: `tripCompanionsAvailable`, `isEmailAddress`, `COMPANION_NOT_SWITCHED_ON`, `COMPANION_NAME_PROBLEM`, `cleanCompanionName`. Two constants in the service file were exported (no behaviour change). | `packages/services/src/index.ts`, `umpe-trip-companions.ts` |
-| Styles | One new marker block `WP-UMPE-UX9` at the end: a wrapping row for the two buttons and a row for a person's actions. Flat, tokens only, no inline styles. | `apps/web/src/app/globals.css` |
+| Styles | One new marker block `WP-UMPE-UX6-P2` at the end: a wrapping row for the two buttons and a row for a person's actions. Flat, tokens only, no inline styles. | `apps/web/src/app/globals.css` |
 
 ## Decisions where the brief was silent
 
@@ -57,7 +57,7 @@ Existing tests were updated only where needed: the action mock lists the two new
 - No browser run (no real keyboard or screen reader check); no design review or accessibility audit was run, only the markup assertions above.
 - No real email: nothing is sent and the returned invitation is dropped in `makeCompanion` and `resendCompanionAction` (code comments point to package 3).
 - Concurrency of two adds at once on the live database (the service locks the trip row; not exercised here).
-- The migration is still not run on Neon; the migrate word for 0130 is still needed.
+- Migration 0130 was applied to production on the owner's word on 3 Nov 2026 (after package 1 merged); the table exists and is empty. The switch stays off.
 
 ## Security notes for the second reader
 
@@ -66,3 +66,8 @@ Existing tests were updated only where needed: the action mock lists the two new
 - Rate limit and refusal words are the service's, identical for every address. The only wording that depends on input is the invalid-address and duplicate messages the service already returns for the organiser's own typed input.
 - The proof for adding, removing and resending is the owner proof of one of the organiser's own travellers on that trip; the service re-checks the trip belongs to that account.
 - `isEmailAddress` is now exported from the services index (it was internal); it is the same pattern the invitation paths use.
+
+## Review fixes (`/code-review max`, 13 findings)
+
+Fixed: the organiser's proof no longer depends on a live traveller, so Remove, Send Again and Add Someone Else work on a trip whose travellers were all removed; a refused Someone Else after the ticked people were added now sends the organiser to the trip with the fixed partial notice (nothing lost, nothing duplicated), and on the start flow a typed Someone Else that was never tried because another traveller was refused is named in the notice; Remove on a companion asks once (it ends their access and cannot be undone from here); the companion Remove and Send Again are quiet text buttons like the traveller rows; the renewal sentence is built from the invitation-days constant; the style marker is `WP-UMPE-UX6-P2`; this note's migration line is corrected. Explained and left: the invitation copy ("They are invited to join", "A new invitation is ready") is accurate only once package 3 sends mail, which is why the switch stays off until then; the field for a refusal is chosen from the service's sentence and is now pinned by tests; the two similar readiness exports in the services index have no other callers and are a later tidy.
+

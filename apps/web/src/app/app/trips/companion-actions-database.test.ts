@@ -55,8 +55,13 @@ vi.mock('@visastack/services', async (importOriginal) => {
   };
 });
 
-const { addTravellersAction, removeCompanionAction, resendCompanionAction, startGroupTripAction } =
-  await import('./actions');
+const {
+  addTravellersAction,
+  removeCompanionAction,
+  removeTravellerAction,
+  resendCompanionAction,
+  startGroupTripAction,
+} = await import('./actions');
 
 const INITIAL = { ok: true, message: '' };
 const FRIEND = 'friend@example.com';
@@ -381,6 +386,66 @@ describe('Add Someone Else on a trip that already exists', () => {
     const tripId = await startTrip();
     const result = await answer(() => addTravellersAction(INITIAL, form([['tripId', tripId]])));
     expect(result).toMatchObject({ ok: false, field: 'traveller' });
+    expect(await companions()).toHaveLength(0);
+  });
+});
+
+describe('review fixes: partial results and a trip with nobody on it', () => {
+  it('points the email field at the right message: invalid, own and duplicate addresses', async () => {
+    const tripId = await startTrip();
+    for (const email of ['not-an-address', 'owner@example.com']) {
+      const refused = await answer(() =>
+        addTravellersAction(INITIAL, form([['tripId', tripId], ...someone('Nadia Rahman', email)])),
+      );
+      expect(refused, email).toMatchObject({ ok: false, field: 'newPersonEmail' });
+    }
+    expect(await companions()).toHaveLength(0);
+  });
+
+  it('keeps working on a trip whose travellers were all taken off it', async () => {
+    const tripId = await startTrip();
+    await redirectTo(() =>
+      addTravellersAction(INITIAL, form([['tripId', tripId], ...someone('Nadia Rahman', FRIEND)])),
+    );
+    const [row] = await companions();
+    await redirectTo(() =>
+      removeTravellerAction(
+        INITIAL,
+        form([
+          ['tripId', tripId],
+          ['applicantId', selfId],
+        ]),
+      ),
+    );
+    const to = await redirectTo(() =>
+      removeCompanionAction(
+        INITIAL,
+        form([
+          ['tripId', tripId],
+          ['companionId', row?.id ?? ''],
+        ]),
+      ),
+    );
+    expect(to).toBe(`/app/trips/${tripId}?done=removed-someone`);
+    expect((await companions())[0]).toMatchObject({ state: 'REMOVED' });
+  });
+
+  it('goes to the trip with a partial notice when Someone Else is refused after a family member was added, and makes no second record on a retry', async () => {
+    const tripId = await startTrip();
+    const to = await redirectTo(() =>
+      addTravellersAction(
+        INITIAL,
+        form([
+          ['tripId', tripId],
+          ['newName', 'Karim Uddin'],
+          ['newKind', 'FAMILY_MEMBER'],
+          ['newAuthority', 'true'],
+          ...someone('Nadia Rahman', 'owner@example.com'),
+        ]),
+      ),
+    );
+    expect(to).toBe(`/app/trips/${tripId}?done=partial-someone`);
+    expect((await applicants()).filter((p) => p.displayName === 'Karim Uddin')).toHaveLength(1);
     expect(await companions()).toHaveLength(0);
   });
 });
