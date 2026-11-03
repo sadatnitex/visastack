@@ -2,15 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  type CSSProperties,
-  Fragment,
-  type ReactNode,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { BrandMark } from '../../components/brand-mark';
 import { Icon, type IconName } from '../../components/icons';
 import { ShortcutHint } from '../../components/shortcut-hint';
@@ -187,24 +179,33 @@ export function AppNav({
   /** A destination and, in the sidebar, its one task just below it (UMPE P13). */
   const entry = (item: NavLink) =>
     item.action ? (
-      <Fragment key={item.href}>
+      // The task sits inside its destination's row (a small icon at the end of it on a laptop), so
+      // the menu stays one row per destination. On a phone the wrapper steps aside.
+      <div key={item.href} className="app-nav-entry">
         {link(item)}
-        {actionLink(item.action, 'app-nav-action')}
-      </Fragment>
+        {actionLink(item.action, 'icon')}
+      </div>
     ) : (
       link(item)
     );
-  const actionLink = (action: NavAction, className: string) => (
-    <Link
-      key={`action:${action.href}`}
-      href={action.href}
-      className={className}
-      onClick={() => setOpen(false)}
-    >
-      <Icon name={CONTEXT_ICONS[action.label] ?? 'plus'} size={18} />
-      <span>{action.label}</span>
-    </Link>
-  );
+  const actionLink = (action: NavAction, variant: 'icon' | 'row') => {
+    // In the sidebar the task is an icon at the end of its row, so its name is the spoken name
+    // and the hover and focus label (see the stylesheet). In the phone's More panel it is a full
+    // row with its words showing.
+    const iconOnly = variant === 'icon';
+    return (
+      <Link
+        key={`action:${action.href}`}
+        href={action.href}
+        className={iconOnly ? 'app-nav-action' : 'app-nav-action-row'}
+        {...(iconOnly ? { 'aria-label': action.label } : {})}
+        onClick={() => setOpen(false)}
+      >
+        <Icon name={CONTEXT_ICONS[action.label] ?? 'plus'} size={18} />
+        {iconOnly ? null : <span>{action.label}</span>}
+      </Link>
+    );
+  };
   const actions = links.flatMap((item) => (item.action ? [item.action] : []));
   const link = (item: NavLink) => (
     <Link
@@ -308,7 +309,7 @@ export function AppNav({
           // On a phone the bar has no room for tasks, so they lead the More panel. The sidebar
           // shows each under its destination instead, so this list is hidden there.
           <nav className="app-shell-links app-nav-actions" aria-label="Quick actions">
-            {actions.map((action) => actionLink(action, 'app-nav-action-row'))}
+            {actions.map((action) => actionLink(action, 'row'))}
           </nav>
         ) : null}
         <nav

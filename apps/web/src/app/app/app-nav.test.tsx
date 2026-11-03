@@ -247,3 +247,35 @@ describe('the chip is a phone-only part of the stylesheet', () => {
     expect(css).toMatch(/\.workspace-chip \.workspace-chip-label \{\s*min-width: 0;\s*flex: 1;/);
   });
 });
+
+describe('one row per destination (UX4)', () => {
+  it("keeps a destination's task inside its own row, after the destination, with its name spoken", () => {
+    route.pathname = `/app/applicant/${SELF}`;
+    mount(FULL);
+    const rows = [...container.querySelectorAll('.app-bar .app-shell-links > .app-nav-entry')];
+    expect(rows).toHaveLength(2);
+    const [documents, trips] = rows;
+    for (const [row, destination, task] of [
+      [documents, 'My Documents', 'Add Documents'],
+      [trips, 'My Trips', 'Start a Trip'],
+    ] as const) {
+      const links = [...(row?.querySelectorAll('a') ?? [])];
+      expect(links).toHaveLength(2);
+      expect(links[0]?.getAttribute('aria-label')).toBe(destination);
+      expect(links[1]?.classList.contains('app-nav-action')).toBe(true);
+      // An icon at the end of the row: its name is spoken, and the stylesheet shows it on hover and focus.
+      expect(links[1]?.getAttribute('aria-label')).toBe(task);
+      expect(links[1]?.textContent).toBe('');
+    }
+  });
+
+  it('adds no wrapper to a destination that has no task', () => {
+    route.pathname = `/app/applicant/${SELF}`;
+    mount(FULL);
+    const plain = container.querySelectorAll('.app-bar .app-shell-links > a');
+    expect([...plain].map((a) => a.getAttribute('aria-label'))).toEqual([
+      'Home',
+      'Sharing & Requests',
+    ]);
+  });
+});

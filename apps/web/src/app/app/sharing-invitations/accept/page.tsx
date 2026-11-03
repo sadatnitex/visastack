@@ -31,7 +31,7 @@ export default async function SharingInvitationPage({
     });
     if (!result.ok)
       return (
-        <section className="section">
+        <section className="section container">
           <h1 className="section-title">Invitation Unavailable</h1>
           <p>{result.error.message}</p>
           <p>Ask the sender for a new link or sign in with the invited email address.</p>
@@ -47,7 +47,7 @@ export default async function SharingInvitationPage({
     const invite = result.value;
     const consent = await getConsents(db, accountId);
     return (
-      <section className="section">
+      <section className="section container">
         <h1 className="section-title">Review Shared Access</h1>
         <article className="card">
           <p>Opening this invitation grants no access. Review everything before accepting.</p>
