@@ -210,6 +210,11 @@ vi.mock('../app/app/sharing-invitations/accept/actions', standIn);
 const { AcceptSharingInvitationForm } = await import(
   '../app/app/sharing-invitations/accept/accept-form'
 );
+vi.mock('../app/app/trip-invitations/accept/actions', standIn);
+const { AcceptTripInvitationForm, DeclineTripInvitationForm } = await import(
+  '../app/app/trip-invitations/accept/accept-form'
+);
+const { CoreConsentStep } = await import('../app/app/trip-invitations/accept/core-consent');
 const { AcceptClientInvitationForm } = await import(
   '../app/app/client-invitations/accept/accept-form'
 );
@@ -295,6 +300,26 @@ const PEOPLE: readonly Case[] = [
     name: 'personal sharing invitation acceptance',
     element: () => <AcceptSharingInvitationForm token="synthetic-token" />,
   },
+  {
+    name: 'join a trip someone invited you to',
+    element: () => (
+      <AcceptTripInvitationForm
+        token="synthetic-token"
+        defaultName="Synthetic Friend"
+        first={{ value: 'NAME_ONLY', label: 'Name Only', line: 'The organiser sees your name.' }}
+        more={[
+          { value: 'PLAN_STATUS', label: 'Plan Status', line: 'Also one plain phrase.' },
+          { value: 'TRAVEL_BOOKINGS', label: 'Travel Bookings', line: 'Also booking names.' },
+        ]}
+      />
+    ),
+    fields: ['displayName', 'shareLevel'],
+  },
+  {
+    name: 'decline a trip someone invited you to',
+    element: () => <DeclineTripInvitationForm token="synthetic-token" />,
+  },
+  { name: 'consent needed to join a trip', element: () => <CoreConsentStep /> },
   {
     name: 'accept a client invitation',
     element: () => <AcceptClientInvitationForm token="t1" applicants={APPLICANTS} />,

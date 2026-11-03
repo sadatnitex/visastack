@@ -28,11 +28,13 @@ import { guestCodeDeliveryProof } from './access/guest-collection';
 import { guestCorrectionStillDeliverable } from './access/guest-correction-notice';
 import { guestSubmissionStillLive } from './access/guest-submission-access';
 import { type SelfScope, selfScopeProblem } from './access/principal';
+import { companionInvitationStillDeliverable } from './access/trip-companion-access';
 import { type Db, first, schema } from './db';
 import { type EmailAgencyBrand, notificationEmail, renderEmail } from './email-design';
 import { type ServiceError, serviceError } from './errors';
 import {
   COLLECTION_REQUEST_EMAIL_EVENT,
+  COMPANION_INVITATION_EMAIL_EVENT,
   GUEST_CODE_EMAIL_EVENT,
   GUEST_CORRECTION_EMAIL_EVENT,
   type SealedInvitationLink,
@@ -568,6 +570,13 @@ async function checkRecipient(
       request.contributorEmail === notification.recipientEmail;
     return { authorized, email: authorized ? notification.recipientEmail : null };
   }
+  if (notification.eventType === COMPANION_INVITATION_EMAIL_EVENT) {
+    // An invitation to travel with someone: only while the feature is on and the person is still
+    // invited, unexpired and addressed at exactly this email. A removed, declined, used or lapsed
+    // invitation sends nothing.
+    const authorized = await companionInvitationStillDeliverable(db, notification);
+    return { authorized, email: authorized ? notification.recipientEmail : null };
+  }
   if (['TEAM_INVITATION_CREATED', 'CLIENT_INVITATION_CREATED'].includes(notification.eventType)) {
     if (!notification.resourceId) return { authorized: false, email: null };
     const team = notification.eventType === 'TEAM_INVITATION_CREATED';
@@ -1016,7 +1025,9 @@ async function dispatchOne(
             ? 'sharing'
             : notification.eventType === 'CONTRIBUTOR_REQUEST_CREATED'
               ? 'contributor'
-              : 'client';
+              : notification.eventType === COMPANION_INVITATION_EMAIL_EVENT
+                ? 'companion'
+                : 'client';
       path = await revealInvitationLink(
         payload.sealedInvitationLink,
         kind,

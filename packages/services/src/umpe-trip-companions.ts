@@ -626,6 +626,19 @@ export async function resendInvitation(
         ),
       )
       .returning({ id: companions.id });
+    // The old link dies with this replacement, so an email still waiting with it is cancelled in
+    // the same transaction: it can never be sent with a dead link, whatever happens next.
+    if (changed.length > 0) {
+      await tx
+        .update(schema.notifications)
+        .set({ status: 'CANCELLED' })
+        .where(
+          and(
+            eq(schema.notifications.resourceId, companionId),
+            eq(schema.notifications.status, 'QUEUED'),
+          ),
+        );
+    }
     if (changed.length === 0) return err(serviceError('not_found', PERSON_NOT_AVAILABLE));
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_COMPANION_RESENT',

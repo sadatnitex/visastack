@@ -18,6 +18,8 @@ const NOTICES: Readonly<Record<string, string>> = {
     'The trip was started, but not everyone could be added. Add the others below, or check their profile first.',
   'added-someone': 'Added to the trip.',
   'removed-someone': 'Removed from the trip.',
+  'not-sent':
+    'Added to the trip, but the invitation could not be sent just now. Try Send Again beside their name.',
   'partial-someone':
     'The trip was started, but the person you added could not be added. Try Add Someone Else below.',
 };

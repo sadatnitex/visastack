@@ -7372,3 +7372,9 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Reviews: helper built it with proven-red guards (legal hold, owner gate, typed word, stale guard, refusals, sign-in, rate limit, lock order, switch); `/code-review max`: 10 findings, the real ones fixed. Hand-back: `docs/umpe/operations/handoffs/UX12.md`.
 - Not verified: a browser, a real device, the live flow, Neon's rollback behaviour for the blocked path. To turn on: set `DOCUMENT_SELF_DELETE=on` in Vercel Production with a redeploy, on the owner's word.
 
+## 2026-11-03: UMPE UX6 package 3 (companion invitation email and accept page, switch still off)
+
+- Built behind `UMPE_TRIP_COMPANIONS_ENABLED` (off in production; do not turn it on yet): the `companion` invitation email (sealed link, re-checked at send time, plain words that name nobody and nothing private, 7 days); the organiser's server-side send (the raw link is used in exactly one place and never reaches the browser, a log, an audit row or a result); and the accept page `/app/trip-invitations/accept` (a confirmed POST, the invited address's verified sign-in, Name Only by default with Share More behind one line, one generic Invitation Unavailable page for every bad case, a per-address limit). Join and decline are separate forms.
+- Reviews: helper with 24 proven-red guards; `/code-review max`: 8 findings, the real ones fixed (a stale email could still be mailed after Send Again; a replay cancelled the waiting email; a misconfigured key service skipped the keep-the-person path). Hand-back: `docs/umpe/operations/handoffs/UX6-P3.md`.
+- Before the switch goes on: package 4 (the companion's own trip page, Plan My Own Case, Travelling with You data for Travel Bookings) must exist, and the owner must decide the pilot-gate question (a person with no account following a companion link). Not verified: a browser, a screen reader, real mail.
+

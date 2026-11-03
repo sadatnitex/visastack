@@ -986,7 +986,7 @@ describe('UMPE UX6 companions: review fixes', () => {
   it(
     'refuses the reserved organiser label and invisible formatting characters as a name',
     async () => {
-      for (const bad of ['The organiser', 'THE ORGANISER', '‮Evil', 'Zero​Width']) {
+      for (const bad of ['The organiser', 'THE ORGANISER', '\u202EEvil', 'Zero\u200BWidth']) {
         const added = await add(db, org, bad);
         expect(words(added)?.code, bad).toBe('invalid');
       }

@@ -255,6 +255,7 @@ type EmailEventType =
   | 'CLIENT_INVITATION_CREATED'
   | 'SHARING_INVITATION_CREATED'
   | 'CONTRIBUTOR_REQUEST_CREATED'
+  | 'TRIP_COMPANION_INVITATION_CREATED'
   | 'AGENCY_COLLECTION_REQUEST_SENT'
   | 'AGENCY_COLLECTION_GUEST_CODE'
   | 'AGENCY_COLLECTION_GUEST_CORRECTION';
@@ -450,6 +451,15 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     eyebrow: 'A Request for You',
     heading: 'Someone asked you for one document',
     action: 'See the Request',
+  },
+  // UMPE UX6: never the organiser, the trip, the route or the other people. Joining and what is
+  // shared are the invited person's choice; nobody gets access to anyone's documents.
+  TRIP_COMPANION_INVITATION_CREATED: {
+    eyebrow: 'Invitation',
+    heading: 'Someone added you to a trip',
+    why: 'You choose whether to join and what to share. Nobody gets access to your documents.',
+    action: 'Open Your Invitation',
+    after: 'Not expecting this? Ignore this email and nothing happens.',
   },
   // UMPE P6: never the route, the documents or the person; opening the link shares nothing.
   AGENCY_COLLECTION_REQUEST_SENT: {

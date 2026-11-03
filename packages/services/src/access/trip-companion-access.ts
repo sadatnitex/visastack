@@ -132,6 +132,41 @@ export async function companionsReady(db: Db): Promise<boolean> {
 }
 
 /**
+ * Whether a queued invitation email may still go now (the worker asks at send time): the feature
+ * is still on, the row is still INVITED and unexpired, and it still carries exactly the address the
+ * email goes to. A used, declined, removed, expired or changed invitation, a missing row and a
+ * malformed id are all false. It reads the row's own columns only, never an account by address, so
+ * what it decides cannot depend on whether the address has an account.
+ */
+export async function companionInvitationStillDeliverable(
+  db: Db,
+  notification: {
+    readonly resourceId: string | null;
+    readonly recipientEmail: string | null;
+  },
+  now: Date = new Date(),
+): Promise<boolean> {
+  const { resourceId, recipientEmail } = notification;
+  if (!resourceId || !recipientEmail || !UUID.test(resourceId)) return false;
+  if (!(await companionsReady(db))) return false;
+  const row = first(
+    await db
+      .select({ id: schema.umpeTripCompanions.id })
+      .from(schema.umpeTripCompanions)
+      .where(
+        and(
+          eq(schema.umpeTripCompanions.id, resourceId),
+          eq(schema.umpeTripCompanions.state, 'INVITED'),
+          gt(schema.umpeTripCompanions.expiresAt, now),
+          eq(schema.umpeTripCompanions.email, recipientEmail.trim().toLowerCase()),
+        ),
+      )
+      .limit(1),
+  );
+  return row !== undefined;
+}
+
+/**
  * The access of the account that joined this trip, or null for anything else: an unknown trip, a
  * row that was removed, declined or left, a different account, or the switch off. Re-run for every
  * read, so a removal or a leaving ends access on the next one.

@@ -5,6 +5,7 @@ import {
   COMPANION_INVITATION_DAYS,
   COMPANION_NAME_PROBLEM,
   COMPANION_NOT_SWITCHED_ON,
+  type CompanionInvitationDelivery,
   type Db,
   TRIP_MAX_TRAVELLERS,
   accountPrincipal,
@@ -16,6 +17,7 @@ import {
   getTrip,
   isEmailAddress,
   listApplicants,
+  queueCompanionInvitation,
   removeCompanion,
   removeTravellerFromTrip,
   removeTripEvidence,
@@ -27,8 +29,11 @@ import {
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
+import { after } from 'next/server';
 import type { FormResult } from '../../../components/form-feedback';
 import { caseCountry, casePurpose } from '../../../lib/case-choices';
+import { createKeyManagementPort } from '../../../lib/providers';
+import { sendEmailNow } from '../../../lib/send-now';
 import { reportServerError } from '../../../lib/server-error';
 import { withSession } from '../../../lib/session';
 import { linkTripChecklist } from './trip-checklist';
@@ -143,24 +148,86 @@ function companionRefusal(error: { readonly code: string; readonly message: stri
   return { ok: false, message: consentWords(error.code, error.message) };
 }
 
+/** What Add Someone Else did: the usual result, and whether an invitation was due but not queued. */
+type CompanionStep = ActionState & { readonly unsent?: boolean };
+
+/**
+ * Emails the invitation the service just made, on the server and nowhere else: the raw link and the
+ * address go from the service straight into the sealed outbox (the link is encrypted before it is
+ * stored) and are never returned, logged or put in a result. The email itself goes out right after
+ * the response, so how long this takes does not depend on the address or on how the mail provider
+ * answers; the organiser is never told about delivery, a bounce or an account. A step that fails
+ * leaves the person on the trip (the row exists) and answers false, so the screen can offer Send Again.
+ *
+ * `invitation` is null when the service made no new link (a person who declined, which reads to the
+ * organiser exactly like a person still waiting). That case still asks the key service for a key
+ * and drops it, so the wait is the same and the organiser cannot tell the two apart by it.
+ */
+/** The key service, or null when it is missing or misconfigured (never thrown: the person stays on the trip and the organiser can use Send Again). */
+function keyService(): ReturnType<typeof createKeyManagementPort> | null {
+  try {
+    return createKeyManagementPort() ?? null;
+  } catch (error) {
+    reportServerError('keyService', error);
+    return null;
+  }
+}
+
+async function deliverInvitation(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  tripId: string,
+  companionId: string,
+  invitation: CompanionInvitationDelivery | null,
+): Promise<boolean> {
+  const encryption = keyService();
+  if (!encryption) return false;
+  try {
+    if (invitation === null) {
+      await encryption.generateDataKey();
+      return true;
+    }
+    const queued = await queueCompanionInvitation(proof, {
+      tripId,
+      companionId,
+      invitation,
+      encryption,
+    });
+    if (!queued.ok) return false;
+  } catch (error) {
+    reportServerError('deliverInvitation', error);
+    return false;
+  }
+  after(async () => {
+    try {
+      await sendEmailNow(companionId);
+    } catch (error) {
+      reportServerError('deliverInvitation', error, { step: 'send after response' });
+    }
+  });
+  return true;
+}
+
 /**
  * Adds the person typed into "Add Someone Else" to a trip that exists, as its organiser. Only the
- * outcome words go back to the browser: never the address, a link or a token.
- *
- * The service hands back an `invitation` (the one raw link, for the address given). It is dropped
- * here on purpose: sending the email is package 3 (UX6 step 2), which will pass it to the email
- * sender on the server and nowhere else. Until then nobody is emailed.
+ * outcome words go back to the browser: never the address, a link or a token. With an address the
+ * invitation is emailed from here (see `deliverInvitation`); the person stays on the trip even if
+ * that step fails, and `unsent` tells the caller to say so.
  */
 async function makeCompanion(
   proof: AuthorizedApplicant<'MANAGE'>,
   tripId: string,
   person: Extract<NewPerson, { status: 'ready' }>,
-): Promise<ActionState> {
+): Promise<CompanionStep> {
   const added = await addCompanion(proof, tripId, {
     name: person.name,
     ...(person.email === '' ? {} : { email: person.email }),
   });
-  if (added.ok) return { ok: true, message: '' };
+  if (added.ok) {
+    const invitation = added.value.invitation;
+    if (invitation === null) return { ok: true, message: '' };
+    const sent = await deliverInvitation(proof, tripId, added.value.companion.id, invitation);
+    return sent ? { ok: true, message: '' } : { ok: true, message: '', unsent: true };
+  }
   // The form's own fields: the problem is shown beside the one it is about.
   const refused = companionRefusal(added.error);
   return added.error.code === 'invalid'
@@ -309,6 +376,8 @@ export async function startGroupTripAction(
   let tripId: string | null = null;
   let outcome: ActionState;
   let companionFailed = false;
+  // The person was added and has an address, but the invitation could not be queued.
+  let companionUnsent = false;
   try {
     outcome = await withSession(async ({ db, accountId }) => {
       // Every ticked traveller is checked before anything is made, so a refused try leaves nothing behind.
@@ -368,6 +437,7 @@ export async function startGroupTripAction(
       // sends the person to the trip (see below), where Add Someone Else can be tried again.
       const companion = await makeCompanion(proof.value, started.value.tripId, person);
       companionFailed = !companion.ok;
+      companionUnsent = companion.ok && companion.unsent === true;
       return companion;
     });
   } catch (error) {
@@ -379,7 +449,13 @@ export async function startGroupTripAction(
     // The trip exists even if a later traveller was refused or a step failed: always go to it, so
     // trying again adds the others there instead of starting a second trip.
     revalidatePath('/app/trips');
-    const done = outcome.ok ? '' : companionFailed ? '?done=partial-someone' : '?done=partial';
+    const done = outcome.ok
+      ? companionUnsent
+        ? '?done=not-sent'
+        : ''
+      : companionFailed
+        ? '?done=partial-someone'
+        : '?done=partial';
     redirect(`/app/trips/${tripId}${done}`);
   }
   return outcome;
@@ -391,6 +467,7 @@ function backToTrip(
   done:
     | 'added'
     | 'added-someone'
+    | 'not-sent'
     | 'partial-someone'
     | 'removed'
     | 'removed-someone'
@@ -438,6 +515,7 @@ export async function addTravellersAction(
   // True when the people ticked were added but the typed Someone Else was refused afterwards: the
   // form is replaced by the trip, which then says so, so the refusal is never lost.
   let someoneRefusedAfterOthers = false;
+  let someoneUnsent = false;
   const outcome = await onTrip(formData, 'addTravellersAction', async (db, accountId, tripId) => {
     // The trip and every ticked traveller are checked before anyone is made, so a trip that is not
     // this account's (or a refused try) leaves no record behind.
@@ -461,9 +539,11 @@ export async function addTravellersAction(
     if (!proof) return { ok: false, message: TRIP_UNAVAILABLE };
     const companion = await makeCompanion(proof, tripId, person);
     someoneRefusedAfterOthers = !companion.ok && everyone.length > 0;
+    someoneUnsent = companion.ok && companion.unsent === true;
     return companion;
   });
   if (someoneRefusedAfterOthers) backToTrip(String(formData.get('tripId')), 'partial-someone');
+  if (outcome.ok && someoneUnsent) backToTrip(String(formData.get('tripId')), 'not-sent');
   if (outcome.ok) {
     const onlySomeoneElse = everyoneTicked(travellers, member) === 0;
     backToTrip(String(formData.get('tripId')), onlySomeoneElse ? 'added-someone' : 'added');
@@ -586,14 +666,16 @@ export async function removeCompanionAction(
   return outcome;
 }
 
-/** What Send Again says when it worked. It promises no email: sending one is package 3. */
-const INVITATION_RENEWED = `A new invitation is ready. It lasts ${COMPANION_INVITATION_DAYS} days.`;
+/** What Send Again says when the invitation was handed on. Nothing about delivery or the address. */
+const INVITATION_SENT = `A new invitation is on its way. It lasts ${COMPANION_INVITATION_DAYS} days.`;
+const INVITATION_NOT_SENT =
+  'The invitation could not be sent just now. Try Send Again in a moment.';
 
 /**
- * Make a fresh invitation for someone who has not joined yet. The service answers the same way for
- * everyone it accepts and refuses with the same words whoever the address belongs to, so nothing
- * here says anything about the address. Its `invitation` (the one raw link) is dropped here on
- * purpose: sending it is package 3 (UX6 step 2), on the server and nowhere else.
+ * Make a fresh invitation for someone who has not joined yet, and email it from here (the old link
+ * stops working). The service answers the same way for everyone it accepts and refuses with the
+ * same words whoever the address belongs to, so nothing here says anything about the address: the
+ * words are the same for a person still waiting and one who declined (who is sent nothing).
  */
 export async function resendCompanionAction(
   _prev: ActionState,
@@ -602,7 +684,14 @@ export async function resendCompanionAction(
   return onTrip(formData, 'resendCompanionAction', async (db, accountId, tripId) => {
     const proof = await organiserProof(db, accountId, tripId);
     if (!proof) return { ok: false, message: TRIP_UNAVAILABLE };
-    const again = await resendInvitation(proof, tripId, String(formData.get('companionId') ?? ''));
-    return again.ok ? { ok: true, message: INVITATION_RENEWED } : companionRefusal(again.error);
+    const companionId = String(formData.get('companionId') ?? '');
+    // Checked before the link is replaced: with no key service the old link must not be killed.
+    if (!keyService()) return { ok: false, message: INVITATION_NOT_SENT };
+    const again = await resendInvitation(proof, tripId, companionId);
+    if (!again.ok) return companionRefusal(again.error);
+    const sent = await deliverInvitation(proof, tripId, companionId, again.value.invitation);
+    return sent
+      ? { ok: true, message: INVITATION_SENT }
+      : { ok: false, message: INVITATION_NOT_SENT };
   });
 }

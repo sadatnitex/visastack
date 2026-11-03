@@ -22,12 +22,58 @@ import { caseCountryOptions, casePurposeGroups } from '../../../lib/case-choices
 const state = vi.hoisted(() => ({ db: undefined as unknown, accountId: '' }));
 /** The raw links the service handed to the actions, so a test can prove none ever left them. */
 const handedOver = vi.hoisted(() => ({ tokens: [] as string[] }));
+/** The mail side: which records the sender was asked to send, and what to break on purpose. */
+const mail = vi.hoisted(() => ({
+  sentFor: [] as string[],
+  noKeyService: false,
+  keyServiceThrows: false,
+  sendThrows: false,
+  background: [] as Promise<unknown>[],
+}));
 
 vi.mock('../../../lib/session', () => ({
   withSession: async (fn: (ctx: { db: unknown; accountId: string }) => unknown) =>
     fn({ db: state.db, accountId: state.accountId }),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+// Work queued for after the response runs at once here, and is awaited by the tests that care.
+vi.mock('next/server', () => ({
+  after: (work: () => Promise<unknown>) => {
+    mail.background.push(work());
+  },
+}));
+vi.mock('../../../lib/send-now', () => ({
+  sendEmailNow: async (resourceId: string) => {
+    mail.sentFor.push(resourceId);
+    if (mail.sendThrows) throw new Error('the mail provider is down');
+    return 'sent';
+  },
+}));
+// A key service that only this test knows (the real one needs settings).
+vi.mock('../../../lib/providers', async () => {
+  const { randomBytes, randomUUID } = await import('node:crypto');
+  const wrapped = new Map<string, Uint8Array>();
+  const port = {
+    currentKeyVersion: () => 'test-v1',
+    async generateDataKey() {
+      const id = randomUUID();
+      const key = randomBytes(32);
+      wrapped.set(id, key);
+      return { keyVersion: 'test-v1', plaintextDataKey: key, wrappedDataKey: Buffer.from(id) };
+    },
+    async unwrapDataKey(_version: string, data: Uint8Array) {
+      const key = wrapped.get(Buffer.from(data).toString());
+      if (!key) throw new Error('unknown key');
+      return key;
+    },
+  };
+  return {
+    createKeyManagementPort: () => {
+      if (mail.keyServiceThrows) throw new Error('unsupported KMS_PROVIDER');
+      return mail.noKeyService ? undefined : port;
+    },
+  };
+});
 vi.mock('next/navigation', () => ({
   redirect: (to: string) => {
     throw new Error(`NEXT_REDIRECT ${to}`);
@@ -112,6 +158,9 @@ const startTrip = async () => {
   return to.split('/').pop() ?? '';
 };
 const companions = () => db.select().from(schema.umpeTripCompanions);
+const outbox = () => db.select().from(schema.notifications);
+const queuedFor = async () =>
+  (await outbox()).filter((n) => n.eventType === 'TRIP_COMPANION_INVITATION_CREATED');
 const applicants = () => db.select().from(schema.applicants);
 const trips = () => db.select().from(schema.umpeTrips);
 
@@ -144,6 +193,11 @@ beforeEach(async () => {
   process.env[TRIP_COMPANIONS_SWITCH] = 'true';
   said = [];
   handedOver.tokens.length = 0;
+  mail.sentFor.length = 0;
+  mail.background.length = 0;
+  mail.noKeyService = false;
+  mail.keyServiceThrows = false;
+  mail.sendThrows = false;
   db = drizzle(await createMigratedPglite(), { schema }) as unknown as Db;
   state.db = db;
   const account = await provisionAccount(db, { email: 'owner@example.com' });
@@ -207,6 +261,68 @@ describe('Add Someone Else while starting a group trip', () => {
     expect(everything).not.toContain(FRIEND);
     expect(everything).not.toContain(handedOver.tokens[0] ?? 'missing');
     expect(everything).not.toContain(rows[0]?.tokenHash ?? 'missing');
+  });
+
+  it('emails the invitation from the server: one sealed message, sent once, and the link only in it', async () => {
+    await redirectTo(() =>
+      startGroupTripAction(
+        INITIAL,
+        form([...where, ['traveller', selfId], ...someone('Nadia Rahman', FRIEND)]),
+      ),
+    );
+    await Promise.all(mail.background);
+    const rows = await companions();
+    const queued = await queuedFor();
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).toMatchObject({ recipientEmail: FRIEND, resourceId: rows[0]?.id });
+    expect(mail.sentFor).toEqual([rows[0]?.id]);
+    // The outbox holds the link sealed: the raw token is nowhere in it, nor in anything said back.
+    const token = handedOver.tokens[0] ?? 'missing';
+    expect(JSON.stringify(await outbox())).not.toContain(token);
+    expect(JSON.stringify(said)).not.toContain(token);
+  });
+
+  it('sends nothing for a name with no email', async () => {
+    await redirectTo(() =>
+      startGroupTripAction(
+        INITIAL,
+        form([...where, ['traveller', selfId], ...someone('Jamal Hossain')]),
+      ),
+    );
+    await Promise.all(mail.background);
+    expect(await queuedFor()).toHaveLength(0);
+    expect(mail.sentFor).toEqual([]);
+  });
+
+  it('keeps the person and says the invitation was not sent when the key service is missing', async () => {
+    mail.noKeyService = true;
+    const to = await redirectTo(() =>
+      startGroupTripAction(
+        INITIAL,
+        form([...where, ['traveller', selfId], ...someone('Nadia Rahman', FRIEND)]),
+      ),
+    );
+    expect(to).toMatch(/^\/app\/trips\/[0-9a-f-]{36}\?done=not-sent$/);
+    const rows = await companions();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ state: 'INVITED', email: FRIEND });
+    expect(await queuedFor()).toHaveLength(0);
+    expect(mail.sentFor).toEqual([]);
+    expect(JSON.stringify(said)).not.toContain(FRIEND);
+  });
+
+  it('is not undone by a mail provider that fails after the response', async () => {
+    mail.sendThrows = true;
+    const to = await redirectTo(() =>
+      startGroupTripAction(
+        INITIAL,
+        form([...where, ['traveller', selfId], ...someone('Nadia Rahman', FRIEND)]),
+      ),
+    );
+    expect(to).toMatch(/^\/app\/trips\/[0-9a-f-]{36}$/);
+    await expect(Promise.all(mail.background)).resolves.toBeDefined();
+    expect(await companions()).toHaveLength(1);
+    expect(await queuedFor()).toHaveLength(1);
   });
 
   it('lets the person be added together with a family member', async () => {
@@ -316,6 +432,20 @@ describe('Add Someone Else on a trip that already exists', () => {
     expect(rows[0]).toMatchObject({ tripId, state: 'INVITED' });
     expect(handedOver.tokens).toHaveLength(1);
     expect(JSON.stringify(said)).not.toContain(FRIEND);
+    await Promise.all(mail.background);
+    expect(await queuedFor()).toHaveLength(1);
+    expect(mail.sentFor).toEqual([rows[0]?.id]);
+  });
+
+  it('keeps the person and says the invitation was not sent, on an existing trip', async () => {
+    const tripId = await startTrip();
+    mail.noKeyService = true;
+    const to = await redirectTo(() =>
+      addTravellersAction(INITIAL, form([['tripId', tripId], ...someone('Nadia Rahman', FRIEND)])),
+    );
+    expect(to).toBe(`/app/trips/${tripId}?done=not-sent`);
+    expect(await companions()).toHaveLength(1);
+    expect(await queuedFor()).toHaveLength(0);
   });
 
   it('a forged trip id adds nobody and says the trip is not available', async () => {
@@ -525,12 +655,113 @@ describe('Remove and Send Again', () => {
         ]),
       ),
     );
-    expect(result).toEqual({ ok: true, message: 'A new invitation is ready. It lasts 7 days.' });
+    expect(result).toEqual({
+      ok: true,
+      message: 'A new invitation is on its way. It lasts 7 days.',
+    });
     const after = (await companions())[0]?.tokenHash;
     expect(after).not.toBe(before);
     expect(handedOver.tokens).toHaveLength(2);
     expect(JSON.stringify(said)).not.toContain(FRIEND);
     expect(JSON.stringify(said)).not.toContain(handedOver.tokens[1] ?? 'missing');
+    // Two emails were queued (the first was replaced, so only the newest is still waiting), and the
+    // sender was asked for this person twice. No link is in the outbox in the clear.
+    await Promise.all(mail.background);
+    const queued = await queuedFor();
+    expect(queued).toHaveLength(2);
+    expect(queued.filter((n) => n.status === 'QUEUED')).toHaveLength(1);
+    expect(mail.sentFor).toEqual([id, id]);
+    for (const token of handedOver.tokens) {
+      expect(JSON.stringify(await outbox())).not.toContain(token);
+    }
+  });
+
+  it('a misconfigured key service keeps the person, says it was not sent, and never replaces the link on Send Again', async () => {
+    const tripId = await startTrip();
+    mail.keyServiceThrows = true;
+    const to = await redirectTo(() =>
+      addTravellersAction(INITIAL, form([['tripId', tripId], ...someone('Nadia Rahman', FRIEND)])),
+    );
+    // The person is on the trip and the organiser is not told "something went wrong".
+    expect(to).toMatch(/^\/app\/trips\/[0-9a-f-]{36}\?done=/);
+    const [row] = await companions();
+    expect(row).toMatchObject({ state: 'INVITED' });
+    const before = row?.tokenHash;
+    const result = await answer(() =>
+      resendCompanionAction(
+        INITIAL,
+        form([
+          ['tripId', tripId],
+          ['companionId', row?.id ?? ''],
+        ]),
+      ),
+    );
+    expect(result).toEqual({
+      ok: false,
+      message: 'The invitation could not be sent just now. Try Send Again in a moment.',
+    });
+    // The link was not replaced: there was nothing to send the new one with.
+    expect((await companions())[0]?.tokenHash).toBe(before);
+    mail.keyServiceThrows = false;
+  });
+
+  it('says it could not send, and keeps the person, when the key service is missing', async () => {
+    const tripId = await startTrip();
+    const id = await addOn(tripId, 'Nadia Rahman', FRIEND);
+    mail.noKeyService = true;
+    const result = await answer(() =>
+      resendCompanionAction(
+        INITIAL,
+        form([
+          ['tripId', tripId],
+          ['companionId', id],
+        ]),
+      ),
+    );
+    expect(result).toEqual({
+      ok: false,
+      message: 'The invitation could not be sent just now. Try Send Again in a moment.',
+    });
+    expect((await companions())[0]?.state).toBe('INVITED');
+    mail.noKeyService = false;
+    const retry = await answer(() =>
+      resendCompanionAction(
+        INITIAL,
+        form([
+          ['tripId', tripId],
+          ['companionId', id],
+        ]),
+      ),
+    );
+    expect(retry.ok).toBe(true);
+  });
+
+  it('answers a person who declined exactly like one still waiting, and sends them nothing', async () => {
+    const tripId = await startTrip();
+    const waiting = await addOn(tripId, 'Nadia Rahman', FRIEND);
+    const declined = await addOn(tripId, 'Karim Uddin', 'karim@example.com');
+    await db
+      .update(schema.umpeTripCompanions)
+      .set({ state: 'DECLINED', tokenHash: null, expiresAt: null })
+      .where(eq(schema.umpeTripCompanions.id, declined));
+    await Promise.all(mail.background);
+    mail.sentFor.length = 0;
+    const answerFor = (companionId: string) =>
+      answer(() =>
+        resendCompanionAction(
+          INITIAL,
+          form([
+            ['tripId', tripId],
+            ['companionId', companionId],
+          ]),
+        ),
+      );
+    const forWaiting = await answerFor(waiting);
+    const forDeclined = await answerFor(declined);
+    expect(forDeclined).toEqual(forWaiting);
+    await Promise.all(mail.background);
+    // Only the person still waiting was sent anything.
+    expect(mail.sentFor).toEqual([waiting]);
   });
 
   it('sends again only to someone who is invited: not a name alone, not someone who joined', async () => {

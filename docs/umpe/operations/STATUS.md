@@ -40,4 +40,5 @@ Newest first. One line per change of state. The requirement-level truth is `docs
 - 2026-11-03: #431 merged and deployed; migration 0130 applied to production on the owner's word (companions table, empty, switch off). UX10 (Home on a phone) built; UX6 package 2 (organiser forms) with a helper.
 - 2026-11-03: #432 (Home on a phone) merged. UX6 package 2 (organiser forms for companions, behind the switch, off) built and reviewed at max on the designated branch. Next: package 3 (invitation email and accept page), then 4 (companion page, Plan My Own Case); the switch stays off until package 3.
 - 2026-11-03: #434 (Home path card) merged and live. UX12 Delete My File built, reviewed at max, behind DOCUMENT_SELF_DELETE (off); UX6 package 3 (invitation email and accept page) with a helper.
+- 2026-11-03: #435 (Delete My File, switch off) merged. UX6 package 3 (companion invitation email and accept page, switch still off) built and reviewed at max; packages 4 and an owner decision on the pilot gate remain before the companions switch can go on.
 

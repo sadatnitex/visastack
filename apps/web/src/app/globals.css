@@ -14425,3 +14425,61 @@ html:has(.sticky-action-bar) {
 .lc-selfdelete-result {
   display: block;
 }
+
+/* WP-UMPE-UX6-P3 trip invitation: the page an emailed link opens. One quiet column, the name box, Name Only chosen already with the other two behind Share More, and Join beside a quiet Decline. Flat, tokens only, 44 px targets. */
+.companion-accept-form,
+.companion-decline-form,
+.companion-consent {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.companion-field {
+  display: grid;
+  gap: var(--space-1);
+}
+.companion-share {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.companion-share > legend {
+  padding: 0;
+  margin-bottom: var(--space-1);
+}
+.companion-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-1) 0;
+  cursor: pointer;
+}
+.companion-choice > input {
+  flex: none;
+  margin-top: var(--space-1);
+}
+.companion-choice > span {
+  display: grid;
+  gap: var(--space-1);
+}
+.companion-choice-label {
+  font-weight: 600;
+}
+.companion-more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.companion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
