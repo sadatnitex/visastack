@@ -153,6 +153,10 @@ export const RATE_LIMITS = {
   // And per request: a copied link binds to nobody, so many accounts could answer one request and
   // flood its agency's admins with notices.
   COLLECTION_RESPONSE_SUBMIT_REQUEST: { limit: 30, windowMs: HOUR_MS },
+  // UMPE P9, guest uploads: files one link may add per hour (85 files in one go fit, with retries),
+  // and how often one link may Submit Documents (a correction is another submission).
+  COLLECTION_GUEST_UPLOAD_LINK: { limit: 400, windowMs: HOUR_MS },
+  COLLECTION_GUEST_SUBMIT_LINK: { limit: 10, windowMs: HOUR_MS },
   // A private calendar subscription link (v1.2 B05 live feed). Calendar apps check a link every
   // few minutes to every few hours, so one link is bounded well above that. Only unknown links are
   // counted per network address, so a large calendar service fetching many people's real links

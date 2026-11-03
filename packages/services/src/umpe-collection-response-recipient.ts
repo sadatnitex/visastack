@@ -31,7 +31,8 @@ export async function collectionResponseRecipient(
   now: Date,
 ): Promise<CollectionResponseRecipient | null> {
   if (!GuestCollectionSessionProof.isGenuine(session)) return null;
-  const live = await guestSessionLink(db, session, now);
+  // The account path acts for a signed-in person: their longer idle window (UMPE P9).
+  const live = await guestSessionLink(db, session, now, { signedIn: true });
   if (!live) return null;
   const links = schema.agencyCollectionLinks;
   const requests = schema.agencyCollectionRequests;

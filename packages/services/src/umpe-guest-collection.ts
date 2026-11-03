@@ -1,4 +1,4 @@
-import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
 import { type SQL, and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { CollectionLinkProof } from './access/collection-scope';
@@ -53,6 +53,13 @@ import { agencyCollectionRequestsEnabled } from './umpe-collection-request-switc
  */
 
 export const GUEST_SESSION_IDLE_MS = 30 * 60 * 1000;
+/**
+ * UMPE P9: the idle window of a session while a signed-in person uses it (the account path, P7),
+ * kept on its own clock (`account_seen_at`) so it never lengthens the guest's 30 minutes. Someone
+ * who leaves to add a file in their own record comes back within it; the 12 hour end, revocation
+ * and the link's own state still apply.
+ */
+export const SIGNED_IN_SESSION_IDLE_MS = 2 * 60 * 60 * 1000;
 export const GUEST_SESSION_MAX_MS = 12 * 60 * 60 * 1000;
 export const GUEST_CODE_TTL_MS = 10 * 60 * 1000;
 export const GUEST_CODE_MAX_ATTEMPTS = 5;
@@ -108,15 +115,21 @@ function openLinkJoin(now: Date): SQL | undefined {
   );
 }
 
-/** The session is live: not revoked, not past its end, not idle too long. */
-function liveSessionFilter(now: Date): SQL | undefined {
+/** Whose use keeps a session from going idle: the guest's own, or a signed-in person's (P9). */
+type SessionUse = 'guest' | 'signed_in';
+
+/**
+ * The session is live: not revoked, not past its end, not idle too long. A guest is idle after 30
+ * minutes without their own use; a signed-in person after 2 hours without either use.
+ */
+function liveSessionFilter(now: Date, use: SessionUse = 'guest'): SQL | undefined {
+  const sessions = schema.agencyCollectionGuestSessions;
   return and(
-    isNull(schema.agencyCollectionGuestSessions.revokedAt),
-    gt(schema.agencyCollectionGuestSessions.expiresAt, now),
-    gt(
-      schema.agencyCollectionGuestSessions.lastSeenAt,
-      new Date(now.getTime() - GUEST_SESSION_IDLE_MS),
-    ),
+    isNull(sessions.revokedAt),
+    gt(sessions.expiresAt, now),
+    use === 'guest'
+      ? gt(sessions.lastSeenAt, new Date(now.getTime() - GUEST_SESSION_IDLE_MS))
+      : sql`greatest(${sessions.lastSeenAt}, coalesce(${sessions.accountSeenAt}, ${sessions.lastSeenAt})) > ${new Date(now.getTime() - SIGNED_IN_SESSION_IDLE_MS)}`,
   );
 }
 
@@ -124,7 +137,12 @@ function liveSessionFilter(now: Date): SQL | undefined {
  * The live session `match` names, with its open link, or null. Also null while the new tables are
  * missing (the migration runs after the merge).
  */
-async function findLiveSession(db: Db, match: SQL, now: Date): Promise<LiveSession | null> {
+async function findLiveSession(
+  db: Db,
+  match: SQL,
+  now: Date,
+  use: SessionUse = 'guest',
+): Promise<LiveSession | null> {
   // Turning the switch off stops every desk at once, not only new ones.
   if (!agencyCollectionRequestsEnabled()) return null;
   let row:
@@ -149,7 +167,11 @@ async function findLiveSession(db: Db, match: SQL, now: Date): Promise<LiveSessi
           requestId: schema.agencyCollectionLinks.requestId,
           revisionId: schema.agencyCollectionLinks.revisionId,
           verifiedAt: schema.agencyCollectionGuestSessions.verifiedAt,
-          emailHint: schema.agencyCollectionLinks.recipientEmailHint,
+          // UMPE P9: a link inherits the address the agency entered on the request, so a copied
+          // link (shared on WhatsApp, say) still has a guest path; the code goes to that address.
+          emailHint: sql<
+            string | null
+          >`coalesce(${schema.agencyCollectionLinks.recipientEmailHint}, ${schema.agencyCollectionRequests.recipientEmailHint})`,
           createdBy: schema.agencyCollectionLinks.createdByAccountId,
           organizationId: schema.agencyCollectionRequests.organizationId,
           orgStatus: schema.organizations.status,
@@ -167,10 +189,14 @@ async function findLiveSession(db: Db, match: SQL, now: Date): Promise<LiveSessi
           schema.organizations,
           eq(schema.organizations.id, schema.agencyCollectionRequests.organizationId),
         )
-        .where(and(match, liveSessionFilter(now), openLinkJoin(now)))
+        .where(and(match, liveSessionFilter(now, use), openLinkJoin(now)))
         .limit(1),
     );
   } catch (error) {
+    // Before the P9 column exists, a signed-in use falls back to the guest's window.
+    if (use === 'signed_in' && isMissingRelationError(error)) {
+      return findLiveSession(db, match, now, 'guest');
+    }
     if (isMissingRelationError(error)) return null;
     throw error;
   }
@@ -205,27 +231,39 @@ async function liveSessionFor(
   db: Db,
   proof: GuestCollectionSessionProof,
   now: Date,
+  use: SessionUse = 'guest',
 ): Promise<LiveSession | null> {
   const session = await findLiveSession(
     db,
     eq(schema.agencyCollectionGuestSessions.sessionHash, proof.sessionHash),
     now,
+    use,
   );
-  if (session) await touch(db, session, now);
+  if (session) await touch(db, session, now, use);
   return session;
 }
 
-/** Keep a live session from going idle. */
-async function touch(db: Db, session: LiveSession, now: Date): Promise<void> {
-  await db
-    .update(schema.agencyCollectionGuestSessions)
-    .set({ lastSeenAt: now })
-    .where(
-      and(
-        eq(schema.agencyCollectionGuestSessions.id, session.sessionId),
-        eq(schema.agencyCollectionGuestSessions.linkId, session.linkId),
-      ),
-    );
+/** Keep a live session from going idle, on the clock of whoever used it. */
+async function touch(db: Db, session: LiveSession, now: Date, use: SessionUse): Promise<void> {
+  const where = and(
+    eq(schema.agencyCollectionGuestSessions.id, session.sessionId),
+    eq(schema.agencyCollectionGuestSessions.linkId, session.linkId),
+  );
+  if (use === 'guest') {
+    await db.update(schema.agencyCollectionGuestSessions).set({ lastSeenAt: now }).where(where);
+    return;
+  }
+  try {
+    // In its own savepoint, so a missing column never aborts a caller's transaction.
+    await db.transaction(async (tx) => {
+      await tx
+        .update(schema.agencyCollectionGuestSessions)
+        .set({ accountSeenAt: now })
+        .where(where);
+    });
+  } catch (error) {
+    if (!isMissingRelationError(error)) throw error;
+  }
 }
 
 /** The agency's name, accent and whether it has a logo, only while VisaStack has reviewed it. */
@@ -921,14 +959,70 @@ export async function guestCodeStillDeliverable(
 
 /**
  * The link a live desk session belongs to (its id and whether the guest is verified), for the
- * account path that shares the landing (P7). Null for anything not live.
+ * account path that shares the landing (P7). Null for anything not live. `signedIn` (P9): the
+ * caller acts for a signed-in person, so the session idles out after 2 hours of no use instead of
+ * 30 minutes, on its own clock: the guest's window is never lengthened by it.
  */
 export async function guestSessionLink(
   db: Db,
   proof: GuestCollectionSessionProof,
   now: Date = new Date(),
+  options: { readonly signedIn?: boolean } = {},
 ): Promise<{ readonly linkId: string; readonly verified: boolean } | null> {
   if (!GuestCollectionSessionProof.isGenuine(proof)) return null;
-  const session = await liveSessionFor(db, proof, now);
+  const session = await liveSessionFor(
+    db,
+    proof,
+    now,
+    options.signedIn === true ? 'signed_in' : 'guest',
+  );
   return session ? { linkId: session.linkId, verified: session.verified } : null;
+}
+
+// --- The verified desk, for the upload services (UMPE P9) -------------------------------------
+
+/**
+ * A verified, live desk session, as the P9 upload services use it. Frozen; never leaves the
+ * services. `recipientKey` names the guest across reissued links of the same request: the SHA-256
+ * of the address the code went to.
+ */
+export interface VerifiedGuestDesk {
+  readonly sessionId: string;
+  readonly linkId: string;
+  readonly requestId: string;
+  readonly revisionId: string;
+  readonly organizationId: string;
+  readonly recipientKey: string;
+}
+
+/** The SHA-256 that names a guest within one request: their address, trimmed and lower case. */
+export function guestRecipientKey(email: string): string {
+  return createHash('sha256')
+    .update(`guest-recipient:${email.trim().toLowerCase()}`, 'utf8')
+    .digest('hex');
+}
+
+/**
+ * The verified desk a proof names (the guest proved the link's address), or null for anything
+ * else: unverified, not live, link closed, agency suspended. Using it keeps the guest's session
+ * from going idle, like any guest action.
+ */
+export async function verifiedGuestDesk(
+  db: Db,
+  proof: GuestCollectionSessionProof,
+  now: Date = new Date(),
+): Promise<VerifiedGuestDesk | null> {
+  if (!GuestCollectionSessionProof.isGenuine(proof)) return null;
+  const session = await liveSessionFor(db, proof, now);
+  if (!session?.verified) return null;
+  const email = usableEmail(session.emailHint);
+  if (!email) return null;
+  return Object.freeze({
+    sessionId: session.sessionId,
+    linkId: session.linkId,
+    requestId: session.requestId,
+    revisionId: session.revisionId,
+    organizationId: session.organizationId,
+    recipientKey: guestRecipientKey(email),
+  });
 }

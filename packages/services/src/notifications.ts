@@ -20,6 +20,7 @@ import { collectionResponseStillLive } from './access/collection-response-access
 import { collectionLinkProof } from './access/collection-scope';
 import { orgCaseRecordVisibleSql, withCaseExclusions } from './access/grant-scope';
 import { guestCodeDeliveryProof } from './access/guest-collection';
+import { guestSubmissionStillLive } from './access/guest-submission-access';
 import { type SelfScope, selfScopeProblem } from './access/principal';
 import { type Db, first, schema } from './db';
 import { notificationEmail, renderEmail } from './email-design';
@@ -709,6 +710,12 @@ async function dispatchOne(
   if (
     notification.eventType === 'AGENCY_COLLECTION_RESPONSE_SUBMITTED' &&
     !(await collectionResponseStillLive(
+      db,
+      notification.resourceId ?? '',
+      notification.organizationId ?? '',
+    )) &&
+    // UMPE P9: the same notice for a guest submission, live while its request is not revoked.
+    !(await guestSubmissionStillLive(
       db,
       notification.resourceId ?? '',
       notification.organizationId ?? '',

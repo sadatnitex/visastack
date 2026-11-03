@@ -116,7 +116,8 @@ const SELF_SAFE_CALLS: ReadonlySet<string> = new Set([
  * UMPE P6 (ADR 0026 D4): the agency document request gates. A function taking one of them also
  * passes the applicant ratchet, but only when it reaches applicant-owned tables through these calls
  * alone: an audit record is written, a sealed request email is queued for an address the agency
- * typed, or queued notices about one of the request's own links (fresh ids) are cancelled. Nothing
+ * typed, queued notices about one of the request's own links (fresh ids) are cancelled, or a
+ * notice is queued for the agency's own admins (UMPE P9). Nothing
  * of anyone's record is read.
  */
 const COLLECTION_GATE_TYPES = [
@@ -127,20 +128,31 @@ const COLLECTION_GATE_TYPES = [
   // UMPE P8: the request-scoped guest desk gates (access/guest-collection.ts).
   'GuestCollectionSessionProof',
   'GuestCodeDeliveryProof',
+  // UMPE P9: the daily retention purge of guest files and answers (process-erasure only).
+  'SystemScope',
 ] as const;
 const COLLECTION_SAFE_CALLS: ReadonlySet<string> = new Set([
   'audit#appendAuditEvent',
   'invitation-email#queueInvitationEmail',
   'notifications#cancelQueuedNotificationsForResource',
+  // UMPE P9: "Submitted to Agency" queued for the agency's own active admins (by account id) when a
+  // guest submits; the notice names the agency only and reads nothing of anyone's record.
+  'notifications#enqueueNotificationBothChannels',
 ]);
 /** The agency document request tables (packages/db/src/schema.ts), judged by their own ratchet. */
 const COLLECTION_TABLES = [
   'agencyCollectionGuestCodes',
   'agencyCollectionGuestDrafts',
+  // UMPE P9: guest files, the immutable guest submissions, review decisions and legal holds.
+  'agencyCollectionGuestFiles',
+  'agencyCollectionGuestHolds',
   'agencyCollectionGuestSessions',
+  'agencyCollectionGuestSubmissionItems',
+  'agencyCollectionGuestSubmissions',
   'agencyCollectionLinks',
   'agencyCollectionRequestRevisions',
   'agencyCollectionRequests',
+  'agencyCollectionReviews',
 ] as const;
 /**
  * Exported person billing functions that take no gate, each with why. Fixed, not a baseline: a new
@@ -1262,6 +1274,12 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
       'umpe-guest-collection#readGuestDesk',
       'umpe-guest-collection#verifyGuestCode',
       'umpe-guest-collection#guestCodeStillDeliverable',
+      'umpe-guest-uploads#addGuestFile',
+      'umpe-guest-uploads#submitGuestDocuments',
+      'umpe-guest-agency#listGuestSubmissions',
+      'umpe-guest-agency#downloadGuestSubmissionFile',
+      'umpe-collection-response-review#recordCollectionReview',
+      'umpe-guest-retention#purgeGuestCollectionData',
     ]) {
       expect(exportedFunctionIds.has(id), `${id} exists`).toBe(true);
     }
@@ -1311,6 +1329,11 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
         check: (call: ts.CallExpression) => isIsGenuine(call, 'GuestCodeDeliveryProof'),
       },
     ];
+    // UMPE P9: the guest retention purge takes a SystemScope and checks it at run time too.
+    const collectionSystem = {
+      decls: gateDeclarations(program, checker, ['SystemScope']),
+      check: (call: ts.CallExpression) => isIsGenuine(call, 'SystemScope'),
+    };
     const found: string[] = [];
     const problems: string[] = [];
     for (const sf of program.getSourceFiles()) {
@@ -1322,7 +1345,10 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
       for (const [name, shape] of exportedFunctions(checker, sf)) {
         for (const fn of shape.fns) {
           const id = `${moduleId(fileName)}#${name}`;
-          for (const gate of gates) {
+          const applicable = moduleId(fileName).startsWith('umpe-guest-')
+            ? [...gates, collectionSystem]
+            : gates;
+          for (const gate of applicable) {
             const params = fn.parameters.filter((p) =>
               isGateType(checker.getTypeAtLocation(p), gate.decls),
             );
@@ -1356,6 +1382,9 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
         'umpe-guest-collection#readGuestDesk',
         'umpe-guest-collection#startGuestSession',
         'umpe-guest-collection#guestCodeStillDeliverable',
+        'umpe-guest-uploads#addGuestFile',
+        'umpe-guest-agency#downloadGuestSubmissionFile',
+        'umpe-guest-retention#purgeGuestCollectionData',
       ]),
     );
     expect(problems).toEqual([]);

@@ -2697,3 +2697,49 @@ export {
 } from './umpe-package-start';
 export { packageTablesPresent as packageTablesReady } from './umpe-package-tables';
 export { PACKAGE_CHANGED_EVENT } from './notifications';
+
+// UMPE P9
+// Guest uploads, the exact guest submission, agency review for both sources, and guest retention.
+export { guestSubmissionStillLive } from './access/guest-submission-access';
+export {
+  type AddGuestFileOutcome,
+  type AddGuestFileRefusal,
+  type CollectionReviewDecision,
+  GUEST_CONSENT_TEXT,
+  GUEST_CONSENT_VERSION,
+  GUEST_MAX_FILES,
+  type GuestFileChecks,
+  type GuestFileStatus,
+  type GuestFileView,
+  type GuestSubmissionLine,
+  type GuestSubmissionSummary,
+  type GuestUploadDesk,
+  type SubmittedGuestDocuments,
+  addGuestFile,
+  proposeGuestItem,
+  readGuestUploadDesk,
+  removeGuestFile,
+  setGuestFileItem,
+  submitGuestDocuments,
+} from './umpe-guest-uploads';
+export {
+  type GuestFileDownload,
+  type GuestHoldView,
+  type GuestSubmissionView,
+  downloadGuestSubmissionFile,
+  guestFileStepUp,
+  listGuestSubmissions,
+  placeGuestHold,
+  readGuestHold,
+  releaseGuestHold,
+} from './umpe-guest-agency';
+export {
+  type CollectionReview,
+  REVIEW_DECISIONS,
+  REVIEW_GENERAL_NOTE_LIMIT,
+  REVIEW_NOTE_LIMIT,
+  listCollectionReviews,
+  recordCollectionReview,
+} from './umpe-collection-response-review';
+export { type GuestPurgeResult, purgeGuestCollectionData } from './umpe-guest-retention';
+export { SIGNED_IN_SESSION_IDLE_MS } from './umpe-guest-collection';
