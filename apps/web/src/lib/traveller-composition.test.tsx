@@ -114,6 +114,53 @@ describe('traveller composition and independent record guards', () => {
     expect(html).toContain('/app/applicant/person/missions');
     expect(html).not.toContain('Japan visitor');
   });
+  it('leads a new traveller with three steps in order, with Next on the first and a link on each', async () => {
+    const html = renderToStaticMarkup(await overview(params));
+    expect(html).toContain('Welcome, ');
+    expect(html).toContain('Three Steps to Get Ready');
+    const at = (text: string) => html.indexOf(`<strong>${text}</strong>`);
+    expect(at('Add Your Essentials')).toBeGreaterThan(0);
+    expect(at('Add Your Essentials')).toBeLessThan(at('Add a Document'));
+    expect(at('Add a Document')).toBeLessThan(at('Start a Case'));
+    expect(html).toContain('href="/app/applicant/person/documents/add"');
+    expect(html).toContain('href="/app/applicant/person/missions#start-case"');
+    expect(html.match(/home-path-next/g)).toHaveLength(1);
+    expect(html).not.toContain('>Done<');
+  });
+
+  it('marks a step done with a word and a mark when its work exists, and counts them', async () => {
+    service.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          id: 'd1',
+          originalName: 'passport.pdf',
+          approvedName: null,
+          createdAt: new Date('2026-10-02').toISOString(),
+          safetyStatus: 'CLEAN',
+          classification: null,
+        },
+      ],
+    });
+    const html = renderToStaticMarkup(await overview(params));
+    expect(html).toContain('1 of 3 Steps Done. Keep Going');
+    expect(html.match(/>Done</g)).toHaveLength(1);
+    expect(html).toContain('home-path-mark home-path-done');
+    expect(html).toContain('1 document in your wallet');
+    expect(html).toContain('<strong>Document Added</strong>');
+  });
+
+  it('shows no path without core processing consent, or when the records cannot be read', async () => {
+    service.hasConsent.mockResolvedValue(false);
+    expect(renderToStaticMarkup(await overview(params))).not.toContain('home-path');
+    service.hasConsent.mockResolvedValue(true);
+    service.listDocumentsDetailed.mockResolvedValue({
+      ok: false,
+      error: { code: 'upstream_error' },
+    });
+    expect(renderToStaticMarkup(await overview(params))).not.toContain('home-path');
+  });
+
   it('counts what needs attention in agreeing words: "1 item needs", "2 items need"', async () => {
     service.listPendingProposals.mockResolvedValue([{ id: 'p1', fieldKey: 'given_name' }]);
     expect(renderToStaticMarkup(await overview(params))).toContain(

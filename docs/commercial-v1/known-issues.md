@@ -7360,3 +7360,9 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Reviews: helper built it with proven-red guards; `/code-review max`: 13 findings, the real ones fixed (the organiser proof no longer needs a live traveller; a refused Someone Else after others were added goes to the trip with a partial notice; Remove asks once; quiet buttons; constant for the invitation days; marker `WP-UMPE-UX6-P2`). Hand-back: `docs/umpe/operations/handoffs/UX6-P2.md`.
 - The switch must stay off until package 3 (the email and the accept page) ships: the copy says "invited" and nothing is sent yet. Not verified: a browser, a screen reader, two adds racing, real email.
 
+
+## 2026-11-03: UMPE UX11 (Home path card, no migration)
+
+- A "Welcome, {first name}. Three Steps to Get Ready" card on Home: Add Your Essentials, Add a Document, Start a Case, each a tappable row with Done and Next words; gone once all three are done. Read-only; shown only with core processing consent and readable records. Hand-back: `docs/umpe/operations/handoffs/UX11.md`.
+- Not verified: a real phone, a screen reader, the live flow.
+

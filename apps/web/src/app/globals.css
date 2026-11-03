@@ -14296,3 +14296,71 @@ html:has(.sticky-action-bar) {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* WP-UMPE-UX11 Home path: three first steps to being ready to apply, as one card of tappable rows. The state of a step is a word and a mark, never colour alone. Flat, tokens only, 44 px rows. */
+.home-path h3 {
+  margin: 0 0 var(--space-2);
+}
+.home-path-steps {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.home-path-steps li + li {
+  border-top: 1px solid var(--hairline);
+}
+.home-path-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) 0;
+  color: var(--text);
+  text-decoration: none;
+}
+.home-path-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--edge-control);
+  border-radius: 50%;
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+.home-path-done {
+  border-color: var(--success);
+  background: var(--success);
+  color: var(--bg-elevated);
+}
+.home-path-text {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0.1rem;
+}
+.home-path-text .muted {
+  font-size: var(--text-small);
+}
+.home-path-state {
+  flex: none;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: var(--bg-muted, var(--hairline-soft));
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+  font-weight: 700;
+}
+.home-path-next {
+  background: var(--brand-bg);
+  color: var(--accent);
+}
+.home-path-step::after {
+  content: "\203a" / "";
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: 1.25rem;
+  line-height: 1;
+}
