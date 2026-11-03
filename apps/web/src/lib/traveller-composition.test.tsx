@@ -363,7 +363,7 @@ describe("the deadline clock on a person's overview (Growth G5)", () => {
     expect(clock).toContain(
       'Add a passport and its expiry date appears here, so you hear about it before it matters.',
     );
-    expect(clock).toContain('href="/app/applicant/person/documents"');
+    expect(clock).toContain('href="/app/applicant/person/documents/add"');
     expect(clock).toContain('Add a Document');
   });
 

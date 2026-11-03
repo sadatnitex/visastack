@@ -2805,6 +2805,10 @@ export {
   releaseGuestHold,
 } from './umpe-guest-agency';
 export {
+  type CollectionAnswerSummary,
+  summariseCollectionAnswers,
+} from './umpe-collection-answer-summary';
+export {
   type CollectionReview,
   REVIEW_DECISIONS,
   REVIEW_GENERAL_NOTE_LIMIT,

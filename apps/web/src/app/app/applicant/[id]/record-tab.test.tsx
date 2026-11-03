@@ -134,7 +134,7 @@ describe('the three traveller entry points in the shell (UMPE P13)', () => {
       'Sharing & Requests',
     ]);
     const add = container.querySelector('.app-bar a.app-nav-action');
-    expect(add?.getAttribute('href')).toBe(`/app/applicant/${SELF}/documents#add-document`);
+    expect(add?.getAttribute('href')).toBe(`/app/applicant/${SELF}/documents/add`);
   });
 
   it('lists the same tasks first under More for a phone, named as quick actions', () => {

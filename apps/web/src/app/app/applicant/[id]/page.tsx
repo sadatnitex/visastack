@@ -477,7 +477,7 @@ export default async function ApplicantOverviewPage({
                     ? null
                     : deadlineLines(data.deadlines, { showPerson: false })
                 }
-                addAction={{ href: `/app/applicant/${id}/documents`, label: 'Add a Document' }}
+                addAction={{ href: `/app/applicant/${id}/documents/add`, label: 'Add a Document' }}
                 more={{ href: `/app/applicant/${id}/expiry`, label: 'See All Dates' }}
               />
             </div>

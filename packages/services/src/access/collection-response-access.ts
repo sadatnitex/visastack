@@ -1,4 +1,4 @@
-import { type SQL, and, desc, eq, gt, sql } from 'drizzle-orm';
+import { type SQL, and, count, desc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { appendAuditEvent } from '../audit';
 import { type Db, first, schema } from '../db';
 import { type ServiceError, serviceError } from '../errors';
@@ -150,6 +150,60 @@ export async function collectionResponseStillLive(
       .limit(1),
   );
   return row !== undefined;
+}
+
+/** Live signed-in answers sharing one latest decision (null: none yet), per request. */
+export interface ResponseDecisionCount {
+  readonly requestId: string;
+  readonly decision: string | null;
+  readonly n: number;
+}
+
+/**
+ * How many live answers each of these requests has, grouped by the answer's latest review decision
+ * (newest time, ties by id; null when there is none), for the agency's request list (UMPE UX5).
+ * It lives here, with the other readers of the response table, because that table carries the
+ * person's id: it returns counts only and never a person, a name or an id of an answer. Empty
+ * unless the scope is genuine, fresh and an owner or admin's; every row is bound to its
+ * organization. The caller has already kept only this agency's request ids. `reviewsPresent` says
+ * whether the review table exists yet (without it every answer has no decision).
+ */
+export async function liveResponseDecisionCounts(
+  db: Db,
+  scope: AgencyCollectionScope,
+  requestIds: readonly string[],
+  reviewsPresent: boolean,
+): Promise<readonly ResponseDecisionCount[]> {
+  if (agencyCollectionScopeProblem(scope)) return [];
+  const ids = requestIds.filter((id) => isUuid(id));
+  if (ids.length === 0 || !(await collectionResponsesPresent(db))) return [];
+  const responses = schema.agencyCollectionResponses;
+  const answers = db
+    .select({
+      requestId: responses.requestId,
+      // The outer table is named in full (a column interpolated into a select list loses its
+      // table name, and `id` would then mean the review's own).
+      decision: reviewsPresent
+        ? sql<
+            string | null
+          >`(select v.decision from agency_collection_reviews v where v.response_id = agency_collection_responses.id and v.organization_id = agency_collection_responses.organization_id order by v.decided_at desc, v.id desc limit 1)`.as(
+            'decision',
+          )
+        : sql<string | null>`null::text`.as('decision'),
+    })
+    .from(responses)
+    .where(
+      and(
+        eq(responses.organizationId, scope.organizationId),
+        inArray(responses.requestId, ids),
+        liveCollectionResponse(),
+      ),
+    )
+    .as('account_answers');
+  return db
+    .select({ requestId: answers.requestId, decision: answers.decision, n: count() })
+    .from(answers)
+    .groupBy(answers.requestId, answers.decision);
 }
 
 /** The newest responses one request may list at once. */

@@ -272,7 +272,7 @@ describe('section cards keep every real editing path', () => {
     expect(rows[0]?.textContent).toContain('Not Uploaded Yet');
     expect(rows[0]?.textContent).toContain('handed in as the original');
     expect(rows[0]?.querySelector('a')?.getAttribute('href')).toBe(
-      '/app/applicant/synthetic-person/documents?type=TAX_ACKNOWLEDGEMENT_SLIP#document-upload',
+      '/app/applicant/synthetic-person/documents/add?type=TAX_ACKNOWLEDGEMENT_SLIP',
     );
     expect(rows[0]?.querySelector('.badge')?.className).toContain('badge-neutral');
     expect(rows[1]?.querySelector('.badge')?.textContent).toBe('Uploaded');

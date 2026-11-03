@@ -464,7 +464,7 @@ export default async function AppPage({
         }
         countryName={countryName}
         countryHref={country ? `/app/countries/${country.toLowerCase()}` : null}
-        documentsHref={first ? `/app/applicant/${first.applicant.id}/documents#add-document` : null}
+        documentsHref={first ? `/app/applicant/${first.applicant.id}/documents/add` : null}
         tripHref="/app/mission/start"
       />
     );
@@ -603,7 +603,7 @@ export default async function AppPage({
           key: 'documents',
           label: 'Add Documents',
           hint: 'My Documents: upload a passport page or any file, and sort it out later.',
-          href: `/app/applicant/${firstApplicant.applicant.id}/documents#add-document`,
+          href: `/app/applicant/${firstApplicant.applicant.id}/documents/add`,
         },
         {
           key: 'trips',

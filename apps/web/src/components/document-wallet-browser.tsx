@@ -239,7 +239,7 @@ export function DocumentWalletBrowser({
             >
               {documents.length
                 ? 'Clear the search or choose another category or status.'
-                : 'This is your document vault: passports, bank statements, photos and the other papers you use again and again. Add your first one with the form on this page.'}
+                : 'This is your document vault: passports, bank statements, photos and the other papers you use again and again. Add your first one with Add Documents.'}
             </EmptyState>
           )}
           {pageCount > 1 ? (

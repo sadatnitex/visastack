@@ -86,6 +86,64 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
   },
   {
     screen: 'documents',
+    from: { kind: 'link', name: 'Upload Document', detail: '#document-upload' },
+    to: { kind: 'link', name: 'Add Documents', detail: '/app/applicant/a1/documents/add' },
+    reason:
+      'UX7 (owner, 3 Nov 2026): adding documents is one door, its own page, instead of a closed section further down.',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'button', name: 'Upload Document', detail: '' },
+    to: null,
+    reason:
+      'UX7 (owner, 3 Nov 2026): the closed Upload Document section is gone; its job is the one Add Documents link.',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'text', name: 'Upload' },
+    to: null,
+    reason: 'UX7 (owner, 3 Nov 2026): the small Upload label belonged to the removed section.',
+  },
+  {
+    screen: 'documents',
+    from: {
+      kind: 'text',
+      name: 'Add several at once. Documents are stored privately and pass a structural safety scan before they can be previewed.',
+    },
+    to: {
+      kind: 'text',
+      name: 'Drop files or a whole folder in one place. Each one is checked for safety, and you approve every detail we read.',
+    },
+    reason:
+      'UX7 (owner, 3 Nov 2026): the same promise, now beside the link to the Add Documents page.',
+  },
+  {
+    screen: 'documents',
+    from: {
+      kind: 'text',
+      name: 'This is your document vault: passports, bank statements, photos and the other papers you use again and again. Add your first one with the form on this page.',
+    },
+    to: {
+      kind: 'text',
+      name: 'This is your document vault: passports, bank statements, photos and the other papers you use again and again. Add your first one with Add Documents.',
+    },
+    reason:
+      'UX7 (owner, 3 Nov 2026): the form moved to the Add Documents page, so the line names it.',
+  },
+  {
+    screen: 'expiry',
+    from: { kind: 'link', name: 'Add a Document', detail: '/app/applicant/person/documents' },
+    to: { kind: 'link', name: 'Add a Document', detail: '/app/applicant/person/documents/add' },
+    reason: 'UX7 (owner, 3 Nov 2026): Add a Document opens the Add Documents page directly.',
+  },
+  {
+    screen: 'traveller',
+    from: { kind: 'link', name: 'Add a Document', detail: '/app/applicant/person/documents' },
+    to: { kind: 'link', name: 'Add a Document', detail: '/app/applicant/person/documents/add' },
+    reason: 'UX7 (owner, 3 Nov 2026): Add a Document opens the Add Documents page directly.',
+  },
+  {
+    screen: 'documents',
     from: { kind: 'heading', name: 'Selected Document', detail: '3' },
     to: { kind: 'heading', name: 'Selected Document', detail: '2' },
     reason: 'D2: no skipped heading levels; the panel heading follows the page heading.',

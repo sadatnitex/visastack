@@ -233,59 +233,26 @@ describe('a file that could not be used', () => {
   });
 });
 
-describe('the upload form', () => {
-  it('is told the limit the server really enforces, not a number written into the page', async () => {
+describe('adding documents', () => {
+  it('links to the Add Documents page, and keeps the old anchors on that link', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
-    // A 5 MB quota is capped at what one request to the host can carry (4 MB).
-    const [uploader] = stubProps<{ applicantId: string; limitLabel: string }>(
-      await render(),
-      'DocumentUploader',
-    );
-    expect(uploader).toMatchObject({
-      applicantId: 'a1',
-      limitBytes: 4 * 1024 * 1024,
-      limitLabel: '4 MB',
-      pdfAccepted: true,
-      virusScanning: false,
-    });
-
-    // A tighter quota is the limit itself.
-    mocks.loadUploadQuotaConfig.mockReturnValue({
-      maxUploadBytes: 2 * 1024 * 1024,
-      maxApplicantEvidenceBytes: 50 * 1024 * 1024,
-    });
-    const [tight] = stubProps<{ limitLabel: string }>(await render(), 'DocumentUploader');
-    expect(tight).toMatchObject({ limitBytes: 2 * 1024 * 1024, limitLabel: '2 MB' });
+    const html = await render();
+    expect(html).toContain('href="/app/applicant/a1/documents/add"');
+    expect(html).toContain('id="add-document"');
+    expect(html).toContain('id="document-upload"');
+    expect(stubProps(html, 'DocumentUploader')).toEqual([]);
   });
 
-  it('offers PDF on the built-in checks, and stops offering it when the owner switches PDF uploads off', async () => {
+  it('carries a kind the catalogue knows to the Add Documents page', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
-    try {
-      const [on] = stubProps<{ pdfAccepted: boolean }>(await render(), 'DocumentUploader');
-      expect(on?.pdfAccepted).toBe(true);
-      vi.stubEnv('PDF_UPLOADS', 'off');
-      const [off] = stubProps<{ pdfAccepted: boolean }>(await render(), 'DocumentUploader');
-      expect(off?.pdfAccepted).toBe(false);
-    } finally {
-      vi.unstubAllEnvs();
-      mocks.detailsAvailable.mockResolvedValue('unconfigured');
-    }
+    const html = await render(undefined, { type: 'passport' });
+    expect(html).toMatch(/href="\/app\/applicant\/a1\/documents\/add\?type=[A-Z_]+"/);
   });
 
-  it('offers every catalogue kind of document, so a file can be filed under its category on upload', async () => {
-    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
-    const [uploader] = stubProps<{
-      kindGroups: { choices: { key: string; label: string }[] }[];
-    }>(await render(), 'DocumentUploader');
-    const keys = (uploader?.kindGroups ?? []).flatMap((g) => g.choices.map((c) => c.key));
-    expect(keys).toContain('PASSPORT');
-    expect(keys).toContain('OTHER');
-  });
-
-  it('is not shown until core processing consent is granted, as before', async () => {
+  it('asks for core processing consent instead of offering the link inside the card', async () => {
     mocks.hasConsent.mockResolvedValue(false);
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
-    expect(stubProps(await render(), 'DocumentUploader')).toEqual([]);
+    expect(textOf(await render())).toContain('to add new documents');
   });
 });
 

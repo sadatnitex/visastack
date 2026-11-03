@@ -117,7 +117,7 @@ describe('the deadline clock on the Expiry page (Growth G5)', () => {
     expect(textOf(clock)).toContain(
       'Add a passport and its expiry date appears here, so you hear about it before it matters.',
     );
-    expect(clock).toContain('href="/app/applicant/person/documents"');
+    expect(clock).toContain('href="/app/applicant/person/documents/add"');
   });
 
   it('marks a date it is unsure of Check This Date', async () => {

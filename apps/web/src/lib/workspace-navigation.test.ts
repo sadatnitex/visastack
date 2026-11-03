@@ -40,7 +40,7 @@ describe('current contextual navigation contract', () => {
     ).toBe(true);
     // The task under My Documents opens this traveller's own upload, never another's.
     expect(nav.primary[1]?.action).toEqual({
-      href: `/app/applicant/${p2}/documents#add-document`,
+      href: `/app/applicant/${p2}/documents/add`,
       label: 'Add Documents',
     });
     expect([...nav.primary, ...nav.tools, ...nav.settings].map((link) => link.href)).not.toContain(
@@ -296,7 +296,7 @@ describe('workspace navigation link list (characterization)', () => {
     expect(
       nav.primary.flatMap((link) => (link.action ? [[link.action.label, link.action.href]] : [])),
     ).toEqual([
-      ['Add Documents', `${base}/documents#add-document`],
+      ['Add Documents', `${base}/documents/add`],
       ['Start a Trip', '/app/mission/start'],
     ]);
     expect(pairs(nav.tools)).toEqual([

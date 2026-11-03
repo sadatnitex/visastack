@@ -379,7 +379,7 @@ describe('task-first first run (WP-V3, D8)', () => {
     const html = await page({ welcome: '1' });
     const text = textOf(html);
     expect(text).toContain('Add Documents');
-    expect(html).toContain(`href="/app/applicant/${SELF.id}/documents#add-document"`);
+    expect(html).toContain(`href="/app/applicant/${SELF.id}/documents/add"`);
     expect(text).toContain('Start a Trip');
     expect(html).toContain('href="/app/mission/start"');
   });
@@ -1246,7 +1246,7 @@ describe('UMPE P13: entry points and package changes on Home', () => {
       a.getAttribute('href'),
     ]);
     expect(links).toEqual([
-      ['Add Documents', `/app/applicant/${SELF.id}/documents#add-document`],
+      ['Add Documents', `/app/applicant/${SELF.id}/documents/add`],
       ['Start a Trip', '/app/mission/start'],
       ['Answer a Request', `/app/applicant/${SELF.id}/evidence`],
     ]);

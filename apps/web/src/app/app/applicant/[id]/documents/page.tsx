@@ -1,5 +1,5 @@
 import { isOtherDocumentType } from '@visastack/core';
-import { ORIGINAL_DOCUMENT_KEYS, resolveDocumentType } from '@visastack/core/catalogue';
+import { resolveDocumentType } from '@visastack/core/catalogue';
 import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
 import {
   CONVERTED_FROM_HEIC_SOURCE,
@@ -10,12 +10,9 @@ import {
   availableDocumentActions,
   classifyExpiry,
   documentCategory,
-  documentUploadReceiptsReady,
   duplicateStatuses,
-  familyBatchReady,
   getAiFeatureStates,
   getApplicant,
-  getApplicantEvidenceBytes,
   getDocumentLifecycles,
   getLatestOcrRun,
   getWalletView,
@@ -36,12 +33,9 @@ import {
   listPendingInconsistencyFlags,
   listPendingProposals,
   listRedactionStates,
-  loadUploadQuotaConfig,
-  mbLabel,
   readDocumentProtectionSettings,
   referenceCodesFor,
   requireAccess,
-  storageLimitsForOwner,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -65,10 +59,7 @@ import {
   isOcrConfigured,
   resolveAiExtractionAvailability,
 } from '../../../../../lib/ai';
-import {
-  getPlatformCapabilities,
-  resolvePlatformCapabilities,
-} from '../../../../../lib/capabilities';
+import { getPlatformCapabilities } from '../../../../../lib/capabilities';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
@@ -80,7 +71,6 @@ import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
-import { pdfUploadsAccepted, uploadLimitBytes } from '../../../../../lib/upload-preflight';
 import {
   previewDocumentAction,
   requestDocumentReadingAction,
@@ -98,19 +88,14 @@ import { DocumentRenameForm } from '../document-rename-form';
 import { documentSuggestionView } from '../document-suggestion';
 import { DocumentSuggestionCard } from '../document-suggestion-card';
 import { DocumentTypeForm } from '../document-type-form';
-import { DocumentUploader } from '../document-uploader';
 import { downloadOriginalAction } from '../download-actions';
-import { ImportPanel } from '../import/import-panel';
 import { ReadingOfferCard, ReadingStatus } from '../reading-status';
-import { UsageMeter } from '../usage-meter';
 import { type LifecycleTab, LifecycleTabs, lifecycleTabOf } from './manage/lifecycle-tabs';
 import { ManageMenu } from './manage/manage-menu';
 import { registeredActions } from './manage/registry';
 import { removalRequestFacts } from './manage/request/facts';
 import { documentActionView, isDocumentAction } from './manage/view';
 import { NeedsDecision } from './needs-decision';
-
-const ORIGINAL_KINDS: readonly string[] = [...ORIGINAL_DOCUMENT_KEYS];
 
 export const metadata: Metadata = { title: 'Documents' };
 
@@ -215,12 +200,16 @@ export default async function ApplicantDocumentsPage({
   const locale = await getLocale();
   const t = createTranslator(locale);
   const documentGroups = evidenceDocumentGroups();
+  // The Add Documents page, ready on a kind when the address names one the catalogue knows.
+  const addDocumentsBase = `/app/applicant/${id}/documents/add`;
+  const addDocumentsHref = initialKind
+    ? `${addDocumentsBase}?type=${encodeURIComponent(initialKind)}`
+    : addDocumentsBase;
 
   const data = await withSession(async ({ db, accountId }) => {
     const encryption = createKeyManagementPort();
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
-    const quota = loadUploadQuotaConfig();
     const [
       documents,
       coreGranted,
@@ -229,7 +218,6 @@ export default async function ApplicantDocumentsPage({
       ocrConfigured,
       classificationConfigured,
       inconsistencyConfigured,
-      evidenceBytes,
       [pendingProposals, profile],
       pendingClassificationProposals,
       pendingInconsistencyFlags,
@@ -242,7 +230,6 @@ export default async function ApplicantDocumentsPage({
       isOcrConfigured(db),
       isClassificationConfigured(db),
       isInconsistencyConfigured(db),
-      getApplicantEvidenceBytes(db, id),
       // What the profile already holds, read only when there are readings to compare it with.
       listPendingProposals(db, id).then(
         async (proposals) =>
@@ -307,20 +294,17 @@ export default async function ApplicantDocumentsPage({
     // added them), and whether the family batch is available yet. Extras like the list above.
     const noHeldFiles = { files: [], people: [] };
     // UMPE G4: what was placed automatically lately, each with its Change. An extra like the rest.
-    const [understanding, uploadReceiptsReady, heldFiles, familyBatch, automatic] =
-      await Promise.all([
-        readingAccess.ok
-          ? listDocumentExceptions(readingAccess.value).catch(() => noDecisions)
-          : Promise.resolve(noDecisions),
-        documentUploadReceiptsReady(db).catch(() => false),
-        readingAccess.ok
-          ? listHeldFiles(readingAccess.value).catch(() => noHeldFiles)
-          : Promise.resolve(noHeldFiles),
-        readingAccess.ok ? familyBatchReady(db).catch(() => false) : Promise.resolve(false),
-        readingAccess.ok
-          ? listAutoPlacements(readingAccess.value).catch(() => [])
-          : Promise.resolve([]),
-      ]);
+    const [understanding, heldFiles, automatic] = await Promise.all([
+      readingAccess.ok
+        ? listDocumentExceptions(readingAccess.value).catch(() => noDecisions)
+        : Promise.resolve(noDecisions),
+      readingAccess.ok
+        ? listHeldFiles(readingAccess.value).catch(() => noHeldFiles)
+        : Promise.resolve(noHeldFiles),
+      readingAccess.ok
+        ? listAutoPlacements(readingAccess.value).catch(() => [])
+        : Promise.resolve([]),
+    ]);
     const detailsAvailable =
       (await resolveAiExtractionAvailability(db, encryption !== undefined)) === 'available';
     // Each AI button's own switch (S28), through the same owner proof. If it cannot be read, the
@@ -392,10 +376,8 @@ export default async function ApplicantDocumentsPage({
     );
     return {
       understanding,
-      uploadReceiptsReady,
       heldFiles,
       automatic,
-      familyBatch,
       protection,
       referenceCodes,
       lifecycle,
@@ -412,16 +394,10 @@ export default async function ApplicantDocumentsPage({
       ocrConfigured,
       classificationConfigured,
       inconsistencyConfigured,
-      evidenceBytes,
       pendingProposals,
       confirmed,
       pendingClassificationProposals,
       pendingInconsistencyFlags,
-      quota,
-      // The record owner's storage limit for one person: their plan's rule, else the setting.
-      personLimitBytes: (await storageLimitsForOwner(db, applicant.ownerAccountId, quota))
-        .personBytes,
-      virusScanning: (await resolvePlatformCapabilities(db)).malwareScanning === 'available',
       wallet: new Map((wallet.ok ? wallet.value : []).map((w) => [w.document.id, w])),
       issuerVerifications,
       ocrRuns,
@@ -538,9 +514,9 @@ export default async function ApplicantDocumentsPage({
             <Link className="btn btn-secondary" href={`/app/applicant/${id}/insights`}>
               See Document Insights
             </Link>
-            <a className="btn btn-primary" href="#document-upload">
-              Upload Document
-            </a>
+            <Link className="btn btn-primary" href={`/app/applicant/${id}/documents/add`}>
+              Add Documents
+            </Link>
           </>
         }
       />
@@ -1104,77 +1080,32 @@ export default async function ApplicantDocumentsPage({
             };
           })}
         />
-        <details
-          className="wallet-upload-disclosure"
-          id="add-document"
-          {...atLevel('everything')}
-          open={initialKind ? true : undefined}
-        >
-          <summary className="btn btn-secondary">Upload Document</summary>
-          <div id="document-upload">
-            {/*
-             * Only upload and new processing/extraction are gated on core
-             * processing consent - existing documents must remain viewable
-             * regardless (docs/audits/post-programme-defect-register.md finding
-             * #23): "view existing data" and "permit new processing" are
-             * deliberately distinct here.
-             */}
-            {!data.coreGranted ? (
-              <article className="card u-mb-150">
-                <p className="card-body">
-                  Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
-                  <Link href="/app">Home</Link> to upload new documents or run processing. Your
-                  existing documents remain visible above.
-                </p>
-              </article>
+        {/*
+         * Adding documents has its own page, one door for files, folders and photos. The old
+         * anchors (#add-document, #document-upload) still land here, on the link to it.
+         */}
+        <section className="card" id="add-document" {...atLevel('everything')}>
+          <div>
+            <h2 className="card-title" id="document-upload">
+              Add Documents
+            </h2>
+            <p className="card-body">
+              Drop files or a whole folder in one place. Each one is checked for safety, and you
+              approve every detail we read.
+            </p>
+            {data.coreGranted ? (
+              <Link className="btn btn-primary" href={addDocumentsHref}>
+                Add Documents
+              </Link>
             ) : (
-              <>
-                <article className="card u-mb-150">
-                  <p className="card-kicker">Upload</p>
-                  <h2 className="card-title">Add Documents</h2>
-                  <p className="card-body u-mb-125">
-                    Add several at once. Documents are stored privately and pass a structural safety
-                    scan before they can be previewed.
-                  </p>
-                  <div className="u-mb-125">
-                    <UsageMeter
-                      label="Evidence Storage"
-                      usedBytes={data.evidenceBytes}
-                      limitBytes={data.personLimitBytes}
-                    />
-                  </div>
-                  <DocumentUploader
-                    key={initialKind}
-                    applicantId={id}
-                    limitBytes={uploadLimitBytes(data.quota)}
-                    limitLabel={mbLabel(uploadLimitBytes(data.quota))}
-                    pdfAccepted={pdfUploadsAccepted()}
-                    virusScanning={data.virusScanning}
-                    kindGroups={documentGroups}
-                    initialKind={initialKind}
-                    originalKinds={ORIGINAL_KINDS}
-                  />
-                </article>
-                <article className="card u-mb-150">
-                  <p className="card-kicker">Import</p>
-                  <h2 className="card-title">Add a Whole Folder</h2>
-                  <p className="card-body u-mb-125">
-                    Add a folder, with the folders inside it, or many files in one go. Each file is
-                    added the same way as above, a few at a time, and each gets its own line.
-                  </p>
-                  <ImportPanel
-                    applicantId={id}
-                    limitBytes={uploadLimitBytes(data.quota)}
-                    limitLabel={mbLabel(uploadLimitBytes(data.quota))}
-                    pdfAccepted={pdfUploadsAccepted()}
-                    retryUnknown={data.uploadReceiptsReady}
-                    familyBatch={data.familyBatch}
-                  />
-                </article>
-              </>
+              <p className="card-body">
+                Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
+                <Link href="/app">Home</Link> to add new documents. Your existing documents remain
+                visible above.
+              </p>
             )}
           </div>
-        </details>
+        </section>
       </DepthScope>
     </>
   );

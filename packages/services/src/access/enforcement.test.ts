@@ -1297,6 +1297,7 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
       'umpe-guest-agency#listGuestSubmissions',
       'umpe-guest-agency#downloadGuestSubmissionFile',
       'umpe-collection-response-review#recordCollectionReview',
+      'umpe-collection-answer-summary#summariseCollectionAnswers',
       'umpe-guest-retention#purgeGuestCollectionData',
     ]) {
       expect(exportedFunctionIds.has(id), `${id} exists`).toBe(true);
@@ -1406,6 +1407,7 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
         'umpe-guest-collection#guestCodeStillDeliverable',
         'umpe-guest-uploads#addGuestFile',
         'umpe-guest-agency#downloadGuestSubmissionFile',
+        'umpe-collection-answer-summary#summariseCollectionAnswers',
         'umpe-guest-retention#purgeGuestCollectionData',
       ]),
     );

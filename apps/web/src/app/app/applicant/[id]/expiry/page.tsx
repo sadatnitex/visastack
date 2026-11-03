@@ -215,7 +215,7 @@ export default async function ExpiryCentrePage({
             lines={
               data.deadlines === null ? null : deadlineLines(data.deadlines, { showPerson: false })
             }
-            addAction={{ href: `/app/applicant/${id}/documents`, label: 'Add a Document' }}
+            addAction={{ href: `/app/applicant/${id}/documents/add`, label: 'Add a Document' }}
           />
         </div>
 
@@ -227,7 +227,7 @@ export default async function ExpiryCentrePage({
               <EmptyState
                 icon="file"
                 title="No Documents Yet"
-                action={{ href: `/app/applicant/${id}/documents`, label: 'Add a Document' }}
+                action={{ href: `/app/applicant/${id}/documents/add`, label: 'Add a Document' }}
               >
                 Documents with an expiry date, such as a passport, appear here so you hear about
                 them before they run out.
