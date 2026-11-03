@@ -6794,6 +6794,10 @@ export const documentPersonHolds = pgTable(
     sizeBytes: integer('size_bytes').notNull(),
     sha256: text('sha256'),
     originalFileName: text('original_file_name'),
+    /** The name the file is stored under, with the extension of what is stored ("document.jpg"). */
+    storedFileName: text('stored_file_name').notNull().default('document'),
+    /** True when an iPhone photo (HEIC) was saved as a JPEG copy, as an ordinary upload records. */
+    convertedFromHeic: boolean('converted_from_heic').notNull().default(false),
     virusScanned: boolean('virus_scanned').notNull().default(false),
     status: text('status').notNull().default('RECEIVING'),
     proposedApplicantId: uuid('proposed_applicant_id').references(() => applicants.id, {
@@ -6824,5 +6828,9 @@ export const documentPersonHolds = pgTable(
       sql`${table.originalFileName} is null or char_length(${table.originalFileName}) <= 180`,
     ),
     check('document_person_holds_size_positive', sql`${table.sizeBytes} > 0`),
+    check(
+      'document_person_holds_stored_name_cap',
+      sql`char_length(${table.storedFileName}) between 1 and 120`,
+    ),
   ],
 );

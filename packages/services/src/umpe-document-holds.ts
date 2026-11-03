@@ -29,7 +29,7 @@ import { AuthorizedApplicant, SystemScope } from './access';
 import { appendAuditEvent } from './audit';
 import { findTd3Block } from './classification';
 import { type Db, first, schema } from './db';
-import { registerDocumentWithVersion } from './documents';
+import { CONVERTED_FROM_HEIC_SOURCE, registerDocumentWithVersion } from './documents';
 import { type ServiceError, serviceError } from './errors';
 import type { DocumentConverterPort } from './extraction';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
@@ -267,6 +267,10 @@ export interface HoldFamilyFileInput {
   readonly originalFileName?: string | null;
   readonly bytes: Uint8Array;
   readonly contentType: string;
+  /** The name to store it under, with the extension of what is stored (the upload route's own rule). */
+  readonly storedFileName: string;
+  /** True when an iPhone photo (HEIC) was saved as a JPEG copy. */
+  readonly convertedFromHeic?: boolean;
 }
 
 export interface HoldFamilyFileDeps {
@@ -305,18 +309,32 @@ function sha256Hex(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-/** Deletes bytes, then their registration (so a failed delete stays findable by the orphan sweep). */
+/**
+ * Deletes bytes, then their registration (so a failed delete stays findable by the orphan sweep).
+ * True only when the bytes are gone; a caller keeps its row otherwise, so the sweep tries again.
+ */
 async function discardBytes(
   db: Db,
   storage: Pick<BlobStore, 'deleteObject'>,
   objectKey: string,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await storage.deleteObject('QUARANTINE', objectKey);
   } catch {
-    return;
+    return false;
   }
   await db.delete(schema.storageObjects).where(eq(schema.storageObjects.objectKey, objectKey));
+  return true;
+}
+
+/** A safe stored name: the last path part, plain characters, capped, never empty. */
+function cleanStoredName(value: string): string {
+  const last = value.split(/[/\\]/).pop() ?? '';
+  const plain = last
+    .replace(/[^\p{L}\p{N} ._()-]/gu, '')
+    .trim()
+    .slice(-120);
+  return plain === '' || plain === '.' || plain === '..' ? 'document' : plain;
 }
 
 /**
@@ -347,6 +365,8 @@ export async function holdFamilyFile(
   const holds = schema.documentPersonHolds;
   const inputSha256 = sha256Hex(input.bytes);
   const originalFileName = sanitizeOriginalFileName(input.originalFileName);
+  const storedFileName = cleanStoredName(input.storedFileName);
+  const convertedFromHeic = input.convertedFromHeic === true;
 
   const existing = first(
     await db
@@ -355,9 +375,13 @@ export async function holdFamilyFile(
       .where(and(eq(holds.ownerAccountId, owner), eq(holds.uploadId, input.uploadId)))
       .limit(1),
   );
-  let takeover: string | null = null;
+  // A repeat of a file still waiting answers with it; one still being stored answers "not yet".
+  // A file already filed or removed, sent again, is the person's new choice: it starts afresh in
+  // the same row (a filed file's bytes belong to its document and are never touched).
+  let takeover = false;
+  let abandonedKey: string | null = null;
   if (existing) {
-    if (existing.status !== 'RECEIVING') {
+    if (existing.status === 'HELD' || existing.status === 'FILING') {
       return {
         kind: 'held',
         holdId: existing.id,
@@ -365,14 +389,20 @@ export async function holdFamilyFile(
         replay: true,
       };
     }
-    const age = now.getTime() - existing.updatedAt.getTime();
-    if (age < HELD_CLAIM_STALE_MS) {
-      return {
-        kind: 'in_progress',
-        retryAfterSeconds: Math.max(1, Math.ceil((HELD_CLAIM_STALE_MS - age) / 1000)),
-      };
+    if (existing.status === 'RECEIVING') {
+      const age = now.getTime() - existing.updatedAt.getTime();
+      if (age < HELD_CLAIM_STALE_MS) {
+        return {
+          kind: 'in_progress',
+          retryAfterSeconds: Math.max(1, Math.ceil((HELD_CLAIM_STALE_MS - age) / 1000)),
+        };
+      }
     }
-    takeover = existing.objectKey;
+    takeover = true;
+    abandonedKey =
+      existing.status === 'RECEIVING' || existing.status === 'DISCARDED'
+        ? existing.objectKey
+        : null;
   }
 
   const rateLimit = await checkRateLimit(
@@ -400,13 +430,15 @@ export async function holdFamilyFile(
           ),
         ),
     );
-    const count = Number(usage?.count ?? 0) - (takeover ? 1 : 0);
-    const bytes = Number(usage?.bytes ?? 0) - (takeover && existing ? existing.sizeBytes : 0);
+    const counted = takeover && existing?.status === 'RECEIVING';
+    const count = Number(usage?.count ?? 0) - (counted ? 1 : 0);
+    const bytes = Number(usage?.bytes ?? 0) - (counted && existing ? existing.sizeBytes : 0);
     if (count + 1 > HELD_MAX_FILES || bytes + size > HELD_MAX_TOTAL_BYTES)
       return 'too_many' as const;
     // Registered before any byte is written, so bytes with no registration never exist.
     await registerStorageObject(tx, 'QUARANTINE', objectKey, input.bytes, inputSha256);
     if (existing && takeover) {
+      // The abandoned attempt's registration is let go once its bytes are gone (below).
       const updated = await tx
         .update(holds)
         .set({
@@ -416,12 +448,21 @@ export async function holdFamilyFile(
           sizeBytes: size,
           sha256: inputSha256,
           originalFileName,
+          storedFileName,
+          convertedFromHeic,
+          status: 'RECEIVING',
+          virusScanned: false,
+          proposedApplicantId: null,
+          proposalBasis: null,
+          filedDocumentId: null,
+          decidedAt: null,
+          createdAt: now,
           updatedAt: now,
         })
         .where(
           and(
             eq(holds.id, existing.id),
-            eq(holds.status, 'RECEIVING'),
+            eq(holds.status, existing.status),
             eq(holds.claimToken, existing.claimToken),
           ),
         )
@@ -439,6 +480,8 @@ export async function holdFamilyFile(
         sizeBytes: size,
         sha256: inputSha256,
         originalFileName,
+        storedFileName,
+        convertedFromHeic,
         virusScanned: false,
         createdAt: now,
         updatedAt: now,
@@ -458,11 +501,14 @@ export async function holdFamilyFile(
     await db.delete(schema.storageObjects).where(eq(schema.storageObjects.objectKey, objectKey));
     return { kind: 'in_progress', retryAfterSeconds: 5 };
   }
-  if (takeover) await discardBytes(db, deps.storage, takeover);
+  if (abandonedKey) await discardBytes(db, deps.storage, abandonedKey);
 
+  // Nothing usable is kept. The row goes only once the bytes are gone; otherwise it stays as a
+  // stale claim, and the sweep deletes the bytes and the row later.
   const giveUp = async (): Promise<void> => {
-    await discardBytes(db, deps.storage, objectKey);
-    await db.delete(holds).where(and(eq(holds.id, claimed), eq(holds.claimToken, claimToken)));
+    if (await discardBytes(db, deps.storage, objectKey)) {
+      await db.delete(holds).where(and(eq(holds.id, claimed), eq(holds.claimToken, claimToken)));
+    }
   };
 
   let text: string | null = null;
@@ -490,11 +536,10 @@ export async function holdFamilyFile(
     // Read only after every check passed. A file that cannot be read is still held, for the
     // person to place by hand.
     try {
-      const extension = extensionForType(input.contentType);
       const outcome = await deps.converter.extract({
         bucket: 'QUARANTINE',
         objectKey,
-        originalName: extension ? `document.${extension}` : 'document',
+        originalName: storedFileName,
       });
       text = outcome.ok ? outcome.result.text : null;
     } catch {
@@ -682,7 +727,6 @@ export async function fileHeldFile(
     return err(reservation.error);
   }
   const intent = reservation.value;
-  const extension = extensionForType(claimed.contentType);
   try {
     const filed = await db.transaction(async (tx: Db) => {
       // The hold's own registration gives way to the document version's (one per object key).
@@ -692,9 +736,9 @@ export async function fileHeldFile(
       const created = await registerDocumentWithVersion(tx, {
         actorAccountId: owner,
         applicantId,
-        originalName: extension ? `document.${extension}` : 'document',
+        originalName: claimed.storedFileName,
         automaticTitle: true,
-        source: 'UPLOAD',
+        source: claimed.convertedFromHeic ? CONVERTED_FROM_HEIC_SOURCE : 'UPLOAD',
         bucket: 'QUARANTINE',
         objectKey: claimed.objectKey,
         sizeBytes: claimed.sizeBytes,
@@ -768,20 +812,6 @@ export async function fileHeldFile(
   }
 }
 
-/** The extension of what is stored, so the reader dispatches the same way an ordinary upload does. */
-const EXTENSION_BY_TYPE: Readonly<Record<string, string>> = {
-  'application/pdf': 'pdf',
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-  'text/plain': 'txt',
-  'text/markdown': 'md',
-};
-
-export function extensionForType(contentType: string): string {
-  return EXTENSION_BY_TYPE[contentType] ?? '';
-}
-
 class FilingRefused extends Error {
   constructor(readonly serviceError: ServiceError) {
     super(serviceError.message);
@@ -793,7 +823,7 @@ export async function discardHeldFile(
   proof: OwnerProof,
   deps: { readonly storage: Pick<BlobStore, 'deleteObject'>; readonly now?: Date },
   input: { readonly holdId: string },
-): Promise<Result<{ readonly discarded: true }, ServiceError>> {
+): Promise<Result<{ readonly discarded: true; readonly bytesRemoved: boolean }, ServiceError>> {
   const owner = ownerOf(proof, 'MANAGE');
   if (!owner) return err(serviceError('forbidden', 'not authorized'));
   const notFound = err(serviceError('not_found', 'file not found'));
@@ -805,7 +835,13 @@ export async function discardHeldFile(
     const row = first(
       await tx
         .update(holds)
-        .set({ status: 'DISCARDED', originalFileName: null, decidedAt: now, updatedAt: now })
+        .set({
+          status: 'DISCARDED',
+          originalFileName: null,
+          storedFileName: 'document',
+          decidedAt: now,
+          updatedAt: now,
+        })
         .where(
           and(eq(holds.id, input.holdId), eq(holds.ownerAccountId, owner), waitingCondition(now)),
         )
@@ -824,15 +860,20 @@ export async function discardHeldFile(
     return row;
   });
   if (!discarded) return notFound;
-  await discardBytes(db, deps.storage, discarded.objectKey);
-  return ok({ discarded: true });
+  // When the storage could not be reached, the row stays as removed and the sweep deletes the
+  // bytes within a day; the caller says so rather than claiming they are gone.
+  const bytesRemoved = await discardBytes(db, deps.storage, discarded.objectKey);
+  return ok({ discarded: true, bytesRemoved });
 }
 
 /**
  * The abandoned uploads job: removes holds nobody will decide on (the account is gone, the file
- * waited longer than 30 days, or storing it died part way), with their bytes, and forgets the
- * rows of decided holds once their account is gone. A filed hold's bytes belong to its document
- * and are never touched.
+ * waited longer than 30 days, storing it died part way, or it was removed and its bytes are still
+ * to be deleted), with their bytes, and forgets the rows of filed holds once their account is gone.
+ * Each row is claimed first (marked removed while still in the state it was read in), so a person
+ * filing it at the same moment either wins (the sweep leaves it) or finds it gone; never both.
+ * A row stays until its bytes are really gone, so a failed delete is tried again next time. A filed
+ * hold's bytes belong to its document and are never touched.
  */
 export async function sweepHeldFiles(
   db: Db,
@@ -849,32 +890,39 @@ export async function sweepHeldFiles(
   const oldest = new Date(now.getTime() - HELD_MAX_AGE_MS);
   const staleClaim = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const rows = await db
-    .select({
-      id: holds.id,
-      objectKey: holds.objectKey,
-      status: holds.status,
-      ownerAccountId: holds.ownerAccountId,
-    })
+    .select({ id: holds.id, objectKey: holds.objectKey, status: holds.status })
     .from(holds)
     .where(
       or(
         isNull(holds.ownerAccountId),
         and(inArray(holds.status, ['HELD', 'FILING']), lt(holds.updatedAt, oldest)),
-        and(eq(holds.status, 'RECEIVING'), lt(holds.updatedAt, staleClaim)),
-        and(eq(holds.status, 'DISCARDED'), lt(holds.updatedAt, oldest)),
+        and(inArray(holds.status, ['RECEIVING', 'DISCARDED']), lt(holds.updatedAt, staleClaim)),
       ),
     )
     .limit(options.limit ?? 200);
   let removed = 0;
   for (const row of rows) {
-    if (row.status !== 'FILED' && row.status !== 'DISCARDED') {
-      await discardBytes(db, storage, row.objectKey);
+    if (row.status === 'FILED') {
+      const gone = await db
+        .delete(holds)
+        .where(and(eq(holds.id, row.id), eq(holds.status, 'FILED')))
+        .returning({ id: holds.id });
+      removed += gone.length;
+      continue;
     }
-    const deleted = await db
-      .delete(holds)
+    // Claim: nobody can file it from here on, and nobody filed it since it was read.
+    const claimed = await db
+      .update(holds)
+      .set({ status: 'DISCARDED', originalFileName: null, storedFileName: 'document' })
       .where(and(eq(holds.id, row.id), eq(holds.status, row.status)))
       .returning({ id: holds.id });
-    removed += deleted.length;
+    if (claimed.length === 0) continue;
+    if (!(await discardBytes(db, storage, row.objectKey))) continue;
+    const gone = await db
+      .delete(holds)
+      .where(and(eq(holds.id, row.id), eq(holds.status, 'DISCARDED')))
+      .returning({ id: holds.id });
+    removed += gone.length;
   }
   return { removed };
 }

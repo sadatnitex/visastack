@@ -102,7 +102,7 @@ class MemoryStore implements BlobStore {
     this.objects.delete(objectKey);
   }
   async listObjectKeys() {
-    return { keys: [...this.objects.keys()], nextCursor: null };
+    return { objectKeys: [...this.objects.keys()], cursor: undefined };
   }
 }
 
@@ -313,6 +313,17 @@ describe('findings raised when a file is read (I14)', () => {
     expect(kinds).toEqual(['no_readable_text']);
   });
 
+  it('raises nothing for a photo the local reader has no text layer for', async () => {
+    const doc = await upload(db, owner, applicantId);
+    const photoReader: DocumentConverterPort = {
+      async extract(): Promise<ExtractionOutcome> {
+        return { ok: false, code: 'unsupported_format', message: 'image, no text layer' };
+      },
+    };
+    await read(db, doc.version.id, photoReader);
+    expect(await db.select().from(schema.documentIntakeExceptions)).toHaveLength(0);
+  });
+
   it('never lets another person dismiss a finding', async () => {
     const doc = await upload(db, owner, applicantId);
     await read(db, doc.version.id, failingExtractor);
@@ -507,6 +518,7 @@ describe('family batch and Which Person? (I09)', () => {
         originalFileName: 'family scan.pdf',
         bytes: new Uint8Array([...bytes, uploadId.charCodeAt(0)]),
         contentType: 'application/pdf',
+        storedFileName: 'document.pdf',
       },
     );
 
@@ -615,6 +627,7 @@ describe('family batch and Which Person? (I09)', () => {
         uploadId: '6b9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f',
         bytes: new Uint8Array([9, 9, 9]),
         contentType: 'application/pdf',
+        storedFileName: 'document.pdf',
       },
     );
     expect(unsafe.kind).toBe('refused');
@@ -630,6 +643,72 @@ describe('family batch and Which Person? (I09)', () => {
     expect(
       (await listHeldFiles(await proofFor(db, owner, anna, 'VIEW_METADATA'))).files,
     ).toHaveLength(0);
+  });
+
+  it('lets a removed file be sent again as a new choice, and keeps a filed file its bytes', async () => {
+    const id = '8b9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f';
+    const held = await hold(id, EXPIRED_PASSPORT);
+    if (held.kind !== 'held') throw new Error('hold');
+    await discardHeldFile(
+      await proofFor(db, owner, anna),
+      { storage: store },
+      { holdId: held.holdId },
+    );
+    const again = await hold(id, EXPIRED_PASSPORT);
+    expect(again).toEqual(expect.objectContaining({ kind: 'held', replay: false }));
+    expect(
+      (await listHeldFiles(await proofFor(db, owner, anna, 'VIEW_METADATA'))).files,
+    ).toHaveLength(1);
+    // Filed, then sent again: a new hold, and the filed document keeps its own bytes.
+    const filed = await fileHeldFile(await proofFor(db, owner, anna), { holdId: held.holdId });
+    expect(filed.ok).toBe(true);
+    const keysAfterFiling = new Set(store.objects.keys());
+    const third = await hold(id, EXPIRED_PASSPORT);
+    expect(third).toEqual(expect.objectContaining({ kind: 'held', replay: false }));
+    for (const key of keysAfterFiling) expect(store.objects.has(key)).toBe(true);
+  });
+
+  it('keeps a removed file for the sweep when its bytes could not be deleted, then deletes both', async () => {
+    const held = await hold('9b9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f', UNCLEAR);
+    if (held.kind !== 'held') throw new Error('hold');
+    const broken = {
+      deleteObject: async () => {
+        throw new Error('storage unreachable');
+      },
+    };
+    const discarded = await discardHeldFile(
+      await proofFor(db, owner, anna),
+      { storage: broken },
+      { holdId: held.holdId },
+    );
+    expect(discarded.ok && discarded.value.bytesRemoved).toBe(false);
+    expect(store.objects.size).toBe(1);
+    const tomorrow = new Date(Date.now() + 25 * 60 * 60 * 1000);
+    const failed = await sweepHeldFiles(
+      db,
+      systemScopeForTest('process-abandoned-uploads'),
+      broken,
+      { now: tomorrow },
+    );
+    expect(failed.removed).toBe(0);
+    const swept = await sweepHeldFiles(db, systemScopeForTest('process-abandoned-uploads'), store, {
+      now: tomorrow,
+    });
+    expect(swept.removed).toBe(1);
+    expect(store.objects.size).toBe(0);
+  });
+
+  it('never sweeps a file being filed at the same moment', async () => {
+    const held = await hold('ab9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f', UNCLEAR);
+    if (held.kind !== 'held') throw new Error('hold');
+    const filed = await fileHeldFile(await proofFor(db, owner, erik), { holdId: held.holdId });
+    expect(filed.ok).toBe(true);
+    const later = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000);
+    await sweepHeldFiles(db, systemScopeForTest('process-abandoned-uploads'), store, {
+      now: later,
+    });
+    expect(store.objects.size).toBe(1);
+    expect(await documentsOf(erik)).toHaveLength(1);
   });
 
   it('sweeps holds left too long, with their bytes', async () => {

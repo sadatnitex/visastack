@@ -362,7 +362,7 @@ export function NeedsDecision({
                 <li key={item.documentId} className="umpe-p3-decision-item">
                   <p>
                     {item.kind === 'suggested_kind'
-                      ? `We think ${item.title} is a ${item.suggestedLabel}. Nothing is saved until you accept it.`
+                      ? `We think ${item.title} is ${/^[AEIOU]/i.test(item.suggestedLabel) ? 'an' : 'a'} ${item.suggestedLabel}. Nothing is saved until you accept it.`
                       : item.kind === 'unknown_type'
                         ? `We could not tell what ${item.title} is.`
                         : `We are not sure what ${item.title} is.`}

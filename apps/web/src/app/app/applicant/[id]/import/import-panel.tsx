@@ -333,7 +333,15 @@ export function ImportPanel({
   const dropTitleId = useId();
   const dropHintId = useId();
   const listId = useId();
-  const manifest = useRef<ImportManifest | null>(null);
+  const personManifest = useRef<ImportManifest | null>(null);
+  // UMPE G1: files sent for several people are remembered apart, so one mode never tells the other
+  // that a file was already added.
+  const familyManifest = useRef<ImportManifest | null>(null);
+  const manifest = {
+    get current(): ImportManifest | null {
+      return family.current ? familyManifest.current : personManifest.current;
+    },
+  };
   const addedSinceRefresh = useRef(false);
   const folderRef = useRef<HTMLInputElement>(null);
   const filesRef = useRef<HTMLInputElement>(null);
@@ -390,13 +398,18 @@ export function ImportPanel({
   // with or without it; whatever is waiting to be saved is saved when the page is hidden.
   useEffect(() => {
     const saved = new ImportManifest(applicantId);
-    manifest.current = saved;
-    setRemembered(saved.size);
-    const flush = () => saved.flush();
+    const savedFamily = new ImportManifest(`family:${applicantId}`);
+    personManifest.current = saved;
+    familyManifest.current = savedFamily;
+    setRemembered(saved.size + savedFamily.size);
+    const flush = () => {
+      saved.flush();
+      savedFamily.flush();
+    };
     window.addEventListener('pagehide', flush);
     return () => {
       window.removeEventListener('pagehide', flush);
-      saved.flush();
+      flush();
     };
   }, [applicantId]);
 
@@ -417,7 +430,8 @@ export function ImportPanel({
 
   useEffect(() => {
     if (busy) return;
-    manifest.current?.flush();
+    personManifest.current?.flush();
+    familyManifest.current?.flush();
     if (addedSinceRefresh.current) {
       addedSinceRefresh.current = false;
       router.refresh();
@@ -431,7 +445,7 @@ export function ImportPanel({
     announced.current = next.state;
     if (next.text) setAnnouncement(next.text);
     if (!next.state.running) stopped.current = false;
-    setRemembered(manifest.current?.size ?? 0);
+    setRemembered((personManifest.current?.size ?? 0) + (familyManifest.current?.size ?? 0));
   }, [snapshot.version]);
 
   const take = useCallback(
@@ -518,7 +532,8 @@ export function ImportPanel({
             type="button"
             className="btn btn-secondary"
             onClick={fromHeading(() => {
-              manifest.current?.clear();
+              personManifest.current?.clear();
+              familyManifest.current?.clear();
               setRemembered(0);
             })}
           >

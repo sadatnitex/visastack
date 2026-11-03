@@ -392,23 +392,23 @@ async function suggestKindIfUnknown(
   killSwitchCheck: () => Promise<boolean>,
 ): Promise<void> {
   if (!ports.classify) return;
-  // A kind already saved, or confidently read by the rules: nothing to ask, nothing resolved.
-  if (await getDocumentTypeOfVersion(db, documentVersionId)) return;
-  const rules = first(
-    await db
-      .select({
-        classifiedType: schema.documentClassifications.classifiedType,
-        reviewRequired: schema.documentClassifications.reviewRequired,
-      })
-      .from(schema.documentClassifications)
-      .where(eq(schema.documentClassifications.documentVersionId, documentVersionId))
-      .orderBy(desc(schema.documentClassifications.createdAt))
-      .limit(1),
-  );
-  if (rules?.classifiedType && !rules.reviewRequired) return;
-  const classify = await ports.classify();
-  if (!classify) return;
   try {
+    // A kind already saved, or confidently read by the rules: nothing to ask, nothing resolved.
+    if (await getDocumentTypeOfVersion(db, documentVersionId)) return;
+    const rules = first(
+      await db
+        .select({
+          classifiedType: schema.documentClassifications.classifiedType,
+          reviewRequired: schema.documentClassifications.reviewRequired,
+        })
+        .from(schema.documentClassifications)
+        .where(eq(schema.documentClassifications.documentVersionId, documentVersionId))
+        .orderBy(desc(schema.documentClassifications.createdAt))
+        .limit(1),
+    );
+    if (rules?.classifiedType && !rules.reviewRequired) return;
+    const classify = await ports.classify();
+    if (!classify) return;
     await suggestDocumentKindInBackground(db, scope, classify.ai, {
       documentVersionId,
       budgetLimitUnits: classify.limits.budgetLimitUnits,
@@ -420,7 +420,7 @@ async function suggestKindIfUnknown(
       killSwitchCheck,
     });
   } catch (error) {
-    // Never a value from the file: the kind of error only.
+    // Never a value from the file: the kind of error only. The reading of details goes on.
     console.warn(
       `[ai-reading] kind suggestion failed: ${error instanceof Error ? error.name : 'unknown'}`,
     );

@@ -166,9 +166,13 @@ export async function needsDecisionAction(
         { storage: createStorage(db) },
         { holdId },
       );
-      return discarded.ok
-        ? { ok: true, message: 'Removed. The file was not kept.' }
-        : { ok: false, message: FILE_GONE };
+      if (!discarded.ok) return { ok: false, message: FILE_GONE };
+      return {
+        ok: true,
+        message: discarded.value.bytesRemoved
+          ? 'Removed. The file was not kept.'
+          : 'Removed from your list. The stored copy will be deleted within a day.',
+      };
     });
     if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
     return result;

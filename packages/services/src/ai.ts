@@ -2644,14 +2644,19 @@ async function nameForSuggestedKind(
         eq(schema.documentNameVersions.decision, 'PENDING'),
       ),
     );
+  // UMPE G1 (ledger I08): a name the person already chose is offered back unchanged, so accepting
+  // the suggested kind can never replace it (this now also runs in the background).
+  const chosen = await nameThePersonChose(tx, input.documentId);
   const proposed = await proposeDocumentName(tx, {
     documentId: input.documentId,
-    proposedName: buildProposedName({
-      classifiedType: input.kind,
-      primarySubject: input.primarySubject,
-      ...(input.period ? { relevantDateOrPeriod: input.period } : {}),
-      extension: extensionOf(input.originalName),
-    }),
+    proposedName:
+      chosen ??
+      buildProposedName({
+        classifiedType: input.kind,
+        primarySubject: input.primarySubject,
+        ...(input.period ? { relevantDateOrPeriod: input.period } : {}),
+        extension: extensionOf(input.originalName),
+      }),
     reason: 'suggested from the AI reading of this document',
   });
   if (!proposed.ok) {
@@ -2659,6 +2664,35 @@ async function nameForSuggestedKind(
     throw new Error(`name suggestion failed: ${proposed.error.message}`);
   }
   return proposed.value;
+}
+
+/**
+ * The document's current name when the person decided it (renamed it, or accepted a suggested
+ * name), or null when its name is still automatic.
+ */
+async function nameThePersonChose(tx: Db, documentId: string): Promise<string | null> {
+  const decided = first(
+    await tx
+      .select({ id: schema.documentNameVersions.id })
+      .from(schema.documentNameVersions)
+      .where(
+        and(
+          eq(schema.documentNameVersions.documentId, documentId),
+          inArray(schema.documentNameVersions.decision, ['ACCEPTED_UNCHANGED', 'ACCEPTED_EDITED']),
+          sql`${schema.documentNameVersions.decidedByAccountId} is not null`,
+        ),
+      )
+      .limit(1),
+  );
+  if (!decided) return null;
+  const document = first(
+    await tx
+      .select({ approvedName: schema.documents.approvedName })
+      .from(schema.documents)
+      .where(eq(schema.documents.id, documentId))
+      .limit(1),
+  );
+  return document?.approvedName?.trim() || null;
 }
 
 /** Thrown inside the naming transaction so it rolls back when the document left meanwhile. */

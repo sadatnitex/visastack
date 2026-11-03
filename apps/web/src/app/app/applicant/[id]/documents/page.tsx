@@ -605,11 +605,7 @@ export default async function ApplicantDocumentsPage({
             fileName: file.fileName,
             basis: file.basis,
             proposedApplicantId: file.proposedApplicantId,
-            addedOn: file.addedAt.toLocaleDateString('en-GB', {
-              day: 'numeric',
-              month: 'short',
-              year: 'numeric',
-            }),
+            addedOn: formatTimestampDate(file.addedAt),
           }))}
           people={data.heldFiles.people}
         />

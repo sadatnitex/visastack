@@ -547,8 +547,12 @@ async function runExtractionStep(
         resourceId: version.id,
         metadata: { status: 'FAILED', code: outcome.code },
       });
-      // UMPE G1 (ledger I14): the person is told once that this file gave no readable text.
-      await recordIntakeExceptions(tx, document, version, ['NO_READABLE_TEXT']);
+      // UMPE G1 (ledger I14): the person is told once that this file gave no readable text, only
+      // when the file itself says so (empty, damaged or locked). A photo the local reader cannot
+      // read (no text layer) or a passing parser failure is not a finding about the file.
+      if (FILE_HAS_NO_TEXT.has(outcome.code)) {
+        await recordIntakeExceptions(tx, document, version, ['NO_READABLE_TEXT']);
+      }
       return true;
     });
     return recorded ? 'ok' : 'lost-lease';
@@ -743,6 +747,13 @@ async function runExtractionStep(
   });
   return recorded ? 'ok' : 'lost-lease';
 }
+
+/** Reading failures that say the file itself has no readable text (UMPE G1). */
+const FILE_HAS_NO_TEXT: ReadonlySet<string> = new Set([
+  'empty_content',
+  'corrupt_file',
+  'password_protected',
+]);
 
 /**
  * UMPE G1, private to intake (a system step with no person's proof): records each finding once per
