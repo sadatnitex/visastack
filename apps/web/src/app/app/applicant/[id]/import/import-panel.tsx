@@ -25,6 +25,8 @@ import {
   canTryAgain,
   countItems,
   fingerprintOf,
+  sendThroughHoldRoute,
+  sendThroughUploadRoute,
   uploadIdFromHash,
 } from '../../../../../lib/import/import-queue';
 import { useDropZone } from '../../../../../lib/import/use-drop-zone';
@@ -301,6 +303,7 @@ export function ImportPanel({
   limitLabel = '4 MB',
   pdfAccepted = false,
   retryUnknown = false,
+  familyBatch = false,
 }: {
   readonly applicantId: string;
   /** The largest file accepted, in bytes (the same limit the single upload uses). */
@@ -314,8 +317,18 @@ export function ImportPanel({
    * on its own with the same upload id, which the server answers with the copy already stored.
    */
   readonly retryUnknown?: boolean;
+  /**
+   * UMPE G1: whether files may be added for several people at once. Each such file waits, seen only
+   * by this account, until its Which Person? decision in Needs One Decision.
+   */
+  readonly familyBatch?: boolean;
 }) {
   const router = useRouter();
+  const forId = useId();
+  const [forFamily, setForFamily] = useState(false);
+  const family = useRef(false);
+  family.current = familyBatch && forFamily;
+  const sentToFamily = useRef(false);
   const limitsId = useId();
   const dropTitleId = useId();
   const dropHintId = useId();
@@ -343,8 +356,16 @@ export function ImportPanel({
         // The same traveller and file (name, size, date) always send the same upload id, so
         // choosing the folder again after a reload can never store a file twice.
         uploadIdFor: async (file) =>
-          uploadIdFromHash(await sha256Hex(`${applicantId}\u0000${fingerprintOf(file)}`)) ??
-          newUploadId(),
+          uploadIdFromHash(
+            await sha256Hex(
+              `${family.current ? 'family' : applicantId}\u0000${fingerprintOf(file)}`,
+            ),
+          ) ?? newUploadId(),
+        // The choice in force when each file is sent: one person's documents, or Which Person?.
+        send: (request) => {
+          if (family.current) sentToFamily.current = true;
+          return (family.current ? sendThroughHoldRoute : sendThroughUploadRoute)(request);
+        },
         retryUnknown,
       }),
   );
@@ -506,6 +527,41 @@ export function ImportPanel({
         </div>
       ) : null}
 
+      {familyBatch ? (
+        <fieldset className="umpe-g1-import-for" aria-describedby={`${forId}-hint`}>
+          <legend>Who Are These Files For?</legend>
+          <label className="umpe-g1-person-choice">
+            <input
+              type="radio"
+              name={`${forId}-for`}
+              checked={!forFamily}
+              aria-disabled={busy || undefined}
+              onChange={() => {
+                if (!busy) setForFamily(false);
+              }}
+            />
+            <span>Only This Person</span>
+          </label>
+          <label className="umpe-g1-person-choice">
+            <input
+              type="radio"
+              name={`${forId}-for`}
+              checked={forFamily}
+              aria-disabled={busy || undefined}
+              onChange={() => {
+                if (!busy) setForFamily(true);
+              }}
+            />
+            <span>Several People in My Family</span>
+          </label>
+          <p className="field-hint" id={`${forId}-hint`}>
+            {forFamily
+              ? 'Each file waits in Needs One Decision, seen only by you, until you choose who it belongs to. We suggest a person only when the name and date of birth in the file match exactly one of your people.'
+              : 'Every file is added to this person.'}
+          </p>
+        </fieldset>
+      ) : null}
+
       <section
         className="upload-drop"
         data-dragging={dragging ? 'true' : undefined}
@@ -655,6 +711,7 @@ export function ImportPanel({
           className="btn btn-secondary"
           onClick={fromHeading(() => {
             queue.clearFinished();
+            sentToFamily.current = false;
             setShowAll(false);
             setTruncated(false);
             setRemovals(new Map());
@@ -662,6 +719,26 @@ export function ImportPanel({
         >
           Clear the List
         </button>
+      ) : null}
+      {counts.total > 0 && !pending ? (
+        <nav className="umpe-g1-import-next" aria-label="After This Import">
+          <p className="field-hint">
+            {sentToFamily.current
+              ? 'Files for several people wait in Needs One Decision until you choose who each one belongs to.'
+              : 'Most files are sorted on their own. Anything that needs your answer is in Needs One Decision, and details read from your files wait for your approval.'}
+          </p>
+          <div className="upload-drop-actions">
+            <a
+              className="btn btn-primary"
+              href={`/app/applicant/${applicantId}/documents#needs-decision`}
+            >
+              {sentToFamily.current ? 'Choose Which Person' : 'Open Needs One Decision'}
+            </a>
+            <a className="btn btn-secondary" href={`/app/applicant/${applicantId}`}>
+              Review Suggested Details
+            </a>
+          </div>
+        </nav>
       ) : null}
       <p className="muted uploader-note">
         Each file is stored privately and checked when it arrives, exactly as a single upload is.

@@ -12,6 +12,7 @@ import {
   documentCategory,
   documentUploadReceiptsReady,
   duplicateStatuses,
+  familyBatchReady,
   getAiFeatureStates,
   getApplicant,
   getApplicantEvidenceBytes,
@@ -28,6 +29,7 @@ import {
   listDocumentExceptions,
   listDocumentReadingStates,
   listDocumentsDetailed,
+  listHeldFiles,
   listIssuerVerificationsForDocument,
   listPendingDocumentTypeProposals,
   listPendingInconsistencyFlags,
@@ -300,11 +302,18 @@ export default async function ApplicantDocumentsPage({
     // Both are extras: if either cannot be read, the page shows no list and the import keeps
     // its no-automatic-retry rule, never an error.
     const noDecisions = { exceptions: [], confirmed: [] };
-    const [understanding, uploadReceiptsReady] = await Promise.all([
+    // UMPE G1: this account's files waiting for Which Person? (seen only by the account that
+    // added them), and whether the family batch is available yet. Extras like the list above.
+    const noHeldFiles = { files: [], people: [] };
+    const [understanding, uploadReceiptsReady, heldFiles, familyBatch] = await Promise.all([
       readingAccess.ok
         ? listDocumentExceptions(readingAccess.value).catch(() => noDecisions)
         : Promise.resolve(noDecisions),
       documentUploadReceiptsReady(db).catch(() => false),
+      readingAccess.ok
+        ? listHeldFiles(readingAccess.value).catch(() => noHeldFiles)
+        : Promise.resolve(noHeldFiles),
+      readingAccess.ok ? familyBatchReady(db).catch(() => false) : Promise.resolve(false),
     ]);
     const detailsAvailable =
       (await resolveAiExtractionAvailability(db, encryption !== undefined)) === 'available';
@@ -378,6 +387,8 @@ export default async function ApplicantDocumentsPage({
     return {
       understanding,
       uploadReceiptsReady,
+      heldFiles,
+      familyBatch,
       protection,
       referenceCodes,
       lifecycle,
@@ -586,9 +597,21 @@ export default async function ApplicantDocumentsPage({
                   relation: item.relation,
                   labels: item.labels,
                 }
-              : { kind: item.kind, documentId: item.documentId, title: item.title },
+              : item,
           )}
           linked={data.understanding.confirmed}
+          held={data.heldFiles.files.map((file) => ({
+            holdId: file.holdId,
+            fileName: file.fileName,
+            basis: file.basis,
+            proposedApplicantId: file.proposedApplicantId,
+            addedOn: file.addedAt.toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+            }),
+          }))}
+          people={data.heldFiles.people}
         />
 
         {data.lifecycle ? (
@@ -1140,6 +1163,7 @@ export default async function ApplicantDocumentsPage({
                     limitLabel={mbLabel(uploadLimitBytes(data.quota))}
                     pdfAccepted={pdfUploadsAccepted()}
                     retryUnknown={data.uploadReceiptsReady}
+                    familyBatch={data.familyBatch}
                   />
                 </article>
               </>

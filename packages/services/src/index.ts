@@ -2827,6 +2827,7 @@ export {
   statementPeriodLabel,
 } from './umpe-document-arrival';
 export { dismissIntakeException } from './umpe-document-exceptions';
+export { personHoldsTablePresent as familyBatchReady } from './umpe-document-tables';
 export { suggestDocumentKindInBackground } from './ai';
 export {
   type FiledHold,

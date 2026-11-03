@@ -72,6 +72,11 @@ export interface SendFileInput {
   readonly uploadId?: string;
   /** The file's own name, kept privately on the server to suggest a readable name. */
   readonly fileName?: string;
+  /**
+   * UMPE G1: `hold` sends the file to the family batch route instead, where it waits for the
+   * account's Which Person? decision and is filed under nobody until then.
+   */
+  readonly route?: 'upload' | 'hold';
   readonly createRequest?: () => UploadRequest;
 }
 
@@ -85,7 +90,7 @@ export function sendDocumentFile(input: SendFileInput): Promise<UploadOutcome> {
       : (new XMLHttpRequest() as unknown as UploadRequest);
     request.open(
       'POST',
-      `/api/documents/upload?applicantId=${encodeURIComponent(input.applicantId)}`,
+      `/api/documents/${input.route === 'hold' ? 'hold' : 'upload'}?applicantId=${encodeURIComponent(input.applicantId)}`,
     );
     request.setRequestHeader('Content-Type', input.contentType);
     if (input.docType)

@@ -339,6 +339,40 @@ const DOCS: readonly Case[] = [
               labels: { newDocument: 'New Period', relatedDocument: 'Earlier Period' },
             },
             { kind: 'unknown_type', documentId: 'd3', title: 'Untitled Document' },
+            // UMPE G1: a background kind suggestion and the two findings raised on arrival.
+            {
+              kind: 'suggested_kind',
+              documentId: 'd6',
+              title: 'Document, Anna',
+              suggestedLabel: 'Bank Statement',
+            },
+            {
+              kind: 'expired_on_arrival',
+              exceptionId: 'x1',
+              documentId: 'd7',
+              title: 'Passport, Anna',
+            },
+            { kind: 'no_readable_text', exceptionId: 'x2', documentId: 'd8', title: 'Scan, Anna' },
+          ]}
+          held={[
+            {
+              holdId: 'h1',
+              fileName: 'family passports.pdf',
+              basis: 'NAME_AND_BIRTH_DATE',
+              proposedApplicantId: 'a1',
+              addedOn: '3 Nov 2026',
+            },
+            {
+              holdId: 'h2',
+              fileName: null,
+              basis: 'CLOSE_MATCHES',
+              proposedApplicantId: null,
+              addedOn: '3 Nov 2026',
+            },
+          ]}
+          people={[
+            { applicantId: 'a1', displayName: 'Anna Eriksson' },
+            { applicantId: 'a2', displayName: 'Erik Eriksson' },
           ]}
           linked={[
             {

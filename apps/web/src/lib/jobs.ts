@@ -53,6 +53,7 @@ import {
   sweepCaseRetentionPurge,
   sweepExpiredAccountExportArtifacts,
   sweepExpiryReminders,
+  sweepHeldFiles,
   sweepInactiveAccountDeletionRequests,
   sweepInactiveAccountNotices,
   sweepLegalHoldReviewReminders,
@@ -563,6 +564,31 @@ export async function triggerAbandonedUploadSweep(
   } catch (error) {
     reportServerError('triggerAbandonedUploadSweep', error, { step: 'sweep failed' });
     return { checked: 0, cleaned: 0 };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * UMPE G1: removes family batch files nobody will decide on (the account is gone, the file waited
+ * longer than 30 days, or storing it died part way), with their bytes. Its own short-lived pooled
+ * connection; a failure is reported and never fails the upload sweep that runs beside it.
+ */
+export async function triggerHeldFileSweep(
+  scope: SystemScope<'process-abandoned-uploads'>,
+): Promise<{ readonly removed: number }> {
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) return { removed: 0 };
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    reportServerError('triggerHeldFileSweep', error, { step: 'idle pool connection error' });
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepHeldFiles>[0];
+    return await sweepHeldFiles(handle, scope, createStorage(handle));
+  } catch (error) {
+    reportServerError('triggerHeldFileSweep', error, { step: 'sweep failed' });
+    return { removed: 0 };
   } finally {
     await pool.end();
   }
