@@ -79,7 +79,9 @@ beforeAll(async () => {
     .update(schema.organizations)
     .set({ logoObjectKey: 'branding/org/logo-abc.png', logoContentType: 'image/png' })
     .where(eq(schema.organizations.id, orgId));
-});
+  // A migrated database is built here; give it the same headroom as the other database-backed
+  // suites, because the full run starts it while every other suite is also running.
+}, 120_000);
 
 beforeEach(() => {
   state.down = false;
