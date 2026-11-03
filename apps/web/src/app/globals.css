@@ -12951,3 +12951,41 @@ html:has(.sticky-action-bar) {
   display: block;
   margin: 0 0 1rem;
 }
+
+/* WP-UMPE-P11 checklist corrections: Suggest a Correction on case checklist lines and agency requests, and the editors' queue. */
+.correction-suggest > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--accent, currentColor);
+  font-size: var(--text-small, 0.875rem);
+}
+.correction-suggest[open] {
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: 0.5rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.correction-form {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.correction-impact {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+.correction-card {
+  display: grid;
+  gap: 0.4rem;
+}
+.correction-detail {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.correction-link {
+  overflow-wrap: anywhere;
+}

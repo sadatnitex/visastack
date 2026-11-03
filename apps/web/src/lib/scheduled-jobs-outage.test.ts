@@ -7,6 +7,7 @@ vi.mock('./jobs', () => ({
   triggerIntakeWorker: mocks.intake,
   triggerNotificationSweeps: mocks.sweeps,
   triggerPackageChangeSweep: vi.fn(),
+  triggerRuleImpactSweep: vi.fn(),
 }));
 beforeEach(() => {
   vi.stubEnv('CRON_SECRET', 'synthetic-cron');

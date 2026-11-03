@@ -724,4 +724,63 @@ describe('UMPE P4 trip package', () => {
     },
     TEST_TIMEOUT_MS,
   );
+
+  async function republish(db: Db, actor: string, versionId: string) {
+    const [row] = await db
+      .select({ packId: schema.packVersions.packId })
+      .from(schema.packVersions)
+      .where(eq(schema.packVersions.id, versionId));
+    if (!row) throw new Error('pack');
+    const next = await addPackVersion(db, { actorAccountId: actor, packId: row.packId });
+    if (!isOk(next)) throw new Error('next version');
+    const added = await addRequirement(db, {
+      actorAccountId: actor,
+      packVersionId: next.value.id,
+      ...PASSPORT,
+    });
+    if (!isOk(added)) throw new Error('requirement');
+    const approved = await approvePackVersion(db, {
+      actorAccountId: actor,
+      packVersionId: next.value.id,
+    });
+    if (!isOk(approved)) throw new Error('approve');
+    const published = await publishPackVersion(db, {
+      actorAccountId: actor,
+      packVersionId: next.value.id,
+    });
+    if (!isOk(published)) throw new Error('publish');
+  }
+
+  it(
+    'leaves a newer publication to the rule impact notes once their tables exist (one note, not two)',
+    async () => {
+      const { actor, applicantId } = await seed(db);
+      const versionId = await publishedPack(db, actor, [PASSPORT]);
+      const missionId = await caseOn(db, actor, applicantId, versionId);
+      await document(db, actor, applicantId, 'passport');
+      await republish(db, actor, versionId);
+      const after = await pkg(db, actor, missionId);
+      // The traveller still sees the plain caveat; only the duplicate change note is left out.
+      expect(after.freshness?.packReplaced).toBe(true);
+      expect(after.freshness?.caveats).toContain('CHECKLIST_REPLACED');
+      expect(after.change?.kind).not.toBe('PACK_CHANGED');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'still records a newer publication itself while the rule impact tables are missing',
+    async () => {
+      await db.execute(sql`drop table umpe_rule_impacts`);
+      const { actor, applicantId } = await seed(db);
+      const versionId = await publishedPack(db, actor, [PASSPORT]);
+      const missionId = await caseOn(db, actor, applicantId, versionId);
+      await document(db, actor, applicantId, 'passport');
+      await republish(db, actor, versionId);
+      const after = await pkg(db, actor, missionId);
+      expect(after.freshness?.packReplaced).toBe(true);
+      expect(after.change?.kind).toBe('PACK_CHANGED');
+    },
+    TEST_TIMEOUT_MS,
+  );
 });
