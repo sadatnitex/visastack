@@ -2636,7 +2636,7 @@ export {
   guestCollectionSessionProof,
   normalizeGuestCode,
 } from './access/guest-collection';
-export { GUEST_CODE_EMAIL_EVENT } from './invitation-email';
+export { COMPANION_INVITATION_EMAIL_EVENT, GUEST_CODE_EMAIL_EVENT } from './invitation-email';
 export {
   GUEST_CODE_MAX_ATTEMPTS,
   GUEST_CODE_TTL_MS,
@@ -2787,6 +2787,7 @@ export {
   resendInvitation,
   setCompanionShareLevel,
 } from './umpe-trip-companions';
+export { queueCompanionInvitation } from './umpe-trip-companion-email';
 // UMPE P11
 export {
   type CorrectionCategory,

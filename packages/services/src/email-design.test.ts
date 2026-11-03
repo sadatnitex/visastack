@@ -157,6 +157,7 @@ describe('the words of every email', () => {
         'TASK_DEADLINE',
         'TEAM_INVITATION_CREATED',
         'TEAM_MEMBER_ADDED',
+        'TRIP_COMPANION_INVITATION_CREATED',
         'VERIFICATION_EXPIRY',
         'WHATSAPP_CONNECTED',
       ].sort(),
