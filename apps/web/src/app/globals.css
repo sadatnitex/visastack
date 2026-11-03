@@ -13099,6 +13099,55 @@ html:has(.sticky-action-bar) {
   padding-top: var(--space-3);
 }
 
+/* WP-UMPE-G1 intake: Which Person? in Needs One Decision, and who an import is for. */
+.umpe-g1-person-form {
+  display: grid;
+  gap: 0.75rem;
+}
+.umpe-g1-person-choices,
+.umpe-g1-import-for {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.umpe-g1-person-choices > legend,
+.umpe-g1-import-for > legend {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  padding: 0;
+}
+.umpe-g1-person-choices > p {
+  margin: 0 0 0.25rem;
+}
+.umpe-g1-person-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+.umpe-g1-person-choice > input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--accent, currentColor);
+}
+.umpe-g1-import-for {
+  margin-bottom: 1rem;
+}
+.umpe-g1-import-next {
+  border-top: 1px solid var(--hairline-soft);
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.umpe-g1-import-next .btn {
+  min-height: 44px;
+}
+
 /* WP-UMPE-P12 outcomes: the case page's Application Attempts card and the Field Insights periods. */
 .attempt-list {
   list-style: none;

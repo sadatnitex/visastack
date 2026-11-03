@@ -11,9 +11,13 @@ import type { Db } from './db';
 
 const RECEIPTS = 'document_upload_receipts';
 const RELATIONS = 'document_relation_proposals';
+const INTAKE_EXCEPTIONS = 'document_intake_exceptions';
+const PERSON_HOLDS = 'document_person_holds';
 
 const receiptsPresent = new WeakSet<object>();
 const relationsPresent = new WeakSet<object>();
+const intakeExceptionsPresent = new WeakSet<object>();
+const personHoldsPresent = new WeakSet<object>();
 
 async function present(db: Db, relation: string, seen: WeakSet<object>): Promise<boolean> {
   if (seen.has(db)) return true;
@@ -31,4 +35,14 @@ export function uploadReceiptsTablePresent(db: Db): Promise<boolean> {
 
 export function relationProposalsTablePresent(db: Db): Promise<boolean> {
   return present(db, RELATIONS, relationsPresent);
+}
+
+/** UMPE G1: findings raised when a file is read (ledger I14). */
+export function intakeExceptionsTablePresent(db: Db): Promise<boolean> {
+  return present(db, INTAKE_EXCEPTIONS, intakeExceptionsPresent);
+}
+
+/** UMPE G1: files from a family batch waiting for Which Person? (ledger I09). */
+export function personHoldsTablePresent(db: Db): Promise<boolean> {
+  return present(db, PERSON_HOLDS, personHoldsPresent);
 }

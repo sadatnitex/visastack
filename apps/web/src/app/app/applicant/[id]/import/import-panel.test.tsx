@@ -441,3 +441,49 @@ describe('the words on the panel', () => {
     for (const name of names) expect(isTitleCase(name), name).toBe(true);
   });
 });
+
+describe('after an import, and files for several people (UMPE G1)', () => {
+  it('links the finished import to Needs One Decision and the details waiting for approval', async () => {
+    await mount();
+    await choose([photo('passport.jpg')]);
+    await answer(0);
+    const next = host.querySelector('nav[aria-label="After This Import"]');
+    const links = Array.from(next?.querySelectorAll('a') ?? []).map((a) => [
+      a.textContent,
+      a.getAttribute('href'),
+    ]);
+    expect(links).toEqual([
+      ['Open Needs One Decision', '/app/applicant/a-1/documents#needs-decision'],
+      ['Review Suggested Details', '/app/applicant/a-1'],
+    ]);
+    expect(await axeViolations(host.innerHTML)).toEqual([]);
+  });
+
+  it('sends files for several people to the holding route and says where they wait', async () => {
+    await act(async () => {
+      root.render(
+        <ImportPanel applicantId="a-1" limitBytes={1000} limitLabel="1 KB" familyBatch />,
+      );
+    });
+    const several = Array.from(host.querySelectorAll('input[type="radio"]')).find(
+      (input) => input.parentElement?.textContent === 'Several People in My Family',
+    ) as HTMLInputElement;
+    await act(async () => several.click());
+    await choose([photo('family-1.jpg'), photo('family-2.jpg')]);
+    expect(FakeRequest.sent.map((request) => request.url)).toEqual([
+      '/api/documents/hold?applicantId=a-1',
+      '/api/documents/hold?applicantId=a-1',
+    ]);
+    await answer(0, 201, { message: 'Added. It waits in Needs One Decision.', title: 'Waiting' });
+    await answer(1, 201, { message: 'Added. It waits in Needs One Decision.', title: 'Waiting' });
+    expect(button('Choose Which Person') ?? host.querySelector('a.btn-primary')?.textContent).toBe(
+      'Choose Which Person',
+    );
+    expect(await axeViolations(host.innerHTML)).toEqual([]);
+  });
+
+  it('offers no choice of people when the family batch is not available', async () => {
+    await mount();
+    expect(host.querySelector('fieldset.umpe-g1-import-for')).toBeNull();
+  });
+});

@@ -6727,6 +6727,114 @@ export const agencyCollectionGuestHolds = pgTable(
   ],
 );
 
+// --- UMPE G1: intake exceptions and the Which Person? holding state ------------------------------
+
+/**
+ * A finding raised when one file is read (ledger I14), once per version and kind: the file had no
+ * readable text, or the document had already expired on the day it was added. Listed in the
+ * person's Needs One Decision list until they choose Keep As It Is. Holds kinds only, never a value
+ * read from the file.
+ */
+export const documentIntakeExceptions = pgTable(
+  'document_intake_exceptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    status: text('status').notNull().default('PENDING'),
+    decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('document_intake_exceptions_version_kind').on(table.documentVersionId, table.kind),
+    index('document_intake_exceptions_applicant_status_idx').on(table.applicantId, table.status),
+    check(
+      'document_intake_exceptions_kind_known',
+      sql`${table.kind} in ('EXPIRED_ON_ARRIVAL', 'NO_READABLE_TEXT')`,
+    ),
+    check(
+      'document_intake_exceptions_status_known',
+      sql`${table.status} in ('PENDING', 'DISMISSED')`,
+    ),
+  ],
+);
+
+/**
+ * A file from a family batch that belongs to nobody yet (ledger I09). Owned by the uploading
+ * account only and never shown to anyone else; filed under a person only by that account's explicit
+ * Which Person? decision, through the access check for the chosen person. The bytes sit in private
+ * quarantine storage under an opaque key until filed (then they become the document's first
+ * version) or discarded (then they are deleted). `proposed_applicant_id` is set only when exactly
+ * one of the account's people matched name and date of birth with no close rival; the facts read
+ * from the file are never stored. When the account is removed the row loses its owner and the
+ * abandoned uploads sweep deletes it and its bytes.
+ */
+export const documentPersonHolds = pgTable(
+  'document_person_holds',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerAccountId: uuid('owner_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    uploadId: uuid('upload_id').notNull(),
+    claimToken: uuid('claim_token').notNull(),
+    objectKey: text('object_key').notNull(),
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    sha256: text('sha256'),
+    originalFileName: text('original_file_name'),
+    /** The name the file is stored under, with the extension of what is stored ("document.jpg"). */
+    storedFileName: text('stored_file_name').notNull().default('document'),
+    /** True when an iPhone photo (HEIC) was saved as a JPEG copy, as an ordinary upload records. */
+    convertedFromHeic: boolean('converted_from_heic').notNull().default(false),
+    virusScanned: boolean('virus_scanned').notNull().default(false),
+    status: text('status').notNull().default('RECEIVING'),
+    proposedApplicantId: uuid('proposed_applicant_id').references(() => applicants.id, {
+      onDelete: 'set null',
+    }),
+    proposalBasis: text('proposal_basis'),
+    filedDocumentId: uuid('filed_document_id').references(() => documents.id, {
+      onDelete: 'set null',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('document_person_holds_account_upload').on(table.ownerAccountId, table.uploadId),
+    unique('document_person_holds_object_key').on(table.objectKey),
+    index('document_person_holds_owner_status_idx').on(table.ownerAccountId, table.status),
+    check(
+      'document_person_holds_status_known',
+      sql`${table.status} in ('RECEIVING', 'HELD', 'FILING', 'FILED', 'DISCARDED')`,
+    ),
+    check(
+      'document_person_holds_basis_known',
+      sql`${table.proposalBasis} is null or ${table.proposalBasis} in ('NAME_AND_BIRTH_DATE', 'CLOSE_MATCHES', 'NO_MATCH', 'NOT_READ')`,
+    ),
+    check(
+      'document_person_holds_name_cap',
+      sql`${table.originalFileName} is null or char_length(${table.originalFileName}) <= 180`,
+    ),
+    check('document_person_holds_size_positive', sql`${table.sizeBytes} > 0`),
+    check(
+      'document_person_holds_stored_name_cap',
+      sql`char_length(${table.storedFileName}) between 1 and 120`,
+    ),
+  ],
+);
+
 // UMPE P12: application attempts and what the authority did with each one (Lane F).
 //
 // One row per time a case went to an authority: a reapplication or a resubmission after a refusal is

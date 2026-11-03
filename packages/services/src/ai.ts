@@ -3,8 +3,9 @@ import type { FactStatus, ProposalType } from '@visastack/core';
 import { type Result, err, isOk, ok } from '@visastack/core';
 import type { AiReadingFeature } from '@visastack/core/ai-features';
 import { CATALOGUE_DOCUMENTS, isRepeatingFieldKey } from '@visastack/core/catalogue';
+import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
-import { AuthorizedApplicant } from './access';
+import { AuthorizedApplicant, SystemScope } from './access';
 import {
   type AiFeatureCharge,
   type AiFeatureGate,
@@ -36,7 +37,11 @@ import { documentVersionBelongsToApplicant } from './document-version-owner';
 import { getDocumentTypeOfVersion } from './documents';
 import { type ServiceError, serviceError } from './errors';
 import { getLatestExtractedText } from './intake';
-import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
+import {
+  lifecycleTablesPresent,
+  presentApplicantCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
 import { buildProposedName, extensionOf } from './naming';
 import type {
   AiOcrCacheKeyComponents,
@@ -55,6 +60,7 @@ import {
   revealFactVersionValue,
 } from './profile';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
+import { periodForName } from './umpe-document-arrival';
 
 /**
  * AI Gateway (Build Spec §8; master directive §8/§26 item 4): extraction
@@ -2386,8 +2392,87 @@ export async function suggestDocumentKind(
   ) {
     return err(serviceError('forbidden', 'only the owner can ask what kind of document this is'));
   }
-  const db = proof.tx;
-  const ownerAccountId = proof.applicant.ownerAccountId;
+  return suggestKindForOwner(
+    proof.tx,
+    {
+      ownerAccountId: proof.applicant.ownerAccountId,
+      applicantId: proof.applicant.id,
+      displayName: proof.applicant.displayName,
+      documentId: proof.resource.kind === 'document' ? proof.resource.document.id : null,
+    },
+    // Each entry asks the feature switch itself (S28); the shared part calls this at its step.
+    () => openAiFeatureGate(proof.tx, 'ai_document_kind', { proof }),
+    ai,
+    input,
+  );
+}
+
+/**
+ * UMPE G1 (ledger I07): the same suggestion, asked by the background reading job when the rules
+ * gave no kind. The owner is derived from the file version alone (version, document, applicant);
+ * nothing the job row says is trusted. Exactly the same gates as the button: the feature (for the
+ * owner, in the job's system context), CORE_PROCESSING and AI_EXTRACTION consent checked now, the
+ * rules' own confident kind, one waiting suggestion per file, budgets, cache, kill switch and rate
+ * limit. The result only ever waits for the person (Needs One Decision lists it); nothing is saved.
+ */
+export async function suggestDocumentKindInBackground(
+  db: Db,
+  scope: SystemScope<'process-ai-reading'>,
+  ai: AiClassifyPort,
+  input: SuggestDocumentKindInput,
+): Promise<Result<DocumentKindSuggestion, ServiceError>> {
+  if (!SystemScope.isGenuine(scope) || scope.job !== 'process-ai-reading') {
+    return err(serviceError('forbidden', 'only the reading job may ask in the background'));
+  }
+  const lifecycle = await lifecycleTablesPresent(db);
+  const owner = first(
+    await db
+      .select({
+        applicantId: schema.applicants.id,
+        ownerAccountId: schema.applicants.ownerAccountId,
+        displayName: schema.applicants.displayName,
+      })
+      .from(schema.documentVersions)
+      .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
+      .innerJoin(schema.applicants, eq(schema.applicants.id, schema.documents.applicantId))
+      .where(
+        and(
+          eq(schema.documentVersions.id, input.documentVersionId),
+          lifecycle ? presentDocumentCondition() : undefined,
+          lifecycle ? presentApplicantCondition() : undefined,
+        ),
+      )
+      .limit(1),
+  );
+  if (!owner) return err(serviceError('not_found', 'document version not found'));
+  return suggestKindForOwner(
+    db,
+    { ...owner, documentId: null },
+    () =>
+      openAiFeatureGate(db, 'ai_document_kind', {
+        system: scope,
+        accountId: owner.ownerAccountId,
+      }),
+    ai,
+    input,
+  );
+}
+
+/** The suggestion itself, for an owner already established by the caller (a proof or the job). */
+async function suggestKindForOwner(
+  db: Db,
+  owner: {
+    readonly ownerAccountId: string;
+    readonly applicantId: string;
+    readonly displayName: string | null;
+    /** The document the proof names, when it names one. */
+    readonly documentId: string | null;
+  },
+  openGate: () => ReturnType<typeof openAiFeatureGate>,
+  ai: AiClassifyPort,
+  input: SuggestDocumentKindInput,
+): Promise<Result<DocumentKindSuggestion, ServiceError>> {
+  const ownerAccountId = owner.ownerAccountId;
 
   // The file must be one of this applicant's own, and the very document the proof names when it
   // names one.
@@ -2406,10 +2491,8 @@ export async function suggestDocumentKind(
       .where(
         and(
           eq(schema.documentVersions.id, input.documentVersionId),
-          eq(schema.documents.applicantId, proof.applicant.id),
-          ...(proof.resource.kind === 'document'
-            ? [eq(schema.documents.id, proof.resource.document.id)]
-            : []),
+          eq(schema.documents.applicantId, owner.applicantId),
+          ...(owner.documentId ? [eq(schema.documents.id, owner.documentId)] : []),
           // A command on one document: presentDocumentCondition (deleted answers as missing).
           lifecycle ? presentDocumentCondition() : undefined,
         ),
@@ -2421,7 +2504,7 @@ export async function suggestDocumentKind(
     return err(serviceError('invalid', 'this file has not finished its safety checks'));
   }
   // The feature first (S28), then consent.
-  const gate = await openAiFeatureGate(db, 'ai_document_kind', { proof });
+  const gate = await openGate();
   if (!gate.ok) return err(aiFeatureRefusal(gate.error));
   if (!(await hasConsent(db, ownerAccountId, 'CORE_PROCESSING'))) {
     return err(serviceError('consent_required', 'processing consent is required'));
@@ -2462,7 +2545,7 @@ export async function suggestDocumentKind(
   );
   if (pending) return ok({ status: 'already_suggested', proposal: pending });
 
-  const text = await getLatestExtractedText(db, input.documentVersionId, proof.applicant.id);
+  const text = await getLatestExtractedText(db, input.documentVersionId, owner.applicantId);
   if (!text) return err(serviceError('invalid', 'there is no text from this file to read yet'));
 
   // After the no-op answers above on purpose, exactly like runClassification: asking again
@@ -2472,7 +2555,7 @@ export async function suggestDocumentKind(
 
   const runInput: RunClassificationInput = {
     actorAccountId: ownerAccountId,
-    applicantId: proof.applicant.id,
+    applicantId: owner.applicantId,
     documentVersionId: input.documentVersionId,
     text,
     budgetLimitUnits: input.budgetLimitUnits,
@@ -2522,8 +2605,13 @@ export async function suggestDocumentKind(
       nameForSuggestedKind(tx, {
         documentId: row.documentId,
         kind: proposal.suggestedType,
-        primarySubject: proof.applicant.displayName ?? 'Unknown',
+        primarySubject: owner.displayName ?? 'Unknown',
         originalName: row.originalName,
+        // UMPE G1 (ledger I08): a statement's period from its own text, never from the model.
+        period: periodForName(
+          text,
+          resolveDocumentType(proposal.suggestedType)?.key ?? proposal.suggestedType,
+        ),
       }),
     );
   } catch (error) {
@@ -2549,6 +2637,7 @@ async function nameForSuggestedKind(
     readonly kind: string;
     readonly primarySubject: string;
     readonly originalName: string;
+    readonly period: string | null;
   },
 ): Promise<DocumentNameVersion> {
   await tx
@@ -2565,13 +2654,19 @@ async function nameForSuggestedKind(
         eq(schema.documentNameVersions.decision, 'PENDING'),
       ),
     );
+  // UMPE G1 (ledger I08): a name the person already chose is offered back unchanged, so accepting
+  // the suggested kind can never replace it (this now also runs in the background).
+  const chosen = await nameThePersonChose(tx, input.documentId);
   const proposed = await proposeDocumentName(tx, {
     documentId: input.documentId,
-    proposedName: buildProposedName({
-      classifiedType: input.kind,
-      primarySubject: input.primarySubject,
-      extension: extensionOf(input.originalName),
-    }),
+    proposedName:
+      chosen ??
+      buildProposedName({
+        classifiedType: input.kind,
+        primarySubject: input.primarySubject,
+        ...(input.period ? { relevantDateOrPeriod: input.period } : {}),
+        extension: extensionOf(input.originalName),
+      }),
     reason: 'suggested from the AI reading of this document',
   });
   if (!proposed.ok) {
@@ -2579,6 +2674,35 @@ async function nameForSuggestedKind(
     throw new Error(`name suggestion failed: ${proposed.error.message}`);
   }
   return proposed.value;
+}
+
+/**
+ * The document's current name when the person decided it (renamed it, or accepted a suggested
+ * name), or null when its name is still automatic.
+ */
+async function nameThePersonChose(tx: Db, documentId: string): Promise<string | null> {
+  const decided = first(
+    await tx
+      .select({ id: schema.documentNameVersions.id })
+      .from(schema.documentNameVersions)
+      .where(
+        and(
+          eq(schema.documentNameVersions.documentId, documentId),
+          inArray(schema.documentNameVersions.decision, ['ACCEPTED_UNCHANGED', 'ACCEPTED_EDITED']),
+          sql`${schema.documentNameVersions.decidedByAccountId} is not null`,
+        ),
+      )
+      .limit(1),
+  );
+  if (!decided) return null;
+  const document = first(
+    await tx
+      .select({ approvedName: schema.documents.approvedName })
+      .from(schema.documents)
+      .where(eq(schema.documents.id, documentId))
+      .limit(1),
+  );
+  return document?.approvedName?.trim() || null;
 }
 
 /** Thrown inside the naming transaction so it rolls back when the document left meanwhile. */

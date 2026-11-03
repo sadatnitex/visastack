@@ -41,6 +41,16 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
   // UMPE P3: upload receipts (with the private file name) and proposed links between documents.
   { table: 'document_upload_receipts', column: 'applicant_id', kind: 'DATA' },
   { table: 'document_relation_proposals', column: 'applicant_id', kind: 'DATA' },
+  // UMPE G1: a finding raised when one of the traveller's files was read.
+  { table: 'document_intake_exceptions', column: 'applicant_id', kind: 'DATA' },
+  // UMPE G1: a family batch file proposed for this traveller, still waiting for Which Person?.
+  // Counted as data on purpose: a record with a file waiting for it is not empty.
+  {
+    table: 'document_person_holds',
+    column: 'proposed_applicant_id',
+    kind: 'DATA',
+    unindexed: true,
+  },
   { table: 'document_type_proposals', column: 'applicant_id', kind: 'DATA' },
   { table: 'document_inconsistency_flags', column: 'applicant_id', kind: 'DATA' },
   { table: 'ocr_runs', column: 'applicant_id', kind: 'DATA' },
