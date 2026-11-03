@@ -7,7 +7,10 @@ const mocks = vi.hoisted(() => ({
   isPlatformOwnerAccount: vi.fn(),
   hasPlatformPermission: vi.fn(),
   agencyCollectionRequestsEnabled: vi.fn(() => false),
-  collectionAuthorityOf: vi.fn(async () => null),
+  collectionAuthorityOf: vi.fn(
+    async (_db: unknown, _accountId: string, _organizationId: string): Promise<string | null> =>
+      null,
+  ),
 }));
 vi.mock('server-only', () => ({}));
 vi.mock('@visastack/services', () => ({
@@ -70,7 +73,7 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
       { organization: { id: 'other', name: 'Other Agency' }, active: true, role: 'REVIEWER' },
       { organization: { id: 'broken', name: 'Broken Agency' }, active: true, role: 'REVIEWER' },
     ]);
-    mocks.collectionAuthorityOf.mockImplementation(async (_db, _account, organizationId) => {
+    mocks.collectionAuthorityOf.mockImplementation(async (_db, _accountId, organizationId) => {
       if (organizationId === 'broken') throw new Error('Unavailable');
       return organizationId === 'work' ? 'REQUESTER' : null;
     });
