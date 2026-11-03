@@ -121,4 +121,21 @@ export const TIMELINE_BLOCKS: readonly FieldBlock[] = [
       text('certified_copies_count', 'Certified Copies Held'),
     ],
   },
+  {
+    // UMPE G2 (R18): an application made outside VisaStack, recorded after the fact. It is a record
+    // the person keeps, never an in-app submission, and nothing predicts or matches from it.
+    layer: 'timelines',
+    pack: 'universal',
+    origin: 'owner_vision',
+    sourceRef: 'UMPE requirement R18: historical external application entry',
+    prefix: 'past_application',
+    group: { key: 'past_application', label: 'Past Application' },
+    rows: [
+      text('country', 'Country Applied To'),
+      text('visa_type', 'Visa Type'),
+      date('date_applied', 'Date Applied'),
+      text('post', 'Embassy, Consulate or Visa Centre'),
+      choice('outcome', 'Outcome', ['Pending', 'Granted', 'Refused', 'Withdrawn', 'Unknown']),
+    ],
+  },
 ];

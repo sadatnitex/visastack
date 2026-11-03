@@ -3,6 +3,7 @@ import {
   type RequirementNecessity,
   isRequirementNecessity,
   necessityCanBlock,
+  provenanceAllowsNecessity,
   requirementNecessity,
   requirementProvenance,
 } from '@visastack/core';
@@ -22,8 +23,18 @@ import { documentTypeName } from '@visastack/core/catalogue/documents';
  */
 
 export type CollectionItemKind = 'FIELD' | 'DOCUMENT';
-/** Pack items are official (or requested by the authority); only `agency` items are the agency's own. */
-export type CollectionItemProvenance = 'OFFICIAL' | 'AUTHORITY_REQUESTED' | 'AGENCY_ADDED';
+/**
+ * Pack items are official, requested by the authority, or observed in VisaStack cases (UMPE G2,
+ * S08: never official, never blocking); only `agency` items are the agency's own.
+ */
+export type CollectionItemProvenance =
+  | 'OFFICIAL'
+  | 'AUTHORITY_REQUESTED'
+  | 'FIELD_OBSERVATION'
+  | 'AGENCY_ADDED';
+
+/** The pack provenances an item keeps as they are; anything else from a pack reads as official. */
+const PACK_PROVENANCES_KEPT = new Set(['AUTHORITY_REQUESTED', 'FIELD_OBSERVATION']);
 
 export interface CollectionItem {
   /** Stable within the request, so an edit names the item it changes. */
@@ -103,19 +114,26 @@ export function proposeFromPack(rows: readonly PackRequirementLike[]): Collectio
       optional: row.optional,
       necessity: isRequirementNecessity(necessityValue) ? necessityValue : null,
       provenance:
-        provenanceValue === 'AGENCY_ADDED' || provenanceValue === 'AUTHORITY_REQUESTED'
+        provenanceValue === 'AGENCY_ADDED' ||
+        provenanceValue === 'AUTHORITY_REQUESTED' ||
+        provenanceValue === 'FIELD_OBSERVATION'
           ? provenanceValue
           : null,
     } as const;
+    const read = requirementProvenance(source);
+    // A pack row is the pack's, never the agency's own, whatever a later column says.
+    const provenance: CollectionItemProvenance = PACK_PROVENANCES_KEPT.has(read)
+      ? (read as 'AUTHORITY_REQUESTED' | 'FIELD_OBSERVATION')
+      : 'OFFICIAL';
+    const necessity = requirementNecessity(source);
     return {
       row,
       label: requirementLabel(row),
-      necessity: requirementNecessity(source),
-      // A pack row is the pack's, never the agency's own, whatever a later column says.
-      provenance:
-        requirementProvenance(source) === 'AUTHORITY_REQUESTED'
-          ? ('AUTHORITY_REQUESTED' as const)
-          : ('OFFICIAL' as const),
+      // A field observation never blocks, even if a stored row claims more (Pack Studio refuses it).
+      necessity: provenanceAllowsNecessity(provenance, necessity)
+        ? necessity
+        : ('RECOMMENDED' as const),
+      provenance,
       groupKey: typeof groupValue === 'string' && groupValue.length > 0 ? groupValue : null,
     };
   });
@@ -308,6 +326,7 @@ export function parseItems(value: unknown): CollectionItem[] | null {
       !isRequirementNecessity(r.necessity) ||
       (r.provenance !== 'OFFICIAL' &&
         r.provenance !== 'AUTHORITY_REQUESTED' &&
+        r.provenance !== 'FIELD_OBSERVATION' &&
         r.provenance !== 'AGENCY_ADDED') ||
       !nullableString(r.groupKey) ||
       !nullableString(r.note) ||
@@ -326,6 +345,8 @@ export function parseItems(value: unknown): CollectionItem[] | null {
       return null;
     }
     if (r.provenance !== 'AGENCY_ADDED' && r.source === 'agency') return null;
+    // A field observation is never a blocking item.
+    if (!provenanceAllowsNecessity(r.provenance, r.necessity)) return null;
     items.push({
       id: r.id,
       label: r.label,

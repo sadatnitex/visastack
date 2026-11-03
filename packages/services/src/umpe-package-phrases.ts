@@ -158,6 +158,10 @@ export const PACKAGE_CHANGE_KINDS = [
   'EVIDENCE_EXPIRED',
   'FACT_CHANGED',
   'NEWER_DOCUMENT',
+  // UMPE G2: the case's application post or travel dates do not fit the linked checklist. Last,
+  // because it is a standing state: any change above it is told first, and once reviewed it never
+  // hides a later change of another kind.
+  'CASE_DETAILS_CHANGED',
 ] as const;
 export type PackageChangeKind = (typeof PACKAGE_CHANGE_KINDS)[number];
 
@@ -205,6 +209,8 @@ export function pickPackageChange(signals: readonly PackageChangeSignal[]): Pack
 export const PACKAGE_CHANGE_LABELS: Readonly<Record<PackageChangeKind, string>> = {
   PACK_WITHDRAWN:
     'The checklist for this trip was withdrawn. Check what is needed before you share anything.',
+  CASE_DETAILS_CHANGED:
+    'The checklist for this trip is for another embassy or other travel dates, or needs them. Check which checklist applies before you share anything.',
   PACK_CHANGED:
     'A newer checklist was published for this trip. Review it before you share anything.',
   EVIDENCE_EXPIRED:

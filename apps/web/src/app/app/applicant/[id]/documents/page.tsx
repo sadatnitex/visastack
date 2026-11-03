@@ -25,6 +25,7 @@ import {
   isServableProcessingState,
   lifecycleTablesPresent,
   listApplicantProfile,
+  listAutoPlacements,
   listDeletionReceipts,
   listDocumentExceptions,
   listDocumentReadingStates,
@@ -305,16 +306,21 @@ export default async function ApplicantDocumentsPage({
     // UMPE G1: this account's files waiting for Which Person? (seen only by the account that
     // added them), and whether the family batch is available yet. Extras like the list above.
     const noHeldFiles = { files: [], people: [] };
-    const [understanding, uploadReceiptsReady, heldFiles, familyBatch] = await Promise.all([
-      readingAccess.ok
-        ? listDocumentExceptions(readingAccess.value).catch(() => noDecisions)
-        : Promise.resolve(noDecisions),
-      documentUploadReceiptsReady(db).catch(() => false),
-      readingAccess.ok
-        ? listHeldFiles(readingAccess.value).catch(() => noHeldFiles)
-        : Promise.resolve(noHeldFiles),
-      readingAccess.ok ? familyBatchReady(db).catch(() => false) : Promise.resolve(false),
-    ]);
+    // UMPE G4: what was placed automatically lately, each with its Change. An extra like the rest.
+    const [understanding, uploadReceiptsReady, heldFiles, familyBatch, automatic] =
+      await Promise.all([
+        readingAccess.ok
+          ? listDocumentExceptions(readingAccess.value).catch(() => noDecisions)
+          : Promise.resolve(noDecisions),
+        documentUploadReceiptsReady(db).catch(() => false),
+        readingAccess.ok
+          ? listHeldFiles(readingAccess.value).catch(() => noHeldFiles)
+          : Promise.resolve(noHeldFiles),
+        readingAccess.ok ? familyBatchReady(db).catch(() => false) : Promise.resolve(false),
+        readingAccess.ok
+          ? listAutoPlacements(readingAccess.value).catch(() => [])
+          : Promise.resolve([]),
+      ]);
     const detailsAvailable =
       (await resolveAiExtractionAvailability(db, encryption !== undefined)) === 'available';
     // Each AI button's own switch (S28), through the same owner proof. If it cannot be read, the
@@ -388,6 +394,7 @@ export default async function ApplicantDocumentsPage({
       understanding,
       uploadReceiptsReady,
       heldFiles,
+      automatic,
       familyBatch,
       protection,
       referenceCodes,
@@ -608,6 +615,8 @@ export default async function ApplicantDocumentsPage({
             addedOn: formatTimestampDate(file.addedAt),
           }))}
           people={data.heldFiles.people}
+          automatic={data.automatic}
+          personName={data.displayName}
         />
 
         {data.lifecycle ? (

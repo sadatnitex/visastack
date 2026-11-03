@@ -389,7 +389,8 @@ describe('background kind suggestion (I07)', () => {
           ok: true,
           result: {
             suggestedType: 'BANK_STATEMENT',
-            confidence: 0.9,
+            // Below the automatic placement line (UMPE G4): the suggestion waits for the person.
+            confidence: 0.8,
             usage: {
               costUnits: 1,
               inputUnits: 1,
@@ -439,18 +440,21 @@ describe('background kind suggestion (I07)', () => {
     expect(listed.exceptions.map((item) => item.kind)).toEqual(['unknown_type']);
   });
 
-  it('keeps a file of unknown kind protected while the platform switch says so: no AI call', async () => {
+  it('keeps a file of unknown kind protected for reading while it is still recognised (UMPE G4)', async () => {
     const { db, doc } = await setup('g1-ai-protected@example.invalid', ['AI_EXTRACTION', 'AI_OCR']);
     const kind = classifier();
-    const { ports } = countingPorts();
+    const { ports, calls } = countingPorts();
     const result = await processAiReading(
       db,
       systemScopeForTest('process-ai-reading'),
       { ...ports, classify: async () => ({ ai: kind.ai, limits: LIMITS }) },
       { documentVersionId: doc.version.id },
     );
+    // Owner decision 3 Nov 2026: every file is recognised (from a redacted excerpt); the details
+    // of an unknown kind are still never read while unknown kinds are protected.
     expect(result.stopReason).toBe('PROTECTED');
-    expect(kind.calls()).toBe(0);
+    expect(kind.calls()).toBe(1);
+    expect(calls.extract).toBe(0);
   });
 
   it('with consent asks once and lists a waiting Suggested Kind, never saved', async () => {

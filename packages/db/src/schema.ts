@@ -6053,7 +6053,8 @@ export const umpePackageChanges = pgTable(
     index('umpe_package_changes_applicant_idx').on(table.applicantId),
     check(
       'umpe_package_changes_kind_known',
-      sql`${table.kind} in ('NEWER_DOCUMENT', 'FACT_CHANGED', 'EVIDENCE_EXPIRED', 'PACK_CHANGED', 'PACK_WITHDRAWN', 'SOURCE_CHANGING')`,
+      // CASE_DETAILS_CHANGED: UMPE G2 (the linked checklist no longer fits the case's post or dates).
+      sql`${table.kind} in ('NEWER_DOCUMENT', 'FACT_CHANGED', 'EVIDENCE_EXPIRED', 'PACK_CHANGED', 'PACK_WITHDRAWN', 'SOURCE_CHANGING', 'CASE_DETAILS_CHANGED')`,
     ),
     check('umpe_package_changes_source_known', sql`${table.source} in ('CASE_OPENED', 'SWEEP')`),
     check(
@@ -7013,5 +7014,126 @@ export const agencyMemberCapabilities = pgTable(
     unique('agency_member_capabilities_unique').on(table.membershipId, table.capability),
     index('agency_member_capabilities_org_idx').on(table.organizationId),
     check('agency_member_capabilities_known', sql`${table.capability} in ('REQUEST_DOCUMENTS')`),
+  ],
+);
+
+// --- UMPE G2: rule category, document format and route conditions ---------------------------------
+// Side tables, so no existing read or write of `pack_requirements` or `pack_versions` changes and
+// code runs before this migration exists. Both belong to one pack version: editable only while it
+// is a draft (the service enforces it), and part of its format 2 manifest checksum when present, so
+// a published version never changes and a changed rule is a new, reviewed version.
+export const packRequirementDetails = pgTable(
+  'pack_requirement_details',
+  {
+    packRequirementId: uuid('pack_requirement_id')
+      .primaryKey()
+      .references(() => packRequirements.id, { onDelete: 'cascade' }),
+    // One primary category from REQUIREMENT_CATEGORIES (core); never a sharing category.
+    category: text('category'),
+    acceptedForm: text('accepted_form'),
+    translationNeeded: boolean('translation_needed'),
+    originalNeeded: boolean('original_needed'),
+    statementPeriodMonths: integer('statement_period_months'),
+    // The document must stay valid this many months after the case's travel end date.
+    validMonthsAfterTravel: integer('valid_months_after_travel'),
+    // When the cited source's rule took effect, if the source says so.
+    effectiveSince: timestamp('effective_since', { withTimezone: true }),
+    updatedByAccountId: uuid('updated_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('pack_requirement_details_updated_by_idx').on(table.updatedByAccountId),
+    check(
+      'pack_requirement_details_category_known',
+      sql`${table.category} is null or ${table.category} in ('IDENTITY_TRAVEL_DOCUMENTS', 'IMMIGRATION_HISTORY', 'DECLARATIONS_CIRCUMSTANCES', 'FINANCIAL_MEANS', 'EMPLOYMENT_BUSINESS', 'EDUCATION_ACADEMIC', 'FAMILY_SPONSORSHIP', 'JOURNEY_ITINERARY', 'MEDICAL_HEALTH', 'FORMS_PROCEDURES', 'ROUTE_SPECIFIC_OTHER')`,
+    ),
+    check(
+      'pack_requirement_details_accepted_form_known',
+      sql`${table.acceptedForm} is null or ${table.acceptedForm} in ('DIGITAL_COPY', 'PRINTED_COPY', 'CERTIFIED_COPY', 'NOTARISED_COPY')`,
+    ),
+    check(
+      'pack_requirement_details_statement_period_range',
+      sql`${table.statementPeriodMonths} is null or ${table.statementPeriodMonths} between 1 and 60`,
+    ),
+    check(
+      'pack_requirement_details_valid_after_travel_range',
+      sql`${table.validMonthsAfterTravel} is null or ${table.validMonthsAfterTravel} between 0 and 120`,
+    ),
+  ],
+);
+
+// Which application posts and travel window a pack version is for (R05). No row, or an empty list,
+// means the version does not narrow by that; a case that lacks a value it declares is asked for it.
+export const packRouteConditions = pgTable(
+  'pack_route_conditions',
+  {
+    packVersionId: uuid('pack_version_id')
+      .primaryKey()
+      .references(() => packVersions.id, { onDelete: 'cascade' }),
+    consularPosts: text('consular_posts').array(),
+    travelFrom: date('travel_from', { mode: 'string' }),
+    travelUntil: date('travel_until', { mode: 'string' }),
+    updatedByAccountId: uuid('updated_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('pack_route_conditions_updated_by_idx').on(table.updatedByAccountId),
+    check(
+      'pack_route_conditions_window_order',
+      sql`${table.travelFrom} is null or ${table.travelUntil} is null or ${table.travelFrom} <= ${table.travelUntil}`,
+    ),
+  ],
+);
+
+// --- UMPE G4: automatic placement of recognised files ---------------------------------------------
+
+/**
+ * One automatic placement (UMPE G4, owner decision 3 Nov 2026): a file's kind applied from a
+ * confident AI recognition (`KIND`), or a family file filed under the one person it matched exactly
+ * (`PERSON`). Keeps what the file was before, so the owner's one-step Change can restore it. Kinds
+ * and names only, never a value read from the file. Goes with the document.
+ */
+export const documentAutoPlacements = pgTable(
+  'document_auto_placements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    placement: text('placement').notNull(),
+    status: text('status').notNull().default('APPLIED'),
+    previousDocType: text('previous_doc_type'),
+    previousName: text('previous_name'),
+    appliedDocType: text('applied_doc_type'),
+    appliedName: text('applied_name'),
+    confidence: integer('confidence'),
+    typeProposalId: uuid('type_proposal_id').references(() => documentTypeProposals.id, {
+      onDelete: 'set null',
+    }),
+    classificationId: uuid('classification_id').references(() => documentClassifications.id, {
+      onDelete: 'set null',
+    }),
+    holdId: uuid('hold_id').references(() => documentPersonHolds.id, { onDelete: 'set null' }),
+    changedByAccountId: uuid('changed_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    changedAt: timestamp('changed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('document_auto_placements_document_placement').on(table.documentId, table.placement),
+    index('document_auto_placements_applicant_status_idx').on(table.applicantId, table.status),
+    check(
+      'document_auto_placements_placement_known',
+      sql`${table.placement} in ('KIND', 'PERSON')`,
+    ),
+    check('document_auto_placements_status_known', sql`${table.status} in ('APPLIED', 'CHANGED')`),
   ],
 );

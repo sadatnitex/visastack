@@ -497,6 +497,14 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     action: 'Review the Trip Package',
     after: 'Nothing in your trip was changed, shared or sent to anyone.',
   },
+  // UMPE G4: a family file waits for Which Person?; never its name or who it might be.
+  DOCUMENT_HELD_REMINDER: {
+    eyebrow: 'Your Documents',
+    heading: 'A file is waiting for you to choose who it belongs to',
+    why: 'You added it for your family and it has waited a week. Only you can see it.',
+    action: 'Choose Who It Belongs To',
+    after: 'Files nobody chooses for are removed after 30 days.',
+  },
 };
 
 export function notificationEmail(input: NotificationEmailInput): EmailContent {

@@ -19,7 +19,17 @@ export const REQUIREMENT_NECESSITIES = [
 ] as const;
 export type RequirementNecessity = (typeof REQUIREMENT_NECESSITIES)[number];
 
-export const REQUIREMENT_PROVENANCES = ['OFFICIAL', 'AGENCY_ADDED', 'AUTHORITY_REQUESTED'] as const;
+/**
+ * FIELD_OBSERVATION (UMPE G2, S08): something seen across VisaStack cases, never an official
+ * requirement. Nothing writes it automatically; an editor chooses it in Pack Studio, and it may
+ * only be Recommended or Optional (`provenanceAllowsNecessity`).
+ */
+export const REQUIREMENT_PROVENANCES = [
+  'OFFICIAL',
+  'AGENCY_ADDED',
+  'AUTHORITY_REQUESTED',
+  'FIELD_OBSERVATION',
+] as const;
 export type RequirementProvenance = (typeof REQUIREMENT_PROVENANCES)[number];
 
 export const REQUIREMENT_GROUP_MODES = ['ANY_OF'] as const;
@@ -55,6 +65,23 @@ export function requirementProvenance(source: NecessitySource): RequirementProve
   return source.provenance ?? 'OFFICIAL';
 }
 
+/** Only an official requirement may be presented as one; every other provenance says whose it is. */
+export function isOfficialProvenance(provenance: RequirementProvenance): boolean {
+  return provenance === 'OFFICIAL';
+}
+
+/**
+ * Whether a provenance may carry a necessity. A field observation is never a mandate, so it is only
+ * ever Recommended or Optional (annex 1.1: field observations are non-blocking guidance).
+ */
+export function provenanceAllowsNecessity(
+  provenance: RequirementProvenance,
+  necessity: RequirementNecessity,
+): boolean {
+  if (provenance !== 'FIELD_OBSERVATION') return true;
+  return necessity === 'RECOMMENDED' || necessity === 'OPTIONAL';
+}
+
 /**
  * Whether a missing item of this necessity can block "requirement complete".
  * CONDITIONAL blocks only once its condition is known to be true; the caller
@@ -84,6 +111,7 @@ export const PROVENANCE_LABELS: Readonly<Record<RequirementProvenance, string>> 
   OFFICIAL: 'Official Requirement',
   AGENCY_ADDED: 'Requested by Your Agency',
   AUTHORITY_REQUESTED: 'Requested by the Authority',
+  FIELD_OBSERVATION: 'Observed in VisaStack Cases',
 };
 
 export const ANY_OF_LABEL = 'Any One of These';

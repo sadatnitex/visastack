@@ -1,9 +1,14 @@
 import {
   ANY_OF_LABEL,
   NECESSITY_LABELS,
+  NO_FORMAT_RULES,
   PROVENANCE_LABELS,
+  type RequirementCategory,
   type RequirementNecessity,
   type RequirementProvenance,
+  groupByRequirementCategory,
+  requirementCategoryOrder,
+  requirementFormatLines,
   tripChecksApply,
   tripChecksNeedingAction,
 } from '@visastack/core';
@@ -16,6 +21,7 @@ import {
   type OverallReadinessState,
   type RequirementResultState,
   accountPrincipal,
+  caseExpiryConflicts,
   computeReadiness,
   computeTripChecks,
   getAiFeatureState,
@@ -30,6 +36,7 @@ import {
   getPackVersion,
   grantReachesCase,
   isFactStatusEligible,
+  latestSourceChecks,
   legalTransitions,
   listAccessForApplicant,
   listAcknowledgementsForMission,
@@ -46,6 +53,7 @@ import {
   listOutcomeAttempts,
   listOutcomesForMission,
   listPublishedPackVersions,
+  listRequirementDetails,
   listRequirements,
   listSelectedEvidence,
   listSubmissionsForMission,
@@ -180,7 +188,7 @@ const REQUIREMENT_STATE_META: Record<
   },
 };
 
-type AttentionKind = 'changed' | 'missing' | 'unconfirmed' | 'trip' | 'tasks';
+type AttentionKind = 'changed' | 'missing' | 'unconfirmed' | 'expiry' | 'trip' | 'tasks';
 
 /** How many snapshots the case page lists; the rest are one link away (WP-SB2). */
 const SNAPSHOTS_ON_PAGE = 5;
@@ -238,9 +246,11 @@ async function welcomeChecklists(
   try {
     const fitting = await checklistsToPick(db, { accountId, missionId: mission.id, ...route });
     if (fitting.length === 0) return { kind: 'none' };
+    const caseDetailsNeeded = [...new Set(fitting.flatMap((checklist) => checklist.needs ?? []))];
     return {
       kind: 'pick',
       travellerUnconfirmed: fitting.some((checklist) => !checklist.coversTraveller),
+      ...(caseDetailsNeeded.length > 0 ? { caseDetailsNeeded } : {}),
     };
   } catch (error) {
     reportServerError('MissionPage', error, { step: 'welcome checklists' });
@@ -273,6 +283,14 @@ const NEXT_STEP_COPY: Record<
     title: (count, caseTitle) => `Confirm ${plural(count, 'item', 'items')} for ${caseTitle}`,
     body: () => 'Whether these apply depends on case details that are not confirmed yet.',
     action: 'See What to Confirm',
+  },
+  // UMPE G2 (R22): one item for every chosen document that will not last this trip.
+  expiry: {
+    title: (count, caseTitle) =>
+      `Replace ${plural(count, 'document', 'documents')} that ${count === 1 ? 'expires' : 'expire'} before ${caseTitle} ends`,
+    body: (firstItem) =>
+      `${firstItem ? `First to replace: ${firstItem}. ` : ''}A chosen document must stay valid until your trip ends, and longer when this checklist says so. Renew it or choose another copy.`,
+    action: 'See Which Documents',
   },
   trip: {
     title: (count, caseTitle) => `Check ${plural(count, 'date', 'dates')} for ${caseTitle}`,
@@ -309,6 +327,16 @@ interface RequirementDetailRow {
   readonly provenance?: RequirementProvenance;
   readonly groupKey?: string;
   readonly coveredByAlternative?: true;
+  /** UMPE G2 (R02): the rule category, when the checklist gives one. */
+  readonly category: RequirementCategory | null;
+}
+
+/** UMPE G2 (R08): one cited source, with when it was last checked and when its rule took effect. */
+interface CaseSourceRow {
+  readonly href: string;
+  readonly name: string;
+  readonly checkedAt: string | null;
+  readonly inEffectSince: string | null;
 }
 
 /** UMPE P12: catalogue document kinds for "The Embassy Asked for More", by name. */
@@ -473,6 +501,66 @@ export default async function MissionPage({
     // ordered so what still needs a decision surfaces above what doesn't.
     const readinessValue = readiness?.ok ? readiness.value : null;
     const requirementRowsById = new Map(requirements.map((r) => [r.id, r] as const));
+    // UMPE G2: rule details (category, format rules, effective date), when each cited source was
+    // last checked, and chosen documents that will not last the trip. Each is optional: a failure
+    // leaves its part out rather than showing a made-up state.
+    const [ruleDetails, sourceChecks, expiryConflicts] = await Promise.all([
+      listRequirementDetails(
+        db,
+        requirements.map((r) => r.id),
+      ).catch((error: unknown) => {
+        reportServerError('MissionPage', error, { step: 'rule details' });
+        return new Map<string, never>();
+      }),
+      latestSourceChecks(
+        db,
+        requirements.flatMap((r) => (r.sourceUrl ? [r.sourceUrl] : [])),
+      ).catch((error: unknown) => {
+        reportServerError('MissionPage', error, { step: 'source checks' });
+        return new Map<string, Date>();
+      }),
+      mission.travelEndDate
+        ? selfView()
+            .then((gate) => (gate.ok ? caseExpiryConflicts(gate.value) : []))
+            .catch(() => [])
+        : Promise.resolve([]),
+    ]);
+    const formatLines: Record<string, readonly string[]> = {};
+    for (const r of requirements) {
+      if (r.kind !== 'DOCUMENT') continue;
+      const lines = requirementFormatLines(
+        ruleDetails.get(r.id) ?? NO_FORMAT_RULES,
+        r.notes,
+        r.maxAgeDays,
+      );
+      if (lines.length > 0) formatLines[r.id] = lines;
+    }
+    const versionEffective = packVersionRow?.effectiveDate ?? null;
+    const sourcesByHref = new Map<string, CaseSourceRow>();
+    for (const r of requirements) {
+      const href = safeHttpUrl(r.sourceUrl);
+      if (!href || !r.sourceUrl) continue;
+      const ownEffective = ruleDetails.get(r.id)?.effectiveSince ?? null;
+      const checked = sourceChecks.get(r.sourceUrl) ?? null;
+      const seen = sourcesByHref.get(href);
+      const later = (a: string | null, b: Date | null) =>
+        b && (!a || b.toISOString() > a) ? b.toISOString() : a;
+      sourcesByHref.set(href, {
+        href,
+        name:
+          seen?.name ??
+          ([r.publisher, r.sourceTitle].filter(Boolean).join(' · ') || r.citation || href),
+        checkedAt: later(seen?.checkedAt ?? null, checked),
+        // The latest date a rule citing this source says it took effect.
+        inEffectSince: later(seen?.inEffectSince ?? null, ownEffective),
+      });
+    }
+    // A source whose rules give no date of their own falls back to the checklist version's.
+    const caseSources = [...sourcesByHref.values()].map((source) =>
+      source.inEffectSince || !versionEffective
+        ? source
+        : { ...source, inEffectSince: versionEffective.toISOString() },
+    );
     const requirementDetails: RequirementDetailRow[] = (readinessValue?.requirementResults ?? [])
       .map((r): RequirementDetailRow => {
         const row = requirementRowsById.get(r.packRequirementId);
@@ -492,6 +580,7 @@ export default async function MissionPage({
           ...(r.provenance ? { provenance: r.provenance } : {}),
           ...(r.groupKey ? { groupKey: r.groupKey } : {}),
           ...(r.coveredByAlternative ? { coveredByAlternative: true } : {}),
+          category: ruleDetails.get(r.packRequirementId)?.category ?? null,
         };
       })
       .sort(
@@ -706,6 +795,14 @@ export default async function MissionPage({
       explanationConfigured,
       tripChecks,
       casePackage,
+      formatLines,
+      caseSources,
+      expiringDocuments: expiryConflicts.map((c) => ({
+        documentId: c.documentId,
+        name: c.displayName,
+        expiresAt: c.expiresAt.toISOString(),
+        neededUntil: c.neededUntil.toISOString(),
+      })),
       explanationFeature,
       explanationsByRequirement,
       packInfo: pack
@@ -844,6 +941,20 @@ export default async function MissionPage({
           },
         ]
       : []),
+    ...(data.expiringDocuments.length > 0
+      ? [
+          {
+            kind: 'expiry' as const,
+            label:
+              data.expiringDocuments.length === 1
+                ? 'document expires before the trip ends'
+                : 'documents expire before the trip ends',
+            href: '#expiring-documents',
+            count: data.expiringDocuments.length,
+            tone: 'danger' as const,
+          },
+        ]
+      : []),
     ...(tripChecksToAct > 0
       ? [
           {
@@ -967,7 +1078,7 @@ export default async function MissionPage({
         {r.citation ? (
           <span className="muted u-fs-075">
             Cite: {sourceLine || r.citation}
-            {r.observedDate ? ` · as of ${formatDateOnly(r.observedDate)}` : ''}
+            {r.observedDate ? ` · reviewed ${formatDateOnly(r.observedDate)}` : ''}
             {sourceHref ? (
               <>
                 {' · '}
@@ -1005,11 +1116,32 @@ export default async function MissionPage({
   };
   // The checklist's groups that have rows, in their fixed order (WP-SB2).
   const checklistGroups = REQUIREMENT_GROUPS.flatMap((group) => {
-    const rows = data.requirementDetails.filter((r) => group.states.includes(r.state));
+    const rows = data.requirementDetails
+      .filter((r) => group.states.includes(r.state))
+      // UMPE G2 (R02): rule categories, in their fixed order, inside each group (a stable sort, so
+      // a checklist with no categories keeps exactly its old order).
+      .map((r, index) => ({ r, index }))
+      .sort(
+        (a, b) =>
+          requirementCategoryOrder(a.r.category) - requirementCategoryOrder(b.r.category) ||
+          a.index - b.index,
+      )
+      .map(({ r }) => r);
     return rows.length === 0
       ? []
       : [{ key: group.heading.toLowerCase().replace(/\s+/g, '-'), heading: group.heading, rows }];
   });
+  // UMPE G2 (R02): category headings show only when the checklist gives categories at all.
+  const hasCategories = data.requirementDetails.some((r) => r.category !== null);
+  const checklistRows = (rows: readonly RequirementDetailRow[]) =>
+    hasCategories
+      ? groupByRequirementCategory(rows, (r) => r.category).map((part) => (
+          <div className="case-category" key={part.category ?? 'other'}>
+            <h5 className="case-category-heading">{part.label}</h5>
+            {part.rows.map(requirementRow)}
+          </div>
+        ))
+      : rows.map(requirementRow);
   const pathname = `/app/mission/${mission.id}`;
   const newCaseHref = `/app/applicant/${data.applicantId}/missions/prepare-again?from=${mission.id}`;
   const totals: Record<CappedList, number> = {
@@ -1159,7 +1291,11 @@ export default async function MissionPage({
               {NEXT_STEP_COPY[nextStep.kind].title(nextStep.count, mission.title)}
             </p>
             <p className="case-next-step-body">
-              {NEXT_STEP_COPY[nextStep.kind].body(data.firstHardGapLabel)}
+              {NEXT_STEP_COPY[nextStep.kind].body(
+                nextStep.kind === 'expiry'
+                  ? (data.expiringDocuments[0]?.name ?? null)
+                  : data.firstHardGapLabel,
+              )}
             </p>
             <a className="btn btn-primary" href={nextStep.href} data-open-group={nextStep.opens}>
               {NEXT_STEP_COPY[nextStep.kind].action}
@@ -1293,7 +1429,7 @@ export default async function MissionPage({
                             </summary>
                             <div className="collapsible-group-body">
                               <div className="rows">
-                                {group.rows.slice(0, CHECKLIST_ROWS_SHOWN).map(requirementRow)}
+                                {checklistRows(group.rows.slice(0, CHECKLIST_ROWS_SHOWN))}
                               </div>
                               {group.rows.length > CHECKLIST_ROWS_SHOWN ? (
                                 <details className="case-checklist-rest">
@@ -1305,7 +1441,7 @@ export default async function MissionPage({
                                     )}
                                   </summary>
                                   <div className="rows">
-                                    {group.rows.slice(CHECKLIST_ROWS_SHOWN).map(requirementRow)}
+                                    {checklistRows(group.rows.slice(CHECKLIST_ROWS_SHOWN))}
                                   </div>
                                 </details>
                               ) : null}
@@ -1314,6 +1450,58 @@ export default async function MissionPage({
                         ))}
                       </div>
                     </div>
+                  ) : null}
+                  {data.expiringDocuments.length > 0 ? (
+                    <section
+                      className="case-expiring"
+                      id="expiring-documents"
+                      aria-labelledby="case-expiring-heading"
+                    >
+                      <h3 id="case-expiring-heading" className="case-checklist-heading">
+                        Documents That Expire Before Your Trip Ends
+                      </h3>
+                      <ul className="case-sources-list">
+                        {data.expiringDocuments.map((doc) => (
+                          <li key={doc.documentId}>
+                            {doc.name}
+                            <span className="muted u-fs-085">
+                              {' · '}Expires: {formatDateOnly(doc.expiresAt)}
+                              {' · '}Needed Until: {formatDateOnly(doc.neededUntil)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
+                  {data.caseSources.length > 0 ? (
+                    <section className="case-sources" aria-labelledby="case-sources-heading">
+                      <h3 id="case-sources-heading" className="case-checklist-heading">
+                        Sources for This Checklist
+                      </h3>
+                      <ul className="case-sources-list">
+                        {data.caseSources.map((source) => (
+                          <li key={source.href}>
+                            <a href={source.href} target="_blank" rel="noreferrer">
+                              {source.name}
+                            </a>
+                            <span className="muted u-fs-085">
+                              {' · '}Checked:{' '}
+                              {source.checkedAt
+                                ? formatDateOnly(source.checkedAt)
+                                : 'Not Checked Yet'}
+                              {' · '}In Effect Since:{' '}
+                              {source.inEffectSince
+                                ? formatDateOnly(source.inEffectSince)
+                                : 'Not Stated'}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="muted u-fs-085">
+                        Checked is when VisaStack last read the page. Always confirm the final
+                        requirements with the official authority or your agency.
+                      </p>
+                    </section>
                   ) : null}
                   <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '1rem' }}>
                     Readiness is completeness only - never an approval likelihood.
@@ -1332,7 +1520,7 @@ export default async function MissionPage({
 
             {data.casePackage ? (
               <article className="card" id="trip-package" {...atLevel('browse')}>
-                <PackagePanel pkg={data.casePackage} />
+                <PackagePanel pkg={data.casePackage} formatLines={data.formatLines} />
               </article>
             ) : null}
 

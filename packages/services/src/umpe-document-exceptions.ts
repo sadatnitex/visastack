@@ -25,6 +25,7 @@ import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { replaceDocument } from './lifecycle/replace/replace';
 import { documentKindLabel } from './naming';
 import { isIntakeExceptionKind } from './umpe-document-arrival';
+import { queueReadingAfterKindDecision } from './umpe-document-recognition';
 import {
   type DocumentRelation,
   isDocumentRelation,
@@ -467,6 +468,8 @@ export async function decideDocumentRelation(
         docType: older.docType,
       });
       if (!typed.ok) return err(serviceError('invalid', typed.error.message));
+      // UMPE G4: the kind is decided; a fresh reading checks protection against it.
+      await queueReadingAfterKindDecision(proof, { documentId: newer.id });
     }
     const replacement = await replaceDocument(proof, {
       oldDocumentId: olderId,

@@ -1,9 +1,22 @@
-import { ANY_OF_LABEL, NECESSITY_LABELS, PROVENANCE_LABELS } from '@visastack/core';
 import {
+  ANY_OF_LABEL,
+  NECESSITY_LABELS,
+  NO_FORMAT_RULES,
+  PROVENANCE_LABELS,
+  REQUIREMENT_CATEGORY_LABELS,
+  requirementFormatLines,
+} from '@visastack/core';
+import {
+  NO_REQUIREMENT_DETAILS,
+  NO_ROUTE_CONDITIONS,
   type PackRequirement,
+  type PackRouteConditions,
+  type RequirementDetails,
   getPack,
   listMissionsByPackVersion,
+  listPackRouteConditions,
   listPackVersions,
+  listRequirementDetails,
   listRequirements,
 } from '@visastack/services';
 import type { Metadata } from 'next';
@@ -43,6 +56,11 @@ import {
   SourceInaccessibleButton,
   WithdrawVersionButton,
 } from '../pack-version-buttons';
+import {
+  RequirementDetailsForm,
+  type RequirementDetailsValues,
+  RouteConditionsForm,
+} from '../rule-detail-forms';
 
 export const metadata: Metadata = { title: 'Rule Pack' };
 
@@ -74,6 +92,51 @@ function byRequirementKey(a: RequirementKey, b: RequirementKey): number {
     (a.fieldKey ?? a.docType ?? '').localeCompare(b.fieldKey ?? b.docType ?? '') ||
     a.id.localeCompare(b.id)
   );
+}
+
+/** UMPE G2: who a version is for, in one plain sentence. */
+function routeSummary(c: PackRouteConditions): string {
+  const posts =
+    c.consularPosts.length > 0
+      ? `Application posts: ${c.consularPosts.join(', ')}.`
+      : 'Any application post.';
+  const from = c.travelFrom ? `from ${formatDateOnly(c.travelFrom)}` : '';
+  const until = c.travelUntil ? `until ${formatDateOnly(c.travelUntil)}` : '';
+  const dates =
+    from || until
+      ? `Trips starting ${[from, until].filter(Boolean).join(' ')}.`
+      : 'Any travel dates.';
+  return `${posts} ${dates}`;
+}
+
+/** UMPE G2: a requirement's saved rule details, as the details form shows them. */
+function detailsValues(details: RequirementDetails | undefined): RequirementDetailsValues {
+  const d = details ?? NO_REQUIREMENT_DETAILS;
+  const yesNo = (value: boolean | null) => (value === null ? '' : value ? 'yes' : 'no');
+  return {
+    category: d.category ?? '',
+    acceptedForm: d.acceptedForm ?? '',
+    translationNeeded: yesNo(d.translationNeeded),
+    originalNeeded: yesNo(d.originalNeeded),
+    statementPeriodMonths: d.statementPeriodMonths === null ? '' : String(d.statementPeriodMonths),
+    validMonthsAfterTravel:
+      d.validMonthsAfterTravel === null ? '' : String(d.validMonthsAfterTravel),
+    effectiveSince: d.effectiveSince ? d.effectiveSince.toISOString().slice(0, 10) : '',
+  };
+}
+
+/** UMPE G2: one plain line of a requirement's category, format rules and effective date. */
+function ruleDetailsSummary(req: PackRequirement, details: RequirementDetails | undefined) {
+  const parts = [
+    ...(details?.category ? [`Category: ${REQUIREMENT_CATEGORY_LABELS[details.category]}`] : []),
+    ...(req.kind === 'DOCUMENT'
+      ? requirementFormatLines(details ?? NO_FORMAT_RULES, null, null)
+      : []),
+    ...(details?.effectiveSince
+      ? [`In Effect Since: ${formatDateOnly(details.effectiveSince.toISOString())}`]
+      : []),
+  ];
+  return parts.length > 0 ? <p className="muted u-fs-085">{parts.join(' · ')}</p> : null;
 }
 
 /**
@@ -116,11 +179,20 @@ export default async function PackDetailPage({
         ? listMissionsByPackVersion(db, open.id).then((missions) => missions.length)
         : Promise.resolve(0),
     ]);
+    // UMPE G2: the open version's rule details and who it is for (none before the G2 tables exist).
+    const [details, conditions] = await Promise.all([
+      listRequirementDetails(
+        db,
+        requirements.map((r) => r.id),
+      ),
+      listPackRouteConditions(db, [open.id]),
+    ]);
+    const routeConditions = conditions.get(open.id) ?? NO_ROUTE_CONDITIONS;
     return {
       admin: true as const,
       pack,
       versions,
-      open: { version: open, requirements, missionCount },
+      open: { version: open, requirements, missionCount, details, routeConditions },
     };
   });
 
@@ -225,6 +297,28 @@ export default async function PackDetailPage({
                   </p>
                 ) : null}
 
+                <section id="pack-route-conditions" aria-labelledby="pack-route-conditions-heading">
+                  <h3 id="pack-route-conditions-heading" className="case-checklist-heading">
+                    Who This Version Is For
+                  </h3>
+                  <p className="muted u-fs-085">
+                    {routeSummary(data.open.routeConditions)}
+                    {isDraft ? '' : ' Change it in a new draft version.'}
+                  </p>
+                  {isDraft ? (
+                    <details className="sb7-fold">
+                      <summary>Change Who This Version Is For</summary>
+                      <RouteConditionsForm
+                        packId={data.pack.id}
+                        packVersionId={version.id}
+                        consularPosts={data.open.routeConditions.consularPosts}
+                        travelFrom={data.open.routeConditions.travelFrom ?? ''}
+                        travelUntil={data.open.routeConditions.travelUntil ?? ''}
+                      />
+                    </details>
+                  ) : null}
+                </section>
+
                 {requirements.length === 0 ? (
                   <p className="card-body">No requirements yet.</p>
                 ) : (
@@ -292,6 +386,15 @@ export default async function PackDetailPage({
                               <p className="muted u-fs-085">
                                 Freshness: must be dated within {req.maxAgeDays} day(s)
                               </p>
+                            ) : null}
+                            {ruleDetailsSummary(req, data.open.details.get(req.id))}
+                            {isDraft ? (
+                              <RequirementDetailsForm
+                                packId={data.pack.id}
+                                requirementId={req.id}
+                                kind={req.kind}
+                                values={detailsValues(data.open.details.get(req.id))}
+                              />
                             ) : null}
                             {isDraft ? (
                               <RequirementSourceReviewForm

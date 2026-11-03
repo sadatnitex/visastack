@@ -14,6 +14,7 @@ import { type ServiceError, serviceError } from './errors';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { cleanDocumentName } from './naming';
 import { recordProductEvent } from './product-events';
+import { queueReadingAfterKindDecision } from './umpe-document-recognition';
 
 // The name rules live with the other naming rules; kept exported here for existing callers.
 export { MAX_DOCUMENT_NAME_LENGTH, cleanDocumentName } from './naming';
@@ -284,6 +285,8 @@ export async function decideDocumentSuggestion(
       });
       return { decision: 'accept' as const, docType: kind.docType, approvedName: name };
     });
+    // UMPE G4: the kind is decided; a fresh reading checks protection against it.
+    if (outcome.decision === 'accept') await queueReadingAfterKindDecision(proof, { documentId });
     return ok(outcome);
   } catch (error) {
     if (error instanceof Refusal) return err(error.serviceError);

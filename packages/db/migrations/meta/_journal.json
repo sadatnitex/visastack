@@ -883,6 +883,20 @@
       "when": 1793684158733,
       "tag": "0127_umpe_g1_intake",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1793691024000,
+      "tag": "0128_umpe_g2_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1793697687446,
+      "tag": "0129_umpe_g4_auto_placements",
+      "breakpoints": true
     }
   ]
 }

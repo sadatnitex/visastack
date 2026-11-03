@@ -442,6 +442,15 @@ export const CATALOGUE_MODULES: readonly CatalogueModule[] = [
     blocks: ['G:application_record'],
     suggestedFor: ['after_decision'],
   }),
+  m({
+    key: 'past_applications',
+    label: 'Past Applications',
+    description:
+      'Applications you made before or outside VisaStack: where, which visa, when and what happened.',
+    layer: 'timelines',
+    pack: 'universal',
+    blocks: ['G:past_application'],
+  }),
 
   // ----------------------------------------------------------------------------------- Money
   m({

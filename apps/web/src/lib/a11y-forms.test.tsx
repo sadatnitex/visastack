@@ -71,6 +71,7 @@ vi.mock('../app/app/admin/complaints/actions', standIn);
 vi.mock('../app/app/admin/organizations/[orgId]/actions', standIn);
 vi.mock('../app/app/admin/organizations/[orgId]/refund-actions', standIn);
 vi.mock('../app/app/admin/packs/actions', standIn);
+vi.mock('../app/app/admin/packs/rule-detail-actions', standIn);
 vi.mock('../app/app/admin/packs/sources/actions', standIn);
 // UMPE P11: checklist corrections.
 vi.mock('../app/app/admin/packs/corrections/actions', standIn);
@@ -135,6 +136,7 @@ const complaintForms = await import('../app/app/admin/complaints/forms');
 const organisationForms = await import('../app/app/admin/organizations/[orgId]/forms');
 const refundForms = await import('../app/app/admin/organizations/[orgId]/refund-forms');
 const packForms = await import('../app/app/admin/packs/pack-forms');
+const ruleDetailForms = await import('../app/app/admin/packs/rule-detail-forms');
 const packVersionButtons = await import('../app/app/admin/packs/pack-version-buttons');
 const sourceForms = await import('../app/app/admin/packs/sources/source-forms');
 const correctionForms = await import('../app/app/admin/packs/corrections/correction-forms');
@@ -380,6 +382,24 @@ const DOCS: readonly Case[] = [
             { applicantId: 'a1', displayName: 'Anna Eriksson' },
             { applicantId: 'a2', displayName: 'Erik Eriksson' },
           ]}
+          // UMPE G4: the Change forms for a recognised kind and an automatic filing.
+          automatic={[
+            {
+              placementId: 'pl1',
+              documentId: 'd9',
+              placement: 'KIND',
+              title: 'Hotel Booking, Anna',
+              kindLabel: 'Hotel or Stay Booking',
+            },
+            {
+              placementId: 'pl2',
+              documentId: 'd10',
+              placement: 'PERSON',
+              title: 'Passport, Anna',
+              kindLabel: null,
+            },
+          ]}
+          personName="Anna Eriksson"
           linked={[
             {
               documentId: 'd5',
@@ -2311,6 +2331,56 @@ const ADMIN: readonly Case[] = [
         sourceTitle="Official requirements"
         publisher="Immigration authority"
         observedDate="2026-10-01"
+      />
+    ),
+  },
+  {
+    name: 'rule details for a document requirement',
+    element: () => (
+      <ruleDetailForms.RequirementDetailsForm
+        packId="pk1"
+        requirementId="req1"
+        kind="DOCUMENT"
+        values={{
+          category: 'FINANCIAL_MEANS',
+          acceptedForm: 'CERTIFIED_COPY',
+          translationNeeded: 'yes',
+          originalNeeded: '',
+          statementPeriodMonths: '6',
+          validMonthsAfterTravel: '',
+          effectiveSince: '2026-09-01',
+        }}
+      />
+    ),
+  },
+  {
+    name: 'rule details for an answer requirement',
+    element: () => (
+      <ruleDetailForms.RequirementDetailsForm
+        packId="pk1"
+        requirementId="req2"
+        kind="FIELD"
+        values={{
+          category: '',
+          acceptedForm: '',
+          translationNeeded: '',
+          originalNeeded: '',
+          statementPeriodMonths: '',
+          validMonthsAfterTravel: '',
+          effectiveSince: '',
+        }}
+      />
+    ),
+  },
+  {
+    name: 'who a checklist is for',
+    element: () => (
+      <ruleDetailForms.RouteConditionsForm
+        packId="pk1"
+        packVersionId="pv1"
+        consularPosts={['Dhaka']}
+        travelFrom="2027-01-01"
+        travelUntil=""
       />
     ),
   },

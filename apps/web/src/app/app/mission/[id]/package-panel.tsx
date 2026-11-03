@@ -108,7 +108,17 @@ function choiceOptions(item: PackageItem): { options: PackageChoiceOption[]; cur
   return { options, current };
 }
 
-export function PackagePanel({ pkg }: { readonly pkg: CasePackage }) {
+export function PackagePanel({
+  pkg,
+  formatLines = {},
+}: {
+  readonly pkg: CasePackage;
+  /**
+   * UMPE G2 (R12): how each document must be provided, by requirement id, from the checklist's
+   * structured format rules (the notes are read only as a fallback). Absent means nothing stated.
+   */
+  readonly formatLines?: Readonly<Record<string, readonly string[]>>;
+}) {
   const items = pkg.items.filter((item) => item.state !== 'NOT_APPLICABLE');
   const editable = pkg.available && pkg.active;
   const caveats = pkg.freshness?.caveats ?? [];
@@ -183,6 +193,11 @@ export function PackagePanel({ pkg }: { readonly pkg: CasePackage }) {
                     ) : null}
                   </p>
                   <p className="muted u-fs-085 u-m-0">{usingLine(item)}</p>
+                  {(formatLines[item.packRequirementId]?.length ?? 0) > 0 ? (
+                    <p className="u-fs-085 u-m-0 package-item-format">
+                      How to Provide It: {formatLines[item.packRequirementId]?.join(' · ')}
+                    </p>
+                  ) : null}
                   {item.newerCopy ? (
                     <p className="u-fs-085 u-m-0">
                       A newer copy is available: {copyName(item.newerCopy)}. Your choice stays as it

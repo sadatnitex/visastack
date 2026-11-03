@@ -177,6 +177,14 @@ describe('/collect/account', () => {
     expect(mocks.propose).not.toHaveBeenCalled();
   });
 
+  it('names an item observed in VisaStack cases as an observation, never as official (UMPE G2, S08)', async () => {
+    const { itemSource } = await import('./terms');
+    expect(itemSource({ ...PASSPORT, provenance: 'FIELD_OBSERVATION' } as never, 'Agency')).toBe(
+      'Observed in VisaStack Cases',
+    );
+    expect(itemSource(PASSPORT as never, 'Agency')).toBe('Official Requirement');
+  });
+
   it('shows the issued checklist with the matching current copy proposed, Still Missing where nothing matches, and the consent wording', async () => {
     const text = textOf(await renderServer(AccountPage({})));
     expect(text).toContain('Answer Synthetic Agency One');

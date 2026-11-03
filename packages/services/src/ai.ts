@@ -61,6 +61,7 @@ import {
 } from './profile';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 import { periodForName } from './umpe-document-arrival';
+import { buildRecognitionExcerpt } from './umpe-document-recognition';
 
 /**
  * AI Gateway (Build Spec §8; master directive §8/§26 item 4): extraction
@@ -1680,6 +1681,11 @@ export interface RunClassificationInput {
   readonly maxConcurrentCalls?: number;
   readonly cacheMaxAgeDays?: number;
   readonly killSwitchCheck?: () => Promise<boolean>;
+  /**
+   * UMPE G4: false for a recognition, which keeps only the kind and its confidence. The model's
+   * own explanation is never stored then.
+   */
+  readonly keepRationale?: boolean;
 }
 
 export interface RunClassificationSummary {
@@ -1986,7 +1992,7 @@ async function dispatchAndReconcileClassification(
               applicantId: input.applicantId,
               suggestedType,
               confidence: toPersistedConfidence(confidence),
-              rationale: rationale ?? null,
+              rationale: input.keepRationale === false ? null : (rationale ?? null),
             })
             .returning(),
         ),
@@ -2413,7 +2419,10 @@ export async function suggestDocumentKind(
  * nothing the job row says is trusted. Exactly the same gates as the button: the feature (for the
  * owner, in the job's system context), CORE_PROCESSING and AI_EXTRACTION consent checked now, the
  * rules' own confident kind, one waiting suggestion per file, budgets, cache, kill switch and rate
- * limit. The result only ever waits for the person (Needs One Decision lists it); nothing is saved.
+ * limit. UMPE G4: this is recognition only. It sends a redacted, bounded excerpt
+ * (`buildRecognitionExcerpt`) and keeps only the kind and its confidence; the reading job then
+ * applies a confident kind at once (`placeRecognisedKind`, with a one-step Change) and leaves a
+ * less sure one waiting for the person in Needs One Decision.
  */
 export async function suggestDocumentKindInBackground(
   db: Db,
@@ -2455,6 +2464,9 @@ export async function suggestDocumentKindInBackground(
       }),
     ai,
     input,
+    // UMPE G4: in the background this is recognition only: a redacted, bounded excerpt is sent and
+    // only the kind and its confidence are kept, so it may run while unknown kinds are protected.
+    { recognitionOnly: true },
   );
 }
 
@@ -2471,6 +2483,7 @@ async function suggestKindForOwner(
   openGate: () => ReturnType<typeof openAiFeatureGate>,
   ai: AiClassifyPort,
   input: SuggestDocumentKindInput,
+  options: { readonly recognitionOnly?: boolean } = {},
 ): Promise<Result<DocumentKindSuggestion, ServiceError>> {
   const ownerAccountId = owner.ownerAccountId;
 
@@ -2547,6 +2560,9 @@ async function suggestKindForOwner(
 
   const text = await getLatestExtractedText(db, input.documentVersionId, owner.applicantId);
   if (!text) return err(serviceError('invalid', 'there is no text from this file to read yet'));
+  // UMPE G4: what is sent. The period for the name is still read from the whole text, here.
+  const sent = options.recognitionOnly ? buildRecognitionExcerpt(text) : text;
+  if (sent === '') return ok({ status: 'no_suggestion' });
 
   // After the no-op answers above on purpose, exactly like runClassification: asking again
   // about a document that needs nothing spends nothing.
@@ -2557,7 +2573,8 @@ async function suggestKindForOwner(
     actorAccountId: ownerAccountId,
     applicantId: owner.applicantId,
     documentVersionId: input.documentVersionId,
-    text,
+    text: sent,
+    ...(options.recognitionOnly ? { keepRationale: false } : {}),
     budgetLimitUnits: input.budgetLimitUnits,
     ...(input.perDocumentBudgetLimitUnits !== undefined
       ? { perDocumentBudgetLimitUnits: input.perDocumentBudgetLimitUnits }

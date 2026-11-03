@@ -71,6 +71,8 @@ import {
   cancelQueuedNotificationsForResource,
   enqueueNotificationBothChannels,
 } from './notifications';
+import { caseDetailsFit } from './pack-matching';
+import { listPackRouteConditions } from './pack-rule-details';
 import { type PackRequirement, listRequirements } from './packs';
 import { CASE_TRAVEL_END_KEY, CASE_TRAVEL_START_KEY } from './rule-conditions';
 import { canonicalJson } from './umpe-collection-request-items';
@@ -872,6 +874,26 @@ async function buildPackage(
       packRequirementId: null,
       subjectId: freshness.packVersionId,
     });
+  }
+  // UMPE G2 (R05): the linked version's declared posts or travel window no longer fit the case
+  // (after its details were edited), or it needs a detail the case lacks. One signal per version,
+  // so the same situation is recorded once. Nothing before the G2 tables exist.
+  if (mission.packVersionId) {
+    const conditions = (await listPackRouteConditions(tx, [mission.packVersionId])).get(
+      mission.packVersionId,
+    );
+    const fit = caseDetailsFit(
+      conditions,
+      mission.jurisdiction?.trim() || null,
+      mission.travelStartDate,
+    );
+    if (fit.excluded || fit.needs.length > 0) {
+      signals.push({
+        kind: 'CASE_DETAILS_CHANGED',
+        packRequirementId: null,
+        subjectId: mission.packVersionId,
+      });
+    }
   }
   if (latestHandoff && latestHandoff.packVersionId !== mission.packVersionId) {
     signals.push({

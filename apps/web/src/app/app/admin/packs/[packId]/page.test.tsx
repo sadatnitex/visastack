@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   listPackVersions: vi.fn(),
   listRequirements: vi.fn(),
   listMissionsByPackVersion: vi.fn(),
+  listPackRouteConditions: vi.fn(async () => new Map()),
+  listRequirementDetails: vi.fn(async () => new Map()),
 }));
 
 vi.mock('../../../../../lib/session', () => ({
@@ -27,7 +29,16 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listPackVersions: (...args: unknown[]) => mocks.listPackVersions(...args),
   listRequirements: (...args: unknown[]) => mocks.listRequirements(...args),
   listMissionsByPackVersion: (...args: unknown[]) => mocks.listMissionsByPackVersion(...args),
+  listPackRouteConditions: () => mocks.listPackRouteConditions(),
+  listRequirementDetails: () => mocks.listRequirementDetails(),
 }));
+vi.mock('../rule-detail-forms', async () => {
+  const { stub } = await import('../../../../../lib/next-mocks.test-support');
+  return {
+    RequirementDetailsForm: stub('RequirementDetailsForm'),
+    RouteConditionsForm: stub('RouteConditionsForm'),
+  };
+});
 vi.mock('../pack-forms', async () => {
   const { stub } = await import('../../../../../lib/next-mocks.test-support');
   return {
