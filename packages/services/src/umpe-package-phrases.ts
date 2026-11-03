@@ -154,6 +154,8 @@ export function outsideSteps(notes: readonly (string | null)[]): OutsideStep[] {
 
 export const PACKAGE_CHANGE_KINDS = [
   'PACK_WITHDRAWN',
+  // UMPE G2: the case's application post or travel dates no longer fit the linked checklist.
+  'CASE_DETAILS_CHANGED',
   'PACK_CHANGED',
   'EVIDENCE_EXPIRED',
   'FACT_CHANGED',
@@ -205,6 +207,8 @@ export function pickPackageChange(signals: readonly PackageChangeSignal[]): Pack
 export const PACKAGE_CHANGE_LABELS: Readonly<Record<PackageChangeKind, string>> = {
   PACK_WITHDRAWN:
     'The checklist for this trip was withdrawn. Check what is needed before you share anything.',
+  CASE_DETAILS_CHANGED:
+    'The checklist for this trip is for another embassy or other travel dates, or needs them. Check which checklist applies before you share anything.',
   PACK_CHANGED:
     'A newer checklist was published for this trip. Review it before you share anything.',
   EVIDENCE_EXPIRED:

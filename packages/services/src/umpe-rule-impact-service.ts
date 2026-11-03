@@ -72,6 +72,13 @@ const MATERIAL_FIELDS: ReadonlySet<string> = new Set([
   'groupKey',
   'groupMode',
   'provenance',
+  // UMPE G2: how a document must be provided and how long it must stay valid after the trip. The
+  // category (where it is listed) and the source's effective date change nothing to provide.
+  'acceptedForm',
+  'translationNeeded',
+  'originalNeeded',
+  'statementPeriodMonths',
+  'validMonthsAfterTravel',
 ]);
 
 function isMaterial(entry: RequirementDiffEntry): boolean {

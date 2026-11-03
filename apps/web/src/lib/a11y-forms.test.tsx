@@ -2359,6 +2359,7 @@ const ADMIN: readonly Case[] = [
     element: () => (
       <ruleDetailForms.RouteConditionsForm
         packId="pk1"
+        packVersionId="pv1"
         consularPosts={['Dhaka']}
         travelFrom="2027-01-01"
         travelUntil=""

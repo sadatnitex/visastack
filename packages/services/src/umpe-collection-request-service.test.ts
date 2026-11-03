@@ -17,6 +17,7 @@ import type { Db } from './db';
 import { runNotificationWorker } from './notifications';
 import { addMembership, createOrganization, reviewOrganization } from './organizations';
 import type { PackMatchTerms } from './pack-matching';
+import { loadManifestExtras } from './pack-rule-details';
 import { buildManifest, listRequirements } from './packs';
 import type { KeyManagementPort, SendEmailInput } from './ports';
 import { parseItems } from './umpe-collection-request-items';
@@ -196,6 +197,106 @@ describe('agency document requests before any traveller record (UMPE P6)', () =>
     if (!created.ok) throw new Error(created.error.message);
     return created.value.id;
   }
+
+  /** UMPE G2: a published business pack with one official item and one field observation. */
+  async function businessPack(conditions?: { readonly consularPosts: string[] }): Promise<string> {
+    const [pack] = await db
+      .insert(schema.packs)
+      .values({
+        key: `synthetic.uk.business.${randomUUID()}`,
+        name: 'Synthetic UK Business',
+        jurisdiction: 'United Kingdom',
+        purpose: 'Business',
+        authoritative: true,
+      })
+      .returning();
+    if (!pack) throw new Error('pack');
+    const [version] = await db
+      .insert(schema.packVersions)
+      .values({ packId: pack.id, version: 1, status: 'PUBLISHED', manifestFormat: 2 })
+      .returning();
+    if (!version) throw new Error('version');
+    await db.insert(schema.packRequirements).values([
+      {
+        packVersionId: version.id,
+        kind: 'DOCUMENT',
+        docType: 'passport',
+        citation: 'Synthetic rule 1',
+        optional: false,
+        necessity: 'MANDATORY',
+      },
+      {
+        packVersionId: version.id,
+        kind: 'DOCUMENT',
+        docType: 'cover_letter',
+        citation: 'Seen in synthetic cases',
+        optional: true,
+        necessity: 'RECOMMENDED',
+        provenance: 'FIELD_OBSERVATION',
+      },
+    ]);
+    if (conditions) {
+      await db.insert(schema.packRouteConditions).values({
+        packVersionId: version.id,
+        consularPosts: conditions.consularPosts,
+      });
+    }
+    const extras = await loadManifestExtras(
+      db,
+      version.id,
+      (await listRequirements(db, version.id)).map((r) => r.id),
+    );
+    const { checksum } = buildManifest(await listRequirements(db, version.id), 2, extras);
+    await db
+      .update(schema.packVersions)
+      .set({ checksum })
+      .where(eq(schema.packVersions.id, version.id));
+    return version.id;
+  }
+
+  const UK_BUSINESS: PackMatchTerms = { ...UK_TOURISM, purpose: ['business', 'Business'] };
+
+  it('carries a field observation into the request as an observation, never as official (UMPE G2, S08)', async () => {
+    const versionId = await businessPack();
+    const created = await createCollectionRequest(
+      db,
+      await scope(),
+      input({ purpose: 'Business', packTerms: UK_BUSINESS }),
+    );
+    if (!created.ok) throw new Error(created.error.message);
+    expect(created.value.proposedPack?.packVersionId).toBe(versionId);
+    const detail = await getCollectionRequest(db, await scope(), created.value.id);
+    if (!detail.ok || !detail.value.draftItems) throw new Error('detail');
+    const observed = detail.value.draftItems.find((item) => item.docType === 'cover_letter');
+    expect(observed?.provenance).toBe('FIELD_OBSERVATION');
+    expect(observed?.necessity).toBe('RECOMMENDED');
+    const passport = detail.value.draftItems.find((item) => item.docType === 'passport');
+    expect(passport?.provenance).toBe('OFFICIAL');
+    // The stored items read back the same, and a blocking field observation is refused on read.
+    expect(parseItems(detail.value.draftItems)?.map((i) => i.provenance)).toEqual(
+      detail.value.draftItems.map((i) => i.provenance),
+    );
+    expect(parseItems([{ ...observed, necessity: 'MANDATORY' }])).toBeNull();
+  });
+
+  it('never proposes on its own a pack limited to application posts the request does not name (UMPE G2)', async () => {
+    const versionId = await businessPack({ consularPosts: ['Dhaka'] });
+    const unnamed = await createCollectionRequest(
+      db,
+      await scope(),
+      input({ purpose: 'Business', packTerms: UK_BUSINESS }),
+    );
+    if (!unnamed.ok) throw new Error(unnamed.error.message);
+    expect(unnamed.value.proposedPack).toBeNull();
+    // The request's own application place is compared: a named post that fits is proposed.
+    const named = await createCollectionRequest(
+      db,
+      await scope(),
+      input({ purpose: 'Business', packTerms: UK_BUSINESS, applicationPlace: 'VFS Dhaka' }),
+    );
+    if (!named.ok) throw new Error(named.error.message);
+    expect(named.value.proposedPack?.packVersionId).toBe(versionId);
+  });
 
   async function issued(requestId: string) {
     const result = await issueCollectionRequest(db, await scope(), requestId);

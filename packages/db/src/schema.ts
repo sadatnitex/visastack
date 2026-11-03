@@ -6053,7 +6053,8 @@ export const umpePackageChanges = pgTable(
     index('umpe_package_changes_applicant_idx').on(table.applicantId),
     check(
       'umpe_package_changes_kind_known',
-      sql`${table.kind} in ('NEWER_DOCUMENT', 'FACT_CHANGED', 'EVIDENCE_EXPIRED', 'PACK_CHANGED', 'PACK_WITHDRAWN', 'SOURCE_CHANGING')`,
+      // CASE_DETAILS_CHANGED: UMPE G2 (the linked checklist no longer fits the case's post or dates).
+      sql`${table.kind} in ('NEWER_DOCUMENT', 'FACT_CHANGED', 'EVIDENCE_EXPIRED', 'PACK_CHANGED', 'PACK_WITHDRAWN', 'SOURCE_CHANGING', 'CASE_DETAILS_CHANGED')`,
     ),
     check('umpe_package_changes_source_known', sql`${table.source} in ('CASE_OPENED', 'SWEEP')`),
     check(
@@ -7017,9 +7018,10 @@ export const agencyMemberCapabilities = pgTable(
 );
 
 // --- UMPE G2: rule category, document format and route conditions ---------------------------------
-// Side tables, so no existing read or write of `pack_requirements` or `packs` changes and code runs
-// before this migration exists. Details are editable only while their pack version is a draft (the
-// service enforces it); they stay outside the manifest checksum, like `max_age_days` and `notes`.
+// Side tables, so no existing read or write of `pack_requirements` or `pack_versions` changes and
+// code runs before this migration exists. Both belong to one pack version: editable only while it
+// is a draft (the service enforces it), and part of its format 2 manifest checksum when present, so
+// a published version never changes and a changed rule is a new, reviewed version.
 export const packRequirementDetails = pgTable(
   'pack_requirement_details',
   {
@@ -7062,14 +7064,14 @@ export const packRequirementDetails = pgTable(
   ],
 );
 
-// Which application posts and travel window a pack is for (R05). No row, or an empty list, means
-// the pack does not narrow by that; a case that lacks a value the pack declares is asked for it.
+// Which application posts and travel window a pack version is for (R05). No row, or an empty list,
+// means the version does not narrow by that; a case that lacks a value it declares is asked for it.
 export const packRouteConditions = pgTable(
   'pack_route_conditions',
   {
-    packId: uuid('pack_id')
+    packVersionId: uuid('pack_version_id')
       .primaryKey()
-      .references(() => packs.id, { onDelete: 'cascade' }),
+      .references(() => packVersions.id, { onDelete: 'cascade' }),
     consularPosts: text('consular_posts').array(),
     travelFrom: date('travel_from', { mode: 'string' }),
     travelUntil: date('travel_until', { mode: 'string' }),

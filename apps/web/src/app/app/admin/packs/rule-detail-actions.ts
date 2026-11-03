@@ -121,7 +121,8 @@ export async function setRouteConditionsAction(
   formData: FormData,
 ): Promise<ActionState> {
   const packId = text(formData, 'packId');
-  if (!packId) return { ok: false, message: 'Missing pack.' };
+  const packVersionId = text(formData, 'packVersionId');
+  if (!packId || !packVersionId) return { ok: false, message: 'Missing pack version.' };
   const consularPosts = String(formData.get('consularPosts') ?? '')
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -132,7 +133,7 @@ export async function setRouteConditionsAction(
     const staff = await packScope(db, accountId, email);
     if (!staff) return DENIED;
     const saved = await setPackRouteConditions(db, staff, {
-      packId,
+      packVersionId,
       consularPosts,
       travelFrom,
       travelUntil,

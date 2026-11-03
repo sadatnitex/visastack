@@ -10,6 +10,7 @@ import {
   NO_REQUIREMENT_DETAILS,
   NO_ROUTE_CONDITIONS,
   type PackRequirement,
+  type PackRouteConditions,
   type RequirementDetails,
   getPack,
   listMissionsByPackVersion,
@@ -98,6 +99,21 @@ function byRequirementKey(a: RequirementKey, b: RequirementKey): number {
  * by default, with its requirements as compact rows 25 at a time; every other version is a short
  * row that opens it. Only the open version's requirements and attached cases are read.
  */
+/** UMPE G2: who a version is for, in one plain sentence. */
+function routeSummary(c: PackRouteConditions): string {
+  const posts =
+    c.consularPosts.length > 0
+      ? `Application posts: ${c.consularPosts.join(', ')}.`
+      : 'Any application post.';
+  const from = c.travelFrom ? `from ${formatDateOnly(c.travelFrom)}` : '';
+  const until = c.travelUntil ? `until ${formatDateOnly(c.travelUntil)}` : '';
+  const dates =
+    from || until
+      ? `Trips starting ${[from, until].filter(Boolean).join(' ')}.`
+      : 'Any travel dates.';
+  return `${posts} ${dates}`;
+}
+
 /** UMPE G2: a requirement's saved rule details, as the details form shows them. */
 function detailsValues(details: RequirementDetails | undefined): RequirementDetailsValues {
   const d = details ?? NO_REQUIREMENT_DETAILS;
@@ -149,13 +165,9 @@ export default async function PackDetailPage({
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
     const pack = await getPack(db, packId);
     if (!pack) return { admin: true as const, pack: null };
-    // UMPE G2: which application posts and trip window this pack is for (none declared before
-    // the G2 tables exist).
-    const routeConditions =
-      (await listPackRouteConditions(db, [pack.id])).get(pack.id) ?? NO_ROUTE_CONDITIONS;
     const versions = await listPackVersions(db, packId);
     const open = versions.find((v) => v.id === wantedVersion) ?? versions[0];
-    if (!open) return { admin: true as const, pack, routeConditions, versions, open: null };
+    if (!open) return { admin: true as const, pack, versions, open: null };
     const [requirements, missionCount] = await Promise.all([
       // The read has no order of its own, so the page sorts on fields an edit never changes:
       // a requirement keeps its place (and its Show More page) after a source review is saved.
@@ -167,16 +179,20 @@ export default async function PackDetailPage({
         ? listMissionsByPackVersion(db, open.id).then((missions) => missions.length)
         : Promise.resolve(0),
     ]);
-    const details = await listRequirementDetails(
-      db,
-      requirements.map((r) => r.id),
-    );
+    // UMPE G2: the open version's rule details and who it is for (none before the G2 tables exist).
+    const [details, conditions] = await Promise.all([
+      listRequirementDetails(
+        db,
+        requirements.map((r) => r.id),
+      ),
+      listPackRouteConditions(db, [open.id]),
+    ]);
+    const routeConditions = conditions.get(open.id) ?? NO_ROUTE_CONDITIONS;
     return {
       admin: true as const,
       pack,
-      routeConditions,
       versions,
-      open: { version: open, requirements, missionCount, details },
+      open: { version: open, requirements, missionCount, details, routeConditions },
     };
   });
 
@@ -212,29 +228,6 @@ export default async function PackDetailPage({
         }
         actions={<OpenVersionButton packId={packId} />}
       />
-
-      <article className="card" id="pack-route-conditions">
-        <div className="card-head">
-          <h2 className="card-title">Who This Checklist Is For</h2>
-        </div>
-        <p className="muted u-fs-085">
-          {data.routeConditions.consularPosts.length > 0
-            ? `Application posts: ${data.routeConditions.consularPosts.join(', ')}.`
-            : 'Any application post.'}{' '}
-          {data.routeConditions.travelFrom || data.routeConditions.travelUntil
-            ? `Trips starting ${data.routeConditions.travelFrom ? `from ${formatDateOnly(data.routeConditions.travelFrom)}` : ''}${data.routeConditions.travelFrom && data.routeConditions.travelUntil ? ' ' : ''}${data.routeConditions.travelUntil ? `until ${formatDateOnly(data.routeConditions.travelUntil)}` : ''}.`
-            : 'Any travel dates.'}
-        </p>
-        <details className="sb7-fold">
-          <summary>Change Who This Checklist Is For</summary>
-          <RouteConditionsForm
-            packId={data.pack.id}
-            consularPosts={data.routeConditions.consularPosts}
-            travelFrom={data.routeConditions.travelFrom ?? ''}
-            travelUntil={data.routeConditions.travelUntil ?? ''}
-          />
-        </details>
-      </article>
 
       {data.open === null ? (
         <article className="card">
@@ -303,6 +296,28 @@ export default async function PackDetailPage({
                       : `${missionCount} case${missionCount === 1 ? '' : 's'} currently attached to this version.`}
                   </p>
                 ) : null}
+
+                <section id="pack-route-conditions" aria-labelledby="pack-route-conditions-heading">
+                  <h3 id="pack-route-conditions-heading" className="case-checklist-heading">
+                    Who This Version Is For
+                  </h3>
+                  <p className="muted u-fs-085">
+                    {routeSummary(data.open.routeConditions)}
+                    {isDraft ? '' : ' Change it in a new draft version.'}
+                  </p>
+                  {isDraft ? (
+                    <details className="sb7-fold">
+                      <summary>Change Who This Version Is For</summary>
+                      <RouteConditionsForm
+                        packId={data.pack.id}
+                        packVersionId={version.id}
+                        consularPosts={data.open.routeConditions.consularPosts}
+                        travelFrom={data.open.routeConditions.travelFrom ?? ''}
+                        travelUntil={data.open.routeConditions.travelUntil ?? ''}
+                      />
+                    </details>
+                  ) : null}
+                </section>
 
                 {requirements.length === 0 ? (
                   <p className="card-body">No requirements yet.</p>

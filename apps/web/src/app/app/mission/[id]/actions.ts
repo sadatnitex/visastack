@@ -13,6 +13,7 @@ import {
   explainReadinessGap,
   fileComplaint,
   generateCoverLetter,
+  getCasePackage,
   getMissionForOwner,
   isAiDispatchAllowed,
   listRequirements,
@@ -374,6 +375,21 @@ export async function updateCaseDetailsAction(
       manualMode,
     });
     if (!updated.ok) return { ok: false, message: updated.error.message } satisfies ActionState;
+    // UMPE G2: a new post or travel date may mean the linked checklist no longer fits. Rebuilding
+    // the trip package records that once as a "something changed" item (handoffs are never
+    // touched). Best effort: the details are saved whatever this finds.
+    try {
+      const gate = await requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'VIEW_METADATA',
+        { missionId },
+        { purpose: 'self' },
+      );
+      if (gate.ok) await getCasePackage(gate.value, missionId);
+    } catch (error) {
+      reportServerError('updateCaseDetailsAction', error, { step: 'package recheck' });
+    }
     return { ok: true, message: 'Case details updated.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);

@@ -271,6 +271,28 @@ describe('/collect', () => {
     expect(html).not.toMatch(/checked=""/);
   });
 
+  it('labels an item observed in VisaStack cases as an observation, never as official (UMPE G2, S08)', async () => {
+    mocks.cookie = SESSION;
+    mocks.desk.mockResolvedValue({
+      ...VERIFIED,
+      items: [
+        {
+          id: 'i9',
+          label: 'Cover Letter',
+          kind: 'DOCUMENT',
+          necessity: 'RECOMMENDED',
+          provenance: 'FIELD_OBSERVATION',
+          groupKey: null,
+          note: null,
+          order: 0,
+        },
+      ],
+    });
+    const text = textOf(await renderServer(CollectPage({ searchParams: Promise.resolve({}) })));
+    expect(text).toContain('Recommended · Observed in VisaStack Cases');
+    expect(text).not.toContain('Official Requirement');
+  });
+
   it('shows a lone member of an alternatives group as a plain item, and a split group whole in its strongest section', async () => {
     mocks.cookie = SESSION;
     const base = VERIFIED.items[0] as (typeof VERIFIED.items)[number];

@@ -176,10 +176,35 @@ function cleanRequest(input: CollectionRequestInput, now: Date): CleanRequest | 
   };
 }
 
-/** The one published pack to propose on its own: the only fitting one known to cover the person. */
+/**
+ * The one published pack to propose on its own: the only fitting one known to cover the person and
+ * needing no case detail the request lacks (UMPE G2: a pack limited to some application posts or
+ * travel dates is never proposed on a guess).
+ */
 function soleCoveringPack(fitting: readonly PackMatch[]): PackMatch | null {
-  const covering = fitting.filter((pack) => pack.coversTraveller);
+  const covering = fitting.filter((pack) => pack.coversTraveller && pack.needs === undefined);
   return covering.length === 1 ? (covering[0] ?? null) : null;
+}
+
+/**
+ * The request's own application place and first travel date added to the caller's terms (UMPE G2,
+ * R05), so a pack limited to some posts or a travel window is compared with what the agency entered
+ * rather than asked for again. A value the caller already gave is kept.
+ */
+function withRequestDetails(
+  terms: PackMatchTerms,
+  details: { readonly applicationPlace: string | null; readonly travelFrom: string | null },
+): PackMatchTerms {
+  const travelStart = details.travelFrom ? new Date(`${details.travelFrom}T00:00:00Z`) : null;
+  return {
+    ...terms,
+    ...(terms.consularPost == null && details.applicationPlace
+      ? { consularPost: details.applicationPlace }
+      : {}),
+    ...(terms.travelStart == null && travelStart && !Number.isNaN(travelStart.getTime())
+      ? { travelStart }
+      : {}),
+  };
 }
 
 /** A pack's requirements as official items, or null when its checksum no longer verifies. */
@@ -224,7 +249,9 @@ export async function createCollectionRequest(
   if (!rateLimit.allowed) return err(serviceError('rate_limited', rateLimit.reason));
 
   const fitting =
-    input.packTerms && clean.purpose ? await listFittingPublicPacks(db, input.packTerms) : [];
+    input.packTerms && clean.purpose
+      ? await listFittingPublicPacks(db, withRequestDetails(input.packTerms, clean))
+      : [];
   const pack = soleCoveringPack(fitting);
   const items = pack ? await officialProposal(db, pack.packVersionId) : null;
   const proposedPack = pack && items ? pack : null;
@@ -734,7 +761,7 @@ export async function listCollectionPackChoices(
   const request = await loadRequest(db, scope, requestId);
   if (!request) return err(missing());
   if (!packTerms || !request.purpose) return ok([]);
-  return ok(await listFittingPublicPacks(db, packTerms));
+  return ok(await listFittingPublicPacks(db, withRequestDetails(packTerms, request)));
 }
 
 /**
@@ -755,7 +782,9 @@ export async function chooseCollectionPack(
     const request = await loadRequest(db, scope, requestId);
     if (!request) return err(missing());
     const fitting =
-      choice.packTerms && request.purpose ? await listFittingPublicPacks(db, choice.packTerms) : [];
+      choice.packTerms && request.purpose
+        ? await listFittingPublicPacks(db, withRequestDetails(choice.packTerms, request))
+        : [];
     if (!fitting.some((pack) => pack.packVersionId === choice.packVersionId)) {
       return err(serviceError('invalid', 'That checklist does not fit this request.'));
     }

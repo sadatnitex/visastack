@@ -19,7 +19,15 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isHttpUrl } from './external-url';
-import { ruleDetailTablesPresent } from './pack-rule-details';
+import {
+  type ManifestExtras,
+  NO_MANIFEST_EXTRAS,
+  type RequirementDetails,
+  copyRouteConditionsForward,
+  detailsPresent,
+  loadManifestExtras,
+  ruleDetailTablesPresent,
+} from './pack-rule-details';
 import { recordProductEvent } from './product-events';
 import { type RuleCondition, isValidRuleCondition } from './rule-conditions';
 import { queueRuleImpact } from './umpe-rule-impact-queue';
@@ -96,10 +104,24 @@ export function manifestFormatOf(version: {
   return version.manifestFormat === 2 ? 2 : null;
 }
 
-/** Whether any requirement uses a rule field that only format 2 can record. */
-export function usesFormat2Fields(requirements: readonly PackRequirement[]): boolean {
-  return requirements.some(
-    (r) => r.necessity != null || r.provenance != null || r.groupKey != null || r.groupMode != null,
+/**
+ * Whether any requirement uses a rule field that only format 2 can record: a P1 column, a G2 rule
+ * detail, or route conditions on the version.
+ */
+export function usesFormat2Fields(
+  requirements: readonly PackRequirement[],
+  extras: ManifestExtras = NO_MANIFEST_EXTRAS,
+): boolean {
+  return (
+    extras.routeConditions !== null ||
+    requirements.some(
+      (r) =>
+        r.necessity != null ||
+        r.provenance != null ||
+        r.groupKey != null ||
+        r.groupMode != null ||
+        detailsPresent(extras.details.get(r.id)),
+    )
   );
 }
 
@@ -108,8 +130,11 @@ export function usesFormat2Fields(requirements: readonly PackRequirement[]): boo
  * field, otherwise format 1, the exact bytes every older version was approved with (ADR 0026 D2).
  * The one rule both approval and the draft manifest download use.
  */
-export function manifestFormatFor(requirements: readonly PackRequirement[]): ManifestFormat {
-  return usesFormat2Fields(requirements) ? 2 : 1;
+export function manifestFormatFor(
+  requirements: readonly PackRequirement[],
+  extras: ManifestExtras = NO_MANIFEST_EXTRAS,
+): ManifestFormat {
+  return usesFormat2Fields(requirements, extras) ? 2 : 1;
 }
 
 /** UTF-16 code unit order (JavaScript's default comparison), locale independent. */
@@ -132,8 +157,26 @@ function canonicalJson(value: unknown): unknown {
   return value;
 }
 
+/** The G2 rule detail keys a format 2 item appends, in this fixed order, each only when set. */
+function format2Details(details: RequirementDetails | undefined): Record<string, unknown> {
+  if (!details) return {};
+  const keys = [
+    'category',
+    'acceptedForm',
+    'translationNeeded',
+    'originalNeeded',
+    'statementPeriodMonths',
+    'validMonthsAfterTravel',
+  ] as const;
+  const out: Record<string, unknown> = {};
+  for (const key of keys) if (details[key] !== null) out[key] = details[key];
+  return details.effectiveSince === null
+    ? out
+    : { ...out, effectiveSince: details.effectiveSince.toISOString() };
+}
+
 /** One format 2 item: the five legacy keys first, then each new key only when it is set. */
-function format2Item(r: PackRequirement): Record<string, unknown> {
+function format2Item(r: PackRequirement, details?: RequirementDetails): Record<string, unknown> {
   return {
     kind: r.kind,
     fieldKey: r.fieldKey,
@@ -145,6 +188,7 @@ function format2Item(r: PackRequirement): Record<string, unknown> {
     ...(r.groupKey != null ? { groupKey: r.groupKey } : {}),
     ...(r.groupMode != null ? { groupMode: r.groupMode } : {}),
     ...(r.condition != null ? { condition: canonicalJson(r.condition) } : {}),
+    ...format2Details(details),
   };
 }
 
@@ -159,17 +203,32 @@ function format2Item(r: PackRequirement): Record<string, unknown> {
 export function buildManifest(
   requirements: readonly PackRequirement[],
   format: ManifestFormat = 1,
+  extras: ManifestExtras = NO_MANIFEST_EXTRAS,
 ): {
-  manifest: { formatVersion?: 2; requirements: unknown[] };
+  manifest: { formatVersion?: 2; requirements: unknown[]; routeConditions?: unknown };
   checksum: string;
 } {
   if (format === 2) {
     const keyed = requirements.map((r) => {
-      const item = format2Item(r);
+      const item = format2Item(r, extras.details.get(r.id));
       return { item, text: JSON.stringify(item) };
     });
     keyed.sort((a, b) => codeUnitCompare(a.text, b.text));
-    const manifest = { formatVersion: 2 as const, requirements: keyed.map((k) => k.item) };
+    // UMPE G2: route conditions appear only when the version declares them (ADR 0026 D2).
+    const conditions = extras.routeConditions;
+    const manifest = {
+      formatVersion: 2 as const,
+      requirements: keyed.map((k) => k.item),
+      ...(conditions
+        ? {
+            routeConditions: {
+              consularPosts: [...conditions.consularPosts],
+              travelFrom: conditions.travelFrom,
+              travelUntil: conditions.travelUntil,
+            },
+          }
+        : {}),
+    };
     const checksum = createHash('sha256').update(JSON.stringify(manifest)).digest('hex');
     return { manifest, checksum };
   }
@@ -441,6 +500,8 @@ export async function addPackVersion(
       ),
       'pack version',
     );
+    // UMPE G2: who the checklist is for carries forward into the new draft.
+    await copyRouteConditionsForward(tx, { packId: input.packId, toVersionId: version.id });
     await appendAuditEvent(tx, {
       eventType: 'PACK_VERSION_OPENED',
       actorAccountId: input.actorAccountId,
@@ -918,8 +979,13 @@ export async function approvePackVersion(
     const problem = ruleSetProblem(requirements);
     if (problem) return err(serviceError('invalid', problem));
 
-    const manifestFormat = manifestFormatFor(requirements);
-    const { manifest, checksum } = buildManifest(requirements, manifestFormat);
+    const extras = await loadManifestExtras(
+      tx,
+      input.packVersionId,
+      requirements.map((r) => r.id),
+    );
+    const manifestFormat = manifestFormatFor(requirements, extras);
+    const { manifest, checksum } = buildManifest(requirements, manifestFormat, extras);
 
     const updated = required(
       first(
@@ -1596,7 +1662,13 @@ export async function verifyPackChecksum(db: Db, packVersionId: string): Promise
   // Each version is verified with the serializer that produced its checksum (ADR 0026 D2).
   const format = manifestFormatOf(version);
   if (format === null) return false;
-  const { checksum } = buildManifest(await listRequirements(db, packVersionId), format);
+  const requirements = await listRequirements(db, packVersionId);
+  const extras = await loadManifestExtras(
+    db,
+    packVersionId,
+    requirements.map((r) => r.id),
+  );
+  const { checksum } = buildManifest(requirements, format, extras);
   return checksum === version.checksum;
 }
 
@@ -1672,6 +1744,47 @@ const DIFFABLE_SCALAR_FIELDS = [
   'groupMode',
 ] as const satisfies readonly (keyof PackRequirement)[];
 
+/** UMPE G2 rule detail fields compared by value (dates by time). */
+const DIFFABLE_DETAIL_FIELDS = [
+  'category',
+  'acceptedForm',
+  'translationNeeded',
+  'originalNeeded',
+  'statementPeriodMonths',
+  'validMonthsAfterTravel',
+] as const;
+
+/** Which G2 rule details differ; an absent record reads as all unset. */
+function changedDetailFields(
+  from: RequirementDetails | undefined,
+  to: RequirementDetails | undefined,
+): string[] {
+  const changed: string[] = DIFFABLE_DETAIL_FIELDS.filter(
+    (field) => (from?.[field] ?? null) !== (to?.[field] ?? null),
+  );
+  if ((from?.effectiveSince?.getTime() ?? null) !== (to?.effectiveSince?.getTime() ?? null)) {
+    changed.push('effectiveSince');
+  }
+  return changed;
+}
+
+function sameRouteConditions(
+  a: {
+    consularPosts: readonly string[];
+    travelFrom: string | null;
+    travelUntil: string | null;
+  } | null,
+  b: {
+    consularPosts: readonly string[];
+    travelFrom: string | null;
+    travelUntil: string | null;
+  } | null,
+): boolean {
+  const key = (c: typeof a) =>
+    c ? JSON.stringify([[...c.consularPosts].sort(), c.travelFrom, c.travelUntil]) : 'none';
+  return key(a) === key(b);
+}
+
 /** Every field name that differs between two requirements sharing the same natural key. Empty when they are equivalent. */
 function changedRequirementFields(from: PackRequirement, to: PackRequirement): string[] {
   const changed: string[] = DIFFABLE_SCALAR_FIELDS.filter((field) => from[field] !== to[field]);
@@ -1699,6 +1812,8 @@ export interface PackVersionDiff {
   readonly fromVersion: PackVersion;
   readonly toVersion: PackVersion;
   readonly entries: readonly RequirementDiffEntry[];
+  /** UMPE G2: whether the application posts or travel window differ between the versions. */
+  readonly routeConditionsChanged: boolean;
 }
 
 /**
@@ -1727,6 +1842,18 @@ export async function diffPackVersions(
     listRequirements(db, fromVersionId),
     listRequirements(db, toVersionId),
   ]);
+  const [fromExtras, toExtras] = await Promise.all([
+    loadManifestExtras(
+      db,
+      fromVersionId,
+      fromReqs.map((r) => r.id),
+    ),
+    loadManifestExtras(
+      db,
+      toVersionId,
+      toReqs.map((r) => r.id),
+    ),
+  ]);
   const fromByKey = new Map(fromReqs.map((r) => [requirementNaturalKey(r), r]));
   const toByKey = new Map(toReqs.map((r) => [requirementNaturalKey(r), r]));
   const keys = [...new Set([...fromByKey.keys(), ...toByKey.keys()])].sort();
@@ -1737,7 +1864,10 @@ export async function diffPackVersions(
     const to = toByKey.get(key) ?? null;
     if (!from) return { key, kind, change: 'added', from: null, to, changedFields: [] };
     if (!to) return { key, kind, change: 'removed', from, to: null, changedFields: [] };
-    const changedFields = changedRequirementFields(from, to);
+    const changedFields = [
+      ...changedRequirementFields(from, to),
+      ...changedDetailFields(fromExtras.details.get(from.id), toExtras.details.get(to.id)),
+    ];
     return {
       key,
       kind,
@@ -1748,5 +1878,13 @@ export async function diffPackVersions(
     };
   });
 
-  return ok({ fromVersion, toVersion, entries });
+  return ok({
+    fromVersion,
+    toVersion,
+    entries,
+    routeConditionsChanged: !sameRouteConditions(
+      fromExtras.routeConditions,
+      toExtras.routeConditions,
+    ),
+  });
 }

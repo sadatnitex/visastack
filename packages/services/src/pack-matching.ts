@@ -34,7 +34,7 @@ import { type PackRouteConditions, listPackRouteConditions } from './pack-rule-d
  * the same country and purpose are two fitting packs, so nothing is linked and the person picks.
  *
  * Application post and travel dates (UMPE G2, R05) are compared only when the pack declares them
- * (`pack_route_conditions`). A case whose post or trip start is known and outside what the pack
+ * (`pack_route_conditions`, on the version that would be linked). A case whose post or trip start is known and outside what the pack
  * declares is left out. A case that lacks a value the pack declares is never guessed about: the pack
  * is listed with `needs` naming the case detail to add, and never linked on its own. A pack that
  * declares nothing matches exactly as before.
@@ -201,6 +201,20 @@ function caseDetailFit(
   return { excluded: false, needs };
 }
 
+/**
+ * Whether one pack version's declared application posts and travel window fit a case (UMPE G2):
+ * `excluded` when a known case value is outside them, `needs` naming a declared detail the case
+ * lacks. A version that declares nothing fits. Used by matching and by the trip package, which
+ * raises one change when the linked checklist no longer fits after the case details are edited.
+ */
+export function caseDetailsFit(
+  conditions: PackRouteConditions | undefined,
+  consularPost: string | null,
+  travelStart: Date | null,
+): { readonly excluded: boolean; readonly needs: readonly PackMatchNeed[] } {
+  return caseDetailFit(conditions, packMatchKey(consularPost ?? ''), dayOf(travelStart));
+}
+
 /** A trip start as its UTC calendar date, or null when unknown or not a real date. */
 function dayOf(value: Date | null | undefined): string | null {
   if (!value || Number.isNaN(value.getTime())) return null;
@@ -253,9 +267,10 @@ export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Pro
     // The newest published version of each pack is its current checklist.
     .orderBy(schema.packVersions.packId, desc(schema.packVersions.version));
 
-  const conditionsByPack = await listPackRouteConditions(
+  // Route conditions belong to the exact version that would be linked (the newest published one).
+  const conditionsByVersion = await listPackRouteConditions(
     db,
-    rows.map((row) => row.packId),
+    rows.map((row) => row.packVersionId),
   );
   const casePostKey = packMatchKey(terms.consularPost ?? '');
   const travelStartDay = dayOf(terms.travelStart);
@@ -271,7 +286,11 @@ export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Pro
     if (byNationality === 'excludes' || byResidence === 'excludes') continue;
     const byRoute = routeFit(row.route, routes);
     if (byRoute === 'excludes') continue;
-    const details = caseDetailFit(conditionsByPack.get(row.packId), casePostKey, travelStartDay);
+    const details = caseDetailFit(
+      conditionsByVersion.get(row.packVersionId),
+      casePostKey,
+      travelStartDay,
+    );
     if (details.excluded) continue;
     fitting.push({
       packVersionId: row.packVersionId,

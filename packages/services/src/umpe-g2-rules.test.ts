@@ -25,7 +25,12 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
-import { attachPackVersion, createMission } from './missions';
+import {
+  attachPackVersion,
+  createMission,
+  snapshotMission,
+  updateMissionCaseDetails,
+} from './missions';
 import { caseExpiryConflicts } from './notification-sweep';
 import {
   type TravellerMatchTerms,
@@ -43,13 +48,19 @@ import {
   addPackVersion,
   addRequirement,
   approvePackVersion,
+  buildManifest,
   createPack,
+  diffPackVersions,
+  listRequirements,
   publishPackVersion,
+  verifyPackChecksum,
 } from './packs';
 import { grantPlatformRole } from './platform-roles';
 import { editFact, registerFieldDefinition } from './profile';
 import type { RuleCondition } from './rule-conditions';
 import { latestSourceChecks } from './source-monitor';
+import { getCasePackage } from './umpe-package-service';
+import { assessRuleImpact } from './umpe-rule-impact-service';
 
 const TEST_TIMEOUT_MS = 60_000;
 const NONE = { terms: [], known: false };
@@ -204,28 +215,33 @@ describe('route conditions in matching (R05)', () => {
     TEST_TIMEOUT_MS,
   );
 
+  /** A published public pack whose version declares these route conditions (set while a draft). */
+  async function packWith(
+    name: string,
+    conditions: { consularPosts?: string[]; travelFrom?: string; travelUntil?: string },
+  ) {
+    const p = await publicPack(db, actor, name);
+    const saved = await setPackRouteConditions(db, await staff(db, actor), {
+      packVersionId: p.versionId,
+      consularPosts: conditions.consularPosts ?? [],
+      travelFrom: conditions.travelFrom ?? null,
+      travelUntil: conditions.travelUntil ?? null,
+    });
+    if (!isOk(saved)) throw new Error(`conditions: ${saved.error.message}`);
+    await publish(db, actor, p.versionId);
+    return { ...p, saved: saved.value };
+  }
+
   it(
     'leaves out a pack for another application post, and links one whose post the case names',
     async () => {
-      const dhaka = await publicPack(db, actor, 'Dhaka Only');
-      await publish(db, actor, dhaka.versionId);
-      const saved = await setPackRouteConditions(db, await staff(db, actor), {
-        packId: dhaka.packId,
-        consularPosts: ['Dhaka', ' dhaka ', ''],
-        travelFrom: null,
-        travelUntil: null,
-      });
-      expect(isOk(saved) && saved.value.consularPosts).toEqual(['Dhaka']);
+      const dhaka = await packWith('Dhaka Only', { consularPosts: ['Dhaka', ' dhaka ', ''] });
+      expect(dhaka.saved.consularPosts).toEqual(['Dhaka']);
       const elsewhere = { ...ukTrip, consularPost: 'British Embassy Chattogram' };
       expect(await listFittingPublicPacks(db, elsewhere)).toEqual([]);
       // Either way round: a case that says only "Dhaka" fits a pack naming the full post.
-      const fullName = await publicPack(db, actor, 'Full Post Name');
-      await publish(db, actor, fullName.versionId);
-      await setPackRouteConditions(db, await staff(db, actor), {
-        packId: fullName.packId,
+      const fullName = await packWith('Full Post Name', {
         consularPosts: ['British High Commission Dhaka'],
-        travelFrom: null,
-        travelUntil: null,
       });
       expect(
         (await listFittingPublicPacks(db, { ...ukTrip, consularPost: 'Dhaka' })).map(
@@ -234,8 +250,9 @@ describe('route conditions in matching (R05)', () => {
       ).toEqual(['Dhaka Only', 'Full Post Name']);
       await db.delete(schema.packs).where(eq(schema.packs.id, fullName.packId));
       // A post with no letters VisaStack can compare is refused rather than saved unmatchable.
+      const draft = await publicPack(db, actor, 'Unmatchable Post');
       const unmatchable = await setPackRouteConditions(db, await staff(db, actor), {
-        packId: dhaka.packId,
+        packVersionId: draft.versionId,
         consularPosts: [String.fromCodePoint(0x09a2, 0x09be, 0x0995, 0x09be)],
         travelFrom: null,
         travelUntil: null,
@@ -258,10 +275,7 @@ describe('route conditions in matching (R05)', () => {
   it(
     'asks for a missing post or travel date and never links the pack on its own',
     async () => {
-      const both = await publicPack(db, actor, 'Window And Post');
-      await publish(db, actor, both.versionId);
-      await setPackRouteConditions(db, await staff(db, actor), {
-        packId: both.packId,
+      const both = await packWith('Window And Post', {
         consularPosts: ['Dhaka'],
         travelFrom: '2027-01-01',
         travelUntil: '2027-12-31',
@@ -285,11 +299,11 @@ describe('route conditions in matching (R05)', () => {
   );
 
   it(
-    'refuses a window that ends before it starts, and clears the row when nothing is declared',
+    'changes route conditions only on a draft, carries them into the next draft, and audits counts',
     async () => {
-      const p = await publicPack(db, actor, 'Clearable');
+      const p = await publicPack(db, actor, 'Versioned Conditions');
       const bad = await setPackRouteConditions(db, await staff(db, actor), {
-        packId: p.packId,
+        packVersionId: p.versionId,
         consularPosts: [],
         travelFrom: '2027-05-01',
         travelUntil: '2027-04-01',
@@ -299,23 +313,44 @@ describe('route conditions in matching (R05)', () => {
       const forged = await setPackRouteConditions(
         db,
         { accountId: actor, platformAction: 'PACK_MANAGE', verifiedAt: new Date() } as never,
-        { packId: p.packId, consularPosts: ['Dhaka'], travelFrom: null, travelUntil: null },
+        {
+          packVersionId: p.versionId,
+          consularPosts: ['Dhaka'],
+          travelFrom: null,
+          travelUntil: null,
+        },
       );
       expect(isErr(forged) && forged.error.code).toBe('forbidden');
       await setPackRouteConditions(db, await staff(db, actor), {
-        packId: p.packId,
-        consularPosts: ['Dhaka'],
-        travelFrom: null,
-        travelUntil: null,
-      });
-      expect((await listPackRouteConditions(db, [p.packId])).size).toBe(1);
-      await setPackRouteConditions(db, await staff(db, actor), {
-        packId: p.packId,
+        packVersionId: p.versionId,
         consularPosts: [],
         travelFrom: null,
         travelUntil: null,
       });
-      expect((await listPackRouteConditions(db, [p.packId])).size).toBe(0);
+      expect((await listPackRouteConditions(db, [p.versionId])).size).toBe(0);
+      await setPackRouteConditions(db, await staff(db, actor), {
+        packVersionId: p.versionId,
+        consularPosts: ['Dhaka'],
+        travelFrom: null,
+        travelUntil: null,
+      });
+      await publish(db, actor, p.versionId);
+      // Published: fixed. Who it is for changes only through a new reviewed version.
+      const onPublished = await setPackRouteConditions(db, await staff(db, actor), {
+        packVersionId: p.versionId,
+        consularPosts: ['Sylhet'],
+        travelFrom: null,
+        travelUntil: null,
+      });
+      expect(isErr(onPublished)).toBe(true);
+      expect((await listPackRouteConditions(db, [p.versionId])).get(p.versionId)).toMatchObject({
+        consularPosts: ['Dhaka'],
+      });
+      const next = await addPackVersion(db, { actorAccountId: actor, packId: p.packId });
+      if (!isOk(next)) throw new Error('next');
+      expect((await listPackRouteConditions(db, [next.value.id])).get(next.value.id)).toMatchObject(
+        { consularPosts: ['Dhaka'] },
+      );
       const audits = await db
         .select({ metadata: schema.auditEvents.metadata })
         .from(schema.auditEvents)
@@ -333,24 +368,27 @@ describe('route conditions in matching (R05)', () => {
       await publish(db, actor, p.versionId);
       await db.execute(sql`drop table pack_route_conditions`);
       await db.execute(sql`drop table pack_requirement_details`);
-      // Nothing above asked whether the tables exist, so this handle has no remembered answer.
-      const fresh = db;
+      // A new handle over the same database: no remembered "tables present" answer.
+      const fresh = drizzle((db as unknown as { $client: never }).$client, {
+        schema,
+      }) as unknown as Db;
       expect(
         (await findMatchingPublicPack(fresh, { ...ukTrip, consularPost: 'Anywhere' }))
           ?.packVersionId,
       ).toBe(p.versionId);
+      expect(await verifyPackChecksum(fresh, p.versionId)).toBe(true);
       expect(
         (await listRequirementDetails(fresh, ['00000000-0000-4000-8000-000000000000'])).size,
       ).toBe(0);
-      const refused = await setPackRouteConditions(fresh, await staff(db, actor), {
-        packId: p.packId,
+      const draft = await publicPack(fresh, actor, 'Draft Before Migration');
+      const refused = await setPackRouteConditions(fresh, await staff(fresh, actor), {
+        packVersionId: draft.versionId,
         consularPosts: ['Dhaka'],
         travelFrom: null,
         travelUntil: null,
       });
       expect(isErr(refused)).toBe(true);
       // A field observation waits for the same migration instead of failing in the database.
-      const draft = await publicPack(fresh, actor, 'Draft Before Migration');
       const observed = await addRequirement(fresh, {
         actorAccountId: actor,
         packVersionId: draft.versionId,
@@ -738,6 +776,214 @@ describe('past applications (R18)', () => {
       expect(stored).toHaveLength(1);
       expect(await readTravellerCoverage(await gate())).toEqual(before.coverage);
       expect(await findMatchingPublicPack(db, ukTrip)).toEqual(before.match);
+    },
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe('published rules stay fixed: details and route conditions are versioned (S04)', () => {
+  let db: Db;
+  let actor: string;
+  let applicantId: string;
+  beforeEach(async () => {
+    db = await freshDb();
+    ({ actor, applicantId } = await seed(db));
+  });
+
+  it(
+    'keeps the exact checksum of a version without details, and seals details into a new one',
+    async () => {
+      const plain = await publicPack(db, actor, 'Plain Checksum');
+      const rows = await listRequirements(db, plain.versionId);
+      // No details and no conditions: format 1 and format 2 bytes are exactly as before.
+      const empty = { details: new Map(), routeConditions: null };
+      expect(buildManifest(rows, 1, empty)).toEqual(buildManifest(rows, 1));
+      expect(buildManifest(rows, 2, empty)).toEqual(buildManifest(rows, 2));
+      await publish(db, actor, plain.versionId);
+      const [stored] = await db
+        .select({
+          checksum: schema.packVersions.checksum,
+          format: schema.packVersions.manifestFormat,
+        })
+        .from(schema.packVersions)
+        .where(eq(schema.packVersions.id, plain.versionId));
+      expect(stored?.format).toBe(1);
+      expect(stored?.checksum).toBe(buildManifest(rows, 1).checksum);
+      expect(await verifyPackChecksum(db, plain.versionId)).toBe(true);
+
+      const detailed = await publicPack(db, actor, 'Detailed Checksum');
+      await setRequirementDetails(db, await staff(db, actor), {
+        packRequirementId: detailed.requirementIds[0] ?? '',
+        ...NO_DETAILS,
+        acceptedForm: 'CERTIFIED_COPY',
+      });
+      await publish(db, actor, detailed.versionId);
+      const [sealed] = await db
+        .select({
+          format: schema.packVersions.manifestFormat,
+          manifest: schema.packVersions.manifest,
+        })
+        .from(schema.packVersions)
+        .where(eq(schema.packVersions.id, detailed.versionId));
+      expect(sealed?.format).toBe(2);
+      expect(JSON.stringify(sealed?.manifest)).toContain('CERTIFIED_COPY');
+      expect(await verifyPackChecksum(db, detailed.versionId)).toBe(true);
+      // A change written around the service is caught by the checksum.
+      await db
+        .update(schema.packRequirementDetails)
+        .set({ acceptedForm: 'DIGITAL_COPY' })
+        .where(
+          eq(schema.packRequirementDetails.packRequirementId, detailed.requirementIds[0] ?? ''),
+        );
+      expect(await verifyPackChecksum(db, detailed.versionId)).toBe(false);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses details on a published version; a changed draft publishes as a new version P11 flags',
+    async () => {
+      const v1 = await publicPack(db, actor, 'Impact Pack');
+      await publish(db, actor, v1.versionId);
+      const refused = await setRequirementDetails(db, await staff(db, actor), {
+        packRequirementId: v1.requirementIds[0] ?? '',
+        ...NO_DETAILS,
+        validMonthsAfterTravel: 6,
+      });
+      expect(isErr(refused)).toBe(true);
+
+      const mission = await createMission(db, {
+        actorAccountId: actor,
+        applicantId,
+        title: 'Trip',
+      });
+      if (!isOk(mission)) throw new Error('mission');
+      const attached = await attachPackVersion(db, {
+        actorAccountId: actor,
+        missionId: mission.value.id,
+        packVersionId: v1.versionId,
+      });
+      if (!isOk(attached)) throw new Error('attach');
+
+      const v2 = await addPackVersion(db, { actorAccountId: actor, packId: v1.packId });
+      if (!isOk(v2)) throw new Error('v2');
+      const added = await addRequirement(db, {
+        actorAccountId: actor,
+        packVersionId: v2.value.id,
+        kind: 'DOCUMENT',
+        docType: 'PASSPORT',
+        citation: 'Synthetic rule',
+      });
+      if (!isOk(added)) throw new Error('requirement');
+      await setRequirementDetails(db, await staff(db, actor), {
+        packRequirementId: added.value.id,
+        ...NO_DETAILS,
+        validMonthsAfterTravel: 6,
+        category: 'IDENTITY_TRAVEL_DOCUMENTS',
+      });
+      await publish(db, actor, v2.value.id);
+
+      const diff = await diffPackVersions(db, v1.versionId, v2.value.id);
+      if (!isOk(diff)) throw new Error('diff');
+      expect(diff.value.entries[0]?.changedFields).toEqual(
+        expect.arrayContaining(['validMonthsAfterTravel', 'category']),
+      );
+      expect(diff.value.routeConditionsChanged).toBe(false);
+      const assessed = await assessRuleImpact(db, await staff(db, actor), {
+        packVersionId: v2.value.id,
+      });
+      expect(isOk(assessed) && assessed.value.casesFlagged).toBe(1);
+      const impacts = await db.select().from(schema.umpeRuleImpacts);
+      expect(impacts.map((i) => i.missionId)).toEqual([mission.value.id]);
+    },
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe('editing a case post or travel dates re-checks its checklist (R05, P4)', () => {
+  it(
+    'records one change when the linked checklist no longer fits or needs a value, and leaves handoffs alone',
+    async () => {
+      const db = await freshDb();
+      const { actor, applicantId } = await seed(db);
+      const p = await publicPack(db, actor, 'Dhaka Checklist');
+      await setPackRouteConditions(db, await staff(db, actor), {
+        packVersionId: p.versionId,
+        consularPosts: ['Dhaka'],
+        travelFrom: null,
+        travelUntil: null,
+      });
+      await publish(db, actor, p.versionId);
+      const mission = await createMission(db, {
+        actorAccountId: actor,
+        applicantId,
+        title: 'Trip',
+        jurisdiction: 'British High Commission Dhaka',
+      });
+      if (!isOk(mission)) throw new Error('mission');
+      const missionId = mission.value.id;
+      const attached = await attachPackVersion(db, {
+        actorAccountId: actor,
+        missionId,
+        packVersionId: p.versionId,
+      });
+      if (!isOk(attached)) throw new Error('attach');
+      const snapshot = await snapshotMission(db, { actorAccountId: actor, missionId });
+      if (!isOk(snapshot)) throw new Error('snapshot');
+      await db.insert(schema.umpePackageHandoffs).values({
+        missionId,
+        applicantId,
+        missionSnapshotId: snapshot.value.id,
+        packVersionId: p.versionId,
+        materialRevisionAtCapture: 0,
+        content: { synthetic: true },
+        contentChecksum: 'c'.repeat(64),
+      });
+      const handoffsBefore = await db.select().from(schema.umpePackageHandoffs);
+
+      const open = async () => {
+        const gate = await requireAccess(
+          db,
+          accountPrincipal(actor),
+          'VIEW_METADATA',
+          { missionId },
+          { purpose: 'self' },
+        );
+        if (!gate.ok) throw new Error('gate');
+        return getCasePackage(gate.value, missionId);
+      };
+      const changes = () =>
+        db
+          .select()
+          .from(schema.umpePackageChanges)
+          .where(eq(schema.umpePackageChanges.missionId, missionId));
+
+      await open();
+      expect(await changes()).toEqual([]);
+
+      const edit = async (jurisdiction: string) => {
+        const updated = await updateMissionCaseDetails(db, {
+          actorAccountId: actor,
+          missionId,
+          jurisdiction,
+        });
+        if (!isOk(updated)) throw new Error('edit');
+        await open();
+      };
+      await edit('British Embassy Chattogram');
+      let rows = await changes();
+      expect(rows.map((r) => [r.kind, r.resolvedAt])).toEqual([['CASE_DETAILS_CHANGED', null]]);
+      // Opening again, or a missing post (the checklist now needs it), keeps the one item.
+      await open();
+      await edit('');
+      rows = await changes();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.changeCount).toBe(1);
+      // Back to a post that fits: the item clears.
+      await edit('Dhaka');
+      rows = await changes();
+      expect(rows[0]?.resolvedAt).not.toBeNull();
+      expect(await db.select().from(schema.umpePackageHandoffs)).toEqual(handoffsBefore);
     },
     TEST_TIMEOUT_MS,
   );

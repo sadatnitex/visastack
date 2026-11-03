@@ -26,10 +26,10 @@ import { type ServiceError, serviceError } from './errors';
  * Both live in side tables, so nothing that already reads or writes packs changes, and the code
  * runs before the migration: readers then answer "nothing declared" (exactly what every row holds)
  * and writers refuse plainly. Writers take a fresh `PACK_MANAGE` staff scope (the access ratchet);
- * readers return catalogue rules only, never a person's data. Details change only while the version is a draft,
- * so a published version never changes; they are not part of the manifest checksum, the same as
- * `maxAgeDays` and `notes` (ADR 0026 D1 keeps format 1 bytes fixed).
- */
+ * readers return catalogue rules only, never a person's data. Both belong to one pack version and
+ * change only while it is a draft; when present they are part of its format 2 manifest checksum
+ * (ADR 0026 D2: new keys only when set), so a version without them keeps its exact checksum and a
+ * published version never changes. */
 
 export interface RequirementDetails extends RequirementFormatRules {
   readonly category: RequirementCategory | null;
@@ -229,22 +229,25 @@ export async function setRequirementDetails(
 
 // --- Route conditions (R05) ---------------------------------------------------------------------
 
-/** The route conditions these packs declare, by pack id; a pack that declares none is absent. */
+/**
+ * The route conditions these pack versions declare, by version id; a version that declares none is
+ * absent.
+ */
 export async function listPackRouteConditions(
   db: Db,
-  packIds: readonly string[],
+  packVersionIds: readonly string[],
 ): Promise<Map<string, PackRouteConditions>> {
-  const ids = [...new Set(packIds)];
+  const ids = [...new Set(packVersionIds)];
   if (ids.length === 0 || !(await ruleDetailTablesPresent(db))) return new Map();
   const rows = await db
     .select()
     .from(schema.packRouteConditions)
-    .where(inArray(schema.packRouteConditions.packId, ids));
+    .where(inArray(schema.packRouteConditions.packVersionId, ids));
   return new Map(
     rows.map(
       (row) =>
         [
-          row.packId,
+          row.packVersionId,
           {
             consularPosts: row.consularPosts ?? [],
             travelFrom: row.travelFrom,
@@ -295,33 +298,43 @@ export function cleanRouteConditions(
 }
 
 /**
- * Save which application posts and trip start window a pack is for. Nothing declared removes the
- * row, so the pack again narrows by neither. Affects only which checklist a new case is offered;
- * a case already linked keeps its exact version. Audited with counts only.
+ * Save which application posts and trip start window a draft pack version is for. Nothing declared
+ * removes the row, so the version again narrows by neither. Only a draft changes: a published
+ * version keeps exactly what was reviewed (the conditions are part of its manifest checksum), and a
+ * new draft starts from the newest earlier version's conditions. Audited with counts only.
  */
 export async function setPackRouteConditions(
   db: Db,
   staff: StaffScope<'PACK_MANAGE'>,
-  input: { readonly packId: string } & PackRouteConditions,
+  input: { readonly packVersionId: string } & PackRouteConditions,
 ): Promise<Result<PackRouteConditions, ServiceError>> {
   const denied = staffScopeProblem(staff, 'PACK_MANAGE');
   if (denied) return err(denied);
   const actorAccountId = staff.accountId;
-  if (!(await ruleDetailTablesPresent(db)))
+  if (!(await ruleDetailTablesPresent(db))) {
     return err(serviceError('invalid', RULE_DETAILS_WAITING));
+  }
   const cleaned = cleanRouteConditions(input);
   if (!cleaned.ok) return err(serviceError('invalid', cleaned.error));
   const conditions = cleaned.value;
   return db.transaction(async (tx) => {
-    const pack = first(
+    const version = first(
       await tx
-        .select({ id: schema.packs.id })
-        .from(schema.packs)
-        .where(eq(schema.packs.id, input.packId))
+        .select({ id: schema.packVersions.id, status: schema.packVersions.status })
+        .from(schema.packVersions)
+        .where(eq(schema.packVersions.id, input.packVersionId))
         .limit(1)
         .for('update'),
     );
-    if (!pack) return err(serviceError('not_found', 'pack not found'));
+    if (!version) return err(serviceError('not_found', 'pack version not found'));
+    if (version.status !== 'DRAFT') {
+      return err(
+        serviceError(
+          'invalid',
+          'who a checklist is for can only change while the version is DRAFT',
+        ),
+      );
+    }
     const declared =
       conditions.consularPosts.length > 0 ||
       conditions.travelFrom !== null ||
@@ -336,20 +349,20 @@ export async function setPackRouteConditions(
       };
       await tx
         .insert(schema.packRouteConditions)
-        .values({ packId: input.packId, ...values })
-        .onConflictDoUpdate({ target: schema.packRouteConditions.packId, set: values });
+        .values({ packVersionId: input.packVersionId, ...values })
+        .onConflictDoUpdate({ target: schema.packRouteConditions.packVersionId, set: values });
     } else {
       await tx
         .delete(schema.packRouteConditions)
-        .where(eq(schema.packRouteConditions.packId, input.packId));
+        .where(eq(schema.packRouteConditions.packVersionId, input.packVersionId));
     }
     await appendAuditEvent(tx, {
       eventType: 'PACK_ROUTE_CONDITIONS_SET',
       actorAccountId,
       method: 'MANUAL',
       result: 'ALLOWED',
-      resourceType: 'pack',
-      resourceId: input.packId,
+      resourceType: 'pack_version',
+      resourceId: input.packVersionId,
       metadata: {
         postCount: conditions.consularPosts.length,
         hasTravelFrom: conditions.travelFrom !== null,
@@ -358,4 +371,57 @@ export async function setPackRouteConditions(
     });
     return ok(conditions);
   });
+}
+
+/**
+ * A new draft starts from the newest earlier version's route conditions (inside the transaction
+ * that opens it), so who a checklist is for carries forward and changes only through review.
+ * Requirements themselves are added afresh to each draft, so their details start empty. Nothing
+ * happens before the G2 tables exist.
+ */
+export async function copyRouteConditionsForward(
+  tx: Db,
+  input: { readonly packId: string; readonly toVersionId: string },
+): Promise<void> {
+  if (!(await ruleDetailTablesPresent(tx))) return;
+  await tx.execute(sql`
+    insert into ${schema.packRouteConditions}
+      (pack_version_id, consular_posts, travel_from, travel_until, updated_by_account_id, updated_at)
+    select ${input.toVersionId}, c.consular_posts, c.travel_from, c.travel_until,
+           c.updated_by_account_id, now()
+      from ${schema.packRouteConditions} c
+      join ${schema.packVersions} v on v.id = c.pack_version_id
+     where v.pack_id = ${input.packId} and v.id <> ${input.toVersionId}
+     order by v.version desc
+     limit 1
+    on conflict do nothing`);
+}
+
+// --- Manifest extras (format 2) -------------------------------------------------------------------
+
+/** The rule details and route conditions a version's manifest carries, when present. */
+export interface ManifestExtras {
+  readonly details: ReadonlyMap<string, RequirementDetails>;
+  readonly routeConditions: PackRouteConditions | null;
+}
+
+export const NO_MANIFEST_EXTRAS: ManifestExtras = { details: new Map(), routeConditions: null };
+
+/** Whether a details record holds anything at all (an all-empty row is the same as none). */
+export function detailsPresent(details: RequirementDetails | undefined): boolean {
+  if (!details) return false;
+  return Object.values(details).some((value) => value !== null);
+}
+
+/** A version's manifest extras; empty before the G2 tables exist. */
+export async function loadManifestExtras(
+  db: Db,
+  packVersionId: string,
+  requirementIds: readonly string[],
+): Promise<ManifestExtras> {
+  const [details, conditions] = await Promise.all([
+    listRequirementDetails(db, requirementIds),
+    listPackRouteConditions(db, [packVersionId]),
+  ]);
+  return { details, routeConditions: conditions.get(packVersionId) ?? null };
 }

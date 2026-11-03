@@ -54,5 +54,10 @@ describe('UMPE G2 migration', () => {
         'pack_route_conditions_window_order',
       ]),
     );
+    // The trip package may now record that the linked checklist no longer fits the case.
+    const check = await client.query<{ def: string }>(
+      `select pg_get_constraintdef(oid) as def from pg_constraint where conname = 'umpe_package_changes_kind_known'`,
+    );
+    expect(check.rows[0]?.def).toContain('CASE_DETAILS_CHANGED');
   }, 60_000);
 });

@@ -188,16 +188,19 @@ export function RequirementDetailsForm({
 }
 
 /**
- * UMPE G2 (R05): which application posts and trip start dates a pack is for. Left empty, the pack
- * narrows by neither, exactly as before.
+ * UMPE G2 (R05): which application posts and trip start dates a draft pack version is for. Left
+ * empty, the version narrows by neither, exactly as before. A published version shows its
+ * conditions without this form: they change only through a new reviewed version.
  */
 export function RouteConditionsForm({
   packId,
+  packVersionId,
   consularPosts,
   travelFrom,
   travelUntil,
 }: {
   readonly packId: string;
+  readonly packVersionId: string;
   readonly consularPosts: readonly string[];
   readonly travelFrom: string;
   readonly travelUntil: string;
@@ -206,6 +209,7 @@ export function RouteConditionsForm({
   return (
     <form action={formAction} className="field-list">
       <input type="hidden" name="packId" value={packId} />
+      <input type="hidden" name="packVersionId" value={packVersionId} />
       <p className="muted">
         Only fill these in when the source limits the checklist to some embassies, consulates or
         visa centres, or to trips starting in a date window. A case that does not say is asked, and
@@ -213,11 +217,11 @@ export function RouteConditionsForm({
       </p>
       <div className="form-grid">
         <div className="field-row field-wide">
-          <label className="field-label" htmlFor={`${packId}-consularPosts`}>
+          <label className="field-label" htmlFor={`${packVersionId}-consularPosts`}>
             Application Posts, One per Line
           </label>
           <textarea
-            id={`${packId}-consularPosts`}
+            id={`${packVersionId}-consularPosts`}
             name="consularPosts"
             rows={3}
             defaultValue={consularPosts.join('\n')}
@@ -225,11 +229,11 @@ export function RouteConditionsForm({
           />
         </div>
         <div className="field-row">
-          <label className="field-label" htmlFor={`${packId}-travelFrom`}>
+          <label className="field-label" htmlFor={`${packVersionId}-travelFrom`}>
             Trips Starting From
           </label>
           <input
-            id={`${packId}-travelFrom`}
+            id={`${packVersionId}-travelFrom`}
             name="travelFrom"
             type="date"
             defaultValue={travelFrom}
@@ -237,11 +241,11 @@ export function RouteConditionsForm({
           />
         </div>
         <div className="field-row">
-          <label className="field-label" htmlFor={`${packId}-travelUntil`}>
+          <label className="field-label" htmlFor={`${packVersionId}-travelUntil`}>
             Trips Starting Until
           </label>
           <input
-            id={`${packId}-travelUntil`}
+            id={`${packVersionId}-travelUntil`}
             name="travelUntil"
             type="date"
             defaultValue={travelUntil}
