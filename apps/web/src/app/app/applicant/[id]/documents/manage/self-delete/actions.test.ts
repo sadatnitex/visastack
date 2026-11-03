@@ -198,9 +198,10 @@ describe('Delete My File actions', () => {
     mocks.requireAccess.mockResolvedValue(proof(APPLICANT));
     mocks.deleteMyFile.mockResolvedValue(refused('step_up_required', 'x'));
     mocks.stepUp.mockResolvedValue({ kind: 'reauth_required', reauthUrl: '/reauth?next=here' });
-    await expect(selfDeleteAction(APPLICANT, DOC, 'DELETE', NONE)).rejects.toThrow(
-      'NEXT_REDIRECT /reauth?next=here',
-    );
+    await expect(selfDeleteAction(APPLICANT, DOC, 'DELETE', NONE)).resolves.toMatchObject({
+      ok: false,
+      signInHref: '/reauth?next=here',
+    });
     expect(mocks.deleteMyFile).toHaveBeenCalledTimes(1);
     mocks.deleteMyFile.mockReset();
     mocks.deleteMyFile.mockResolvedValue(refused('step_up_required', 'x'));

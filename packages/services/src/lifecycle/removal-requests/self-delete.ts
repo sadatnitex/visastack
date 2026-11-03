@@ -85,15 +85,18 @@ export interface SelfDeleteImpact {
   readonly contributorHandovers: number;
 }
 
-export const SELF_DELETE_IMPACT_KEYS = [
-  'openCases',
-  'agencies',
-  'shares',
-  'profileDetails',
-  'aiChoices',
-  'trips',
-  'contributorHandovers',
-] as const satisfies readonly (keyof SelfDeleteImpact)[];
+// Exhaustive by type: a count added to SelfDeleteImpact fails to compile until it is listed here, so
+// it can never escape the stale guard.
+const IMPACT_KEY_SET: Readonly<Record<keyof SelfDeleteImpact, true>> = {
+  openCases: true,
+  agencies: true,
+  shares: true,
+  profileDetails: true,
+  aiChoices: true,
+  trips: true,
+  contributorHandovers: true,
+};
+export const SELF_DELETE_IMPACT_KEYS = Object.keys(IMPACT_KEY_SET) as (keyof SelfDeleteImpact)[];
 
 export interface SelfDeletePreview {
   readonly impact: SelfDeleteImpact;

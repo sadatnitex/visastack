@@ -7366,3 +7366,9 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - A "Welcome, {first name}. Three Steps to Get Ready" card on Home: Add Your Essentials, Add a Document, Start a Case, each a tappable row with Done and Next words; gone once all three are done. Read-only; shown only with core processing consent and readable records. Hand-back: `docs/umpe/operations/handoffs/UX11.md`.
 - Not verified: a real phone, a screen reader, the live flow.
 
+## 2026-11-03: UMPE UX12 (Delete My File, no migration, switch off by default)
+
+- The owner could not remove a mistaken upload (no delete option; Ask Us to Remove needs staff approval). Built, on the owner's word and the approved plan: an instant, owner-only, verified Delete My File in the document Manage menu behind `DOCUMENT_SELF_DELETE` (off). Typed word; a fresh sign-in only when the file is shared or in an open case; a legal hold blocks it; a file used by a finished case or answered to an agency is refused with a pointer to Ask Us to Remove; other uses are shown as counts and agencies are told without the file name; verified erasure, a Removal Record without the name, an email to the owner, 10 per hour. No undo. Reverses lifecycle decision D1 (decision D12 recorded in `docs/roadmap/lifecycle/PROGRAMME.md`).
+- Reviews: helper built it with proven-red guards (legal hold, owner gate, typed word, stale guard, refusals, sign-in, rate limit, lock order, switch); `/code-review max`: 10 findings, the real ones fixed. Hand-back: `docs/umpe/operations/handoffs/UX12.md`.
+- Not verified: a browser, a real device, the live flow, Neon's rollback behaviour for the blocked path. To turn on: set `DOCUMENT_SELF_DELETE=on` in Vercel Production with a redeploy, on the owner's word.
+

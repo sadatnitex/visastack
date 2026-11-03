@@ -157,7 +157,8 @@ describe('the confirmation screen', () => {
     );
     expect(container.querySelector('label')?.textContent).toBe('Type DELETE to Confirm');
     expect(container.querySelectorAll('li')).toHaveLength(3);
-    expect(container.querySelectorAll('p')).toHaveLength(2);
+    // What it does, the sign-in note (this file needs a fresh sign-in), and the backup note.
+    expect(container.querySelectorAll('p')).toHaveLength(3);
     const filled = [...container.querySelectorAll('button')].filter((b) =>
       /btn-(primary|danger)/.test(b.className),
     );
@@ -181,7 +182,13 @@ describe('the confirmation screen', () => {
       'Used in 1 open case. It will ask you to choose another document.',
       '1 profile detail was read from it and stays, without this file as its source.',
     ]);
-    expect(impactLines({ ...NONE, shares: 2 })).toEqual(['2 shares include it. They end now.']);
+    expect(impactLines({ ...NONE, shares: 2 })).toEqual(['2 shares with people end now.']);
+    expect(impactLines({ ...NONE, shares: 1 })).toEqual(['1 share with a person ends now.']);
+    // One agency's own share is counted in the shares: only the person's share is named after it.
+    expect(impactLines({ ...NONE, agencies: 1, shares: 2 })).toEqual([
+      '1 agency can see it. It loses access now and is told, without the file name.',
+      '1 share with a person ends now.',
+    ]);
   });
 
   it('asks for the word before anything is sent, then sends exactly what was shown', async () => {

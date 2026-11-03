@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ManageActionProps } from '../registry';
 import { type SelfDeletePreviewResult, selfDeleteAction, selfDeletePreviewAction } from './actions';
-import { BACKUP_NOTE, TYPE_THE_WORD, WHAT_HAPPENS, impactLines } from './messages';
+import { BACKUP_NOTE, SIGN_IN_AGAIN, TYPE_THE_WORD, WHAT_HAPPENS, impactLines } from './messages';
 
 type Preview = Extract<SelfDeletePreviewResult, { ok: true }>;
 
@@ -70,6 +70,8 @@ export function SelfDeleteAction({
       const done = await selfDeleteAction(applicantId, documentId, typed, preview.impact);
       if (done.ok) {
         setResult(done.message);
+      } else if ('signInHref' in done) {
+        window.location.assign(done.signInHref);
       } else {
         setProblem(done.message);
         if (done.stale) {
@@ -129,6 +131,7 @@ export function SelfDeleteAction({
               ))}
             </ul>
           ) : null}
+          {preview.needsFreshSignIn ? <p className="lc-selfdelete-note">{SIGN_IN_AGAIN}</p> : null}
           <p className="lc-selfdelete-note">{BACKUP_NOTE}</p>
           <div className="lc-selfdelete-field">
             <label htmlFor={fieldId}>Type DELETE to Confirm</label>

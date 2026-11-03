@@ -8,7 +8,6 @@ import {
   previewDeleteMyFile,
   requireAccess,
 } from '@visastack/services';
-import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { documentRemovalRequestsOn, documentSelfDeleteOn } from '../../../../../../../lib/env';
 import { triggerErasureWorker } from '../../../../../../../lib/jobs';
@@ -23,6 +22,7 @@ import {
   CHANGED,
   GONE,
   NOT_ALLOWED,
+  SIGN_IN_AGAIN,
   SWITCHED_OFF,
   TYPE_THE_WORD,
   deletedLine,
@@ -40,7 +40,9 @@ export type SelfDeletePreviewResult =
 export type SelfDeleteResult =
   | { readonly ok: true; readonly message: string }
   /** `stale`: what the file touches changed since the screen was read; read it again. */
-  | { readonly ok: false; readonly message: string; readonly stale?: true };
+  | { readonly ok: false; readonly message: string; readonly stale?: true }
+  /** The session is too old for this: go to `signInHref`, which returns to this confirmation. */
+  | { readonly ok: false; readonly message: string; readonly signInHref: string };
 
 const SWITCHED_OFF_RESULT = { ok: false, message: SWITCHED_OFF } as const;
 
@@ -145,7 +147,10 @@ export async function selfDeleteAction(
       if (stepUp.kind === 'not_configured') {
         return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE };
       }
-      if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
+      if (stepUp.kind === 'reauth_required') {
+        // Returned, not thrown: the confirmation navigates itself, so nothing is left half-awaited.
+        return { ok: false, message: SIGN_IN_AGAIN, signInHref: stepUp.reauthUrl };
+      }
       deleted = await deleteMyFile(access, { documentId, typed, confirmed, stepUpSatisfied: true });
     }
     if (!deleted.ok) {

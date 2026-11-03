@@ -155,7 +155,16 @@ export async function applyOpenCaseEffects(
   if (!lifecycleCommandCovers(access, input.applicantId)) {
     throw new Error('removal effects: this access may not change that traveller');
   }
-  for (const missionId of input.impact.openCaseIds) {
+  // Only this traveller's own cases are touched, whatever impact the caller passed.
+  const own = new Set(
+    (
+      await tx
+        .select({ id: schema.missions.id })
+        .from(schema.missions)
+        .where(eq(schema.missions.applicantId, input.applicantId))
+    ).map((row) => row.id),
+  );
+  for (const missionId of input.impact.openCaseIds.filter((id) => own.has(id))) {
     await tx
       .delete(schema.selectedEvidence)
       .where(

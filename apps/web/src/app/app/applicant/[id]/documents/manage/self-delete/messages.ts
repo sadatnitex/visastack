@@ -3,7 +3,7 @@ import { agree, plural } from '../../../../../../../lib/plural';
 import { BACKUP_NOTE } from '../request/messages';
 
 /*
- * The words of Delete My File (docs/uiux/ccd/VOCABULARY.md: Delete My File, Removal Records,
+ * The words of Delete My File (Delete My File, Removal Records,
  * Removing Securely). Plain, short, and exact about what is lost. Backup wording is the owner's
  * (owner decision D10), shared with Ask Us to Remove This File.
  */
@@ -16,6 +16,8 @@ export const NOT_ALLOWED = 'Only the owner of this record can do this.';
 export const SWITCHED_OFF = 'Deleting files is not available yet.';
 export const GONE = 'That file is no longer here. Refresh the page and try again.';
 export const TYPE_THE_WORD = 'Type DELETE to confirm.';
+export const SIGN_IN_AGAIN =
+  'For your safety, sign in again first. You will come back to this screen.';
 export const CHANGED =
   'Something changed since you opened this. Read it again before you delete the file.';
 
@@ -29,9 +31,12 @@ export function impactLines(impact: SelfDeleteImpact): string[] {
     lines.push(
       `${plural(impact.agencies, 'agency', 'agencies')} can see it. ${agree(impact.agencies, 'It loses', 'They lose')} access now and ${agree(impact.agencies, 'is', 'are')} told, without the file name.`,
     );
-  } else if (impact.shares > 0) {
+  }
+  // Shares include the agencies' own; the line says so when only people are left to name.
+  const personShares = Math.max(impact.shares - impact.agencies, 0);
+  if (personShares > 0) {
     lines.push(
-      `${plural(impact.shares, 'share')} include it. ${agree(impact.shares, 'It ends', 'They end')} now.`,
+      `${plural(personShares, 'share')} with ${agree(personShares, 'a person', 'people')} ${agree(personShares, 'ends', 'end')} now.`,
     );
   }
   if (impact.openCases > 0) {
