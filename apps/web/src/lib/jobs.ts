@@ -57,6 +57,7 @@ import {
   sweepInactiveAccountNotices,
   sweepLegalHoldReviewReminders,
   sweepPackageChanges,
+  sweepRuleImpacts,
   sweepTaskDeadlineReminders,
 } from '@visastack/services';
 import { createAiReadingPorts } from './ai-reading-ports';
@@ -604,6 +605,40 @@ export async function triggerPackageChangeSweep(
   } catch (error) {
     reportServerError('triggerPackageChangeSweep', error, { step: 'sweep failed' });
     return { checked, recorded, complete: false };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * UMPE P11 published-rule impact: finishes assessing new publications and queues the notes still
+ * waiting, on its own short-lived pooled connection. Its failure is reported and never fails the
+ * daily reminder sweep that calls it.
+ */
+export async function triggerRuleImpactSweep(
+  scope: SystemScope<'process-notification-sweeps'>,
+): Promise<{
+  readonly runs: number;
+  readonly casesFlagged: number;
+  readonly notesQueued: number;
+  readonly more: boolean;
+}> {
+  const empty = { runs: 0, casesFlagged: 0, notesQueued: 0, more: false };
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerRuleImpactSweep] database not configured');
+    return empty;
+  }
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    reportServerError('triggerRuleImpactSweep', error, { step: 'idle pool connection error' });
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepRuleImpacts>[1];
+    return await sweepRuleImpacts(scope, handle);
+  } catch (error) {
+    reportServerError('triggerRuleImpactSweep', error, { step: 'sweep failed' });
+    return empty;
   } finally {
     await pool.end();
   }

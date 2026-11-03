@@ -5,6 +5,7 @@ import {
   triggerNotificationSweeps,
   triggerNotificationWorker,
   triggerPackageChangeSweep,
+  triggerRuleImpactSweep,
 } from '../../../../lib/jobs';
 import { runRemovalAlerts } from '../../../../lib/lifecycle-jobs/removal-alerts';
 
@@ -49,7 +50,10 @@ export async function GET(request: Request): Promise<Response> {
   // UMPE P4: one "something changed" item per active case package (never a handed-off snapshot);
   // its own failure is reported inside and never fails the sweeps above.
   const packages = await triggerPackageChangeSweep(scope);
+  // UMPE P11: notes for active cases pinned to a version a newer publication replaced; its own
+  // failure is reported inside and never fails the sweeps above.
+  const ruleImpacts = await triggerRuleImpactSweep(scope);
   // Emails this run queued go out now, not at the next day's sending run.
   after(() => triggerNotificationWorker().then(() => undefined));
-  return Response.json({ ...result, removals, packages });
+  return Response.json({ ...result, removals, packages, ruleImpacts });
 }
