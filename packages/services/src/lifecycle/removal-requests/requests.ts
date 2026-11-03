@@ -1,6 +1,5 @@
 import { type Result, err, formatReferenceCode, ok } from '@visastack/core';
-import { and, asc, eq, gt, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
-import { withCaseExclusions } from '../../access/grant-scope';
+import { and, asc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { type StaffScope, SystemScope, staffScopeProblem } from '../../access/principal';
 import { AuthorizedApplicant } from '../../access/require-access';
 import { appendAuditEvent } from '../../audit';
@@ -9,8 +8,6 @@ import { type ServiceError, serviceError } from '../../errors';
 import { documentBlockedByLegalHold } from '../../legal-hold';
 // Imported by the foundation's path, which the read-path guard recognises.
 import { presentDocumentCondition } from '../../lifecycle/foundation/conditions';
-import { incrementMaterialRevision } from '../../material-revision';
-import { createTask } from '../../missions';
 import { enqueueNotification, enqueueNotificationBothChannels } from '../../notifications';
 import { listActivePlatformRoles } from '../../platform-roles';
 import { recordProductEvent } from '../../product-events';
@@ -26,7 +23,12 @@ import { lifecycleTablesPresent } from '../foundation/presence';
 import { openDeletionReceipt } from '../foundation/receipts';
 import { enqueueDocumentRemoval } from '../foundation/removal';
 import { getDocumentLifecycle } from '../foundation/state';
-import { FINISHED_CASE_STATES_FOR_REPLACE } from '../replace/replace';
+import {
+  applyOpenCaseEffects,
+  removalImpact,
+  removalUploaderRole,
+  tellAgenciesOfRemoval,
+} from './effects';
 import { REMOVAL_ALERT_WORKING_DAYS, workingDaysBetween } from './working-days';
 
 /*
@@ -41,114 +43,6 @@ import { REMOVAL_ALERT_WORKING_DAYS, workingDaysBetween } from './working-days';
  * used it are told without the document's name. The person is told when support decides and
  * when the file is gone.
  */
-
-/**
- * Case states that are over (owner decision D5: closed, cancelled, submitted). A removal leaves
- * them exactly as they were: their snapshot stays, their selection is never edited here.
- */
-export const FINISHED_CASE_STATES_FOR_REMOVAL = FINISHED_CASE_STATES_FOR_REPLACE;
-
-/** What approving one removal request changes. The queue preview and the receipt read the same counts. */
-export interface RemovalImpact {
-  /** Open cases that selected the document: each loses the selection and gets a task. */
-  readonly openCaseIds: readonly string[];
-  /** Finished cases that selected it: their snapshots stay as they are. */
-  readonly finishedCases: number;
-  /**
-   * For each open case, the agencies that can see it: an active, started, unexpired grant to the
-   * agency that reaches the case (a grant for that case, or an all-cases grant without an
-   * exception for it), the same rule the agency's own case list uses.
-   */
-  readonly agenciesByCase: ReadonlyMap<string, readonly string[]>;
-  /** Active, unexpired shares that name this document. */
-  readonly sharesAffected: number;
-  /** Stored bytes the removal frees once every file is verified gone. */
-  readonly storageBytes: number;
-}
-
-/**
- * Not exported: every caller has checked access first (access/enforcement.test.ts).
- * The impact of removing `documentId` of `applicantId`, read through `db` (a transaction during
- * approval, so the counts match what is changed). Callers have already checked access.
- */
-async function removalImpact(
-  db: Db,
-  applicantId: string,
-  documentId: string,
-  now: Date,
-): Promise<RemovalImpact> {
-  const cases = await db
-    .selectDistinct({ missionId: schema.missions.id, state: schema.missions.state })
-    .from(schema.selectedEvidence)
-    .innerJoin(schema.missions, eq(schema.missions.id, schema.selectedEvidence.missionId))
-    .where(
-      and(
-        eq(schema.selectedEvidence.documentId, documentId),
-        eq(schema.missions.applicantId, applicantId),
-      ),
-    );
-  const finished: ReadonlySet<string> = new Set(FINISHED_CASE_STATES_FOR_REMOVAL);
-  const open = cases
-    .filter((row) => !finished.has(row.state))
-    .sort((a, b) => a.missionId.localeCompare(b.missionId));
-  const openCaseIds = open.map((row) => row.missionId);
-
-  const liveGrant = and(
-    eq(schema.grants.applicantId, applicantId),
-    eq(schema.grants.status, 'ACTIVE'),
-    lte(schema.grants.startAt, now),
-    or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
-  );
-  const agenciesByCase = new Map<string, readonly string[]>();
-  if (openCaseIds.length > 0) {
-    await withCaseExclusions(db, async (covers) => {
-      for (const missionId of openCaseIds) {
-        const rows = await db
-          .selectDistinct({ organizationId: schema.grants.recipientOrganizationId })
-          .from(schema.grants)
-          .where(and(liveGrant, covers(missionId)));
-        agenciesByCase.set(
-          missionId,
-          rows.flatMap((row) => (row.organizationId ? [row.organizationId] : [])).sort(),
-        );
-      }
-    });
-  }
-
-  const [shares] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(schema.grants)
-    .where(
-      and(
-        eq(schema.grants.applicantId, applicantId),
-        liveGrant,
-        sql`${documentId}::uuid = any(${schema.grants.documentIds})`,
-      ),
-    );
-
-  const [bytes] = await db
-    .select({
-      n: sql<number>`coalesce(sum(${schema.storageObjects.sizeBytes}), 0)::bigint`,
-    })
-    .from(schema.storageObjects)
-    .where(
-      inArray(
-        schema.storageObjects.id,
-        db
-          .selectDistinct({ id: schema.documentVersions.storageObjectId })
-          .from(schema.documentVersions)
-          .where(eq(schema.documentVersions.documentId, documentId)),
-      ),
-    );
-
-  return {
-    openCaseIds,
-    finishedCases: cases.length - open.length,
-    agenciesByCase,
-    sharesAffected: Number(shares?.n ?? 0),
-    storageBytes: Number(bytes?.n ?? 0),
-  };
-}
 
 /** The reasons a person can pick (migration 0113 CHECK). */
 export const REMOVAL_REQUEST_REASONS = [
@@ -452,7 +346,7 @@ export async function listRemovalQueue(
     page.map(async (row): Promise<RemovalQueueRow> => {
       const [impact, legalHold] = row.documentId
         ? await Promise.all([
-            removalImpact(db, row.applicantId, row.documentId, now),
+            removalImpact(db, row.applicantId, row.documentId, now, staff),
             documentBlockedByLegalHold(db, {
               applicantId: row.applicantId,
               documentId: row.documentId,
@@ -648,32 +542,23 @@ export async function decideRemovalRequest(
       return err(serviceError('invalid', REMOVAL_REQUEST_REFUSALS.legalHold));
     }
 
-    const impact = await removalImpact(tx, applicantId, documentId, now);
+    const impact = await removalImpact(tx, applicantId, documentId, now, staff);
     await assignReferenceCodes(tx, 'C', impact.openCaseIds);
     const caseCodes = await referenceCodesFor(tx, 'C', impact.openCaseIds);
 
-    // Open cases lose the selection, get a task and a material revision bump (their confirmation
-    // no longer stands). Finished cases are not touched: their snapshots stay exact.
-    for (const missionId of impact.openCaseIds) {
-      await tx
-        .delete(schema.selectedEvidence)
-        .where(
-          and(
-            eq(schema.selectedEvidence.missionId, missionId),
-            eq(schema.selectedEvidence.documentId, documentId),
-          ),
-        );
-      await incrementMaterialRevision(tx, missionId);
-      // createTask is the one writer of case tasks (ai-tools/tool-guard.test.ts). It records the
-      // record owner as the task's author; the staff member who caused it is named on the
-      // DOCUMENT_REMOVAL_DECIDED event below, with the cases it touched.
-      const task = await createTask(tx, {
-        actorAccountId: ownerAccountId,
-        missionId,
-        description: OPEN_CASE_TASK,
-      });
-      if (!task.ok) throw new Error(`removal request: case task refused (${task.error.code})`);
-    }
+    // Open cases lose the selection, get a task and a material revision bump; finished cases are
+    // not touched (effects.ts, shared with Delete My File).
+    await applyOpenCaseEffects(
+      tx,
+      {
+        applicantId,
+        documentId,
+        ownerAccountId,
+        impact,
+        taskDescription: OPEN_CASE_TASK,
+      },
+      staff,
+    );
 
     const casesFlagged = impact.openCaseIds.flatMap((id) => {
       const code = caseCodes.get(id);
@@ -688,7 +573,7 @@ export async function decideRemovalRequest(
         subjectCode: request.documentCode,
         documentKind: kind && /^[a-z][a-z0-9_.-]{0,79}$/.test(kind) ? kind : null,
         uploadedAt: document.createdAt,
-        uploadedByRole: uploaderRole(document, ownerAccountId),
+        uploadedByRole: removalUploaderRole(document, ownerAccountId),
         path: 'REQUEST',
         requestedByAccountId: request.requestedByAccountId,
         approvedByAccountId: staffAccountId,
@@ -758,76 +643,12 @@ export async function decideRemovalRequest(
         .where(eq(requests.id, request.id));
     }
 
-    // Agencies that can see an open case that used the document are told, never with its name,
-    // and only the members who see that case: owners and admins, and members assigned to it
-    // (the same rule as the agency's case list, listVisibleMissionsForMember).
-    const told = new Set<string>();
-    const organizationIds = [...new Set([...impact.agenciesByCase.values()].flat())];
-    if (organizationIds.length > 0) {
-      const members = await tx
-        .select({
-          accountId: schema.memberships.accountId,
-          organizationId: schema.memberships.organizationId,
-          role: schema.memberships.role,
-        })
-        .from(schema.memberships)
-        .innerJoin(
-          schema.organizations,
-          eq(schema.organizations.id, schema.memberships.organizationId),
-        )
-        .where(
-          and(
-            inArray(schema.memberships.organizationId, organizationIds),
-            eq(schema.memberships.active, true),
-            eq(schema.organizations.status, 'ACTIVE'),
-          ),
-        );
-      const assigned = await tx
-        .select({
-          missionId: schema.assignments.missionId,
-          organizationId: schema.assignments.organizationId,
-          accountId: schema.assignments.memberAccountId,
-        })
-        .from(schema.assignments)
-        .where(
-          and(
-            inArray(schema.assignments.organizationId, organizationIds),
-            inArray(schema.assignments.missionId, impact.openCaseIds),
-          ),
-        );
-      for (const [missionId, organizations] of impact.agenciesByCase) {
-        const code = caseCodes.get(missionId);
-        for (const member of members) {
-          if (!organizations.includes(member.organizationId)) continue;
-          if (member.accountId === ownerAccountId) continue;
-          const seesCase =
-            member.role === 'OWNER' ||
-            member.role === 'ADMIN' ||
-            assigned.some(
-              (row) =>
-                row.missionId === missionId &&
-                row.organizationId === member.organizationId &&
-                row.accountId === member.accountId,
-            );
-          if (!seesCase) continue;
-          told.add(member.organizationId);
-          await enqueueNotification(tx, {
-            eventType: 'DOCUMENT_REMOVED_BY_TRAVELLER',
-            channel: 'IN_APP',
-            recipientAccountId: member.accountId,
-            resourceId: request.id,
-            threshold: missionId,
-            organizationId: member.organizationId,
-            missionId,
-            payload: {
-              subject: 'A document was removed by the traveller',
-              summary: `A document in case ${code ?? 'you work on'} was removed by the traveller. Ask them for another one if the case still needs it.`,
-              deepLinkPath: `/app/agency/${member.organizationId}/cases`,
-            },
-          });
-        }
-      }
-    }
+    // Agencies that can see an open case that used the document are told, never with its name.
+    const told = await tellAgenciesOfRemoval(
+      tx,
+      { applicantId, resourceId: request.id, ownerAccountId, impact, caseCodes },
+      staff,
+    );
 
     if (notifyAccountId) {
       const removed = removal.value.outcome === 'REMOVED';
@@ -862,16 +683,6 @@ export async function decideRemovalRequest(
       agenciesTold: told.size,
     });
   });
-}
-
-function uploaderRole(
-  document: { readonly uploaderAccountId: string | null; readonly source: string | null },
-  ownerAccountId: string | null,
-): 'OWNER' | 'AGENCY_MEMBER' | 'CONTRIBUTOR' | 'SYSTEM' | null {
-  if (document.source === 'CONTRIBUTOR') return 'CONTRIBUTOR';
-  if (!document.uploaderAccountId) return null;
-  if (document.uploaderAccountId === ownerAccountId) return 'OWNER';
-  return 'AGENCY_MEMBER';
 }
 
 export interface RemovalSweepResult {

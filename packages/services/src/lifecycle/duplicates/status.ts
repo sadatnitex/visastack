@@ -5,7 +5,7 @@ import { isDocumentVersionUsable } from '../../documents';
 import { activeOrVerifiedErasureStorageObjectIds } from '../../erasure';
 // Imported by the foundation's path, which the read-path guard recognises.
 import { presentDocumentCondition } from '../../lifecycle/foundation/conditions';
-import { type LifecycleAccess, lifecycleScope } from '../foundation/access';
+import { type LifecycleAccess, lifecycleAccessCovers, lifecycleScope } from '../foundation/access';
 import type { DuplicateBlockReason } from '../foundation/actions';
 import { isUuid } from '../foundation/ids';
 import { lifecycleTablesPresent } from '../foundation/presence';
@@ -306,6 +306,15 @@ export async function duplicateStatus(
   );
 }
 
+/** The order a document's reasons are reported in (D5): the first one that applies wins. */
+const BLOCK_REASON_ORDER: readonly DuplicateBlockReason[] = [
+  'LEGAL_HOLD',
+  'FINISHED_CASE',
+  'AGENCY_REQUEST_ANSWER',
+  'CONTRIBUTOR_HANDOVER',
+  'SHARED_BY_NAME',
+];
+
 /**
  * The first D5 reason that refuses deleting each duplicate, in a fixed order: a legal hold, a
  * finished case, an agency request it answered, a contributor's handover, a live share naming it.
@@ -315,6 +324,42 @@ async function blockReasons(
   duplicates: ReadonlyMap<string, { readonly applicantId: string }>,
   now: Date,
 ): Promise<ReadonlyMap<string, DuplicateBlockReason>> {
+  const result = new Map<string, DuplicateBlockReason>();
+  for (const [documentId, reasons] of await blockReasonSets(db, duplicates, now)) {
+    const first = BLOCK_REASON_ORDER.find((reason) => reasons.has(reason));
+    if (first) result.set(documentId, first);
+  }
+  return result;
+}
+
+/**
+ * Every D5 reason that applies to one document of `applicantId`, as a set, for a command that
+ * treats the reasons differently (Delete My File refuses on some and only warns on others). The
+ * same queries `duplicateStatuses` uses, so a duplicate and a unique file are judged alike. `access`
+ * is any genuine proof for that traveller, a lifecycle job or fresh staff; anything else is refused.
+ */
+export async function documentBlockReasons(
+  db: Db,
+  input: { readonly applicantId: string; readonly documentId: string },
+  access: LifecycleAccess,
+  options: { readonly now?: Date } = {},
+): Promise<ReadonlySet<DuplicateBlockReason>> {
+  if (!lifecycleAccessCovers(access, input.applicantId)) {
+    throw new Error('block reasons: this access does not cover that traveller');
+  }
+  const sets = await blockReasonSets(
+    db,
+    new Map([[input.documentId, { applicantId: input.applicantId }]]),
+    options.now ?? new Date(),
+  );
+  return sets.get(input.documentId) ?? new Set();
+}
+
+async function blockReasonSets(
+  db: Db,
+  duplicates: ReadonlyMap<string, { readonly applicantId: string }>,
+  now: Date,
+): Promise<ReadonlyMap<string, ReadonlySet<DuplicateBlockReason>>> {
   const ids = [...duplicates.keys()];
   const found = new Map<string, Set<DuplicateBlockReason>>();
   const add = (documentId: string | null, reason: DuplicateBlockReason) => {
@@ -403,17 +448,5 @@ async function blockReasons(
   const named = new Set(grants.flatMap((grant) => grant.documentIds ?? []));
   for (const id of ids) if (named.has(id)) add(id, 'SHARED_BY_NAME');
 
-  const order: readonly DuplicateBlockReason[] = [
-    'LEGAL_HOLD',
-    'FINISHED_CASE',
-    'AGENCY_REQUEST_ANSWER',
-    'CONTRIBUTOR_HANDOVER',
-    'SHARED_BY_NAME',
-  ];
-  const result = new Map<string, DuplicateBlockReason>();
-  for (const [documentId, reasons] of found) {
-    const first = order.find((reason) => reasons.has(reason));
-    if (first) result.set(documentId, first);
-  }
-  return result;
+  return found;
 }

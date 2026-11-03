@@ -3,6 +3,7 @@ export {
   type DuplicateStatus,
   FINISHED_CASE_STATES,
   NOT_A_DUPLICATE,
+  documentBlockReasons,
   duplicateStatus,
   duplicateStatuses,
 } from './status';

@@ -1,7 +1,7 @@
 // Ask Us to Remove This File (LC-D, docs/roadmap/lifecycle/lanes/D.md).
+export { FINISHED_CASE_STATES_FOR_REMOVAL, type RemovalImpact } from './effects';
 export {
   DECLINE_REASON_WORDS,
-  FINISHED_CASE_STATES_FOR_REMOVAL,
   REMOVAL_DECLINE_CODES,
   REMOVAL_QUEUE_PAGE,
   REMOVAL_REQUEST_REASONS,
@@ -9,7 +9,6 @@ export {
   type RemovalDecisionInput,
   type RemovalDecisionOutcome,
   type RemovalDeclineCode,
-  type RemovalImpact,
   type RemovalQueuePage,
   type RemovalQueueRow,
   type RemovalRequestReason,
