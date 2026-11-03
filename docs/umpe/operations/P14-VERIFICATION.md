@@ -38,16 +38,16 @@ Corrected on the way: rows R02, R05, R08, R12, R18, R22 and S08 named a test fil
 ## Owner actions still needed
 1. Real applicant data: permission to process real passports and personal documents (F05, F06); nothing here switches it on.
 2. Malware scanning: confirm the production scanner is configured and returns real verdicts; tests prove only that an unscanned or structural result is never shown as clean.
-3. AI provider and protection: whether unknown kinds stay protected (today the classifier recognises only redacted excerpts and never reads them in detail); provider, budget and consent settings on production.
+3. AI provider settings: provider, budget and consent settings on production. (Decided by the owner on 3 November: unknown kinds stay protected for detailed reading; every file is still recognised from a redacted excerpt.)
 4. Payments: no payment change in UMPE; any charging stays an owner decision (ADR 0020).
-5. Database: run the pending UMPE migrations in merge order, each with its own "migrate NNNN" word.
+5. Database: done. Every UMPE migration (0115 to 0129) ran on production right after its merge under the owner's pre-approval, each verified on Neon (128 applied after 0129, 3 November).
 6. Live acceptance: a seeded test agency, guest and traveller on the deployed commit to run J4 and J5 in a real browser with real email delivery.
 7. Official content: reviewed checklists for each route before calling it supported (R10).
-8. Decide whether the source job should be Saturday only in `vercel.json` or stay daily with the weekly limit in the service.
+8. Source job schedule: lead decision under the owner's pre-approval: keep the daily trigger. The service does real work once per Dhaka week and repeat runs do nothing, so a missed Saturday trigger is caught the next day; no change needed.
 
 ## Release verdict
-- HEAD / deploy SHA: branch head as handed back / not deployed from this branch.
+- HEAD / deploy SHA: the product code verified here (int-w5 1423f554) is the same tree as main 310e6a42 (#423), deployed to production and checked live on 3 November (deploy smoke, browser smoke, live signed-in check green; Neon 128 migrations). This branch adds tests and documents only.
 - Integrated journeys: J1 to J8 proven below the browser with direct test files above; signed-out desk proven in a browser.
 - Actual runtime (auth, email, scanner, AI provider, source monitor on the live site): not verified in this session.
 - Measured cost and performance: unmeasured.
-- **Verdict: FEATURE COMPLETE IN TEST.** It is not "deployed and verified" and not "ready for real data". It reaches those only after the owner actions above and a live run on the exact deployed commit.
+- **Verdict: FEATURE COMPLETE IN TEST AND DEPLOYED (controlled pilot, made-up data).** The UMPE code is live; signed-out pages and the light live checks pass on it. It is not "live-verified" end to end (no signed-in J4 and J5 run with real email on the deployed commit) and not "ready for real data". It reaches those only after the owner actions above.
