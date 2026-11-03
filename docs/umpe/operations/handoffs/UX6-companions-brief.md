@@ -1,6 +1,6 @@
 # UX6 step 2 brief: travelling with someone else (companions and invitations)
 
-Status: brief only. Nothing here is built. It needs the owner's decisions below and a "migrate NNNN" word for the migration number, which is expected to be 0130 (the next free number when this was written; confirm it again before any run, per ADR 0026 D8).
+Status: decided by the owner on 3 Nov 2026 (see Owner decisions); package 1 is being built. The migration word is still needed before any run: the number is expected to be 0130 (the next free number when this was written; confirm it again before any run, per ADR 0026 D8).
 
 ## The idea in one line
 
@@ -37,13 +37,29 @@ A trip can include people who are not the organiser's own managed people: a frie
 3. Email kind, accept page, switch.
 4. Companion read-only page and "Plan My Own Case for This Trip".
 
-## Owner decisions needed
+## Owner decisions (given 3 Nov 2026, in force)
 
-1. The word "migrate 0130" (or the then-free number) after package 1 is merged, and approval of the table above.
-2. Names: confirm that managed family members are never listed to companions by name.
-3. Companions are adults only (an organiser adds a child as a family member instead). Confirm.
-4. A per-trip companion cap (suggested 20) and the 7 day invitation life.
-5. Confirm "Plan My Own Case for This Trip" as the v1 outcome of joining, and that cross-account membership waits.
+1. Never list the organiser's managed family members by name to companions (a companion sees only "N more travelling with the organiser").
+2. Companions are adults only; a child is added as a family member instead.
+3. At most 20 companions per trip; an invitation lives 7 days.
+4. Joining leads to "Plan My Own Case for This Trip" (their own case on their own account); cross-account trip membership waits.
+5. The companion decides how much of their own information the organiser sees, because they travel together (below).
+6. Still needed: the word "migrate NNNN" for the migration number, only when a package that carries a migration is merged and ready to run.
+
+## What a companion shares with the organiser (their choice, never the organiser's)
+
+A companion chooses a sharing level on the accept screen and can change or withdraw it at any time; it takes effect on the next read. The default is the smallest.
+
+| Level | The organiser sees | Notes |
+|---|---|---|
+| Name Only (default) | The name the companion confirmed, and Joined | Nothing about their case |
+| Plan Status | Also one plain phrase for the companion's own case for this trip (for example "Getting Ready", "Ready to Share") | A phrase only: no checklist, no documents, no personal values |
+| Travel Bookings | Also the names of booking, itinerary, invitation and accommodation papers the companion chose to add to the trip | Same common-evidence rule as family trips: passports, bank and medical papers are never shareable; each paper is an explicit choice and can be withdrawn |
+
+- The level is stored on the companion's row and set only by the signed-in companion; the organiser's own account can never set or raise it.
+- The organiser's read returns only what the level allows and re-checks the live row each time. Lowering or withdrawing a level removes it from the next read.
+- Package 1 stores the level (all three values) and enforces Name Only and Plan Status; Travel Bookings is built in package 4 together with the companion's own trip page.
+- Every change of level is audited (ids and the level only).
 
 ## Security review checklist (before any merge)
 
