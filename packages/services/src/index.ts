@@ -2730,6 +2730,47 @@ export {
   startGroupTrip,
 } from './umpe-trip-service';
 export { tripTablesPresent as tripTablesReady } from './umpe-trip-tables';
+// UMPE UX6: travelling with someone else
+export {
+  COMPANION_LIST_LIMIT,
+  COMPANION_UNAVAILABLE,
+  type CompanionStanding,
+  TripCompanionAccess,
+  invitedCompanionAccess,
+  joinedCompanionAccess,
+  myCompanionAccesses,
+  tripCompanionAccessProblem,
+} from './access/trip-companion-access';
+export { TRIP_COMPANIONS_SWITCH, tripCompanionsEnabled } from './umpe-trip-companions-switch';
+export { tripCompanionsTablePresent as tripCompanionsReady } from './umpe-trip-companion-tables';
+export {
+  COMPANION_INVITATION_DAYS,
+  COMPANION_SHARE_LEVELS,
+  COMPANION_SHARE_LEVEL_LABELS,
+  TRIP_MAX_COMPANIONS,
+  type AddCompanionOutcome,
+  type CompanionInvitationDelivery,
+  type CompanionInvitationPreview,
+  type CompanionShareLevel,
+  type CompanionTripSummary,
+  type CompanionTripView,
+  type OrganiserCompanionStatus,
+  type OrganiserCompanionView,
+  acceptCompanionInvitation,
+  addCompanion,
+  companionPlanStatusPhrase,
+  declineCompanionInvitation,
+  getCompanionTrip,
+  leaveTrip,
+  listCompanions,
+  listMyCompanionTrips,
+  openCompanionInvitation,
+  previewCompanionInvitation,
+  readCompanionTripSummary,
+  removeCompanion,
+  resendInvitation,
+  setCompanionShareLevel,
+} from './umpe-trip-companions';
 // UMPE P11
 export {
   type CorrectionCategory,

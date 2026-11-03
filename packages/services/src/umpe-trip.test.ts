@@ -648,7 +648,7 @@ describe('UMPE P5 group trips (database)', () => {
       const owner = await account(db, 'p5-missing@example.com');
       const mine = await traveller(db, owner, 'Synthetic Missing');
       await db.execute(
-        sql`drop table umpe_trip_evidence_allowances, umpe_trip_evidence, umpe_trip_travellers, umpe_trips`,
+        sql`drop table umpe_trip_companions, umpe_trip_evidence_allowances, umpe_trip_evidence, umpe_trip_travellers, umpe_trips`,
       );
       const listed = await listTrips(await view(db, owner, mine));
       expect(isOk(listed) && listed.value).toEqual([]);

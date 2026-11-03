@@ -52,6 +52,9 @@ const GATE_TYPES = [
   // UMPE P7: one live response of one agency, naming exactly one person and listing the exact
   // versions it may read (access/collection-response-access.ts).
   'CollectionResponseAccess',
+  // UMPE UX6: a live row of one trip's companions bound to the signed-in account (a joined companion,
+  // or an invited person holding the emailed link). Minted only in access/trip-companion-access.ts.
+  'TripCompanionAccess',
 ] as const;
 
 /**
@@ -344,6 +347,7 @@ function gateDeclarations(
     'collection-scope.ts',
     'collection-response-access.ts',
     'guest-collection.ts',
+    'trip-companion-access.ts',
   ]) {
     const sf = sourceFileAt(program, path.join(accessDir, file));
     const moduleSymbol = checker.getSymbolAtLocation(sf);
@@ -1260,6 +1264,65 @@ describe('traveller answer gate (UMPE P7)', () => {
       }
     }
     expect(found.sort()).toEqual([...RESPONSE_ACCESS_FUNCTIONS]);
+  }, 180_000);
+});
+
+/**
+ * UMPE UX6: a `TripCompanionAccess` counts as a full gate, so its scope (one live row of one trip's
+ * companions, bound to the signed-in account) rests on each function's own WHERE clauses. Every
+ * function taking it is therefore listed here, each reviewed for that scoping and tested in
+ * umpe-trip-companions.test.ts. A new one fails until it is reviewed and added; an entry that no
+ * longer exists fails too. Each must also check the access at run time before anything else.
+ */
+const COMPANION_ACCESS_FUNCTIONS = [
+  'umpe-trip-companions#acceptCompanionInvitation',
+  'umpe-trip-companions#declineCompanionInvitation',
+  'umpe-trip-companions#getCompanionTrip',
+  'umpe-trip-companions#leaveTrip',
+  'umpe-trip-companions#readCompanionTripSummary',
+  'umpe-trip-companions#setCompanionShareLevel',
+] as const;
+
+describe('trip companion gate (UMPE UX6)', () => {
+  it('only the reviewed functions take a TripCompanionAccess, and each checks it at run time', () => {
+    const { program } = programOnce();
+    const checker = program.getTypeChecker();
+    const decls = gateDeclarations(program, checker, ['TripCompanionAccess']);
+    const found: string[] = [];
+    const problems: string[] = [];
+    for (const sf of program.getSourceFiles()) {
+      const fileName = real(sf.fileName);
+      if (sf.isDeclarationFile || !fileName.startsWith(srcDir + path.sep) || isTestFile(fileName)) {
+        continue;
+      }
+      if (fileName.startsWith(accessDir + path.sep)) continue;
+      for (const [name, shape] of exportedFunctions(checker, sf)) {
+        for (const fn of shape.fns) {
+          const params = fn.parameters.filter((p) =>
+            isGateType(checker.getTypeAtLocation(p), decls),
+          );
+          if (params.length === 0) continue;
+          const id = `${moduleId(fileName)}#${name}`;
+          found.push(id);
+          const names = new Set(params.map((p) => p.name.getText()));
+          let checks = false;
+          const visit = (node: ts.Node) => {
+            if (
+              ts.isCallExpression(node) &&
+              isCall(node, 'tripCompanionAccessProblem') &&
+              node.arguments.some((a) => ts.isIdentifier(a) && names.has(a.text))
+            ) {
+              checks = true;
+            }
+            ts.forEachChild(node, visit);
+          };
+          if (fn.body) visit(fn.body);
+          if (!checks) problems.push(`${id} does not check its gate at run time`);
+        }
+      }
+    }
+    expect([...new Set(found)].sort()).toEqual([...COMPANION_ACCESS_FUNCTIONS]);
+    expect(problems).toEqual([]);
   }, 180_000);
 });
 
