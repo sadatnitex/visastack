@@ -2930,6 +2930,27 @@ export {
   packageNoticeTablesReady,
 } from './umpe-experience-notices';
 
+// UMPE G4: every file recognised (redacted excerpt), confident kinds placed with a one-step Change,
+// family files filed automatically on an exact match, held-file reminders and counts.
+export {
+  AUTO_PLACE_MIN_CONFIDENCE,
+  type AutoPlacementView,
+  type PlacementOutcome,
+  RECOGNITION_EXCERPT_MAX_CHARS,
+  buildRecognitionExcerpt,
+  changeRecognisedKind,
+  listAutoPlacements,
+  placeRecognisedKind,
+  queueReadingAfterKindDecision,
+} from './umpe-document-recognition';
+export {
+  HELD_FILE_REMINDER_EVENT,
+  HELD_REMINDER_AFTER_MS,
+  countHeldFiles,
+  returnAutoFiledHold,
+} from './umpe-document-holds';
+export { autoPlacementsTablePresent } from './umpe-document-tables';
+
 // UMPE G2
 // Rule category, document format and route conditions (side tables), the source check date, the
 // case-aware expiry check.

@@ -1,5 +1,5 @@
 import { type ConsentType, type Result, err, ok } from '@visastack/core';
-import { and, count, eq, inArray, isNull, lte } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, lte, ne } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { getConsents } from './consent';
 import { type Db, first, isUniqueViolation, required, schema } from './db';
@@ -9,6 +9,7 @@ import { type ServiceError, serviceError } from './errors';
 import { listActiveLegalHoldsForAccount } from './legal-hold';
 import { readUnlessPhotoTableMissing } from './profile-photos';
 import { redactionMasksTablePresent } from './redaction-table';
+import { personHoldsTablePresent } from './umpe-document-tables';
 
 /**
  * Account deletion workflow (Build Spec §13; PRD §2 — erasure).
@@ -388,6 +389,11 @@ export async function executeAccountDeletion(
       );
     }
 
+    // UMPE G4: family files still waiting for Which Person? are queued for verified erasure in
+    // this transaction, after every refusal above (a refusal returns, it does not roll back) and
+    // before any audit call (the lock order above).
+    const heldFilesQueued = await queueHeldFileErasure(tx, input.accountId);
+
     // Revoke (never silently orphan) this account's own active platform-role
     // grants, of any role, as part of this same transaction — deletion is a
     // legitimate revocation reason, and the historical row must say so
@@ -535,11 +541,49 @@ export async function executeAccountDeletion(
       result: 'ALLOWED',
       resourceType: 'account',
       resourceId: input.accountId,
-      metadata: { pendingErasureJobs: storageObjects.length },
+      metadata: { pendingErasureJobs: storageObjects.length + heldFilesQueued },
     });
     // Removes the account; cascades memberships/consents/recipient-grants and
     // set-nulls audit/uploader/actor references.
     await tx.delete(schema.accounts).where(eq(schema.accounts.id, input.accountId));
     return ok(updated);
   });
+}
+
+/**
+ * Account deletion (UMPE G4): every file of the account still waiting for Which Person? (or being
+ * stored, filed or removed) is queued for verified erasure in the deleting transaction, and its row
+ * goes with it, so nothing waits for the daily sweep. A filed hold's bytes belong to its document,
+ * which the deletion queues on its own. Returns how many files were queued.
+ */
+async function queueHeldFileErasure(tx: Db, accountId: string): Promise<number> {
+  if (!(await personHoldsTablePresent(tx))) return 0;
+  const holds = schema.documentPersonHolds;
+  const rows = await tx
+    .select({ id: holds.id, objectKey: holds.objectKey })
+    .from(holds)
+    .where(and(eq(holds.ownerAccountId, accountId), ne(holds.status, 'FILED')))
+    .for('update');
+  let queued = 0;
+  for (const row of rows) {
+    const object = first(
+      await tx
+        .select()
+        .from(schema.storageObjects)
+        .where(eq(schema.storageObjects.objectKey, row.objectKey))
+        .limit(1),
+    );
+    if (object) {
+      await enqueueErasureJob(tx, {
+        reason: 'ACCOUNT_DELETION',
+        bucket: object.bucket,
+        objectKey: object.objectKey,
+        expectedHash: object.contentHash,
+        storageObjectId: object.id,
+      });
+      queued += 1;
+    }
+  }
+  await tx.delete(holds).where(eq(holds.ownerAccountId, accountId));
+  return queued;
 }

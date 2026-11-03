@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { withArticle } from '../../../../../lib/indefinite-article';
 import { type RelationDecisionState, needsDecisionAction } from './needs-decision-actions';
 
 /** One file needing one decision, as the documents page passes it (UMPE P3). */
@@ -45,6 +46,16 @@ export interface HeldFileItem {
   readonly proposedApplicantId: string | null;
   /** When it was added, already written for people ("3 Nov 2026"). */
   readonly addedOn: string;
+}
+
+/** UMPE G4: something placed automatically, listed with its one-step Change for 30 days. */
+export interface AutoPlacementItem {
+  readonly placementId: string;
+  readonly documentId: string;
+  readonly placement: 'KIND' | 'PERSON';
+  readonly title: string;
+  /** The kind applied, for a recognised kind. */
+  readonly kindLabel: string | null;
 }
 
 export interface PersonChoice {
@@ -137,6 +148,49 @@ function documentHref(applicantId: string, documentId: string): string {
   return `/app/applicant/${applicantId}/documents?document=${documentId}#wallet-selected-document`;
 }
 
+/** UMPE G4: Change for one automatic placement; one step puts the file back as it was. */
+function ChangePlacementForm({
+  applicantId,
+  item,
+  action,
+  pending,
+}: {
+  readonly applicantId: string;
+  readonly item: AutoPlacementItem;
+  readonly action: (formData: FormData) => void;
+  readonly pending: boolean;
+}) {
+  return (
+    <form action={action} className="umpe-p3-decision-form">
+      <input
+        type="hidden"
+        name="intent"
+        value={item.placement === 'KIND' ? 'change-kind' : 'change-person'}
+      />
+      <input type="hidden" name="applicantId" value={applicantId} />
+      <input type="hidden" name="placementId" value={item.placementId} />
+      <input type="hidden" name="documentId" value={item.documentId} />
+      <div className="umpe-p3-decision-actions">
+        <SubmitButton
+          pending={pending}
+          idle="Change"
+          busy="Changing"
+          label={`Change: ${item.title}`}
+          className="btn btn-secondary"
+        />
+      </div>
+    </form>
+  );
+}
+
+/** One line for an automatic placement, in plain words. */
+function placementLine(item: AutoPlacementItem, personName: string): string {
+  if (item.placement === 'PERSON') {
+    return `${item.title} matched ${personName} by name and date of birth, so we filed it for you.`;
+  }
+  return `We recognised ${item.title} as ${withArticle(item.kindLabel ?? 'Document')} and filed it.`;
+}
+
 /** Keep As It Is for one finding raised when a file was read (UMPE G1). */
 function KeepForm({
   applicantId,
@@ -174,6 +228,10 @@ function basisLine(file: HeldFileItem, people: readonly PersonChoice[]): string 
   const proposed = people.find((person) => person.applicantId === file.proposedApplicantId);
   if (file.basis === 'NAME_AND_BIRTH_DATE' && proposed) {
     return `The name and date of birth in this file match ${proposed.displayName}. Check before you file it.`;
+  }
+  if (file.basis === 'NAME_AND_BIRTH_DATE') {
+    // UMPE G4: filed automatically and moved back by the person, so nobody is chosen for them.
+    return 'Choose who this file belongs to.';
   }
   if (file.basis === 'CLOSE_MATCHES') {
     return 'This file could belong to more than one of your people, so we did not choose for you.';
@@ -258,6 +316,8 @@ export function NeedsDecision({
   linked,
   held = [],
   people = [],
+  automatic = [],
+  personName = '',
 }: {
   readonly applicantId: string;
   readonly items: readonly NeedsDecisionItem[];
@@ -266,13 +326,23 @@ export function NeedsDecision({
   readonly held?: readonly HeldFileItem[];
   /** UMPE G1: the account's own people, to choose from. */
   readonly people?: readonly PersonChoice[];
+  /** UMPE G4: what was placed automatically for this person recently, each with its Change. */
+  readonly automatic?: readonly AutoPlacementItem[];
+  /** UMPE G4: this person's name, for Filed Under. */
+  readonly personName?: string;
 }) {
   const [state, formAction, pending] = useActionState(needsDecisionAction, INITIAL);
   const statusRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (state.message) statusRef.current?.focus();
   }, [state]);
-  if (items.length === 0 && linked.length === 0 && held.length === 0 && !state.message) {
+  if (
+    items.length === 0 &&
+    linked.length === 0 &&
+    held.length === 0 &&
+    automatic.length === 0 &&
+    !state.message
+  ) {
     return null;
   }
   return (
@@ -362,7 +432,7 @@ export function NeedsDecision({
                 <li key={item.documentId} className="umpe-p3-decision-item">
                   <p>
                     {item.kind === 'suggested_kind'
-                      ? `We think ${item.title} is ${/^[AEIOU]/i.test(item.suggestedLabel) ? 'an' : 'a'} ${item.suggestedLabel}. Nothing is saved until you accept it.`
+                      ? `We think ${item.title} is ${withArticle(item.suggestedLabel)}. Nothing is saved until you accept it.`
                       : item.kind === 'unknown_type'
                         ? `We could not tell what ${item.title} is.`
                         : `We are not sure what ${item.title} is.`}
@@ -381,6 +451,34 @@ export function NeedsDecision({
         </>
       ) : held.length === 0 ? (
         <p className="card-body">Nothing needs a decision right now.</p>
+      ) : null}
+      {automatic.length > 0 ? (
+        <>
+          <h3 className="umpe-p3-linked-title">Placed Automatically</h3>
+          <p className="card-body">
+            These were sorted for you. If one is wrong, Change puts it back as it was.
+          </p>
+          <ul className="umpe-p3-decision-list">
+            {automatic.map((item) => (
+              <li key={item.placementId} className="umpe-p3-decision-item">
+                <p className="umpe-p3-decision-badges">
+                  <span className="badge badge-neutral">
+                    {item.placement === 'KIND'
+                      ? 'Recognised Automatically'
+                      : `Filed Under ${personName}`}
+                  </span>
+                </p>
+                <p>{placementLine(item, personName)}</p>
+                <ChangePlacementForm
+                  applicantId={applicantId}
+                  item={item}
+                  action={formAction}
+                  pending={pending}
+                />
+              </li>
+            ))}
+          </ul>
+        </>
       ) : null}
       {linked.length > 0 ? (
         <>

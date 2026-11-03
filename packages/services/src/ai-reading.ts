@@ -26,6 +26,7 @@ import {
   presentDocumentCondition,
 } from './lifecycle/foundation';
 import type { AiOcrPort, OcrSourceImageOutcome } from './ocr';
+import { placeRecognisedKind } from './umpe-document-recognition';
 
 /**
  * Automatic AI reading of one file version (S5, ADR 0019). It runs from the durable queue, under
@@ -273,9 +274,22 @@ export async function processAiReading(
       suggestions: progress.suggestions ?? 0,
     });
 
-  // The feature first (S28): the platform, the platform owner's switch, the owner's plan and
-  // today's limit, all for the owner of this file. Uploading still works; the file simply waits
-  // for the person, who can add the details themselves.
+  // The platform switches and the provider's terms first: with them off, no AI call of any kind.
+  if (!(await isAiDispatchAllowed(db))) return stopped('SWITCHED_OFF');
+  const killSwitchCheck = () => isAiDispatchAllowed(db);
+  // A kind of document on the protected list is only ever read when the person asks. If the
+  // switches cannot be read, every document counts as protected.
+  const protection = await loadDocumentProtectionSettings(db, DEFAULT_DOCUMENT_PROTECTION);
+  let text = await getLatestReadableText(db, scope, target.versionId, target.applicantId);
+
+  // UMPE G4: recognition comes first and is not reading. A file of no known kind is recognised
+  // from a redacted, bounded excerpt (its own gates: the document kind switch, consent, budgets),
+  // and placed when the recognition is sure. It never needs the file to be read in detail.
+  if (text) await recogniseIfUnknown(db, scope, ports, target.versionId, killSwitchCheck);
+
+  // The feature (S28): the platform, the platform owner's switch, the owner's plan and today's
+  // limit, all for the owner of this file. Uploading still works; the file simply waits for the
+  // person, who can add the details themselves.
   const feature = await getAiFeatureState(db, 'ai_automatic_reading', {
     system: scope,
     accountId: target.ownerAccountId,
@@ -289,18 +303,12 @@ export async function processAiReading(
   const mayReadScans = await hasConsent(db, target.ownerAccountId, 'AI_OCR');
   const mayReadDetails = await hasConsent(db, target.ownerAccountId, 'AI_EXTRACTION');
   if (!mayReadScans && !mayReadDetails) return stopped('NO_CONSENT');
-  if (!(await isAiDispatchAllowed(db))) return stopped('SWITCHED_OFF');
 
-  // A kind of document on the protected list is only ever read when the person asks. If the
-  // switches cannot be read, every document counts as protected.
-  const protection = await loadDocumentProtectionSettings(db, DEFAULT_DOCUMENT_PROTECTION);
-  const kind = await getDocumentTypeOfVersion(db, target.versionId);
-  if (isRestrictedDocumentType(kind, protection)) return stopped('PROTECTED');
+  // UMPE G4: protection is checked against the kind as it stands now, after recognition, and
+  // again after every later step that can change it, never against the kind read at the start.
+  if (await readingIsProtected(db, target.versionId, protection)) return stopped('PROTECTED');
 
-  const killSwitchCheck = () => isAiDispatchAllowed(db);
   let ranOcr = false;
-  let text = await getLatestReadableText(db, scope, target.versionId, target.applicantId);
-
   if (!text) {
     // Nothing to start from: read the picture, if the owner allows it and the file is an image.
     if (!mayReadScans) return stopped('NO_CONSENT');
@@ -335,11 +343,15 @@ export async function processAiReading(
     ranOcr = true;
     text = await getLatestReadableText(db, scope, target.versionId, target.applicantId);
     if (!text) return stopped('NOTHING_TO_READ', { ranOcr });
+    // The picture's text can name the kind: recognise it, then check protection again.
+    await recogniseIfUnknown(db, scope, ports, target.versionId, killSwitchCheck);
+    if (await readingIsProtected(db, target.versionId, protection)) {
+      return stopped('PROTECTED', { ranOcr });
+    }
   }
 
   // The text is in hand; reading details out of it needs the other consent.
   if (!mayReadDetails) return stopped('NO_CONSENT', { ranOcr });
-  await suggestKindIfUnknown(db, scope, ports, target.versionId, killSwitchCheck);
   // One reading per file (see alreadyHasSuggestions).
   if (await alreadyHasSuggestions(db, target.versionId)) {
     return audited({ outcome: 'READ', ranOcr, ranExtraction: false, suggestions: 0 });
@@ -378,13 +390,14 @@ export async function processAiReading(
 }
 
 /**
- * UMPE G1 (ledger I07): when the rules gave no kind, ask the classifier once, through the same gate
- * the button uses (`suggestDocumentKindInBackground` repeats every check: feature, consent, the
- * rules' own kind, a suggestion already waiting, budgets, rate limit). Best effort: a refusal or a
- * failed call leaves the file exactly as it was (listed as Unknown Type) and never stops the
- * reading of details. Kinds only are audited, by the classifier itself.
+ * UMPE G1 and G4 (ledger I07): when the rules gave no kind, recognise the file once, through the
+ * same gate the button uses (`suggestDocumentKindInBackground` repeats every check: the document
+ * kind switch, consent, the rules' own kind, a suggestion already waiting, budgets, rate limit),
+ * from a redacted excerpt. A confident kind is then placed at once (`placeRecognisedKind`); a less
+ * sure one waits in Needs One Decision. Best effort: a refusal or a failed call leaves the file as
+ * it was (listed as Unknown Type). The caller re-checks protection afterwards, before any reading.
  */
-async function suggestKindIfUnknown(
+async function recogniseIfUnknown(
   db: Db,
   scope: SystemScope<'process-ai-reading'>,
   ports: AiReadingPorts,
@@ -409,7 +422,7 @@ async function suggestKindIfUnknown(
     if (rules?.classifiedType && !rules.reviewRequired) return;
     const classify = await ports.classify();
     if (!classify) return;
-    await suggestDocumentKindInBackground(db, scope, classify.ai, {
+    const suggestion = await suggestDocumentKindInBackground(db, scope, classify.ai, {
       documentVersionId,
       budgetLimitUnits: classify.limits.budgetLimitUnits,
       perDocumentBudgetLimitUnits: classify.limits.perDocumentBudgetLimitUnits,
@@ -419,10 +432,52 @@ async function suggestKindIfUnknown(
       maxConcurrentCalls: classify.limits.maxConcurrentCalls,
       killSwitchCheck,
     });
+    // UMPE G4: a confident recognition is placed at once; a less sure one waits for the person.
+    if (
+      suggestion.ok &&
+      (suggestion.value.status === 'suggested' || suggestion.value.status === 'already_suggested')
+    ) {
+      await placeRecognisedKind(db, scope, { documentVersionId });
+    }
   } catch (error) {
     // Never a value from the file: the kind of error only. The reading of details goes on.
     console.warn(
-      `[ai-reading] kind suggestion failed: ${error instanceof Error ? error.name : 'unknown'}`,
+      `[ai-reading] recognition failed: ${error instanceof Error ? error.name : 'unknown'}`,
     );
   }
+}
+
+/**
+ * UMPE G4: whether the details of this file may not be read automatically, decided against the
+ * kind as it stands now. A known kind answers by itself. An unknown kind is protected while the
+ * platform owner protects unknown kinds; otherwise any kind the rules or the AI suggested for this
+ * file (waiting or not yet decided) is checked too, so a file recognised as a passport is never read
+ * in detail just because nobody has accepted the suggestion yet.
+ */
+async function readingIsProtected(
+  db: Db,
+  documentVersionId: string,
+  protection: Awaited<ReturnType<typeof loadDocumentProtectionSettings>>,
+): Promise<boolean> {
+  const kind = await getDocumentTypeOfVersion(db, documentVersionId);
+  if (kind) return isRestrictedDocumentType(kind, protection);
+  if (isRestrictedDocumentType(null, protection)) return true;
+  const waiting = await db
+    .select({ suggestedType: schema.documentTypeProposals.suggestedType })
+    .from(schema.documentTypeProposals)
+    .where(
+      and(
+        eq(schema.documentTypeProposals.documentVersionId, documentVersionId),
+        eq(schema.documentTypeProposals.status, 'PENDING'),
+      ),
+    );
+  const rules = await db
+    .select({ classifiedType: schema.documentClassifications.classifiedType })
+    .from(schema.documentClassifications)
+    .where(eq(schema.documentClassifications.documentVersionId, documentVersionId));
+  const suggested = [
+    ...waiting.map((row) => row.suggestedType),
+    ...rules.map((row) => row.classifiedType),
+  ].filter((value): value is string => typeof value === 'string' && value !== '');
+  return suggested.some((value) => isRestrictedDocumentType(value, protection));
 }

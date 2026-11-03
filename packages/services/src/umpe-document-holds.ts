@@ -24,7 +24,7 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { AuthorizedApplicant, SystemScope } from './access';
 import { appendAuditEvent } from './audit';
 import { findTd3Block } from './classification';
@@ -34,8 +34,13 @@ import { type ServiceError, serviceError } from './errors';
 import type { DocumentConverterPort } from './extraction';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { enqueueIntakeJob } from './jobs';
-import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
+import {
+  lifecycleTablesPresent,
+  presentApplicantCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
 import { parseTd3 } from './mrz';
+import { HELD_FILE_REMINDER_EVENT, enqueueNotificationBothChannels } from './notifications';
 import type { KeyManagementPort } from './ports';
 import { revealFactVersionValue } from './profile';
 import { type UploadQuotaConfig, loadUploadQuotaConfig } from './quotas';
@@ -45,7 +50,12 @@ import { registerStorageObject } from './storage-objects';
 import { sanitizeOriginalFileName } from './umpe-document-names';
 import { isUploadId } from './umpe-document-receipts';
 import { DOCUMENT_DATE_PATTERN, parseStatementDate } from './umpe-document-relations';
-import { personHoldsTablePresent, uploadReceiptsTablePresent } from './umpe-document-tables';
+import {
+  autoPlacementsTablePresent,
+  personHoldsTablePresent,
+  relationProposalsTablePresent,
+  uploadReceiptsTablePresent,
+} from './umpe-document-tables';
 import { failUpload, finalizeUpload, reserveUpload } from './uploads';
 
 /** At most this many files waiting at once per account, and this many bytes in all. */
@@ -287,6 +297,8 @@ export type HoldFamilyFileOutcome =
       readonly kind: 'held';
       readonly holdId: string;
       readonly basis: ProposalBasis;
+      /** UMPE G4: the one person matched exactly (basis NAME_AND_BIRTH_DATE), or null. */
+      readonly proposedApplicantId: string | null;
       readonly replay: boolean;
     }
   | { readonly kind: 'in_progress'; readonly retryAfterSeconds: number }
@@ -386,6 +398,7 @@ export async function holdFamilyFile(
         kind: 'held',
         holdId: existing.id,
         basis: isProposalBasis(existing.proposalBasis) ? existing.proposalBasis : 'NOT_READ',
+        proposedApplicantId: existing.proposedApplicantId,
         replay: true,
       };
     }
@@ -587,7 +600,13 @@ export async function holdFamilyFile(
     return true;
   });
   if (!finished) return { kind: 'in_progress', retryAfterSeconds: 5 };
-  return { kind: 'held', holdId: claimed, basis: proposal.basis, replay: false };
+  return {
+    kind: 'held',
+    holdId: claimed,
+    basis: proposal.basis,
+    proposedApplicantId: proposal.basis === 'NAME_AND_BIRTH_DATE' ? proposal.applicantId : null,
+    replay: false,
+  };
 }
 
 // --- Listing and deciding ------------------------------------------------------------------------
@@ -689,7 +708,15 @@ export interface FiledHold {
  */
 export async function fileHeldFile(
   proof: OwnerProof,
-  input: { readonly holdId: string },
+  input: {
+    readonly holdId: string;
+    /**
+     * UMPE G4: filed without asking because the file matched exactly this one person (name and
+     * date of birth, no close rival). Refused unless the hold's own proposal names this person,
+     * and recorded as an automatic placement the owner can Change.
+     */
+    readonly automatic?: boolean;
+  },
   options: { readonly quotaConfig?: UploadQuotaConfig; readonly now?: Date } = {},
 ): Promise<Result<FiledHold, ServiceError>> {
   const owner = ownerOf(proof, 'MANAGE');
@@ -700,13 +727,25 @@ export async function fileHeldFile(
   const applicantId = proof.applicant.id;
   const now = options.now ?? new Date();
   const holds = schema.documentPersonHolds;
+  const automatic = input.automatic === true;
+  if (automatic && !(await autoPlacementsTablePresent(db))) return notFound;
 
   const claimed = first(
     await db
       .update(holds)
       .set({ status: 'FILING', updatedAt: now })
       .where(
-        and(eq(holds.id, input.holdId), eq(holds.ownerAccountId, owner), waitingCondition(now)),
+        and(
+          eq(holds.id, input.holdId),
+          eq(holds.ownerAccountId, owner),
+          waitingCondition(now),
+          ...(automatic
+            ? [
+                eq(holds.proposalBasis, 'NAME_AND_BIRTH_DATE'),
+                eq(holds.proposedApplicantId, applicantId),
+              ]
+            : []),
+        ),
       )
       .returning(),
   );
@@ -778,10 +817,19 @@ export async function fileHeldFile(
           .onConflictDoNothing();
       }
       await enqueueIntakeJob(tx, { documentVersionId: version.id });
+      // UMPE G4: an automatic filing keeps what the owner needs to Change it.
+      if (automatic) {
+        await tx.insert(schema.documentAutoPlacements).values({
+          applicantId,
+          documentId: version.documentId,
+          placement: 'PERSON',
+          holdId: claimed.id,
+        });
+      }
       await appendAuditEvent(tx, {
         eventType: 'DOCUMENT_HELD_FILED',
         actorAccountId: owner,
-        method: 'MANUAL',
+        method: automatic ? 'SYSTEM' : 'MANUAL',
         result: 'ALLOWED',
         applicantId,
         resourceType: 'document',
@@ -789,6 +837,7 @@ export async function fileHeldFile(
         metadata: {
           basis: claimed.proposalBasis,
           asProposed: claimed.proposedApplicantId === applicantId,
+          automatic,
         },
       });
       return {
@@ -880,11 +929,11 @@ export async function sweepHeldFiles(
   scope: SystemScope<'process-abandoned-uploads'>,
   storage: Pick<BlobStore, 'deleteObject'>,
   options: { readonly now?: Date; readonly limit?: number } = {},
-): Promise<{ readonly removed: number }> {
+): Promise<{ readonly removed: number; readonly reminded: number }> {
   if (!SystemScope.isGenuine(scope) || scope.job !== 'process-abandoned-uploads') {
     throw new Error('the held file sweep needs the scope of its own job');
   }
-  if (!(await personHoldsTablePresent(db))) return { removed: 0 };
+  if (!(await personHoldsTablePresent(db))) return { removed: 0, reminded: 0 };
   const holds = schema.documentPersonHolds;
   const now = options.now ?? new Date();
   const oldest = new Date(now.getTime() - HELD_MAX_AGE_MS);
@@ -924,5 +973,348 @@ export async function sweepHeldFiles(
       .returning({ id: holds.id });
     removed += gone.length;
   }
-  return { removed };
+  const reminded = await remindHeldFiles(db, { now, limit: options.limit ?? 200 });
+  return { removed, reminded };
+}
+
+// --- UMPE G4: automatic filing, reminders, counts and account deletion ------------------------
+
+/** A file still waiting for Which Person? this long gets one reminder (in the app and by email). */
+export const HELD_REMINDER_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+/** The reminder's event (defined with its send-time check in notifications.ts). */
+export { HELD_FILE_REMINDER_EVENT } from './notifications';
+
+/**
+ * One reminder per waiting file older than 7 days, queued by the daily held-file sweep. The outbox
+ * key is the hold, so a file is reminded once however often the sweep runs; the worker checks again
+ * at send time that the file is still waiting. No file name, no person: only where to decide.
+ */
+async function remindHeldFiles(
+  db: Db,
+  options: { readonly now: Date; readonly limit: number },
+): Promise<number> {
+  const holds = schema.documentPersonHolds;
+  const due = await db
+    .select({ id: holds.id, ownerAccountId: holds.ownerAccountId })
+    .from(holds)
+    .where(
+      and(
+        eq(holds.status, 'HELD'),
+        isNotNull(holds.ownerAccountId),
+        lt(holds.createdAt, new Date(options.now.getTime() - HELD_REMINDER_AFTER_MS)),
+        gte(holds.createdAt, new Date(options.now.getTime() - HELD_MAX_AGE_MS)),
+        // Reminded already: never picked again, so later files always get their turn.
+        sql`not exists (select 1 from ${schema.notifications} where ${schema.notifications.eventType} = ${HELD_FILE_REMINDER_EVENT} and ${schema.notifications.resourceId} = ${holds.id}::text)`,
+      ),
+    )
+    .orderBy(holds.createdAt)
+    .limit(options.limit);
+  let reminded = 0;
+  const lifecycle = await lifecycleTablesPresent(db);
+  for (const row of due) {
+    if (!row.ownerAccountId) continue;
+    const ownerAccountId = row.ownerAccountId;
+    const self = first(
+      await db
+        .select({ id: schema.applicants.id })
+        .from(schema.applicants)
+        .where(
+          and(
+            eq(schema.applicants.ownerAccountId, ownerAccountId),
+            lifecycle ? presentApplicantCondition() : undefined,
+          ),
+        )
+        .orderBy(schema.applicants.createdAt)
+        .limit(1),
+    );
+    if (!self) continue;
+    reminded += await db.transaction((tx: Db) =>
+      enqueueNotificationBothChannels(tx, {
+        eventType: HELD_FILE_REMINDER_EVENT,
+        resourceId: row.id,
+        recipientAccountId: ownerAccountId,
+        payload: {
+          subject: 'A file is waiting for you to choose who it belongs to',
+          summary:
+            'Choose who it belongs to in Needs One Decision. Files nobody chooses for are removed after 30 days.',
+          deepLinkPath: `/app/applicant/${self.id}/documents#needs-decision`,
+        },
+      }),
+    );
+  }
+  return reminded;
+}
+
+/**
+ * How many files the account behind this proof has waiting for Which Person?, for the one line on
+ * Home and on a traveller's Home. The account's own proof only; anyone else counts none.
+ */
+export async function countHeldFiles(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+  options: { readonly now?: Date } = {},
+): Promise<number> {
+  const owner = ownerOf(proof, 'VIEW_METADATA');
+  if (!owner) return 0;
+  const db = proof.tx;
+  if (!(await personHoldsTablePresent(db))) return 0;
+  const holds = schema.documentPersonHolds;
+  const row = first(
+    await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(holds)
+      .where(and(eq(holds.ownerAccountId, owner), waitingCondition(options.now ?? new Date()))),
+  );
+  return Number(row?.count ?? 0);
+}
+
+/**
+ * Tables that point at a document or its versions and are part of the document itself (deleted
+ * with it, or the hold and upload bookkeeping of this very filing). Anything else that points at
+ * it, through any foreign key, means the document was already used.
+ */
+const DOCUMENT_OWN_TABLES: ReadonlySet<string> = new Set([
+  'document_versions',
+  'document_person_holds',
+  'upload_intents',
+  'document_upload_receipts',
+  'document_auto_placements',
+  'document_name_versions',
+  'document_classifications',
+  'document_type_proposals',
+  'document_lifecycle',
+  'document_intake_exceptions',
+  'document_relation_proposals',
+  'extraction_runs',
+  'ai_extraction_runs',
+  'ai_classification_runs',
+  'ai_inconsistency_runs',
+  'document_inconsistency_flags',
+  'ocr_runs',
+  'scan_results',
+  'processing_jobs',
+  'field_proposals',
+  'reference_codes',
+]);
+
+function rowsOf(result: unknown): unknown[] {
+  const rows = (result as { rows?: unknown[] }).rows ?? result;
+  return Array.isArray(rows) ? rows : [];
+}
+
+/**
+ * True when anything has used the document since it was filed. Every foreign key into
+ * `documents` or `document_versions` is read from the database's own catalogue, so a table added
+ * later (a request answer, a case outcome, a share) is covered without a list to keep up; only the
+ * document's own records (`DOCUMENT_OWN_TABLES`) are skipped, and of those, a decided detail, a
+ * confirmed link and a deletion still count as use.
+ */
+async function documentInUse(
+  tx: Db,
+  documentId: string,
+  documentVersionId: string,
+): Promise<boolean> {
+  const keys = rowsOf(
+    await tx.execute(sql`
+      select c.conrelid::regclass::text as tbl, a.attname::text as col,
+             c.confrelid::regclass::text as target
+      from pg_constraint c
+      join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any(c.conkey)
+      where c.contype = 'f'
+        and c.confrelid in ('documents'::regclass, 'document_versions'::regclass)
+        and array_length(c.conkey, 1) = 1`),
+  ) as { tbl: string; col: string; target: string }[];
+  for (const key of keys) {
+    if (DOCUMENT_OWN_TABLES.has(key.tbl)) continue;
+    const id = key.target === 'documents' ? documentId : documentVersionId;
+    const hit = rowsOf(
+      await tx.execute(
+        sql`select 1 from ${sql.identifier(key.tbl)} where ${sql.identifier(key.col)} = ${id} limit 1`,
+      ),
+    );
+    if (hit.length > 0) return true;
+  }
+  const decided = await tx
+    .select({ id: schema.fieldProposals.id })
+    .from(schema.fieldProposals)
+    .where(
+      and(
+        eq(schema.fieldProposals.documentVersionId, documentVersionId),
+        ne(schema.fieldProposals.status, 'PENDING'),
+      ),
+    )
+    .limit(1);
+  if (decided.length > 0) return true;
+  if (await relationProposalsTablePresent(tx)) {
+    const linked = await tx
+      .select({ id: schema.documentRelationProposals.id })
+      .from(schema.documentRelationProposals)
+      .where(
+        and(
+          or(
+            eq(schema.documentRelationProposals.documentId, documentId),
+            eq(schema.documentRelationProposals.relatedDocumentId, documentId),
+          ),
+          eq(schema.documentRelationProposals.status, 'CONFIRMED'),
+        ),
+      )
+      .limit(1);
+    if (linked.length > 0) return true;
+  }
+  return false;
+}
+
+/**
+ * Change, for a file filed automatically (UMPE G4): it goes back to Which Person? exactly as it
+ * waited before, with the same stored bytes, and its document under the person is removed. The
+ * owner's own proof for that person only. Allowed only while nothing has used the document yet
+ * (one version, no decided details, no case, no sharing, no safe copy boxes, no hold, no removal);
+ * otherwise refused, and the person moves it the ordinary way.
+ */
+export async function returnAutoFiledHold(
+  proof: OwnerProof,
+  input: { readonly placementId: string },
+): Promise<Result<{ readonly holdId: string }, ServiceError>> {
+  const owner = ownerOf(proof, 'MANAGE');
+  if (!owner) return err(serviceError('forbidden', 'not authorized'));
+  const notFound = err(serviceError('not_found', 'file not found'));
+  const db = proof.tx;
+  if (!(await personHoldsTablePresent(db)) || !(await autoPlacementsTablePresent(db))) {
+    return notFound;
+  }
+  const applicantId = proof.applicant.id;
+  const holds = schema.documentPersonHolds;
+  const placements = schema.documentAutoPlacements;
+  const limited = await checkRateLimit(
+    db,
+    { subjectId: owner, action: 'document.placement_change', label: 'change' },
+    RATE_LIMITS.AUTO_PLACEMENT_CHANGE,
+  );
+  if (!limited.allowed) return err(serviceError('rate_limited', limited.reason));
+  const lifecycle = await lifecycleTablesPresent(db);
+  return db.transaction(async (tx: Db) => {
+    // The same lock order as account deletion: the person first, then the document, then the
+    // rest. The placement is read under the person's lock, so two Changes never both pass.
+    await tx
+      .select({ id: schema.applicants.id })
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, applicantId))
+      .for('update');
+    const placement = first(
+      await tx
+        .select()
+        .from(placements)
+        .where(
+          and(
+            eq(placements.id, input.placementId),
+            eq(placements.applicantId, applicantId),
+            eq(placements.placement, 'PERSON'),
+            eq(placements.status, 'APPLIED'),
+          ),
+        )
+        .limit(1),
+    );
+    if (!placement?.holdId) return notFound;
+    const document = first(
+      await tx
+        .select({ id: schema.documents.id })
+        .from(schema.documents)
+        .where(
+          and(
+            eq(schema.documents.id, placement.documentId),
+            eq(schema.documents.applicantId, applicantId),
+            // A command on one document: presentDocumentCondition (deleted answers as missing).
+            lifecycle ? presentDocumentCondition() : undefined,
+          ),
+        )
+        .limit(1)
+        .for('update'),
+    );
+    if (!document) return notFound;
+    const hold = first(
+      await tx
+        .select()
+        .from(holds)
+        .where(
+          and(
+            eq(holds.id, placement.holdId),
+            eq(holds.ownerAccountId, owner),
+            eq(holds.status, 'FILED'),
+            eq(holds.filedDocumentId, document.id),
+          ),
+        )
+        .limit(1)
+        .for('update'),
+    );
+    if (!hold) return notFound;
+    const versions = await tx
+      .select({
+        id: schema.documentVersions.id,
+        objectKey: schema.storageObjects.objectKey,
+        bucket: schema.storageObjects.bucket,
+      })
+      .from(schema.documentVersions)
+      .innerJoin(
+        schema.storageObjects,
+        eq(schema.storageObjects.id, schema.documentVersions.storageObjectId),
+      )
+      .where(eq(schema.documentVersions.documentId, document.id));
+    const [only] = versions;
+    if (
+      versions.length !== 1 ||
+      !only ||
+      only.objectKey !== hold.objectKey ||
+      only.bucket !== 'QUARANTINE' ||
+      (await documentInUse(tx, document.id, only.id))
+    ) {
+      return err(
+        serviceError(
+          'stale',
+          'this file is already in use, so it stays where it is; move it from its own page',
+        ),
+      );
+    }
+    // The file's own name came to the person's upload receipt when it was filed: it goes back.
+    const receipt = (await uploadReceiptsTablePresent(tx))
+      ? first(
+          await tx
+            .select({ originalFileName: schema.documentUploadReceipts.originalFileName })
+            .from(schema.documentUploadReceipts)
+            .where(
+              and(
+                eq(schema.documentUploadReceipts.documentId, document.id),
+                eq(schema.documentUploadReceipts.accountId, owner),
+              ),
+            )
+            .limit(1),
+        )
+      : undefined;
+    const now = new Date();
+    await tx
+      .update(holds)
+      .set({
+        status: 'HELD',
+        filedDocumentId: null,
+        // Nobody is ticked in advance any more: the person said this one was wrong.
+        proposedApplicantId: null,
+        originalFileName: receipt?.originalFileName ?? null,
+        claimToken: randomUUID(),
+        decidedAt: null,
+        updatedAt: now,
+      })
+      .where(eq(holds.id, hold.id));
+    // The document goes with everything read from it (its rows cascade); the stored bytes and
+    // their registration stay, now the hold's again. Nothing used it (checked above).
+    await tx.delete(schema.documents).where(eq(schema.documents.id, document.id));
+    await appendAuditEvent(tx, {
+      eventType: 'DOCUMENT_AUTOMATIC_PLACEMENT_CHANGED',
+      actorAccountId: owner,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId,
+      resourceType: 'document_person_hold',
+      resourceId: hold.id,
+      metadata: { placement: 'PERSON', documentId: document.id },
+    });
+    return ok({ holdId: hold.id });
+  });
 }

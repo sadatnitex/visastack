@@ -7088,3 +7088,52 @@ export const packRouteConditions = pgTable(
     ),
   ],
 );
+
+// --- UMPE G4: automatic placement of recognised files ---------------------------------------------
+
+/**
+ * One automatic placement (UMPE G4, owner decision 3 Nov 2026): a file's kind applied from a
+ * confident AI recognition (`KIND`), or a family file filed under the one person it matched exactly
+ * (`PERSON`). Keeps what the file was before, so the owner's one-step Change can restore it. Kinds
+ * and names only, never a value read from the file. Goes with the document.
+ */
+export const documentAutoPlacements = pgTable(
+  'document_auto_placements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    placement: text('placement').notNull(),
+    status: text('status').notNull().default('APPLIED'),
+    previousDocType: text('previous_doc_type'),
+    previousName: text('previous_name'),
+    appliedDocType: text('applied_doc_type'),
+    appliedName: text('applied_name'),
+    confidence: integer('confidence'),
+    typeProposalId: uuid('type_proposal_id').references(() => documentTypeProposals.id, {
+      onDelete: 'set null',
+    }),
+    classificationId: uuid('classification_id').references(() => documentClassifications.id, {
+      onDelete: 'set null',
+    }),
+    holdId: uuid('hold_id').references(() => documentPersonHolds.id, { onDelete: 'set null' }),
+    changedByAccountId: uuid('changed_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    changedAt: timestamp('changed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('document_auto_placements_document_placement').on(table.documentId, table.placement),
+    index('document_auto_placements_applicant_status_idx').on(table.applicantId, table.status),
+    check(
+      'document_auto_placements_placement_known',
+      sql`${table.placement} in ('KIND', 'PERSON')`,
+    ),
+    check('document_auto_placements_status_known', sql`${table.status} in ('APPLIED', 'CHANGED')`),
+  ],
+);
