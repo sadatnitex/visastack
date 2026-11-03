@@ -25,6 +25,8 @@ const data = vi.hoisted(() => ({
   readiness: null as { requiredCount: number; satisfiedRequired: number } | null,
   /** The refusal code the readiness source gives when there is no count; "invalid" means no checklist is attached. */
   readinessError: 'invalid',
+  /** UMPE P13: package changes and checklist updates for every applicant; 'fail' throws. */
+  notices: [] as AttentionItem[] | 'fail',
 }));
 
 vi.mock('../../lib/session', () => ({
@@ -123,6 +125,10 @@ vi.mock('@visastack/services', async (importOriginal) => {
       })),
     listMembershipsForAccount: async () => data.memberships,
     listDocuments: async () => ({ ok: true, value: Array.from({ length: data.documents }) }),
+    listPackageNotices: async () => {
+      if (data.notices === 'fail') throw new Error('synthetic read failure');
+      return { ok: true, value: data.notices };
+    },
   };
 });
 vi.mock('./consent-button', async () => {
@@ -183,6 +189,7 @@ beforeEach(() => {
   data.gateRefuses = false;
   data.deadlines = [];
   data.deadlineFails = [];
+  data.notices = [];
 });
 
 describe('home (characterization before WP-V3)', () => {
@@ -364,6 +371,17 @@ describe('task-first first run (WP-V3, D8)', () => {
     text = textOf(html);
     expect(text).toContain('Complete a Request');
     expect(html).toContain(`href="/app/applicant/${SELF.id}/evidence"`);
+  });
+
+  it('offers a first file and a trip straight away, before any profile questions (UMPE P13)', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    const html = await page({ welcome: '1' });
+    const text = textOf(html);
+    expect(text).toContain('Add Documents');
+    expect(html).toContain(`href="/app/applicant/${SELF.id}/documents#add-document"`);
+    expect(text).toContain('Start a Trip');
+    expect(html).toContain('href="/app/mission/start"');
   });
 
   it('does not show first run to someone with consent and an applicant', async () => {
@@ -1080,5 +1098,98 @@ describe('Home depth levels (CCD-2)', () => {
     const permissions = new JSDOM(html).window.document.querySelector('#permissions');
     expect(permissions).not.toBeNull();
     expect(permissions?.closest('[data-level]')).toBeNull();
+  });
+});
+
+describe('UMPE P13: entry points and package changes on Home', () => {
+  const notice = attentionItem({
+    key: 'case_package:case-0',
+    kind: 'case_changed',
+    tier: 4,
+    title: 'Checklist Updated',
+    why: 'Hotel Booking was added to the checklist for one of your trips. Review it before you share anything.',
+    applicantId: SELF.id,
+    applicantName: SELF.displayName,
+    caseId: 'case-0',
+    caseTitle: 'Synthetic Case 1',
+    dueState: 'none',
+    href: '/app/mission/case-0#trip-package',
+  });
+
+  it('shows a change beside the trip it concerns, links to the package and keeps the history one step away', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.missions = 1;
+    data.notices = [notice];
+    const html = await page();
+    const doc = new JSDOM(html).window.document;
+    const work = doc.querySelector('[aria-labelledby="home-work-heading"]');
+    const caseLink = [...(work?.querySelectorAll('a.attention-link') ?? [])].find((a) =>
+      a.textContent?.includes('Synthetic Case 1'),
+    );
+    expect(caseLink?.getAttribute('href')).toBe('/app/mission/case-0#trip-package');
+    expect(caseLink?.textContent).toContain('Checklist Updated');
+    const history = [...(work?.querySelectorAll('a') ?? [])].find(
+      (a) => a.getAttribute('href') === '/app/notifications',
+    );
+    expect(history?.textContent).toBe('Notifications');
+    // With nothing more urgent it is the next step itself, with the precise sentence.
+    expect(textOf(html)).toContain('Review it before you share anything.');
+  });
+
+  it('shows nothing about changes when none need the traveller', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.missions = 1;
+    const html = await page();
+    expect(html).not.toContain('Checklist Updated');
+    expect(html).not.toContain('Every earlier change is kept in');
+    expect(html).toContain('href="/app/mission/case-0"');
+  });
+
+  it('a failed read of the changes hides nothing else', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.missions = 1;
+    data.notices = 'fail';
+    const html = await page();
+    expect(html).toContain('id="home-work-heading"');
+    expect(html).toContain('Synthetic Case 1');
+    expect(html).not.toContain('Checklist Updated');
+  });
+
+  it('offers Start Here: Add Documents, Start a Trip and the request an agency is waiting on', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.openRequests = 1;
+    const doc = new JSDOM(await page()).window.document;
+    const links = [...doc.querySelectorAll('.home-entry-points a')].map((a) => [
+      a.querySelector('b')?.textContent,
+      a.getAttribute('href'),
+    ]);
+    expect(links).toEqual([
+      ['Add Documents', `/app/applicant/${SELF.id}/documents#add-document`],
+      ['Start a Trip', '/app/mission/start'],
+      ['Answer a Request', `/app/applicant/${SELF.id}/evidence`],
+    ]);
+    expect(doc.querySelector('#home-entry-heading')?.tagName).toBe('H2');
+  });
+
+  it('with no request waiting, the third entry opens Sharing & Requests', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    const doc = new JSDOM(await page()).window.document;
+    const third = doc.querySelectorAll('.home-entry-points a')[2];
+    expect(third?.querySelector('b')?.textContent).toBe('See Sharing & Requests');
+    expect(third?.getAttribute('href')).toBe(`/app/applicant/${SELF.id}/sharing`);
+  });
+
+  it('shows no Start Here before a traveller exists or while core processing is off', async () => {
+    data.applicants = [SELF];
+    expect(await page()).not.toContain('home-entry-points');
+    data.consents = CORE;
+    data.applicants = [];
+    data.memberships = [{ active: true }];
+    expect(await page()).not.toContain('home-entry-points');
   });
 });

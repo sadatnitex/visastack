@@ -17,6 +17,18 @@ export interface NavLink {
   /** Further path prefixes that also belong to this link (pages that live elsewhere in the route tree). */
   readonly alsoCurrentFor?: readonly string[];
   readonly alsoExactFor?: readonly string[];
+  /**
+   * One task that belongs under this destination (UMPE P13), such as Add Documents under My
+   * Documents. The sidebar shows it just below its parent and a phone lists it under More. It is
+   * an action, so it never marks itself as the current page.
+   */
+  readonly action?: NavAction;
+}
+
+/** A task link shown under a destination. Existing addresses only; it grants nothing. */
+export interface NavAction {
+  readonly href: string;
+  readonly label: string;
 }
 
 /** Persistent primary navigation for a signed-in traveller. */

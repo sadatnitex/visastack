@@ -10,6 +10,7 @@ import {
   listMissions,
   listNeedsAttention,
   listPendingProposals,
+  rankAttentionItems,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -26,6 +27,7 @@ import { formatTimestampDate } from '../../../../lib/format-date';
 import { attentionActionLabel } from '../../../../lib/labels';
 import { completionOf, essentialsProgress, fieldLabel } from '../../../../lib/master-profile';
 import { openOwnerGate } from '../../../../lib/owner-gate';
+import { readPackageNotices } from '../../../../lib/package-notices';
 import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { STAGE_LABELS } from '../../agency/[orgId]/case-search-form';
@@ -65,7 +67,13 @@ export default async function ApplicantOverviewPage({
       try {
         const gate = await openOwnerGate(db, accountId, id);
         const listed = gate ? await listNeedsAttention(gate, { now: new Date() }) : null;
-        return listed?.ok ? listed.value : null;
+        if (!gate || !listed?.ok) return null;
+        // UMPE P13: package changes and checklist updates join the same ranking; a failed read
+        // leaves them out rather than losing the rest.
+        const notices = await readPackageNotices(gate);
+        return notices
+          ? { ...listed.value, items: rankAttentionItems([...listed.value.items, ...notices]) }
+          : listed.value;
       } catch {
         return null;
       }

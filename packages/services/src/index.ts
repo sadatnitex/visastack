@@ -2814,3 +2814,12 @@ export {
 } from './umpe-collection-response-review';
 export { type GuestPurgeResult, purgeGuestCollectionData } from './umpe-guest-retention';
 export { SIGNED_IN_SESSION_IDLE_MS } from './umpe-guest-collection';
+
+// UMPE P13
+// Package changes and rule updates that need the traveller, as Needs Attention items for Home.
+export {
+  PACKAGE_NOTICE_ANCHOR,
+  PACKAGE_NOTICE_LIMIT,
+  PACKAGE_NOTICE_TITLES,
+  listPackageNotices,
+} from './umpe-experience-notices';

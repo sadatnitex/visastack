@@ -62,7 +62,8 @@ const more = () => container.querySelector<HTMLButtonElement>('.app-more-toggle'
 describe('phone navigation and the context chip (WP-X3)', () => {
   it('keeps four links on the bar and opens the rest from More', () => {
     mount(FULL);
-    const barLinks = container.querySelectorAll('.app-bar .app-shell-links a');
+    // Destinations only: a task shown under its destination (UMPE P13) is not a tab.
+    const barLinks = container.querySelectorAll('.app-bar .app-shell-links a:not(.app-nav-action)');
     expect(barLinks).toHaveLength(4);
     expect(more()?.getAttribute('aria-expanded')).toBe('false');
     act(() => more()?.click());

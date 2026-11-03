@@ -140,7 +140,8 @@ describe('the Hide Menu and Show Menu button', () => {
 describe('the saved rail only matters on a laptop or larger', () => {
   it('leaves the lists ordinary and fully named on a narrower window', () => {
     setWindow(false);
-    route.pathname = '/app/shared';
+    // A page only More Tools names (Shared with Me now lights up Sharing & Requests, UMPE P13).
+    route.pathname = '/app';
     mount('collapsed');
     expect(selector()?.querySelector('summary')?.getAttribute('aria-label')).toBeNull();
     expect(tools()?.querySelector('summary')?.getAttribute('aria-label')).toBeNull();
@@ -190,7 +191,7 @@ describe('the slim rail keeps every destination reachable and named', () => {
   });
 
   it('keeps More Tools reachable as a popover that closes like one', () => {
-    route.pathname = '/app/shared';
+    route.pathname = '/app';
     mount();
     // Open in place where the current page is one of its tools, as before.
     expect(tools()?.open).toBe(true);

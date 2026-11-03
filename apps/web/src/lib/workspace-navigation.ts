@@ -142,7 +142,8 @@ export function workspaceNavigation(
     };
   }
 
-  const casePath = segments[1] === 'mission';
+  // Start a Trip (/app/mission/start) chooses its traveller itself; it is not one case's page.
+  const casePath = segments[1] === 'mission' && segments[2] !== 'start';
   const subjectId =
     segments[1] === 'applicant'
       ? segments[2]
@@ -161,12 +162,6 @@ export function workspaceNavigation(
 
   if (segments[1] === 'applicant' && !person) return unavailable('Traveller Access Unavailable');
   const base = person ? `/app/applicant/${person.id}` : null;
-  // The Record tab stays lit on every one of its sections (all but the hub itself).
-  const recordPages = person
-    ? recordSections(person.id)
-        .slice(1)
-        .map((section) => section.href)
-    : [];
   return {
     kind: 'personal',
     name: person?.name ?? (casePath ? 'Visa Case' : 'Personal Space'),
@@ -180,45 +175,89 @@ export function workspaceNavigation(
             casePath
             ? 'Case Workspace'
             : 'Choose a Traveller',
-    // Four tabs (WP-V3 part 2): Home, Record, Cases, Sharing. Notifications and Countries follow,
-    // so on a phone they sit under More. Profile, Documents, Dates & Expiry and History are
-    // sections of Record: their pages keep their addresses and light up the Record tab.
-    primary: base
-      ? [
-          { href: base, label: 'Home', exact: true },
-          {
-            href: `${base}/record`,
-            label: 'Record',
-            alsoCurrentFor: recordPages,
-          },
-          { href: `${base}/missions`, label: 'Cases', alsoCurrentFor: ['/app/mission/'] },
-          { href: `${base}/sharing`, label: 'Sharing' },
-          { href: '/app/notifications', label: 'Notifications' },
-          { href: '/app/countries', label: 'Countries' },
-        ]
-      : [
-          // The account-wide page is the Account Overview, not a second Home (owner list item 11).
-          { href: '/app', label: 'Account Overview', exact: true },
-          {
-            href: '/app/applicants',
-            label: casePath
-              ? 'All Travellers'
-              : access.travellers.length
-                ? 'Choose a Traveller'
-                : 'Add a Traveller',
-          },
-          { href: '/app/notifications', label: 'Notifications' },
-          { href: '/app/countries', label: 'Countries' },
-        ],
-    tools: [
-      { href: '/app/shared', label: 'Shared with Me' },
-      // The account-wide page has its own name, Account Overview, so it is never mistaken for a
-      // traveller's Home (owner list item 11). With no traveller it is already a tab.
-      ...(base ? [{ href: '/app', label: 'Account Overview', exact: true }] : []),
-      ...(base ? [{ href: `${base}/evidence`, label: 'Evidence Requests' }] : []),
-    ],
+    primary: person ? travellerEntryPoints(person.id) : accountPrimary(access, casePath),
+    tools: base ? travellerTools(base) : ACCOUNT_TOOLS,
     settings,
   };
+}
+
+/**
+ * The traveller's three entry points (UMPE P13, locked contract section 9 and annex F): My
+ * Documents, My Trips and Sharing & Requests, after Home. Each opens an existing page and lights
+ * up on the pages that belong to it, so Record, Cases and Evidence Requests keep their addresses.
+ * On a phone the bar holds the first four; Notifications and Countries sit under More.
+ */
+export function travellerEntryPoints(applicantId: string): readonly NavLink[] {
+  const base = `/app/applicant/${applicantId}`;
+  return [
+    { href: base, label: 'Home', exact: true },
+    {
+      href: `${base}/documents`,
+      label: MY_DOCUMENTS,
+      // The Record hub and its sections (WP-V3 part 2) are where documents grow into a profile.
+      alsoCurrentFor: recordSections(applicantId).map((section) => section.href),
+      action: { href: `${base}/documents#add-document`, label: 'Add Documents' },
+    },
+    {
+      href: `${base}/missions`,
+      label: MY_TRIPS,
+      // Case pages, Start a Trip and Group Trips all live outside the traveller's own path.
+      alsoCurrentFor: ['/app/mission/', '/app/trips'],
+      action: { href: '/app/mission/start', label: 'Start a Trip' },
+    },
+    {
+      href: `${base}/sharing`,
+      label: SHARING_AND_REQUESTS,
+      alsoCurrentFor: [`${base}/evidence`, '/app/shared'],
+    },
+    { href: '/app/notifications', label: 'Notifications' },
+    { href: '/app/countries', label: 'Countries' },
+  ];
+}
+
+/** The entry point names, one spelling for the navigation, Home and the tests. */
+export const MY_DOCUMENTS = 'My Documents';
+export const MY_TRIPS = 'My Trips';
+export const SHARING_AND_REQUESTS = 'Sharing & Requests';
+
+/**
+ * Everything the entry points do not name, one step away under More Tools. Every one of these
+ * was a tab or tool before P13 or had no menu entry at all (Group Trips, Answers to Agencies).
+ */
+function travellerTools(base: string): readonly NavLink[] {
+  return [
+    { href: `${base}/record`, label: 'Record' },
+    { href: `${base}/evidence`, label: 'Evidence Requests' },
+    ...ACCOUNT_TOOLS,
+    // The account-wide page has its own name, Account Overview, so it is never mistaken for a
+    // traveller's Home (owner list item 11). With no traveller it is already a tab.
+    { href: '/app', label: 'Account Overview', exact: true },
+  ];
+}
+
+/** Account-wide pages that need no chosen traveller. */
+const ACCOUNT_TOOLS: readonly NavLink[] = [
+  { href: '/app/trips', label: 'Group Trips' },
+  { href: '/collect/account/answers', label: 'Answers to Agencies' },
+  { href: '/app/shared', label: 'Shared with Me' },
+];
+
+/** With no traveller chosen (or a case whose traveller is not known yet): the account's own tabs. */
+function accountPrimary(access: WorkspaceAccess, casePath: boolean): readonly NavLink[] {
+  return [
+    // The account-wide page is the Account Overview, not a second Home (owner list item 11).
+    { href: '/app', label: 'Account Overview', exact: true },
+    {
+      href: '/app/applicants',
+      label: casePath
+        ? 'All Travellers'
+        : access.travellers.length
+          ? 'Choose a Traveller'
+          : 'Add a Traveller',
+    },
+    { href: '/app/notifications', label: 'Notifications' },
+    { href: '/app/countries', label: 'Countries' },
+  ];
 }
 
 function unavailable(name: string): WorkspaceNavigation {

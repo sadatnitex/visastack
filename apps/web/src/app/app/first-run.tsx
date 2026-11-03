@@ -169,6 +169,13 @@ export interface FirstRunTaskProps {
   /** The country chosen on the first screen, and where its full page is, when there is one. */
   readonly countryName?: string | null;
   readonly countryHref?: string | null;
+  /**
+   * UMPE P13, task first: the first applicant's upload, so a first file needs no profile answers
+   * before it. Left out, the task is not offered.
+   */
+  readonly documentsHref?: string | null;
+  /** UMPE P13: Start a Trip (where and why first; the checklist follows). */
+  readonly tripHref?: string | null;
 }
 
 export function FirstRunTask({
@@ -177,6 +184,8 @@ export function FirstRunTask({
   briefHref = null,
   countryName = null,
   countryHref = null,
+  documentsHref = null,
+  tripHref = null,
 }: FirstRunTaskProps) {
   return (
     <section className="section container first-run" aria-labelledby="first-run-title">
@@ -197,6 +206,22 @@ export function FirstRunTask({
             <Link href={requestHref}>
               <b>Complete a Request</b>
               <span>An agency asked you for something</span>
+            </Link>
+          </li>
+        ) : null}
+        {documentsHref ? (
+          <li>
+            <Link href={documentsHref}>
+              <b>Add Documents</b>
+              <span>Upload a passport page or any file now; details can come later</span>
+            </Link>
+          </li>
+        ) : null}
+        {tripHref ? (
+          <li>
+            <Link href={tripHref}>
+              <b>Start a Trip</b>
+              <span>Say where and why, and see what to prepare</span>
             </Link>
           </li>
         ) : null}

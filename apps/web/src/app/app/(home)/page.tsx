@@ -42,6 +42,7 @@ import { ATTENTION_TIER_LABELS, CONSENT_PLAIN, attentionActionLabel } from '../.
 import { getLocale } from '../../../lib/locale';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { openOwnerGate } from '../../../lib/owner-gate';
+import { noticesByCase, readPackageNotices } from '../../../lib/package-notices';
 import { plural } from '../../../lib/plural';
 import { withSession } from '../../../lib/session';
 import { attentionContext, attentionHeading, attentionWhen } from '../attention-display';
@@ -117,10 +118,12 @@ async function loadPersonReads(
   readonly attention: NeedsAttention | null;
   readonly deadlines: readonly DeadlineEntry[] | null;
   readonly tidy: TidyUpCounts | null;
+  /** Package changes and checklist updates that need this person (UMPE P13); empty on failure. */
+  readonly notices: readonly AttentionItem[];
 }> {
   const access = await openOwnerGate(db, accountId, applicantId);
-  if (!access) return { attention: null, deadlines: null, tidy: null };
-  const [listed, deadlines, tidy] = await Promise.all([
+  if (!access) return { attention: null, deadlines: null, tidy: null, notices: [] };
+  const [listed, deadlines, tidy, notices] = await Promise.all([
     listNeedsAttention(access, { now }),
     readDeadlineEntries(access, now, CLOCK_HOME_LIMIT),
     // Tidy Up (LC-C): any failure, even one thrown before the read starts, hides the card
@@ -128,8 +131,10 @@ async function loadPersonReads(
     Promise.resolve()
       .then(() => tidyUpCounts(db, applicantId, access, { now }))
       .catch(() => null),
+    // A failed read leaves the notices out; Home never fails for them.
+    readPackageNotices(access).then((read) => read ?? []),
   ]);
-  return { attention: listed.ok ? listed.value : null, deadlines, tidy };
+  return { attention: listed.ok ? listed.value : null, deadlines, tidy, notices };
 }
 
 /** Sharing invitations waiting for an answer: one account-level item in the same shape. */
@@ -195,7 +200,7 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
       )
       .slice(0, HOME_APPLICANT_LIMIT)
       .map(async (applicant) => {
-        const [docs, { attention, deadlines, tidy }] = await Promise.all([
+        const [docs, { attention, deadlines, tidy, notices }] = await Promise.all([
           listDocuments(db, accountId, applicant.id),
           loadPersonReads(db, accountId, applicant.id, now),
         ]);
@@ -205,7 +210,8 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
           attention,
           deadlines,
           tidy,
-          itemCount: attention?.items.length ?? 0,
+          notices,
+          itemCount: (attention?.items.length ?? 0) + notices.length,
           activeMissions: attention?.activeCaseCount ?? 0,
           // Open or sent back for a fix (ADR 0015 section 5), so a replacement request counts.
           waitingRequests: attention?.requests.waitingOnYou ?? 0,
@@ -232,8 +238,11 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
 
   const sharing = sharingInvitationItem(incomingGrants, now);
   // One ranked list across every person and the account itself (ADR 0016).
+  const notices = perApplicant.flatMap((row) => row.notices);
   const attention = rankAttentionItems([
     ...perApplicant.flatMap((row) => row.attention?.items ?? []),
+    // UMPE P13: package changes and checklist updates, ranked beside "changed since confirmed".
+    ...notices,
     ...(sharing ? [sharing] : []),
   ]);
 
@@ -256,6 +265,8 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     readinessByCase,
     unreadableCases,
     attention,
+    // Which listed cases have a change waiting, so Home can say so beside the case itself.
+    caseNotices: noticesByCase(notices),
     sharingWaiting: sharing !== null,
   };
 }
@@ -432,6 +443,8 @@ export default async function AppPage({
         }
         countryName={countryName}
         countryHref={country ? `/app/countries/${country.toLowerCase()}` : null}
+        documentsHref={first ? `/app/applicant/${first.applicant.id}/documents#add-document` : null}
+        tripHref="/app/mission/start"
       />
     );
   }
@@ -560,6 +573,38 @@ export default async function AppPage({
   const greeting = firstName ? `Welcome back, ${firstName}` : 'Welcome back';
   const depth = await readDepth('home');
   const depthWords = depthCopyFor('home');
+  // UMPE P13: the three entry points as tasks, so a first file or an agency request never waits
+  // for a profile to be filled in. Each opens an existing page.
+  const waitingRow = data.perApplicant.find((row) => row.waitingRequests > 0);
+  const entryPoints = firstApplicant
+    ? [
+        {
+          key: 'documents',
+          label: 'Add Documents',
+          hint: 'My Documents: upload a passport page or any file, and sort it out later.',
+          href: `/app/applicant/${firstApplicant.applicant.id}/documents#add-document`,
+        },
+        {
+          key: 'trips',
+          label: 'Start a Trip',
+          hint: 'My Trips: say where and why, and see what to prepare for each traveller.',
+          href: '/app/mission/start',
+        },
+        waitingRow
+          ? {
+              key: 'requests',
+              label: 'Answer a Request',
+              hint: `Sharing & Requests: an agency is waiting for ${waitingRow.applicant.displayName}.`,
+              href: `/app/applicant/${waitingRow.applicant.id}/evidence`,
+            }
+          : {
+              key: 'requests',
+              label: 'See Sharing & Requests',
+              hint: 'Who can see what, agency requests and the answers you sent.',
+              href: `/app/applicant/${firstApplicant.applicant.id}/sharing`,
+            },
+      ]
+    : [];
 
   return (
     <section className="section container">
@@ -580,6 +625,24 @@ export default async function AppPage({
         <DepthSwitch family="home" initial={depth} copy={depthWords} />
 
         <NextStepCard {...nextStep} />
+
+        {coreGranted && entryPoints.length > 0 ? (
+          <section className="home-entry" aria-labelledby="home-entry-heading">
+            <h2 className="card-kicker home-entry-heading" id="home-entry-heading">
+              Start Here
+            </h2>
+            <ul className="first-run-tasks home-entry-points">
+              {entryPoints.map((entry) => (
+                <li key={entry.key}>
+                  <Link href={entry.href}>
+                    <b>{entry.label}</b>
+                    <span>{entry.hint}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         {coreGranted && rest.length > 0 ? (
           <p className="muted do-next-more" data-only="glance">
@@ -779,7 +842,10 @@ export default async function AppPage({
                 ))}
                 {activeCases.slice(0, HOME_CASES_VISIBLE).map((entry) => (
                   <li className="attention-item" key={`case-${entry.id}`}>
-                    <Link className="attention-link" href={`/app/mission/${entry.id}`}>
+                    <Link
+                      className="attention-link"
+                      href={data.caseNotices.get(entry.id)?.href ?? `/app/mission/${entry.id}`}
+                    >
                       <span className="attention-text">
                         <span className="attention-label">{entry.title}</span>
                         <span className="attention-detail">
@@ -797,6 +863,12 @@ export default async function AppPage({
                         </span>
                       </span>
                       <span className="attention-end">
+                        {data.caseNotices.has(entry.id) ? (
+                          // Beside the trip it concerns (UMPE P13): what changed, in two words.
+                          <StatusBadge tone="warning">
+                            {data.caseNotices.get(entry.id)?.title}
+                          </StatusBadge>
+                        ) : null}
                         <span className="attention-chevron" aria-hidden="true">
                           ›
                         </span>
@@ -806,6 +878,12 @@ export default async function AppPage({
                 ))}
               </ul>
             )}
+            {data.caseNotices.size > 0 ? (
+              <p className="muted do-next-more">
+                Only changes that need you are shown here. Every earlier change is kept in{' '}
+                <Link href="/app/notifications">Notifications</Link>.
+              </p>
+            ) : null}
             {activeCases.length > HOME_CASES_VISIBLE ? (
               <p className="muted do-next-more">
                 Showing {HOME_CASES_VISIBLE} of {activeCases.length} active cases. Open a person to

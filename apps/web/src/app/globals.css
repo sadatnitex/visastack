@@ -13098,3 +13098,65 @@ html:has(.sticky-action-bar) {
   border-top: 1px solid var(--hairline-soft);
   padding-top: var(--space-3);
 }
+
+/* WP-UMPE-P13 entry points: the task under My Documents and My Trips in the sidebar (and in More on
+   a phone), and the Start Here row on Home. Flat: edges and tone only, 44px targets. */
+.app-shell-links a.app-nav-action,
+.app-shell-links a.app-nav-action-row {
+  min-height: 44px;
+  gap: 10px;
+  font-weight: 560;
+}
+.app-shell-links a.app-nav-action {
+  margin-inline-start: 22px;
+  padding-inline: 12px;
+  color: var(--accent);
+}
+.app-shell-links a.app-nav-action .icon,
+.app-shell-links a.app-nav-action-row .icon {
+  color: var(--accent);
+}
+.app-shell-links a.app-nav-action:hover,
+.app-shell-links a.app-nav-action:focus-visible {
+  border-color: var(--edge-card);
+  background: var(--bg-elevated);
+}
+.app-nav-actions {
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--hairline);
+}
+@media (min-width: 761px) {
+  /* The sidebar shows each task under its destination, so the More copy is not needed here. */
+  .app-nav-actions {
+    display: none;
+  }
+  .app-frame[data-sidebar="collapsed"] .app-shell-links a.app-nav-action {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  /* The phone bar holds destinations only; tasks lead the More panel instead. */
+  .app-bar .app-shell-links a.app-nav-action {
+    display: none;
+  }
+}
+.home-entry {
+  margin: 0 0 var(--space-5, 1.5rem);
+}
+.home-entry-heading {
+  margin: 0;
+}
+.home-entry-points {
+  margin-top: 0.5rem;
+}
+@media (min-width: 761px) {
+  .home-entry-points {
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  }
+}
+.home-entry-points a {
+  height: 100%;
+  background: var(--bg-elevated);
+  border-color: var(--edge-card);
+}
