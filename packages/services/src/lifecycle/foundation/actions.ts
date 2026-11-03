@@ -10,6 +10,9 @@ export const DOCUMENT_ACTIONS = [
   'RESTORE_DELETED',
   'REQUEST_REMOVAL',
   'CANCEL_REMOVAL_REQUEST',
+  // Delete My File (owner decision of 3 Nov 2026, D12): added after the original seven, which the
+  // owner approved by that decision; the lanes' frozen order is otherwise unchanged.
+  'DELETE_MY_FILE',
 ] as const;
 
 export type DocumentAction = (typeof DOCUMENT_ACTIONS)[number];
@@ -44,6 +47,11 @@ export interface DocumentActionView {
   readonly legalHold: boolean;
   /** "Ask Us to Remove This File" is switched on for this deployment (lane D). */
   readonly requestsSwitchOn: boolean;
+  /**
+   * "Delete My File" is switched on for this deployment (`DOCUMENT_SELF_DELETE`). Left out means
+   * off, so a caller that does not know about it changes nothing.
+   */
+  readonly selfDeleteSwitchOn?: boolean;
 }
 
 /**
@@ -55,6 +63,9 @@ export interface DocumentActionView {
  * - Current or Archived: Delete Duplicate for a deletable duplicate (D2, D5); otherwise Ask Us to
  *   Remove This File when requests are switched on (D1). A pending request offers only its
  *   cancel. A legal hold offers neither deletion nor a request.
+ * - Current or Archived, with Delete My File switched on and no legal hold: Delete My File, last,
+ *   whatever else is offered (a waiting request is closed by it). It is the owner's own instant
+ *   removal; the service decides again who may use it and which files it refuses.
  * - Recently Deleted: Restore only.
  * - Being removed: nothing.
  */
@@ -74,5 +85,6 @@ export function availableDocumentActions(view: DocumentActionView): DocumentActi
     if (deletable) allowed.add('DELETE_DUPLICATE');
     else if (view.requestsSwitchOn) allowed.add('REQUEST_REMOVAL');
   }
+  if (live && !view.legalHold && view.selfDeleteSwitchOn === true) allowed.add('DELETE_MY_FILE');
   return DOCUMENT_ACTIONS.filter((action) => allowed.has(action));
 }

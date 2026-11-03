@@ -24,7 +24,12 @@ export function documentActionView(
   facts: Partial<
     Pick<
       DocumentActionView,
-      'isDuplicate' | 'duplicateBlockReason' | 'pendingRequest' | 'legalHold' | 'requestsSwitchOn'
+      | 'isDuplicate'
+      | 'duplicateBlockReason'
+      | 'pendingRequest'
+      | 'legalHold'
+      | 'requestsSwitchOn'
+      | 'selfDeleteSwitchOn'
     >
   > = {},
 ): DocumentActionView {
@@ -36,5 +41,6 @@ export function documentActionView(
     pendingRequest: facts.pendingRequest ?? false,
     legalHold: facts.legalHold ?? false,
     requestsSwitchOn: facts.requestsSwitchOn ?? false,
+    selfDeleteSwitchOn: facts.selfDeleteSwitchOn ?? false,
   };
 }

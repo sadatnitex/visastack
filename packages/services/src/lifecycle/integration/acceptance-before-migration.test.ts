@@ -27,9 +27,12 @@ import {
 } from '../recently-deleted';
 import {
   REMOVAL_REQUEST_REFUSALS,
+  SELF_DELETE_REFUSALS,
   decideRemovalRequest,
+  deleteMyFile,
   listRemovalQueue,
   pendingRemovalRequests,
+  previewDeleteMyFile,
   requestRemoval,
   sweepRemovalRequests,
 } from '../removal-requests';
@@ -160,6 +163,27 @@ describe('Before migration', () => {
         ['undo', await undoDelete(proof, { documentId: newer.documentId })],
         ['restore deleted', await restoreDeleted(proof, { documentId: newer.documentId })],
         [
+          'preview delete my file',
+          await previewDeleteMyFile(proof, { documentId: newer.documentId }),
+        ],
+        [
+          'delete my file',
+          await deleteMyFile(proof, {
+            documentId: newer.documentId,
+            typed: 'DELETE',
+            confirmed: {
+              openCases: 0,
+              agencies: 0,
+              shares: 0,
+              profileDetails: 0,
+              aiChoices: 0,
+              trips: 0,
+              contributorHandovers: 0,
+            },
+            stepUpSatisfied: true,
+          }),
+        ],
+        [
           'open receipt',
           await openDeletionReceipt(
             db,
@@ -187,6 +211,8 @@ describe('Before migration', () => {
         reason: 'NO_LONGER_NEEDED',
       });
       expect(!asked.ok && asked.error.message).toBe(REMOVAL_REQUEST_REFUSALS.unavailable);
+      const selfDeleted = await previewDeleteMyFile(proof, { documentId: newer.documentId });
+      expect(!selfDeleted.ok && selfDeleted.error.message).toBe(SELF_DELETE_REFUSALS.unavailable);
       const decider = await staffScope(db, STAFF, 'RETENTION_PURGE');
       const decided = await decideRemovalRequest(
         decider,

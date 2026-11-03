@@ -2386,6 +2386,16 @@ export {
   requestRemoval,
   sweepRemovalRequests,
   workingDaysBetween,
+  // Delete My File (owner decision of 3 Nov 2026, PROGRAMME D12)
+  type DeleteMyFileInput,
+  SELF_DELETE_IMPACT_KEYS,
+  SELF_DELETE_REFUSALS,
+  SELF_DELETE_WORD,
+  type SelfDeleteImpact,
+  type SelfDeleteOutcome,
+  type SelfDeletePreview,
+  deleteMyFile,
+  previewDeleteMyFile,
 } from './lifecycle/removal-requests';
 
 // LC-E exports

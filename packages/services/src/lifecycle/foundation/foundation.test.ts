@@ -273,6 +273,47 @@ describe('availableDocumentActions', () => {
       ['RESTORE_DELETED'],
     ],
     ['a document being removed', { state: 'REMOVING', requestsSwitchOn: true }, []],
+    // Delete My File (owner decision of 3 Nov 2026): last, only with its own switch on.
+    [
+      'a unique document with Delete My File off',
+      { selfDeleteSwitchOn: false },
+      ['ARCHIVE', 'REPLACE'],
+    ],
+    [
+      'a unique document with Delete My File on',
+      { selfDeleteSwitchOn: true },
+      ['ARCHIVE', 'REPLACE', 'DELETE_MY_FILE'],
+    ],
+    [
+      'both switches on',
+      { selfDeleteSwitchOn: true, requestsSwitchOn: true },
+      ['ARCHIVE', 'REPLACE', 'REQUEST_REMOVAL', 'DELETE_MY_FILE'],
+    ],
+    [
+      'a duplicate and a waiting request with Delete My File on',
+      { selfDeleteSwitchOn: true, isDuplicate: true, requestsSwitchOn: true, pendingRequest: true },
+      ['ARCHIVE', 'REPLACE', 'CANCEL_REMOVAL_REQUEST', 'DELETE_MY_FILE'],
+    ],
+    [
+      'an archived document with Delete My File on',
+      { state: 'ARCHIVED', selfDeleteSwitchOn: true },
+      ['RESTORE', 'DELETE_MY_FILE'],
+    ],
+    [
+      'a held document with Delete My File on',
+      { legalHold: true, selfDeleteSwitchOn: true },
+      ['ARCHIVE', 'REPLACE'],
+    ],
+    [
+      'a document in Recently Deleted with Delete My File on',
+      { state: 'RECENTLY_DELETED', selfDeleteSwitchOn: true },
+      ['RESTORE_DELETED'],
+    ],
+    [
+      'a document being removed with Delete My File on',
+      { state: 'REMOVING', selfDeleteSwitchOn: true },
+      [],
+    ],
   ])('offers the right actions for %s', (_name, view, expected) => {
     const actions = availableDocumentActions({ ...base, ...view });
     expect(actions).toEqual(expected);
