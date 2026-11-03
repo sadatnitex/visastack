@@ -55,3 +55,13 @@ export function documentRemovalRequestsOn(): boolean {
   const value = (readEnv('DOCUMENT_REMOVAL_REQUESTS') ?? '').trim().toLowerCase();
   return value === 'on' || value === 'true' || value === '1' || value === 'yes';
 }
+
+/**
+ * The owner's `DOCUMENT_SELF_DELETE` switch (owner decision of 3 Nov 2026, PROGRAMME D12). Off
+ * unless it says on, in any of the usual spellings: Delete My File stays out of every Manage menu
+ * and its actions refuse, so with the switch off nothing changes for anyone.
+ */
+export function documentSelfDeleteOn(): boolean {
+  const value = (readEnv('DOCUMENT_SELF_DELETE') ?? '').trim().toLowerCase();
+  return value === 'on' || value === 'true' || value === '1' || value === 'yes';
+}

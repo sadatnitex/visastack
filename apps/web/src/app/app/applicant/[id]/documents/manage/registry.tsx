@@ -6,6 +6,7 @@ import { RestoreDeletedAction } from './delete/restore-action';
 import { ReplaceAction } from './replace/replace-action';
 import { CancelRemovalRequestAction } from './request/cancel-action';
 import { RequestRemovalAction } from './request/request-action';
+import { SelfDeleteAction } from './self-delete/self-delete-action';
 
 /** What every Manage action component receives (PROGRAMME section 3.4). */
 export interface ManageActionProps {
@@ -44,6 +45,8 @@ export const MANAGE_ACTIONS: Readonly<Partial<Record<DocumentAction, ManageActio
     label: 'Cancel Removal Request',
     Component: CancelRemovalRequestAction,
   },
+  // Delete My File (owner decision of 3 Nov 2026, D12): offered only while DOCUMENT_SELF_DELETE is on
+  DELETE_MY_FILE: { label: 'Delete My File', Component: SelfDeleteAction },
 };
 
 /** The registered entries for `actions`, in the order given (availableDocumentActions order). */

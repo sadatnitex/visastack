@@ -6,20 +6,23 @@ import {
   hasActiveLegalHold,
   pendingRemovalRequests,
 } from '@visastack/services';
-import { documentRemovalRequestsOn } from '../../../../../../../lib/env';
+import { documentRemovalRequestsOn, documentSelfDeleteOn } from '../../../../../../../lib/env';
 
 /** The facts lane D owns for `availableDocumentActions` (PROGRAMME 3.2), for one document. */
 export interface RemovalRequestFacts {
   readonly pendingRequest: boolean;
   readonly legalHold: boolean;
   readonly requestsSwitchOn: boolean;
+  /** Delete My File is switched on (`DOCUMENT_SELF_DELETE`); it also needs the hold facts. */
+  readonly selfDeleteSwitchOn: boolean;
 }
 
 /**
  * Whether each document has a waiting removal request, whether a legal hold covers it, and
  * whether removal requests are switched on, through the owner's own proof. With the switch off
  * no hold is read (it only decides whether a request is offered) and a waiting request still
- * shows, so it can be cancelled. Most records have no hold at all, so one applicant-wide check
+ * shows, so it can be cancelled. Delete My File needs the hold fact too, so a hold is read when
+ * either switch is on (with both off nothing extra is read). Most records have no hold at all, so one applicant-wide check
  * comes first and the per-document check runs only when a hold exists.
  */
 export async function removalRequestFacts(
@@ -29,8 +32,10 @@ export async function removalRequestFacts(
   documentIds: readonly string[],
 ): Promise<ReadonlyMap<string, RemovalRequestFacts>> {
   const requestsSwitchOn = documentRemovalRequestsOn();
+  const selfDeleteSwitchOn = documentSelfDeleteOn();
   const pending = await pendingRemovalRequests(access, documentIds);
-  const anyHold = requestsSwitchOn && (await hasActiveLegalHold(db, applicantId));
+  const anyHold =
+    (requestsSwitchOn || selfDeleteSwitchOn) && (await hasActiveLegalHold(db, applicantId));
   const facts = new Map<string, RemovalRequestFacts>();
   for (const documentId of documentIds) {
     const legalHold = anyHold
@@ -40,6 +45,7 @@ export async function removalRequestFacts(
       pendingRequest: pending.has(documentId.toLowerCase()),
       legalHold,
       requestsSwitchOn,
+      selfDeleteSwitchOn,
     });
   }
   return facts;
