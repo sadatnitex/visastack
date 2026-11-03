@@ -50,7 +50,10 @@ export function RetentionChoice({
               required
               defaultChecked={value === days}
             />
-            <span>{days} Days</span>
+            <span className="collect-retention-days">
+              <span className="collect-retention-number">{days}</span>{' '}
+              <span className="collect-retention-unit">Days</span>
+            </span>
           </label>
         ))}
       </div>

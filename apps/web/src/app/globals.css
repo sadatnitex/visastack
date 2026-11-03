@@ -13343,80 +13343,400 @@ html:has(.sticky-action-bar) {
   overflow-wrap: anywhere;
 }
 
-/* WP-UMPE-UX1 interface polish: calmer checklist lines, one-row retention choice, a quiet Remove on trip cards.
-   Styles only; no wording, markup or behaviour changes. */
-.collect-item {
-  grid-template-columns: minmax(0, 1fr) auto;
+/* WP-UMPE-UX1 guest desk: a progress strip, a checklist that shows where each item stands, and one
+   side column for adding, placing and sending files. Flat, tokens only, 44 px targets. The agency's
+   accent and tint arrive through the brand scope's variables, as on its invitation. */
+.collect-branded {
+  display: grid;
+  gap: var(--space-4);
+}
+@media (min-width: 1024px) {
+  .collect-page .collect-card-wide {
+    max-width: 72rem;
+  }
+}
+
+/* The progress strip */
+.collect-progress {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-top: 4px solid var(--agency-accent, var(--accent));
+  border-radius: var(--radius-sm);
+  background: var(--agency-tint, var(--bg-elevated));
+}
+.collect-progress-complete {
+  border-top-color: var(--success);
+}
+.collect-progress p {
+  margin: 0;
+}
+.collect-progress-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.collect-progress-complete .collect-progress-head {
+  color: var(--success);
+}
+.collect-progress-title {
+  margin: 0;
+  font-size: var(--text-lead);
+}
+.collect-progress-line {
+  font-weight: 600;
+}
+.collect-meter {
+  display: flex;
+  gap: var(--space-1);
+}
+.collect-meter > span {
+  flex: 1;
+  height: 0.5rem;
+  border: 1px solid var(--edge-control);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  transition: background-color var(--motion-state) var(--motion-ease);
+}
+.collect-meter > .collect-meter-on {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.collect-progress-complete .collect-meter > .collect-meter-on {
+  border-color: var(--success);
+  background: var(--success);
+}
+
+/* The checklist and the side column */
+.collect-layout {
+  display: grid;
+  gap: var(--space-5);
+  align-items: start;
+}
+@media (min-width: 1024px) {
+  .collect-layout {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+  }
+}
+.collect-rail {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.collect-rail > * {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.collect-rail .collect-drop {
+  background: var(--bg);
+}
+.collect-rail .collect-step-title {
+  font-size: var(--text-lead);
+}
+
+/* One checklist line with its state */
+.collect-item-stated {
+  grid-template-columns: 1.5rem minmax(0, 1fr);
   column-gap: var(--space-3);
   align-items: baseline;
 }
-.collect-item > .collect-item-note {
-  grid-column: 1 / -1;
+.collect-item-stated > .collect-item-mark {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
 }
-.collect-item > .collect-item-meta {
-  text-align: end;
-  font-size: 0.8125rem;
+.collect-item-stated > :not(.collect-item-mark) {
+  grid-column: 2;
+}
+.collect-item-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid var(--edge-control);
+  border-radius: 50%;
+  transition: background-color var(--motion-state) var(--motion-ease);
+}
+.collect-mark-placed {
+  border-color: var(--success);
+  background: var(--success);
+  color: #fff;
+}
+.collect-mark-suggested {
+  border-color: var(--warning);
+}
+.collect-mark-covered {
+  border-style: dashed;
+}
+.collect-item-detail > .collect-item-note {
+  margin-left: var(--space-2);
+}
+.collect-item-status {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 8px;
+  background: var(--bg-subtle);
   color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 700;
 }
-@media (max-width: 479px) {
-  .collect-item {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .collect-item > .collect-item-meta {
-    text-align: start;
-  }
+.collect-status-placed {
+  background: var(--success-bg);
+  color: var(--success);
 }
-.collect-item-group {
-  grid-template-columns: minmax(0, 1fr);
+.collect-status-suggested,
+.collect-item-missing.collect-need-mandatory .collect-item-status {
+  background: var(--warning-bg);
+  color: var(--warning);
 }
+.collect-item-covered {
+  background: var(--bg);
+}
+.collect-item-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.collect-item-file {
+  padding: 0.2rem 0.6rem;
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  overflow-wrap: anywhere;
+}
+
+/* Folds: what the guest does not need to look at right now, named and one tap away */
+.collect-fold {
+  border: 0;
+}
+.collect-fold-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  row-gap: 0;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+.collect-fold-summary::-webkit-details-marker {
+  display: none;
+}
+.collect-fold-title {
+  flex: 1 1 12rem;
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+.collect-fold-status {
+  flex: 0 1 auto;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  white-space: nowrap;
+}
+.collect-fold-summary > .icon {
+  flex: none;
+  margin-left: auto;
+  transition: transform var(--motion-state) var(--motion-ease);
+}
+.collect-fold[open] > .collect-fold-summary > .icon {
+  transform: rotate(180deg);
+}
+.collect-fold-body {
+  margin-top: var(--space-2);
+}
+
+/* Retention: one even tile per period; the radio stays in the page for keyboards and readers */
 .collect-retention-options {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
 }
-@media (min-width: 640px) {
+@media (max-width: 359px) {
   .collect-retention-options {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 .collect-retention-option {
   position: relative;
+  display: grid;
+  place-items: center;
   min-height: 44px;
-  justify-content: center;
-  white-space: nowrap;
-  padding-inline: var(--space-2);
+  padding: var(--space-1) 0;
+  text-align: center;
 }
-/* The radio stays in the page for keyboards and screen readers; the whole box is the visible control. */
 .collect-retention-option input {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  inset: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
   margin: 0;
   opacity: 0;
   cursor: pointer;
 }
+.collect-retention-days {
+  display: grid;
+  justify-items: center;
+  line-height: 1.1;
+}
+.collect-retention-number {
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+.collect-retention-unit {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
 .collect-retention-option:has(input:checked) {
   border-color: var(--text);
-  background: var(--bg-subtle);
   outline: 1px solid var(--text);
   outline-offset: -2px;
+  background: var(--brand-bg);
 }
 .collect-retention-option:has(input:focus-visible) {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.trip-traveller > .trip-inline-form {
-  justify-self: start;
+/* The fold's own summary names the choice, so its legend stays for screen readers only. */
+.collect-rail .collect-retention {
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
-.trip-traveller > .trip-inline-form .btn {
-  background: transparent;
+.collect-fold .collect-retention legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A file card: its name and Remove share a row; the item choice sits below */
+.collect-rail .collect-file {
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 0;
+  column-gap: var(--space-3);
+}
+.collect-rail .collect-file > p {
+  grid-column: 1 / -1;
+}
+.collect-rail .collect-file > .collect-file-name {
+  grid-column: 1;
+  grid-row: 1;
+}
+.collect-rail .collect-file-actions {
+  display: contents;
+}
+.collect-rail .collect-file-actions > .collect-remove-form {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  margin: 0;
+}
+.collect-rail .collect-file-actions > .collect-file-change {
+  grid-column: 1 / -1;
+}
+.collect-remove-form .btn {
   border-color: transparent;
+  background: transparent;
   color: var(--text-secondary);
   text-decoration: underline;
   text-underline-offset: 0.2em;
-  padding-inline: 0;
 }
-.trip-traveller > .trip-inline-form .btn:hover {
-  color: var(--danger);
-  background: transparent;
+.collect-file-change > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+.collect-file-change .collect-place-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: end;
+}
+.collect-file-change .collect-place-form > .field-label,
+.collect-file-change .collect-place-form > :not(select):not(button):not(.field-label) {
+  grid-column: 1 / -1;
+}
+
+/* The phone's pinned summary */
+.collect-bar {
+  display: none;
+}
+
+/* Under a desktop: one column, a pinned summary and tighter spacing so the page holds three screens */
+@media (max-width: 1023px) {
+  html:has(.collect-bar) {
+    scroll-padding-bottom: 6rem;
+  }
+  .collect-page {
+    padding-block: var(--space-4) var(--space-5);
+  }
+  .collect-branded {
+    gap: var(--space-3);
+  }
+  .collect-layout {
+    gap: var(--space-4);
+  }
+  .collect-rail {
+    gap: var(--space-3);
+  }
+  .collect-rail > *,
+  .collect-rail .collect-drop {
+    padding: var(--space-3);
+  }
+  .collect-checklist {
+    gap: var(--space-3);
+    margin-block: var(--space-3);
+  }
+  .collect-section-title {
+    margin-bottom: var(--space-1);
+  }
+  .collect-group-label {
+    margin-bottom: var(--space-1);
+  }
+  .collect-item {
+    padding: var(--space-2) var(--space-3);
+  }
+  .collect-item-group {
+    padding: var(--space-2);
+  }
+  .collect-progress {
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+  .collect-page .collect-attribution,
+  .collect-page .collect-leave {
+    margin-top: var(--space-2);
+  }
+  .collect-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--hairline);
+    background: var(--bg-elevated);
+  }
+  .collect-bar-text {
+    display: grid;
+    margin: 0;
+    font-size: var(--text-small);
+    line-height: 1.3;
+  }
+  .collect-bar .btn {
+    white-space: nowrap;
+  }
 }

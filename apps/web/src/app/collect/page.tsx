@@ -7,9 +7,11 @@ import { agencyBrand } from '../../lib/agency-brand';
 import { pdfUploadsAccepted } from '../../lib/upload-preflight';
 import { AgencyBrandScope, AgencyMark } from '../app/agency/[orgId]/org-branding-header';
 import { GuestChecklist } from './checklist';
-import { GuestDeskFiles } from './guest-desk-files';
+import { Fold } from './fold';
+import { GuestFileList, GuestSentHistory } from './guest-desk-files';
 import { SubmitDocumentsForm } from './guest-files';
 import { LeaveForm, RetentionForm, SendCodeForm, VerifyCodeForm } from './guest-forms';
+import { GuestBar, GuestProgress, fileTally, mandatoryStanding } from './guest-progress';
 import { GuestUploader } from './guest-uploader';
 import {
   COLLECT_COOKIE,
@@ -114,6 +116,22 @@ export default async function CollectPage({
     const ready =
       files.some((f) => f.status === 'ready' && f.itemId !== null) &&
       !files.some((f) => f.status === 'checking');
+    const trust = `Nothing reaches ${agencyName ?? 'the agency'} until you choose Submit Documents. Without an account, no VisaStack profile is made for you: your files go only to this request.`;
+    const retention = (
+      <Fold
+        title={`How Long ${agencyName ?? 'The Agency'} May Keep Your Files`}
+        status={desk.retentionDays === null ? 'Not Chosen Yet' : `${desk.retentionDays} Days`}
+        open={desk.retentionDays === null}
+      >
+        <RetentionForm
+          agencyName={agencyName}
+          value={desk.retentionDays}
+          periods={GUEST_RETENTION_DAYS}
+        />
+      </Fold>
+    );
+    const standing = uploads ? mandatoryStanding(desk.items, uploads.stillMissing) : null;
+    const tally = fileTally(files);
     return (
       <Shell wide>
         {header('Your Document Checklist')}
@@ -121,39 +139,65 @@ export default async function CollectPage({
           {agencyName ?? 'The agency'} asked for these documents. This is the exact list they
           issued.
         </p>
-        {desk.intact ? (
-          <GuestChecklist items={desk.items} />
-        ) : (
-          <p className="collect-notice" role="note">
-            This checklist cannot be shown right now. Ask the agency to send the request again.
-          </p>
-        )}
-        {uploads ? (
-          <>
-            <GuestUploader pdfAccepted={pdfUploadsAccepted()} />
-            <GuestDeskFiles desk={uploads} items={desk.items} />
-          </>
-        ) : null}
-        <RetentionForm
-          agencyName={agencyName}
-          value={desk.retentionDays}
-          periods={GUEST_RETENTION_DAYS}
-        />
-        {uploads ? (
-          <SubmitDocumentsForm
-            agencyName={agencyName}
-            consentText={GUEST_CONSENT_TEXT}
-            ready={ready && desk.retentionDays !== null}
-            again={uploads.submissions.length > 0}
-          />
-        ) : null}
-        <p className="muted u-fs-085">
-          Nothing reaches {agencyName ?? 'the agency'} until you choose Submit Documents. Without an
-          account, no VisaStack profile is made for you: your files go only to this request.
-        </p>
+        <Branded brand={brand}>
+          {standing && desk.intact ? (
+            <GuestProgress
+              standing={standing}
+              agencyName={agencyName}
+              blocker={
+                files.some((f) => f.status === 'checking')
+                  ? 'checking'
+                  : desk.retentionDays === null
+                    ? 'retention'
+                    : null
+              }
+            />
+          ) : null}
+          <div className={uploads ? 'collect-layout' : undefined}>
+            <div className="collect-main">
+              {desk.intact ? (
+                <GuestChecklist
+                  items={desk.items}
+                  progress={uploads ? { files, stillMissing: uploads.stillMissing } : undefined}
+                />
+              ) : (
+                <p className="collect-notice" role="note">
+                  This checklist cannot be shown right now. Ask the agency to send the request
+                  again.
+                </p>
+              )}
+              {uploads ? <GuestSentHistory desk={uploads} /> : null}
+              {uploads ? null : retention}
+            </div>
+            {uploads ? (
+              <aside className="collect-rail" aria-label="Add and send your files">
+                <GuestUploader pdfAccepted={pdfUploadsAccepted()} />
+                <GuestFileList desk={uploads} items={desk.items} />
+                <section id="guest-submit" className="collect-send">
+                  {retention}
+                  <SubmitDocumentsForm
+                    agencyName={agencyName}
+                    consentText={GUEST_CONSENT_TEXT}
+                    ready={ready && desk.retentionDays !== null}
+                    again={uploads.submissions.length > 0}
+                  />
+                  <p className="muted u-fs-085">{trust}</p>
+                </section>
+              </aside>
+            ) : null}
+          </div>
+        </Branded>
+        {uploads ? null : <p className="muted u-fs-085">{trust}</p>}
         <div className="collect-leave">
           <LeaveForm />
         </div>
+        {uploads && standing ? (
+          <GuestBar
+            placed={tally.placed}
+            left={standing.total - standing.done}
+            needsLook={tally.needsLook}
+          />
+        ) : null}
       </Shell>
     );
   }
@@ -226,6 +270,23 @@ export default async function CollectPage({
         </>
       )}
     </Shell>
+  );
+}
+
+/** The agency's accent and tint reach everything inside; with no named agency the product's own apply. */
+function Branded({
+  brand,
+  children,
+}: {
+  readonly brand: ReturnType<typeof agencyBrand> | null;
+  readonly children: React.ReactNode;
+}) {
+  return brand ? (
+    <AgencyBrandScope brand={brand} className="collect-branded">
+      {children}
+    </AgencyBrandScope>
+  ) : (
+    <div className="collect-branded">{children}</div>
   );
 }
 
