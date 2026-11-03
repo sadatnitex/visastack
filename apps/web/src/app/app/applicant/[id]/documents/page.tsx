@@ -200,6 +200,11 @@ export default async function ApplicantDocumentsPage({
   const locale = await getLocale();
   const t = createTranslator(locale);
   const documentGroups = evidenceDocumentGroups();
+  // The Add Documents page, ready on a kind when the address names one the catalogue knows.
+  const addDocumentsBase = `/app/applicant/${id}/documents/add`;
+  const addDocumentsHref = initialKind
+    ? `${addDocumentsBase}?type=${encodeURIComponent(initialKind)}`
+    : addDocumentsBase;
 
   const data = await withSession(async ({ db, accountId }) => {
     const encryption = createKeyManagementPort();
@@ -1089,10 +1094,7 @@ export default async function ApplicantDocumentsPage({
               approve every detail we read.
             </p>
             {data.coreGranted ? (
-              <Link
-                className="btn btn-primary"
-                href={`/app/applicant/${id}/documents/add${initialKind ? `?type=${encodeURIComponent(initialKind)}` : ''}`}
-              >
+              <Link className="btn btn-primary" href={addDocumentsHref}>
                 Add Documents
               </Link>
             ) : (
