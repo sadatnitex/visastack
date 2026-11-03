@@ -14078,3 +14078,21 @@ html:has(.sticky-action-bar) {
   border: 0;
   min-width: 0;
 }
+
+/* WP-UMPE-UX5 agency Document Requests: what came back on each request. A total in plain words and
+   one chip per state (Waiting for Review, Needs Correction, Accepted), wrapping on a narrow
+   screen. Flat, tokens only. The filters reuse the UX3 filter style above. */
+.request-answers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.request-answers-total {
+  font-weight: 600;
+}
+@media (max-width: 1180px) {
+  .request-table td[data-label="Answers"] {
+    grid-column: 1 / -1;
+  }
+}

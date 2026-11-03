@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   get: vi.fn(),
   choices: vi.fn(),
+  summary: vi.fn(),
 }));
 
 vi.mock('../../../../../lib/session', () => ({
@@ -25,6 +26,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listCollectionRequests: mocks.list,
   getCollectionRequest: mocks.get,
   listCollectionPackChoices: mocks.choices,
+  summariseCollectionAnswers: mocks.summary,
 }));
 vi.mock('./collection-forms', async () => {
   const { stub } = await import('../../../../../lib/next-mocks.test-support');
@@ -116,6 +118,7 @@ beforeEach(() => {
   navigationState.pathname = `/app/agency/${ORG}/collection`;
   mocks.principal.mockResolvedValue({ ok: true, value: { authority: 'ADMIN' } });
   mocks.choices.mockResolvedValue({ ok: true, value: [] });
+  mocks.summary.mockResolvedValue(new Map());
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -215,6 +218,134 @@ describe('Document Requests pages', () => {
       expect(odd).toMatch(/aria-current="page"[^>]*>All/);
       // A status with no request is not offered, so asking for it shows everything.
       expect(await list({ status: 'REVOKED' })).toContain('Synthetic Cara');
+    });
+  });
+
+  describe('the answers on the list (UMPE UX5)', () => {
+    const at = new Date('2026-11-02T00:00:00Z');
+    const ids = [1, 2, 3, 4].map((n) => `3000000${n}-0000-4000-8000-000000000001`);
+    const row = (n: number, status: string, who: string) => ({
+      id: ids[n - 1],
+      status,
+      destination: 'GB',
+      purpose: 'Tourism',
+      route: null,
+      recipientNameHint: who,
+      dueAt: null,
+      createdAt: at,
+      updatedAt: at,
+    });
+    const list = (params: { status?: string; review?: string } = {}) =>
+      renderServer(ListPage({ ...props, searchParams: Promise.resolve(params) }));
+    const counts = (
+      answers: number,
+      waiting: number,
+      needsCorrection: number,
+      accepted: number,
+    ) => ({
+      answers,
+      waiting,
+      needsCorrection,
+      accepted,
+    });
+
+    beforeEach(() => {
+      mocks.list.mockResolvedValue({
+        ok: true,
+        value: [
+          row(1, 'SENT', 'Synthetic Anna'),
+          row(2, 'SENT', 'Synthetic Ben'),
+          row(3, 'DRAFT', 'Synthetic Dev'),
+          row(4, 'CLOSED', 'Synthetic Cara'),
+        ],
+      });
+      mocks.summary.mockResolvedValue(
+        new Map([
+          [ids[0], counts(3, 2, 1, 0)],
+          [ids[1], counts(1, 0, 0, 1)],
+          [ids[3], counts(2, 1, 0, 1)],
+        ]),
+      );
+    });
+
+    it('shows an owner or admin the answers of each listed request, and a dash where there are none', async () => {
+      const html = await list();
+      expect(mocks.summary).toHaveBeenCalledTimes(1);
+      expect(mocks.summary.mock.calls[0]?.[2]).toEqual(ids);
+      expect(html.match(/<td data-label="Answers"/g)).toHaveLength(4);
+      const text = textOf(html);
+      expect(text).toContain('3 Answers');
+      expect(text).toContain('2 Waiting for Review');
+      expect(text).toContain('1 Needs Correction');
+      expect(text).toContain('1 Answer');
+      expect(text).toContain('1 Accepted');
+      expect(text).toContain('No Answers Yet');
+    });
+
+    it('never calls a waiting answer reviewed or accepted', async () => {
+      mocks.summary.mockResolvedValue(new Map([[ids[0], counts(2, 2, 0, 0)]]));
+      const text = textOf(await list());
+      expect(text).toContain('2 Waiting for Review');
+      expect(text).not.toMatch(/Reviewed|Accepted|Received/);
+    });
+
+    it('shows a member no answers column and never reads the answers', async () => {
+      mocks.principal.mockResolvedValue({ ok: true, value: { authority: 'REQUESTER' } });
+      const html = await list({ review: 'waiting' });
+      expect(mocks.summary).not.toHaveBeenCalled();
+      expect(html).not.toContain('data-label="Answers"');
+      expect(html).not.toContain('>Answers<');
+      const text = textOf(html);
+      expect(text).not.toContain('Waiting for Review');
+      // The filter is ignored for a member: every request is still listed.
+      expect(text).toContain('Synthetic Cara');
+      expect(text).toContain('Synthetic Dev');
+    });
+
+    it('offers Waiting for Review with the count of requests that have something waiting', async () => {
+      const text = textOf(await list());
+      expect(text).toContain('All Answers');
+      expect(text).toContain('Waiting for Review 2');
+    });
+
+    it('offers no Waiting for Review filter when nothing is waiting', async () => {
+      mocks.summary.mockResolvedValue(new Map([[ids[1], counts(1, 0, 0, 1)]]));
+      const html = await list({ review: 'waiting' });
+      expect(textOf(html)).not.toContain('All Answers');
+      expect(html).toContain('Synthetic Dev');
+    });
+
+    it('shows only requests with answers waiting for ?review=waiting and marks it as current', async () => {
+      const html = await list({ review: 'waiting' });
+      expect(html).toContain('Synthetic Anna');
+      expect(html).toContain('Synthetic Cara');
+      expect(html).not.toContain('Synthetic Ben');
+      expect(html).not.toContain('Synthetic Dev');
+      expect(html).toMatch(/aria-current="page"[^>]*>Waiting for Review/);
+      expect(html.match(/aria-current="page"/g)).toHaveLength(2);
+    });
+
+    it('composes with the status filter, and each filter keeps the other in its links', async () => {
+      const html = await list({ status: 'SENT', review: 'waiting' });
+      expect(html).toContain('Synthetic Anna');
+      expect(html).not.toContain('Synthetic Cara');
+      expect(html).not.toContain('Synthetic Ben');
+      expect(html).toContain(
+        `href="/app/agency/${ORG}/collection?status=CLOSED&amp;review=waiting"`,
+      );
+      expect(html).toContain(`href="/app/agency/${ORG}/collection?status=SENT"`);
+      // Nothing both sent and waiting: say so instead of an empty table.
+      mocks.summary.mockResolvedValue(new Map([[ids[3], counts(1, 1, 0, 0)]]));
+      expect(textOf(await list({ status: 'SENT', review: 'waiting' }))).toContain(
+        'No requests match both filters',
+      );
+    });
+
+    it('ignores a review value that is not waiting', async () => {
+      const html = await list({ review: 'everything' });
+      expect(html).toContain('Synthetic Ben');
+      expect(html).toContain('Synthetic Dev');
+      expect(html).toMatch(/aria-current="page"[^>]*>All Answers/);
     });
   });
 
