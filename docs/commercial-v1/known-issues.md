@@ -7349,3 +7349,8 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - The migration has NOT been run anywhere. It needs the owner's word "migrate 0130" for that run, after this merges. The code tolerates the table being missing and the switch `UMPE_TRIP_COMPANIONS_ENABLED` is off by default.
 - Not verified: Neon (PGlite only), a parallel double-accept, anything in the web layer. Packages 2 to 4 (organiser forms, email and accept page, companion page and Plan My Own Case) are not built.
 
+## 2026-11-03: UMPE UX10 (Home on a phone, no migration)
+
+- The owner called the phone Home below the Next Step card weak, with strange underlines. Measured on the real page: 4.22 screens at Everything. The underlines came from the sentence-link rule reaching row links inside list items; a `plain-link` class is now excluded from it. The three counts are one strip, the case card is compact, lists are rows with chevrons, and "nothing needs you" is a quiet success line. Everything view 4.22 to 3.80 screens; axe clean light and dark. No wording, target or count changed.
+- Not verified: a real phone, a screen reader, the live flow. Hand-back: `docs/umpe/operations/handoffs/UX10.md`.
+

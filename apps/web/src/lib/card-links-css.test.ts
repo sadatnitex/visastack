@@ -17,7 +17,7 @@ describe('card links are not underlined like sentence links', () => {
     expect(rule).toContain(':not(.attention-link)');
   });
 
-  it.each(['.deadline-link', '.home-entry-link'])('leaves %s out of it', (card) => {
+  it.each(['.deadline-link', '.home-entry-link', '.plain-link'])('leaves %s out of it', (card) => {
     expect(rule).toContain(`:not(${card})`);
   });
 });

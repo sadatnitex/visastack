@@ -338,18 +338,32 @@ export default async function ApplicantOverviewPage({
         <div className="traveller-metrics" {...atLevel('browse')}>
           <Link className="card traveller-metric" href={`/app/applicant/${id}/missions`}>
             <span>Active Cases</span>
-            <strong>{data.missions.ok ? data.active.length : 'Unavailable'}</strong>
-            <span className="muted">Closed and cancelled cases are excluded.</span>
+            <strong className={data.missions.ok ? undefined : 'traveller-metric-off'}>
+              {data.missions.ok ? data.active.length : 'Unavailable'}
+            </strong>
+            <span className="muted traveller-metric-note">
+              Closed and cancelled cases are excluded.
+            </span>
           </Link>
           <Link className="card traveller-metric" href={`/app/applicant/${id}/documents`}>
             <span>Documents in Your Wallet</span>
-            <strong>{data.documents.ok ? documents.length : 'Unavailable'}</strong>
-            <span className="muted">Open documents to review processing and safety.</span>
+            <strong className={data.documents.ok ? undefined : 'traveller-metric-off'}>
+              {data.documents.ok ? documents.length : 'Unavailable'}
+            </strong>
+            <span className="muted traveller-metric-note">
+              Open documents to review processing and safety.
+            </span>
           </Link>
           <Link className="card traveller-metric" href={`/app/applicant/${id}/evidence`}>
             <span>Items Needing Attention</span>
-            <strong>{data.documents.ok && data.requests.ok ? attention : 'Unavailable'}</strong>
-            <span className="muted">Requests, suggested details and flagged documents.</span>
+            <strong
+              className={data.documents.ok && data.requests.ok ? undefined : 'traveller-metric-off'}
+            >
+              {data.documents.ok && data.requests.ok ? attention : 'Unavailable'}
+            </strong>
+            <span className="muted traveller-metric-note">
+              Requests, suggested details and flagged documents.
+            </span>
           </Link>
         </div>
         <div className="split traveller-working-area">
@@ -379,6 +393,7 @@ export default async function ApplicantOverviewPage({
                     <div className="traveller-checklist">
                       <strong>Checklist Progress</strong>
                       <CaseReadinessRing
+                        size="sm"
                         readiness={data.readiness?.ok ? data.readiness.value : null}
                         {...(data.featured.packVersionId
                           ? { emptyLine: 'Progress could not be worked out. Refresh to try again.' }
@@ -430,7 +445,12 @@ export default async function ApplicantOverviewPage({
             <div className="depth-item" {...atLevel('browse')}>
               <h3>Needs Your Attention</h3>
               {attention === 0 ? (
-                <p className="muted">Nothing needs a decision right now.</p>
+                <p className="home-clear">
+                  <span aria-hidden="true" className="home-clear-mark">
+                    {'\u2713'}
+                  </span>
+                  Nothing needs a decision right now.
+                </p>
               ) : null}
               {attention > 0 ? (
                 <article className="card rows">
@@ -488,7 +508,9 @@ export default async function ApplicantOverviewPage({
                   <ol className="traveller-agenda">
                     {agenda.map((row) => (
                       <li key={row.key}>
-                        <Link href={row.href}>{row.label}</Link>
+                        <Link className="plain-link" href={row.href}>
+                          {row.label}
+                        </Link>
                         <time dateTime={row.date.toISOString()}>
                           {formatTimestampDate(row.date)}
                         </time>
@@ -504,7 +526,9 @@ export default async function ApplicantOverviewPage({
                     individual case calendar.
                   </EmptyState>
                 )}
-                <Link href={`/app/applicant/${id}/expiry`}>Dates &amp; Expiry →</Link>
+                <Link className="home-more plain-link" href={`/app/applicant/${id}/expiry`}>
+                  Dates &amp; Expiry →
+                </Link>
               </article>
               <h3>Recent Activity</h3>
               <article className="card">
@@ -512,7 +536,7 @@ export default async function ApplicantOverviewPage({
                   <ol className="traveller-activity">
                     {activity.map((row) => (
                       <li key={row.key}>
-                        <Link href={row.href}>
+                        <Link className="plain-link" href={row.href}>
                           <strong>{row.label}</strong>
                           <span>{row.detail}</span>
                         </Link>
@@ -526,9 +550,11 @@ export default async function ApplicantOverviewPage({
                     recent-record summary, not a complete audit log.
                   </EmptyState>
                 )}
-                <Link href={`/app/applicant/${id}/history`}>Profile History →</Link>
+                <Link className="home-more plain-link" href={`/app/applicant/${id}/history`}>
+                  Profile History →
+                </Link>
               </article>
-              <article className="card">
+              <article className="card home-profile">
                 <h3>Profile &amp; Sharing</h3>
                 {essentialsDone ? (
                   <>
@@ -561,14 +587,18 @@ export default async function ApplicantOverviewPage({
                   </>
                 )}
                 <p className="muted">Completeness does not verify identity.</p>
-                <Link href={`/app/applicant/${id}/profile`}>Continue Profile →</Link>
+                <Link className="home-more plain-link" href={`/app/applicant/${id}/profile`}>
+                  Continue Profile →
+                </Link>
                 <p className="muted">
                   Active sharing grants:{' '}
                   {data.access.ok
                     ? data.access.value.filter((g) => g.status === 'ACTIVE').length
                     : 'Unavailable'}
                 </p>
-                <Link href={`/app/applicant/${id}/sharing`}>Manage Sharing →</Link>
+                <Link className="home-more plain-link" href={`/app/applicant/${id}/sharing`}>
+                  Manage Sharing →
+                </Link>
               </article>
             </div>
           </aside>

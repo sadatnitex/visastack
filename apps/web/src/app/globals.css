@@ -2029,7 +2029,7 @@ a.checklist-item:hover .checklist-label {
 :where(p, li, dd, .card-body, .muted, .field-msg, .notice, .page-description, .stat-note)
   a:not(.btn):not(.row):not(.attention-link):not(.checklist-item):not(.deadline-link):not(
     .home-entry-link
-  ) {
+  ):not(.plain-link) {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
@@ -14152,4 +14152,128 @@ html:has(.sticky-action-bar) {
 /* WP-UMPE-UX8 Add Documents results: the line that names files waiting for one answer, under the one Next Step. */
 .add-answer {
   margin: var(--space-3) 0;
+}
+
+/* WP-UMPE-UX10 Home on a phone: the three counts are one connected strip (on a phone only; the captions are still spoken), the lists read as rows (a link in a row is not underlined) on every screen, and a quiet success line says when nothing needs you. Flat, tokens only. */
+@media (max-width: 760px) {
+  .traveller-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    border: 1px solid var(--edge-card);
+    border-radius: var(--radius);
+    background: var(--bg-elevated);
+    overflow: hidden;
+  }
+  .traveller-metrics .traveller-metric {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.15rem;
+    min-height: 44px;
+    padding: var(--space-3) var(--space-2);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    text-align: center;
+  }
+  .traveller-metrics .traveller-metric + .traveller-metric {
+    border-left: 1px solid var(--hairline);
+  }
+  .traveller-metrics .traveller-metric > strong {
+    order: -1;
+    grid-column: auto;
+    grid-row: auto;
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+  .traveller-metrics .traveller-metric > strong.traveller-metric-off {
+    font-size: var(--text-body);
+    overflow-wrap: normal;
+  }
+  .traveller-metrics .traveller-metric > span:not(.traveller-metric-note) {
+    font-size: var(--text-small);
+    line-height: 1.25;
+    color: var(--text-secondary);
+  }
+  /* The caption stays for a screen reader and leaves the eye: the strip has no room for it. */
+  .traveller-metrics .traveller-metric-note {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+.traveller-checklist > .muted {
+  font-size: var(--text-caption);
+}
+.traveller-agenda li,
+.traveller-activity li {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.15rem var(--space-3);
+  min-height: 44px;
+}
+.traveller-agenda li > a,
+.traveller-activity li > a {
+  flex: 1 1 11rem;
+  min-width: 0;
+  color: var(--text);
+  font-weight: 600;
+}
+.traveller-activity li > a > strong {
+  font-weight: 600;
+}
+.home-more {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+.home-clear {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-sm);
+  background: var(--success-bg);
+  color: var(--success);
+  font-weight: 600;
+}
+.home-clear-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--bg-elevated);
+  font-size: var(--text-small);
+}
+.home-profile .meter {
+  margin: var(--space-2) 0;
+}
+.traveller-working-area .row-link {
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+}
+.traveller-working-area .row-link .row-key {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.traveller-working-area .row-link::after {
+  content: "\203a" / "";
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: 1.25rem;
+  line-height: 1;
 }
