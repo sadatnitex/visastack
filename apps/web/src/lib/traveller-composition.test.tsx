@@ -367,6 +367,25 @@ describe("the deadline clock on a person's overview (Growth G5)", () => {
     expect(clock).toContain('Add a Document');
   });
 
+  it('draws the lists as rows with links that are not underlined, keeps the metric captions, and shows a quiet success line when nothing needs a decision', async () => {
+    const html = renderToStaticMarkup(await overview(params));
+    // Row links carry the class the sentence-link underline rule leaves out.
+    for (const label of [
+      'Dates &amp; Expiry',
+      'Profile History',
+      'Continue Profile',
+      'Manage Sharing',
+    ]) {
+      expect(html, label).toMatch(new RegExp(`class="home-more plain-link"[^>]*>\\s*${label}`));
+    }
+    // The metric captions stay in the page (hidden from the eye on a phone only, by style).
+    expect(html).toContain('traveller-metric-note');
+    expect(html).toContain('Closed and cancelled cases are excluded.');
+    // Nothing needs a decision: a quiet success line with a mark that is not read aloud.
+    expect(html).toContain('class="home-clear"');
+    expect(html).toContain('aria-hidden="true" class="home-clear-mark"');
+  });
+
   it('marks a date it is unsure of', async () => {
     service.listDeadlineClock.mockResolvedValue({
       ok: true,
