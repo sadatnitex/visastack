@@ -13342,3 +13342,80 @@ html:has(.sticky-action-bar) {
 .package-item-format {
   overflow-wrap: anywhere;
 }
+
+/* WP-UMPE-UX1 interface polish: calmer checklist lines, one-row retention choice, a quiet Remove on trip cards.
+   Styles only; no wording, markup or behaviour changes. */
+.collect-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+  align-items: baseline;
+}
+.collect-item > .collect-item-note {
+  grid-column: 1 / -1;
+}
+.collect-item > .collect-item-meta {
+  text-align: end;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+@media (max-width: 479px) {
+  .collect-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .collect-item > .collect-item-meta {
+    text-align: start;
+  }
+}
+.collect-item-group {
+  grid-template-columns: minmax(0, 1fr);
+}
+.collect-retention-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (min-width: 640px) {
+  .collect-retention-options {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}
+.collect-retention-option {
+  position: relative;
+  min-height: 44px;
+  justify-content: center;
+  white-space: nowrap;
+  padding-inline: var(--space-2);
+}
+/* The radio stays in the page for keyboards and screen readers; the whole box is the visible control. */
+.collect-retention-option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.collect-retention-option:has(input:checked) {
+  border-color: var(--text);
+  background: var(--bg-subtle);
+  box-shadow: inset 0 0 0 1px var(--text);
+}
+.collect-retention-option:has(input:focus-visible) {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+.trip-traveller > .trip-inline-form {
+  justify-self: start;
+}
+.trip-traveller > .trip-inline-form .btn {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  padding-inline: 0;
+}
+.trip-traveller > .trip-inline-form .btn:hover {
+  color: var(--danger);
+  background: transparent;
+}
