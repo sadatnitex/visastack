@@ -10,6 +10,7 @@ import {
   isRequirementProvenance,
   ok,
   optionalFlagFor,
+  provenanceAllowsNecessity,
   requirementNecessity,
   requirementProvenance,
 } from '@visastack/core';
@@ -509,6 +510,14 @@ function authoredRuleFields(input: RequirementInput): Result<AuthoredRuleFields,
       return err('a requirement that applies only sometimes is Mandatory If It Applies');
     }
   }
+  // UMPE G2 (S08): an observation from VisaStack cases is never a mandate, so it must say it is
+  // Recommended or Optional (a legacy row with no necessity would read as Mandatory).
+  if (
+    provenance === 'FIELD_OBSERVATION' &&
+    (necessity === null || !provenanceAllowsNecessity(provenance, necessity))
+  ) {
+    return err('an item observed in VisaStack cases can only be Recommended or Optional');
+  }
   const groupKey = input.groupKey === undefined ? null : input.groupKey.trim();
   const groupMode = input.groupMode ?? null;
   if (groupKey === '') return err('a group of alternatives needs a name');
@@ -540,6 +549,12 @@ function ruleSetProblem(requirements: readonly PackRequirement[]): string | null
     }
     if ((r.groupKey === null) !== (r.groupMode === null)) {
       return 'a group of alternatives is missing its name or how it is satisfied';
+    }
+    if (
+      r.provenance === 'FIELD_OBSERVATION' &&
+      (r.necessity === null || !provenanceAllowsNecessity(r.provenance, r.necessity))
+    ) {
+      return 'an item observed in VisaStack cases can only be Recommended or Optional';
     }
   }
   const groupSizes = new Map<string, number>();

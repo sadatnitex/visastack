@@ -3,11 +3,25 @@
  * - `pick`: at least one fits its country and purpose. `travellerUnconfirmed` when one may be
  *   meant only for some nationalities or residences and the traveller's are not confirmed (or
  *   not readable), which is why none was linked on its own.
+ *   `caseDetailsNeeded` (UMPE G2) when a fitting checklist is only for some application posts or
+ *   travel dates and the case does not say yet; nothing is guessed, so none was linked.
  * - `none`: none fits.
  * - `unknown`: the check could not be made.
  */
+/** A case detail a checklist needs before VisaStack can tell it fits. */
+export type CaseDetailNeeded = 'APPLICATION_POST' | 'TRAVEL_DATES';
+
+const DETAIL_WORDS: Readonly<Record<CaseDetailNeeded, string>> = {
+  APPLICATION_POST: 'where you apply (the embassy, consulate or visa centre)',
+  TRAVEL_DATES: 'your travel dates',
+};
+
 export type WelcomeChecklists =
-  | { readonly kind: 'pick'; readonly travellerUnconfirmed: boolean }
+  | {
+      readonly kind: 'pick';
+      readonly travellerUnconfirmed: boolean;
+      readonly caseDetailsNeeded?: readonly CaseDetailNeeded[];
+    }
   | { readonly kind: 'none' }
   | { readonly kind: 'unknown' };
 
@@ -36,6 +50,17 @@ export function caseWelcomeCopy(input: {
     };
   }
   const { checklists } = input;
+  const needed = checklists.kind === 'pick' ? (checklists.caseDetailsNeeded ?? []) : [];
+  if (needed.length > 0) {
+    return {
+      title,
+      body: [
+        `A checklist for this route depends on ${needed.map((n) => DETAIL_WORDS[n]).join(' and ')}, and the case does not say yet, so none was linked.`,
+        'Add it under Edit Case Details and VisaStack can tell which checklist fits. Or pick one now.',
+      ],
+      action: { href: '#pack', label: 'Pick a Checklist' },
+    };
+  }
   if (checklists.kind === 'pick' && checklists.travellerUnconfirmed) {
     return {
       title,

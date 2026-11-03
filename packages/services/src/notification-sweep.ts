@@ -1,4 +1,5 @@
 import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access/require-access';
 import { type Db, schema } from './db';
 import { classifyExpiry, getReminderThresholds } from './expiry';
 import {
@@ -15,7 +16,9 @@ import {
 } from './material-revision';
 import { titleDate } from './naming';
 import { enqueueNotificationBothChannels } from './notifications';
+import { listRequirementDetails } from './pack-rule-details';
 import { recordProductEvent } from './product-events';
+import { INACTIVE_CASE_STATES } from './umpe-package-tables';
 
 /**
  * NTF-04 (Part 5 §4) "Timing": the periodic sweeps that turn NTF-01's
@@ -359,4 +362,97 @@ export async function sweepExpiryReminders(
   }
 
   return { checked: documentRows.length + verificationRows.length, enqueued, missionsDirtied };
+}
+
+// --- UMPE G2 (R22): a case-aware expiry check -------------------------------------------------------
+
+/** One document chosen for a case that stops being valid before the case needs it to. */
+export interface CaseExpiryConflict {
+  readonly documentId: string;
+  readonly displayName: string;
+  readonly expiresAt: Date;
+  /** The case's travel end date, plus any months the checklist says it must stay valid after. */
+  readonly neededUntil: Date;
+}
+
+/** The same calendar day `months` later in UTC, clamped to the month's last day. */
+function addUtcMonths(date: Date, months: number): Date {
+  if (months === 0) return date;
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + months;
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(
+    Date.UTC(
+      year,
+      month,
+      Math.min(date.getUTCDate(), lastDay),
+      date.getUTCHours(),
+      date.getUTCMinutes(),
+      date.getUTCSeconds(),
+    ),
+  );
+}
+
+const INACTIVE_STATES: ReadonlySet<string> = new Set(INACTIVE_CASE_STATES);
+
+/**
+ * Documents chosen for this case that expire before its travel end date, or before the months
+ * after it that the checklist declares (`valid_months_after_travel`). The fixed 90/60/30/7/0 day
+ * reminders and the expiry centre stay as they are; this answers only "will it last this trip".
+ *
+ * Read through the case's own gate proof (owner, mission scope). Nothing is returned for a case
+ * that is closed, cancelled or handed in, or that has no travel end date (an unknown date is never
+ * guessed). One entry per document, however many checklist items chose it. Never raises on a
+ * database without the G2 tables: a missing validity rule reads as "until the trip ends".
+ */
+export async function caseExpiryConflicts(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+): Promise<readonly CaseExpiryConflict[]> {
+  if (!AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') || proof.resource.kind !== 'mission') {
+    return [];
+  }
+  const mission = proof.resource.mission;
+  if (INACTIVE_STATES.has(mission.state) || !mission.travelEndDate) return [];
+  const travelEnd = mission.travelEndDate;
+  const db = proof.tx;
+  const lifecycle = await lifecycleTablesPresent(db);
+  const rows = await db
+    .select({
+      documentId: schema.documents.id,
+      displayName: schema.documents.originalName,
+      expiresAt: schema.documents.expiresAt,
+      packRequirementId: schema.selectedEvidence.packRequirementId,
+    })
+    .from(schema.selectedEvidence)
+    .innerJoin(schema.documents, eq(schema.documents.id, schema.selectedEvidence.documentId))
+    .where(
+      and(
+        eq(schema.selectedEvidence.missionId, mission.id),
+        eq(schema.documents.applicantId, proof.applicant.id),
+        isNotNull(schema.documents.expiresAt),
+        lifecycle ? presentDocumentCondition() : undefined,
+      ),
+    )
+    .limit(200);
+  if (rows.length === 0) return [];
+  const details = await listRequirementDetails(
+    db,
+    rows.map((row) => row.packRequirementId),
+  );
+  const byDocument = new Map<string, CaseExpiryConflict>();
+  for (const row of rows) {
+    if (!row.expiresAt) continue;
+    const months = details.get(row.packRequirementId)?.validMonthsAfterTravel ?? 0;
+    const neededUntil = addUtcMonths(travelEnd, months);
+    if (row.expiresAt.getTime() >= neededUntil.getTime()) continue;
+    const seen = byDocument.get(row.documentId);
+    if (seen && seen.neededUntil.getTime() >= neededUntil.getTime()) continue;
+    byDocument.set(row.documentId, {
+      documentId: row.documentId,
+      displayName: row.displayName,
+      expiresAt: row.expiresAt,
+      neededUntil,
+    });
+  }
+  return [...byDocument.values()].sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
 }

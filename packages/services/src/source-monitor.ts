@@ -1129,3 +1129,44 @@ export async function sourceMonitorOverview(db: Db): Promise<SourceMonitorOvervi
     lastManualRun: runView('MANUAL'),
   };
 }
+
+// --- UMPE G2 (R08): when each cited source was last checked --------------------------------------
+
+/** Fetch outcomes that mean the page was actually read (changed or not). */
+const CHECKED_OUTCOMES = ['FETCHED', 'NOT_MODIFIED'];
+
+/**
+ * The last time each of these source addresses was read by the source check, by address. Only a
+ * read that reached the page counts (a blocked or failed fetch is not a check). An address that is
+ * not registered, never read, or read before the tables exist is absent. Public catalogue data
+ * only: no person, request or document is read.
+ */
+export async function latestSourceChecks(
+  db: Db,
+  urls: readonly string[],
+): Promise<Map<string, Date>> {
+  const wanted = [...new Set(urls.filter((url) => url.length > 0))].slice(0, 200);
+  if (wanted.length === 0 || !(await sourceMonitorReady(db))) return new Map();
+  const rows = await db
+    .select({
+      url: schema.officialSources.url,
+      checkedAt: max(schema.sourceObservations.fetchedAt),
+    })
+    .from(schema.sourceObservations)
+    .innerJoin(
+      schema.officialSources,
+      eq(schema.officialSources.id, schema.sourceObservations.sourceId),
+    )
+    .where(
+      and(
+        inArray(schema.officialSources.url, wanted),
+        inArray(schema.sourceObservations.outcome, CHECKED_OUTCOMES),
+      ),
+    )
+    .groupBy(schema.officialSources.url);
+  const checks = new Map<string, Date>();
+  for (const row of rows) {
+    if (row.checkedAt) checks.set(row.url, new Date(row.checkedAt));
+  }
+  return checks;
+}

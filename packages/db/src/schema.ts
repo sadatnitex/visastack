@@ -7015,3 +7015,74 @@ export const agencyMemberCapabilities = pgTable(
     check('agency_member_capabilities_known', sql`${table.capability} in ('REQUEST_DOCUMENTS')`),
   ],
 );
+
+// --- UMPE G2: rule category, document format and route conditions ---------------------------------
+// Side tables, so no existing read or write of `pack_requirements` or `packs` changes and code runs
+// before this migration exists. Details are editable only while their pack version is a draft (the
+// service enforces it); they stay outside the manifest checksum, like `max_age_days` and `notes`.
+export const packRequirementDetails = pgTable(
+  'pack_requirement_details',
+  {
+    packRequirementId: uuid('pack_requirement_id')
+      .primaryKey()
+      .references(() => packRequirements.id, { onDelete: 'cascade' }),
+    // One primary category from REQUIREMENT_CATEGORIES (core); never a sharing category.
+    category: text('category'),
+    acceptedForm: text('accepted_form'),
+    translationNeeded: boolean('translation_needed'),
+    originalNeeded: boolean('original_needed'),
+    statementPeriodMonths: integer('statement_period_months'),
+    // The document must stay valid this many months after the case's travel end date.
+    validMonthsAfterTravel: integer('valid_months_after_travel'),
+    // When the cited source's rule took effect, if the source says so.
+    effectiveSince: timestamp('effective_since', { withTimezone: true }),
+    updatedByAccountId: uuid('updated_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('pack_requirement_details_updated_by_idx').on(table.updatedByAccountId),
+    check(
+      'pack_requirement_details_category_known',
+      sql`${table.category} is null or ${table.category} in ('IDENTITY_TRAVEL_DOCUMENTS', 'IMMIGRATION_HISTORY', 'DECLARATIONS_CIRCUMSTANCES', 'FINANCIAL_MEANS', 'EMPLOYMENT_BUSINESS', 'EDUCATION_ACADEMIC', 'FAMILY_SPONSORSHIP', 'JOURNEY_ITINERARY', 'MEDICAL_HEALTH', 'FORMS_PROCEDURES', 'ROUTE_SPECIFIC_OTHER')`,
+    ),
+    check(
+      'pack_requirement_details_accepted_form_known',
+      sql`${table.acceptedForm} is null or ${table.acceptedForm} in ('DIGITAL_COPY', 'PRINTED_COPY', 'CERTIFIED_COPY', 'NOTARISED_COPY')`,
+    ),
+    check(
+      'pack_requirement_details_statement_period_range',
+      sql`${table.statementPeriodMonths} is null or ${table.statementPeriodMonths} between 1 and 60`,
+    ),
+    check(
+      'pack_requirement_details_valid_after_travel_range',
+      sql`${table.validMonthsAfterTravel} is null or ${table.validMonthsAfterTravel} between 0 and 120`,
+    ),
+  ],
+);
+
+// Which application posts and travel window a pack is for (R05). No row, or an empty list, means
+// the pack does not narrow by that; a case that lacks a value the pack declares is asked for it.
+export const packRouteConditions = pgTable(
+  'pack_route_conditions',
+  {
+    packId: uuid('pack_id')
+      .primaryKey()
+      .references(() => packs.id, { onDelete: 'cascade' }),
+    consularPosts: text('consular_posts').array(),
+    travelFrom: date('travel_from', { mode: 'string' }),
+    travelUntil: date('travel_until', { mode: 'string' }),
+    updatedByAccountId: uuid('updated_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('pack_route_conditions_updated_by_idx').on(table.updatedByAccountId),
+    check(
+      'pack_route_conditions_window_order',
+      sql`${table.travelFrom} is null or ${table.travelUntil} is null or ${table.travelFrom} <= ${table.travelUntil}`,
+    ),
+  ],
+);

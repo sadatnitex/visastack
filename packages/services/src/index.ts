@@ -2929,3 +2929,25 @@ export {
   listPackageNotices,
   packageNoticeTablesReady,
 } from './umpe-experience-notices';
+
+// UMPE G2
+// Rule category, document format and route conditions (side tables), the source check date, the
+// case-aware expiry check.
+export {
+  NO_REQUIREMENT_DETAILS,
+  NO_ROUTE_CONDITIONS,
+  type PackRouteConditions,
+  RULE_DETAILS_WAITING,
+  type RequirementDetails,
+  type RequirementDetailsInput,
+  cleanRouteConditions,
+  listPackRouteConditions,
+  listRequirementDetails,
+  requirementDetailsProblem,
+  ruleDetailTablesPresent,
+  setPackRouteConditions,
+  setRequirementDetails,
+} from './pack-rule-details';
+export type { PackMatchNeed } from './pack-matching';
+export { latestSourceChecks } from './source-monitor';
+export { type CaseExpiryConflict, caseExpiryConflicts } from './notification-sweep';

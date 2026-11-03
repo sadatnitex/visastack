@@ -4,6 +4,7 @@ import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { AuthorizedApplicant } from './access';
 import { isTrustedFactStatus } from './ai';
 import { type Db, schema } from './db';
+import { type PackRouteConditions, listPackRouteConditions } from './pack-rule-details';
 
 /**
  * Which published checklist fits a new case (owner list item 1, 26 Oct 2026).
@@ -31,6 +32,12 @@ import { type Db, schema } from './db';
  * route does not narrow by route. Cases have no route field yet, so today every route-specific
  * pack is offered for the person to pick rather than linked. Two packs for different routes of
  * the same country and purpose are two fitting packs, so nothing is linked and the person picks.
+ *
+ * Application post and travel dates (UMPE G2, R05) are compared only when the pack declares them
+ * (`pack_route_conditions`). A case whose post or trip start is known and outside what the pack
+ * declares is left out. A case that lacks a value the pack declares is never guessed about: the pack
+ * is listed with `needs` naming the case detail to add, and never linked on its own. A pack that
+ * declares nothing matches exactly as before.
  *
  * Only an authoritative public pack counts (`packs.authoritative`, the reviewed public catalogue,
  * with no owning agency): an agency's own checklist, including one whose agency was deleted, is
@@ -66,7 +73,14 @@ export interface PackMatchTerms {
    * or empty means the route is not known: a route-specific pack is then listed, never linked.
    */
   readonly route?: readonly string[];
+  /** The case's application post (consular jurisdiction), when known. */
+  readonly consularPost?: string | null;
+  /** The case's trip start, when known. Compared by its calendar date (UTC). */
+  readonly travelStart?: Date | null;
 }
+
+/** A case detail a pack needs before it can be known to fit. */
+export type PackMatchNeed = 'APPLICATION_POST' | 'TRAVEL_DATES';
 
 export interface PackMatch {
   readonly packVersionId: string;
@@ -82,6 +96,12 @@ export interface PackMatch {
    * route and the case's route is not known, so it may fit but is never linked on its own.
    */
   readonly coversRoute: boolean;
+  /**
+   * UMPE G2: the case details this pack declares and the case lacks. Present only when there is
+   * at least one, so a pack that declares nothing reads exactly as before. A pack with needs is
+   * listed, never linked on its own.
+   */
+  readonly needs?: readonly PackMatchNeed[];
 }
 
 /** The traveller's confirmed values, as they were saved. */
@@ -141,6 +161,48 @@ function routeFit(
 }
 
 /**
+ * Whether a declared application post names the case's post: equal, or found as whole words in it
+ * ("Dhaka" in "US Embassy Dhaka"), ignoring case, accents and punctuation. No partial words.
+ */
+function postNamed(declared: string, casePostKey: string): boolean {
+  const key = packMatchKey(declared);
+  if (key.length === 0) return false;
+  return key === casePostKey || ` ${casePostKey} `.includes(` ${key} `);
+}
+
+/** How a pack's declared post and travel window fit the case, and what the case still lacks. */
+function caseDetailFit(
+  conditions: PackRouteConditions | undefined,
+  casePostKey: string,
+  travelStartDay: string | null,
+): { readonly excluded: boolean; readonly needs: PackMatchNeed[] } {
+  const needs: PackMatchNeed[] = [];
+  if (!conditions) return { excluded: false, needs };
+  if (conditions.consularPosts.length > 0) {
+    if (casePostKey.length === 0) needs.push('APPLICATION_POST');
+    else if (!conditions.consularPosts.some((post) => postNamed(post, casePostKey))) {
+      return { excluded: true, needs: [] };
+    }
+  }
+  if (conditions.travelFrom !== null || conditions.travelUntil !== null) {
+    if (travelStartDay === null) needs.push('TRAVEL_DATES');
+    else if (
+      (conditions.travelFrom !== null && travelStartDay < conditions.travelFrom) ||
+      (conditions.travelUntil !== null && travelStartDay > conditions.travelUntil)
+    ) {
+      return { excluded: true, needs: [] };
+    }
+  }
+  return { excluded: false, needs };
+}
+
+/** A trip start as its UTC calendar date, or null when unknown or not a real date. */
+function dayOf(value: Date | null | undefined): string | null {
+  if (!value || Number.isNaN(value.getTime())) return null;
+  return value.toISOString().slice(0, 10);
+}
+
+/**
  * Every published catalogue pack that fits this country and purpose and is not known to be meant
  * for other people, newest version of each, in name order.
  */
@@ -186,6 +248,13 @@ export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Pro
     // The newest published version of each pack is its current checklist.
     .orderBy(schema.packVersions.packId, desc(schema.packVersions.version));
 
+  const conditionsByPack = await listPackRouteConditions(
+    db,
+    rows.map((row) => row.packId),
+  );
+  const casePostKey = packMatchKey(terms.consularPost ?? '');
+  const travelStartDay = dayOf(terms.travelStart);
+
   const fitting: PackMatch[] = [];
   for (const row of rows) {
     // The database only narrowed the rows; the exact key decides.
@@ -197,12 +266,15 @@ export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Pro
     if (byNationality === 'excludes' || byResidence === 'excludes') continue;
     const byRoute = routeFit(row.route, routes);
     if (byRoute === 'excludes') continue;
+    const details = caseDetailFit(conditionsByPack.get(row.packId), casePostKey, travelStartDay);
+    if (details.excluded) continue;
     fitting.push({
       packVersionId: row.packVersionId,
       packName: row.packName,
       version: row.version,
       coversTraveller: byNationality === 'covers' && byResidence === 'covers',
       coversRoute: byRoute === 'covers',
+      ...(details.needs.length > 0 ? { needs: details.needs } : {}),
     });
   }
   return fitting.sort((a, b) => a.packName.localeCompare(b.packName, 'en'));
@@ -219,7 +291,13 @@ export async function findMatchingPublicPack(
   terms: PackMatchTerms,
 ): Promise<PackMatch | null> {
   const [only, ...others] = await listFittingPublicPacks(db, terms);
-  return only && others.length === 0 && only.coversTraveller && only.coversRoute ? only : null;
+  return only &&
+    others.length === 0 &&
+    only.coversTraveller &&
+    only.coversRoute &&
+    only.needs === undefined
+    ? only
+    : null;
 }
 
 /**

@@ -1,9 +1,21 @@
-import { ANY_OF_LABEL, NECESSITY_LABELS, PROVENANCE_LABELS } from '@visastack/core';
 import {
+  ANY_OF_LABEL,
+  NECESSITY_LABELS,
+  NO_FORMAT_RULES,
+  PROVENANCE_LABELS,
+  REQUIREMENT_CATEGORY_LABELS,
+  requirementFormatLines,
+} from '@visastack/core';
+import {
+  NO_REQUIREMENT_DETAILS,
+  NO_ROUTE_CONDITIONS,
   type PackRequirement,
+  type RequirementDetails,
   getPack,
   listMissionsByPackVersion,
+  listPackRouteConditions,
   listPackVersions,
+  listRequirementDetails,
   listRequirements,
 } from '@visastack/services';
 import type { Metadata } from 'next';
@@ -43,6 +55,11 @@ import {
   SourceInaccessibleButton,
   WithdrawVersionButton,
 } from '../pack-version-buttons';
+import {
+  RequirementDetailsForm,
+  type RequirementDetailsValues,
+  RouteConditionsForm,
+} from '../rule-detail-forms';
 
 export const metadata: Metadata = { title: 'Rule Pack' };
 
@@ -81,6 +98,36 @@ function byRequirementKey(a: RequirementKey, b: RequirementKey): number {
  * by default, with its requirements as compact rows 25 at a time; every other version is a short
  * row that opens it. Only the open version's requirements and attached cases are read.
  */
+/** UMPE G2: a requirement's saved rule details, as the details form shows them. */
+function detailsValues(details: RequirementDetails | undefined): RequirementDetailsValues {
+  const d = details ?? NO_REQUIREMENT_DETAILS;
+  const yesNo = (value: boolean | null) => (value === null ? '' : value ? 'yes' : 'no');
+  return {
+    category: d.category ?? '',
+    acceptedForm: d.acceptedForm ?? '',
+    translationNeeded: yesNo(d.translationNeeded),
+    originalNeeded: yesNo(d.originalNeeded),
+    statementPeriodMonths: d.statementPeriodMonths === null ? '' : String(d.statementPeriodMonths),
+    validMonthsAfterTravel:
+      d.validMonthsAfterTravel === null ? '' : String(d.validMonthsAfterTravel),
+    effectiveSince: d.effectiveSince ? d.effectiveSince.toISOString().slice(0, 10) : '',
+  };
+}
+
+/** UMPE G2: one plain line of a requirement's category, format rules and effective date. */
+function ruleDetailsSummary(req: PackRequirement, details: RequirementDetails | undefined) {
+  const parts = [
+    ...(details?.category ? [`Category: ${REQUIREMENT_CATEGORY_LABELS[details.category]}`] : []),
+    ...(req.kind === 'DOCUMENT'
+      ? requirementFormatLines(details ?? NO_FORMAT_RULES, null, null)
+      : []),
+    ...(details?.effectiveSince
+      ? [`In Effect Since: ${formatDateOnly(details.effectiveSince.toISOString())}`]
+      : []),
+  ];
+  return parts.length > 0 ? <p className="muted u-fs-085">{parts.join(' · ')}</p> : null;
+}
+
 export default async function PackDetailPage({
   params,
   searchParams,
@@ -102,9 +149,13 @@ export default async function PackDetailPage({
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
     const pack = await getPack(db, packId);
     if (!pack) return { admin: true as const, pack: null };
+    // UMPE G2: which application posts and trip window this pack is for (none declared before
+    // the G2 tables exist).
+    const routeConditions =
+      (await listPackRouteConditions(db, [pack.id])).get(pack.id) ?? NO_ROUTE_CONDITIONS;
     const versions = await listPackVersions(db, packId);
     const open = versions.find((v) => v.id === wantedVersion) ?? versions[0];
-    if (!open) return { admin: true as const, pack, versions, open: null };
+    if (!open) return { admin: true as const, pack, routeConditions, versions, open: null };
     const [requirements, missionCount] = await Promise.all([
       // The read has no order of its own, so the page sorts on fields an edit never changes:
       // a requirement keeps its place (and its Show More page) after a source review is saved.
@@ -116,11 +167,16 @@ export default async function PackDetailPage({
         ? listMissionsByPackVersion(db, open.id).then((missions) => missions.length)
         : Promise.resolve(0),
     ]);
+    const details = await listRequirementDetails(
+      db,
+      requirements.map((r) => r.id),
+    );
     return {
       admin: true as const,
       pack,
+      routeConditions,
       versions,
-      open: { version: open, requirements, missionCount },
+      open: { version: open, requirements, missionCount, details },
     };
   });
 
@@ -156,6 +212,29 @@ export default async function PackDetailPage({
         }
         actions={<OpenVersionButton packId={packId} />}
       />
+
+      <article className="card" id="pack-route-conditions">
+        <div className="card-head">
+          <h2 className="card-title">Who This Checklist Is For</h2>
+        </div>
+        <p className="muted u-fs-085">
+          {data.routeConditions.consularPosts.length > 0
+            ? `Application posts: ${data.routeConditions.consularPosts.join(', ')}.`
+            : 'Any application post.'}{' '}
+          {data.routeConditions.travelFrom || data.routeConditions.travelUntil
+            ? `Trips starting ${data.routeConditions.travelFrom ? `from ${formatDateOnly(data.routeConditions.travelFrom)}` : ''}${data.routeConditions.travelFrom && data.routeConditions.travelUntil ? ' ' : ''}${data.routeConditions.travelUntil ? `until ${formatDateOnly(data.routeConditions.travelUntil)}` : ''}.`
+            : 'Any travel dates.'}
+        </p>
+        <details className="sb7-fold">
+          <summary>Change Who This Checklist Is For</summary>
+          <RouteConditionsForm
+            packId={data.pack.id}
+            consularPosts={data.routeConditions.consularPosts}
+            travelFrom={data.routeConditions.travelFrom ?? ''}
+            travelUntil={data.routeConditions.travelUntil ?? ''}
+          />
+        </details>
+      </article>
 
       {data.open === null ? (
         <article className="card">
@@ -292,6 +371,15 @@ export default async function PackDetailPage({
                               <p className="muted u-fs-085">
                                 Freshness: must be dated within {req.maxAgeDays} day(s)
                               </p>
+                            ) : null}
+                            {ruleDetailsSummary(req, data.open.details.get(req.id))}
+                            {isDraft ? (
+                              <RequirementDetailsForm
+                                packId={data.pack.id}
+                                requirementId={req.id}
+                                kind={req.kind}
+                                values={detailsValues(data.open.details.get(req.id))}
+                              />
                             ) : null}
                             {isDraft ? (
                               <RequirementSourceReviewForm
