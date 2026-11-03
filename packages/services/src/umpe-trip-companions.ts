@@ -32,7 +32,9 @@ import { and, asc, count, eq, gt, inArray, isNull, ne } from 'drizzle-orm';
 import type { AuthorizedApplicant } from './access/require-access';
 import {
   COMPANION_LIST_LIMIT,
+  COMPANION_UNAVAILABLE,
   type TripCompanionAccess,
+  companionsReady,
   invitedCompanionAccess,
   myCompanionAccesses,
   tripCompanionAccessProblem,
@@ -46,7 +48,6 @@ import { generateInvitationToken, hashInvitationToken } from './invitation-token
 import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 import { tripCompanionsTablePresent } from './umpe-trip-companion-tables';
-import { tripCompanionsEnabled } from './umpe-trip-companions-switch';
 import { ownerAccountOf } from './umpe-trip-service';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -127,7 +128,6 @@ export interface CompanionTripView {
 }
 
 const NOT_SWITCHED_ON = 'Travelling with someone else is not switched on yet.';
-const NOT_AVAILABLE = 'This invitation is not available.';
 const PERSON_NOT_AVAILABLE = 'That person is not on this trip.';
 const TRIP_NOT_AVAILABLE = 'That trip is not available.';
 const INVITE_RATE_LIMITED = 'Too many invitations in a short time. Please try again later.';
@@ -136,14 +136,20 @@ const ORGANISER_ORGANISER = 'The organiser';
 
 // --- Small helpers ----------------------------------------------------------------------------
 
-async function companionsReady(db: Db): Promise<boolean> {
-  return tripCompanionsEnabled() && (await tripCompanionsTablePresent(db));
+/** The organiser's core processing consent, as the trip service asks for it before linking anything. */
+async function consentProblem(db: Db, ownerAccountId: string): Promise<ServiceError | null> {
+  return (await hasConsent(db, ownerAccountId, 'CORE_PROCESSING'))
+    ? null
+    : serviceError('consent_required', 'Core processing consent is required');
 }
 
 /** A person's name as shown: trimmed, one space between words, 1 to 120 characters, no controls. */
 function cleanName(raw: string): string | null {
   const name = raw.replace(/\s+/g, ' ').trim();
-  if (name.length < 1 || name.length > NAME_MAX || /\p{Cc}/u.test(name)) return null;
+  // No control or invisible formatting characters (they can hide or reorder a name), and never the
+  // label a companion's list uses for the organiser.
+  if (name.length < 1 || name.length > NAME_MAX || /[\p{Cc}\p{Cf}]/u.test(name)) return null;
+  if (name.toLowerCase() === ORGANISER_ORGANISER.toLowerCase()) return null;
   return name;
 }
 
@@ -214,6 +220,8 @@ export async function addCompanion(
   if (!owner.ok) return owner;
   const db = proof.tx;
   if (!(await companionsReady(db))) return err(serviceError('invalid', NOT_SWITCHED_ON));
+  const consent = await consentProblem(db, owner.value);
+  if (consent) return err(consent);
   const name = cleanName(input.name);
   if (name === null) return err(serviceError('invalid', NAME_PROBLEM));
   const given = input.email?.trim() ?? '';
@@ -255,7 +263,7 @@ export async function addCompanion(
           .where(
             and(
               eq(companions.tripId, tripId),
-              inArray(companions.state, ['NAME_ONLY', 'INVITED', 'JOINED']),
+              inArray(companions.state, ['NAME_ONLY', 'INVITED', 'JOINED', 'DECLINED']),
             ),
           ),
       );
@@ -347,13 +355,14 @@ async function inviteRateLimited(
   ownerAccountId: string,
   email: string | null,
 ): Promise<boolean> {
+  // A name with no email sends nothing, so it costs no invitation.
+  if (email === null) return false;
   const mine = await checkRateLimit(
     db,
     { subjectId: ownerAccountId, action: 'trip_companion.invite', label: 'invitation' },
     RATE_LIMITS.COMPANION_INVITE,
   );
   if (!mine.allowed) return true;
-  if (email === null) return false;
   const address = await checkRateLimit(
     db,
     { subjectId: emailBucket(email), action: 'trip_companion.invite_email', label: 'invitation' },
@@ -555,6 +564,8 @@ export async function resendInvitation(
   if (!owner.ok) return owner;
   const db = proof.tx;
   if (!(await companionsReady(db))) return err(serviceError('invalid', NOT_SWITCHED_ON));
+  const consent = await consentProblem(db, owner.value);
+  if (consent) return err(consent);
   if (!UUID.test(companionId) || (await ownedTripId(db, owner.value, tripId)) === null) {
     return err(serviceError('not_found', PERSON_NOT_AVAILABLE));
   }
@@ -660,12 +671,12 @@ export async function openCompanionInvitation(
   db: Db,
   input: { readonly accountId: string; readonly rawToken: string },
 ): Promise<Result<TripCompanionAccess, ServiceError>> {
-  if (!(await companionsReady(db))) return err(serviceError('not_found', NOT_AVAILABLE));
+  if (!(await companionsReady(db))) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
   if (await attemptLimited(db, input.accountId)) {
     return err(serviceError('rate_limited', ATTEMPT_RATE_LIMITED));
   }
   const access = await invitedCompanionAccess(db, input.accountId, input.rawToken);
-  return access ? ok(access) : err(serviceError('not_found', NOT_AVAILABLE));
+  return access ? ok(access) : err(serviceError('not_found', COMPANION_UNAVAILABLE));
 }
 
 /**
@@ -681,7 +692,8 @@ export async function previewCompanionInvitation(
   if (!access.ok) return access;
   const summary = await readCompanionTripSummary(db, access.value);
   if (!summary.ok) return summary;
-  if (summary.value.expiresAt === null) return err(serviceError('not_found', NOT_AVAILABLE));
+  if (summary.value.expiresAt === null)
+    return err(serviceError('not_found', COMPANION_UNAVAILABLE));
   return ok({
     title: summary.value.title,
     destination: summary.value.destination,
@@ -722,7 +734,7 @@ export async function acceptCompanionInvitation(
       // The proof is made again inside the transaction: the link must still be this account's.
       const fresh = await invitedCompanionAccess(tx, access.accountId, input.rawToken);
       if (!fresh || fresh.companionId !== access.companionId) {
-        return err(serviceError('not_found', NOT_AVAILABLE));
+        return err(serviceError('not_found', COMPANION_UNAVAILABLE));
       }
       if (!(await hasConsent(tx, access.accountId, 'CORE_PROCESSING'))) {
         return err(
@@ -743,7 +755,7 @@ export async function acceptCompanionInvitation(
           )
           .limit(1),
       );
-      if (already) return err(serviceError('not_found', NOT_AVAILABLE));
+      if (already) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
       const claimed = await tx
         .update(companions)
         .set({
@@ -765,7 +777,7 @@ export async function acceptCompanionInvitation(
           ),
         )
         .returning({ id: companions.id });
-      if (claimed.length === 0) return err(serviceError('not_found', NOT_AVAILABLE));
+      if (claimed.length === 0) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
       await appendAuditEvent(tx, {
         eventType: 'UMPE_TRIP_COMPANION_ACCEPTED',
         actorAccountId: access.accountId,
@@ -779,7 +791,7 @@ export async function acceptCompanionInvitation(
     });
   } catch (error) {
     // Joined the same trip through another invitation at the same moment.
-    if (isUniqueViolation(error)) return err(serviceError('not_found', NOT_AVAILABLE));
+    if (isUniqueViolation(error)) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
     throw error;
   }
 }
@@ -798,7 +810,7 @@ export async function declineCompanionInvitation(
   return db.transaction(async (tx) => {
     const fresh = await invitedCompanionAccess(tx, access.accountId, input.rawToken);
     if (!fresh || fresh.companionId !== access.companionId) {
-      return err(serviceError('not_found', NOT_AVAILABLE));
+      return err(serviceError('not_found', COMPANION_UNAVAILABLE));
     }
     const companions = schema.umpeTripCompanions;
     const changed = await tx
@@ -813,7 +825,7 @@ export async function declineCompanionInvitation(
         ),
       )
       .returning({ id: companions.id });
-    if (changed.length === 0) return err(serviceError('not_found', NOT_AVAILABLE));
+    if (changed.length === 0) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_COMPANION_DECLINED',
       actorAccountId: access.accountId,
@@ -839,9 +851,11 @@ export async function readCompanionTripSummary(
   db: Db,
   access: TripCompanionAccess,
 ): Promise<Result<CompanionTripSummary, ServiceError>> {
-  const problem = tripCompanionAccessProblem(access, access.standing);
-  if (problem) return err(problem);
-  if (!(await tripCompanionsTablePresent(db))) return err(serviceError('not_found', NOT_AVAILABLE));
+  // Checked against both standings with constants, so a null or forged value is the same refusal.
+  const asJoined = tripCompanionAccessProblem(access, 'JOINED');
+  if (asJoined && tripCompanionAccessProblem(access, 'INVITED')) return err(asJoined);
+  if (!(await tripCompanionsTablePresent(db)))
+    return err(serviceError('not_found', COMPANION_UNAVAILABLE));
   const companions = schema.umpeTripCompanions;
   const live =
     access.standing === 'JOINED'
@@ -862,7 +876,7 @@ export async function readCompanionTripSummary(
       .where(and(eq(companions.id, access.companionId), eq(companions.tripId, access.tripId), live))
       .limit(1),
   );
-  if (!row) return err(serviceError('not_found', NOT_AVAILABLE));
+  if (!row) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
   return ok({
     tripId: access.tripId,
     standing: access.standing,
@@ -935,19 +949,18 @@ export async function getCompanionTrip(
 
 /**
  * The trips this signed-in account joined, and unexpired invitations sent to its verified email
- * (listed without any link: only the emailed link can accept one). Newest first, at most 50.
+ * (listed without any link: only the emailed link can accept one). The joined trips first, then the
+ * invitations, at most 50 in all.
  */
 export async function listMyCompanionTrips(
   db: Db,
   accountId: string,
 ): Promise<readonly CompanionTripSummary[]> {
   const accesses = await myCompanionAccesses(db, accountId);
-  const out: CompanionTripSummary[] = [];
-  for (const access of accesses) {
-    const summary = await readCompanionTripSummary(db, access);
-    if (summary.ok) out.push(summary.value);
-  }
-  return out;
+  const summaries = await Promise.all(
+    accesses.map((access) => readCompanionTripSummary(db, access)),
+  );
+  return summaries.flatMap((summary) => (summary.ok ? [summary.value] : []));
 }
 
 /** Leave the trip, at any time. Access ends on the next read; what the organiser saw ends too. */
@@ -971,7 +984,7 @@ export async function leaveTrip(
         ),
       )
       .returning({ id: companions.id });
-    if (changed.length === 0) return err(serviceError('not_found', NOT_AVAILABLE));
+    if (changed.length === 0) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_COMPANION_LEFT',
       actorAccountId: access.accountId,
@@ -1015,7 +1028,7 @@ export async function setCompanionShareLevel(
       )
       .for('update');
     const current = first(now);
-    if (!current) return err(serviceError('not_found', NOT_AVAILABLE));
+    if (!current) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
     if (current.shareLevel === level) return ok({ shareLevel: level });
     await tx
       .update(companions)

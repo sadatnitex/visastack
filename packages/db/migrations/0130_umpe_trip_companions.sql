@@ -33,7 +33,7 @@ DO $fk$ BEGIN
 		ALTER TABLE "umpe_trip_companions" ADD CONSTRAINT "umpe_trip_companions_trip_id_umpe_trips_id_fk" FOREIGN KEY ("trip_id") REFERENCES "public"."umpe_trips"("id") ON DELETE cascade ON UPDATE no action;
 	END IF;
 	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'umpe_trip_companions_joined_account_id_accounts_id_fk') THEN
-		ALTER TABLE "umpe_trip_companions" ADD CONSTRAINT "umpe_trip_companions_joined_account_id_accounts_id_fk" FOREIGN KEY ("joined_account_id") REFERENCES "public"."accounts"("id") ON DELETE set null ON UPDATE no action;
+		ALTER TABLE "umpe_trip_companions" ADD CONSTRAINT "umpe_trip_companions_joined_account_id_accounts_id_fk" FOREIGN KEY ("joined_account_id") REFERENCES "public"."accounts"("id") ON DELETE cascade ON UPDATE no action;
 	END IF;
 	IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'umpe_trip_companions_invited_by_account_id_accounts_id_fk') THEN
 		ALTER TABLE "umpe_trip_companions" ADD CONSTRAINT "umpe_trip_companions_invited_by_account_id_accounts_id_fk" FOREIGN KEY ("invited_by_account_id") REFERENCES "public"."accounts"("id") ON DELETE cascade ON UPDATE no action;

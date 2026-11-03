@@ -126,7 +126,8 @@ async function verifiedEmailOf(db: Db, accountId: string): Promise<string | null
   return account.email.trim().toLowerCase();
 }
 
-async function ready(db: Db): Promise<boolean> {
+/** The switch is on and the table exists: the one readiness rule for every companion read and write. */
+export async function companionsReady(db: Db): Promise<boolean> {
   return tripCompanionsEnabled() && (await tripCompanionsTablePresent(db));
 }
 
@@ -140,7 +141,7 @@ export async function joinedCompanionAccess(
   accountId: string,
   tripId: string,
 ): Promise<TripCompanionAccess | null> {
-  if (!UUID.test(accountId) || !UUID.test(tripId) || !(await ready(db))) return null;
+  if (!UUID.test(accountId) || !UUID.test(tripId) || !(await companionsReady(db))) return null;
   const row = first(
     await db
       .select({ id: schema.umpeTripCompanions.id })
@@ -168,7 +169,7 @@ export async function invitedCompanionAccess(
   accountId: string,
   rawToken: string,
 ): Promise<TripCompanionAccess | null> {
-  if (!TOKEN_SHAPE.test(rawToken) || !(await ready(db))) return null;
+  if (!TOKEN_SHAPE.test(rawToken) || !(await companionsReady(db))) return null;
   const email = await verifiedEmailOf(db, accountId);
   const row = first(
     await db
@@ -203,7 +204,7 @@ export async function myCompanionAccesses(
   db: Db,
   accountId: string,
 ): Promise<TripCompanionAccess[]> {
-  if (!UUID.test(accountId) || !(await ready(db))) return [];
+  if (!UUID.test(accountId) || !(await companionsReady(db))) return [];
   const companions = schema.umpeTripCompanions;
   const joined = await db
     .select({ id: companions.id, tripId: companions.tripId })

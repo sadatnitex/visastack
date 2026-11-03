@@ -22547,7 +22547,7 @@
           "tableTo": "accounts",
           "columnsFrom": ["joined_account_id"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         },
         "umpe_trip_companions_invited_by_account_id_accounts_id_fk": {

@@ -1324,6 +1324,23 @@ describe('trip companion gate (UMPE UX6)', () => {
     expect([...new Set(found)].sort()).toEqual([...COMPANION_ACCESS_FUNCTIONS]);
     expect(problems).toEqual([]);
   }, 180_000);
+
+  it('only the companion service and the companion pages may make a TripCompanionAccess', () => {
+    // The functions that mint one take a bare account id, which proves nothing by itself: the pages
+    // must pass the signed-in account of withSession. Keeping the callers to these places keeps a
+    // form field or an address from ever naming the account.
+    const allowedFiles = [path.join(srcDir, 'umpe-trip-companions.ts')];
+    const allowedDirs = [
+      path.join(webSrcDir, 'app', 'app', 'trips'),
+      path.join(webSrcDir, 'app', 'app', 'trip-invitations'),
+    ];
+    for (const name of ['joinedCompanionAccess', 'invitedCompanionAccess', 'myCompanionAccesses']) {
+      expect(
+        mintUsers(name, allowedFiles, allowedDirs),
+        `only the companion service and pages may call ${name}`,
+      ).toEqual([]);
+    }
+  }, 180_000);
 });
 
 describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {

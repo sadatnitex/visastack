@@ -923,3 +923,107 @@ describe('UMPE UX6 companions: switch and missing table', () => {
     expect(await joinedCompanionAccess(db, guest.guest, org.tripId)).toBeNull();
   });
 });
+
+describe('UMPE UX6 companions: review fixes', () => {
+  let db: Db;
+  let org: Organiser;
+  beforeEach(async () => {
+    db = await freshDb();
+    org = await organiser(db);
+  }, TEST_TIMEOUT_MS);
+
+  it(
+    'removes the row of a companion who deletes their account (no ghost with an email and a name)',
+    async () => {
+      const { guest } = await joined(db, org, 'Leaving Person', 'leaving@example.com');
+      await db.delete(schema.accounts).where(eq(schema.accounts.id, guest));
+      expect(await db.select().from(schema.umpeTripCompanions)).toHaveLength(0);
+      expect(await list(db, org)).toEqual([]);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'asks for the organiser core processing consent before storing a person or sending again',
+    async () => {
+      const { companionId } = await invite(db, org, 'Before Withdrawal', 'before@example.com');
+      // The latest record wins by time, so the withdrawal must be later than the grant.
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      await setConsent(db, {
+        actorAccountId: org.accountId,
+        accountId: org.accountId,
+        type: 'CORE_PROCESSING',
+        granted: false,
+      });
+      const added = await add(db, org, 'After Withdrawal', 'after@example.com');
+      expect(words(added)?.code).toBe('consent_required');
+      const resent = await resendInvitation(
+        await proofFor(db, org.accountId, org.applicantId, 'MANAGE'),
+        org.tripId,
+        companionId,
+      );
+      expect(words(resent)?.code).toBe('consent_required');
+      expect(await db.select().from(schema.umpeTripCompanions)).toHaveLength(1);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'charges the invitation budget only when an email is given',
+    async () => {
+      for (let i = 0; i < 5; i += 1) expect(isOk(await add(db, org, `Name Only ${i}`))).toBe(true);
+      const spent = async () =>
+        (await db.select().from(schema.rateLimitBuckets)).filter(
+          (bucket) => bucket.action === 'trip_companion.invite',
+        );
+      expect(await spent()).toHaveLength(0);
+      expect(isOk(await add(db, org, 'With Email', 'with-email@example.com'))).toBe(true);
+      expect(await spent()).toHaveLength(1);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'refuses the reserved organiser label and invisible formatting characters as a name',
+    async () => {
+      for (const bad of ['The organiser', 'THE ORGANISER', '‮Evil', 'Zero​Width']) {
+        const added = await add(db, org, bad);
+        expect(words(added)?.code, bad).toBe('invalid');
+      }
+      expect(await db.select().from(schema.umpeTripCompanions)).toHaveLength(0);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'counts a declined invitation toward the 20 people until the organiser removes it',
+    async () => {
+      const { token } = await invite(db, org, 'Will Decline', 'decline@example.com');
+      const guest = await account(db, 'decline@example.com');
+      const opened = await openCompanionInvitation(db, { accountId: guest, rawToken: token });
+      if (!opened.ok) throw new Error('open');
+      expect(isOk(await declineCompanionInvitation(db, opened.value, { rawToken: token }))).toBe(
+        true,
+      );
+      for (let i = 0; i < TRIP_MAX_COMPANIONS - 1; i += 1) {
+        expect(isOk(await add(db, org, `Filler ${i}`)), `filler ${i}`).toBe(true);
+      }
+      expect(words(await add(db, org, 'One Too Many'))?.code).toBe('invalid');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'answers a missing or forged access with the one refusal, not an error',
+    async () => {
+      for (const bad of [null, undefined, {}, { standing: 'JOINED' }]) {
+        const read = await getCompanionTrip(db, bad as never);
+        expect(words(read)).toEqual({
+          code: 'not_found',
+          message: 'This invitation is not available.',
+        });
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+});

@@ -6338,8 +6338,9 @@ export const umpeTripCompanions = pgTable(
     shareLevel: text('share_level').notNull().default('NAME_ONLY'),
     tokenHash: text('token_hash').unique(),
     expiresAt: timestamp('expires_at', { withTimezone: true }),
+    // A companion who deletes their account takes their row (their email and confirmed name) with it.
     joinedAccountId: uuid('joined_account_id').references(() => accounts.id, {
-      onDelete: 'set null',
+      onDelete: 'cascade',
     }),
     invitedByAccountId: uuid('invited_by_account_id')
       .notNull()
