@@ -66,6 +66,7 @@ import {
   GUEST_RETENTION_DAYS,
   GUEST_SESSION_IDLE_MS,
   GUEST_SESSION_MAX_MS,
+  type GuestChecklistItem,
   readGuestDesk,
   saveGuestRetentionChoice,
   sendGuestCode,
@@ -178,7 +179,7 @@ describe('J5 agency request answered by a guest', () => {
   let peopleBefore: readonly number[] = [];
   let sessionA: GuestCollectionSessionProof;
   let sessionB: GuestCollectionSessionProof;
-  let items: readonly { id: string; label: string }[] = [];
+  let items: readonly GuestChecklistItem[] = [];
   let submissionId = '';
   let statementFileId = '';
 
@@ -383,7 +384,9 @@ describe('J5 agency request answered by a guest', () => {
       expect(mistaken.value.file.itemId).toBe(itemId('Passport'));
 
       // Session A goes idle; the guest comes back later on a new session and proves it again.
-      expect(await readGuestDesk(db, sessionA, at(2 * MINUTE + GUEST_SESSION_IDLE_MS + 1))).toBeNull();
+      expect(
+        await readGuestDesk(db, sessionA, at(2 * MINUTE + GUEST_SESSION_IDLE_MS + 1)),
+      ).toBeNull();
       sessionB = await verified(rawToken, at(45 * MINUTE));
       const resumed = await readGuestUploadDesk(db, sessionB, items, at(46 * MINUTE));
       expect(resumed?.files.map((f) => f.name).sort()).toEqual([
@@ -513,7 +516,12 @@ describe('J5 agency request answered by a guest', () => {
       const added = await add(forwarded, 'forwarded.pdf', at(53 * MINUTE));
       expect(!added.ok && added.error.code).toBe('not_found');
       expect((await saveGuestRetentionChoice(db, forwarded, 7, at(53 * MINUTE))).ok).toBe(false);
-      const submitted = await submitGuestDocuments(db, forwarded, { consent: true }, at(53 * MINUTE));
+      const submitted = await submitGuestDocuments(
+        db,
+        forwarded,
+        { consent: true },
+        at(53 * MINUTE),
+      );
       expect(!submitted.ok && submitted.error.code).toBe('not_found');
     },
     TEST_TIMEOUT_MS,
@@ -573,9 +581,9 @@ describe('J5 agency request answered by a guest', () => {
     async () => {
       const revoked = await issuedRequest();
       const revokedSession = await verified(revoked.rawToken, at(60 * MINUTE));
-      expect(
-        (await endCollectionRequest(db, await scope(), revoked.requestId, 'REVOKED')).ok,
-      ).toBe(true);
+      expect((await endCollectionRequest(db, await scope(), revoked.requestId, 'REVOKED')).ok).toBe(
+        true,
+      );
       expect(await readGuestDesk(db, revokedSession, at(61 * MINUTE))).toBeNull();
       const revokedAdd = await add(revokedSession, 'passport.pdf', at(61 * MINUTE));
       expect(!revokedAdd.ok && revokedAdd.error.code).toBe('not_found');
@@ -619,7 +627,12 @@ describe('J5 agency request answered by a guest', () => {
       const filesBefore = await db.select().from(schema.agencyCollectionGuestFiles);
       const submissionsBefore = await db.select().from(schema.agencyCollectionGuestSubmissions);
       const accountId = await account(GUEST_EMAIL);
-      await setConsent(db, { actorAccountId: accountId, accountId, type: 'CORE_PROCESSING', granted: true });
+      await setConsent(db, {
+        actorAccountId: accountId,
+        accountId,
+        type: 'CORE_PROCESSING',
+        granted: true,
+      });
       expect(await listApplicants(db, accountId)).toEqual([]);
       const person = await createApplicant(db, {
         actorAccountId: accountId,

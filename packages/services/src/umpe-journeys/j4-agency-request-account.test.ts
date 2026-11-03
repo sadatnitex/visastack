@@ -190,7 +190,10 @@ describe('J4 agency request for an existing account', () => {
     if (!isOk(reviewed)) throw new Error('activate');
   }
 
-  async function scope(accountId = adminId, organizationId = orgId): Promise<AgencyCollectionScope> {
+  async function scope(
+    accountId = adminId,
+    organizationId = orgId,
+  ): Promise<AgencyCollectionScope> {
     const minted = await agencyCollectionPrincipal(db, accountId, organizationId);
     if (!minted.ok) throw new Error('scope refused');
     return minted.value;
@@ -355,12 +358,17 @@ describe('J4 agency request for an existing account', () => {
     );
     if (!proposal.ok) throw new Error(`proposal: ${proposal.error.code}`);
     const passportItem = item(proposal.value.proposals, 'passport');
-    return submitCollectionResponse(db, await link(token), await shareProof(travellerId, personId), {
-      selections: { [passportItem.item.id]: [documentKey(versionId)] },
-      consentVersion: RESPONSE_CONSENT_VERSION,
-      linkId: proposal.value.desk.linkId,
-      revisionId: proposal.value.desk.revisionId,
-    });
+    return submitCollectionResponse(
+      db,
+      await link(token),
+      await shareProof(travellerId, personId),
+      {
+        selections: { [passportItem.item.id]: [documentKey(versionId)] },
+        consentVersion: RESPONSE_CONSENT_VERSION,
+        linkId: proposal.value.desk.linkId,
+        revisionId: proposal.value.desk.revisionId,
+      },
+    );
   }
 
   async function onlyAccess(forRequest: string): Promise<CollectionResponseAccess> {
@@ -477,7 +485,9 @@ describe('J4 agency request for an existing account', () => {
         ),
       ).rejects.toThrow();
       await expect(
-        db.execute(sql`delete from agency_collection_request_revisions where id = ${firstRevisionId}`),
+        db.execute(
+          sql`delete from agency_collection_request_revisions where id = ${firstRevisionId}`,
+        ),
       ).rejects.toThrow();
 
       // The link goes to the invited address; nothing about any person exists yet.

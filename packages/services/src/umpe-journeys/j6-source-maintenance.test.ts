@@ -97,7 +97,10 @@ function page(rule: string): string {
   return `<!doctype html><html><head><title>Visit</title></head><body><nav>Home</nav><main><h1>Visit visa</h1><p>${rule}</p></main><footer>Footer</footer></body></html>`;
 }
 
-function sourced(row: Omit<RequirementInput, 'sourceUrl' | 'sourceTitle' | 'publisher' | 'observedDate'>, observed = OBSERVED): RequirementInput {
+function sourced(
+  row: Omit<RequirementInput, 'sourceUrl' | 'sourceTitle' | 'publisher' | 'observedDate'>,
+  observed = OBSERVED,
+): RequirementInput {
   return {
     ...row,
     sourceUrl: url('/visit-rules'),
@@ -303,11 +306,17 @@ describe('J6 official-source maintenance', () => {
       v1 = await draftVersion(V1_ROWS);
       const self = await approvePackVersion(db, { actorAccountId: author, packVersionId: v1 });
       expect(isErr(self) && self.error.code).toBe('forbidden');
-      const approved = await approvePackVersion(db, { actorAccountId: reviewer, packVersionId: v1 });
+      const approved = await approvePackVersion(db, {
+        actorAccountId: reviewer,
+        packVersionId: v1,
+      });
       if (!isOk(approved)) throw new Error(approved.error.message);
       v1Checksum = approved.value.checksum ?? '';
       expect(v1Checksum).toMatch(/^[0-9a-f]{64}$/);
-      const published = await publishPackVersion(db, { actorAccountId: reviewer, packVersionId: v1 });
+      const published = await publishPackVersion(db, {
+        actorAccountId: reviewer,
+        packVersionId: v1,
+      });
       if (!isOk(published)) throw new Error(published.error.message);
 
       // A live case on version 1, with an exact-version handoff.
@@ -402,7 +411,10 @@ describe('J6 official-source maintenance', () => {
     async () => {
       const vercel = JSON.parse(
         readFileSync(
-          path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../apps/web/vercel.json'),
+          path.resolve(
+            path.dirname(fileURLToPath(import.meta.url)),
+            '../../../../apps/web/vercel.json',
+          ),
           'utf8',
         ),
       ) as { crons: { path: string; schedule: string }[] };
@@ -510,7 +522,8 @@ describe('J6 official-source maintenance', () => {
             ? [full]
             : [];
         });
-      const mutating = /\b(createPack|addPackVersion|addRequirement|approvePackVersion|publishPackVersion)\(/;
+      const mutating =
+        /\b(createPack|addPackVersion|addRequirement|approvePackVersion|publishPackVersion)\(/;
       const callers = sourceFiles(servicesDir)
         .filter((file) => mutating.test(readFileSync(file, 'utf8')))
         .map((file) => path.relative(servicesDir, file));
