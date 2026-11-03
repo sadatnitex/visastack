@@ -293,7 +293,10 @@ describe('J1 individual intake', () => {
   const factVersionCount = async () => (await db.select().from(schema.factVersions)).length;
   const documentRow = async (label: string) =>
     (
-      await db.select().from(schema.documents).where(eq(schema.documents.id, doc(label).documentId))
+      await db
+        .select()
+        .from(schema.documents)
+        .where(eq(schema.documents.id, doc(label).documentId))
     )[0];
   async function aiRead(label: string, kind: ReturnType<typeof classifier>) {
     const { ports, calls } = countingPorts();
@@ -457,7 +460,10 @@ describe('J1 individual intake', () => {
     expect(!refused.ok && refused.error.code).toBe('forbidden');
     expect(await factVersionCount()).toBe(before);
     // Erik's profile has no fact from Anna's documents.
-    const erikFacts = await db.select().from(schema.facts).where(eq(schema.facts.applicantId, erik));
+    const erikFacts = await db
+      .select()
+      .from(schema.facts)
+      .where(eq(schema.facts.applicantId, erik));
     const erikVersions = await db
       .select()
       .from(schema.factVersions)

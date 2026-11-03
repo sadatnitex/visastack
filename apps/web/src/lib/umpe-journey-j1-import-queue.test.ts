@@ -128,105 +128,99 @@ describe('J1 individual intake: the 80-file import queue', () => {
     const read = await readDrop(drop);
     expect(read.files.length + read.skipped.length).toBe(80);
     expect(read.truncated).toBe(false);
-    expect(read.skipped.map((each) => [each.name, each.reason])).toEqual([
-      ['.DS_Store', 'hidden'],
-    ]);
+    expect(read.skipped.map((each) => [each.name, each.reason])).toEqual([['.DS_Store', 'hidden']]);
     const paths = read.files.map((each) => each.path);
     expect(paths).toContain('Trip/Bank/bank-12.jpg');
     expect(paths).toContain('Trip/Family/birth.jpg');
   });
 
-  it(
-    'gives every one of the 80 files its own settled line, with honest per-file statuses',
-    async () => {
-      const drop = eightyFileDrop();
-      const read = await readDrop(drop);
-      const sent: string[] = [];
-      let inFlight = 0;
-      let most = 0;
-      const send: ImportSend = async (request) => {
-        const name = (request.file as File).name;
-        sent.push(name);
-        inFlight++;
-        most = Math.max(most, inFlight);
-        await Promise.resolve();
-        inFlight--;
-        if (name === 'rejected-by-server.jpg') {
-          return { kind: 'refused', message: 'This file could not be read as a picture.' };
-        }
-        if (name === 'scan-52.jpg') {
-          return {
-            kind: 'added',
-            message: 'Added. This is an exact copy of a document you already keep.',
-            title: 'Scan',
-            removableCopyId: 'doc-copy-1',
-          };
-        }
-        const outcome: UploadOutcome = {
+  it('gives every one of the 80 files its own settled line, with honest per-file statuses', async () => {
+    const drop = eightyFileDrop();
+    const read = await readDrop(drop);
+    const sent: string[] = [];
+    let inFlight = 0;
+    let most = 0;
+    const send: ImportSend = async (request) => {
+      const name = (request.file as File).name;
+      sent.push(name);
+      inFlight++;
+      most = Math.max(most, inFlight);
+      await Promise.resolve();
+      inFlight--;
+      if (name === 'rejected-by-server.jpg') {
+        return { kind: 'refused', message: 'This file could not be read as a picture.' };
+      }
+      if (name === 'scan-52.jpg') {
+        return {
           kind: 'added',
-          message: 'Added. It is being checked.',
-          title: name,
+          message: 'Added. This is an exact copy of a document you already keep.',
+          title: 'Scan',
+          removableCopyId: 'doc-copy-1',
         };
-        return outcome;
+      }
+      const outcome: UploadOutcome = {
+        kind: 'added',
+        message: 'Added. It is being checked.',
+        title: name,
       };
-      const queue = new ImportQueue({
-        applicantId: 'applicant-j1',
-        rules: RULES,
-        send,
-        wait: () => Promise.resolve(),
-      });
-      await queue.add(read.files, read.skipped);
-      await queue.whenIdle();
-      const items = queue.list();
+      return outcome;
+    };
+    const queue = new ImportQueue({
+      applicantId: 'applicant-j1',
+      rules: RULES,
+      send,
+      wait: () => Promise.resolve(),
+    });
+    await queue.add(read.files, read.skipped);
+    await queue.whenIdle();
+    const items = queue.list();
 
-      // One line for every entry dropped: nothing disappears, not the 21st, not the 80th.
-      expect(items).toHaveLength(80);
-      expect(items[20]?.state).not.toBe('queued');
-      expect(items[79]?.state).not.toBe('queued');
-      for (const item of items) {
-        expect(['queued', 'uploading', 'paused'], item.name).not.toContain(item.state);
-      }
-      expect(most).toBeLessThanOrEqual(2);
+    // One line for every entry dropped: nothing disappears, not the 21st, not the 80th.
+    expect(items).toHaveLength(80);
+    expect(items[20]?.state).not.toBe('queued');
+    expect(items[79]?.state).not.toBe('queued');
+    for (const item of items) {
+      expect(['queued', 'uploading', 'paused'], item.name).not.toContain(item.state);
+    }
+    expect(most).toBeLessThanOrEqual(2);
 
-      // Safe format limitations: listed with a plain reason, never sent to the server.
-      for (const name of ['bundle.zip', 'setup.exe', 'letter.pdf', 'empty.jpg', 'huge-scan.jpg']) {
-        const item = byName(items, name);
-        expect(item.state, name).toBe('unsupported');
-        expect(item.message, name).not.toBe('');
-        expect(sent, name).not.toContain(name);
-      }
-      expect(byName(items, 'bundle.zip').message).toMatch(/cannot be added/);
-      expect(byName(items, 'letter.pdf').message).toMatch(/PDF files can be added only/);
+    // Safe format limitations: listed with a plain reason, never sent to the server.
+    for (const name of ['bundle.zip', 'setup.exe', 'letter.pdf', 'empty.jpg', 'huge-scan.jpg']) {
+      const item = byName(items, name);
+      expect(item.state, name).toBe('unsupported');
+      expect(item.message, name).not.toBe('');
+      expect(sent, name).not.toContain(name);
+    }
+    expect(byName(items, 'bundle.zip').message).toMatch(/cannot be added/);
+    expect(byName(items, 'letter.pdf').message).toMatch(/PDF files can be added only/);
 
-      // The file dropped twice is one upload and one repeat line.
-      const repeats = items.filter((each) => each.name === 'scan-01.jpg');
-      expect(repeats.map((each) => each.state).sort()).toEqual(['added', 'skipped']);
-      expect(repeats.find((each) => each.state === 'skipped')?.skipReason).toBe('repeat');
-      expect(sent.filter((name) => name === 'scan-01.jpg')).toHaveLength(1);
+    // The file dropped twice is one upload and one repeat line.
+    const repeats = items.filter((each) => each.name === 'scan-01.jpg');
+    expect(repeats.map((each) => each.state).sort()).toEqual(['added', 'skipped']);
+    expect(repeats.find((each) => each.state === 'skipped')?.skipReason).toBe('repeat');
+    expect(sent.filter((name) => name === 'scan-01.jpg')).toHaveLength(1);
 
-      // The server's honest answers are kept per file.
-      expect(byName(items, 'rejected-by-server.jpg').state).toBe('refused');
-      expect(byName(items, 'rejected-by-server.jpg').message).toMatch(/could not be read/);
-      expect(byName(items, 'scan-52.jpg').state).toBe('duplicate');
-      expect(byName(items, '.DS_Store').state).toBe('skipped');
+    // The server's honest answers are kept per file.
+    expect(byName(items, 'rejected-by-server.jpg').state).toBe('refused');
+    expect(byName(items, 'rejected-by-server.jpg').message).toMatch(/could not be read/);
+    expect(byName(items, 'scan-52.jpg').state).toBe('duplicate');
+    expect(byName(items, '.DS_Store').state).toBe('skipped');
 
-      // Every upload carries its own id, the same per file across attempts.
-      const ids = items.filter((each) => each.state === 'added').map((each) => each.uploadId);
-      expect(new Set(ids).size).toBe(ids.length);
+    // Every upload carries its own id, the same per file across attempts.
+    const ids = items.filter((each) => each.state === 'added').map((each) => each.uploadId);
+    expect(new Set(ids).size).toBe(ids.length);
 
-      expect(countItems(items)).toEqual({
-        total: 80,
-        added: 72,
-        needLook: 1,
-        notSupported: 5,
-        waiting: 0,
-        held: 0,
-        skipped: 2,
-      });
-      expect(sent).toHaveLength(73);
-    },
-    120_000,
-  );
+    expect(countItems(items)).toEqual({
+      total: 80,
+      added: 72,
+      needLook: 1,
+      notSupported: 5,
+      waiting: 0,
+      held: 0,
+      skipped: 2,
+    });
+    expect(sent).toHaveLength(73);
+  }, 120_000);
 
   it('negative: the 21st file of a plain 80-file batch is sent and settled, not lost', async () => {
     const sent: string[] = [];

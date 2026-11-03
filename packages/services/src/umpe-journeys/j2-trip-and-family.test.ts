@@ -20,7 +20,7 @@
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { accountPrincipal, requireAccess } from '../access';
@@ -216,7 +216,10 @@ describe('J2 trip and family', () => {
   }
   async function publish(packId: string, versionId: string) {
     await db.update(schema.packs).set({ authoritative: false }).where(eq(schema.packs.id, packId));
-    const approved = await approvePackVersion(db, { actorAccountId: owner, packVersionId: versionId });
+    const approved = await approvePackVersion(db, {
+      actorAccountId: owner,
+      packVersionId: versionId,
+    });
     if (!isOk(approved)) throw new Error(`approve: ${approved.error.message}`);
     const published = await publishPackVersion(db, {
       actorAccountId: owner,
@@ -332,7 +335,10 @@ describe('J2 trip and family', () => {
       }
       // Another purpose: nothing.
       expect(
-        await listFittingPublicPacks(db, { ...(await termsFor(anna, inWindow)), purpose: ['Study'] }),
+        await listFittingPublicPacks(db, {
+          ...(await termsFor(anna, inWindow)),
+          purpose: ['Study'],
+        }),
       ).toEqual([expect.objectContaining({ packName: 'UK Study' })]);
       // Outside the dates: left out. No date: asked for, never linked on its own.
       expect(
@@ -497,7 +503,12 @@ describe('J2 trip and family', () => {
       };
       expect(await seenBy(ben)).toEqual([]);
       expect(await seenBy(cara)).toEqual([]);
-      const allowed = await setTripEvidenceAllowance(await proof(ben), tripId, hotelEvidenceId, true);
+      const allowed = await setTripEvidenceAllowance(
+        await proof(ben),
+        tripId,
+        hotelEvidenceId,
+        true,
+      );
       expect(isOk(allowed) && allowed.value.changed).toBe(true);
       expect(await seenBy(ben)).toEqual([hotelEvidenceId]);
       expect(await seenBy(cara)).toEqual([]);
@@ -626,10 +637,11 @@ describe('J2 trip and family', () => {
         .where(inArray(schema.umpeTripTravellers.applicantId, [legacyChild.id]));
       expect(travellers).toEqual([]);
       // The trip still has exactly the three authorized people.
-      const count = await db.execute(
-        sql`select count(*)::int as n from umpe_trip_travellers where trip_id = ${tripId}`,
-      );
-      expect((count.rows[0] as { n: number } | undefined)?.n).toBe(3);
+      const onTrip = await db
+        .select()
+        .from(schema.umpeTripTravellers)
+        .where(eq(schema.umpeTripTravellers.tripId, tripId));
+      expect(onTrip.map((t) => t.applicantId).sort()).toEqual([anna, ben, cara].sort());
     },
     TIMEOUT,
   );
