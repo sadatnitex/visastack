@@ -25,7 +25,7 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
-import { createMission } from './missions';
+import { attachPackVersion, createMission } from './missions';
 import { caseExpiryConflicts } from './notification-sweep';
 import {
   type TravellerMatchTerms,
@@ -218,6 +218,29 @@ describe('route conditions in matching (R05)', () => {
       expect(isOk(saved) && saved.value.consularPosts).toEqual(['Dhaka']);
       const elsewhere = { ...ukTrip, consularPost: 'British Embassy Chattogram' };
       expect(await listFittingPublicPacks(db, elsewhere)).toEqual([]);
+      // Either way round: a case that says only "Dhaka" fits a pack naming the full post.
+      const fullName = await publicPack(db, actor, 'Full Post Name');
+      await publish(db, actor, fullName.versionId);
+      await setPackRouteConditions(db, await staff(db, actor), {
+        packId: fullName.packId,
+        consularPosts: ['British High Commission Dhaka'],
+        travelFrom: null,
+        travelUntil: null,
+      });
+      expect(
+        (await listFittingPublicPacks(db, { ...ukTrip, consularPost: 'Dhaka' })).map(
+          (m) => m.packName,
+        ),
+      ).toEqual(['Dhaka Only', 'Full Post Name']);
+      await db.delete(schema.packs).where(eq(schema.packs.id, fullName.packId));
+      // A post with no letters VisaStack can compare is refused rather than saved unmatchable.
+      const unmatchable = await setPackRouteConditions(db, await staff(db, actor), {
+        packId: dhaka.packId,
+        consularPosts: [String.fromCodePoint(0x09a2, 0x09be, 0x0995, 0x09be)],
+        travelFrom: null,
+        travelUntil: null,
+      });
+      expect(isErr(unmatchable)).toBe(true);
       // Whole words only: "Dhakar" is not "Dhaka".
       expect(
         await listFittingPublicPacks(db, { ...ukTrip, consularPost: 'Dhakar Office' }),
@@ -326,6 +349,18 @@ describe('route conditions in matching (R05)', () => {
         travelUntil: null,
       });
       expect(isErr(refused)).toBe(true);
+      // A field observation waits for the same migration instead of failing in the database.
+      const draft = await publicPack(fresh, actor, 'Draft Before Migration');
+      const observed = await addRequirement(fresh, {
+        actorAccountId: actor,
+        packVersionId: draft.versionId,
+        kind: 'DOCUMENT',
+        docType: 'COVER_LETTER',
+        citation: 'Seen in synthetic cases',
+        necessity: 'RECOMMENDED',
+        provenance: 'FIELD_OBSERVATION',
+      });
+      expect(isErr(observed) && observed.error.message).toContain('waiting for a database update');
     },
     TEST_TIMEOUT_MS,
   );
@@ -507,13 +542,23 @@ describe('case-aware expiry check (R22)', () => {
     return doc.id;
   }
 
-  async function caseWith(travelEnd: string | null, requirementCount = 1) {
+  /** A case linked to a freshly published checklist; `validMonths` is set on its first item. */
+  async function caseWith(travelEnd: string | null, requirementCount = 1, validMonths?: number) {
     const p = await publicPack(
       db,
       actor,
       `Expiry ${Math.random().toString(36).slice(2)}`,
       Array.from({ length: requirementCount }, (_, i) => `PASSPORT_${i}`),
     );
+    if (validMonths !== undefined) {
+      const saved = await setRequirementDetails(db, await staff(db, actor), {
+        packRequirementId: p.requirementIds[0] ?? '',
+        ...NO_DETAILS,
+        validMonthsAfterTravel: validMonths,
+      });
+      if (!isOk(saved)) throw new Error('details');
+    }
+    await publish(db, actor, p.versionId);
     const mission = await createMission(db, {
       actorAccountId: actor,
       applicantId,
@@ -521,6 +566,12 @@ describe('case-aware expiry check (R22)', () => {
       ...(travelEnd ? { travelEndDate: new Date(travelEnd) } : {}),
     });
     if (!isOk(mission)) throw new Error('mission');
+    const attached = await attachPackVersion(db, {
+      actorAccountId: actor,
+      missionId: mission.value.id,
+      packVersionId: p.versionId,
+    });
+    if (!isOk(attached)) throw new Error(`attach: ${attached.error.message}`);
     return { missionId: mission.value.id, requirementIds: p.requirementIds };
   }
 
@@ -564,19 +615,31 @@ describe('case-aware expiry check (R22)', () => {
   it(
     'respects the months the checklist says a document must stay valid after the trip',
     async () => {
-      const c = await caseWith('2027-03-20T00:00:00Z');
-      const requirementId = c.requirementIds[0] ?? '';
+      const plain = await caseWith('2027-03-20T00:00:00Z');
+      const strict = await caseWith('2027-03-20T00:00:00Z', 1, 6);
       const afterTrip = await document('passport.pdf', '2027-06-01T00:00:00Z');
-      await choose(c.missionId, requirementId, afterTrip);
-      expect(await conflicts(c.missionId)).toEqual([]);
-      await setRequirementDetails(db, await staff(db, actor), {
-        packRequirementId: requirementId,
-        ...NO_DETAILS,
-        validMonthsAfterTravel: 6,
-      });
-      const found = await conflicts(c.missionId);
+      await choose(plain.missionId, plain.requirementIds[0] ?? '', afterTrip);
+      await choose(strict.missionId, strict.requirementIds[0] ?? '', afterTrip);
+      expect(await conflicts(plain.missionId)).toEqual([]);
+      const found = await conflicts(strict.missionId);
       expect(found).toHaveLength(1);
       expect(found[0]?.neededUntil.toISOString()).toBe('2027-09-20T00:00:00.000Z');
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'ignores a choice left from another checklist, and answers only the case owner',
+    async () => {
+      const c = await caseWith('2027-03-20T00:00:00Z');
+      const other = await publicPack(db, actor, 'Other Checklist', ['OLD_PASSPORT']);
+      const early = await document('passport-old.pdf', '2027-01-01T00:00:00Z');
+      await choose(c.missionId, other.requirementIds[0] ?? '', early);
+      expect(await conflicts(c.missionId)).toEqual([]);
+      await choose(c.missionId, c.requirementIds[0] ?? '', early);
+      expect(await conflicts(c.missionId)).toHaveLength(1);
+      const forged = await caseExpiryConflicts({} as never);
+      expect(forged).toEqual([]);
     },
     TEST_TIMEOUT_MS,
   );

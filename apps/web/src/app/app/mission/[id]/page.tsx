@@ -287,10 +287,10 @@ const NEXT_STEP_COPY: Record<
   // UMPE G2 (R22): one item for every chosen document that will not last this trip.
   expiry: {
     title: (count, caseTitle) =>
-      `Replace ${plural(count, 'document', 'documents')} that expire before ${caseTitle} ends`,
-    body: () =>
-      'A document chosen for this case stops being valid before your trip ends, or before the time this checklist asks it to stay valid after. Renew it or choose another copy.',
-    action: 'See Chosen Documents',
+      `Replace ${plural(count, 'document', 'documents')} that ${count === 1 ? 'expires' : 'expire'} before ${caseTitle} ends`,
+    body: (firstItem) =>
+      `${firstItem ? `First to replace: ${firstItem}. ` : ''}A chosen document must stay valid until your trip ends, and longer when this checklist says so. Renew it or choose another copy.`,
+    action: 'See Which Documents',
   },
   trip: {
     title: (count, caseTitle) => `Check ${plural(count, 'date', 'dates')} for ${caseTitle}`,
@@ -540,7 +540,7 @@ export default async function MissionPage({
     for (const r of requirements) {
       const href = safeHttpUrl(r.sourceUrl);
       if (!href || !r.sourceUrl) continue;
-      const effective = ruleDetails.get(r.id)?.effectiveSince ?? versionEffective;
+      const ownEffective = ruleDetails.get(r.id)?.effectiveSince ?? null;
       const checked = sourceChecks.get(r.sourceUrl) ?? null;
       const seen = sourcesByHref.get(href);
       const later = (a: string | null, b: Date | null) =>
@@ -551,10 +551,16 @@ export default async function MissionPage({
           seen?.name ??
           ([r.publisher, r.sourceTitle].filter(Boolean).join(' · ') || r.citation || href),
         checkedAt: later(seen?.checkedAt ?? null, checked),
-        inEffectSince: later(seen?.inEffectSince ?? null, effective),
+        // The latest date a rule citing this source says it took effect.
+        inEffectSince: later(seen?.inEffectSince ?? null, ownEffective),
       });
     }
-    const caseSources = [...sourcesByHref.values()];
+    // A source whose rules give no date of their own falls back to the checklist version's.
+    const caseSources = [...sourcesByHref.values()].map((source) =>
+      source.inEffectSince || !versionEffective
+        ? source
+        : { ...source, inEffectSince: versionEffective.toISOString() },
+    );
     const requirementDetails: RequirementDetailRow[] = (readinessValue?.requirementResults ?? [])
       .map((r): RequirementDetailRow => {
         const row = requirementRowsById.get(r.packRequirementId);
@@ -791,7 +797,12 @@ export default async function MissionPage({
       casePackage,
       formatLines,
       caseSources,
-      expiryConflictCount: expiryConflicts.length,
+      expiringDocuments: expiryConflicts.map((c) => ({
+        documentId: c.documentId,
+        name: c.displayName,
+        expiresAt: c.expiresAt.toISOString(),
+        neededUntil: c.neededUntil.toISOString(),
+      })),
       explanationFeature,
       explanationsByRequirement,
       packInfo: pack
@@ -930,16 +941,16 @@ export default async function MissionPage({
           },
         ]
       : []),
-    ...(data.expiryConflictCount > 0
+    ...(data.expiringDocuments.length > 0
       ? [
           {
             kind: 'expiry' as const,
             label:
-              data.expiryConflictCount === 1
+              data.expiringDocuments.length === 1
                 ? 'document expires before the trip ends'
                 : 'documents expire before the trip ends',
-            href: '#evidence',
-            count: data.expiryConflictCount,
+            href: '#expiring-documents',
+            count: data.expiringDocuments.length,
             tone: 'danger' as const,
           },
         ]
@@ -1067,7 +1078,7 @@ export default async function MissionPage({
         {r.citation ? (
           <span className="muted u-fs-075">
             Cite: {sourceLine || r.citation}
-            {r.observedDate ? ` · as of ${formatDateOnly(r.observedDate)}` : ''}
+            {r.observedDate ? ` · reviewed ${formatDateOnly(r.observedDate)}` : ''}
             {sourceHref ? (
               <>
                 {' · '}
@@ -1280,7 +1291,11 @@ export default async function MissionPage({
               {NEXT_STEP_COPY[nextStep.kind].title(nextStep.count, mission.title)}
             </p>
             <p className="case-next-step-body">
-              {NEXT_STEP_COPY[nextStep.kind].body(data.firstHardGapLabel)}
+              {NEXT_STEP_COPY[nextStep.kind].body(
+                nextStep.kind === 'expiry'
+                  ? (data.expiringDocuments[0]?.name ?? null)
+                  : data.firstHardGapLabel,
+              )}
             </p>
             <a className="btn btn-primary" href={nextStep.href} data-open-group={nextStep.opens}>
               {NEXT_STEP_COPY[nextStep.kind].action}
@@ -1435,6 +1450,28 @@ export default async function MissionPage({
                         ))}
                       </div>
                     </div>
+                  ) : null}
+                  {data.expiringDocuments.length > 0 ? (
+                    <section
+                      className="case-expiring"
+                      id="expiring-documents"
+                      aria-labelledby="case-expiring-heading"
+                    >
+                      <h3 id="case-expiring-heading" className="case-checklist-heading">
+                        Documents That Expire Before Your Trip Ends
+                      </h3>
+                      <ul className="case-sources-list">
+                        {data.expiringDocuments.map((doc) => (
+                          <li key={doc.documentId}>
+                            {doc.name}
+                            <span className="muted u-fs-085">
+                              {' · '}Expires: {formatDateOnly(doc.expiresAt)}
+                              {' · '}Needed Until: {formatDateOnly(doc.neededUntil)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
                   ) : null}
                   {data.caseSources.length > 0 ? (
                     <section className="case-sources" aria-labelledby="case-sources-heading">
@@ -1671,7 +1708,7 @@ export default async function MissionPage({
             </div>
           </div>
           <aside className="split-rail" aria-label="About this case" {...atLevel('browse')}>
-            <article className="card" id="case-details" {...atLevel('browse')}>
+            <article className="card" {...atLevel('browse')}>
               <p className="card-kicker">Case</p>
               <h2 className="card-title">Case Details</h2>
               <p className="card-body">

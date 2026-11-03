@@ -10,6 +10,7 @@ import {
   isAcceptedForm,
   isRequirementCategory,
   ok,
+  packMatchKey,
 } from '@visastack/core';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { type StaffScope, staffScopeProblem } from './access/principal';
@@ -215,7 +216,12 @@ export async function setRequirementDetails(
       result: 'ALLOWED',
       resourceType: 'pack_version',
       resourceId: target.packVersionId,
-      metadata: { kind: target.kind, setCount: setKeys.length, setKeys },
+      metadata: {
+        packRequirementId: input.packRequirementId,
+        kind: target.kind,
+        setCount: setKeys.length,
+        setKeys,
+      },
     });
     return ok(row ? toDetails(row) : NO_REQUIREMENT_DETAILS);
   });
@@ -267,7 +273,11 @@ export function cleanRouteConditions(
     if (post.length > CONSULAR_POST_MAX_LENGTH) {
       return err(`each application post can be at most ${CONSULAR_POST_MAX_LENGTH} characters`);
     }
-    const key = post.toLowerCase();
+    // A post must be matchable: one with no Latin letters or digits could never name a case.
+    const key = packMatchKey(post);
+    if (key.length === 0) {
+      return err('write each application post in English letters, for example Dhaka');
+    }
     if (seen.has(key)) continue;
     seen.add(key);
     posts.push(post);

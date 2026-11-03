@@ -19,6 +19,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isHttpUrl } from './external-url';
+import { ruleDetailTablesPresent } from './pack-rule-details';
 import { recordProductEvent } from './product-events';
 import { type RuleCondition, isValidRuleCondition } from './rule-conditions';
 import { queueRuleImpact } from './umpe-rule-impact-queue';
@@ -574,6 +575,11 @@ export async function addRequirement(
 ): Promise<Result<PackRequirement, ServiceError>> {
   const waiting = await packStudioWaiting(db);
   if (waiting) return waiting;
+  // UMPE G2: the FIELD_OBSERVATION word arrives with the same migration as the rule detail tables,
+  // so until they exist such an item waits instead of failing in the database.
+  if (input.provenance === 'FIELD_OBSERVATION' && !(await ruleDetailTablesPresent(db))) {
+    return err(serviceError('invalid', PACK_STUDIO_WAITING));
+  }
   return db.transaction(async (tx) => {
     const version = first(
       await tx

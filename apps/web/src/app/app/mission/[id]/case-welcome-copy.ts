@@ -56,7 +56,7 @@ export function caseWelcomeCopy(input: {
       title,
       body: [
         `A checklist for this route depends on ${needed.map((n) => DETAIL_WORDS[n]).join(' and ')}, and the case does not say yet, so none was linked.`,
-        'Add it under Edit Case Details and VisaStack can tell which checklist fits. Or pick one now.',
+        'Pick the checklist that matches them, and add them under Edit Case Details so the case records them.',
       ],
       action: { href: '#pack', label: 'Pick a Checklist' },
     };

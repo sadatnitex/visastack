@@ -161,13 +161,18 @@ function routeFit(
 }
 
 /**
- * Whether a declared application post names the case's post: equal, or found as whole words in it
- * ("Dhaka" in "US Embassy Dhaka"), ignoring case, accents and punctuation. No partial words.
+ * Whether a declared application post and the case's post name the same place: equal, or one found
+ * as whole words in the other ("Dhaka" and "US Embassy Dhaka", either way round), ignoring case,
+ * accents and punctuation. No partial words.
  */
 function postNamed(declared: string, casePostKey: string): boolean {
   const key = packMatchKey(declared);
   if (key.length === 0) return false;
-  return key === casePostKey || ` ${casePostKey} `.includes(` ${key} `);
+  return (
+    key === casePostKey ||
+    ` ${casePostKey} `.includes(` ${key} `) ||
+    ` ${key} `.includes(` ${casePostKey} `)
+  );
 }
 
 /** How a pack's declared post and travel window fit the case, and what the case still lacks. */

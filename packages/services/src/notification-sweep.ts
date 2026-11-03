@@ -18,7 +18,7 @@ import { titleDate } from './naming';
 import { enqueueNotificationBothChannels } from './notifications';
 import { listRequirementDetails } from './pack-rule-details';
 import { recordProductEvent } from './product-events';
-import { INACTIVE_CASE_STATES } from './umpe-package-tables';
+import { INACTIVE_CASE_STATES, packageTablesPresent } from './umpe-package-tables';
 
 /**
  * NTF-04 (Part 5 §4) "Timing": the periodic sweeps that turn NTF-01's
@@ -400,22 +400,32 @@ const INACTIVE_STATES: ReadonlySet<string> = new Set(INACTIVE_CASE_STATES);
  * after it that the checklist declares (`valid_months_after_travel`). The fixed 90/60/30/7/0 day
  * reminders and the expiry centre stay as they are; this answers only "will it last this trip".
  *
- * Read through the case's own gate proof (owner, mission scope). Nothing is returned for a case
- * that is closed, cancelled or handed in, or that has no travel end date (an unknown date is never
- * guessed). One entry per document, however many checklist items chose it. Never raises on a
+ * Read through the case owner's own gate proof (mission scope); any other proof gets nothing, as
+ * the trip checks do. Only choices for items of the checklist the case uses now count, and not an
+ * item left out of the package. Nothing is returned for a case that is closed, cancelled or handed
+ * in, or that has no travel end date or checklist (an unknown date is never guessed). One entry per document, however many checklist items chose it. Never raises on a
  * database without the G2 tables: a missing validity rule reads as "until the trip ends".
  */
 export async function caseExpiryConflicts(
   proof: AuthorizedApplicant<'VIEW_METADATA'>,
 ): Promise<readonly CaseExpiryConflict[]> {
-  if (!AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') || proof.resource.kind !== 'mission') {
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
+    proof.actor.kind !== 'applicant_owner' ||
+    proof.resource.kind !== 'mission'
+  ) {
     return [];
   }
   const mission = proof.resource.mission;
-  if (INACTIVE_STATES.has(mission.state) || !mission.travelEndDate) return [];
+  if (INACTIVE_STATES.has(mission.state) || !mission.travelEndDate || !mission.packVersionId) {
+    return [];
+  }
   const travelEnd = mission.travelEndDate;
   const db = proof.tx;
-  const lifecycle = await lifecycleTablesPresent(db);
+  const [lifecycle, packageTables] = await Promise.all([
+    lifecycleTablesPresent(db),
+    packageTablesPresent(db),
+  ]);
   const rows = await db
     .select({
       documentId: schema.documents.id,
@@ -425,12 +435,23 @@ export async function caseExpiryConflicts(
     })
     .from(schema.selectedEvidence)
     .innerJoin(schema.documents, eq(schema.documents.id, schema.selectedEvidence.documentId))
+    // Only items of the checklist the case uses now: a choice left from an earlier checklist
+    // asks nothing of this trip.
+    .innerJoin(
+      schema.packRequirements,
+      eq(schema.packRequirements.id, schema.selectedEvidence.packRequirementId),
+    )
     .where(
       and(
         eq(schema.selectedEvidence.missionId, mission.id),
+        eq(schema.packRequirements.packVersionId, mission.packVersionId),
         eq(schema.documents.applicantId, proof.applicant.id),
         isNotNull(schema.documents.expiresAt),
         lifecycle ? presentDocumentCondition() : undefined,
+        // An item the person left out of the package (UMPE P4 Exclude) needs no document.
+        packageTables
+          ? sql`not exists (select 1 from ${schema.umpePackageChoices} where ${schema.umpePackageChoices.missionId} = ${mission.id} and ${schema.umpePackageChoices.packRequirementId} = ${schema.selectedEvidence.packRequirementId} and ${schema.umpePackageChoices.choice} = 'EXCLUDE' and ${schema.umpePackageChoices.supersededAt} is null)`
+          : undefined,
       ),
     )
     .limit(200);

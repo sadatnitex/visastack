@@ -120,8 +120,10 @@ export const NO_FORMAT_RULES: RequirementFormatRules = {
   validMonthsAfterTravel: null,
 };
 
-const NOTE_TRANSLATION = /\btranslat\w*/i;
-const NOTE_ORIGINAL = /\b(original|hard copy|notari[sz]ed)\b/i;
+// A note that says a translation is not needed is not read as asking for one.
+const NOTE_TRANSLATION = /(?<!\bno |\bnot )\btranslat\w*/i;
+// Notarised copies are a form of copy, not originals, so they are not read here.
+const NOTE_ORIGINAL = /\b(originals?|hard cop(y|ies)|in person)\b/i;
 
 const months = (count: number) => `${count} ${count === 1 ? 'Month' : 'Months'}`;
 

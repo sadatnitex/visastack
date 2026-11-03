@@ -72,6 +72,8 @@ describe('caseWelcomeCopy: what a new case says to do first, from what it holds'
     );
     expect(text).toContain('so none was linked');
     expect(text).toContain('Edit Case Details');
+    // The match is not re-checked later, so nothing promises that it will be.
+    expect(text).not.toContain('VisaStack can tell');
     expect(copy.action).toEqual({ href: '#pack', label: 'Pick a Checklist' });
   });
 

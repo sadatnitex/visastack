@@ -112,5 +112,10 @@ describe('document format lines (UMPE G2, R12)', () => {
       ),
     ).toEqual([]);
     expect(requirementFormatLines(NO_FORMAT_RULES, null, null)).toEqual([]);
+    expect(
+      requirementFormatLines(NO_FORMAT_RULES, 'Bring the originals and one photocopy.', null),
+    ).toEqual(['Checklist Notes Mention Originals']);
+    expect(requirementFormatLines(NO_FORMAT_RULES, 'Notarised copies accepted.', null)).toEqual([]);
+    expect(requirementFormatLines(NO_FORMAT_RULES, 'No translation needed.', null)).toEqual([]);
   });
 });
