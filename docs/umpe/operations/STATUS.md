@@ -26,6 +26,7 @@ Newest first. One line per change of state. The requirement-level truth is `docs
 5. Real-data activation remains switched off (controlled pilot).
 
 ## Log
+- 2026-11-03: UX4 (sidebar fits a laptop) on its own PR, not merged: one-row brand, tasks as icon buttons inside their rows, a hairline before the utilities, trimming by window height. Content 818 px to 556 px at a 600 px window. Next: the agency answers queue (service read, brief and security review), then the guest per-item Add File. See `handoffs/UX4.md`.
 - 2026-11-03: UX1 and UX2 merged (#424, `b4577ef`): guest desk, group trip, Home. UX3 (agency Document Requests list: status filters, customer first, labelled cells) on a new PR, not merged. The agency answers queue is not built (needs a service read). See `handoffs/UX3.md`.
 - 2026-11-03: UX2 (group trip page and Home polish) on PR 424, not merged. One Next Step, stage tracker, Allowed or Not Allowed in words, icons and date tiles; card links not underlined. Trip phone 2.64 to 3.00 screens (inside the budget). Review high: 8 of 10 fixed. Agency request desk not yet built. See `handoffs/UX2.md`.
 - 2026-11-03: UX1 (guest desk interface) on PR 424, not merged. Progress strip, line states, folds, one side column, retention tiles; styles only. Phone page height 2.97 and 2.92 screens in two states (was 3.87 and 4.68), 3.80 part way (was 5.09), over the budget there; desktop within 3 screens. Review high: 7 of 9 fixed. See `handoffs/UX1.md`.

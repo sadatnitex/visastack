@@ -7310,3 +7310,9 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Measured (made-up data): phone 1.81 to 1.40 screens, desktop 1.00 to 1.00. Code review high: 10 findings in the combined review, those about this list fixed (doc order, a note that counts cover the newest requests), one explained (labels are not drawn on the phone card). axe found no violation at 2 widths. New tests go red when the filter is inverted.
 - Not built: a queue of what came back (Submitted for Review, Needs Correction, per-file Accept). The list service returns only a request's own status; counting answers across requests is a service change with its own brief and security review. Two platform tables (`admin/page.tsx`, `admin/insights/page.tsx`) have the same missing labels on narrow screens and are untouched.
 - Not verified: a signed-in agency account, a screen reader, a real phone, dark appearance, the e2e browser checks.
+
+## 2026-11-03: UMPE UX4 (sidebar fits a laptop, no migration)
+
+- The owner reported the menu was too big, needed a lot of scrolling and was arranged badly. Rendered first: 818 px of content (1,094 open), scrolling by 218 px at a 600 px window and still 18 px at 800; a tall two-line brand, two indented task rows and a reassurance card. Now: a one-row brand, each task a 44 px icon button inside its destination's row, a hairline before the utilities, and the reassurance card and Workspace caption yielding on short windows. Content 556, 636 and 756 px at 600, 680 and 800: it fits, with More Tools closed. One `WP-UMPE-UX4` block.
+- Tests: 2 new, proven red when the wrapper is renamed; navigation, parity, shell and surface tests pass; lint, flat-design, supply-chain scan and typecheck pass.
+- Not verified: a real laptop, a screen reader on the icon buttons, windows under 560 px high, dark appearance, the e2e checks that measure the sidebar.
