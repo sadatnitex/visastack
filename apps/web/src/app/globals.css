@@ -13099,6 +13099,22 @@ html:has(.sticky-action-bar) {
   padding-top: var(--space-3);
 }
 
+/* WP-UMPE-G3 agency email state and member permissions */
+.collection-email-reason {
+  display: block;
+  margin-top: var(--space-1);
+}
+.member-permission {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+.member-permission-note {
+  display: block;
+  font-size: var(--text-small);
+}
+
 /* WP-UMPE-P13 entry points: the task under My Documents and My Trips in the sidebar (and in More on
    a phone), and the Start Here row on Home. Flat: edges and tone only, 44px targets. */
 .app-shell-links a.app-nav-action,

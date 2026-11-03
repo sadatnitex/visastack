@@ -160,6 +160,10 @@ export const RATE_LIMITS = {
   // and how often one link may Submit Documents (a correction is another submission).
   COLLECTION_GUEST_UPLOAD_LINK: { limit: 400, windowMs: HOUR_MS },
   COLLECTION_GUEST_SUBMIT_LINK: { limit: 10, windowMs: HOUR_MS },
+  // UMPE G3: emails telling one guest of one request that a correction was asked for. The decision
+  // is always recorded; past this many an hour the guest is not emailed again (they read every
+  // note on the request page), so an agency cannot flood a guest's inbox.
+  COLLECTION_GUEST_CORRECTION_EMAIL: { limit: 5, windowMs: HOUR_MS },
   // A private calendar subscription link (v1.2 B05 live feed). Calendar apps check a link every
   // few minutes to every few hours, so one link is bounded well above that. Only unknown links are
   // counted per network address, so a large calendar service fetching many people's real links

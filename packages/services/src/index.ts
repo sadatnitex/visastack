@@ -2814,6 +2814,27 @@ export {
 } from './umpe-collection-response-review';
 export { type GuestPurgeResult, purgeGuestCollectionData } from './umpe-guest-retention';
 export { SIGNED_IN_SESSION_IDLE_MS } from './umpe-guest-collection';
+// UMPE G3
+export {
+  type AgencyCollectionAuthority,
+  REQUEST_DOCUMENTS_CAPABILITY,
+  agencyCollectionRequesterScopeProblem,
+} from './access/collection-scope';
+export { setMemberMayRequestDocuments } from './organizations';
+export {
+  COLLECTION_EMAIL_REASON_LABELS,
+  COLLECTION_EMAIL_STATUS_LABELS,
+  type CollectionEmailReason,
+  type CollectionEmailState,
+  type CollectionEmailStatus,
+  collectionEmailState,
+} from './umpe-collection-request-service';
+export { GUEST_CORRECTION_EMAIL_EVENT, guestCorrectionCopy } from './invitation-email';
+export { type EmailAgencyBrand, emailAgencyBrand } from './email-design';
+export {
+  type GuestCorrectionNoticeOutcome,
+  queueGuestCorrectionNotice,
+} from './umpe-guest-correction-notice';
 
 // UMPE P13
 // Package changes and rule updates that need the traveller, as Needs Attention items for Home.

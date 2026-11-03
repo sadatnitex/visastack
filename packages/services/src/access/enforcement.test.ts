@@ -138,6 +138,11 @@ const COLLECTION_SAFE_CALLS: ReadonlySet<string> = new Set([
   // UMPE P9: "Submitted to Agency" queued for the agency's own active admins (by account id) when a
   // guest submits; the notice names the agency only and reads nothing of anyone's record.
   'notifications#enqueueNotificationBothChannels',
+  // UMPE G3: each takes the AgencyCollectionScope itself and checks it. The first reads only the
+  // status fields of this agency's own request emails, by link id; the second queues one email to
+  // the address the request itself carries, naming the agency only. Tests: umpe-g3-agency.test.ts.
+  'notifications#collectionLinkEmailRecords',
+  'invitation-email#queueGuestCorrectionEmail',
 ]);
 /** The agency document request tables (packages/db/src/schema.ts), judged by their own ratchet. */
 const COLLECTION_TABLES = [
@@ -1310,7 +1315,11 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
     const gates = [
       {
         decls: gateDeclarations(program, checker, ['AgencyCollectionScope']),
-        check: (call: ts.CallExpression) => isCall(call, 'agencyCollectionScopeProblem'),
+        // UMPE G3: the request services that also take a member with May Request Documents use
+        // the requester variant; both refuse a copy, a stale scope and the switch turned off.
+        check: (call: ts.CallExpression) =>
+          isCall(call, 'agencyCollectionScopeProblem') ||
+          isCall(call, 'agencyCollectionRequesterScopeProblem'),
       },
       {
         decls: gateDeclarations(program, checker, ['CollectionLinkProof']),
@@ -1388,5 +1397,44 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
       ]),
     );
     expect(problems).toEqual([]);
+  }, 180_000);
+
+  it('only the reviewed request services take a requester scope (UMPE G3)', () => {
+    // A member with May Request Documents may create, read, send and link their own requests, and
+    // the request page may read those links' email states. Answers, files, reviews, corrections,
+    // ending a request and everything else keep agencyCollectionScopeProblem (owners and admins).
+    const { program } = programOnce();
+    const found: string[] = [];
+    for (const sf of program.getSourceFiles()) {
+      const fileName = real(sf.fileName);
+      if (sf.isDeclarationFile || !fileName.startsWith(srcDir + path.sep) || isTestFile(fileName)) {
+        continue;
+      }
+      if (fileName.startsWith(accessDir + path.sep)) continue;
+      const visit = (node: ts.Node, owner: string | null) => {
+        let current = owner;
+        if (ts.isFunctionDeclaration(node) && node.name) current = node.name.text;
+        if (
+          ts.isCallExpression(node) &&
+          isCall(node, 'agencyCollectionRequesterScopeProblem') &&
+          current
+        ) {
+          found.push(`${moduleId(fileName)}#${current}`);
+        }
+        ts.forEachChild(node, (child) => visit(child, current));
+      };
+      visit(sf, null);
+    }
+    expect([...new Set(found)].sort()).toEqual([
+      'notifications#collectionLinkEmailRecords',
+      'umpe-collection-request-service#chooseCollectionPack',
+      'umpe-collection-request-service#createCollectionLink',
+      'umpe-collection-request-service#createCollectionRequest',
+      'umpe-collection-request-service#editCollectionDraft',
+      'umpe-collection-request-service#getCollectionRequest',
+      'umpe-collection-request-service#issueCollectionRequest',
+      'umpe-collection-request-service#listCollectionPackChoices',
+      'umpe-collection-request-service#listCollectionRequests',
+    ]);
   }, 180_000);
 });

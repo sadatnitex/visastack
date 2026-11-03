@@ -120,6 +120,8 @@ const RECONCILED_EVENT_TYPES = [
   // it never comes back to waiting for review. Only a REJECTED review is replayed.
   'SUBSCRIPTION_ENDED',
   'ORGANIZATION_REVIEWED',
+  // UMPE G3: May Request Documents withdrawn after the restore point stays withdrawn.
+  'MEMBER_CAPABILITY_REVOKED',
 ] as const;
 
 type ReconciledEventType = (typeof RECONCILED_EVENT_TYPES)[number];
@@ -151,6 +153,8 @@ export interface ReconciliationCounts {
   readonly agencyAiSettingsOff: number;
   /** Subscriptions ended after the restore point, ended again (owner decision "Founding A"). */
   readonly subscriptionsEnded: number;
+  /** UMPE G3: member permissions (May Request Documents) withdrawn again. */
+  readonly memberPermissionsRevoked: number;
 }
 
 export interface ReconciliationError {
@@ -198,7 +202,39 @@ async function forceMembershipDeactivated(newDb: Db, resourceId: string): Promis
     .set({ active: false, updatedAt: new Date() })
     .where(and(eq(schema.memberships.id, resourceId), eq(schema.memberships.active, true)))
     .returning({ id: schema.memberships.id });
-  return rows.length > 0;
+  // UMPE G3: an ended membership keeps no permission, so a later reactivation restores none.
+  const cleared = await forceMemberCapabilitiesRemoved(newDb, resourceId, null);
+  return rows.length > 0 || cleared;
+}
+
+/**
+ * UMPE G3: remove a member's permission rows (one named capability, or all of them) on the new
+ * branch. A branch restored from before the G3 migration has no such table: nothing to remove.
+ */
+async function forceMemberCapabilitiesRemoved(
+  newDb: Db,
+  membershipId: string,
+  capability: string | null,
+): Promise<boolean> {
+  try {
+    return await newDb.transaction(async (tx) => {
+      const removed = await tx
+        .delete(schema.agencyMemberCapabilities)
+        .where(
+          capability
+            ? and(
+                eq(schema.agencyMemberCapabilities.membershipId, membershipId),
+                eq(schema.agencyMemberCapabilities.capability, capability),
+              )
+            : eq(schema.agencyMemberCapabilities.membershipId, membershipId),
+        )
+        .returning({ id: schema.agencyMemberCapabilities.id });
+      return removed.length > 0;
+    });
+  } catch (error) {
+    if (isMissingRelationError(error)) return false;
+    throw error;
+  }
 }
 
 async function forceLegalHoldPlaced(oldDb: Db, newDb: Db, resourceId: string): Promise<boolean> {
@@ -1505,6 +1541,7 @@ const EVENT_META: Readonly<
   },
   SUBSCRIPTION_ENDED: { counter: 'subscriptionsEnded', resourceType: 'subscription' },
   ORGANIZATION_REVIEWED: { counter: 'organizationsForced', resourceType: 'organization' },
+  MEMBER_CAPABILITY_REVOKED: { counter: 'memberPermissionsRevoked', resourceType: 'membership' },
 };
 
 async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<boolean> {
@@ -1517,6 +1554,14 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
       return forceConsentRevoked(newDb, resourceId);
     case 'MEMBERSHIP_DEACTIVATED':
       return forceMembershipDeactivated(newDb, resourceId);
+    case 'MEMBER_CAPABILITY_REVOKED': {
+      const capability = (event.metadata as { capability?: unknown } | null)?.capability;
+      return forceMemberCapabilitiesRemoved(
+        newDb,
+        resourceId,
+        typeof capability === 'string' ? capability : null,
+      );
+    }
     case 'LEGAL_HOLD_PLACED':
       return forceLegalHoldPlaced(oldDb, newDb, resourceId);
     case 'LEGAL_HOLD_RELEASED':
@@ -1608,6 +1653,7 @@ export async function reconcileRestoredBranch(
     aiAssistRemoved: 0,
     agencyAiSettingsOff: 0,
     subscriptionsEnded: 0,
+    memberPermissionsRevoked: 0,
   };
   const errors: ReconciliationError[] = [];
   const mutableCounts = counts as {

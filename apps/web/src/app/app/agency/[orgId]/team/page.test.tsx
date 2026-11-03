@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   loadOrgAccess: vi.fn(),
   loadMembers: vi.fn(),
   loadPendingTeamInvitations: vi.fn(),
+  documentRequests: false,
 }));
 
 vi.mock('../../../../../lib/session', () => ({
@@ -25,6 +26,13 @@ vi.mock('../member-form', async () => {
   const { stub } = await import('../../../../../lib/next-mocks.test-support');
   return { AddMemberForm: stub('AddMemberForm') };
 });
+vi.mock('./document-request-toggle', async () => {
+  const { stub } = await import('../../../../../lib/next-mocks.test-support');
+  return { DocumentRequestToggle: stub('DocumentRequestToggle') };
+});
+vi.mock('@visastack/services', () => ({
+  agencyCollectionRequestsEnabled: () => mocks.documentRequests,
+}));
 vi.mock('../member-toggle-button', async () => {
   const { stub } = await import('../../../../../lib/next-mocks.test-support');
   return { MemberToggleButton: stub('MemberToggleButton') };
@@ -36,6 +44,7 @@ const props = { params: Promise.resolve({ orgId: 'o1' }) };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.documentRequests = false;
   navigationState.pathname = '/app/agency/o1/team';
   mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: true, member: true });
   mocks.loadMembers.mockResolvedValue([
@@ -105,6 +114,48 @@ describe('agency Team', () => {
     expect(mocks.loadMembers).not.toHaveBeenCalled();
     expect(mocks.loadPendingTeamInvitations).not.toHaveBeenCalled();
     expect(stubProps(html, 'AddMemberForm')).toHaveLength(0);
+  });
+
+  it('offers May Request Documents only for an active non-admin member, and only while requests are on (UMPE G3)', async () => {
+    const members = [
+      {
+        membershipId: 'ms1',
+        accountId: 'a1',
+        email: 'owner@example.com',
+        role: 'OWNER',
+        active: true,
+        mayRequestDocuments: false,
+      },
+      {
+        membershipId: 'ms3',
+        accountId: 'a3',
+        email: 'cm@example.com',
+        role: 'CASE_MANAGER',
+        active: true,
+        mayRequestDocuments: true,
+      },
+      {
+        membershipId: 'ms2',
+        accountId: 'a2',
+        email: 'rev@example.com',
+        role: 'REVIEWER',
+        active: false,
+        mayRequestDocuments: false,
+      },
+    ];
+    mocks.loadMembers.mockResolvedValue(members);
+    const off = await renderServer(Page(props));
+    expect(stubProps(off, 'DocumentRequestToggle')).toEqual([]);
+    expect(textOf(off)).not.toContain('May Request Documents');
+
+    mocks.documentRequests = true;
+    mocks.loadMembers.mockResolvedValue(members);
+    const on = await renderServer(Page(props));
+    expect(stubProps(on, 'DocumentRequestToggle')).toEqual([
+      { organizationId: 'o1', membershipId: 'ms3', allowed: true, memberLabel: 'cm@example.com' },
+    ]);
+    expect(textOf(on)).toContain('May Request Documents');
+    expect(textOf(on)).toContain('Only owners and admins see what people send back.');
   });
 
   it('renders nothing for someone with no role', async () => {

@@ -18,18 +18,25 @@ import {
   sql,
 } from 'drizzle-orm';
 import { collectionResponseStillLive } from './access/collection-response-access';
-import { collectionLinkProof } from './access/collection-scope';
+import {
+  type AgencyCollectionScope,
+  agencyCollectionRequesterScopeProblem,
+  collectionLinkProof,
+} from './access/collection-scope';
 import { orgCaseRecordVisibleSql, withCaseExclusions } from './access/grant-scope';
 import { guestCodeDeliveryProof } from './access/guest-collection';
+import { guestCorrectionStillDeliverable } from './access/guest-correction-notice';
 import { guestSubmissionStillLive } from './access/guest-submission-access';
 import { type SelfScope, selfScopeProblem } from './access/principal';
 import { type Db, first, schema } from './db';
-import { notificationEmail, renderEmail } from './email-design';
+import { type EmailAgencyBrand, notificationEmail, renderEmail } from './email-design';
 import { type ServiceError, serviceError } from './errors';
 import {
   COLLECTION_REQUEST_EMAIL_EVENT,
   GUEST_CODE_EMAIL_EVENT,
+  GUEST_CORRECTION_EMAIL_EVENT,
   type SealedInvitationLink,
+  agencyEmailCopyAtSend,
   revealInvitationLink,
 } from './invitation-email';
 import { listMembershipsForAccount } from './organizations';
@@ -659,6 +666,95 @@ async function checkRecipient(
   return { authorized: true, email: account.email };
 }
 
+// --- UMPE G3: agency-branded collection emails --------------------------------------------------
+/** The emails a guest or invitee of an agency document request receives, sent for that agency. */
+const AGENCY_BRANDED_EMAILS: ReadonlySet<string> = new Set([
+  COLLECTION_REQUEST_EMAIL_EVENT,
+  GUEST_CODE_EMAIL_EVENT,
+  GUEST_CORRECTION_EMAIL_EVENT,
+]);
+
+/** The worker's fixed refusal words, shared with the agency's email state (UMPE G3). */
+export const RECIPIENT_NO_LONGER_AUTHORIZED = 'recipient no longer authorized';
+export const NO_RECIPIENT_EMAIL = 'no recipient email resolvable';
+/** Provider diagnostics meaning it was never reached, or did not answer (never a refusal). */
+export const PROVIDER_UNREACHABLE_ERRORS: ReadonlySet<string> = new Set([
+  'Email provider not configured',
+  'Email provider unavailable or request timed out',
+]);
+
+/** What a request link's email record says, without the address or the email itself. */
+export interface CollectionLinkEmailRecord {
+  readonly status: string;
+  readonly lastError: string | null;
+  readonly attempts: number;
+  readonly sentAt: Date | null;
+  readonly deliveredAt: Date | null;
+}
+
+/**
+ * The newest request email of each of these links (UMPE G3, A07), for the agency's own request
+ * page: read by the scope's organization, the request email event and these link ids only. The
+ * address, the subject and the sealed link are never read.
+ */
+export async function collectionLinkEmailRecords(
+  db: Db,
+  scope: AgencyCollectionScope,
+  linkIds: readonly string[],
+): Promise<ReadonlyMap<string, CollectionLinkEmailRecord>> {
+  if (agencyCollectionRequesterScopeProblem(scope) || linkIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      resourceId: schema.notifications.resourceId,
+      status: schema.notifications.status,
+      lastError: schema.notifications.lastError,
+      attempts: schema.notifications.attempts,
+      sentAt: schema.notifications.sentAt,
+      deliveredAt: schema.notifications.deliveredAt,
+    })
+    .from(schema.notifications)
+    .where(
+      and(
+        eq(schema.notifications.eventType, COLLECTION_REQUEST_EMAIL_EVENT),
+        eq(schema.notifications.channel, 'EMAIL'),
+        eq(schema.notifications.organizationId, scope.organizationId),
+        inArray(schema.notifications.resourceId, [...linkIds]),
+      ),
+    )
+    .orderBy(desc(schema.notifications.createdAt));
+  const newest = new Map<string, CollectionLinkEmailRecord>();
+  for (const { resourceId, ...record } of rows) {
+    if (resourceId && !newest.has(resourceId)) newest.set(resourceId, record);
+  }
+  return newest;
+}
+
+/**
+ * The agency brand an email shows, read live at send time: the agency's name and accent only while
+ * VisaStack has reviewed it (ACTIVE). `renderEmail` keeps the accent only when it is readable.
+ */
+async function agencyEmailBrand(
+  db: Db,
+  notification: Pick<Notification, 'eventType' | 'organizationId'>,
+): Promise<EmailAgencyBrand | null> {
+  if (!AGENCY_BRANDED_EMAILS.has(notification.eventType) || !notification.organizationId) {
+    return null;
+  }
+  const org = first(
+    await db
+      .select({
+        name: schema.organizations.name,
+        status: schema.organizations.status,
+        accentColor: schema.organizations.accentColor,
+      })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, notification.organizationId))
+      .limit(1),
+  );
+  if (!org || org.status !== 'ACTIVE') return null;
+  return { name: org.name, accentColor: org.accentColor ?? null };
+}
+
 /**
  * An agency document request email (UMPE P6) is sent only while the link it carries is still open:
  * not revoked, replaced or expired, its request still sent, its agency still open and its issuer
@@ -753,7 +849,7 @@ async function dispatchOne(
       .set({
         status: 'FAILED',
         attempts,
-        lastError: 'recipient no longer authorized',
+        lastError: RECIPIENT_NO_LONGER_AUTHORIZED,
         leaseOwner: null,
         leaseExpiresAt: null,
       })
@@ -831,7 +927,7 @@ async function dispatchOne(
       .set({
         status: 'FAILED',
         attempts,
-        lastError: 'no recipient email resolvable',
+        lastError: NO_RECIPIENT_EMAIL,
         leaseOwner: null,
         leaseExpiresAt: null,
       })
@@ -848,13 +944,18 @@ async function dispatchOne(
     notification.eventType === GUEST_CODE_EMAIL_EVENT
       ? await guestCodeEmailCheck(db, notification, payload, encryption)
       : null;
-  if (collection === 'closed' || guestCode === 'closed') {
+  // UMPE G3: a correction email goes only while the decision, the link and the request are open.
+  const correctionOpen =
+    notification.eventType === GUEST_CORRECTION_EMAIL_EVENT
+      ? await guestCorrectionStillDeliverable(db, notification, now)
+      : true;
+  if (collection === 'closed' || guestCode === 'closed' || !correctionOpen) {
     const updated = await db
       .update(schema.notifications)
       .set({
         status: 'FAILED',
         attempts,
-        lastError: 'recipient no longer authorized',
+        lastError: RECIPIENT_NO_LONGER_AUTHORIZED,
         leaseOwner: null,
         leaseExpiresAt: null,
       })
@@ -889,21 +990,27 @@ async function dispatchOne(
         encryption,
       );
     }
+    // UMPE G3: an agency collection email names the agency only while it is reviewed, decided now.
+    const agency = await agencyEmailBrand(db, notification);
+    const copy = AGENCY_BRANDED_EMAILS.has(notification.eventType)
+      ? agencyEmailCopyAtSend(notification.eventType, agency?.name ?? null)
+      : null;
+    const subject = copy?.subject ?? payload.subject;
     const email = renderEmail(
       notificationEmail({
         eventType: notification.eventType,
-        subject: payload.subject,
-        summary: payload.summary,
+        subject,
+        summary: copy?.summary ?? payload.summary,
         url: `${baseUrl}${path}`,
         ...(payload.timing ? { timing: payload.timing } : {}),
         ...(payload.heading ? { heading: payload.heading } : {}),
         ...(guestCode !== null ? { code: guestCode.code } : {}),
       }),
-      { baseUrl, recipient: recipient.email },
+      { baseUrl, recipient: recipient.email, agency },
     );
     const sent = await emailPort.send({
       to: recipient.email,
-      subject: payload.subject,
+      subject,
       body: email.text,
       html: email.html,
       // A new key for the designed email: a retry of an attempt made before it carries a different

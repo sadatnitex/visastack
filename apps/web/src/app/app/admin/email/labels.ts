@@ -27,6 +27,7 @@ export const EMAIL_KIND_LABELS: Readonly<Record<string, string>> = {
   CONTRIBUTOR_REQUEST_CREATED: 'Document Request to Someone Else',
   AGENCY_COLLECTION_REQUEST_SENT: 'Agency Document Request',
   AGENCY_COLLECTION_GUEST_CODE: 'Guest One-Time Code',
+  AGENCY_COLLECTION_GUEST_CORRECTION: 'Guest Correction Asked',
   AGENCY_COLLECTION_RESPONSE_SUBMITTED: 'Answer Submitted to Agency',
   CASE_PACKAGE_CHANGED: 'Trip Package Change',
   CASE_RULE_CHANGED: 'Trip Checklist Update',
