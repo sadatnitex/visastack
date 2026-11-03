@@ -38,7 +38,6 @@ import {
   everydayDocumentCondition,
   lifecycleTablesPresent,
   presentApplicantCondition,
-  presentDocumentCondition,
 } from './lifecycle/foundation';
 import { tripCompanionPapersTablePresent } from './umpe-trip-companion-tables';
 import { isCommonTripEvidenceType } from './umpe-trip-rules';
@@ -51,6 +50,9 @@ export const COMPANION_PAPERS_MAX = 20;
 
 /** The most papers the choice list offers at once. */
 const OPTIONS_LIMIT = 100;
+/** Papers are read this many at a time, and never more than this many are scanned in all. */
+const OPTIONS_PAGE = 200;
+const OPTIONS_SCAN_LIMIT = 5000;
 
 export const COMPANION_PAPERS_NOT_AVAILABLE = 'Choosing papers is not switched on yet.';
 const LEVEL_FIRST = 'Choose Travel Bookings first.';
@@ -125,46 +127,62 @@ export async function listMyTripPapers(
     return ok({ available: false, chosen: [], options: [] });
   }
   const lifecycle = await lifecycleTablesPresent(db);
-  const own = await db
-    .select({
-      id: schema.documents.id,
-      approvedName: schema.documents.approvedName,
-      originalName: schema.documents.originalName,
-      docType: schema.documents.docType,
-    })
-    .from(schema.documents)
-    .innerJoin(schema.applicants, eq(schema.applicants.id, schema.documents.applicantId))
-    .where(
-      and(
-        // Their own record only: the account behind this access, and the record that is them.
-        eq(schema.applicants.ownerAccountId, access.accountId),
-        eq(schema.applicants.relationship, 'SELF'),
-        lifecycle ? everydayDocumentCondition() : undefined,
-        lifecycle ? presentApplicantCondition() : undefined,
-      ),
-    )
-    .orderBy(asc(schema.documents.createdAt), asc(schema.documents.id))
-    .limit(OPTIONS_LIMIT);
-  const shareable = own.filter((doc) => isCommonTripEvidenceType(doc.docType));
-  const picked = new Set(
-    (
-      await db
-        .select({ documentId: schema.umpeTripCompanionPapers.documentId })
-        .from(schema.umpeTripCompanionPapers)
-        .where(eq(schema.umpeTripCompanionPapers.companionId, access.companionId))
-    ).map((row) => row.documentId),
+  const fields = {
+    id: schema.documents.id,
+    approvedName: schema.documents.approvedName,
+    originalName: schema.documents.originalName,
+    docType: schema.documents.docType,
+  };
+  // Their own record only (the account behind this access, and the record that is them), present
+  // and not archived. The travel kinds are decided in code (a stored kind may be an alias), so the
+  // papers are read in pages until enough that can be offered are found: an older paper of another
+  // kind never hides a newer travel paper.
+  const ownTravelPapers = and(
+    eq(schema.applicants.ownerAccountId, access.accountId),
+    eq(schema.applicants.relationship, 'SELF'),
+    lifecycle ? everydayDocumentCondition() : undefined,
+    lifecycle ? presentApplicantCondition() : undefined,
   );
-  const view = (doc: (typeof shareable)[number]): CompanionPaperView => ({
+  // What is chosen comes from the choices themselves, so a choice is always listed (and can always
+  // be withdrawn) while the organiser can see it.
+  const chosenRows = await db
+    .select(fields)
+    .from(schema.umpeTripCompanionPapers)
+    .innerJoin(schema.documents, eq(schema.documents.id, schema.umpeTripCompanionPapers.documentId))
+    .innerJoin(schema.applicants, eq(schema.applicants.id, schema.documents.applicantId))
+    .where(and(eq(schema.umpeTripCompanionPapers.companionId, access.companionId), ownTravelPapers))
+    .orderBy(asc(schema.umpeTripCompanionPapers.createdAt), asc(schema.umpeTripCompanionPapers.id));
+  const picked = new Set(chosenRows.map((row) => row.id));
+  const wanted = OPTIONS_LIMIT + picked.size;
+  const optionRows: (typeof chosenRows)[number][] = [];
+  for (
+    let offset = 0;
+    optionRows.length < wanted && offset < OPTIONS_SCAN_LIMIT;
+    offset += OPTIONS_PAGE
+  ) {
+    const page = await db
+      .select(fields)
+      .from(schema.documents)
+      .innerJoin(schema.applicants, eq(schema.applicants.id, schema.documents.applicantId))
+      .where(ownTravelPapers)
+      .orderBy(asc(schema.documents.createdAt), asc(schema.documents.id))
+      .limit(OPTIONS_PAGE)
+      .offset(offset);
+    optionRows.push(...page.filter((doc) => isCommonTripEvidenceType(doc.docType)));
+    if (page.length < OPTIONS_PAGE) break;
+  }
+  const view = (doc: (typeof chosenRows)[number]): CompanionPaperView => ({
     documentId: doc.id,
     name: nameOf(doc),
     kind: kindOf(doc.docType),
   });
   return ok({
     available: true,
-    // A choice whose paper is archived, deleted or no longer a travel paper is not listed (and the
-    // organiser's read leaves it out too).
-    chosen: shareable.filter((doc) => picked.has(doc.id)).map(view),
-    options: shareable.filter((doc) => !picked.has(doc.id)).map(view),
+    chosen: chosenRows.filter((doc) => isCommonTripEvidenceType(doc.docType)).map(view),
+    options: optionRows
+      .filter((doc) => !picked.has(doc.id))
+      .slice(0, OPTIONS_LIMIT)
+      .map(view),
   });
 }
 
@@ -227,7 +245,8 @@ export async function chooseTripPaper(
             eq(schema.applicants.id, paper.applicant.id),
             eq(schema.applicants.ownerAccountId, access.accountId),
             eq(schema.applicants.relationship, 'SELF'),
-            lifecycle ? presentDocumentCondition() : undefined,
+            // The same rule as the list of papers that can be offered: present and not archived.
+            lifecycle ? everydayDocumentCondition() : undefined,
             lifecycle ? presentApplicantCondition() : undefined,
           ),
         )
@@ -347,7 +366,8 @@ export async function organiserPaperNames(
         // The paper is the joined person's own, on their own record.
         eq(schema.applicants.ownerAccountId, companions.joinedAccountId),
         eq(schema.applicants.relationship, 'SELF'),
-        lifecycle ? presentDocumentCondition() : undefined,
+        // A paper the companion archived, deleted or retyped drops out of the organiser's view.
+        lifecycle ? everydayDocumentCondition() : undefined,
         lifecycle ? presentApplicantCondition() : undefined,
       ),
     )

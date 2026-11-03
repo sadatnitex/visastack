@@ -1,6 +1,5 @@
 import { schema } from '@visastack/db';
 import {
-  type AuthorizedApplicant,
   TRIP_COMPANIONS_SWITCH,
   accountPrincipal,
   chooseTripPaper,
@@ -94,18 +93,15 @@ afterEach(() => {
 });
 
 const level = async () => {
-  const listed = await listCompanions(
-    (
-      await requireAccess(
-        w.db,
-        accountPrincipal(w.organiserId),
-        'VIEW_METADATA',
-        { applicantId: w.organiserApplicantId },
-        { purpose: 'owner_trip' },
-      )
-    ).value as AuthorizedApplicant<'VIEW_METADATA'>,
-    w.tripId,
+  const view = await requireAccess(
+    w.db,
+    accountPrincipal(w.organiserId),
+    'VIEW_METADATA',
+    { applicantId: w.organiserApplicantId },
+    { purpose: 'owner_trip' },
   );
+  if (!view.ok) throw new Error('proof');
+  const listed = await listCompanions(view.value, w.tripId);
   if (!listed.ok) throw new Error('list');
   return listed.value.find((p) => p.id === w.companionId);
 };
@@ -345,15 +341,15 @@ describe('papers to show the organiser', () => {
   it('is the companion alone', async () => {
     const access = await joinedCompanionAccess(w.db, w.guestId, w.tripId);
     if (!access) throw new Error('access');
-    const proof = (
-      await requireAccess(
-        w.db,
-        accountPrincipal(w.guestId),
-        'VIEW_METADATA',
-        { documentId: hotel },
-        { purpose: 'owner_trip' },
-      )
-    ).value as AuthorizedApplicant<'VIEW_METADATA'>;
+    const view = await requireAccess(
+      w.db,
+      accountPrincipal(w.guestId),
+      'VIEW_METADATA',
+      { documentId: hotel },
+      { purpose: 'owner_trip' },
+    );
+    if (!view.ok) throw new Error('proof');
+    const proof = view.value;
     await chooseTripPaper(w.db, access, proof);
     state.accountId = w.organiserId;
     expect(

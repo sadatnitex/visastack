@@ -195,6 +195,11 @@ describe('UMPE UX6 package 4: choosing papers (the companion)', () => {
     const listed = await listMyTripPapers(w.db, w.access);
     if (!isOk(listed)) throw new Error('list');
     expect(listed.value.options.map((o) => o.kind)).not.toContain('Flight Booking');
+    // An archived paper cannot be chosen either (the same rule as the list).
+    const archivedProof = await documentProof(w.db, w.guest, lonely);
+    if (archivedProof)
+      expect(isErr(await chooseTripPaper(w.db, w.access, archivedProof))).toBe(true);
+    expect(await papersRows(w.db)).toEqual([]);
     await w.db.execute(
       sql`update document_lifecycle set archived_at = null, deleted_at = now(), delete_path = 'REQUEST', purge_after = now() + interval '30 days' where document_id = ${lonely}`,
     );
@@ -368,6 +373,28 @@ describe('UMPE UX6 package 4: what the organiser sees', () => {
     if (!isOk(listed)) throw new Error('list');
     expect(listed.value.chosen).toEqual([]);
   });
+
+  it('a paper archived after it was chosen leaves the companion list and the organiser view together', async () => {
+    const hotel = await document(w.db, w.guest, w.own, 'hotel_booking', 'Tokyo hotel.pdf');
+    expect(isOk(await choose(w, hotel))).toBe(true);
+    await w.db.execute(
+      sql`insert into document_lifecycle (document_id, applicant_id, archived_at) values (${hotel}, ${w.own}, now())`,
+    );
+    const mine = await listMyTripPapers(w.db, w.access);
+    if (!isOk(mine)) throw new Error('list');
+    expect(mine.value.chosen).toEqual([]);
+    expect(await names()).toEqual([]);
+  });
+
+  it('offers a newer travel paper even behind many older papers of other kinds', async () => {
+    for (let i = 0; i < 105; i += 1) {
+      await document(w.db, w.guest, w.own, 'bank_statement', `Statement ${i}.pdf`);
+    }
+    const ticket = await document(w.db, w.guest, w.own, 'flight_booking', 'Newest flight.pdf');
+    const mine = await listMyTripPapers(w.db, w.access);
+    if (!isOk(mine)) throw new Error('list');
+    expect(mine.value.options.map((o) => o.documentId)).toContain(ticket);
+  }, 120_000);
 
   it('deleting the paper removes the choice with it', async () => {
     await choose(w, w.hotel);

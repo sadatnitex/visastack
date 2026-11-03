@@ -136,7 +136,7 @@ export default async function JoinedTripPage({
                 {papers.chosen.map((paper) => (
                   <li key={paper.documentId}>
                     <span>
-                      {paper.name} <span className="muted u-fs-085">{paper.kind}</span>
+                      {paper.name} <span className="muted u-fs-085">{`${paper.kind}`}</span>
                     </span>
                     <RemovePaperForm tripId={id} paper={paper} />
                   </li>

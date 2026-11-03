@@ -196,7 +196,7 @@ export function ChoosePaperForm({
         </option>
         {options.map((paper) => (
           <option key={paper.documentId} value={paper.documentId}>
-            {paper.name} ({paper.kind})
+            {`${paper.name} (${paper.kind})`}
           </option>
         ))}
       </select>
