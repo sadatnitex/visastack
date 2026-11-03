@@ -222,6 +222,9 @@ export default async function CollectionRequestsPage({
               ))}
             </tbody>
           </table>
+          {query?.review === WAITING_FILTER && answers && waitingCount === 0 ? (
+            <p className="notice">Nothing is waiting for review now.</p>
+          ) : null}
           {shown.length === 0 ? (
             <p className="notice">
               No requests match both filters. Turn one of them off to see more.

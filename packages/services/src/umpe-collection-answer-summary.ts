@@ -71,6 +71,39 @@ function fold(into: Map<string, Tally>, rows: readonly DecisionCount[]): void {
   }
 }
 
+/** Newest live submission of each recipient, grouped by its latest decision, per request. */
+async function guestDecisionCounts(
+  db: Db,
+  organizationId: string,
+  requestIds: readonly string[],
+): Promise<readonly DecisionCount[]> {
+  const submissions = schema.agencyCollectionGuestSubmissions;
+  const answers = db
+    .select({
+      requestId: submissions.requestId,
+      decision: sql<
+        string | null
+      >`(select v.decision from agency_collection_reviews v where v.guest_submission_id = agency_collection_guest_submissions.id and v.organization_id = agency_collection_guest_submissions.organization_id order by v.decided_at desc, v.id desc limit 1)`.as(
+        'decision',
+      ),
+    })
+    .from(submissions)
+    .where(
+      and(
+        eq(submissions.organizationId, organizationId),
+        inArray(submissions.requestId, requestIds),
+        liveGuestSubmission(),
+        // Only the newest submission of each recipient (the guest rule above).
+        sql`${submissions.submissionNo} = (select max(g.submission_no) from agency_collection_guest_submissions g where g.organization_id = ${submissions.organizationId} and g.request_id = ${submissions.requestId} and g.recipient_key = ${submissions.recipientKey})`,
+      ),
+    )
+    .as('guest_answers');
+  return db
+    .select({ requestId: answers.requestId, decision: answers.decision, n: count() })
+    .from(answers)
+    .groupBy(answers.requestId, answers.decision);
+}
+
 /**
  * The answer counts of these requests of this agency. A request with no live answer has no entry
  * (read it as zero). Ids that are not uuids, that repeat, that belong to another agency or that
@@ -101,39 +134,14 @@ export async function summariseCollectionAnswers(
   const reviewsPresent = await guestUploadsPresent(db);
   const tallies = new Map<string, Tally>();
 
-  // Signed-in answers are read beside the other readers of the response table (it holds a person's id).
-  fold(tallies, await liveResponseDecisionCounts(db, scope, ids, reviewsPresent));
-
-  if (reviewsPresent) {
-    const submissions = schema.agencyCollectionGuestSubmissions;
-    const answers = db
-      .select({
-        requestId: submissions.requestId,
-        decision: sql<
-          string | null
-        >`(select v.decision from agency_collection_reviews v where v.guest_submission_id = agency_collection_guest_submissions.id and v.organization_id = agency_collection_guest_submissions.organization_id order by v.decided_at desc, v.id desc limit 1)`.as(
-          'decision',
-        ),
-      })
-      .from(submissions)
-      .where(
-        and(
-          eq(submissions.organizationId, scope.organizationId),
-          inArray(submissions.requestId, ids),
-          liveGuestSubmission(),
-          // Only the newest submission of each recipient (the guest rule above).
-          sql`${submissions.submissionNo} = (select max(g.submission_no) from agency_collection_guest_submissions g where g.organization_id = ${submissions.organizationId} and g.request_id = ${submissions.requestId} and g.recipient_key = ${submissions.recipientKey})`,
-        ),
-      )
-      .as('guest_answers');
-    fold(
-      tallies,
-      await db
-        .select({ requestId: answers.requestId, decision: answers.decision, n: count() })
-        .from(answers)
-        .groupBy(answers.requestId, answers.decision),
-    );
-  }
+  // The two reads are independent: signed-in answers (read beside the other readers of the
+  // response table, which holds a person's id) and guest submissions.
+  const [accountRows, guestRows] = await Promise.all([
+    liveResponseDecisionCounts(db, scope, ids, reviewsPresent),
+    reviewsPresent ? guestDecisionCounts(db, scope.organizationId, ids) : Promise.resolve([]),
+  ]);
+  fold(tallies, accountRows);
+  fold(tallies, guestRows);
 
   return new Map(tallies);
 }
