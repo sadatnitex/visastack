@@ -381,8 +381,6 @@ describe('J7 field intelligence', () => {
           });
         }
       }
-      // No guest receipt became an attempt.
-      expect(await db.select().from(schema.umpeOutcomeAttempts)).toEqual(attemptsBefore);
       const staffActor = await seedStaffAccount(db, 'QUALITY_ADMIN', 'j7-quality@example.invalid');
       const read = await getFieldInsights(
         db,
@@ -391,6 +389,8 @@ describe('J7 field intelligence', () => {
         TODAY,
       );
       if (!read.ok) throw new Error('insights');
+      // Reading the report turned no guest receipt into an attempt.
+      expect(await db.select().from(schema.umpeOutcomeAttempts)).toEqual(attemptsBefore);
       expect(stage(read.value, 'SUBMITTED_TO_AGENCY')).toEqual({ shown: true, value: 10 });
       // The two real attempts (one person) form a small cohort: hidden, and never 12.
       expect(stage(read.value, 'REPORTED_TO_AUTHORITY')).toEqual({ shown: false, reason: 'SMALL' });

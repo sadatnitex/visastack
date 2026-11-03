@@ -529,6 +529,30 @@ describe('J6 official-source maintenance', () => {
         .map((file) => path.relative(servicesDir, file));
       // Only the pack studio module itself; never the source check, AI or rule impact code.
       expect(callers).toEqual(['packs.ts']);
+      // Wider net: any mention of the approve or publish names (an aliased import included) and any
+      // direct write to pack_versions, across services and the web app. Services: only packs.ts
+      // and the index re-export; web: only the staff Pack Studio actions a person presses.
+      const webDir = path.join(servicesDir, '..', '..', '..', 'apps', 'web', 'src');
+      const webFiles = (dir: string): string[] =>
+        readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+          const full = path.join(dir, entry.name);
+          if (entry.isDirectory()) return entry.name === 'node_modules' ? [] : webFiles(full);
+          return /\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [full] : [];
+        });
+      const named = /\b(approvePackVersion|publishPackVersion)\b/;
+      const directWrite = /update\((?:schema\.)?packVersions\)|update\s+pack_versions\b/i;
+      const mentions = (files: string[], base: string, pattern: RegExp) =>
+        files
+          .filter((file) => pattern.test(readFileSync(file, 'utf8')))
+          .map((file) => path.relative(base, file))
+          .sort();
+      expect(mentions(sourceFiles(servicesDir), servicesDir, named)).toEqual([
+        'index.ts',
+        'packs.ts',
+      ]);
+      expect(mentions(sourceFiles(servicesDir), servicesDir, directWrite)).toEqual(['packs.ts']);
+      expect(mentions(webFiles(webDir), webDir, named)).toEqual(['app/app/admin/packs/actions.ts']);
+      expect(mentions(webFiles(webDir), webDir, directWrite)).toEqual([]);
 
       const v2 = await draftVersion(V2_ROWS);
       const self = await approvePackVersion(db, { actorAccountId: author, packVersionId: v2 });

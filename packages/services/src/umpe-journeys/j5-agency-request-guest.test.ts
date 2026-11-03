@@ -567,10 +567,20 @@ describe('J5 agency request answered by a guest', () => {
       );
       expect(!crossed.ok && crossed.error.code).toBe('not_found');
 
-      // Past the 12-hour cap the session is dead whatever happens.
-      const late = at(45 * MINUTE + GUEST_SESSION_MAX_MS + 1);
-      expect(await readGuestDesk(db, sessionB, late)).toBeNull();
-      const lateAdd = await add(sessionB, 'late.pdf', late);
+      // The 12-hour cap ends a session even when it never sat idle: kept in use every 20 minutes
+      // (inside the 30-minute idle window), it lives until the cap and is dead just after it.
+      const capped = await issuedRequest();
+      const start = 70 * MINUTE;
+      const busy = await verified(capped.rawToken, at(start));
+      let last = start;
+      for (let t = start; t <= start + GUEST_SESSION_MAX_MS - 20 * MINUTE; t += 20 * MINUTE) {
+        expect(await readGuestDesk(db, busy, at(t))).not.toBeNull();
+        last = t;
+      }
+      const late = at(start + GUEST_SESSION_MAX_MS + 1);
+      expect(late.getTime() - at(last).getTime()).toBeLessThan(GUEST_SESSION_IDLE_MS);
+      expect(await readGuestDesk(db, busy, late)).toBeNull();
+      const lateAdd = await add(busy, 'late.pdf', late);
       expect(!lateAdd.ok && lateAdd.error.code).toBe('not_found');
     },
     TEST_TIMEOUT_MS,

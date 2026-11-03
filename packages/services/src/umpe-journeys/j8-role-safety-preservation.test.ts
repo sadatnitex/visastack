@@ -169,10 +169,10 @@ const withinLimits: ContentLimitsPort = {
     return { withinLimits: true };
   },
 };
-const guestChecks = (safe: boolean): GuestFileChecks => ({
+const guestChecks = (safe: boolean, virusScanner = false): GuestFileChecks => ({
   scanner: scanner(safe),
   contentLimits: withinLimits,
-  virusScanner: false,
+  virusScanner,
 });
 const noText: DocumentConverterPort = {
   async extract(): Promise<ExtractionOutcome> {
@@ -859,6 +859,16 @@ describe('J8 role, safety and preservation', () => {
       });
       if (!passed.ok || passed.value.kind !== 'stored') throw new Error('stored');
       expect(passed.value.file.virusScanned).toBe(false);
+      // Only a real virus scanner's pass is recorded as virus scanned.
+      const realScan = await addGuestFile(db, store, guest, {
+        uploadId: randomUUID(),
+        contentType: 'application/pdf',
+        bytes: new TextEncoder().encode('%PDF-1.4 synthetic scanned'),
+        originalName: 'passport-scanned.pdf',
+        checks: guestChecks(true, true),
+      });
+      if (!realScan.ok || realScan.value.kind !== 'stored') throw new Error('stored');
+      expect(realScan.value.file.virusScanned).toBe(true);
       expect(await readGuestDesk(db, guest)).not.toBeNull();
 
       // A held family file the scanner rejects is refused and leaves no hold.

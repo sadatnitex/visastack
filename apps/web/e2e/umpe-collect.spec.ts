@@ -33,9 +33,14 @@ const LEAK_WORDS = [
   /@/,
 ];
 
-async function switchState(request: import('@playwright/test').APIRequestContext) {
-  const probe = await request.get(`/collect/open?token=${TOKENS.unknown}`, { maxRedirects: 0 });
-  return probe.status() === 404 ? ('off' as const) : ('on' as const);
+// Read once per worker from the desk page itself (no token), so the probe never spends the
+// per-network allowance for opening links that the checks below measure.
+let cachedState: Promise<'on' | 'off'> | undefined;
+function switchState(request: import('@playwright/test').APIRequestContext) {
+  cachedState ??= request
+    .get('/collect', { maxRedirects: 0 })
+    .then((probe) => (probe.status() === 404 ? ('off' as const) : ('on' as const)));
+  return cachedState;
 }
 
 function expectNoToken(value: string | null | undefined): void {
@@ -88,10 +93,10 @@ test.describe('UMPE collection desk, signed out (P14)', () => {
     }
   });
 
-  test('a closed link on this device clears the desk cookie instead of keeping an older session', async ({
+  test('a closed link on this device clears the desk cookie, and a switched-off desk sets none', async ({
     request,
   }) => {
-    test.skip((await switchState(request)) === 'off', 'The desk is switched off here: 404 only.');
+    const state = await switchState(request);
     const response = await request.get(`/collect/open?token=${TOKENS.forwarded}`, {
       maxRedirects: 0,
       headers: { cookie: 'vs_collect=p14-stale-session-id' },
@@ -101,6 +106,11 @@ test.describe('UMPE collection desk, signed out (P14)', () => {
       .filter((h) => h.name.toLowerCase() === 'set-cookie')
       .map((h) => h.value)
       .find((v) => v.startsWith('vs_collect='));
+    if (state === 'off') {
+      expect(response.status()).toBe(404);
+      expect(cleared).toBeUndefined();
+      return;
+    }
     expect(cleared).toBeDefined();
     expect(cleared).toMatch(/Max-Age=0/i);
     expect(cleared).toMatch(/HttpOnly/i);

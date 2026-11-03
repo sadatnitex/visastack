@@ -256,8 +256,10 @@ describe('J3 ongoing update', () => {
     bankDoc = await document('bank_statement', '2026-09-30');
     await document('hotel_booking');
     active = await caseOn(visitV1, new Date('2027-03-20T00:00:00Z'));
-    unrelated = await caseOn(hotelV1);
-    cancelled = await caseOn(visitV1);
+    // The same trip end on every case, so the expiry check has a date to compare on each of them
+    // and an empty answer means "not affected", not "nothing to compare".
+    unrelated = await caseOn(hotelV1, new Date('2027-03-20T00:00:00Z'));
+    cancelled = await caseOn(visitV1, new Date('2027-03-20T00:00:00Z'));
     for (const missionId of [active, unrelated, cancelled]) await pinEverything(missionId);
     const confirmed = await confirmPackageHandoff(await caseProof(active, 'MANAGE'), {
       missionId: active,
@@ -415,7 +417,9 @@ describe('J3 ongoing update', () => {
   );
 
   it(
-    'negative: the database refuses any edit or removal of a confirmed handoff snapshot',
+    // Only edits are refused by the database (the P4 trigger is BEFORE UPDATE). Removal is left to
+    // the case purge and its cascade; nothing in the services deletes a handoff on its own.
+    'negative: the database refuses any edit of a confirmed handoff snapshot',
     async () => {
       await expect(
         db.execute(
