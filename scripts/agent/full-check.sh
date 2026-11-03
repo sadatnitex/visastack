@@ -74,7 +74,7 @@ if [ -z "$ours" ]; then
 fi
 echo "server ok build $BUILD_ID" >> "$L/summary.txt"
 cat > "$L/pw.config.mjs" <<EOC
-export default { testDir: '$W/apps/web/e2e', testMatch: ['**/ux-public*.spec.ts','**/browser-security*.spec.ts','**/no-secret-auth*.spec.ts'], workers: 2, timeout: 60000, reporter: 'line',
+export default { testDir: '$W/apps/web/e2e', testMatch: ['**/ux-public*.spec.ts','**/browser-security*.spec.ts','**/no-secret-auth*.spec.ts','**/umpe-collect.spec.ts'], workers: 2, timeout: 60000, reporter: 'line',
  use: { baseURL: 'http://localhost:$P', launchOptions: { executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] } } };
 EOC
 step playwright bash -c "cd '$W/apps/web' && PLAYWRIGHT_BASE_URL=http://localhost:$P BASE_URL=http://localhost:$P npx playwright test -c '$L/pw.config.mjs'"

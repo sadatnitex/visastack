@@ -7284,6 +7284,12 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Not covered: photos with no text layer and an unknown kind stay Unknown Type until the person names them (no AI image reading while unknown kinds are protected); the person-initiated Suggest a Kind button still sends the full text; Change on an automatic filing is refused once the document is used anywhere.
 - AGENCY_COLLECTION_REQUESTS switched on in production at the owner's word (see current-platform.md update of 3 November 2026).
 
+## 2026-11-03: UMPE P14 final verification (journeys J1 to J8)
+- New: one journey test file per journey under packages/services/src/umpe-journeys/ (65 tests on the real services and a migrated test database, made-up data, stand-ins for AI, email, storage and time), the 80-file import queue journey (apps/web/src/lib/umpe-journey-j1-import-queue.test.ts, 4 tests) and signed-out collection desk browser checks (apps/web/e2e/umpe-collect.spec.ts, 6 tests, both switch states). No product code changed; no defect found.
+- Ledger: 81 TESTED, 3 IMPLEMENTED (U02, U03, U04, with reasons), 2 BLOCKED (owner), 1 CONTENT. Seven rows named a missing test file and now name umpe-g2-rules.test.ts.
+- Not covered: a resolved fact conflict changing a package (no service links the two); live sign-in, email delivery, AI provider, malware scanner, the scheduler on the live site, measured speed and AI cost. The source job runs daily in vercel.json and limits itself to one run per Dhaka week.
+- Verdict: FEATURE COMPLETE IN TEST (report docs/umpe/operations/P14-VERIFICATION.md).
+
 ## 2026-11-03: UMPE UX1 (guest document desk interface, no migration)
 
 - The first post-UMPE interface pass was a style tweak the owner rejected. This pass follows the written standards: a progress strip, a checklist that shows each line's state in words, one side column on desktop, folds for what cannot hold up a submission, retention as even tiles with nothing preselected, the agency's accent and tint through the existing brand scope. Styles in one block (`WP-UMPE-UX1`); no service, action, permission or consent change.
