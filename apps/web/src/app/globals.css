@@ -12832,6 +12832,126 @@ html:has(.sticky-action-bar) {
   margin: 0.5rem 0 0;
   padding-left: 1.25rem;
 }
+
+/* WP-UMPE-P7 answer from your own record: the traveller's checklist (one fieldset per issued item,
+   each choice a 44px tick row, Still Missing shown in words and colour), their answers list, and the
+   agency's Answers panel. Flat surfaces and existing tokens only. */
+.collect-response-items,
+.collect-response-answers,
+.collect-response-people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.collect-response-people {
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+}
+.collect-response-item .form-section {
+  margin: 0;
+}
+.collect-response-choice {
+  min-height: 44px;
+  align-items: flex-start;
+  padding-block: var(--space-2);
+}
+.collect-response-more summary {
+  display: list-item;
+  min-height: 44px;
+  padding-block: var(--space-2);
+  cursor: pointer;
+}
+.collect-response-missing {
+  color: var(--warning);
+  font-weight: 600;
+}
+.collect-response-answer + .collect-response-answer,
+.collection-response + .collection-response {
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: var(--space-3);
+}
+.collection-response-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+.collection-response-file .btn {
+  min-height: 44px;
+}
+
+/* WP-UMPE-P5 group trips: the Group Trips list, Start a Group Trip and one trip's overview. */
+.trip-section {
+  margin-bottom: 1rem;
+}
+.trip-section > p {
+  margin: 0.75rem 0 0;
+}
+.trip-list,
+.trip-traveller-list,
+.trip-document-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.trip-list li {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.trip-traveller,
+.trip-document {
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-md, 12px);
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.trip-traveller-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.trip-traveller-name {
+  font-size: var(--text-body, 1rem);
+  margin: 0;
+}
+.trip-next-action,
+.trip-inline-form .btn,
+.trip-add-form .btn {
+  min-height: 44px;
+}
+.trip-travellers-choice {
+  border: 0;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+.trip-add-form {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.trip-inline-form {
+  display: inline-grid;
+  gap: 0.25rem;
+}
+.trip-document-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.trip-notice {
+  display: block;
+  margin: 0 0 1rem;
+}
+
 /* WP-UMPE-P11 checklist corrections: Suggest a Correction on case checklist lines and agency requests, and the editors' queue. */
 .correction-suggest > summary {
   display: inline-flex;

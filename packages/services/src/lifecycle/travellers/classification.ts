@@ -56,6 +56,9 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
   { table: 'sharing_invitations', column: 'applicant_id', kind: 'DATA' },
   { table: 'support_grants', column: 'applicant_id', kind: 'DATA' },
   { table: 'evidence_requests', column: 'applicant_id', kind: 'DATA' },
+  // UMPE P7: a traveller's answer to an agency request (what they chose to share with it).
+  { table: 'agency_collection_responses', column: 'applicant_id', kind: 'DATA' },
+  { table: 'agency_collection_response_withdrawals', column: 'applicant_id', kind: 'DATA' },
   { table: 'contributor_requests', column: 'applicant_id', kind: 'DATA' },
   { table: 'client_invitations', column: 'accepted_applicant_id', kind: 'DATA', unindexed: true },
   { table: 'acknowledgements', column: 'subject_applicant_id', kind: 'DATA', unindexed: true },
@@ -63,6 +66,11 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
   { table: 'umpe_package_choices', column: 'applicant_id', kind: 'DATA' },
   { table: 'umpe_package_handoffs', column: 'applicant_id', kind: 'DATA' },
   { table: 'umpe_package_changes', column: 'applicant_id', kind: 'DATA' },
+  // UMPE P5: a traveller's place on a group trip, the common trip documents they brought and the
+  // ones their owner allowed for them.
+  { table: 'umpe_trip_travellers', column: 'applicant_id', kind: 'DATA' },
+  { table: 'umpe_trip_evidence', column: 'source_applicant_id', kind: 'DATA' },
+  { table: 'umpe_trip_evidence_allowances', column: 'applicant_id', kind: 'DATA' },
   // Connections and messages.
   { table: 'ai_connections', column: 'applicant_id', kind: 'DATA' },
   { table: 'calendar_feeds', column: 'applicant_id', kind: 'DATA' },

@@ -11,6 +11,8 @@ describe('isNeonProtectedPath', () => {
       '/pilot-access-denied',
       '/oauth/authorize',
       '/auth/reauth',
+      '/collect/account',
+      '/collect/account/answers',
     ]) {
       expect(isNeonProtectedPath(path), path).toBe(true);
     }
@@ -33,6 +35,9 @@ describe('isNeonProtectedPath', () => {
       '/apple',
       '/oauth/token',
       '/oauth/authorized',
+      '/collect',
+      '/collect/open',
+      '/collect/accounts',
     ]) {
       expect(isNeonProtectedPath(path), path).toBe(false);
     }

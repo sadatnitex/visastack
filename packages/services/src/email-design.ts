@@ -401,6 +401,13 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     heading: 'An agency asked you for documents',
     action: 'Open the Request',
   },
+  // UMPE P7: never the person, the route or what was shared; the agency opens the request to see.
+  AGENCY_COLLECTION_RESPONSE_SUBMITTED: {
+    eyebrow: 'Your Agency',
+    heading: 'An answer was submitted to your agency',
+    why: 'Open the request to see exactly what was shared. Submitted means it arrived, not that anyone has reviewed it.',
+    action: 'Open the Request',
+  },
   // UMPE P8: the code only, never the person, the route or the documents.
   AGENCY_COLLECTION_GUEST_CODE: {
     eyebrow: 'Your Code',

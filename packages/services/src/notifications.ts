@@ -17,6 +17,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
+import { collectionResponseStillLive } from './access/collection-response-access';
 import { collectionLinkProof } from './access/collection-scope';
 import { orgCaseRecordVisibleSql, withCaseExclusions } from './access/grant-scope';
 import { guestCodeDeliveryProof } from './access/guest-collection';
@@ -102,6 +103,9 @@ export type NotificationEventType =
   | 'PERSON_PLAN_ENDED'
   // ADR 0025 T6: a refund of the person's own purchase was made; no amount.
   | 'PERSON_REFUND_RECORDED'
+  // UMPE P7: a traveller submitted an answer to one of the agency's document requests; for the
+  // agency's owners and admins only, never naming the person or what was shared.
+  | 'AGENCY_COLLECTION_RESPONSE_SUBMITTED'
   // UMPE P4: something changed for a traveller's own trip package; one note per change.
   | typeof PACKAGE_CHANGED_EVENT
   // UMPE P11: a newer checklist was published for a traveller's active case; one note per impact.
@@ -208,7 +212,12 @@ const BILLING_NOTICE_LIST = [
   'INVOICE_REFUNDED',
   'INVOICE_CREDIT_APPLIED',
 ];
-const BILLING_NOTICE_TYPES: ReadonlySet<string> = new Set(BILLING_NOTICE_LIST);
+/**
+ * Notices for an agency's owners and admins only, checked again when sent and when listed: the
+ * billing notices, and (UMPE P7) a traveller's answer submitted to one of the agency's requests.
+ */
+const ADMIN_NOTICE_LIST = [...BILLING_NOTICE_LIST, 'AGENCY_COLLECTION_RESPONSE_SUBMITTED'];
+const BILLING_NOTICE_TYPES: ReadonlySet<string> = new Set(ADMIN_NOTICE_LIST);
 
 /**
  * The same rule at read time, for notices already delivered in the app: a billing notice stays in
@@ -224,7 +233,7 @@ export function billingNoticeStillAllowedSql(row: {
   const m = schema.memberships;
   const o = schema.organizations;
   return sql`(${row.eventType} not in (${sql.join(
-    BILLING_NOTICE_LIST.map((type) => sql`${type}`),
+    ADMIN_NOTICE_LIST.map((type) => sql`${type}`),
     sql`, `,
   )}) or exists (select 1 from ${m} join ${o} on ${o.id} = ${m.organizationId} where ${m.accountId} = ${row.recipientAccountId} and ${m.organizationId} = ${row.organizationId} and ${m.active} = true and ${m.role} in ('OWNER', 'ADMIN') and ${o.status} = 'ACTIVE'))`;
 }
@@ -753,6 +762,30 @@ async function dispatchOne(
   }
 
   const payload = notification.payload as NotificationPayload;
+
+  // UMPE P7: a "Submitted to Agency" notice, in the app or by email, goes only while the answer is
+  // still live (not withdrawn or replaced, request not revoked) and the agency is still reviewed.
+  if (
+    notification.eventType === 'AGENCY_COLLECTION_RESPONSE_SUBMITTED' &&
+    !(await collectionResponseStillLive(
+      db,
+      notification.resourceId ?? '',
+      notification.organizationId ?? '',
+    ))
+  ) {
+    const updated = await db
+      .update(schema.notifications)
+      .set({
+        status: 'FAILED',
+        attempts,
+        lastError: 'answer no longer live',
+        leaseOwner: null,
+        leaseExpiresAt: null,
+      })
+      .where(ownedQueue)
+      .returning({ id: schema.notifications.id });
+    return updated.length ? 'failed' : 'deferred';
+  }
 
   // UMPE P4: a package change note that no longer applies is cancelled, on either channel.
   if (

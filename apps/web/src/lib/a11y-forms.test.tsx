@@ -80,6 +80,7 @@ vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/collection/actions', standIn);
+vi.mock('../app/collect/account/actions', standIn);
 vi.mock('../app/collect/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/plan/invoices/actions', standIn);
 vi.mock('../app/app/applicant/[id]/actions', standIn);
@@ -137,6 +138,7 @@ const correctionForms = await import('../app/app/admin/packs/corrections/correct
 const correctionForm = await import('../components/checklist-correction-form');
 const caseCorrectionActions = await import('../app/app/mission/[id]/suggest-correction-actions');
 const collectionForms = await import('../app/app/agency/[orgId]/collection/collection-forms');
+const responseForms = await import('../app/collect/account/response-form');
 const guestForms = await import('../app/collect/guest-forms');
 const { PurgeButton } = await import('../app/app/admin/purge-button');
 const { ReconcileButtons } = await import('../app/app/admin/reconcile-buttons');
@@ -216,6 +218,7 @@ const missionButtons = await import('../app/app/mission/[id]/mission-buttons');
 const { OutcomePanel } = await import('../app/app/mission/[id]/outcome-panel');
 const packageForms = await import('../app/app/mission/[id]/package-forms');
 const { TripStartForm } = await import('../app/app/mission/start/start-form');
+const tripForms = await import('../app/app/trips/trip-forms');
 const { ExplainGapButton } = await import('../app/app/mission/[id]/readiness-gap-explain');
 const { AcknowledgementPanel } = await import(
   '../app/app/mission/[id]/snapshots/[snapshotId]/acknowledgement-panel'
@@ -905,6 +908,82 @@ const CASES_MISSION: readonly Case[] = [
       />
     ),
     fields: ['destination', 'purpose', 'traveller'],
+  },
+  {
+    name: 'start a group trip',
+    element: () => (
+      <tripForms.GroupTripStartForm
+        countries={[
+          { iso2: 'JP', name: 'Japan' },
+          { iso2: 'TH', name: 'Thailand' },
+        ]}
+        purposes={[
+          {
+            family: 'visit',
+            label: 'Visit',
+            options: [{ key: 'tourism', label: 'Tourism' }],
+          },
+        ]}
+        travellers={[
+          { applicantId: 'a1', name: 'Synthetic Traveller' },
+          { applicantId: 'a2', name: 'Synthetic Child' },
+        ]}
+      />
+    ),
+    fields: ['destination', 'purpose', 'traveller'],
+  },
+  {
+    name: 'add travellers to a group trip',
+    element: () => (
+      <tripForms.AddTravellersForm
+        tripId="t1"
+        travellers={[{ applicantId: 'a3', name: 'Synthetic Partner' }]}
+      />
+    ),
+    fields: ['traveller'],
+  },
+  {
+    name: 'remove a traveller from a group trip',
+    element: () => (
+      <tripForms.RemoveTravellerForm tripId="t1" applicantId="a1" name="Synthetic Child" />
+    ),
+    repeated: true,
+  },
+  {
+    name: 'share a travel document with a group trip',
+    element: () => (
+      <tripForms.AddTripEvidenceForm
+        tripId="t1"
+        documents={[{ documentId: 'd1', label: 'Hotel Booking (Synthetic Traveller)' }]}
+      />
+    ),
+    fields: ['documentId'],
+  },
+  {
+    name: 'allow a shared trip document for one traveller',
+    element: () => (
+      <tripForms.TripEvidenceAllowanceForm
+        tripId="t1"
+        evidenceId="e1"
+        applicantId="a2"
+        travellerName="Synthetic Child"
+        documentName="Hotel Booking"
+        allowed={false}
+      />
+    ),
+    repeated: true,
+  },
+  {
+    name: 'stop sharing a trip document',
+    element: () => (
+      <tripForms.RemoveTripEvidenceForm
+        tripId="t1"
+        evidenceId="e1"
+        applicantId="a1"
+        documentName="Hotel Booking"
+      />
+    ),
+    repeated: true,
   },
   {
     name: 'case details',
@@ -2312,6 +2391,68 @@ const ADMIN: readonly Case[] = [
     element: () => <guestForms.RetentionForm agencyName={null} value={30} periods={[3, 7, 30]} />,
   },
   { name: 'leave the guest desk', element: () => <guestForms.LeaveForm /> },
+  {
+    name: 'answer an agency request from your own record',
+    element: () => (
+      <responseForms.ResponseForm
+        personId="p1"
+        linkId="l1"
+        revisionId="v1"
+        consentVersion="umpe-p7-consent-1"
+        consentText="I agree to share only the files and details I chose above with this agency."
+        items={[
+          {
+            id: 'i1',
+            label: 'Passport',
+            meta: 'Mandatory · Official Requirement',
+            note: null,
+            blocking: true,
+            kind: 'DOCUMENT',
+            proposedKey: 'document:v1',
+            initialKeys: ['document:v1'],
+            choices: [
+              {
+                key: 'document:v1',
+                title: 'Passport',
+                label: 'Current Copy',
+                detail: 'Version 1, saved 1 Jan 2027',
+                matches: true,
+              },
+              {
+                key: 'document:v2',
+                title: 'Bank Statement',
+                label: 'Current Copy',
+                detail: 'Version 1, saved 1 Jan 2027',
+                matches: false,
+              },
+            ],
+          },
+          {
+            id: 'i2',
+            label: 'Employer Letter',
+            meta: 'Optional · Requested by Synthetic Agency',
+            note: 'On letterhead',
+            blocking: false,
+            kind: 'DOCUMENT',
+            proposedKey: null,
+            initialKeys: [],
+            choices: [],
+          },
+        ]}
+      />
+    ),
+    fields: ['consent'],
+  },
+  {
+    name: 'withdraw an answer to an agency',
+    element: () => (
+      <responseForms.WithdrawAnswerButton
+        personId="p1"
+        responseId="r1"
+        agencyName="Synthetic Agency"
+      />
+    ),
+  },
   {
     name: 'decide on a detected page change',
     element: () => (
