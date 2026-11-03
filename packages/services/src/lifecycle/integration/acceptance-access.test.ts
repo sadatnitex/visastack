@@ -20,7 +20,12 @@ import {
   restoreDeleted,
   undoDelete,
 } from '../recently-deleted';
-import { cancelRemovalRequest, requestRemoval } from '../removal-requests';
+import {
+  cancelRemovalRequest,
+  deleteMyFile,
+  previewDeleteMyFile,
+  requestRemoval,
+} from '../removal-requests';
 import { listReplacementOptions, replaceDocument } from '../replace';
 import {
   archiveTraveller,
@@ -81,6 +86,25 @@ function documentCommands(ids: {
     ['restore deleted', (p) => restoreDeleted(p, { documentId: ids.duplicate })],
     ['request removal', (p) => requestRemoval(p, { documentId: ids.unique, reason: 'OTHER' })],
     ['cancel request', (p) => cancelRemovalRequest(p, ids.requestId)],
+    ['preview delete my file', (p) => previewDeleteMyFile(p, { documentId: ids.unique })],
+    [
+      'delete my file',
+      (p) =>
+        deleteMyFile(p, {
+          documentId: ids.unique,
+          typed: 'DELETE',
+          confirmed: {
+            openCases: 9,
+            agencies: 9,
+            shares: 9,
+            profileDetails: 9,
+            aiChoices: 9,
+            trips: 9,
+            contributorHandovers: 9,
+          },
+          stepUpSatisfied: true,
+        }),
+    ],
     ['replace', (p) => replaceDocument(p, { oldDocumentId: ids.unique, newDocumentId: ids.newer })],
     ['replacement options', (p) => listReplacementOptions(p, { oldDocumentId: ids.unique })],
   ];

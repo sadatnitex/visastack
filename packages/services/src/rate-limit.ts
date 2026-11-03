@@ -191,6 +191,9 @@ export const RATE_LIMITS = {
   COMPANION_INVITE_EMAIL_DAY: { limit: 5, windowMs: 24 * HOUR_MS },
   COMPANION_RESEND_TRIP: { limit: 10, windowMs: HOUR_MS },
   COMPANION_ACCEPT_ACCOUNT: { limit: 30, windowMs: HOUR_MS },
+  // Delete My File (owner decision of 3 Nov 2026), per account: each one destroys a document for
+  // good, so a stolen session cannot empty a record in a burst; a person tidying up has room.
+  DOCUMENT_SELF_DELETE: { limit: 10, windowMs: HOUR_MS },
 } as const satisfies Record<string, RateLimitConfig>;
 
 export type RateLimitDecision =
