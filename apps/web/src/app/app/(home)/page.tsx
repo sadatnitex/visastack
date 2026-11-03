@@ -5,6 +5,7 @@ import {
   type Db,
   type DeadlineEntry,
   type NeedsAttention,
+  type PackageNoticeTables,
   type TidyUpCounts,
   computeReadiness,
   getConsents,
@@ -42,7 +43,13 @@ import { ATTENTION_TIER_LABELS, CONSENT_PLAIN, attentionActionLabel } from '../.
 import { getLocale } from '../../../lib/locale';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { openOwnerGate } from '../../../lib/owner-gate';
-import { noticesByCase, readPackageNotices } from '../../../lib/package-notices';
+import {
+  PACKAGE_NOTICE_TIER_LABEL,
+  noticesByCase,
+  noticesToRank,
+  readPackageNoticeTables,
+  readPackageNotices,
+} from '../../../lib/package-notices';
 import { plural } from '../../../lib/plural';
 import { withSession } from '../../../lib/session';
 import { attentionContext, attentionHeading, attentionWhen } from '../attention-display';
@@ -114,6 +121,7 @@ async function loadPersonReads(
   accountId: string,
   applicantId: string,
   now: Date,
+  noticeTables: PackageNoticeTables | null,
 ): Promise<{
   readonly attention: NeedsAttention | null;
   readonly deadlines: readonly DeadlineEntry[] | null;
@@ -132,7 +140,7 @@ async function loadPersonReads(
       .then(() => tidyUpCounts(db, applicantId, access, { now }))
       .catch(() => null),
     // A failed read leaves the notices out; Home never fails for them.
-    readPackageNotices(access).then((read) => read ?? []),
+    readPackageNotices(access, noticeTables).then((read) => read ?? []),
   ]);
   return { attention: listed.ok ? listed.value : null, deadlines, tidy, notices };
 }
@@ -190,6 +198,8 @@ function tidyUpSummary(
 async function loadDashboard(db: Db, accountId: string, email: string, basics: Basics) {
   const { consents, incomingGrants, applicants } = basics;
   const now = new Date();
+  // Which package tables exist, asked once for every person Home reads (UMPE P13).
+  const noticeTables = await readPackageNoticeTables(db);
   const perApplicant = await Promise.all(
     // A fixed order (oldest first, then id) so the same people are read on every visit:
     // `listApplicants` itself promises no order.
@@ -202,7 +212,7 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
       .map(async (applicant) => {
         const [docs, { attention, deadlines, tidy, notices }] = await Promise.all([
           listDocuments(db, accountId, applicant.id),
-          loadPersonReads(db, accountId, applicant.id, now),
+          loadPersonReads(db, accountId, applicant.id, now, noticeTables),
         ]);
         return {
           applicant,
@@ -239,12 +249,11 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
   const sharing = sharingInvitationItem(incomingGrants, now);
   // One ranked list across every person and the account itself (ADR 0016).
   const notices = perApplicant.flatMap((row) => row.notices);
-  const attention = rankAttentionItems([
-    ...perApplicant.flatMap((row) => row.attention?.items ?? []),
-    // UMPE P13: package changes and checklist updates, ranked beside "changed since confirmed".
-    ...notices,
-    ...(sharing ? [sharing] : []),
-  ]);
+  const listed = perApplicant.flatMap((row) => row.attention?.items ?? []);
+  // UMPE P13: package changes and checklist updates, ranked beside "changed since confirmed"; a
+  // case already listed as changed keeps that one item.
+  const ranked = noticesToRank(listed, notices);
+  const attention = rankAttentionItems([...listed, ...ranked, ...(sharing ? [sharing] : [])]);
 
   // The next dates across every person, soonest first (Growth G5). A person whose dates could not
   // be read is left out of the merge and said so; if nobody's could be read, none are shown.
@@ -267,6 +276,7 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     attention,
     // Which listed cases have a change waiting, so Home can say so beside the case itself.
     caseNotices: noticesByCase(notices),
+    noticeKeys: new Set(ranked.map((notice) => notice.key)),
     sharingWaiting: sharing !== null,
   };
 }
@@ -671,7 +681,11 @@ export default async function AppPage({
                 return (
                   <li key={item.key} className={`do-next-item do-next-tier-${item.tier}`}>
                     <div className="do-next-item-head">
-                      <span className="do-next-tier">{ATTENTION_TIER_LABELS[item.tier]}</span>
+                      <span className="do-next-tier">
+                        {data.noticeKeys.has(item.key)
+                          ? PACKAGE_NOTICE_TIER_LABEL
+                          : ATTENTION_TIER_LABELS[item.tier]}
+                      </span>
                       <h3 className="do-next-title">{heading}</h3>
                     </div>
                     {context ? <p className="do-next-context">{context}</p> : null}
@@ -878,7 +892,9 @@ export default async function AppPage({
                 ))}
               </ul>
             )}
-            {data.caseNotices.size > 0 ? (
+            {activeCases
+              .slice(0, HOME_CASES_VISIBLE)
+              .some((entry) => data.caseNotices.has(entry.id)) ? (
               <p className="muted do-next-more">
                 Only changes that need you are shown here. Every earlier change is kept in{' '}
                 <Link href="/app/notifications">Notifications</Link>.

@@ -2821,5 +2821,7 @@ export {
   PACKAGE_NOTICE_ANCHOR,
   PACKAGE_NOTICE_LIMIT,
   PACKAGE_NOTICE_TITLES,
+  type PackageNoticeTables,
   listPackageNotices,
+  packageNoticeTablesReady,
 } from './umpe-experience-notices';

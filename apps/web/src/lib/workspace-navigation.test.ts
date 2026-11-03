@@ -427,10 +427,11 @@ describe('no destination is lost by the four-tab change', () => {
     }
   });
 
-  it('Start a Trip keeps the traveller frame: it is not one case page (UMPE P13)', () => {
-    const nav = workspaceNavigation('/app/mission/start', linkAccess);
-    expect(nav.name).toBe('Synthetic Self');
-    expect(nav.primary.map((link) => link.label)).toContain('My Trips');
+  it('Start a Trip never guesses a traveller: it keeps the neutral case frame (UMPE P13)', () => {
+    // A managed traveller's Start a Trip task must not swap the sidebar to someone else.
+    const nav = workspaceNavigation('/app/mission/start', access);
+    expect(nav.name).toBe('Visa Case');
+    expect(nav.primary.some((link) => link.href.startsWith('/app/applicant/'))).toBe(false);
   });
 
   it('the account page has one name in the navigation: only Account Overview is current on /app', () => {

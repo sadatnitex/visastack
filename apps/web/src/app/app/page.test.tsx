@@ -1137,6 +1137,66 @@ describe('UMPE P13: entry points and package changes on Home', () => {
     expect(textOf(html)).toContain('Review it before you share anything.');
   });
 
+  it('labels a listed change as a trip change, never as changed since confirmed', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.missions = 1;
+    // Something more urgent leads, so the notice sits in the Also Waiting list.
+    data.items = [
+      attentionItem({
+        key: 'task:overdue',
+        title: 'Book the Visa Appointment',
+        applicantId: SELF.id,
+        dueDate: '2026-10-20',
+        dueState: 'overdue',
+        daysUntilDue: -6,
+      }),
+    ];
+    data.notices = [notice];
+    const doc = new JSDOM(await page()).window.document;
+    const item = [...doc.querySelectorAll('.do-next-item')].find((li) =>
+      li.textContent?.includes('Checklist Updated'),
+    );
+    expect(item?.querySelector('.do-next-tier')?.textContent).toBe('Trip Changed');
+  });
+
+  it('lists one item for a case already shown as changed since confirmed', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.missions = 1;
+    data.items = [
+      attentionItem({
+        key: 'case_changed:case-0',
+        kind: 'case_changed',
+        title: 'Changed Since You Confirmed It',
+        applicantId: SELF.id,
+        caseId: 'case-0',
+        caseTitle: 'Synthetic Case 1',
+        dueState: 'none',
+        href: '/app/mission/case-0',
+      }),
+    ];
+    data.notices = [notice];
+    const html = await page();
+    const text = textOf(html);
+    // The confirmation item leads; the notice adds no second action, but the case still says why.
+    expect(text).toContain('Changed Since You Confirmed It');
+    const doc = new JSDOM(html).window.document;
+    expect(doc.querySelectorAll('.do-next-item')).toHaveLength(0);
+    expect(doc.querySelector('[aria-labelledby="home-work-heading"]')?.textContent).toContain(
+      'Checklist Updated',
+    );
+  });
+
+  it('keeps the history line for cases it can show: none when the changed case is not listed', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    data.missions = 1;
+    data.notices = [{ ...notice, key: 'case_package:case-other', caseId: 'case-other' }];
+    const html = await page();
+    expect(html).not.toContain('Every earlier change is kept in');
+  });
+
   it('shows nothing about changes when none need the traveller', async () => {
     data.consents = CORE;
     data.applicants = [SELF];

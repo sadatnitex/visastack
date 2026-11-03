@@ -27,8 +27,13 @@ import {
   approvePackVersion,
   createPack,
   publishPackVersion,
+  withdrawPackVersion,
 } from './packs';
-import { PACKAGE_NOTICE_TITLES, listPackageNotices } from './umpe-experience-notices';
+import {
+  PACKAGE_NOTICE_TITLES,
+  listPackageNotices,
+  packageNoticeTablesReady,
+} from './umpe-experience-notices';
 import { PACKAGE_CHANGE_LABELS } from './umpe-package-phrases';
 
 const TEST_TIMEOUT_MS = 90_000;
@@ -116,13 +121,14 @@ async function packageChange(
   db: Db,
   missionId: string,
   applicantId: string,
-  options: { readonly resolved?: boolean } = {},
+  options: { readonly resolved?: boolean; readonly kind?: string } = {},
 ) {
+  const kind = options.kind ?? 'NEWER_DOCUMENT';
   await db.insert(schema.umpePackageChanges).values({
     missionId,
     applicantId,
-    kind: 'NEWER_DOCUMENT',
-    signature: `NEWER_DOCUMENT|-:${missionId}`,
+    kind,
+    signature: `${kind}|-:${missionId}`,
     detail: {},
     source: 'SWEEP',
     ...(options.resolved ? { resolvedAt: new Date(), resolution: 'REVIEWED' } : {}),
@@ -264,6 +270,53 @@ describe('package notices for Home (UMPE P13)', () => {
       const forged = { ...genuine } as typeof genuine;
       const refused = await listPackageNotices(forged);
       expect(isOk(refused)).toBe(false);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'announces nothing once the newer checklist is withdrawn, as the note itself would not',
+    async () => {
+      const { actor, applicantId } = await person(db, 'p13-withdrawn@example.com');
+      const older = await publishedVersion(db, actor);
+      const pinned = await caseOn(db, actor, applicantId, older.versionId, 'Synthetic Pinned');
+      const newer = await publishedVersion(db, actor, older.packId);
+      await ruleImpact(db, pinned, older, newer);
+      const proof = await ownerProof(db, actor, applicantId);
+      const before = await listPackageNotices(proof);
+      if (!isOk(before)) throw new Error(before.error.message);
+      expect(before.value.map((item) => item.caseId)).toEqual([pinned]);
+      const withdrawn = await withdrawPackVersion(db, {
+        actorAccountId: actor,
+        packVersionId: newer.versionId,
+        reason: 'Synthetic withdrawal',
+      });
+      if (!isOk(withdrawn)) throw new Error(withdrawn.error.message);
+      const after = await listPackageNotices(await ownerProof(db, actor, applicantId));
+      if (!isOk(after)) throw new Error(after.error.message);
+      expect(after.value).toEqual([]);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'a stored change kind with no words for the traveller hides nothing else on that case',
+    async () => {
+      const { actor, applicantId } = await person(db, 'p13-unknown@example.com');
+      const older = await publishedVersion(db, actor);
+      const pinned = await caseOn(db, actor, applicantId, older.versionId, 'Synthetic Source');
+      const newer = await publishedVersion(db, actor, older.packId);
+      await packageChange(db, pinned, applicantId, { kind: 'SOURCE_CHANGING' });
+      await ruleImpact(db, pinned, older, newer);
+      const proof = await ownerProof(db, actor, applicantId);
+      // The page may pass the table answer it read once for every traveller.
+      const listed = await listPackageNotices(proof, {
+        tables: await packageNoticeTablesReady(db),
+      });
+      if (!isOk(listed)) throw new Error(listed.error.message);
+      expect(listed.value.map((item) => [item.caseId, item.title])).toEqual([
+        [pinned, PACKAGE_NOTICE_TITLES.rule],
+      ]);
     },
     TEST_TIMEOUT_MS,
   );

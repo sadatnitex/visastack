@@ -142,8 +142,7 @@ export function workspaceNavigation(
     };
   }
 
-  // Start a Trip (/app/mission/start) chooses its traveller itself; it is not one case's page.
-  const casePath = segments[1] === 'mission' && segments[2] !== 'start';
+  const casePath = segments[1] === 'mission';
   const subjectId =
     segments[1] === 'applicant'
       ? segments[2]

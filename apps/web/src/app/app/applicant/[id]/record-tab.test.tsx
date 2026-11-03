@@ -149,8 +149,8 @@ describe('the three traveller entry points in the shell (UMPE P13)', () => {
     ).toBeTruthy();
   });
 
-  it('never marks a task as the current page, and lights My Trips on Start a Trip', () => {
-    route.pathname = '/app/mission/start';
+  it('never marks a task as the current page, and lights My Trips on Group Trips', () => {
+    route.pathname = '/app/trips';
     mount(FULL);
     const current = [...container.querySelectorAll('.app-shell-nav a[aria-current="page"]')];
     expect(current.map((a) => a.getAttribute('aria-label'))).toEqual(['My Trips']);

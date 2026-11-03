@@ -2180,7 +2180,7 @@ test.describe('public invitation page on a phone (UX-G)', () => {
 test.describe('the three traveller entry points (UMPE P13)', () => {
   const ENTRY = ['My Documents', 'My Trips', 'Sharing & Requests'] as const;
 
-  for (const width of [1280, 768] as const) {
+  for (const width of [1280, 1024] as const) {
     test(`the sidebar leads with them, each task under its destination, at ${width}px`, async ({
       page,
     }) => {
@@ -2227,32 +2227,44 @@ test.describe('the three traveller entry points (UMPE P13)', () => {
     });
   }
 
-  test('a phone bar holds Home and the three entry points; the tasks lead More', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await openUiFixture(page, 'shell');
-    const bar = page.locator('.app-bar .app-shell-links');
-    for (const name of ['Home', ...ENTRY]) {
-      const tab = bar.getByRole('link', { name, exact: true });
-      await expect(tab).toBeVisible();
-      const box = await tab.boundingBox();
-      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-      expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
-    }
-    await expect(bar.getByRole('link', { name: 'Add Documents', exact: true })).toBeHidden();
-    await page.getByRole('button', { name: 'More' }).click();
-    const quick = page.getByRole('navigation', { name: 'Quick actions' });
-    for (const name of ['Add Documents', 'Start a Trip']) {
-      const task = quick.getByRole('link', { name, exact: true });
-      await expect(task).toBeVisible();
-      expect((await task.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
-    }
-    const sideways = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    );
-    expect(sideways).toBe(0);
-  });
+  for (const width of [390, 768] as const) {
+    test(`the bottom bar holds Home and the three entry points; the tasks lead More, at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openUiFixture(page, 'shell');
+      const bar = page.locator('.app-bar .app-shell-links');
+      for (const name of ['Home', ...ENTRY]) {
+        const tab = bar.getByRole('link', { name, exact: true });
+        await expect(tab).toBeVisible();
+        const box = await tab.boundingBox();
+        expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+        expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+      }
+      await expect(bar.getByRole('link', { name: 'Add Documents', exact: true })).toBeHidden();
+      // One row: every tab shares the same top edge, so nothing wraps under the page padding.
+      const tops = await bar
+        .locator('a')
+        .evaluateAll((links) =>
+          links
+            .filter((a) => a.getClientRects().length > 0)
+            .map((a) => Math.round(a.getBoundingClientRect().top)),
+        );
+      expect(new Set(tops).size).toBe(1);
+      expect(tops).toHaveLength(4);
+      await page.getByRole('button', { name: 'More' }).click();
+      const quick = page.getByRole('navigation', { name: 'Quick actions' });
+      for (const name of ['Add Documents', 'Start a Trip']) {
+        const task = quick.getByRole('link', { name, exact: true });
+        await expect(task).toBeVisible();
+        expect((await task.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      }
+      const sideways = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(sideways).toBe(0);
+    });
+  }
 
   test('the slim rail keeps the entry points and hides the tasks', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });

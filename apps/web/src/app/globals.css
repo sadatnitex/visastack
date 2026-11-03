@@ -13126,8 +13126,8 @@ html:has(.sticky-action-bar) {
   margin-bottom: 4px;
   border-bottom: 1px solid var(--hairline);
 }
-@media (min-width: 761px) {
-  /* The sidebar shows each task under its destination, so the More copy is not needed here. */
+@media (min-width: 1024px) {
+  /* The sidebar (1024px and up, as the shell) shows each task under its destination. */
   .app-nav-actions {
     display: none;
   }
@@ -13135,8 +13135,8 @@ html:has(.sticky-action-bar) {
     display: none;
   }
 }
-@media (max-width: 760px) {
-  /* The phone bar holds destinations only; tasks lead the More panel instead. */
+@media (max-width: 1023px) {
+  /* The bottom bar (phone and tablet) holds destinations only; tasks lead the More panel. */
   .app-bar .app-shell-links a.app-nav-action {
     display: none;
   }
@@ -13151,6 +13151,7 @@ html:has(.sticky-action-bar) {
   margin-top: 0.5rem;
 }
 @media (min-width: 761px) {
+  /* Home's own content grid, not the shell: three across once the page is wide enough. */
   .home-entry-points {
     grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
   }
