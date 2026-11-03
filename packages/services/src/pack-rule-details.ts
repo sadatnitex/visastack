@@ -373,50 +373,6 @@ export async function setPackRouteConditions(
   });
 }
 
-/**
- * A new draft starts from the route conditions of the pack's newest published version (inside the
- * transaction that opens it), so who a checklist is for carries forward from what was reviewed and
- * changes only through review. An abandoned draft or a withdrawn version is never the source.
- * Requirements are added afresh to each draft, so their details start empty. Audited with counts;
- * nothing happens before the G2 tables exist.
- */
-export async function copyRouteConditionsForward(
-  tx: Db,
-  input: { readonly actorAccountId: string; readonly packId: string; readonly toVersionId: string },
-): Promise<void> {
-  if (!(await ruleDetailTablesPresent(tx))) return;
-  const copied = await tx.execute(sql`
-    insert into ${schema.packRouteConditions}
-      (pack_version_id, consular_posts, travel_from, travel_until, updated_by_account_id, updated_at)
-    select ${input.toVersionId}, c.consular_posts, c.travel_from, c.travel_until,
-           ${input.actorAccountId}, now()
-      from ${schema.packRouteConditions} c
-      join ${schema.packVersions} v on v.id = c.pack_version_id
-     where v.pack_id = ${input.packId} and v.id <> ${input.toVersionId} and v.status = 'PUBLISHED'
-     order by v.version desc
-     limit 1
-    on conflict do nothing
-    returning cardinality(consular_posts) as posts, travel_from is not null as has_from,
-              travel_until is not null as has_until`);
-  const rows = Array.isArray(copied) ? copied : (copied as { rows?: unknown[] }).rows;
-  const row = rows?.[0] as { posts?: unknown; has_from?: unknown; has_until?: unknown } | undefined;
-  if (!row) return;
-  await appendAuditEvent(tx, {
-    eventType: 'PACK_ROUTE_CONDITIONS_SET',
-    actorAccountId: input.actorAccountId,
-    method: 'MANUAL',
-    result: 'ALLOWED',
-    resourceType: 'pack_version',
-    resourceId: input.toVersionId,
-    metadata: {
-      carriedForward: true,
-      postCount: Number(row.posts ?? 0),
-      hasTravelFrom: row.has_from === true,
-      hasTravelUntil: row.has_until === true,
-    },
-  });
-}
-
 // --- Manifest extras (format 2) -------------------------------------------------------------------
 
 /** The rule details and route conditions a version's manifest carries, when present. */
