@@ -183,16 +183,45 @@ describe('TripOverview', () => {
 
 describe('TripOverview: Travelling with You', () => {
   const people: OrganiserCompanionView[] = [
-    { id: 'c1', name: 'Jamal Hossain', status: 'NAME_ONLY', shareLevel: null, planStatus: null },
-    { id: 'c2', name: 'Nadia Rahman', status: 'INVITED', shareLevel: null, planStatus: null },
-    { id: 'c3', name: 'Old Invite', status: 'EXPIRED', shareLevel: null, planStatus: null },
-    { id: 'c4', name: 'Sam Joined', status: 'JOINED', shareLevel: 'NAME_ONLY', planStatus: null },
+    {
+      id: 'c1',
+      name: 'Jamal Hossain',
+      status: 'NAME_ONLY',
+      shareLevel: null,
+      planStatus: null,
+      papers: [],
+    },
+    {
+      id: 'c2',
+      name: 'Nadia Rahman',
+      status: 'INVITED',
+      shareLevel: null,
+      planStatus: null,
+      papers: [],
+    },
+    {
+      id: 'c3',
+      name: 'Old Invite',
+      status: 'EXPIRED',
+      shareLevel: null,
+      planStatus: null,
+      papers: [],
+    },
+    {
+      id: 'c4',
+      name: 'Sam Joined',
+      status: 'JOINED',
+      shareLevel: 'NAME_ONLY',
+      planStatus: null,
+      papers: [],
+    },
     {
       id: 'c5',
       name: 'Lena Planner',
       status: 'JOINED',
       shareLevel: 'PLAN_STATUS',
       planStatus: 'Getting Ready',
+      papers: [],
     },
     {
       id: 'c6',
@@ -200,6 +229,10 @@ describe('TripOverview: Travelling with You', () => {
       status: 'JOINED',
       shareLevel: 'TRAVEL_BOOKINGS',
       planStatus: null,
+      papers: [
+        { name: 'Tokyo hotel.pdf', kind: 'Hotel or Stay Booking' },
+        { name: 'Flight to Tokyo.pdf', kind: 'Flight Ticket' },
+      ],
     },
   ];
   const render = (props: { companionsOn?: boolean; companions?: OrganiserCompanionView[] }) =>
@@ -233,6 +266,30 @@ describe('TripOverview: Travelling with You', () => {
     expect(html).toContain('Shares Travel Bookings');
     // Someone who has not joined shares nothing, so nothing is said about it.
     expect(html.match(/Shares /g)).toHaveLength(3);
+  });
+
+  it('names the papers a Travel Bookings person chose, by name and kind, on a quiet line', async () => {
+    const html = section(await render({ companionsOn: true, companions: people }));
+    expect(html).toContain(
+      'Papers: Tokyo hotel.pdf (Hotel or Stay Booking), Flight to Tokyo.pdf (Flight Ticket)',
+    );
+    // One line for the one person who chose papers; nobody else has one.
+    expect(html.match(/Papers: /g)).toHaveLength(1);
+  });
+
+  it('never shows papers for someone who has not joined, whatever the list says', async () => {
+    const odd: OrganiserCompanionView[] = [
+      {
+        id: 'x1',
+        name: 'Not Joined',
+        status: 'INVITED',
+        shareLevel: null,
+        planStatus: null,
+        papers: [{ name: 'Secret.pdf', kind: 'Flight Ticket' }],
+      },
+    ];
+    const html = await render({ companionsOn: true, companions: odd });
+    expect(html).not.toContain('Secret.pdf');
   });
 
   it('offers Send Again only for an invitation that has not been taken up, and Remove for everyone', async () => {

@@ -215,6 +215,9 @@ const { AcceptTripInvitationForm, DeclineTripInvitationForm } = await import(
   '../app/app/trip-invitations/accept/accept-form'
 );
 const { CoreConsentStep } = await import('../app/app/trip-invitations/accept/core-consent');
+vi.mock('../app/app/trip-invitations/[id]/actions', standIn);
+const { ChoosePaperForm, LeaveTripForm, PlanOwnCaseForm, RemovePaperForm, ShareLevelForm } =
+  await import('../app/app/trip-invitations/[id]/joined-trip-forms');
 const { AcceptClientInvitationForm } = await import(
   '../app/app/client-invitations/accept/accept-form'
 );
@@ -320,6 +323,45 @@ const PEOPLE: readonly Case[] = [
     element: () => <DeclineTripInvitationForm token="synthetic-token" />,
   },
   { name: 'consent needed to join a trip', element: () => <CoreConsentStep /> },
+  {
+    name: 'choose what you share on a trip you joined',
+    element: () => (
+      <ShareLevelForm
+        tripId="t1"
+        current="NAME_ONLY"
+        choices={[
+          { value: 'NAME_ONLY', label: 'Name Only', line: 'Your name and that you joined.' },
+          { value: 'PLAN_STATUS', label: 'Plan Status', line: 'Also one plain phrase.' },
+          { value: 'TRAVEL_BOOKINGS', label: 'Travel Bookings', line: 'Also booking names.' },
+        ]}
+      />
+    ),
+    fields: ['shareLevel'],
+  },
+  {
+    name: 'plan my own case for a trip you joined',
+    element: () => <PlanOwnCaseForm tripId="t1" />,
+  },
+  { name: 'leave a trip you joined', element: () => <LeaveTripForm tripId="t1" /> },
+  {
+    name: 'show one more paper to the organiser',
+    element: () => (
+      <ChoosePaperForm
+        tripId="t1"
+        options={[{ documentId: 'd1', name: 'Tokyo hotel.pdf', kind: 'Hotel or Stay Booking' }]}
+      />
+    ),
+    fields: ['documentId'],
+  },
+  {
+    name: 'stop showing a paper to the organiser',
+    element: () => (
+      <RemovePaperForm
+        tripId="t1"
+        paper={{ documentId: 'd1', name: 'Tokyo hotel.pdf', kind: 'Hotel or Stay Booking' }}
+      />
+    ),
+  },
   {
     name: 'accept a client invitation',
     element: () => <AcceptClientInvitationForm token="t1" applicants={APPLICANTS} />,
