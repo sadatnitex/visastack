@@ -8,13 +8,15 @@ import { describe, expect, it } from 'vitest';
  * of the window beside the sidebar, which is what the Group Trips pages did.
  */
 const ROOT = resolve(__dirname, '../app/app');
-const GUTTER = /section container/;
+// A loading screen drawn with PageLoading is in the gutter: that component supplies it.
+const GUTTER = /section container|<PageLoading/;
 
+/** The pages and their loading screens: a screen shown while a page reads must sit in the same gutter. */
 function pages(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return pages(path);
-    return name === 'page.tsx' ? [path] : [];
+    return name === 'page.tsx' || name === 'loading.tsx' ? [path] : [];
   });
 }
 

@@ -14027,14 +14027,21 @@ html:has(.sticky-action-bar) {
   .app-nav-entry {
     display: contents;
   }
-}
-/* On a short window the reassurance card and the small Workspace caption give way first. Staff Mode
-   is a cue that this is a privileged workspace, so it only loses its small line. */
-@media (min-width: 1024px) and (max-height: 780px) {
-  .app-frame:not([data-workspace="platform"]) .workspace-assurance {
+  /* A task on a destination below the bar is listed under Quick actions in the same panel. */
+  .app-more .app-shell-links-more a.app-nav-action {
     display: none;
   }
-  .app-frame[data-workspace="platform"] .workspace-assurance small {
+}
+/* On a short window the reassurance card loses its small line first, then goes, and the Workspace
+   caption goes last. Staff Mode is a cue that this is a privileged workspace, so it only ever loses
+   its small line. */
+@media (min-width: 1024px) and (max-height: 780px) {
+  .workspace-assurance small {
+    display: none;
+  }
+}
+@media (min-width: 1024px) and (max-height: 700px) {
+  .app-frame:not([data-workspace="platform"]) .workspace-assurance {
     display: none;
   }
 }

@@ -183,21 +183,21 @@ export function AppNav({
       // the menu stays one row per destination. On a phone the wrapper steps aside.
       <div key={item.href} className="app-nav-entry">
         {link(item)}
-        {actionLink(item.action, 'app-nav-action')}
+        {actionLink(item.action, 'icon')}
       </div>
     ) : (
       link(item)
     );
-  const actionLink = (action: NavAction, className: string) => {
+  const actionLink = (action: NavAction, variant: 'icon' | 'row') => {
     // In the sidebar the task is an icon at the end of its row, so its name is the spoken name
     // and the hover and focus label (see the stylesheet). In the phone's More panel it is a full
     // row with its words showing.
-    const iconOnly = className === 'app-nav-action';
+    const iconOnly = variant === 'icon';
     return (
       <Link
         key={`action:${action.href}`}
         href={action.href}
-        className={className}
+        className={iconOnly ? 'app-nav-action' : 'app-nav-action-row'}
         {...(iconOnly ? { 'aria-label': action.label } : {})}
         onClick={() => setOpen(false)}
       >
@@ -309,7 +309,7 @@ export function AppNav({
           // On a phone the bar has no room for tasks, so they lead the More panel. The sidebar
           // shows each under its destination instead, so this list is hidden there.
           <nav className="app-shell-links app-nav-actions" aria-label="Quick actions">
-            {actions.map((action) => actionLink(action, 'app-nav-action-row'))}
+            {actions.map((action) => actionLink(action, 'row'))}
           </nav>
         ) : null}
         <nav

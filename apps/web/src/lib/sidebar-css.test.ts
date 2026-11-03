@@ -8,19 +8,21 @@ import { describe, expect, it } from 'vitest';
  */
 const css = readFileSync(resolve(__dirname, '../app/globals.css'), 'utf8');
 const start = css.indexOf('/* WP-UMPE-UX4 ');
-const block = (start < 0 ? '' : css.slice(start)).replace(/\/\*[\s\S]*?\*\//g, '');
+const rest = start < 0 ? '' : css.slice(start);
+// The block ends at the next marker, so a later package's rules never count as this one's.
+const end = rest.slice(12).search(/\n\/\* WP-/);
+const block = (end < 0 ? rest : rest.slice(0, 12 + end)).replace(/\/\*[\s\S]*?\*\//g, '');
 const flat = block.replace(/\s+/g, '');
 const all = css.replace(/\s+/g, '');
 
 describe('the sidebar block (WP-UMPE-UX4)', () => {
-  it('is one marked block at the end of the stylesheet', () => {
+  it('is one marked block', () => {
     expect(css.split('/* WP-UMPE-UX4 ').length - 1).toBe(1);
     expect(start).toBeGreaterThan(0);
-    expect(css.slice(start + 1)).not.toMatch(/\/\* WP-/);
   });
 
   it('lets a task wrapper step aside on a phone, so the bottom bar keeps its four columns', () => {
-    expect(flat).toContain('@media(max-width:1023px){.app-nav-entry{display:contents;}}');
+    expect(flat).toContain('@media(max-width:1023px){.app-nav-entry{display:contents;}');
   });
 
   it('keeps the task hidden in the collapsed rail, as before', () => {
@@ -43,13 +45,19 @@ describe('the sidebar block (WP-UMPE-UX4)', () => {
     expect(flat).toContain('.app-shell-links-more:has(a){');
   });
 
+  it('keeps a task below the bar out of the phone panel, where Quick actions lists it', () => {
+    expect(flat).toContain('.app-more.app-shell-links-morea.app-nav-action{display:none;}');
+  });
+
   it('never hides the Staff Mode cue; only the customer reassurance gives way', () => {
+    // Only a customer workspace loses the whole card, and only on a very short window; every
+    // workspace, staff included, first loses just its small line.
     expect(flat).toContain(
       '.app-frame:not([data-workspace="platform"]).workspace-assurance{display:none;}',
     );
     expect(flat).not.toMatch(/(^|})\.workspace-assurance\{display:none/);
     expect(flat).toContain(
-      '.app-frame[data-workspace="platform"].workspace-assurancesmall{display:none;}',
+      '@media(min-width:1024px)and(max-height:780px){.workspace-assurancesmall{display:none;}}',
     );
   });
 });
