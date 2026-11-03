@@ -7289,3 +7289,17 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Ledger: 81 TESTED, 3 IMPLEMENTED (U02, U03, U04, with reasons), 2 BLOCKED (owner), 1 CONTENT. Seven rows named a missing test file and now name umpe-g2-rules.test.ts.
 - Not covered: a resolved fact conflict changing a package (no service links the two); live sign-in, email delivery, AI provider, malware scanner, the scheduler on the live site, measured speed and AI cost. The source job runs daily in vercel.json and limits itself to one run per Dhaka week.
 - Verdict: FEATURE COMPLETE IN TEST (report docs/umpe/operations/P14-VERIFICATION.md).
+
+## 2026-11-03: UMPE UX1 (guest document desk interface, no migration)
+
+- The first post-UMPE interface pass was a style tweak the owner rejected. This pass follows the written standards: a progress strip, a checklist that shows each line's state in words, one side column on desktop, folds for what cannot hold up a submission, retention as even tiles with nothing preselected, the agency's accent and tint through the existing brand scope. Styles in one block (`WP-UMPE-UX1`); no service, action, permission or consent change.
+- Measured on the real page with made-up data (phone 390 wide, desktop 1280 wide), main before and now: nothing added 3.87 to 2.97 phone screens and 3.50 to 2.24 desktop; every Mandatory item placed 4.68 to 2.92 and 4.07 to 2.03; part way (two files need a look, retention open) 5.09 to 3.80 and 4.37 to 3.00. Over the 3-screen budget on a phone in the part-way state only; closing it needs a behaviour change (choosing a file from the item's own line).
+- Code review high: 9 findings, 7 fixed, 1 not applicable, 1 accepted. axe found no violation in 3 states at 2 widths. New tests prove red when the Mandatory rule is broken.
+- Not verified: a live or signed-in guest session, a screen reader, a real phone. The progress numbers are what the service's covered rule reports (a suggestion from a file name counts as covered there; the page marks it Suggested, Check It until confirmed).
+
+## 2026-11-03: UMPE UX2 (group trip page and Home polish, no migration)
+
+- Built from the real pages rendered first. Group trip: one Next Step, a three-stage tracker per traveller, a quiet Remove, shared documents that say Allowed or Not Allowed in words. Home and every dated list: icons on Start Here, a date tile on each dated line, and card links no longer underlined as sentence links (a guard test now covers it). Styles in one `WP-UMPE-UX2` block plus the tile rules in the existing `WP-G5` block.
+- Measured (made-up data, phone 390 wide, desktop 1184 wide): group trip phone 2.64 to 3.00 screens (inside the 3-screen budget), desktop 2.30 to 2.25; Home quiet 1.16 to 1.18 and 1.90 to 1.93.
+- Code review high: 10 findings, 8 fixed, 2 declined with reasons. axe found no violation on either page at 2 widths. New tests prove red when the traveller order, the month lookup or the card-link exclusion is broken.
+- Not verified: a live account, a screen reader, a real phone, the e2e browser checks. The agency request desk is not built.

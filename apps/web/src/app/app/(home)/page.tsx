@@ -25,6 +25,7 @@ import { CaseReadinessRing, type ReadinessCounts } from '../../../components/cas
 import { DeadlineClock } from '../../../components/deadline-clock';
 import { DepthScope, atLevel } from '../../../components/depth';
 import { DepthSwitch } from '../../../components/depth-switch';
+import { Icon, type IconName } from '../../../components/icons';
 import { PROGRESS_IN_CASE_LINE } from '../../../components/progress-ring';
 import {
   Checklist,
@@ -72,6 +73,13 @@ import { HeldFilesLine, readHeldFileCount } from '../held-files-line';
 import { TidyUpCard, tidyUpLine } from './tidy-up';
 
 export const metadata: Metadata = { title: 'Account Overview' };
+
+/** The picture for each Start Here task, so the three are told apart at a glance. */
+const ENTRY_ICONS: Readonly<Record<string, IconName>> = {
+  documents: 'folder',
+  trips: 'globe',
+  requests: 'share',
+};
 
 export const dynamic = 'force-dynamic';
 
@@ -647,9 +655,11 @@ export default async function AppPage({
             <ul className="first-run-tasks home-entry-points">
               {entryPoints.map((entry) => (
                 <li key={entry.key}>
-                  <Link href={entry.href}>
+                  <Link className="home-entry-link" href={entry.href}>
+                    <Icon name={ENTRY_ICONS[entry.key] ?? 'file'} size={22} />
                     <b>{entry.label}</b>
                     <span>{entry.hint}</span>
+                    <Icon name="arrow" size={18} />
                   </Link>
                 </li>
               ))}

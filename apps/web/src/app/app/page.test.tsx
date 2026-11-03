@@ -1116,6 +1116,24 @@ describe('UMPE P13: entry points and package changes on Home', () => {
     href: '/app/mission/case-0#trip-package',
   });
 
+  it('draws a picture and an arrow on each Start Here task, and does not underline them as sentence links', async () => {
+    data.consents = CORE;
+    data.applicants = [SELF];
+    const html = await page();
+    const doc = new JSDOM(html).window.document;
+    const links = [...doc.querySelectorAll('.home-entry-points a.home-entry-link')];
+    expect(links).toHaveLength(3);
+    for (const link of links) {
+      expect(link.querySelectorAll('svg')).toHaveLength(2);
+      expect(link.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    }
+    expect(links.map((a) => a.querySelector('b')?.textContent)).toEqual([
+      'Add Documents',
+      'Start a Trip',
+      'See Sharing & Requests',
+    ]);
+  });
+
   it('shows a change beside the trip it concerns, links to the package and keeps the history one step away', async () => {
     data.consents = CORE;
     data.applicants = [SELF];

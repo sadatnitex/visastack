@@ -74,4 +74,108 @@ describe('TripOverview', () => {
     expect(html).not.toContain('Use for Synthetic Anna');
     expect(html).toContain('Stop Sharing');
   });
+
+  const trip = (travellers: TripTravellerCard[], sharedDocuments: never[] = []) =>
+    renderToStaticMarkup(
+      <TripOverview
+        tripId="t1"
+        travellers={travellers}
+        sharedDocuments={sharedDocuments}
+        addable={[]}
+        documentOptions={[]}
+      />,
+    );
+
+  it('puts one Next Step first: the traveller who needs attention, then the one ready for review', () => {
+    const attention = trip([
+      card({
+        applicantId: 'a2',
+        missionId: 'm2',
+        name: 'Synthetic Ben',
+        phrase: 'READY_FOR_FINAL_REVIEW',
+        nextAction: 'FINAL_REVIEW',
+      }),
+      card({}),
+    ]);
+    expect(attention.match(/<section class="next-step"/g)).toHaveLength(1);
+    expect(attention.indexOf('<section class="next-step"')).toBeLessThan(
+      attention.indexOf('trip-travellers-title'),
+    );
+    expect(attention).toContain('Synthetic Anna: Add the Missing Items');
+    expect(attention).toContain('Japan - Tourism: Needs Attention.');
+    const review = trip([
+      card({ phrase: 'PREPARED_FOR_HANDOFF', nextAction: 'SHARE_WHEN_READY' }),
+      card({
+        applicantId: 'a2',
+        missionId: 'm2',
+        name: 'Synthetic Ben',
+        phrase: 'READY_FOR_FINAL_REVIEW',
+        nextAction: 'FINAL_REVIEW',
+      }),
+    ]);
+    expect(review).toContain('Synthetic Ben: Do the Final Review');
+  });
+
+  it('singles nobody out when every package is prepared or unreadable', () => {
+    const calm = trip([
+      card({ phrase: 'PREPARED_FOR_HANDOFF', nextAction: 'SHARE_WHEN_READY' }),
+      card({ applicantId: 'a2', missionId: 'm2', phrase: null, nextAction: 'VIEW_CASE' }),
+    ]);
+    expect(calm).not.toContain('<section class="next-step"');
+  });
+
+  it('keeps the one filled button for the Next Step, so the cards offer a quieter one', () => {
+    const html = trip([card({})]);
+    expect(html).not.toContain('btn btn-primary trip-next-action');
+    expect(html).toContain('btn btn-secondary trip-next-action');
+  });
+
+  it('shows how far each package is along three stages, in words for a screen reader', () => {
+    const html = trip([
+      card({}),
+      card({
+        applicantId: 'a2',
+        missionId: 'm2',
+        phrase: 'READY_FOR_FINAL_REVIEW',
+        nextAction: 'FINAL_REVIEW',
+      }),
+      card({
+        applicantId: 'a3',
+        missionId: 'm3',
+        phrase: 'PREPARED_FOR_HANDOFF',
+        nextAction: 'SHARE_WHEN_READY',
+      }),
+      card({ applicantId: 'a4', missionId: 'm4', phrase: null, nextAction: 'VIEW_CASE' }),
+    ]);
+    expect(html).toContain('aria-label="Needs Attention, stage 1 of 3"');
+    expect(html).toContain('aria-label="Ready for Final Review, stage 2 of 3"');
+    expect(html).toContain('aria-label="Prepared for Handoff, stage 3 of 3"');
+    expect(html.match(/class="trip-track"/g)).toHaveLength(3);
+    expect(html.match(/trip-track-on/g)).toHaveLength(1 + 2 + 3);
+  });
+
+  it('says Allowed or Not Allowed in words beside each traveller, with a button that keeps the full context for a screen reader', () => {
+    const html = trip(
+      [
+        card({}),
+        card({ applicantId: 'a2', missionId: 'm2', name: 'Synthetic Ben' }),
+        card({ applicantId: 'a3', missionId: 'm3', name: 'Synthetic Cara' }),
+      ],
+      [
+        {
+          id: 'e1',
+          name: 'Hotel Booking',
+          sourceApplicantId: 'a1',
+          sourceName: 'Synthetic Anna',
+          allowedFor: ['a2'],
+        },
+      ] as never,
+    );
+    expect(html.match(/trip-allow-state trip-allow-on">Allowed</g)).toHaveLength(1);
+    expect(html.match(/trip-allow-state">Not Allowed</g)).toHaveLength(1);
+    expect(html).toContain('aria-label="Stop Using for Synthetic Ben: Hotel Booking"');
+    expect(html).toContain('aria-label="Use for Synthetic Cara: Hotel Booking"');
+    expect(html).toMatch(/>Stop Using</);
+    expect(html).toMatch(/>Use</);
+  });
 });
