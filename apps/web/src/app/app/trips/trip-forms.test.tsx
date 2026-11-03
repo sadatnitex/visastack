@@ -164,7 +164,7 @@ describe('Add Someone Else in the trip forms', () => {
     expect(email?.required).toBe(false);
     expect(email?.autocomplete).toBe('off');
     expect(container.textContent).toContain(
-      'They are invited to join and choose what to share with you.',
+      'With an email, they are invited to join and choose what to share with you.',
     );
     // Nothing of the family member section is open.
     expect(field('newName')).toBeNull();
@@ -182,7 +182,7 @@ describe('Add Someone Else in the trip forms', () => {
     );
     const hintId = name?.getAttribute('aria-describedby') ?? '';
     expect(container.querySelector(`[id="${hintId}"]`)?.textContent).toContain(
-      'They are invited to join',
+      'they are invited to join',
     );
     expect(email?.getAttribute('aria-describedby')).toBe(hintId);
   });

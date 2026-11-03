@@ -242,7 +242,7 @@ function SomeoneElseFields({
     <fieldset className="trip-member-fields">
       <legend className="label">Add Someone Else</legend>
       <p id={hintId} className="muted u-fs-085 u-m-0">
-        They are invited to join and choose what to share with you.
+        With an email, they are invited to join and choose what to share with you.
       </p>
       <label className="label" htmlFor={`${id}-name`}>
         Name
