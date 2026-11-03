@@ -13797,10 +13797,12 @@ html:has(.sticky-action-bar) {
   border-color: var(--accent);
   background: var(--accent);
 }
-.trip-traveller > .trip-inline-form {
+.trip-traveller > .trip-inline-form,
+.trip-companion-actions > .trip-inline-form {
   justify-self: start;
 }
-.trip-traveller > .trip-inline-form .btn {
+.trip-traveller > .trip-inline-form .btn,
+.trip-companion-actions > .trip-inline-form .btn {
   padding-inline: 0;
   border-color: transparent;
   background: transparent;
@@ -13808,7 +13810,8 @@ html:has(.sticky-action-bar) {
   text-decoration: underline;
   text-underline-offset: 0.2em;
 }
-.trip-traveller > .trip-inline-form .btn:hover {
+.trip-traveller > .trip-inline-form .btn:hover,
+.trip-companion-actions > .trip-inline-form .btn:hover {
   color: var(--danger);
 }
 .trip-document-actions {
@@ -14276,4 +14279,20 @@ html:has(.sticky-action-bar) {
   color: var(--text-tertiary);
   font-size: 1.25rem;
   line-height: 1;
+}
+
+/* WP-UMPE-UX6-P2 group trip: Add Someone Else sits beside Add a Family Member, and Travelling with You rows keep their quiet actions together. Flat, tokens only. */
+.trip-add-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.trip-add-more > .trip-member-fields {
+  flex: 1 1 100%;
+}
+.trip-companion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }

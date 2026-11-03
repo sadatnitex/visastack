@@ -1,4 +1,4 @@
-import { listApplicants, tripTablesReady } from '@visastack/services';
+import { listApplicants, tripCompanionsAvailable, tripTablesReady } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
@@ -12,12 +12,13 @@ export const dynamic = 'force-dynamic';
 
 /** UMPE P5: start one trip for several travellers the account holder manages. */
 export default async function GroupTripStartPage() {
-  const { travellers, ready } = await withSession(async ({ db, accountId }) => ({
+  const { travellers, ready, companionsOn } = await withSession(async ({ db, accountId }) => ({
     travellers: (await listApplicants(db, accountId)).map((a) => ({
       applicantId: a.id,
       name: a.displayName,
     })),
     ready: await tripTablesReady(db),
+    companionsOn: await tripCompanionsAvailable(db),
   }));
   return (
     <>
@@ -37,6 +38,7 @@ export default async function GroupTripStartPage() {
             countries={caseCountryOptions()}
             purposes={casePurposeGroups()}
             travellers={travellers}
+            companionsOn={companionsOn}
           />
         ) : (
           <p className="u-m-0">

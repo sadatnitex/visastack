@@ -14,8 +14,10 @@ import { AUTHORITY_SENTENCE } from '../add-applicant-form';
 import {
   addTravellersAction,
   addTripEvidenceAction,
+  removeCompanionAction,
   removeTravellerAction,
   removeTripEvidenceAction,
+  resendCompanionAction,
   startGroupTripAction,
   tripEvidenceAllowanceAction,
 } from './actions';
@@ -88,6 +90,26 @@ function TravellerChecklist({
 }
 
 /**
+ * An optional section that opens in place: its button is replaced by the fields, so focus moves to
+ * the first field when it opens and back to the button when it closes (the section the person
+ * pressed has just gone). The first render moves nothing.
+ */
+function useOpenSection(open: boolean, onOpenChange: (open: boolean) => void) {
+  const nameRef = useRef<HTMLInputElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const moved = useRef(false);
+  useEffect(() => {
+    if (!moved.current) return;
+    (open ? nameRef.current : toggleRef.current)?.focus();
+  }, [open]);
+  const show = (next: boolean) => {
+    moved.current = true;
+    onOpenChange(next);
+  };
+  return { nameRef, toggleRef, show };
+}
+
+/**
  * Add a Family Member, inside the trip form: a name, how they are related, and the authority
  * confirmation the Home form asks for. The fields exist only while the section is open, so a
  * closed section sends nothing. The person is made with the trip, on this account, with their own
@@ -106,18 +128,7 @@ function FamilyMemberFields({
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }) {
-  // Opening or closing removes the button the person just pressed, so focus goes where they work.
-  const nameRef = useRef<HTMLInputElement>(null);
-  const toggleRef = useRef<HTMLButtonElement>(null);
-  const moved = useRef(false);
-  useEffect(() => {
-    if (!moved.current) return;
-    (open ? nameRef.current : toggleRef.current)?.focus();
-  }, [open]);
-  const show = (next: boolean) => {
-    moved.current = true;
-    onOpenChange(next);
-  };
+  const { nameRef, toggleRef, show } = useOpenSection(open, onOpenChange);
   const [kind, setKind] = useState<'FAMILY_MEMBER' | 'MINOR_GUARDIAN'>('FAMILY_MEMBER');
   const id = useId();
   // Once the person exists the section closes: their name is in the list above, ticked.
@@ -195,6 +206,76 @@ function FamilyMemberFields({
 }
 
 /**
+ * Add Someone Else, inside the trip form: a friend or colleague who is not one of the account
+ * holder's own people. A name, and an email if they have one. The fields exist only while the
+ * section is open, so a closed section sends nothing. The person is added after the trip exists;
+ * nothing of theirs is made and no email address is ever shown back.
+ */
+function SomeoneElseFields({
+  state,
+  messageId,
+  open,
+  onOpenChange,
+}: {
+  readonly state: FormResult;
+  readonly messageId: string;
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+}) {
+  const { nameRef, toggleRef, show } = useOpenSection(open, onOpenChange);
+  const id = useId();
+  if (!open) {
+    return (
+      <button
+        ref={toggleRef}
+        type="button"
+        className="btn btn-secondary trip-member-toggle"
+        aria-expanded={false}
+        onClick={() => show(true)}
+      >
+        Add Someone Else
+      </button>
+    );
+  }
+  const hintId = `${id}-hint`;
+  return (
+    <fieldset className="trip-member-fields">
+      <legend className="label">Add Someone Else</legend>
+      <p id={hintId} className="muted u-fs-085 u-m-0">
+        They are invited to join and choose what to share with you.
+      </p>
+      <label className="label" htmlFor={`${id}-name`}>
+        Name
+      </label>
+      <input
+        ref={nameRef}
+        id={`${id}-name`}
+        name="newPersonName"
+        required
+        maxLength={120}
+        autoComplete="off"
+        className="input"
+        {...fieldProblem(state, 'newPersonName', messageId, hintId)}
+      />
+      <label className="label" htmlFor={`${id}-email`}>
+        Email
+      </label>
+      <input
+        id={`${id}-email`}
+        name="newPersonEmail"
+        type="email"
+        autoComplete="off"
+        className="input"
+        {...fieldProblem(state, 'newPersonEmail', messageId, hintId)}
+      />
+      <button type="button" className="btn btn-secondary" onClick={() => show(false)}>
+        Cancel
+      </button>
+    </fieldset>
+  );
+}
+
+/**
  * UMPE P5: start a group trip. Where, why and who; each traveller gets their own case (or their
  * existing case for the same trip), and the trip groups them without merging anything.
  */
@@ -202,10 +283,13 @@ export function GroupTripStartForm({
   countries,
   purposes,
   travellers,
+  companionsOn = false,
 }: {
   readonly countries: readonly CaseCountryOption[];
   readonly purposes: readonly CasePurposeGroup[];
   readonly travellers: readonly TripTravellerOption[];
+  /** Whether adding someone else is on. Decided by the page on the server; off (or missing) hides it. */
+  readonly companionsOn?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     startGroupTripAction,
@@ -219,6 +303,7 @@ export function GroupTripStartForm({
   const [purpose, setPurpose] = useState('');
   const { chosen, toggle } = useChosenTravellers(state.created);
   const [adding, setAdding] = useState(false);
+  const [addingPerson, setAddingPerson] = useState(false);
   return (
     <form ref={form} action={formAction} className="trip-start-form">
       <label className="label" htmlFor={`${id}-destination`}>
@@ -273,13 +358,23 @@ export function GroupTripStartForm({
         chosen={chosen}
         onToggle={toggle}
       />
-      <FamilyMemberFields
-        state={state}
-        messageId={messageId}
-        created={state.created}
-        open={adding}
-        onOpenChange={setAdding}
-      />
+      <div className="trip-add-more">
+        <FamilyMemberFields
+          state={state}
+          messageId={messageId}
+          created={state.created}
+          open={adding}
+          onOpenChange={setAdding}
+        />
+        {companionsOn ? (
+          <SomeoneElseFields
+            state={state}
+            messageId={messageId}
+            open={addingPerson}
+            onOpenChange={setAddingPerson}
+          />
+        ) : null}
+      </div>
       <p className="muted u-fs-085 u-m-0">
         Each traveller keeps their own case, documents and privacy. Nothing is shared between
         travellers unless you choose it.
@@ -300,9 +395,12 @@ export function GroupTripStartForm({
 export function AddTravellersForm({
   tripId,
   travellers,
+  companionsOn = false,
 }: {
   readonly tripId: string;
   readonly travellers: readonly TripTravellerOption[];
+  /** Whether adding someone else is on. Decided by the page on the server; off (or missing) hides it. */
+  readonly companionsOn?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<FormResult, FormData>(
     addTravellersAction,
@@ -314,7 +412,12 @@ export function AddTravellersForm({
   const messageId = `${id}-msg`;
   const { chosen, toggle } = useChosenTravellers(state.created);
   const [adding, setAdding] = useState(false);
+  const [addingPerson, setAddingPerson] = useState(false);
   const nobodyToTick = travellers.length === 0;
+  const personOpen = companionsOn && addingPerson;
+  // With nobody to tick, the button names whatever is being added right now.
+  const onlyIdle =
+    adding && personOpen ? 'Add People' : personOpen ? 'Add Someone Else' : 'Add Family Member';
   return (
     <form ref={form} action={formAction} className="trip-add-form">
       <input type="hidden" name="tripId" value={tripId} />
@@ -330,18 +433,28 @@ export function AddTravellersForm({
       ) : (
         <p className="u-m-0">Everyone you manage is already on this trip.</p>
       )}
-      <FamilyMemberFields
-        state={state}
-        messageId={messageId}
-        created={state.created}
-        open={adding}
-        onOpenChange={setAdding}
-      />
+      <div className="trip-add-more">
+        <FamilyMemberFields
+          state={state}
+          messageId={messageId}
+          created={state.created}
+          open={adding}
+          onOpenChange={setAdding}
+        />
+        {companionsOn ? (
+          <SomeoneElseFields
+            state={state}
+            messageId={messageId}
+            open={addingPerson}
+            onOpenChange={setAddingPerson}
+          />
+        ) : null}
+      </div>
       <div>
-        {nobodyToTick && !adding ? null : (
+        {nobodyToTick && !adding && !personOpen ? null : (
           <SubmitButton
             pending={pending}
-            idle={nobodyToTick ? 'Add Family Member' : 'Add Travellers'}
+            idle={nobodyToTick ? onlyIdle : 'Add Travellers'}
             busy="Adding…"
           />
         )}
@@ -377,6 +490,88 @@ export function RemoveTravellerForm({
         className="btn btn-secondary"
         label={`Remove from Trip: ${name}`}
       />
+      <FormMessage id={`${id}-msg`} result={state} />
+    </form>
+  );
+}
+
+/** Send an invitation again to someone who has not joined; the old link stops working. */
+export function ResendCompanionForm({
+  tripId,
+  companionId,
+  name,
+}: {
+  readonly tripId: string;
+  readonly companionId: string;
+  readonly name: string;
+}) {
+  const [state, formAction, pending] = useActionState<FormResult, FormData>(
+    resendCompanionAction,
+    NO_RESULT,
+  );
+  const id = useId();
+  return (
+    <form action={formAction} className="trip-inline-form">
+      <input type="hidden" name="tripId" value={tripId} />
+      <input type="hidden" name="companionId" value={companionId} />
+      <SubmitButton
+        pending={pending}
+        idle="Send Again"
+        busy="Sending…"
+        className="btn btn-secondary"
+        label={`Send Again: ${name}`}
+      />
+      <FormMessage id={`${id}-msg`} result={state} />
+    </form>
+  );
+}
+
+/** Take someone off the trip. Their own case, if they started one, stays theirs. */
+export function RemoveCompanionForm({
+  tripId,
+  companionId,
+  name,
+}: {
+  readonly tripId: string;
+  readonly companionId: string;
+  readonly name: string;
+}) {
+  const [state, formAction, pending] = useActionState<FormResult, FormData>(
+    removeCompanionAction,
+    NO_RESULT,
+  );
+  const id = useId();
+  // Taking someone off ends their access and discards what they chose to share, and cannot be
+  // undone from here, so it asks once.
+  const [asking, setAsking] = useState(false);
+  return (
+    <form action={formAction} className="trip-inline-form">
+      <input type="hidden" name="tripId" value={tripId} />
+      <input type="hidden" name="companionId" value={companionId} />
+      {asking ? (
+        <>
+          <span className="muted u-fs-085">Remove {name}? They lose access at once.</span>
+          <SubmitButton
+            pending={pending}
+            idle="Yes, Remove"
+            busy="Removing…"
+            className="btn btn-secondary"
+            label={`Yes, Remove: ${name}`}
+          />
+          <button type="button" className="btn btn-secondary" onClick={() => setAsking(false)}>
+            Keep
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          className="btn btn-secondary"
+          aria-label={`Remove: ${name}`}
+          onClick={() => setAsking(true)}
+        >
+          Remove
+        </button>
+      )}
       <FormMessage id={`${id}-msg`} result={state} />
     </form>
   );

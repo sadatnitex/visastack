@@ -1,17 +1,29 @@
 'use server';
 
 import {
+  type AuthorizedApplicant,
+  COMPANION_INVITATION_DAYS,
+  COMPANION_NAME_PROBLEM,
+  COMPANION_NOT_SWITCHED_ON,
   type Db,
   TRIP_MAX_TRAVELLERS,
   accountPrincipal,
+  addCompanion,
   addTravellerToTrip,
   addTripEvidence,
+  cleanCompanionName,
   createApplicant,
+  getTrip,
+  isEmailAddress,
+  listApplicants,
+  removeCompanion,
   removeTravellerFromTrip,
   removeTripEvidence,
   requireAccess,
+  resendInvitation,
   setTripEvidenceAllowance,
   startGroupTrip,
+  tripCompanionsAvailable,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
@@ -80,6 +92,102 @@ function readNewMember(formData: FormData): NewMember {
     return refuse('Confirm you have authority to create this record.', 'newAuthority');
   }
   return { status: 'ready', name, kind };
+}
+
+/** The "Add Someone Else" part of a form: absent, refused with a reason, or ready to add. */
+type NewPerson =
+  | { readonly status: 'none' }
+  | { readonly status: 'refused'; readonly result: ActionState }
+  | {
+      readonly status: 'ready';
+      readonly name: string;
+      /** As typed, trimmed; empty means a name with no email. Never sent back to the browser. */
+      readonly email: string;
+    };
+
+/**
+ * Reads the person typed into "Add Someone Else". The fields exist only while the section is open,
+ * so their absence means nobody is being added. The name follows the service's own rule and
+ * wording, so a bad name is refused here, before anyone else is made.
+ */
+function readNewPerson(formData: FormData): NewPerson {
+  if (!formData.has('newPersonName')) return { status: 'none' };
+  const refuse = (message: string, field: string): NewPerson => ({
+    status: 'refused',
+    result: { ok: false, message, field },
+  });
+  const name = cleanCompanionName(String(formData.get('newPersonName') ?? ''));
+  if (name === null) return refuse(COMPANION_NAME_PROBLEM, 'newPersonName');
+  const email = String(formData.get('newPersonEmail') ?? '').trim();
+  if (email !== '' && !isEmailAddress(email.toLowerCase())) {
+    return refuse('Enter a valid email address, or leave it empty.', 'newPersonEmail');
+  }
+  return { status: 'ready', name, email };
+}
+
+/**
+ * Someone else can only be added while the feature is on, and the check comes before anything is
+ * made, so a refused try leaves nobody behind. The words are the service's own.
+ */
+async function companionsRefusal(db: Db, person: NewPerson): Promise<ActionState | null> {
+  if (person.status !== 'ready' || (await tripCompanionsAvailable(db))) return null;
+  return { ok: false, message: COMPANION_NOT_SWITCHED_ON, field: 'newPersonName' };
+}
+
+/**
+ * What a refused companion step says. The service's words go through unchanged (they are the same
+ * for every address, so nothing here depends on whether an address has an account); only the
+ * consent refusal gets the usual pointer to Home.
+ */
+function companionRefusal(error: { readonly code: string; readonly message: string }): ActionState {
+  return { ok: false, message: consentWords(error.code, error.message) };
+}
+
+/**
+ * Adds the person typed into "Add Someone Else" to a trip that exists, as its organiser. Only the
+ * outcome words go back to the browser: never the address, a link or a token.
+ *
+ * The service hands back an `invitation` (the one raw link, for the address given). It is dropped
+ * here on purpose: sending the email is package 3 (UX6 step 2), which will pass it to the email
+ * sender on the server and nowhere else. Until then nobody is emailed.
+ */
+async function makeCompanion(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  tripId: string,
+  person: Extract<NewPerson, { status: 'ready' }>,
+): Promise<ActionState> {
+  const added = await addCompanion(proof, tripId, {
+    name: person.name,
+    ...(person.email === '' ? {} : { email: person.email }),
+  });
+  if (added.ok) return { ok: true, message: '' };
+  // The form's own fields: the problem is shown beside the one it is about.
+  const refused = companionRefusal(added.error);
+  return added.error.code === 'invalid'
+    ? { ...refused, field: /email/i.test(refused.message) ? 'newPersonEmail' : 'newPersonName' }
+    : refused;
+}
+
+/**
+ * The organiser's proof for a trip: one of their own people, as an owner with the right to manage. Null when the trip is not theirs, so a forged or foreign trip id adds nobody.
+ */
+async function organiserProof(db: Db, accountId: string, tripId: string) {
+  const applicants = await listApplicants(db, accountId);
+  const first = applicants[0];
+  if (!first) return null;
+  const view = await requireAccess(
+    db,
+    accountPrincipal(accountId),
+    'VIEW_METADATA',
+    { applicantId: first.id },
+    { purpose: 'owner_trip' },
+  );
+  if (!view.ok) return null;
+  // The trip must be this account's. Any of their own people can carry the proof (the services
+  // check the trip's owner again), so a trip whose travellers were all removed still works.
+  if (!(await getTrip(view.value, tripId)).ok) return null;
+  const proof = await travellerProof(db, accountId, first.id);
+  return proof.ok ? proof.value : null;
 }
 
 /** Whether the account holder manages every one of these travellers (checked before anything is made). */
@@ -189,6 +297,8 @@ export async function startGroupTripAction(
   const travellers = ticked(formData);
   const member = readNewMember(formData);
   if (member.status === 'refused') return member.result;
+  const person = readNewPerson(formData);
+  if (person.status === 'refused') return person.result;
   if (travellers.length === 0 && member.status === 'none') {
     return {
       ok: false,
@@ -198,12 +308,15 @@ export async function startGroupTripAction(
   }
   let tripId: string | null = null;
   let outcome: ActionState;
+  let companionFailed = false;
   try {
     outcome = await withSession(async ({ db, accountId }) => {
       // Every ticked traveller is checked before anything is made, so a refused try leaves nothing behind.
       if (!(await managesAll(db, accountId, travellers))) {
         return { ok: false, message: TRAVELLER_UNAVAILABLE, field: 'traveller' };
       }
+      const switchedOff = await companionsRefusal(db, person);
+      if (switchedOff) return switchedOff;
       const everyone = [...travellers];
       let createdId: string | undefined;
       if (member.status === 'ready') {
@@ -245,7 +358,17 @@ export async function startGroupTripAction(
           purpose.label,
         );
       }
-      return addEach(db, accountId, started.value.tripId, others);
+      const added = await addEach(db, accountId, started.value.tripId, others);
+      if (!added.ok || person.status !== 'ready') {
+        // Someone else was typed but never tried: the trip says so, so they are not assumed added.
+        if (person.status === 'ready') companionFailed = true;
+        return added;
+      }
+      // Someone else can only be added once the trip exists, so it comes last. A failure here
+      // sends the person to the trip (see below), where Add Someone Else can be tried again.
+      const companion = await makeCompanion(proof.value, started.value.tripId, person);
+      companionFailed = !companion.ok;
+      return companion;
     });
   } catch (error) {
     unstable_rethrow(error);
@@ -256,13 +379,24 @@ export async function startGroupTripAction(
     // The trip exists even if a later traveller was refused or a step failed: always go to it, so
     // trying again adds the others there instead of starting a second trip.
     revalidatePath('/app/trips');
-    redirect(`/app/trips/${tripId}${outcome.ok ? '' : '?done=partial'}`);
+    const done = outcome.ok ? '' : companionFailed ? '?done=partial-someone' : '?done=partial';
+    redirect(`/app/trips/${tripId}${done}`);
   }
   return outcome;
 }
 
 /** After a change that removes the form it came from, the trip page says what happened. */
-function backToTrip(tripId: string, done: 'added' | 'removed' | 'shared' | 'unshared'): never {
+function backToTrip(
+  tripId: string,
+  done:
+    | 'added'
+    | 'added-someone'
+    | 'partial-someone'
+    | 'removed'
+    | 'removed-someone'
+    | 'shared'
+    | 'unshared',
+): never {
   redirect(`/app/trips/${tripId}?done=${done}`);
 }
 
@@ -292,13 +426,18 @@ export async function addTravellersAction(
   const travellers = ticked(formData);
   const member = readNewMember(formData);
   if (member.status === 'refused') return member.result;
-  if (travellers.length === 0 && member.status === 'none') {
+  const person = readNewPerson(formData);
+  if (person.status === 'refused') return person.result;
+  if (travellers.length === 0 && member.status === 'none' && person.status === 'none') {
     return {
       ok: false,
       message: 'Choose who else is travelling, or add a family member.',
       field: 'traveller',
     };
   }
+  // True when the people ticked were added but the typed Someone Else was refused afterwards: the
+  // form is replaced by the trip, which then says so, so the refusal is never lost.
+  let someoneRefusedAfterOthers = false;
   const outcome = await onTrip(formData, 'addTravellersAction', async (db, accountId, tripId) => {
     // The trip and every ticked traveller are checked before anyone is made, so a trip that is not
     // this account's (or a refused try) leaves no record behind.
@@ -306,6 +445,8 @@ export async function addTravellersAction(
     if (!(await managesAll(db, accountId, travellers))) {
       return { ok: false, message: TRAVELLER_UNAVAILABLE, field: 'traveller' };
     }
+    const switchedOff = await companionsRefusal(db, person);
+    if (switchedOff) return switchedOff;
     const everyone = [...travellers];
     let createdId: string | undefined;
     if (member.status === 'ready') {
@@ -314,10 +455,25 @@ export async function addTravellersAction(
       createdId = made.applicantId;
       everyone.push(made.applicantId);
     }
-    return afterMember(await addEach(db, accountId, tripId, everyone), createdId);
+    const added = afterMember(await addEach(db, accountId, tripId, everyone), createdId);
+    if (!added.ok || person.status !== 'ready') return added;
+    const proof = await organiserProof(db, accountId, tripId);
+    if (!proof) return { ok: false, message: TRIP_UNAVAILABLE };
+    const companion = await makeCompanion(proof, tripId, person);
+    someoneRefusedAfterOthers = !companion.ok && everyone.length > 0;
+    return companion;
   });
-  if (outcome.ok) backToTrip(String(formData.get('tripId')), 'added');
+  if (someoneRefusedAfterOthers) backToTrip(String(formData.get('tripId')), 'partial-someone');
+  if (outcome.ok) {
+    const onlySomeoneElse = everyoneTicked(travellers, member) === 0;
+    backToTrip(String(formData.get('tripId')), onlySomeoneElse ? 'added-someone' : 'added');
+  }
   return outcome;
+}
+
+/** How many of the account holder's own people the form adds (ticked, plus a new family member). */
+function everyoneTicked(travellers: readonly string[], member: NewMember): number {
+  return travellers.length + (member.status === 'ready' ? 1 : 0);
 }
 
 export async function removeTravellerAction(
@@ -410,4 +566,43 @@ export async function removeTripEvidenceAction(
   );
   if (outcome.ok) backToTrip(String(formData.get('tripId')), 'unshared');
   return outcome;
+}
+
+/**
+ * Remove someone who is travelling with the organiser. Their access ends on their next read and an
+ * invitation stops working at once. Their own case, if they started one, is theirs and is kept.
+ */
+export async function removeCompanionAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const outcome = await onTrip(formData, 'removeCompanionAction', async (db, accountId, tripId) => {
+    const proof = await organiserProof(db, accountId, tripId);
+    if (!proof) return { ok: false, message: TRIP_UNAVAILABLE };
+    const removed = await removeCompanion(proof, tripId, String(formData.get('companionId') ?? ''));
+    return removed.ok ? { ok: true, message: '' } : companionRefusal(removed.error);
+  });
+  if (outcome.ok) backToTrip(String(formData.get('tripId')), 'removed-someone');
+  return outcome;
+}
+
+/** What Send Again says when it worked. It promises no email: sending one is package 3. */
+const INVITATION_RENEWED = `A new invitation is ready. It lasts ${COMPANION_INVITATION_DAYS} days.`;
+
+/**
+ * Make a fresh invitation for someone who has not joined yet. The service answers the same way for
+ * everyone it accepts and refuses with the same words whoever the address belongs to, so nothing
+ * here says anything about the address. Its `invitation` (the one raw link) is dropped here on
+ * purpose: sending it is package 3 (UX6 step 2), on the server and nowhere else.
+ */
+export async function resendCompanionAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return onTrip(formData, 'resendCompanionAction', async (db, accountId, tripId) => {
+    const proof = await organiserProof(db, accountId, tripId);
+    if (!proof) return { ok: false, message: TRIP_UNAVAILABLE };
+    const again = await resendInvitation(proof, tripId, String(formData.get('companionId') ?? ''));
+    return again.ok ? { ok: true, message: INVITATION_RENEWED } : companionRefusal(again.error);
+  });
 }
