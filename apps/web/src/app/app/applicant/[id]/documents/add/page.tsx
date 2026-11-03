@@ -6,6 +6,8 @@ import {
   getApplicant,
   getApplicantEvidenceBytes,
   hasConsent,
+  listDocumentExceptions,
+  listPendingProposals,
   loadUploadQuotaConfig,
   mbLabel,
   requireAccess,
@@ -14,7 +16,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { PageHeader } from '../../../../../../components/ui';
+import { NextStepCard, PageHeader } from '../../../../../../components/ui';
 import { resolvePlatformCapabilities } from '../../../../../../lib/capabilities';
 import { evidenceDocumentGroups } from '../../../../../../lib/master-profile';
 import { withSession } from '../../../../../../lib/session';
@@ -28,6 +30,8 @@ export const metadata: Metadata = { title: 'Add Documents' };
 export const dynamic = 'force-dynamic';
 
 const ORIGINAL_KINDS: readonly string[] = [...ORIGINAL_DOCUMENT_KEYS];
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** What happens to a file after it is added, in the order it happens. Plain words, no jargon. */
 const NEXT_STEPS: readonly { readonly title: string; readonly line: string }[] = [
@@ -81,6 +85,16 @@ export default async function AddDocumentsPage({
       ]);
     // The family batch is an extra: if it cannot be read, the import simply has no family choice.
     const familyBatch = access.ok ? await familyBatchReady(db).catch(() => false) : false;
+    // What the files already added have produced, so the page can say so and offer the next
+    // step. Read only for the person's own proof and with consent on; extras: if either cannot be
+    // read the page just shows no card, never an error.
+    const [pending, understanding] =
+      coreGranted && access.ok
+        ? await Promise.all([
+            listPendingProposals(db, id).catch(() => []),
+            listDocumentExceptions(access.value).catch(() => ({ exceptions: [], confirmed: [] })),
+          ])
+        : [[], { exceptions: [], confirmed: [] }];
     return {
       name: applicant.displayName,
       coreGranted,
@@ -90,6 +104,10 @@ export default async function AddDocumentsPage({
       receiptsReady,
       virusScanning,
       familyBatch,
+      // Suggestions that came from a document (an app's suggestion about the profile is not one).
+      foundDetails: pending.filter((p) => p.proposal.documentVersionId !== null).length,
+      // Files, not rows: one file can have both a relation suggestion and an intake finding.
+      needsAnswer: new Set(understanding.exceptions.map((e) => e.documentId)).size,
     };
   });
   if (!data) notFound();
@@ -114,6 +132,21 @@ export default async function AddDocumentsPage({
         </article>
       ) : (
         <>
+          {data.foundDetails > 0 ? (
+            <NextStepCard
+              title={`We Found ${plural(data.foundDetails, 'Detail', 'Details')} to Check`}
+              why="Accept what is right and skip what is not. Nothing reaches your profile until you do."
+              href={`/app/applicant/${id}/documents`}
+              action={`Review ${plural(data.foundDetails, 'Detail', 'Details')}`}
+            />
+          ) : null}
+          {data.needsAnswer > 0 ? (
+            <p className="add-answer">
+              <Link href={`/app/applicant/${id}/documents#needs-decision`}>
+                {plural(data.needsAnswer, 'File Needs', 'Files Need')} One Answer
+              </Link>
+            </p>
+          ) : null}
           <article className="card add-door">
             <ImportPanel
               applicantId={id}
@@ -122,6 +155,7 @@ export default async function AddDocumentsPage({
               pdfAccepted={pdfUploadsAccepted()}
               retryUnknown={data.receiptsReady}
               familyBatch={data.familyBatch}
+              showNext={false}
             />
             <details className="add-more" open={initialKind ? true : undefined}>
               <summary className="add-more-summary">

@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   loadUploadQuotaConfig: vi.fn(),
   familyBatchReady: vi.fn(async () => false),
   documentUploadReceiptsReady: vi.fn(async () => true),
+  listPendingProposals: vi.fn(async (): Promise<unknown[]> => []),
+  listDocumentExceptions: vi.fn(async () => ({ exceptions: [] as unknown[], confirmed: [] })),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -28,6 +30,8 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   requireAccess: async () => ({ ok: true, value: { proof: 'owner' } }),
   familyBatchReady: mocks.familyBatchReady,
   documentUploadReceiptsReady: mocks.documentUploadReceiptsReady,
+  listPendingProposals: mocks.listPendingProposals,
+  listDocumentExceptions: mocks.listDocumentExceptions,
 }));
 vi.mock('../../../../../../lib/capabilities', () => ({
   resolvePlatformCapabilities: async () => ({ malwareScanning: 'unavailable' }),
@@ -60,6 +64,8 @@ beforeEach(() => {
   mocks.hasConsent.mockResolvedValue(true);
   mocks.familyBatchReady.mockResolvedValue(false);
   mocks.documentUploadReceiptsReady.mockResolvedValue(true);
+  mocks.listPendingProposals.mockResolvedValue([]);
+  mocks.listDocumentExceptions.mockResolvedValue({ exceptions: [], confirmed: [] });
   mocks.loadUploadQuotaConfig.mockReturnValue({
     maxUploadBytes: 5 * 1024 * 1024,
     maxApplicantEvidenceBytes: 50 * 1024 * 1024,
@@ -151,5 +157,58 @@ describe('the Add Documents page', () => {
   it("is not the owner's to open for someone else's traveller", async () => {
     mocks.getApplicant.mockResolvedValue({ id: 'a1', ownerAccountId: 'someone-else' });
     await expect(render()).rejects.toThrow();
+  });
+
+  it('shows no results card until something was found', async () => {
+    const text = textOf(await render());
+    expect(text).not.toContain('We Found');
+    expect(text).not.toContain('One Answer');
+  });
+
+  it("says how many details were found and offers the one next step, ignoring an app's suggestion about the profile", async () => {
+    mocks.listPendingProposals.mockResolvedValue([
+      { proposal: { documentVersionId: 'v1' } },
+      { proposal: { documentVersionId: 'v1' } },
+      { proposal: { documentVersionId: 'v2' } },
+      { proposal: { documentVersionId: null } },
+    ]);
+    const html = await render();
+    expect(textOf(html)).toContain('We Found 3 Details to Check');
+    expect(textOf(html)).toContain('Review 3 Details');
+    expect(html).toContain('href="/app/applicant/a1/documents"');
+    expect(html).toContain('Nothing reaches your profile until you do.');
+  });
+
+  it('says it plainly for one detail, and names the files that need one answer', async () => {
+    mocks.listPendingProposals.mockResolvedValue([{ proposal: { documentVersionId: 'v1' } }]);
+    mocks.listDocumentExceptions.mockResolvedValue({
+      // Three rows but two files: one file has both a relation suggestion and an intake finding.
+      exceptions: [{ documentId: 'd1' }, { documentId: 'd1' }, { documentId: 'd2' }],
+      confirmed: [],
+    });
+    const html = await render();
+    expect(textOf(html)).toContain('We Found 1 Detail to Check');
+    expect(textOf(html)).toContain('2 Files Need One Answer');
+    expect(html).toContain('documents#needs-decision');
+  });
+
+  it('still shows the page when the results cannot be read', async () => {
+    mocks.listPendingProposals.mockRejectedValue(new Error('down'));
+    mocks.listDocumentExceptions.mockRejectedValue(new Error('down'));
+    const html = await render();
+    expect(textOf(html)).not.toContain('We Found');
+    expect(stubProps(html, 'ImportPanel')).toHaveLength(1);
+  });
+
+  it('shows no results card without core processing consent', async () => {
+    mocks.hasConsent.mockResolvedValue(false);
+    mocks.listPendingProposals.mockResolvedValue([{ proposal: { documentVersionId: 'v1' } }]);
+    expect(textOf(await render())).not.toContain('We Found');
+    expect(mocks.listPendingProposals).not.toHaveBeenCalled();
+  });
+
+  it("hands the next step to its own card by turning the panel's two buttons off", async () => {
+    const [panel] = stubProps<{ showNext: boolean }>(await render(), 'ImportPanel');
+    expect(panel?.showNext).toBe(false);
   });
 });
