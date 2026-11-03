@@ -16,12 +16,6 @@ import { STATUS_TONES, destinationName } from './terms';
 export const metadata: Metadata = { title: 'Document Requests' };
 export const dynamic = 'force-dynamic';
 
-/**
- * Document Requests (UMPE P6): an agency asks for documents before it has a client, case or
- * account for the person. Owners and admins see every request; a member with May Request Documents
- * sees only their own (UMPE G3). Only while the switch is on; anyone else, or with the switch off,
- * gets not found.
- */
 /** The order the status filters appear in: what is out with someone first, what is over last. */
 const FILTER_ORDER: readonly CollectionDisplayStatus[] = [
   'SENT',
@@ -31,6 +25,12 @@ const FILTER_ORDER: readonly CollectionDisplayStatus[] = [
   'REVOKED',
 ];
 
+/**
+ * Document Requests (UMPE P6): an agency asks for documents before it has a client, case or
+ * account for the person. Owners and admins see every request; a member with May Request Documents
+ * sees only their own (UMPE G3). Only while the switch is on; anyone else, or with the switch off,
+ * gets not found.
+ */
 export default async function CollectionRequestsPage({
   params,
   searchParams,
@@ -69,7 +69,8 @@ export default async function CollectionRequestsPage({
       />
       {requests.length >= COLLECTION_LIST_LIMIT ? (
         <p className="notice notice-warn">
-          Showing your newest {COLLECTION_LIST_LIMIT} requests. Close requests you no longer need.
+          Showing your newest {COLLECTION_LIST_LIMIT} requests, and the filters and counts below
+          cover only these. Close requests you no longer need.
         </p>
       ) : null}
       {requests.length === 0 ? (

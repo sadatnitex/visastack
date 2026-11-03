@@ -3,9 +3,10 @@
 - Built on the real page, rendered first with made-up data. Branch work only (not pushed): `ux3-wip`, from the head of PR 424. Tables: none. No service, action, permission or stored-value change. Presentation only.
 - What the real page showed: the customer ("For") was the third column behind Destination; the New Request button sat against the description with no gap; there was no way to look at one status; and the table had no `data-label` attributes, so on a tablet or phone (the shared table turns into a stack at 1180 px) every value showed beside a blank gutter with no name.
 - What changed (`apps/web/src/app/app/agency/[orgId]/collection/`):
+  - Past the list limit the existing notice now also says the filters and counts cover only the newest requests.
   - The shared page header carries New Request on the right.
   - Status filters with counts (All, Sent, Draft, Closed, Expired, Revoked), only for statuses that have a request; `?status=` filters the list, the current one is marked, and a value that is not a status shows everything.
-  - The customer is the first column and the way in; a request with no name says "Not Named Yet". Every cell is labelled. On a phone each request is a three-line card.
+  - The customer is the first column and the way in; a request with no name says "Not Named Yet". Every cell carries a `data-label` (the shared stacked table shows them below 1180 px). On a phone this list is instead a three-line card whose values are self-evident (customer, destination and purpose, status and date), so its labels are not drawn there.
   - The Links table on a request page gets its labels too.
   - Styles: one `WP-UMPE-UX3` block. The selected filter uses the brand tint, not the one dark block a screen may have.
 - Measured on the real page with made-up data (phone 390 wide, desktop 1184 wide), before then now: phone 1,527 px (1.81 screens) to 1,184 px (1.40); desktop 800 px (1.00) to 800 px (1.00).
