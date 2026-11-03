@@ -66,6 +66,11 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
   { table: 'umpe_package_choices', column: 'applicant_id', kind: 'DATA' },
   { table: 'umpe_package_handoffs', column: 'applicant_id', kind: 'DATA' },
   { table: 'umpe_package_changes', column: 'applicant_id', kind: 'DATA' },
+  // UMPE P5: a traveller's place on a group trip, the common trip documents they brought and the
+  // ones their owner allowed for them.
+  { table: 'umpe_trip_travellers', column: 'applicant_id', kind: 'DATA' },
+  { table: 'umpe_trip_evidence', column: 'source_applicant_id', kind: 'DATA' },
+  { table: 'umpe_trip_evidence_allowances', column: 'applicant_id', kind: 'DATA' },
   // Connections and messages.
   { table: 'ai_connections', column: 'applicant_id', kind: 'DATA' },
   { table: 'calendar_feeds', column: 'applicant_id', kind: 'DATA' },

@@ -211,6 +211,7 @@ const missionButtons = await import('../app/app/mission/[id]/mission-buttons');
 const { OutcomePanel } = await import('../app/app/mission/[id]/outcome-panel');
 const packageForms = await import('../app/app/mission/[id]/package-forms');
 const { TripStartForm } = await import('../app/app/mission/start/start-form');
+const tripForms = await import('../app/app/trips/trip-forms');
 const { ExplainGapButton } = await import('../app/app/mission/[id]/readiness-gap-explain');
 const { AcknowledgementPanel } = await import(
   '../app/app/mission/[id]/snapshots/[snapshotId]/acknowledgement-panel'
@@ -900,6 +901,82 @@ const CASES_MISSION: readonly Case[] = [
       />
     ),
     fields: ['destination', 'purpose', 'traveller'],
+  },
+  {
+    name: 'start a group trip',
+    element: () => (
+      <tripForms.GroupTripStartForm
+        countries={[
+          { iso2: 'JP', name: 'Japan' },
+          { iso2: 'TH', name: 'Thailand' },
+        ]}
+        purposes={[
+          {
+            family: 'visit',
+            label: 'Visit',
+            options: [{ key: 'tourism', label: 'Tourism' }],
+          },
+        ]}
+        travellers={[
+          { applicantId: 'a1', name: 'Synthetic Traveller' },
+          { applicantId: 'a2', name: 'Synthetic Child' },
+        ]}
+      />
+    ),
+    fields: ['destination', 'purpose', 'traveller'],
+  },
+  {
+    name: 'add travellers to a group trip',
+    element: () => (
+      <tripForms.AddTravellersForm
+        tripId="t1"
+        travellers={[{ applicantId: 'a3', name: 'Synthetic Partner' }]}
+      />
+    ),
+    fields: ['traveller'],
+  },
+  {
+    name: 'remove a traveller from a group trip',
+    element: () => (
+      <tripForms.RemoveTravellerForm tripId="t1" applicantId="a1" name="Synthetic Child" />
+    ),
+    repeated: true,
+  },
+  {
+    name: 'share a travel document with a group trip',
+    element: () => (
+      <tripForms.AddTripEvidenceForm
+        tripId="t1"
+        documents={[{ documentId: 'd1', label: 'Hotel Booking (Synthetic Traveller)' }]}
+      />
+    ),
+    fields: ['documentId'],
+  },
+  {
+    name: 'allow a shared trip document for one traveller',
+    element: () => (
+      <tripForms.TripEvidenceAllowanceForm
+        tripId="t1"
+        evidenceId="e1"
+        applicantId="a2"
+        travellerName="Synthetic Child"
+        documentName="Hotel Booking"
+        allowed={false}
+      />
+    ),
+    repeated: true,
+  },
+  {
+    name: 'stop sharing a trip document',
+    element: () => (
+      <tripForms.RemoveTripEvidenceForm
+        tripId="t1"
+        evidenceId="e1"
+        applicantId="a1"
+        documentName="Hotel Booking"
+      />
+    ),
+    repeated: true,
   },
   {
     name: 'case details',
