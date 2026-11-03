@@ -56,6 +56,11 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
     from: 'packages/services/src/invitation-email.ts',
     contains: 'contributor-requests/accept',
   },
+  '/app/trip-invitations/accept': {
+    kind: 'email',
+    from: 'packages/services/src/invitation-email.ts',
+    contains: 'trip-invitations/accept',
+  },
   '/app/sharing-invitations/accept': {
     kind: 'email',
     from: 'app/invitation/accept-paths.ts',
