@@ -369,14 +369,14 @@ export default async function CollectionRequestPage({
               <tbody>
                 {detail.links.map((link) => (
                   <tr key={link.id}>
-                    <td>{link.revisionNo}</td>
-                    <td>{LINK_STATES[link.state]}</td>
-                    <td>{link.emailed ? 'Email' : 'Copied Link'}</td>
-                    <td>
+                    <td data-label="Revision">{link.revisionNo}</td>
+                    <td data-label="State">{LINK_STATES[link.state]}</td>
+                    <td data-label="Sent By">{link.emailed ? 'Email' : 'Copied Link'}</td>
+                    <td data-label="Email">
                       <EmailStateCell email={link.email} />
                     </td>
-                    <td>{formatTimestampDate(link.expiresAt)}</td>
-                    <td>
+                    <td data-label="Expires">{formatTimestampDate(link.expiresAt)}</td>
+                    <td data-label="Last Opened">
                       {link.lastOpenedAt ? formatTimestampDate(link.lastOpenedAt) : 'Not Yet'}
                     </td>
                   </tr>

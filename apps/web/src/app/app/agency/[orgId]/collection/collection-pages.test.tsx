@@ -155,6 +155,69 @@ describe('Document Requests pages', () => {
     expect(text).toContain('United Kingdom');
   });
 
+  describe('the list, by status', () => {
+    const at = new Date('2026-11-02T00:00:00Z');
+    const row = (n: number, status: string, who: string | null) => ({
+      id: `3000000${n}-0000-4000-8000-000000000001`,
+      status,
+      destination: 'GB',
+      purpose: 'Tourism',
+      route: null,
+      recipientNameHint: who,
+      dueAt: null,
+      createdAt: at,
+      updatedAt: at,
+    });
+    const list = (params: { status?: string | string[] } = {}) =>
+      renderServer(ListPage({ ...props, searchParams: Promise.resolve(params) }));
+
+    beforeEach(() => {
+      mocks.list.mockResolvedValue({
+        ok: true,
+        value: [
+          row(1, 'SENT', 'Synthetic Anna'),
+          row(2, 'SENT', 'Synthetic Ben'),
+          row(3, 'DRAFT', null),
+          row(4, 'CLOSED', 'Synthetic Cara'),
+        ],
+      });
+    });
+
+    it('leads with the customer, names an unnamed request in words, and labels every cell', async () => {
+      const html = await list();
+      expect(html).toContain('>Synthetic Anna</a>');
+      expect(html).toContain('>Not Named Yet</a>');
+      expect(html.match(/<td data-label="For"/g)).toHaveLength(4);
+      for (const label of ['Destination', 'Purpose', 'Status', 'Created']) {
+        expect(html.match(new RegExp(`<td data-label="${label}"`, 'g'))).toHaveLength(4);
+      }
+    });
+
+    it('offers a filter only for statuses that have a request, each with its count', async () => {
+      const text = textOf(await list());
+      expect(text).toContain('All 4');
+      expect(text).toContain('Sent 2');
+      expect(text).toContain('Draft 1');
+      expect(text).toContain('Closed 1');
+      expect(text).not.toContain('Expired 0');
+      expect(text).not.toMatch(/Revoked \d/);
+    });
+
+    it('shows only the chosen status, marks it as the current one, and ignores a value that is not a status', async () => {
+      const sent = await list({ status: 'SENT' });
+      expect(sent).toContain('Synthetic Anna');
+      expect(sent).toContain('Synthetic Ben');
+      expect(sent).not.toContain('Synthetic Cara');
+      expect(sent.match(/aria-current="page"/g)).toHaveLength(1);
+      expect(sent).toMatch(/aria-current="page"[^>]*>Sent/);
+      const odd = await list({ status: 'NOPE' });
+      expect(odd).toContain('Synthetic Cara');
+      expect(odd).toMatch(/aria-current="page"[^>]*>All/);
+      // A status with no request is not offered, so asking for it shows everything.
+      expect(await list({ status: 'REVOKED' })).toContain('Synthetic Cara');
+    });
+  });
+
   it('show official items as official and the agency items as the agency own', async () => {
     mocks.get.mockResolvedValue({ ok: true, value: detail() });
     const html = await renderServer(DetailPage(detailProps));
