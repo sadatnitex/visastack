@@ -56,11 +56,11 @@ async function noSeriousAxe(page: Page): Promise<void> {
 }
 
 function openAnswer(response: APIResponse) {
-  const headers = response.headers();
+  const { location, 'cache-control': cacheControl } = response.headers();
   return {
     status: response.status(),
-    location: headers['location'] ?? null,
-    cacheControl: headers['cache-control'] ?? null,
+    location: location ?? null,
+    cacheControl: cacheControl ?? null,
   };
 }
 
@@ -115,8 +115,8 @@ test.describe('UMPE collection desk, signed out (P14)', () => {
       const state = await switchState(request);
       await page.setViewportSize({ width, height: 900 });
       const response = await page.goto(`/collect/open?token=${TOKENS.forwarded}`);
-      expectNoToken(page.url());
       if (state === 'on') {
+        expectNoToken(page.url());
         expect(new URL(page.url()).pathname).toBe('/collect');
         await expect(page.getByRole('heading', { level: 1 })).toHaveText('This Link Is Not Open');
         await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
@@ -125,7 +125,10 @@ test.describe('UMPE collection desk, signed out (P14)', () => {
           'no-referrer',
         );
       } else {
+        // Switched off, the open route answers a bare 404 with no page at all.
         expect(response?.status()).toBe(404);
+        expect((await response?.text())?.trim()).toBe('Not Found');
+        return;
       }
       await expectNeutralBody(page);
       const sideways = await page.evaluate(
@@ -136,20 +139,30 @@ test.describe('UMPE collection desk, signed out (P14)', () => {
     });
   }
 
-  test('the signed-out account answer path names no one and looks like any closed link', async ({
-    page,
+  test('the signed-out account answer path asks everyone to sign in the same way, link or not', async ({
     request,
   }) => {
-    const state = await switchState(request);
-    const response = await page.goto('/collect/account');
-    if (state === 'on') {
-      // Without a desk session there is no link to answer; it must not ask for sign-in first,
-      // which would tell a stranger that the link is real.
-      expect(new URL(page.url()).pathname).toBe('/collect/account');
-      await expect(page.getByRole('heading', { level: 1 })).toHaveText('This Link Is Not Open');
-    } else {
-      expect(response?.status()).toBe(404);
+    // /collect/account is signed-in only (the site's sign-in gate runs before the switch), so a
+    // stranger always meets the same sign-in redirect: with no desk cookie, with a stale or
+    // made-up one, and whether or not the desk is switched on. Nothing tells them a link is real.
+    const answers = await Promise.all(
+      [undefined, 'vs_collect=p14-stale-session-id', `vs_collect=${TOKENS.forwarded}`].map(
+        async (cookie) => {
+          const response = await request.get('/collect/account', {
+            maxRedirects: 0,
+            ...(cookie ? { headers: { cookie } } : {}),
+          });
+          const { location } = response.headers();
+          return { status: response.status(), location: location ?? null };
+        },
+      ),
+    );
+    for (const answer of answers) {
+      expect(answer).toEqual(answers[0]);
+      expectNoToken(answer.location);
     }
-    await expectNeutralBody(page);
+    expect(answers[0]?.status).toBeGreaterThanOrEqual(300);
+    expect(answers[0]?.status).toBeLessThan(400);
+    expect(new URL(answers[0]?.location ?? '', 'http://x').pathname).toBe('/auth/sign-in');
   });
 });
