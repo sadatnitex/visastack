@@ -7242,3 +7242,10 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Review: `/code-review max` 15 findings, all fixed; `/security-review` none at 8 or above.
 - Not covered yet (gap package G3): no email to a guest on Needs Correction. Signed-in travellers do not see agency notes (P7 pages). Field items take files only from guests. Editing a request's address moves an unhinted link's guest.
 - Ledger: R23 and F03 confirmed met by the lead audit (records only).
+
+## 2026-11-03: UMPE G1 (intake gap closure: I07, I08, I09, I10, I14; migration number given by the lead)
+- What: findings raised when each file is read (Expired on Arrival, No Readable Text), listed once in Needs One Decision with Keep As It Is; statement periods in proposed names and no name offered over a name the person chose; the background reading job asks the existing kind classifier when the rules give no kind (same gates; the result waits as Suggested Kind); a family batch held privately for the uploading account with a Which Person? decision that files each document through the access check for the chosen person; the finished import links to Needs One Decision and suggested details.
+- Database: document_intake_exceptions and document_person_holds (additive, re-runnable; code no-ops while missing).
+- Tests: lane full check green and DONE on 8b13535 (services 3604, web 4837, db 78, adapters 526, core 218, Playwright 299, smoke, supply chain 7 of 7). Guards proven red: the close-match rule and the owner scope on filing.
+- Review: `/code-review max` 15 findings, all fixed; full check caught 3 guard tests and 1 static rule, fixed; `/security-review` none at 8 or above.
+- Not covered: unknown kinds stay protected by default, so the background classifier runs only after the platform owner takes unknown kinds off the protected list; account deletion queues no erasure job for held files (the daily abandoned uploads sweep deletes them).
