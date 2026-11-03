@@ -302,7 +302,10 @@ export function TripEvidenceAllowanceForm({
     NO_RESULT,
   );
   const id = useId();
-  const idle = allowed ? `Stop Using for ${travellerName}` : `Use for ${travellerName}`;
+  // The row already names the traveller and says Allowed or Not Allowed, so the button says only
+  // what it does; its spoken name keeps the traveller and the document.
+  const idle = allowed ? 'Stop Using' : 'Use';
+  const spoken = `${idle} for ${travellerName}`;
   return (
     <form action={formAction} className="trip-inline-form">
       <input type="hidden" name="tripId" value={tripId} />
@@ -314,7 +317,7 @@ export function TripEvidenceAllowanceForm({
         idle={idle}
         busy="Saving…"
         className="btn btn-secondary"
-        label={`${idle}: ${documentName}`}
+        label={`${spoken}: ${documentName}`}
       />
       <FormMessage id={`${id}-msg`} result={state} />
     </form>

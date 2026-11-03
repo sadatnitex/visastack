@@ -6,6 +6,7 @@ import {
   CLOCK_UNAVAILABLE_LINE,
   DeadlineClock,
   type DeadlineLine,
+  tileParts,
 } from './deadline-clock';
 
 const BANNED = /\b(ensure[sd]?|guarantee[ds]?|approved|approval|cleared|accepted|promise[sd]?)\b/i;
@@ -164,3 +165,29 @@ describe('DeadlineClock heading level', () => {
 function textOf(html: string): string {
   return html.replace(/<[^>]*>/g, ' ');
 }
+
+describe('the date tile', () => {
+  it('reads the day and month from the date text, so no time zone can move it', () => {
+    expect(tileParts('2026-11-07')).toEqual({ day: '7', month: 'Nov' });
+    expect(tileParts('2027-01-31')).toEqual({ day: '31', month: 'Jan' });
+    expect(tileParts('2026-12-01')).toEqual({ day: '1', month: 'Dec' });
+  });
+
+  it('draws nothing for a date it cannot read', () => {
+    expect(tileParts('')).toBeNull();
+    expect(tileParts('7 Nov 2026')).toBeNull();
+    expect(tileParts('2026-13-01')).toBeNull();
+    expect(tileParts('2026-11-00')).toBeNull();
+    expect(tileParts('2026-11-99')).toBeNull();
+    expect(tileParts('2026-02-31')).toBeNull();
+    expect(tileParts('2028-02-29')).toEqual({ day: '29', month: 'Feb' });
+  });
+
+  it('is decoration beside the written date: hidden from a screen reader, which keeps the full date', () => {
+    const html = render({ lines: [line({ key: 'a' }), line({ key: 'b', isoDate: 'unknown' })] });
+    expect(html.match(/class="deadline-tile" aria-hidden="true"/g)).toHaveLength(1);
+    expect(html).toContain('deadline-tile-day">7<');
+    expect(html).toContain('deadline-tile-month">Nov<');
+    expect(html).toContain('<time dateTime="2026-11-07">7 Nov 2026</time>');
+  });
+});

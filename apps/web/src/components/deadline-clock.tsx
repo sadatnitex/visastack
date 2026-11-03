@@ -24,6 +24,20 @@ export const CLOCK_EMPTY_BODY =
 /** When the dates could not be read just now, which is not the same as having none. */
 export const CLOCK_UNAVAILABLE_LINE = 'Dates are unavailable right now. Refresh to try again.';
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** The day and short month of a `YYYY-MM-DD` date, read from its text so no time zone moves it. */
+export function tileParts(isoDate: string): { day: string; month: string } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!match) return null;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  // A day that does not exist (31 Feb, the 0th) is not a date: draw nothing rather than a wrong one.
+  const real = new Date(Date.UTC(year, month - 1, day));
+  const valid = real.getUTCMonth() === month - 1 && real.getUTCDate() === day;
+  const name = MONTHS[month - 1];
+  return valid && name ? { day: String(day), month: name } : null;
+}
+
 export interface DeadlineLine {
   readonly key: string;
   /** What the date is for: "Passport", a task's own words, what a request asks for. */
@@ -87,30 +101,39 @@ export function DeadlineClock({
         </EmptyState>
       ) : (
         <ol className="deadline-list">
-          {lines.map((line) => (
-            <li
-              key={line.key}
-              className={`deadline-line deadline-tone-${line.urgency}${line.check ? ' deadline-line-check' : ''}`}
-            >
-              <Link className="deadline-link" href={line.href}>
-                <span className="deadline-main">
-                  <span className="deadline-name">{line.label}</span>
-                  <span className="deadline-phrase">{line.phrase}</span>
-                  <span className="deadline-date">
-                    <time dateTime={line.isoDate}>{line.dateText}</time>
-                    {line.person ? ` · ${line.person}` : ''}
-                  </span>
-                  {line.check ? <span className="deadline-why">{line.check}</span> : null}
-                </span>
-                <span className="deadline-tags">
-                  <span className="deadline-tag deadline-tag-tone">{line.toneWord}</span>
-                  {line.check ? (
-                    <span className="deadline-tag deadline-tag-check">{CHECK_THIS_DATE}</span>
+          {lines.map((line) => {
+            const tile = tileParts(line.isoDate);
+            return (
+              <li
+                key={line.key}
+                className={`deadline-line deadline-tone-${line.urgency}${line.check ? ' deadline-line-check' : ''}`}
+              >
+                <Link className="deadline-link" href={line.href}>
+                  {tile ? (
+                    <span className="deadline-tile" aria-hidden="true">
+                      <span className="deadline-tile-day">{tile.day}</span>
+                      <span className="deadline-tile-month">{tile.month}</span>
+                    </span>
                   ) : null}
-                </span>
-              </Link>
-            </li>
-          ))}
+                  <span className="deadline-main">
+                    <span className="deadline-name">{line.label}</span>
+                    <span className="deadline-phrase">{line.phrase}</span>
+                    <span className="deadline-date">
+                      <time dateTime={line.isoDate}>{line.dateText}</time>
+                      {line.person ? ` · ${line.person}` : ''}
+                    </span>
+                    {line.check ? <span className="deadline-why">{line.check}</span> : null}
+                  </span>
+                  <span className="deadline-tags">
+                    <span className="deadline-tag deadline-tag-tone">{line.toneWord}</span>
+                    {line.check ? (
+                      <span className="deadline-tag deadline-tag-check">{CHECK_THIS_DATE}</span>
+                    ) : null}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
         </ol>
       )}
       {note ? <p className="deadline-clock-note">{note}</p> : null}
