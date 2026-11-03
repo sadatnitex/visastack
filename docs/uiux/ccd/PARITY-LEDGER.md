@@ -335,3 +335,24 @@ Provisional: each is confirmed by the package that touches it, and any change is
 
 - **Phone search entry ("Search or do anything" above the tab bar).** The canvas shows it. It is a shell change and the shell was being reworked by another session; it needs the existing scoped search with no new backend. Not started; will be checked in CCD-7.
 - **Rules R1 and R2 for document expiry (decision D1).** They need case travel dates and document usage that the ranking service does not read today. Needs the owner's go-ahead for the extra reads; ADR 0016 stands meanwhile.
+
+## UMPE P13: three traveller entry points (3 Nov 2026)
+
+Guard: `apps/web/src/lib/experience-parity.test.ts` over the map in `apps/web/src/lib/experience-parity.ts`. Every page under `/app` is classified as a navigation destination, a contextual link (file and link text pinned) or an emailed address; a new page without an entry, a navigation page the menu no longer offers, or a removed contextual link fails the build. A frozen list of the traveller links just before P13 must all still be offered.
+
+| Before P13 (traveller sidebar) | After P13 | Address |
+|---|---|---|
+| Home (tab) | Home (tab, unchanged) | `/app/applicant/{id}` |
+| Record (tab) | More Tools: Record; its sections light up My Documents | `/app/applicant/{id}/record` |
+| (Record section) Documents | My Documents (tab), with the task Add Documents | `/app/applicant/{id}/documents` |
+| Cases (tab) | My Trips (tab), with the task Start a Trip | `/app/applicant/{id}/missions` |
+| Sharing (tab) | Sharing & Requests (tab) | `/app/applicant/{id}/sharing` |
+| Notifications, Countries | unchanged (under More on a phone) | `/app/notifications`, `/app/countries` |
+| More Tools: Evidence Requests | More Tools (lights up Sharing & Requests) | `/app/applicant/{id}/evidence` |
+| More Tools: Shared with Me | More Tools (lights up Sharing & Requests) | `/app/shared` |
+| More Tools: Account Overview | More Tools, unchanged | `/app` |
+| (no menu entry) | Task under My Trips: Start a Trip | `/app/mission/start` |
+| (no menu entry) | More Tools: Group Trips | `/app/trips` |
+| (no menu entry) | More Tools: Answers to Agencies | `/collect/account/answers` |
+
+Unchanged: the agency and platform lists (pinned by `workspace-navigation.test.ts`), the account menu, the Record section tabs, every URL and every page's own access check. Application Memory, outputs, calendar, insights, removal records, billing, AI settings and the admin tools keep their contextual links, now pinned by the parity map. Home gains a Start Here row and, beside a case, a change note when one needs the traveller; nothing was removed from Home or the traveller's Home, so their baselines are unchanged.
