@@ -40,3 +40,4 @@ Newest first. One line per change of state. The requirement-level truth is `docs
 - 2026-11-03: #431 merged and deployed; migration 0130 applied to production on the owner's word (companions table, empty, switch off). UX10 (Home on a phone) built; UX6 package 2 (organiser forms) with a helper.
 - 2026-11-03: #432 (Home on a phone) merged. UX6 package 2 (organiser forms for companions, behind the switch, off) built and reviewed at max on the designated branch. Next: package 3 (invitation email and accept page), then 4 (companion page, Plan My Own Case); the switch stays off until package 3.
 
+
