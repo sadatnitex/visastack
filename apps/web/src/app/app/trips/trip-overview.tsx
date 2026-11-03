@@ -174,11 +174,13 @@ export function TripOverview({
         <h2 id="trip-add-title" className="card-title">
           Add Travellers
         </h2>
-        {addable.length > 0 ? (
-          <AddTravellersForm tripId={tripId} travellers={addable} />
-        ) : (
-          <p className="u-m-0">Everyone you manage is already on this trip.</p>
-        )}
+        <AddTravellersForm
+          // Who is on the trip changing (someone was added) starts the form fresh. A new person
+          // made while something else failed does not, so the message and their tick stay.
+          key={travellers.map((t) => t.applicantId).join(',')}
+          tripId={tripId}
+          travellers={addable}
+        />
         <p className="muted u-fs-085">
           Travelling with an adult who has their own VisaStack account? They start their own case
           from their account and choose for themselves whether to share it with you. We never add or

@@ -29,7 +29,7 @@ export function AddApplicantForm({
 }
 
 /** The authority statement both forms ask for: one sentence, so a wording change reaches both. */
-const AUTHORITY_SENTENCE =
+export const AUTHORITY_SENTENCE =
   'I confirm I have authority to create and manage this record on their behalf. This is never assumed from a shared name or address.';
 
 type WhoFor = 'SELF' | 'MANAGED';

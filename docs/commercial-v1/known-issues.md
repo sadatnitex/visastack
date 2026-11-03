@@ -7319,3 +7319,10 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Page edges: the owner's photos showed the Group Trips title and button touching the sidebar and the window edge. Five signed-in pages had no page gutter (Group Trips list, one trip, New Group Trip, Start a Trip, the sharing-invitation accept page); now fixed, with a guard test over every page. My earlier UX2 renders of the trip page had added a gutter the real page lacked.
 - Review of the sidebar: 6 findings, all fixed (Staff Mode never hidden, hairline only when needed, focus label, one sizing property, shared hidden-text class, a stylesheet guard).
 
+## 2026-11-03: UMPE UX6 (family members inside the group trip forms, no migration)
+
+- The owner asked that a group trip let people team up with anyone and that family members can be added when the trip is created or later. Step 1 (this package): an "Add a Family Member" section in Start a Group Trip and Add Travellers, using the existing person creation (family member or minor, authority confirmed), then adding them to the trip with their own case. The dead end when everyone is already on the trip is gone.
+- Safety: the account that owns the new record comes from the session; every ticked traveller and the trip are proven before anyone is made; nothing is shared and no account is created. A failure after creation hands the new person's id back so the form ticks them and a retry does not duplicate.
+- Tests: 9 database-backed action tests and 6 form tests; the authority and trip checks proven red then restored. Code review high: 3 findings, fixed.
+- Not verified: a real phone, a screen reader, dark appearance, the live signed-in flow. Step 2 (friends and colleagues with or without an account) needs a database change and the owner's "migrate NNNN" word; the brief is in `docs/umpe/operations/handoffs/UX6-companions-brief.md`.
+

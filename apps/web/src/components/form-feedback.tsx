@@ -20,6 +20,11 @@ export interface FormResult {
    * Plan & Usage, is said after the refusal's own words. Set by the server only when it would help.
    */
   readonly upgrade?: UpgradeLineKind;
+  /**
+   * A person the action made before something else went wrong (a family member added while
+   * starting a trip). The form ticks them, so trying again does not make a second record.
+   */
+  readonly created?: string;
 }
 
 export const NO_RESULT: FormResult = { ok: true, message: '' };
