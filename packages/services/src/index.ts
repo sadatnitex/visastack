@@ -2788,6 +2788,21 @@ export {
   setCompanionShareLevel,
 } from './umpe-trip-companions';
 export { queueCompanionInvitation } from './umpe-trip-companion-email';
+export {
+  COMPANION_PAPERS_MAX,
+  COMPANION_PAPERS_NOT_AVAILABLE,
+  type CompanionPaperView,
+  type CompanionPapers,
+  type OrganiserPaperView,
+  chooseTripPaper,
+  listMyTripPapers,
+  removeTripPaper,
+} from './umpe-trip-companion-papers';
+export {
+  type PlanOwnCaseOutcome,
+  myTripCaseId,
+  planMyOwnCase,
+} from './umpe-trip-companion-case';
 // UMPE P11
 export {
   type CorrectionCategory,

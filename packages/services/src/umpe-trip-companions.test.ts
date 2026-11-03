@@ -276,7 +276,14 @@ describe('UMPE UX6 companions: the organiser adds people', () => {
     const rows = await list(db, org);
     expect(rows.map((r) => r.status)).toEqual(['INVITED', 'NAME_ONLY']);
     for (const row of rows) {
-      expect(Object.keys(row).sort()).toEqual(['id', 'name', 'planStatus', 'shareLevel', 'status']);
+      expect(Object.keys(row).sort()).toEqual([
+        'id',
+        'name',
+        'papers',
+        'planStatus',
+        'shareLevel',
+        'status',
+      ]);
     }
     const text = JSON.stringify(rows);
     expect(text).not.toContain('secret-address');
@@ -737,16 +744,18 @@ describe('UMPE UX6 companions: what the organiser sees by sharing level', () => 
       status: 'JOINED',
       shareLevel: 'PLAN_STATUS',
       planStatus: 'Getting Ready',
+      papers: [],
     });
     expect(isOk(await setCompanionShareLevel(db, guest.access, 'NAME_ONLY'))).toBe(true);
     expect((await list(db, org))[0]).toMatchObject({ shareLevel: 'NAME_ONLY', planStatus: null });
-    // Travel Bookings is stored and read back, and adds nothing yet.
+    // Travel Bookings is stored and read back; with no paper chosen it adds nothing (package 4).
     expect(isOk(await setCompanionShareLevel(db, guest.access, 'TRAVEL_BOOKINGS'))).toBe(true);
     const row = (await list(db, org))[0];
     expect(row?.shareLevel).toBe('TRAVEL_BOOKINGS');
     expect(Object.keys(row ?? {}).sort()).toEqual([
       'id',
       'name',
+      'papers',
       'planStatus',
       'shareLevel',
       'status',
@@ -878,7 +887,7 @@ describe('UMPE UX6 companions: switch and missing table', () => {
     const db = await freshDb();
     const org = await organiser(db);
     const guest = await account(db, 'guest@example.com');
-    await db.execute(sql`drop table umpe_trip_companions`);
+    await db.execute(sql`drop table umpe_trip_companion_papers, umpe_trip_companions`);
     const proof = await proofFor(db, org.accountId, org.applicantId, 'MANAGE');
     const added = await addCompanion(proof, org.tripId, {
       name: 'Late',

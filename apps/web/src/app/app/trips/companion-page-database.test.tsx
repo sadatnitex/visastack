@@ -164,7 +164,7 @@ describe('the group trip page with people travelling with the organiser', () => 
   });
 
   it('has nothing new on it while the table is missing', async () => {
-    await db.execute(sql`drop table umpe_trip_companions`);
+    await db.execute(sql`drop table umpe_trip_companion_papers, umpe_trip_companions`);
     // A table that was seen once is remembered per database handle (it is never dropped for real),
     // so the page reads through a fresh handle, as a new request does.
     const { data, html } = await page(drizzle(client, { schema }) as unknown as Db);

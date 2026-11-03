@@ -47,7 +47,11 @@ import { type ServiceError, serviceError } from './errors';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
-import { tripCompanionsTablePresent } from './umpe-trip-companion-tables';
+import { type OrganiserPaperView, organiserPaperNames } from './umpe-trip-companion-papers';
+import {
+  tripCompanionPapersTablePresent,
+  tripCompanionsTablePresent,
+} from './umpe-trip-companion-tables';
 import { ownerAccountOf } from './umpe-trip-service';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -84,6 +88,11 @@ export interface OrganiserCompanionView {
    * Status or more, and have started a case of their own; otherwise null. A phrase only.
    */
   readonly planStatus: string | null;
+  /**
+   * The names and kinds of the papers the companion chose to show, only at Travel Bookings and only
+   * while they are still the companion's own present travel papers; otherwise empty. Names only.
+   */
+  readonly papers: readonly OrganiserPaperView[];
 }
 
 /**
@@ -208,6 +217,18 @@ export function companionPlanStatusPhrase(state: string): string {
   }
 }
 
+/**
+ * Withdraws every paper this companion chose to show (their choices only; the papers themselves are
+ * never touched). Done in the same transaction as whatever ends or lowers what they share, and a
+ * missing table (the migration has not run) has nothing to withdraw.
+ */
+async function withdrawPapers(tx: Db, companionId: string): Promise<void> {
+  if (!(await tripCompanionPapersTablePresent(tx))) return;
+  await tx
+    .delete(schema.umpeTripCompanionPapers)
+    .where(eq(schema.umpeTripCompanionPapers.companionId, companionId));
+}
+
 // --- Organiser side ---------------------------------------------------------------------------
 
 /**
@@ -330,6 +351,7 @@ export async function addCompanion(
           status: issued ? ('INVITED' as const) : ('NAME_ONLY' as const),
           shareLevel: null,
           planStatus: null,
+          papers: [],
         },
         invitation:
           issued && email && expiresAt
@@ -425,6 +447,10 @@ export async function listCompanions(
         : [],
     ),
   );
+  // Only when someone joined at Travel Bookings: the read itself checks the level again.
+  const papers = rows.some((row) => row.state === 'JOINED' && row.shareLevel === 'TRAVEL_BOOKINGS')
+    ? await organiserPaperNames(proof, tripId)
+    : new Map<string, readonly OrganiserPaperView[]>();
   const now = Date.now();
   const views: OrganiserCompanionView[] = [];
   for (const row of rows) {
@@ -435,6 +461,7 @@ export async function listCompanions(
         status: 'NAME_ONLY',
         shareLevel: null,
         planStatus: null,
+        papers: [],
       });
     } else if (row.state === 'JOINED') {
       // A row whose account was erased no longer has anyone behind it.
@@ -448,6 +475,7 @@ export async function listCompanions(
           row.ownMissionId === null || row.shareLevel === 'NAME_ONLY'
             ? null
             : (phrases.get(row.ownMissionId) ?? null),
+        papers: papers.get(row.id) ?? [],
       });
     } else {
       // INVITED, and DECLINED shown exactly the same way, so nothing differs by whether the
@@ -459,6 +487,7 @@ export async function listCompanions(
         status: live ? 'INVITED' : 'EXPIRED',
         shareLevel: null,
         planStatus: null,
+        papers: [],
       });
     }
   }
@@ -541,6 +570,7 @@ export async function removeCompanion(
       )
       .returning({ id: companions.id });
     if (changed.length === 0) return err(serviceError('not_found', PERSON_NOT_AVAILABLE));
+    await withdrawPapers(tx, companionId);
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_COMPANION_REMOVED',
       actorAccountId: owner.value,
@@ -1004,6 +1034,7 @@ export async function leaveTrip(
       )
       .returning({ id: companions.id });
     if (changed.length === 0) return err(serviceError('not_found', COMPANION_UNAVAILABLE));
+    await withdrawPapers(tx, access.companionId);
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_COMPANION_LEFT',
       actorAccountId: access.accountId,
@@ -1053,6 +1084,9 @@ export async function setCompanionShareLevel(
       .update(companions)
       .set({ shareLevel: level, updatedAt: new Date() })
       .where(eq(companions.id, access.companionId));
+    // Papers are shown only at Travel Bookings: any other level withdraws every choice, so going
+    // back up never shows something chosen long ago.
+    if (level !== 'TRAVEL_BOOKINGS') await withdrawPapers(tx, access.companionId);
     await appendAuditEvent(tx, {
       eventType: 'UMPE_TRIP_COMPANION_SHARE_LEVEL_CHANGED',
       actorAccountId: access.accountId,
