@@ -115,6 +115,7 @@ import { PackagePanel } from './package-panel';
 import { ExplainGapButton } from './readiness-gap-explain';
 import { isPacketSnapshot } from './snapshot-packet';
 import { SubmissionReportPanel } from './submission-report-panel';
+import { SuggestCorrection } from './suggest-correction';
 import { TripChecksPanel } from './trip-checks-panel';
 
 export const metadata: Metadata = { title: 'Case' };
@@ -972,6 +973,11 @@ export default async function MissionPage({
               : {})}
           />
         ) : null}
+        <SuggestCorrection
+          missionId={data.mission.id}
+          packRequirementId={r.packRequirementId}
+          itemName={label || 'This Item'}
+        />
       </div>
     );
   };

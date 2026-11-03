@@ -72,6 +72,10 @@ vi.mock('../app/app/admin/organizations/[orgId]/actions', standIn);
 vi.mock('../app/app/admin/organizations/[orgId]/refund-actions', standIn);
 vi.mock('../app/app/admin/packs/actions', standIn);
 vi.mock('../app/app/admin/packs/sources/actions', standIn);
+// UMPE P11: checklist corrections.
+vi.mock('../app/app/admin/packs/corrections/actions', standIn);
+vi.mock('../app/app/mission/[id]/suggest-correction-actions', standIn);
+vi.mock('../app/app/agency/[orgId]/collection/request/checklist-correction-actions', standIn);
 vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
@@ -131,6 +135,9 @@ const refundForms = await import('../app/app/admin/organizations/[orgId]/refund-
 const packForms = await import('../app/app/admin/packs/pack-forms');
 const packVersionButtons = await import('../app/app/admin/packs/pack-version-buttons');
 const sourceForms = await import('../app/app/admin/packs/sources/source-forms');
+const correctionForms = await import('../app/app/admin/packs/corrections/correction-forms');
+const correctionForm = await import('../components/checklist-correction-form');
+const caseCorrectionActions = await import('../app/app/mission/[id]/suggest-correction-actions');
 const collectionForms = await import('../app/app/agency/[orgId]/collection/collection-forms');
 const responseForms = await import('../app/collect/account/response-form');
 const guestForms = await import('../app/collect/guest-forms');
@@ -214,6 +221,7 @@ const missionButtons = await import('../app/app/mission/[id]/mission-buttons');
 const { OutcomePanel } = await import('../app/app/mission/[id]/outcome-panel');
 const packageForms = await import('../app/app/mission/[id]/package-forms');
 const { TripStartForm } = await import('../app/app/mission/start/start-form');
+const tripForms = await import('../app/app/trips/trip-forms');
 const { ExplainGapButton } = await import('../app/app/mission/[id]/readiness-gap-explain');
 const { AcknowledgementPanel } = await import(
   '../app/app/mission/[id]/snapshots/[snapshotId]/acknowledgement-panel'
@@ -903,6 +911,82 @@ const CASES_MISSION: readonly Case[] = [
       />
     ),
     fields: ['destination', 'purpose', 'traveller'],
+  },
+  {
+    name: 'start a group trip',
+    element: () => (
+      <tripForms.GroupTripStartForm
+        countries={[
+          { iso2: 'JP', name: 'Japan' },
+          { iso2: 'TH', name: 'Thailand' },
+        ]}
+        purposes={[
+          {
+            family: 'visit',
+            label: 'Visit',
+            options: [{ key: 'tourism', label: 'Tourism' }],
+          },
+        ]}
+        travellers={[
+          { applicantId: 'a1', name: 'Synthetic Traveller' },
+          { applicantId: 'a2', name: 'Synthetic Child' },
+        ]}
+      />
+    ),
+    fields: ['destination', 'purpose', 'traveller'],
+  },
+  {
+    name: 'add travellers to a group trip',
+    element: () => (
+      <tripForms.AddTravellersForm
+        tripId="t1"
+        travellers={[{ applicantId: 'a3', name: 'Synthetic Partner' }]}
+      />
+    ),
+    fields: ['traveller'],
+  },
+  {
+    name: 'remove a traveller from a group trip',
+    element: () => (
+      <tripForms.RemoveTravellerForm tripId="t1" applicantId="a1" name="Synthetic Child" />
+    ),
+    repeated: true,
+  },
+  {
+    name: 'share a travel document with a group trip',
+    element: () => (
+      <tripForms.AddTripEvidenceForm
+        tripId="t1"
+        documents={[{ documentId: 'd1', label: 'Hotel Booking (Synthetic Traveller)' }]}
+      />
+    ),
+    fields: ['documentId'],
+  },
+  {
+    name: 'allow a shared trip document for one traveller',
+    element: () => (
+      <tripForms.TripEvidenceAllowanceForm
+        tripId="t1"
+        evidenceId="e1"
+        applicantId="a2"
+        travellerName="Synthetic Child"
+        documentName="Hotel Booking"
+        allowed={false}
+      />
+    ),
+    repeated: true,
+  },
+  {
+    name: 'stop sharing a trip document',
+    element: () => (
+      <tripForms.RemoveTripEvidenceForm
+        tripId="t1"
+        evidenceId="e1"
+        applicantId="a1"
+        documentName="Hotel Booking"
+      />
+    ),
+    repeated: true,
   },
   {
     name: 'case details',
@@ -2430,6 +2514,45 @@ const ADMIN: readonly Case[] = [
     element: () => (
       <sourceForms.CandidateDecisionForm candidateId="c1" status="NEW" sourceTitle="Visit the UK" />
     ),
+  },
+  {
+    name: 'decide on a checklist correction',
+    element: () => (
+      <correctionForms.CorrectionDecisionForm
+        correctionId="k1"
+        status="RECEIVED"
+        itemName="Bank Statement"
+      />
+    ),
+    repeated: true,
+  },
+  {
+    name: 'suggest a correction on one case checklist line',
+    element: () => (
+      <correctionForm.ChecklistCorrectionForm
+        action={caseCorrectionActions.suggestCaseCorrectionAction}
+        hidden={{ missionId: 'm1', packRequirementId: 'r1' }}
+        categories={[
+          { value: 'OUTDATED', label: 'Out of Date' },
+          { value: 'OTHER', label: 'Something Else' },
+        ]}
+        itemName="Bank Statement"
+      />
+    ),
+    fields: ['category', 'officialUrl', 'detail'],
+    repeated: true,
+  },
+  {
+    name: 'suggest a correction on an agency request checklist',
+    element: () => (
+      <correctionForm.ChecklistCorrectionForm
+        action={caseCorrectionActions.suggestCaseCorrectionAction}
+        hidden={{ organizationId: 'o1', requestId: 'q1' }}
+        categories={[{ value: 'MISSING', label: 'Something Is Missing' }]}
+        items={[{ value: 'r1', label: 'Passport' }]}
+      />
+    ),
+    fields: ['packRequirementId', 'category', 'officialUrl', 'detail'],
   },
   {
     name: 'open a pack version',

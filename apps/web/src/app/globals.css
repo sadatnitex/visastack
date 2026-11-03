@@ -12882,6 +12882,114 @@ html:has(.sticky-action-bar) {
   min-height: 44px;
 }
 
+/* WP-UMPE-P5 group trips: the Group Trips list, Start a Group Trip and one trip's overview. */
+.trip-section {
+  margin-bottom: 1rem;
+}
+.trip-section > p {
+  margin: 0.75rem 0 0;
+}
+.trip-list,
+.trip-traveller-list,
+.trip-document-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.trip-list li {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.trip-traveller,
+.trip-document {
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-md, 12px);
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.trip-traveller-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.trip-traveller-name {
+  font-size: var(--text-body, 1rem);
+  margin: 0;
+}
+.trip-next-action,
+.trip-inline-form .btn,
+.trip-add-form .btn {
+  min-height: 44px;
+}
+.trip-travellers-choice {
+  border: 0;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+.trip-add-form {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.trip-inline-form {
+  display: inline-grid;
+  gap: 0.25rem;
+}
+.trip-document-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.trip-notice {
+  display: block;
+  margin: 0 0 1rem;
+}
+
+/* WP-UMPE-P11 checklist corrections: Suggest a Correction on case checklist lines and agency requests, and the editors' queue. */
+.correction-suggest > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--accent, currentColor);
+  font-size: var(--text-small, 0.875rem);
+}
+.correction-suggest[open] {
+  border-top: 1px solid var(--hairline-soft);
+  padding-top: 0.5rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.correction-form {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.correction-impact {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+.correction-card {
+  display: grid;
+  gap: 0.4rem;
+}
+.correction-detail {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.correction-link {
+  overflow-wrap: anywhere;
+}
+
 /* WP-UMPE-P9 guest uploads and review: the guest's drop area, upload lines, file list with its
    item choice, Still Missing, What You Sent, the Submit Documents consent, and the agency's review
    form and guest hold. Flat, 44 px targets, tokens only. */

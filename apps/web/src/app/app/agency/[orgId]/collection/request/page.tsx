@@ -12,6 +12,7 @@ import {
   type CollectionResponseView,
   agencyCollectionPrincipal,
   collectionResponseAccess,
+  collectionRuleImpact,
   getCollectionRequest,
   listCollectionPackChoices,
   protectedDetailsStepUp,
@@ -41,6 +42,7 @@ import {
   loadCollectionResponses,
 } from '../collection-response-panel';
 import { STATUS_TONES, collectionPackTerms, destinationName } from '../terms';
+import { ChecklistCorrectionCard } from './checklist-correction';
 
 export const metadata: Metadata = { title: 'Agency Document Request', referrer: 'no-referrer' };
 export const dynamic = 'force-dynamic';
@@ -149,17 +151,20 @@ export default async function CollectionRequestPage({
         reportServerError('collectionResponses', error, { step: 'guest answers failed' });
       }
     }
+    // UMPE P11: a newer published official checklist, through this agency's own scope.
+    const impact = await collectionRuleImpact(db, scope.value, requestId);
     return {
       detail: detail.value,
       choices: choices?.ok ? choices.value : [],
       responses,
       extras,
       reauth,
+      impact: impact.ok ? impact.value : undefined,
     };
   });
   if (!data) notFound();
   if (data.reauth) redirect(data.reauth);
-  const { detail, choices, responses, extras } = data;
+  const { detail, choices, responses, extras, impact } = data;
   const editable = detail.storedStatus === 'DRAFT' || detail.storedStatus === 'SENT';
   const items = detail.draftItems ?? [];
   const official = detail.draftPack !== null;
@@ -380,6 +385,18 @@ export default async function CollectionRequestPage({
             ))}
           </div>
         </section>
+      ) : null}
+
+      {official || detail.revisions.some((revision) => revision.packVersionId) ? (
+        <ChecklistCorrectionCard
+          organizationId={orgId}
+          requestId={detail.id}
+          impact={impact}
+          open={editable}
+          officialItems={items
+            .filter((item) => item.provenance === 'OFFICIAL' && item.source !== 'agency')
+            .map((item) => ({ value: item.source, label: item.label }))}
+        />
       ) : null}
 
       {editable ? (

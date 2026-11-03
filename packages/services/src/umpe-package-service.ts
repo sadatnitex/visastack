@@ -74,6 +74,7 @@ import {
 import { type PackRequirement, listRequirements } from './packs';
 import { CASE_TRAVEL_END_KEY, CASE_TRAVEL_START_KEY } from './rule-conditions';
 import { canonicalJson } from './umpe-collection-request-items';
+import { ruleImpactTablesPresent } from './umpe-correction-tables';
 import {
   type AttentionReason,
   type OutsideStep,
@@ -862,7 +863,10 @@ async function buildPackage(
       packRequirementId: null,
       subjectId: freshness.packVersionId,
     });
-  } else if (freshness?.packReplaced) {
+  } else if (freshness?.packReplaced && !(await ruleImpactTablesPresent(tx))) {
+    // Once the rule impact tables exist (UMPE P11), a newer published version is reported there,
+    // one precise note per publication; this package sweep stays quiet about it so the traveller
+    // never gets two notes for one publication. Before that migration this sweep still covers it.
     signals.push({
       kind: 'PACK_CHANGED',
       packRequirementId: null,

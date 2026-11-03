@@ -2698,6 +2698,77 @@ export {
 export { packageTablesPresent as packageTablesReady } from './umpe-package-tables';
 export { PACKAGE_CHANGED_EVENT } from './notifications';
 
+// UMPE P5
+export {
+  type TravellerAuthorityProblem,
+  type TripNextAction,
+  type TripRelationship,
+  COMMON_TRIP_EVIDENCE_TYPES,
+  TRIP_MAX_TRAVELLERS,
+  TRIP_NEXT_ACTION_LABELS,
+  isCommonTripEvidenceType,
+  travellerAuthorityProblem,
+  tripNextAction,
+} from './umpe-trip-rules';
+export {
+  type AddTravellerOutcome,
+  type TravellerTripEvidenceView,
+  type TripEvidenceView,
+  type TripIntentionInput,
+  type TripSummary,
+  type TripTravellerView,
+  type TripView,
+  addTravellerToTrip,
+  addTripEvidence,
+  getTrip,
+  listTripEvidence,
+  listTripEvidenceForTraveller,
+  listTrips,
+  removeTravellerFromTrip,
+  removeTripEvidence,
+  setTripEvidenceAllowance,
+  startGroupTrip,
+} from './umpe-trip-service';
+export { tripTablesPresent as tripTablesReady } from './umpe-trip-tables';
+// UMPE P11
+export {
+  type CorrectionCategory,
+  type CorrectionDecision,
+  type CorrectionInput,
+  type CorrectionQueue,
+  type CorrectionStatus,
+  type CorrectionView,
+  type SuggestedCorrection,
+  CORRECTION_CATEGORIES,
+  CORRECTION_CATEGORY_LABELS,
+  CORRECTION_DETAIL_MAX,
+  CORRECTION_STATUS_LABELS,
+  CORRECTION_STATUSES,
+  CORRECTION_URL_MAX,
+  cleanOfficialUrl,
+  listChecklistCorrections,
+  reviewChecklistCorrection,
+  suggestAgencyChecklistCorrection,
+  suggestCaseChecklistCorrection,
+} from './umpe-correction-service';
+export {
+  type CollectionRuleImpact,
+  type RuleChangeItem,
+  type RuleChangeKind,
+  type RuleImpactProgress,
+  type RuleImpactRunView,
+  RULE_IMPACT_NOTE_LIMIT,
+  assessRuleImpact,
+  collectionRuleImpact,
+  listRuleImpactRuns,
+  preciseRuleChange,
+  ruleChangeItemName,
+  ruleChangeSentence,
+  sweepRuleImpacts,
+} from './umpe-rule-impact-service';
+export { CORRECTIONS_NOT_READY } from './umpe-correction-tables';
+export { RULE_CHANGED_EVENT } from './notifications';
+
 // UMPE P9
 // Guest uploads, the exact guest submission, agency review for both sources, and guest retention.
 export { guestSubmissionStillLive } from './access/guest-submission-access';
