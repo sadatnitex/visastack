@@ -188,18 +188,24 @@ export function AppNav({
     ) : (
       link(item)
     );
-  const actionLink = (action: NavAction, className: string) => (
-    <Link
-      key={`action:${action.href}`}
-      href={action.href}
-      className={className}
-      title={action.label}
-      onClick={() => setOpen(false)}
-    >
-      <Icon name={CONTEXT_ICONS[action.label] ?? 'plus'} size={18} />
-      <span>{action.label}</span>
-    </Link>
-  );
+  const actionLink = (action: NavAction, className: string) => {
+    // In the sidebar the task is an icon at the end of its row, so its name is the spoken name
+    // and the hover and focus label (see the stylesheet). In the phone's More panel it is a full
+    // row with its words showing.
+    const iconOnly = className === 'app-nav-action';
+    return (
+      <Link
+        key={`action:${action.href}`}
+        href={action.href}
+        className={className}
+        {...(iconOnly ? { 'aria-label': action.label } : {})}
+        onClick={() => setOpen(false)}
+      >
+        <Icon name={CONTEXT_ICONS[action.label] ?? 'plus'} size={18} />
+        {iconOnly ? null : <span>{action.label}</span>}
+      </Link>
+    );
+  };
   const actions = links.flatMap((item) => (item.action ? [item.action] : []));
   const link = (item: NavLink) => (
     <Link

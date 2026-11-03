@@ -249,7 +249,7 @@ describe('the chip is a phone-only part of the stylesheet', () => {
 });
 
 describe('one row per destination (UX4)', () => {
-  it("keeps a destination's task inside its own row, after the destination, with a spoken and a tooltip name", () => {
+  it("keeps a destination's task inside its own row, after the destination, with its name spoken", () => {
     route.pathname = `/app/applicant/${SELF}`;
     mount(FULL);
     const rows = [...container.querySelectorAll('.app-bar .app-shell-links > .app-nav-entry')];
@@ -263,8 +263,9 @@ describe('one row per destination (UX4)', () => {
       expect(links).toHaveLength(2);
       expect(links[0]?.getAttribute('aria-label')).toBe(destination);
       expect(links[1]?.classList.contains('app-nav-action')).toBe(true);
-      expect(links[1]?.textContent).toBe(task);
-      expect(links[1]?.getAttribute('title')).toBe(task);
+      // An icon at the end of the row: its name is spoken, and the stylesheet shows it on hover and focus.
+      expect(links[1]?.getAttribute('aria-label')).toBe(task);
+      expect(links[1]?.textContent).toBe('');
     }
   });
 

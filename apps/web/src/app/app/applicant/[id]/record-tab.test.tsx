@@ -117,7 +117,9 @@ describe('the four-tab shell (WP-V3 part 2)', () => {
 describe('the three traveller entry points in the shell (UMPE P13)', () => {
   const sidebarOrder = () =>
     [...container.querySelectorAll('.app-bar .app-shell-links a')].map((a) =>
-      a.classList.contains('app-nav-action') ? `+ ${a.textContent}` : a.getAttribute('aria-label'),
+      a.classList.contains('app-nav-action')
+        ? `+ ${a.getAttribute('aria-label')}` // an icon: its name is the spoken name
+        : a.getAttribute('aria-label'),
     );
 
   it('puts each task right under its destination, in keyboard order', () => {
