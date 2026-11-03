@@ -2419,7 +2419,10 @@ export async function suggestDocumentKind(
  * nothing the job row says is trusted. Exactly the same gates as the button: the feature (for the
  * owner, in the job's system context), CORE_PROCESSING and AI_EXTRACTION consent checked now, the
  * rules' own confident kind, one waiting suggestion per file, budgets, cache, kill switch and rate
- * limit. The result only ever waits for the person (Needs One Decision lists it); nothing is saved.
+ * limit. UMPE G4: this is recognition only. It sends a redacted, bounded excerpt
+ * (`buildRecognitionExcerpt`) and keeps only the kind and its confidence; the reading job then
+ * applies a confident kind at once (`placeRecognisedKind`, with a one-step Change) and leaves a
+ * less sure one waiting for the person in Needs One Decision.
  */
 export async function suggestDocumentKindInBackground(
   db: Db,

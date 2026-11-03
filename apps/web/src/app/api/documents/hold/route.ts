@@ -39,9 +39,11 @@ const json = (
   message: string,
   status: number,
   extraHeaders: Readonly<Record<string, string>> = {},
+  /** The import list's title for an added file; a filed file (UMPE G4) passes its own. */
+  title: string | null = status === 201 ? 'Waiting for Which Person?' : null,
 ) =>
   Response.json(
-    { message, ...(status === 201 ? { title: 'Waiting for Which Person?' } : {}) },
+    { message, ...(title ? { title } : {}) },
     {
       status,
       headers: {
@@ -173,6 +175,9 @@ export async function POST(request: Request): Promise<Response> {
           return json(
             `Filed Under ${target.value.applicant.displayName}. It matched by name and date of birth; choose Change on their documents page if that is wrong.`,
             201,
+            {},
+            // "Added as <the document's name>", as an ordinary upload reads.
+            filed.value.title,
           );
         }
       }

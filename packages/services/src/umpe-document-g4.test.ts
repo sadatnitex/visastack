@@ -284,6 +284,24 @@ describe('the recognition excerpt', () => {
     expect(runs).toBeNull();
   });
 
+  it('removes every identifier on a line that names an account or holds an IBAN', () => {
+    const mail = ['anna.eriksson', 'example.invalid'].join('@');
+    const excerpt = buildRecognitionExcerpt(
+      [
+        `Account number: 1234 5678 9012 Email: ${mail}`,
+        `IBAN ${IBAN} holder ${mail}`,
+        `Card 4111 1111 1111 1111 ref ${'X'.repeat(42)}`,
+      ].join('\n'),
+    );
+    expect(excerpt).not.toContain('eriksson');
+    expect(excerpt).not.toContain('example.invalid');
+    expect(excerpt).not.toContain('GB82');
+    expect(excerpt).not.toContain('XXXXXXXXXX');
+    expect(excerpt.match(/\d/g)).toBeNull();
+    expect(excerpt).toContain('Account number');
+    expect(excerpt).toContain('IBAN');
+  });
+
   it('is bounded, whatever the length of the file', () => {
     const long = Array.from({ length: 5000 }, (_, i) => `Line ${i % 3} of a long letter`).join(
       '\n',
@@ -537,6 +555,31 @@ describe('family files', () => {
     expect(
       await countHeldFiles(await proofFor(db, owner, { applicantId: erik }, 'VIEW_METADATA')),
     ).toBe(1);
+  });
+
+  it('refuses Change once the filed document was used, and keeps it filed', async () => {
+    const held = await hold('6c9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f', ANNA_PASSPORT);
+    if (held.kind !== 'held') throw new Error('not held');
+    const filed = await fileHeldFile(await proofFor(db, owner, { applicantId: anna }), {
+      holdId: held.holdId,
+      automatic: true,
+    });
+    if (!filed.ok) throw new Error(filed.error.message);
+    // Any record outside the document that points at it counts as use (here, a review).
+    await db.insert(schema.documentReviews).values({
+      documentId: filed.value.documentId,
+      outcome: 'ACCEPTED',
+      reviewedByAccountId: owner,
+    });
+    const [placement] = await listAutoPlacements(
+      await proofFor(db, owner, { applicantId: anna }, 'VIEW_METADATA'),
+    );
+    const back = await returnAutoFiledHold(await proofFor(db, owner, { applicantId: anna }), {
+      placementId: placement?.placementId ?? '',
+    });
+    expect(back.ok).toBe(false);
+    if (!back.ok) expect(back.error.code).toBe('stale');
+    expect(await documentRow(db, filed.value.documentId)).toBeDefined();
   });
 
   it('never files automatically for another account, and keeps two close matches held', async () => {

@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { withArticle } from '../../../../../lib/indefinite-article';
 import { type RelationDecisionState, needsDecisionAction } from './needs-decision-actions';
 
 /** One file needing one decision, as the documents page passes it (UMPE P3). */
@@ -187,8 +188,7 @@ function placementLine(item: AutoPlacementItem, personName: string): string {
   if (item.placement === 'PERSON') {
     return `${item.title} matched ${personName} by name and date of birth, so we filed it for you.`;
   }
-  const label = item.kindLabel ?? 'document';
-  return `We recognised ${item.title} as ${/^[AEIOU]/i.test(label) ? 'an' : 'a'} ${label} and filed it.`;
+  return `We recognised ${item.title} as ${withArticle(item.kindLabel ?? 'Document')} and filed it.`;
 }
 
 /** Keep As It Is for one finding raised when a file was read (UMPE G1). */
@@ -432,7 +432,7 @@ export function NeedsDecision({
                 <li key={item.documentId} className="umpe-p3-decision-item">
                   <p>
                     {item.kind === 'suggested_kind'
-                      ? `We think ${item.title} is ${/^[AEIOU]/i.test(item.suggestedLabel) ? 'an' : 'a'} ${item.suggestedLabel}. Nothing is saved until you accept it.`
+                      ? `We think ${item.title} is ${withArticle(item.suggestedLabel)}. Nothing is saved until you accept it.`
                       : item.kind === 'unknown_type'
                         ? `We could not tell what ${item.title} is.`
                         : `We are not sure what ${item.title} is.`}

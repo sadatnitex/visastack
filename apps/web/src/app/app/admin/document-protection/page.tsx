@@ -130,10 +130,12 @@ export default async function DocumentProtectionPage({
             <p className="card-body">{data.overview.unknown.description}</p>
             {/* UMPE G4: recognition is separate from reading, and always safe. */}
             <p className="card-body" id="unsorted-recognition">
-              Every file whose kind is not known yet is still recognised safely: only a short part
-              of it, with identity, passport and account numbers removed, is used to tell what kind
-              of document it is. For automatic reading, this switch now only decides whether the
-              details of a file may be read before its kind is known. A file recognised as a
+              A file whose kind is not known yet is still recognised safely when it has text: only a
+              short part of it, with identity, passport and account numbers and email addresses
+              removed, is used to tell what kind of document it is. A photo with no text is only
+              read from its picture while this switch is off, so with the switch on it waits for the
+              person to say what it is. For automatic reading, this switch now only decides whether
+              the details of a file may be read before its kind is known. A file recognised as a
               protected kind is never read in detail automatically, whatever this switch says.
             </p>
             <p>

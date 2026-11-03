@@ -390,11 +390,12 @@ export async function processAiReading(
 }
 
 /**
- * UMPE G1 (ledger I07): when the rules gave no kind, ask the classifier once, through the same gate
- * the button uses (`suggestDocumentKindInBackground` repeats every check: feature, consent, the
- * rules' own kind, a suggestion already waiting, budgets, rate limit). Best effort: a refusal or a
- * failed call leaves the file exactly as it was (listed as Unknown Type) and never stops the
- * reading of details. Kinds only are audited, by the classifier itself.
+ * UMPE G1 and G4 (ledger I07): when the rules gave no kind, recognise the file once, through the
+ * same gate the button uses (`suggestDocumentKindInBackground` repeats every check: the document
+ * kind switch, consent, the rules' own kind, a suggestion already waiting, budgets, rate limit),
+ * from a redacted excerpt. A confident kind is then placed at once (`placeRecognisedKind`); a less
+ * sure one waits in Needs One Decision. Best effort: a refusal or a failed call leaves the file as
+ * it was (listed as Unknown Type). The caller re-checks protection afterwards, before any reading.
  */
 async function recogniseIfUnknown(
   db: Db,

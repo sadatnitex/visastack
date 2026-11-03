@@ -16,7 +16,10 @@ import { after } from 'next/server';
 import { isRecordId } from '../../../../../lib/record-id';
 import { withSession } from '../../../../../lib/session';
 import { createStorage } from '../../../../../lib/storage';
-import { triggerIntakeAndReading } from '../../../../api/jobs/process-ai-reading/run';
+import {
+  runAutomaticReading,
+  triggerIntakeAndReading,
+} from '../../../../api/jobs/process-ai-reading/run';
 
 export interface RelationDecisionState {
   readonly ok: boolean;
@@ -71,6 +74,10 @@ export async function decideRelationAction(
               'Nothing was changed yet: the newer file cannot replace the older one right now. Try again once both files have finished being checked.',
           }
         : { ok: false, message: GONE };
+    }
+    // UMPE G4: a kind given to the newer file queued a fresh reading; run it now.
+    if (decided.value.replaced) {
+      after(() => runAutomaticReading({ limit: 2, timeBudgetMs: 25_000 }).then(() => undefined));
     }
     if (decided.value.status === 'DISMISSED') {
       return { ok: true, message: 'Kept separate. Both files stay as they are.' };

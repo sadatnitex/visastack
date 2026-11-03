@@ -24,7 +24,7 @@
 
 import { createHash, randomUUID } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
-import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm';
 import { AuthorizedApplicant, SystemScope } from './access';
 import { appendAuditEvent } from './audit';
 import { findTd3Block } from './classification';
@@ -34,9 +34,13 @@ import { type ServiceError, serviceError } from './errors';
 import type { DocumentConverterPort } from './extraction';
 import type { ContentLimitsPort, MalwareScannerPort } from './intake';
 import { enqueueIntakeJob } from './jobs';
-import { lifecycleTablesPresent, presentApplicantCondition } from './lifecycle/foundation';
+import {
+  lifecycleTablesPresent,
+  presentApplicantCondition,
+  presentDocumentCondition,
+} from './lifecycle/foundation';
 import { parseTd3 } from './mrz';
-import { enqueueNotificationBothChannels } from './notifications';
+import { HELD_FILE_REMINDER_EVENT, enqueueNotificationBothChannels } from './notifications';
 import type { KeyManagementPort } from './ports';
 import { revealFactVersionValue } from './profile';
 import { type UploadQuotaConfig, loadUploadQuotaConfig } from './quotas';
@@ -49,6 +53,7 @@ import { DOCUMENT_DATE_PATTERN, parseStatementDate } from './umpe-document-relat
 import {
   autoPlacementsTablePresent,
   personHoldsTablePresent,
+  relationProposalsTablePresent,
   uploadReceiptsTablePresent,
 } from './umpe-document-tables';
 import { failUpload, finalizeUpload, reserveUpload } from './uploads';
@@ -976,8 +981,8 @@ export async function sweepHeldFiles(
 
 /** A file still waiting for Which Person? this long gets one reminder (in the app and by email). */
 export const HELD_REMINDER_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
-/** The reminder's event; its send-time check lives with the notification worker. */
-export const HELD_FILE_REMINDER_EVENT = 'DOCUMENT_HELD_REMINDER';
+/** The reminder's event (defined with its send-time check in notifications.ts). */
+export { HELD_FILE_REMINDER_EVENT } from './notifications';
 
 /**
  * One reminder per waiting file older than 7 days, queued by the daily held-file sweep. The outbox
@@ -998,6 +1003,8 @@ async function remindHeldFiles(
         isNotNull(holds.ownerAccountId),
         lt(holds.createdAt, new Date(options.now.getTime() - HELD_REMINDER_AFTER_MS)),
         gte(holds.createdAt, new Date(options.now.getTime() - HELD_MAX_AGE_MS)),
+        // Reminded already: never picked again, so later files always get their turn.
+        sql`not exists (select 1 from ${schema.notifications} where ${schema.notifications.eventType} = ${HELD_FILE_REMINDER_EVENT} and ${schema.notifications.resourceId} = ${holds.id}::text)`,
       ),
     )
     .orderBy(holds.createdAt)
@@ -1060,85 +1067,100 @@ export async function countHeldFiles(
   return Number(row?.count ?? 0);
 }
 
-/** Tables whose rows mean a filed document was already used, so filing it cannot be undone. */
-const USE_BY_DOCUMENT: readonly string[] = [
-  'selected_evidence',
-  'ai_connection_documents',
-  'agency_collection_response_items',
-  'umpe_trip_evidence',
-  'document_removal_requests',
-  'erasure_jobs',
-  'document_reviews',
-  'issuer_verifications',
-  'umpe_package_choices',
-  'legal_holds',
-];
+/**
+ * Tables that point at a document or its versions and are part of the document itself (deleted
+ * with it, or the hold and upload bookkeeping of this very filing). Anything else that points at
+ * it, through any foreign key, means the document was already used.
+ */
+const DOCUMENT_OWN_TABLES: ReadonlySet<string> = new Set([
+  'document_versions',
+  'document_person_holds',
+  'upload_intents',
+  'document_upload_receipts',
+  'document_auto_placements',
+  'document_name_versions',
+  'document_classifications',
+  'document_type_proposals',
+  'document_lifecycle',
+  'document_intake_exceptions',
+  'document_relation_proposals',
+  'extraction_runs',
+  'ai_extraction_runs',
+  'ai_classification_runs',
+  'ai_inconsistency_runs',
+  'document_inconsistency_flags',
+  'ocr_runs',
+  'scan_results',
+  'processing_jobs',
+  'field_proposals',
+  'reference_codes',
+]);
 
-/** True when anything has used the document since it was filed (see `USE_BY_DOCUMENT`). */
+function rowsOf(result: unknown): unknown[] {
+  const rows = (result as { rows?: unknown[] }).rows ?? result;
+  return Array.isArray(rows) ? rows : [];
+}
+
+/**
+ * True when anything has used the document since it was filed. Every foreign key into
+ * `documents` or `document_versions` is read from the database's own catalogue, so a table added
+ * later (a request answer, a case outcome, a share) is covered without a list to keep up; only the
+ * document's own records (`DOCUMENT_OWN_TABLES`) are skipped, and of those, a decided detail, a
+ * confirmed link and a deletion still count as use.
+ */
 async function documentInUse(
   tx: Db,
   documentId: string,
   documentVersionId: string,
 ): Promise<boolean> {
-  const probe = async (table: string, where: ReturnType<typeof sql>): Promise<boolean> => {
-    const found = await tx.execute(
-      sql`select 1 as hit from ${sql.identifier(table)} where ${where} limit 1`,
+  const keys = rowsOf(
+    await tx.execute(sql`
+      select c.conrelid::regclass::text as tbl, a.attname::text as col,
+             c.confrelid::regclass::text as target
+      from pg_constraint c
+      join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any(c.conkey)
+      where c.contype = 'f'
+        and c.confrelid in ('documents'::regclass, 'document_versions'::regclass)
+        and array_length(c.conkey, 1) = 1`),
+  ) as { tbl: string; col: string; target: string }[];
+  for (const key of keys) {
+    if (DOCUMENT_OWN_TABLES.has(key.tbl)) continue;
+    const id = key.target === 'documents' ? documentId : documentVersionId;
+    const hit = rowsOf(
+      await tx.execute(
+        sql`select 1 from ${sql.identifier(key.tbl)} where ${sql.identifier(key.col)} = ${id} limit 1`,
+      ),
     );
-    const rows = (found as unknown as { rows?: unknown[] }).rows ?? (found as unknown as unknown[]);
-    return Array.isArray(rows) && rows.length > 0;
-  };
-  const presentTables = async (names: readonly string[]): Promise<Set<string>> => {
-    const rows = await tx
-      .select({
-        name: sql<string>`t.name`,
-        present: sql<boolean>`to_regclass(t.name) is not null`,
-      })
-      .from(
-        sql`unnest(${sql`array[${sql.join(
-          names.map((name) => sql`${name}`),
-          sql`, `,
-        )}]::text[]`}) as t(name)`,
-      );
-    return new Set(rows.filter((row) => row.present).map((row) => row.name));
-  };
-  const present = await presentTables([
-    ...USE_BY_DOCUMENT,
-    'field_proposals',
-    'redaction_masks',
-    'document_relation_proposals',
-    'document_lifecycle',
-  ]);
-  for (const table of USE_BY_DOCUMENT) {
-    if (present.has(table) && (await probe(table, sql`document_id = ${documentId}`))) return true;
+    if (hit.length > 0) return true;
   }
-  if (
-    present.has('field_proposals') &&
-    (await probe(
-      'field_proposals',
-      sql`document_version_id = ${documentVersionId} and status <> 'PENDING'`,
-    ))
-  ) {
-    return true;
+  const decided = await tx
+    .select({ id: schema.fieldProposals.id })
+    .from(schema.fieldProposals)
+    .where(
+      and(
+        eq(schema.fieldProposals.documentVersionId, documentVersionId),
+        ne(schema.fieldProposals.status, 'PENDING'),
+      ),
+    )
+    .limit(1);
+  if (decided.length > 0) return true;
+  if (await relationProposalsTablePresent(tx)) {
+    const linked = await tx
+      .select({ id: schema.documentRelationProposals.id })
+      .from(schema.documentRelationProposals)
+      .where(
+        and(
+          or(
+            eq(schema.documentRelationProposals.documentId, documentId),
+            eq(schema.documentRelationProposals.relatedDocumentId, documentId),
+          ),
+          eq(schema.documentRelationProposals.status, 'CONFIRMED'),
+        ),
+      )
+      .limit(1);
+    if (linked.length > 0) return true;
   }
-  if (
-    present.has('redaction_masks') &&
-    (await probe('redaction_masks', sql`document_version_id = ${documentVersionId}`))
-  ) {
-    return true;
-  }
-  if (
-    present.has('document_relation_proposals') &&
-    (await probe(
-      'document_relation_proposals',
-      sql`(document_id = ${documentId} or related_document_id = ${documentId}) and status = 'CONFIRMED'`,
-    ))
-  ) {
-    return true;
-  }
-  return (
-    present.has('document_lifecycle') &&
-    (await probe('document_lifecycle', sql`document_id = ${documentId} and deleted_at is not null`))
-  );
+  return false;
 }
 
 /**
@@ -1168,7 +1190,15 @@ export async function returnAutoFiledHold(
     RATE_LIMITS.AUTO_PLACEMENT_CHANGE,
   );
   if (!limited.allowed) return err(serviceError('rate_limited', limited.reason));
+  const lifecycle = await lifecycleTablesPresent(db);
   return db.transaction(async (tx: Db) => {
+    // The same lock order as account deletion: the person first, then the document, then the
+    // rest. The placement is read under the person's lock, so two Changes never both pass.
+    await tx
+      .select({ id: schema.applicants.id })
+      .from(schema.applicants)
+      .where(eq(schema.applicants.id, applicantId))
+      .for('update');
     const placement = first(
       await tx
         .select()
@@ -1181,16 +1211,9 @@ export async function returnAutoFiledHold(
             eq(placements.status, 'APPLIED'),
           ),
         )
-        .limit(1)
-        .for('update'),
+        .limit(1),
     );
     if (!placement?.holdId) return notFound;
-    // The same lock order as filing and deletion: the person, then the document, then the hold.
-    await tx
-      .select({ id: schema.applicants.id })
-      .from(schema.applicants)
-      .where(eq(schema.applicants.id, applicantId))
-      .for('update');
     const document = first(
       await tx
         .select({ id: schema.documents.id })
@@ -1199,6 +1222,8 @@ export async function returnAutoFiledHold(
           and(
             eq(schema.documents.id, placement.documentId),
             eq(schema.documents.applicantId, applicantId),
+            // A command on one document: presentDocumentCondition (deleted answers as missing).
+            lifecycle ? presentDocumentCondition() : undefined,
           ),
         )
         .limit(1)

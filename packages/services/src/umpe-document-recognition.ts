@@ -26,6 +26,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
+import { everydayDocumentCondition } from './lifecycle/foundation/conditions';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { AUTOMATIC_TITLE_REASON, documentKindLabel } from './naming';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
@@ -47,8 +48,12 @@ export const AUTO_PLACE_MIN_CONFIDENCE = 90;
 const MRZ_LIKE = /^[A-Z0-9<]{20,44}$/;
 /** Any run of 4 or more digits, possibly split by single spaces, hyphens, dots or slashes. */
 const DIGIT_RUN = /\d(?:[ ./-]?\d){3,}/g;
+/** Every digit run, however short: used on a line that names an account or holds an IBAN. */
+const ANY_DIGITS = /\d(?:[ ./-]?\d)*/g;
 /** A word that mixes letters and 3 or more digits ("A1234567", "BD12X345"): an identity code. */
 const MIXED_CODE = /\b(?=[A-Z0-9]*[A-Z])(?=(?:[A-Z]*\d){3})[A-Z0-9]{5,}\b/gi;
+/** An IBAN as printed (country, check digits, then groups of up to four), upper case only. */
+const IBAN_PRINTED = /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{1,4}){2,8}\b/g;
 const EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/g;
 const PLAIN_YEAR = /^(19|20)\d{2}$/;
 /** Long words without spaces, which only machine-readable or encoded content has. */
@@ -61,12 +66,23 @@ function maskDigitRun(run: string): string {
   return REMOVED_NUMBER;
 }
 
+/** Every mask, in an order where an earlier one never hides a later one's target. */
+function maskLine(line: string): string {
+  return line
+    .replace(EMAIL, '[email]')
+    .replace(LONG_WORD, REMOVED_NUMBER)
+    .replace(IBAN_PRINTED, REMOVED_NUMBER)
+    .replace(MIXED_CODE, REMOVED_NUMBER)
+    .replace(DIGIT_RUN, maskDigitRun);
+}
+
 /**
  * The redacted, bounded excerpt of a file's text that recognition sends (UMPE G4). Machine-readable
- * passport lines are dropped whole; IBANs, labelled account and card numbers, email addresses,
- * identity codes that mix letters and digits, and every other run of 4 or more digits that is not
- * a date or a plain year are replaced. Pure: the same text always gives the same excerpt, so the
- * classification cache still works.
+ * passport lines are dropped whole; email addresses, IBANs, identity codes that mix letters and
+ * digits, long unbroken words, and every run of 4 or more digits that is not a date or a plain year
+ * are replaced. On a line that holds an IBAN or names an account or card (the ADR 0022 matchers),
+ * every number goes, dates included; the label stays, because it says what the document is. Pure:
+ * the same text always gives the same excerpt, so the classification cache still works.
  */
 export function buildRecognitionExcerpt(text: string | null | undefined): string {
   if (!text) return '';
@@ -81,18 +97,10 @@ export function buildRecognitionExcerpt(text: string | null | undefined): string
     if (line === '') continue;
     const tight = line.toUpperCase().replace(/\s/g, '');
     if (MRZ_LIKE.test(tight) && tight.includes('<')) continue;
+    let cleaned = maskLine(line);
     if (hasIban(line) || looksLikeAccountNumber(line, line)) {
-      // The label stays (it says what kind of document this is); the number goes.
-      const label = line.replace(/[A-Z]{2}\d{2}[A-Z0-9 ]*|[\d][\d ./-]*/gi, ' ').trim();
-      kept.push(`${label} ${REMOVED_NUMBER}`.trim());
-      length += label.length + REMOVED_NUMBER.length + 1;
-      continue;
+      cleaned = cleaned.replace(ANY_DIGITS, REMOVED_NUMBER);
     }
-    const cleaned = line
-      .replace(LONG_WORD, REMOVED_NUMBER)
-      .replace(EMAIL, '[email]')
-      .replace(MIXED_CODE, REMOVED_NUMBER)
-      .replace(DIGIT_RUN, maskDigitRun);
     kept.push(cleaned);
     length += cleaned.length + 1;
   }
@@ -139,6 +147,8 @@ export async function queueReadingAfterKindDecision(
         and(
           eq(schema.documentVersions.documentId, documentId),
           eq(schema.documents.applicantId, proof.applicant.id),
+          // A command on one document: presentDocumentCondition (deleted answers as missing).
+          (await lifecycleTablesPresent(tx)) ? presentDocumentCondition() : undefined,
         ),
       )
       .orderBy(desc(schema.documentVersions.versionNumber))
@@ -204,7 +214,11 @@ async function nextNameVersionNumber(tx: Db, documentId: string): Promise<number
   return (top?.versionNumber ?? 0) + 1;
 }
 
-/** True when a person ever decided this document's name (renamed it, or accepted a name). */
+/**
+ * True when a person ever decided this document's name (renamed it, or accepted a name). The same
+ * rule as `nameThePersonChose` in ai.ts; it is kept private in both places because an exported
+ * reader of documents needs an access proof (the access ratchet), and neither caller has one.
+ */
 async function personChoseName(tx: Db, documentId: string): Promise<boolean> {
   const decided = first(
     await tx
@@ -484,6 +498,7 @@ export async function listAutoPlacements(
       appliedDocType: placements.appliedDocType,
       docType: schema.documents.docType,
       approvedName: schema.documents.approvedName,
+      originalName: schema.documents.originalName,
     })
     .from(placements)
     .innerJoin(schema.documents, eq(schema.documents.id, placements.documentId))
@@ -491,6 +506,8 @@ export async function listAutoPlacements(
       and(
         eq(placements.applicantId, proof.applicant.id),
         eq(schema.documents.applicantId, proof.applicant.id),
+        // Archived and deleted files are put away: nothing to change there.
+        (await lifecycleTablesPresent(db)) ? everydayDocumentCondition() : undefined,
         eq(placements.status, 'APPLIED'),
         // Shown while it is recent; after that it is simply how the file is.
         gte(placements.createdAt, new Date((options.now ?? new Date()).getTime() - SHOWN_FOR_MS)),
@@ -504,7 +521,8 @@ export async function listAutoPlacements(
       placementId: row.id,
       documentId: row.documentId,
       placement: row.placement === 'PERSON' ? 'PERSON' : 'KIND',
-      title: row.approvedName?.trim() || 'Untitled Document',
+      // The same name the document list shows.
+      title: row.approvedName?.trim() || row.originalName,
       kindLabel:
         row.placement === 'KIND' && row.appliedDocType
           ? documentKindLabel(row.appliedDocType)
@@ -541,6 +559,7 @@ export async function changeRecognisedKind(
     RATE_LIMITS.AUTO_PLACEMENT_CHANGE,
   );
   if (!limited.allowed) return err(serviceError('rate_limited', limited.reason));
+  const lifecycle = await lifecycleTablesPresent(db);
   return db.transaction(async (tx: Db) => {
     const document = first(
       await tx
@@ -550,6 +569,8 @@ export async function changeRecognisedKind(
           and(
             eq(schema.documents.id, documentId),
             eq(schema.documents.applicantId, proof.applicant.id),
+            // A command on one document: presentDocumentCondition (deleted answers as missing).
+            lifecycle ? presentDocumentCondition() : undefined,
           ),
         )
         .limit(1)

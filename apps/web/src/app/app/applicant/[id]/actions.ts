@@ -82,7 +82,18 @@ import {
   validateUploadBytes,
 } from '../../../../lib/upload-preflight';
 import { storedFileName } from '../../../../lib/upload-rules';
-import { triggerIntakeAndReading } from '../../../api/jobs/process-ai-reading/run';
+import {
+  runAutomaticReading,
+  triggerIntakeAndReading,
+} from '../../../api/jobs/process-ai-reading/run';
+
+/**
+ * UMPE G4: after a kind is decided, the fresh reading queued for the file runs now, in a small pass
+ * after the response, instead of waiting for the daily sweep.
+ */
+function readSoon(): void {
+  after(() => runAutomaticReading({ limit: 2, timeBudgetMs: 25_000 }).then(() => undefined));
+}
 import { describeClearAcceptance } from './ai-review-messages';
 import { recordGroupOfDocType } from './record-groups';
 
@@ -686,7 +697,9 @@ export async function setDocumentTypeAction(formData: FormData): Promise<void> {
         { documentId },
         { purpose: 'owner_document_finding' },
       );
-      if (access.ok) await queueReadingAfterKindDecision(access.value, { documentId });
+      if (access.ok && (await queueReadingAfterKindDecision(access.value, { documentId }))) {
+        readSoon();
+      }
     }
     return typed;
   });
@@ -1133,6 +1146,8 @@ export async function decideDocumentSuggestionAction(
         : { decision, nameVersionId, typeProposalId },
     );
     if (!decided.ok) return { ok: false, message: plainError(decided.error) } satisfies ActionState;
+    // UMPE G4: the service queued a fresh reading for an accepted kind; run it now.
+    if (decided.value.decision === 'accept') readSoon();
     return {
       ok: true,
       message:
@@ -1190,10 +1205,13 @@ export async function decideClassificationProposalAction(
       { applicantId },
       { purpose: 'owner_document_finding' },
     );
-    if (access.ok) {
-      await queueReadingAfterKindDecision(access.value, {
+    if (
+      access.ok &&
+      (await queueReadingAfterKindDecision(access.value, {
         documentVersionId: approved.value.documentVersionId,
-      });
+      }))
+    ) {
+      readSoon();
     }
     return {
       ok: true,
