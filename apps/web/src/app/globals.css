@@ -13099,6 +13099,89 @@ html:has(.sticky-action-bar) {
   padding-top: var(--space-3);
 }
 
+/* WP-UMPE-P12 outcomes: the case page's Application Attempts card and the Field Insights periods. */
+.attempt-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.attempt-item {
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-md, 12px);
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.35rem;
+}
+.attempt-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.attempt-title {
+  font-size: var(--text-body, 1rem);
+  margin: 0;
+}
+.attempt-meta {
+  font-size: var(--text-small);
+  margin: 0;
+}
+.attempt-events {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.25rem;
+  font-size: var(--text-small);
+}
+.attempt-details > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.attempt-row {
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.attempt-inline-form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.attempt-kinds {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.attempt-kind-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-md, 12px);
+  padding: 0 0 0 0.6rem;
+}
+.attempt-kinds .btn,
+.insights-periods .btn {
+  min-height: 44px;
+}
+.insights-periods {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 /* WP-UMPE-G3 agency email state and member permissions */
 .collection-email-reason {
   display: block;

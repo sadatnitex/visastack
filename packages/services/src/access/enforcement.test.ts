@@ -131,6 +131,15 @@ const COLLECTION_GATE_TYPES = [
   // UMPE P9: the daily retention purge of guest files and answers (process-erasure only).
   'SystemScope',
 ] as const;
+/**
+ * UMPE P12: exported functions that read request tables with a StaffScope for one named platform
+ * action, each with why. Fixed, not a baseline: an entry that no longer exists fails the test, and
+ * no other staff function may read these tables.
+ */
+const COLLECTION_STAFF_READERS: Readonly<Record<string, string>> = {
+  'umpe-insights-service#getFieldInsights':
+    'Field Insights for quality staff (StaffScope FEEDBACK_VIEW, checked at run time): counts links, guest files, guest submissions and reviews per agency; only suppressed counts and closed-vocabulary keys leave the function, never a row, id, address or file',
+};
 const COLLECTION_SAFE_CALLS: ReadonlySet<string> = new Set([
   'audit#appendAuditEvent',
   'invitation-email#queueInvitationEmail',
@@ -1270,7 +1279,11 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
       checker,
       tables,
       gateDeclarations(program, checker, COLLECTION_GATE_TYPES),
+      { trusted: new Set(Object.keys(COLLECTION_STAFF_READERS)) },
     );
+    for (const id of Object.keys(COLLECTION_STAFF_READERS)) {
+      expect(exportedFunctionIds.has(id), `${id} is listed but no longer exists`).toBe(true);
+    }
     // Guard: the services are found and judged.
     for (const id of [
       'umpe-collection-request-service#listCollectionRequests',
