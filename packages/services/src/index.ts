@@ -2814,3 +2814,37 @@ export {
 } from './umpe-collection-response-review';
 export { type GuestPurgeResult, purgeGuestCollectionData } from './umpe-guest-retention';
 export { SIGNED_IN_SESSION_IDLE_MS } from './umpe-guest-collection';
+
+// UMPE G1: intake gap closure (findings raised when a file is read, statement periods in names,
+// the background kind suggestion, and the family batch with its Which Person? decision).
+export {
+  INTAKE_EXCEPTION_KINDS,
+  type IntakeExceptionKind,
+  expiredOnArrival,
+  hasReadableText,
+  isIntakeExceptionKind,
+  periodForName,
+  statementPeriodLabel,
+} from './umpe-document-arrival';
+export { dismissIntakeException } from './umpe-document-exceptions';
+export { suggestDocumentKindInBackground } from './ai';
+export {
+  type FiledHold,
+  HELD_MAX_FILES,
+  HELD_MAX_TOTAL_BYTES,
+  type HeldFile,
+  type HeldFileChecks,
+  type HeldFilesView,
+  type HoldFamilyFileDeps,
+  type HoldFamilyFileInput,
+  type HoldFamilyFileOutcome,
+  type PersonIdentity,
+  type PersonProposal,
+  type ProposalBasis,
+  discardHeldFile,
+  fileHeldFile,
+  holdFamilyFile,
+  listHeldFiles,
+  proposePerson,
+  sweepHeldFiles,
+} from './umpe-document-holds';

@@ -22,6 +22,12 @@ import {
 import { type MrzReading, mrzFieldDefinitions, mrzFieldReadings } from './mrz-suggestions';
 import { buildProposedName, extensionOf } from './naming';
 import { registerFieldDefinitions } from './profile';
+import {
+  type IntakeExceptionKind,
+  expiredOnArrival,
+  hasReadableText,
+  periodForName,
+} from './umpe-document-arrival';
 import { readableNameFromFileName } from './umpe-document-names';
 import {
   MACHINE_READABLE_IDENTITY_TYPES,
@@ -29,7 +35,11 @@ import {
   proposeDocumentRelation,
   readDocumentSignals,
 } from './umpe-document-relations';
-import { relationProposalsTablePresent, uploadReceiptsTablePresent } from './umpe-document-tables';
+import {
+  intakeExceptionsTablePresent,
+  relationProposalsTablePresent,
+  uploadReceiptsTablePresent,
+} from './umpe-document-tables';
 
 /**
  * Document intake pipeline (Build Spec §6): quarantine → scan → normalize →
@@ -537,6 +547,8 @@ async function runExtractionStep(
         resourceId: version.id,
         metadata: { status: 'FAILED', code: outcome.code },
       });
+      // UMPE G1 (ledger I14): the person is told once that this file gave no readable text.
+      await recordIntakeExceptions(tx, document, version, ['NO_READABLE_TEXT']);
       return true;
     });
     return recorded ? 'ok' : 'lost-lease';
@@ -653,14 +665,23 @@ async function runExtractionStep(
     // A filename proposal only when classification cleared review (never
     // proposes a name built on a guessed type). A proposal, never a saved
     // name: approvedName changes only when the person accepts it.
-    if (classification.classifiedType && !classification.reviewRequired) {
+    // UMPE G1 (ledger I08): a statement carries its period from its own text, and a name the
+    // person already chose is never offered a replacement.
+    const statementPeriod = periodForName(result.text, classification.classifiedType);
+    if (
+      classification.classifiedType &&
+      !classification.reviewRequired &&
+      !(await personHasNamedDocument(tx, document.id))
+    ) {
       const proposedName = buildProposedName({
         classifiedType: classification.classifiedType,
         primarySubject: applicant?.displayName ?? 'Unknown',
         ...(classification.mrz ? { issuerOrContext: classification.mrz.issuingCountry } : {}),
         ...(classification.mrz
           ? { relevantDateOrPeriod: `Expires ${classification.mrz.expiryDate}` }
-          : {}),
+          : statementPeriod
+            ? { relevantDateOrPeriod: statementPeriod }
+            : {}),
         extension: extensionOf(document.originalName),
       });
       await proposeDocumentName(tx, {
@@ -691,9 +712,87 @@ async function runExtractionStep(
         `[document-understanding] suggestion step failed: ${error instanceof Error ? error.name : 'unknown'}`,
       );
     }
+
+    // UMPE G1 (ledger I14): what this file shows on arrival, raised now rather than when a page
+    // is read. The expiry is the saved one, or the passport's check-digit verified one.
+    const arrivalKinds: IntakeExceptionKind[] = [];
+    if (!hasReadableText(result.text)) arrivalKinds.push('NO_READABLE_TEXT');
+    const verifiedExpiry =
+      classification.classifiedType && !classification.reviewRequired && classification.mrz
+        ? classification.mrz.expiryDate
+        : null;
+    if (
+      expiredOnArrival(
+        document.expiresAt ?? verifiedExpiry,
+        version.createdAt,
+        applicant?.timezone ?? 'Asia/Dhaka',
+      )
+    ) {
+      arrivalKinds.push('EXPIRED_ON_ARRIVAL');
+    }
+    try {
+      await tx.transaction((inner) =>
+        recordIntakeExceptions(inner, document, version, arrivalKinds),
+      );
+    } catch (error) {
+      console.warn(
+        `[document-understanding] arrival check failed: ${error instanceof Error ? error.name : 'unknown'}`,
+      );
+    }
     return true;
   });
   return recorded ? 'ok' : 'lost-lease';
+}
+
+/**
+ * UMPE G1, private to intake (a system step with no person's proof): records each finding once per
+ * version and kind (a repeated reading of the same file adds nothing). Kinds only. Does nothing
+ * while the table is missing.
+ */
+async function recordIntakeExceptions(
+  tx: Db,
+  document: { readonly id: string; readonly applicantId: string },
+  version: DocumentVersion,
+  kinds: readonly IntakeExceptionKind[],
+): Promise<void> {
+  if (kinds.length === 0 || !(await intakeExceptionsTablePresent(tx))) return;
+  await tx
+    .insert(schema.documentIntakeExceptions)
+    .values(
+      kinds.map((kind) => ({
+        applicantId: document.applicantId,
+        documentId: document.id,
+        documentVersionId: version.id,
+        kind,
+      })),
+    )
+    .onConflictDoNothing({
+      target: [
+        schema.documentIntakeExceptions.documentVersionId,
+        schema.documentIntakeExceptions.kind,
+      ],
+    });
+}
+
+/**
+ * True when the person has already decided this document's name (renamed it, or accepted a
+ * suggested name): no automatic name is offered over it (ledger I08).
+ */
+async function personHasNamedDocument(tx: Db, documentId: string): Promise<boolean> {
+  const row = first(
+    await tx
+      .select({ id: schema.documentNameVersions.id })
+      .from(schema.documentNameVersions)
+      .where(
+        and(
+          eq(schema.documentNameVersions.documentId, documentId),
+          inArray(schema.documentNameVersions.decision, ['ACCEPTED_UNCHANGED', 'ACCEPTED_EDITED']),
+          sql`${schema.documentNameVersions.decidedByAccountId} is not null`,
+        ),
+      )
+      .limit(1),
+  );
+  return row !== undefined;
 }
 
 /** The most other documents of the same kind compared with a new one. */
@@ -721,7 +820,11 @@ async function recordDocumentUnderstanding(
   },
 ): Promise<void> {
   const { document, version } = input;
-  if (input.readType === null && document.docType === null) {
+  if (
+    input.readType === null &&
+    document.docType === null &&
+    !(await personHasNamedDocument(tx, document.id))
+  ) {
     await proposeNameFromOriginalFile(tx, document, version.id);
   }
   if (!(await relationProposalsTablePresent(tx))) return;

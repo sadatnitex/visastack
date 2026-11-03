@@ -2,11 +2,13 @@ import { and, desc, eq, not } from 'drizzle-orm';
 import { DEFAULT_DOCUMENT_PROTECTION, SystemScope, isRestrictedDocumentType } from './access';
 import { loadDocumentProtectionSettings } from './access/restricted-documents';
 import {
+  type AiClassifyPort,
   type AiExtractionPort,
   type RunExtractionInput,
   type RunOcrInput,
   runExtraction,
   runOcr,
+  suggestDocumentKindInBackground,
 } from './ai';
 import { getAiFeatureState, isAiFeatureRefusal } from './ai-feature-settings';
 import { isAiDispatchAllowed } from './ai-provider-config';
@@ -77,6 +79,12 @@ export interface AiReadingPorts {
       }
     | undefined
   >;
+  /**
+   * UMPE G1 (ledger I07): the classifier the Suggest a Kind button uses, so a file the rules could
+   * not name gets a waiting suggestion without anyone pressing it. Optional: when absent or
+   * unconfigured, no kind is asked for and the file stays in Needs One Decision as Unknown Type.
+   */
+  classify?(): Promise<{ readonly ai: AiClassifyPort; readonly limits: ReadingLimits } | undefined>;
   /** The first page of the file as an image, for AI OCR. */
   renderImage(documentVersionId: string, applicantId: string): Promise<OcrSourceImageOutcome>;
   /** Registers the fields this kind of document carries, so the AI is offered them. Safe to repeat. */
@@ -331,6 +339,7 @@ export async function processAiReading(
 
   // The text is in hand; reading details out of it needs the other consent.
   if (!mayReadDetails) return stopped('NO_CONSENT', { ranOcr });
+  await suggestKindIfUnknown(db, scope, ports, target.versionId, killSwitchCheck);
   // One reading per file (see alreadyHasSuggestions).
   if (await alreadyHasSuggestions(db, target.versionId)) {
     return audited({ outcome: 'READ', ranOcr, ranExtraction: false, suggestions: 0 });
@@ -366,4 +375,54 @@ export async function processAiReading(
     ranExtraction: true,
     suggestions: run.value.proposals.length,
   });
+}
+
+/**
+ * UMPE G1 (ledger I07): when the rules gave no kind, ask the classifier once, through the same gate
+ * the button uses (`suggestDocumentKindInBackground` repeats every check: feature, consent, the
+ * rules' own kind, a suggestion already waiting, budgets, rate limit). Best effort: a refusal or a
+ * failed call leaves the file exactly as it was (listed as Unknown Type) and never stops the
+ * reading of details. Kinds only are audited, by the classifier itself.
+ */
+async function suggestKindIfUnknown(
+  db: Db,
+  scope: SystemScope<'process-ai-reading'>,
+  ports: AiReadingPorts,
+  documentVersionId: string,
+  killSwitchCheck: () => Promise<boolean>,
+): Promise<void> {
+  if (!ports.classify) return;
+  // A kind already saved, or confidently read by the rules: nothing to ask, nothing resolved.
+  if (await getDocumentTypeOfVersion(db, documentVersionId)) return;
+  const rules = first(
+    await db
+      .select({
+        classifiedType: schema.documentClassifications.classifiedType,
+        reviewRequired: schema.documentClassifications.reviewRequired,
+      })
+      .from(schema.documentClassifications)
+      .where(eq(schema.documentClassifications.documentVersionId, documentVersionId))
+      .orderBy(desc(schema.documentClassifications.createdAt))
+      .limit(1),
+  );
+  if (rules?.classifiedType && !rules.reviewRequired) return;
+  const classify = await ports.classify();
+  if (!classify) return;
+  try {
+    await suggestDocumentKindInBackground(db, scope, classify.ai, {
+      documentVersionId,
+      budgetLimitUnits: classify.limits.budgetLimitUnits,
+      perDocumentBudgetLimitUnits: classify.limits.perDocumentBudgetLimitUnits,
+      maxAttemptsPerDocument: classify.limits.maxAttemptsPerDocument,
+      maxPagesPerDocument: classify.limits.maxPagesPerDocument,
+      cacheMaxAgeDays: classify.limits.cacheMaxAgeDays,
+      maxConcurrentCalls: classify.limits.maxConcurrentCalls,
+      killSwitchCheck,
+    });
+  } catch (error) {
+    // Never a value from the file: the kind of error only.
+    console.warn(
+      `[ai-reading] kind suggestion failed: ${error instanceof Error ? error.name : 'unknown'}`,
+    );
+  }
 }

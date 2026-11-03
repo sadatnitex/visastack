@@ -3,8 +3,9 @@ import type { FactStatus, ProposalType } from '@visastack/core';
 import { type Result, err, isOk, ok } from '@visastack/core';
 import type { AiReadingFeature } from '@visastack/core/ai-features';
 import { CATALOGUE_DOCUMENTS, isRepeatingFieldKey } from '@visastack/core/catalogue';
+import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import { and, desc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm';
-import { AuthorizedApplicant } from './access';
+import { AuthorizedApplicant, SystemScope } from './access';
 import {
   type AiFeatureCharge,
   type AiFeatureGate,
@@ -55,6 +56,7 @@ import {
   revealFactVersionValue,
 } from './profile';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
+import { periodForName } from './umpe-document-arrival';
 
 /**
  * AI Gateway (Build Spec §8; master directive §8/§26 item 4): extraction
@@ -2386,8 +2388,81 @@ export async function suggestDocumentKind(
   ) {
     return err(serviceError('forbidden', 'only the owner can ask what kind of document this is'));
   }
-  const db = proof.tx;
-  const ownerAccountId = proof.applicant.ownerAccountId;
+  return suggestKindForOwner(
+    proof.tx,
+    {
+      ownerAccountId: proof.applicant.ownerAccountId,
+      applicantId: proof.applicant.id,
+      displayName: proof.applicant.displayName,
+      documentId: proof.resource.kind === 'document' ? proof.resource.document.id : null,
+    },
+    { proof },
+    ai,
+    input,
+  );
+}
+
+/**
+ * UMPE G1 (ledger I07): the same suggestion, asked by the background reading job when the rules
+ * gave no kind. The owner is derived from the file version alone (version, document, applicant);
+ * nothing the job row says is trusted. Exactly the same gates as the button: the feature (for the
+ * owner, in the job's system context), CORE_PROCESSING and AI_EXTRACTION consent checked now, the
+ * rules' own confident kind, one waiting suggestion per file, budgets, cache, kill switch and rate
+ * limit. The result only ever waits for the person (Needs One Decision lists it); nothing is saved.
+ */
+export async function suggestDocumentKindInBackground(
+  db: Db,
+  scope: SystemScope<'process-ai-reading'>,
+  ai: AiClassifyPort,
+  input: SuggestDocumentKindInput,
+): Promise<Result<DocumentKindSuggestion, ServiceError>> {
+  if (!SystemScope.isGenuine(scope) || scope.job !== 'process-ai-reading') {
+    return err(serviceError('forbidden', 'only the reading job may ask in the background'));
+  }
+  const lifecycle = await lifecycleTablesPresent(db);
+  const owner = first(
+    await db
+      .select({
+        applicantId: schema.applicants.id,
+        ownerAccountId: schema.applicants.ownerAccountId,
+        displayName: schema.applicants.displayName,
+      })
+      .from(schema.documentVersions)
+      .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
+      .innerJoin(schema.applicants, eq(schema.applicants.id, schema.documents.applicantId))
+      .where(
+        and(
+          eq(schema.documentVersions.id, input.documentVersionId),
+          lifecycle ? presentDocumentCondition() : undefined,
+        ),
+      )
+      .limit(1),
+  );
+  if (!owner) return err(serviceError('not_found', 'document version not found'));
+  return suggestKindForOwner(
+    db,
+    { ...owner, documentId: null },
+    { system: scope, accountId: owner.ownerAccountId },
+    ai,
+    input,
+  );
+}
+
+/** The suggestion itself, for an owner already established by the caller (a proof or the job). */
+async function suggestKindForOwner(
+  db: Db,
+  owner: {
+    readonly ownerAccountId: string;
+    readonly applicantId: string;
+    readonly displayName: string | null;
+    /** The document the proof names, when it names one. */
+    readonly documentId: string | null;
+  },
+  gateContext: Parameters<typeof openAiFeatureGate>[2],
+  ai: AiClassifyPort,
+  input: SuggestDocumentKindInput,
+): Promise<Result<DocumentKindSuggestion, ServiceError>> {
+  const ownerAccountId = owner.ownerAccountId;
 
   // The file must be one of this applicant's own, and the very document the proof names when it
   // names one.
@@ -2406,10 +2481,8 @@ export async function suggestDocumentKind(
       .where(
         and(
           eq(schema.documentVersions.id, input.documentVersionId),
-          eq(schema.documents.applicantId, proof.applicant.id),
-          ...(proof.resource.kind === 'document'
-            ? [eq(schema.documents.id, proof.resource.document.id)]
-            : []),
+          eq(schema.documents.applicantId, owner.applicantId),
+          ...(owner.documentId ? [eq(schema.documents.id, owner.documentId)] : []),
           // A command on one document: presentDocumentCondition (deleted answers as missing).
           lifecycle ? presentDocumentCondition() : undefined,
         ),
@@ -2421,7 +2494,7 @@ export async function suggestDocumentKind(
     return err(serviceError('invalid', 'this file has not finished its safety checks'));
   }
   // The feature first (S28), then consent.
-  const gate = await openAiFeatureGate(db, 'ai_document_kind', { proof });
+  const gate = await openAiFeatureGate(db, 'ai_document_kind', gateContext);
   if (!gate.ok) return err(aiFeatureRefusal(gate.error));
   if (!(await hasConsent(db, ownerAccountId, 'CORE_PROCESSING'))) {
     return err(serviceError('consent_required', 'processing consent is required'));
@@ -2462,7 +2535,7 @@ export async function suggestDocumentKind(
   );
   if (pending) return ok({ status: 'already_suggested', proposal: pending });
 
-  const text = await getLatestExtractedText(db, input.documentVersionId, proof.applicant.id);
+  const text = await getLatestExtractedText(db, input.documentVersionId, owner.applicantId);
   if (!text) return err(serviceError('invalid', 'there is no text from this file to read yet'));
 
   // After the no-op answers above on purpose, exactly like runClassification: asking again
@@ -2472,7 +2545,7 @@ export async function suggestDocumentKind(
 
   const runInput: RunClassificationInput = {
     actorAccountId: ownerAccountId,
-    applicantId: proof.applicant.id,
+    applicantId: owner.applicantId,
     documentVersionId: input.documentVersionId,
     text,
     budgetLimitUnits: input.budgetLimitUnits,
@@ -2522,8 +2595,13 @@ export async function suggestDocumentKind(
       nameForSuggestedKind(tx, {
         documentId: row.documentId,
         kind: proposal.suggestedType,
-        primarySubject: proof.applicant.displayName ?? 'Unknown',
+        primarySubject: owner.displayName ?? 'Unknown',
         originalName: row.originalName,
+        // UMPE G1 (ledger I08): a statement's period from its own text, never from the model.
+        period: periodForName(
+          text,
+          resolveDocumentType(proposal.suggestedType)?.key ?? proposal.suggestedType,
+        ),
       }),
     );
   } catch (error) {
@@ -2549,6 +2627,7 @@ async function nameForSuggestedKind(
     readonly kind: string;
     readonly primarySubject: string;
     readonly originalName: string;
+    readonly period: string | null;
   },
 ): Promise<DocumentNameVersion> {
   await tx
@@ -2570,6 +2649,7 @@ async function nameForSuggestedKind(
     proposedName: buildProposedName({
       classifiedType: input.kind,
       primarySubject: input.primarySubject,
+      ...(input.period ? { relevantDateOrPeriod: input.period } : {}),
       extension: extensionOf(input.originalName),
     }),
     reason: 'suggested from the AI reading of this document',
