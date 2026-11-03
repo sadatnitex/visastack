@@ -40,6 +40,14 @@ vi.mock('./collection-forms', async () => {
   };
 });
 
+const NOT_EMAILED = {
+  status: 'NOT_EMAILED',
+  reason: null,
+  retrying: false,
+  sentAt: null,
+  deliveredAt: null,
+} as const;
+
 const { default: ListPage } = await import('./page');
 const { default: NewPage } = await import('./new/page');
 const { default: DetailPage } = await import('./request/page');
@@ -106,7 +114,7 @@ function detail(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   navigationState.pathname = `/app/agency/${ORG}/collection`;
-  mocks.principal.mockResolvedValue({ ok: true, value: {} });
+  mocks.principal.mockResolvedValue({ ok: true, value: { authority: 'ADMIN' } });
   mocks.choices.mockResolvedValue({ ok: true, value: [] });
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -201,6 +209,7 @@ describe('Document Requests pages', () => {
             revisionNo: 1,
             state: 'OPEN',
             emailed: false,
+            email: NOT_EMAILED,
             createdAt: new Date('2026-11-02T00:00:00Z'),
             expiresAt: new Date('2026-11-16T00:00:00Z'),
             lastOpenedAt: null,
@@ -226,5 +235,61 @@ describe('Document Requests pages', () => {
     for (const form of ['ItemEditForm', 'IssueRequestForm', 'NewLinkForm', 'EndRequestForm']) {
       expect(stubProps(html, form)).toHaveLength(0);
     }
+  });
+
+  it('shows each link email truthfully: Sent to Mail Provider is not Delivered, Not Sent says why (UMPE G3)', async () => {
+    const link = (id: string, email: Record<string, unknown>) => ({
+      id,
+      revisionNo: 1,
+      state: 'OPEN',
+      emailed: true,
+      email: { ...NOT_EMAILED, ...email },
+      createdAt: new Date('2026-11-02T00:00:00Z'),
+      expiresAt: new Date('2026-11-16T00:00:00Z'),
+      lastOpenedAt: null,
+    });
+    mocks.get.mockResolvedValue({
+      ok: true,
+      value: detail({
+        links: [
+          link('l1', { status: 'SENT', sentAt: new Date('2026-11-02T00:00:00Z') }),
+          link('l2', { status: 'NOT_SENT', reason: 'LINK_CLOSED' }),
+          link('l3', { status: 'QUEUED', retrying: true }),
+        ],
+      }),
+    });
+    const text = textOf(await renderServer(DetailPage(detailProps)));
+    expect(text).toContain('Sent to Mail Provider');
+    expect(text).not.toMatch(/\bDelivered\b/);
+    expect(text).toContain('Not Sent');
+    expect(text).toContain('The link closed before the email could go.');
+    expect(text).toContain('Queued (Trying Again)');
+  });
+
+  it('a member with May Request Documents sees the request but no answers or corrections (UMPE G3)', async () => {
+    const issued = detail({
+      revisions: [
+        {
+          id: 'rev1',
+          revisionNo: 1,
+          issuedAt: new Date('2026-11-02T00:00:00Z'),
+          packVersionId: 'pv1',
+          packChecksum: 'a'.repeat(64),
+          intact: true,
+          items: [],
+          brand: null,
+        },
+      ],
+    });
+    mocks.get.mockResolvedValue({ ok: true, value: issued });
+    const asAdmin = textOf(await renderServer(DetailPage(detailProps)));
+    expect(asAdmin).toContain('Answers');
+    expect(asAdmin).toContain('Official Checklist Updates');
+
+    mocks.principal.mockResolvedValue({ ok: true, value: { authority: 'REQUESTER' } });
+    const asRequester = textOf(await renderServer(DetailPage(detailProps)));
+    expect(asRequester).toContain('Issued Revisions');
+    expect(asRequester).not.toContain('Answers');
+    expect(asRequester).not.toContain('Official Checklist Updates');
   });
 });

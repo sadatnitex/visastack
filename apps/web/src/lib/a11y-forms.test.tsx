@@ -79,6 +79,7 @@ vi.mock('../app/app/agency/[orgId]/collection/request/checklist-correction-actio
 vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
+vi.mock('../app/app/agency/[orgId]/team/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/collection/actions', standIn);
 vi.mock('../app/collect/account/actions', standIn);
 vi.mock('../app/collect/actions', standIn);
@@ -159,6 +160,9 @@ const { InvitationRevokeButton } = await import(
 );
 const { AddMemberForm } = await import('../app/app/agency/[orgId]/member-form');
 const { MemberToggleButton } = await import('../app/app/agency/[orgId]/member-toggle-button');
+const { DocumentRequestToggle } = await import(
+  '../app/app/agency/[orgId]/team/document-request-toggle'
+);
 const { MissionCollaboration } = await import('../app/app/agency/[orgId]/mission-collaboration');
 const { RequestEvidenceForm } = await import('../app/app/agency/[orgId]/request-evidence-form');
 const { DocumentTypeForm } = await import('../app/app/applicant/[id]/document-type-form');
@@ -1494,6 +1498,22 @@ const AGENCY: readonly Case[] = [
   )),
   row('switch a team member on or off (inactive)', () => (
     <MemberToggleButton organizationId="o1" membershipId="m2" active={false} />
+  )),
+  row('allow a member to request documents (UMPE G3)', () => (
+    <DocumentRequestToggle
+      organizationId="o1"
+      membershipId="m3"
+      allowed={false}
+      memberLabel="ana@example.test"
+    />
+  )),
+  row('stop a member requesting documents (UMPE G3)', () => (
+    <DocumentRequestToggle
+      organizationId="o1"
+      membershipId="m3"
+      allowed
+      memberLabel="ana@example.test"
+    />
   )),
   {
     name: 'turn on AI connections for an agency',

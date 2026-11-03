@@ -6,7 +6,10 @@ import {
 } from '@visastack/core';
 import {
   AGENCY_ITEM_NECESSITIES,
+  COLLECTION_EMAIL_REASON_LABELS,
+  COLLECTION_EMAIL_STATUS_LABELS,
   COLLECTION_STATUS_LABELS,
+  type CollectionEmailState,
   type CollectionItem,
   type CollectionLinkState,
   type CollectionResponseView,
@@ -52,8 +55,28 @@ const LINK_STATES: Readonly<Record<CollectionLinkState, string>> = {
   EXPIRED: 'Expired',
   REVOKED: 'Revoked',
   REPLACED: 'Replaced',
-  ISSUER_GONE: 'Closed, Issuer Is No Longer an Admin',
+  ISSUER_GONE: 'Closed, Sender Can No Longer Send Requests',
 };
+
+/**
+ * The email's true state (UMPE G3): Delivered only when the mail provider reported delivery; Sent
+ * to Mail Provider means accepted, never that it reached the inbox.
+ */
+function EmailStateCell({ email }: { readonly email: CollectionEmailState }) {
+  return (
+    <>
+      {COLLECTION_EMAIL_STATUS_LABELS[email.status]}
+      {email.status === 'QUEUED' && email.retrying ? (
+        <span className="muted u-fs-085"> (Trying Again)</span>
+      ) : null}
+      {email.status === 'NOT_SENT' && email.reason ? (
+        <span className="muted u-fs-085 collection-email-reason">
+          {COLLECTION_EMAIL_REASON_LABELS[email.reason]}
+        </span>
+      ) : null}
+    </>
+  );
+}
 
 const NECESSITY_OPTIONS = AGENCY_ITEM_NECESSITIES.map((value) => ({
   value,
@@ -83,7 +106,8 @@ function ItemSummary({ item }: { readonly item: CollectionItem }) {
 
 /**
  * One document request: its working checklist (editable until it ends), issuing and sharing, every
- * issued revision (re-verified on each read) and every link. Owners and admins only.
+ * issued revision (re-verified on each read) and every link. Owners and admins see everything; a
+ * member with May Request Documents sees only the requests they made, without answers (UMPE G3).
  */
 export default async function CollectionRequestPage({
   params,
@@ -105,6 +129,9 @@ export default async function CollectionRequestPage({
     if (!scope.ok) return null;
     const detail = await getCollectionRequest(db, scope.value, requestId);
     if (!detail.ok) return null;
+    // UMPE G3: a member with May Request Documents creates and sends; answers, files, reviews and
+    // corrections stay with owners and admins, so none of them is even read for that member.
+    const admin = scope.value.authority === 'ADMIN';
     const ended = detail.value.storedStatus === 'REVOKED' || detail.value.storedStatus === 'CLOSED';
     const choices = ended
       ? null
@@ -117,7 +144,7 @@ export default async function CollectionRequestPage({
     let responses: CollectionResponseView[] = [];
     let extras: CollectionQueueExtras = NO_QUEUE_EXTRAS;
     let reauth: string | null = null;
-    if (detail.value.revisions.length > 0) {
+    if (admin && detail.value.revisions.length > 0) {
       try {
         // Protected details open only after a fresh identity check, bound to that one answer.
         // Only an answer of this very request may ask for the check (never any id in the address).
@@ -152,19 +179,20 @@ export default async function CollectionRequestPage({
       }
     }
     // UMPE P11: a newer published official checklist, through this agency's own scope.
-    const impact = await collectionRuleImpact(db, scope.value, requestId);
+    const impact = admin ? await collectionRuleImpact(db, scope.value, requestId) : null;
     return {
+      admin,
       detail: detail.value,
       choices: choices?.ok ? choices.value : [],
       responses,
       extras,
       reauth,
-      impact: impact.ok ? impact.value : undefined,
+      impact: impact?.ok ? impact.value : undefined,
     };
   });
   if (!data) notFound();
   if (data.reauth) redirect(data.reauth);
-  const { detail, choices, responses, extras, impact } = data;
+  const { admin, detail, choices, responses, extras, impact } = data;
   const editable = detail.storedStatus === 'DRAFT' || detail.storedStatus === 'SENT';
   const items = detail.draftItems ?? [];
   const official = detail.draftPack !== null;
@@ -312,7 +340,7 @@ export default async function CollectionRequestPage({
         </section>
       ) : null}
 
-      {detail.revisions.length > 0 ? (
+      {admin && detail.revisions.length > 0 ? (
         <CollectionResponsesPanel
           organizationId={orgId}
           requestId={detail.id}
@@ -333,6 +361,7 @@ export default async function CollectionRequestPage({
                   <th scope="col">Revision</th>
                   <th scope="col">State</th>
                   <th scope="col">Sent By</th>
+                  <th scope="col">Email</th>
                   <th scope="col">Expires</th>
                   <th scope="col">Last Opened</th>
                 </tr>
@@ -343,6 +372,9 @@ export default async function CollectionRequestPage({
                     <td>{link.revisionNo}</td>
                     <td>{LINK_STATES[link.state]}</td>
                     <td>{link.emailed ? 'Email' : 'Copied Link'}</td>
+                    <td>
+                      <EmailStateCell email={link.email} />
+                    </td>
                     <td>{formatTimestampDate(link.expiresAt)}</td>
                     <td>
                       {link.lastOpenedAt ? formatTimestampDate(link.lastOpenedAt) : 'Not Yet'}
@@ -387,7 +419,7 @@ export default async function CollectionRequestPage({
         </section>
       ) : null}
 
-      {official || detail.revisions.some((revision) => revision.packVersionId) ? (
+      {admin && (official || detail.revisions.some((revision) => revision.packVersionId)) ? (
         <ChecklistCorrectionCard
           organizationId={orgId}
           requestId={detail.id}

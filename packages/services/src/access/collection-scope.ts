@@ -1,10 +1,12 @@
 import { type Result, err, ok } from '@visastack/core';
-import type { Db } from '../db';
+import { and, eq } from 'drizzle-orm';
+import { type Db, first, schema } from '../db';
 import { type ServiceError, serviceError } from '../errors';
 import { hashInvitationToken } from '../invitation-tokens';
 import { isUuid } from '../lifecycle/foundation/ids';
+import { isMissingRelationError } from '../missing-relation';
 import { OPEN_ORGANIZATION_STATUSES } from '../organization-admission';
-import { getOrganization, isOrgAdmin } from '../organizations';
+import { getOrganization } from '../organizations';
 import { agencyCollectionRequestsEnabled } from '../umpe-collection-request-switch';
 
 /**
@@ -13,7 +15,9 @@ import { agencyCollectionRequestsEnabled } from '../umpe-collection-request-swit
  * proof, and the access ratchet (`enforcement.test.ts`) holds every exported service that touches
  * them to taking one of these.
  *
- * - `AgencyCollectionScope`: an agency OWNER or ADMIN acting for exactly one open organization
+ * - `AgencyCollectionScope`: an agency OWNER or ADMIN (authority `ADMIN`), or a member an owner or
+ *   admin gave May Request Documents (authority `REQUESTER`, UMPE G3), acting for exactly one open
+ *   organization
  *   (active or awaiting review), checked live against the membership, the organization's status and
  *   the `AGENCY_COLLECTION_REQUESTS` switch when it is made. Only
  *   `agencyCollectionPrincipal` makes one. Services call `agencyCollectionScopeProblem` first and put
@@ -28,7 +32,11 @@ import { agencyCollectionRequestsEnabled } from '../umpe-collection-request-swit
  */
 
 let mintingAgencyScope = false;
-let mintAgencyScope: (accountId: string, organizationId: string) => AgencyCollectionScope;
+let mintAgencyScope: (
+  accountId: string,
+  organizationId: string,
+  authority: AgencyCollectionAuthority,
+) => AgencyCollectionScope;
 let mintingLinkProof = false;
 let mintLinkProof: (tokenHash: string) => CollectionLinkProof;
 
@@ -37,20 +45,36 @@ function missing(): ServiceError {
   return serviceError('not_found', 'no such document request');
 }
 
+/**
+ * What an agency scope may do (UMPE G3, A18). `ADMIN`: an active owner or admin, everything the
+ * request pages offer. `REQUESTER`: an active case manager or reviewer an owner or admin gave May Request Documents;
+ * they may create, send and end their own requests and nothing else (never answers or files).
+ */
+export type AgencyCollectionAuthority = 'ADMIN' | 'REQUESTER';
+
+/** The one capability today: create and send document requests (UMPE G3). */
+export const REQUEST_DOCUMENTS_CAPABILITY = 'REQUEST_DOCUMENTS';
+
 export class AgencyCollectionScope {
   readonly #brand = 'AgencyCollectionScope';
   readonly kind = 'agency_collection' as const;
   readonly accountId: string;
   readonly organizationId: string;
+  readonly authority: AgencyCollectionAuthority;
   // A number in a private field, as in SelfScope: the check time cannot be moved.
   readonly #verifiedAtMs: number;
 
-  private constructor(accountId: string, organizationId: string) {
+  private constructor(
+    accountId: string,
+    organizationId: string,
+    authority: AgencyCollectionAuthority,
+  ) {
     if (!mintingAgencyScope) {
       throw new Error('an AgencyCollectionScope can only be made by agencyCollectionPrincipal()');
     }
     this.accountId = accountId;
     this.organizationId = organizationId;
+    this.authority = authority;
     this.#verifiedAtMs = Date.now();
     Object.freeze(this);
   }
@@ -66,10 +90,14 @@ export class AgencyCollectionScope {
   }
 
   static {
-    mintAgencyScope = (accountId: string, organizationId: string): AgencyCollectionScope => {
+    mintAgencyScope = (
+      accountId: string,
+      organizationId: string,
+      authority: AgencyCollectionAuthority,
+    ): AgencyCollectionScope => {
       mintingAgencyScope = true;
       try {
-        return new AgencyCollectionScope(accountId, organizationId);
+        return new AgencyCollectionScope(accountId, organizationId, authority);
       } finally {
         mintingAgencyScope = false;
       }
@@ -112,9 +140,95 @@ export class CollectionLinkProof {
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 
 /**
- * The scope of an agency OWNER or ADMIN over this organization's document requests, or not found
- * when the switch is off, the ids are malformed, or the account is not an active OWNER or ADMIN.
- * The membership is read live on every call; nothing is cached.
+ * Whether the active member holds a capability, read in its own savepoint so a missing table
+ * (before the G3 migration runs) never aborts a caller's transaction: then nobody holds it.
+ */
+async function memberHoldsCapability(
+  db: Db,
+  membershipId: string,
+  organizationId: string,
+  capability: string,
+): Promise<boolean> {
+  try {
+    return await db.transaction(async (tx) => {
+      const row = first(
+        await tx
+          .select({ id: schema.agencyMemberCapabilities.id })
+          .from(schema.agencyMemberCapabilities)
+          .where(
+            and(
+              eq(schema.agencyMemberCapabilities.membershipId, membershipId),
+              eq(schema.agencyMemberCapabilities.organizationId, organizationId),
+              eq(schema.agencyMemberCapabilities.capability, capability),
+            ),
+          )
+          .limit(1),
+      );
+      return row !== undefined;
+    });
+  } catch (error) {
+    if (isMissingRelationError(error)) return false;
+    throw error;
+  }
+}
+
+/**
+ * The authority an account has over this agency's document requests, read live: `ADMIN` for an
+ * active owner or admin, `REQUESTER` for an active member who holds May Request Documents, or null.
+ * It does not look at the agency's status; callers do.
+ */
+export async function collectionAuthorityOf(
+  db: Db,
+  accountId: string,
+  organizationId: string,
+): Promise<AgencyCollectionAuthority | null> {
+  if (!isUuid(accountId) || !isUuid(organizationId)) return null;
+  const membership = first(
+    await db
+      .select({
+        id: schema.memberships.id,
+        role: schema.memberships.role,
+        active: schema.memberships.active,
+      })
+      .from(schema.memberships)
+      .where(
+        and(
+          eq(schema.memberships.accountId, accountId),
+          eq(schema.memberships.organizationId, organizationId),
+        ),
+      )
+      .limit(1),
+  );
+  if (!membership?.active) return null;
+  if (membership.role === 'OWNER' || membership.role === 'ADMIN') return 'ADMIN';
+  return (await memberHoldsCapability(
+    db,
+    membership.id,
+    organizationId,
+    REQUEST_DOCUMENTS_CAPABILITY,
+  ))
+    ? 'REQUESTER'
+    : null;
+}
+
+/**
+ * Whether the person who made a link may still keep it open: an active owner or admin, or an active
+ * member who still holds May Request Documents. A link of anyone else stops opening at once.
+ */
+export async function collectionIssuerMayIssue(
+  db: Db,
+  accountId: string | null,
+  organizationId: string,
+): Promise<boolean> {
+  if (!accountId) return false;
+  return (await collectionAuthorityOf(db, accountId, organizationId)) !== null;
+}
+
+/**
+ * The scope of an agency OWNER or ADMIN, or of a member with May Request Documents (UMPE G3), over
+ * this organization's document requests, or not found when the switch is off, the ids are
+ * malformed, or the account has neither. The membership is read live on every call; nothing is
+ * cached.
  */
 export async function agencyCollectionPrincipal(
   db: Db,
@@ -124,33 +238,59 @@ export async function agencyCollectionPrincipal(
 ): Promise<Result<AgencyCollectionScope, ServiceError>> {
   if (!agencyCollectionRequestsEnabled(env)) return err(missing());
   if (!isUuid(accountId) || !isUuid(organizationId)) return err(missing());
-  if (!(await isOrgAdmin(db, accountId, organizationId))) return err(missing());
+  const authority = await collectionAuthorityOf(db, accountId, organizationId);
+  if (!authority) return err(missing());
   // A suspended, rejected or terminated agency asks for nothing (the rule invitations follow).
   const organization = await getOrganization(db, organizationId);
   if (!organization || !OPEN_ORGANIZATION_STATUSES.includes(organization.status)) {
     return err(missing());
   }
-  return ok(mintAgencyScope(accountId, organizationId));
+  return ok(mintAgencyScope(accountId, organizationId, authority));
 }
 
 /** How long an agency scope stays good for: minted for one request, never kept. */
 const AGENCY_SCOPE_MAX_AGE_MS = 5 * 60 * 1000;
 
-/**
- * The refusal for a scope that is not a genuine, fresh one, or undefined when it is. Every service
- * that takes an `AgencyCollectionScope` calls this first, because a type alone does not stop a cast
- * object at run time, and the switch is read again so turning it off stops work at once.
- */
-export function agencyCollectionScopeProblem(
+function scopeProblem(
   scope: unknown,
-  env: Readonly<Record<string, string | undefined>> = process.env,
+  env: Readonly<Record<string, string | undefined>>,
+  allowRequester: boolean,
 ): ServiceError | undefined {
   if (!agencyCollectionRequestsEnabled(env)) return missing();
   const age = AgencyCollectionScope.isGenuine(scope)
     ? Date.now() - scope.verifiedAt.getTime()
     : Number.NaN;
   if (!(age >= 0 && age <= AGENCY_SCOPE_MAX_AGE_MS)) return missing();
+  // Deny by default: only the request services that say so take a requester's scope.
+  if (!allowRequester && (scope as AgencyCollectionScope).authority !== 'ADMIN') return missing();
   return undefined;
+}
+
+/**
+ * The refusal for a scope that is not a genuine, fresh owner or admin one, or undefined when it is.
+ * Every service that takes an `AgencyCollectionScope` calls this (or, for creating and sending
+ * requests only, `agencyCollectionRequesterScopeProblem`) first, because a type alone does not stop
+ * a cast object at run time, and the switch is read again so turning it off stops work at once. A
+ * member with May Request Documents is refused here exactly as a stranger is: answers, files,
+ * reviews and corrections stay with owners and admins.
+ */
+export function agencyCollectionScopeProblem(
+  scope: unknown,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): ServiceError | undefined {
+  return scopeProblem(scope, env, false);
+}
+
+/**
+ * As `agencyCollectionScopeProblem`, but a member with May Request Documents passes too (UMPE G3).
+ * Only the services that create, read, send and end a request call it, and they limit a requester
+ * to the requests that member created.
+ */
+export function agencyCollectionRequesterScopeProblem(
+  scope: unknown,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): ServiceError | undefined {
+  return scopeProblem(scope, env, true);
 }
 
 /**

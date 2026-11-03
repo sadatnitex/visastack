@@ -6726,3 +6726,29 @@ export const agencyCollectionGuestHolds = pgTable(
     ),
   ],
 );
+
+// --- UMPE G3: per-member agency capabilities ------------------------------------------------------
+// A capability an agency owner or admin gives one member (A18). Today only REQUEST_DOCUMENTS: the
+// member may create and send document requests (never read answers or files). One row per member
+// and capability; removing the row withdraws it. A membership that ends or is deactivated keeps no
+// power, because every read also requires the membership to be active.
+export const agencyMemberCapabilities = pgTable(
+  'agency_member_capabilities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    membershipId: uuid('membership_id')
+      .notNull()
+      .references(() => memberships.id, { onDelete: 'cascade' }),
+    capability: text('capability').notNull(),
+    grantedByAccountId: uuid('granted_by_account_id'),
+    grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('agency_member_capabilities_unique').on(table.membershipId, table.capability),
+    index('agency_member_capabilities_org_idx').on(table.organizationId),
+    check('agency_member_capabilities_known', sql`${table.capability} in ('REQUEST_DOCUMENTS')`),
+  ],
+);

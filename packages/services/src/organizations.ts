@@ -2,12 +2,18 @@ import type { MembershipRole, OrganizationStatus } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, ilike, inArray, isNull, ne } from 'drizzle-orm';
 import { endAgencyAiConnectionsOfMember } from './access/agency-ai-connections';
+import {
+  type AgencyCollectionScope,
+  agencyCollectionScopeProblem,
+} from './access/collection-scope';
 import { agencyAiAvailable } from './agency-ai-ready';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { checkSeatEntitlement } from './entitlement-enforcement';
 import { type ServiceError, serviceError } from './errors';
 import { assignFoundingAccess } from './founding-access';
+import { isUuid } from './lifecycle/foundation/ids';
+import { isMissingRelationError } from './missing-relation';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import {
   type Page,
@@ -183,6 +189,8 @@ export interface OrgMemberView {
   readonly email: string;
   readonly role: MembershipRole;
   readonly active: boolean;
+  /** UMPE G3: an owner or admin let this member create and send document requests. */
+  readonly mayRequestDocuments: boolean;
 }
 
 /** Members of an organization (org OWNER/ADMIN only), with their emails. */
@@ -205,6 +213,7 @@ export async function listOrgMemberships(
     .from(schema.memberships)
     .innerJoin(schema.accounts, eq(schema.accounts.id, schema.memberships.accountId))
     .where(eq(schema.memberships.organizationId, organizationId));
+  const requesters = await membershipsWithCapability(db, organizationId, REQUEST_DOCUMENTS);
   return ok(
     rows.map((r) => ({
       membershipId: r.membershipId,
@@ -212,8 +221,165 @@ export async function listOrgMemberships(
       email: r.email,
       role: r.role,
       active: r.active,
+      mayRequestDocuments:
+        r.active && r.role !== 'OWNER' && r.role !== 'ADMIN' && requesters.has(r.membershipId),
     })),
   );
+}
+
+// --- UMPE G3: per-member capabilities (A18) -----------------------------------------------------
+
+/** The one capability so far: create and send document requests (never read answers or files). */
+const REQUEST_DOCUMENTS = 'REQUEST_DOCUMENTS';
+
+/**
+ * The memberships of this organization holding a capability. Read in a savepoint, so before the G3
+ * migration runs nobody holds one and a caller's transaction is never aborted.
+ */
+async function membershipsWithCapability(
+  db: Db,
+  organizationId: string,
+  capability: string,
+): Promise<ReadonlySet<string>> {
+  try {
+    const rows = await db.transaction((tx) =>
+      tx
+        .select({ membershipId: schema.agencyMemberCapabilities.membershipId })
+        .from(schema.agencyMemberCapabilities)
+        .where(
+          and(
+            eq(schema.agencyMemberCapabilities.organizationId, organizationId),
+            eq(schema.agencyMemberCapabilities.capability, capability),
+          ),
+        ),
+    );
+    return new Set(rows.map((row) => row.membershipId));
+  } catch (error) {
+    if (isMissingRelationError(error)) return new Set();
+    throw error;
+  }
+}
+
+/** Every capability of one membership removed (it ended), in a savepoint; a count of rows. */
+async function clearMemberCapabilities(
+  tx: Db,
+  organizationId: string,
+  membershipId: string,
+): Promise<number> {
+  try {
+    return await tx.transaction(async (inner) => {
+      const removed = await inner
+        .delete(schema.agencyMemberCapabilities)
+        .where(
+          and(
+            eq(schema.agencyMemberCapabilities.organizationId, organizationId),
+            eq(schema.agencyMemberCapabilities.membershipId, membershipId),
+          ),
+        )
+        .returning({ id: schema.agencyMemberCapabilities.id });
+      return removed.length;
+    });
+  } catch (error) {
+    if (isMissingRelationError(error)) return 0;
+    throw error;
+  }
+}
+
+const CAPABILITY_UNAVAILABLE =
+  'Turning this on is not available yet. Try again after the next update.';
+
+/**
+ * An agency owner or admin lets one active case manager or reviewer create and send document
+ * requests, or stops it (UMPE G3, A18). It takes the owner's or admin's own document request scope
+ * (the permission exists only for document requests, so only while they are switched on). The
+ * member never gains answers, files, reviews or corrections: those stay with owners and admins.
+ * Owners and admins already may, so they are refused. Audited with ids only. A refusal about the
+ * target looks like a missing membership.
+ */
+export async function setMemberMayRequestDocuments(
+  db: Db,
+  scope: AgencyCollectionScope,
+  input: { readonly membershipId: string; readonly allowed: boolean },
+): Promise<Result<{ readonly mayRequestDocuments: boolean }, ServiceError>> {
+  const problem = agencyCollectionScopeProblem(scope);
+  if (problem) return err(problem);
+  const actorAccountId = scope.accountId;
+  const organizationId = scope.organizationId;
+  const notFound = serviceError('not_found', 'membership not found in this organization');
+  if (!isUuid(input.membershipId)) return err(notFound);
+  try {
+    return await db.transaction(async (tx) => {
+      const target = first(
+        await tx
+          .select({
+            id: schema.memberships.id,
+            role: schema.memberships.role,
+            active: schema.memberships.active,
+          })
+          .from(schema.memberships)
+          .where(
+            and(
+              eq(schema.memberships.id, input.membershipId),
+              eq(schema.memberships.organizationId, organizationId),
+            ),
+          )
+          .for('update')
+          .limit(1),
+      );
+      if (!target || target.role === 'OWNER' || target.role === 'ADMIN') return err(notFound);
+      if (input.allowed && !target.active) {
+        return err(serviceError('invalid', 'Reactivate this member first.'));
+      }
+      // Re-checked in the transaction: an admin who lost the role meanwhile changes nothing.
+      if (!(await isOrgAdmin(tx, actorAccountId, organizationId))) return err(notFound);
+      let changed: number;
+      if (input.allowed) {
+        const inserted = await tx
+          .insert(schema.agencyMemberCapabilities)
+          .values({
+            organizationId,
+            membershipId: target.id,
+            capability: REQUEST_DOCUMENTS,
+            grantedByAccountId: actorAccountId,
+          })
+          .onConflictDoNothing()
+          .returning({ id: schema.agencyMemberCapabilities.id });
+        changed = inserted.length;
+      } else {
+        const removed = await tx
+          .delete(schema.agencyMemberCapabilities)
+          .where(
+            and(
+              eq(schema.agencyMemberCapabilities.organizationId, organizationId),
+              eq(schema.agencyMemberCapabilities.membershipId, target.id),
+              eq(schema.agencyMemberCapabilities.capability, REQUEST_DOCUMENTS),
+            ),
+          )
+          .returning({ id: schema.agencyMemberCapabilities.id });
+        changed = removed.length;
+      }
+      if (changed > 0) {
+        await appendAuditEvent(tx, {
+          eventType: input.allowed ? 'MEMBER_CAPABILITY_GRANTED' : 'MEMBER_CAPABILITY_REVOKED',
+          actorAccountId: actorAccountId,
+          action: 'MANAGE',
+          method: 'MANUAL',
+          result: 'ALLOWED',
+          resourceType: 'membership',
+          resourceId: target.id,
+          metadata: {
+            organizationId,
+            capability: REQUEST_DOCUMENTS,
+            targetRole: target.role,
+          },
+        });
+      }
+      return ok({ mayRequestDocuments: input.allowed });
+    });
+  } catch (error) {
+    if (isMissingRelationError(error)) return err(serviceError('invalid', CAPABILITY_UNAVAILABLE));
+    throw error;
+  }
 }
 
 /** Create an organization (PENDING_VERIFICATION) with the creator as OWNER. */
@@ -731,6 +897,14 @@ async function endMembershipInTx(
     actorAccountId: input.actorAccountId,
     reason: 'member_removed',
   });
+  // UMPE G3: a member turned off loses May Request Documents too, so turning them back on never
+  // quietly restores it (their open links already stop at once: the issuer check needs an active
+  // membership).
+  const capabilitiesRemoved = await clearMemberCapabilities(
+    tx,
+    input.organizationId,
+    input.membershipId,
+  );
 
   await appendAuditEvent(tx, {
     eventType: 'MEMBERSHIP_DEACTIVATED',
@@ -740,7 +914,11 @@ async function endMembershipInTx(
     result: 'ALLOWED',
     resourceType: 'membership',
     resourceId: updated.id,
-    metadata: { organizationId: input.organizationId, targetRole: input.targetRole },
+    metadata: {
+      organizationId: input.organizationId,
+      targetRole: input.targetRole,
+      ...(capabilitiesRemoved > 0 ? { capabilitiesRemoved } : {}),
+    },
   });
 
   // Commercial V1 Part 4 §11: "Removed member may not remain sole owner of

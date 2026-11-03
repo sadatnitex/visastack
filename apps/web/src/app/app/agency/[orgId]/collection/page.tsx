@@ -17,8 +17,9 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Document Requests (UMPE P6): an agency asks for documents before it has a client, case or
- * account for the person. Owners and admins only, and only while the switch is on; anyone else,
- * or with the switch off, gets not found.
+ * account for the person. Owners and admins see every request; a member with May Request Documents
+ * sees only their own (UMPE G3). Only while the switch is on; anyone else, or with the switch off,
+ * gets not found.
  */
 export default async function CollectionRequestsPage({
   params,

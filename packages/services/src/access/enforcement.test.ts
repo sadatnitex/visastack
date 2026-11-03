@@ -138,6 +138,11 @@ const COLLECTION_SAFE_CALLS: ReadonlySet<string> = new Set([
   // UMPE P9: "Submitted to Agency" queued for the agency's own active admins (by account id) when a
   // guest submits; the notice names the agency only and reads nothing of anyone's record.
   'notifications#enqueueNotificationBothChannels',
+  // UMPE G3: each takes the AgencyCollectionScope itself and checks it. The first reads only the
+  // status fields of this agency's own request emails, by link id; the second queues one email to
+  // the address the request itself carries, naming the agency only. Tests: umpe-g3-agency.test.ts.
+  'notifications#collectionLinkEmailRecords',
+  'invitation-email#queueGuestCorrectionEmail',
 ]);
 /** The agency document request tables (packages/db/src/schema.ts), judged by their own ratchet. */
 const COLLECTION_TABLES = [
@@ -1310,7 +1315,11 @@ describe('agency document request ratchet (UMPE P6, ADR 0026 D4)', () => {
     const gates = [
       {
         decls: gateDeclarations(program, checker, ['AgencyCollectionScope']),
-        check: (call: ts.CallExpression) => isCall(call, 'agencyCollectionScopeProblem'),
+        // UMPE G3: the request services that also take a member with May Request Documents use
+        // the requester variant; both refuse a copy, a stale scope and the switch turned off.
+        check: (call: ts.CallExpression) =>
+          isCall(call, 'agencyCollectionScopeProblem') ||
+          isCall(call, 'agencyCollectionRequesterScopeProblem'),
       },
       {
         decls: gateDeclarations(program, checker, ['CollectionLinkProof']),

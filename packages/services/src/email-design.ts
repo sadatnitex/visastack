@@ -10,6 +10,7 @@
  * same with images off.
  */
 
+import { isAccessibleAccentColor } from './branding';
 import type { NotificationEventType } from './notifications';
 
 /** The brand's own colours (the product's tokens), written out because email cannot read CSS variables. */
@@ -76,13 +77,55 @@ function safeUrl(url: string, baseUrl: string): string {
   }
 }
 
+/**
+ * The agency an email speaks for (UMPE G3, A19): its name, and its accent colour when it has one.
+ * Give it only for an agency VisaStack has reviewed (ACTIVE); the caller reads both live.
+ */
+export interface EmailAgencyBrand {
+  readonly name: string;
+  readonly accentColor: string | null;
+}
+
+/** The longest agency name an email shows; longer names are cut, never wrapped into the layout. */
+const AGENCY_NAME_LIMIT = 120;
+
+/**
+ * The agency brand an email may show, or null: a name with no line breaks or extra spaces, and an
+ * accent only when it is a plain `#rrggbb` colour readable with white text on it (the product's own
+ * accent rule). Anything else falls back to VisaStack's own colours.
+ */
+export function emailAgencyBrand(
+  brand: EmailAgencyBrand | null | undefined,
+): { readonly name: string; readonly accent: string | null } | null {
+  if (!brand) return null;
+  const name = brand.name.replace(/\s+/g, ' ').trim().slice(0, AGENCY_NAME_LIMIT).trim();
+  if (name.length === 0) return null;
+  const accent =
+    typeof brand.accentColor === 'string' && isAccessibleAccentColor(brand.accentColor)
+      ? brand.accentColor.toLowerCase()
+      : null;
+  return { name, accent };
+}
+
+const POWERED_BY = 'Powered by VisaStack';
+
 export function renderEmail(
   content: EmailContent,
-  context: { readonly baseUrl: string; readonly recipient: string },
+  context: {
+    readonly baseUrl: string;
+    readonly recipient: string;
+    /** UMPE G3: the reviewed agency this email is sent for. */
+    readonly agency?: EmailAgencyBrand | null;
+  },
 ): RenderedEmail {
   const url = safeUrl(content.action.url, context.baseUrl);
   const logo = `${productOrigin(context.baseUrl)}/icons/icon-192.png`;
   const sentTo = `This email was sent to ${context.recipient}.`;
+  const agency = emailAgencyBrand(context.agency);
+  const accent = agency?.accent ?? ACCENT;
+  const footer = agency
+    ? `${agency.name} sent this request through VisaStack. You decide what is shared with them, and nothing is shared until you send it.`
+    : FOOTER;
 
   const text = [
     content.heading,
@@ -96,8 +139,8 @@ export function renderEmail(
     '',
     // "-- " is the standard signature line, so replies leave the footer out.
     '-- ',
-    'VisaStack',
-    FOOTER,
+    ...(agency ? [agency.name, POWERED_BY] : ['VisaStack']),
+    footer,
     sentTo,
   ].join('\n');
 
@@ -119,28 +162,35 @@ export function renderEmail(
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${PAGE};">
 <tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
-<tr><td style="background:${INK};border-radius:16px 16px 0 0;padding:20px 28px;">
+${
+  agency
+    ? `<tr><td style="background:${CARD};border:1px solid ${HAIRLINE};border-bottom:0;border-top:4px solid ${accent};border-radius:16px 16px 0 0;padding:20px 28px 0;">
+<p style="margin:0;font-size:18px;line-height:1.3;font-weight:700;letter-spacing:-0.01em;color:${INK};">${e(agency.name)}</p>
+</td></tr>`
+    : `<tr><td style="background:${INK};border-radius:16px 16px 0 0;padding:20px 28px;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
 <td style="padding-right:10px;vertical-align:middle;"><img src="${e(logo)}" width="28" height="28" alt="" style="display:block;border:0;border-radius:6px;"></td>
 <td style="vertical-align:middle;font-size:17px;font-weight:700;letter-spacing:-0.01em;color:#ffffff;">VisaStack</td>
 </tr></table>
-</td></tr>
+</td></tr>`
+}
 <tr><td style="background:${CARD};border:1px solid ${HAIRLINE};border-top:0;border-radius:0 0 16px 16px;padding:32px 28px 28px;">
-<p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${ACCENT};">${e(content.eyebrow)}</p>
+<p style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:${accent};">${e(content.eyebrow)}</p>
 <h1 style="margin:0 0 16px;font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.02em;color:${INK};">${e(content.heading)}</h1>
 ${paragraph(content.fact, INK, 16, '0 0 12px')}
 ${content.code ? `<p style="margin:8px 0 20px;font-size:32px;line-height:1.2;font-weight:700;letter-spacing:0.3em;font-family:Menlo,Consolas,monospace;color:${INK};">${e(content.code)}</p>` : ''}
 ${content.why ? paragraph(content.why, BODY, 15, '0 0 24px') : '<div style="height:12px;"></div>'}
 <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-<td style="border-radius:980px;background:${ACCENT};">
+<td style="border-radius:980px;background:${accent};">
 <a href="${e(url)}" style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:980px;">${e(content.action.label)}</a>
 </td></tr></table>
 ${content.after ? paragraph(content.after, BODY, 14, '24px 0 0') : ''}
-<p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:${MUTED};">If the button does not open, copy this address into your browser:<br><a href="${e(url)}" style="color:${ACCENT};word-break:break-all;">${e(url)}</a></p>
+<p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:${MUTED};">If the button does not open, copy this address into your browser:<br><a href="${e(url)}" style="color:${accent};word-break:break-all;">${e(url)}</a></p>
 </td></tr>
 <tr><td style="padding:20px 28px 0;">
-${paragraph(FOOTER, MUTED, 12, '0 0 6px')}
+${paragraph(footer, MUTED, 12, '0 0 6px')}
 ${paragraph(sentTo, MUTED, 12, '0')}
+${agency ? `<p style="margin:12px 0 0;font-size:11px;line-height:1.5;color:${MUTED};"><img src="${e(logo)}" width="14" height="14" alt="" style="display:inline-block;vertical-align:-2px;border:0;border-radius:3px;margin-right:6px;">${POWERED_BY}</p>` : ''}
 </td></tr>
 </table>
 </td></tr>
@@ -201,7 +251,8 @@ type EmailEventType =
   | 'SHARING_INVITATION_CREATED'
   | 'CONTRIBUTOR_REQUEST_CREATED'
   | 'AGENCY_COLLECTION_REQUEST_SENT'
-  | 'AGENCY_COLLECTION_GUEST_CODE';
+  | 'AGENCY_COLLECTION_GUEST_CODE'
+  | 'AGENCY_COLLECTION_GUEST_CORRECTION';
 
 export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
   EVIDENCE_REQUEST_CREATED: {
@@ -415,6 +466,16 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     why: 'Type it on the page where you asked for it. It works once, for 10 minutes.',
     action: 'Return to the Request',
     after: 'VisaStack will never ask you for this code by phone or message.',
+  },
+  // UMPE G3: the agency asked a guest to correct what they sent. Never the notes, the documents,
+  // the person or the route: the guest reads the notes on the request page after their code.
+  AGENCY_COLLECTION_GUEST_CORRECTION: {
+    eyebrow: 'Your Documents',
+    heading: 'A correction was asked for',
+    why: 'The agency added a note to what you sent. Open the request to see what to change, then send it again.',
+    action: 'Open the Request',
+    after:
+      'Use the request link the agency sent you if the button asks for it. Nothing you sent before was changed.',
   },
   CASE_PACKAGE_CHANGED: {
     eyebrow: 'Your Trip',

@@ -1,7 +1,7 @@
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { type Result, err, ok } from '@visastack/core';
 import { type SQL, and, desc, eq, gt, isNull, lt, sql } from 'drizzle-orm';
-import { CollectionLinkProof } from './access/collection-scope';
+import { CollectionLinkProof, collectionIssuerMayIssue } from './access/collection-scope';
 import {
   GuestCodeDeliveryProof,
   GuestCollectionSessionProof,
@@ -205,20 +205,9 @@ async function findLiveSession(
     throw error;
   }
   if (!row || !OPEN_ORGANIZATION_STATUSES.includes(row.orgStatus) || !row.createdBy) return null;
-  // The person who made the link must still be an active owner or admin of that agency.
-  const issuer = first(
-    await db
-      .select({ role: schema.memberships.role, active: schema.memberships.active })
-      .from(schema.memberships)
-      .where(
-        and(
-          eq(schema.memberships.accountId, row.createdBy),
-          eq(schema.memberships.organizationId, row.organizationId),
-        ),
-      )
-      .limit(1),
-  );
-  if (!issuer?.active || (issuer.role !== 'OWNER' && issuer.role !== 'ADMIN')) return null;
+  // The person who made the link must still be an owner or admin of that agency, or still hold
+  // May Request Documents (UMPE G3).
+  if (!(await collectionIssuerMayIssue(db, row.createdBy, row.organizationId))) return null;
   return {
     sessionId: row.sessionId,
     linkId: row.linkId,

@@ -3,7 +3,8 @@ import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import {
   type AgencyCollectionScope,
   CollectionLinkProof,
-  agencyCollectionScopeProblem,
+  agencyCollectionRequesterScopeProblem,
+  collectionIssuerMayIssue,
 } from './access/collection-scope';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
@@ -12,7 +13,11 @@ import { type ServiceError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { generateInvitationToken, hashInvitationToken } from './invitation-tokens';
 import { isUuid } from './lifecycle/foundation/ids';
-import { cancelQueuedNotificationsForResource } from './notifications';
+import {
+  type CollectionLinkEmailRecord,
+  cancelQueuedNotificationsForResource,
+  collectionLinkEmailRecords,
+} from './notifications';
 import { OPEN_ORGANIZATION_STATUSES } from './organization-admission';
 import { type PackMatch, type PackMatchTerms, listFittingPublicPacks } from './pack-matching';
 import { getPackVersion, listRequirements, verifyPackChecksum } from './packs';
@@ -193,7 +198,7 @@ export async function createCollectionRequest(
   input: CollectionRequestInput,
   now: Date = new Date(),
 ): Promise<Result<CreatedCollectionRequest, ServiceError>> {
-  const problem = agencyCollectionScopeProblem(scope);
+  const problem = agencyCollectionRequesterScopeProblem(scope);
   if (problem) return err(problem);
   const clean = cleanRequest(input, now);
   if (typeof clean === 'string') return err(serviceError('invalid', clean));
@@ -285,12 +290,12 @@ export async function listCollectionRequests(
   scope: AgencyCollectionScope,
   now: Date = new Date(),
 ): Promise<Result<readonly CollectionRequestSummary[], ServiceError>> {
-  const problem = agencyCollectionScopeProblem(scope);
+  const problem = agencyCollectionRequesterScopeProblem(scope);
   if (problem) return err(problem);
   const rows = await db
     .select()
     .from(schema.agencyCollectionRequests)
-    .where(eq(schema.agencyCollectionRequests.organizationId, scope.organizationId))
+    .where(requestsOf(scope))
     .orderBy(desc(schema.agencyCollectionRequests.createdAt))
     .limit(COLLECTION_LIST_LIMIT);
   const ids = rows.map((row) => row.id);
@@ -341,16 +346,117 @@ export interface CollectionRevisionView {
 }
 
 /**
- * `ISSUER_GONE`: the person who made the link is no longer an owner or admin, so the link no longer
- * opens (the public page already refuses it); make a new link.
+ * `ISSUER_GONE`: the person who made the link is no longer an owner or admin and no longer holds
+ * May Request Documents, so the link no longer opens (the public page already refuses it); make a
+ * new link.
  */
 export type CollectionLinkState = 'OPEN' | 'EXPIRED' | 'REVOKED' | 'REPLACED' | 'ISSUER_GONE';
+
+/**
+ * What is truly known about a link's email (UMPE G3, A07), from the outbox record itself:
+ * - `NOT_EMAILED`: the link was made to copy and share; no email was asked for.
+ * - `QUEUED`: waiting to be handed to the mail provider (`retrying` after a refused attempt).
+ * - `SENT`: the mail provider accepted it. Not the same as reaching the inbox.
+ * - `DELIVERED`: only when the provider itself reported delivery (a delivered time recorded).
+ * - `NOT_DELIVERED`: the provider reported the receiving server refused it.
+ * - `NOT_SENT`: it was never handed over, with the reason.
+ */
+export type CollectionEmailStatus =
+  | 'NOT_EMAILED'
+  | 'QUEUED'
+  | 'SENT'
+  | 'DELIVERED'
+  | 'NOT_DELIVERED'
+  | 'NOT_SENT';
+
+export type CollectionEmailReason =
+  | 'LINK_CLOSED'
+  | 'NO_ADDRESS'
+  | 'PROVIDER_REFUSED'
+  | 'STOPPED'
+  | 'NOT_QUEUED';
+
+export interface CollectionEmailState {
+  readonly status: CollectionEmailStatus;
+  /** Set only for `NOT_SENT`. */
+  readonly reason: CollectionEmailReason | null;
+  /** True for `QUEUED` after an attempt the provider refused; it will be tried again. */
+  readonly retrying: boolean;
+  /** When the provider accepted it, for `SENT`, `DELIVERED` and `NOT_DELIVERED`. */
+  readonly sentAt: Date | null;
+  /** When the provider reported delivery, for `DELIVERED` only. */
+  readonly deliveredAt: Date | null;
+}
+
+const NOT_EMAILED: CollectionEmailState = {
+  status: 'NOT_EMAILED',
+  reason: null,
+  retrying: false,
+  sentAt: null,
+  deliveredAt: null,
+};
+
+export const COLLECTION_EMAIL_STATUS_LABELS: Readonly<Record<CollectionEmailStatus, string>> = {
+  NOT_EMAILED: 'Not Emailed',
+  QUEUED: 'Queued',
+  SENT: 'Sent to Mail Provider',
+  DELIVERED: 'Delivered',
+  NOT_DELIVERED: 'Not Delivered',
+  NOT_SENT: 'Not Sent',
+};
+
+export const COLLECTION_EMAIL_REASON_LABELS: Readonly<Record<CollectionEmailReason, string>> = {
+  LINK_CLOSED: 'The link closed before the email could go.',
+  NO_ADDRESS: 'There was no address to send it to.',
+  PROVIDER_REFUSED: 'The mail provider did not accept it.',
+  STOPPED: 'It was stopped because the link was replaced or ended.',
+  NOT_QUEUED: 'No email was recorded for this link.',
+};
+
+type EmailRow = CollectionLinkEmailRecord;
+
+/** One outbox record in plain terms. Delivered needs the provider's own delivery time. */
+export function collectionEmailState(
+  row: EmailRow | undefined,
+  emailed: boolean,
+): CollectionEmailState {
+  if (!row) {
+    return emailed ? { ...NOT_EMAILED, status: 'NOT_SENT', reason: 'NOT_QUEUED' } : NOT_EMAILED;
+  }
+  const base = { reason: null, retrying: false, sentAt: row.sentAt, deliveredAt: null };
+  switch (row.status) {
+    case 'QUEUED':
+      return { ...base, status: 'QUEUED', sentAt: null, retrying: row.attempts > 0 };
+    case 'SENT':
+      return { ...base, status: 'SENT' };
+    case 'DELIVERED':
+    case 'READ':
+      return row.deliveredAt
+        ? { ...base, status: 'DELIVERED', deliveredAt: row.deliveredAt }
+        : { ...base, status: 'SENT' };
+    case 'BOUNCED':
+      return { ...base, status: 'NOT_DELIVERED' };
+    case 'CANCELLED':
+      return { ...base, status: 'NOT_SENT', reason: 'STOPPED', sentAt: null };
+    default: {
+      const reason: CollectionEmailReason =
+        row.lastError === 'recipient no longer authorized'
+          ? 'LINK_CLOSED'
+          : row.lastError === 'no recipient email resolvable'
+            ? 'NO_ADDRESS'
+            : 'PROVIDER_REFUSED';
+      return { ...base, status: 'NOT_SENT', reason, sentAt: null };
+    }
+  }
+}
 
 export interface CollectionLinkView {
   readonly id: string;
   readonly revisionNo: number;
   readonly state: CollectionLinkState;
   readonly emailed: boolean;
+  /** The email's true state (UMPE G3, A07). */
+  readonly email: CollectionEmailState;
   readonly createdAt: Date;
   readonly expiresAt: Date;
   readonly lastOpenedAt: Date | null;
@@ -389,6 +495,17 @@ export interface CollectionRequestDetail {
 type RequestRow = typeof schema.agencyCollectionRequests.$inferSelect;
 type RevisionRow = typeof schema.agencyCollectionRequestRevisions.$inferSelect;
 
+/**
+ * The requests a scope may see: all of the organization's for an owner or admin, only the ones the
+ * member made for a member with May Request Documents (UMPE G3).
+ */
+function requestsOf(scope: AgencyCollectionScope) {
+  const org = eq(schema.agencyCollectionRequests.organizationId, scope.organizationId);
+  return scope.authority === 'ADMIN'
+    ? org
+    : and(org, eq(schema.agencyCollectionRequests.createdByAccountId, scope.accountId));
+}
+
 /** One request of this organization, or undefined; `forUpdate` locks it for the transaction. */
 async function loadRequest(
   db: Db,
@@ -400,12 +517,7 @@ async function loadRequest(
   const query = db
     .select()
     .from(schema.agencyCollectionRequests)
-    .where(
-      and(
-        eq(schema.agencyCollectionRequests.id, requestId),
-        eq(schema.agencyCollectionRequests.organizationId, scope.organizationId),
-      ),
-    )
+    .where(and(eq(schema.agencyCollectionRequests.id, requestId), requestsOf(scope)))
     .limit(1);
   return first(forUpdate ? await query.for('update') : await query);
 }
@@ -452,7 +564,7 @@ export async function getCollectionRequest(
   requestId: string,
   now: Date = new Date(),
 ): Promise<Result<CollectionRequestDetail, ServiceError>> {
-  const problem = agencyCollectionScopeProblem(scope);
+  const problem = agencyCollectionRequesterScopeProblem(scope);
   if (problem) return err(problem);
   const request = await loadRequest(db, scope, requestId);
   if (!request) return err(missing());
@@ -515,31 +627,24 @@ export async function getCollectionRequest(
   ]);
 
   const issuers = [...new Set(links.flatMap((row) => (row.createdBy ? [row.createdBy] : [])))];
-  const admins = new Set(
-    issuers.length === 0
-      ? []
-      : (
-          await db
-            .select({ accountId: schema.memberships.accountId })
-            .from(schema.memberships)
-            .where(
-              and(
-                eq(schema.memberships.organizationId, scope.organizationId),
-                inArray(schema.memberships.accountId, issuers),
-                eq(schema.memberships.active, true),
-                inArray(schema.memberships.role, ['OWNER', 'ADMIN']),
-              ),
-            )
-        ).map((row) => row.accountId),
+  const mayIssue = new Set<string>();
+  for (const issuer of issuers) {
+    if (await collectionIssuerMayIssue(db, issuer, scope.organizationId)) mayIssue.add(issuer);
+  }
+  const emailStates = await collectionLinkEmailRecords(
+    db,
+    scope,
+    links.map((row) => row.id),
   );
   const linkViews = links.map((row) => ({
     id: row.id,
     revisionNo: row.revisionNo,
     state:
-      linkState(row, now) === 'OPEN' && !(row.createdBy && admins.has(row.createdBy))
+      linkState(row, now) === 'OPEN' && !(row.createdBy && mayIssue.has(row.createdBy))
         ? ('ISSUER_GONE' as const)
         : linkState(row, now),
     emailed: row.recipientEmailHint !== null,
+    email: collectionEmailState(emailStates.get(row.id), row.recipientEmailHint !== null),
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
     lastOpenedAt: row.lastOpenedAt,
@@ -585,7 +690,7 @@ export async function listCollectionPackChoices(
   requestId: string,
   packTerms: PackMatchTerms | null,
 ): Promise<Result<readonly PackMatch[], ServiceError>> {
-  const problem = agencyCollectionScopeProblem(scope);
+  const problem = agencyCollectionRequesterScopeProblem(scope);
   if (problem) return err(problem);
   const request = await loadRequest(db, scope, requestId);
   if (!request) return err(missing());
@@ -604,7 +709,7 @@ export async function chooseCollectionPack(
   requestId: string,
   choice: { readonly packVersionId: string | null; readonly packTerms: PackMatchTerms | null },
 ): Promise<Result<{ readonly items: readonly CollectionItem[] }, ServiceError>> {
-  const problem = agencyCollectionScopeProblem(scope);
+  const problem = agencyCollectionRequesterScopeProblem(scope);
   if (problem) return err(problem);
   let proposal: CollectionItem[] = [];
   if (choice.packVersionId !== null) {
@@ -651,7 +756,7 @@ export async function editCollectionDraft(
   requestId: string,
   edit: DraftEdit,
 ): Promise<Result<{ readonly items: readonly CollectionItem[] }, ServiceError>> {
-  const problem = agencyCollectionScopeProblem(scope);
+  const problem = agencyCollectionRequesterScopeProblem(scope);
   if (problem) return err(problem);
   return db.transaction(async (tx) => {
     const request = await loadRequest(tx, scope, requestId, true);
@@ -787,7 +892,7 @@ export async function issueCollectionRequest(
   requestId: string,
   now: Date = new Date(),
 ): Promise<Result<IssuedCollectionRequest, ServiceError>> {
-  const problem = agencyCollectionScopeProblem(scope);
+  const problem = agencyCollectionRequesterScopeProblem(scope);
   if (problem) return err(problem);
   const limited = await linkRateLimit(db, scope);
   if (limited) return err(limited);
@@ -933,7 +1038,7 @@ export async function createCollectionLink(
     readonly now?: Date;
   } = {},
 ): Promise<Result<CreatedCollectionLink, ServiceError>> {
-  const problem = agencyCollectionScopeProblem(scope);
+  const problem = agencyCollectionRequesterScopeProblem(scope);
   if (problem) return err(problem);
   const now = options.now ?? new Date();
   const address = options.email ? options.email.address.trim().toLowerCase() : null;
@@ -1010,7 +1115,7 @@ export async function endCollectionRequest(
   outcome: 'REVOKED' | 'CLOSED',
   now: Date = new Date(),
 ): Promise<Result<{ readonly linksClosed: number }, ServiceError>> {
-  const problem = agencyCollectionScopeProblem(scope);
+  const problem = agencyCollectionRequesterScopeProblem(scope);
   if (problem) return err(problem);
   if (outcome !== 'REVOKED' && outcome !== 'CLOSED') return err(missing());
   return db.transaction(async (tx) => {
@@ -1099,19 +1204,8 @@ async function openLinkFor(
       .limit(1),
   );
   if (!row || !OPEN_ORGANIZATION_STATUSES.includes(row.orgStatus) || !row.createdBy) return null;
-  const issuer = first(
-    await db
-      .select({ role: schema.memberships.role, active: schema.memberships.active })
-      .from(schema.memberships)
-      .where(
-        and(
-          eq(schema.memberships.accountId, row.createdBy),
-          eq(schema.memberships.organizationId, row.organizationId),
-        ),
-      )
-      .limit(1),
-  );
-  if (!issuer?.active || (issuer.role !== 'OWNER' && issuer.role !== 'ADMIN')) return null;
+  // The person who made it must still be an owner or admin, or still hold May Request Documents.
+  if (!(await collectionIssuerMayIssue(db, row.createdBy, row.organizationId))) return null;
   return { linkId: row.linkId, organizationId: row.organizationId };
 }
 
