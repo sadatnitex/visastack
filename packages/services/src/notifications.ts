@@ -117,7 +117,9 @@ export type NotificationEventType =
   // UMPE P4: something changed for a traveller's own trip package; one note per change.
   | typeof PACKAGE_CHANGED_EVENT
   // UMPE P11: a newer checklist was published for a traveller's active case; one note per impact.
-  | typeof RULE_CHANGED_EVENT;
+  | typeof RULE_CHANGED_EVENT
+  // UMPE G4: a family file has waited 7 days for Which Person?; for the uploading account only.
+  | typeof HELD_FILE_REMINDER_EVENT_NAME;
 
 // --- UMPE P4: trip package change notes ----------------------------------------------------------
 /** A note to a traveller that something changed for one of their trip packages (UMPE P4, R19). */
@@ -206,6 +208,39 @@ async function ruleChangeStillOpen(db: Db, notification: Notification): Promise<
   return packageNote === undefined;
 }
 // --- end UMPE P11 --------------------------------------------------------------------------------
+
+// --- UMPE G4: a family file still waiting for Which Person? ---------------------------------------
+/** The same value as `HELD_FILE_REMINDER_EVENT` (umpe-document-holds.ts), kept here so this file needs no import of it. */
+const HELD_FILE_REMINDER_EVENT_NAME = 'DOCUMENT_HELD_REMINDER';
+
+/**
+ * Send-time recheck: the reminder goes only while the file still waits for Which Person? and still
+ * belongs to the account it is addressed to. Filed, removed or swept files send nothing.
+ */
+async function heldFileStillWaiting(db: Db, notification: Notification): Promise<boolean> {
+  if (!notification.resourceId || !notification.recipientAccountId) return false;
+  const present = first(
+    await db
+      .select({ ok: sql<boolean>`to_regclass('document_person_holds') is not null` })
+      .from(sql`(select 1) as probe`),
+  );
+  if (!present?.ok) return false;
+  const row = first(
+    await db
+      .select({ id: schema.documentPersonHolds.id })
+      .from(schema.documentPersonHolds)
+      .where(
+        and(
+          eq(schema.documentPersonHolds.id, notification.resourceId),
+          eq(schema.documentPersonHolds.ownerAccountId, notification.recipientAccountId),
+          eq(schema.documentPersonHolds.status, 'HELD'),
+        ),
+      )
+      .limit(1),
+  );
+  return row !== undefined;
+}
+// --- end UMPE G4 ---------------------------------------------------------------------------------
 
 /**
  * Billing notices (S17): an agency's invoices, reminders and billing status are for its owners
@@ -896,7 +931,10 @@ async function dispatchOne(
       !(await packageChangeStillOpen(db, notification))) ||
     // UMPE P11: a rule change note that no longer applies is cancelled the same way.
     (notification.eventType === RULE_CHANGED_EVENT &&
-      !(await ruleChangeStillOpen(db, notification)))
+      !(await ruleChangeStillOpen(db, notification))) ||
+    // UMPE G4: a held-file reminder for a file no longer waiting is cancelled the same way.
+    (notification.eventType === HELD_FILE_REMINDER_EVENT_NAME &&
+      !(await heldFileStillWaiting(db, notification)))
   ) {
     const updated = await db
       .update(schema.notifications)

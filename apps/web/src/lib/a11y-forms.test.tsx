@@ -380,6 +380,24 @@ const DOCS: readonly Case[] = [
             { applicantId: 'a1', displayName: 'Anna Eriksson' },
             { applicantId: 'a2', displayName: 'Erik Eriksson' },
           ]}
+          // UMPE G4: the Change forms for a recognised kind and an automatic filing.
+          automatic={[
+            {
+              placementId: 'pl1',
+              documentId: 'd9',
+              placement: 'KIND',
+              title: 'Hotel Booking, Anna',
+              kindLabel: 'Hotel or Stay Booking',
+            },
+            {
+              placementId: 'pl2',
+              documentId: 'd10',
+              placement: 'PERSON',
+              title: 'Passport, Anna',
+              kindLabel: null,
+            },
+          ]}
+          personName="Anna Eriksson"
           linked={[
             {
               documentId: 'd5',

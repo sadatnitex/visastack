@@ -68,6 +68,7 @@ import {
   FirstRunTask,
   SETUP_LATER_HREF,
 } from '../first-run';
+import { HeldFilesLine } from '../held-files-line';
 import { TidyUpCard, tidyUpLine } from './tidy-up';
 
 export const metadata: Metadata = { title: 'Account Overview' };
@@ -662,6 +663,8 @@ export default async function AppPage({
         ) : null}
 
         {coreGranted && data.tidyUp ? <TidyUpCard {...data.tidyUp} /> : null}
+        {/* UMPE G4: family files waiting for Which Person? (one line, nothing when none). */}
+        {coreGranted ? <HeldFilesLine applicantId={data.perApplicant[0]?.applicant.id} /> : null}
 
         {coreGranted && rest.length > 0 ? (
           <section

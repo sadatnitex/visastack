@@ -38,6 +38,7 @@ import {
   loadDeadlineEntries,
   validUntilLine,
 } from '../../deadline-clock-data';
+import { HeldFilesLine } from '../../held-files-line';
 import { TravellerLifecycleBar } from './traveller-manage/lifecycle-bar';
 import { loadTravellerManage } from './traveller-manage/load';
 import { OUTCOME_PARAM } from './traveller-manage/messages';
@@ -322,6 +323,8 @@ export default async function ApplicantOverviewPage({
           </output>
         ) : null}
         <NextStepCard {...next} />
+        {/* UMPE G4: family files waiting for Which Person? (one line, nothing when none). */}
+        <HeldFilesLine applicantId={id} />
         {data.featured ? (
           <p className="muted" data-only="glance">
             Your case: <Link href={`/app/mission/${data.featured.id}`}>{data.featured.title}</Link>

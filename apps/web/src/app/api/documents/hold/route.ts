@@ -1,10 +1,12 @@
 import {
   accountPrincipal,
+  fileHeldFile,
   holdFamilyFile,
   isUploadId,
   loadUploadQuotaConfig,
   requireAccess,
 } from '@visastack/services';
+import { after } from 'next/server';
 import {
   createContentLimitsChecker,
   createDocumentConverter,
@@ -24,6 +26,7 @@ import {
 } from '../../../../lib/upload-preflight';
 import { uploadRetryAfterSeconds } from '../../../../lib/upload-retry-after';
 import { storedFileName } from '../../../../lib/upload-rules';
+import { triggerIntakeAndReading } from '../../jobs/process-ai-reading/run';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -144,6 +147,36 @@ export async function POST(request: Request): Promise<Response> {
         convertedFromHeic: prepared.convertedFrom === 'HEIC',
       },
     );
+    // UMPE G4: an exact unique match (name and date of birth, one person, no close rival) is
+    // filed at once, through the access check for exactly that person; the person can Change it.
+    // Anything else (no access, a refusal, a repeat) leaves the file waiting for Which Person?.
+    if (
+      outcome.kind === 'held' &&
+      !outcome.replay &&
+      outcome.basis === 'NAME_AND_BIRTH_DATE' &&
+      outcome.proposedApplicantId
+    ) {
+      const target = await requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'MANAGE',
+        { applicantId: outcome.proposedApplicantId },
+        { purpose: 'owner_family_batch' },
+      );
+      if (target.ok) {
+        const filed = await fileHeldFile(target.value, {
+          holdId: outcome.holdId,
+          automatic: true,
+        });
+        if (filed.ok) {
+          after(() => triggerIntakeAndReading());
+          return json(
+            `Filed Under ${target.value.applicant.displayName}. It matched by name and date of birth; choose Change on their documents page if that is wrong.`,
+            201,
+          );
+        }
+      }
+    }
     switch (outcome.kind) {
       case 'held':
         return json(

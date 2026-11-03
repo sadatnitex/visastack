@@ -135,6 +135,7 @@ describe('the words of every email', () => {
         'CLIENT_INVITATION_CREATED',
         'CONTRIBUTOR_REQUEST_CREATED',
         'DOCUMENT_EXPIRY',
+        'DOCUMENT_HELD_REMINDER',
         'DOWNGRADE_EXECUTED',
         'DOWNGRADE_SCHEDULED',
         'EVIDENCE_REPLACEMENT_REQUESTED',

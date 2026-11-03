@@ -2,12 +2,14 @@
 
 import {
   accountPrincipal,
+  changeRecognisedKind,
   decideDocumentRelation,
   discardHeldFile,
   dismissIntakeException,
   fileHeldFile,
   isRelationDecision,
   requireAccess,
+  returnAutoFiledHold,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
@@ -23,6 +25,16 @@ export interface RelationDecisionState {
 
 const GONE = 'That suggestion is no longer here. Refresh the page to see the latest list.';
 const FILE_GONE = 'That file is no longer waiting. Refresh the page to see the latest list.';
+const PLACEMENT_GONE = 'That is no longer here to change. Refresh the page to see the latest list.';
+
+/** Plain words for a refused Change (UMPE G4). */
+function changeRefusal(code: string): string {
+  if (code === 'stale') {
+    return 'Not changed: this file was already changed or used since. Change it from its own page.';
+  }
+  if (code === 'rate_limited') return 'Too many changes in a short time. Try again in a while.';
+  return PLACEMENT_GONE;
+}
 
 /**
  * The traveller's answer to one suggested link between two documents (UMPE P3): Confirm or Keep
@@ -84,6 +96,10 @@ export async function decideRelationAction(
  * - `file`: Which Person? files a held file under the chosen person, through the access check for
  *   exactly that person; a refused check reads like a file no longer waiting.
  * - `discard`: removes a held file and its bytes (the account's own files only).
+ * - `change-kind` (UMPE G4): puts back what a file was before its kind was recognised
+ *   automatically (owner proof for that document).
+ * - `change-person` (UMPE G4): moves a file filed automatically back to Which Person? (owner
+ *   proof for the person it was filed under).
  */
 export async function needsDecisionAction(
   prev: RelationDecisionState,
@@ -112,6 +128,51 @@ export async function needsDecisionAction(
         : { ok: false, message: GONE };
     });
     if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+    return result;
+  }
+
+  // UMPE G4: Change on something placed automatically. A refused check reads like a placement
+  // that is no longer there.
+  if (intent === 'change-kind' || intent === 'change-person') {
+    const placementId = String(formData.get('placementId') ?? '');
+    const documentId = String(formData.get('documentId') ?? '');
+    if (!isRecordId(placementId) || (intent === 'change-kind' && !isRecordId(documentId))) {
+      return { ok: false, message: PLACEMENT_GONE };
+    }
+    const result = await withSession(async ({ db, accountId }) => {
+      if (intent === 'change-kind') {
+        const access = await requireAccess(
+          db,
+          accountPrincipal(accountId),
+          'MANAGE',
+          { documentId },
+          { purpose: 'owner_document_finding' },
+        );
+        if (!access.ok) return { ok: false, message: PLACEMENT_GONE };
+        const changed = await changeRecognisedKind(access.value, { placementId });
+        if (!changed.ok) return { ok: false, message: changeRefusal(changed.error.code) };
+        return {
+          ok: true,
+          message:
+            'Changed back. The file is as it was before, and the suggestion waits in Needs One Decision.',
+        };
+      }
+      const access = await requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'MANAGE',
+        { applicantId },
+        { purpose: 'owner_family_batch' },
+      );
+      if (!access.ok) return { ok: false, message: PLACEMENT_GONE };
+      const returned = await returnAutoFiledHold(access.value, { placementId });
+      if (!returned.ok) return { ok: false, message: changeRefusal(returned.error.code) };
+      return {
+        ok: true,
+        message: 'Moved back. The file waits in Which Person? until you choose who it belongs to.',
+      };
+    });
+    if (result.ok) revalidatePath('/app', 'layout');
     return result;
   }
 

@@ -46,3 +46,12 @@ export function intakeExceptionsTablePresent(db: Db): Promise<boolean> {
 export function personHoldsTablePresent(db: Db): Promise<boolean> {
   return present(db, PERSON_HOLDS, personHoldsPresent);
 }
+
+// UMPE G4: automatic placements (a recognised kind applied, or a family file filed automatically).
+const AUTO_PLACEMENTS = 'document_auto_placements';
+const autoPlacementsPresent = new WeakSet<object>();
+
+/** UMPE G4: without this table nothing is placed automatically, so nothing lacks its Change. */
+export function autoPlacementsTablePresent(db: Db): Promise<boolean> {
+  return present(db, AUTO_PLACEMENTS, autoPlacementsPresent);
+}

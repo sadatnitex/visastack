@@ -13309,3 +13309,14 @@ html:has(.sticky-action-bar) {
   background: var(--bg-elevated);
   border-color: var(--edge-card);
 }
+
+/* WP-UMPE-G4 held files line: one quiet line on Home and a traveller's Home while family files wait for a person */
+.umpe-g4-held-line {
+  margin: 0 0 var(--space-4, 1rem);
+}
+.umpe-g4-held-line a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+}

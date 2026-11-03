@@ -161,3 +161,63 @@ describe('UMPE G1 additions to the list', () => {
     expect(html).not.toContain('Nothing needs a decision right now.');
   });
 });
+
+describe('UMPE G4: placed automatically', () => {
+  it('names each automatic placement and offers one Change per file', () => {
+    const html = renderToStaticMarkup(
+      <NeedsDecision
+        applicantId="a1"
+        items={[]}
+        linked={[]}
+        personName="Anna Eriksson"
+        automatic={[
+          {
+            placementId: 'pl1',
+            documentId: 'd1',
+            placement: 'KIND',
+            title: 'Hotel Booking, Anna',
+            kindLabel: 'Hotel or Stay Booking',
+          },
+          {
+            placementId: 'pl2',
+            documentId: 'd2',
+            placement: 'PERSON',
+            title: 'Passport, Anna',
+            kindLabel: null,
+          },
+        ]}
+      />,
+    );
+    expect(html).toContain('Placed Automatically');
+    expect(html).toContain('Recognised Automatically');
+    expect(html).toContain('Filed Under Anna Eriksson');
+    expect(html).toContain('We recognised Hotel Booking, Anna as a Hotel or Stay Booking');
+    expect(html).toContain('matched Anna Eriksson by name and date of birth');
+    expect(html).toContain('value="change-kind"');
+    expect(html).toContain('value="change-person"');
+    expect(html).toContain('aria-label="Change: Hotel Booking, Anna"');
+    expect(html).toContain('aria-label="Change: Passport, Anna"');
+  });
+
+  it('asks plainly after a file was moved back from an automatic filing', () => {
+    const html = renderToStaticMarkup(
+      <NeedsDecision
+        applicantId="a1"
+        items={[]}
+        linked={[]}
+        held={[
+          {
+            holdId: 'h1',
+            fileName: 'scan.pdf',
+            basis: 'NAME_AND_BIRTH_DATE',
+            proposedApplicantId: null,
+            addedOn: '3 Nov 2026',
+          },
+        ]}
+        people={[{ applicantId: 'a1', displayName: 'Anna Eriksson' }]}
+      />,
+    );
+    expect(html).toContain('Choose who this file belongs to.');
+    expect(html).not.toContain('checked=""');
+  });
+});

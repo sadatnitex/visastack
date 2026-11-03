@@ -33,6 +33,7 @@ import {
   mbLabel,
   prepareDocumentKind,
   previewDocument,
+  queueReadingAfterKindDecision,
   registerDocumentWithVersion,
   registerFieldDefinition,
   rejectDocumentTypeProposal,
@@ -670,12 +671,24 @@ export async function setDocumentTypeAction(formData: FormData): Promise<void> {
   const subjectRaw = String(formData.get('subject') ?? '').trim();
 
   const result = await withSession(async ({ db, accountId }) => {
-    return setDocumentType(db, {
+    const typed = await setDocumentType(db, {
       actorAccountId: accountId,
       documentId,
       docType: docTypeRaw.length > 0 ? docTypeRaw : null,
       subject: subjectRaw,
     });
+    // UMPE G4: a kind the person chose gets a fresh reading, which checks protection against it.
+    if (typed.ok && typed.value.docType) {
+      const access = await requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'MANAGE',
+        { documentId },
+        { purpose: 'owner_document_finding' },
+      );
+      if (access.ok) await queueReadingAfterKindDecision(access.value, { documentId });
+    }
+    return typed;
   });
 
   revalidatePath(`/app/applicant/${applicantId}/documents`);
@@ -1169,6 +1182,19 @@ export async function decideClassificationProposalAction(
       proposalId,
     });
     if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
+    // UMPE G4: the kind is decided; a fresh reading checks protection against it.
+    const access = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'MANAGE',
+      { applicantId },
+      { purpose: 'owner_document_finding' },
+    );
+    if (access.ok) {
+      await queueReadingAfterKindDecision(access.value, {
+        documentVersionId: approved.value.documentVersionId,
+      });
+    }
     return {
       ok: true,
       message: documentTypeSavedLine(documentTypeLabel(approved.value.suggestedType)),

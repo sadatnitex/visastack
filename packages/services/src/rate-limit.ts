@@ -164,6 +164,9 @@ export const RATE_LIMITS = {
   // is always recorded; past this many an hour the guest is not emailed again (they read every
   // note on the request page), so an agency cannot flood a guest's inbox.
   COLLECTION_GUEST_CORRECTION_EMAIL: { limit: 5, windowMs: HOUR_MS },
+  // UMPE G4: Change on an automatic placement (a recognised kind, or a family file filed
+  // automatically), per account. Far above a person correcting a batch by hand.
+  AUTO_PLACEMENT_CHANGE: { limit: 120, windowMs: HOUR_MS },
   // A private calendar subscription link (v1.2 B05 live feed). Calendar apps check a link every
   // few minutes to every few hours, so one link is bounded well above that. Only unknown links are
   // counted per network address, so a large calendar service fetching many people's real links
