@@ -21,3 +21,10 @@ describe('card links are not underlined like sentence links', () => {
     expect(rule).toContain(`:not(${card})`);
   });
 });
+
+describe('the documents list on a phone (UX13)', () => {
+  const block = css.slice(css.indexOf('/* WP-UMPE-UX13'));
+  it("gives a row's Manage button room under the file card, inside its padding", () => {
+    expect(block).toMatch(/\.wallet-document-manage\s*\{[^}]*padding:/);
+  });
+});

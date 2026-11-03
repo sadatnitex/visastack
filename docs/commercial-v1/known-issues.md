@@ -7378,3 +7378,7 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Reviews: helper with 24 proven-red guards; `/code-review max`: 8 findings, the real ones fixed (a stale email could still be mailed after Send Again; a replay cancelled the waiting email; a misconfigured key service skipped the keep-the-person path). Hand-back: `docs/umpe/operations/handoffs/UX6-P3.md`.
 - Before the switch goes on: package 4 (the companion's own trip page, Plan My Own Case, Travelling with You data for Travel Bookings) must exist, and the owner must decide the pilot-gate question (a person with no account following a companion link). Not verified: a browser, a screen reader, real mail.
 
+## 2026-11-03: UMPE UX13 (documents list on a phone, no migration)
+
+- The owner's phone screenshot: the Manage button touched the file card's border, and the Current, Archived and Recently Deleted tabs were underlined. The Manage wrapper had no style (now the card's padding, 8 px under the card); the tab links are `plain-link` (not underlined). Hand-back: `docs/umpe/operations/handoffs/UX13.md`. Not verified: a real phone, dark appearance.
+

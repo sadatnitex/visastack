@@ -49,7 +49,7 @@ export function LifecycleTabs({
         {tabs.map(({ tab, count }) => (
           <li key={tab}>
             <Link
-              className="lc-tab"
+              className="lc-tab plain-link"
               href={tab === 'current' ? basePath : `${basePath}?view=${tab}`}
               aria-current={tab === active ? 'page' : undefined}
             >
@@ -60,7 +60,7 @@ export function LifecycleTabs({
         ))}
         {removalRecordsHref ? (
           <li>
-            <Link className="lc-tab lc-tab-records" href={removalRecordsHref}>
+            <Link className="lc-tab lc-tab-records plain-link" href={removalRecordsHref}>
               Removal Records
             </Link>
           </li>

@@ -14483,3 +14483,11 @@ html:has(.sticky-action-bar) {
   gap: var(--space-3);
   margin-top: var(--space-3);
 }
+
+/* WP-UMPE-UX13 documents list on a phone: a document's Manage button and its View Selected Details link sit inside the row's own padding with a gap under the file card (they had none and touched its border), and the Current, Archived and Removal Records links are tabs, not sentence links, so they are not underlined. Flat, tokens only, 44 px targets. */
+.wallet-document-manage {
+  padding: var(--space-2) var(--space-4) var(--space-2);
+}
+.wallet-detail-jump {
+  margin-left: var(--space-2);
+}
