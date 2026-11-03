@@ -182,8 +182,9 @@ function cleanRequest(input: CollectionRequestInput, now: Date): CleanRequest | 
  * travel dates is never proposed on a guess).
  */
 function soleCoveringPack(fitting: readonly PackMatch[]): PackMatch | null {
-  const covering = fitting.filter((pack) => pack.coversTraveller && pack.needs === undefined);
-  return covering.length === 1 ? (covering[0] ?? null) : null;
+  const covering = fitting.filter((pack) => pack.coversTraveller);
+  const only = covering.length === 1 ? (covering[0] ?? null) : null;
+  return only && only.needs === undefined ? only : null;
 }
 
 /**

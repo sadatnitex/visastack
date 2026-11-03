@@ -59,6 +59,7 @@ import { grantPlatformRole } from './platform-roles';
 import { editFact, registerFieldDefinition } from './profile';
 import type { RuleCondition } from './rule-conditions';
 import { latestSourceChecks } from './source-monitor';
+import { pickPackageChange } from './umpe-package-phrases';
 import { getCasePackage } from './umpe-package-service';
 import { assessRuleImpact } from './umpe-rule-impact-service';
 
@@ -351,11 +352,24 @@ describe('route conditions in matching (R05)', () => {
       expect((await listPackRouteConditions(db, [next.value.id])).get(next.value.id)).toMatchObject(
         { consularPosts: ['Dhaka'] },
       );
+      // An abandoned draft is never the source: the next draft starts from the published version.
+      await setPackRouteConditions(db, await staff(db, actor), {
+        packVersionId: next.value.id,
+        consularPosts: ['Sylhet'],
+        travelFrom: null,
+        travelUntil: null,
+      });
+      const third = await addPackVersion(db, { actorAccountId: actor, packId: p.packId });
+      if (!isOk(third)) throw new Error('third');
+      expect(
+        (await listPackRouteConditions(db, [third.value.id])).get(third.value.id),
+      ).toMatchObject({ consularPosts: ['Dhaka'] });
       const audits = await db
         .select({ metadata: schema.auditEvents.metadata })
         .from(schema.auditEvents)
         .where(eq(schema.auditEvents.eventType, 'PACK_ROUTE_CONDITIONS_SET'));
-      expect(audits).toHaveLength(2);
+      // Two saves on the first draft, two carried forward, one save on the abandoned draft.
+      expect(audits).toHaveLength(5);
       expect(JSON.stringify(audits)).not.toContain('Dhaka');
     },
     TEST_TIMEOUT_MS,
@@ -898,6 +912,63 @@ describe('published rules stay fixed: details and route conditions are versioned
     },
     TEST_TIMEOUT_MS,
   );
+});
+
+describe('a route-condition-only version and the package change order (G2 review fixes)', () => {
+  it(
+    'flags pinned cases when a newer version changes only who it is for',
+    async () => {
+      const db = await freshDb();
+      const { actor, applicantId } = await seed(db);
+      const v1 = await publicPack(db, actor, 'Conditions Only');
+      await publish(db, actor, v1.versionId);
+      const mission = await createMission(db, {
+        actorAccountId: actor,
+        applicantId,
+        title: 'Trip',
+      });
+      if (!isOk(mission)) throw new Error('mission');
+      const attached = await attachPackVersion(db, {
+        actorAccountId: actor,
+        missionId: mission.value.id,
+        packVersionId: v1.versionId,
+      });
+      if (!isOk(attached)) throw new Error('attach');
+      const v2 = await addPackVersion(db, { actorAccountId: actor, packId: v1.packId });
+      if (!isOk(v2)) throw new Error('v2');
+      await addRequirement(db, {
+        actorAccountId: actor,
+        packVersionId: v2.value.id,
+        kind: 'DOCUMENT',
+        docType: 'PASSPORT',
+        citation: 'Synthetic rule',
+      });
+      await setPackRouteConditions(db, await staff(db, actor), {
+        packVersionId: v2.value.id,
+        consularPosts: ['Dhaka'],
+        travelFrom: null,
+        travelUntil: null,
+      });
+      await publish(db, actor, v2.value.id);
+      const diff = await diffPackVersions(db, v1.versionId, v2.value.id);
+      expect(isOk(diff) && diff.value.routeConditionsChanged).toBe(true);
+      const assessed = await assessRuleImpact(db, await staff(db, actor), {
+        packVersionId: v2.value.id,
+      });
+      expect(isOk(assessed) && assessed.value.casesFlagged).toBe(1);
+      const [impact] = await db.select().from(schema.umpeRuleImpacts);
+      expect([impact?.changeKind, impact?.itemKind]).toEqual(['CHANGED', null]);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it('tells any other change before a standing post or date mismatch', () => {
+    const change = pickPackageChange([
+      { kind: 'CASE_DETAILS_CHANGED', packRequirementId: null, subjectId: 'v1' },
+      { kind: 'EVIDENCE_EXPIRED', packRequirementId: 'r1', subjectId: 'd1' },
+    ]);
+    expect(change?.kind).toBe('EVIDENCE_EXPIRED');
+  });
 });
 
 describe('editing a case post or travel dates re-checks its checklist (R05, P4)', () => {

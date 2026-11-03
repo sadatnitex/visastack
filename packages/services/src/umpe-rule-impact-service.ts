@@ -109,6 +109,20 @@ export function preciseRuleChange(entries: readonly RequirementDiffEntry[]): Rul
   return { changeKind: 'NONE', itemKind: null, itemKey: null, changedCount: 0 };
 }
 
+/**
+ * UMPE G2: the change to report for a diff. A newer version that changes only who it is for (its
+ * application posts or travel window) still changes the rules for pinned cases, so it is reported
+ * as a changed checklist with no one item named.
+ */
+export function ruleChangeForDiff(diff: {
+  readonly entries: readonly RequirementDiffEntry[];
+  readonly routeConditionsChanged?: boolean;
+}): RuleChangeItem {
+  const item = preciseRuleChange(diff.entries);
+  if (item.changeKind !== 'NONE' || !diff.routeConditionsChanged) return item;
+  return { changeKind: 'CHANGED', itemKind: null, itemKey: null, changedCount: 1 };
+}
+
 const FIELD_LABELS: ReadonlyMap<string, string> = new Map(
   CATALOGUE_FIELDS.map((field) => [field.key, field.label] as const),
 );
@@ -214,7 +228,7 @@ async function flagCases(db: Db, runId: string, now: Date): Promise<number> {
       for (const previousId of idsOf(pinned)) {
         const diff = await diffPackVersions(tx, previousId, version.id);
         if (!diff.ok) continue;
-        const item = preciseRuleChange(diff.value.entries);
+        const item = ruleChangeForDiff(diff.value);
         // The newer version asks for the same things: nothing to review, nobody to tell.
         if (item.changeKind === 'NONE') continue;
         // One set-based insert per older version: only active, unpurged cases pinned to it.
@@ -601,7 +615,7 @@ export async function collectionRuleImpact(
   if (!newest || newest.version <= pinned.version) return ok(null);
   const diff = await diffPackVersions(db, pinnedId, newest.id);
   if (!diff.ok) return ok(null);
-  const item = preciseRuleChange(diff.value.entries);
+  const item = ruleChangeForDiff(diff.value);
   return ok({
     packName: pinned.packName,
     pinnedVersion: pinned.version,

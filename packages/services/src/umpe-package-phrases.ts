@@ -154,12 +154,14 @@ export function outsideSteps(notes: readonly (string | null)[]): OutsideStep[] {
 
 export const PACKAGE_CHANGE_KINDS = [
   'PACK_WITHDRAWN',
-  // UMPE G2: the case's application post or travel dates no longer fit the linked checklist.
-  'CASE_DETAILS_CHANGED',
   'PACK_CHANGED',
   'EVIDENCE_EXPIRED',
   'FACT_CHANGED',
   'NEWER_DOCUMENT',
+  // UMPE G2: the case's application post or travel dates do not fit the linked checklist. Last,
+  // because it is a standing state: any change above it is told first, and once reviewed it never
+  // hides a later change of another kind.
+  'CASE_DETAILS_CHANGED',
 ] as const;
 export type PackageChangeKind = (typeof PACKAGE_CHANGE_KINDS)[number];
 

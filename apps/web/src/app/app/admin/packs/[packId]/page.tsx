@@ -94,11 +94,6 @@ function byRequirementKey(a: RequirementKey, b: RequirementKey): number {
   );
 }
 
-/**
- * One requirement pack: one version open at a time (WP-SB7), chosen by `?version=` and the newest
- * by default, with its requirements as compact rows 25 at a time; every other version is a short
- * row that opens it. Only the open version's requirements and attached cases are read.
- */
 /** UMPE G2: who a version is for, in one plain sentence. */
 function routeSummary(c: PackRouteConditions): string {
   const posts =
@@ -144,6 +139,11 @@ function ruleDetailsSummary(req: PackRequirement, details: RequirementDetails | 
   return parts.length > 0 ? <p className="muted u-fs-085">{parts.join(' · ')}</p> : null;
 }
 
+/**
+ * One requirement pack: one version open at a time (WP-SB7), chosen by `?version=` and the newest
+ * by default, with its requirements as compact rows 25 at a time; every other version is a short
+ * row that opens it. Only the open version's requirements and attached cases are read.
+ */
 export default async function PackDetailPage({
   params,
   searchParams,

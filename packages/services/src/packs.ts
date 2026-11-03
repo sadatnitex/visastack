@@ -22,6 +22,7 @@ import { isHttpUrl } from './external-url';
 import {
   type ManifestExtras,
   NO_MANIFEST_EXTRAS,
+  type PackRouteConditions,
   type RequirementDetails,
   copyRouteConditionsForward,
   detailsPresent,
@@ -157,19 +158,24 @@ function canonicalJson(value: unknown): unknown {
   return value;
 }
 
+/**
+ * UMPE G2 rule detail fields sealed into a format 2 item and compared by a diff, in this fixed
+ * order (then the effective date). One list, so the checksum and the diff never disagree.
+ */
+const DIFFABLE_DETAIL_FIELDS = [
+  'category',
+  'acceptedForm',
+  'translationNeeded',
+  'originalNeeded',
+  'statementPeriodMonths',
+  'validMonthsAfterTravel',
+] as const;
+
 /** The G2 rule detail keys a format 2 item appends, in this fixed order, each only when set. */
 function format2Details(details: RequirementDetails | undefined): Record<string, unknown> {
   if (!details) return {};
-  const keys = [
-    'category',
-    'acceptedForm',
-    'translationNeeded',
-    'originalNeeded',
-    'statementPeriodMonths',
-    'validMonthsAfterTravel',
-  ] as const;
   const out: Record<string, unknown> = {};
-  for (const key of keys) if (details[key] !== null) out[key] = details[key];
+  for (const key of DIFFABLE_DETAIL_FIELDS) if (details[key] !== null) out[key] = details[key];
   return details.effectiveSince === null
     ? out
     : { ...out, effectiveSince: details.effectiveSince.toISOString() };
@@ -501,7 +507,11 @@ export async function addPackVersion(
       'pack version',
     );
     // UMPE G2: who the checklist is for carries forward into the new draft.
-    await copyRouteConditionsForward(tx, { packId: input.packId, toVersionId: version.id });
+    await copyRouteConditionsForward(tx, {
+      actorAccountId: input.actorAccountId,
+      packId: input.packId,
+      toVersionId: version.id,
+    });
     await appendAuditEvent(tx, {
       eventType: 'PACK_VERSION_OPENED',
       actorAccountId: input.actorAccountId,
@@ -1744,16 +1754,6 @@ const DIFFABLE_SCALAR_FIELDS = [
   'groupMode',
 ] as const satisfies readonly (keyof PackRequirement)[];
 
-/** UMPE G2 rule detail fields compared by value (dates by time). */
-const DIFFABLE_DETAIL_FIELDS = [
-  'category',
-  'acceptedForm',
-  'translationNeeded',
-  'originalNeeded',
-  'statementPeriodMonths',
-  'validMonthsAfterTravel',
-] as const;
-
 /** Which G2 rule details differ; an absent record reads as all unset. */
 function changedDetailFields(
   from: RequirementDetails | undefined,
@@ -1769,18 +1769,10 @@ function changedDetailFields(
 }
 
 function sameRouteConditions(
-  a: {
-    consularPosts: readonly string[];
-    travelFrom: string | null;
-    travelUntil: string | null;
-  } | null,
-  b: {
-    consularPosts: readonly string[];
-    travelFrom: string | null;
-    travelUntil: string | null;
-  } | null,
+  a: PackRouteConditions | null,
+  b: PackRouteConditions | null,
 ): boolean {
-  const key = (c: typeof a) =>
+  const key = (c: PackRouteConditions | null) =>
     c ? JSON.stringify([[...c.consularPosts].sort(), c.travelFrom, c.travelUntil]) : 'none';
   return key(a) === key(b);
 }

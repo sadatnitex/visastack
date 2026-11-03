@@ -289,6 +289,7 @@ describe('agency document requests before any traveller record (UMPE P6)', () =>
     if (!unnamed.ok) throw new Error(unnamed.error.message);
     expect(unnamed.value.proposedPack).toBeNull();
     // The request's own application place is compared: a named post that fits is proposed.
+    // (Checked below with this pack alone.)
     const named = await createCollectionRequest(
       db,
       await scope(),
@@ -296,6 +297,18 @@ describe('agency document requests before any traveller record (UMPE P6)', () =>
     );
     if (!named.ok) throw new Error(named.error.message);
     expect(named.value.proposedPack?.packVersionId).toBe(versionId);
+  });
+
+  it('keeps two fitting packs ambiguous when one of them needs a post the request lacks (UMPE G2)', async () => {
+    await businessPack({ consularPosts: ['Dhaka'] });
+    await businessPack();
+    const created = await createCollectionRequest(
+      db,
+      await scope(),
+      input({ purpose: 'Business', packTerms: UK_BUSINESS }),
+    );
+    if (!created.ok) throw new Error(created.error.message);
+    expect(created.value.proposedPack).toBeNull();
   });
 
   async function issued(requestId: string) {

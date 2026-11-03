@@ -3,6 +3,7 @@ import {
   type RequirementNecessity,
   isRequirementNecessity,
   necessityCanBlock,
+  provenanceAllowsNecessity,
   requirementNecessity,
   requirementProvenance,
 } from '@visastack/core';
@@ -129,10 +130,9 @@ export function proposeFromPack(rows: readonly PackRequirementLike[]): Collectio
       row,
       label: requirementLabel(row),
       // A field observation never blocks, even if a stored row claims more (Pack Studio refuses it).
-      necessity:
-        provenance === 'FIELD_OBSERVATION' && necessityCanBlock(necessity)
-          ? ('RECOMMENDED' as const)
-          : necessity,
+      necessity: provenanceAllowsNecessity(provenance, necessity)
+        ? necessity
+        : ('RECOMMENDED' as const),
       provenance,
       groupKey: typeof groupValue === 'string' && groupValue.length > 0 ? groupValue : null,
     };
@@ -346,7 +346,7 @@ export function parseItems(value: unknown): CollectionItem[] | null {
     }
     if (r.provenance !== 'AGENCY_ADDED' && r.source === 'agency') return null;
     // A field observation is never a blocking item.
-    if (r.provenance === 'FIELD_OBSERVATION' && necessityCanBlock(r.necessity)) return null;
+    if (!provenanceAllowsNecessity(r.provenance, r.necessity)) return null;
     items.push({
       id: r.id,
       label: r.label,
