@@ -41,6 +41,16 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
   // UMPE P3: upload receipts (with the private file name) and proposed links between documents.
   { table: 'document_upload_receipts', column: 'applicant_id', kind: 'DATA' },
   { table: 'document_relation_proposals', column: 'applicant_id', kind: 'DATA' },
+  // UMPE G1: a finding raised when one of the traveller's files was read.
+  { table: 'document_intake_exceptions', column: 'applicant_id', kind: 'DATA' },
+  // UMPE G1: a family batch file proposed for this traveller, still waiting for Which Person?.
+  // Counted as data on purpose: a record with a file waiting for it is not empty.
+  {
+    table: 'document_person_holds',
+    column: 'proposed_applicant_id',
+    kind: 'DATA',
+    unindexed: true,
+  },
   { table: 'document_type_proposals', column: 'applicant_id', kind: 'DATA' },
   { table: 'document_inconsistency_flags', column: 'applicant_id', kind: 'DATA' },
   { table: 'ocr_runs', column: 'applicant_id', kind: 'DATA' },
@@ -65,6 +75,9 @@ export const APPLICANT_REFERENCES: readonly ApplicantReference[] = [
   // UMPE P4: a case's package choices, confirmed handoffs and its one "something changed" item.
   { table: 'umpe_package_choices', column: 'applicant_id', kind: 'DATA' },
   { table: 'umpe_package_handoffs', column: 'applicant_id', kind: 'DATA' },
+  // UMPE P12: application attempts and what followed them (the person's own reports).
+  { table: 'umpe_outcome_attempts', column: 'applicant_id', kind: 'DATA' },
+  { table: 'umpe_outcome_events', column: 'applicant_id', kind: 'DATA' },
   { table: 'umpe_package_changes', column: 'applicant_id', kind: 'DATA' },
   // UMPE P5: a traveller's place on a group trip, the common trip documents they brought and the
   // ones their owner allowed for them.

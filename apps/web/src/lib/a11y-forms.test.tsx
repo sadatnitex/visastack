@@ -79,6 +79,7 @@ vi.mock('../app/app/agency/[orgId]/collection/request/checklist-correction-actio
 vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
+vi.mock('../app/app/agency/[orgId]/team/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/collection/actions', standIn);
 vi.mock('../app/collect/account/actions', standIn);
 vi.mock('../app/collect/actions', standIn);
@@ -96,6 +97,7 @@ vi.mock('../app/app/client-invitations/accept/actions', standIn);
 vi.mock('../app/app/contributor-requests/accept/actions', standIn);
 vi.mock('../app/app/invitations/accept/actions', standIn);
 vi.mock('../app/app/mission/[id]/actions', standIn);
+vi.mock('../app/app/mission/[id]/attempt-actions', standIn);
 vi.mock('../app/app/mission/[id]/snapshots/[snapshotId]/actions', standIn);
 vi.mock('../app/app/privacy/actions', standIn);
 vi.mock('../app/app/staff-code/actions', standIn);
@@ -159,6 +161,9 @@ const { InvitationRevokeButton } = await import(
 );
 const { AddMemberForm } = await import('../app/app/agency/[orgId]/member-form');
 const { MemberToggleButton } = await import('../app/app/agency/[orgId]/member-toggle-button');
+const { DocumentRequestToggle } = await import(
+  '../app/app/agency/[orgId]/team/document-request-toggle'
+);
 const { MissionCollaboration } = await import('../app/app/agency/[orgId]/mission-collaboration');
 const { RequestEvidenceForm } = await import('../app/app/agency/[orgId]/request-evidence-form');
 const { DocumentTypeForm } = await import('../app/app/applicant/[id]/document-type-form');
@@ -220,6 +225,7 @@ const { ContributorRequestsPanel } = await import(
 const missionButtons = await import('../app/app/mission/[id]/mission-buttons');
 const { OutcomePanel } = await import('../app/app/mission/[id]/outcome-panel');
 const packageForms = await import('../app/app/mission/[id]/package-forms');
+const attemptForms = await import('../app/app/mission/[id]/attempt-forms');
 const { TripStartForm } = await import('../app/app/mission/start/start-form');
 const tripForms = await import('../app/app/trips/trip-forms');
 const { ExplainGapButton } = await import('../app/app/mission/[id]/readiness-gap-explain');
@@ -339,6 +345,40 @@ const DOCS: readonly Case[] = [
               labels: { newDocument: 'New Period', relatedDocument: 'Earlier Period' },
             },
             { kind: 'unknown_type', documentId: 'd3', title: 'Untitled Document' },
+            // UMPE G1: a background kind suggestion and the two findings raised on arrival.
+            {
+              kind: 'suggested_kind',
+              documentId: 'd6',
+              title: 'Document, Anna',
+              suggestedLabel: 'Bank Statement',
+            },
+            {
+              kind: 'expired_on_arrival',
+              exceptionId: 'x1',
+              documentId: 'd7',
+              title: 'Passport, Anna',
+            },
+            { kind: 'no_readable_text', exceptionId: 'x2', documentId: 'd8', title: 'Scan, Anna' },
+          ]}
+          held={[
+            {
+              holdId: 'h1',
+              fileName: 'family passports.pdf',
+              basis: 'NAME_AND_BIRTH_DATE',
+              proposedApplicantId: 'a1',
+              addedOn: '3 Nov 2026',
+            },
+            {
+              holdId: 'h2',
+              fileName: null,
+              basis: 'CLOSE_MATCHES',
+              proposedApplicantId: null,
+              addedOn: '3 Nov 2026',
+            },
+          ]}
+          people={[
+            { applicantId: 'a1', displayName: 'Anna Eriksson' },
+            { applicantId: 'a2', displayName: 'Erik Eriksson' },
           ]}
           linked={[
             {
@@ -879,6 +919,41 @@ const CASES_MISSION: readonly Case[] = [
       />
     ),
     fields: ['choice'],
+  },
+  {
+    name: 'track a submission report as an application attempt',
+    element: () => (
+      <attemptForms.TrackReportForm
+        missionId="m1"
+        missionSubmissionId="s1"
+        reportName="Submission Reported on 2 Nov 2026"
+      />
+    ),
+  },
+  {
+    name: 'record another application attempt',
+    element: () => (
+      <attemptForms.RecordAttemptForm
+        missionId="m1"
+        today="2026-11-03"
+        evidenceChoices={[{ value: 'v1', label: 'Receipt.pdf' }]}
+      />
+    ),
+    fields: ['channel', 'submittedOn'],
+  },
+  {
+    name: 'record what happened after an application attempt',
+    element: () => (
+      <attemptForms.AttemptEventForm
+        missionId="m1"
+        attemptId="a1"
+        attemptNo={1}
+        today="2026-11-03"
+        evidenceChoices={[{ value: 'v1', label: 'Letter.pdf' }]}
+        documentKinds={[{ value: 'BANK_STATEMENT', label: 'Bank Statement' }]}
+      />
+    ),
+    fields: ['kind', 'occurredOn'],
   },
   {
     name: 'mark a trip package change as reviewed',
@@ -1494,6 +1569,22 @@ const AGENCY: readonly Case[] = [
   )),
   row('switch a team member on or off (inactive)', () => (
     <MemberToggleButton organizationId="o1" membershipId="m2" active={false} />
+  )),
+  row('allow a member to request documents (UMPE G3)', () => (
+    <DocumentRequestToggle
+      organizationId="o1"
+      membershipId="m3"
+      allowed={false}
+      memberLabel="ana@example.test"
+    />
+  )),
+  row('stop a member requesting documents (UMPE G3)', () => (
+    <DocumentRequestToggle
+      organizationId="o1"
+      membershipId="m3"
+      allowed
+      memberLabel="ana@example.test"
+    />
   )),
   {
     name: 'turn on AI connections for an agency',

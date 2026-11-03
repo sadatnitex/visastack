@@ -261,6 +261,20 @@ export const sendThroughUploadRoute: ImportSend = (request) =>
     onProgress: request.onProgress,
   });
 
+/** UMPE G1: the same send, to the family batch route (each file waits for Which Person?). */
+export const sendThroughHoldRoute: ImportSend = (request) =>
+  sendDocumentFile({
+    applicantId: request.applicantId,
+    file: request.file,
+    contentType: request.contentType,
+    docType: '',
+    subject: '',
+    uploadId: request.uploadId,
+    fileName: request.fileName,
+    onProgress: request.onProgress,
+    route: 'hold',
+  });
+
 const defaultWait = (ms: number) =>
   new Promise<void>((resolve) => {
     setTimeout(resolve, ms);

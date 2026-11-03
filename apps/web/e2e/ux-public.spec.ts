@@ -1376,7 +1376,7 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
     expect(scroll.page).toBe(0);
     expect(scroll.rail).toBeLessThanOrEqual(1);
     // Every destination is still there by name, the words are gone, and the footer note is hidden.
-    await expect(page.getByRole('link', { name: 'Record' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'My Documents' })).toBeVisible();
     await expect(page.getByText('You Control Access')).toBeHidden();
     await expect(page.locator('.app-shell-nav .app-link-label').first()).toBeHidden();
     // Keyboard: every control reached by Tab inside the rail really is inside the rail.
@@ -1432,19 +1432,19 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
   test('Escape puts a rail label away until another control is reached', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
-    const record = page.getByRole('link', { name: 'Record' });
-    const cases = page.getByRole('link', { name: 'Cases' });
+    const record = page.getByRole('link', { name: 'My Documents' });
+    const cases = page.getByRole('link', { name: 'My Trips' });
     const label = (link: typeof record) =>
       link.evaluate((el) => getComputedStyle(el, '::after').content);
     await record.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
-    expect(await label(record)).toBe('"Record"');
+    expect(await label(record)).toBe('"My Documents"');
     await page.keyboard.press('Escape');
     expect(await label(record)).toBe('none');
     await page.keyboard.press('Tab');
     await expect(cases).toBeFocused();
-    expect(await label(cases)).toBe('"Cases"');
+    expect(await label(cases)).toBe('"My Trips"');
   });
 
   test('rail controls name themselves beside the rail on hover and keyboard focus', async ({
@@ -1452,7 +1452,7 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
   }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
     await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
-    const link = page.getByRole('link', { name: 'Record' });
+    const link = page.getByRole('link', { name: 'My Documents' });
     const label = () =>
       link.evaluate((element) => {
         const style = getComputedStyle(element, '::after');
@@ -1461,13 +1461,13 @@ test.describe('collapsible sidebar and account menu fit the screen', () => {
     expect((await label()).content).toBe('none');
     await link.hover();
     const hovered = await label();
-    expect(hovered.content).toBe('"Record"');
+    expect(hovered.content).toBe('"My Documents"');
     expect(hovered.position).toBe('fixed');
     await page.mouse.move(800, 500);
     await link.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
-    expect((await label()).content).toBe('"Record"');
+    expect((await label()).content).toBe('"My Documents"');
   });
 
   test('beside the rail, the workspace list and More Tools open inside the screen', async ({
@@ -2175,4 +2175,119 @@ test.describe('public invitation page on a phone (UX-G)', () => {
       });
     }
   }
+});
+
+test.describe('the three traveller entry points (UMPE P13)', () => {
+  const ENTRY = ['My Documents', 'My Trips', 'Sharing & Requests'] as const;
+
+  for (const width of [1280, 1024] as const) {
+    test(`the sidebar leads with them, each task under its destination, at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openUiFixture(page, 'shell');
+      const sidebar = page.locator('.app-bar .app-shell-links');
+      for (const name of ENTRY) {
+        const link = sidebar.getByRole('link', { name, exact: true });
+        await expect(link).toBeVisible();
+        expect((await link.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      }
+      for (const name of ['Add Documents', 'Start a Trip']) {
+        const task = sidebar.getByRole('link', { name, exact: true });
+        await expect(task).toBeVisible();
+        expect((await task.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      }
+      // The phone copy of the tasks stays out of the sidebar.
+      await expect(page.getByRole('navigation', { name: 'Quick actions' })).toBeHidden();
+      // Keyboard: Tab walks Home, My Documents, Add Documents, My Trips, Start a Trip, Sharing.
+      await sidebar.getByRole('link', { name: 'Home', exact: true }).focus();
+      const names: string[] = [];
+      for (let step = 0; step < 5; step++) {
+        await page.keyboard.press('Tab');
+        names.push(
+          await page.evaluate(
+            () =>
+              document.activeElement?.getAttribute('aria-label') ??
+              document.activeElement?.textContent?.trim() ??
+              '',
+          ),
+        );
+      }
+      expect(names).toEqual([
+        'My Documents',
+        'Add Documents',
+        'My Trips',
+        'Start a Trip',
+        'Sharing & Requests',
+      ]);
+      const sideways = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(sideways).toBe(0);
+    });
+  }
+
+  for (const width of [390, 768] as const) {
+    test(`the bottom bar holds Home and the three entry points; the tasks lead More, at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openUiFixture(page, 'shell');
+      const bar = page.locator('.app-bar .app-shell-links');
+      for (const name of ['Home', ...ENTRY]) {
+        const tab = bar.getByRole('link', { name, exact: true });
+        await expect(tab).toBeVisible();
+        const box = await tab.boundingBox();
+        expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+        expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+      }
+      await expect(bar.getByRole('link', { name: 'Add Documents', exact: true })).toBeHidden();
+      // One row: every tab shares the same top edge, so nothing wraps under the page padding.
+      const tops = await bar
+        .locator('a')
+        .evaluateAll((links) =>
+          links
+            .filter((a) => a.getClientRects().length > 0)
+            .map((a) => Math.round(a.getBoundingClientRect().top)),
+        );
+      expect(new Set(tops).size).toBe(1);
+      expect(tops).toHaveLength(4);
+      await page.getByRole('button', { name: 'More' }).click();
+      const quick = page.getByRole('navigation', { name: 'Quick actions' });
+      for (const name of ['Add Documents', 'Start a Trip']) {
+        const task = quick.getByRole('link', { name, exact: true });
+        await expect(task).toBeVisible();
+        expect((await task.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+      }
+      const sideways = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(sideways).toBe(0);
+    });
+  }
+
+  test('the slim rail keeps the entry points and hides the tasks', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openUiFixture(page, 'shell', { sidebar: 'collapsed' });
+    for (const name of ENTRY) {
+      await expect(page.getByRole('link', { name, exact: true }).first()).toBeVisible();
+    }
+    await expect(
+      page.locator('.app-bar').getByRole('link', { name: 'Add Documents', exact: true }),
+    ).toBeHidden();
+  });
+
+  test('the shell with the entry points has no critical or serious accessibility problems', async ({
+    page,
+  }) => {
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await openUiFixture(page, 'shell');
+      const results = await new AxeBuilder({ page }).include('.app-shell-nav').analyze();
+      const serious = results.violations.filter(
+        (v) => v.impact === 'critical' || v.impact === 'serious',
+      );
+      expect(serious.map((v) => v.id)).toEqual([]);
+    }
+  });
 });

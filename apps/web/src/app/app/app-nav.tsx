@@ -2,11 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  Fragment,
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react';
 import { BrandMark } from '../../components/brand-mark';
 import { Icon, type IconName } from '../../components/icons';
 import { ShortcutHint } from '../../components/shortcut-hint';
-import { type NavLink, PRIMARY_NAV, isCurrentPath } from '../../lib/navigation';
+import { type NavAction, type NavLink, PRIMARY_NAV, isCurrentPath } from '../../lib/navigation';
 
 /** One icon per primary destination, keyed by its path. The words beside it carry the meaning. */
 const ICONS: Readonly<Record<string, IconName>> = {
@@ -21,6 +29,12 @@ const ICONS: Readonly<Record<string, IconName>> = {
 
 const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
   Home: 'home',
+  // UMPE P13: the traveller's three entry points and their tasks.
+  'My Documents': 'folder',
+  'My Trips': 'briefcase',
+  'Sharing & Requests': 'share',
+  'Add Documents': 'upload',
+  'Start a Trip': 'plus',
   Record: 'file',
   Overview: 'home',
   'My Profile': 'user',
@@ -58,6 +72,9 @@ const MOBILE_LABELS: Readonly<Record<string, string>> = {
   'Choose a Traveller': 'Travellers',
   'Add a Traveller': 'Traveller',
   'Evidence Requests': 'Requests',
+  'My Documents': 'Documents',
+  'My Trips': 'Trips',
+  'Sharing & Requests': 'Sharing',
   'Activity Log': 'Activity',
   'Case Activity': 'Activity',
 };
@@ -167,6 +184,28 @@ export function AppNav({
   const activeFragment = links.find(
     (item) => item.href.includes('#') && isCurrentPath(pathname + hash, item),
   );
+  /** A destination and, in the sidebar, its one task just below it (UMPE P13). */
+  const entry = (item: NavLink) =>
+    item.action ? (
+      <Fragment key={item.href}>
+        {link(item)}
+        {actionLink(item.action, 'app-nav-action')}
+      </Fragment>
+    ) : (
+      link(item)
+    );
+  const actionLink = (action: NavAction, className: string) => (
+    <Link
+      key={`action:${action.href}`}
+      href={action.href}
+      className={className}
+      onClick={() => setOpen(false)}
+    >
+      <Icon name={CONTEXT_ICONS[action.label] ?? 'plus'} size={18} />
+      <span>{action.label}</span>
+    </Link>
+  );
+  const actions = links.flatMap((item) => (item.action ? [item.action] : []));
   const link = (item: NavLink) => (
     <Link
       key={item.href}
@@ -235,7 +274,7 @@ export function AppNav({
         }
       >
         <nav className="app-shell-links" aria-label="Workspace">
-          {links.slice(0, BAR_LINKS).map(link)}
+          {links.slice(0, BAR_LINKS).map(entry)}
         </nav>
         <button
           ref={toggleRef}
@@ -265,11 +304,18 @@ export function AppNav({
           </button>
         </div>
         {identity ? <div className="app-mobile-identity">{identity}</div> : null}
+        {actions.length ? (
+          // On a phone the bar has no room for tasks, so they lead the More panel. The sidebar
+          // shows each under its destination instead, so this list is hidden there.
+          <nav className="app-shell-links app-nav-actions" aria-label="Quick actions">
+            {actions.map((action) => actionLink(action, 'app-nav-action-row'))}
+          </nav>
+        ) : null}
         <nav
           className="app-shell-links app-shell-links-more"
           aria-label="More workspace destinations"
         >
-          {links.slice(BAR_LINKS).map(link)}
+          {links.slice(BAR_LINKS).map(entry)}
         </nav>
         {children}
         {secondaryLinks.length ? (

@@ -131,3 +131,16 @@ Added 1 Nov 2026 (Resource lifecycle, lane F registers every lane's words; `docs
 | Taking back an application to an agency | Withdraw Application | "Cancel application" | **Planned (LC-G3)** |
 | Travellers | Archive Traveller, Restore Traveller, Remove Empty Record | "Delete Traveller", "Erase Traveller" | **Planned (LC-E)** |
 | Words retired on every screen | (none) | erase, erasure, purge, tombstone, supersede, soft delete, cascade, fact version | **New (LC-F)**: kept out of the lifecycle screens; admin and code names unchanged |
+
+Added 3 Nov 2026 (UMPE P13, three traveller entry points; locked contract section 9 and annex F):
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The traveller's documents entry point (opens Documents; lit on All Records, My Profile, Dates & Expiry and History) | My Documents (phone bar: Documents) | "Record" as the second tab, "Vault", "Wallet" | **New (P13)**; the Record hub stays under More Tools as Record, its pages keep their names |
+| The traveller's trips entry point (opens Cases; lit on case pages, Start a Trip and Group Trips) | My Trips (phone bar: Trips) | "Cases" as the third tab, "Missions" | **New (P13)**; the Cases page keeps its heading "Cases" (owner may later rename the page itself) |
+| The traveller's sharing entry point (opens Sharing; lit on Evidence Requests and Shared with Me) | Sharing & Requests (phone bar: Sharing) | "Sharing" as the fourth tab, "Sharing & Access" | **New (P13)**; the Sharing page keeps its heading "Sharing" |
+| The task under My Documents | Add Documents (opens the upload on Documents) | "Upload", "Import Files" in the menu | **New (P13)** |
+| The task under My Trips | Start a Trip (the existing P4 page) | "New Trip", "Plan Trip" | **New (P13)**: first menu entry for this page |
+| More Tools entries added | Group Trips (P5 page), Answers to Agencies (P7 page "Your Answers to Agencies") | "Agency Responses" | **New (P13)**: first menu entry for both pages |
+| Home's task row | Start Here: Add Documents, Start a Trip, Answer a Request (or See Sharing & Requests) | "Quick Start", "Get Started" | **New (P13)** |
+| A package change or checklist update beside a case on Home | Trip Package Changed, Checklist Updated; the history line "Every earlier change is kept in Notifications." | "Rule Impact", "Package Delta", "Drift" | **New (P13)** |

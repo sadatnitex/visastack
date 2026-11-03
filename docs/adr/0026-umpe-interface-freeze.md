@@ -70,3 +70,14 @@ Lanes A (import) and E (source monitoring) can build now. Lane B (P1 necessity a
 - Guest submissions reuse the existing response-submitted event with an extended send-time check; no new event type in P9. The guest email on Needs Correction is added by gap package G3 with its own event and send-time check.
 - The guest session idle window stays 30 minutes; a signed-in visitor on the desk has its own 2-hour clock. The desk cookie stays scoped to /collect.
 - Guest purge (chosen period after the request closes, legal holds excluded) and expired session and code purge run inside the existing daily erasure job; the job route alone creates the system scope.
+
+## Addendum 5, 3 November 2026 (combined integration of P13, G3 and P12, lead decisions under the owner's pre-approval)
+- P13, G3 and P12 merge as one pull request (one full check and one CI cycle instead of three); records stay per unit. Migrations in merge order: 0125 agency member capabilities (G3), 0126 outcome attempts (P12).
+- Navigation reads request authority live: a member (not owner or admin) gets Document Requests only while the switch is on and only if they hold May Request Documents; a failed read hides the link; the pages check again.
+- Field Insights reuses the existing FEEDBACK_VIEW platform permission (no new grant) and appears under platform tools only for holders.
+- Recording an outcome attempt asks for no fresh sign-in: the records are the traveller's own, append-only, and carry no files; this keeps friction low with the same protection.
+
+## Addendum 6, 3 November 2026 (G1 joins the combined integration)
+- G1 (intake follow-through) joins the same pull request; its migration becomes 0127.
+- Background kind suggestion respects the existing protected-kind rule: a file whose kind is unknown is treated as protected, so the classifier does not run on it until the platform owner takes unknown kinds off the protected list. That is the owner's decision; nothing changes it automatically.
+- Held family files (Which Person?) whose owner account is deleted are removed by the daily held-file sweep once the owner link is cleared; account deletion does not yet queue their erasure itself (recorded gap).

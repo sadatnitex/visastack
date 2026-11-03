@@ -286,6 +286,45 @@ describe('reconcileRestoredBranch (master directive Part 7 §15: backup resurrec
     expect(newMembership?.active).toBe(false);
   });
 
+  it('removes again a May Request Documents permission withdrawn after the restore point (UMPE G3)', async () => {
+    const owner = await seedAccount(oldDb, 'g3-owner@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const orgResult = await createOrganization(oldDb, { actorAccountId: owner.id, name: 'G3 Co' });
+    if (!isOk(orgResult)) throw new Error('org failed');
+    await mirrorRow(newDb, schema.organizations, orgResult.value);
+    const [membershipRow] = await oldDb
+      .select()
+      .from(schema.memberships)
+      .where(eq(schema.memberships.organizationId, orgResult.value.id));
+    if (!membershipRow) throw new Error('membership missing');
+    await mirrorRow(newDb, schema.memberships, membershipRow);
+    // The restored branch still holds the permission; the live branch withdrew it afterwards.
+    await newDb.insert(schema.agencyMemberCapabilities).values({
+      organizationId: orgResult.value.id,
+      membershipId: membershipRow.id,
+      capability: 'REQUEST_DOCUMENTS',
+    });
+    await oldDb.insert(schema.auditEvents).values({
+      occurredAt: AFTER,
+      eventType: 'MEMBER_CAPABILITY_REVOKED',
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'membership',
+      resourceId: membershipRow.id,
+      metadata: { capability: 'REQUEST_DOCUMENTS' },
+      hash: 'test-hash-capability',
+    });
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.counts.memberPermissionsRevoked).toBe(1);
+    expect(
+      await newDb
+        .select()
+        .from(schema.agencyMemberCapabilities)
+        .where(eq(schema.agencyMemberCapabilities.membershipId, membershipRow.id)),
+    ).toEqual([]);
+  });
+
   it('inserts a legal hold placed after the restore point that the restored branch never had at all', async () => {
     const owner = await seedAccount(oldDb, 'hold-owner@example.com');
     await mirrorRow(newDb, schema.accounts, owner);

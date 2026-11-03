@@ -23,12 +23,17 @@ import { type ServiceError, serviceError } from './errors';
 import { everydayDocumentCondition } from './lifecycle/foundation/conditions';
 import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 import { replaceDocument } from './lifecycle/replace/replace';
+import { documentKindLabel } from './naming';
+import { isIntakeExceptionKind } from './umpe-document-arrival';
 import {
   type DocumentRelation,
   isDocumentRelation,
   relationLabels,
 } from './umpe-document-relations';
-import { relationProposalsTablePresent } from './umpe-document-tables';
+import {
+  intakeExceptionsTablePresent,
+  relationProposalsTablePresent,
+} from './umpe-document-tables';
 
 /** Processing states in which a file has finished its automatic reading. */
 const READ_STATES = new Set(['AWAITING_REVIEW', 'APPROVED']);
@@ -49,7 +54,31 @@ export type DocumentException =
   /** The reader could not tell what this file is. */
   | { readonly kind: 'unknown_type'; readonly documentId: string; readonly title: string }
   /** The reader found some signs of a kind, not enough to suggest it. */
-  | { readonly kind: 'low_confidence'; readonly documentId: string; readonly title: string };
+  | { readonly kind: 'low_confidence'; readonly documentId: string; readonly title: string }
+  /**
+   * UMPE G1 (ledger I07): the rules gave no kind and the background AI reading suggested one. It
+   * waits for the person's answer; nothing is saved until they accept it.
+   */
+  | {
+      readonly kind: 'suggested_kind';
+      readonly documentId: string;
+      readonly title: string;
+      readonly suggestedLabel: string;
+    }
+  /** UMPE G1 (ledger I14): the document had already expired on the day it was added. */
+  | {
+      readonly kind: 'expired_on_arrival';
+      readonly exceptionId: string;
+      readonly documentId: string;
+      readonly title: string;
+    }
+  /** UMPE G1 (ledger I14): no readable text could be found in the file. */
+  | {
+      readonly kind: 'no_readable_text';
+      readonly exceptionId: string;
+      readonly documentId: string;
+      readonly title: string;
+    };
 
 export interface ConfirmedRelation {
   readonly documentId: string;
@@ -186,8 +215,70 @@ export async function listDocumentExceptions(proof: ReadingProof): Promise<Docum
     }
   }
 
-  // Files of no known kind: one decision each, once the automatic reading has finished.
-  const untyped = documents.filter((doc) => doc.docType === null && !inRelation.has(doc.id));
+  // UMPE G1 (ledger I14): findings raised when the latest file of a document was read.
+  const unreadable = new Set<string>();
+  if (await intakeExceptionsTablePresent(db)) {
+    const findings = await db
+      .select({
+        id: schema.documentIntakeExceptions.id,
+        documentId: schema.documentIntakeExceptions.documentId,
+        documentVersionId: schema.documentIntakeExceptions.documentVersionId,
+        kind: schema.documentIntakeExceptions.kind,
+      })
+      .from(schema.documentIntakeExceptions)
+      .where(
+        and(
+          eq(schema.documentIntakeExceptions.applicantId, applicantId),
+          eq(schema.documentIntakeExceptions.status, 'PENDING'),
+        ),
+      )
+      .orderBy(desc(schema.documentIntakeExceptions.createdAt));
+    const current = findings.filter((row) => byId.has(row.documentId));
+    const latestOf = await latestVersionIds(
+      db,
+      current.map((row) => row.documentId),
+    );
+    // Text read later from the picture (AI reading) answers "no readable text" on its own.
+    const unreadableVersionIds = current
+      .filter((row) => row.kind === 'NO_READABLE_TEXT')
+      .map((row) => row.documentVersionId);
+    const readLater = new Set(
+      unreadableVersionIds.length > 0
+        ? (
+            await db
+              .select({ documentVersionId: schema.ocrRuns.documentVersionId })
+              .from(schema.ocrRuns)
+              .where(
+                and(
+                  inArray(schema.ocrRuns.documentVersionId, unreadableVersionIds),
+                  eq(schema.ocrRuns.status, 'SUCCEEDED'),
+                ),
+              )
+          ).map((row) => row.documentVersionId)
+        : [],
+    );
+    for (const row of current) {
+      const doc = byId.get(row.documentId);
+      if (!doc || !isIntakeExceptionKind(row.kind)) continue;
+      if (latestOf.get(row.documentId) !== row.documentVersionId) continue;
+      if (row.kind === 'NO_READABLE_TEXT') {
+        if (readLater.has(row.documentVersionId)) continue;
+        unreadable.add(row.documentId);
+      }
+      exceptions.push({
+        kind: row.kind === 'NO_READABLE_TEXT' ? 'no_readable_text' : 'expired_on_arrival',
+        exceptionId: row.id,
+        documentId: row.documentId,
+        title: titleOf(doc),
+      });
+    }
+  }
+
+  // Files of no known kind: one decision each, once the automatic reading has finished. A file
+  // with no readable text is already listed for that, which says more.
+  const untyped = documents.filter(
+    (doc) => doc.docType === null && !inRelation.has(doc.id) && !unreadable.has(doc.id),
+  );
   if (untyped.length > 0) {
     const versions = await db
       .select({
@@ -231,12 +322,45 @@ export async function listDocumentExceptions(proof: ReadingProof): Promise<Docum
         latestClassification.set(row.documentVersionId, row);
       }
     }
+    // A kind the AI suggested and the person has not answered yet (one per file, newest first).
+    const aiKinds =
+      readVersionIds.length > 0
+        ? await db
+            .select({
+              documentVersionId: schema.documentTypeProposals.documentVersionId,
+              suggestedType: schema.documentTypeProposals.suggestedType,
+            })
+            .from(schema.documentTypeProposals)
+            .where(
+              and(
+                inArray(schema.documentTypeProposals.documentVersionId, readVersionIds),
+                eq(schema.documentTypeProposals.status, 'PENDING'),
+              ),
+            )
+            .orderBy(desc(schema.documentTypeProposals.createdAt))
+        : [];
+    const aiKindOf = new Map<string, string>();
+    for (const row of aiKinds) {
+      if (!aiKindOf.has(row.documentVersionId)) {
+        aiKindOf.set(row.documentVersionId, row.suggestedType);
+      }
+    }
     for (const doc of untyped) {
       const version = latest.get(doc.id);
       if (!version || !READ_STATES.has(version.processingStatus)) continue;
       const reading = latestClassification.get(version.id);
       // A confident reading waits as an ordinary suggestion: routine, not an exception.
       if (reading?.classifiedType) continue;
+      const suggested = aiKindOf.get(version.id);
+      if (suggested) {
+        exceptions.push({
+          kind: 'suggested_kind',
+          documentId: doc.id,
+          title: titleOf(doc),
+          suggestedLabel: documentKindLabel(suggested),
+        });
+        continue;
+      }
       exceptions.push(
         reading && reading.confidence > 0
           ? { kind: 'low_confidence', documentId: doc.id, title: titleOf(doc) }
@@ -380,4 +504,56 @@ export async function decideDocumentRelation(
   // Answered at the same moment by another tab: the first answer stands.
   if (!decided && !replaced) return notFound;
   return ok({ status, replaced });
+}
+
+/**
+ * UMPE G1 (ledger I14): Keep As It Is for one finding raised when a file was read. The traveller's
+ * own account only; a finding already answered, or one about another person, answers as not found.
+ * Nothing about the document changes.
+ */
+export async function dismissIntakeException(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  input: { readonly exceptionId: string },
+): Promise<Result<{ readonly kind: string }, ServiceError>> {
+  if (!AuthorizedApplicant.isGenuine(proof, 'MANAGE')) {
+    return err(serviceError('forbidden', 'not authorized'));
+  }
+  if (proof.actor.kind !== 'applicant_owner') {
+    return err(serviceError('forbidden', 'only the traveller can decide this'));
+  }
+  const notFound = err(serviceError('not_found', 'finding not found'));
+  const db = proof.tx;
+  if (!(await intakeExceptionsTablePresent(db))) return notFound;
+  const actorAccountId = proof.applicant.ownerAccountId;
+  const applicantId = proof.applicant.id;
+  return db.transaction(async (tx: Db) => {
+    const updated = await tx
+      .update(schema.documentIntakeExceptions)
+      .set({ status: 'DISMISSED', decidedByAccountId: actorAccountId, decidedAt: new Date() })
+      .where(
+        and(
+          eq(schema.documentIntakeExceptions.id, input.exceptionId),
+          eq(schema.documentIntakeExceptions.applicantId, applicantId),
+          eq(schema.documentIntakeExceptions.status, 'PENDING'),
+        ),
+      )
+      .returning({
+        documentId: schema.documentIntakeExceptions.documentId,
+        kind: schema.documentIntakeExceptions.kind,
+      });
+    const row = updated[0];
+    if (!row) return notFound;
+    await appendAuditEvent(tx, {
+      eventType: 'DOCUMENT_INTAKE_EXCEPTION_DISMISSED',
+      actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId,
+      resourceType: 'document',
+      resourceId: row.documentId,
+      // The kind only, never a value read from the document.
+      metadata: { kind: row.kind },
+    });
+    return ok({ kind: row.kind });
+  });
 }

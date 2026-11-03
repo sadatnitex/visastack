@@ -8,6 +8,7 @@ import {
   tripChecksNeedingAction,
 } from '@visastack/core';
 import { aiAppLabel } from '@visastack/core/ai-features';
+import { CATALOGUE_DOCUMENTS } from '@visastack/core/catalogue';
 import { createTranslator } from '@visastack/i18n';
 import {
   type ChangesSinceConfirmed,
@@ -42,12 +43,14 @@ import {
   listMissionSnapshots,
   listMissionsByItineraryRef,
   listNotesForOwner,
+  listOutcomeAttempts,
   listOutcomesForMission,
   listPublishedPackVersions,
   listRequirements,
   listSelectedEvidence,
   listSubmissionsForMission,
   listTasks,
+  localDate,
   referenceCodeFor,
   requireAccess,
   safeHttpUrl,
@@ -89,6 +92,7 @@ import { REQUIREMENT_GROUPS } from '../../../../lib/requirement-groups';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
+import { AttemptPanel } from './attempt-panel';
 import { CaseMoreMenu } from './case-more-menu';
 import { CaseWelcome } from './case-welcome';
 import { type WelcomeChecklists, caseWelcomeCopy } from './case-welcome-copy';
@@ -307,6 +311,12 @@ interface RequirementDetailRow {
   readonly coveredByAlternative?: true;
 }
 
+/** UMPE P12: catalogue document kinds for "The Embassy Asked for More", by name. */
+const ATTEMPT_DOCUMENT_KINDS = CATALOGUE_DOCUMENTS.map((d) => ({
+  value: d.key,
+  label: d.label,
+})).sort((a, b) => a.label.localeCompare(b.label));
+
 export default async function MissionPage({
   params,
   searchParams,
@@ -431,6 +441,16 @@ export default async function MissionPage({
     // UMPE P4: the trip package, read through this case's own access proof. A refusal or an
     // error leaves the panel out rather than showing a made-up state.
     // A case without a checklist has nothing to assemble yet; its welcome note says so.
+    // UMPE P12: the case's application attempts, read through this case's own access proof. A
+    // refusal or an error leaves the card out rather than showing a made-up state.
+    // A case with no submission report has no attempts yet, so nothing is read for it.
+    const outcomeAttempts =
+      submissions.ok && submissions.value.length > 0
+        ? await selfView()
+            .then((gate) => (gate.ok ? listOutcomeAttempts(gate.value, mission.id) : null))
+            .then((result) => (result?.ok ? result.value : null))
+            .catch(() => null)
+        : null;
     const casePackage = mission.packVersionId
       ? await selfView()
           .then((gate) => (gate.ok ? getCasePackage(gate.value, mission.id) : null))
@@ -629,6 +649,8 @@ export default async function MissionPage({
       })),
       // The outcome read has no server cap of its own yet (outside this package), so the page
       // shows the newest rows only; a case holds a handful of outcomes in practice.
+      outcomeAttempts,
+      attemptToday: localDate(new Date(), applicant?.timezone ?? 'Asia/Dhaka'),
       outcomeTotal: outcomes.ok ? outcomes.value.length : 0,
       outcomes: outcomes.ok
         ? outcomes.value.slice(0, shown.outcomes).map((o) => ({
@@ -1461,6 +1483,14 @@ export default async function MissionPage({
                     rowIdPrefix={CAPPED_LISTS.outcomes.rowId}
                     more={showMore('outcomes')}
                   />
+                  {data.outcomeAttempts ? (
+                    <AttemptPanel
+                      missionId={mission.id}
+                      view={data.outcomeAttempts}
+                      today={data.attemptToday}
+                      documentKinds={ATTEMPT_DOCUMENT_KINDS}
+                    />
+                  ) : null}
                 </div>
               </Disclosure>
             </div>

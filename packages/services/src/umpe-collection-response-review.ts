@@ -14,6 +14,7 @@ import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isUuid } from './lifecycle/foundation/ids';
 import { parseItems } from './umpe-collection-request-items';
+import { queueGuestCorrectionNotice } from './umpe-guest-correction-notice';
 import { type CollectionReviewDecision, parseItemNotes } from './umpe-guest-uploads';
 
 /**
@@ -149,18 +150,35 @@ export async function recordCollectionReview(
   }
   const reviews = schema.agencyCollectionReviews;
   return db.transaction(async (tx) => {
-    await tx.insert(reviews).values({
-      organizationId: scope.organizationId,
-      requestId,
-      source: input.source,
-      responseId: input.source === 'account' ? input.answerId : null,
-      guestSubmissionId: input.source === 'guest' ? input.answerId : null,
-      decision: input.decision as CollectionReviewDecision,
-      itemNotes: notes,
-      note: general.length > 0 ? general : null,
-      decidedByAccountId: scope.accountId,
-      decidedAt: now,
-    });
+    const inserted = await tx
+      .insert(reviews)
+      .values({
+        organizationId: scope.organizationId,
+        requestId,
+        source: input.source,
+        responseId: input.source === 'account' ? input.answerId : null,
+        guestSubmissionId: input.source === 'guest' ? input.answerId : null,
+        decision: input.decision as CollectionReviewDecision,
+        itemNotes: notes,
+        note: general.length > 0 ? general : null,
+        decidedByAccountId: scope.accountId,
+        decidedAt: now,
+      })
+      .returning({ id: reviews.id });
+    // UMPE G3: a guest is emailed that a correction was asked for (checked again at send time).
+    const reviewId = first(inserted)?.id;
+    const correctionEmail =
+      input.source === 'guest' && input.decision === 'NEEDS_CORRECTION' && reviewId
+        ? await queueGuestCorrectionNotice(
+            tx,
+            scope,
+            {
+              reviewId,
+              submissionId: input.answerId,
+            },
+            now,
+          )
+        : null;
     await appendAuditEvent(tx, {
       eventType: 'AGENCY_COLLECTION_ANSWER_REVIEWED',
       actorAccountId: scope.accountId,
@@ -173,6 +191,7 @@ export async function recordCollectionReview(
         source: input.source,
         decision: input.decision as string,
         itemNotes: notes.length,
+        ...(correctionEmail ? { correctionEmail } : {}),
       },
     });
     return ok({

@@ -2,6 +2,7 @@
 
 import type { MissionState } from '@visastack/core';
 import {
+  accountPrincipal,
   attachPackVersion,
   computeReadiness,
   createAppointment,
@@ -17,11 +18,13 @@ import {
   listRequirements,
   recordOutcome,
   recordSubmission,
+  requireAccess,
   revokeContributorRequest,
   selectEvidence,
   setMissionItineraryRef,
   snapshotMission,
   submitFeedback,
+  trackSubmissionAsAttempt,
   transitionMission,
   unselectEvidence,
   updateMissionCaseDetails,
@@ -35,6 +38,7 @@ import { resolveBaseUrl } from '../../../../lib/base-url';
 import { caseStateLabel } from '../../../../lib/case-stages';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { sendEmailNow } from '../../../../lib/send-now';
+import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../../lib/step-up';
 import { checklistAttachedLine, evidenceChosenLine } from '../../../../lib/success-lines';
@@ -567,6 +571,26 @@ export async function recordSubmissionAction(
       stepUpSatisfied: true,
     });
     if (!recorded.ok) return { ok: false, message: recorded.error.message } satisfies ActionState;
+    // UMPE P12: the report becomes Attempt 1 with the package that was ready then. Best effort:
+    // the report stands either way, and the Application Attempts card offers Track as Attempt.
+    try {
+      const proof = await requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'MANAGE',
+        { missionId },
+        { purpose: 'self' },
+      );
+      if (proof.ok) {
+        await trackSubmissionAsAttempt(proof.value, {
+          missionId,
+          missionSubmissionId: recorded.value.id,
+        });
+      }
+    } catch (error) {
+      // The report stands; the card offers Track as Attempt.
+      reportServerError('trackSubmissionAsAttempt', error);
+    }
     return { ok: true, message: 'Submission report recorded.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);

@@ -114,6 +114,9 @@ const MONTH_WORD =
 /** One date in any of the forms statements use; day first when the order is ambiguous. */
 const DATE_PATTERN = `(?:\\d{4}-\\d{1,2}-\\d{1,2}|\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}|\\d{1,2}[\\s-]${MONTH_WORD}[\\s,-]{1,3}\\d{4}|${MONTH_WORD}\\s{1,3}\\d{1,2},?\\s{1,3}\\d{4})`;
 
+/** The same date forms, for other readers of a document's own text (UMPE G1). */
+export const DOCUMENT_DATE_PATTERN = DATE_PATTERN;
+
 /** Reads one date found by `DATE_PATTERN`, or null when it is not a real calendar day. */
 export function parseStatementDate(text: string): string | null {
   const value = text.trim();

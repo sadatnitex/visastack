@@ -22,15 +22,15 @@ const labels = (path: string, actor = access) =>
   workspaceNavigation(path, actor).primary.map((link) => link.label);
 
 describe('current contextual navigation contract', () => {
-  it('uses the selected owned traveller for the four tabs, then notifications and the country rules', () => {
+  it('uses the selected owned traveller for Home and the three entry points, then notifications and the country rules', () => {
     const nav = workspaceNavigation(`/app/applicant/${p2}/profile`, access);
     expect(nav.name).toBe('Synthetic Family');
     expect(nav.caption).toBe('Managed Traveller');
     expect(nav.primary.map((link) => link.label)).toEqual([
       'Home',
-      'Record',
-      'Cases',
-      'Sharing',
+      'My Documents',
+      'My Trips',
+      'Sharing & Requests',
       'Notifications',
       'Countries',
     ]);
@@ -38,11 +38,16 @@ describe('current contextual navigation contract', () => {
     expect(
       nav.primary.slice(0, 4).every((link) => link.href.startsWith(`/app/applicant/${p2}`)),
     ).toBe(true);
+    // The task under My Documents opens this traveller's own upload, never another's.
+    expect(nav.primary[1]?.action).toEqual({
+      href: `/app/applicant/${p2}/documents#add-document`,
+      label: 'Add Documents',
+    });
     expect([...nav.primary, ...nav.tools, ...nav.settings].map((link) => link.href)).not.toContain(
       '/app/privacy',
     );
     expect(nav.tools.map((link) => link.label)).toEqual(
-      expect.arrayContaining(['Shared with Me', 'Account Overview', 'Evidence Requests']),
+      expect.arrayContaining(['Record', 'Shared with Me', 'Account Overview', 'Evidence Requests']),
     );
   });
   it('offers the country rules even before a traveller exists, and marks them current on their own pages', () => {
@@ -83,7 +88,7 @@ describe('current contextual navigation contract', () => {
     expect(nav.primary.every((link) => link.href.startsWith(`/app/agency/${o1}`))).toBe(true);
     expect(nav.tools).toContainEqual({ href: `/app/agency/${o1}/plan`, label: 'Plan & Usage' });
   });
-  it('offers Document Requests only to an owner or admin while the switch is on (UMPE P6)', () => {
+  it('offers Document Requests only where the chrome marked the member as a requester (UMPE P6, G3)', () => {
     const at = `/app/agency/${o1}`;
     expect(labels(at)).not.toContain('Document Requests');
     const on = (admin: boolean): WorkspaceAccess => ({
@@ -94,7 +99,14 @@ describe('current contextual navigation contract', () => {
       (item) => item.label === 'Document Requests',
     );
     expect(link?.href).toBe(`/app/agency/${o1}/collection`);
-    expect(labels(at, on(false))).not.toContain('Document Requests');
+    // A member with May Request Documents (G3): the chrome sets the mark, the page checks again.
+    expect(labels(at, on(false))).toContain('Document Requests');
+    // A worker without the mark never sees it, whatever the role flag says.
+    const unmarked: WorkspaceAccess = {
+      ...access,
+      agencies: [{ id: o1, name: 'Synthetic Agency One', admin: true }],
+    };
+    expect(labels(at, unmarked)).not.toContain('Document Requests');
   });
 
   it('does not offer administrator-only agency actions to a case worker', () => {
@@ -124,6 +136,23 @@ describe('current contextual navigation contract', () => {
       'Platform Access',
       'Complaints',
     ]);
+  });
+  it('shows Field Insights only with the feedback permission (UMPE P12)', () => {
+    const tools = (insights: boolean | undefined) =>
+      workspaceNavigation('/app/admin', {
+        ...access,
+        platform: {
+          owner: true,
+          ai: true,
+          complaints: true,
+          audit: true,
+          privacy: true,
+          ...(insights === undefined ? {} : { insights }),
+        },
+      }).tools.map((link) => [link.label, link.href]);
+    expect(tools(undefined).map(([label]) => label)).not.toContain('Field Insights');
+    expect(tools(false).map(([label]) => label)).not.toContain('Field Insights');
+    expect(tools(true)).toContainEqual(['Field Insights', '/app/admin/insights']);
   });
   it('shows Removal Requests after Privacy Operations only when the removal flag is on', () => {
     const tools = (removals: boolean | undefined) =>
@@ -164,7 +193,7 @@ describe('current contextual navigation contract', () => {
     expect(nav.name).toBe('Synthetic Family');
     expect(
       nav.primary.filter((link) => isCurrentPath(path, link)).map((link) => link.label),
-    ).toEqual(['Cases']);
+    ).toEqual(['My Trips']);
     expect(workspaceNavigation('/app/mission/another-case', access, subject).name).toBe(
       'Visa Case',
     );
@@ -217,7 +246,7 @@ describe('current contextual navigation contract', () => {
     const nav = workspaceNavigation(path, access);
     expect(
       nav.primary.filter((link) => isCurrentPath(path, link)).map((link) => link.label),
-    ).toEqual(['Record']);
+    ).toEqual(['My Documents']);
     const providers = workspaceNavigation('/app/admin', access).primary.find(
       (link) => link.label === 'Providers',
     );
@@ -254,20 +283,29 @@ const pairs = (links: readonly NavLink[]) => links.map((link) => [link.label, li
 const base = `/app/applicant/${self}`;
 
 describe('workspace navigation link list (characterization)', () => {
-  it('a traveller workspace: four tabs, then Notifications and Countries', () => {
+  it('a traveller workspace: Home and the three entry points, then Notifications and Countries', () => {
     const nav = workspaceNavigation(base, linkAccess);
     expect(pairs(nav.primary)).toEqual([
       ['Home', base],
-      ['Record', `${base}/record`],
-      ['Cases', `${base}/missions`],
-      ['Sharing', `${base}/sharing`],
+      ['My Documents', `${base}/documents`],
+      ['My Trips', `${base}/missions`],
+      ['Sharing & Requests', `${base}/sharing`],
       ['Notifications', '/app/notifications'],
       ['Countries', '/app/countries'],
     ]);
+    expect(
+      nav.primary.flatMap((link) => (link.action ? [[link.action.label, link.action.href]] : [])),
+    ).toEqual([
+      ['Add Documents', `${base}/documents#add-document`],
+      ['Start a Trip', '/app/mission/start'],
+    ]);
     expect(pairs(nav.tools)).toEqual([
+      ['Record', `${base}/record`],
+      ['Evidence Requests', `${base}/evidence`],
+      ['Group Trips', '/app/trips'],
+      ['Answers to Agencies', '/collect/account/answers'],
       ['Shared with Me', '/app/shared'],
       ['Account Overview', '/app'],
-      ['Evidence Requests', `${base}/evidence`],
     ]);
     expect(nav.settings).toEqual([]);
     expect(pairs(recordSections(self))).toEqual([
@@ -287,7 +325,11 @@ describe('workspace navigation link list (characterization)', () => {
       ['Notifications', '/app/notifications'],
       ['Countries', '/app/countries'],
     ]);
-    expect(pairs(nav.tools)).toEqual([['Shared with Me', '/app/shared']]);
+    expect(pairs(nav.tools)).toEqual([
+      ['Group Trips', '/app/trips'],
+      ['Answers to Agencies', '/collect/account/answers'],
+      ['Shared with Me', '/app/shared'],
+    ]);
   });
 
   it('an agency workspace, for an administrator and for a case worker', () => {
@@ -383,7 +425,7 @@ describe('no destination is lost by the four-tab change', () => {
     }
   });
 
-  it('each Record section lights up the Record tab and only that tab', () => {
+  it('each Record section lights up My Documents and only that entry point (UMPE P13)', () => {
     const nav = workspaceNavigation(base, linkAccess);
     for (const section of recordSections(self)) {
       for (const path of [section.href, `${section.href}/synthetic`]) {
@@ -391,12 +433,29 @@ describe('no destination is lost by the four-tab change', () => {
         expect(
           nav.primary.filter((link) => isCurrentPath(path, link)).map((link) => link.label),
           path,
-        ).toEqual(['Record']);
+        ).toEqual(['My Documents']);
       }
     }
-    expect(
-      nav.primary.filter((link) => isCurrentPath(`${base}/evidence`, link)).map((l) => l.label),
-    ).toEqual([]);
+    // Requests belong to Sharing & Requests; trips and cases to My Trips.
+    for (const [path, label] of [
+      [`${base}/evidence`, 'Sharing & Requests'],
+      ['/app/shared/synthetic', 'Sharing & Requests'],
+      [`/app/mission/${m1}`, 'My Trips'],
+      ['/app/mission/start', 'My Trips'],
+      ['/app/trips/synthetic', 'My Trips'],
+    ] as const) {
+      expect(
+        nav.primary.filter((link) => isCurrentPath(path, link)).map((l) => l.label),
+        path,
+      ).toEqual([label]);
+    }
+  });
+
+  it('Start a Trip never guesses a traveller: it keeps the neutral case frame (UMPE P13)', () => {
+    // A managed traveller's Start a Trip task must not swap the sidebar to someone else.
+    const nav = workspaceNavigation('/app/mission/start', access);
+    expect(nav.name).toBe('Visa Case');
+    expect(nav.primary.some((link) => link.href.startsWith('/app/applicant/'))).toBe(false);
   });
 
   it('the account page has one name in the navigation: only Account Overview is current on /app', () => {
@@ -427,9 +486,9 @@ describe('archived travellers (LC-E)', () => {
     expect(nav.name).toBe('Synthetic Archived');
     expect(nav.primary.slice(0, 4).map((link) => link.label)).toEqual([
       'Home',
-      'Record',
-      'Cases',
-      'Sharing',
+      'My Documents',
+      'My Trips',
+      'Sharing & Requests',
     ]);
     expect(nav.primary.every((link) => !link.href.includes(p1))).toBe(true);
   });

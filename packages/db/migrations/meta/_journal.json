@@ -862,6 +862,27 @@
       "when": 1793670278158,
       "tag": "0124_umpe_p9_guest_uploads",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1793681009172,
+      "tag": "0125_umpe_g3_member_capabilities",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1793681013459,
+      "tag": "0126_umpe_p12_outcomes",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1793684158733,
+      "tag": "0127_umpe_g1_intake",
+      "breakpoints": true
     }
   ]
 }

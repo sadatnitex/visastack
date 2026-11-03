@@ -1,3 +1,4 @@
+import { agencyCollectionRequestsEnabled } from '@visastack/services';
 import type { Metadata } from 'next';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { membershipRoleLabel } from '../../../../../lib/labels';
@@ -6,6 +7,7 @@ import { loadMembers, loadOrgAccess, loadPendingTeamInvitations } from '../conso
 import { InvitationRevokeButton } from '../invitation-revoke-button';
 import { AddMemberForm } from '../member-form';
 import { MemberToggleButton } from '../member-toggle-button';
+import { DocumentRequestToggle } from './document-request-toggle';
 
 export const metadata: Metadata = { title: 'Agency Team' };
 
@@ -34,6 +36,8 @@ export default async function AgencyTeamPage({
     return { admin: true as const, members, invitations };
   });
   if (!data) return null;
+  // UMPE G3: the permission exists only for document requests, so only while they are on.
+  const documentRequests = agencyCollectionRequestsEnabled();
 
   if (!data.admin) {
     return (
@@ -53,6 +57,12 @@ export default async function AgencyTeamPage({
         Membership is organizational bookkeeping - it never grants access to a traveller's records
         on its own. Access is always an accepted grant.
       </p>
+      {documentRequests ? (
+        <p className="card-body u-mb-125 muted">
+          Allow Document Requests lets a member create and send document requests of their own. Only
+          owners and admins see what people send back.
+        </p>
+      ) : null}
       {data.members.length > 0 ? (
         <div className="rows u-mb-150">
           {data.members.map((m) => (
@@ -65,11 +75,22 @@ export default async function AgencyTeamPage({
                 >
                   {membershipRoleLabel(m.role)}
                 </span>
+                {documentRequests && m.mayRequestDocuments ? (
+                  <span className="muted member-permission-note">May Request Documents</span>
+                ) : null}
               </span>
               <span className="row-end">
                 <span className={`badge ${m.active ? 'badge-success' : 'badge-neutral'}`}>
                   {m.active ? 'Active' : 'Inactive'}
                 </span>
+                {documentRequests && m.active && m.role !== 'OWNER' && m.role !== 'ADMIN' ? (
+                  <DocumentRequestToggle
+                    organizationId={orgId}
+                    membershipId={m.membershipId}
+                    allowed={m.mayRequestDocuments}
+                    memberLabel={m.email}
+                  />
+                ) : null}
                 {m.role !== 'OWNER' ? (
                   <MemberToggleButton
                     organizationId={orgId}

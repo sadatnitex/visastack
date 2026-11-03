@@ -93,7 +93,8 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
   // full monorepo test-suite contention
   // (docs/audits/post-programme-defect-register.md finding D-T1). A generous
   // explicit timeout avoids a spurious CI failure unrelated to this test's
-  // own correctness.
+  // own correctness. Measured 3 Nov 2026: about 10 s in isolation on main, and
+  // 15 s while every package's suite runs at once, so 60 s leaves real headroom.
   it('returns 200 "ready" when DB is connected+migrated and sign-in config is present', async () => {
     mockDb({});
     const { GET } = await import('./route');
@@ -101,7 +102,7 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe('ready');
-  }, 15_000);
+  }, 60_000);
 
   it('on the Render fallback, reports not ready until the site address is set', async () => {
     setEnv('HOSTING_PLATFORM', 'render');
@@ -118,7 +119,7 @@ describe('GET /api/health/ready — honest health (200 vs 503)', () => {
     const set = await GET();
     expect(set.status).toBe(200);
     expect((await set.json()).hosting).toEqual({ ready: true });
-  }, 15_000);
+  }, 60_000);
 
   it('returns 503 "degraded" when the database connection fails', async () => {
     mockDb({
@@ -368,7 +369,7 @@ describe('GET /api/health/ready: migration drift and what a public probe may rev
     expect(body.status).toBe('degraded');
     // The local breakdown names them so a developer can act.
     expect(body.migrations).toMatchObject({ checked: true, pending: expect.any(Array) });
-  }, 15_000);
+  }, 60_000);
 
   it('does not fail readiness merely because the drift check itself could not run', async () => {
     mockDb({
@@ -381,7 +382,7 @@ describe('GET /api/health/ready: migration drift and what a public probe may rev
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.migrations).toEqual({ checked: false });
-  }, 15_000);
+  }, 60_000);
 
   it('reveals nothing but the coarse verdict on any deployed build, even one still classed as development (a public PR preview)', async () => {
     vi.stubEnv('NODE_ENV', 'production');
@@ -414,7 +415,7 @@ describe('GET /api/health/ready: migration drift and what a public probe may rev
     ]) {
       expect(text, leaked).not.toContain(leaked);
     }
-  }, 15_000);
+  }, 60_000);
 
   it('reveals the breakdown on a local run, where it is the developer who is asking', async () => {
     vi.stubEnv('NODE_ENV', 'development');
@@ -423,5 +424,5 @@ describe('GET /api/health/ready: migration drift and what a public probe may rev
     const body = await (await GET()).json();
     expect(body.env.signIn.NEON_AUTH_COOKIE_SECRET).toBe(true);
     expect(body.db).toEqual({ connected: true, schemaApplied: true });
-  }, 15_000);
+  }, 60_000);
 });

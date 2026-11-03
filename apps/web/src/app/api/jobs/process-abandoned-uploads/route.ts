@@ -1,5 +1,6 @@
+import { systemPrincipal } from '@visastack/services';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
-import { triggerAbandonedUploadSweep } from '../../../../lib/jobs';
+import { triggerAbandonedUploadSweep, triggerHeldFileSweep } from '../../../../lib/jobs';
 
 /**
  * Cleans up upload reservations abandoned mid-request (directive Part 3 §3:
@@ -35,5 +36,8 @@ export async function GET(request: Request): Promise<Response> {
     if (result.checked < BATCH_SIZE) break; // caught up
   }
 
-  return Response.json({ checked: totalChecked, cleaned: totalCleaned });
+  // UMPE G1: family batch files nobody will decide on, with their bytes.
+  const held = await triggerHeldFileSweep(systemPrincipal('process-abandoned-uploads'));
+
+  return Response.json({ checked: totalChecked, cleaned: totalCleaned, heldRemoved: held.removed });
 }

@@ -6726,3 +6726,292 @@ export const agencyCollectionGuestHolds = pgTable(
     ),
   ],
 );
+
+// --- UMPE G1: intake exceptions and the Which Person? holding state ------------------------------
+
+/**
+ * A finding raised when one file is read (ledger I14), once per version and kind: the file had no
+ * readable text, or the document had already expired on the day it was added. Listed in the
+ * person's Needs One Decision list until they choose Keep As It Is. Holds kinds only, never a value
+ * read from the file.
+ */
+export const documentIntakeExceptions = pgTable(
+  'document_intake_exceptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    status: text('status').notNull().default('PENDING'),
+    decidedByAccountId: uuid('decided_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('document_intake_exceptions_version_kind').on(table.documentVersionId, table.kind),
+    index('document_intake_exceptions_applicant_status_idx').on(table.applicantId, table.status),
+    check(
+      'document_intake_exceptions_kind_known',
+      sql`${table.kind} in ('EXPIRED_ON_ARRIVAL', 'NO_READABLE_TEXT')`,
+    ),
+    check(
+      'document_intake_exceptions_status_known',
+      sql`${table.status} in ('PENDING', 'DISMISSED')`,
+    ),
+  ],
+);
+
+/**
+ * A file from a family batch that belongs to nobody yet (ledger I09). Owned by the uploading
+ * account only and never shown to anyone else; filed under a person only by that account's explicit
+ * Which Person? decision, through the access check for the chosen person. The bytes sit in private
+ * quarantine storage under an opaque key until filed (then they become the document's first
+ * version) or discarded (then they are deleted). `proposed_applicant_id` is set only when exactly
+ * one of the account's people matched name and date of birth with no close rival; the facts read
+ * from the file are never stored. When the account is removed the row loses its owner and the
+ * abandoned uploads sweep deletes it and its bytes.
+ */
+export const documentPersonHolds = pgTable(
+  'document_person_holds',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerAccountId: uuid('owner_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    uploadId: uuid('upload_id').notNull(),
+    claimToken: uuid('claim_token').notNull(),
+    objectKey: text('object_key').notNull(),
+    contentType: text('content_type').notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    sha256: text('sha256'),
+    originalFileName: text('original_file_name'),
+    /** The name the file is stored under, with the extension of what is stored ("document.jpg"). */
+    storedFileName: text('stored_file_name').notNull().default('document'),
+    /** True when an iPhone photo (HEIC) was saved as a JPEG copy, as an ordinary upload records. */
+    convertedFromHeic: boolean('converted_from_heic').notNull().default(false),
+    virusScanned: boolean('virus_scanned').notNull().default(false),
+    status: text('status').notNull().default('RECEIVING'),
+    proposedApplicantId: uuid('proposed_applicant_id').references(() => applicants.id, {
+      onDelete: 'set null',
+    }),
+    proposalBasis: text('proposal_basis'),
+    filedDocumentId: uuid('filed_document_id').references(() => documents.id, {
+      onDelete: 'set null',
+    }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('document_person_holds_account_upload').on(table.ownerAccountId, table.uploadId),
+    unique('document_person_holds_object_key').on(table.objectKey),
+    index('document_person_holds_owner_status_idx').on(table.ownerAccountId, table.status),
+    check(
+      'document_person_holds_status_known',
+      sql`${table.status} in ('RECEIVING', 'HELD', 'FILING', 'FILED', 'DISCARDED')`,
+    ),
+    check(
+      'document_person_holds_basis_known',
+      sql`${table.proposalBasis} is null or ${table.proposalBasis} in ('NAME_AND_BIRTH_DATE', 'CLOSE_MATCHES', 'NO_MATCH', 'NOT_READ')`,
+    ),
+    check(
+      'document_person_holds_name_cap',
+      sql`${table.originalFileName} is null or char_length(${table.originalFileName}) <= 180`,
+    ),
+    check('document_person_holds_size_positive', sql`${table.sizeBytes} > 0`),
+    check(
+      'document_person_holds_stored_name_cap',
+      sql`char_length(${table.storedFileName}) between 1 and 120`,
+    ),
+  ],
+);
+
+// UMPE P12: application attempts and what the authority did with each one (Lane F).
+//
+// One row per time a case went to an authority: a reapplication or a resubmission after a refusal is
+// its own attempt, so two attempts never share a decision or evidence. Each attempt keeps the exact
+// package record known when it was recorded (the P4 handoff, else the plain snapshot, else nothing),
+// copied as ids and checksums only. A person's own report stays SELF_REPORTED; DOCUMENT_SUPPLIED
+// means they attached a document. Nothing here is ever called verified, because no channel exists
+// that could verify an authority's action. Append-only by trigger (see the migration); rows go only
+// with their case or person, or when the case purge redacts the case (trigger on missions).
+export const umpeOutcomeAttempts = pgTable(
+  'umpe_outcome_attempts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    attemptNo: integer('attempt_no').notNull(),
+    // The older submission report this attempt is, when it came from one (never invented for one).
+    missionSubmissionId: uuid('mission_submission_id').references(() => missionSubmissions.id, {
+      onDelete: 'cascade',
+    }),
+    binding: text('binding').notNull(),
+    handoffId: uuid('handoff_id').references(() => umpePackageHandoffs.id, {
+      onDelete: 'set null',
+    }),
+    handoffChecksum: text('handoff_checksum'),
+    missionSnapshotId: uuid('mission_snapshot_id').references(() => missionSnapshots.id, {
+      onDelete: 'set null',
+    }),
+    packVersionId: uuid('pack_version_id').references(() => packVersions.id, {
+      onDelete: 'set null',
+    }),
+    packChecksum: text('pack_checksum'),
+    manifestFormat: integer('manifest_format'),
+    materialRevision: integer('material_revision'),
+    // { documentVersionIds: string[], factVersionIds: string[] }: ids only, never a value.
+    selectedVersions: jsonb('selected_versions').notNull(),
+    routeKey: text('route_key'),
+    purpose: text('purpose'),
+    jurisdiction: text('jurisdiction'),
+    destination: text('destination'),
+    travelStartDate: timestamp('travel_start_date', { withTimezone: true }),
+    travelEndDate: timestamp('travel_end_date', { withTimezone: true }),
+    channel: text('channel').notNull(),
+    submittedOn: date('submitted_on', { mode: 'string' }).notNull(),
+    evidenceBasis: text('evidence_basis').notNull(),
+    evidenceDocumentVersionId: uuid('evidence_document_version_id').references(
+      () => documentVersions.id,
+      { onDelete: 'set null' },
+    ),
+    recordedByAccountId: uuid('recorded_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('umpe_outcome_attempts_mission_no').on(table.missionId, table.attemptNo),
+    uniqueIndex('umpe_outcome_attempts_submission_once')
+      .on(table.missionSubmissionId)
+      .where(sql`${table.missionSubmissionId} is not null`),
+    index('umpe_outcome_attempts_applicant_idx').on(table.applicantId),
+    index('umpe_outcome_attempts_handoff_idx').on(table.handoffId),
+    index('umpe_outcome_attempts_snapshot_idx').on(table.missionSnapshotId),
+    index('umpe_outcome_attempts_pack_version_idx').on(table.packVersionId),
+    index('umpe_outcome_attempts_evidence_idx').on(table.evidenceDocumentVersionId),
+    index('umpe_outcome_attempts_recorded_by_idx').on(table.recordedByAccountId),
+    index('umpe_outcome_attempts_submitted_idx').on(table.submittedOn),
+    check('umpe_outcome_attempts_no_positive', sql`${table.attemptNo} >= 1`),
+    check(
+      'umpe_outcome_attempts_binding_known',
+      sql`${table.binding} in ('PACKAGE_HANDOFF', 'SNAPSHOT_ONLY', 'NONE')`,
+    ),
+    check(
+      'umpe_outcome_attempts_channel_known',
+      sql`${table.channel} in ('EMBASSY_PORTAL', 'EMAIL', 'IN_PERSON', 'COURIER', 'VISA_APPLICATION_CENTER', 'OTHER')`,
+    ),
+    check(
+      'umpe_outcome_attempts_basis_known',
+      sql`${table.evidenceBasis} in ('SELF_REPORTED', 'DOCUMENT_SUPPLIED')`,
+    ),
+    check(
+      'umpe_outcome_attempts_self_reported_has_no_document',
+      sql`${table.evidenceBasis} <> 'SELF_REPORTED' or ${table.evidenceDocumentVersionId} is null`,
+    ),
+    check(
+      'umpe_outcome_attempts_text_caps',
+      sql`coalesce(char_length(${table.routeKey}), 0) <= 200 and coalesce(char_length(${table.purpose}), 0) <= 500 and coalesce(char_length(${table.jurisdiction}), 0) <= 500 and coalesce(char_length(${table.destination}), 0) <= 500`,
+    ),
+  ],
+);
+
+// What happened after an attempt, each its own record: the authority's receipt, a request from the
+// authority for more ("The Embassy Asked for More", never an agency correction), or a decision as the
+// person recorded it. PENDING is a reported wait; an attempt with no decision at all reads Unknown.
+export const umpeOutcomeEvents = pgTable(
+  'umpe_outcome_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    attemptId: uuid('attempt_id')
+      .notNull()
+      .references(() => umpeOutcomeAttempts.id, { onDelete: 'cascade' }),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    decision: text('decision'),
+    requestSource: text('request_source'),
+    // Catalogue document kinds the authority asked for; never free text.
+    requestedDocTypes: text('requested_doc_types').array().notNull().default(sql`'{}'::text[]`),
+    occurredOn: date('occurred_on', { mode: 'string' }).notNull(),
+    evidenceBasis: text('evidence_basis').notNull(),
+    evidenceDocumentVersionId: uuid('evidence_document_version_id').references(
+      () => documentVersions.id,
+      { onDelete: 'set null' },
+    ),
+    recordedByAccountId: uuid('recorded_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('umpe_outcome_events_attempt_idx').on(table.attemptId, table.occurredOn),
+    index('umpe_outcome_events_mission_idx').on(table.missionId),
+    index('umpe_outcome_events_applicant_idx').on(table.applicantId),
+    index('umpe_outcome_events_evidence_idx').on(table.evidenceDocumentVersionId),
+    index('umpe_outcome_events_recorded_by_idx').on(table.recordedByAccountId),
+    check(
+      'umpe_outcome_events_kind_known',
+      sql`${table.kind} in ('AUTHORITY_RECEIPT', 'AUTHORITY_REQUEST', 'DECISION')`,
+    ),
+    check(
+      'umpe_outcome_events_decision_shape',
+      sql`(${table.kind} = 'DECISION') = (${table.decision} is not null) and (${table.decision} is null or ${table.decision} in ('PENDING', 'APPROVED', 'REFUSED', 'WITHDRAWN', 'CANCELLED', 'OTHER'))`,
+    ),
+    check(
+      'umpe_outcome_events_request_shape',
+      sql`(${table.kind} = 'AUTHORITY_REQUEST') = (${table.requestSource} is not null) and (${table.requestSource} is null or ${table.requestSource} in ('EMBASSY_OR_CONSULATE', 'VISA_APPLICATION_CENTER', 'IMMIGRATION_AUTHORITY', 'OTHER_AUTHORITY')) and (${table.kind} = 'AUTHORITY_REQUEST' or cardinality(${table.requestedDocTypes}) = 0) and cardinality(${table.requestedDocTypes}) <= 20`,
+    ),
+    check(
+      'umpe_outcome_events_basis_known',
+      sql`${table.evidenceBasis} in ('SELF_REPORTED', 'DOCUMENT_SUPPLIED')`,
+    ),
+    check(
+      'umpe_outcome_events_self_reported_has_no_document',
+      sql`${table.evidenceBasis} <> 'SELF_REPORTED' or ${table.evidenceDocumentVersionId} is null`,
+    ),
+  ],
+);
+
+// --- UMPE G3: per-member agency capabilities ------------------------------------------------------
+// A capability an agency owner or admin gives one member (A18). Today only REQUEST_DOCUMENTS: the
+// member may create and send document requests (never read answers or files). One row per member
+// and capability; removing the row withdraws it. A membership that ends or is deactivated keeps no
+// power, because every read also requires the membership to be active.
+export const agencyMemberCapabilities = pgTable(
+  'agency_member_capabilities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: uuid('organization_id')
+      .notNull()
+      .references(() => organizations.id, { onDelete: 'cascade' }),
+    membershipId: uuid('membership_id')
+      .notNull()
+      .references(() => memberships.id, { onDelete: 'cascade' }),
+    capability: text('capability').notNull(),
+    grantedByAccountId: uuid('granted_by_account_id'),
+    grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('agency_member_capabilities_unique').on(table.membershipId, table.capability),
+    index('agency_member_capabilities_org_idx').on(table.organizationId),
+    check('agency_member_capabilities_known', sql`${table.capability} in ('REQUEST_DOCUMENTS')`),
+  ],
+);

@@ -26,7 +26,8 @@ import { collectionPackTerms, purposeByLabel } from './terms';
 
 /**
  * Document Requests (UMPE P6): every action re-checks, live, that the person is an owner or admin
- * of this agency and that the switch is on (`agencyCollectionPrincipal`), then hands the services
+ * of this agency, or a member with May Request Documents (UMPE G3, own requests only), and that the
+ * switch is on (`agencyCollectionPrincipal`), then hands the services
  * that scope. A refused or missing request gets the same answer.
  */
 

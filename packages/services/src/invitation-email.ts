@@ -1,5 +1,10 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import {
+  type AgencyCollectionScope,
+  agencyCollectionScopeProblem,
+} from './access/collection-scope';
 import type { Db } from './db';
+import { cleanAgencyName } from './email-design';
 import { enqueueNotification } from './notifications';
 import type { KeyManagementPort } from './ports';
 
@@ -40,6 +45,73 @@ export const COLLECTION_REQUEST_EMAIL_EVENT = 'AGENCY_COLLECTION_REQUEST_SENT';
 export const GUEST_CODE_EMAIL_EVENT = 'AGENCY_COLLECTION_GUEST_CODE';
 
 const GUEST_CODE_SHAPE = /^\d{6}$/;
+
+// --- UMPE G3: a guest's correction email -------------------------------------------------------
+/** The notification event telling a guest the agency asked for a correction (UMPE G3). */
+export const GUEST_CORRECTION_EMAIL_EVENT = 'AGENCY_COLLECTION_GUEST_CORRECTION';
+
+/**
+ * The subject and summary of a guest correction email. The subject names the agency only (and only
+ * an ACTIVE one); never the person, the route, the documents or the agency's notes.
+ */
+export function guestCorrectionCopy(agencyName: string | null | undefined): {
+  readonly subject: string;
+  readonly summary: string;
+} {
+  const name = cleanAgencyName(agencyName);
+  if (name.length === 0) {
+    return {
+      subject: 'An agency asked you to correct your documents',
+      summary:
+        'The agency you sent documents to through VisaStack asked you to correct something. Open the request to read their notes and send again.',
+    };
+  }
+  return {
+    subject: `${name} asked you to correct your documents`,
+    summary: `${name} asked you, through VisaStack, to correct something in the documents you sent. Open the request to read their notes and send again.`,
+  };
+}
+
+/**
+ * The subject and summary of an agency collection email as it is sent (UMPE G3): rebuilt from the
+ * agency's name read at send time, given only while VisaStack has reviewed it (ACTIVE), so an email
+ * never names an agency that is no longer reviewed. Null for any other email.
+ */
+export function agencyEmailCopyAtSend(
+  eventType: string,
+  agencyName: string | null,
+): { readonly subject: string; readonly summary: string } | null {
+  if (eventType === COLLECTION_REQUEST_EMAIL_EVENT) return collectionCopy(agencyName);
+  if (eventType === GUEST_CODE_EMAIL_EVENT) return guestCodeCopy(agencyName);
+  if (eventType === GUEST_CORRECTION_EMAIL_EVENT) return guestCorrectionCopy(agencyName);
+  return null;
+}
+
+/**
+ * Queue the correction email for one review decision (the resource), inside the caller's
+ * transaction. The address is the request's own (the one the guest proved); the worker checks again
+ * at send time that the decision, the link and the request are all still open.
+ */
+export async function queueGuestCorrectionEmail(
+  tx: Db,
+  scope: AgencyCollectionScope,
+  input: {
+    readonly reviewId: string;
+    readonly email: string;
+    readonly agencyName: string | null;
+  },
+): Promise<boolean> {
+  if (agencyCollectionScopeProblem(scope)) return false;
+  const copy = guestCorrectionCopy(input.agencyName);
+  return enqueueNotification(tx, {
+    eventType: GUEST_CORRECTION_EMAIL_EVENT,
+    channel: 'EMAIL',
+    resourceId: input.reviewId,
+    recipientEmail: input.email,
+    organizationId: scope.organizationId,
+    payload: { subject: copy.subject, summary: copy.summary, deepLinkPath: '/collect' },
+  });
+}
 
 const EMAIL_EVENT: Record<InvitationLinkKind, string> = {
   team: 'TEAM_INVITATION_CREATED',
@@ -84,7 +156,7 @@ function collectionCopy(agencyName: string | null | undefined): {
   readonly subject: string;
   readonly summary: string;
 } {
-  const name = agencyName?.replace(/\s+/g, ' ').trim().slice(0, 120) ?? '';
+  const name = cleanAgencyName(agencyName);
   if (name.length === 0) {
     return { subject: EMAIL_SUBJECT.collection, summary: EMAIL_SUMMARY.collection };
   }
@@ -102,7 +174,7 @@ function guestCodeCopy(agencyName: string | null | undefined): {
   readonly subject: string;
   readonly summary: string;
 } {
-  const name = agencyName?.replace(/\s+/g, ' ').trim().slice(0, 120) ?? '';
+  const name = cleanAgencyName(agencyName);
   return {
     subject: EMAIL_SUBJECT.guest_code,
     summary: name.length > 0 ? guestCodeSummary(name) : EMAIL_SUMMARY.guest_code,

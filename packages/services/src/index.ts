@@ -2814,3 +2814,118 @@ export {
 } from './umpe-collection-response-review';
 export { type GuestPurgeResult, purgeGuestCollectionData } from './umpe-guest-retention';
 export { SIGNED_IN_SESSION_IDLE_MS } from './umpe-guest-collection';
+
+// UMPE G1: intake gap closure (findings raised when a file is read, statement periods in names,
+// the background kind suggestion, and the family batch with its Which Person? decision).
+export {
+  INTAKE_EXCEPTION_KINDS,
+  type IntakeExceptionKind,
+  expiredOnArrival,
+  hasReadableText,
+  isIntakeExceptionKind,
+  periodForName,
+  statementPeriodLabel,
+} from './umpe-document-arrival';
+export { dismissIntakeException } from './umpe-document-exceptions';
+export { personHoldsTablePresent as familyBatchReady } from './umpe-document-tables';
+export { suggestDocumentKindInBackground } from './ai';
+export {
+  type FiledHold,
+  HELD_MAX_FILES,
+  HELD_MAX_TOTAL_BYTES,
+  type HeldFile,
+  type HeldFileChecks,
+  type HeldFilesView,
+  type HoldFamilyFileDeps,
+  type HoldFamilyFileInput,
+  type HoldFamilyFileOutcome,
+  type PersonIdentity,
+  type PersonProposal,
+  type ProposalBasis,
+  discardHeldFile,
+  fileHeldFile,
+  holdFamilyFile,
+  listHeldFiles,
+  proposePerson,
+  sweepHeldFiles,
+} from './umpe-document-holds';
+
+// UMPE P12
+export {
+  ATTEMPT_BINDINGS,
+  ATTEMPT_CHANNELS,
+  ATTEMPT_DECISIONS,
+  ATTEMPT_EVENT_KINDS,
+  AUTHORITY_REQUEST_SOURCES,
+  type AttemptBinding,
+  type AttemptChannel,
+  type AttemptDecision,
+  type AttemptEventKind,
+  type AuthorityRequestSource,
+  EVIDENCE_BASES,
+  type EvidenceBasis,
+  MAX_REQUESTED_DOC_TYPES,
+  outcomeTablesPresent,
+} from './umpe-outcome-tables';
+export {
+  type AttemptEventView,
+  type AttemptStanding,
+  type AttemptView,
+  type OutcomeAttemptsView,
+  type RecordAttemptEventInput,
+  type RecordAttemptInput,
+  attemptStanding,
+  listOutcomeAttempts,
+  localDate,
+  recordAttemptEvent,
+  recordOutcomeAttempt,
+  trackSubmissionAsAttempt,
+} from './umpe-outcome-service';
+export {
+  type Cell as InsightCell,
+  DEFAULT_INSIGHT_THRESHOLDS,
+  type InsightThresholds,
+} from './umpe-insights-suppression';
+export {
+  FUNNEL_STAGES,
+  type FieldInsightsReport,
+  type FunnelStageKey,
+  type FunnelUnit,
+  INSIGHT_PERIODS,
+  type InsightPeriod,
+  getFieldInsights,
+} from './umpe-insights-service';
+
+// UMPE G3
+export {
+  type AgencyCollectionAuthority,
+  REQUEST_DOCUMENTS_CAPABILITY,
+  collectionAuthorityOf,
+  agencyCollectionRequesterScopeProblem,
+} from './access/collection-scope';
+export { setMemberMayRequestDocuments } from './organizations';
+export {
+  COLLECTION_EMAIL_REASON_LABELS,
+  COLLECTION_EMAIL_STATUS_LABELS,
+  type CollectionEmailReason,
+  type CollectionEmailState,
+  type CollectionEmailStatus,
+  collectionEmailState,
+} from './umpe-collection-request-service';
+export { GUEST_CORRECTION_EMAIL_EVENT, guestCorrectionCopy } from './invitation-email';
+export { type EmailAgencyBrand, emailAgencyBrand } from './email-design';
+export {
+  type GuestCorrectionNoticeOutcome,
+  queueGuestCorrectionNotice,
+} from './umpe-guest-correction-notice';
+
+// UMPE P13
+// Package changes and rule updates that need the traveller, as Needs Attention items for Home.
+export {
+  PACKAGE_NOTICE_ANCHOR,
+  PACKAGE_NOTICE_LIMIT,
+  PACKAGE_NOTICE_TITLES,
+  type PackageNoticeTables,
+  listPackageNotices,
+  packageNoticeTablesReady,
+} from './umpe-experience-notices';

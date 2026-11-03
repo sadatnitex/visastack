@@ -1,6 +1,6 @@
 import 'server-only';
 import { type AiReadingPorts, type Db, renderOcrSourceImage } from '@visastack/services';
-import { resolveAiExtractor, resolveOcrAdapter } from './ai';
+import { resolveAiClassifier, resolveAiExtractor, resolveOcrAdapter } from './ai';
 import { ensureDocumentFieldsRegistered } from './field-registry';
 import { createKeyManagementPort, createPreviewRenderer, createStorage } from './providers';
 
@@ -15,6 +15,7 @@ export function createAiReadingPorts(db: Db): AiReadingPorts {
   const encryption = createKeyManagementPort();
   let extraction: ReturnType<AiReadingPorts['extraction']> | undefined;
   let ocr: ReturnType<AiReadingPorts['ocr']> | undefined;
+  let classify: ReturnType<NonNullable<AiReadingPorts['classify']>> | undefined;
   return {
     extraction: () => {
       extraction ??= resolveAiExtractor(db, encryption);
@@ -23,6 +24,11 @@ export function createAiReadingPorts(db: Db): AiReadingPorts {
     ocr: () => {
       ocr ??= resolveOcrAdapter(db, encryption);
       return ocr;
+    },
+    // UMPE G1: the classifier the Suggest a Kind button uses, for files the rules could not name.
+    classify: () => {
+      classify ??= resolveAiClassifier(db, encryption);
+      return classify;
     },
     renderImage: (documentVersionId, applicantId) =>
       renderOcrSourceImage(

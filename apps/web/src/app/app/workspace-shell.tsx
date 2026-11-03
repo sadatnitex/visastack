@@ -194,14 +194,24 @@ function StaffModeBanner() {
  */
 function WorkspaceTools({
   tools,
+  primary = [],
   popover,
 }: {
   readonly tools: WorkspaceNavigation['tools'];
+  /**
+   * The sidebar's own destinations. When one of them already marks this page (an entry point
+   * lights up on the pages that belong to it, UMPE P13), no tool marks it too, so a page has one
+   * current link.
+   */
+  readonly primary?: WorkspaceNavigation['primary'];
   readonly popover: boolean;
 }) {
   const pathname = usePathname();
   const details = useRef<HTMLDetailsElement>(null);
-  const current = tools.some((item) => isCurrentPath(pathname, item));
+  const claimed = primary.some((item) => isCurrentPath(pathname, item));
+  const currentTool = (item: WorkspaceNavigation['tools'][number]) =>
+    !claimed && isCurrentPath(pathname, item);
+  const current = tools.some(currentTool);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new route closes the popover
   useEffect(() => {
     if (popover && details.current) details.current.open = false;
@@ -231,7 +241,7 @@ function WorkspaceTools({
           <Link
             key={item.href}
             href={item.href}
-            aria-current={isCurrentPath(pathname, item) ? 'page' : undefined}
+            aria-current={currentTool(item) ? 'page' : undefined}
           >
             {item.label}
           </Link>
@@ -360,6 +370,7 @@ export function WorkspaceShell({
             <WorkspaceTools
               key={railShown ? 'rail' : 'full'}
               tools={nav.tools}
+              primary={nav.primary}
               popover={railShown}
             />
           ) : null}
