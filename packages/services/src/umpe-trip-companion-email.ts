@@ -12,14 +12,13 @@
  * address. The raw token is used once to seal and is never returned, logged or audited.
  */
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, gt } from 'drizzle-orm';
+import { and, eq, gt, ne } from 'drizzle-orm';
 import type { AuthorizedApplicant } from './access/require-access';
 import { companionsReady } from './access/trip-companion-access';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { queueInvitationEmail } from './invitation-email';
 import { hashInvitationToken } from './invitation-tokens';
-import { cancelQueuedNotificationsForResource } from './notifications';
 import type { KeyManagementPort } from './ports';
 import type { CompanionInvitationDelivery } from './umpe-trip-companions';
 import { ownerAccountOf } from './umpe-trip-service';
@@ -72,9 +71,10 @@ export async function queueCompanionInvitation(
     if (!row?.email || !row.expiresAt || row.email !== input.invitation.recipientEmail) {
       return err(serviceError('not_found', NOT_AVAILABLE));
     }
-    await cancelQueuedNotificationsForResource(tx, row.id);
-    // The key service is called before anything else is written (as the sharing invitation does).
-    await queueInvitationEmail(tx, {
+    // The newest is queued first (the key service is called before anything is cancelled, so no
+    // lock is held across it), then every older waiting email is cancelled. A replay of the same
+    // delivery queues nothing new and cancels nothing, so what is waiting stays waiting.
+    const newest = await queueInvitationEmail(tx, {
       kind: 'companion',
       invitationId: row.id,
       email: row.email,
@@ -82,6 +82,16 @@ export async function queueCompanionInvitation(
       encryption: input.encryption,
       issue: row.expiresAt.toISOString(),
     });
+    await tx
+      .update(schema.notifications)
+      .set({ status: 'CANCELLED' })
+      .where(
+        and(
+          eq(schema.notifications.resourceId, row.id),
+          eq(schema.notifications.status, 'QUEUED'),
+          ne(schema.notifications.idempotencyKey, newest.idempotencyKey),
+        ),
+      );
     return ok({ queued: true as const });
   });
 }

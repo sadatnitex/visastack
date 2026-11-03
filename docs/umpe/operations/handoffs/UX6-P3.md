@@ -89,3 +89,10 @@ Layered, so one layer alone stays green by design: the switch check at the top o
 - The `Unavailable` page puts the link in the sign-in return address only for a link of the exact shape; anything else is dropped, so nothing typed into the address is echoed into the page.
 - The notification worker's failure text for a refused send is the shared "recipient no longer authorized"; staff see the kind label "Trip Companion Invitation" and the address on the Email Delivery page like every other invitation.
 - Staff can see an address on that page (existing behaviour for all invitation emails).
+
+## Review fixes (`/code-review max`, 8 findings)
+
+Fixed: Send Again now cancels the email still waiting with the old link in the same transaction that replaces the link, so an old, dead link can never be mailed even if the follow-up step fails; the email queue now queues the newest first and then cancels the older waiting ones, so replaying the same delivery keeps what is waiting (it used to cancel it and report success); a misconfigured key service no longer throws past the "keep the person, say it was not sent" path, and Send Again checks the key service before it replaces the link (it never kills a link it cannot replace); the raw right-to-left override character in a test string is an escape (and the same in a package 1 test). Explained and left: the per-address limiter counts a visit (a later rename and share with the preview limiter); the accept page's consent step is a near copy of the client-invitation one (a later merge); the three link-kind chains in the email code should become tables (a later tidy); the "just joined" title reads the account's trips instead of one row (an optimisation).
+
+Open owner decision before the switch goes on: the pilot gate reads only the pilot invitation table, so a person with no VisaStack account who follows a companion link may be stopped at sign-up while the product is in controlled pilot. Decide whether a companion invitation counts as an invitation for that gate.
+

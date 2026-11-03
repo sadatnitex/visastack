@@ -246,7 +246,7 @@ describe('joining a trip', () => {
 
   it('refuses a name that is empty, too long, hidden-formatted, or the organiser label, and joins nobody', async () => {
     const { id, token } = await invite();
-    for (const name of ['', '   ', 'x'.repeat(121), 'Na‮dia', 'The organiser']) {
+    for (const name of ['', '   ', 'x'.repeat(121), 'Na\u202Edia', 'The organiser']) {
       const result = await answer(() =>
         acceptTripInvitationAction(
           INITIAL,

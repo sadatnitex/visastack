@@ -26,6 +26,7 @@ const handedOver = vi.hoisted(() => ({ tokens: [] as string[] }));
 const mail = vi.hoisted(() => ({
   sentFor: [] as string[],
   noKeyService: false,
+  keyServiceThrows: false,
   sendThrows: false,
   background: [] as Promise<unknown>[],
 }));
@@ -66,7 +67,12 @@ vi.mock('../../../lib/providers', async () => {
       return key;
     },
   };
-  return { createKeyManagementPort: () => (mail.noKeyService ? undefined : port) };
+  return {
+    createKeyManagementPort: () => {
+      if (mail.keyServiceThrows) throw new Error('unsupported KMS_PROVIDER');
+      return mail.noKeyService ? undefined : port;
+    },
+  };
 });
 vi.mock('next/navigation', () => ({
   redirect: (to: string) => {
@@ -190,6 +196,7 @@ beforeEach(async () => {
   mail.sentFor.length = 0;
   mail.background.length = 0;
   mail.noKeyService = false;
+  mail.keyServiceThrows = false;
   mail.sendThrows = false;
   db = drizzle(await createMigratedPglite(), { schema }) as unknown as Db;
   state.db = db;
@@ -667,6 +674,35 @@ describe('Remove and Send Again', () => {
     for (const token of handedOver.tokens) {
       expect(JSON.stringify(await outbox())).not.toContain(token);
     }
+  });
+
+  it('a misconfigured key service keeps the person, says it was not sent, and never replaces the link on Send Again', async () => {
+    const tripId = await startTrip();
+    mail.keyServiceThrows = true;
+    const to = await redirectTo(() =>
+      addTravellersAction(INITIAL, form([['tripId', tripId], ...someone('Nadia Rahman', FRIEND)])),
+    );
+    // The person is on the trip and the organiser is not told "something went wrong".
+    expect(to).toMatch(/^\/app\/trips\/[0-9a-f-]{36}\?done=/);
+    const [row] = await companions();
+    expect(row).toMatchObject({ state: 'INVITED' });
+    const before = row?.tokenHash;
+    const result = await answer(() =>
+      resendCompanionAction(
+        INITIAL,
+        form([
+          ['tripId', tripId],
+          ['companionId', row?.id ?? ''],
+        ]),
+      ),
+    );
+    expect(result).toEqual({
+      ok: false,
+      message: 'The invitation could not be sent just now. Try Send Again in a moment.',
+    });
+    // The link was not replaced: there was nothing to send the new one with.
+    expect((await companions())[0]?.tokenHash).toBe(before);
+    mail.keyServiceThrows = false;
   });
 
   it('says it could not send, and keeps the person, when the key service is missing', async () => {

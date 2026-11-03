@@ -5,7 +5,11 @@ import {
 } from './access/collection-scope';
 import type { Db } from './db';
 import { cleanAgencyName } from './email-design';
-import { enqueueNotification } from './notifications';
+import {
+  type EnqueueNotificationInput,
+  buildNotificationIdempotencyKey,
+  enqueueNotification,
+} from './notifications';
 import type { KeyManagementPort } from './ports';
 
 /**
@@ -221,7 +225,7 @@ export async function queueInvitationEmail(
      */
     readonly issue?: string;
   },
-): Promise<void> {
+): Promise<{ readonly idempotencyKey: string }> {
   const dataKey = await input.encryption.generateDataKey();
   const nonce = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', dataKey.plaintextDataKey, nonce);
@@ -234,7 +238,7 @@ export async function queueInvitationEmail(
       : input.kind === 'guest_code'
         ? guestCodeCopy(input.agencyName)
         : { subject: EMAIL_SUBJECT[input.kind], summary: EMAIL_SUMMARY[input.kind] };
-  await enqueueNotification(tx, {
+  const notice: EnqueueNotificationInput = {
     eventType: EMAIL_EVENT[input.kind],
     channel: 'EMAIL',
     resourceId: input.invitationId,
@@ -263,7 +267,9 @@ export async function queueInvitationEmail(
         ciphertext: ciphertext.toString('base64'),
       },
     },
-  });
+  };
+  await enqueueNotification(tx, notice);
+  return { idempotencyKey: buildNotificationIdempotencyKey(notice) };
 }
 
 export async function revealInvitationLink(

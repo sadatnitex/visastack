@@ -163,13 +163,23 @@ type CompanionStep = ActionState & { readonly unsent?: boolean };
  * organiser exactly like a person still waiting). That case still asks the key service for a key
  * and drops it, so the wait is the same and the organiser cannot tell the two apart by it.
  */
+/** The key service, or null when it is missing or misconfigured (never thrown: the person stays on the trip and the organiser can use Send Again). */
+function keyService(): ReturnType<typeof createKeyManagementPort> | null {
+  try {
+    return createKeyManagementPort() ?? null;
+  } catch (error) {
+    reportServerError('keyService', error);
+    return null;
+  }
+}
+
 async function deliverInvitation(
   proof: AuthorizedApplicant<'MANAGE'>,
   tripId: string,
   companionId: string,
   invitation: CompanionInvitationDelivery | null,
 ): Promise<boolean> {
-  const encryption = createKeyManagementPort();
+  const encryption = keyService();
   if (!encryption) return false;
   try {
     if (invitation === null) {
@@ -675,6 +685,8 @@ export async function resendCompanionAction(
     const proof = await organiserProof(db, accountId, tripId);
     if (!proof) return { ok: false, message: TRIP_UNAVAILABLE };
     const companionId = String(formData.get('companionId') ?? '');
+    // Checked before the link is replaced: with no key service the old link must not be killed.
+    if (!keyService()) return { ok: false, message: INVITATION_NOT_SENT };
     const again = await resendInvitation(proof, tripId, companionId);
     if (!again.ok) return companionRefusal(again.error);
     const sent = await deliverInvitation(proof, tripId, companionId, again.value.invitation);

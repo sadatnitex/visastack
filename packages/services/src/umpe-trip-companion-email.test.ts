@@ -341,6 +341,40 @@ describe('queueing the invitation email', () => {
   );
 });
 
+describe('review fixes: nothing stale is ever sent, and a replay keeps what is waiting', () => {
+  it(
+    'a Send Again that rotates the link cancels the waiting email in the same step, so the old link is never mailed',
+    async () => {
+      const db = await freshDb();
+      const org = await organiser(db);
+      const { companionId, delivery } = await invite(db, org);
+      await send(db, org, companionId, delivery);
+      // Rotate the link and stop there: the follow-up queue step never runs (it failed or lagged).
+      const proof = await proofFor(db, org.accountId, org.applicantId);
+      const again = await resendInvitation(proof, org.tripId, companionId);
+      expect(isOk(again)).toBe(true);
+      expect(await run(db)).toMatchObject({ sent: 0 });
+      expect(sent).toHaveLength(0);
+      expect((await outbox(db)).map((row) => row.status)).toEqual(['CANCELLED']);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'queuing the same delivery twice leaves the one email waiting (a replay is not a cancel)',
+    async () => {
+      const db = await freshDb();
+      const org = await organiser(db);
+      const { companionId, delivery } = await invite(db, org);
+      expect(isOk(await send(db, org, companionId, delivery))).toBe(true);
+      expect(isOk(await send(db, org, companionId, delivery))).toBe(true);
+      expect((await outbox(db)).map((row) => row.status)).toEqual(['QUEUED']);
+      expect((await run(db)).sent).toBe(1);
+    },
+    TEST_TIMEOUT_MS,
+  );
+});
+
 describe('only the invitation that is live right now can be queued', () => {
   it(
     'refuses a stale link, a different address, another organiser, a used or removed row, and a switch that is off',
