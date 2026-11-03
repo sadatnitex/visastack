@@ -154,9 +154,9 @@ describe('the import panel before anything is chosen', () => {
     const text = textOf(html);
     expect(text).toContain('Up to 4 MB per file; JPG, PNG, HEIC, Word or text files.');
     expect(text).toContain('Up to 200 files in one import.');
-    expect(text).toContain('Drop a Folder or Many Files Here');
+    expect(text).toContain('Drop Files or a Folder Here');
     expect(html).toContain('>Add a Folder</button>');
-    expect(html).toContain('>Choose Many Files</button>');
+    expect(html).toContain('>Choose Files</button>');
     expect(html).toContain('<output class="sr-only import-announce">');
     // The hidden inputs are reached through the buttons, never by Tab.
     expect(html.match(/<input[^>]*tabindex="-1"/g)).toHaveLength(2);
@@ -262,7 +262,7 @@ describe('importing many files', () => {
     await flush();
     expect(FakeRequest.sent).toHaveLength(4);
     expect(button('Try Again for All Paused Files')).toBeUndefined();
-    expect(document.activeElement?.textContent).toBe('This Import');
+    expect(document.activeElement?.textContent).toBe('Your Files');
   });
 
   it('pauses, resumes and stops with buttons that are never disabled, and says so', async () => {
@@ -284,7 +284,7 @@ describe('importing many files', () => {
     const stop = button('Stop') as HTMLButtonElement;
     stop.focus();
     await act(async () => stop.click());
-    expect(document.activeElement?.textContent).toBe('This Import');
+    expect(document.activeElement?.textContent).toBe('Your Files');
     await answer(2);
     await answer(3);
     expect(FakeRequest.sent).toHaveLength(4);
@@ -457,6 +457,19 @@ describe('after an import, and files for several people (UMPE G1)', () => {
       ['Review Suggested Details', '/app/applicant/a-1'],
     ]);
     expect(await axeViolations(host.innerHTML)).toEqual([]);
+  });
+
+  it('keeps the hint but drops both buttons when the page has its own next step', async () => {
+    await act(async () => {
+      root.render(
+        <ImportPanel applicantId="a-1" limitBytes={1000} limitLabel="1 KB" showNext={false} />,
+      );
+    });
+    await choose([photo('passport.jpg')]);
+    await answer(0);
+    const next = host.querySelector('nav[aria-label="After This Import"]');
+    expect(next?.textContent).toContain('Most files are sorted on their own');
+    expect(next?.querySelectorAll('a')).toHaveLength(0);
   });
 
   it('sends files for several people to the holding route and says where they wait', async () => {

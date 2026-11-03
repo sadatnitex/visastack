@@ -304,6 +304,7 @@ export function ImportPanel({
   pdfAccepted = false,
   retryUnknown = false,
   familyBatch = false,
+  showNext = true,
 }: {
   readonly applicantId: string;
   /** The largest file accepted, in bytes (the same limit the single upload uses). */
@@ -317,6 +318,11 @@ export function ImportPanel({
    * on its own with the same upload id, which the server answers with the copy already stored.
    */
   readonly retryUnknown?: boolean;
+  /**
+   * Whether the two next-step buttons show after an import. A page with its own next step (Add
+   * Documents) turns them off; the choice of which person still shows for files sent to a family.
+   */
+  readonly showNext?: boolean;
   /**
    * UMPE G1: whether files may be added for several people at once. Each such file waits, seen only
    * by this account, until its Which Person? decision in Needs One Decision.
@@ -585,7 +591,7 @@ export function ImportPanel({
         {...dropHandlers}
       >
         <p className="upload-drop-title" id={dropTitleId}>
-          Drop a Folder or Many Files Here
+          Drop Files or a Folder Here
         </p>
         <p className="upload-drop-hint" id={dropHintId}>
           Folders inside it are included. You do not need to say what each file is first. Each file
@@ -606,7 +612,7 @@ export function ImportPanel({
             aria-describedby={limitsId}
             onClick={() => filesRef.current?.click()}
           >
-            Choose Many Files
+            Choose Files
           </button>
         </div>
       </section>
@@ -640,7 +646,7 @@ export function ImportPanel({
       />
 
       <h3 className="import-summary-title" ref={headingRef} tabIndex={-1}>
-        This Import
+        Your Files
       </h3>
       <p className="upload-summary import-counts">{importCountsText(counts, snapshot.paused)}</p>
       <output className="sr-only import-announce">{announcement}</output>
@@ -742,17 +748,21 @@ export function ImportPanel({
               ? 'Files for several people wait in Needs One Decision until you choose who each one belongs to.'
               : 'Most files are sorted on their own. Anything that needs your answer is in Needs One Decision, and details read from your files wait for your approval.'}
           </p>
-          <div className="upload-drop-actions">
-            <a
-              className="btn btn-primary"
-              href={`/app/applicant/${applicantId}/documents#needs-decision`}
-            >
-              {sentToFamily.current ? 'Choose Which Person' : 'Open Needs One Decision'}
-            </a>
-            <a className="btn btn-secondary" href={`/app/applicant/${applicantId}`}>
-              Review Suggested Details
-            </a>
-          </div>
+          {showNext || sentToFamily.current ? (
+            <div className="upload-drop-actions">
+              <a
+                className="btn btn-primary"
+                href={`/app/applicant/${applicantId}/documents#needs-decision`}
+              >
+                {sentToFamily.current ? 'Choose Which Person' : 'Open Needs One Decision'}
+              </a>
+              {showNext ? (
+                <a className="btn btn-secondary" href={`/app/applicant/${applicantId}`}>
+                  Review Suggested Details
+                </a>
+              ) : null}
+            </div>
+          ) : null}
         </nav>
       ) : null}
       <p className="muted uploader-note">

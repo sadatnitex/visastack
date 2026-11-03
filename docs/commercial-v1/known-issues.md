@@ -7336,3 +7336,8 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 
 - Owners and admins see an Answers column on the Document Requests list: a total, then Waiting for Review, Needs Correction and Accepted, plus a Waiting for Review filter. Counts only, read through the access directory, bound to the agency, empty for members and for an agency VisaStack has not reviewed. Code review high: 8 findings, 5 fixed and 3 explained. Hand-back: `docs/umpe/operations/handoffs/UX5.md`.
 
+## 2026-11-03: UMPE UX7 part B (Add Documents shows what was found, no migration)
+
+- The Add Documents page now shows, above the drop area, "We Found N Details to Check" with one Review button when details were read, and "N Files Need One Answer" for files waiting. The panel's own two after-import buttons are off on this page so there is one next step (files sent to several people still offer Choose Which Person). Wording: "Drop Files or a Folder Here", "Choose Files", "Your Files". Read-only; no rule changed. Code review high: 6 findings, fixed.
+- Part C (review and finish) is not built. Not verified: a real phone, a screen reader, dark appearance, the live flow.
+
