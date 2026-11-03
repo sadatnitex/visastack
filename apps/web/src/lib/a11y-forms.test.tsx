@@ -1048,6 +1048,20 @@ const CASES_MISSION: readonly Case[] = [
     repeated: true,
   },
   {
+    name: 'send an invitation again to someone travelling with you',
+    element: () => (
+      <tripForms.ResendCompanionForm tripId="t1" companionId="c1" name="Synthetic Friend" />
+    ),
+    repeated: true,
+  },
+  {
+    name: 'remove someone travelling with you from a group trip',
+    element: () => (
+      <tripForms.RemoveCompanionForm tripId="t1" companionId="c1" name="Synthetic Friend" />
+    ),
+    repeated: true,
+  },
+  {
     name: 'share a travel document with a group trip',
     element: () => (
       <tripForms.AddTripEvidenceForm

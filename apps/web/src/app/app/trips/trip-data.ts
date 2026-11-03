@@ -1,15 +1,18 @@
 import {
   type Db,
+  type OrganiserCompanionView,
   type TripSummary,
   accountPrincipal,
   getCasePackage,
   getTrip,
   isCommonTripEvidenceType,
   listApplicants,
+  listCompanions,
   listDocuments,
   listTripEvidence,
   listTrips,
   requireAccess,
+  tripCompanionsAvailable,
   tripNextAction,
 } from '@visastack/services';
 import type { TripDocumentOption, TripTravellerOption } from './trip-forms';
@@ -64,6 +67,10 @@ export interface TripPageData {
   readonly sharedDocuments: readonly TripSharedDocument[];
   readonly addable: readonly TripTravellerOption[];
   readonly documentOptions: readonly TripDocumentOption[];
+  /** Whether travelling with someone else is on (the switch is on and its table exists). */
+  readonly companionsOn: boolean;
+  /** The people added by name, as the organiser may see them; empty while the feature is off. */
+  readonly companions: readonly OrganiserCompanionView[];
 }
 
 export async function loadTripPage(
@@ -76,6 +83,8 @@ export async function loadTripPage(
   if (!proof) return null;
   const trip = await getTrip(proof, tripId);
   if (!trip.ok) return null;
+  const companionsOn = await tripCompanionsAvailable(db);
+  const people = companionsOn ? await listCompanions(proof, tripId) : null;
   const evidence = await listTripEvidence(proof, tripId);
   const shared = evidence.ok ? evidence.value : [];
 
@@ -150,5 +159,7 @@ export async function loadTripPage(
       .filter((a) => !onTrip.has(a.id))
       .map((a) => ({ applicantId: a.id, name: a.displayName })),
     documentOptions,
+    companionsOn,
+    companions: people?.ok ? people.value : [],
   };
 }

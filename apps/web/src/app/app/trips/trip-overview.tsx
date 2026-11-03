@@ -1,4 +1,7 @@
 import {
+  COMPANION_SHARE_LEVEL_LABELS,
+  type OrganiserCompanionStatus,
+  type OrganiserCompanionView,
   PACKAGE_PHRASE_LABELS,
   type PackagePhrase,
   TRIP_NEXT_ACTION_LABELS,
@@ -10,8 +13,10 @@ import { NextStepCard } from '../../../components/ui';
 import {
   AddTravellersForm,
   AddTripEvidenceForm,
+  RemoveCompanionForm,
   RemoveTravellerForm,
   RemoveTripEvidenceForm,
+  ResendCompanionForm,
   type TripDocumentOption,
   TripEvidenceAllowanceForm,
   type TripTravellerOption,
@@ -96,18 +101,75 @@ export interface TripSharedDocument {
   readonly allowedFor: readonly string[];
 }
 
+/** The one state word for someone travelling with the organiser. Words, never colour alone. */
+const COMPANION_STATE_WORDS: Readonly<Record<OrganiserCompanionStatus, string>> = {
+  NAME_ONLY: 'Not on VisaStack Yet',
+  INVITED: 'Invited',
+  EXPIRED: 'Invitation Expired',
+  JOINED: 'Joined',
+};
+
+/**
+ * Travelling with You: the people added by name (and email) who are not the account holder's own
+ * managed people. Only what the service returns for the organiser is shown: a name, one state
+ * word and, for someone who joined, what they chose to share. Never an address, a link or anything
+ * about an account. Rendered only when the feature is on and there is at least one person.
+ */
+function TripCompanions({
+  tripId,
+  companions,
+}: {
+  readonly tripId: string;
+  readonly companions: readonly OrganiserCompanionView[];
+}) {
+  return (
+    <section className="card trip-section" aria-labelledby="trip-companions-title">
+      <h2 id="trip-companions-title" className="card-title">
+        Travelling with You
+      </h2>
+      <ul className="trip-traveller-list">
+        {companions.map((c) => (
+          <li key={c.id} className="trip-traveller">
+            <div className="trip-traveller-head">
+              <h3 className="trip-traveller-name">{c.name}</h3>
+              <span className="badge badge-neutral">{COMPANION_STATE_WORDS[c.status]}</span>
+            </div>
+            {c.status === 'JOINED' && c.shareLevel ? (
+              <p className="muted u-fs-085 u-m-0">
+                Shares {COMPANION_SHARE_LEVEL_LABELS[c.shareLevel]}
+                {c.planStatus ? `: ${c.planStatus}` : ''}
+              </p>
+            ) : null}
+            <div className="trip-companion-actions">
+              {c.status === 'INVITED' || c.status === 'EXPIRED' ? (
+                <ResendCompanionForm tripId={tripId} companionId={c.id} name={c.name} />
+              ) : null}
+              <RemoveCompanionForm tripId={tripId} companionId={c.id} name={c.name} />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function TripOverview({
   tripId,
   travellers,
   sharedDocuments,
   addable,
   documentOptions,
+  companionsOn = false,
+  companions = [],
 }: {
   readonly tripId: string;
   readonly travellers: readonly TripTravellerCard[];
   readonly sharedDocuments: readonly TripSharedDocument[];
   readonly addable: readonly TripTravellerOption[];
   readonly documentOptions: readonly TripDocumentOption[];
+  /** Whether travelling with someone else is on. Decided on the server; off (or missing) shows nothing new. */
+  readonly companionsOn?: boolean;
+  readonly companions?: readonly OrganiserCompanionView[];
 }) {
   const next = whoNext(travellers);
   return (
@@ -170,6 +232,10 @@ export function TripOverview({
         </p>
       </section>
 
+      {companionsOn && companions.length > 0 ? (
+        <TripCompanions tripId={tripId} companions={companions} />
+      ) : null}
+
       <section className="card trip-section" aria-labelledby="trip-add-title">
         <h2 id="trip-add-title" className="card-title">
           Add Travellers
@@ -180,6 +246,7 @@ export function TripOverview({
           key={travellers.map((t) => t.applicantId).join(',')}
           tripId={tripId}
           travellers={addable}
+          companionsOn={companionsOn}
         />
         <p className="muted u-fs-085">
           Travelling with an adult who has their own VisaStack account? They start their own case

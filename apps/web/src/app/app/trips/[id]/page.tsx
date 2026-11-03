@@ -16,6 +16,10 @@ const NOTICES: Readonly<Record<string, string>> = {
   unshared: 'No longer shared across the trip. The document stays in its own place.',
   partial:
     'The trip was started, but not everyone could be added. Add the others below, or check their profile first.',
+  'added-someone': 'Added to the trip.',
+  'removed-someone': 'Removed from the trip.',
+  'partial-someone':
+    'The trip was started, but the person you added could not be added. Try Add Someone Else below.',
 };
 
 /** UMPE P5: one group trip, each traveller's readiness and their one next action. */
@@ -46,6 +50,8 @@ export default async function GroupTripPage({
         sharedDocuments={data.sharedDocuments}
         addable={data.addable}
         documentOptions={data.documentOptions}
+        companionsOn={data.companionsOn}
+        companions={data.companions}
       />
     </>
   );

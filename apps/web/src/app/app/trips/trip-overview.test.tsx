@@ -1,6 +1,7 @@
+import type { OrganiserCompanionView } from '@visastack/services';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import '../../../lib/next-mocks.test-support';
+import { renderServer } from '../../../lib/next-mocks.test-support';
 import { TripOverview, type TripTravellerCard } from './trip-overview';
 
 /** UMPE P5: the trip overview shows each traveller's own phrase and one next action. */
@@ -177,5 +178,108 @@ describe('TripOverview', () => {
     expect(html).toContain('aria-label="Use for Synthetic Cara: Hotel Booking"');
     expect(html).toMatch(/>Stop Using</);
     expect(html).toMatch(/>Use</);
+  });
+});
+
+describe('TripOverview: Travelling with You', () => {
+  const people: OrganiserCompanionView[] = [
+    { id: 'c1', name: 'Jamal Hossain', status: 'NAME_ONLY', shareLevel: null, planStatus: null },
+    { id: 'c2', name: 'Nadia Rahman', status: 'INVITED', shareLevel: null, planStatus: null },
+    { id: 'c3', name: 'Old Invite', status: 'EXPIRED', shareLevel: null, planStatus: null },
+    { id: 'c4', name: 'Sam Joined', status: 'JOINED', shareLevel: 'NAME_ONLY', planStatus: null },
+    {
+      id: 'c5',
+      name: 'Lena Planner',
+      status: 'JOINED',
+      shareLevel: 'PLAN_STATUS',
+      planStatus: 'Getting Ready',
+    },
+    {
+      id: 'c6',
+      name: 'Tariq Books',
+      status: 'JOINED',
+      shareLevel: 'TRAVEL_BOOKINGS',
+      planStatus: null,
+    },
+  ];
+  const render = (props: { companionsOn?: boolean; companions?: OrganiserCompanionView[] }) =>
+    renderServer(
+      <TripOverview
+        tripId="t1"
+        travellers={[card({})]}
+        sharedDocuments={[]}
+        addable={[]}
+        documentOptions={[]}
+        {...props}
+      />,
+    );
+  const section = (html: string) =>
+    html.slice(html.indexOf('trip-companions-title'), html.indexOf('trip-add-title'));
+
+  it('lists each person with their name and one state word', async () => {
+    const html = section(await render({ companionsOn: true, companions: people }));
+    expect(html).toContain('Travelling with You');
+    for (const person of people) expect(html).toContain(person.name);
+    expect(html).toContain('>Not on VisaStack Yet<');
+    expect(html).toContain('>Invited<');
+    expect(html).toContain('>Invitation Expired<');
+    expect(html.match(/>Joined</g)).toHaveLength(3);
+  });
+
+  it('says what a joined person shares, in a quiet word, and the one plain phrase for Plan Status', async () => {
+    const html = section(await render({ companionsOn: true, companions: people }));
+    expect(html).toContain('Shares Name Only');
+    expect(html).toContain('Shares Plan Status: Getting Ready');
+    expect(html).toContain('Shares Travel Bookings');
+    // Someone who has not joined shares nothing, so nothing is said about it.
+    expect(html.match(/Shares /g)).toHaveLength(3);
+  });
+
+  it('offers Send Again only for an invitation that has not been taken up, and Remove for everyone', async () => {
+    const html = section(await render({ companionsOn: true, companions: people }));
+    expect(html).toContain('aria-label="Send Again: Nadia Rahman"');
+    expect(html).toContain('aria-label="Send Again: Old Invite"');
+    expect(html.match(/>Send Again</g)).toHaveLength(2);
+    expect(html).not.toContain('Send Again: Jamal Hossain');
+    expect(html).not.toContain('Send Again: Sam Joined');
+    expect(html.match(/>Remove</g)).toHaveLength(people.length);
+    for (const person of people) {
+      expect(html).toContain(`aria-label="Remove: ${person.name}"`);
+    }
+  });
+
+  it('shows no email, link, token or account detail anywhere on the page, and no link in a row', async () => {
+    const html = await render({ companionsOn: true, companions: people });
+    expect(html).not.toContain('@');
+    expect(html).not.toMatch(/mailto:|token|invitation\/|accept/i);
+    expect(section(html)).not.toContain('<a ');
+    expect(section(html)).not.toContain('<a>');
+  });
+
+  it('states state in words, not colour alone, and keeps every action quiet', async () => {
+    const html = section(await render({ companionsOn: true, companions: people }));
+    expect(html.match(/class="badge badge-neutral"/g)).toHaveLength(people.length);
+    expect(html).not.toContain('btn-primary');
+    expect(html).not.toContain('style=');
+  });
+
+  it('shows nothing new while the feature is off, even with people in the list', async () => {
+    const html = await render({ companionsOn: false, companions: people });
+    expect(html).not.toContain('Travelling with You');
+    expect(html).not.toContain('Someone Else');
+    for (const person of people) expect(html).not.toContain(person.name);
+  });
+
+  it('shows no empty section when the feature is on and nobody has been added, and offers Add Someone Else', async () => {
+    const html = await render({ companionsOn: true, companions: [] });
+    expect(html).not.toContain('Travelling with You');
+    expect(html).toContain('Add Someone Else');
+  });
+
+  it('looks exactly as before when told nothing about the feature', async () => {
+    const plain = await render({});
+    const off = await render({ companionsOn: false, companions: [] });
+    expect(plain).toBe(off);
+    expect(plain).not.toContain('Someone Else');
   });
 });

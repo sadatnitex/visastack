@@ -10,6 +10,8 @@ const actions = vi.hoisted(() => ({
   addTripEvidenceAction: vi.fn(),
   removeTripEvidenceAction: vi.fn(),
   tripEvidenceAllowanceAction: vi.fn(),
+  removeCompanionAction: vi.fn(),
+  resendCompanionAction: vi.fn(),
 }));
 vi.mock('./actions', () => actions);
 const { AddTravellersForm, GroupTripStartForm } = await import('./trip-forms');
@@ -112,5 +114,137 @@ describe('Add a Family Member in the trip forms', () => {
       .map((c) => c.value);
     expect(ticked).toEqual(['p2']);
     expect(field('newName')).toBeNull();
+  });
+});
+
+describe('Add Someone Else in the trip forms', () => {
+  const openPerson = () => act(() => button('Add Someone Else')?.click());
+  const render = (companionsOn: boolean) =>
+    act(() =>
+      root.render(
+        <GroupTripStartForm
+          countries={[]}
+          purposes={[]}
+          travellers={people}
+          companionsOn={companionsOn}
+        />,
+      ),
+    );
+
+  it('is a quiet button next to Add a Family Member, closed by default, and a closed section sends nothing', () => {
+    render(true);
+    const toggle = button('Add Someone Else');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle?.className).toContain('btn-secondary');
+    expect(button('Add a Family Member')).toBeDefined();
+    expect(field('newPersonName')).toBeNull();
+    expect(field('newPersonEmail')).toBeNull();
+  });
+
+  it('does not render at all while the feature is off, and the family member button is unchanged', () => {
+    render(false);
+    expect(button('Add Someone Else')).toBeUndefined();
+    expect(container.textContent).not.toContain('Someone Else');
+    expect(button('Add a Family Member')).toBeDefined();
+  });
+
+  it('does not render when the page gives no answer (off by default)', () => {
+    act(() => root.render(<GroupTripStartForm countries={[]} purposes={[]} travellers={people} />));
+    expect(button('Add Someone Else')).toBeUndefined();
+  });
+
+  it('opens to a required name and an optional email, with one line of hint', () => {
+    render(true);
+    openPerson();
+    const name = field('newPersonName');
+    const email = field('newPersonEmail');
+    expect(name?.required).toBe(true);
+    expect(name?.maxLength).toBe(120);
+    expect(email?.type).toBe('email');
+    expect(email?.required).toBe(false);
+    expect(email?.autocomplete).toBe('off');
+    expect(container.textContent).toContain(
+      'They are invited to join and choose what to share with you.',
+    );
+    // Nothing of the family member section is open.
+    expect(field('newName')).toBeNull();
+  });
+
+  it('names its fields for a screen reader and ties the hint to both', () => {
+    render(true);
+    openPerson();
+    const name = field('newPersonName');
+    const email = field('newPersonEmail');
+    expect(container.querySelector(`label[for="${name?.id}"]`)?.textContent).toBe('Name');
+    expect(container.querySelector(`label[for="${email?.id}"]`)?.textContent).toBe('Email');
+    expect(container.querySelector('.trip-member-fields legend')?.textContent).toBe(
+      'Add Someone Else',
+    );
+    const hintId = name?.getAttribute('aria-describedby') ?? '';
+    expect(container.querySelector(`[id="${hintId}"]`)?.textContent).toContain(
+      'They are invited to join',
+    );
+    expect(email?.getAttribute('aria-describedby')).toBe(hintId);
+  });
+
+  it('moves focus to the name when it opens, and back to its button on Cancel', () => {
+    render(true);
+    openPerson();
+    expect(document.activeElement).toBe(field('newPersonName'));
+    act(() => button('Cancel')?.click());
+    expect(document.activeElement).toBe(button('Add Someone Else'));
+    expect(field('newPersonName')).toBeNull();
+  });
+
+  it('can be open together with Add a Family Member, each with its own Cancel', () => {
+    render(true);
+    open();
+    openPerson();
+    expect(field('newName')).not.toBeNull();
+    expect(field('newPersonName')).not.toBeNull();
+    const cancels = [...container.querySelectorAll('button')].filter(
+      (b) => b.textContent === 'Cancel',
+    );
+    expect(cancels).toHaveLength(2);
+  });
+
+  it('marks the email as the problem, as the action says, and puts focus there', async () => {
+    actions.addTravellersAction.mockResolvedValue({
+      ok: false,
+      message: 'You have already added someone with that email to this trip.',
+      field: 'newPersonEmail',
+    });
+    act(() => root.render(<AddTravellersForm tripId="t1" travellers={people} companionsOn />));
+    openPerson();
+    const name = field('newPersonName');
+    const email = field('newPersonEmail');
+    if (!name || !email) throw new Error('fields');
+    name.value = 'Nadia Rahman';
+    email.value = 'friend@example.com';
+    await act(async () => {
+      container.querySelector('form')?.requestSubmit();
+    });
+    expect(actions.addTravellersAction).toHaveBeenCalledTimes(1);
+    expect(field('newPersonEmail')?.getAttribute('aria-invalid')).toBe('true');
+    expect(field('newPersonName')?.getAttribute('aria-invalid')).toBeNull();
+    expect(container.textContent).toContain(
+      'You have already added someone with that email to this trip.',
+    );
+    expect(document.activeElement).toBe(field('newPersonEmail'));
+  });
+
+  it('on a trip where everyone is already added, the one button names what is being added', () => {
+    act(() => root.render(<AddTravellersForm tripId="t1" travellers={[]} companionsOn />));
+    expect(container.querySelector('button[type="submit"]')).toBeNull();
+    openPerson();
+    expect(container.querySelector('button[type="submit"]')?.textContent).toBe('Add Someone Else');
+    open();
+    expect(container.querySelector('button[type="submit"]')?.textContent).toBe('Add People');
+  });
+
+  it('on that trip with the feature off, nothing about someone else appears', () => {
+    act(() => root.render(<AddTravellersForm tripId="t1" travellers={[]} companionsOn={false} />));
+    expect(container.textContent).not.toContain('Someone Else');
+    expect(button('Add a Family Member')).toBeDefined();
   });
 });

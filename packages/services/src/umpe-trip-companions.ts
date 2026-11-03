@@ -127,7 +127,9 @@ export interface CompanionTripView {
   readonly moreTravelling: number;
 }
 
-const NOT_SWITCHED_ON = 'Travelling with someone else is not switched on yet.';
+/** What every companion writer says while the switch is off or the table is missing. */
+export const COMPANION_NOT_SWITCHED_ON = 'Travelling with someone else is not switched on yet.';
+const NOT_SWITCHED_ON = COMPANION_NOT_SWITCHED_ON;
 const PERSON_NOT_AVAILABLE = 'That person is not on this trip.';
 const TRIP_NOT_AVAILABLE = 'That trip is not available.';
 const INVITE_RATE_LIMITED = 'Too many invitations in a short time. Please try again later.';
@@ -154,6 +156,10 @@ function cleanName(raw: string): string | null {
 }
 
 const NAME_PROBLEM = 'Enter a name of up to 120 characters.';
+
+/** The same name rule and wording, for a screen that checks before it makes anything else. */
+export const COMPANION_NAME_PROBLEM = NAME_PROBLEM;
+export const cleanCompanionName = cleanName;
 
 /** The address as stored (lower case), or null when it is not an address. */
 function cleanEmail(raw: string): string | null {

@@ -2743,8 +2743,13 @@ export {
 } from './access/trip-companion-access';
 export { TRIP_COMPANIONS_SWITCH, tripCompanionsEnabled } from './umpe-trip-companions-switch';
 export { tripCompanionsTablePresent as tripCompanionsReady } from './umpe-trip-companion-tables';
+/** The switch is on and the table exists: the one readiness rule the organiser screens use. */
+export { companionsReady as tripCompanionsAvailable } from './access/trip-companion-access';
+export { isEmailAddress } from './email-address';
 export {
   COMPANION_INVITATION_DAYS,
+  COMPANION_NAME_PROBLEM,
+  COMPANION_NOT_SWITCHED_ON,
   COMPANION_SHARE_LEVELS,
   COMPANION_SHARE_LEVEL_LABELS,
   TRIP_MAX_COMPANIONS,
@@ -2758,6 +2763,7 @@ export {
   type OrganiserCompanionView,
   acceptCompanionInvitation,
   addCompanion,
+  cleanCompanionName,
   companionPlanStatusPhrase,
   declineCompanionInvitation,
   getCompanionTrip,
