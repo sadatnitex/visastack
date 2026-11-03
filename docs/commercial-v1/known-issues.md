@@ -7283,3 +7283,9 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Lead: integration branch from the W4 head (main's tree recorded with an ours-merge, content identical); G2's migration already matched the schema (drizzle-kit reported no changes) and stays 0128; G4 regenerated as 0129 with the lane's reviewed SQL (every generated statement present).
 - Not covered: photos with no text layer and an unknown kind stay Unknown Type until the person names them (no AI image reading while unknown kinds are protected); the person-initiated Suggest a Kind button still sends the full text; Change on an automatic filing is refused once the document is used anywhere.
 - AGENCY_COLLECTION_REQUESTS switched on in production at the owner's word (see current-platform.md update of 3 November 2026).
+
+## 2026-11-03: UMPE P14 final verification (journeys J1 to J8)
+- New: one journey test file per journey under packages/services/src/umpe-journeys/ (65 tests on the real services and a migrated test database, made-up data, stand-ins for AI, email, storage and time), the 80-file import queue journey (apps/web/src/lib/umpe-journey-j1-import-queue.test.ts, 4 tests) and signed-out collection desk browser checks (apps/web/e2e/umpe-collect.spec.ts, 6 tests, both switch states). No product code changed; no defect found.
+- Ledger: 81 TESTED, 3 IMPLEMENTED (U02, U03, U04, with reasons), 2 BLOCKED (owner), 1 CONTENT. Seven rows named a missing test file and now name umpe-g2-rules.test.ts.
+- Not covered: a resolved fact conflict changing a package (no service links the two); live sign-in, email delivery, AI provider, malware scanner, the scheduler on the live site, measured speed and AI cost. The source job runs daily in vercel.json and limits itself to one run per Dhaka week.
+- Verdict: FEATURE COMPLETE IN TEST (report docs/umpe/operations/P14-VERIFICATION.md).
