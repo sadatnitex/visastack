@@ -182,6 +182,15 @@ export const RATE_LIMITS = {
   REDACTION_SAVE: { limit: 60, windowMs: HOUR_MS },
   // Each saved set of boxes is drawn once, one call per page (up to 20); a few saves an hour.
   SAFE_COPY_PREPARE: { limit: 300, windowMs: HOUR_MS },
+  // Travelling with someone else (UMPE UX6). Adding a person by email, per organiser; the same
+  // address (kept only as a hash) may be written to a few times a day by anyone together, resends
+  // included; resending an invitation is bounded per trip; and trying invitation links (preview,
+  // accept, decline) is bounded per signed-in account. None of these differ by whether an address
+  // has an account.
+  COMPANION_INVITE: { limit: 30, windowMs: HOUR_MS },
+  COMPANION_INVITE_EMAIL_DAY: { limit: 5, windowMs: 24 * HOUR_MS },
+  COMPANION_RESEND_TRIP: { limit: 10, windowMs: HOUR_MS },
+  COMPANION_ACCEPT_ACCOUNT: { limit: 30, windowMs: HOUR_MS },
 } as const satisfies Record<string, RateLimitConfig>;
 
 export type RateLimitDecision =

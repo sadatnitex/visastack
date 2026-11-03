@@ -6315,6 +6315,77 @@ export const umpeTripEvidenceAllowances = pgTable(
   ],
 );
 
+// --- Travelling with someone else (UMPE UX6, companions) --------------------------------------
+// A companion is a person who is not one of the organiser's own managed people: a friend or
+// colleague added by name and an optional email. There is deliberately no applicant, no account and
+// no case behind a row until the person accepts (ADR 0026 D5, no shadow applicant), and even then a
+// joined companion never becomes a traveller on the trip. Only the hash of an invitation token is
+// kept. The token exists only while the row is INVITED (see the check below). A row that ended
+// (declined, removed, left) has its email and token cleared by the service.
+export const umpeTripCompanions = pgTable(
+  'umpe_trip_companions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tripId: uuid('trip_id')
+      .notNull()
+      .references(() => umpeTrips.id, { onDelete: 'cascade' }),
+    /** The name the organiser typed, until the companion confirms or changes it on accepting. */
+    displayName: text('display_name').notNull(),
+    /** Lower-cased. Never shown to anyone but the person it belongs to. */
+    email: text('email'),
+    state: text('state').notNull(),
+    /** What the companion lets the organiser see: only the companion can change it. */
+    shareLevel: text('share_level').notNull().default('NAME_ONLY'),
+    tokenHash: text('token_hash').unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    // A companion who deletes their account takes their row (their email and confirmed name) with it.
+    joinedAccountId: uuid('joined_account_id').references(() => accounts.id, {
+      onDelete: 'cascade',
+    }),
+    invitedByAccountId: uuid('invited_by_account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    /** The companion's own case for this trip, set later when they plan one; never the organiser's. */
+    ownMissionId: uuid('own_mission_id').references(() => missions.id, { onDelete: 'set null' }),
+    ...timestamps,
+  },
+  (table) => [
+    index('umpe_trip_companions_trip_idx').on(table.tripId),
+    index('umpe_trip_companions_joined_account_idx').on(table.joinedAccountId),
+    index('umpe_trip_companions_invited_by_idx').on(table.invitedByAccountId),
+    index('umpe_trip_companions_own_mission_idx').on(table.ownMissionId),
+    index('umpe_trip_companions_invited_email_idx')
+      .on(table.email)
+      .where(sql`${table.state} = 'INVITED'`),
+    uniqueIndex('umpe_trip_companions_joined_account_live')
+      .on(table.tripId, table.joinedAccountId)
+      .where(sql`${table.state} = 'JOINED'`),
+    uniqueIndex('umpe_trip_companions_live_email')
+      .on(table.tripId, table.email)
+      .where(sql`${table.state} in ('INVITED', 'JOINED') and ${table.email} is not null`),
+    check(
+      'umpe_trip_companions_name_cap',
+      sql`char_length(${table.displayName}) between 1 and 120`,
+    ),
+    check(
+      'umpe_trip_companions_email_shape',
+      sql`${table.email} is null or (char_length(${table.email}) between 3 and 254 and ${table.email} = lower(${table.email}))`,
+    ),
+    check(
+      'umpe_trip_companions_state_known',
+      sql`${table.state} in ('NAME_ONLY', 'INVITED', 'JOINED', 'DECLINED', 'REMOVED', 'LEFT')`,
+    ),
+    check(
+      'umpe_trip_companions_share_level_known',
+      sql`${table.shareLevel} in ('NAME_ONLY', 'PLAN_STATUS', 'TRAVEL_BOOKINGS')`,
+    ),
+    check(
+      'umpe_trip_companions_token_only_when_invited',
+      sql`(${table.state} = 'INVITED' and ${table.tokenHash} is not null and ${table.expiresAt} is not null) or (${table.state} <> 'INVITED' and ${table.tokenHash} is null)`,
+    ),
+  ],
+);
+
 // --- Checklist corrections and published-rule change impact (UMPE P11, S06 and S07) -----------
 // A suggestion is moderated input for pack editors, never a rule: nothing here edits a pack, a
 // case, a handoff or an issued agency revision. The submitter's account is kept only for the

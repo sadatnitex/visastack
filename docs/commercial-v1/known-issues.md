@@ -7341,3 +7341,11 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - The Add Documents page now shows, above the drop area, "We Found N Details to Check" with one Review button when details were read, and "N Files Need One Answer" for files waiting. The panel's own two after-import buttons are off on this page so there is one next step (files sent to several people still offer Choose Which Person). Wording: "Drop Files or a Folder Here", "Choose Files", "Your Files". Read-only; no rule changed. Code review high: 6 findings, fixed.
 - Part C (review and finish) is not built. Not verified: a real phone, a screen reader, dark appearance, the live flow.
 
+## 2026-11-03: UMPE UX6 package 1 (companions: table, service, access gate; migration 0130 written, not run)
+
+- Owner decisions (3 Nov 2026): family members never named to companions, adults only, 20 per trip, 7-day invitations, "Plan My Own Case" as the result of joining, and the companion chooses how much the organiser sees (Name Only, Plan Status, Travel Bookings).
+- Built (services and database only; no screens, no email yet): `umpe_trip_companions` (additive migration 0130, re-runnable; no accounts or applicants row for a companion), hashed single-use invitations that look the same whatever the address, `TripCompanionAccess` (a run-time-checked proof that reads only the trip basics; callers restricted by a ratchet), three companion-chosen share levels, rate limits, audit. A companion who deletes their account takes their row with it.
+- Reviews: helper built it with proven-red guards; `/code-review max`: 11 findings, 10 fixed, 1 explained. Hand-backs: `docs/umpe/operations/handoffs/UX6-P1.md`.
+- The migration has NOT been run anywhere. It needs the owner's word "migrate 0130" for that run, after this merges. The code tolerates the table being missing and the switch `UMPE_TRIP_COMPANIONS_ENABLED` is off by default.
+- Not verified: Neon (PGlite only), a parallel double-accept, anything in the web layer. Packages 2 to 4 (organiser forms, email and accept page, companion page and Plan My Own Case) are not built.
+

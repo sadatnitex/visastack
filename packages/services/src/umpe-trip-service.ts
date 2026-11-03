@@ -134,7 +134,7 @@ type Trip = typeof schema.umpeTrips.$inferSelect;
  * The account holder behind a genuine owner proof, or a refusal. A proof issued to anyone else (a
  * grant recipient, an agency member, support) never reaches a trip.
  */
-function ownerAccountOf<A extends 'VIEW_METADATA' | 'MANAGE'>(
+export function ownerAccountOf<A extends 'VIEW_METADATA' | 'MANAGE'>(
   proof: AuthorizedApplicant<A>,
   action: A,
 ): Result<string, ServiceError> {
