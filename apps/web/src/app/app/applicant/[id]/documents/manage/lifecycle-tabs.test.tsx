@@ -40,4 +40,10 @@ describe('LifecycleTabs', () => {
     expect(lifecycleTabOf('everything')).toBe('current');
     expect(lifecycleTabOf(['archived'])).toBe('current');
   });
+  it('draws every tab as a tab, not a sentence link: none is underlined', () => {
+    const markup = html({ archivedCount: 2, deletedCount: 1, removalRecordsHref: '/records' });
+    const links = markup.match(/<a [^>]*class="lc-tab[^"]*"/g) ?? [];
+    expect(links).toHaveLength(4);
+    for (const link of links) expect(link).toContain('plain-link');
+  });
 });
