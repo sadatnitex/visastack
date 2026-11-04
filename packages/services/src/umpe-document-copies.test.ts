@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto';
 import { isErr, isOk } from '@visastack/core';
+import { resolveDocumentType } from '@visastack/core/catalogue';
 import { schema } from '@visastack/db';
 import { and, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Db } from './db';
+import { enqueueErasureJob } from './erasure';
 import {
   JOURNEY_TIMEOUT,
   MemoryBlobStore,
@@ -21,6 +23,7 @@ import {
   isSharedBetweenPeopleKind,
   listCopyPeople,
 } from './umpe-document-copies';
+import { sweepAbandonedUploads } from './uploads';
 
 const BYTES = new Uint8Array(10);
 const SHA = createHash('sha256').update(BYTES).digest('hex');
@@ -55,6 +58,14 @@ const certificate = (
 
 const documentsOf = (applicantId: string) =>
   db.select().from(schema.documents).where(eq(schema.documents.applicantId, applicantId));
+
+describe('the kinds that belong to two people', () => {
+  it('are real catalogue kinds, named by their own key', () => {
+    for (const kind of SHARED_BETWEEN_PEOPLE_KINDS) {
+      expect(resolveDocumentType(kind)?.key).toBe(kind);
+    }
+  });
+});
 
 describe('which documents belong to two people', () => {
   it('names a marriage certificate, a joint account statement and a family register, and nothing else', () => {
@@ -319,5 +330,164 @@ describe('keeping a copy under another person', () => {
     // Only the original's bytes remain: the half-made copy is removed.
     expect(store.objects.size).toBe(1);
     expect(await documentsOf(wife.applicantId)).toHaveLength(0);
+  });
+});
+
+describe('which documents and people a copy is refused for', () => {
+  const asOwner = async (who: { accountId: string; applicantId: string }) => ownerProof(db, who);
+  const copy = async (
+    from: { accountId: string; applicantId: string },
+    to: { accountId: string; applicantId: string },
+    documentId: string,
+    quotaConfig?: ReturnType<typeof loadUploadQuotaConfig>,
+  ) =>
+    copyDocumentToPerson(
+      await asOwner(from),
+      await asOwner(to),
+      { storage: store, ...(quotaConfig ? { quotaConfig } : {}) },
+      { documentId },
+    );
+
+  it('refuses a file handed in for one case only, and one that was replaced by a newer document', async () => {
+    const { husband, wife } = await couple();
+    const caseOnly = await certificate(husband);
+    await db
+      .update(schema.documents)
+      .set({ walletVisible: false })
+      .where(eq(schema.documents.id, caseOnly.documentId));
+    const first = await copy(husband, wife, caseOnly.documentId);
+    expect(isErr(first) && first.error.message).toContain('handed in for one case only');
+
+    const older = await certificate(husband, { sha: 'f'.repeat(64) });
+    const newer = await certificate(husband, { sha: 'd'.repeat(64) });
+    await db
+      .update(schema.documents)
+      .set({ supersededByDocumentId: newer.documentId })
+      .where(eq(schema.documents.id, older.documentId));
+    const second = await copy(husband, wife, older.documentId);
+    expect(isErr(second) && second.error.message).toContain('replaced by a newer one');
+    expect(await documentsOf(wife.applicantId)).toHaveLength(0);
+  });
+
+  it('refuses a file that is being erased, one that did not pass its checks, and one still being checked', async () => {
+    const { husband, wife } = await couple();
+    const erasing = await certificate(husband);
+    const [object] = await db
+      .select({ id: schema.storageObjects.id })
+      .from(schema.storageObjects)
+      .where(eq(schema.storageObjects.objectKey, erasing.objectKey));
+    await enqueueErasureJob(db, {
+      reason: 'RETENTION_PURGE',
+      bucket: 'CLEAN',
+      objectKey: erasing.objectKey,
+      expectedHash: SHA,
+      storageObjectId: object?.id ?? '',
+      documentId: erasing.documentId,
+      applicantId: husband.applicantId,
+    });
+    const first = await copy(husband, wife, erasing.documentId);
+    expect(isErr(first) && first.error.message).toContain('is being removed');
+
+    const failed = await certificate(husband, { sha: 'c'.repeat(64) });
+    await db
+      .update(schema.documentVersions)
+      .set({ safetyStatus: 'QUARANTINED' })
+      .where(eq(schema.documentVersions.id, failed.versionId));
+    const second = await copy(husband, wife, failed.documentId);
+    expect(isErr(second) && second.error.message).toContain('did not pass its checks');
+
+    const checking = await certificate(husband, { sha: 'b'.repeat(64), ready: false });
+    const third = await copy(husband, wife, checking.documentId);
+    expect(isErr(third) && third.error.message).toContain('still being checked for safety');
+    expect(await documentsOf(wife.applicantId)).toHaveLength(0);
+    expect(store.objects.size).toBe(3);
+  });
+
+  it('counts an archived copy as held, so the person restores it instead of getting two', async () => {
+    const { husband, wife } = await couple();
+    const original = await certificate(husband);
+    const made = await copy(husband, wife, original.documentId);
+    expect(isOk(made)).toBe(true);
+    if (!isOk(made)) return;
+    await db.insert(schema.documentLifecycle).values({
+      documentId: made.value.documentId,
+      applicantId: wife.applicantId,
+      archivedAt: new Date(),
+      archivedByAccountId: husband.accountId,
+    });
+    const again = await copy(husband, wife, original.documentId);
+    expect(isErr(again) && again.error.message).toBe('Salma Sadat already has this document.');
+    expect(await documentsOf(wife.applicantId)).toHaveLength(1);
+  });
+
+  it('carries what the person recorded about the document, and no name into the log', async () => {
+    const { husband, wife } = await couple();
+    const original = await certificate(husband);
+    await db
+      .update(schema.documents)
+      .set({ issuer: 'City Registrar', documentDate: '2019-05-17', subject: 'Nikah' })
+      .where(eq(schema.documents.id, original.documentId));
+    const made = await copy(husband, wife, original.documentId);
+    expect(isOk(made)).toBe(true);
+    const [theirs] = await documentsOf(wife.applicantId);
+    expect(theirs).toMatchObject({
+      issuer: 'City Registrar',
+      documentDate: '2019-05-17',
+      subject: 'Nikah',
+    });
+    const [event] = await auditEventsOf(db, 'DOCUMENT_COPIED_TO_PERSON');
+    expect(JSON.stringify(event)).not.toContain('Nazmus');
+    expect(JSON.stringify(event)).not.toContain('Salma');
+  });
+
+  it('says whose space is full, in plain words, and reads no file for it', async () => {
+    const { husband, wife } = await couple();
+    const original = await certificate(husband);
+    let reads = 0;
+    const read = store.getObject.bind(store);
+    store.getObject = async (key: string) => {
+      reads += 1;
+      return read(key);
+    };
+    const result = await copy(husband, wife, original.documentId, {
+      ...loadUploadQuotaConfig(),
+      maxApplicantEvidenceBytes: 5,
+    });
+    expect(isErr(result) && result.error.message).toBe(
+      'Salma Sadat has no room left for another document. Remove one that is not needed, or ask us about a larger plan.',
+    );
+    expect(reads).toBe(0);
+  });
+
+  it('offers only people in use: not someone archived', async () => {
+    const { husband, wife } = await couple();
+    const third = await addTraveller(db, husband.accountId, {
+      relationship: 'FAMILY_MEMBER',
+      displayName: 'Nila Sadat',
+    });
+    await db.insert(schema.applicantLifecycle).values({
+      applicantId: third,
+      archivedAt: new Date(),
+      archivedByAccountId: husband.accountId,
+    });
+    expect(
+      (await listCopyPeople(await ownerProof(db, husband, 'VIEW_METADATA'))).map(
+        (person) => person.applicantId,
+      ),
+    ).toEqual([wife.applicantId]);
+  });
+
+  it('is never undone by the daily cleanup of abandoned uploads', async () => {
+    const { husband, wife } = await couple();
+    const original = await certificate(husband);
+    const made = await copy(husband, wife, original.documentId);
+    expect(isOk(made)).toBe(true);
+    // The space reservation is closed with the copy, so even a long-aged one is not abandoned.
+    await db
+      .update(schema.uploadIntents)
+      .set({ expiresAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000) });
+    await sweepAbandonedUploads(db, store);
+    expect(store.objects.size).toBe(2);
+    expect(await documentsOf(wife.applicantId)).toHaveLength(1);
   });
 });

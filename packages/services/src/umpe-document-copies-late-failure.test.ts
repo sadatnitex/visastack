@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { isOk } from '@visastack/core';
+import { isErr } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,8 +13,8 @@ import {
   uploadDocument,
 } from './lifecycle/integration/journey-helpers.test-support';
 
-// Counting the space for the copy is the last step. When it fails, the copy that already exists
-// must stay exactly as it is: its stored bytes are never deleted by a failure that came after it.
+// Closing the space reservation is part of the one transaction that makes the copy. When it fails,
+// the whole copy is undone: no document, no stored bytes, no space held, and a plain answer.
 vi.mock('./uploads', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./uploads')>()),
   finalizeUpload: vi.fn(async () => {
@@ -32,8 +32,8 @@ beforeEach(async () => {
   db = (await freshJourneyDb()).db;
 });
 
-describe('a failure after the copy exists', () => {
-  it('leaves the copy and its stored bytes alone and still reports the copy as kept', async () => {
+describe('a failure while the copy is being made', () => {
+  it('undoes the whole copy: no document, no stored copy, no space held', async () => {
     const store = new MemoryBlobStore();
     const husband = await seedOwner(db, 'late@example.invalid', { displayName: 'Nazmus Sadat' });
     const wife = {
@@ -55,13 +55,27 @@ describe('a failure after the copy exists', () => {
       { storage: store },
       { documentId: original.documentId },
     );
-    expect(isOk(result)).toBe(true);
-    const copies = await db
-      .select()
-      .from(schema.documents)
-      .where(eq(schema.documents.applicantId, wife.applicantId));
-    expect(copies).toHaveLength(1);
-    // Both stored files are still there: the original and the copy's own.
-    expect(store.objects.size).toBe(2);
+    expect(isErr(result) && result.error.message).toBe(
+      'The copy could not be made. Try again in a minute.',
+    );
+    expect(
+      await db
+        .select()
+        .from(schema.documents)
+        .where(eq(schema.documents.applicantId, wife.applicantId)),
+    ).toHaveLength(0);
+    // Only the original's stored file remains, and no reservation is left holding space.
+    expect(store.objects.size).toBe(1);
+    const intents = await db
+      .select({ status: schema.uploadIntents.status })
+      .from(schema.uploadIntents)
+      .where(eq(schema.uploadIntents.applicantId, wife.applicantId));
+    expect(intents.every((intent) => intent.status === 'FAILED')).toBe(true);
+    // The failure reason written for the log is fixed text, never a name.
+    const [reason] = await db
+      .select({ reason: schema.uploadIntents.failureReason })
+      .from(schema.uploadIntents)
+      .where(eq(schema.uploadIntents.applicantId, wife.applicantId));
+    expect(reason?.reason).toBe('copy failed');
   });
 });

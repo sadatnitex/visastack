@@ -1,5 +1,5 @@
 import { AI_FEATURE_LIMIT_HINT, AI_FEATURE_OFF_HINT } from '@visastack/core/ai-features';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, stub, stubProps, textOf } from '../../../../../lib/next-mocks.test-support';
 
 const mocks = vi.hoisted(() => ({
@@ -41,6 +41,9 @@ const mocks = vi.hoisted(() => ({
     }),
   ),
   availableDocumentActions: vi.fn((_view: unknown): string[] => []),
+  listCopyPeople: vi.fn(
+    async (): Promise<Array<{ applicantId: string; displayName: string }>> => [],
+  ),
   /** The Manage registry as lanes will fill it: empty unless a test registers an action. */
   registry: {} as Record<string, { label: string; Component: () => null }>,
 }));
@@ -83,6 +86,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   getDocumentLifecycles: mocks.getDocumentLifecycles,
   listDeletionReceipts: mocks.listDeletionReceipts,
   availableDocumentActions: mocks.availableDocumentActions,
+  listCopyPeople: mocks.listCopyPeople,
 }));
 vi.mock('../../../../../lib/ai', () => ({
   isClassificationConfigured: async () => false,
@@ -771,6 +775,74 @@ describe('archive, Recently Deleted and the Manage menu (resource lifecycle, mig
     mocks.listDocumentsDetailed.mockResolvedValue({
       ok: true,
       value: [doc('kept', 'APPROVED'), doc('shelved', 'APPROVED'), doc('binned', 'APPROVED')],
+    });
+  });
+
+  describe('a copy under another person', () => {
+    const certificate = () => ({ ...doc('cert', 'APPROVED'), docType: 'MARRIAGE_CERTIFICATE' });
+    const passport = () => ({ ...doc('pass', 'APPROVED'), docType: 'PASSPORT' });
+    afterEach(() => {
+      // Put back what these tests changed, so no later test starts with the tables present.
+      mocks.lifecycleTablesPresent.mockResolvedValue(false);
+      mocks.getDocumentLifecycles.mockResolvedValue(new Map());
+      mocks.listCopyPeople.mockReset();
+      mocks.listCopyPeople.mockResolvedValue([]);
+    });
+    beforeEach(() => {
+      mocks.registry = {
+        KEEP_COPY_FOR_PERSON: {
+          label: 'Also Keep a Copy for Another Person',
+          Component: () => null,
+        },
+      };
+      mocks.lifecycleTablesPresent.mockResolvedValue(true);
+      mocks.getDocumentLifecycles.mockResolvedValue(
+        new Map([
+          ['cert', state('CURRENT')],
+          ['pass', state('CURRENT')],
+        ]),
+      );
+    });
+
+    it('is offered only on a document that belongs to two people, to an account with someone else', async () => {
+      mocks.listCopyPeople.mockResolvedValue([{ applicantId: 'a2', displayName: 'Salma Sadat' }]);
+      mocks.listDocumentsDetailed.mockResolvedValue({
+        ok: true,
+        value: [certificate(), passport()],
+      });
+      const menus = stubProps<{
+        documentId: string;
+        actions: string[];
+        copyPeople?: Array<{ id: string; name: string }>;
+      }>(await render(), 'ManageMenu');
+      expect(menus).toHaveLength(1);
+      expect(menus[0]).toMatchObject({
+        documentId: 'cert',
+        actions: ['KEEP_COPY_FOR_PERSON'],
+        copyPeople: [{ id: 'a2', name: 'Salma Sadat' }],
+      });
+    });
+
+    it('is not offered when the account has no one else, and the list is not read when no document needs it', async () => {
+      mocks.listCopyPeople.mockResolvedValue([]);
+      mocks.listDocumentsDetailed.mockResolvedValue({
+        ok: true,
+        value: [certificate(), passport()],
+      });
+      expect(stubProps(await render(), 'ManageMenu')).toEqual([]);
+
+      mocks.listCopyPeople.mockClear();
+      mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [passport()] });
+      expect(stubProps(await render(), 'ManageMenu')).toEqual([]);
+      expect(mocks.listCopyPeople).not.toHaveBeenCalled();
+    });
+
+    it('still shows the page when the list of people cannot be read', async () => {
+      mocks.listCopyPeople.mockRejectedValue(new Error('database unavailable'));
+      mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [certificate()] });
+      const html = await render();
+      expect(textOf(html)).toContain('cert.pdf');
+      expect(stubProps(html, 'ManageMenu')).toEqual([]);
     });
   });
 
