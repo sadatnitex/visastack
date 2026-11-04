@@ -60,7 +60,7 @@ export function packNoticeLine(notice: PinnedPackNotice | null): string | null {
  * is recorded, so each line names a gap that makes a pack invisible to cases, never a guess.
  */
 export const PACK_MATCHING_HELP =
-  "A case finds a pack by the country it travels to, its purpose, and the traveller's nationality and country of residence when the pack lists them. A pack that names an embassy or visa centre or travel dates is matched on those too. Only a pack marked authoritative is ever found or picked by travellers.";
+  "A case finds a pack by the country it travels to, its purpose, and the traveller's nationality and country of residence when the pack lists them. A pack that names an embassy or visa centre or travel dates is matched on those too. A pack marked authoritative is found by any case; an agency's own checklist is offered only to that agency's cases.";
 
 /** Gaps in how a pack is set up that keep cases from finding it. Empty when it can be found. */
 export function packMatchingGaps(pack: {
@@ -80,10 +80,12 @@ export function packMatchingGaps(pack: {
     );
   }
   if (!pack.jurisdiction?.trim()) {
-    gaps.push('No destination country is set, so cases never find this pack.');
+    gaps.push(
+      'No destination country is set, so a case that names where it travels never finds this pack.',
+    );
   }
   if (!pack.purpose?.trim()) {
-    gaps.push('No purpose is set, so cases never find this pack.');
+    gaps.push('No purpose is set, so a case that names its purpose never finds this pack.');
   }
   if (pack.route?.trim()) {
     gaps.push(
@@ -102,6 +104,9 @@ export function reviewOverdueLine(
     ? `Review overdue since ${dateWords(nextReviewDate)}. Cases that hold this version keep it.`
     : null;
 }
+
+/** Shown in place of "no checklist" when the page could not look checklists up. Promises nothing. */
+export const CHECKLISTS_NOT_LOADED = 'Checklists could not be loaded right now.';
 
 const REASON_WORDS: Readonly<Record<Exclude<NoPackReason, 'NO_REVIEWED_CHECKLIST'>, string>> = {
   OTHER_NATIONALITY: 'travellers of other nationalities',

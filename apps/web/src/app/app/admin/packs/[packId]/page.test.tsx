@@ -242,7 +242,7 @@ describe('Platform > Rules > one pack: how cases find it (VS-006)', () => {
     expect(text).toContain('How Cases Find This Pack');
     expect(text).toContain('For travel to United Kingdom · Tourism');
     expect(text).toContain('A case finds a pack by the country it travels to');
-    expect(text).not.toContain('never find this pack');
+    expect(text).not.toContain('never finds this pack');
     expect(text).not.toContain('Not marked authoritative');
   });
 
@@ -257,7 +257,9 @@ describe('Platform > Rules > one pack: how cases find it (VS-006)', () => {
     });
     const text = textOf(await render());
     expect(text).toContain('Not marked authoritative, so cases do not find it');
-    expect(text).toContain('No destination country is set');
+    expect(text).toContain(
+      'No destination country is set, so a case that names where it travels never finds this pack',
+    );
     expect(text).toContain('No purpose is set');
     expect(text).toContain('is never linked on its own');
   });

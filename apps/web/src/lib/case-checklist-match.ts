@@ -123,19 +123,29 @@ export async function selectableChecklists(
   let lookupFailed = false;
   if (route) {
     try {
-      fitting = await checklistsToPick(db, { accountId, missionId: mission.id, ...route });
+      const terms = await termsFor(db, { accountId, missionId: mission.id, ...route });
+      // A refused gate means the case's details could not be read: never "nothing fits".
+      if (terms) fitting = await listFittingPublicPacks(db, terms);
+      else lookupFailed = true;
     } catch (error) {
       reportServerError('MissionPage', error, { step: 'selectable checklists' });
-      fitting = [];
       lookupFailed = true;
     }
+    // Without a fit, no public checklist is offered rather than every one.
+    if (lookupFailed) fitting = [];
   }
   const listed = await listSelectablePackVersions(db, {
     actorAccountId: accountId,
     missionId: mission.id,
     ...(fitting ? { fitting } : {}),
   });
-  return { options: listed.ok ? listed.value : [], fitting, lookupFailed };
+  if (!listed.ok) {
+    reportServerError('MissionPage', new Error(listed.error.code), {
+      step: 'list selectable checklists',
+    });
+    return { options: [], fitting, lookupFailed: true };
+  }
+  return { options: listed.value, fitting, lookupFailed };
 }
 
 /** What a person may pick for a case, and the fit it was worked out from. */
@@ -143,7 +153,11 @@ export interface SelectableChecklists {
   readonly options: readonly SelectablePackVersion[];
   /** The reviewed public checklists that fit the case's route; null when the case names no route. */
   readonly fitting: readonly PackMatch[] | null;
-  /** True when the fit could not be worked out (then no public checklist is offered). */
+  /**
+   * True when the checklists could not be looked up (a failed read, or the case's details could
+   * not be read). Then no public checklist is offered, and the page says it could not load them
+   * instead of saying none exists.
+   */
   readonly lookupFailed: boolean;
 }
 

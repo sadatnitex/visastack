@@ -27,8 +27,13 @@ describe('CreatePackForm', () => {
   it('says which details decide whether a case finds the pack', () => {
     expect(html).toContain('A case finds a pack by the country it travels to');
     expect(html).toContain('authoritative');
-    expect(html).toContain('Without it, cases never find this pack.');
-    expect(html).not.toContain('Purpose (Optional)');
+    expect(html).toContain('a case that names its purpose never finds');
+    expect(html).toContain('Purpose (Optional)');
+    expect(html).toContain('Destination Country (Optional)');
+    // An agency case owner can pick that agency's own pack, so the help does not say only
+    // authoritative packs are ever picked.
+    expect(html).not.toContain('Only a pack marked authoritative');
+    expect(html).toContain('is offered only to that agency');
   });
 
   it('has no accessibility violations', async () => {

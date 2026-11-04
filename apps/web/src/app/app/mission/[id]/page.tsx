@@ -23,6 +23,7 @@ import {
   type RequirementResultState,
   accountPrincipal,
   caseExpiryConflicts,
+  citationProblem,
   computeReadiness,
   computeTripChecks,
   getAiFeatureState,
@@ -96,6 +97,7 @@ import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date
 import { getLocale } from '../../../../lib/locale';
 import { fieldLabel } from '../../../../lib/master-profile';
 import {
+  CHECKLISTS_NOT_LOADED,
   noChecklistLines,
   packBadge,
   packCoverageLine,
@@ -906,10 +908,12 @@ export default async function MissionPage({
           label: `${p.packName} · v${p.version} · ${p.requirementCount} requirement${p.requirementCount === 1 ? '' : 's'}${p.reviewOverdue ? ' · review due' : ''}`,
         }),
       ),
-      noChecklistLines: noChecklistLines(emptyReasons, {
-        destination: mission.destination,
-        purpose: mission.purpose,
-      }),
+      noChecklistLines: choices.lookupFailed
+        ? [CHECKLISTS_NOT_LOADED]
+        : noChecklistLines(emptyReasons, {
+            destination: mission.destination,
+            purpose: mission.purpose,
+          }),
       selfReviewed,
       contributorRequests: contributorRequests.ok
         ? contributorRequests.value.map((r) => ({
@@ -1056,6 +1060,8 @@ export default async function MissionPage({
         : [];
     const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
     const sourceHref = safeHttpUrl(r.sourceUrl);
+    // A citation that only fills the box ("Yes", "n/a") is not a source, so it is not shown as one.
+    const citationText = r.citation && citationProblem(r.citation) === null ? r.citation : '';
     const bookingReminder =
       r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION'
         ? bookingReminderFor(r.kind, r.key)
@@ -1124,9 +1130,9 @@ export default async function MissionPage({
             {data.evidenceLifecycle.chosenByRequirement[r.packRequirementId]?.join(', ')}
           </span>
         ) : null}
-        {r.citation || sourceLine ? (
+        {sourceLine || sourceHref || citationText ? (
           <span className="muted u-fs-075">
-            Source: {sourceLine || r.citation}
+            Source: {sourceLine || citationText}
             {r.observedDate ? ` · reviewed ${formatDateOnly(r.observedDate)}` : ''}
             {sourceHref ? (
               <>

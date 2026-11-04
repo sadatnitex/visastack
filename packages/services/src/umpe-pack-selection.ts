@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { type Mission, attachPackVersion, getMissionForOwner } from './missions';
+import { NOT_FOUND_WORDS, selectionRefusal } from './pack-selectable';
 import type { PublishedPackVersion } from './packs';
 
 /**
@@ -10,8 +11,9 @@ import type { PublishedPackVersion } from './packs';
  *
  * `attachPackVersion` stays the low-level primitive: it checks only that the case is the actor's
  * and that the version is published, so many fixtures attach test packs through it. The web app
- * never calls it. A person (or a link made on a person's behalf) can attach a checklist only when
- * it is one of:
+ * never calls it, and inside the services only this file and Prepare Again (which applies the same
+ * rule, `selectionRefusal`) may. A person (or a link made on a person's behalf) can attach a
+ * checklist only when it is one of:
  * - a reviewed public checklist (no owning agency, marked authoritative), or
  * - a checklist owned by the agency the case belongs to.
  * A published checklist nobody has reviewed (no owner, not authoritative) is never selectable, and
@@ -31,10 +33,6 @@ export interface SelectablePackVersion extends PublishedPackVersion {
   /** True when that date has passed. A warning, never a reason to hide it. */
   readonly reviewOverdue: boolean;
 }
-
-const NOT_REVIEWED_WORDS = 'This checklist has not been reviewed yet, so it cannot be attached.';
-const NOT_PUBLISHED_WORDS = 'Only a published checklist can be attached.';
-const NOT_FOUND_WORDS = 'pack version not found';
 
 /** Whether a date has passed, comparing instants. */
 function isPast(date: Date | null, now: Date): boolean {
@@ -134,10 +132,11 @@ export async function listSelectablePackVersions(
  *
  * The version's row is locked for sharing while the check and the attach run in one transaction,
  * so a checklist cannot be withdrawn between the check and the attach. Refusals:
- * - not published (draft, superseded or withdrawn): `invalid`;
- * - published but unreviewed (no owner, not authoritative): `invalid`;
  * - owned by an agency other than the case's: `not_found`, the same answer as a version that does
- *   not exist, so another agency's private checklist is not revealed.
+ *   not exist and given before anything else (even for a draft), so another agency's private
+ *   checklist is not revealed;
+ * - not published (draft, superseded or withdrawn): `invalid`;
+ * - published but unreviewed (no owner, not authoritative): `invalid`.
  * The case must be the actor's, exactly as `attachPackVersion` requires.
  */
 export async function attachSelectedPackVersion(
@@ -165,16 +164,8 @@ export async function attachSelectedPackVersion(
         .for('share'),
     );
     if (!target) return err(serviceError('not_found', NOT_FOUND_WORDS));
-    if (
-      target.ownerOrganizationId !== null &&
-      target.ownerOrganizationId !== mission.value.ownerOrganizationId
-    ) {
-      return err(serviceError('not_found', NOT_FOUND_WORDS));
-    }
-    if (target.status !== 'PUBLISHED') return err(serviceError('invalid', NOT_PUBLISHED_WORDS));
-    if (target.ownerOrganizationId === null && !target.authoritative) {
-      return err(serviceError('invalid', NOT_REVIEWED_WORDS));
-    }
+    const refusal = selectionRefusal(target, mission.value.ownerOrganizationId);
+    if (refusal) return err(refusal);
     return attachPackVersion(tx, input);
   });
 }

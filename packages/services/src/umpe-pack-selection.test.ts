@@ -265,6 +265,20 @@ describe('pack selection', () => {
       expect(await heldPack()).toBeNull();
     });
 
+    it("answers another agency's draft or withdrawn pack exactly as a missing id (check order)", async () => {
+      const missing = await attach('00000000-0000-4000-8000-000000000000');
+      for (const status of ['DRAFT', 'WITHDRAWN'] as const) {
+        const theirs = await pack({ organizationId: agencyB, authoritative: false, status });
+        const refused = await attach(theirs);
+        expect(isErr(refused) && refused.error).toEqual(isErr(missing) && missing.error);
+        expect(isErr(refused) && refused.error.code).toBe('not_found');
+      }
+      // The case's own agency draft is a different answer: it exists for them, it just is not published.
+      await setCaseAgency(agencyA);
+      const ownDraft = await attach(await pack({ organizationId: agencyA, status: 'DRAFT' }));
+      expect(isErr(ownDraft) && ownDraft.error.code).toBe('invalid');
+    });
+
     it("attaches the case agency's own unreviewed-by-the-public pack", async () => {
       const own = await pack({ organizationId: agencyA, authoritative: false });
       expect(isErr(await attach(own))).toBe(true);

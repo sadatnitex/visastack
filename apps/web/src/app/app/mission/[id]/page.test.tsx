@@ -1424,6 +1424,63 @@ describe('the Requirement Pack card (VS-006)', () => {
     );
   });
 
+  it('says it could not load checklists, never that none exists, when the look-up failed', async () => {
+    const neutral = 'Checklists could not be loaded right now.';
+    // The fit look-up throws.
+    setUp();
+    japanTourism();
+    mocks.listFittingPublicPacks.mockRejectedValue(new Error('connection reset'));
+    let text = textOf(await render());
+    expect(text).toContain(neutral);
+    expect(text).not.toMatch(/no reviewed checklist|exists for travel/);
+    // The access gate refuses, so the case's details could not be read.
+    vi.clearAllMocks();
+    setUp({ gateRefuses: true });
+    japanTourism();
+    text = textOf(await render());
+    expect(text).toContain(neutral);
+    expect(text).not.toMatch(/no reviewed checklist|exists for travel/);
+    expect(mocks.explainNoFittingPack).not.toHaveBeenCalled();
+    // The picker's own list fails.
+    vi.clearAllMocks();
+    setUp();
+    japanTourism();
+    mocks.listSelectablePackVersions.mockResolvedValue({
+      ok: false,
+      error: { code: 'forbidden', message: 'no' },
+    });
+    text = textOf(await render());
+    expect(text).toContain(neutral);
+    expect(text).not.toMatch(/no reviewed checklist|exists for travel/);
+  });
+
+  it('says the welcome note could not check, not that there is none, when the gate refuses', async () => {
+    setUp({ gateRefuses: true });
+    japanTourism();
+    const [welcome] = stubProps<{ body: string[] }>(await render({ welcome: '1' }), 'CaseWelcome');
+    expect((welcome?.body ?? []).join(' ')).not.toContain('There is no checklist for this route');
+  });
+
+  it('shows no Source line for a citation that only fills the box, but keeps a recorded source', async () => {
+    setUp({ requirements: ['SATISFIED'] });
+    const filler = (extra: Record<string, unknown> = {}) =>
+      mocks.listRequirements.mockResolvedValue([
+        {
+          id: 'req-0',
+          citation: 'Yes',
+          sourceInaccessibleAt: null,
+          publisher: null,
+          sourceTitle: null,
+          sourceUrl: null,
+          ...extra,
+        },
+      ]);
+    filler();
+    expect(textOf(await render())).not.toContain('Source:');
+    filler({ publisher: 'Synthetic Authority', sourceTitle: 'Synthetic Page' });
+    expect(textOf(await render())).toContain('Source: Synthetic Authority · Synthetic Page');
+  });
+
   it('says there is no reviewed checklist, and why, instead of asking for a pick', async () => {
     setUp();
     japanTourism();

@@ -73,7 +73,7 @@ export function CreatePackForm() {
         <div className="form-grid">
           <div className="field-row">
             <label className="field-label" htmlFor="jurisdiction">
-              Destination Country
+              Destination Country (Optional)
             </label>
             <input
               id="jurisdiction"
@@ -84,8 +84,8 @@ export function CreatePackForm() {
               aria-describedby="jurisdiction-help"
             />
             <p id="jurisdiction-help" className="muted u-fs-085">
-              The country people travel to, not the embassy where they apply. Without it, cases
-              never find this pack.
+              The country people travel to, not the embassy where they apply. Without it, a case
+              that names where it travels never finds this pack.
             </p>
           </div>
           <div className="field-row">
@@ -107,7 +107,7 @@ export function CreatePackForm() {
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="purpose">
-              Purpose
+              Purpose (Optional)
             </label>
             <input
               id="purpose"
@@ -118,7 +118,7 @@ export function CreatePackForm() {
               aria-describedby="purpose-help"
             />
             <p id="purpose-help" className="muted u-fs-085">
-              One purpose per pack. Without it, cases never find this pack.
+              One purpose per pack. Without it, a case that names its purpose never finds this pack.
             </p>
           </div>
         </div>
