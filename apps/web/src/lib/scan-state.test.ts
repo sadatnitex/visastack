@@ -18,6 +18,7 @@ const blobStore = {} as never;
 describe('the scanner names the evidence trusts', () => {
   it('is tied to the real antivirus engine, and not to the built-in structural checker', () => {
     const engine = new ClamAvScanner({ blobStore, host: '127.0.0.1', port: 3310 });
+    expect([...TRUSTED_VIRUS_SCANNER_NAMES]).toEqual(['clamav']);
     expect(TRUSTED_VIRUS_SCANNER_NAMES.has(engine.name)).toBe(true);
     const structural = new BasicSafetyScanner({ blobStore });
     expect(TRUSTED_VIRUS_SCANNER_NAMES.has(structural.name)).toBe(false);

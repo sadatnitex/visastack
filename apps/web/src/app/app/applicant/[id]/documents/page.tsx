@@ -49,11 +49,11 @@ import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import { DocumentWalletBrowser } from '../../../../../components/document-wallet-browser';
 import { ReferenceCode } from '../../../../../components/reference-code';
+import { SafeCopyEditor } from '../../../../../components/safe-copy-editor';
 import {
   SAFE_COPY_STATE_LABELS,
-  SafeCopyEditor,
   type SafeCopyStateName,
-} from '../../../../../components/safe-copy-editor';
+} from '../../../../../components/safe-copy-state';
 import { PageHeader } from '../../../../../components/ui';
 import { VisaPhotoSizes } from '../../../../../components/visa-photo-sizes';
 import {

@@ -82,7 +82,7 @@ const ENTRIES: Record<VersionScanKind, Entry> = {
     label: 'Check Delayed',
     tone: 'warning',
     detail:
-      'The virus scan could not finish yet and will try again. The file cannot be opened until the checks finish.',
+      'The virus scan could not finish yet. It is tried again or looked at by the team. The file cannot be opened until the checks finish.',
     virusScanned: false,
     warn: false,
     recipientNote: null,
