@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   familyBatchReady: vi.fn(async () => false),
   documentUploadReceiptsReady: vi.fn(async () => true),
   listPendingProposals: vi.fn(async (): Promise<unknown[]> => []),
+  listApplicants: vi.fn(async (): Promise<unknown[]> => []),
   listDocumentExceptions: vi.fn(async () => ({ exceptions: [] as unknown[], confirmed: [] })),
 }));
 
@@ -31,6 +32,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   familyBatchReady: mocks.familyBatchReady,
   documentUploadReceiptsReady: mocks.documentUploadReceiptsReady,
   listPendingProposals: mocks.listPendingProposals,
+  listApplicants: mocks.listApplicants,
   listDocumentExceptions: mocks.listDocumentExceptions,
 }));
 vi.mock('../../../../../../lib/capabilities', () => ({
@@ -65,6 +67,7 @@ beforeEach(() => {
   mocks.familyBatchReady.mockResolvedValue(false);
   mocks.documentUploadReceiptsReady.mockResolvedValue(true);
   mocks.listPendingProposals.mockResolvedValue([]);
+  mocks.listApplicants.mockResolvedValue([]);
   mocks.listDocumentExceptions.mockResolvedValue({ exceptions: [], confirmed: [] });
   mocks.loadUploadQuotaConfig.mockReturnValue({
     maxUploadBytes: 5 * 1024 * 1024,
@@ -80,6 +83,29 @@ describe('the Add Documents page', () => {
     expect(html).toMatch(/<details class="add-more"(?![^>]*\sopen)/);
     expect(textOf(html)).toContain('Take a Photo, or Say What Kind of Document It Is');
     expect(stubProps(html, 'DocumentUploader')).toHaveLength(1);
+  });
+
+  it("hands the import this account's people, this person first, so each file can be filed under who it is for", async () => {
+    mocks.listApplicants.mockResolvedValue([
+      { id: 'a2', displayName: 'Sara Hossain' },
+      { id: 'a1', displayName: 'Karim Hossain' },
+      { id: 'a3', displayName: 'Nila Hossain' },
+    ]);
+    const [props] = stubProps<{ people: { id: string; name: string }[] }>(
+      await render(),
+      'ImportPanel',
+    );
+    expect(props?.people).toEqual([
+      { id: 'a1', name: 'Karim Hossain' },
+      { id: 'a2', name: 'Sara Hossain' },
+      { id: 'a3', name: 'Nila Hossain' },
+    ]);
+  });
+
+  it('still shows the page, with no choice of people, when the list cannot be read', async () => {
+    mocks.listApplicants.mockRejectedValue(new Error('database unavailable'));
+    const [props] = stubProps<{ people: unknown[] }>(await render(), 'ImportPanel');
+    expect(props?.people).toEqual([]);
   });
 
   it('says what happens next in three plain steps', async () => {
