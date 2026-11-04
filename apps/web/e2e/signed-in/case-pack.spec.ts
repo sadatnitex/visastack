@@ -48,7 +48,7 @@ async function startCase(
 
 test('a UK tourism case is matched to the published pack and the country is not the place of application', async ({
   page,
-}, info) => {
+}) => {
   confirmed(
     'E2E_UK_TOURISM_PACK_SEEDED',
     'The owner confirms a supported UK tourism pack is published in the staging database.',
@@ -63,10 +63,6 @@ test('a UK tourism case is matched to the published pack and the country is not 
   expect(text).toContain(CENTRE);
   expect(text).not.toContain(`United Kingdom ${CENTRE}`);
   expectNoApprovalPromise(text);
-  await info.attach('case-url.txt', {
-    body: new URL(page.url()).pathname,
-    contentType: 'text/plain',
-  });
 });
 
 test('a route with no published pack says so and attaches nothing', async ({ page }) => {

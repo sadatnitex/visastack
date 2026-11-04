@@ -1,7 +1,30 @@
+import { writeFile } from 'node:fs/promises';
 import AxeBuilder from '@axe-core/playwright';
 import { type Page, type TestInfo, expect } from '@playwright/test';
 
 export { WIDTHS } from '../../journey-screens/support';
+
+/**
+ * Keeps a piece of evidence in the run's output folder and attaches it by path. Playwright copies
+ * only attachments that have a path, and the workflow uploads that folder; a `body` attachment
+ * lives in the report alone, which the workflow deletes. Never pass a sign-in page or anything
+ * that holds a credential, a cookie or a person's real details.
+ */
+export async function keepEvidence(
+  info: TestInfo,
+  name: string,
+  body: string | Buffer,
+  contentType: string,
+): Promise<void> {
+  const path = info.outputPath(name);
+  await writeFile(path, body);
+  await info.attach(name, { path, contentType });
+}
+
+/** A full-page picture of a signed-in page of a synthetic account, kept as evidence. */
+export async function keepScreenshot(page: Page, info: TestInfo, name: string): Promise<void> {
+  await keepEvidence(info, name, await page.screenshot({ fullPage: true }), 'image/png');
+}
 
 /** Words that would turn a readiness figure into a promise. A disclaimer sentence is removed first. */
 const PROBABILITY =
@@ -34,14 +57,16 @@ export async function checkAccessibility(page: Page, info: TestInfo): Promise<vo
   );
   const lighter = results.violations.filter((v) => !blocking.includes(v));
   if (lighter.length > 0) {
-    await info.attach('axe-lighter-findings.json', {
-      body: JSON.stringify(
+    await keepEvidence(
+      info,
+      `axe-lighter-findings-${info.attachments.length + 1}.json`,
+      JSON.stringify(
         lighter.map((v) => ({ id: v.id, impact: v.impact, nodes: v.nodes.length })),
         null,
         2,
       ),
-      contentType: 'application/json',
-    });
+      'application/json',
+    );
   }
   expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
 }

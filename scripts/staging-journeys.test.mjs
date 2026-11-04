@@ -71,6 +71,59 @@ test('the journeys run only from the one manual workflow, on main, never against
   assert.match(text, /Refuse missing, skipped, retried or failed/);
 });
 
+test('the journeys workflow uses its own environment and gives secrets only to the steps that need them', () => {
+  const text = read(JOURNEYS_WORKFLOW);
+  const job = text.slice(text.indexOf('  signed-in-journeys:'), text.indexOf('  evidence-result:'));
+  assert.match(job, /^ {4}environment: staging-journeys$/m);
+  // No secret in the job-level env block (it would reach every step, install scripts included).
+  const jobEnv = job.slice(job.indexOf('\n    env:\n'), job.indexOf('\n    steps:\n'));
+  assert.ok(jobEnv.includes('PLAYWRIGHT_BASE_URL'), 'could not find the job-level env block');
+  assert.doesNotMatch(jobEnv, /secrets\./, 'a secret is in the job-level env block');
+  // Steps: split on step starts; the ones that run package scripts or handle output see no secret.
+  const steps = job
+    .slice(job.indexOf('\n    steps:\n'))
+    .split(/\n {6}- name: /)
+    .slice(1);
+  const withSecrets = steps
+    .filter((step) => /secrets\./.test(step))
+    .map((step) => step.split('\n')[0]);
+  assert.deepEqual(withSecrets, [
+    'List which journeys can run (setting names only)',
+    'Require an exact non-production deployment of this revision',
+    'Run the signed-in journeys',
+  ]);
+  for (const step of steps) {
+    const name = step.split('\n')[0];
+    if (/^(Install|Setup|Checkout)/.test(name)) assert.doesNotMatch(step, /secrets\./, name);
+  }
+  // The account passwords never reach the target check, and the Vercel token never reaches the browser run.
+  const named = (title) => steps.find((step) => step.startsWith(title)) ?? '';
+  assert.doesNotMatch(named('Require an exact'), /NEON_STAGING_|E2E_GUEST_INBOX_TOKEN/);
+  assert.doesNotMatch(
+    named('Run the signed-in journeys'),
+    /STAGING_VERCEL_TOKEN|STAGING_ATTESTATION_SECRET/,
+  );
+});
+
+test('evidence is kept by path and the upload fails when a run that executed kept nothing', () => {
+  const text = read(JOURNEYS_WORKFLOW);
+  const upload = text.slice(
+    text.indexOf('Retain synthetic page captures'),
+    text.indexOf('Remove raw authenticated'),
+  );
+  assert.match(upload, /if-no-files-found: error/);
+  assert.match(upload, /steps\.journeys\.outcome != 'skipped'/);
+  assert.match(text, /id: journeys/);
+  for (const path of sourceFiles) {
+    assert.doesNotMatch(
+      read(path),
+      /\.attach\([^)]*\bbody\s*:/s,
+      `${path} attaches a body; only an attachment with a path reaches the uploaded folder`,
+    );
+  }
+  assert.match(read(`${SIGNED_IN}/support/ui.ts`), /info\.attach\(name, \{ path, contentType \}\)/);
+});
+
 test('no other workflow runs the signed-in journeys or the retired authenticated suite', () => {
   for (const name of readdirSync(join(root, '.github/workflows'))) {
     if (name === 'neon-staging-journeys.yml') continue;
@@ -236,7 +289,17 @@ test('the journeys never print a credential, a cookie or a token', () => {
       /console\.(log|info|warn|error)\s*\(/,
       `${path} writes to the console`,
     );
-    assert.doesNotMatch(text, /storageState\s*\(\s*\{\s*path/, `${path} writes cookies to disk`);
+    assert.doesNotMatch(text, /storageState/, `${path} uses stored browser state`);
     assert.doesNotMatch(text, /\.cookies\(\)[^;]*(JSON|attach|writeFile)/, `${path} saves cookies`);
   }
+});
+
+test('sign-in waits for the workspace or the code field before deciding about a second step', () => {
+  const session = read(`${SIGNED_IN}/support/session.ts`);
+  assert.match(session, /Promise\.any\(\[arrived, asked\]\)/);
+  assert.match(session, /waitForURL\(/);
+  assert.ok(
+    session.indexOf('Promise.any') < session.indexOf('blocked('),
+    'decides before it waits',
+  );
 });

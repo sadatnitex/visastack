@@ -19,9 +19,17 @@ const kept = new Map<Role, Cookie[]>();
 /** A second step, if the sign-in page shows one. The product has none for ordinary accounts yet. */
 const SECOND_STEP = /verification code|authenticator code|one-time code|security code/i;
 
+/**
+ * After "Sign In", the page either reaches the workspace or asks for a code. Wait for whichever
+ * comes first before deciding, so a missing code secret is reported as BLOCKED naming it, not as
+ * a puzzling address mismatch a moment later.
+ */
 async function passSecondStep(page: Page, role: Role): Promise<void> {
   const field = page.getByLabel(SECOND_STEP).first();
-  if ((await field.count()) === 0) return;
+  const arrived = page.waitForURL(/\/app(?:\/|$)/, { timeout: 30_000 }).then(() => 'app' as const);
+  const asked = field.waitFor({ state: 'visible', timeout: 30_000 }).then(() => 'code' as const);
+  const outcome = await Promise.any([arrived, asked]).catch(() => 'neither' as const);
+  if (outcome !== 'code') return;
   const secret = optional(`NEON_STAGING_${role}_TOTP_SECRET`);
   if (!secret) {
     blocked(

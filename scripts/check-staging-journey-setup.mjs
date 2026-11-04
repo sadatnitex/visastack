@@ -2,7 +2,7 @@
 // only: a value, even a non-secret one, is never printed. Used by
 // .github/workflows/neon-staging-journeys.yml before the browser runs, and kept in step with
 // apps/web/e2e/signed-in/support/setup.ts and docs/operations/staging-journeys.md by
-// scripts/check-staging-journey-setup.test.mjs.
+// scripts/staging-journeys.test.mjs.
 
 import { appendFileSync } from 'node:fs';
 

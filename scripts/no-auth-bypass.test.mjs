@@ -1,6 +1,6 @@
 /**
- * Proves, by reading the code, that no application code mints a session or trusts one that did
- * not come from the sign-in library (docs/operations/staging-journeys.md). The signed-in browser
+ * Guards, by reading the code, against application code that mints a session or trusts one that
+ * did not come from the sign-in library (docs/operations/staging-journeys.md). The signed-in browser
  * tests sign in through the real form with synthetic accounts, because the product has, and must
  * keep, no test-mode door: a way to be "signed in" that the library did not give would be a way
  * into every account.
@@ -115,10 +115,16 @@ test('nothing in the app imports test or journey code', () => {
 });
 
 test('the journey code signs in through the real form and only re-uses the cookies it gave', () => {
-  const journeyFiles = filesUnder('apps/web/e2e').filter((path) => /\.ts$/.test(path));
-  // No journey builds a session cookie by name or signs anything itself.
+  const journeyFiles = [
+    ...filesUnder('apps/web/e2e').filter((path) => /\.(ts|tsx|js|mjs)$/.test(path)),
+    ...readdirSync(join(root, 'apps/web'))
+      .filter((name) => /^playwright.*\.ts$/.test(name))
+      .map((name) => join('apps/web', name)),
+  ];
+  assert.ok(journeyFiles.length > 10, 'the journey files were not found');
   for (const path of journeyFiles) {
     const text = read(path);
+    // No journey builds a session cookie by name or signs anything itself.
     assert.doesNotMatch(
       text,
       /__Secure-neon-auth|session_token|session_data|NEON_AUTH_COOKIE_SECRET/,
@@ -129,17 +135,32 @@ test('the journey code signs in through the real form and only re-uses the cooki
     if (!path.endsWith('signed-in/support/totp.ts')) {
       assert.doesNotMatch(text, /createHmac|SignJWT|jsonwebtoken/, `${path} signs something`);
     }
+    // No way to arrive signed in other than the form: no stored browser state handed to a new
+    // context, no cookie smuggled in a header, no separate request context with its own cookies.
+    assert.doesNotMatch(text, /storageState/, `${path} hands a stored state to a browser`);
+    assert.doesNotMatch(
+      text,
+      /(extraHTTPHeaders|setExtraHTTPHeaders)[\s\S]{0,200}cookie/i,
+      `${path} sends a cookie in a header`,
+    );
+    assert.doesNotMatch(
+      text,
+      /request\.newContext|APIRequest.*newContext/,
+      `${path} builds its own request context`,
+    );
   }
-  // Cookies are added back in exactly one place, and only the ones read from the browser earlier.
-  const adders = journeyFiles
-    .filter((path) => path.includes('e2e/signed-in/'))
-    .filter((path) => /\.addCookies\(/.test(read(path)));
-  assert.deepEqual(adders, ['apps/web/e2e/signed-in/support/session.ts']);
-  const writes = (read('apps/web/e2e/signed-in/support/session.ts').match(/\.addCookies\(/g) ?? [])
-    .length;
-  assert.equal(writes, 1, 'the harness may add back only the cookies it kept, in one place');
+  // Cookies are added back only where it is known why: the harness re-adds what the real form gave
+  // it (twice, once per suite), and one older check sets the language cookie.
+  const allowed = new Map([
+    ['apps/web/e2e/signed-in/support/session.ts', /addCookies\(existing\)/],
+    ['apps/web/e2e/neon-staging-routes.spec.ts', /addCookies\(existing\)/],
+    ['apps/web/e2e/ux-public.spec.ts', /name: 'visastack_locale'/],
+  ]);
+  const adders = journeyFiles.filter((path) => /\.addCookies\(/.test(read(path)));
+  assert.deepEqual(adders.sort(), [...allowed.keys()].sort());
+  for (const [path, shape] of allowed) assert.match(read(path), shape, path);
   const session = read('apps/web/e2e/signed-in/support/session.ts');
-  assert.match(session, /page\.context\(\)\.addCookies\(existing\)/);
+  assert.equal((session.match(/\.addCookies\(/g) ?? []).length, 1);
   assert.match(session, /kept\.set\(role, await page\.context\(\)\.cookies\(\)\)/);
   assert.match(session, /getByRole\('button', \{ name: 'Sign In', exact: true \}\)\.click\(\)/);
 });

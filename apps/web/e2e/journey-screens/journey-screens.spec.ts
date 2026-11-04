@@ -145,9 +145,11 @@ test.describe('case page card', () => {
     await expect(page.getByText('Test fixture: nothing was changed.')).toBeVisible();
   });
 
-  test('with no pack on offer the card says so and offers no empty choice', async ({ page }) => {
+  test('with no pack on offer the form draws nothing, so there is no empty choice', async ({
+    page,
+  }) => {
     await openScreen(page, 'case-no-packs');
-    await expect(page.getByText('No published requirement packs are available yet.')).toBeVisible();
+    await expect(page.locator('[data-pack-note]')).toBeVisible();
     await expect(page.getByRole('combobox', { name: 'Requirement Pack' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Attach Pack' })).toHaveCount(0);
   });

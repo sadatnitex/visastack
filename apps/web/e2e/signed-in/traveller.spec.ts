@@ -3,6 +3,7 @@ import { type SyntheticFile, renderSyntheticPassport } from '../fixtures/synthet
 import { VERIFIED_IN_SOURCE as S } from './support/selectors';
 import { signIn } from './support/session';
 import { ids } from './support/setup';
+import { keepEvidence } from './support/ui';
 
 /**
  * Tier 2, traveller journey (docs/operations/staging-journeys.md): add a first document, see it is
@@ -63,7 +64,7 @@ test('the first document is added and shows a safety state that says what is tru
   await expect(badge).toBeVisible();
   const state = (await badge.innerText()).trim();
   expect(state.length).toBeGreaterThan(0);
-  await info.attach('safety-state.txt', { body: state, contentType: 'text/plain' });
+  await keepEvidence(info, 'safety-state.txt', state, 'text/plain');
   // A preview button is offered only to a file that is not still being checked.
   const preview = panel.getByRole('button', { name: 'Open Secure Preview' });
   if (/being checked/i.test(state)) await expect(preview).toHaveCount(0);

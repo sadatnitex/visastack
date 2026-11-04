@@ -2,13 +2,19 @@ import { expect, test } from '@playwright/test';
 import { VERIFIED_IN_SOURCE as S } from './support/selectors';
 import { signIn } from './support/session';
 import { NOBODY, ids } from './support/setup';
-import { WIDTHS, checkAccessibility, checkKeyboard, expectNoSidewaysScroll } from './support/ui';
+import {
+  WIDTHS,
+  checkAccessibility,
+  checkKeyboard,
+  expectNoSidewaysScroll,
+  keepScreenshot,
+} from './support/ui';
 
 /**
  * Tier 2, the real pages at five widths (docs/operations/staging-journeys.md): no sideways
  * scroll, no serious WCAG 2.2 AA finding, a usable keyboard path, the Cases anchor link, and the
- * app's own not-found page. Screenshots are taken of synthetic accounts only and attached to the
- * report as evidence, not compared to a stored picture (a stored picture would freeze a design
+ * app's own not-found page. Screenshots are taken of synthetic accounts only and kept in the run output and uploaded with it, as
+ * evidence, not compared to a stored picture (a stored picture would freeze a design
  * nobody has approved).
  */
 
@@ -37,10 +43,7 @@ for (const size of WIDTHS) {
         await expect(page.locator('main')).toBeVisible();
         await expectNoSidewaysScroll(page);
         await checkAccessibility(page, info);
-        await info.attach(`${route.name}-${size.width}.png`, {
-          body: await page.screenshot({ fullPage: true }),
-          contentType: 'image/png',
-        });
+        await keepScreenshot(page, info, `${route.name}-${size.width}.png`);
       }
     });
 
@@ -51,10 +54,7 @@ for (const size of WIDTHS) {
         await expect(page.locator('main')).toBeVisible();
         await expectNoSidewaysScroll(page);
         await checkAccessibility(page, info);
-        await info.attach(`${route.name}-${size.width}.png`, {
-          body: await page.screenshot({ fullPage: true }),
-          contentType: 'image/png',
-        });
+        await keepScreenshot(page, info, `${route.name}-${size.width}.png`);
       }
     });
   });

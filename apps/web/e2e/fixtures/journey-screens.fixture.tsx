@@ -151,6 +151,12 @@ function CaseCard({ packs }: { readonly packs: boolean }) {
       </article>
       <article className="card">
         <h2 className="card-title">Requirement Pack</h2>
+        {packs ? null : (
+          // The case page itself says why nothing can be attached; the form draws nothing.
+          <p className="muted" data-pack-note="">
+            No checklist is published for this route yet.
+          </p>
+        )}
         <AttachPackForm
           missionId="synthetic-case"
           options={

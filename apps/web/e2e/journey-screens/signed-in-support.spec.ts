@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { blocked, configured, confirmed, optional } from '../signed-in/support/setup';
 import { RFC6238_SECRET_BASE32, totp } from '../signed-in/support/totp';
-import { expectNoApprovalPromise } from '../signed-in/support/ui';
+import { expectNoApprovalPromise, keepEvidence } from '../signed-in/support/ui';
 
 /**
  * The parts of the on-demand signed-in suite that need no deployment, so a pull request still
@@ -109,5 +110,17 @@ test.describe('approval promise detector', () => {
         'Completeness of the checklist is not an approval probability. Nobody can promise an outcome.',
       ),
     ).not.toThrow();
+  });
+});
+
+test.describe('evidence', () => {
+  test('is written into the output folder and attached by path, so the upload can find it', async () => {
+    const info = test.info();
+    await keepEvidence(info, 'probe.txt', 'synthetic evidence', 'text/plain');
+    const attached = info.attachments.find((a) => a.name === 'probe.txt');
+    // Playwright copies a path attachment into the run's output folder; that copy is what is uploaded.
+    expect(attached?.path?.startsWith(info.outputDir)).toBe(true);
+    expect(attached?.body).toBeUndefined();
+    expect(readFileSync(attached?.path ?? '', 'utf8')).toBe('synthetic evidence');
   });
 });

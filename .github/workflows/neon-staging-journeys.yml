@@ -29,10 +29,13 @@ jobs:
     name: Signed-in journeys on isolated staging, zero skips
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # The secrets live in this environment, whose deployment rule allows main only (owner setup:
+    # docs/operations/staging-journeys.md). They are given to the few steps that need them and to
+    # no other; the install and browser-download steps run package scripts and see none.
+    environment: staging-journeys
     env:
+      # Settings that are not secret.
       PLAYWRIGHT_BASE_URL: ${{ vars.E2E_STAGING_BASE_URL }}
-      STAGING_ATTESTATION_SECRET: ${{ secrets.STAGING_ATTESTATION_SECRET }}
-      STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}
       E2E_EXPECTED_SHA: ${{ github.sha }}
       E2E_STAGING_DEPLOYMENT_ID: ${{ vars.E2E_STAGING_DEPLOYMENT_ID }}
       E2E_SYNTHETIC_ISOLATION_VERIFIED: ${{ vars.E2E_SYNTHETIC_ISOLATION_VERIFIED }}
@@ -47,16 +50,6 @@ jobs:
       E2E_ACCESS_SEEDED: ${{ vars.E2E_ACCESS_SEEDED }}
       E2E_GUEST_RECIPIENT_EMAIL: ${{ vars.E2E_GUEST_RECIPIENT_EMAIL }}
       E2E_GUEST_INBOX_URL: ${{ vars.E2E_GUEST_INBOX_URL }}
-      E2E_GUEST_INBOX_TOKEN: ${{ secrets.E2E_GUEST_INBOX_TOKEN }}
-      NEON_STAGING_TRAVELLER_EMAIL: ${{ secrets.NEON_STAGING_TRAVELLER_EMAIL }}
-      NEON_STAGING_TRAVELLER_PASSWORD: ${{ secrets.NEON_STAGING_TRAVELLER_PASSWORD }}
-      NEON_STAGING_AGENCY_ADMIN_EMAIL: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_EMAIL }}
-      NEON_STAGING_AGENCY_ADMIN_PASSWORD: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_PASSWORD }}
-      NEON_STAGING_UNRELATED_AGENCY_ADMIN_EMAIL: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_EMAIL }}
-      NEON_STAGING_UNRELATED_AGENCY_ADMIN_PASSWORD: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_PASSWORD }}
-      NEON_STAGING_TRAVELLER_TOTP_SECRET: ${{ secrets.NEON_STAGING_TRAVELLER_TOTP_SECRET }}
-      NEON_STAGING_AGENCY_ADMIN_TOTP_SECRET: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_TOTP_SECRET }}
-      NEON_STAGING_UNRELATED_AGENCY_ADMIN_TOTP_SECRET: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_TOTP_SECRET }}
       SUITE: ${{ inputs.suite }}
     steps:
       - name: Checkout exact reviewed revision
@@ -69,8 +62,24 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: List which journeys can run (setting names only)
+        env:
+          STAGING_ATTESTATION_SECRET: ${{ secrets.STAGING_ATTESTATION_SECRET }}
+          STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}
+          E2E_GUEST_INBOX_TOKEN: ${{ secrets.E2E_GUEST_INBOX_TOKEN }}
+          NEON_STAGING_TRAVELLER_EMAIL: ${{ secrets.NEON_STAGING_TRAVELLER_EMAIL }}
+          NEON_STAGING_TRAVELLER_PASSWORD: ${{ secrets.NEON_STAGING_TRAVELLER_PASSWORD }}
+          NEON_STAGING_AGENCY_ADMIN_EMAIL: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_EMAIL }}
+          NEON_STAGING_AGENCY_ADMIN_PASSWORD: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_PASSWORD }}
+          NEON_STAGING_UNRELATED_AGENCY_ADMIN_EMAIL: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_EMAIL }}
+          NEON_STAGING_UNRELATED_AGENCY_ADMIN_PASSWORD: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_PASSWORD }}
+          NEON_STAGING_TRAVELLER_TOTP_SECRET: ${{ secrets.NEON_STAGING_TRAVELLER_TOTP_SECRET }}
+          NEON_STAGING_AGENCY_ADMIN_TOTP_SECRET: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_TOTP_SECRET }}
+          NEON_STAGING_UNRELATED_AGENCY_ADMIN_TOTP_SECRET: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_TOTP_SECRET }}
         run: node scripts/check-staging-journey-setup.mjs
       - name: Require an exact non-production deployment of this revision
+        env:
+          STAGING_ATTESTATION_SECRET: ${{ secrets.STAGING_ATTESTATION_SECRET }}
+          STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}
         run: node scripts/check-staging-target.mjs
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -80,9 +89,20 @@ jobs:
         working-directory: apps/web
         run: pnpm exec playwright install --with-deps chromium
       - name: Run the signed-in journeys
+        id: journeys
         working-directory: apps/web
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/signed-in-journeys.json
+          E2E_GUEST_INBOX_TOKEN: ${{ secrets.E2E_GUEST_INBOX_TOKEN }}
+          NEON_STAGING_TRAVELLER_EMAIL: ${{ secrets.NEON_STAGING_TRAVELLER_EMAIL }}
+          NEON_STAGING_TRAVELLER_PASSWORD: ${{ secrets.NEON_STAGING_TRAVELLER_PASSWORD }}
+          NEON_STAGING_AGENCY_ADMIN_EMAIL: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_EMAIL }}
+          NEON_STAGING_AGENCY_ADMIN_PASSWORD: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_PASSWORD }}
+          NEON_STAGING_UNRELATED_AGENCY_ADMIN_EMAIL: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_EMAIL }}
+          NEON_STAGING_UNRELATED_AGENCY_ADMIN_PASSWORD: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_PASSWORD }}
+          NEON_STAGING_TRAVELLER_TOTP_SECRET: ${{ secrets.NEON_STAGING_TRAVELLER_TOTP_SECRET }}
+          NEON_STAGING_AGENCY_ADMIN_TOTP_SECRET: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_TOTP_SECRET }}
+          NEON_STAGING_UNRELATED_AGENCY_ADMIN_TOTP_SECRET: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_TOTP_SECRET }}
         run: |
           files=$(node ../../scripts/check-staging-journey-setup.mjs --files "$SUITE" | sed 's#^#e2e/signed-in/#')
           # shellcheck disable=SC2086
@@ -95,15 +115,18 @@ jobs:
       - name: Show which journeys were blocked, by message only
         if: failure()
         run: grep -h "BLOCKED:" "$RUNNER_TEMP/signed-in-output.txt" | sort -u | head -40 >> "$GITHUB_STEP_SUMMARY" || true
+      # Page captures and timings are written into the output folder by the specs (support/ui.ts,
+      # keepEvidence). A run that executed the journeys and kept nothing is an error, not a pass.
       - name: Retain synthetic page captures and timings
-        if: always()
+        if: always() && steps.journeys.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: signed-in-journey-evidence
           path: |
             apps/web/test-results/**/*.png
             apps/web/test-results/**/*.json
-          if-no-files-found: ignore
+            apps/web/test-results/**/*.txt
+          if-no-files-found: error
           retention-days: 7
       - name: Remove raw authenticated diagnostic output
         if: always()

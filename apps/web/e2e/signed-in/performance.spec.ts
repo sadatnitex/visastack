@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { signIn } from './support/session';
 import { ids } from './support/setup';
+import { keepEvidence } from './support/ui';
 
 /**
  * Tier 2, measured page timings on staging (docs/operations/staging-journeys.md). This records
@@ -42,10 +43,12 @@ test('three signed-in pages are measured', async ({ page }, info) => {
     });
     measured += 1;
     expect(timing.loadMs).toBeGreaterThan(0);
-    await info.attach(`timing-${route.name}.json`, {
-      body: JSON.stringify({ page: route.name, ...timing }, null, 2),
-      contentType: 'application/json',
-    });
+    await keepEvidence(
+      info,
+      `timing-${route.name}.json`,
+      JSON.stringify({ page: route.name, ...timing }, null, 2),
+      'application/json',
+    );
   }
   expect(measured).toBe(3);
 });
