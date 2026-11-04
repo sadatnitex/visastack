@@ -107,41 +107,52 @@ test.describe('WP-SB4 traveller tasks and forms with worst-case data', () => {
     await noSeriousAxe(page);
   });
 
-  test('documents: the selected document is a sheet that scrolls inside, the list stays in budget', async ({
+  test('documents: the list stays in budget, and the chosen document is a full screen on a phone and a side sheet that scrolls inside on a desktop', async ({
     page,
   }) => {
     await renderFixture(page, FIXTURE, { view: 'documents', count: 60 });
-    const sheet = page.getByRole('complementary', { name: 'Selected document details' });
-    for (const viewport of ['phone', 'desktop'] as const) {
-      // Enforced on both screens since lane Z of the resource lifecycle programme: the shared
-      // list shows 6 rows a page on a phone and 12 on a desktop (WALLET_PAGE_SIZE in
-      // components/document-wallet-browser.tsx), with every document still reached through the
-      // pages. It was a known exception at 3.5 screens on a phone (docs/uiux/SCROLL-BUDGET.md).
-      await expectWithinBudget(page, { screens: 3, viewport, mode: MODE });
-      const facts = await sheet.evaluate((element) => ({
-        overflowY: getComputedStyle(element).overflowY,
-        scrolls: element.scrollHeight > element.clientHeight,
-        height: element.getBoundingClientRect().height,
-      }));
-      expect(facts.overflowY).toBe('auto');
-      expect(facts.scrolls).toBe(true);
-      expect(facts.height).toBeLessThanOrEqual(viewport === 'phone' ? 22 * 16 + 0.5 : 800);
-    }
-    // Nothing inside the sheet stretches the page past its own end (text for screen readers
-    // included): the page ends where the sheet ends.
+    // Not found by its landmark role: on a phone it becomes a dialog while it is open.
+    const sheet = page.locator('#wallet-selected-document');
+    // A phone that arrives on a named document (a reminder's link, which is what this page
+    // passes) opens it straight away as a full screen that scrolls inside, with one way back.
     await page.setViewportSize({ width: 390, height: 844 });
-    const ends = await page.evaluate(() => {
-      const box = document.querySelector('.wallet-selected-document')?.getBoundingClientRect();
-      return {
-        sheet: Math.round((box?.bottom ?? 0) + window.scrollY),
-        page: document.documentElement.scrollHeight,
-      };
-    });
-    expect(ends.page - ends.sheet).toBeLessThanOrEqual(64);
-    // The last action in the sheet can still be reached from the keyboard.
+    await expect(sheet).toBeVisible();
+    const open = await sheet.evaluate((element) => ({
+      position: getComputedStyle(element).position,
+      overflowY: getComputedStyle(element).overflowY,
+      width: Math.round(element.getBoundingClientRect().width),
+      height: Math.round(element.getBoundingClientRect().height),
+    }));
+    expect(open).toEqual({ position: 'fixed', overflowY: 'auto', width: 390, height: 844 });
+    // The last action in the screen can still be reached from the keyboard.
     const last = sheet.getByRole('link', { name: 'Review Sharing Permissions' });
     await last.focus();
     await expect(last).toBeInViewport();
     await noSeriousAxe(page);
+    await sheet.getByRole('button', { name: 'Back to Documents' }).click();
+    await expect(sheet).toBeHidden();
+    for (const viewport of ['phone', 'desktop'] as const) {
+      // Enforced on both screens since lane Z of the resource lifecycle programme: the shared
+      // list shows 6 rows a page on a phone and 12 on a desktop (WALLET_PAGE_SIZE in
+      // components/document-wallet-browser.tsx), with every document still reached through the
+      // pages. On a phone the chosen document is not on the page at all until a row is tapped
+      // (UX17), so the list is all the page holds.
+      await expectWithinBudget(page, { screens: 3, viewport, mode: MODE });
+    }
+    // A desktop keeps the chosen document in a side sheet that scrolls inside (it is open on a
+    // larger screen whatever the address says).
+    const facts = await sheet.evaluate((element) => ({
+      overflowY: getComputedStyle(element).overflowY,
+      scrolls: element.scrollHeight > element.clientHeight,
+      height: element.getBoundingClientRect().height,
+    }));
+    expect(facts.overflowY).toBe('auto');
+    expect(facts.scrolls).toBe(true);
+    expect(facts.height).toBeLessThanOrEqual(800);
+    // A tap on a row opens it again on a phone.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(sheet).toBeHidden();
+    await page.locator('.wallet-document-select').first().click();
+    await expect(sheet).toBeVisible();
   });
 });
