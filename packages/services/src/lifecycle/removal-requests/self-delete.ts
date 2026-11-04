@@ -1,4 +1,4 @@
-import { type Result, err, ok } from '@visastack/core';
+import { type Result, err, formatUtcMoment, ok } from '@visastack/core';
 import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { LIVE_GRANT_STATUSES } from '../../access/grant-scope';
 import { AuthorizedApplicant } from '../../access/require-access';
@@ -353,14 +353,8 @@ export async function previewDeleteMyFile(
   });
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 /** "4 Nov 2026 at 14:05 UTC": one fixed zone, so the same words read the same in the app and in an email. */
-export function formatNoticeMoment(at: Date): string {
-  const two = (n: number) => String(n).padStart(2, '0');
-  const month = MONTHS[at.getUTCMonth()] ?? '';
-  return `${at.getUTCDate()} ${month} ${at.getUTCFullYear()} at ${two(at.getUTCHours())}:${two(at.getUTCMinutes())} UTC`;
-}
+export const formatNoticeMoment = formatUtcMoment;
 
 /**
  * The note the owner receives, in the app and by email, every time a file is deleted. It names the

@@ -41,7 +41,7 @@ describe('every email', () => {
         eventType: 'DOCUMENT_SELF_DELETED',
         subject: 'A document was removed from your record',
         summary:
-          'Document D-7K2Q9M was removed from one of your records on 4 Nov 2026 at 09:05 UTC, using your account.',
+          'Document D-7K2Q9M was removed from one of your records on 4 Nov 2026 at 09:05 UTC, using your account. If this was you, nothing more is needed. If it was not, reset your password now and contact VisaStack support. Removal Records shows each removal and where it stands.',
         url,
       }),
       context,
@@ -52,12 +52,13 @@ describe('every email', () => {
       '4 Nov 2026 at 09:05 UTC',
       'A removal cannot be undone.',
       'Backup copies expire within 90 days and are never brought back.',
-      'If this was not you, reset your password from the Sign In page and contact VisaStack support from Help and Support.',
+      'If it was not, reset your password now and contact VisaStack support.',
       'See Removal Records',
     ]) {
       expect(text).toContain(words);
       expect(html).toContain(escapeHtml(words));
     }
+    expect(text.split('reset your password').length - 1).toBe(1);
     expect(html).toContain(`href="${url}"`);
   });
 

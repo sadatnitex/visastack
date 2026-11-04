@@ -434,14 +434,12 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     action: 'Review WhatsApp Settings',
   },
   // The fact (reference code and moment) comes from the event; no file name, kind or person is ever
-  // in this email. The last line is the plain step if the owner did not do it.
+  // in this email. The fact already carries the plain step if the owner did not do it.
   DOCUMENT_SELF_DELETED: {
     eyebrow: 'Your Record',
     heading: 'A document was removed from your record',
     why: 'The file is hidden at once and its stored copies are erased and checked. A removal cannot be undone. Backup copies expire within 90 days and are never brought back.',
     action: 'See Removal Records',
-    after:
-      'If this was not you, reset your password from the Sign In page and contact VisaStack support from Help and Support.',
   },
   TEAM_INVITATION_CREATED: {
     eyebrow: 'Invitation',

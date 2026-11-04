@@ -42,7 +42,15 @@ beforeEach(() => {
     ok: true,
     value: { actor: { kind: 'applicant_owner' } },
   });
-  service.listDeletionReceipts.mockResolvedValue({ ok: true, value: [record()] });
+  service.listDeletionReceipts.mockResolvedValue({
+    ok: true,
+    value: [
+      record({
+        requestedByAccountId: '11111111-2222-4333-8444-555555555555',
+        approvedByAccountId: '99999999-8888-4777-8666-444444444444',
+      }),
+    ],
+  });
 });
 
 describe('Removal Records page', () => {
@@ -50,12 +58,14 @@ describe('Removal Records page', () => {
     const html = await page();
     const text = textOf(html);
     expect(text).toContain('Removing Securely: Passport D-7K2Q9M.');
-    expect(text).toContain('Asked from your account on 3 Nov 2026, 14:05 UTC.');
+    expect(text).toContain('Asked from your account on 3 Nov 2026 at 14:05 UTC.');
     expect(text).toContain('Times are shown in UTC.');
     expect(html).toContain('href="/auth/forgot-password"');
     expect(html).toContain('href="/app/help#contact"');
     // Only the coarse words reach the page: no account id, no email.
     expect(html).not.toContain('owner');
+    expect(html).not.toContain('11111111-2222-4333-8444-555555555555');
+    expect(html).not.toContain('99999999-8888-4777-8666-444444444444');
   });
 
   it('asks the services for the owner view only and shows nothing about guidance when empty', async () => {

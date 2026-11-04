@@ -109,7 +109,7 @@ Text columns with CHECK constraints (the `profile_field_exemptions` pattern), no
 | `receiptEffectsSchema` (zod) | `{ casesSwitched?: string[] (C- codes), casesFlagged?: string[], acknowledgementsReset?: number, sharesAffected?: number, aiChoicesMoved?: number, aiChoicesRemoved?: number, agencyRequestsAffected?: string[] (R- codes), bytesFreed?: number }`. Strict: unknown keys refused. |
 | `openDeletionReceipt(tx, input)` | Inserts a receipt; validates effects; never accepts a title or name field. |
 | `advanceDeletionReceipt(tx, id, next, patch)` | Moves status forward only; merges effects. |
-| `listDeletionReceipts(access)` | Owner (and admin with privacy access) read; returns codes and kinds only. |
+| `listDeletionReceipts(access)` | Owner (and admin with privacy access) read; returns codes and kinds, plus coarse requester and approver words, never an account id. |
 | `enqueueDocumentRemoval(tx, { documentId, applicantId, receiptId })` | Locks the document row, queues one `DOCUMENT_REMOVAL` erasure job per distinct storage object (Safe Copies follow through the existing `removeSafeCopyMasks` path), sets the receipt to `REMOVING`. Refuses when a legal hold covers the document. |
 | `erasure.ts` finalisation | `DOCUMENT_REMOVAL` takes the same document-row path as `RETENTION_PURGE` (hold recheck, row lock, all-siblings-verified, `incrementMaterialRevision` for selecting cases, then delete row and storage objects) and then sets the receipt `REMOVED` with `verified_gone_at`, or `BLOCKED` when a hold appears. Implemented by generalising the four `job.reason === 'RETENTION_PURGE'` checks to a `DOCUMENT_ROW_REASONS` set. |
 | `backup-reconciliation.ts` | Treats `DOCUMENT_REMOVAL` like `RETENTION_PURGE` on restore (never resurrects). |

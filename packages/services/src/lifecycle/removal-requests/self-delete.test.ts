@@ -987,8 +987,14 @@ describe('the note the owner gets when a file is deleted, and the Removal Record
       expect(JSON.stringify(mine.value)).not.toContain(owner.email);
 
       const stranger = await seedOwner(db, 'sd-notice-stranger@example.com');
-      const theirs = await listDeletionReceipts(await ownerProof(db, stranger, 'VIEW_METADATA'));
-      expect(theirs.ok && theirs.value).toEqual([]);
+      const strangerGate = await requireAccess(
+        db,
+        accountPrincipal(stranger.accountId),
+        'VIEW_METADATA',
+        { applicantId: owner.applicantId },
+        { purpose: EACH_GRANT },
+      );
+      expect(strangerGate.ok).toBe(false);
     },
     JOURNEY_TIMEOUT,
   );

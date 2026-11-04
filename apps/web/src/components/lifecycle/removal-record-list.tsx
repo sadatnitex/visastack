@@ -1,3 +1,4 @@
+import { formatUtcMoment } from '@visastack/core';
 import { formatTimestampDate } from '../../lib/format-date';
 import { documentTypeLabel } from '../../lib/labels';
 
@@ -68,24 +69,6 @@ export function removalRecordSentence(row: RemovalRecordRow, now: Date = new Dat
   return `${lead}: ${what}.${used}`;
 }
 
-/** "3 Nov 2026, 14:05 UTC": one fixed zone, the same words the notice and email use. */
-function requestMoment(value: Date | string): string {
-  const date = new Date(value);
-  const day = date.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-  const time = date.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-    timeZone: 'UTC',
-  });
-  return `${day}, ${time} UTC`;
-}
-
 /**
  * Who asked and when, from what the record itself holds: "Asked from your account on 3 Nov 2026,
  * 14:05 UTC." It says the account, never the person, so it claims nothing about who was at the
@@ -93,7 +76,7 @@ function requestMoment(value: Date | string): string {
  */
 export function removalRecordDetail(row: RemovalRecordRow): string | null {
   if (row.requestedBy === undefined) return null;
-  const when = requestMoment(row.requestedAt);
+  const when = formatUtcMoment(new Date(row.requestedAt));
   const lead =
     row.requestedBy === 'OWNER_ACCOUNT'
       ? `Asked from your account on ${when}.`
