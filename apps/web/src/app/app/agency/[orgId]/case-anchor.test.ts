@@ -5,9 +5,24 @@ import { CASE_ANCHOR, agencyCaseHref, caseAnchorId } from './case-anchor';
 
 const SRC = resolve(__dirname, '../../../..');
 
-/** True when the file's first statement is the client marker (a comment may come first). */
-const isClientModule = (source: string) =>
-  /^\s*(?:\/\*[\s\S]*?\*\/\s*|\/\/[^\n]*\n\s*)*['"]use client['"]/.test(source);
+/** True when the file's first statement is the client marker (comments may come first). */
+const isClientModule = (source: string) => {
+  let rest = source.trimStart();
+  for (;;) {
+    if (rest.startsWith('/*')) {
+      const end = rest.indexOf('*/');
+      if (end < 0) return false;
+      rest = rest.slice(end + 2).trimStart();
+    } else if (rest.startsWith('//')) {
+      const end = rest.indexOf('\n');
+      if (end < 0) return false;
+      rest = rest.slice(end + 1).trimStart();
+    } else {
+      break;
+    }
+  }
+  return rest.startsWith("'use client'") || rest.startsWith('"use client"');
+};
 
 describe('case anchor (VS-023)', () => {
   it('builds the in-page address of a case from real text', () => {
