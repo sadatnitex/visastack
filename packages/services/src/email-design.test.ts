@@ -34,6 +34,33 @@ describe('every email', () => {
     expect(html).toContain(`href="${BASE}/app/mission/m1"`);
   });
 
+  it('tells the owner a file was removed with the code and moment, the step if it was not them, and nothing else', () => {
+    const url = `${BASE}/app/applicant/a1/removal-records`;
+    const { text, html } = renderEmail(
+      notificationEmail({
+        eventType: 'DOCUMENT_SELF_DELETED',
+        subject: 'A document was removed from your record',
+        summary:
+          'Document D-7K2Q9M was removed from one of your records on 4 Nov 2026 at 09:05 UTC, using your account.',
+        url,
+      }),
+      context,
+    );
+    for (const words of [
+      'A document was removed from your record',
+      'Document D-7K2Q9M was removed',
+      '4 Nov 2026 at 09:05 UTC',
+      'A removal cannot be undone.',
+      'Backup copies expire within 90 days and are never brought back.',
+      'If this was not you, reset your password from the Sign In page and contact VisaStack support from Help and Support.',
+      'See Removal Records',
+    ]) {
+      expect(text).toContain(words);
+      expect(html).toContain(escapeHtml(words));
+    }
+    expect(html).toContain(`href="${url}"`);
+  });
+
   it('words an overdue task differently from one coming up', () => {
     expect(notificationEmail({ ...taskDue, timing: 'overdue' }).heading).toBe(
       'A task on your case is past its date',
@@ -136,6 +163,7 @@ describe('the words of every email', () => {
         'CONTRIBUTOR_REQUEST_CREATED',
         'DOCUMENT_EXPIRY',
         'DOCUMENT_HELD_REMINDER',
+        'DOCUMENT_SELF_DELETED',
         'DOWNGRADE_EXECUTED',
         'DOWNGRADE_SCHEDULED',
         'EVIDENCE_REPLACEMENT_REQUESTED',
