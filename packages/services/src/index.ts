@@ -2924,6 +2924,7 @@ export {
   holdFamilyFile,
   listHeldFiles,
   proposePerson,
+  proposePersonFromFileName,
   sweepHeldFiles,
 } from './umpe-document-holds';
 

@@ -588,6 +588,7 @@ export default async function ApplicantDocumentsPage({
             fileName: file.fileName,
             basis: file.basis,
             proposedApplicantId: file.proposedApplicantId,
+            nameSuggestionApplicantId: file.nameSuggestionApplicantId,
             addedOn: formatTimestampDate(file.addedAt),
           }))}
           people={data.heldFiles.people}

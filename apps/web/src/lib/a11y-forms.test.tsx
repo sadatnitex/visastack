@@ -88,6 +88,7 @@ vi.mock('../app/app/agency/[orgId]/collection/collection-review-actions', standI
 vi.mock('../app/app/agency/[orgId]/plan/invoices/actions', standIn);
 vi.mock('../app/app/applicant/[id]/actions', standIn);
 vi.mock('../app/app/applicant/[id]/documents/needs-decision-actions', standIn);
+vi.mock('../app/app/applicant/[id]/documents/add/actions', standIn);
 vi.mock('../app/app/applicant/[id]/section-actions', standIn);
 vi.mock('../app/app/applicant/[id]/evidence/actions', standIn);
 vi.mock('../app/app/applicant/[id]/missions/actions', standIn);
@@ -175,6 +176,8 @@ const { RequireDifferentReviewerToggle } = await import(
 const { CreateOrgForm } = await import('../app/app/agency/create-org-form');
 const aiReview = await import('../app/app/applicant/[id]/ai-review');
 const { DocumentUploader } = await import('../app/app/applicant/[id]/document-uploader');
+const { ReadingSwitch } = await import('../app/app/applicant/[id]/documents/add/reading-switch');
+const { describeReading } = await import('./reading-state');
 const { NeedsDecision, RelationDecisionForm } = await import(
   '../app/app/applicant/[id]/documents/needs-decision'
 );
@@ -395,6 +398,37 @@ const DOCS: readonly Case[] = [
       );
     }),
     fields: ['name'],
+  },
+  {
+    name: 'turn automatic reading on or off',
+    element: () => (
+      <>
+        <ReadingSwitch
+          applicantId="a1"
+          view={describeReading({
+            feature: { available: true, reason: null },
+            extraction: false,
+            ocr: false,
+          })}
+        />
+        <ReadingSwitch
+          applicantId="a2"
+          view={describeReading({
+            feature: { available: true, reason: null },
+            extraction: true,
+            ocr: false,
+          })}
+        />
+        <ReadingSwitch
+          applicantId="a3"
+          view={describeReading({
+            feature: { available: false, reason: 'turned_off' },
+            extraction: true,
+            ocr: true,
+          })}
+        />
+      </>
+    ),
   },
   {
     name: 'decide the files that need one decision',

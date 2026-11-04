@@ -14,6 +14,16 @@ const mocks = vi.hoisted(() => ({
   documentUploadReceiptsReady: vi.fn(async () => true),
   listPendingProposals: vi.fn(async (): Promise<unknown[]> => []),
   listApplicants: vi.fn(async (): Promise<unknown[]> => []),
+  getAiFeatureStates: vi.fn(
+    async (): Promise<unknown> => ({
+      ai_automatic_reading: {
+        feature: 'ai_automatic_reading',
+        available: true,
+        reason: null,
+        dailyLimit: null,
+      },
+    }),
+  ),
   listDocumentExceptions: vi.fn(async () => ({ exceptions: [] as unknown[], confirmed: [] })),
 }));
 
@@ -33,6 +43,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   documentUploadReceiptsReady: mocks.documentUploadReceiptsReady,
   listPendingProposals: mocks.listPendingProposals,
   listApplicants: mocks.listApplicants,
+  getAiFeatureStates: mocks.getAiFeatureStates,
   listDocumentExceptions: mocks.listDocumentExceptions,
 }));
 vi.mock('../../../../../../lib/capabilities', () => ({
@@ -45,6 +56,7 @@ vi.mock('../../../../../../lib/session', () => ({
 vi.mock('../../document-uploader', () => ({ DocumentUploader: stub('DocumentUploader') }));
 vi.mock('../../import/import-panel', () => ({ ImportPanel: stub('ImportPanel') }));
 vi.mock('../../usage-meter', () => ({ UsageMeter: stub('UsageMeter') }));
+vi.mock('./reading-switch', () => ({ ReadingSwitch: stub('ReadingSwitch') }));
 
 const { default: AddDocumentsPage } = await import('./page');
 
@@ -68,6 +80,14 @@ beforeEach(() => {
   mocks.documentUploadReceiptsReady.mockResolvedValue(true);
   mocks.listPendingProposals.mockResolvedValue([]);
   mocks.listApplicants.mockResolvedValue([]);
+  mocks.getAiFeatureStates.mockResolvedValue({
+    ai_automatic_reading: {
+      feature: 'ai_automatic_reading',
+      available: true,
+      reason: null,
+      dailyLimit: null,
+    },
+  });
   mocks.listDocumentExceptions.mockResolvedValue({ exceptions: [], confirmed: [] });
   mocks.loadUploadQuotaConfig.mockReturnValue({
     maxUploadBytes: 5 * 1024 * 1024,
@@ -106,6 +126,51 @@ describe('the Add Documents page', () => {
     mocks.listApplicants.mockRejectedValue(new Error('database unavailable'));
     const [props] = stubProps<{ people: unknown[] }>(await render(), 'ImportPanel');
     expect(props?.people).toEqual([]);
+  });
+
+  const switchView = async () => {
+    const [props] = stubProps<{
+      view: { status: string; reads: boolean; canChange: boolean };
+    }>(await render(), 'ReadingSwitch');
+    return props?.view;
+  };
+
+  it('says automatic reading is on only when it can run and the person allowed both kinds', async () => {
+    expect(await switchView()).toMatchObject({ status: 'on', reads: true, canChange: true });
+  });
+
+  it('says it is off for the person, with their own switch, when they have not allowed it', async () => {
+    mocks.hasConsent.mockImplementation(
+      async (_db: unknown, _id: string, type: string) => type === 'CORE_PROCESSING',
+    );
+    expect(await switchView()).toMatchObject({
+      status: 'needs_consent',
+      reads: false,
+      canChange: true,
+    });
+  });
+
+  it('says it is off, with no switch, when the platform switch is off, even if the person allowed it', async () => {
+    mocks.getAiFeatureStates.mockResolvedValue({
+      ai_automatic_reading: {
+        feature: 'ai_automatic_reading',
+        available: false,
+        reason: 'turned_off',
+        dailyLimit: null,
+      },
+    });
+    expect(await switchView()).toMatchObject({ status: 'off', reads: false, canChange: false });
+    const text = textOf(await render());
+    expect(text).toContain('We check each one for safety and keep it for you.');
+    expect(text).toContain('You Add the Details');
+    expect(text).not.toContain('Read for Details');
+    const [panel] = stubProps<{ readingOn: boolean }>(await render(), 'ImportPanel');
+    expect(panel?.readingOn).toBe(false);
+  });
+
+  it('says it is off, never on, when its state cannot be read', async () => {
+    mocks.getAiFeatureStates.mockRejectedValue(new Error('database unavailable'));
+    expect(await switchView()).toMatchObject({ status: 'off', reads: false, canChange: false });
   });
 
   it('says what happens next in three plain steps', async () => {

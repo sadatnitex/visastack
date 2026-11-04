@@ -6,10 +6,12 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { accountPrincipal } from './access/principal';
 import { requireAccess } from './access/require-access';
+import { systemScopeForTest } from './access/system-scope.test-support';
 import { provisionAccount } from './accounts';
 import {
   aiEntitlementFor,
   getAiFeatureState,
+  getAiFeatureStates,
   listAiFeatureSettings,
   updateAiFeatureSetting,
 } from './ai-feature-settings';
@@ -111,6 +113,55 @@ describe('AI feature state', () => {
       included: true,
       dailyLimit: 15,
     });
+  });
+});
+
+describe('what Add Documents shows about automatic reading is what the reading job decides', () => {
+  it('gives the page and the job the same answer for the same person, switch on or off', async () => {
+    const proof = await ownerProof();
+    const accountId = proof.applicant.ownerAccountId;
+    const staff = await owner();
+    const job = () =>
+      getAiFeatureState(db, 'ai_automatic_reading', {
+        system: systemScopeForTest('process-ai-reading') as never,
+        accountId,
+      });
+    const page = async () =>
+      (await getAiFeatureStates(db, ['ai_automatic_reading'] as const, { proof }))
+        .ai_automatic_reading;
+
+    for (const enabled of [false, true, false]) {
+      const saved = await updateAiFeatureSetting(db, staff, {
+        feature: 'ai_automatic_reading',
+        enabled,
+        dailyLimit: null,
+        stepUpSatisfied: true,
+      });
+      expect(isOk(saved)).toBe(true);
+      const seenByPage = await page();
+      expect(seenByPage).toEqual(await job());
+      expect(seenByPage.available).toBe(enabled);
+      if (!enabled) expect(seenByPage.reason).toBe('turned_off');
+    }
+  });
+
+  it('gives them the same answer when the daily limit is used up', async () => {
+    const proof = await ownerProof();
+    const accountId = proof.applicant.ownerAccountId;
+    const staff = await owner();
+    await updateAiFeatureSetting(db, staff, {
+      feature: 'ai_automatic_reading',
+      enabled: true,
+      dailyLimit: 1,
+      stepUpSatisfied: true,
+    });
+    const job = await getAiFeatureState(db, 'ai_automatic_reading', {
+      system: systemScopeForTest('process-ai-reading') as never,
+      accountId,
+    });
+    const page = (await getAiFeatureStates(db, ['ai_automatic_reading'] as const, { proof }))
+      .ai_automatic_reading;
+    expect(page).toEqual(job);
   });
 });
 

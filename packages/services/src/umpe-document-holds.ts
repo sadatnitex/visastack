@@ -170,6 +170,32 @@ export function proposePerson(
     : { basis: 'NAME_AND_BIRTH_DATE', applicantId: only.applicantId };
 }
 
+/** Only a real document extension is dropped, so a name part after a dot is never lost. */
+const DOCUMENT_EXTENSION = /\.(pdf|png|jpe?g|heic|heif|webp|gif|tiff?|docx?|txt)$/i;
+
+/**
+ * Which of the account's people a file's own NAME points to, when exactly one does. A person
+ * matches only when every word of their name is a word of the file name ("Passport_Nazmus
+ * Sadat.pdf" names Nazmus Sadat), so a shared family name alone never picks anyone. Two matches
+ * (or none) name nobody. This is only ever a suggestion the person confirms: it reads nothing from
+ * inside the file and is never used to file a file without asking.
+ */
+export function proposePersonFromFileName(
+  fileName: string | null | undefined,
+  people: readonly { readonly applicantId: string; readonly displayName: string }[],
+): string | null {
+  if (!fileName) return null;
+  const withoutExtension = fileName.replace(DOCUMENT_EXTENSION, '');
+  const words = new Set(nameTokens(withoutExtension));
+  if (words.size === 0) return null;
+  const matches = people.filter((person) => {
+    const own = nameTokens(person.displayName);
+    return own.length > 0 && own.every((word) => words.has(word));
+  });
+  const [only] = matches;
+  return matches.length === 1 && only ? only.applicantId : null;
+}
+
 // --- The account's people ----------------------------------------------------------------------
 
 const IDENTITY_FIELDS = ['given_name', 'family_name', 'date_of_birth'] as const;
@@ -618,6 +644,11 @@ export interface HeldFile {
   readonly basis: ProposalBasis;
   /** Set only for NAME_AND_BIRTH_DATE, and only while that person is still one of the account's. */
   readonly proposedApplicantId: string | null;
+  /**
+   * The one person the file's own name points to (see `proposePersonFromFileName`), or null. A
+   * suggestion only, shown when reading did not name anyone; nothing is filed from it.
+   */
+  readonly nameSuggestionApplicantId: string | null;
   readonly addedAt: Date;
 }
 
@@ -677,18 +708,26 @@ export async function listHeldFiles(
     .orderBy(schema.applicants.createdAt);
   const own = new Set(people.map((person) => person.applicantId));
   return {
-    files: rows.map((row) => ({
-      holdId: row.id,
-      fileName: row.originalFileName,
-      basis: isProposalBasis(row.proposalBasis) ? row.proposalBasis : 'NOT_READ',
-      proposedApplicantId:
+    files: rows.map((row) => {
+      const proposed =
         row.proposalBasis === 'NAME_AND_BIRTH_DATE' &&
         row.proposedApplicantId &&
         own.has(row.proposedApplicantId)
           ? row.proposedApplicantId
-          : null,
-      addedAt: row.createdAt,
-    })),
+          : null;
+      return {
+        holdId: row.id,
+        fileName: row.originalFileName,
+        basis: isProposalBasis(row.proposalBasis) ? row.proposalBasis : 'NOT_READ',
+        proposedApplicantId: proposed,
+        // Only when reading named nobody, and never over a close call between several people.
+        nameSuggestionApplicantId:
+          proposed === null && row.proposalBasis !== 'CLOSE_MATCHES'
+            ? proposePersonFromFileName(row.originalFileName, people)
+            : null,
+        addedAt: row.createdAt,
+      };
+    }),
     people,
   };
 }

@@ -313,6 +313,7 @@ export function ImportPanel({
   retryUnknown = false,
   familyBatch = false,
   people = [],
+  readingOn = false,
   showNext = true,
 }: {
   readonly applicantId: string;
@@ -343,6 +344,11 @@ export function ImportPanel({
    * uses the family route when it is ready.
    */
   readonly people?: readonly { readonly id: string; readonly name: string }[];
+  /**
+   * Whether a file added now will really be read automatically. When it will not, the closing
+   * line never says files are "sorted on their own". Default false: a page that does not say reading is on never claims it.
+   */
+  readonly readingOn?: boolean;
 }) {
   const router = useRouter();
   const forId = useId();
@@ -793,7 +799,9 @@ export function ImportPanel({
           <p className="field-hint">
             {sentToFamily.current
               ? 'Files for several people wait in Needs One Decision until you choose who each one belongs to.'
-              : 'Most files are sorted on their own. Anything that needs your answer is in Needs One Decision, and details read from your files wait for your approval.'}
+              : readingOn
+                ? 'Most files are sorted on their own. Anything that needs your answer is in Needs One Decision, and details read from your files wait for your approval.'
+                : 'Your files are saved and checked for safety. Automatic reading is off, so nothing was read: you add the details yourself. Anything that needs your answer is in Needs One Decision.'}
           </p>
           {showNext || sentToFamily.current ? (
             <div className="upload-drop-actions">

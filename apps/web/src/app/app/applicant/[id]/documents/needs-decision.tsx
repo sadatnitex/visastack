@@ -44,6 +44,11 @@ export interface HeldFileItem {
   readonly fileName: string | null;
   readonly basis: 'NAME_AND_BIRTH_DATE' | 'CLOSE_MATCHES' | 'NO_MATCH' | 'NOT_READ';
   readonly proposedApplicantId: string | null;
+  /**
+   * The one person the file's own name points to, when reading named nobody. A suggestion the
+   * person confirms with one tap; nothing is filed from it.
+   */
+  readonly nameSuggestionApplicantId?: string | null;
   /** When it was added, already written for people ("3 Nov 2026"). */
   readonly addedOn: string;
 }
@@ -229,6 +234,10 @@ function basisLine(file: HeldFileItem, people: readonly PersonChoice[]): string 
   if (file.basis === 'NAME_AND_BIRTH_DATE' && proposed) {
     return `The name and date of birth in this file match ${proposed.displayName}. Check before you file it.`;
   }
+  const named = people.find((person) => person.applicantId === file.nameSuggestionApplicantId);
+  if (named && !proposed) {
+    return `The file name says ${named.displayName}, so we think this is theirs. Check before you file it.`;
+  }
   if (file.basis === 'NAME_AND_BIRTH_DATE') {
     // UMPE G4: filed automatically and moved back by the person, so nobody is chosen for them.
     return 'Choose who this file belongs to.';
@@ -236,7 +245,10 @@ function basisLine(file: HeldFileItem, people: readonly PersonChoice[]): string 
   if (file.basis === 'CLOSE_MATCHES') {
     return 'This file could belong to more than one of your people, so we did not choose for you.';
   }
-  return 'We could not tell who this file belongs to.';
+  if (file.basis === 'NO_MATCH') {
+    return 'We read this file, but it does not match any of your people by name and date of birth.';
+  }
+  return 'We have not read anything from this file, so we cannot tell who it belongs to.';
 }
 
 /**
@@ -259,23 +271,20 @@ function WhichPersonForm({
 }) {
   const label = file.fileName ?? `File Added ${file.addedOn}`;
   const groupId = `which-person-${file.holdId}`;
-  return (
-    <form action={action} className="umpe-g1-person-form">
-      <input type="hidden" name="applicantId" value={applicantId} />
-      <input type="hidden" name="holdId" value={file.holdId} />
+  const suggestedId = file.proposedApplicantId ?? file.nameSuggestionApplicantId ?? null;
+  const suggested = people.find((person) => person.applicantId === suggestedId);
+  const choices = (
+    <>
       <fieldset className="umpe-g1-person-choices" aria-describedby={`${groupId}-basis`}>
         <legend>Which Person Is {label} For?</legend>
-        <p className="muted" id={`${groupId}-basis`}>
-          {basisLine(file, people)}
-        </p>
+        {suggested ? null : (
+          <p className="muted" id={`${groupId}-basis`}>
+            {basisLine(file, people)}
+          </p>
+        )}
         {people.map((person) => (
           <label key={person.applicantId} className="umpe-g1-person-choice">
-            <input
-              type="radio"
-              name="personId"
-              value={person.applicantId}
-              defaultChecked={person.applicantId === file.proposedApplicantId}
-            />
+            <input type="radio" name="personId" value={person.applicantId} />
             <span>{person.displayName}</span>
           </label>
         ))}
@@ -300,7 +309,60 @@ function WhichPersonForm({
           className="btn btn-secondary"
         />
       </div>
-    </form>
+    </>
+  );
+  if (!suggested) {
+    return (
+      <form action={action} className="umpe-g1-person-form">
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="holdId" value={file.holdId} />
+        {choices}
+      </form>
+    );
+  }
+  // One tap: the suggested person is filed with one button; everyone else is behind one quiet line.
+  return (
+    <div className="umpe-g1-person-form">
+      <p>
+        <strong>{label}</strong>
+      </p>
+      <p className="muted" id={`${groupId}-basis`}>
+        {basisLine(file, people)}
+      </p>
+      <form action={action}>
+        <input type="hidden" name="applicantId" value={applicantId} />
+        <input type="hidden" name="holdId" value={file.holdId} />
+        <input type="hidden" name="personId" value={suggested.applicantId} />
+        <div className="umpe-p3-decision-actions">
+          <SubmitButton
+            pending={pending}
+            name="intent"
+            value="file"
+            idle={`File Under ${suggested.displayName}`}
+            busy="Saving"
+            label={`File Under ${suggested.displayName}: ${label}`}
+            className="btn btn-primary"
+          />
+          <SubmitButton
+            pending={pending}
+            name="intent"
+            value="discard"
+            idle="Remove This File"
+            busy="Saving"
+            label={`Remove This File: ${label}`}
+            className="btn btn-secondary"
+          />
+        </div>
+      </form>
+      <details className="add-more">
+        <summary className="add-more-summary">Choose Someone Else</summary>
+        <form action={action} className="umpe-g1-person-form">
+          <input type="hidden" name="applicantId" value={applicantId} />
+          <input type="hidden" name="holdId" value={file.holdId} />
+          {choices}
+        </form>
+      </details>
+    </div>
   );
 }
 
