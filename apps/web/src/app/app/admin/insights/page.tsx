@@ -75,8 +75,9 @@ function Report({ report }: { readonly report: FieldInsightsReport }) {
         </p>
         {summary.nothingShownYet ? (
           <p className="card-body">
-            Nothing can be shown yet because every group is still small. This is expected while the
-            pilot is small. Numbers appear as more people use VisaStack.
+            No number can be shown yet. A number appears when a group has enough records from enough
+            people and no single agency supplies most of them. This is expected while the pilot is
+            small.
           </p>
         ) : null}
       </article>

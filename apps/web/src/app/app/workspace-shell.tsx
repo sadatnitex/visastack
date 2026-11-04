@@ -391,7 +391,7 @@ export function WorkspaceShell({
               tools={nav.billing}
               primary={nav.primary}
               popover={railShown}
-              title="Billing and Plans"
+              title="Operations and Billing"
               groupIcon="briefcase"
               listLabel="Billing and plans"
             />

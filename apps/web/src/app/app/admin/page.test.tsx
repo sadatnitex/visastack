@@ -334,7 +334,7 @@ describe('Platform > Operations', () => {
     const text = textOf(html);
     expect(stubProps(html, 'RetryJobButton')).toHaveLength(0);
     expect(stubProps(html, 'ReconcileButtons')).toHaveLength(0);
-    expect(text).toContain('Support Admin Only');
+    expect(text).toContain('Support Admin or Platform Owner');
     expect(text).toContain('Only a Support Admin or a platform owner can run this.');
     const asked = mocks.hasPlatformPermission.mock.calls.map((call) => call[2]);
     expect(asked).toEqual(expect.arrayContaining(['PROCESSING_JOB_RETRY', 'ORPHAN_RECONCILE']));

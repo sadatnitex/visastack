@@ -30,6 +30,7 @@ import {
 } from '../../../lib/admin';
 import { parseDocumentTypeInput } from '../../../lib/catalogue-input';
 import { triggerErasureWorker, triggerNotificationWorker } from '../../../lib/jobs';
+import { isRecordId } from '../../../lib/record-id';
 import { withSession } from '../../../lib/session';
 import { STEP_UP_NOT_CONFIGURED_MESSAGE, tryEstablishStepUp } from '../../../lib/step-up';
 import { createStorage } from '../../../lib/storage';
@@ -98,11 +99,16 @@ export async function placeLegalHoldAction(
   if (applicantId.length === 0) return { ok: false, message: 'Choose a traveller.' };
   if (reason.length === 0) return { ok: false, message: 'A reason is required.' };
   if (reviewAtRaw.length === 0) return { ok: false, message: 'A review date is required.' };
-  if (scope === 'mission' && missionId.length === 0) {
-    return { ok: false, message: 'Enter the case reference for this hold.' };
+  // The hold is placed by the id in the page address, not the short reference code: anything else
+  // is refused here in plain words rather than failing inside the database.
+  if (scope === 'mission' && !isRecordId(missionId)) {
+    return { ok: false, message: 'Enter the case id: the long code in the address of its page.' };
   }
-  if (scope === 'document' && documentId.length === 0) {
-    return { ok: false, message: 'Enter the document reference for this hold.' };
+  if (scope === 'document' && !isRecordId(documentId)) {
+    return {
+      ok: false,
+      message: 'Enter the document id: the long code in the address of its page.',
+    };
   }
   const reviewAt = new Date(reviewAtRaw);
   if (Number.isNaN(reviewAt.getTime())) {

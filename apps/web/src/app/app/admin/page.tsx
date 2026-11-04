@@ -463,7 +463,9 @@ export default async function AdminOperationsPage({
                             {data.mayRetry ? (
                               <RetryJobButton jobId={job.id} />
                             ) : (
-                              <span className="muted u-fs-085">Support Admin Only</span>
+                              <span className="muted u-fs-085">
+                                Support Admin or Platform Owner
+                              </span>
                             )}
                           </span>
                         </div>

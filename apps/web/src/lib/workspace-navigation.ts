@@ -55,7 +55,7 @@ export interface WorkspaceNavigation {
   readonly photo?: string;
   readonly primary: readonly NavLink[];
   readonly tools: readonly NavLink[];
-  /** Platform only: the Billing and Plans group, each link only for the role that can open it. */
+  /** Platform only: the Operations and Billing group, each link only for the role that can open it. */
   readonly billing?: readonly NavLink[];
   readonly settings: readonly NavLink[];
 }

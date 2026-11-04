@@ -379,7 +379,7 @@ describe('workspace navigation link list (characterization)', () => {
     expect(pairs(nav.billing ?? [])).toEqual([['Billing', '/app/admin/billing']]);
   });
 
-  it('sends only the owner to the plans, and lists each Billing and Plans page only for the role that can open it', () => {
+  it('sends only the owner to the plans, and lists each Operations and Billing page only for the role that can open it', () => {
     const staff = (platform: NonNullable<WorkspaceAccess['platform']>) =>
       workspaceNavigation('/app/admin', { ...none, platform });
     const limited = {

@@ -153,11 +153,11 @@ describe('staff mode on platform pages (owner list item 18)', () => {
     expect(summary?.textContent).toContain('More Tools');
   });
 
-  it('adds a Billing and Plans list only when the role has a page in it, closed unless one is open', () => {
+  it('adds a Operations and Billing list only when the role has a page in it, closed unless one is open', () => {
     mount('/app/admin');
     expect(container.querySelectorAll('details.workspace-tools')).toHaveLength(2);
     const group = [...container.querySelectorAll('details.workspace-tools')].find((item) =>
-      item.textContent?.includes('Billing and Plans'),
+      item.textContent?.includes('Operations and Billing'),
     );
     expect(group?.hasAttribute('open')).toBe(false);
     expect([...(group?.querySelectorAll('a') ?? [])].map((a) => a.getAttribute('href'))).toEqual([
@@ -167,7 +167,7 @@ describe('staff mode on platform pages (owner list item 18)', () => {
     mount('/app/admin/email');
     expect(
       [...container.querySelectorAll('details.workspace-tools')]
-        .find((item) => item.textContent?.includes('Billing and Plans'))
+        .find((item) => item.textContent?.includes('Operations and Billing'))
         ?.hasAttribute('open'),
     ).toBe(true);
   });

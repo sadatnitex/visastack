@@ -137,7 +137,7 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
     });
     expect(mocks.isPlatformOwnerAccount).toHaveBeenCalledWith({}, actor);
   });
-  it('carries one proven permission for each page in the Billing and Plans group', async () => {
+  it('carries one proven permission for each page in the Operations and Billing group', async () => {
     mocks.holdsPlatformRole.mockResolvedValue(true);
     mocks.isPlatformOwnerAccount.mockResolvedValue(false);
     const only = async (allowed: string) => {

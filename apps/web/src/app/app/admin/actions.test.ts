@@ -42,7 +42,12 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-import { retryErasureJobAction, retryJobAction, setRetentionPolicyAction } from './actions';
+import {
+  placeLegalHoldAction,
+  retryErasureJobAction,
+  retryJobAction,
+  setRetentionPolicyAction,
+} from './actions';
 
 const INITIAL = { ok: true, message: '' };
 const EM_DASH = String.fromCharCode(0x2014);
@@ -123,5 +128,33 @@ describe('retrying a stuck job', () => {
     const two = await retryErasureJobAction(INITIAL, form({ jobId: 'er-1' }));
     expect(one.message).toBe('That job is no longer failed. It may have already been retried.');
     for (const result of [one, two]) expect(result.message).not.toContain(EM_DASH);
+  });
+});
+
+describe('placing a legal hold on one case or one document', () => {
+  const hold = (extra: Record<string, string>) =>
+    placeLegalHoldAction(
+      INITIAL,
+      form({
+        applicantId: '11111111-1111-4111-8111-111111111111',
+        reason: 'Dispute',
+        reviewAt: '2030-01-01',
+        ...extra,
+      }),
+    );
+
+  it('refuses a short reference code for a case or a document, in plain words, before any check runs', async () => {
+    const aCase = await hold({ scope: 'mission', missionId: 'C-7K2Q9M' });
+    expect(aCase).toEqual({
+      ok: false,
+      message: 'Enter the case id: the long code in the address of its page.',
+    });
+    const aDocument = await hold({ scope: 'document', documentId: 'D-1A2B3C' });
+    expect(aDocument).toEqual({
+      ok: false,
+      message: 'Enter the document id: the long code in the address of its page.',
+    });
+    expect(mocks.hasPlatformPermission).not.toHaveBeenCalled();
+    expect(mocks.tryEstablishStepUp).not.toHaveBeenCalled();
   });
 });

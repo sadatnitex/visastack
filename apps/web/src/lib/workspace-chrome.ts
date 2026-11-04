@@ -102,7 +102,7 @@ export async function loadWorkspaceChrome(
           removals: permissions[4] === true && documentRemovalRequestsOn(),
           // UMPE P12: Field Insights uses the existing feedback permission.
           insights: permissions[5] === true,
-          // The Billing and Plans group lists only what this role can open.
+          // The Operations and Billing group lists only what this role can open.
           email: permissions[6] === true,
           protection: permissions[7] === true,
           recovery: permissions[8] === true,

@@ -116,7 +116,7 @@ describe('Field Insights', () => {
     expect(text).toContain(
       'a number is hidden when it is under 10, from fewer than 5 people, or more than 70 percent from one agency.',
     );
-    expect(text).not.toContain('Nothing can be shown yet');
+    expect(text).not.toContain('No number can be shown yet');
   });
 
   it('explains plainly that nothing can be shown yet when every number is hidden or zero', async () => {
@@ -137,7 +137,7 @@ describe('Field Insights', () => {
     mocks.getFieldInsights.mockResolvedValue({ ok: true, value: quiet });
     const html = await renderServer(Page({ searchParams: Promise.resolve({}) }));
     const text = textOf(html);
-    expect(text).toContain('Nothing can be shown yet because every group is still small.');
+    expect(text).toContain('No number can be shown yet.');
     expect(text).toContain('This is expected while the pilot is small.');
     // Only the totals are said: never which number, never why that one.
     expect(text).not.toMatch(/Mostly One Agency|Small Group|Protects Another/);
