@@ -641,8 +641,10 @@ export const missions = pgTable(
     // The org this case is primarily attributed to, distinct from
     // `assignments` (which member(s) work it) and from `grants` (which orgs
     // currently have real access): this is just the case's own "whose case is
-    // this" label. Never itself a source of access; set null keeps the
-    // mission, never blocks or cascades.
+    // this" label. Never itself a source of access to the traveller's records;
+    // set null keeps the mission, never blocks or cascades. It is set when a
+    // client accepts an agency invitation, and it decides which of that agency's
+    // private checklists the case owner may pick (umpe-pack-selection.ts).
     ownerOrganizationId: uuid('owner_organization_id').references(() => organizations.id, {
       onDelete: 'set null',
     }),
