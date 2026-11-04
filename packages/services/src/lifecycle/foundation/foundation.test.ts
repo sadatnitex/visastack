@@ -314,6 +314,33 @@ describe('availableDocumentActions', () => {
       { state: 'REMOVING', selfDeleteSwitchOn: true },
       [],
     ],
+    // Also Keep a Copy for Another Person: only a current document of a two-person kind, with
+    // someone else on the account, and always before Delete My File.
+    [
+      'a current document that belongs to two people, with someone else on the account',
+      { keepCopyForOthers: true },
+      ['ARCHIVE', 'REPLACE', 'KEEP_COPY_FOR_PERSON'],
+    ],
+    [
+      'the same document with Delete My File on',
+      { keepCopyForOthers: true, selfDeleteSwitchOn: true },
+      ['ARCHIVE', 'REPLACE', 'KEEP_COPY_FOR_PERSON', 'DELETE_MY_FILE'],
+    ],
+    [
+      'an archived document that belongs to two people',
+      { state: 'ARCHIVED', keepCopyForOthers: true },
+      ['RESTORE'],
+    ],
+    [
+      'a document in Recently Deleted that belongs to two people',
+      { state: 'RECENTLY_DELETED', keepCopyForOthers: true },
+      ['RESTORE_DELETED'],
+    ],
+    [
+      'a document that belongs to two people, with no one else to copy for',
+      { keepCopyForOthers: false },
+      ['ARCHIVE', 'REPLACE'],
+    ],
   ])('offers the right actions for %s', (_name, view, expected) => {
     const actions = availableDocumentActions({ ...base, ...view });
     expect(actions).toEqual(expected);

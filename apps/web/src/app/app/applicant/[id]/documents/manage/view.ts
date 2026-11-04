@@ -30,6 +30,7 @@ export function documentActionView(
       | 'legalHold'
       | 'requestsSwitchOn'
       | 'selfDeleteSwitchOn'
+      | 'keepCopyForOthers'
     >
   > = {},
 ): DocumentActionView {
@@ -42,5 +43,6 @@ export function documentActionView(
     legalHold: facts.legalHold ?? false,
     requestsSwitchOn: facts.requestsSwitchOn ?? false,
     selfDeleteSwitchOn: facts.selfDeleteSwitchOn ?? false,
+    keepCopyForOthers: facts.keepCopyForOthers ?? false,
   };
 }

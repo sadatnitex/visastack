@@ -144,6 +144,32 @@ describe('ManageMenu', () => {
     expect(document.activeElement).toBe(trigger());
   });
 
+  it('hands the other people on the account to the chosen action, for a copy', () => {
+    const Copy = ({ copyPeople }: ManageActionProps) => (
+      <p>{copyPeople?.map((person) => person.name).join(' and ') ?? 'nobody'}</p>
+    );
+    act(() =>
+      root.render(
+        <ManageMenu
+          applicantId="a1"
+          documentId="d1"
+          documentName="Marriage Certificate"
+          actions={['KEEP_COPY_FOR_PERSON']}
+          copyPeople={[
+            { id: 'a2', name: 'Salma Sadat' },
+            { id: 'a3', name: 'Nila Sadat' },
+          ]}
+          registry={{
+            KEEP_COPY_FOR_PERSON: { label: 'Also Keep a Copy for Another Person', Component: Copy },
+          }}
+        />,
+      ),
+    );
+    act(() => trigger()?.click());
+    act(() => items()[0]?.click());
+    expect(container.textContent).toContain('Salma Sadat and Nila Sadat');
+  });
+
   it('opens a deep-linked action only when the rule allows it', () => {
     act(() =>
       root.render(

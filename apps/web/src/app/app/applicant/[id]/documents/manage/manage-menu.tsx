@@ -15,6 +15,7 @@ export function ManageMenu({
   documentId,
   documentName,
   actions,
+  copyPeople,
   initialAction,
   registry = MANAGE_ACTIONS,
 }: {
@@ -22,6 +23,8 @@ export function ManageMenu({
   readonly documentId: string;
   readonly documentName: string;
   readonly actions: readonly DocumentAction[];
+  /** The other people on the account, for "Also Keep a Copy for Another Person". */
+  readonly copyPeople?: readonly { readonly id: string; readonly name: string }[];
   /** From a reminder's link (?manage=<documentId>&action=<ACTION>): opens that action at once. */
   readonly initialAction?: DocumentAction;
   readonly registry?: Readonly<Partial<Record<DocumentAction, ManageActionEntry>>>;
@@ -165,6 +168,7 @@ export function ManageMenu({
             applicantId={applicantId}
             documentId={documentId}
             documentName={documentName}
+            {...(copyPeople ? { copyPeople } : {})}
             onClose={() => {
               setActive(null);
               button.current?.focus();

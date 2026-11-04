@@ -89,6 +89,7 @@ vi.mock('../app/app/agency/[orgId]/plan/invoices/actions', standIn);
 vi.mock('../app/app/applicant/[id]/actions', standIn);
 vi.mock('../app/app/applicant/[id]/documents/needs-decision-actions', standIn);
 vi.mock('../app/app/applicant/[id]/documents/add/actions', standIn);
+vi.mock('../app/app/applicant/[id]/documents/manage/copy/actions', standIn);
 vi.mock('../app/app/applicant/[id]/section-actions', standIn);
 vi.mock('../app/app/applicant/[id]/evidence/actions', standIn);
 vi.mock('../app/app/applicant/[id]/missions/actions', standIn);
@@ -176,6 +177,9 @@ const { RequireDifferentReviewerToggle } = await import(
 const { CreateOrgForm } = await import('../app/app/agency/create-org-form');
 const aiReview = await import('../app/app/applicant/[id]/ai-review');
 const { DocumentUploader } = await import('../app/app/applicant/[id]/document-uploader');
+const { KeepCopyAction } = await import(
+  '../app/app/applicant/[id]/documents/manage/copy/keep-copy-action'
+);
 const { ReadingSwitch } = await import('../app/app/applicant/[id]/documents/add/reading-switch');
 const { describeReading } = await import('./reading-state');
 const { NeedsDecision, RelationDecisionForm } = await import(
@@ -398,6 +402,30 @@ const DOCS: readonly Case[] = [
       );
     }),
     fields: ['name'],
+  },
+  {
+    name: 'keep a copy of a document for another person',
+    element: () => (
+      <>
+        <KeepCopyAction
+          applicantId="a1"
+          documentId="d1"
+          documentName="Marriage Certificate"
+          copyPeople={[{ id: 'a2', name: 'Salma Sadat' }]}
+          onClose={() => undefined}
+        />
+        <KeepCopyAction
+          applicantId="a1"
+          documentId="d2"
+          documentName="Joint Account Statement"
+          copyPeople={[
+            { id: 'a2', name: 'Salma Sadat' },
+            { id: 'a3', name: 'Nila Sadat' },
+          ]}
+          onClose={() => undefined}
+        />
+      </>
+    ),
   },
   {
     name: 'turn automatic reading on or off',
