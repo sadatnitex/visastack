@@ -13,9 +13,7 @@ export default function WorkspaceNotFound() {
   return (
     <section className="section container center">
       <span className="eyebrow">Not Found</span>
-      <h1 className="section-title">
-        We Couldn't Find That Page
-      </h1>
+      <h1 className="section-title">We Couldn't Find That Page</h1>
       <p className="section-sub">
         The link may be out of date, or the record may have been removed or revoked. Check the
         address, or head back to your overview.
