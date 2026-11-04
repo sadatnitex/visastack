@@ -69,13 +69,46 @@ describe('createMissionAction: checking the answers', () => {
       form({ title: 'Trip', destination: 'Atlantis', purpose: 'smuggling' }),
     );
     expect(result.fieldErrors).toEqual({
-      destination: 'Choose a country from the list.',
+      destination: 'We could not match that to a country. Pick one from the list.',
       purpose: 'Choose a purpose from the list.',
     });
     expect(result.field).toBe('destination');
     expect(result.message).toBe('Check the 2 fields marked above.');
     expect(result.attempt).toBe(3);
     expect(mocks.createMission).not.toHaveBeenCalled();
+  });
+
+  it.each(['Korea', 'Congo', 'Japan, please', 'gb', 'Not Sure Yet'])(
+    'refuses the text "%s" as a country, saves nothing and never reads it as "not sure yet"',
+    async (typed) => {
+      const result = await createMissionAction(PREV, form({ title: 'Trip', destination: typed }));
+      expect(result.ok).toBe(false);
+      expect(result.field).toBe('destination');
+      expect(result.fieldErrors).toEqual({
+        destination: 'We could not match that to a country. Pick one from the list.',
+      });
+      expect(result.values?.destination).toBe(typed);
+      expect(mocks.createMission).not.toHaveBeenCalled();
+    },
+  );
+
+  it('saves the country a typed name, code or common name stands for, and nothing else', async () => {
+    for (const typed of ['Japan', 'japan ', 'JP', 'Côte d’Ivoire', 'uk']) {
+      mocks.createMission.mockClear();
+      await expect(
+        createMissionAction(PREV, form({ title: 'Trip', destination: typed })),
+      ).rejects.toThrow('REDIRECT');
+      const saved = mocks.createMission.mock.calls[0]?.[1] as { destination?: string };
+      expect(['Japan', "Côte d'Ivoire", 'United Kingdom'], typed).toContain(saved.destination);
+    }
+  });
+
+  it('keeps an empty destination as "not sure yet": no country is saved', async () => {
+    await expect(
+      createMissionAction(PREV, form({ title: 'Trip', destination: '  ' })),
+    ).rejects.toThrow('REDIRECT');
+    const saved = mocks.createMission.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(saved).not.toHaveProperty('destination');
   });
 
   it('refuses an unreal date and a trip that ends before it starts, focusing the first', async () => {
@@ -124,7 +157,7 @@ describe('createMissionAction: a good form', () => {
         PREV,
         form({
           title: ' UK Student Visa ',
-          destination: 'gb',
+          destination: 'United Kingdom',
           purpose: 'tourism',
           jurisdiction: 'British High Commission Dhaka',
           travelStartDate: '2026-12-01',

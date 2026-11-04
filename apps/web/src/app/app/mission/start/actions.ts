@@ -8,10 +8,11 @@ import { attachChecklistFor, checklistToLink } from '../../../../lib/case-checkl
 import {
   type CaseCountryOption,
   type CasePurposeOption,
-  caseCountry,
   casePurpose,
   countryMatchTerms,
+  destinationRefusal,
   purposeMatchTerms,
+  resolveCaseCountry,
 } from '../../../../lib/case-choices';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
@@ -65,8 +66,11 @@ export async function startTripAction(
   _prev: TripStartState,
   formData: FormData,
 ): Promise<TripStartState> {
-  const country = caseCountry(String(formData.get('destination') ?? ''));
-  if (!country) return { ok: false, message: 'Choose where you are going.', field: 'destination' };
+  const typedDestination = String(formData.get('destination') ?? '');
+  const country = resolveCaseCountry(typedDestination);
+  if (!country) {
+    return { ok: false, message: destinationRefusal(typedDestination), field: 'destination' };
+  }
   const purpose = casePurpose(String(formData.get('purpose') ?? ''));
   if (!purpose) return { ok: false, message: 'Choose why you are travelling.', field: 'purpose' };
   const travellers = [

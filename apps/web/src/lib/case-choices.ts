@@ -29,6 +29,8 @@ import { COUNTRY_ALIASES } from './country-start';
 export interface CaseCountryOption {
   readonly iso2: string;
   readonly name: string;
+  /** Other whole names people type for it ("UK" for the United Kingdom), when it has any. */
+  readonly aka?: readonly string[];
 }
 
 export interface CasePurposeOption {
@@ -59,7 +61,14 @@ let countries: readonly CaseCountryOption[] | undefined;
 /** Every country the app holds, by name. */
 export function caseCountryOptions(): readonly CaseCountryOption[] {
   countries ??= [...DESTINATIONS]
-    .map((destination) => ({ iso2: destination.iso2, name: destination.country }))
+    .map((destination) => {
+      const aka = COUNTRY_ALIASES[destination.iso2];
+      return {
+        iso2: destination.iso2,
+        name: destination.country,
+        ...(aka && aka.length > 0 ? { aka } : {}),
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name, 'en'));
   return countries;
 }
@@ -85,6 +94,52 @@ export function casePurposeGroups(): readonly CasePurposeGroup[] {
 export function caseCountry(iso2: string): CaseCountryOption | null {
   const destination = destinationByIso2(iso2);
   return destination ? { iso2: destination.iso2, name: destination.country } : null;
+}
+
+let countriesByWholeName: ReadonlyMap<string, CaseCountryOption | null> | undefined;
+
+/**
+ * Every whole name that stands for exactly one picker country: its name and the other names people
+ * type for it. A name two countries both claim maps to null, so it is refused rather than guessed.
+ */
+function wholeCountryNames(): ReadonlyMap<string, CaseCountryOption | null> {
+  if (!countriesByWholeName) {
+    const byName = new Map<string, CaseCountryOption | null>();
+    for (const { iso2, name: countryName, aka = [] } of caseCountryOptions()) {
+      const country = { iso2, name: countryName };
+      for (const name of [countryName, ...aka]) {
+        const key = packMatchKey(name);
+        const held = byName.get(key);
+        if (held === undefined) byName.set(key, country);
+        else if (held !== null && held.iso2 !== iso2) byName.set(key, null);
+      }
+    }
+    countriesByWholeName = byName;
+  }
+  return countriesByWholeName;
+}
+
+/**
+ * The picker country a typed or posted answer names, or null (the destination box, which sends
+ * text). Three things count and nothing else: a country's two-letter code in capitals (what the
+ * old list posted), its whole name, or another whole name people use for it ("UK", "Holland").
+ * Capitals, accents, hyphens and spacing do not matter. A part of a name ("Korea", "Congo") or any
+ * other text is refused, never guessed, so free text can never become a saved country. An empty
+ * answer is not a country either: whether it means "not sure yet" is for the form to say.
+ */
+export function resolveCaseCountry(raw: string): CaseCountryOption | null {
+  const text = raw.trim();
+  if (text === '') return null;
+  const byCode = /^[A-Z]{2}$/.test(text) ? caseCountry(text) : null;
+  if (byCode) return byCode;
+  return wholeCountryNames().get(packMatchKey(text)) ?? null;
+}
+
+/** The plain words for a destination answer that names no country: empty, or text that matches none. */
+export function destinationRefusal(raw: string): string {
+  return raw.trim() === ''
+    ? 'Choose where you are going.'
+    : 'We could not match that to a country. Pick one from the list.';
 }
 
 /** The purpose a submitted key names, or null when the picker does not offer it. */

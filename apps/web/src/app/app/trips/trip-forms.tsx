@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useId, useRef, useState } from 'react';
+import { CountryField } from '../../../components/country-field';
 import {
   FormMessage,
   type FormResult,
@@ -299,7 +300,6 @@ export function GroupTripStartForm({
   useFocusInvalidField(form, state);
   const id = useId();
   const messageId = `${id}-msg`;
-  const [destination, setDestination] = useState('');
   const [purpose, setPurpose] = useState('');
   const { chosen, toggle } = useChosenTravellers(state.created);
   const [adding, setAdding] = useState(false);
@@ -309,23 +309,13 @@ export function GroupTripStartForm({
       <label className="label" htmlFor={`${id}-destination`}>
         Where Are You Going?
       </label>
-      <select
+      <CountryField
         id={`${id}-destination`}
-        name="destination"
-        className="input"
-        value={destination}
-        onChange={(e) => setDestination(e.target.value)}
-        {...fieldProblem(state, 'destination', messageId)}
-      >
-        <option value="" disabled>
-          Choose a Country
-        </option>
-        {countries.map((country) => (
-          <option key={country.iso2} value={country.iso2}>
-            {country.name}
-          </option>
-        ))}
-      </select>
+        countries={countries}
+        placeholder="For example: Japan"
+        hint="Type a name or open the list."
+        problem={fieldProblem(state, 'destination', messageId)}
+      />
       <label className="label" htmlFor={`${id}-purpose`}>
         Why?
       </label>

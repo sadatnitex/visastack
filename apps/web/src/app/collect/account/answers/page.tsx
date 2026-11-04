@@ -83,7 +83,7 @@ export default async function YourAnswersPage({
   });
 
   return (
-    <section className="section container collect-page stack">
+    <section className="section container stack">
       <h1 className="page-title">Your Answers to Agencies</h1>
       {sent ? (
         <output className="notice notice-ok">

@@ -1,51 +1,28 @@
+import { headers } from 'next/headers';
 import type { ReactNode } from 'react';
-import { Icon } from '../../components/icons';
-import { withSession } from '../../lib/session';
-import { getSidebarState } from '../../lib/sidebar-state';
-import { signOutCurrentUser } from '../../lib/sign-out';
-import { loadWorkspaceChrome } from '../../lib/workspace-chrome';
-import { WorkspaceShell } from './workspace-shell';
+import { PATHNAME_REQUEST_HEADER } from '../../lib/csp-middleware';
+import { WorkspaceFrame } from './workspace-frame';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Shared context-aware chrome over existing owner/membership/role reads.
- * Selectors describe accessible contexts and never establish record permission.
- * Every destination retains its existing service and action authorization.
+ * Shared context-aware chrome over existing owner/membership/role reads (see `WorkspaceFrame`).
+ * The page address is set by the middleware on every workspace request; it only lets the first
+ * paint of a case page name its traveller, and the frame checks that case with the owner's read.
  */
 export default async function AppLayout({ children }: { readonly children: ReactNode }) {
-  // The address comes from the same session read the chrome already uses; nothing new is loaded.
-  // It is kept apart from the access object so the browser receives it once, only for the menu.
-  const { account, accountEmail } = await withSession(async ({ db, ...actor }) => ({
-    account: await loadWorkspaceChrome(db, actor),
-    accountEmail: actor.email,
-  }));
+  return WorkspaceFrame({ children, pathname: await requestedPath() });
+}
 
-  // This device's choice (a small cookie), so the sidebar is drawn open or as a rail from the first paint.
-  const sidebarState = await getSidebarState();
-
-  return (
-    <WorkspaceShell
-      access={account}
-      sidebarState={sidebarState}
-      accountName={account.accountName}
-      accountEmail={accountEmail}
-      toolbarState={account.toolbar}
-      signOut={
-        <form
-          action={async () => {
-            'use server';
-            await signOutCurrentUser();
-          }}
-        >
-          <button type="submit" className="btn btn-secondary nav-cta">
-            <Icon name="logout" size={18} />
-            Sign Out
-          </button>
-        </form>
-      }
-    >
-      {children}
-    </WorkspaceShell>
-  );
+/**
+ * The address the middleware passed on. With no request to read (a unit test, a static render) the
+ * answer is none, so the layout never fails over a first-paint improvement; the case page then
+ * names its traveller from the browser, as before.
+ */
+async function requestedPath(): Promise<string | null> {
+  try {
+    return (await headers()).get(PATHNAME_REQUEST_HEADER);
+  } catch {
+    return null;
+  }
 }

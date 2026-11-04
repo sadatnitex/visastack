@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useActionState, useId, useRef } from 'react';
+import { CountryField } from '../../../../../components/country-field';
 import {
   FormMessage,
   SubmitButton,
@@ -127,22 +128,15 @@ export function CreateMissionForm({
         'destination',
         'Where are you going?',
         (id, control) => (
-          <select
+          <CountryField
             id={id}
-            name="destination"
-            className="input"
+            countries={countries}
             defaultValue={values.destination ?? ''}
-            {...control}
-          >
-            <option value="">Not Sure Yet</option>
-            {countries.map((country) => (
-              <option key={country.iso2} value={country.iso2}>
-                {country.name}
-              </option>
-            ))}
-          </select>
+            placeholder="Not Sure Yet"
+            problem={control}
+          />
         ),
-        'Choose a country and a purpose, and the checklist for that visa route is linked when there is one.',
+        'Type a country or open the list, or leave it empty if you are not sure yet. With a country and a purpose, the checklist for that visa route is linked when there is one.',
       )}
       {field('purpose', 'What is the trip for?', (id, control) => (
         <select

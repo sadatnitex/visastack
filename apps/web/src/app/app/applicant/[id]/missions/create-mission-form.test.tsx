@@ -63,17 +63,21 @@ describe('CreateMissionForm', () => {
     expect(html).toMatch(/name="title"[^>]*required|required=""[^>]*name="title"/);
   });
 
-  it('picks the country from the list the app holds, not a free-text box', () => {
+  it('types the country with the browser list of names beside it, and sends the text for the server to check', () => {
     const html = render();
-    expect(html).toMatch(/<select[^>]*name="destination"/);
-    expect(html).not.toMatch(/<input[^>]*name="destination"/);
-    expect(html).toContain('<option value="GB">United Kingdom</option>');
-    expect(html).toContain('<option value="" selected="">Not Sure Yet</option>');
-    const countries = html.slice(
-      html.indexOf('name="destination"'),
-      html.indexOf('name="purpose"'),
-    );
-    expect(countries.match(/<option value="[A-Z]{2}">/g)?.length).toBe(caseCountryOptions().length);
+    const box = html.match(/<input[^>]*name="destination"[^>]*>/)?.[0] ?? '';
+    expect(box).toMatch(/type="text"/);
+    expect(box).toMatch(/list="[^"]+"/);
+    expect(box).toContain('autoComplete="off"');
+    expect(box).toContain('autoCapitalize="words"');
+    expect(box).toContain('placeholder="Not Sure Yet"');
+    expect(html).not.toMatch(/<select[^>]*name="destination"/);
+    const listId = box.match(/list="([^"]+)"/)?.[1] ?? '';
+    const list = html.match(new RegExp(`<datalist id="${listId}">(.*?)</datalist>`))?.[1] ?? '';
+    expect(list).toContain('<option value="United Kingdom"></option>');
+    expect(list.match(/<option /g)?.length).toBe(caseCountryOptions().length);
+    // Empty means "not sure yet"; the words are the way to say so, not an entry in the list.
+    expect(list).not.toContain('Not Sure Yet');
   });
 
   it('groups the purposes and sends their keys', () => {
@@ -113,7 +117,8 @@ describe('CreateMissionForm', () => {
     expect(start).not.toContain('aria-invalid');
     // The fold-out holding a field with a problem opens by itself.
     expect(html).toMatch(/<details class="disclosure" open="">/);
-    expect(html).toContain('<option value="JP" selected="">Japan</option>');
+    // A code from an older form is shown as the country's name.
+    expect(html.match(/<input[^>]*name="destination"[^>]*>/)?.[0]).toContain('value="Japan"');
     expect(html).toContain('<option value="tourism" selected="">Tourism</option>');
     expect(html).toContain('Check the 2 fields marked above.');
     expect(await axeViolations(html)).toEqual([]);
