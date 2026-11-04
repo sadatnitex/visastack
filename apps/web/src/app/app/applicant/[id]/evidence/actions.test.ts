@@ -87,6 +87,50 @@ describe('submitEvidenceResponseAction: the time it reports is the server time',
     expect((await submitEvidenceResponseAction(PREV, form1)).message).toBe('Something else.');
   });
 
+  it('passes the page retry key on, and sends none when the page gives none', async () => {
+    mocks.submitEvidenceResponse.mockResolvedValue({
+      ok: true,
+      value: { respondedAt: RESPONDED, updatedAt: RESPONDED },
+    });
+    await submitEvidenceResponseAction(
+      PREV,
+      form({ applicantId: 'a1', requestId: 'r1', documentId: 'd1', idempotencyKey: 'tap-1' }),
+    );
+    expect(mocks.submitEvidenceResponse).toHaveBeenLastCalledWith(
+      { tag: 'db' },
+      { actorAccountId: 'owner', requestId: 'r1', documentId: 'd1', idempotencyKey: 'tap-1' },
+    );
+    await submitEvidenceResponseAction(
+      PREV,
+      form({ applicantId: 'a1', requestId: 'r1', documentId: 'd1' }),
+    );
+    expect(mocks.submitEvidenceResponse).toHaveBeenLastCalledWith(
+      { tag: 'db' },
+      { actorAccountId: 'owner', requestId: 'r1', documentId: 'd1' },
+    );
+  });
+
+  it('says in plain words that the agency lost access, or that the request is gone', async () => {
+    mocks.submitEvidenceResponse.mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'forbidden',
+        message: 'this organization no longer has access to your records, so nothing was sent',
+      },
+    });
+    const data = form({ applicantId: 'a1', requestId: 'r1', documentId: 'd1' });
+    expect((await submitEvidenceResponseAction(PREV, data)).message).toBe(
+      'This agency no longer has access to your records, so nothing was sent. You can ask them to start a new request.',
+    );
+    mocks.submitEvidenceResponse.mockResolvedValue({
+      ok: false,
+      error: { code: 'not_found', message: 'evidence request not found' },
+    });
+    expect((await submitEvidenceResponseAction(PREV, data)).message).toBe(
+      'This request could not be found. Refresh the page to see where it stands.',
+    );
+  });
+
   it('asks the person to choose before it calls the service at all', async () => {
     const result = await submitEvidenceResponseAction(PREV, form({ requestId: 'r1' }));
     expect(result).toEqual({ ok: false, message: 'Choose what to submit.' });
