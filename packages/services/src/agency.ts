@@ -2973,20 +2973,16 @@ export async function startEvidenceReview(
   if (loaded.value.status !== 'RECEIVED') {
     return err(serviceError('invalid', 'only a RECEIVED request can start review'));
   }
-  // Only a request still RECEIVED moves: a decision made in the meantime is never undone by this.
-  const updated = first(
-    await db
-      .update(schema.evidenceRequests)
-      .set({ status: 'UNDER_REVIEW', updatedAt: new Date() })
-      .where(
-        and(
-          eq(schema.evidenceRequests.id, input.requestId),
-          eq(schema.evidenceRequests.status, 'RECEIVED'),
-        ),
-      )
-      .returning(),
+  const updated = required(
+    first(
+      await db
+        .update(schema.evidenceRequests)
+        .set({ status: 'UNDER_REVIEW', updatedAt: new Date() })
+        .where(eq(schema.evidenceRequests.id, input.requestId))
+        .returning(),
+    ),
+    'evidence request',
   );
-  if (!updated) return err(serviceError('invalid', 'only a RECEIVED request can start review'));
   return ok(updated);
 }
 

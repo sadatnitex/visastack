@@ -201,6 +201,9 @@ export async function decideEvidenceResponseAction(
     ? (outcomeRaw as EvidenceOutcome)
     : null;
   const reason = String(formData.get('reason') ?? '').trim();
+  // The copy the reviewer was looking at, when the page sends it: if a newer copy arrived since,
+  // the decision is refused rather than applied to a copy the reviewer has not seen.
+  const submissionId = String(formData.get('submissionId') ?? '').trim() || undefined;
   if (!outcome) {
     return {
       ok: false,
@@ -217,8 +220,11 @@ export async function decideEvidenceResponseAction(
       requestId,
       outcome,
       ...(reason.length > 0 ? { reason } : {}),
+      ...(submissionId ? { submissionId } : {}),
     });
-    if (!decided.ok) return { ok: false, message: decided.error.message } satisfies ActionState;
+    if (!decided.ok) {
+      return { ok: false, message: decided.error.message } satisfies ActionState;
+    }
     return { ok: true, message: EVIDENCE_OUTCOME_MESSAGES[outcome] } satisfies ActionState;
   });
   if (result.ok) {
