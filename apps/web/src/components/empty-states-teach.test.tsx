@@ -88,6 +88,6 @@ describe('the buttons point at something on the page that exists', () => {
     const clients = read('app/app/agency/[orgId]/clients/page.tsx');
     expect(clients).toContain('id="invite-client"');
     expect(clients).toContain('id="ask-for-evidence"');
-    expect(read('app/app/mission/[id]/page.tsx')).toContain('id="pack"');
+    expect(read('app/app/mission/[id]/case-rail.tsx')).toContain('id="pack"');
   });
 });

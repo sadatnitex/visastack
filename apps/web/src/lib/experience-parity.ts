@@ -112,11 +112,11 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
     '/app/mission/${mission.id}',
   ),
   '/app/mission/[id]/snapshots': link(
-    'app/app/mission/[id]/page.tsx',
+    'app/app/mission/[id]/case-rail.tsx',
     '/app/mission/${mission.id}/snapshots',
   ),
   '/app/mission/[id]/snapshots/[snapshotId]': link(
-    'app/app/mission/[id]/page.tsx',
+    'app/app/mission/[id]/case-rail.tsx',
     '/app/mission/${mission.id}/snapshots/${snap.id}',
   ),
   '/app/trips': nav,

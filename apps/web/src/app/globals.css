@@ -15321,3 +15321,65 @@ output.notice {
   padding-left: var(--space-3);
   border-left: 3px solid var(--hairline);
 }
+
+/* WP-LIFT-A shared components and case page: the lift- components (status pill, progress meter, stat tile, section card, action row, checklist row, step bar, next step panel, alert banner, empty panel) and the case page's own classes. Flat, existing tokens only, no new colours, 44 px targets. Package A edits only inside this block. */
+/* The case page's moved inline styles, as classes with the same values (Phase 0, no visible change). */
+.lift-row-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3rem;
+}
+.lift-row-start {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.lift-line-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+.lift-mb-050 {
+  margin-bottom: 0.5rem;
+}
+.lift-self-start {
+  align-self: flex-start;
+}
+.lift-ml-050 {
+  margin-left: 0.5rem;
+}
+.lift-link-plain {
+  text-decoration: none;
+  color: inherit;
+}
+.lift-small-mb-075 {
+  font-size: var(--text-small);
+  margin-bottom: 0.75rem;
+}
+.lift-small-mb-100 {
+  font-size: var(--text-small);
+  margin-bottom: 1rem;
+}
+.lift-small-mt-100 {
+  font-size: var(--text-small);
+  margin-top: 1rem;
+}
+.lift-small-m0 {
+  font-size: var(--text-small);
+  margin: 0;
+}
+.lift-small-mt-035 {
+  font-size: var(--text-small);
+  margin: 0.35rem 0 0;
+}
+.lift-caption-mt-020 {
+  font-size: var(--text-caption);
+  margin-top: 0.2rem;
+}
+/* end WP-LIFT-A */
+
+/* WP-LIFT-B case rail, secondary sections and phone bar: package B's classes for the right rail, the More for This Case section and the sticky next step bar. Flat, existing tokens only. Package B edits only inside this block. */
+/* end WP-LIFT-B */
+
+/* WP-LIFT-C other screens: package C's classes for Home, Documents, Evidence, Agency Clients, Sharing and the Start forms. Flat, existing tokens only. Package C edits only inside this block. */
+/* end WP-LIFT-C */

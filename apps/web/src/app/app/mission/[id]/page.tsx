@@ -1,26 +1,15 @@
 import {
-  ANY_OF_LABEL,
-  NECESSITY_LABELS,
   NO_FORMAT_RULES,
-  PROVENANCE_LABELS,
-  type RequirementCategory,
-  type RequirementNecessity,
-  type RequirementProvenance,
-  groupByRequirementCategory,
-  requirementCategoryOrder,
   requirementFormatLines,
   tripChecksApply,
   tripChecksNeedingAction,
 } from '@visastack/core';
 import { aiAppLabel } from '@visastack/core/ai-features';
-import { CATALOGUE_DOCUMENTS } from '@visastack/core/catalogue';
 import { createTranslator } from '@visastack/i18n';
 import {
   type ChangesSinceConfirmed,
   type Db,
   type NoPackReason,
-  type OverallReadinessState,
-  type RequirementResultState,
   accountPrincipal,
   caseExpiryConflicts,
   computeReadiness,
@@ -36,8 +25,6 @@ import {
   getPack,
   getPackVersion,
   grantReachesCase,
-  isFactStatusEligible,
-  isFillerCitation,
   latestSourceChecks,
   legalTransitions,
   listAccessForApplicant,
@@ -68,20 +55,13 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  CasePreparationSummary,
-  CaseStageTracker,
-} from '../../../../components/case-preparation-summary';
-import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
+import type { ReactNode } from 'react';
 import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
 import { ReferenceCode } from '../../../../components/reference-code';
-import { type RowNoun, ShowMore } from '../../../../components/show-more';
-import { StickyActionBar } from '../../../../components/sticky-action-bar';
-import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
+import { ShowMore } from '../../../../components/show-more';
+import { PageHeader, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
-import { memoryHref } from '../../../../lib/application-memory-labels';
-import { bookingReminderFor } from '../../../../lib/booking-reminder';
 import {
   NOTHING_TO_PICK,
   type SelectableChecklists,
@@ -92,10 +72,8 @@ import { savedCaseMatchTerms } from '../../../../lib/case-choices';
 import { CASE_STATE_LABELS, caseStateLabel, stageButtonStates } from '../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../lib/ccd/depth.server';
-import { humanizeCode } from '../../../../lib/format-code';
-import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
+import { formatTimestampDate } from '../../../../lib/format-date';
 import { getLocale } from '../../../../lib/locale';
-import { fieldLabel } from '../../../../lib/master-profile';
 import {
   CHECKLISTS_NOT_LOADED,
   noChecklistLines,
@@ -110,164 +88,48 @@ import {
   nextShow,
   parseShow,
 } from '../../../../lib/paging';
-import { REQUIREMENT_GROUPS } from '../../../../lib/requirement-groups';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
-import { AttachPackForm, type PackOption } from './attach-pack-form';
-import { AttemptPanel } from './attempt-panel';
-import { CaseMoreMenu } from './case-more-menu';
-import { CaseWelcome } from './case-welcome';
-import { type WelcomeChecklists, caseWelcomeCopy } from './case-welcome-copy';
-import { ChangesSinceConfirmedList } from './changes-since-confirmed';
+import type { PackOption } from './attach-pack-form';
 import {
-  AppointmentsPanel,
-  EvidenceSelectionPanel,
-  LettersPanel,
-  TasksPanel,
-} from './collaboration-panels';
-import { ComplaintPanel, FeedbackPanel } from './complaint-feedback-panel';
-import { ContributorRequestsPanel } from './contributor-requests-panel';
+  CaseChecklist,
+  CaseExpiringDocuments,
+  CaseReadinessNote,
+  CaseSources,
+} from './case-checklist';
+import { CaseMobileBar } from './case-mobile-bar';
+import {
+  CAPPED_LISTS,
+  type CappedList,
+  type CaseSourceRow,
+  LIST_STEP,
+  REQUIREMENT_STATE_META,
+  type RequirementDetailRow,
+  SNAPSHOTS_ON_PAGE,
+  buildCaseAttention,
+  madeJustNow,
+  requirementLabel,
+  welcomeChecklists,
+} from './case-model';
+import { CaseMoreMenu } from './case-more-menu';
+import { CaseRail, CaseTripChecks } from './case-rail';
+import { CaseSecondary } from './case-secondary';
+import {
+  CaseNoChecklistSummary,
+  CaseProgressSummary,
+  CaseSelfReviewedNote,
+  CaseStatusPanel,
+} from './case-status-panel';
+import { CaseWelcome } from './case-welcome';
+import { caseWelcomeCopy } from './case-welcome-copy';
 import { evidenceDocumentIds, evidenceLifecycleLabels } from './evidence-lifecycle';
 import { composeSelectionCandidateKey } from './evidence-selection-key';
-import {
-  CaseDetailsForm,
-  ItineraryForm,
-  SnapshotButton,
-  TransitionButtons,
-} from './mission-buttons';
-import { OpenGroupOnLink } from './open-group-on-link';
-import { OutcomePanel } from './outcome-panel';
+import { SnapshotButton } from './mission-buttons';
 import { PackagePanel } from './package-panel';
-import { ExplainGapButton } from './readiness-gap-explain';
-import { isPacketSnapshot } from './snapshot-packet';
-import { SubmissionReportPanel } from './submission-report-panel';
-import { SuggestCorrection } from './suggest-correction';
-import { TripChecksPanel } from './trip-checks-panel';
 
 export const metadata: Metadata = { title: 'Case' };
 
 export const dynamic = 'force-dynamic';
-
-// RUL-04's four case-level outcomes (directive §10 case-readiness experience),
-// never averaged from the per-requirement states below.
-const OVERALL_STATE_META: Record<OverallReadinessState, { label: string; tone: string }> = {
-  READY_FOR_APPLICANT_REVIEW: { label: 'Ready for Review', tone: 'badge-success' },
-  NEEDS_REVIEW: { label: 'Needs Review', tone: 'badge-warning' },
-  NEEDS_ACTION: { label: 'Needs Action', tone: 'badge-danger' },
-  MANUAL_ONLY: { label: 'Manual · Not Automatically Assessed', tone: 'badge-neutral' },
-};
-
-// RUL-04's seven per-requirement outcomes. Sort order surfaces what still
-// needs a decision first; NOT_APPLICABLE trails last since it needs none.
-const REQUIREMENT_STATE_META: Record<
-  RequirementResultState,
-  { label: string; tone: string; next: string; order: number }
-> = {
-  CRITICAL_GAP: {
-    label: 'Missing',
-    tone: 'badge-danger',
-    next: 'Add this to move the case forward.',
-    order: 0,
-  },
-  CONFLICTING: {
-    label: 'Two Values',
-    tone: 'badge-danger',
-    next: 'Two different values are on file. Pick the right one on your profile before it can count.',
-    order: 1,
-  },
-  EXPIRING_STALE: {
-    label: 'Out of Date',
-    tone: 'badge-danger',
-    next: 'The evidence on file is too old for this route. Add a current version.',
-    order: 2,
-  },
-  UNVERIFIED: {
-    label: 'To Confirm',
-    tone: 'badge-warning',
-    next: 'Whether this applies depends on case details that are not confirmed yet.',
-    order: 3,
-  },
-  ATTENTION: {
-    label: 'Optional',
-    tone: 'badge-neutral',
-    next: 'Optional for this case.',
-    order: 4,
-  },
-  SATISFIED: { label: 'On File', tone: 'badge-success', next: '', order: 5 },
-  NOT_APPLICABLE: {
-    label: 'Not Applicable',
-    tone: 'badge-neutral',
-    next: 'Does not apply to this case.',
-    order: 6,
-  },
-};
-
-type AttentionKind = 'changed' | 'missing' | 'unconfirmed' | 'expiry' | 'trip' | 'tasks';
-
-/** How many snapshots the case page lists; the rest are one link away (WP-SB2). */
-const SNAPSHOTS_ON_PAGE = 5;
-
-/** Rows a checklist group shows before the rest fold under Show All (WP-SB2). */
-const CHECKLIST_ROWS_SHOWN = 3;
-
-/**
- * The case page's capped lists (WP-SB2): each shows 10 rows, then Show More asks the server for
- * 10 more through its own address parameter, so opening one list never resets another.
- */
-const CAPPED_LISTS = {
-  tasks: { noun: { one: 'task', other: 'tasks' }, rowId: 'case-task' },
-  notes: { noun: { one: 'note', other: 'notes' }, rowId: 'case-note' },
-  outcomes: { noun: { one: 'outcome', other: 'outcomes' }, rowId: 'case-outcome' },
-  complaints: { noun: { one: 'complaint', other: 'complaints' }, rowId: 'case-complaint' },
-  feedback: { noun: { one: 'feedback note', other: 'feedback notes' }, rowId: 'case-feedback' },
-} as const satisfies Record<string, { readonly noun: RowNoun; readonly rowId: string }>;
-
-type CappedList = keyof typeof CAPPED_LISTS;
-
-const LIST_STEP = { step: TRAVELLER_LIST_STEP } as const;
-
-/** The checklist groups' ids are `<prefix>-<heading in lower case with hyphens>`. */
-const CHECKLIST_ID_PREFIX = 'case-checklist';
-
-/** How long after it is made a case still opens with its welcome note. */
-const WELCOME_WINDOW_MS = 60 * 60 * 1000;
-
-/** Whether a case was made recently enough to open with its welcome note. */
-function madeJustNow(createdAt: Date | string): boolean {
-  return Date.now() - new Date(createdAt).getTime() < WELCOME_WINDOW_MS;
-}
-
-/**
- * For the welcome note of a case with no checklist: whether reviewed checklists fit its country
- * and purpose and may cover its traveller, worked out once for the picker (`choices`). A case that
- * names no country or no purpose has no route to narrow by, so it is offered the picker when any
- * checklist may be picked. Reviewed checklists that do not fit but exist are `none` with the
- * reason (`reasons`); an agency's own checklist still offers the picker. A failed check is
- * `unknown`, never a guess.
- */
-function welcomeChecklists(
-  choices: SelectableChecklists,
-  reasons: readonly NoPackReason[],
-): WelcomeChecklists {
-  if (choices.lookupFailed) return { kind: 'unknown' };
-  const { fitting } = choices;
-  if (fitting === null) {
-    return choices.options.length > 0
-      ? { kind: 'pick', travellerUnconfirmed: false }
-      : { kind: 'none' };
-  }
-  if (fitting.length === 0) {
-    return choices.options.length > 0
-      ? { kind: 'pick', travellerUnconfirmed: false }
-      : { kind: 'none', reasons };
-  }
-  const caseDetailsNeeded = [...new Set(fitting.flatMap((checklist) => checklist.needs ?? []))];
-  return {
-    kind: 'pick',
-    travellerUnconfirmed: fitting.some((checklist) => !checklist.coversTraveller),
-    ...(caseDetailsNeeded.length > 0 ? { caseDetailsNeeded } : {}),
-  };
-}
 
 /**
  * Why a case with a route has no reviewed checklist to pick (VS-006), or none when one fits, the
@@ -292,93 +154,6 @@ async function noChecklistReasons(
     return [];
   }
 }
-
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
-
-// WP-X1 next step card: wording for the first attention item. A changed case
-// is shown by its own alert instead, so it has no card wording.
-// CCD section 6: it speaks of this case by its name, and names the first item to fix.
-const NEXT_STEP_COPY: Record<
-  Exclude<AttentionKind, 'changed'>,
-  {
-    readonly title: (count: number, caseTitle: string) => string;
-    readonly body: (firstItem: string | null) => string;
-    readonly action: string;
-  }
-> = {
-  // Counts missing, out-of-date and mismatched required items together.
-  missing: {
-    title: (count, caseTitle) =>
-      `Fix ${plural(count, 'required item', 'required items')} for ${caseTitle}`,
-    body: (firstItem) =>
-      `${firstItem ? `First to fix: ${firstItem}. ` : ''}Some required items are missing, out of date or do not match.`,
-    action: 'See What Needs Fixing',
-  },
-  unconfirmed: {
-    title: (count, caseTitle) => `Confirm ${plural(count, 'item', 'items')} for ${caseTitle}`,
-    body: () => 'Whether these apply depends on case details that are not confirmed yet.',
-    action: 'See What to Confirm',
-  },
-  // UMPE G2 (R22): one item for every chosen document that will not last this trip.
-  expiry: {
-    title: (count, caseTitle) =>
-      `Replace ${plural(count, 'document', 'documents')} that ${count === 1 ? 'expires' : 'expire'} before ${caseTitle} ends`,
-    body: (firstItem) =>
-      `${firstItem ? `First to replace: ${firstItem}. ` : ''}A chosen document must stay valid until your trip ends, and longer when this checklist says so. Renew it or choose another copy.`,
-    action: 'See Which Documents',
-  },
-  trip: {
-    title: (count, caseTitle) => `Check ${plural(count, 'date', 'dates')} for ${caseTitle}`,
-    body: () =>
-      'Open Trip Date Checks to see which dates do not line up with your passport, insurance or plans.',
-    action: 'See Trip Date Checks',
-  },
-  tasks: {
-    title: (count, caseTitle) =>
-      `Finish ${plural(count, 'open task', 'open tasks')} for ${caseTitle}`,
-    body: () => 'Your open tasks are listed under Tasks, appointments and letters.',
-    action: 'Open Tasks',
-  },
-};
-
-/** A checklist item's name, as the checklist shows it. */
-const requirementLabel = (r: { readonly kind: 'FIELD' | 'DOCUMENT'; readonly key: string }) =>
-  r.kind === 'FIELD' ? (fieldLabel(r.key) ?? humanizeCode(r.key)) : humanizeCode(r.key);
-
-interface RequirementDetailRow {
-  readonly packRequirementId: string;
-  readonly kind: 'FIELD' | 'DOCUMENT';
-  readonly key: string;
-  readonly optional: boolean;
-  readonly state: RequirementResultState;
-  readonly citation: string;
-  readonly sourceTitle: string | null;
-  readonly sourceUrl: string | null;
-  readonly publisher: string | null;
-  readonly observedDate: string | null;
-  readonly sourceInaccessible: boolean;
-  /** UMPE P1: present only when authored; a legacy requirement shows exactly what it did. */
-  readonly necessity?: RequirementNecessity;
-  readonly provenance?: RequirementProvenance;
-  readonly groupKey?: string;
-  readonly coveredByAlternative?: true;
-  /** UMPE G2 (R02): the rule category, when the checklist gives one. */
-  readonly category: RequirementCategory | null;
-}
-
-/** UMPE G2 (R08): one cited source, with when it was last checked and when its rule took effect. */
-interface CaseSourceRow {
-  readonly href: string;
-  readonly name: string;
-  readonly checkedAt: string | null;
-  readonly inEffectSince: string | null;
-}
-
-/** UMPE P12: catalogue document kinds for "The Embassy Asked for More", by name. */
-const ATTEMPT_DOCUMENT_KINDS = CATALOGUE_DOCUMENTS.map((d) => ({
-  value: d.key,
-  label: d.label,
-})).sort((a, b) => a.label.localeCompare(b.label));
 
 export default async function MissionPage({
   params,
@@ -950,88 +725,16 @@ export default async function MissionPage({
     tripChecksApply(mission.state) && Boolean(mission.travelStartDate || mission.travelEndDate);
   const tripChecksToAct = tripChecksNeedingAction(data.tripChecks ?? []);
   const hasChecklist = Boolean(data.readiness) && data.requirementDetails.length > 0;
-  const attention: {
-    readonly kind: AttentionKind;
-    readonly label: string;
-    readonly href: string;
-    readonly count: number;
-    readonly tone: 'warning' | 'danger';
-    /** The id of a checklist group the link opens, which then shows the rows it counts. */
-    readonly opens?: string;
-  }[] = [
-    ...(data.isDirty
-      ? [
-          {
-            kind: 'changed' as const,
-            label: 'Changed Since Confirmed',
-            href: '#snapshots',
-            count: 1,
-            tone: 'danger' as const,
-          },
-        ]
-      : []),
-    ...(data.readiness && data.requiredHardGapCount > 0
-      ? [
-          {
-            kind: 'missing' as const,
-            label:
-              data.requiredHardGapCount === 1 ? 'required item missing' : 'required items missing',
-            href: '#readiness',
-            count: data.requiredHardGapCount,
-            tone: 'danger' as const,
-          },
-        ]
-      : []),
-    ...(data.readiness && data.requiredUnverifiedCount > 0
-      ? [
-          {
-            kind: 'unconfirmed' as const,
-            label: 'need a check',
-            href: '#readiness',
-            // The group this link opens when followed (WP-SB2).
-            ...(hasChecklist ? { opens: `${CHECKLIST_ID_PREFIX}-needs-a-check` } : {}),
-            count: data.requiredUnverifiedCount,
-            tone: 'warning' as const,
-          },
-        ]
-      : []),
-    ...(data.expiringDocuments.length > 0
-      ? [
-          {
-            kind: 'expiry' as const,
-            label:
-              data.expiringDocuments.length === 1
-                ? 'document expires before the trip ends'
-                : 'documents expire before the trip ends',
-            href: '#expiring-documents',
-            count: data.expiringDocuments.length,
-            tone: 'danger' as const,
-          },
-        ]
-      : []),
-    ...(tripChecksToAct > 0
-      ? [
-          {
-            kind: 'trip' as const,
-            label: tripChecksToAct === 1 ? 'date to check' : 'dates to check',
-            href: '#trip-checks',
-            count: tripChecksToAct,
-            tone: 'warning' as const,
-          },
-        ]
-      : []),
-    ...(openTasks > 0
-      ? [
-          {
-            kind: 'tasks' as const,
-            label: openTasks === 1 ? 'open task' : 'open tasks',
-            href: '#work',
-            count: openTasks,
-            tone: 'warning' as const,
-          },
-        ]
-      : []),
-  ];
+  const attention = buildCaseAttention({
+    isDirty: data.isDirty,
+    hasReadiness: Boolean(data.readiness),
+    hasChecklist,
+    requiredHardGapCount: data.requiredHardGapCount,
+    requiredUnverifiedCount: data.requiredUnverifiedCount,
+    expiringDocumentCount: data.expiringDocuments.length,
+    tripChecksToAct,
+    openTasks,
+  });
   // WP-X1: the first item of the existing attention list, in its existing
   // order, is the next step. A changed case shows its alert instead (that is
   // its next step); an empty list keeps the existing success badge and no card.
@@ -1042,162 +745,6 @@ export default async function MissionPage({
   // The one primary button on the page belongs to the next step or the changed-case alert; the
   // welcome note and the checklist picker offer theirs only when neither is there.
   const hasNextStepOrAlert = data.isDirty || showNextStep;
-  /** One checklist row (WP-SB2 moved it out of the group so a group can show its first rows). */
-  const requirementRow = (r: RequirementDetailRow) => {
-    const meta = REQUIREMENT_STATE_META[r.state];
-    const label = requirementLabel(r);
-    // UMPE P1: the other items any one of which would meet the same requirement.
-    // A member whose rule says it does not apply to this case is no alternative.
-    const alternatives =
-      r.groupKey && r.state !== 'NOT_APPLICABLE'
-        ? data.requirementDetails
-            .filter(
-              (o) =>
-                o.groupKey === r.groupKey &&
-                o.packRequirementId !== r.packRequirementId &&
-                o.state !== 'NOT_APPLICABLE',
-            )
-            .map(requirementLabel)
-        : [];
-    const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
-    const sourceHref = safeHttpUrl(r.sourceUrl);
-    // A citation that only fills the box ("Yes", "n/a") is not a source, so it is not shown as one.
-    const citationText = r.citation && !isFillerCitation(r.citation) ? r.citation : '';
-    const bookingReminder =
-      r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION'
-        ? bookingReminderFor(r.kind, r.key)
-        : null;
-    return (
-      <div
-        className="row"
-        key={r.packRequirementId}
-        style={{
-          flexDirection: 'column',
-          alignItems: 'stretch',
-          gap: '0.3rem',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: '0.75rem',
-          }}
-        >
-          <span className="row-key">
-            {label || '(unnamed)'}
-            {r.coveredByAlternative
-              ? ' · met by an alternative'
-              : r.necessity
-                ? ` · ${NECESSITY_LABELS[r.necessity]}`
-                : r.optional
-                  ? ' · optional'
-                  : ''}
-          </span>
-          <span className={`badge ${meta.tone}`}>{meta.label}</span>
-        </div>
-        {r.provenance && r.provenance !== 'OFFICIAL' ? (
-          <span className="muted u-fs-085">{PROVENANCE_LABELS[r.provenance]}</span>
-        ) : null}
-        {alternatives.length > 0 ? (
-          <span className="muted u-fs-085">
-            {ANY_OF_LABEL}: {[label, ...alternatives].join(' or ')}
-          </span>
-        ) : null}
-        {meta.next ? (
-          <span className="muted u-fs-085">
-            {meta.next}
-            {r.state === 'CONFLICTING' ? (
-              <>
-                {' '}
-                <Link href={`/app/applicant/${data.applicantId}/profile`}>
-                  Resolve on Profile →
-                </Link>
-              </>
-            ) : null}
-            {r.state === 'CRITICAL_GAP' || r.state === 'EXPIRING_STALE' ? (
-              <>
-                {' '}
-                <a href="#evidence">Provide Evidence ↓</a>
-              </>
-            ) : null}
-          </span>
-        ) : null}
-        {bookingReminder ? <span className="muted u-fs-085">{bookingReminder}</span> : null}
-        {data.evidenceLifecycle.chosenByRequirement[r.packRequirementId] ? (
-          <span className="muted u-fs-085">
-            Chosen document:{' '}
-            {data.evidenceLifecycle.chosenByRequirement[r.packRequirementId]?.join(', ')}
-          </span>
-        ) : null}
-        {sourceLine || sourceHref || citationText ? (
-          <span className="muted u-fs-075">
-            Source{sourceLine || citationText ? `: ${sourceLine || citationText}` : ''}
-            {r.observedDate ? ` · reviewed ${formatDateOnly(r.observedDate)}` : ''}
-            {sourceHref ? (
-              <>
-                {' · '}
-                <a href={sourceHref} target="_blank" rel="noreferrer">
-                  source
-                </a>
-              </>
-            ) : null}
-          </span>
-        ) : null}
-        {r.sourceInaccessible ? (
-          <span className="badge badge-danger" style={{ alignSelf: 'flex-start' }}>
-            Source Currently Unreachable - Under Review
-          </span>
-        ) : null}
-        {data.explanationConfigured && (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
-          <ExplainGapButton
-            missionId={data.mission.id}
-            packRequirementId={r.packRequirementId}
-            explanation={
-              data.explanationsByRequirement.get(r.packRequirementId)?.explanation ?? null
-            }
-            {...(data.explanationFeature && !data.explanationFeature.available
-              ? { off: data.explanationFeature.reason }
-              : {})}
-          />
-        ) : null}
-        <SuggestCorrection
-          missionId={data.mission.id}
-          packRequirementId={r.packRequirementId}
-          itemName={label || 'This Item'}
-        />
-      </div>
-    );
-  };
-  // The checklist's groups that have rows, in their fixed order (WP-SB2).
-  const checklistGroups = REQUIREMENT_GROUPS.flatMap((group) => {
-    const rows = data.requirementDetails
-      .filter((r) => group.states.includes(r.state))
-      // UMPE G2 (R02): rule categories, in their fixed order, inside each group (a stable sort, so
-      // a checklist with no categories keeps exactly its old order).
-      .map((r, index) => ({ r, index }))
-      .sort(
-        (a, b) =>
-          requirementCategoryOrder(a.r.category) - requirementCategoryOrder(b.r.category) ||
-          a.index - b.index,
-      )
-      .map(({ r }) => r);
-    return rows.length === 0
-      ? []
-      : [{ key: group.heading.toLowerCase().replace(/\s+/g, '-'), heading: group.heading, rows }];
-  });
-  // UMPE G2 (R02): category headings show only when the checklist gives categories at all.
-  const hasCategories = data.requirementDetails.some((r) => r.category !== null);
-  const checklistRows = (rows: readonly RequirementDetailRow[]) =>
-    hasCategories
-      ? groupByRequirementCategory(rows, (r) => r.category).map((part) => (
-          <div className="case-category" key={part.category ?? 'other'}>
-            <h5 className="case-category-heading">{part.label}</h5>
-            {part.rows.map(requirementRow)}
-          </div>
-        ))
-      : rows.map(requirementRow);
   const pathname = `/app/mission/${mission.id}`;
   const newCaseHref = `/app/applicant/${data.applicantId}/missions/prepare-again?from=${mission.id}`;
   const totals: Record<CappedList, number> = {
@@ -1237,7 +784,22 @@ export default async function MissionPage({
       />
     );
   };
-  const nextStepAction = showNextStep && nextStep ? NEXT_STEP_COPY[nextStep.kind] : null;
+  const more: Record<CappedList, ReactNode> = {
+    tasks: showMore('tasks'),
+    notes: showMore('notes'),
+    outcomes: showMore('outcomes'),
+    complaints: showMore('complaints'),
+    feedback: showMore('feedback'),
+  };
+  const expandedLists: Record<CappedList, boolean> = {
+    tasks: expanded('tasks'),
+    notes: expanded('notes'),
+    outcomes: expanded('outcomes'),
+    complaints: expanded('complaints'),
+    feedback: expanded('feedback'),
+  };
+  // The attention item the Next Step shows: none when the case changed (its alert is the next step).
+  const nextStepItem = showNextStep && nextStep ? nextStep : null;
 
   return (
     <section className="section container">
@@ -1303,102 +865,25 @@ export default async function MissionPage({
           />
         ) : null}
 
-        <div {...atLevel('browse')}>
-          <CaseStageTracker
-            state={mission.state}
-            labels={CASE_STATE_LABELS}
-            nextStates={stageStates}
-            cancelInMore={canCancel}
-          />
-        </div>
-
-        {data.isDirty ? (
-          <div className="case-alert">
-            <p className="case-alert-title">
-              This case has changed since it was last acknowledged.
-            </p>
-            <p className="case-alert-body">
-              A material edit invalidated the previous sign-off. Capture a new snapshot and
-              acknowledge it again before relying on this case as submission-ready.
-            </p>
-            {/* WP-V3 part 3: the list of changed details. */}
-            <ChangesSinceConfirmedList
-              applicantId={data.applicantId}
-              changes={data.changesSinceConfirmed}
-            />
-            <SnapshotButton
-              missionId={mission.id}
-              label="Take a New Snapshot"
-              primary
-              align="start"
-            />
-            <p className="case-alert-body">
-              <a href="#snapshots">Open Snapshots</a> to confirm the new one.
-            </p>
-          </div>
-        ) : null}
-
-        {showNextStep && nextStep ? (
-          <section className="case-next-step" aria-labelledby="case-next-step-heading">
-            <h2 className="case-next-step-kicker" id="case-next-step-heading">
-              Next Step
-            </h2>
-            <p className="case-next-step-title">
-              {NEXT_STEP_COPY[nextStep.kind].title(nextStep.count, mission.title)}
-            </p>
-            <p className="case-next-step-body">
-              {NEXT_STEP_COPY[nextStep.kind].body(
-                nextStep.kind === 'expiry'
-                  ? (data.expiringDocuments[0]?.name ?? null)
-                  : data.firstHardGapLabel,
-              )}
-            </p>
-            <a className="btn btn-primary" href={nextStep.href} data-open-group={nextStep.opens}>
-              {NEXT_STEP_COPY[nextStep.kind].action}
-            </a>
-          </section>
-        ) : null}
-        {/* Owner-approved wording, 25 Oct 2026. */}
-        <p className="case-journey-reminder">
-          Preparing a file is not the same as submitting it. VisaStack does not submit applications
-          or predict decisions.
-        </p>
-        {/* WP-V4 places the request triage summary directly under the next step. */}
-
-        <div className="case-context-strip">
-          {mission.manualMode ? (
-            <details className="case-manual-notice">
-              <summary>Manual assessment: this route has no automated requirement pack</summary>
-              <p>
-                You are responsible for confirming what this case needs. Completeness is not an
-                official readiness assessment, on this page or in an exported snapshot.
-              </p>
-            </details>
-          ) : null}
-
-          <ul
-            className="case-attention"
-            aria-label="What needs attention on this case"
-            {...atLevel('browse')}
-          >
-            {attention.length === 0 ? (
-              <li>
-                <span className="case-attention-ok">
-                  <StatusBadge tone="success">Nothing needs attention right now</StatusBadge>
-                </span>
-              </li>
-            ) : (
-              attention.map((item) => (
-                <li key={item.label}>
-                  <a href={item.href} data-open-group={item.opens}>
-                    <StatusBadge tone={item.tone}>{item.count}</StatusBadge>
-                    {item.label}
-                  </a>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
+        <CaseStatusPanel
+          missionId={mission.id}
+          missionTitle={mission.title}
+          applicantId={data.applicantId}
+          state={mission.state}
+          stateLabels={CASE_STATE_LABELS}
+          nextStageStates={stageStates}
+          cancelInMore={canCancel}
+          isDirty={data.isDirty}
+          changesSinceConfirmed={data.changesSinceConfirmed}
+          attention={attention}
+          nextStep={nextStepItem}
+          nextStepFirstItem={
+            nextStepItem?.kind === 'expiry'
+              ? (data.expiringDocuments[0]?.name ?? null)
+              : data.firstHardGapLabel
+          }
+          manualMode={mission.manualMode}
+        />
 
         {/* At every level: each link opens the level its section lives at. */}
         <nav className="jump-nav" aria-label="Sections of this case">
@@ -1414,163 +899,56 @@ export default async function MissionPage({
 
         <div className="split case-working-area">
           <div className="split-main">
-            {showTripChecks ? (
-              <article className="card" id="trip-checks" {...atLevel('browse')}>
-                <TripChecksPanel checks={data.tripChecks} />
-              </article>
-            ) : tripChecksApply(mission.state) ? (
-              <p className="muted u-fs-085" {...atLevel('browse')}>
-                Add your travel dates under Edit Case Details to see passport and insurance date
-                checks.
-              </p>
-            ) : null}
+            <CaseTripChecks
+              view={
+                showTripChecks ? 'checks' : tripChecksApply(mission.state) ? 'add-dates' : 'none'
+              }
+              checks={data.tripChecks}
+            />
             <article
               className="card case-evidence-overview"
               // With a checklist, #readiness points at the checklist itself (Browse), so a link to it
               // opens that level; without one, it is the summary card.
               {...(hasChecklist ? {} : { id: 'readiness' })}
             >
-              {data.selfReviewed ? (
-                <p
-                  {...atLevel('browse')}
-                  className="muted"
-                  style={{ fontSize: 'var(--text-small)', marginBottom: '0.75rem' }}
-                >
-                  <span className="badge badge-neutral">Self-reviewed</span> No agency currently has
-                  access to this case, so you are the only one assessing it.
-                </p>
-              ) : null}
+              {data.selfReviewed ? <CaseSelfReviewedNote /> : null}
               {data.readiness ? (
                 <>
-                  <CasePreparationSummary
+                  <CaseProgressSummary
                     readiness={data.readiness}
                     acknowledged={Boolean(data.liveAcknowledgedAt) && !data.isDirty}
+                    requiredUnverifiedCount={data.requiredUnverifiedCount}
+                    requiredHardGapCount={data.requiredHardGapCount}
+                    t={t}
                   />
-                  <p className={`badge ${OVERALL_STATE_META[data.readiness.overallState].tone}`}>
-                    {OVERALL_STATE_META[data.readiness.overallState].label}
-                  </p>
-                  {data.readiness.overallState !== 'MANUAL_ONLY' ? (
-                    <p
-                      className="muted"
-                      style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}
-                    >
-                      {data.readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
-                        ? t('mission.readiness.ready')
-                        : data.readiness.overallState === 'NEEDS_REVIEW'
-                          ? t('mission.readiness.needsReview', {
-                              count: data.requiredUnverifiedCount,
-                            })
-                          : t('mission.readiness.missing', { count: data.requiredHardGapCount })}
-                    </p>
-                  ) : null}
                   {data.requirementDetails.length > 0 ? (
-                    <div id="readiness" {...atLevel('browse')}>
-                      <h3 className="case-checklist-heading">Evidence Checklist</h3>
-                      {/* WP-SB2: each group opens and closes; the first one with rows (what is
-                          missing, when anything is) starts open. Its heading stays a real heading
-                          inside the opener, so heading navigation still finds every group. */}
-                      <OpenGroupOnLink scopeId="readiness" />
-                      <div className="collapsible-groups">
-                        {checklistGroups.map((group, index) => (
-                          <details
-                            className="collapsible-group"
-                            id={`${CHECKLIST_ID_PREFIX}-${group.key}`}
-                            key={group.key}
-                            open={index === 0}
-                          >
-                            <summary className="collapsible-group-summary">
-                              <h4 className="case-group-heading collapsible-group-title">
-                                {group.heading} <span className="muted">{group.rows.length}</span>
-                              </h4>
-                            </summary>
-                            <div className="collapsible-group-body">
-                              <div className="rows">
-                                {checklistRows(group.rows.slice(0, CHECKLIST_ROWS_SHOWN))}
-                              </div>
-                              {group.rows.length > CHECKLIST_ROWS_SHOWN ? (
-                                <details className="case-checklist-rest">
-                                  <summary>
-                                    {plural(
-                                      group.rows.length - CHECKLIST_ROWS_SHOWN,
-                                      'More Item',
-                                      'More Items',
-                                    )}
-                                  </summary>
-                                  <div className="rows">
-                                    {checklistRows(group.rows.slice(CHECKLIST_ROWS_SHOWN))}
-                                  </div>
-                                </details>
-                              ) : null}
-                            </div>
-                          </details>
-                        ))}
-                      </div>
-                    </div>
+                    <CaseChecklist
+                      missionId={mission.id}
+                      applicantId={data.applicantId}
+                      rows={data.requirementDetails}
+                      chosenByRequirement={data.evidenceLifecycle.chosenByRequirement}
+                      explanations={{
+                        configured: data.explanationConfigured,
+                        off:
+                          data.explanationFeature && !data.explanationFeature.available
+                            ? data.explanationFeature.reason
+                            : undefined,
+                        byRequirement: new Map(
+                          [...data.explanationsByRequirement].map(
+                            ([id, entry]) => [id, entry?.explanation ?? null] as const,
+                          ),
+                        ),
+                      }}
+                    />
                   ) : null}
                   {data.expiringDocuments.length > 0 ? (
-                    <section
-                      className="case-expiring"
-                      id="expiring-documents"
-                      aria-labelledby="case-expiring-heading"
-                    >
-                      <h3 id="case-expiring-heading" className="case-checklist-heading">
-                        Documents That Expire Before Your Trip Ends
-                      </h3>
-                      <ul className="case-sources-list">
-                        {data.expiringDocuments.map((doc) => (
-                          <li key={doc.documentId}>
-                            {doc.name}
-                            <span className="muted u-fs-085">
-                              {' · '}Expires: {formatDateOnly(doc.expiresAt)}
-                              {' · '}Needed Until: {formatDateOnly(doc.neededUntil)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
+                    <CaseExpiringDocuments documents={data.expiringDocuments} />
                   ) : null}
-                  {data.caseSources.length > 0 ? (
-                    <section className="case-sources" aria-labelledby="case-sources-heading">
-                      <h3 id="case-sources-heading" className="case-checklist-heading">
-                        Sources for This Checklist
-                      </h3>
-                      <ul className="case-sources-list">
-                        {data.caseSources.map((source) => (
-                          <li key={source.href}>
-                            <a href={source.href} target="_blank" rel="noreferrer">
-                              {source.name}
-                            </a>
-                            <span className="muted u-fs-085">
-                              {' · '}Checked:{' '}
-                              {source.checkedAt
-                                ? formatDateOnly(source.checkedAt)
-                                : 'Not Checked Yet'}
-                              {' · '}In Effect Since:{' '}
-                              {source.inEffectSince
-                                ? formatDateOnly(source.inEffectSince)
-                                : 'Not Stated'}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                      <p className="muted u-fs-085">
-                        Checked is when VisaStack last read the page. Always confirm the final
-                        requirements with the official authority or your agency.
-                      </p>
-                    </section>
-                  ) : null}
-                  <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '1rem' }}>
-                    Readiness is completeness only - never an approval likelihood.
-                  </p>
+                  {data.caseSources.length > 0 ? <CaseSources sources={data.caseSources} /> : null}
+                  <CaseReadinessNote />
                 </>
               ) : (
-                <>
-                  <CaseReadinessRing readiness={null} pickHref="#pack" size="lg" />
-                  <p className="card-body">
-                    A checklist lists the papers this visa route asks for and shows which ones you
-                    already have on file.
-                  </p>
-                </>
+                <CaseNoChecklistSummary />
               )}
             </article>
 
@@ -1580,375 +958,45 @@ export default async function MissionPage({
               </article>
             ) : null}
 
-            <div className="depth-item" {...atLevel('everything')}>
-              <Disclosure
-                title="Select or Update Evidence"
-                hint="Open when you need to make a change"
-              >
-                <div className="grid u-mt-150" id="evidence">
-                  <EvidenceSelectionPanel
-                    missionId={mission.id}
-                    candidates={data.candidates.map((c) => ({
-                      packRequirementId: c.packRequirementId,
-                      kind: c.kind,
-                      label:
-                        c.kind === 'FIELD'
-                          ? (fieldLabel(c.key) ?? humanizeCode(c.key))
-                          : humanizeCode(c.key),
-                      citation: c.citation,
-                      factCandidates: c.factCandidates.map((f) => ({
-                        factId: f.factId,
-                        value: f.value,
-                        repeatingRecordKey: f.repeatingRecordKey,
-                        eligible: isFactStatusEligible(f.status),
-                      })),
-                      documentCandidates: c.documentCandidates.map((d) => ({
-                        documentId: d.documentId,
-                        displayName: d.displayName,
-                        eligible: d.eligible,
-                        staleness: d.staleness.status,
-                        lifecycleLabel: data.evidenceLifecycle.byDocument[d.documentId] ?? null,
-                      })),
-                      selectedFactIds: c.selectedFactIds,
-                      selectedDocumentIds: c.selectedDocumentIds,
-                      selectionIdsByCandidate: data.selectionIdsByCandidate,
-                    }))}
-                  />
-                </div>
-              </Disclosure>
-            </div>
-
-            <div className="depth-item" {...atLevel('browse')}>
-              <Disclosure
-                title="Tasks, Appointments and Letters"
-                hint="Open when you need to make a change"
-                open={expanded('tasks')}
-              >
-                <div className="grid u-mt-150" id="work">
-                  <TasksPanel
-                    missionId={mission.id}
-                    tasks={data.tasks}
-                    rowIdPrefix={CAPPED_LISTS.tasks.rowId}
-                    more={showMore('tasks')}
-                    finishedTotal={data.taskTotal - data.openTaskCount}
-                    finishedOpen={expanded('tasks')}
-                  />
-                  <AppointmentsPanel missionId={mission.id} appointments={data.appointments} />
-                  <LettersPanel
-                    missionId={mission.id}
-                    letters={data.letters.map((l) => ({
-                      id: l.id,
-                      version: l.version,
-                      content: l.content,
-                      createdAt: l.createdAt.toISOString(),
-                    }))}
-                    canGenerate={data.candidates.some(
-                      (c) =>
-                        c.factCandidates.some((f) => isFactStatusEligible(f.status)) ||
-                        c.documentCandidates.some((d) => d.eligible),
-                    )}
-                  />
-                </div>
-              </Disclosure>
-            </div>
-
-            <div id="notes" {...atLevel('browse')}>
-              <Disclosure
-                title="Contributors and Notes from Your Agency"
-                hint="Ask a sponsor for one document, read shared notes"
-                open={expanded('notes')}
-              >
-                <div className="grid">
-                  <article className="card">
-                    <p className="card-kicker">Delegate</p>
-                    <h2 className="card-title">Ask a Contributor</h2>
-                    <p className="card-body u-mb-125">
-                      Ask a sponsor or family member - who never gets a wallet, profile, or case
-                      view of any kind - for exactly one named document. They see only what you type
-                      below before deciding whether to upload.
-                    </p>
-                    <ContributorRequestsPanel
-                      missionId={mission.id}
-                      requests={data.contributorRequests}
-                    />
-                  </article>
-
-                  <article className="card">
-                    <p className="card-kicker">Collaboration</p>
-                    <h2 className="card-title">Notes from Your Agency</h2>
-                    <p className="card-body u-mb-125">
-                      Notes an agency working this case has chosen to share with you. An agency's
-                      own internal notes are never shown here.
-                    </p>
-                    {data.notes.length === 0 ? (
-                      <p className="muted u-fs-085">No notes shared with you yet.</p>
-                    ) : (
-                      <div className="rows">
-                        {data.notes.map((n, index) => (
-                          <div
-                            className="row"
-                            key={n.id}
-                            id={`${CAPPED_LISTS.notes.rowId}-${index}`}
-                            style={{ flexDirection: 'column', alignItems: 'flex-start' }}
-                          >
-                            <span className="u-fs-085">{n.body}</span>
-                            <span
-                              className="muted"
-                              style={{ fontSize: 'var(--text-caption)', marginTop: '0.2rem' }}
-                            >
-                              {n.authorEmail ?? 'Unknown'}, {formatTimestampDate(n.createdAt)}
-                            </span>
-                          </div>
-                        ))}
-                        {showMore('notes')}
-                      </div>
-                    )}
-                  </article>
-                </div>
-              </Disclosure>
-            </div>
-
-            <div className="depth-item" {...atLevel('everything')}>
-              <Disclosure
-                title="Submission and Outcome"
-                hint="Open when you need to make a change"
-                open={expanded('outcomes')}
-              >
-                <div className="grid u-mt-150" id="outcome">
-                  <SubmissionReportPanel
-                    missionId={mission.id}
-                    submissions={data.submissions}
-                    eligible={mission.state === 'SUBMISSION_READY'}
-                  />
-                  <OutcomePanel
-                    missionId={mission.id}
-                    outcomes={data.outcomes}
-                    evidenceOptions={data.evidenceOptions}
-                    rowIdPrefix={CAPPED_LISTS.outcomes.rowId}
-                    more={showMore('outcomes')}
-                  />
-                  {data.outcomeAttempts ? (
-                    <AttemptPanel
-                      missionId={mission.id}
-                      view={data.outcomeAttempts}
-                      today={data.attemptToday}
-                      documentKinds={ATTEMPT_DOCUMENT_KINDS}
-                    />
-                  ) : null}
-                </div>
-              </Disclosure>
-            </div>
-
-            <div className="u-mt-150" {...atLevel('everything')}>
-              <Disclosure
-                title="Problems and Feedback"
-                hint="Raise a complaint or give feedback on this case"
-                open={expanded('complaints') || expanded('feedback')}
-              >
-                <div className="grid">
-                  <ComplaintPanel
-                    missionId={mission.id}
-                    complaints={data.complaints}
-                    rowIdPrefix={CAPPED_LISTS.complaints.rowId}
-                    more={showMore('complaints')}
-                  />
-                  <FeedbackPanel
-                    missionId={mission.id}
-                    feedback={data.feedback}
-                    canSubmit={data.canSubmitFeedback}
-                    rowIdPrefix={CAPPED_LISTS.feedback.rowId}
-                    more={showMore('feedback')}
-                  />
-                </div>
-              </Disclosure>
-            </div>
+            <CaseSecondary
+              missionId={mission.id}
+              missionState={mission.state}
+              candidates={data.candidates}
+              evidenceLifecycle={data.evidenceLifecycle}
+              selectionIdsByCandidate={data.selectionIdsByCandidate}
+              tasks={data.tasks}
+              finishedTaskTotal={data.taskTotal - data.openTaskCount}
+              appointments={data.appointments}
+              letters={data.letters}
+              contributorRequests={data.contributorRequests}
+              notes={data.notes}
+              submissions={data.submissions}
+              outcomes={data.outcomes}
+              evidenceOptions={data.evidenceOptions}
+              outcomeAttempts={data.outcomeAttempts}
+              attemptToday={data.attemptToday}
+              complaints={data.complaints}
+              feedback={data.feedback}
+              canSubmitFeedback={data.canSubmitFeedback}
+              expanded={expandedLists}
+              more={more}
+            />
           </div>
-          <aside className="split-rail" aria-label="About this case" {...atLevel('browse')}>
-            <article className="card" {...atLevel('browse')}>
-              <p className="card-kicker">Case</p>
-              <h2 className="card-title">Case Details</h2>
-              <p className="card-body">
-                {mission.jurisdiction || 'Embassy or visa centre not set'}
-                {mission.serviceCategory ? ` · ${mission.serviceCategory}` : ''}
-              </p>
-              <p className="muted">
-                {mission.travelStartDate
-                  ? formatDateOnly(mission.travelStartDate)
-                  : 'Travel dates not set'}
-                {mission.travelEndDate ? ` to ${formatDateOnly(mission.travelEndDate)}` : ''}
-              </p>
-              <details className="case-details-edit">
-                <summary>Edit Case Details</summary>
-                <CaseDetailsForm
-                  missionId={mission.id}
-                  jurisdiction={mission.jurisdiction}
-                  serviceCategory={mission.serviceCategory}
-                  travelStartDate={mission.travelStartDate}
-                  travelEndDate={mission.travelEndDate}
-                  targetDeadline={mission.targetDeadline}
-                  manualMode={mission.manualMode}
-                />
-              </details>
-            </article>
-            <article className="card" id="pack" {...atLevel('browse')}>
-              <p className="card-kicker">Requirements</p>
-              <h2 className="card-title">Requirement Pack</h2>
-              {mission.packVersionId && data.packInfo ? (
-                <>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: '0.75rem',
-                      marginBottom: '0.5rem',
-                    }}
-                  >
-                    <span className="card-body u-m-0">{data.packInfo.name}</span>
-                    <span
-                      className={`badge ${data.packInfo.reviewed ? 'badge-success' : 'badge-neutral'}`}
-                    >
-                      {data.packInfo.badge}
-                    </span>
-                  </div>
-                  {data.packInfo.coverage ? (
-                    <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                      {data.packInfo.coverage}
-                    </p>
-                  ) : null}
-                  {data.packInfo.notice ? (
-                    <p className="muted u-fs-085 u-mt-050">{data.packInfo.notice}</p>
-                  ) : null}
-                  {data.packInfo.effectiveDate ? (
-                    <p
-                      className="muted"
-                      style={{ fontSize: 'var(--text-small)', margin: '0.35rem 0 0' }}
-                    >
-                      In effect since {formatDateOnly(data.packInfo.effectiveDate)}
-                    </p>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  {data.packOptions.length === 0 ? (
-                    // VS-006: no reviewed checklist to pick. Say so and why, and promise nothing.
-                    data.noChecklistLines.map((line) => (
-                      <p className="card-body u-mb-100" key={line}>
-                        {line}
-                      </p>
-                    ))
-                  ) : (
-                    <p className="card-body u-mb-100">
-                      Pick a checklist: attach a published requirement pack to see how many items
-                      are ready.
-                    </p>
-                  )}
-                  <AttachPackForm
-                    missionId={mission.id}
-                    options={data.packOptions}
-                    primary={!hasNextStepOrAlert && !data.welcomeNote}
-                  />
-                </>
-              )}
-            </article>
-            <article className="card" {...atLevel('browse')}>
-              <p className="card-kicker">Workflow</p>
-              <h2 className="card-title">Advance the Case</h2>
-              {stageStates.length === 0 ? (
-                <p className="card-body">
-                  {nextStates.length === 0
-                    ? 'This case is in a terminal state.'
-                    : 'There is no further stage from here. To stop the case, use More at the top of the page.'}
-                </p>
-              ) : (
-                <div className="u-mt-050">
-                  <TransitionButtons missionId={mission.id} nextStates={stageStates} />
-                </div>
-              )}
-            </article>
-            <article className="card" id="snapshots" {...atLevel('everything')}>
-              <p className="card-kicker">History</p>
-              <h2 className="card-title">Snapshots</h2>
-              <p className="card-body case-memory-link">
-                Each snapshot keeps exactly what it held.{' '}
-                <Link href={memoryHref(data.applicantId)}>Open Case History</Link> to see every case
-                for this person and compare what you confirmed with today.
-              </p>
-              {data.snapshots.length === 0 ? (
-                <p className="card-body">
-                  No snapshots yet. Capture one to freeze this case's evidence and checksum.
-                </p>
-              ) : (
-                <div className="rows u-mt-050">
-                  {data.snapshots.map((snap) => {
-                    const isPacket = isPacketSnapshot(snap.content);
-                    return (
-                      <Link
-                        href={`/app/mission/${mission.id}/snapshots/${snap.id}`}
-                        className="row"
-                        key={snap.id}
-                        style={{ textDecoration: 'none', color: 'inherit' }}
-                      >
-                        <span className="row-key">
-                          Version {snap.version}
-                          {isPacket ? (
-                            <span className="badge badge-success" style={{ marginLeft: '0.5rem' }}>
-                              Application Packet
-                            </span>
-                          ) : null}
-                        </span>
-                        <span className="row-val u-fs-075" title={snap.checksum}>
-                          {snap.checksum.slice(0, 12)}…
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-              {data.moreSnapshots ? (
-                <p className="card-body u-mt-050">
-                  <Link href={`/app/mission/${mission.id}/snapshots`}>See All Snapshots</Link>
-                </p>
-              ) : null}
-            </article>
-            <article className="card" {...atLevel('everything')}>
-              <p className="card-kicker">Family Trip</p>
-              <h2 className="card-title">Itinerary Reference</h2>
-              <p className="card-body u-mb-100">
-                An optional label linking this case to another family member's, purely for display.
-                Access and permissions stay entirely separate per case.
-              </p>
-              <ItineraryForm missionId={mission.id} itineraryRef={mission.itineraryRef} />
-              {data.linkedMissions.length > 0 ? (
-                <div className="rows u-mt-100">
-                  {data.linkedMissions.map((m) => (
-                    <Link className="row row-link" key={m.id} href={`/app/mission/${m.id}`}>
-                      <span className="row-key">{m.applicantName}</span>
-                      <span className="muted">{m.title}</span>
-                    </Link>
-                  ))}
-                </div>
-              ) : null}
-            </article>
-          </aside>
+          <CaseRail
+            mission={mission}
+            applicantId={data.applicantId}
+            packInfo={data.packInfo}
+            packOptions={data.packOptions}
+            noChecklistLines={data.noChecklistLines}
+            primaryAttach={!hasNextStepOrAlert && !data.welcomeNote}
+            nextStates={nextStates}
+            stageStates={stageStates}
+            snapshots={data.snapshots}
+            moreSnapshots={data.moreSnapshots}
+            linkedMissions={data.linkedMissions}
+          />
         </div>
-        {nextStepAction && nextStep ? (
-          // WP-SB2: on a phone the next step stays in reach while the person scrolls the case.
-          <div className="case-sticky-next">
-            <StickyActionBar
-              label="Next Step"
-              note={nextStepAction.title(nextStep.count, mission.title)}
-            >
-              <a
-                className="btn btn-secondary"
-                href={nextStep.href}
-                data-open-group={nextStep.opens}
-              >
-                {nextStepAction.action}
-              </a>
-            </StickyActionBar>
-          </div>
-        ) : null}
+        <CaseMobileBar missionTitle={mission.title} nextStep={nextStepItem} />
       </DepthScope>
     </section>
   );
