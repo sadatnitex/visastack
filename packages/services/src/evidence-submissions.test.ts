@@ -1063,7 +1063,7 @@ describe('Lane D: the agency opens the exact original', () => {
         ...base,
         organizationId: w.summit.organizationId,
       });
-      expect(wrongOrg.allowed).toBe(false);
+      expect(wrongOrg).toEqual({ allowed: false, reason: 'not_an_agency_admin' });
       // An admin of ANOTHER agency, replaying the link under their own agency: that agency has a
       // MANAGE grant on this traveller too, but the request is not theirs.
       const otherAgency = await recheckDocumentAccess(w.db, {
