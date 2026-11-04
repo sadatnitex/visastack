@@ -61,6 +61,7 @@ export const UPLOAD_PROBLEM_REASONS = [
   'network',
   'timeout',
   'abort',
+  'unreadable',
   'not_json',
   'server_error',
 ] as const;
@@ -134,7 +135,42 @@ export interface SendFileInput {
 /** A slow phone connection can take minutes for a few megabytes; past this the answer is unknown. */
 const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 
-export function sendDocumentFile(input: SendFileInput): Promise<UploadOutcome> {
+/** What a person reads when their phone will not let the file be read. */
+export const UPLOAD_UNREADABLE_LINE =
+  'Your phone would not let us read this file. It may be kept online only. Save it to your phone, or take a photo of it, then add it again.';
+
+/**
+ * The file's bytes copied into memory. A file handed over by a phone's file picker can stop being
+ * readable once the page has it (kept online only, moved, or changed), which makes the browser
+ * drop the upload at once with no answer. Copying first sends a plain in-memory copy instead, and
+ * when the copy cannot be made the person gets the real reason. A browser without `arrayBuffer`
+ * sends the file as it is.
+ */
+async function copyIntoMemory(file: Blob): Promise<Blob | null> {
+  if (typeof file.arrayBuffer !== 'function') return file;
+  try {
+    return new Blob([await file.arrayBuffer()], { type: file.type });
+  } catch {
+    return null;
+  }
+}
+
+export async function sendDocumentFile(input: SendFileInput): Promise<UploadOutcome> {
+  const copy = await copyIntoMemory(input.file);
+  if (!copy) {
+    reportUploadProblem({
+      route: input.route === 'hold' ? 'hold' : 'upload',
+      reason: 'unreadable',
+      status: 0,
+      redirected: false,
+      ms: 0,
+    });
+    return { kind: 'refused', message: UPLOAD_UNREADABLE_LINE };
+  }
+  return sendBlob(input, copy);
+}
+
+function sendBlob(input: SendFileInput, body: Blob): Promise<UploadOutcome> {
   return new Promise((settle) => {
     const request = input.createRequest
       ? input.createRequest()
@@ -183,7 +219,7 @@ export function sendDocumentFile(input: SendFileInput): Promise<UploadOutcome> {
     request.onerror = () => resolve({ kind: 'unknown' }, 'network');
     request.ontimeout = () => resolve({ kind: 'unknown' }, 'timeout');
     request.onabort = () => resolve({ kind: 'unknown' }, 'abort');
-    request.send(input.file);
+    request.send(body);
   });
 }
 
