@@ -2954,9 +2954,11 @@ export async function submitEvidenceResponse(
     }
     await noticeAgencyOfEvidence(tx, {
       request,
+      // Keyed on the send's own row (never on its round number, which can be reused once an
+      // earlier send is removed with its document); the time covers a send with no exact copy.
       threshold:
-        roundNo !== null
-          ? `round-${roundNo}`
+        submissionId !== null
+          ? `submission-${submissionId}`
           : `sent-${(updated.respondedAt ?? new Date()).getTime()}`,
     });
     await appendAuditEvent(tx, {
@@ -3338,9 +3340,9 @@ export async function decideEvidenceResponse(
         await enqueueNotificationBothChannels(tx, {
           eventType: 'EVIDENCE_REPLACEMENT_REQUESTED',
           resourceId: request.id,
-          // One notice for each send that is sent back (a second send-back on the same request is
-          // a new notice); a send with no exact copy is told apart by its decision.
-          threshold: pinned ? `round-${pinned.roundNo}` : `decision-${decision.id}`,
+          // One notice for each send that is sent back, keyed on the send's own row (a second send-back
+          // on the same request is a new notice, and a reused round number never collides); a send with no exact copy is told apart by its decision.
+          threshold: pinned ? `submission-${pinned.id}` : `decision-${decision.id}`,
           recipientAccountId: owner.ownerAccountId,
           applicantId: request.applicantId,
           organizationId: request.organizationId,
