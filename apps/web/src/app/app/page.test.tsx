@@ -203,7 +203,7 @@ describe('home (characterization before WP-V3)', () => {
     expect(text).toContain('Account Overview');
     expect(text).toContain('Signed in as me@example.com');
     expect(text).toContain('Synthetic Self');
-    expect(text).toContain('2 documents');
+    expect(text).toContain('2 Documents');
     expect(text).toContain('Permissions You Control');
     expect(stubProps<{ type: string }>(html, 'ConsentButton').map((p) => p.type)).toEqual([
       'CORE_PROCESSING',
@@ -679,16 +679,18 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     const rawWork = async () => {
       const html = await page();
       const start = html.indexOf('id="home-work-heading"');
-      return html.slice(start, html.indexOf('id="home-journey"', start));
+      return html.slice(start, html.indexOf('id="permissions"', start));
     };
     const ready = await rawWork();
-    expect(ready.match(/aria-label="3 of 9 items ready"/g)).toHaveLength(2);
+    // A thin bar for each case, named by its count (a native progress element).
+    expect(ready.match(/<progress[^>]*aria-label="3 of 9 items ready"/g)).toHaveLength(2);
     expect(ready).toContain('>3 of 9 items ready<');
     data.readiness = null;
     const empty = await rawWork();
-    expect(empty.match(/aria-label="No checklist yet"/g)).toHaveLength(2);
-    expect(empty).toContain('Pick a checklist to see what is ready');
-    // Inside a link row there is no second link to nest.
+    // No checklist: no bar and no made-up number, one line that teaches the next step.
+    expect(empty).not.toContain('<progress');
+    expect(empty.match(/Pick a checklist to see what is ready/g)).toHaveLength(2);
+    // Inside a link card there is no second link to nest.
     expect(empty).not.toContain('Pick a Checklist');
     expect(empty).not.toMatch(/\d+ of \d+ items ready/);
   });
@@ -705,15 +707,18 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     expect(html).not.toContain('id="home-attention-heading"');
   });
 
-  it('keeps My Next Journey as supporting content once setup is done', async () => {
+  it('offers the next case as an open slot at the end of Cases once setup is done', async () => {
     data.consents = CORE;
     data.applicants = [SELF];
     data.documents = 1;
     data.missions = 1;
-    const journey = sectionText(await page(), 'home-journey', 'id="permissions"');
-    expect(journey).toContain('My Next Journey');
-    expect(journey).toContain('Start a Case');
-    expect(journey).not.toContain('Set Up Your Account');
+    const html = await page();
+    // The get-started checklist is gone and so is its card: the slot is inside Cases.
+    expect(html).not.toContain('id="home-journey"');
+    expect(textOf(html)).not.toContain('Set Up Your Account');
+    const work = sectionText(html, 'home-work-heading', 'id="permissions"');
+    expect(work).toContain('Start a Case');
+    expect(html).toContain(`href="/app/applicant/${SELF.id}/missions#start-case"`);
   });
 
   it('gives My Next Journey one heading, with the setup checklist under it', async () => {
@@ -738,7 +743,7 @@ describe('Home composition (WP-V4, v1.2 B13 and U03)', () => {
     const html = await page();
     const records = sectionText(html, 'home-records-heading', 'home-work-heading');
     // The row labels only (the calendar sentence under the list names each person too).
-    const shown = [...html.matchAll(/<span class="attention-label">Person (\d{3})<\/span>/g)].map(
+    const shown = [...html.matchAll(/<span class="home-person-name">Person (\d{3})<\/span>/g)].map(
       (m) => m[1],
     );
     const expected = [...data.applicants]
@@ -1065,7 +1070,8 @@ describe('Home depth levels (CCD-2)', () => {
     expect(levelOf('#home-records-heading')).toBe('browse');
     expect(levelOf('#home-work-heading')).toBe('browse');
     expect(levelOf('#permissions')).toBe('everything');
-    expect(levelOf('#home-journey')).toBe('everything');
+    // Setup is done here, so the next case is the open slot inside Cases, at the working level.
+    expect(levelOf('.home-start-tile')).toBe('browse');
     // The next step comes before every gated block, so it shows at Glance.
     expect(html.indexOf('Next Step')).toBeGreaterThan(-1);
     expect(html.indexOf('Next Step')).toBeLessThan(html.indexOf('data-level='));
@@ -1142,7 +1148,7 @@ describe('UMPE P13: entry points and package changes on Home', () => {
     const html = await page();
     const doc = new JSDOM(html).window.document;
     const work = doc.querySelector('[aria-labelledby="home-work-heading"]');
-    const caseLink = [...(work?.querySelectorAll('a.attention-link') ?? [])].find((a) =>
+    const caseLink = [...(work?.querySelectorAll('a.home-case-link') ?? [])].find((a) =>
       a.textContent?.includes('Synthetic Case 1'),
     );
     expect(caseLink?.getAttribute('href')).toBe('/app/mission/case-0#trip-package');
