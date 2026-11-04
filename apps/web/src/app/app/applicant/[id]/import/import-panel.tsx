@@ -346,7 +346,6 @@ export function ImportPanel({
 }) {
   const router = useRouter();
   const forId = useId();
-  const [forFamily, setForFamily] = useState(false);
   // Who the next files are for: one of this account's people, or "not sure" (the family route).
   const [target, setTarget] = useState<string>(applicantId);
   const targetRef = useRef<string>(applicantId);
@@ -355,7 +354,7 @@ export function ImportPanel({
   const peopleRef = useRef(people);
   peopleRef.current = people;
   const family = useRef(false);
-  family.current = familyBatch && (choosePerson ? target === NOT_SURE : forFamily);
+  family.current = familyBatch && choosePerson && target === NOT_SURE;
   const sentToFamily = useRef(false);
   // The people other than this page's person that files were actually sent for.
   const sentFor = useRef<ReadonlyMap<string, string>>(new Map());
@@ -623,41 +622,6 @@ export function ImportPanel({
               : 'Every file you add now is saved under this person. You can change this between files.'}
           </p>
         </div>
-      ) : null}
-
-      {familyBatch && !choosePerson ? (
-        <fieldset className="umpe-g1-import-for" aria-describedby={`${forId}-hint`}>
-          <legend>Who Are These Files For?</legend>
-          <label className="umpe-g1-person-choice">
-            <input
-              type="radio"
-              name={`${forId}-for`}
-              checked={!forFamily}
-              aria-disabled={busy || undefined}
-              onChange={() => {
-                if (!busy) setForFamily(false);
-              }}
-            />
-            <span>Only This Person</span>
-          </label>
-          <label className="umpe-g1-person-choice">
-            <input
-              type="radio"
-              name={`${forId}-for`}
-              checked={forFamily}
-              aria-disabled={busy || undefined}
-              onChange={() => {
-                if (!busy) setForFamily(true);
-              }}
-            />
-            <span>Several People in My Family</span>
-          </label>
-          <p className="field-hint" id={`${forId}-hint`}>
-            {forFamily
-              ? 'Each file waits in Needs One Decision, seen only by you, until you choose who it belongs to. We suggest a person only when the name and date of birth in the file match exactly one of your people.'
-              : 'Every file is added to this person.'}
-          </p>
-        </fieldset>
       ) : null}
 
       <section

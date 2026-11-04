@@ -472,16 +472,26 @@ describe('after an import, and files for several people (UMPE G1)', () => {
     expect(next?.querySelectorAll('a')).toHaveLength(0);
   });
 
-  it('sends files for several people to the holding route and says where they wait', async () => {
+  it('sends files marked "not sure" to the holding route and says where they wait', async () => {
     await act(async () => {
       root.render(
-        <ImportPanel applicantId="a-1" limitBytes={1000} limitLabel="1 KB" familyBatch />,
+        <ImportPanel
+          applicantId="a-1"
+          limitBytes={1000}
+          limitLabel="1 KB"
+          familyBatch
+          people={[
+            { id: 'a-1', name: 'Rahim Uddin' },
+            { id: 'a-2', name: 'Sara Uddin' },
+          ]}
+        />,
       );
     });
-    const several = Array.from(host.querySelectorAll('input[type="radio"]')).find(
-      (input) => input.parentElement?.textContent === 'Several People in My Family',
-    ) as HTMLInputElement;
-    await act(async () => several.click());
+    const select = host.querySelector('select') as HTMLSelectElement;
+    await act(async () => {
+      select.value = '__not_sure';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
     await choose([photo('family-1.jpg'), photo('family-2.jpg')]);
     expect(FakeRequest.sent.map((request) => request.url)).toEqual([
       '/api/documents/hold?applicantId=a-1',
@@ -593,18 +603,26 @@ describe('after an import, and files for several people (UMPE G1)', () => {
     ]);
   });
 
-  it('offers no person choice for one person', async () => {
+  it('asks nothing when the account keeps a record for one person only', async () => {
     await act(async () => {
       root.render(
         <ImportPanel
           applicantId="a-1"
           limitBytes={1000}
           limitLabel="1 KB"
+          familyBatch
           people={[{ id: 'a-1', name: 'Rahim Uddin' }]}
         />,
       );
     });
     expect(host.querySelector('select')).toBeNull();
+    expect(host.querySelector('fieldset.umpe-g1-import-for')).toBeNull();
+    expect(host.querySelector('input[type="radio"]')).toBeNull();
+    expect(host.textContent).not.toContain('Who Are These Files For?');
+    await choose([photo('only-me.jpg')]);
+    expect(FakeRequest.sent.map((request) => request.url)).toEqual([
+      '/api/documents/upload?applicantId=a-1',
+    ]);
   });
 
   it('offers no choice of people when the family batch is not available', async () => {
