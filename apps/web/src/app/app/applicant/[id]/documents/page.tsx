@@ -27,6 +27,8 @@ import {
   listDocumentExceptions,
   listDocumentReadingStates,
   listDocumentsDetailed,
+  isSharedBetweenPeopleKind,
+  listCopyPeople,
   listHeldFiles,
   listIssuerVerificationsForDocument,
   listPendingDocumentTypeProposals,
@@ -346,6 +348,11 @@ export default async function ApplicantDocumentsPage({
               id,
               documentRows.map((doc) => doc.id),
             );
+            // Someone else on the account to keep a copy for (a marriage certificate, a joint
+            // account statement). An extra: if the list cannot be read, no copy is offered.
+            const copyPeople = (await listCopyPeople(readingAccess.value).catch(() => [])).map(
+              (person) => ({ id: person.applicantId, name: person.displayName }),
+            );
             const actions = new Map<string, readonly DocumentAction[]>(
               documentRows.map((doc) => {
                 const state = states.get(doc.id);
@@ -353,6 +360,7 @@ export default async function ApplicantDocumentsPage({
                 const facts = {
                   isDuplicate: duplicate?.isDuplicate ?? false,
                   duplicateBlockReason: duplicate?.blockReason ?? null,
+                  keepCopyForOthers: copyPeople.length > 0 && isSharedBetweenPeopleKind(doc.docType),
                   ...removal.get(doc.id),
                 };
                 return [
@@ -364,6 +372,7 @@ export default async function ApplicantDocumentsPage({
             return {
               states,
               actions,
+              copyPeople,
               hasRemovalRecords: receipts.ok && receipts.value.length > 0,
             };
           })()
@@ -706,6 +715,9 @@ export default async function ApplicantDocumentsPage({
                           documentId={doc.id}
                           documentName={doc.approvedName ?? doc.originalName}
                           actions={actionsFor(doc.id)}
+                          {...(data.lifecycle?.copyPeople.length
+                            ? { copyPeople: data.lifecycle.copyPeople }
+                            : {})}
                           {...(deepLinkAction && deepLinked === doc.id
                             ? { initialAction: deepLinkAction }
                             : {})}

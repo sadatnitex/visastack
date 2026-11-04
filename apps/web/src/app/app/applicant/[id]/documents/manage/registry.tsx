@@ -1,6 +1,7 @@
 import type { DocumentAction } from '@visastack/services';
 import type { ComponentType } from 'react';
 import { ArchiveAction, RestoreAction } from './archive/archive-action';
+import { KeepCopyAction } from './copy/keep-copy-action';
 import { DeleteDuplicateAction } from './delete/delete-action';
 import { RestoreDeletedAction } from './delete/restore-action';
 import { ReplaceAction } from './replace/replace-action';
@@ -14,6 +15,8 @@ export interface ManageActionProps {
   readonly documentId: string;
   /** The document's name as the list shows it, for the action's own wording. */
   readonly documentName: string;
+  /** The other people on the account, for an action that offers one of them (a copy). */
+  readonly copyPeople?: readonly { readonly id: string; readonly name: string }[];
   /** Close the action: the menu puts focus back on its button. */
   readonly onClose: () => void;
 }
@@ -45,6 +48,9 @@ export const MANAGE_ACTIONS: Readonly<Partial<Record<DocumentAction, ManageActio
     label: 'Cancel Removal Request',
     Component: CancelRemovalRequestAction,
   },
+  // Also Keep a Copy for Another Person (owner request of 4 Nov 2026): a marriage certificate,
+  // a joint account statement, a family register; offered only when the account has someone else
+  KEEP_COPY_FOR_PERSON: { label: 'Also Keep a Copy for Another Person', Component: KeepCopyAction },
   // Delete My File (owner decision of 3 Nov 2026, D12): offered only while DOCUMENT_SELF_DELETE is on
   DELETE_MY_FILE: { label: 'Delete My File', Component: SelfDeleteAction },
 };

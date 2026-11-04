@@ -2928,6 +2928,16 @@ export {
   sweepHeldFiles,
 } from './umpe-document-holds';
 
+// UMPE: Also Keep a Copy for Another Person (a document that belongs to two people)
+export {
+  type CopiedDocument,
+  type CopyPerson,
+  SHARED_BETWEEN_PEOPLE_KINDS,
+  copyDocumentToPerson,
+  isSharedBetweenPeopleKind,
+  listCopyPeople,
+} from './umpe-document-copies';
+
 // UMPE P12
 export {
   ATTEMPT_BINDINGS,

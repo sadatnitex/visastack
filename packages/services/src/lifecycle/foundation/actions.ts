@@ -10,6 +10,10 @@ export const DOCUMENT_ACTIONS = [
   'RESTORE_DELETED',
   'REQUEST_REMOVAL',
   'CANCEL_REMOVAL_REQUEST',
+  // Also Keep a Copy for Another Person (owner request of 4 Nov 2026): a document that belongs to
+  // two people (a marriage certificate) can be kept under another person of the same account.
+  // Placed before Delete My File, which stays last.
+  'KEEP_COPY_FOR_PERSON',
   // Delete My File (owner decision of 3 Nov 2026, D12): added after the original seven, which the
   // owner approved by that decision; the lanes' frozen order is otherwise unchanged.
   'DELETE_MY_FILE',
@@ -52,6 +56,11 @@ export interface DocumentActionView {
    * off, so a caller that does not know about it changes nothing.
    */
   readonly selfDeleteSwitchOn?: boolean;
+  /**
+   * The document is of a kind that belongs to two people and the account has someone else to keep
+   * a copy for. Left out means no, so a caller that does not know about it changes nothing.
+   */
+  readonly keepCopyForOthers?: boolean;
 }
 
 /**
@@ -66,6 +75,8 @@ export interface DocumentActionView {
  * - Current or Archived, with Delete My File switched on and no legal hold: Delete My File, last,
  *   whatever else is offered (a waiting request is closed by it). It is the owner's own instant
  *   removal; the service decides again who may use it and which files it refuses.
+ * - Current, of a kind that belongs to two people, with someone else on the account: Also Keep a
+ *   Copy for Another Person.
  * - Recently Deleted: Restore only.
  * - Being removed: nothing.
  */
@@ -75,6 +86,9 @@ export function availableDocumentActions(view: DocumentActionView): DocumentActi
   if (view.state === 'CURRENT') {
     allowed.add('ARCHIVE');
     if (!view.replaced) allowed.add('REPLACE');
+  }
+  if (view.state === 'CURRENT' && view.keepCopyForOthers === true) {
+    allowed.add('KEEP_COPY_FOR_PERSON');
   }
   if (view.state === 'ARCHIVED') allowed.add('RESTORE');
   if (view.state === 'RECENTLY_DELETED') allowed.add('RESTORE_DELETED');

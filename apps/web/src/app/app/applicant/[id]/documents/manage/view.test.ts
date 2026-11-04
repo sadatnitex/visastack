@@ -36,6 +36,20 @@ afterEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset();
 });
 
+describe('what the Manage menu offers for a copy under another person', () => {
+  it('stays hidden unless the page says the document belongs to two people and there is someone else', () => {
+    expect(availableDocumentActions(documentActionView(lifecycle))).not.toContain(
+      'KEEP_COPY_FOR_PERSON',
+    );
+    expect(
+      availableDocumentActions(documentActionView(lifecycle, { keepCopyForOthers: true })),
+    ).toContain('KEEP_COPY_FOR_PERSON');
+    expect(DOCUMENT_ACTIONS.indexOf('KEEP_COPY_FOR_PERSON')).toBeLessThan(
+      DOCUMENT_ACTIONS.indexOf('DELETE_MY_FILE'),
+    );
+  });
+});
+
 describe('what the Manage menu offers for Delete My File', () => {
   it('stays hidden unless the page says the switch is on', () => {
     expect(DOCUMENT_ACTIONS.at(-1)).toBe('DELETE_MY_FILE');
