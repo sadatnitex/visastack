@@ -1,5 +1,6 @@
 import { type Browser, type BrowserContext, type Page, expect, test } from '@playwright/test';
 import { type SyntheticFile, renderSyntheticPassport } from '../fixtures/synthetic-passport';
+import { loop } from './support/loop-state';
 import {
   AWAITING_LANES_D_E as D_E,
   VERIFIED_IN_SOURCE as S,
@@ -27,8 +28,9 @@ import { configured, confirmed, ids } from './support/setup';
  *
  * Setup it relies on and does not create: the agency has been invited by the traveller and the
  * invitation accepted (the invitation emails need a capture inbox, so that leg is not automated),
- * and the grant is for the traveller's whole record. The last step ends that grant, so the owner
- * re-seeds it before the next run (docs/operations/staging-journeys.md, "Reset").
+ * and the grant is for the traveller's whole record. Ending the grant is NOT done here: it is
+ * agency-loop-revoke.spec.ts, which the config runs in a last stage, after every spec that needs the
+ * grant (docs/operations/staging-journeys.md, "Reset").
  */
 
 test.describe.configure({ mode: 'serial' });
@@ -38,8 +40,6 @@ let scanTwo: SyntheticFile;
 let traveller: { context: BrowserContext; page: Page };
 let agency: { context: BrowserContext; page: Page };
 const baseURL = () => configured('PLAYWRIGHT_BASE_URL');
-/** Carried between the steps: the request's address on the agency side. */
-const loop: { requestPath?: string; firstCopyName?: string } = {};
 
 async function open(browser: Browser, role: 'TRAVELLER' | 'AGENCY_ADMIN') {
   return signedInContext(browser, role, baseURL());
@@ -152,27 +152,4 @@ test('the first receipt still names the first copy after the replacement', async
   expect(loop.firstCopyName, 'the first copy was recorded in an earlier step').toBeTruthy();
   // The earlier submission is history: still readable, still pointing at the copy that was sent.
   await expect(page.getByText(loop.firstCopyName as string).first()).toBeVisible();
-});
-
-test('ending the access stops the agency fetching the file', async ({ browser }) => {
-  const { page } = traveller;
-  await page.goto(`/app/applicant/${ids.traveller()}/sharing`);
-  await page.getByRole('button', { name: D_E.revokeButton }).first().click();
-  await page.getByRole('button', { name: 'Yes, Revoke Access' }).click();
-  await expect(page.getByText(/revoked|ended/i).first()).toBeVisible();
-  // A fresh agency window, as if the agency tried again on its next request.
-  const fresh = await open(browser, 'AGENCY_ADMIN');
-  try {
-    const answer = await fresh.page.goto(
-      loop.requestPath ?? `/app/agency/${ids.agencyOrg()}/clients`,
-    );
-    const looksMissing =
-      (await fresh.page.getByRole('heading', { name: S.notFoundHeading }).count()) > 0;
-    expect(
-      looksMissing || (answer?.status() ?? 0) === 404,
-      'revoked access looks like a missing page',
-    ).toBe(true);
-  } finally {
-    await fresh.context.close();
-  }
 });

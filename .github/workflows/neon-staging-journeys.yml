@@ -105,8 +105,12 @@ jobs:
           NEON_STAGING_UNRELATED_AGENCY_ADMIN_TOTP_SECRET: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_TOTP_SECRET }}
         run: |
           files=$(node ../../scripts/check-staging-journey-setup.mjs --files "$SUITE" | sed 's#^#e2e/signed-in/#')
+          # The config runs the spec that ends the agency's access in a last stage that depends on
+          # the first. Choosing a single suite runs just those files, in that same order.
+          flags=""
+          if [ "$SUITE" != all ]; then flags="--no-deps"; fi
           # shellcheck disable=SC2086
-          pnpm exec playwright test --config=playwright.signed-in.config.ts $files > "$RUNNER_TEMP/signed-in-output.txt" 2>&1
+          pnpm exec playwright test --config=playwright.signed-in.config.ts $flags $files > "$RUNNER_TEMP/signed-in-output.txt" 2>&1
       - name: Refuse missing, skipped, retried or failed execution evidence
         if: always()
         run: |

@@ -20,6 +20,15 @@ function getEnv(name: string): string | undefined {
 const origin = getEnv('PLAYWRIGHT_BASE_URL');
 if (!origin) throw new Error('BLOCKED: explicit isolated staging origin is required.');
 
+/**
+ * The order the specs run in is explicit, not an accident of file names. A spec that ends or changes
+ * a grant other specs rely on goes in this list; it runs in its own last stage (the project
+ * "revocation", which depends on the project "journeys"), after everything else has finished.
+ * scripts/staging-journeys.test.mjs fails if such a spec is anywhere else.
+ */
+const LAST_STAGE_SPECS = ['agency-loop-revoke.spec.ts'];
+const browser = { browserName: 'chromium', colorScheme: 'light' } as const;
+
 export default defineConfig({
   testDir: './e2e/signed-in',
   testMatch: '**/*.spec.ts',
@@ -36,5 +45,13 @@ export default defineConfig({
     screenshot: 'off',
     video: 'off',
   },
-  projects: [{ name: 'chromium', use: { browserName: 'chromium', colorScheme: 'light' } }],
+  projects: [
+    { name: 'journeys', testIgnore: LAST_STAGE_SPECS, use: browser },
+    {
+      name: 'revocation',
+      testMatch: LAST_STAGE_SPECS,
+      dependencies: ['journeys'],
+      use: browser,
+    },
+  ],
 });
