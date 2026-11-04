@@ -682,6 +682,57 @@ function ruleSetProblem(requirements: readonly PackRequirement[]): string | null
   return null;
 }
 
+/**
+ * Words that fill the citation box without citing anything ("Yes" is what a live test pack holds).
+ * Matched whole, ignoring case and punctuation.
+ */
+const FILLER_CITATIONS: ReadonlySet<string> = new Set([
+  'yes',
+  'no',
+  'ok',
+  'okay',
+  'na',
+  'n a',
+  'none',
+  'nil',
+  'null',
+  'tbd',
+  'tba',
+  'todo',
+  'unknown',
+  'see above',
+]);
+
+/** Largest citation a requirement can carry. */
+export const MAX_CITATION_LENGTH = 500;
+
+/**
+ * Why a citation is not accepted for a NEW requirement, or null. Forward-only: it runs when a
+ * requirement is added and never on rows already stored, so no existing version, manifest or
+ * checksum is touched. A citation must say where the rule comes from, not just fill the box.
+ */
+export function citationProblem(citation: string): string | null {
+  if (citation.trim().length > MAX_CITATION_LENGTH) {
+    return `a citation can be at most ${MAX_CITATION_LENGTH} characters`;
+  }
+  return isFillerCitation(citation)
+    ? 'a citation must say where the requirement comes from, such as the page or section of the official guidance'
+    : null;
+}
+
+/**
+ * True when a citation is only filler ("Yes", "n/a", punctuation). Length is not judged here, so a
+ * long citation that is already stored still reads as a source when it is shown.
+ */
+export function isFillerCitation(citation: string): boolean {
+  const words = citation
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+  return words.length === 0 || FILLER_CITATIONS.has(words);
+}
+
 /** Add a cited requirement to a DRAFT pack version. */
 export async function addRequirement(
   db: Db,
@@ -712,6 +763,8 @@ export async function addRequirement(
     if (input.citation.trim().length === 0) {
       return err(serviceError('invalid', 'every requirement must carry a citation'));
     }
+    const filler = citationProblem(input.citation);
+    if (filler) return err(serviceError('invalid', filler));
     if (input.kind === 'FIELD' && !input.fieldKey) {
       return err(serviceError('invalid', 'a FIELD requirement needs a fieldKey'));
     }

@@ -23,9 +23,8 @@ export function AttachPackForm({
 }) {
   const [state, formAction, pending] = useActionState(attachPackAction, INITIAL);
 
-  if (options.length === 0) {
-    return <p className="muted u-m-0">No published requirement packs are available yet.</p>;
-  }
+  // Nothing to pick: the case page says so and why, in its own words (VS-006).
+  if (options.length === 0) return null;
 
   return (
     <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

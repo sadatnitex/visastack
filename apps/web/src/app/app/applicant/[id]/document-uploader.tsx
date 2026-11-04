@@ -10,6 +10,7 @@ import { newUploadId } from '../../../../lib/document-upload-client-id';
 import { formatFileSize } from '../../../../lib/format-size';
 import { useDropZone } from '../../../../lib/import/use-drop-zone';
 import type { ChoiceGroup } from '../../../../lib/master-profile-types';
+import { uploadCheckNotice } from '../../../../lib/scan-state';
 import { acceptAttribute, checkChosenFile, uploadLimitsText } from '../../../../lib/upload-rules';
 import { deleteDuplicateAction, restoreDeletedAction } from './documents/manage/delete/actions';
 import { deletedLine } from './documents/manage/delete/messages';
@@ -481,10 +482,8 @@ export function DocumentUploader({
         </button>
       ) : null}
       <p className="muted uploader-note">
-        {virusScanning
-          ? 'Each file is scanned for viruses when it arrives.'
-          : 'Each file’s type and structure are checked when it arrives.'}{' '}
-        iPhone photos (HEIC) are saved as JPG copies so they open anywhere.
+        {uploadCheckNotice(virusScanning)} iPhone photos (HEIC) are saved as JPG copies so they open
+        anywhere.
       </p>
       <p className="muted uploader-note">
         Stored privately. Only you and the people you choose to share with can open it.

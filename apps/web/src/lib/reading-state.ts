@@ -26,7 +26,7 @@ export interface ReadingInput {
   readonly ocr: boolean;
 }
 
-const SAVED_ONLY = 'Your files are saved and checked for safety. You add the details yourself.';
+const SAVED_ONLY = 'Your files are saved and checked. You add the details yourself.';
 
 /**
  * The truth about automatic reading for one person, from the same two things the reading job

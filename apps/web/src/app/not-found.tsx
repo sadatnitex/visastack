@@ -1,4 +1,8 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
+
+/** The browser tab and history name this page (WCAG 2.4.2); the layout adds the product name. */
+export const metadata: Metadata = { title: 'Page Not Found' };
 
 /**
  * Global 404. Without this, Next.js falls back to its bare, unstyled default
@@ -10,7 +14,7 @@ import Link from 'next/link';
 export default function NotFound() {
   return (
     <section className="section container center">
-      <span className="eyebrow">Not found</span>
+      <span className="eyebrow">Not Found</span>
       <h1 className="section-title" style={{ margin: '0.5rem 0 0' }}>
         We Couldn't Find That Page
       </h1>

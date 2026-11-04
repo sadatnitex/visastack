@@ -1,5 +1,6 @@
 import { accountPrincipal, listDeletionReceipts, requireAccess } from '@visastack/services';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   RemovalRecordList,
@@ -18,8 +19,8 @@ const RECORDS_READ_LIMIT = 200;
 
 /**
  * Removal Records (LC-C, PROGRAMME section 5.3): what has been deleted from this traveller's
- * record and where it stands, by reference code and kind only, never a name or a title. Owner
- * only. Before migration 0113 there is nothing to show, so the page says so.
+ * record and where it stands, by reference code and kind, and when and from which kind of account
+ * it was asked, never a name or a title. Owner only. Before migration 0113 there is nothing to show, so the page says so.
  */
 export default async function RemovalRecordsPage({
   params,
@@ -50,6 +51,8 @@ export default async function RemovalRecordsPage({
     scheduledFor: record.scheduledFor,
     verifiedGoneAt: record.verifiedGoneAt,
     requestedAt: record.requestedAt,
+    requestedBy: record.requestedBy,
+    approvedBy: record.approvedBy,
     status: record.status,
     effects: {
       casesSwitched: record.effects.casesSwitched,
@@ -61,7 +64,7 @@ export default async function RemovalRecordsPage({
     <>
       <PageHeader
         title="Removal Records"
-        description="What was deleted from this record, and where each removal stands. Each one shows its reference code and kind only."
+        description="What was deleted from this record, and where each removal stands. Each one shows its reference code, its kind, and when and from which account it was asked, never a name or a title."
         back={{ href: `/app/applicant/${id}/documents`, label: 'Documents' }}
       />
       <section className="card lc-records-page" aria-labelledby="removal-records-heading">
@@ -69,6 +72,14 @@ export default async function RemovalRecordsPage({
           Records
         </h2>
         <RemovalRecordList records={rows} />
+        {rows.length > 0 ? (
+          <p className="muted">
+            Times are shown in UTC. &quot;Your account&quot; means someone signed in as you, so it
+            is a sign-in, not a name. If you do not recognise a removal,{' '}
+            <Link href="/auth/forgot-password">Reset Your Password</Link> and contact VisaStack
+            support from <Link href="/app/help#contact">Help and Support</Link>.
+          </p>
+        ) : null}
         <p className="muted lc-records-backup">{BACKUP_SENTENCE}</p>
       </section>
     </>

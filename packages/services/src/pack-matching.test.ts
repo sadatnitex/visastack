@@ -11,6 +11,7 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import {
   type TravellerMatchTerms,
+  explainNoFittingPack,
   findMatchingPublicPack,
   listFittingPublicPacks,
   packMatchKey,
@@ -287,6 +288,146 @@ describe('findMatchingPublicPack', () => {
       const open = await pack({ jurisdiction: 'UK', purpose: 'tourism', nationality: [] });
       expect(await findMatchingPublicPack(db, ukTrip())).toMatchObject({
         packVersionId: open.versionIds[0],
+      });
+    });
+  });
+
+  describe('why no checklist fits (VS-006)', () => {
+    async function declare(
+      versionId: string,
+      conditions: { consularPosts?: string[]; travelFrom?: string; travelUntil?: string },
+    ) {
+      await db.insert(schema.packRouteConditions).values({
+        packVersionId: versionId,
+        consularPosts: conditions.consularPosts ?? [],
+        travelFrom: conditions.travelFrom ?? null,
+        travelUntil: conditions.travelUntil ?? null,
+      });
+    }
+
+    it('says there is no reviewed checklist when nothing reviewed is published for the route', async () => {
+      // An unsupported route: only an unreviewed test pack, a draft and an agency pack exist.
+      const org = await db
+        .insert(schema.organizations)
+        .values({ name: 'Agency', status: 'ACTIVE' })
+        .returning();
+      await pack({ jurisdiction: 'UK', purpose: 'Tourism', authoritative: false });
+      await pack({ jurisdiction: 'UK', purpose: 'Tourism', status: 'DRAFT' });
+      await pack({ jurisdiction: 'UK', purpose: 'Tourism', organizationId: org[0]?.id ?? '' });
+      await pack({ jurisdiction: 'Canada', purpose: 'Tourism' });
+      expect(await listFittingPublicPacks(db, ukTrip())).toEqual([]);
+      expect(await explainNoFittingPack(db, ukTrip())).toEqual(['NO_REVIEWED_CHECKLIST']);
+    });
+
+    it('says so when the case names no destination or purpose to look up', async () => {
+      expect(await explainNoFittingPack(db, { ...ukTrip(), country: [] })).toEqual([
+        'NO_REVIEWED_CHECKLIST',
+      ]);
+    });
+
+    it('explains nothing when a checklist fits, linked or not', async () => {
+      await pack({ jurisdiction: 'UK', purpose: 'Tourism' });
+      expect(await explainNoFittingPack(db, ukTrip())).toEqual([]);
+      await pack({ jurisdiction: 'UK', purpose: 'Tourism', nationality: ['BD'] });
+      expect(await explainNoFittingPack(db, ukTrip())).toEqual([]);
+    });
+
+    it('names who the existing checklist is meant for instead', async () => {
+      await pack({ jurisdiction: 'UK', purpose: 'Tourism', nationality: ['IN'] });
+      expect(await explainNoFittingPack(db, ukTrip(BANGLADESHI))).toEqual(['OTHER_NATIONALITY']);
+      await pack({ jurisdiction: 'GB', purpose: 'Tourism', residence: ['AE'] });
+      expect(await explainNoFittingPack(db, ukTrip(BANGLADESHI))).toEqual([
+        'OTHER_NATIONALITY',
+        'OTHER_RESIDENCE',
+      ]);
+    });
+
+    it('names a different route', async () => {
+      await pack({ jurisdiction: 'UK', purpose: 'Tourism', route: 'Standard Visitor' });
+      expect(await explainNoFittingPack(db, { ...ukTrip(), route: ['Transit Visitor'] })).toEqual([
+        'OTHER_ROUTE',
+      ]);
+    });
+
+    it('names a different application post, and never reads the destination as the post', async () => {
+      const dhaka = await pack({ jurisdiction: 'UK', purpose: 'Tourism' });
+      await declare(dhaka.versionIds[0] ?? '', { consularPosts: ['Dhaka'] });
+      // The case is for travel to the United Kingdom and applies in Sylhet: the destination is
+      // not the application post, so only a post that really differs excludes the pack.
+      expect(await explainNoFittingPack(db, { ...ukTrip(), consularPost: 'Sylhet' })).toEqual([
+        'OTHER_APPLICATION_POST',
+      ]);
+      expect(await listFittingPublicPacks(db, { ...ukTrip(), consularPost: 'Sylhet' })).toEqual([]);
+      // Putting the destination in the post slot is a mismatch too: it never matches a post.
+      expect(
+        await explainNoFittingPack(db, { ...ukTrip(), consularPost: 'United Kingdom' }),
+      ).toEqual(['OTHER_APPLICATION_POST']);
+      // A post that is not set is "not known", never a mismatch: the pack is listed, not linked.
+      expect(await explainNoFittingPack(db, ukTrip())).toEqual([]);
+      expect(await findMatchingPublicPack(db, ukTrip())).toBeNull();
+      expect(await listFittingPublicPacks(db, ukTrip())).toEqual([
+        expect.objectContaining({ needs: ['APPLICATION_POST'] }),
+      ]);
+      expect(
+        await findMatchingPublicPack(db, { ...ukTrip(), consularPost: 'Dhaka' }),
+      ).toMatchObject({
+        packVersionId: dhaka.versionIds[0],
+      });
+    });
+
+    it('names travel dates outside the window the checklist covers', async () => {
+      const window = await pack({ jurisdiction: 'UK', purpose: 'Tourism' });
+      await declare(window.versionIds[0] ?? '', {
+        travelFrom: '2027-01-01',
+        travelUntil: '2027-06-30',
+      });
+      expect(
+        await explainNoFittingPack(db, {
+          ...ukTrip(),
+          travelStart: new Date('2026-12-01T00:00:00Z'),
+        }),
+      ).toEqual(['OUTSIDE_TRAVEL_DATES']);
+    });
+
+    it('gives the same answer as the matcher about what fits', async () => {
+      const terms = ukTrip(BANGLADESHI);
+      await pack({ jurisdiction: 'UK', purpose: 'Tourism', nationality: ['IN'] });
+      const fitting = await listFittingPublicPacks(db, terms);
+      expect(fitting).toEqual([]);
+      expect((await explainNoFittingPack(db, terms)).length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('a synthetic reviewed checklist (VS-006)', () => {
+    it('links once for a Bangladeshi traveller living in Bangladesh, and not when two fit', async () => {
+      const synthetic = await pack({
+        jurisdiction: 'UK',
+        purpose: 'Tourism',
+        nationality: ['Bangladesh'],
+        residence: ['Bangladesh'],
+      });
+      expect(await findMatchingPublicPack(db, ukTrip(BANGLADESHI))).toEqual({
+        packVersionId: synthetic.versionIds[0],
+        packName: synthetic.name,
+        version: 1,
+        coversTraveller: true,
+        coversRoute: true,
+      });
+      // A second reviewed checklist for the same route is ambiguity: nothing links, the person picks.
+      await pack({ jurisdiction: 'United Kingdom', purpose: 'tourism' });
+      expect(await findMatchingPublicPack(db, ukTrip(BANGLADESHI))).toBeNull();
+      expect(await listFittingPublicPacks(db, ukTrip(BANGLADESHI))).toHaveLength(2);
+      expect(await explainNoFittingPack(db, ukTrip(BANGLADESHI))).toEqual([]);
+    });
+
+    it('still links a reviewed checklist whose review date has passed (it is warned about, not hidden)', async () => {
+      const overdue = await pack({ jurisdiction: 'UK', purpose: 'Tourism' });
+      await db
+        .update(schema.packVersions)
+        .set({ nextReviewDate: new Date('2026-10-23T00:00:00Z') })
+        .where(eq(schema.packVersions.id, overdue.versionIds[0] ?? ''));
+      expect(await findMatchingPublicPack(db, ukTrip())).toMatchObject({
+        packVersionId: overdue.versionIds[0],
       });
     });
   });

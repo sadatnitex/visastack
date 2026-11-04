@@ -847,7 +847,7 @@ export function ImportPanel({
               ? 'Files for several people wait in Needs One Decision until you choose who each one belongs to.'
               : readingOn
                 ? 'Most files are sorted on their own. Anything that needs your answer is in Needs One Decision, and details read from your files wait for your approval.'
-                : 'Your files are saved and checked for safety. Automatic reading is off, so nothing was read: you add the details yourself. Anything that needs your answer is in Needs One Decision.'}
+                : 'Your files are saved and checked. Automatic reading is off, so nothing was read: you add the details yourself. Anything that needs your answer is in Needs One Decision.'}
           </p>
           {addedCount > 0 || showNext || sentToFamily.current ? (
             <div className="upload-drop-actions">

@@ -133,6 +133,9 @@ describe('agency Cases', () => {
     expect(text).toContain(`Nusrat Jahan · Case ${M2}`);
     expect(html).toContain(`href="/app/agency/o1/cases?case=${M1}#mission-${M1}"`);
     expect(html).toContain(`href="/app/agency/o1/cases?case=${M2}#mission-${M2}"`);
+    // VS-023: the anchor is real text, never a client reference printed into the address.
+    expect(html).not.toContain('[object');
+    expect(html).not.toContain('undefined');
     expect(stubProps(html, 'MissionCollaboration')).toEqual([]);
     expect(mocks.loadOpenCase).not.toHaveBeenCalled();
     expect(mocks.loadCases).not.toHaveBeenCalled();

@@ -17,6 +17,7 @@ import { isRecordId } from '../../../../lib/record-id';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
 import {
+  FILE_TOO_LARGE_MESSAGE,
   STREAM_UPLOAD_LIMIT,
   admitsHeicUpload,
   pdfUploadsAccepted,
@@ -78,7 +79,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   const size = Number(request.headers.get('content-length'));
   if (!Number.isSafeInteger(size) || size < 1 || size > STREAM_UPLOAD_LIMIT || !request.body) {
-    return json('Choose a file smaller than 4 MB.', 413);
+    return json(FILE_TOO_LARGE_MESSAGE, 413);
   }
   const applicantId = new URL(request.url).searchParams.get('applicantId') ?? '';
   if (!isRecordId(applicantId)) return json('Choose a traveller.', 400);

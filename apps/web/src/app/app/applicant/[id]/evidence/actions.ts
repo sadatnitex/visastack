@@ -31,6 +31,12 @@ function plainSubmitReason(message: string): string {
   if (message.startsWith('this document has not finished safety processing')) {
     return 'That file has not finished its safety checks, or could not be used. Choose another file, or wait a moment.';
   }
+  if (message.startsWith('this organization no longer has access')) {
+    return 'This agency no longer has access to your records, so nothing was sent. You can ask them to start a new request.';
+  }
+  if (message === 'evidence request not found') {
+    return 'This request could not be found. Refresh the page to see where it stands.';
+  }
   return message;
 }
 
@@ -43,6 +49,9 @@ export async function submitEvidenceResponseAction(
   const requestId = String(formData.get('requestId') ?? '');
   const factId = String(formData.get('factId') ?? '') || undefined;
   const documentId = String(formData.get('documentId') ?? '') || undefined;
+  // The page's own retry key, when it sends one: pressing Send twice then answers with the first
+  // send instead of an error. Absent, the service numbers the send itself.
+  const idempotencyKey = String(formData.get('idempotencyKey') ?? '').trim() || undefined;
   if (requestId.length === 0 || (!factId && !documentId)) {
     return { ok: false, message: 'Choose what to submit.' };
   }
@@ -53,6 +62,7 @@ export async function submitEvidenceResponseAction(
       requestId,
       ...(factId ? { factId } : {}),
       ...(documentId ? { documentId } : {}),
+      ...(idempotencyKey ? { idempotencyKey } : {}),
     });
     if (!submitted.ok) {
       return {

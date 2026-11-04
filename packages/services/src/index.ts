@@ -87,6 +87,16 @@ export { listAllApplicants, listRecentAuditEvents } from './platform-reads';
 export { type DataKeyRewrapSummary, rewrapDataKeys } from './data-key-rewrap';
 
 export {
+  type ScanRecordForEvidence,
+  TRUSTED_VIRUS_SCANNER_NAMES,
+  type VersionSafetyStatus,
+  type VersionScanEvidence,
+  type VersionScanKind,
+  deriveVersionScanEvidence,
+  loadVersionScanEvidence,
+} from './document-scan-evidence';
+
+export {
   SCANNER_EVIDENCE_MAX_AGE_MS,
   SCANNER_VERIFIED_EVENT,
   type ScannerEvidence,
@@ -687,7 +697,10 @@ export {
   type RequirementDiffEntry,
   type RequirementInput,
   addPackVersion,
+  MAX_CITATION_LENGTH,
   addRequirement,
+  citationProblem,
+  isFillerCitation,
   recordRequirementSourceReview,
   approvePackVersion,
   buildManifest,
@@ -1806,11 +1819,13 @@ export {
 } from './ai-clients';
 export { isMissingRelationError } from './missing-relation';
 export {
+  type NoPackReason,
   type PackMatch,
   type PackMatchTerms,
   type TravellerCountries,
   type TravellerCoverage,
   type TravellerMatchTerms,
+  explainNoFittingPack,
   findMatchingPublicPack,
   listFittingPublicPacks,
   packMatchKey,
@@ -3065,3 +3080,22 @@ export {
 export type { PackMatchNeed } from './pack-matching';
 export { latestSourceChecks } from './source-monitor';
 export { type CaseExpiryConflict, caseExpiryConflicts } from './notification-sweep';
+export {
+  type PinnedPackNotice,
+  type SelectablePackVersion,
+  attachSelectedPackVersion,
+  listSelectablePackVersions,
+  pinnedPackNotice,
+} from './umpe-pack-selection';
+export type { EvidenceDecisionResult, EvidenceSubmitResult } from './agency';
+export {
+  LEGACY_SEND_LABEL,
+  type EvidenceSubmissionDownloadInput,
+  type EvidenceSubmissionList,
+  type EvidenceSubmissionState,
+  type EvidenceSubmissionView,
+  type LegacyEvidenceSend,
+  downloadEvidenceSubmissionFile,
+  evidenceSubmissionsPresent,
+  listEvidenceSubmissions,
+} from './evidence-submissions';

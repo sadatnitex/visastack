@@ -51,6 +51,7 @@ vi.mock('../../../../lib/ai-usage', async (importOriginal) => ({
 }));
 
 const { default: Page } = await import('./page');
+const { STREAM_UPLOAD_LIMIT_LABEL } = await import('../../../../lib/upload-preflight');
 
 const MB = 1024 * 1024;
 
@@ -150,12 +151,24 @@ describe('Plan & Usage for a traveller', () => {
     expect(mocks.applicants).toHaveBeenCalledWith({}, 'acct-1');
   });
 
+  it('never promises more per file than one request can carry, and never more than the quota', async () => {
+    vi.stubEnv('QUOTA_MAX_UPLOAD_MB', '50');
+    expect(textOf(await renderServer(Page({})))).toContain('Each file can be up to 4 MB.');
+    vi.stubEnv('QUOTA_MAX_UPLOAD_MB', '2');
+    expect(textOf(await renderServer(Page({})))).toContain('Each file can be up to 2 MB.');
+    vi.unstubAllEnvs();
+  });
+
   it('shows storage for the whole account and for each person, against the upload limits', async () => {
     const text = textOf(await renderServer(Page({})));
     expect(text).toContain('Your Whole Account 12 MB of 100 MB used');
     expect(text).toContain('Rahim Uddin 10 MB of 50 MB used');
     expect(text).toContain('Ayesha Uddin 2 MB of 50 MB used');
-    expect(text).toContain('Each file can be up to 20 MB.');
+    // VS-007: the default account quota is 20 MB a file, but one request carries 4 MB, so 4 MB is
+    // what the page promises (the same number the Add Documents form checks).
+    expect(text).toContain(`Each file can be up to ${STREAM_UPLOAD_LIMIT_LABEL}.`);
+    expect(text).toContain('Each file can be up to 4 MB.');
+    expect(text).not.toContain('20 MB');
     expect(text).toContain("that agency's own plan can also limit what more can be added to it");
   });
 

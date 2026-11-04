@@ -1,6 +1,6 @@
 'use server';
 
-import { type Db, attachPackVersion, createMission } from '@visastack/services';
+import { type Db, attachSelectedPackVersion, createMission } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { checklistToLink } from '../../../../../lib/case-checklist-match';
@@ -46,7 +46,7 @@ async function linkChecklistIfOneFits(
       purpose: purposeMatchTerms(purpose),
     });
     if (!match) return;
-    const attached = await attachPackVersion(db, {
+    const attached = await attachSelectedPackVersion(db, {
       actorAccountId: accountId,
       missionId,
       packVersionId: match.packVersionId,

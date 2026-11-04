@@ -38,7 +38,7 @@ export function CaseDetailsForm({
       <input type="hidden" name="missionId" value={missionId} />
       <div className="field-row">
         <label className="field-label" htmlFor="jurisdiction">
-          Jurisdiction / consular post
+          Embassy or Visa Centre
         </label>
         <input
           id="jurisdiction"
@@ -47,7 +47,12 @@ export function CaseDetailsForm({
           defaultValue={jurisdiction ?? ''}
           className="input"
           placeholder="e.g. US Embassy Dhaka"
+          aria-describedby="jurisdiction-help"
         />
+        <p id="jurisdiction-help" className="muted u-fs-085">
+          Where you apply, not the country you travel to. Some checklists differ by embassy or visa
+          centre.
+        </p>
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="serviceCategory">

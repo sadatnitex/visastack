@@ -14,12 +14,12 @@ import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-
 import { withSession } from '../../../../../lib/session';
 import { AdminNotForRole } from '../../admin-restricted';
 import {
-  AUTHORITY_TIER_LABELS,
   CandidateDecisionForm,
   CheckNowButton,
   DeactivateSourceButton,
   RegisterSourceForm,
 } from './source-forms';
+import { AUTHORITY_TIER_LABELS } from './source-labels';
 
 export const metadata: Metadata = { title: 'Official Sources' };
 

@@ -15,6 +15,7 @@ import {
   pagingHref,
 } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
+import { caseAnchorId } from '../case-anchor';
 import { caseNeedsYou } from '../case-needs';
 import { STAGE_LABELS } from '../case-search-form';
 import { caseTriageView } from '../case-triage';
@@ -31,7 +32,7 @@ import {
 import { MissionCollaboration } from '../mission-collaboration';
 import { ListPager } from './list-pager';
 import { type ListKeys, type ListWindow, listWindow } from './list-window';
-import { CASE_ANCHOR, OpenCaseFromLink } from './open-case-from-link';
+import { OpenCaseFromLink } from './open-case-from-link';
 
 export const metadata: Metadata = { title: 'Agency Cases' };
 
@@ -54,7 +55,7 @@ function caseHref(pathname: string, query: SearchParamsRecord, missionId: string
       [NOTES_KEYS.before]: null,
       [NOTES_KEYS.from]: null,
     },
-    `${CASE_ANCHOR}${missionId}`,
+    caseAnchorId(missionId),
   );
 }
 

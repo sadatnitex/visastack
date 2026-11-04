@@ -163,7 +163,7 @@ export async function submitContributorEvidenceAction(
 
     return {
       ok: true,
-      message: 'Thank you - your document was submitted and queued for a safety scan.',
+      message: 'Thank you - your document was submitted and is waiting to be checked.',
     } satisfies ActionState;
   });
 }

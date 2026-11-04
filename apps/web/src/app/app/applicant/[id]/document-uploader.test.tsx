@@ -96,12 +96,14 @@ describe('what the form says about each file and the whole list', () => {
 });
 
 describe('what the upload form claims about checking', () => {
-  it('claims a virus scan only when one is switched on', () => {
+  it('claims a virus scan only when one is switched on, and says plainly when it is not', () => {
     const off = textOf(renderToStaticMarkup(<DocumentUploader applicantId="a1" />));
-    expect(off).not.toContain('viruses');
+    expect(off).not.toMatch(/scanned for viruses|are scanned|is scanned/);
     expect(off).toContain('type and structure are checked when it arrives');
+    expect(off).toContain('This is not a virus scan.');
     const on = textOf(renderToStaticMarkup(<DocumentUploader applicantId="a1" virusScanning />));
-    expect(on).toContain('scanned for viruses when it arrives');
+    expect(on).toContain('scanned for viruses and cannot be opened until the scan finishes');
+    expect(on).not.toContain('not a virus scan');
   });
 
   it('says where the file is kept, who can open it, and that iPhone photos become JPG copies', () => {

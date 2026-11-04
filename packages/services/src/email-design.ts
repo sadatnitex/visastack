@@ -251,6 +251,7 @@ type EmailEventType =
   | 'LEGAL_HOLD_REVIEW_REMINDER'
   | 'TEAM_MEMBER_ADDED'
   | 'WHATSAPP_CONNECTED'
+  | 'DOCUMENT_SELF_DELETED'
   | 'TEAM_INVITATION_CREATED'
   | 'CLIENT_INVITATION_CREATED'
   | 'SHARING_INVITATION_CREATED'
@@ -274,6 +275,13 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     why: 'One more piece of your file is in place.',
     action: 'See Your Case',
     after: "Accepted by your agency's reviewer for your file. It is not a decision on your visa.",
+  },
+  // Lane D: never the person, the kind of file, the file name or any reason; the agency opens the request.
+  EVIDENCE_RESPONSE_RECEIVED: {
+    eyebrow: 'Your Agency',
+    heading: 'Evidence arrived for one of your requests',
+    why: 'Open the request to see the exact copy that was sent. Received is not accepted until a reviewer accepts it.',
+    action: 'Open the Request',
   },
   EVIDENCE_REPLACEMENT_REQUESTED: {
     eyebrow: 'Your Case',
@@ -431,6 +439,14 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     eyebrow: 'Your Account',
     heading: 'WhatsApp is now connected',
     action: 'Review WhatsApp Settings',
+  },
+  // The fact (reference code and moment) comes from the event; no file name, kind or person is ever
+  // in this email. The fact already carries the plain step if the owner did not do it.
+  DOCUMENT_SELF_DELETED: {
+    eyebrow: 'Your Record',
+    heading: 'A document was removed from your record',
+    why: 'The file is hidden at once and its stored copies are erased and checked. A removal cannot be undone. Backup copies expire within 90 days and are never brought back.',
+    action: 'See Removal Records',
   },
   TEAM_INVITATION_CREATED: {
     eyebrow: 'Invitation',

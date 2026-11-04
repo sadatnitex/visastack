@@ -31,6 +31,13 @@ import { PageHeader, StatusBadge } from '../../../../../components/ui';
 import { hasPlatformPermission, isPlatformAdmin } from '../../../../../lib/admin';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import {
+  PACK_MATCHING_HELP,
+  packBadge,
+  packCoverageLine,
+  packMatchingGaps,
+  reviewOverdueLine,
+} from '../../../../../lib/pack-labels';
+import {
   type SearchParamsRecord,
   TEAM_LIST_STEP,
   TRAVELLER_LIST_STEP,
@@ -217,8 +224,8 @@ export default async function PackDetailPage({
         eyebrow={`Pack · ${data.pack.key}`}
         title={data.pack.name}
         meta={
-          <StatusBadge tone={data.pack.authoritative ? 'success' : 'neutral'}>
-            {data.pack.authoritative ? 'Official Requirement Pack' : 'Agency Custom Checklist'}
+          <StatusBadge tone={packBadge(data.pack).reviewed ? 'success' : 'neutral'}>
+            {packBadge(data.pack).label}
           </StatusBadge>
         }
         description={
@@ -237,6 +244,33 @@ export default async function PackDetailPage({
           You can read this pack. Only a Support Admin or a platform owner can change it.
         </p>
       )}
+
+      <article className="card" id="pack-matching" aria-labelledby="pack-matching-heading">
+        <h2 className="card-title" id="pack-matching-heading">
+          How Cases Find This Pack
+        </h2>
+        <p className="card-body">
+          {packCoverageLine({ jurisdiction: data.pack.jurisdiction, route: data.pack.route }) ??
+            'No destination country or route is set.'}
+          {data.pack.purpose ? ` · ${data.pack.purpose}` : ''}
+        </p>
+        {data.pack.nationalityApplicability?.length || data.pack.residenceApplicability?.length ? (
+          <p className="muted u-fs-085">
+            {data.pack.nationalityApplicability?.length
+              ? `For travellers of: ${data.pack.nationalityApplicability.join(', ')}. `
+              : ''}
+            {data.pack.residenceApplicability?.length
+              ? `For people living in: ${data.pack.residenceApplicability.join(', ')}.`
+              : ''}
+          </p>
+        ) : null}
+        <p className="muted u-fs-085">{PACK_MATCHING_HELP}</p>
+        {packMatchingGaps(data.pack).map((gap) => (
+          <p className="badge badge-warning" key={gap} role="note">
+            {gap}
+          </p>
+        ))}
+      </article>
 
       {data.open === null ? (
         <article className="card">
@@ -292,6 +326,12 @@ export default async function PackDetailPage({
                     style={{ fontSize: 'var(--text-small)', marginBottom: '0.5rem' }}
                   >
                     Next review: {formatDateOnly(version.nextReviewDate)}
+                  </p>
+                ) : null}
+
+                {isPublished && reviewOverdueLine(version.nextReviewDate) ? (
+                  <p className="badge badge-warning" role="note">
+                    {reviewOverdueLine(version.nextReviewDate)}
                   </p>
                 ) : null}
 
@@ -372,7 +412,7 @@ export default async function PackDetailPage({
                               When it applies: <code>{JSON.stringify(req.condition)}</code>
                             </span>
                           ) : null}
-                          <span className="muted u-fs-085 sb7-break">Cite: {req.citation}</span>
+                          <span className="muted u-fs-085 sb7-break">Source: {req.citation}</span>
                           <details className="sb7-fold">
                             <summary>
                               Source and Checks

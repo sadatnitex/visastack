@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
     }),
   ),
   listDocumentExceptions: vi.fn(async () => ({ exceptions: [] as unknown[], confirmed: [] })),
+  malwareScanning: { value: 'unconfigured' as 'unconfigured' | 'available' },
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -47,7 +48,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listDocumentExceptions: mocks.listDocumentExceptions,
 }));
 vi.mock('../../../../../../lib/capabilities', () => ({
-  resolvePlatformCapabilities: async () => ({ malwareScanning: 'unavailable' }),
+  resolvePlatformCapabilities: async () => ({ malwareScanning: mocks.malwareScanning.value }),
 }));
 vi.mock('../../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
@@ -70,6 +71,7 @@ const render = (search: { type?: string } = {}) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.malwareScanning.value = 'unconfigured';
   mocks.getApplicant.mockResolvedValue({
     id: 'a1',
     ownerAccountId: 'acct-1',
@@ -161,7 +163,7 @@ describe('the Add Documents page', () => {
     });
     expect(await switchView()).toMatchObject({ status: 'off', reads: false, canChange: false });
     const text = textOf(await render());
-    expect(text).toContain('We check each one for safety and keep it for you.');
+    expect(text).toContain('We check each one and keep it for you.');
     expect(text).toContain('You Add the Details');
     expect(text).not.toContain('Read for Details');
     const [panel] = stubProps<{ readingOn: boolean }>(await render(), 'ImportPanel');
@@ -175,11 +177,42 @@ describe('the Add Documents page', () => {
 
   it('says what happens next in three plain steps', async () => {
     const text = textOf(await render());
-    for (const step of ['Checked for Safety', 'Read for Details', 'You Approve']) {
+    for (const step of ['Format Checked', 'Read for Details', 'You Approve']) {
       expect(text).toContain(step);
     }
     // A way out to the result: the uploader saves a file and this page has no list of its own.
     expect(await render()).toContain('href="/app/applicant/a1/documents"');
+  });
+
+  // The old page said "Every file is scanned before anyone can open it" whatever the platform did.
+  const MISLEADING = [
+    'Every file is scanned',
+    'Checked for Safety',
+    'scanned before anyone can open it',
+    'check each one for safety',
+  ];
+
+  it('never says a file is virus scanned while virus scanning is not switched on', async () => {
+    const html = await render();
+    const text = textOf(html);
+    for (const sentence of MISLEADING) expect(text, sentence).not.toContain(sentence);
+    expect(text).toContain('Virus scanning is not switched on yet.');
+    expect(text).toContain('which is not a virus scan');
+    expect(text).not.toContain('Checked for Viruses');
+    const [uploader] = stubProps<{ virusScanning: boolean }>(html, 'DocumentUploader');
+    expect(uploader?.virusScanning).toBe(false);
+  });
+
+  it('says new files are virus scanned only when the platform check says the scanner is running', async () => {
+    mocks.malwareScanning.value = 'available';
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('Checked for Viruses');
+    expect(text).toContain('cannot be opened until the scan finishes');
+    expect(text).not.toContain('Virus scanning is not switched on yet.');
+    for (const sentence of MISLEADING) expect(text, sentence).not.toContain(sentence);
+    const [uploader] = stubProps<{ virusScanning: boolean }>(html, 'DocumentUploader');
+    expect(uploader?.virusScanning).toBe(true);
   });
 
   it('is told the limit the server really enforces, not a number written into the page', async () => {
