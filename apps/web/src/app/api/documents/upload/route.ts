@@ -9,6 +9,7 @@ import {
   validateUploadBytes,
 } from '../../../../lib/upload-preflight';
 import { uploadRetryAfterSeconds } from '../../../../lib/upload-retry-after';
+import { guardUploadRoute } from '../../../../lib/upload-route-guard';
 import { uploadDocumentAction } from '../../../app/applicant/[id]/actions';
 
 export const runtime = 'nodejs';
@@ -80,53 +81,55 @@ export async function POST(request: Request): Promise<Response> {
   const contentType = request.headers.get('content-type')?.split(';')[0]?.trim() ?? '';
   // Authenticate before spending memory on the body. Ownership, quota, durable
   // registration, stored-byte verification and job enqueue remain in the action.
-  return withSession(async ({ db, accountId }) => {
-    if ((await getApplicant(db, applicantId))?.ownerAccountId !== accountId)
-      return json('Not authorized.', 403);
-    let bytes: Uint8Array;
-    try {
-      bytes = await readBoundedUpload(request.body as ReadableStream<Uint8Array>, size);
-    } catch {
-      return json('The upload could not be read.', 400);
-    }
-    const admitted =
-      admitsHeicUpload(bytes, contentType) ||
-      validateUploadBytes(bytes, contentType, pdfUploadsAccepted());
-    if (!admitted) return json('This file type cannot be safely processed.', 415);
-    const form = new FormData();
-    form.set('applicantId', applicantId);
-    form.set('docType', encodedHeader(request, 'x-document-kind'));
-    form.set('subject', encodedHeader(request, 'x-document-name'));
-    // UMPE P3: the browser's id for this file (the same on every attempt), checked as a UUID, and
-    // the file's own name, kept privately on the upload receipt only (the action cleans it).
-    const uploadId = request.headers.get('x-upload-id')?.trim() ?? '';
-    if (isUploadId(uploadId)) form.set('uploadId', uploadId.toLowerCase());
-    const originalFileName = encodedHeader(request, 'x-file-name', ORIGINAL_NAME_HEADER_LIMIT);
-    if (originalFileName) form.set('originalFileName', originalFileName);
-    // Do not accept a caller-controlled path or header as the stored filename.
-    form.set('file', new File([Buffer.from(bytes)], 'document', { type: contentType }));
-    const result = await uploadDocumentAction({ ok: false, message: '' }, form);
-    // Turned away by the hourly upload limit before anything was stored: a definite "not now",
-    // with how long until the window frees, so a batch import waits instead of guessing.
-    if (!result.ok && result.refusal === 'rate_limited') {
-      return json(result.message, 429, undefined, result.upgrade, undefined, {
-        'Retry-After': String(uploadRetryAfterSeconds()),
-      });
-    }
-    // The same upload is being stored by another request right now: nothing was stored by this
-    // one, so it is a definite "not yet" the browser asks again after.
-    if (!result.ok && result.refusal === 'in_progress') {
-      return json(result.message, 503, undefined, undefined, undefined, {
-        'Retry-After': String(result.retryAfterSeconds ?? IN_PROGRESS_RETRY_AFTER_SECONDS),
-      });
-    }
-    if (!result.ok && result.refusal === 'upload_conflict') return json(result.message, 409);
-    return json(
-      result.message,
-      result.ok ? 201 : 400,
-      result.ok ? result.title : undefined,
-      result.ok ? undefined : result.upgrade,
-      result.ok ? result.removableCopyId : undefined,
-    );
-  });
+  return guardUploadRoute('upload', () =>
+    withSession(async ({ db, accountId }) => {
+      if ((await getApplicant(db, applicantId))?.ownerAccountId !== accountId)
+        return json('Not authorized.', 403);
+      let bytes: Uint8Array;
+      try {
+        bytes = await readBoundedUpload(request.body as ReadableStream<Uint8Array>, size);
+      } catch {
+        return json('The upload could not be read.', 400);
+      }
+      const admitted =
+        admitsHeicUpload(bytes, contentType) ||
+        validateUploadBytes(bytes, contentType, pdfUploadsAccepted());
+      if (!admitted) return json('This file type cannot be safely processed.', 415);
+      const form = new FormData();
+      form.set('applicantId', applicantId);
+      form.set('docType', encodedHeader(request, 'x-document-kind'));
+      form.set('subject', encodedHeader(request, 'x-document-name'));
+      // UMPE P3: the browser's id for this file (the same on every attempt), checked as a UUID, and
+      // the file's own name, kept privately on the upload receipt only (the action cleans it).
+      const uploadId = request.headers.get('x-upload-id')?.trim() ?? '';
+      if (isUploadId(uploadId)) form.set('uploadId', uploadId.toLowerCase());
+      const originalFileName = encodedHeader(request, 'x-file-name', ORIGINAL_NAME_HEADER_LIMIT);
+      if (originalFileName) form.set('originalFileName', originalFileName);
+      // Do not accept a caller-controlled path or header as the stored filename.
+      form.set('file', new File([Buffer.from(bytes)], 'document', { type: contentType }));
+      const result = await uploadDocumentAction({ ok: false, message: '' }, form);
+      // Turned away by the hourly upload limit before anything was stored: a definite "not now",
+      // with how long until the window frees, so a batch import waits instead of guessing.
+      if (!result.ok && result.refusal === 'rate_limited') {
+        return json(result.message, 429, undefined, result.upgrade, undefined, {
+          'Retry-After': String(uploadRetryAfterSeconds()),
+        });
+      }
+      // The same upload is being stored by another request right now: nothing was stored by this
+      // one, so it is a definite "not yet" the browser asks again after.
+      if (!result.ok && result.refusal === 'in_progress') {
+        return json(result.message, 503, undefined, undefined, undefined, {
+          'Retry-After': String(result.retryAfterSeconds ?? IN_PROGRESS_RETRY_AFTER_SECONDS),
+        });
+      }
+      if (!result.ok && result.refusal === 'upload_conflict') return json(result.message, 409);
+      return json(
+        result.message,
+        result.ok ? 201 : 400,
+        result.ok ? result.title : undefined,
+        result.ok ? undefined : result.upgrade,
+        result.ok ? result.removableCopyId : undefined,
+      );
+    }),
+  );
 }

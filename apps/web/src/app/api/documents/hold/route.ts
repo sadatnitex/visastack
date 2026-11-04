@@ -25,6 +25,7 @@ import {
   validateUploadBytes,
 } from '../../../../lib/upload-preflight';
 import { uploadRetryAfterSeconds } from '../../../../lib/upload-retry-after';
+import { guardUploadRoute } from '../../../../lib/upload-route-guard';
 import { storedFileName } from '../../../../lib/upload-rules';
 import { triggerIntakeAndReading } from '../../jobs/process-ai-reading/run';
 
@@ -85,121 +86,123 @@ export async function POST(request: Request): Promise<Response> {
   if (!isUploadId(uploadId)) return json('Choose the file again.', 400);
   const declaredType = request.headers.get('content-type')?.split(';')[0]?.trim() ?? '';
 
-  // No try/catch here: the sign-in redirect thrown by withSession must reach Next as it is.
-  return withSession(async ({ db, accountId }) => {
-    // Authenticated and checked before any memory is spent on the body.
-    const access = await requireAccess(
-      db,
-      accountPrincipal(accountId),
-      'MANAGE',
-      { applicantId },
-      { purpose: 'owner_family_batch' },
-    );
-    if (!access.ok) return json('Not authorized.', 403);
-    let bytes: Uint8Array;
-    try {
-      bytes = await readBoundedUpload(request.body as ReadableStream<Uint8Array>, size);
-    } catch {
-      return json('The upload could not be read.', 400);
-    }
-    const quota = loadUploadQuotaConfig();
-    if (
-      !admitsHeicUpload(bytes, declaredType) &&
-      !validateUploadBytes(bytes, declaredType, pdfUploadsAccepted(), quota.maxUploadBytes)
-    ) {
-      return json('This file type cannot be safely processed.', 415);
-    }
-    // An iPhone photo becomes a new JPEG before anything is stored; the HEIC bytes never are.
-    const prepared = await prepareUploadBytes(bytes, declaredType, quota.maxImageMegapixels);
-    if (!prepared.ok) return json(prepared.message, 415);
-    if (
-      !validateUploadBytes(
-        prepared.bytes,
-        prepared.contentType,
-        pdfUploadsAccepted(),
-        quota.maxUploadBytes,
-      )
-    ) {
-      return json('This file type cannot be safely processed.', 415);
-    }
-    const originalFileName = fileNameHeader(request);
-    const storage = createStorage(db);
-    const scanner = createMalwareScanner(storage, { allowPdf: true });
-    const encryption = createKeyManagementPort();
-    const outcome = await holdFamilyFile(
-      access.value,
-      {
-        storage,
-        checks: {
-          scanner,
-          contentLimits: createContentLimitsChecker(storage),
-          // Only the ClamAV scanner looks for viruses; the structural check is never called a scan.
-          virusScanner: scanner.name === 'clamav',
-        },
-        converter: createDocumentConverter(storage),
-        ...(encryption ? { encryption } : {}),
-      },
-      {
-        uploadId,
-        originalFileName,
-        bytes: prepared.bytes,
-        contentType: prepared.contentType,
-        // The same stored name an ordinary upload gets, with the extension of what is stored.
-        storedFileName: storedFileName(originalFileName || 'document', prepared.contentType),
-        convertedFromHeic: prepared.convertedFrom === 'HEIC',
-      },
-    );
-    // UMPE G4: an exact unique match (name and date of birth, one person, no close rival) is
-    // filed at once, through the access check for exactly that person; the person can Change it.
-    // Anything else (no access, a refusal, a repeat) leaves the file waiting for Which Person?.
-    if (
-      outcome.kind === 'held' &&
-      !outcome.replay &&
-      outcome.basis === 'NAME_AND_BIRTH_DATE' &&
-      outcome.proposedApplicantId
-    ) {
-      const target = await requireAccess(
+  // The guard lets the sign-in redirect thrown by withSession reach Next as it is.
+  return guardUploadRoute('hold', () =>
+    withSession(async ({ db, accountId }) => {
+      // Authenticated and checked before any memory is spent on the body.
+      const access = await requireAccess(
         db,
         accountPrincipal(accountId),
         'MANAGE',
-        { applicantId: outcome.proposedApplicantId },
+        { applicantId },
         { purpose: 'owner_family_batch' },
       );
-      if (target.ok) {
-        const filed = await fileHeldFile(target.value, {
-          holdId: outcome.holdId,
-          automatic: true,
-        });
-        if (filed.ok) {
-          after(() => triggerIntakeAndReading());
-          return json(
-            `Filed Under ${target.value.applicant.displayName}. It matched by name and date of birth; choose Change on their documents page if that is wrong.`,
-            201,
-            {},
-            // "Added as <the document's name>", as an ordinary upload reads.
-            filed.value.title,
-          );
+      if (!access.ok) return json('Not authorized.', 403);
+      let bytes: Uint8Array;
+      try {
+        bytes = await readBoundedUpload(request.body as ReadableStream<Uint8Array>, size);
+      } catch {
+        return json('The upload could not be read.', 400);
+      }
+      const quota = loadUploadQuotaConfig();
+      if (
+        !admitsHeicUpload(bytes, declaredType) &&
+        !validateUploadBytes(bytes, declaredType, pdfUploadsAccepted(), quota.maxUploadBytes)
+      ) {
+        return json('This file type cannot be safely processed.', 415);
+      }
+      // An iPhone photo becomes a new JPEG before anything is stored; the HEIC bytes never are.
+      const prepared = await prepareUploadBytes(bytes, declaredType, quota.maxImageMegapixels);
+      if (!prepared.ok) return json(prepared.message, 415);
+      if (
+        !validateUploadBytes(
+          prepared.bytes,
+          prepared.contentType,
+          pdfUploadsAccepted(),
+          quota.maxUploadBytes,
+        )
+      ) {
+        return json('This file type cannot be safely processed.', 415);
+      }
+      const originalFileName = fileNameHeader(request);
+      const storage = createStorage(db);
+      const scanner = createMalwareScanner(storage, { allowPdf: true });
+      const encryption = createKeyManagementPort();
+      const outcome = await holdFamilyFile(
+        access.value,
+        {
+          storage,
+          checks: {
+            scanner,
+            contentLimits: createContentLimitsChecker(storage),
+            // Only the ClamAV scanner looks for viruses; the structural check is never called a scan.
+            virusScanner: scanner.name === 'clamav',
+          },
+          converter: createDocumentConverter(storage),
+          ...(encryption ? { encryption } : {}),
+        },
+        {
+          uploadId,
+          originalFileName,
+          bytes: prepared.bytes,
+          contentType: prepared.contentType,
+          // The same stored name an ordinary upload gets, with the extension of what is stored.
+          storedFileName: storedFileName(originalFileName || 'document', prepared.contentType),
+          convertedFromHeic: prepared.convertedFrom === 'HEIC',
+        },
+      );
+      // UMPE G4: an exact unique match (name and date of birth, one person, no close rival) is
+      // filed at once, through the access check for exactly that person; the person can Change it.
+      // Anything else (no access, a refusal, a repeat) leaves the file waiting for Which Person?.
+      if (
+        outcome.kind === 'held' &&
+        !outcome.replay &&
+        outcome.basis === 'NAME_AND_BIRTH_DATE' &&
+        outcome.proposedApplicantId
+      ) {
+        const target = await requireAccess(
+          db,
+          accountPrincipal(accountId),
+          'MANAGE',
+          { applicantId: outcome.proposedApplicantId },
+          { purpose: 'owner_family_batch' },
+        );
+        if (target.ok) {
+          const filed = await fileHeldFile(target.value, {
+            holdId: outcome.holdId,
+            automatic: true,
+          });
+          if (filed.ok) {
+            after(() => triggerIntakeAndReading());
+            return json(
+              `Filed Under ${target.value.applicant.displayName}. It matched by name and date of birth; choose Change on their documents page if that is wrong.`,
+              201,
+              {},
+              // "Added as <the document's name>", as an ordinary upload reads.
+              filed.value.title,
+            );
+          }
         }
       }
-    }
-    switch (outcome.kind) {
-      case 'held':
-        return json(
-          outcome.replay
-            ? 'Already added. It waits in Needs One Decision for Which Person?.'
-            : 'Added. It waits in Needs One Decision until you choose who it belongs to.',
-          201,
-        );
-      case 'in_progress':
-        return json('This file is still being added. Try again in a minute or two.', 503, {
-          'Retry-After': String(outcome.retryAfterSeconds),
-        });
-      case 'refused':
-        if (outcome.reason === 'rate_limited') {
-          return json(outcome.message, 429, { 'Retry-After': String(uploadRetryAfterSeconds()) });
-        }
-        if (outcome.reason === 'unavailable') return json(outcome.message, 409);
-        return json(outcome.message, outcome.reason === 'unsafe' ? 422 : 400);
-    }
-  });
+      switch (outcome.kind) {
+        case 'held':
+          return json(
+            outcome.replay
+              ? 'Already added. It waits in Needs One Decision for Which Person?.'
+              : 'Added. It waits in Needs One Decision until you choose who it belongs to.',
+            201,
+          );
+        case 'in_progress':
+          return json('This file is still being added. Try again in a minute or two.', 503, {
+            'Retry-After': String(outcome.retryAfterSeconds),
+          });
+        case 'refused':
+          if (outcome.reason === 'rate_limited') {
+            return json(outcome.message, 429, { 'Retry-After': String(uploadRetryAfterSeconds()) });
+          }
+          if (outcome.reason === 'unavailable') return json(outcome.message, 409);
+          return json(outcome.message, outcome.reason === 'unsafe' ? 422 : 400);
+      }
+    }),
+  );
 }
