@@ -45,6 +45,8 @@ export interface UploadRequest {
   timeout: number;
   readonly status: number;
   readonly responseText: string;
+  /** Where the answer came from (after any redirect); optional so a stand-in may leave it out. */
+  readonly responseURL?: string;
   readonly upload: { onprogress: ((event: ProgressEvent) => void) | null };
   /** Reads a response header (Retry-After); optional so a stand-in may leave it out. */
   getResponseHeader?(name: string): string | null;
@@ -52,6 +54,55 @@ export interface UploadRequest {
   onerror: (() => void) | null;
   ontimeout: (() => void) | null;
   onabort: (() => void) | null;
+}
+
+/** Why a file ended as "not confirmed", in words the server's log can hold. Never a name or a value. */
+export const UPLOAD_PROBLEM_REASONS = [
+  'network',
+  'timeout',
+  'abort',
+  'not_json',
+  'server_error',
+] as const;
+export type UploadProblemReason = (typeof UPLOAD_PROBLEM_REASONS)[number];
+
+export interface UploadProblem {
+  readonly route: 'upload' | 'hold';
+  readonly reason: UploadProblemReason;
+  /** The HTTP status, or 0 when no answer came back. */
+  readonly status: number;
+  /** True when the answer came from a different address than the one asked (a redirect). */
+  readonly redirected: boolean;
+  /** Milliseconds from sending to the end. */
+  readonly ms: number;
+}
+
+/**
+ * Tells the server, once, that a file ended with no usable answer, so a failure that never reached
+ * the upload code still leaves a reason in the server log. Best effort: it must never throw or
+ * hold the file's line up.
+ */
+export function reportUploadProblem(problem: UploadProblem): void {
+  try {
+    if (typeof fetch !== 'function') return;
+    void fetch('/api/documents/upload-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(problem),
+      keepalive: true,
+    }).catch(() => undefined);
+  } catch {
+    // A report that cannot be sent is simply not sent.
+  }
+}
+
+function wasRedirected(request: UploadRequest, route: string): boolean {
+  try {
+    if (!request.responseURL) return false;
+    return new URL(request.responseURL, 'https://placeholder.invalid').pathname !== route;
+  } catch {
+    return false;
+  }
 }
 
 export interface SendFileInput {
@@ -84,13 +135,27 @@ export interface SendFileInput {
 const UPLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 
 export function sendDocumentFile(input: SendFileInput): Promise<UploadOutcome> {
-  return new Promise((resolve) => {
+  return new Promise((settle) => {
     const request = input.createRequest
       ? input.createRequest()
       : (new XMLHttpRequest() as unknown as UploadRequest);
+    const route = input.route === 'hold' ? 'hold' : 'upload';
+    const started = Date.now();
+    const resolve = (outcome: UploadOutcome, reason?: UploadProblemReason) => {
+      if (outcome.kind === 'unknown' && reason) {
+        reportUploadProblem({
+          route,
+          reason,
+          status: reason === 'server_error' || reason === 'not_json' ? request.status : 0,
+          redirected: wasRedirected(request, `/api/documents/${route}`),
+          ms: Math.min(600_000, Math.max(0, Date.now() - started)),
+        });
+      }
+      settle(outcome);
+    };
     request.open(
       'POST',
-      `/api/documents/${input.route === 'hold' ? 'hold' : 'upload'}?applicantId=${encodeURIComponent(input.applicantId)}`,
+      `/api/documents/${route}?applicantId=${encodeURIComponent(input.applicantId)}`,
     );
     request.setRequestHeader('Content-Type', input.contentType);
     if (input.docType)
@@ -110,11 +175,14 @@ export function sendDocumentFile(input: SendFileInput): Promise<UploadOutcome> {
       } catch {
         retryAfter = null;
       }
-      resolve(readAnswer(request.status, request.responseText, retryAfter));
+      resolve(
+        readAnswer(request.status, request.responseText, retryAfter),
+        request.status >= 500 ? 'server_error' : 'not_json',
+      );
     };
-    request.onerror = () => resolve({ kind: 'unknown' });
-    request.ontimeout = () => resolve({ kind: 'unknown' });
-    request.onabort = () => resolve({ kind: 'unknown' });
+    request.onerror = () => resolve({ kind: 'unknown' }, 'network');
+    request.ontimeout = () => resolve({ kind: 'unknown' }, 'timeout');
+    request.onabort = () => resolve({ kind: 'unknown' }, 'abort');
     request.send(input.file);
   });
 }
