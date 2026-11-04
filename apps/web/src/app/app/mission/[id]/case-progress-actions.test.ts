@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const mocks = vi.hoisted(() => ({
-  attachSelectedPackVersion: vi.fn(),
+  attachChecklistFor: vi.fn(),
   getMissionForOwner: vi.fn(),
   selectableChecklists: vi.fn(),
   selectEvidence: vi.fn(),
@@ -14,13 +14,13 @@ const mocks = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
 }));
 vi.mock('@visastack/services', () => ({
-  attachSelectedPackVersion: mocks.attachSelectedPackVersion,
   getMissionForOwner: mocks.getMissionForOwner,
   selectEvidence: mocks.selectEvidence,
   computeReadiness: mocks.computeReadiness,
 }));
 vi.mock('../../../../lib/case-checklist-match', () => ({
   selectableChecklists: mocks.selectableChecklists,
+  attachChecklistFor: mocks.attachChecklistFor,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
@@ -47,7 +47,7 @@ const PREV = { ok: true, message: '' };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.attachSelectedPackVersion.mockResolvedValue({ ok: true, value: {} });
+  mocks.attachChecklistFor.mockResolvedValue({ ok: true, value: {} });
   mocks.getMissionForOwner.mockResolvedValue({
     ok: true,
     value: { id: 'm1', destination: 'JP', purpose: 'tourism' },
@@ -87,7 +87,7 @@ describe('attachPackAction', () => {
   });
 
   it('says nothing about progress when the checklist could not be attached', async () => {
-    mocks.attachSelectedPackVersion.mockResolvedValue({
+    mocks.attachChecklistFor.mockResolvedValue({
       ok: false,
       error: { code: 'invalid', message: 'this checklist is not published' },
     });
@@ -104,7 +104,7 @@ describe('attachPackAction, checklist must fit the case', () => {
       ok: false,
       message: 'That checklist does not fit this case. Choose one from the list.',
     });
-    expect(mocks.attachSelectedPackVersion).not.toHaveBeenCalled();
+    expect(mocks.attachChecklistFor).not.toHaveBeenCalled();
   });
 
   it('says the checklists could not be loaded, never that none fits, when the look-up failed', async () => {
@@ -115,7 +115,7 @@ describe('attachPackAction, checklist must fit the case', () => {
     });
     const result = await attachPackAction(PREV, form({ missionId: 'm1', packVersionId: 'p1' }));
     expect(result).toEqual({ ok: false, message: 'Checklists could not be loaded right now.' });
-    expect(mocks.attachSelectedPackVersion).not.toHaveBeenCalled();
+    expect(mocks.attachChecklistFor).not.toHaveBeenCalled();
   });
 
   it('refuses when the case cannot be read by this person', async () => {
@@ -125,7 +125,7 @@ describe('attachPackAction, checklist must fit the case', () => {
     });
     const result = await attachPackAction(PREV, form({ missionId: 'm1', packVersionId: 'p1' }));
     expect(result.ok).toBe(false);
-    expect(mocks.attachSelectedPackVersion).not.toHaveBeenCalled();
+    expect(mocks.attachChecklistFor).not.toHaveBeenCalled();
   });
 });
 

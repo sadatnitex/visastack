@@ -1,8 +1,9 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, eq, inArray, isNull, or } from 'drizzle-orm';
-import { type Db, first, schema } from './db';
+import { AuthorizedApplicant } from './access';
+import { first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
-import { type Mission, attachPackVersion, getMissionForOwner } from './missions';
+import { type Mission, attachPackVersion } from './missions';
 import { NOT_FOUND_WORDS, selectionRefusal } from './pack-selectable';
 import type { PublishedPackVersion } from './packs';
 
@@ -34,6 +35,33 @@ export interface SelectablePackVersion extends PublishedPackVersion {
   readonly reviewOverdue: boolean;
 }
 
+/**
+ * The owner's gate proof for this action, and the case it names, or a refusal. A copied or
+ * wrong-action proof, or one for someone who is not the record owner, is `forbidden`. A case that
+ * does not exist or belongs to another traveller is the same `not_found` either way, so nothing is
+ * revealed about cases outside the proof.
+ */
+async function ownedCase<A extends 'MANAGE' | 'VIEW_METADATA'>(
+  access: AuthorizedApplicant<A>,
+  action: A,
+  missionId: string,
+): Promise<Result<Mission, ServiceError>> {
+  if (!AuthorizedApplicant.isGenuine(access, action) || access.actor.kind !== 'applicant_owner') {
+    return err(serviceError('forbidden', 'only the record owner can choose its checklist'));
+  }
+  const mission = first(
+    await access.tx
+      .select()
+      .from(schema.missions)
+      .where(eq(schema.missions.id, missionId))
+      .limit(1),
+  );
+  if (!mission || mission.applicantId !== access.applicant.id) {
+    return err(serviceError('not_found', 'case not found'));
+  }
+  return ok(mission);
+}
+
 /** Whether a date has passed, comparing instants. */
 function isPast(date: Date | null, now: Date): boolean {
   return date !== null && date.getTime() < now.getTime();
@@ -49,16 +77,16 @@ function isPast(date: Date | null, now: Date): boolean {
  * when none covers the route; the agency's own checklists are still listed.
  */
 export async function listSelectablePackVersions(
-  db: Db,
+  access: AuthorizedApplicant<'VIEW_METADATA'>,
   input: {
-    readonly actorAccountId: string;
     readonly missionId: string;
     readonly fitting?: readonly { readonly packVersionId: string }[];
     readonly now?: Date;
   },
 ): Promise<Result<SelectablePackVersion[], ServiceError>> {
-  const mission = await getMissionForOwner(db, input.actorAccountId, input.missionId);
+  const mission = await ownedCase(access, 'VIEW_METADATA', input.missionId);
   if (!mission.ok) return mission;
+  const db = access.tx;
   const caseAgencyId = mission.value.ownerOrganizationId;
   const now = input.now ?? new Date();
 
@@ -137,19 +165,19 @@ export async function listSelectablePackVersions(
  *   checklist is not revealed;
  * - not published (draft, superseded or withdrawn): `invalid`;
  * - published but unreviewed (no owner, not authoritative): `invalid`.
- * The case must be the actor's, exactly as `attachPackVersion` requires.
+ * The caller passes the owner's gate proof (MANAGE) and the case must be that record's; a proof
+ * for another traveller's case is the same `not_found` as a missing case.
  */
 export async function attachSelectedPackVersion(
-  db: Db,
+  access: AuthorizedApplicant<'MANAGE'>,
   input: {
-    readonly actorAccountId: string;
     readonly missionId: string;
     readonly packVersionId: string;
   },
 ): Promise<Result<Mission, ServiceError>> {
-  return db.transaction(async (tx) => {
-    const mission = await getMissionForOwner(tx, input.actorAccountId, input.missionId);
-    if (!mission.ok) return mission;
+  const owned = await ownedCase(access, 'MANAGE', input.missionId);
+  if (!owned.ok) return owned;
+  return access.tx.transaction(async (tx) => {
     const target = first(
       await tx
         .select({
@@ -164,9 +192,13 @@ export async function attachSelectedPackVersion(
         .for('share'),
     );
     if (!target) return err(serviceError('not_found', NOT_FOUND_WORDS));
-    const refusal = selectionRefusal(target, mission.value.ownerOrganizationId);
+    const refusal = selectionRefusal(target, owned.value.ownerOrganizationId);
     if (refusal) return err(refusal);
-    return attachPackVersion(tx, input);
+    return attachPackVersion(tx, {
+      actorAccountId: access.applicant.ownerAccountId,
+      missionId: input.missionId,
+      packVersionId: input.packVersionId,
+    });
   });
 }
 

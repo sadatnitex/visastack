@@ -1,16 +1,10 @@
 'use server';
 
-import {
-  type Db,
-  accountPrincipal,
-  attachSelectedPackVersion,
-  openOrStartTripCase,
-  requireAccess,
-} from '@visastack/services';
+import { type Db, accountPrincipal, openOrStartTripCase, requireAccess } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
-import { checklistToLink } from '../../../../lib/case-checklist-match';
+import { attachChecklistFor, checklistToLink } from '../../../../lib/case-checklist-match';
 import {
   type CaseCountryOption,
   type CasePurposeOption,
@@ -56,11 +50,7 @@ async function linkChecklistIfOneFits(
       purpose: purposeMatchTerms(purpose),
     });
     if (!match) return;
-    const attached = await attachSelectedPackVersion(db, {
-      actorAccountId: accountId,
-      missionId,
-      packVersionId: match.packVersionId,
-    });
+    const attached = await attachChecklistFor(db, accountId, missionId, match.packVersionId);
     if (!attached.ok) {
       reportServerError('startTripAction', new Error(attached.error.code), {
         step: 'checklist link refused',

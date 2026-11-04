@@ -1,5 +1,5 @@
-import { type Db, attachSelectedPackVersion } from '@visastack/services';
-import { checklistToLink } from '../../../lib/case-checklist-match';
+import type { Db } from '@visastack/services';
+import { attachChecklistFor, checklistToLink } from '../../../lib/case-checklist-match';
 import {
   caseCountryOptions,
   casePurposeGroups,
@@ -34,11 +34,7 @@ export async function linkTripChecklist(
       purpose: purposeMatchTerms(purpose),
     });
     if (!match) return;
-    const attached = await attachSelectedPackVersion(db, {
-      actorAccountId: accountId,
-      missionId,
-      packVersionId: match.packVersionId,
-    });
+    const attached = await attachChecklistFor(db, accountId, missionId, match.packVersionId);
     if (!attached.ok) {
       reportServerError('groupTripChecklist', new Error(attached.error.code), {
         step: 'checklist link refused',

@@ -1,9 +1,9 @@
 'use server';
 
-import { type Db, attachSelectedPackVersion, createMission } from '@visastack/services';
+import { type Db, createMission } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { checklistToLink } from '../../../../../lib/case-checklist-match';
+import { attachChecklistFor, checklistToLink } from '../../../../../lib/case-checklist-match';
 import {
   type CaseCountryOption,
   type CasePurposeOption,
@@ -46,11 +46,7 @@ async function linkChecklistIfOneFits(
       purpose: purposeMatchTerms(purpose),
     });
     if (!match) return;
-    const attached = await attachSelectedPackVersion(db, {
-      actorAccountId: accountId,
-      missionId,
-      packVersionId: match.packVersionId,
-    });
+    const attached = await attachChecklistFor(db, accountId, missionId, match.packVersionId);
     if (!attached.ok) {
       reportServerError('createMissionAction', new Error(attached.error.code), {
         step: 'checklist link refused',
