@@ -42,7 +42,10 @@ export type DocumentAccessActorKind =
   | 'support_admin'
   // UMPE P7: an agency admin opening one exact version a traveller approved in a response; the
   // purpose names the response, and redemption re-checks the live response, never a grant.
-  | 'collection_response';
+  | 'collection_response'
+  // Lane D: an agency admin opening the one exact version a traveller sent in answer to an evidence
+  // request; the purpose names the send, and redemption re-checks the live send, never a grant.
+  | 'evidence_submission';
 
 export interface DocumentAccessTokenFields {
   readonly documentId: string;
@@ -62,7 +65,7 @@ export interface DocumentAccessTokenFields {
   readonly actorKind: DocumentAccessActorKind;
   /** Absent only for `applicant_owner`, which carries no account id of its own in `Actor`. */
   readonly actorAccountId?: string;
-  /** Present for `organization_member` and `collection_response`, so redemption re-fetches CURRENT membership. */
+  /** Present for `organization_member`, `collection_response` and `evidence_submission`, so redemption re-fetches CURRENT membership. */
   readonly organizationId?: string;
   readonly action: PermissionAction;
   readonly purpose: string;
@@ -179,7 +182,8 @@ export function readDocumentAccessToken(
     actorKind !== 'organization_member' &&
     actorKind !== 'individual_recipient' &&
     actorKind !== 'support_admin' &&
-    actorKind !== 'collection_response'
+    actorKind !== 'collection_response' &&
+    actorKind !== 'evidence_submission'
   ) {
     return undefined;
   }

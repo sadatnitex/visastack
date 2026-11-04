@@ -8,7 +8,20 @@ import type {
 } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
-import { type SQL, and, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+  type SQL,
+  and,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';
 import {
   loadCaseExclusions,
   orgCaseRecordVisibleSql,
@@ -23,10 +36,16 @@ import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import {
+  evidenceSubmissionsPresent,
+  newerUnlinkedDecision,
+  pinnedVersionIntact,
+} from './evidence-submission-tables';
+import {
   lifecycleTablesPresent,
   presentApplicantCondition,
   presentDocumentCondition,
 } from './lifecycle/foundation';
+import { isUuid } from './lifecycle/foundation/ids';
 import {
   cancelQueuedNotificationsForResource,
   enqueueNotificationBothChannels,
@@ -68,38 +87,6 @@ export type EvidenceRequest = typeof schema.evidenceRequests.$inferSelect;
 export type EvidenceRequestDecision = typeof schema.evidenceRequestDecisions.$inferSelect;
 
 /**
- * Whether a document's CURRENT (highest version-numbered) version is
- * currently safe, fully processed, and unerased: the exact gate Commercial
- * V1 Part 4 §10 means by "upload can move to RECEIVED only after safe
- * processing" and "malware/failed/unrelated evidence cannot close a
- * request." Mirrors `missions.ts`'s own `loadDocumentInstancesByType`
- * query/eligibility logic (the same canonical definition of "usable"), just
- * scoped to one document instead of bulk-loading an applicant's whole set.
- */
-async function documentIsUsable(db: Db, documentId: string): Promise<boolean> {
-  const versions = await db
-    .select({
-      versionNumber: schema.documentVersions.versionNumber,
-      safetyStatus: schema.documentVersions.safetyStatus,
-      processingStatus: schema.documentVersions.processingStatus,
-      storageObjectId: schema.documentVersions.storageObjectId,
-    })
-    .from(schema.documentVersions)
-    .where(eq(schema.documentVersions.documentId, documentId));
-  const latest = versions.reduce<(typeof versions)[number] | undefined>(
-    (best, row) => (!best || row.versionNumber > best.versionNumber ? row : best),
-    undefined,
-  );
-  if (!latest) return false;
-  const erased = await activeOrVerifiedErasureStorageObjectIds(db, [latest.storageObjectId]);
-  return isDocumentVersionUsable({
-    safetyStatus: latest.safetyStatus,
-    processingStatus: latest.processingStatus,
-    erased: erased.has(latest.storageObjectId),
-  });
-}
-
-/**
  * True if the organization holds at least one grant for `applicantId` that,
  * evaluated on the grant's own declared purpose, permits `action` — scoped
  * to `missionId` if given. Reuses the canonical policy engine
@@ -122,40 +109,61 @@ export async function orgGrantPermits(
   action: PermissionAction,
   missionId?: string,
 ): Promise<boolean> {
+  return (await orgPermittingGrantId(db, organizationId, applicantId, action, missionId)) !== null;
+}
+
+/**
+ * The id of the first grant that makes `orgGrantPermits` true, or null when none does. The same
+ * test, kept in one place; a send of evidence records the grant it was made under (Lane D).
+ */
+async function orgPermittingGrantId(
+  db: Db,
+  organizationId: string,
+  applicantId: string,
+  action: PermissionAction,
+  missionId?: string,
+): Promise<string | null> {
   // SHR-02: a suspended/closed organization has no standing at all, even
   // with an otherwise-valid grant still on the books.
   const org = await getOrganization(db, organizationId);
-  if (!org || org.status !== 'ACTIVE') return false;
+  if (!org || org.status !== 'ACTIVE') return null;
   // The case must belong to the person named: an all-cases grant on one
   // person must never vouch for another person's case id passed beside it.
   if (missionId !== undefined && !(await missionBelongsTo(db, missionId, applicantId))) {
-    return false;
+    return null;
   }
-  const grants = await loadGrantsForPolicy(db, applicantId);
-  const orgGrants = grants.filter((g) => g.recipientOrganizationId === organizationId);
-  if (orgGrants.length === 0) return false;
+  const rows = await db
+    .select()
+    .from(schema.grants)
+    .where(eq(schema.grants.applicantId, applicantId));
+  const exclusions = rows.some((row) => row.missionId === null)
+    ? await loadCaseExclusions(db, { applicantId })
+    : undefined;
   const now = new Date();
-  return orgGrants.some(
-    (g) =>
-      authorize({
-        actor: {
-          kind: 'organization_member',
-          accountId: 'org-grant-scope-check' as AccountId,
-          membership: {
-            organizationId: organizationId as AgencyId,
-            role: 'ADMIN',
-            active: true,
-            organizationActive: true,
-          },
+  for (const row of rows) {
+    const g = toPolicyGrant(row, exclusions?.get(row.id));
+    if (g.recipientOrganizationId !== organizationId) continue;
+    const allowed = authorize({
+      actor: {
+        kind: 'organization_member',
+        accountId: 'org-grant-scope-check' as AccountId,
+        membership: {
+          organizationId: organizationId as AgencyId,
+          role: 'ADMIN',
+          active: true,
+          organizationActive: true,
         },
-        action,
-        resource: {
-          applicantId: applicantId as ApplicantId,
-          ...(missionId ? { missionId: missionId as MissionId } : {}),
-        },
-        context: { now, purpose: g.purpose, stepUpSatisfied: false, grants: [g] },
-      }).allowed,
-  );
+      },
+      action,
+      resource: {
+        applicantId: applicantId as ApplicantId,
+        ...(missionId ? { missionId: missionId as MissionId } : {}),
+      },
+      context: { now, purpose: g.purpose, stepUpSatisfied: false, grants: [g] },
+    }).allowed;
+    if (allowed) return row.id;
+  }
+  return null;
 }
 
 /** Whether `missionId` is a case of `applicantId` (false for an unknown or malformed id). */
@@ -2580,18 +2588,33 @@ export async function listOrganizationsWithAccessToApplicant(
   return rows.map((r) => r.organizationId).filter((id): id is string => id !== null);
 }
 
+/** One evidence request, read with its row locked when inside a transaction (`lock`), so a second send or decision waits its turn. */
+async function readEvidenceRequest(
+  db: Db,
+  requestId: string,
+  lock: boolean,
+): Promise<EvidenceRequest | undefined> {
+  // A malformed id is answered like a missing one, never as a server error.
+  if (!isUuid(requestId)) return undefined;
+  const query = db
+    .select()
+    .from(schema.evidenceRequests)
+    .where(eq(schema.evidenceRequests.id, requestId))
+    .limit(1);
+  return first(lock ? await query.for('update') : await query);
+}
+
+/**
+ * The applicant owner's request. Anyone else, and a request that does not exist, get the same
+ * answer: whether a request id exists is not told to a stranger.
+ */
 async function loadEvidenceRequestForOwner(
   db: Db,
   actorAccountId: string,
   requestId: string,
+  lock = false,
 ): Promise<Result<EvidenceRequest, ServiceError>> {
-  const request = first(
-    await db
-      .select()
-      .from(schema.evidenceRequests)
-      .where(eq(schema.evidenceRequests.id, requestId))
-      .limit(1),
-  );
+  const request = await readEvidenceRequest(db, requestId, lock);
   if (!request) return err(serviceError('not_found', 'evidence request not found'));
   const applicant = first(
     await db
@@ -2601,7 +2624,7 @@ async function loadEvidenceRequestForOwner(
       .limit(1),
   );
   if (!applicant || applicant.ownerAccountId !== actorAccountId) {
-    return err(serviceError('forbidden', 'only the applicant owner can respond'));
+    return err(serviceError('not_found', 'evidence request not found'));
   }
   return ok(request);
 }
@@ -2611,17 +2634,13 @@ async function loadEvidenceRequestForOrg(
   db: Db,
   actorAccountId: string,
   requestId: string,
+  lock = false,
 ): Promise<Result<EvidenceRequest, ServiceError>> {
-  const request = first(
-    await db
-      .select()
-      .from(schema.evidenceRequests)
-      .where(eq(schema.evidenceRequests.id, requestId))
-      .limit(1),
-  );
+  const request = await readEvidenceRequest(db, requestId, lock);
   if (!request) return err(serviceError('not_found', 'evidence request not found'));
+  // Someone who is not an admin of the asking organisation is told the request does not exist.
   if (!(await isOrgAdmin(db, actorAccountId, request.organizationId))) {
-    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can act on this request'));
+    return err(serviceError('not_found', 'evidence request not found'));
   }
   if (
     !(await orgGrantPermits(
@@ -2642,6 +2661,27 @@ async function loadEvidenceRequestForOrg(
 const AWAITING_SUBMISSION_STATUSES: ReadonlySet<string> = new Set(['OPEN', 'NEEDS_REPLACEMENT']);
 
 /**
+ * What a send returns beyond the request itself (Lane D).
+ * - `submissionId`: the exact-copy record of this send; null for a FIELD request, and null before
+ *   migration 0132 ran (the send then keeps no exact copy and says so through
+ *   `listEvidenceSubmissions`).
+ * - `replayed`: true when this call repeated a send already recorded under the same idempotency
+ *   key; nothing new was written.
+ */
+export type EvidenceSubmitResult = EvidenceRequest & {
+  readonly submissionId: string | null;
+  readonly replayed: boolean;
+};
+
+/** What a decision returns beyond the request itself: the send it judged (null for a FIELD request or an older, unpinned send). */
+export type EvidenceDecisionResult = EvidenceRequest & {
+  readonly decidedSubmissionId: string | null;
+};
+
+/** A retry key the page makes up (random, 16 to 200 plain characters); nothing else is accepted. */
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{16,200}$/;
+
+/**
  * The applicant owner submits a fact or document they already hold, a fresh
  * upload or explicit wallet reuse (Commercial V1 Part 4 §10 explicitly
  * allows both), as the response to a request. This is the ONLY way a request
@@ -2654,6 +2694,19 @@ const AWAITING_SUBMISSION_STATUSES: ReadonlySet<string> = new Set(['OPEN', 'NEED
  * usability. Reachable from OPEN (first submission) or NEEDS_REPLACEMENT (a
  * resubmission after the org asked for something else); the prior round's
  * decision stays intact in `evidenceRequestDecisions`, untouched by this.
+ *
+ * Lane D (exact copies): the whole send is one transaction that first locks the request row, so
+ * two sends or a send and a decision cannot interleave. Inside it the owner is checked again, the
+ * request must still be waiting for an answer, and the organization must still hold its standing
+ * (an active organization with a current MANAGE grant covering the request): a traveller's send
+ * is consent for exactly this copy to reach exactly this organization while that standing lives
+ * (ADR 0026, addendum 8). For a document the exact version is chosen (the one named by
+ * `documentVersionId`, else the newest at this moment), must be usable right now, and is written
+ * to `evidence_request_submissions` with its stored object and checksum: that, never "the
+ * document's latest version", is what the agency decides on and downloads. A retry with the same
+ * `idempotencyKey` is answered with the first result and writes nothing. While migration 0132 has
+ * not run, the older pointers alone are written (the same hardening applies) and no exact copy is
+ * kept; nothing is faked.
  */
 export async function submitEvidenceResponse(
   db: Db,
@@ -2662,94 +2715,250 @@ export async function submitEvidenceResponse(
     readonly requestId: string;
     readonly factId?: string;
     readonly documentId?: string;
+    readonly documentVersionId?: string;
+    readonly idempotencyKey?: string;
   },
-): Promise<Result<EvidenceRequest, ServiceError>> {
-  const loaded = await loadEvidenceRequestForOwner(db, input.actorAccountId, input.requestId);
-  if (!loaded.ok) return loaded;
-  const request = loaded.value;
-  if (!AWAITING_SUBMISSION_STATUSES.has(request.status)) {
-    return err(serviceError('invalid', 'this request is not awaiting a submission'));
+): Promise<Result<EvidenceSubmitResult, ServiceError>> {
+  if (input.idempotencyKey !== undefined && !IDEMPOTENCY_KEY.test(input.idempotencyKey)) {
+    return err(serviceError('invalid', 'the retry key is not valid'));
   }
-
-  if (request.kind === 'FIELD') {
-    if (!input.factId || input.documentId) {
-      return err(serviceError('invalid', 'a FIELD request is satisfied by exactly one factId'));
-    }
-    const fact = first(
-      await db
-        .select({
-          applicantId: schema.facts.applicantId,
-          fieldKey: schema.fieldDefinitions.key,
-        })
-        .from(schema.facts)
-        .innerJoin(
-          schema.fieldDefinitions,
-          eq(schema.fieldDefinitions.id, schema.facts.fieldDefinitionId),
-        )
-        .where(eq(schema.facts.id, input.factId))
-        .limit(1),
+  // Malformed ids are answered like missing ones, never as a server error.
+  if (
+    (input.documentId !== undefined && !isUuid(input.documentId)) ||
+    (input.documentVersionId !== undefined && !isUuid(input.documentVersionId))
+  ) {
+    return err(serviceError('not_found', 'document not found for this applicant'));
+  }
+  if (input.factId !== undefined && !isUuid(input.factId)) {
+    return err(serviceError('not_found', 'fact not found for this applicant'));
+  }
+  const exact = await evidenceSubmissionsPresent(db);
+  const lifecycle = await lifecycleTablesPresent(db);
+  // Until the exact-copy tables exist a chosen version could not be kept, so it is not accepted.
+  if (!exact && input.documentVersionId !== undefined) {
+    return err(
+      serviceError(
+        'invalid',
+        'Choosing an exact version is not available yet. Send the document and its newest version is used.',
+      ),
     );
-    if (!fact || fact.applicantId !== request.applicantId) {
-      return err(serviceError('not_found', 'fact not found for this applicant'));
-    }
-    if (fact.fieldKey !== request.fieldKey) {
-      return err(serviceError('invalid', "this fact does not match the request's field"));
-    }
-  } else {
-    if (!input.documentId || input.factId) {
-      return err(
-        serviceError('invalid', 'a DOCUMENT request is satisfied by exactly one documentId'),
-      );
-    }
-    const lifecycle = await lifecycleTablesPresent(db);
-    const document = first(
-      await db
-        .select({ applicantId: schema.documents.applicantId, docType: schema.documents.docType })
-        .from(schema.documents)
-        .where(
-          and(
-            eq(schema.documents.id, input.documentId),
-            // The owner's explicit answer: presentDocumentCondition (archived stays, deleted goes).
-            lifecycle ? presentDocumentCondition() : undefined,
-          ),
-        )
-        .limit(1),
-    );
-    if (!document || document.applicantId !== request.applicantId) {
-      return err(serviceError('not_found', 'document not found for this applicant'));
-    }
-    if (document.docType !== request.docType) {
-      return err(
-        serviceError('invalid', "this document does not match the request's document type"),
-      );
-    }
-    if (!(await documentIsUsable(db, input.documentId))) {
-      return err(
-        serviceError(
-          'invalid',
-          'this document has not finished safety processing, or failed it, and cannot be submitted yet',
-        ),
-      );
-    }
   }
 
   return db.transaction(async (tx) => {
-    const updated = required(
-      first(
-        await tx
-          .update(schema.evidenceRequests)
-          .set({
-            status: 'RECEIVED',
-            respondingFactId: input.factId ?? null,
-            respondingDocumentId: input.documentId ?? null,
-            respondedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(schema.evidenceRequests.id, input.requestId))
-          .returning(),
-      ),
-      'evidence request',
+    const loaded = await loadEvidenceRequestForOwner(
+      tx,
+      input.actorAccountId,
+      input.requestId,
+      true,
     );
+    if (!loaded.ok) return loaded;
+    const request = loaded.value;
+
+    // A retry of a send already recorded is answered with that send and nothing is written, but
+    // only while that send is still the newest, still undecided, and names the same file. Anything
+    // else is not a retry: the person is told the page is out of date, never given a silent "sent".
+    if (exact && input.idempotencyKey !== undefined) {
+      const earlier = first(
+        await tx
+          .select()
+          .from(schema.evidenceRequestSubmissions)
+          .where(
+            and(
+              eq(schema.evidenceRequestSubmissions.evidenceRequestId, request.id),
+              eq(schema.evidenceRequestSubmissions.idempotencyKey, input.idempotencyKey),
+            ),
+          )
+          .limit(1),
+      );
+      if (earlier) {
+        if (
+          input.documentId !== earlier.documentId ||
+          (input.documentVersionId !== undefined &&
+            input.documentVersionId !== earlier.documentVersionId)
+        ) {
+          return err(
+            serviceError('invalid', 'this retry key was already used for a different file'),
+          );
+        }
+        const waiting = await waitingSubmission(tx, request);
+        if (waiting?.id !== earlier.id) {
+          return err(
+            serviceError(
+              'stale',
+              'This was already sent and has moved on. Refresh to see where it stands.',
+            ),
+          );
+        }
+        return ok({ ...request, submissionId: earlier.id, replayed: true });
+      }
+    }
+
+    if (!AWAITING_SUBMISSION_STATUSES.has(request.status)) {
+      return err(serviceError('invalid', 'this request is not awaiting a submission'));
+    }
+    // The organization must still hold its standing now: a send is consent for this organization
+    // only while its MANAGE grant lives.
+    const grantId = await orgPermittingGrantId(
+      tx,
+      request.organizationId,
+      request.applicantId,
+      'MANAGE',
+      request.missionId ?? undefined,
+    );
+    if (grantId === null) {
+      return err(
+        serviceError(
+          'forbidden',
+          'this organization no longer has access to your records, so nothing was sent',
+        ),
+      );
+    }
+
+    let pin: SendPin | undefined;
+    if (request.kind === 'FIELD') {
+      if (!input.factId || input.documentId || input.documentVersionId) {
+        return err(serviceError('invalid', 'a FIELD request is satisfied by exactly one factId'));
+      }
+      const fact = first(
+        await tx
+          .select({
+            applicantId: schema.facts.applicantId,
+            fieldKey: schema.fieldDefinitions.key,
+          })
+          .from(schema.facts)
+          .innerJoin(
+            schema.fieldDefinitions,
+            eq(schema.fieldDefinitions.id, schema.facts.fieldDefinitionId),
+          )
+          .where(eq(schema.facts.id, input.factId))
+          .limit(1),
+      );
+      if (!fact || fact.applicantId !== request.applicantId) {
+        return err(serviceError('not_found', 'fact not found for this applicant'));
+      }
+      if (fact.fieldKey !== request.fieldKey) {
+        return err(serviceError('invalid', "this fact does not match the request's field"));
+      }
+    } else {
+      if (!input.documentId || input.factId) {
+        return err(
+          serviceError('invalid', 'a DOCUMENT request is satisfied by exactly one documentId'),
+        );
+      }
+      const document = first(
+        await tx
+          .select({
+            applicantId: schema.documents.applicantId,
+            docType: schema.documents.docType,
+            approvedName: schema.documents.approvedName,
+            originalName: schema.documents.originalName,
+          })
+          .from(schema.documents)
+          .where(
+            and(
+              eq(schema.documents.id, input.documentId),
+              // The owner's explicit answer: presentDocumentCondition (archived stays, deleted goes).
+              lifecycle ? presentDocumentCondition() : undefined,
+            ),
+          )
+          .limit(1),
+      );
+      if (!document || document.applicantId !== request.applicantId) {
+        return err(serviceError('not_found', 'document not found for this applicant'));
+      }
+      if (document.docType !== request.docType) {
+        return err(
+          serviceError('invalid', "this document does not match the request's document type"),
+        );
+      }
+      const version = await chooseSendVersion(tx, input.documentId, input.documentVersionId);
+      if (input.documentVersionId !== undefined && !version) {
+        return err(serviceError('not_found', 'document not found for this applicant'));
+      }
+      if (!version || !(await versionIsUsable(tx, version))) {
+        return err(
+          serviceError(
+            'invalid',
+            'this document has not finished safety processing, or failed it, and cannot be submitted yet',
+          ),
+        );
+      }
+      pin = {
+        documentId: input.documentId,
+        version,
+        docType: document.docType,
+        title: document.approvedName ?? document.originalName,
+      };
+    }
+
+    // The request moves only if it still waits for an answer; with the row locked this cannot
+    // fail, and the check stays so a missed lock could never let two sends through.
+    const updated = first(
+      await tx
+        .update(schema.evidenceRequests)
+        .set({
+          status: 'RECEIVED',
+          respondingFactId: input.factId ?? null,
+          respondingDocumentId: input.documentId ?? null,
+          respondedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.evidenceRequests.id, input.requestId),
+            inArray(schema.evidenceRequests.status, [...AWAITING_SUBMISSION_STATUSES] as Array<
+              EvidenceRequest['status']
+            >),
+          ),
+        )
+        .returning(),
+    );
+    if (!updated) return err(serviceError('invalid', 'this request is not awaiting a submission'));
+
+    let submissionId: string | null = null;
+    let roundNo: number | null = null;
+    if (exact && pin) {
+      const last = first(
+        await tx
+          .select({ roundNo: schema.evidenceRequestSubmissions.roundNo })
+          .from(schema.evidenceRequestSubmissions)
+          .where(eq(schema.evidenceRequestSubmissions.evidenceRequestId, request.id))
+          .orderBy(desc(schema.evidenceRequestSubmissions.roundNo))
+          .limit(1),
+      );
+      roundNo = (last?.roundNo ?? 0) + 1;
+      const row = required(
+        first(
+          await tx
+            .insert(schema.evidenceRequestSubmissions)
+            .values({
+              evidenceRequestId: request.id,
+              roundNo,
+              documentId: pin.documentId,
+              documentVersionId: pin.version.id,
+              storageObjectId: pin.version.storageObjectId,
+              contentSha256: pin.version.sha256 ?? null,
+              sizeBytes: pin.version.sizeBytes ?? null,
+              versionNumber: pin.version.versionNumber,
+              docTypeAtSend: pin.docType,
+              titleAtSend: pin.title,
+              sentByAccountId: input.actorAccountId,
+              grantIdAtSend: grantId,
+              idempotencyKey: input.idempotencyKey ?? `auto:round-${roundNo}`,
+            })
+            .returning({ id: schema.evidenceRequestSubmissions.id }),
+        ),
+        'evidence submission',
+      );
+      submissionId = row.id;
+    }
+    await noticeAgencyOfEvidence(tx, {
+      request,
+      threshold:
+        roundNo !== null
+          ? `round-${roundNo}`
+          : `sent-${(updated.respondedAt ?? new Date()).getTime()}`,
+    });
     await appendAuditEvent(tx, {
       eventType: 'EVIDENCE_RESPONDED',
       actorAccountId: input.actorAccountId,
@@ -2758,14 +2967,106 @@ export async function submitEvidenceResponse(
       applicantId: request.applicantId,
       resourceType: 'evidence_request',
       resourceId: updated.id,
-      metadata: { factId: input.factId, documentId: input.documentId },
+      // Ids and counters only: never a file name, a value or a checksum.
+      metadata: {
+        factId: input.factId,
+        documentId: input.documentId,
+        ...(submissionId ? { submissionId, documentVersionId: pin?.version.id, roundNo } : {}),
+      },
     });
     await recordProductEvent(tx, {
       eventType: 'EVIDENCE_RECEIVED',
       accountId: input.actorAccountId,
       organizationId: request.organizationId,
     });
-    return ok(updated);
+    return ok({ ...updated, submissionId, replayed: false });
+  });
+}
+
+/**
+ * "New Evidence Received" for the active owners and admins of the asking agency, in the app and by
+ * email, queued with the send. Neutral on purpose (NTF-02): it names no person, no kind of file, no
+ * file name and no reason, only that something arrived and where to open it. The worker sends it
+ * only while the recipient is still an owner or admin of the active agency and the agency still
+ * holds a grant reaching the case; cancelling the request cancels it while still queued.
+ */
+async function noticeAgencyOfEvidence(
+  tx: Db,
+  input: { readonly request: EvidenceRequest; readonly threshold: string },
+): Promise<void> {
+  const { request } = input;
+  const admins = await tx
+    .select({ accountId: schema.memberships.accountId })
+    .from(schema.memberships)
+    .where(
+      and(
+        eq(schema.memberships.organizationId, request.organizationId),
+        eq(schema.memberships.active, true),
+        inArray(schema.memberships.role, ['OWNER', 'ADMIN']),
+      ),
+    );
+  for (const admin of admins) {
+    await enqueueNotificationBothChannels(tx, {
+      eventType: 'EVIDENCE_RESPONSE_RECEIVED',
+      resourceId: request.id,
+      threshold: input.threshold,
+      recipientAccountId: admin.accountId,
+      applicantId: request.applicantId,
+      organizationId: request.organizationId,
+      ...(request.missionId ? { missionId: request.missionId } : {}),
+      payload: {
+        subject: 'New Evidence Received',
+        summary: 'A traveller sent evidence for one of your requests.',
+        deepLinkPath: `/app/agency/${request.organizationId}/clients?request=${request.id}#request-${request.id}`,
+      },
+    });
+  }
+}
+
+/** The exact version a send pins, with what the record needs to remember about it. */
+interface SendPin {
+  readonly documentId: string;
+  readonly version: typeof schema.documentVersions.$inferSelect;
+  readonly docType: string | null;
+  readonly title: string;
+}
+
+/** The version a traveller's send uses: the one named, which must belong to the document, else the newest right now. */
+async function chooseSendVersion(
+  db: Db,
+  documentId: string,
+  documentVersionId: string | undefined,
+): Promise<typeof schema.documentVersions.$inferSelect | undefined> {
+  const where =
+    documentVersionId === undefined
+      ? eq(schema.documentVersions.documentId, documentId)
+      : and(
+          eq(schema.documentVersions.documentId, documentId),
+          eq(schema.documentVersions.id, documentVersionId),
+        );
+  return first(
+    await db
+      .select()
+      .from(schema.documentVersions)
+      .where(where)
+      .orderBy(desc(schema.documentVersions.versionNumber))
+      .limit(1),
+  );
+}
+
+/** The one canonical "is this version still real evidence" test, for exactly this version. */
+async function versionIsUsable(
+  db: Db,
+  version: Pick<
+    typeof schema.documentVersions.$inferSelect,
+    'safetyStatus' | 'processingStatus' | 'storageObjectId'
+  >,
+): Promise<boolean> {
+  const erased = await activeOrVerifiedErasureStorageObjectIds(db, [version.storageObjectId]);
+  return isDocumentVersionUsable({
+    safetyStatus: version.safetyStatus,
+    processingStatus: version.processingStatus,
+    erased: erased.has(version.storageObjectId),
   });
 }
 
@@ -2774,22 +3075,28 @@ export async function startEvidenceReview(
   db: Db,
   input: { readonly actorAccountId: string; readonly requestId: string },
 ): Promise<Result<EvidenceRequest, ServiceError>> {
-  const loaded = await loadEvidenceRequestForOrg(db, input.actorAccountId, input.requestId);
-  if (!loaded.ok) return loaded;
-  if (loaded.value.status !== 'RECEIVED') {
-    return err(serviceError('invalid', 'only a RECEIVED request can start review'));
-  }
-  const updated = required(
-    first(
-      await db
+  return db.transaction(async (tx) => {
+    const loaded = await loadEvidenceRequestForOrg(tx, input.actorAccountId, input.requestId, true);
+    if (!loaded.ok) return loaded;
+    if (loaded.value.status !== 'RECEIVED') {
+      return err(serviceError('invalid', 'only a RECEIVED request can start review'));
+    }
+    // Only a request still RECEIVED moves: a decision made in the meantime is never undone by this.
+    const updated = first(
+      await tx
         .update(schema.evidenceRequests)
         .set({ status: 'UNDER_REVIEW', updatedAt: new Date() })
-        .where(eq(schema.evidenceRequests.id, input.requestId))
+        .where(
+          and(
+            eq(schema.evidenceRequests.id, input.requestId),
+            eq(schema.evidenceRequests.status, 'RECEIVED'),
+          ),
+        )
         .returning(),
-    ),
-    'evidence request',
-  );
-  return ok(updated);
+    );
+    if (!updated) return err(serviceError('invalid', 'only a RECEIVED request can start review'));
+    return ok(updated);
+  });
 }
 
 const DECIDABLE_STATUSES: ReadonlySet<string> = new Set(['RECEIVED', 'UNDER_REVIEW']);
@@ -2830,6 +3137,17 @@ const DECIDABLE_STATUSES: ReadonlySet<string> = new Set(['RECEIVED', 'UNDER_REVI
  * at all. Off by default (a legacy request with no recorded requester never
  * triggers this, nothing to compare against), and this function never
  * claims independent review happened when the org has not opted in.
+ *
+ * Lane D (exact copies): the decision is one transaction that locks the request row first. The
+ * organization's standing (active OWNER or ADMIN, current MANAGE grant) is checked again inside
+ * it, the request must still wait for a decision, and the decision is about one exact send: the
+ * newest one, recorded in `evidence_request_decision_submissions` (unique per send, so a send can
+ * be decided once). A reviewer who looked at a send that has since been replaced (`submissionId`
+ * names the one they saw) is told to look again instead of deciding on the newer copy unseen.
+ * Accepting also needs the pinned copy to be usable right now, the same stored object and
+ * checksum as when it was sent, and still the kind it was sent as; sending back is always allowed.
+ * While migration 0132 has not run, or for a send recorded before it, the decision is recorded as
+ * before without a link to an exact copy.
  */
 export async function decideEvidenceResponse(
   db: Db,
@@ -2838,33 +3156,15 @@ export async function decideEvidenceResponse(
     readonly requestId: string;
     readonly outcome: 'ACCEPTED' | 'NEEDS_REPLACEMENT' | 'CONTRADICTION' | 'CORRECTION_PROPOSED';
     readonly reason?: string;
+    /** The send the reviewer was looking at; when given it must still be the one waiting. */
+    readonly submissionId?: string;
   },
-): Promise<Result<EvidenceRequest, ServiceError>> {
-  const loaded = await loadEvidenceRequestForOrg(db, input.actorAccountId, input.requestId);
-  if (!loaded.ok) return loaded;
-  const request = loaded.value;
-  if (!DECIDABLE_STATUSES.has(request.status)) {
-    return err(serviceError('invalid', 'this request has nothing submitted to decide on yet'));
+): Promise<Result<EvidenceDecisionResult, ServiceError>> {
+  if (input.submissionId !== undefined && !isUuid(input.submissionId)) {
+    return err(serviceError('not_found', 'evidence request not found'));
   }
-  const org = first(
-    await db
-      .select({ requireDifferentReviewer: schema.organizations.requireDifferentReviewer })
-      .from(schema.organizations)
-      .where(eq(schema.organizations.id, request.organizationId))
-      .limit(1),
-  );
-  if (
-    org?.requireDifferentReviewer &&
-    request.requestedByAccountId &&
-    request.requestedByAccountId === input.actorAccountId
-  ) {
-    return err(
-      serviceError(
-        'forbidden',
-        'this organization requires a reviewer different from whoever raised this request',
-      ),
-    );
-  }
+  const exact = await evidenceSubmissionsPresent(db);
+  const lifecycle = await lifecycleTablesPresent(db);
 
   // CAS-03's own request-status enum has no CONTRADICTION/CORRECTION_PROPOSED
   // value: both mean "this submission doesn't stand, a fresh one is needed,"
@@ -2877,35 +3177,112 @@ export async function decideEvidenceResponse(
       : input.outcome;
 
   return db.transaction(async (tx) => {
-    await tx.insert(schema.evidenceRequestDecisions).values({
-      evidenceRequestId: request.id,
-      outcome: input.outcome,
-      reason: input.reason ?? null,
-      respondingFactId: request.respondingFactId,
-      respondingDocumentId: request.respondingDocumentId,
-      decidedByAccountId: input.actorAccountId,
-    });
-    const updated = required(
+    const loaded = await loadEvidenceRequestForOrg(tx, input.actorAccountId, input.requestId, true);
+    if (!loaded.ok) return loaded;
+    const request = loaded.value;
+    if (!DECIDABLE_STATUSES.has(request.status)) {
+      return err(serviceError('invalid', 'this request has nothing submitted to decide on yet'));
+    }
+    const org = first(
+      await tx
+        .select({ requireDifferentReviewer: schema.organizations.requireDifferentReviewer })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, request.organizationId))
+        .limit(1),
+    );
+    if (
+      org?.requireDifferentReviewer &&
+      request.requestedByAccountId &&
+      request.requestedByAccountId === input.actorAccountId
+    ) {
+      return err(
+        serviceError(
+          'forbidden',
+          'this organization requires a reviewer different from whoever raised this request',
+        ),
+      );
+    }
+
+    // The exact send being decided: the newest one, only while nobody has decided it yet and the
+    // request still points at it. Anything else is an older, unpinned send.
+    const pinned =
+      exact && request.kind === 'DOCUMENT' ? await waitingSubmission(tx, request) : undefined;
+    if (input.submissionId !== undefined && input.submissionId !== pinned?.id) {
+      return err(
+        serviceError(
+          'stale',
+          'A newer copy was sent, or this one was already decided. Refresh to see the copy now waiting.',
+        ),
+      );
+    }
+    if (input.outcome === 'ACCEPTED' && request.kind === 'DOCUMENT') {
+      // Nothing was ever pointed at, so there is nothing to accept.
+      if (request.respondingDocumentId === null) {
+        return err(serviceError('invalid', 'this request has nothing submitted to decide on yet'));
+      }
+      if (pinned) {
+        const problem = await pinnedCopyProblem(tx, pinned, lifecycle);
+        if (problem) return err(serviceError('invalid', problem));
+      } else {
+        // A send recorded before exact copies were kept: the newest version of the document it
+        // points at must still be usable evidence (the check the older flow made at send time).
+        const newest = await chooseSendVersion(tx, request.respondingDocumentId, undefined);
+        if (!newest || !(await versionIsUsable(tx, newest))) {
+          return err(serviceError('invalid', UNAVAILABLE_COPY));
+        }
+      }
+    }
+
+    // The request moves only if it still waits for a decision (the row is locked, so it does).
+    const updated = first(
+      await tx
+        .update(schema.evidenceRequests)
+        .set({
+          status: requestStatus,
+          // Cleared whenever the request goes back to needing a fresh
+          // response: this pointer means "what's currently under
+          // consideration," which is nothing again until the applicant
+          // submits again. ACCEPTED keeps its pointer: it's exactly what
+          // was accepted.
+          ...(requestStatus === 'NEEDS_REPLACEMENT'
+            ? { respondingFactId: null, respondingDocumentId: null }
+            : {}),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.evidenceRequests.id, request.id),
+            inArray(schema.evidenceRequests.status, [...DECIDABLE_STATUSES] as Array<
+              EvidenceRequest['status']
+            >),
+          ),
+        )
+        .returning(),
+    );
+    if (!updated) {
+      return err(serviceError('invalid', 'this request has nothing submitted to decide on yet'));
+    }
+    const decision = required(
       first(
         await tx
-          .update(schema.evidenceRequests)
-          .set({
-            status: requestStatus,
-            // Cleared whenever the request goes back to needing a fresh
-            // response: this pointer means "what's currently under
-            // consideration," which is nothing again until the applicant
-            // submits again. ACCEPTED keeps its pointer: it's exactly what
-            // was accepted.
-            ...(requestStatus === 'NEEDS_REPLACEMENT'
-              ? { respondingFactId: null, respondingDocumentId: null }
-              : {}),
-            updatedAt: new Date(),
+          .insert(schema.evidenceRequestDecisions)
+          .values({
+            evidenceRequestId: request.id,
+            outcome: input.outcome,
+            reason: input.reason ?? null,
+            respondingFactId: request.respondingFactId,
+            respondingDocumentId: request.respondingDocumentId,
+            decidedByAccountId: input.actorAccountId,
           })
-          .where(eq(schema.evidenceRequests.id, request.id))
-          .returning(),
+          .returning({ id: schema.evidenceRequestDecisions.id }),
       ),
-      'evidence request',
+      'evidence decision',
     );
+    if (pinned) {
+      await tx
+        .insert(schema.evidenceRequestDecisionSubmissions)
+        .values({ decisionId: decision.id, submissionId: pinned.id });
+    }
     await appendAuditEvent(tx, {
       eventType: 'EVIDENCE_REQUEST_DECIDED',
       actorAccountId: input.actorAccountId,
@@ -2914,7 +3291,7 @@ export async function decideEvidenceResponse(
       applicantId: request.applicantId,
       resourceType: 'evidence_request',
       resourceId: request.id,
-      metadata: { outcome: input.outcome },
+      metadata: { outcome: input.outcome, ...(pinned ? { submissionId: pinned.id } : {}) },
     });
     // OPS-04 reworked evidence: the reviewer sent a submission back. The
     // dimension is which of the three kinds of "send back" it was, never the
@@ -2961,6 +3338,9 @@ export async function decideEvidenceResponse(
         await enqueueNotificationBothChannels(tx, {
           eventType: 'EVIDENCE_REPLACEMENT_REQUESTED',
           resourceId: request.id,
+          // One notice for each send that is sent back (a second send-back on the same request is
+          // a new notice); a send with no exact copy is told apart by its decision.
+          threshold: pinned ? `round-${pinned.roundNo}` : `decision-${decision.id}`,
           recipientAccountId: owner.ownerAccountId,
           applicantId: request.applicantId,
           organizationId: request.organizationId,
@@ -2972,8 +3352,85 @@ export async function decideEvidenceResponse(
         });
       }
     }
-    return ok(updated);
+    return ok({ ...updated, decidedSubmissionId: pinned?.id ?? null });
   });
+}
+
+type SubmissionRecord = typeof schema.evidenceRequestSubmissions.$inferSelect;
+
+const UNAVAILABLE_COPY =
+  'The copy that was sent is no longer available as it was sent, so it cannot be accepted. Ask for a replacement.';
+
+/**
+ * The newest send of a request, if it is still waiting for a decision: not yet decided, and the
+ * request still points at its document. A send recorded before migration 0132, or one an older
+ * deployment wrote without a record, has no such row and reads as unpinned.
+ */
+async function waitingSubmission(
+  db: Db,
+  request: Pick<EvidenceRequest, 'id' | 'respondingDocumentId' | 'status'>,
+): Promise<SubmissionRecord | undefined> {
+  // A request that no longer waits for a decision (withdrawn, sent back, closed) has no waiting send.
+  if (!DECIDABLE_STATUSES.has(request.status)) return undefined;
+  const latest = first(
+    await db
+      .select()
+      .from(schema.evidenceRequestSubmissions)
+      .where(eq(schema.evidenceRequestSubmissions.evidenceRequestId, request.id))
+      .orderBy(desc(schema.evidenceRequestSubmissions.roundNo))
+      .limit(1),
+  );
+  if (!latest || request.respondingDocumentId !== latest.documentId) return undefined;
+  const decided = first(
+    await db
+      .select({ decisionId: schema.evidenceRequestDecisionSubmissions.decisionId })
+      .from(schema.evidenceRequestDecisionSubmissions)
+      .where(eq(schema.evidenceRequestDecisionSubmissions.submissionId, latest.id))
+      .limit(1),
+  );
+  if (decided) return undefined;
+  // An older deployment running beside this one may have decided it without a link.
+  if (await newerUnlinkedDecision(db, request.id, latest.sentAt)) return undefined;
+  return latest;
+}
+
+/**
+ * Why a pinned copy cannot be accepted right now, in words a reviewer reads, or undefined when it
+ * can: the copy is gone or unsafe, its stored object or checksum is not what was sent, the
+ * document was removed, or the file was filed as a different kind after it was sent.
+ */
+async function pinnedCopyProblem(
+  db: Db,
+  submission: SubmissionRecord,
+  lifecycle: boolean,
+): Promise<string | undefined> {
+  const unavailable = UNAVAILABLE_COPY;
+  const version = first(
+    await db
+      .select()
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, submission.documentVersionId))
+      .limit(1),
+  );
+  if (!version || !pinnedVersionIntact(submission, version)) return unavailable;
+  if (!(await versionIsUsable(db, version))) return unavailable;
+  const document = first(
+    await db
+      .select({ docType: schema.documents.docType })
+      .from(schema.documents)
+      .where(
+        and(
+          eq(schema.documents.id, submission.documentId),
+          lifecycle ? presentDocumentCondition() : undefined,
+        ),
+      )
+      .limit(1),
+  );
+  if (!document) return unavailable;
+  if ((document.docType ?? null) !== (submission.docTypeAtSend ?? null)) {
+    return 'The file was filed as a different kind after it was sent, so it cannot be accepted as sent. Ask for a replacement.';
+  }
+  return undefined;
 }
 
 /** The requesting org withdraws a request that no longer needs an answer (org, MANAGE-grant-gated). Terminal; matches the applicant owner's own respondEvidence-era DECLINED intent, but as the requester's own act, not the applicant's. */
@@ -2981,14 +3438,27 @@ export async function cancelEvidenceRequest(
   db: Db,
   input: { readonly actorAccountId: string; readonly requestId: string; readonly reason?: string },
 ): Promise<Result<EvidenceRequest, ServiceError>> {
-  const loaded = await loadEvidenceRequestForOrg(db, input.actorAccountId, input.requestId);
-  if (!loaded.ok) return loaded;
-  const request = loaded.value;
-  if (request.status === 'CANCELLED' || request.status === 'ACCEPTED') {
-    return err(serviceError('invalid', 'this request is already closed'));
-  }
-
   return db.transaction(async (tx) => {
+    const loaded = await loadEvidenceRequestForOrg(tx, input.actorAccountId, input.requestId, true);
+    if (!loaded.ok) return loaded;
+    const request = loaded.value;
+    if (request.status === 'CANCELLED' || request.status === 'ACCEPTED') {
+      return err(serviceError('invalid', 'this request is already closed'));
+    }
+    // Only a request that is not yet closed moves: an acceptance made in the meantime stays.
+    const updated = first(
+      await tx
+        .update(schema.evidenceRequests)
+        .set({ status: 'CANCELLED', updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.evidenceRequests.id, request.id),
+            notInArray(schema.evidenceRequests.status, ['CANCELLED', 'ACCEPTED']),
+          ),
+        )
+        .returning(),
+    );
+    if (!updated) return err(serviceError('invalid', 'this request is already closed'));
     await tx.insert(schema.evidenceRequestDecisions).values({
       evidenceRequestId: request.id,
       outcome: 'CANCELLED',
@@ -2997,16 +3467,6 @@ export async function cancelEvidenceRequest(
       respondingDocumentId: request.respondingDocumentId,
       decidedByAccountId: input.actorAccountId,
     });
-    const updated = required(
-      first(
-        await tx
-          .update(schema.evidenceRequests)
-          .set({ status: 'CANCELLED', updatedAt: new Date() })
-          .where(eq(schema.evidenceRequests.id, request.id))
-          .returning(),
-      ),
-      'evidence request',
-    );
     await appendAuditEvent(tx, {
       eventType: 'EVIDENCE_REQUEST_CANCELLED',
       actorAccountId: input.actorAccountId,
