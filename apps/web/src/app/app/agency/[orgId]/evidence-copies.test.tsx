@@ -122,7 +122,8 @@ describe('earlier sends', () => {
       state: 'NEEDS_REPLACEMENT',
       decidedAt: new Date('2026-11-01T09:00:00Z'),
       reason: 'The last page is cut off.',
-      fileAvailable: false,
+      // Even if the service said yes for an older send, only the waiting copy is ever opened here.
+      fileAvailable: true,
     }),
     sent({ id: 's2', roundNo: 2, documentVersionId: 'v2', title: 'clear.pdf' }),
   ];
