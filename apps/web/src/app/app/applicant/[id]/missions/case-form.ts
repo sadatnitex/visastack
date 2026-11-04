@@ -2,6 +2,7 @@ import {
   type CaseCountryOption,
   type CasePurposeOption,
   casePurpose,
+  destinationRefusal,
   resolveCaseCountry,
 } from '../../../../../lib/case-choices';
 import { readCaseDates } from '../../../../../lib/form-dates';
@@ -56,7 +57,7 @@ export function readCaseForm(
   // The box sends text; only a whole country name, a code or another common name becomes a country,
   // and an empty box means "not sure yet". Anything else is refused, never saved as typed.
   const country = destination.length > 0 ? resolveCaseCountry(destination) : null;
-  if (destination.length > 0 && !country) errors.destination = 'Choose a country from the list.';
+  if (destination.length > 0 && !country) errors.destination = destinationRefusal(destination);
 
   const purposeKey = values.purpose ?? '';
   const purpose = purposeKey.length > 0 ? casePurpose(purposeKey) : null;

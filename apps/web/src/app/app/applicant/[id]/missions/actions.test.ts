@@ -69,7 +69,7 @@ describe('createMissionAction: checking the answers', () => {
       form({ title: 'Trip', destination: 'Atlantis', purpose: 'smuggling' }),
     );
     expect(result.fieldErrors).toEqual({
-      destination: 'Choose a country from the list.',
+      destination: 'We could not match that to a country. Pick one from the list.',
       purpose: 'Choose a purpose from the list.',
     });
     expect(result.field).toBe('destination');
@@ -84,7 +84,9 @@ describe('createMissionAction: checking the answers', () => {
       const result = await createMissionAction(PREV, form({ title: 'Trip', destination: typed }));
       expect(result.ok).toBe(false);
       expect(result.field).toBe('destination');
-      expect(result.fieldErrors).toEqual({ destination: 'Choose a country from the list.' });
+      expect(result.fieldErrors).toEqual({
+        destination: 'We could not match that to a country. Pick one from the list.',
+      });
       expect(result.values?.destination).toBe(typed);
       expect(mocks.createMission).not.toHaveBeenCalled();
     },

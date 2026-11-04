@@ -48,6 +48,16 @@ function type(input: HTMLInputElement, text: string) {
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
 }
+/** Chooses a name from the browser's list, which arrives as a replacement rather than typing. */
+function pick(input: HTMLInputElement, text: string) {
+  const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  act(() => {
+    set?.call(input, text);
+    input.dispatchEvent(
+      new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText' }),
+    );
+  });
+}
 const leave = (input: HTMLInputElement) =>
   act(() => {
     input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
@@ -86,15 +96,31 @@ describe('the country box', () => {
     }
   });
 
-  it('says politely which country a whole name stands for, and nothing for half a name', () => {
+  it('says which country a name stands for only once it is settled, never while typing', () => {
+    const { input, status } = mount();
+    // "Dominica" is a whole name, and also the start of "Dominican Republic".
+    type(input, 'Dominica');
+    expect(status()).toBe('');
+    type(input, 'Dominican');
+    expect(status()).toBe('');
+    type(input, 'japan');
+    expect(status()).toBe('');
+    leave(input);
+    expect(status()).toBe('Japan chosen.');
+    expect(container.querySelector('output')?.getAttribute('class')).toContain('field-msg-ok');
+    // Typing again takes the line away until the answer settles again.
+    type(input, 'UK');
+    expect(status()).toBe('');
+    leave(input);
+    expect(status()).toBe('United Kingdom chosen.');
+  });
+
+  it('says it at once when the name is chosen from the browser list', () => {
     const { input, status } = mount();
     type(input, 'Jap');
     expect(status()).toBe('');
-    type(input, 'japan');
+    pick(input, 'Japan');
     expect(status()).toBe('Japan chosen.');
-    type(input, 'UK');
-    expect(status()).toBe('United Kingdom chosen.');
-    expect(container.querySelector('output')?.getAttribute('class')).toContain('field-msg-ok');
   });
 
   it('says "No country matches" only once the person leaves the box, and marks the box', () => {
@@ -159,9 +185,13 @@ describe('the box agrees with the server about what a typed answer means', () =>
 
   it('folds text the same way as the shared match key', () => {
     // The box repeats that folding to stay free of the country data; keep the two together.
-    for (const text of ["Côte d'Ivoire", 'Timor-Leste', 'Hong Kong SAR', 'São Tomé and Príncipe']) {
-      const country = countries.find((c) => packMatchKey(c.name) === packMatchKey(text));
-      if (country) expect(matchCountry(text.toUpperCase(), countries)?.iso2).toBe(country.iso2);
+    // Every name that has an accent, hyphen or apostrophe, written in capitals.
+    const folded = countries.filter((c) => packMatchKey(c.name) !== c.name.toLowerCase());
+    expect(folded.length).toBeGreaterThan(0);
+    for (const country of folded) {
+      expect(matchCountry(country.name.toUpperCase(), countries)?.iso2, country.name).toBe(
+        country.iso2,
+      );
     }
   });
 });

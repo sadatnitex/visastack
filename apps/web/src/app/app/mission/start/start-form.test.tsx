@@ -76,6 +76,9 @@ describe('Start a Trip: where are you going?', () => {
     render();
     const input = box() as HTMLInputElement;
     type(input, 'Japan');
+    act(() => {
+      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    });
     const data = new FormData(container.querySelector('form') as HTMLFormElement);
     expect(data.get('destination')).toBe('Japan');
     expect(container.querySelector('output')?.textContent).toBe('Japan chosen.');

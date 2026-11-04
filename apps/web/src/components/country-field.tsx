@@ -70,15 +70,19 @@ export function CountryField({
       ? (matchCountry(defaultValue, countries)?.name ?? defaultValue)
       : defaultValue,
   );
-  const [leftBox, setLeftBox] = useState(false);
+  // The line under the box speaks only once the answer is settled: the person left the box, or
+  // picked a name from the browser's list. Never while typing, where "Dominica" is only on the way
+  // to "Dominican Republic".
+  const [settled, setSettled] = useState(false);
 
   const country = matchCountry(text, countries);
-  const noMatch = leftBox && text.trim() !== '' && !country;
-  const status = country
-    ? `${country.name} chosen.`
-    : noMatch
-      ? 'No country matches. Pick one from the list.'
-      : '';
+  const noMatch = settled && text.trim() !== '' && !country;
+  const status =
+    settled && country
+      ? `${country.name} chosen.`
+      : noMatch
+        ? 'No country matches. Pick one from the list.'
+        : '';
   const describedBy = [problem?.['aria-describedby'], hint ? hintId : null, statusId]
     .filter(Boolean)
     .join(' ');
@@ -94,9 +98,10 @@ export function CountryField({
         value={text}
         onChange={(event) => {
           setText(event.target.value);
-          setLeftBox(false);
+          // Choosing a name from the browser's list arrives as a replacement, not as typing.
+          setSettled((event.nativeEvent as InputEvent).inputType === 'insertReplacementText');
         }}
-        onBlur={() => setLeftBox(true)}
+        onBlur={() => setSettled(true)}
         // Not the browser's "country-name" fill: that would put the person's own country here.
         autoComplete="off"
         autoCapitalize="words"

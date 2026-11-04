@@ -63,11 +63,14 @@ export function createCspMiddleware(deps: CspMiddlewareDeps): NextMiddleware {
     const runAuth = deps.needsSignIn(request.nextUrl.pathname);
 
     if (!deps.enabled) {
-      if (!isWorkspacePath(request.nextUrl.pathname)) {
+      const workspace = isWorkspacePath(request.nextUrl.pathname);
+      // Nothing to add or remove: pass the request on untouched.
+      if (!workspace && !request.headers.has(PATHNAME_REQUEST_HEADER)) {
         return runAuth ? deps.auth(request, event) : NextResponse.next();
       }
       const plainHeaders = new Headers(request.headers);
-      plainHeaders.set(PATHNAME_REQUEST_HEADER, request.nextUrl.pathname);
+      if (workspace) plainHeaders.set(PATHNAME_REQUEST_HEADER, request.nextUrl.pathname);
+      else plainHeaders.delete(PATHNAME_REQUEST_HEADER);
       if (!runAuth) return NextResponse.next({ request: { headers: plainHeaders } });
       return deps.auth(
         new NextRequest(request.url, { method: request.method, headers: plainHeaders }),

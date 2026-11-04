@@ -382,13 +382,21 @@ describe('the page address handed to the workspace render', () => {
     }
   });
 
-  it('is not added to, and is removed from, pages outside the workspace', async () => {
-    for (const path of ['/', '/trust', '/collect/account/answers', '/application']) {
-      const response = await build({})(
-        get(path, { headers: { [PATHNAME_REQUEST_HEADER]: CASE } }),
-        EVENT,
-      );
-      expect(forwardedHeaders(response as Response).get(PATHNAME_REQUEST_HEADER), path).toBeNull();
+  it('is not added to, and is removed from, pages outside the workspace, with the policy on and off', async () => {
+    for (const enabled of [true, false]) {
+      for (const path of ['/', '/trust', '/collect/account/answers', '/application']) {
+        const { handler, calls } = fakeSignIn();
+        const response = await build({ auth: handler, enabled })(
+          get(path, { headers: { [PATHNAME_REQUEST_HEADER]: CASE } }),
+          EVENT,
+        );
+        expect(
+          forwardedHeaders(response as Response).get(PATHNAME_REQUEST_HEADER),
+          `${path} ${enabled}`,
+        ).toBeNull();
+        // The sign-in check, where it runs, never sees a client-chosen address either.
+        for (const call of calls) expect(call.headers.get(PATHNAME_REQUEST_HEADER)).toBeNull();
+      }
     }
   });
 
