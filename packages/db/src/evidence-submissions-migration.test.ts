@@ -13,7 +13,7 @@ function migrationFile(): string {
     .filter((name) => name.endsWith('.sql'))
     .find((name) =>
       readFileSync(join(migrationsFolder, name), 'utf8').includes(
-        'CREATE TABLE "evidence_request_submissions"',
+        'CREATE TABLE IF NOT EXISTS "evidence_request_submissions"',
       ),
     );
   if (!file) throw new Error('the evidence request submissions migration is missing');
@@ -50,11 +50,35 @@ const insertSend = (round: number, key: string) => `
 describe('Lane D evidence request submissions migration', () => {
   it('creates two tables and changes no existing table', async () => {
     const sql = migrationFile();
-    const touched = [...sql.matchAll(/(?:CREATE TABLE|ALTER TABLE) "([a-z_]+)"/g)].map((m) => m[1]);
+    const touched = [
+      ...sql.matchAll(/(?:CREATE TABLE IF NOT EXISTS|ALTER TABLE) "([a-z_]+)"/g),
+    ].map((m) => m[1]);
     expect(new Set(touched)).toEqual(
       new Set(['evidence_request_submissions', 'evidence_request_decision_submissions']),
     );
     expect(sql).not.toMatch(/DROP TABLE|DROP COLUMN|ALTER COLUMN/);
+  });
+
+  it('can be run again from the top without harm, statement by statement', async () => {
+    const client = await seeded();
+    await client.exec(insertSend(1, 'k1'));
+    // The shipped run already applied it once; production runs each statement on its own.
+    for (let run = 0; run < 2; run += 1) {
+      for (const statement of migrationFile().split('--> statement-breakpoint')) {
+        if (statement.trim().length > 0) await client.exec(statement);
+      }
+    }
+    const left = await client.query<{ sends: number }>(
+      'select count(*)::int as sends from evidence_request_submissions',
+    );
+    expect(left.rows[0]?.sends).toBe(1);
+    await expect(
+      client.exec("update evidence_request_submissions set title_at_send = 'b.pdf'"),
+    ).rejects.toThrow(/never changed/);
+    const triggers = await client.query<{ n: number }>(
+      "select count(*)::int as n from pg_trigger where tgname like 'evidence_request%no_update'",
+    );
+    expect(triggers.rows[0]?.n).toBe(2);
   });
 
   it('keeps one send per round and one send per retry key on a request', async () => {

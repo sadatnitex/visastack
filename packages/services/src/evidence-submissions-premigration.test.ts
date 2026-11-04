@@ -37,6 +37,8 @@ import {
  * sends made after it, while a send made before it stays labelled as older.
  */
 
+// The journal tag is named on purpose (it says which database this test builds): if the lead
+// renumbers this migration in merge order, this one line changes with it.
 const MIGRATION = '0132_evidence_request_submissions';
 const TIMEOUT = 240_000;
 
@@ -120,6 +122,8 @@ describe('before and after migration 0132 (Lane D)', () => {
       const flightRequest = await openRequest(db, harbor, alice);
       expect(isOk(await send(db, alice, flightRequest, second.documentId))).toBe(true);
 
+      await runFile(client, MIGRATION);
+      // Production applies each statement on its own and may start again from the top.
       await runFile(client, MIGRATION);
       expect(await evidenceSubmissionsPresent(db)).toBe(true);
 
