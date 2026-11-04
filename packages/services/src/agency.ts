@@ -2952,6 +2952,13 @@ export async function submitEvidenceResponse(
       );
       submissionId = row.id;
     }
+    await noticeAgencyOfEvidence(tx, {
+      request,
+      threshold:
+        roundNo !== null
+          ? `round-${roundNo}`
+          : `sent-${(updated.respondedAt ?? new Date()).getTime()}`,
+    });
     await appendAuditEvent(tx, {
       eventType: 'EVIDENCE_RESPONDED',
       actorAccountId: input.actorAccountId,
@@ -2974,6 +2981,46 @@ export async function submitEvidenceResponse(
     });
     return ok({ ...updated, submissionId, replayed: false });
   });
+}
+
+/**
+ * "New Evidence Received" for the active owners and admins of the asking agency, in the app and by
+ * email, queued with the send. Neutral on purpose (NTF-02): it names no person, no kind of file, no
+ * file name and no reason, only that something arrived and where to open it. The worker sends it
+ * only while the recipient is still an owner or admin of the active agency and the agency still
+ * holds a grant reaching the case; cancelling the request cancels it while still queued.
+ */
+async function noticeAgencyOfEvidence(
+  tx: Db,
+  input: { readonly request: EvidenceRequest; readonly threshold: string },
+): Promise<void> {
+  const { request } = input;
+  const admins = await tx
+    .select({ accountId: schema.memberships.accountId })
+    .from(schema.memberships)
+    .where(
+      and(
+        eq(schema.memberships.organizationId, request.organizationId),
+        eq(schema.memberships.active, true),
+        inArray(schema.memberships.role, ['OWNER', 'ADMIN']),
+      ),
+    );
+  for (const admin of admins) {
+    await enqueueNotificationBothChannels(tx, {
+      eventType: 'EVIDENCE_RESPONSE_RECEIVED',
+      resourceId: request.id,
+      threshold: input.threshold,
+      recipientAccountId: admin.accountId,
+      applicantId: request.applicantId,
+      organizationId: request.organizationId,
+      ...(request.missionId ? { missionId: request.missionId } : {}),
+      payload: {
+        subject: 'New Evidence Received',
+        summary: 'A traveller sent evidence for one of your requests.',
+        deepLinkPath: `/app/agency/${request.organizationId}/clients?request=${request.id}#request-${request.id}`,
+      },
+    });
+  }
 }
 
 /** The exact version a send pins, with what the record needs to remember about it. */
@@ -3291,6 +3338,9 @@ export async function decideEvidenceResponse(
         await enqueueNotificationBothChannels(tx, {
           eventType: 'EVIDENCE_REPLACEMENT_REQUESTED',
           resourceId: request.id,
+          // One notice for each send that is sent back (a second send-back on the same request is
+          // a new notice); a send with no exact copy is told apart by its decision.
+          threshold: pinned ? `round-${pinned.roundNo}` : `decision-${decision.id}`,
           recipientAccountId: owner.ownerAccountId,
           applicantId: request.applicantId,
           organizationId: request.organizationId,

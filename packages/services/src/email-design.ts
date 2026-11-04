@@ -275,6 +275,13 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     action: 'See Your Case',
     after: "Accepted by your agency's reviewer for your file. It is not a decision on your visa.",
   },
+  // Lane D: never the person, the kind of file, the file name or any reason; the agency opens the request.
+  EVIDENCE_RESPONSE_RECEIVED: {
+    eyebrow: 'Your Agency',
+    heading: 'Evidence arrived for one of your requests',
+    why: 'Open the request to see the exact copy that was sent. Received is not accepted until a reviewer accepts it.',
+    action: 'Open the Request',
+  },
   EVIDENCE_REPLACEMENT_REQUESTED: {
     eyebrow: 'Your Case',
     heading: 'Your agency needs a fresh copy',

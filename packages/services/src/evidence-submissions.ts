@@ -70,6 +70,11 @@ export interface EvidenceSubmissionView {
   readonly reason: string | null;
   /** True when this agency may ask for the original right now (it still serves bytes); always false for the traveller. */
   readonly fileAvailable: boolean;
+  /**
+   * The pinned version's safety status right now, read live and never stored, for the scan note
+   * (`loadVersionScanEvidence`). Null only if the version row is gone. No scanner name, no storage data.
+   */
+  readonly safetyStatus: (typeof schema.documentVersions.$inferSelect)['safetyStatus'] | null;
 }
 
 export interface LegacyEvidenceSend {
@@ -217,6 +222,13 @@ export async function listEvidenceSubmissions(
       const serving = agency
         ? await evidenceSubmissionServing(db, row)
         : { serves: false as const };
+      const live = first(
+        await db
+          .select({ safetyStatus: schema.documentVersions.safetyStatus })
+          .from(schema.documentVersions)
+          .where(eq(schema.documentVersions.id, row.documentVersionId))
+          .limit(1),
+      );
       submissions.push({
         id: row.id,
         roundNo: row.roundNo,
@@ -232,6 +244,7 @@ export async function listEvidenceSubmissions(
         decidedAt: decision?.decidedAt ?? null,
         reason: decision?.reason ?? null,
         fileAvailable: serving.serves,
+        safetyStatus: live?.safetyStatus ?? null,
       });
     }
   }

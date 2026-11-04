@@ -11,6 +11,7 @@ export const EMAIL_KIND_LABELS: Readonly<Record<string, string>> = {
   EVIDENCE_REQUEST_CREATED: 'Document Request',
   EVIDENCE_REVIEW_ACCEPTED: 'Document Accepted',
   EVIDENCE_REPLACEMENT_REQUESTED: 'Document Replacement Asked',
+  EVIDENCE_RESPONSE_RECEIVED: 'Evidence Received by Agency',
   MISSION_STATUS_CHANGED: 'Case Update',
   APPOINTMENT_SCHEDULED: 'Appointment',
   PLATFORM_ROLE_GRANTED: 'Staff Role Given',
