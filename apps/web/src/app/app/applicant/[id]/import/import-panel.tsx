@@ -40,6 +40,14 @@ export const LINES_SHOWN_FIRST = 50;
 
 const DEFAULT_LIMIT_BYTES = 4 * 1024 * 1024;
 
+/** The choice that sends files to the family route, where each waits for Which Person?. */
+const NOT_SURE = '__not_sure';
+
+/** The person a send is for: the chosen one, or this page's own when "not sure" is chosen. */
+function personFor(target: string, own: string): string {
+  return target === NOT_SURE ? own : target;
+}
+
 export const BUSY_LINE = 'We were too busy to take this file just now. Try again in a few minutes.';
 export const EARLIER_ADDED_LINE = 'Already added in an earlier import, so it was not sent again.';
 export const EARLIER_UNKNOWN_LINE = 'This is from an earlier import, so it was not sent again.';
@@ -304,6 +312,7 @@ export function ImportPanel({
   pdfAccepted = false,
   retryUnknown = false,
   familyBatch = false,
+  people = [],
   showNext = true,
 }: {
   readonly applicantId: string;
@@ -328,13 +337,28 @@ export function ImportPanel({
    * by this account, until its Which Person? decision in Needs One Decision.
    */
   readonly familyBatch?: boolean;
+  /**
+   * The people this account keeps records for (this person first). With more than one, the panel
+   * asks who the files are for and files each one straight under that person; "Not Sure" then
+   * uses the family route when it is ready.
+   */
+  readonly people?: readonly { readonly id: string; readonly name: string }[];
 }) {
   const router = useRouter();
   const forId = useId();
   const [forFamily, setForFamily] = useState(false);
+  // Who the next files are for: one of this account's people, or "not sure" (the family route).
+  const [target, setTarget] = useState<string>(applicantId);
+  const targetRef = useRef<string>(applicantId);
+  targetRef.current = target;
+  const choosePerson = people.length > 1;
+  const peopleRef = useRef(people);
+  peopleRef.current = people;
   const family = useRef(false);
-  family.current = familyBatch && forFamily;
+  family.current = familyBatch && (choosePerson ? target === NOT_SURE : forFamily);
   const sentToFamily = useRef(false);
+  // The people other than this page's person that files were actually sent for.
+  const sentFor = useRef<ReadonlyMap<string, string>>(new Map());
   const limitsId = useId();
   const dropTitleId = useId();
   const dropHintId = useId();
@@ -343,9 +367,20 @@ export function ImportPanel({
   // UMPE G1: files sent for several people are remembered apart, so one mode never tells the other
   // that a file was already added.
   const familyManifest = useRef<ImportManifest | null>(null);
+  // A person other than this page's own is remembered apart too, so a file added for one person is
+  // never reported as "added earlier" when it is chosen again for another.
+  const otherManifests = useRef(new Map<string, ImportManifest>());
   const manifest = {
     get current(): ImportManifest | null {
-      return family.current ? familyManifest.current : personManifest.current;
+      if (family.current) return familyManifest.current;
+      const forPerson = targetRef.current;
+      if (forPerson === applicantId || forPerson === NOT_SURE) return personManifest.current;
+      let saved = otherManifests.current.get(forPerson);
+      if (!saved) {
+        saved = new ImportManifest(forPerson);
+        otherManifests.current.set(forPerson, saved);
+      }
+      return saved;
     },
   };
   const addedSinceRefresh = useRef(false);
@@ -358,6 +393,7 @@ export function ImportPanel({
     () =>
       new ImportQueue({
         applicantId,
+        scopeFor: () => (family.current ? 'family' : personFor(targetRef.current, applicantId)),
         rules: { limitBytes, limitLabel, pdfAccepted },
         earlierState: (file) => manifest.current?.earlierState(file) ?? null,
         beforeSend: (item) => manifest.current?.markSending(item),
@@ -372,13 +408,21 @@ export function ImportPanel({
         uploadIdFor: async (file) =>
           uploadIdFromHash(
             await sha256Hex(
-              `${family.current ? 'family' : applicantId}\u0000${fingerprintOf(file)}`,
+              `${family.current ? 'family' : personFor(targetRef.current, applicantId)}\u0000${fingerprintOf(file)}`,
             ),
           ) ?? newUploadId(),
         // The choice in force when each file is sent: one person's documents, or Which Person?.
         send: (request) => {
-          if (family.current) sentToFamily.current = true;
-          return (family.current ? sendThroughHoldRoute : sendThroughUploadRoute)(request);
+          if (family.current) {
+            sentToFamily.current = true;
+            return sendThroughHoldRoute(request);
+          }
+          const forPerson = personFor(targetRef.current, applicantId);
+          if (forPerson !== applicantId) {
+            const name = peopleRef.current.find((person) => person.id === forPerson)?.name;
+            if (name) sentFor.current = new Map(sentFor.current).set(forPerson, name);
+          }
+          return sendThroughUploadRoute({ ...request, applicantId: forPerson });
         },
         retryUnknown,
       }),
@@ -411,6 +455,7 @@ export function ImportPanel({
     const flush = () => {
       saved.flush();
       savedFamily.flush();
+      for (const other of otherManifests.current.values()) other.flush();
     };
     window.addEventListener('pagehide', flush);
     return () => {
@@ -438,6 +483,7 @@ export function ImportPanel({
     if (busy) return;
     personManifest.current?.flush();
     familyManifest.current?.flush();
+    for (const other of otherManifests.current.values()) other.flush();
     if (addedSinceRefresh.current) {
       addedSinceRefresh.current = false;
       router.refresh();
@@ -540,6 +586,7 @@ export function ImportPanel({
             onClick={fromHeading(() => {
               personManifest.current?.clear();
               familyManifest.current?.clear();
+              for (const other of otherManifests.current.values()) other.clear();
               setRemembered(0);
             })}
           >
@@ -548,7 +595,37 @@ export function ImportPanel({
         </div>
       ) : null}
 
-      {familyBatch ? (
+      {choosePerson ? (
+        <div className="field-stack umpe-g1-import-for">
+          <label className="field-label" htmlFor={`${forId}-person`}>
+            Who Are These Files For?
+          </label>
+          <select
+            id={`${forId}-person`}
+            className="input"
+            value={target}
+            aria-describedby={`${forId}-person-hint`}
+            aria-disabled={busy || undefined}
+            onChange={(event) => {
+              if (!busy) setTarget(event.currentTarget.value);
+            }}
+          >
+            {people.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.id === applicantId ? `${person.name} (This Person)` : person.name}
+              </option>
+            ))}
+            {familyBatch ? <option value={NOT_SURE}>Not Sure, Help Me Decide</option> : null}
+          </select>
+          <p className="field-hint" id={`${forId}-person-hint`}>
+            {target === NOT_SURE
+              ? 'Each file waits in Needs One Decision, seen only by you, until you choose who it belongs to. We suggest a person only when the name and date of birth in the file match exactly one of your people.'
+              : 'Every file you add now is saved under this person. You can change this between files.'}
+          </p>
+        </div>
+      ) : null}
+
+      {familyBatch && !choosePerson ? (
         <fieldset className="umpe-g1-import-for" aria-describedby={`${forId}-hint`}>
           <legend>Who Are These Files For?</legend>
           <label className="umpe-g1-person-choice">
@@ -743,6 +820,12 @@ export function ImportPanel({
       ) : null}
       {counts.total > 0 && !pending ? (
         <nav className="umpe-g1-import-next" aria-label="After This Import">
+          {[...sentFor.current].map(([personId, name]) => (
+            <p className="field-hint" key={personId}>
+              Files for {name} were saved under {name}.{' '}
+              <a href={`/app/applicant/${personId}/documents`}>Open {name}&apos;s Documents</a>
+            </p>
+          ))}
           <p className="field-hint">
             {sentToFamily.current
               ? 'Files for several people wait in Needs One Decision until you choose who each one belongs to.'

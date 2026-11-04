@@ -140,6 +140,12 @@ export interface FileIdentity {
 
 export interface ImportQueueOptions {
   readonly applicantId: string;
+  /**
+   * Who the files being added are for, as a short key. The same file chosen again for a different
+   * person is a new file for that person, so the "already in this import" check is kept apart for
+   * each key. Default: one key for everything.
+   */
+  readonly scopeFor?: () => string;
   readonly rules: {
     readonly limitBytes: number;
     readonly limitLabel: string;
@@ -416,6 +422,7 @@ export class ImportQueue {
         }
       }),
     );
+    const scope = this.options.scopeFor?.() ?? '';
     const seen = new Set<string>();
     for (const item of this.byId.values()) {
       if (item.state !== 'skipped') seen.add(item.fingerprint);
@@ -424,7 +431,7 @@ export class ImportQueue {
     candidates.forEach(({ file, path }, index) => {
       const id = this.nextId++;
       const name = file.name || 'Photo';
-      const fingerprint = fingerprintOf({ name, size: file.size, lastModified: file.lastModified });
+      const fingerprint = `${scope}\u0000${fingerprintOf({ name, size: file.size, lastModified: file.lastModified })}`;
       const base = {
         ...blank,
         id,

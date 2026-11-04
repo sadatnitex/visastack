@@ -495,6 +495,118 @@ describe('after an import, and files for several people (UMPE G1)', () => {
     expect(await axeViolations(host.innerHTML)).toEqual([]);
   });
 
+  it('asks who the files are for and files them straight under that person', async () => {
+    const people = [
+      { id: 'a-1', name: 'Rahim Uddin' },
+      { id: 'a-2', name: 'Sara Uddin' },
+    ];
+    await act(async () => {
+      root.render(
+        <ImportPanel
+          applicantId="a-1"
+          limitBytes={1000}
+          limitLabel="1 KB"
+          familyBatch
+          people={people}
+        />,
+      );
+    });
+    const select = host.querySelector('select') as HTMLSelectElement;
+    expect(host.querySelector('label[for="' + select.id + '"]')?.textContent).toBe(
+      'Who Are These Files For?',
+    );
+    expect(Array.from(select.options).map((option) => option.textContent)).toEqual([
+      'Rahim Uddin (This Person)',
+      'Sara Uddin',
+      'Not Sure, Help Me Decide',
+    ]);
+    // The page's own person is chosen to begin with: a file goes there and nowhere else.
+    expect(select.value).toBe('a-1');
+    await act(async () => {
+      select.value = 'a-2';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await choose([photo('marriage-1.jpg')]);
+    expect(FakeRequest.sent.map((request) => request.url)).toEqual([
+      '/api/documents/upload?applicantId=a-2',
+    ]);
+    await answer(0, 201, { message: 'Added.', title: 'Marriage Certificate' });
+    expect(host.textContent).toContain('Files for Sara Uddin were saved under Sara Uddin.');
+    expect(host.querySelector('a[href="/app/applicant/a-2/documents"]')?.textContent).toBe(
+      "Open Sara Uddin's Documents",
+    );
+    expect(await axeViolations(host.innerHTML)).toEqual([]);
+  });
+
+  it('sends "not sure" to the family route and keeps one person to the ordinary route', async () => {
+    const people = [
+      { id: 'a-1', name: 'Rahim Uddin' },
+      { id: 'a-2', name: 'Sara Uddin' },
+    ];
+    await act(async () => {
+      root.render(
+        <ImportPanel
+          applicantId="a-1"
+          limitBytes={1000}
+          limitLabel="1 KB"
+          familyBatch
+          people={people}
+        />,
+      );
+    });
+    const select = host.querySelector('select') as HTMLSelectElement;
+    await choose([photo('own.jpg')]);
+    await answer(0, 201, { message: 'Added.', title: 'Own' });
+    await act(async () => {
+      select.value = '__not_sure';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await choose([photo('either.jpg')]);
+    expect(FakeRequest.sent.map((request) => request.url)).toEqual([
+      '/api/documents/upload?applicantId=a-1',
+      '/api/documents/hold?applicantId=a-1',
+    ]);
+  });
+
+  it('does not report a file chosen again for another person as already added', async () => {
+    const people = [
+      { id: 'a-1', name: 'Rahim Uddin' },
+      { id: 'a-2', name: 'Sara Uddin' },
+    ];
+    await act(async () => {
+      root.render(
+        <ImportPanel applicantId="a-1" limitBytes={1000} limitLabel="1 KB" people={people} />,
+      );
+    });
+    const select = host.querySelector('select') as HTMLSelectElement;
+    const same = photo('marriage.jpg');
+    await choose([same]);
+    await answer(0, 201, { message: 'Added.', title: 'Marriage Certificate' });
+    await act(async () => {
+      select.value = 'a-2';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await choose([same]);
+    expect(FakeRequest.sent.map((request) => request.url)).toEqual([
+      '/api/documents/upload?applicantId=a-1',
+      '/api/documents/upload?applicantId=a-2',
+    ]);
+  });
+
+  it('offers no person choice for one person', async () => {
+    await act(async () => {
+      root.render(
+        <ImportPanel
+          applicantId="a-1"
+          limitBytes={1000}
+          limitLabel="1 KB"
+          people={[{ id: 'a-1', name: 'Rahim Uddin' }]}
+        />,
+      );
+    });
+    expect(host.querySelector('select')).toBeNull();
+  });
+
   it('offers no choice of people when the family batch is not available', async () => {
     await mount();
     expect(host.querySelector('fieldset.umpe-g1-import-for')).toBeNull();

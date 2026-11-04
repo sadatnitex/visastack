@@ -6,6 +6,7 @@ import {
   getApplicant,
   getApplicantEvidenceBytes,
   hasConsent,
+  listApplicants,
   listDocumentExceptions,
   listPendingProposals,
   loadUploadQuotaConfig,
@@ -85,6 +86,13 @@ export default async function AddDocumentsPage({
       ]);
     // The family batch is an extra: if it cannot be read, the import simply has no family choice.
     const familyBatch = access.ok ? await familyBatchReady(db).catch(() => false) : false;
+    // The people this account keeps records for, this person first: the choice of who a file is for.
+    // An extra: if the list cannot be read the import simply has no person choice.
+    const everyone = await listApplicants(db, accountId).catch(() => []);
+    const people = [
+      ...everyone.filter((person) => person.id === id),
+      ...everyone.filter((person) => person.id !== id),
+    ].map((person) => ({ id: person.id, name: person.displayName }));
     // What the files already added have produced, so the page can say so and offer the next
     // step. Read only for the person's own proof and with consent on; extras: if either cannot be
     // read the page just shows no card, never an error.
@@ -104,6 +112,7 @@ export default async function AddDocumentsPage({
       receiptsReady,
       virusScanning,
       familyBatch,
+      people,
       // Suggestions that came from a document (an app's suggestion about the profile is not one).
       foundDetails: pending.filter((p) => p.proposal.documentVersionId !== null).length,
       // Files, not rows: one file can have both a relation suggestion and an intake finding.
@@ -155,6 +164,7 @@ export default async function AddDocumentsPage({
               pdfAccepted={pdfUploadsAccepted()}
               retryUnknown={data.receiptsReady}
               familyBatch={data.familyBatch}
+              people={data.people}
               showNext={false}
             />
             <details className="add-more" open={initialKind ? true : undefined}>
