@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
+import { FormMessage, SubmitButton } from '../../../../../../components/form-feedback';
 import type { ReadingView } from '../../../../../../lib/reading-state';
 import { type ReadingActionState, setReadingAction } from './actions';
 
@@ -30,26 +31,26 @@ export function ReadingSwitch({
         <form action={action} className="add-reading-actions">
           <input type="hidden" name="applicantId" value={applicantId} />
           {fullyOn ? null : (
-            <button
-              type="submit"
+            <SubmitButton
+              pending={pending}
               name="choice"
               value="on"
+              idle={
+                view.status === 'partly_on' ? 'Turn On Both Kinds' : 'Turn On Automatic Reading'
+              }
+              busy="Saving"
               className="btn btn-secondary"
-              disabled={pending}
-            >
-              {view.status === 'partly_on' ? 'Turn On Both Kinds' : 'Turn On Automatic Reading'}
-            </button>
+            />
           )}
           {view.status === 'needs_consent' ? null : (
-            <button
-              type="submit"
+            <SubmitButton
+              pending={pending}
               name="choice"
               value="off"
+              idle="Turn Off Automatic Reading"
+              busy="Saving"
               className="btn btn-secondary"
-              disabled={pending}
-            >
-              Turn Off Automatic Reading
-            </button>
+            />
           )}
         </form>
       ) : null}
@@ -69,9 +70,7 @@ export function ReadingSwitch({
           </p>
         </div>
       ) : null}
-      <output className="field-hint" aria-live="polite">
-        {state.message}
-      </output>
+      <FormMessage result={state} pending={pending} pendingText="Saving" />
     </section>
   );
 }
