@@ -12,6 +12,7 @@ import {
   type TravellerInsights,
   buildTravellerInsights,
 } from './insights';
+import { getDocumentLifecycles } from './lifecycle/foundation';
 import { computeReadiness, listMissions } from './missions';
 import type { KeyManagementPort } from './ports';
 import { isProtectedPlaceholder, listApplicantProfile } from './profile';
@@ -104,8 +105,23 @@ export async function getTravellerInsights(
   if (!wallet.ok) return wallet;
   if (!missions.ok) return missions;
 
+  // The summary is of the documents a person has in use. A file they archived, or deleted (or that
+  // is already being removed), is out of the way on the documents page, so it is out of the summary
+  // too: never counted, never a source of a difference, never a pending check.
+  const states = await getDocumentLifecycles(
+    db,
+    detailed.value.map((doc) => doc.id),
+    access,
+  );
+  const isGone = (documentId: string): boolean => {
+    const state = states.get(documentId)?.state;
+    return state === 'ARCHIVED' || state === 'RECENTLY_DELETED' || state === 'REMOVING';
+  };
+
   const readings = pendingReadings.flatMap((row) =>
-    row.fieldKey ? [{ documentId: row.documentId, fieldKey: row.fieldKey, value: row.value }] : [],
+    row.fieldKey && !isGone(row.documentId)
+      ? [{ documentId: row.documentId, fieldKey: row.fieldKey, value: row.value }]
+      : [],
   );
   // Protected values are read only when there is a reading to compare them with.
   const reveal = readings.length > 0 ? options.encryption : undefined;
@@ -114,13 +130,15 @@ export async function getTravellerInsights(
   const lifecycle = new Map(
     wallet.value.map((entry) => [entry.document.id, entry.status] as const),
   );
-  const kinds = [...new Set(detailed.value.map((doc) => doc.docType))];
+  const kinds = [
+    ...new Set(detailed.value.filter((doc) => !isGone(doc.id)).map((doc) => doc.docType)),
+  ];
   const thresholdList = await Promise.all(kinds.map((kind) => getReminderThresholds(db, kind)));
   const thresholds = new Map(kinds.map((kind, i) => [kind, thresholdList[i] ?? []] as const));
   // Only documents shown in the traveller's own wallet are summarised.
   const documents: InsightDocumentInput[] = detailed.value.flatMap((doc) => {
     const status = lifecycle.get(doc.id);
-    if (!status) return [];
+    if (!status || isGone(doc.id)) return [];
     return [
       {
         id: doc.id,
@@ -170,7 +188,9 @@ export async function getTravellerInsights(
         sourceDocumentId: entry.sourceDocumentId,
       })),
       pendingReadings: readings,
-      pendingCheckDocumentIds: pendingChecks.map((row) => row.documentId),
+      pendingCheckDocumentIds: pendingChecks
+        .map((row) => row.documentId)
+        .filter((documentId) => !isGone(documentId)),
       sections,
       cases,
       now,
