@@ -1,11 +1,3 @@
-// What the on-demand signed-in journeys need before they can run, by group. Prints setting NAMES
-// only: a value, even a non-secret one, is never printed. Used by
-// .github/workflows/neon-staging-journeys.yml before the browser runs, and kept in step with
-// apps/web/e2e/signed-in/support/setup.ts and docs/operations/staging-journeys.md by
-// scripts/staging-journeys.test.mjs.
-
-import { appendFileSync } from 'node:fs';
-
 /** A name that must be present and non-empty, or (with `is`) exactly equal to that word. */
 const need = (name, is) => (is ? { name, is } : { name });
 
@@ -65,7 +57,7 @@ export const SUITES = {
     groups: ['core', 'traveller', 'agency', 'unrelated'],
   },
   loop: {
-    files: ['agency-loop.spec.ts'],
+    files: ['agency-loop.spec.ts', 'agency-loop-revoke.spec.ts'],
     groups: ['core', 'traveller', 'agency', 'exactCopy'],
   },
   guest: { files: ['guest-request.spec.ts'], groups: ['core', 'agency', 'guest'] },
@@ -74,6 +66,14 @@ export const SUITES = {
     groups: ['core', 'traveller', 'agency', 'ui'],
   },
 };
+
+/**
+ * Specs that end or change a grant that other specs rely on. They run in their own last stage
+ * (apps/web/playwright.signed-in.config.ts keeps the same list), after every other spec, and
+ * `filesFor` puts them last. scripts/staging-journeys.test.mjs fails if the two lists drift or if
+ * any other spec touches a grant.
+ */
+export const LAST_STAGE_SPECS = ['agency-loop-revoke.spec.ts'];
 
 /** Every setting name this suite can read. */
 export function allNames() {
@@ -129,25 +129,15 @@ export function report(env) {
 
 /** The spec files of one suite (or of all of them), one per line, for the workflow to run. */
 export function filesFor(suite) {
-  if (suite === 'all') return [...new Set(Object.values(SUITES).flatMap((s) => s.files))];
-  const found = SUITES[suite];
+  const found =
+    suite === 'all'
+      ? [...new Set(Object.values(SUITES).flatMap((s) => s.files))]
+      : SUITES[suite]?.files;
   if (!found) throw new Error(`No suite named ${suite}`);
-  return found.files;
-}
-
-function runReport() {
-  const lines = report(process.env);
-  console.info(lines.join('\n'));
-  if (process.env.GITHUB_STEP_SUMMARY) {
-    appendFileSync(
-      process.env.GITHUB_STEP_SUMMARY,
-      `### Signed-in journey setup\n\n\`\`\`\n${lines.join('\n')}\n\`\`\`\n\nA BLOCKED line is a journey that cannot run and will be reported as failed, never as passed.\n`,
-    );
-  }
-  // Without the core group nothing can start; every other gap fails only its own journeys.
-  if (missingIn('core', process.env).length > 0 || sharedIdentities(process.env)) {
-    process.exitCode = 1;
-  }
+  return [
+    ...found.filter((file) => !LAST_STAGE_SPECS.includes(file)),
+    ...found.filter((file) => LAST_STAGE_SPECS.includes(file)),
+  ];
 }
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {

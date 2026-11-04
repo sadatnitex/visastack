@@ -20,6 +20,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   GROUPS,
+  LAST_STAGE_SPECS,
   OPTIONAL_NAMES,
   SUITES,
   allNames,
@@ -301,5 +302,55 @@ test('sign-in waits for the workspace or the code field before deciding about a 
   assert.ok(
     session.indexOf('Promise.any') < session.indexOf('blocked('),
     'decides before it waits',
+  );
+});
+
+test('a spec that ends or changes a grant runs last, in an order the config states', () => {
+  const config = read('apps/web/playwright.signed-in.config.ts');
+  // The config and the setup script keep one and the same list.
+  const listed = config.match(/const LAST_STAGE_SPECS = \[([^\]]*)\]/)?.[1] ?? '';
+  assert.deepEqual(
+    [...listed.matchAll(/'([^']+)'/g)].map((m) => m[1]),
+    LAST_STAGE_SPECS,
+  );
+  // First stage skips them; the last stage matches only them and waits for the first.
+  assert.match(config, /name: 'journeys',\s*testIgnore: LAST_STAGE_SPECS/);
+  assert.match(
+    config,
+    /name: 'revocation',\s*testMatch: LAST_STAGE_SPECS,\s*dependencies: \['journeys'\]/,
+  );
+  assert.match(config, /workers: 1/);
+  // Only those specs may touch a grant: no other spec revokes, pauses, ends or re-grants access.
+  const touchesGrant =
+    /revokeButton|Revoke Access|Stop Sharing|End Access|Confirm Sharing Request|Review and Confirm|updateGrantAction|\bPause\b.*\baccess\b/;
+  const touching = specFiles
+    .filter((path) => touchesGrant.test(read(path)))
+    .map((path) => relative(SIGNED_IN, path));
+  assert.deepEqual(touching.sort(), [...LAST_STAGE_SPECS].sort());
+  for (const file of LAST_STAGE_SPECS) assert.ok(existsSync(join(root, SIGNED_IN, file)), file);
+  // The helper files do not touch grants either (a spec could call them).
+  for (const path of sourceFiles.filter((path) => path.includes('/support/'))) {
+    assert.doesNotMatch(
+      read(path),
+      /Revoke Access|Confirm Sharing Request|updateGrantAction/,
+      path,
+    );
+  }
+  // Whatever suite is chosen, those specs come last, and a single suite runs without the first stage.
+  for (const suite of [...Object.keys(SUITES), 'all']) {
+    const files = filesFor(suite);
+    const firstLast = files.findIndex((file) => LAST_STAGE_SPECS.includes(file));
+    if (firstLast !== -1) {
+      assert.ok(
+        files.slice(firstLast).every((file) => LAST_STAGE_SPECS.includes(file)),
+        `${suite} lists a spec after the grant is gone`,
+      );
+    }
+  }
+  const workflow = read(JOURNEYS_WORKFLOW);
+  assert.match(workflow, /if \[ "\$SUITE" != all \]; then flags="--no-deps"; fi/);
+  assert.match(
+    workflow,
+    /playwright test --config=playwright\.signed-in\.config\.ts \$flags \$files/,
   );
 });
