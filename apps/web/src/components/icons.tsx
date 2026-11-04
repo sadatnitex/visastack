@@ -61,6 +61,12 @@ const PATHS = {
   key: ['M8 15a4 4 0 1 1 3.5-6H20v3h-2.5v2.5H15V12h-3.5A4 4 0 0 1 8 15Z'],
   more: ['M5 12h.01M12 12h.01M19 12h.01'],
   close: ['m6 6 12 12M18 6 6 18'],
+  // An empty ring: an item with nothing done on it yet.
+  circle: ['M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17Z'],
+  // An aeroplane seen from above: a trip.
+  plane: [
+    'M12 3.5c.8 0 1.5.8 1.5 2V10l7 4.5v2l-7-2V18l2 1.5V21L12 20l-3.5 1v-1.5l2-1.5v-3.5l-7 2v-2l7-4.5V5.5c0-1.2.7-2 1.5-2Z',
+  ],
   // A page with its side panel marked: the show and hide control for the sidebar.
   sidebar: ['M4 5.5h16v13H4Z', 'M9.5 5.5v13'],
 } as const;
