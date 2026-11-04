@@ -25,6 +25,12 @@ import {
 } from '../console-data';
 import { EVIDENCE_DECIDABLE_STATUSES, REQ_STATUS } from '../console-format';
 import { requestItemLabel } from '../do-next';
+import { EvidenceCopies, waitingCopy } from '../evidence-copies';
+import {
+  COPIES_STATUSES,
+  type EvidenceCopies as EvidenceCopiesData,
+  loadEvidenceCopies,
+} from '../evidence-copies-data';
 import { EvidenceRequestActions } from '../evidence-request-actions';
 import { RequestEvidenceForm } from '../request-evidence-form';
 import { FormGroup } from './form-group';
@@ -49,6 +55,8 @@ const REQUEST_SIZES = { step: 10, max: 90 } as const;
 const STATUS_KEY = 'status';
 /** One request a link points at (Do Next, the workspace search), shown first when off the page. */
 const REQUEST_KEY = 'request';
+/** Set by the sent-file download when the file could not be opened. */
+const FILE_KEY = 'file';
 
 /**
  * Clients: inviting a traveller as a client, asking an applicant for evidence,
@@ -77,6 +85,8 @@ export default async function AgencyClientsPage({
   const view: RequestViewKey | undefined = REQUEST_VIEWS.find((v) => v.key === statusParam)?.key;
   const linked = firstParam(query[REQUEST_KEY]);
   const linkedId = linked && isUuid(linked) ? linked.toLowerCase() : undefined;
+  // The download sends a person back here with this word when a file could not be opened.
+  const fileUnavailable = firstParam(query[FILE_KEY]) === 'unavailable';
   const pagingInvitations = [INVITE_KEYS.show, INVITE_KEYS.before, INVITE_KEYS.from].some(
     (key) => firstParam(query[key]) !== undefined,
   );
@@ -110,6 +120,10 @@ export default async function AgencyClientsPage({
         loadApplicants(db, orgId, access),
         loadVisibleCaseList(db, accountId, orgId),
       ]);
+    // The exact copies sent for every document request shown, so a reviewer decides on a copy
+    // they were shown. Read through the organization's own proof, request by request.
+    const shownRequests = [...(linkedRequest?.items ?? []), ...requests.items];
+    const copies = await loadEvidenceCopies(db, accountId, orgId, shownRequests);
     const pendingInvitationIds = [
       ...new Set(
         [...clientInvitations.items, ...(newestInvitations?.items ?? [])].map((i) => i.id),
@@ -121,6 +135,7 @@ export default async function AgencyClientsPage({
       clientInvitations,
       pendingInvitationIds,
       requests,
+      copies,
       // Shown first only when the list on this page does not already hold it.
       linkedRequest: requests.items.some((r) => r.id === linkedRequest?.items[0]?.id)
         ? null
@@ -321,7 +336,12 @@ export default async function AgencyClientsPage({
             </nav>
             {data.linkedRequest ? (
               <div className="rows u-mt-050" aria-label="The request you followed a link to">
-                <RequestRow orgId={orgId} req={data.linkedRequest} />
+                <RequestRow
+                  orgId={orgId}
+                  req={data.linkedRequest}
+                  copies={data.copies.get(data.linkedRequest.id)}
+                  fileUnavailable={fileUnavailable && linkedId === data.linkedRequest.id}
+                />
               </div>
             ) : null}
             {requests.items.length === 0 ? (
@@ -330,7 +350,13 @@ export default async function AgencyClientsPage({
               <>
                 <div className="rows u-mt-050" id="agency-evidence-request-list">
                   {requests.items.map((req) => (
-                    <RequestRow key={req.id} orgId={orgId} req={req} />
+                    <RequestRow
+                      key={req.id}
+                      orgId={orgId}
+                      req={req}
+                      copies={data.copies.get(req.id)}
+                      fileUnavailable={fileUnavailable && linkedId === req.id}
+                    />
                   ))}
                 </div>
                 <ListPager
@@ -360,18 +386,32 @@ export default async function AgencyClientsPage({
   );
 }
 
-/** One evidence request: what is asked, its status, who for, its code and any decision due. */
-function RequestRow({ orgId, req }: { readonly orgId: string; readonly req: EvidenceRequestRow }) {
+/** One evidence request: what is asked, its status, who for, its code, the copy sent and any decision due. */
+function RequestRow({
+  orgId,
+  req,
+  copies,
+  fileUnavailable,
+}: {
+  readonly orgId: string;
+  readonly req: EvidenceRequestRow;
+  /** The sent copies read for this request; undefined when they could not be read (or none apply). */
+  readonly copies: EvidenceCopiesData | undefined;
+  readonly fileUnavailable: boolean;
+}) {
   const rb = REQ_STATUS[req.status] ?? { label: req.status, tone: 'badge-neutral' };
   const target = requestItemLabel(req);
+  // A document request with something sent shows that exact copy. If it could not be read, no
+  // decision is offered on it (withdrawing the request still is).
+  const hasCopies = req.kind === 'DOCUMENT' && COPIES_STATUSES.has(req.status);
+  const waiting = waitingCopy(copies?.list, req.status);
   return (
     <div
-      className="row"
+      className="row request-row"
       // Do Next links straight to a request waiting for review.
       id={`request-${req.id}`}
-      style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+      <div className="request-row-head">
         <span className="row-key">
           {req.kind === 'FIELD' ? 'Field' : 'Document'}: {target}
         </span>
@@ -382,8 +422,23 @@ function RequestRow({ orgId, req }: { readonly orgId: string; readonly req: Evid
         {req.dueDate ? ` · due ${formatDateOnly(req.dueDate)}` : ''}
       </span>
       <ReferenceCode code={req.referenceCode} label="Request Reference" />
+      {hasCopies ? (
+        <EvidenceCopies
+          organizationId={orgId}
+          requestId={req.id}
+          status={req.status}
+          copies={copies}
+          fileUnavailable={fileUnavailable}
+        />
+      ) : null}
       {EVIDENCE_DECIDABLE_STATUSES.has(req.status) ? (
-        <EvidenceRequestActions organizationId={orgId} requestId={req.id} status={req.status} />
+        <EvidenceRequestActions
+          organizationId={orgId}
+          requestId={req.id}
+          status={req.status}
+          submissionId={waiting?.id}
+          canDecide={!hasCopies || copies !== undefined}
+        />
       ) : null}
     </div>
   );

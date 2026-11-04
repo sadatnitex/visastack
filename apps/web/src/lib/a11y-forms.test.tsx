@@ -733,7 +733,8 @@ const DOCS: readonly Case[] = [
           { factId: 'f1', value: 'A1234567' },
           { factId: 'f2', value: 'B7654321' },
         ]}
-        candidateDocuments={[]}
+        documentChoices={[]}
+        idempotencyKey="a11y-retry-key-0001"
       />
     ),
   },
@@ -745,13 +746,33 @@ const DOCS: readonly Case[] = [
         requestId="r2"
         kind="DOCUMENT"
         candidateFacts={[]}
-        candidateDocuments={[
-          { documentId: 'd1', displayName: 'Passport', usable: true, statusLabel: 'Checked' },
+        idempotencyKey="a11y-retry-key-0002"
+        exactCopies
+        documentChoices={[
+          {
+            documentId: 'd1',
+            versionId: 'v1',
+            name: 'Passport',
+            kindLabel: 'Passport',
+            addedLabel: '27 Oct 2026, 14:32 GMT+6',
+            scanLabel: 'Format Checked',
+            scanDetail:
+              'The file type and structure were checked. It has not been scanned for viruses.',
+            usable: true,
+            sentBack: true,
+            newest: false,
+          },
           {
             documentId: 'd2',
-            displayName: 'Old statement',
+            versionId: 'v2',
+            name: 'Old statement',
+            kindLabel: 'Passport',
+            addedLabel: '20 Oct 2026, 09:10 GMT+6',
+            scanLabel: 'Waiting to Be Checked',
+            scanDetail: 'This file has not been checked yet. It cannot be opened until it has.',
             usable: false,
-            statusLabel: 'Out of date',
+            sentBack: false,
+            newest: true,
           },
         ]}
       />
@@ -767,7 +788,8 @@ const DOCS: readonly Case[] = [
         awaiting={false}
         timeZone="Asia/Dhaka"
         candidateFacts={[]}
-        candidateDocuments={[]}
+        documentChoices={[]}
+        idempotencyKey="a11y-retry-key-0003"
       />
     ),
   },
@@ -792,7 +814,8 @@ const DOCS: readonly Case[] = [
         requestId="r3"
         kind="DOCUMENT"
         candidateFacts={[]}
-        candidateDocuments={[]}
+        documentChoices={[]}
+        idempotencyKey="a11y-retry-key-0004"
       />
     ),
   },

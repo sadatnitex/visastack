@@ -49,6 +49,11 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listEvidenceRequestDecisions: async () => ({ ok: true, value: state.decisions }),
   referenceCodesFor: async () => state.codes,
   requireAccess: async () => ({ ok: true, value: { proof: 'owner' } }),
+  // Every document is the everyday copy; how it was checked is not under test here.
+  getDocumentLifecycles: async (_db: unknown, ids: string[]) =>
+    new Map(ids.map((id) => [id.toLowerCase(), { state: 'CURRENT', replaced: false }])),
+  loadVersionScanEvidence: async () => new Map(),
+  evidenceSubmissionsPresent: async () => true,
   listRequestItemExtras: async () => ({
     ok: true,
     value: { rules: state.rules, questions: state.questions },
@@ -64,6 +69,9 @@ vi.mock('../../app/app/applicant/[id]/evidence/submit-response-form', () => ({
 }));
 vi.mock('../../app/app/applicant/[id]/evidence/ask-about-item-form', () => ({
   AskAboutItemForm: stub('AskAboutItemForm'),
+}));
+vi.mock('../../app/app/applicant/[id]/evidence/clearer-copy-panel', () => ({
+  ClearerCopyPanel: stub('ClearerCopyPanel'),
 }));
 
 const { default: EvidencePage } = await import('../../app/app/applicant/[id]/evidence/page');
@@ -151,6 +159,28 @@ registerParity({
       name: 'one sent back with a reason',
       setup: () => {
         state.requests = { ok: true, value: [{ ...base, id: 'r5', status: 'NEEDS_REPLACEMENT' }] };
+        state.decisions = [{ outcome: 'NEEDS_REPLACEMENT', reason: 'The last page is cut off.' }];
+      },
+    },
+    {
+      name: 'one sent back, with the copy to replace still among the documents',
+      setup: () => {
+        state.requests = {
+          ok: true,
+          value: [{ ...base, id: 'r7', status: 'NEEDS_REPLACEMENT', respondingDocumentId: 'd7' }],
+        };
+        state.documents = [
+          {
+            id: 'd7',
+            originalName: 'cut-off.pdf',
+            approvedName: null,
+            docType: 'BANK_STATEMENT',
+            latestVersionId: 'v7',
+            safetyStatus: 'CLEAN',
+            processingStatus: 'AWAITING_REVIEW',
+            createdAt: '2026-10-20T08:00:00Z',
+          },
+        ];
         state.decisions = [{ outcome: 'NEEDS_REPLACEMENT', reason: 'The last page is cut off.' }];
       },
     },
@@ -247,6 +277,29 @@ describe('evidence request levels', () => {
     expect(levelOf(row?.querySelector('details.request-ask'))).toBe('glance');
     expect(doc.querySelector('[data-only="glance"]')).toBeNull();
     state.documents = [];
+  });
+
+  it('keeps Upload a Clearer Copy at Glance beside the reply for a request sent back', async () => {
+    state.requests = {
+      ok: true,
+      value: [{ ...base, id: 'r7', status: 'NEEDS_REPLACEMENT', respondingDocumentId: 'd7' }],
+    };
+    state.documents = [
+      {
+        id: 'd7',
+        originalName: 'cut-off.pdf',
+        approvedName: null,
+        docType: 'BANK_STATEMENT',
+        latestVersionId: 'v7',
+        safetyStatus: 'CLEAN',
+        processingStatus: 'AWAITING_REVIEW',
+        createdAt: '2026-10-20T08:00:00Z',
+      },
+    ];
+    const doc = await page();
+    const panel = doc.querySelector('#request-r7 [data-stub="ClearerCopyPanel"]');
+    expect(panel).not.toBeNull();
+    expect(levelOf(panel)).toBe('glance');
   });
 
   it('says nothing is waiting at Glance and starts the list at Browse', async () => {

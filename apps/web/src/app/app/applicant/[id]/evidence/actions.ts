@@ -7,6 +7,8 @@ import {
   submitEvidenceResponse,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
+import { triggerNotificationWorker } from '../../../../../lib/jobs';
 import { withSession } from '../../../../../lib/session';
 import { EVIDENCE_SENT_LINE } from '../../../../../lib/success-lines';
 
@@ -34,6 +36,16 @@ function plainSubmitReason(message: string): string {
   if (message.startsWith('this organization no longer has access')) {
     return 'This agency no longer has access to your records, so nothing was sent. You can ask them to start a new request.';
   }
+  // The page's retry key or chosen copy no longer matches what is on record: the page is old.
+  if (
+    message === 'the retry key is not valid' ||
+    message.startsWith('this retry key was already used') ||
+    message.startsWith('Choosing an exact version is not available yet') ||
+    message === 'document not found for this applicant' ||
+    message === "this document does not match the request's document type"
+  ) {
+    return 'This page is out of date. Refresh it and choose again.';
+  }
   if (message === 'evidence request not found') {
     return 'This request could not be found. Refresh the page to see where it stands.';
   }
@@ -52,6 +64,8 @@ export async function submitEvidenceResponseAction(
   // The page's own retry key, when it sends one: pressing Send twice then answers with the first
   // send instead of an error. Absent, the service numbers the send itself.
   const idempotencyKey = String(formData.get('idempotencyKey') ?? '').trim() || undefined;
+  // The exact file version the person saw when they chose: the agency gets that copy, never a newer one.
+  const documentVersionId = String(formData.get('documentVersionId') ?? '').trim() || undefined;
   if (requestId.length === 0 || (!factId && !documentId)) {
     return { ok: false, message: 'Choose what to submit.' };
   }
@@ -62,6 +76,7 @@ export async function submitEvidenceResponseAction(
       requestId,
       ...(factId ? { factId } : {}),
       ...(documentId ? { documentId } : {}),
+      ...(documentId && documentVersionId ? { documentVersionId } : {}),
       ...(idempotencyKey ? { idempotencyKey } : {}),
     });
     if (!submitted.ok) {
@@ -76,7 +91,11 @@ export async function submitEvidenceResponseAction(
       savedAt: (submitted.value.respondedAt ?? submitted.value.updatedAt).toISOString(),
     } satisfies ActionState;
   });
-  if (result.ok) revalidatePath(`/app/applicant/${applicantId}/evidence`);
+  if (result.ok) {
+    revalidatePath(`/app/applicant/${applicantId}/evidence`);
+    // The agency hears about the new answer now, not at the next daily run.
+    after(() => triggerNotificationWorker().then(() => undefined));
+  }
   return result;
 }
 
