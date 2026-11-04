@@ -1,6 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { schema } from './db';
+import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 
 /**
  * What was really done to one document version, read from that version's own scan records
@@ -114,6 +115,7 @@ export async function loadVersionScanEvidence(
     if (!AuthorizedApplicant.isGenuine(access, 'VIEW_METADATA')) throw new Error('no proof');
     // A nested transaction (a savepoint when the caller already holds one), so a failed read
     // cannot leave the caller's own transaction aborted for every later query on the page.
+    const lifecycle = await lifecycleTablesPresent(access.tx);
     const rows = await access.tx.transaction((tx) =>
       tx
         .select({
@@ -132,6 +134,8 @@ export async function loadVersionScanEvidence(
         .where(
           and(
             eq(schema.documents.applicantId, access.applicant.id),
+            // A removed (Recently Deleted) file has no evidence to show.
+            lifecycle ? presentDocumentCondition() : undefined,
             inArray(
               schema.documentScanResults.documentVersionId,
               versions.map((version) => version.id),
