@@ -400,6 +400,8 @@ export async function enqueueNotificationBothChannels(
 export async function cancelQueuedNotificationsForResource(
   tx: Db,
   resourceId: string,
+  /** Only this event type (other notices about the same record are left to go out). */
+  eventType?: string,
 ): Promise<{ readonly cancelled: number }> {
   const updated = await tx
     .update(schema.notifications)
@@ -408,6 +410,7 @@ export async function cancelQueuedNotificationsForResource(
       and(
         eq(schema.notifications.resourceId, resourceId),
         eq(schema.notifications.status, 'QUEUED'),
+        eventType === undefined ? undefined : eq(schema.notifications.eventType, eventType),
       ),
     )
     .returning({ id: schema.notifications.id });

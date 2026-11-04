@@ -5,7 +5,7 @@ import type { AuthorizedApplicant } from './access/require-access';
 import { StepUpProof } from './access/step-up-proof';
 import { orgGrantPermits } from './agency';
 import { appendAuditEvent } from './audit';
-import { first, schema } from './db';
+import { type Db, first, schema } from './db';
 import { isDocumentVersionUsable, issueEvidenceSubmissionReadRef } from './documents';
 import { hasActiveOrVerifiedErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
@@ -243,7 +243,7 @@ export async function listEvidenceSubmissions(
         state,
         decidedAt: decision?.decidedAt ?? null,
         reason: decision?.reason ?? null,
-        fileAvailable: serving.serves,
+        fileAvailable: serving.serves && (await pinnedCopyForServing(db, row)).ok,
         safetyStatus: live?.safetyStatus ?? null,
       });
     }
@@ -280,6 +280,59 @@ export async function listEvidenceSubmissions(
     });
   }
   return ok({ available, submissions, legacy });
+}
+
+type PinnedCopy =
+  | {
+      readonly ok: true;
+      readonly document: typeof schema.documents.$inferSelect;
+      readonly version: typeof schema.documentVersions.$inferSelect;
+    }
+  | { readonly ok: false; readonly reason: string };
+
+/**
+ * Whether the pinned copy could be served right now, apart from who asks and why: the document is
+ * still present (not in Recently Deleted), the pinned version is the same stored object with the
+ * same checksum, and it is safe, processed and not erased. The one definition the list (for its
+ * file flag) and the download both use, so the two cannot disagree. Mints no link.
+ */
+async function pinnedCopyForServing(
+  db: Db,
+  submission: typeof schema.evidenceRequestSubmissions.$inferSelect,
+): Promise<PinnedCopy> {
+  const lifecycle = await lifecycleTablesPresent(db);
+  const document = first(
+    await db
+      .select()
+      .from(schema.documents)
+      .where(
+        and(
+          eq(schema.documents.id, submission.documentId),
+          lifecycle ? presentDocumentCondition() : undefined,
+        ),
+      )
+      .limit(1),
+  );
+  const version = first(
+    await db
+      .select()
+      .from(schema.documentVersions)
+      .where(eq(schema.documentVersions.id, submission.documentVersionId))
+      .limit(1),
+  );
+  if (!document || !version || !pinnedVersionIntact(submission, version)) {
+    return { ok: false, reason: 'pinned_version_changed' };
+  }
+  const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
+  const servable = isDocumentVersionUsable({
+    safetyStatus: version.safetyStatus,
+    processingStatus: version.processingStatus,
+    erased,
+  });
+  if (!servable) {
+    return { ok: false, reason: erased ? 'bytes_already_erased' : 'not_yet_safe_to_serve' };
+  }
+  return { ok: true, document, version };
 }
 
 export interface EvidenceSubmissionDownloadInput {
@@ -327,26 +380,6 @@ export async function downloadEvidenceSubmissionFile(
   const { request, agency } = audience.value;
 
   const serving = await evidenceSubmissionServing(db, submission);
-  const lifecycle = await lifecycleTablesPresent(db);
-  const document = first(
-    await db
-      .select()
-      .from(schema.documents)
-      .where(
-        and(
-          eq(schema.documents.id, submission.documentId),
-          lifecycle ? presentDocumentCondition() : undefined,
-        ),
-      )
-      .limit(1),
-  );
-  const version = first(
-    await db
-      .select()
-      .from(schema.documentVersions)
-      .where(eq(schema.documentVersions.id, submission.documentVersionId))
-      .limit(1),
-  );
   const metadata = {
     variant: 'original',
     disposition: 'download',
@@ -386,24 +419,21 @@ export async function downloadEvidenceSubmissionFile(
     await audit('DENIED', 'step_up_required');
     return err(serviceError('step_up_required', 'confirm it is you to download this file'));
   }
-  if (!document || !version || !pinnedVersionIntact(submission, version)) {
-    await audit('DENIED', 'pinned_version_changed');
-    return err(serviceError('forbidden', 'this copy is no longer available to download'));
+  const pinned = await pinnedCopyForServing(db, submission);
+  await audit(pinned.ok ? 'ALLOWED' : 'DENIED', pinned.ok ? null : pinned.reason);
+  if (!pinned.ok) {
+    return err(
+      serviceError(
+        'forbidden',
+        pinned.reason === 'pinned_version_changed'
+          ? 'this copy is no longer available to download'
+          : 'this document is not yet available',
+      ),
+    );
   }
-  const erased = await hasActiveOrVerifiedErasureJob(db, version.storageObjectId);
-  const servable = isDocumentVersionUsable({
-    safetyStatus: version.safetyStatus,
-    processingStatus: version.processingStatus,
-    erased,
-  });
-  await audit(
-    servable ? 'ALLOWED' : 'DENIED',
-    servable ? null : erased ? 'bytes_already_erased' : 'not_yet_safe_to_serve',
-  );
-  if (!servable) return err(serviceError('forbidden', 'this document is not yet available'));
   return issueEvidenceSubmissionReadRef(db, storage, {
-    document,
-    version,
+    document: pinned.document,
+    version: pinned.version,
     submissionId: submission.id,
     accountId: agency.accountId,
     organizationId: agency.organizationId,
