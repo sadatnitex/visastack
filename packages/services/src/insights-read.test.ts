@@ -238,6 +238,42 @@ describe('getTravellerInsights', () => {
     }
   });
 
+  it.each([
+    ['an archived', { archivedAt: NOW }],
+    [
+      'a deleted',
+      {
+        deletedAt: NOW,
+        deletePath: 'DUPLICATE' as const,
+        purgeAfter: new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000),
+      },
+    ],
+  ])('leaves %s file out of the summary, its readings and its checks', async (_name, state) => {
+    const { ownerId, applicantId, passportId } = await seed();
+    const before = await getTravellerInsights(await ownerProof(ownerId, applicantId), {
+      encryption,
+      now: NOW,
+    });
+    expect(isOk(before)).toBe(true);
+    if (!isOk(before)) return;
+    const countedBefore = before.value.summary.documents;
+    expect(countedBefore).toBeGreaterThan(0);
+
+    await db
+      .insert(schema.documentLifecycle)
+      .values({ documentId: passportId, applicantId, ...state });
+    const after = await getTravellerInsights(await ownerProof(ownerId, applicantId), {
+      encryption,
+      now: NOW,
+    });
+    expect(isOk(after)).toBe(true);
+    if (!isOk(after)) return;
+    expect(after.value.summary.documents).toBe(countedBefore - 1);
+    expect(after.value.mismatches.filter((m) => m.document?.id === passportId)).toEqual([]);
+    expect(after.value.evidence.some((entry) => entry.document.id === passportId)).toBe(false);
+    expect(after.value.expiry).toEqual([]);
+  });
+
   it('does not claim a protected detail differs when it could not be read', async () => {
     const { ownerId, applicantId } = await seed();
     const result = await getTravellerInsights(await ownerProof(ownerId, applicantId), { now: NOW });

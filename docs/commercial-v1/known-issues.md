@@ -7388,3 +7388,10 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Reviews: helper plus `/code-review max` (8 findings, the real ones fixed: archived papers, papers hidden behind older ones, typecheck and UI ratchet errors); guards proven red. Hand-back: `docs/umpe/operations/handoffs/UX6-P4.md`.
 - Pilot gate: investigated, nothing implemented (public beta bypasses it; see `UX6-P4-pilot-gate.md`). Not verified: a browser, a screen reader, real mail, the migration on Neon.
 
+
+### 2026-11-04 - Document Insights counted archived files (owner screenshot)
+
+- Report: the owner saw "2 Documents" on What Your Documents Show after removing the files they meant to remove. Live check (read-only, own account): the 2 counted were archived files (a photo and a Word file); the 2 in Recently Deleted were already left out; the 5 removed with Delete My File were gone from the database.
+- Cause: the insights read took every document the list returned and left out only replaced ones, so an archived file still counted and could still raise a detail to check.
+- Fix: `packages/services/src/insights-read.ts` now leaves out archived, Recently Deleted and Removing files from the count, the evidence list, the expiry list, pending readings and pending checks. Test: `insights-read.test.ts` (archived and deleted cases); the archived case goes red when the filter is switched off.
+- Not fixed here: the Add Documents import showed "Not confirmed" for 5 files on the owner's phone (4 Nov, about 07:16 Bangladesh time). Checked: no upload attempt, receipt or held file from those tries reached the database; the production runtime log tool returned no entries and no errors for the window (Hobby keeps one hour and the app logs little). Cause not found.
