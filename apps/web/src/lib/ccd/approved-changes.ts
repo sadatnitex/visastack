@@ -143,6 +143,20 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason: 'UX7 (owner, 3 Nov 2026): Add a Document opens the Add Documents page directly.',
   },
   {
+    screen: 'traveller',
+    from: {
+      kind: 'link',
+      name: 'Suggested Details Awaiting Approval2',
+      detail: '/app/applicant/person/documents',
+    },
+    to: {
+      kind: 'link',
+      name: 'Suggested Details Awaiting Approval2',
+      detail: '/app/applicant/person/review',
+    },
+    reason: 'What We Found: details read from documents wait on one screen, not inside the list.',
+  },
+  {
     screen: 'documents',
     from: { kind: 'heading', name: 'Selected Document', detail: '3' },
     to: { kind: 'heading', name: 'Selected Document', detail: '2' },
