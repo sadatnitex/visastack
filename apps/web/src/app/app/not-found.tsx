@@ -13,14 +13,14 @@ export default function WorkspaceNotFound() {
   return (
     <section className="section container center">
       <span className="eyebrow">Not Found</span>
-      <h1 className="section-title" style={{ margin: '0.5rem 0 0' }}>
+      <h1 className="section-title">
         We Couldn't Find That Page
       </h1>
-      <p className="section-sub" style={{ margin: '0.75rem auto 1.5rem', maxWidth: '34rem' }}>
+      <p className="section-sub">
         The link may be out of date, or the record may have been removed or revoked. Check the
         address, or head back to your overview.
       </p>
-      <div className="cta-row" style={{ justifyContent: 'center' }}>
+      <div className="cta-row cta-row-center">
         <a className="btn btn-primary" href="/app">
           Go to Your Overview
         </a>
