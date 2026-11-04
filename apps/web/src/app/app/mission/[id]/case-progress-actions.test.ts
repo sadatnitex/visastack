@@ -6,13 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const mocks = vi.hoisted(() => ({
-  attachPackVersion: vi.fn(),
+  attachSelectedPackVersion: vi.fn(),
   selectEvidence: vi.fn(),
   computeReadiness: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 vi.mock('@visastack/services', () => ({
-  attachPackVersion: mocks.attachPackVersion,
+  attachSelectedPackVersion: mocks.attachSelectedPackVersion,
   selectEvidence: mocks.selectEvidence,
   computeReadiness: mocks.computeReadiness,
 }));
@@ -41,7 +41,7 @@ const PREV = { ok: true, message: '' };
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.attachPackVersion.mockResolvedValue({ ok: true, value: {} });
+  mocks.attachSelectedPackVersion.mockResolvedValue({ ok: true, value: {} });
   mocks.selectEvidence.mockResolvedValue({ ok: true, value: {} });
 });
 
@@ -72,7 +72,7 @@ describe('attachPackAction', () => {
   });
 
   it('says nothing about progress when the checklist could not be attached', async () => {
-    mocks.attachPackVersion.mockResolvedValue({
+    mocks.attachSelectedPackVersion.mockResolvedValue({
       ok: false,
       error: { code: 'invalid', message: 'this checklist is not published' },
     });

@@ -28,7 +28,8 @@ const mocks = vi.hoisted(() => ({
   listMissionsByItineraryRef: vi.fn(),
   listNotesForOwner: vi.fn(),
   listOutcomesForMission: vi.fn(),
-  listPublishedPackVersions: vi.fn(),
+  listSelectablePackVersions: vi.fn(),
+  explainNoFittingPack: vi.fn(),
   listRequirements: vi.fn(),
   listSelectedEvidence: vi.fn(),
   listSubmissionsForMission: vi.fn(),
@@ -149,7 +150,8 @@ function setUp(
   mocks.listMissionSnapshots.mockResolvedValue(ok({ items: [], nextCursor: null }));
   mocks.listComplaintsForMission.mockResolvedValue(ok({ items: [], total: 0 }));
   mocks.listFeedbackForMission.mockResolvedValue(ok({ items: [], total: 0 }));
-  mocks.listPublishedPackVersions.mockResolvedValue([]);
+  mocks.listSelectablePackVersions.mockResolvedValue(ok([]));
+  mocks.explainNoFittingPack.mockResolvedValue([]);
   mocks.listFittingPublicPacks.mockResolvedValue([]);
   mocks.readTravellerCoverage.mockResolvedValue({ nationality: ['Bangladeshi'], residence: [] });
   mocks.listMissionsByItineraryRef.mockResolvedValue([]);
@@ -766,10 +768,9 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
         ok({ ...MISSION, purpose: 'Tourism', createdAt: new Date() }),
       );
 
-    it('says there is no checklist for this route when only other routes are published', async () => {
+    it('says there is no checklist for this route when no reviewed checklist fits it', async () => {
       setUp();
       japanTourism();
-      mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
       const [welcome] = stubProps<{ body: string[]; action: { href: string } }>(
         await render({ welcome: '1' }),
         'CaseWelcome',
@@ -785,7 +786,6 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
     it('asks the person to pick when a checklist fits the route', async () => {
       setUp();
       japanTourism();
-      mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
       mocks.listFittingPublicPacks.mockResolvedValue([
         { packVersionId: 'pv-jp', packName: 'Japan Visitor', version: 1, coversTraveller: true },
       ]);
@@ -815,7 +815,6 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
     it('promises nothing when the lookup fails, even with checklists published', async () => {
       setUp();
       japanTourism();
-      mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
       mocks.listFittingPublicPacks.mockRejectedValue(new Error('connection reset'));
       const [welcome] = stubProps<{ body: string[]; action: { href: string } }>(
         await render({ welcome: '1' }),
@@ -826,10 +825,10 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
       expect(welcome?.action.href).toBe('#evidence');
     });
 
-    it('offers the picker to a case with no purpose when any checklist is published', async () => {
+    it('offers the picker to a case with no purpose when any checklist may be picked', async () => {
       setUp();
       mocks.getMissionForOwner.mockResolvedValue(ok({ ...MISSION, createdAt: new Date() }));
-      mocks.listPublishedPackVersions.mockResolvedValue(otherRoutes);
+      mocks.listSelectablePackVersions.mockResolvedValue(ok(otherRoutes));
       const [welcome] = stubProps<{ action: { href: string } }>(
         await render({ welcome: '1' }),
         'CaseWelcome',
@@ -838,12 +837,24 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
       expect(mocks.listFittingPublicPacks).not.toHaveBeenCalled();
     });
 
-    it('looks nothing up for a case opened without the welcome mark', async () => {
+    it('works out the fitting checklists once, for the picker, and reuses them for the welcome note', async () => {
       setUp();
       japanTourism();
       await render();
+      expect(mocks.listFittingPublicPacks).toHaveBeenCalledTimes(1);
+      vi.clearAllMocks();
+      setUp();
+      japanTourism();
+      await render({ welcome: '1' });
+      expect(mocks.listFittingPublicPacks).toHaveBeenCalledTimes(1);
+    });
+
+    it('looks nothing up for a case that already holds a checklist', async () => {
+      setUp({ requirements: ['SATISFIED'] });
+      await render({ welcome: '1' });
       expect(mocks.listFittingPublicPacks).not.toHaveBeenCalled();
-      expect(mocks.readTravellerCoverage).not.toHaveBeenCalled();
+      expect(mocks.listSelectablePackVersions).not.toHaveBeenCalled();
+      expect(mocks.explainNoFittingPack).not.toHaveBeenCalled();
     });
   });
 
@@ -1268,5 +1279,173 @@ describe('lifecycle labels on the case evidence (resource lifecycle, lane Z)', (
     setUp({ requirements: ['SATISFIED'] });
     await render();
     expect(mocks.getDocumentLifecycles).not.toHaveBeenCalled();
+  });
+});
+
+describe('the Requirement Pack card (VS-006)', () => {
+  const japanTourism = () =>
+    mocks.getMissionForOwner.mockResolvedValue(
+      ok({ ...MISSION, purpose: 'Tourism', createdAt: new Date() }),
+    );
+  const packRow = (extra: Record<string, unknown> = {}) => ({
+    packId: 'p1',
+    effectiveDate: null,
+    status: 'PUBLISHED',
+    withdrawnAt: null,
+    nextReviewDate: null,
+    ...extra,
+  });
+  const pack = (extra: Record<string, unknown> = {}) => ({
+    name: 'Japan visitor',
+    authoritative: true,
+    ownerOrganizationId: null,
+    route: 'visitor',
+    jurisdiction: 'Japan',
+    ...extra,
+  });
+
+  it('says a checklist is for travel to a country, and the case place is the embassy or visa centre', async () => {
+    setUp({ requirements: ['SATISFIED'] });
+    mocks.getPack.mockResolvedValue(pack());
+    const text = textOf(await render());
+    expect(text).toContain('For travel to Japan');
+    expect(text).toContain('Embassy or visa centre not set');
+    expect(text).not.toContain('Jurisdiction not set');
+  });
+
+  it('labels a requirement source as a source, never as a cite', async () => {
+    setUp({ requirements: ['SATISFIED'] });
+    const text = textOf(await render());
+    expect(text).toContain('Source: rule');
+    expect(text).not.toContain('Cite:');
+  });
+
+  it('warns about an overdue review, and still shows the checklist the case holds', async () => {
+    setUp({ requirements: ['SATISFIED'] });
+    mocks.getPack.mockResolvedValue(pack());
+    mocks.getPackVersion.mockResolvedValue(
+      packRow({ nextReviewDate: new Date('2020-01-02T00:00:00Z') }),
+    );
+    const text = textOf(await render());
+    expect(text).toContain('Japan visitor');
+    expect(text).toContain(
+      'Due for its regular review since 2 January 2020. It stays on this case.',
+    );
+  });
+
+  it('says nothing about review while the checklist is current', async () => {
+    setUp({ requirements: ['SATISFIED'] });
+    mocks.getPack.mockResolvedValue(pack());
+    mocks.getPackVersion.mockResolvedValue(
+      packRow({ nextReviewDate: new Date('2999-01-01T00:00:00Z') }),
+    );
+    expect(textOf(await render())).not.toContain('regular review');
+  });
+
+  it('says a withdrawn checklist is withdrawn and stays on the case', async () => {
+    setUp({ requirements: ['SATISFIED'] });
+    mocks.getPack.mockResolvedValue(pack());
+    mocks.getPackVersion.mockResolvedValue(
+      packRow({ status: 'WITHDRAWN', withdrawnAt: new Date('2026-10-30T00:00:00Z') }),
+    );
+    const text = textOf(await render());
+    expect(text).toContain('Withdrawn on 30 October 2026. It stays on this case as it was');
+  });
+
+  it('calls an unowned, unreviewed pack Not Reviewed, and an agency pack an agency checklist', async () => {
+    setUp({ requirements: ['SATISFIED'] });
+    mocks.getPack.mockResolvedValue(pack({ authoritative: false }));
+    const unreviewed = textOf(await render());
+    expect(unreviewed).toContain('Not Reviewed');
+    expect(unreviewed).toContain('Nobody has reviewed this checklist yet');
+    expect(unreviewed).not.toContain('Agency Custom Checklist');
+    mocks.getPack.mockResolvedValue(pack({ authoritative: false, ownerOrganizationId: 'org-1' }));
+    const own = textOf(await render());
+    expect(own).toContain('Agency Custom Checklist');
+    expect(own).not.toContain('Not Reviewed');
+  });
+
+  it('shows the official badge for a reviewed pack', async () => {
+    setUp({ requirements: ['SATISFIED'] });
+    mocks.getPack.mockResolvedValue(pack());
+    const text = textOf(await render());
+    expect(text).toContain('Official Requirement Pack');
+    expect(text).not.toContain('Not Reviewed');
+  });
+
+  it('offers the picker only the fitting reviewed checklists, never every published one', async () => {
+    setUp();
+    japanTourism();
+    const fits = {
+      packVersionId: 'pv-jp',
+      packName: 'Japan Visitor',
+      version: 1,
+      coversTraveller: true,
+      coversRoute: true,
+    };
+    mocks.listFittingPublicPacks.mockResolvedValue([fits]);
+    mocks.listSelectablePackVersions.mockResolvedValue(
+      ok([
+        {
+          packVersionId: 'pv-jp',
+          packKey: 'jp',
+          packName: 'Japan Visitor',
+          version: 1,
+          requirementCount: 3,
+          reviewOverdue: true,
+        },
+      ]),
+    );
+    const [picker] = stubProps<{ options: { packVersionId: string; label: string }[] }>(
+      await render(),
+      'AttachPackForm',
+    );
+    expect(mocks.listSelectablePackVersions).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        actorAccountId: 'synthetic-owner',
+        missionId: 'synthetic-case',
+        fitting: [fits],
+      }),
+    );
+    expect(picker?.options).toEqual([
+      { packVersionId: 'pv-jp', label: 'Japan Visitor · v1 · 3 requirements · review due' },
+    ]);
+  });
+
+  it('offers nothing when the fit cannot be worked out, rather than every checklist', async () => {
+    setUp();
+    japanTourism();
+    mocks.listFittingPublicPacks.mockRejectedValue(new Error('connection reset'));
+    await render();
+    expect(mocks.listSelectablePackVersions).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ fitting: [] }),
+    );
+  });
+
+  it('says there is no reviewed checklist, and why, instead of asking for a pick', async () => {
+    setUp();
+    japanTourism();
+    mocks.explainNoFittingPack.mockResolvedValue(['NO_REVIEWED_CHECKLIST']);
+    const text = textOf(await render());
+    expect(text).toContain(
+      'VisaStack has no reviewed checklist for travel to Japan for tourism yet',
+    );
+    expect(text).not.toContain('Pick a checklist: attach');
+  });
+
+  it('names the application place as the reason, and does not call the destination a place', async () => {
+    setUp();
+    japanTourism();
+    mocks.explainNoFittingPack.mockResolvedValue([
+      'OTHER_APPLICATION_POST',
+      'OUTSIDE_TRAVEL_DATES',
+    ]);
+    const text = textOf(await render());
+    expect(text).toContain(
+      'A reviewed checklist exists for travel to Japan for tourism, but it is written for a different embassy or visa centre than the one on this case and different travel dates',
+    );
+    expect(text).not.toMatch(/official source|gov\.uk|http/i);
   });
 });

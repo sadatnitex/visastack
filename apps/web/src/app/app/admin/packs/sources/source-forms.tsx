@@ -15,15 +15,9 @@ import {
   registerSourceAction,
   reviewCandidateAction,
 } from './actions';
+import { AUTHORITY_TIER_LABELS } from './source-labels';
 
 const INITIAL: ActionState = { ok: true, message: '' };
-
-export const AUTHORITY_TIER_LABELS = {
-  GOVERNMENT: 'Government',
-  CONSULATE: 'Consulate or Embassy',
-  OFFICIAL_APPLICATION: 'Official Application Site',
-  AUTHORIZED_VAC: 'Authorized Visa Centre',
-} as const;
 
 export function RegisterSourceForm({
   packs,

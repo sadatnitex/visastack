@@ -399,6 +399,33 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason: 'D2: no skipped heading level under the case title; same words and size.',
   },
   {
+    screen: 'case',
+    from: { kind: 'text', name: 'Jurisdiction not set' },
+    to: { kind: 'text', name: 'Embassy or visa centre not set' },
+    reason:
+      'VS-006: the case field is where the person applies, not the country, so it says so in plain words.',
+  },
+  {
+    screen: 'case',
+    from: { kind: 'text', name: 'JP · visitor' },
+    to: { kind: 'text', name: 'For travel to JP · visitor' },
+    reason:
+      'VS-006: a checklist is written for travel to a country; it is not an application place.',
+  },
+  {
+    screen: 'case',
+    from: {
+      kind: 'text',
+      name: 'Pick a checklist: attach a published requirement pack to see how many items are ready.',
+    },
+    to: {
+      kind: 'text',
+      name: 'VisaStack has no reviewed checklist for travel to Japan yet, so the case cannot show what is missing on its own.',
+    },
+    reason:
+      'VS-006: with no reviewed checklist to pick, the card says so and why instead of asking for a pick.',
+  },
+  {
     screen: 'notifications',
     from: { kind: 'heading', name: 'Updates on Your Cases', detail: '1' },
     to: { kind: 'heading', name: 'Notifications', detail: '1' },

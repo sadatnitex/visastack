@@ -3,7 +3,7 @@
 import type { MissionState } from '@visastack/core';
 import {
   accountPrincipal,
-  attachPackVersion,
+  attachSelectedPackVersion,
   computeReadiness,
   createAppointment,
   createContributorRequest,
@@ -64,7 +64,7 @@ export async function attachPackAction(
   if (packVersionId.length === 0) return { ok: false, message: 'Choose a pack to attach.' };
 
   const result = await withSession(async ({ db, accountId }) => {
-    const attached = await attachPackVersion(db, {
+    const attached = await attachSelectedPackVersion(db, {
       actorAccountId: accountId,
       missionId,
       packVersionId,

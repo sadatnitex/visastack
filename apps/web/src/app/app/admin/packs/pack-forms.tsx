@@ -9,6 +9,7 @@ import {
 } from '@visastack/core';
 import { useActionState, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { PACK_MATCHING_HELP } from '../../../../lib/pack-labels';
 import {
   type ActionState,
   addRequirementAction,
@@ -68,18 +69,24 @@ export function CreatePackForm() {
       </fieldset>
       <fieldset className="form-section">
         <legend>Where It Applies</legend>
+        <p className="muted u-fs-085 field-wide">{PACK_MATCHING_HELP}</p>
         <div className="form-grid">
           <div className="field-row">
             <label className="field-label" htmlFor="jurisdiction">
-              Jurisdiction (Optional)
+              Destination Country
             </label>
             <input
               id="jurisdiction"
               name="jurisdiction"
               type="text"
               className="input"
-              placeholder="e.g. UK"
+              placeholder="e.g. United Kingdom"
+              aria-describedby="jurisdiction-help"
             />
+            <p id="jurisdiction-help" className="muted u-fs-085">
+              The country people travel to, not the embassy where they apply. Without it, cases
+              never find this pack.
+            </p>
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="route">
@@ -91,11 +98,16 @@ export function CreatePackForm() {
               type="text"
               className="input"
               placeholder="e.g. Standard Visitor"
+              aria-describedby="route-help"
             />
+            <p id="route-help" className="muted u-fs-085">
+              Leave empty for a pack that covers the whole purpose. Cases do not record a route yet,
+              so a pack with a route is offered to pick and never linked on its own.
+            </p>
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="purpose">
-              Purpose (Optional)
+              Purpose
             </label>
             <input
               id="purpose"
@@ -103,7 +115,11 @@ export function CreatePackForm() {
               type="text"
               className="input"
               placeholder="e.g. tourism"
+              aria-describedby="purpose-help"
             />
+            <p id="purpose-help" className="muted u-fs-085">
+              One purpose per pack. Without it, cases never find this pack.
+            </p>
           </div>
         </div>
       </fieldset>

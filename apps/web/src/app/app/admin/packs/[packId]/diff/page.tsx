@@ -117,13 +117,13 @@ export default async function PackVersionDiffPage({
                       </span>
                     ) : null}
                     {entry.change === 'added' && entry.to ? (
-                      <span className="muted u-fs-085">Cite: {entry.to.citation}</span>
+                      <span className="muted u-fs-085">Source: {entry.to.citation}</span>
                     ) : null}
                     {entry.change === 'removed' && entry.from ? (
-                      <span className="muted u-fs-085">Was cited: {entry.from.citation}</span>
+                      <span className="muted u-fs-085">Earlier source: {entry.from.citation}</span>
                     ) : null}
                     {entry.change === 'unchanged' ? (
-                      <span className="muted u-fs-085">Cite: {req.citation}</span>
+                      <span className="muted u-fs-085">Source: {req.citation}</span>
                     ) : null}
                   </div>
                 );

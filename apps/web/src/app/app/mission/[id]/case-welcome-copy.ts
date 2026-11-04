@@ -1,3 +1,6 @@
+import type { NoPackReason } from '@visastack/services';
+import { noChecklistLines } from '../../../../lib/pack-labels';
+
 /**
  * What the case page found about checklists for a case that has none linked:
  * - `pick`: at least one fits its country and purpose. `travellerUnconfirmed` when one may be
@@ -5,7 +8,8 @@
  *   not readable), which is why none was linked on its own.
  *   `caseDetailsNeeded` (UMPE G2) when a fitting checklist is only for some application posts or
  *   travel dates and the case does not say yet; nothing is guessed, so none was linked.
- * - `none`: none fits.
+ * - `none`: none fits. `reasons` (VS-006) says why when a reviewed checklist exists but is meant
+ *   for something else about this case; without a mismatch the plain "none yet" words are used.
  * - `unknown`: the check could not be made.
  */
 /** A case detail a checklist needs before VisaStack can tell it fits. */
@@ -16,13 +20,15 @@ const DETAIL_WORDS: Readonly<Record<CaseDetailNeeded, string>> = {
   TRAVEL_DATES: 'your travel dates',
 };
 
+const isMismatch = (reason: NoPackReason) => reason !== 'NO_REVIEWED_CHECKLIST';
+
 export type WelcomeChecklists =
   | {
       readonly kind: 'pick';
       readonly travellerUnconfirmed: boolean;
       readonly caseDetailsNeeded?: readonly CaseDetailNeeded[];
     }
-  | { readonly kind: 'none' }
+  | { readonly kind: 'none'; readonly reasons?: readonly NoPackReason[] }
   | { readonly kind: 'unknown' };
 
 /**
@@ -87,6 +93,13 @@ export function caseWelcomeCopy(input: {
         'Add documents and details to the case as you go.',
         'The Requirement Pack section further down shows whether a checklist can be linked.',
       ],
+      action: { href: '#evidence', label: 'Add Evidence' },
+    };
+  }
+  if (checklists.kind === 'none' && (checklists.reasons ?? []).some(isMismatch)) {
+    return {
+      title,
+      body: noChecklistLines(checklists.reasons, { destination: null, purpose: null }),
       action: { href: '#evidence', label: 'Add Evidence' },
     };
   }

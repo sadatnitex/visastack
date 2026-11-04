@@ -22,12 +22,6 @@ vi.mock('@visastack/services', async (importOriginal) => ({
 vi.mock('./source-forms', async () => {
   const { stub } = await import('../../../../../lib/next-mocks.test-support');
   return {
-    AUTHORITY_TIER_LABELS: {
-      GOVERNMENT: 'Government',
-      CONSULATE: 'Consulate or Embassy',
-      OFFICIAL_APPLICATION: 'Official Application Site',
-      AUTHORIZED_VAC: 'Authorized Visa Centre',
-    },
     CandidateDecisionForm: stub('CandidateDecisionForm'),
     CheckNowButton: stub('CheckNowButton'),
     DeactivateSourceButton: stub('DeactivateSourceButton'),
@@ -130,6 +124,12 @@ describe('Pack Studio > Official Sources', () => {
     expect(text).toContain('Not Verified Yet');
     expect(text).toContain('Not Fetched Yet');
     expect(text).toContain('Blocked by the Site');
+  });
+
+  it('names each kind of authority in words, read from a plain module and not a client file', async () => {
+    const text = textOf(await render());
+    expect(text).toContain('Synthetic Authority · Government');
+    expect(text).not.toContain('Synthetic Authority · ·');
   });
 
   it('shows the latest counts and the changes waiting, with the old and new text', async () => {
