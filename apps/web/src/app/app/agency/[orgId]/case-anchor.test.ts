@@ -61,7 +61,6 @@ function resolveRelative(from: string, specifier: string): string | null {
  * entry must still be an offence, so the fix removes its entry here.
  */
 const PENDING = [
-  "/app/app/applicant/[id]/documents/page.tsx imports SAFE_COPY_STATE_LABELS from a 'use client' module",
   "/app/app/admin/packs/sources/page.tsx imports AUTHORITY_TIER_LABELS from a 'use client' module",
 ];
 
