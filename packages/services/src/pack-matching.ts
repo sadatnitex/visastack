@@ -180,13 +180,18 @@ function caseDetailFit(
   conditions: PackRouteConditions | undefined,
   casePostKey: string,
   travelStartDay: string | null,
-): { readonly excluded: boolean; readonly needs: PackMatchNeed[] } {
+): {
+  readonly excluded: boolean;
+  readonly needs: PackMatchNeed[];
+  /** Why a known case value is outside what the pack declares; set only when `excluded`. */
+  readonly why?: 'OTHER_APPLICATION_POST' | 'OUTSIDE_TRAVEL_DATES';
+} {
   const needs: PackMatchNeed[] = [];
   if (!conditions) return { excluded: false, needs };
   if (conditions.consularPosts.length > 0) {
     if (casePostKey.length === 0) needs.push('APPLICATION_POST');
     else if (!conditions.consularPosts.some((post) => postNamed(post, casePostKey))) {
-      return { excluded: true, needs: [] };
+      return { excluded: true, needs: [], why: 'OTHER_APPLICATION_POST' };
     }
   }
   if (conditions.travelFrom !== null || conditions.travelUntil !== null) {
@@ -195,7 +200,7 @@ function caseDetailFit(
       (conditions.travelFrom !== null && travelStartDay < conditions.travelFrom) ||
       (conditions.travelUntil !== null && travelStartDay > conditions.travelUntil)
     ) {
-      return { excluded: true, needs: [] };
+      return { excluded: true, needs: [], why: 'OUTSIDE_TRAVEL_DATES' };
     }
   }
   return { excluded: false, needs };
@@ -212,7 +217,12 @@ export function caseDetailsFit(
   consularPost: string | null,
   travelStart: Date | null,
 ): { readonly excluded: boolean; readonly needs: readonly PackMatchNeed[] } {
-  return caseDetailFit(conditions, packMatchKey(consularPost ?? ''), dayOf(travelStart));
+  const { excluded, needs } = caseDetailFit(
+    conditions,
+    packMatchKey(consularPost ?? ''),
+    dayOf(travelStart),
+  );
+  return { excluded, needs };
 }
 
 /** A trip start as its UTC calendar date, or null when unknown or not a real date. */
@@ -222,13 +232,48 @@ function dayOf(value: Date | null | undefined): string | null {
 }
 
 /**
- * Every published catalogue pack that fits this country and purpose and is not known to be meant
- * for other people, newest version of each, in name order.
+ * Why a case has no checklist to link or pick (VS-006). `NO_REVIEWED_CHECKLIST` means no reviewed
+ * public checklist is published for the destination and purpose at all; the others mean one exists
+ * but is meant for something else about this case. Reasons only explain an empty result and never
+ * change what matches. The case's application post is a different thing from its destination:
+ * `OTHER_APPLICATION_POST` is about the embassy or visa centre, never the country.
  */
-export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Promise<PackMatch[]> {
+export type NoPackReason =
+  | 'NO_REVIEWED_CHECKLIST'
+  | 'OTHER_NATIONALITY'
+  | 'OTHER_RESIDENCE'
+  | 'OTHER_ROUTE'
+  | 'OTHER_APPLICATION_POST'
+  | 'OUTSIDE_TRAVEL_DATES';
+
+/** The order reasons are reported in. */
+const NO_PACK_REASON_ORDER: readonly NoPackReason[] = [
+  'NO_REVIEWED_CHECKLIST',
+  'OTHER_NATIONALITY',
+  'OTHER_RESIDENCE',
+  'OTHER_ROUTE',
+  'OTHER_APPLICATION_POST',
+  'OUTSIDE_TRAVEL_DATES',
+];
+
+interface PublicPackEvaluation {
+  readonly fitting: PackMatch[];
+  /** Catalogue packs for this destination and purpose, before who they are for and case details. */
+  readonly candidates: number;
+  readonly excludedBecause: ReadonlySet<NoPackReason>;
+}
+
+/**
+ * Reads every published catalogue pack for this country and purpose and decides, for each, whether
+ * it fits the case or why it does not. The one place the matching rules live.
+ */
+async function evaluatePublicPacks(db: Db, terms: PackMatchTerms): Promise<PublicPackEvaluation> {
   const countries = keySet(terms.country);
   const purposes = keySet(terms.purpose);
-  if (countries.size === 0 || purposes.size === 0) return [];
+  const excludedBecause = new Set<NoPackReason>();
+  if (countries.size === 0 || purposes.size === 0) {
+    return { fitting: [], candidates: 0, excludedBecause };
+  }
   const nationality = {
     keys: keySet(terms.traveller.nationality.terms),
     known: terms.traveller.nationality.known,
@@ -276,22 +321,33 @@ export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Pro
   const travelStartDay = dayOf(terms.travelStart);
 
   const fitting: PackMatch[] = [];
+  let candidates = 0;
   for (const row of rows) {
     // The database only narrowed the rows; the exact key decides.
     if (row.jurisdiction === null || row.purpose === null) continue;
     if (!countries.has(packMatchKey(row.jurisdiction))) continue;
     if (!purposes.has(packMatchKey(row.purpose))) continue;
+    candidates += 1;
     const byNationality = coverage(row.nationalityApplicability, nationality);
     const byResidence = coverage(row.residenceApplicability, residence);
-    if (byNationality === 'excludes' || byResidence === 'excludes') continue;
     const byRoute = routeFit(row.route, routes);
-    if (byRoute === 'excludes') continue;
     const details = caseDetailFit(
       conditionsByVersion.get(row.packVersionId),
       casePostKey,
       travelStartDay,
     );
-    if (details.excluded) continue;
+    if (
+      byNationality === 'excludes' ||
+      byResidence === 'excludes' ||
+      byRoute === 'excludes' ||
+      details.excluded
+    ) {
+      if (byNationality === 'excludes') excludedBecause.add('OTHER_NATIONALITY');
+      if (byResidence === 'excludes') excludedBecause.add('OTHER_RESIDENCE');
+      if (byRoute === 'excludes') excludedBecause.add('OTHER_ROUTE');
+      if (details.why) excludedBecause.add(details.why);
+      continue;
+    }
     fitting.push({
       packVersionId: row.packVersionId,
       packName: row.packName,
@@ -301,7 +357,32 @@ export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Pro
       ...(details.needs.length > 0 ? { needs: details.needs } : {}),
     });
   }
-  return fitting.sort((a, b) => a.packName.localeCompare(b.packName, 'en'));
+  fitting.sort((a, b) => a.packName.localeCompare(b.packName, 'en'));
+  return { fitting, candidates, excludedBecause };
+}
+
+/**
+ * Every published catalogue pack that fits this country and purpose and is not known to be meant
+ * for other people, newest version of each, in name order.
+ */
+export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Promise<PackMatch[]> {
+  return (await evaluatePublicPacks(db, terms)).fitting;
+}
+
+/**
+ * Why no checklist fits a case (VS-006), for words on the case page. Empty when at least one
+ * checklist fits (even if none can be linked on its own). `NO_REVIEWED_CHECKLIST` alone when no
+ * reviewed public checklist is published for the destination and purpose; otherwise every way the
+ * published ones are meant for something else about this case. Read-only; matching is unchanged.
+ */
+export async function explainNoFittingPack(
+  db: Db,
+  terms: PackMatchTerms,
+): Promise<readonly NoPackReason[]> {
+  const { fitting, candidates, excludedBecause } = await evaluatePublicPacks(db, terms);
+  if (fitting.length > 0) return [];
+  if (candidates === 0) return ['NO_REVIEWED_CHECKLIST'];
+  return NO_PACK_REASON_ORDER.filter((reason) => excludedBecause.has(reason));
 }
 
 /**

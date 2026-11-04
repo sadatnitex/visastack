@@ -7,9 +7,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
 import {
+  MAX_CITATION_LENGTH,
   addPackVersion,
   addRequirement,
   approvePackVersion,
+  citationProblem,
   clearOfficialFeeStale,
   clearRequirementSourceInaccessible,
   createPack,
@@ -110,6 +112,34 @@ describe('Pack Studio — versioned, cited, admin-approved requirement packs', (
     });
     expect(isErr(req)).toBe(true);
     if (isErr(req)) expect(req.error.code).toBe('invalid');
+  });
+
+  it('rejects a new requirement whose citation only fills the box, and keeps real ones (VS-006)', async () => {
+    const pack = await createPack(db, { actorAccountId: actor, key: 'p2b', name: 'P2B' });
+    if (!isOk(pack)) throw new Error('pack');
+    const version = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
+    if (!isOk(version)) throw new Error('version');
+    const add = (citation: string) =>
+      addRequirement(db, {
+        actorAccountId: actor,
+        packVersionId: version.value.id,
+        kind: 'FIELD',
+        fieldKey: 'passport.number',
+        citation,
+      });
+    for (const filler of ['Yes', ' yes. ', 'N/A', 'n/a', 'TBD', 'none', '...', '-', 'See above']) {
+      const refused = await add(filler);
+      expect(isErr(refused), filler).toBe(true);
+      if (isErr(refused)) expect(refused.error.code).toBe('invalid');
+    }
+    const tooLong = await add('a'.repeat(MAX_CITATION_LENGTH + 1));
+    expect(isErr(tooLong)).toBe(true);
+    expect(await listRequirements(db, version.value.id)).toHaveLength(0);
+    // A real citation, and a short but non-filler one used throughout older data, still go in.
+    expect(isOk(await add('Appendix V 4.2'))).toBe(true);
+    expect(isOk(await add('x'))).toBe(true);
+    expect(citationProblem('Visitor guidance, section 4')).toBeNull();
+    expect(citationProblem('yes')).toMatch(/where the requirement comes from/);
   });
 
   it('approves (freezing a checksum), then publishes; content then frozen', async () => {

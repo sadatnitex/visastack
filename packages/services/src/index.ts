@@ -697,7 +697,9 @@ export {
   type RequirementDiffEntry,
   type RequirementInput,
   addPackVersion,
+  MAX_CITATION_LENGTH,
   addRequirement,
+  citationProblem,
   recordRequirementSourceReview,
   approvePackVersion,
   buildManifest,
@@ -1816,11 +1818,13 @@ export {
 } from './ai-clients';
 export { isMissingRelationError } from './missing-relation';
 export {
+  type NoPackReason,
   type PackMatch,
   type PackMatchTerms,
   type TravellerCountries,
   type TravellerCoverage,
   type TravellerMatchTerms,
+  explainNoFittingPack,
   findMatchingPublicPack,
   listFittingPublicPacks,
   packMatchKey,
@@ -3075,3 +3079,10 @@ export {
 export type { PackMatchNeed } from './pack-matching';
 export { latestSourceChecks } from './source-monitor';
 export { type CaseExpiryConflict, caseExpiryConflicts } from './notification-sweep';
+export {
+  type PinnedPackNotice,
+  type SelectablePackVersion,
+  attachSelectedPackVersion,
+  listSelectablePackVersions,
+  pinnedPackNotice,
+} from './umpe-pack-selection';
