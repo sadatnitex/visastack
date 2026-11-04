@@ -76,14 +76,14 @@ describe.each(MAIN_LISTS)('the %s empty state teaches', (_name, path, title) => 
 describe('the buttons point at something on the page that exists', () => {
   it('has each in-page target defined next to the place it leads to', () => {
     for (const [path, target] of [
-      ['components/document-wallet-browser.tsx', '#add-document'],
       ['app/app/applicant/[id]/missions/page.tsx', '#start-case'],
       ['app/app/agency/[orgId]/clients/page.tsx', '#invite-client'],
       ['app/app/agency/[orgId]/clients/page.tsx', '#ask-for-evidence'],
     ] as const) {
       expect(read(path), `${path} ${target}`).toContain(target);
     }
-    expect(read('app/app/applicant/[id]/documents/page.tsx')).toContain('id="add-document"');
+    // The empty document list opens the Add Documents page itself (UX17), not a card on this page.
+    expect(read('components/document-wallet-browser.tsx')).toContain('/documents/add');
     expect(read('app/app/applicant/[id]/missions/page.tsx')).toContain('id="start-case"');
     const clients = read('app/app/agency/[orgId]/clients/page.tsx');
     expect(clients).toContain('id="invite-client"');
