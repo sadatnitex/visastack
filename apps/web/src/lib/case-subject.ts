@@ -25,7 +25,7 @@ export async function caseSubjectFor(
   db: Db,
   accountId: string,
 ): Promise<CaseSubject | null> {
-  const id = pathname ? CASE_PATH.exec(pathname)?.[1] : undefined;
+  const id = pathname ? pathname.match(CASE_PATH)?.[1] : undefined;
   if (!id || !isRecordId(id)) return null;
   try {
     const mission = await getMissionForOwner(db, accountId, id);
