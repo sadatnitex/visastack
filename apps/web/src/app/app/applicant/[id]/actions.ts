@@ -105,6 +105,8 @@ export interface ActionState {
   readonly field?: string;
   /** An added document's title ("Passport, Nazmus"), for an upload list to show. */
   readonly title?: string;
+  /** The added document's id, so the page after an upload can follow that file by itself. */
+  readonly documentId?: string;
   /** The plain line after a refusal a paid plan would help with (ADR 0025 section 12.2). */
   readonly upgrade?: UpgradeLineKind;
   /**
@@ -298,6 +300,7 @@ export async function uploadDocumentAction(
         ok: true,
         message: ALREADY_ADDED_LINE,
         ...(claim.title ? { title: claim.title } : {}),
+        documentId: claim.documentId,
       } satisfies ActionState;
     }
     if (claim.kind === 'in_progress') {
@@ -563,6 +566,7 @@ export async function uploadDocumentAction(
         ? { title: outcome.version.document.approvedName }
         : {}),
       ...(removableCopyId ? { removableCopyId } : {}),
+      documentId: uploadedDocumentId,
     } satisfies ActionState;
   });
 

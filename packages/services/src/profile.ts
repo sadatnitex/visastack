@@ -8,6 +8,7 @@ import { appendAuditEvent } from './audit';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { isRealCalendarDay } from './expiry';
 import { incrementMaterialRevision, missionsSelectingFact } from './material-revision';
 import {
   type Page,
@@ -244,6 +245,11 @@ export async function editFact(
   const fieldDef = await findFieldByKey(db, input.fieldKey);
   if (!fieldDef) {
     return err(serviceError('unknown_field', `unknown field: ${input.fieldKey}`));
+  }
+  // A date field only ever holds a real calendar day (year-month-day), whoever writes it: a typo
+  // or an unreadable reading cannot reach the profile as a date nobody can use.
+  if (fieldDef.dataType === 'date' && !isRealCalendarDay(input.value.trim())) {
+    return err(serviceError('invalid', 'enter a real date, as year, month and day'));
   }
   const repeatingRecordKey = input.repeatingRecordKey ?? null;
   if (!fieldDef.repeating && repeatingRecordKey !== null) {

@@ -1,4 +1,5 @@
 import {
+  DEFAULT_DOCUMENT_PROTECTION,
   accountPrincipal,
   getAiFeatureStates,
   getApplicant,
@@ -6,19 +7,35 @@ import {
   listApplicantProfile,
   listDocumentReadingStates,
   listDocumentsDetailed,
+  listPendingDocumentTypeProposals,
   listPendingProposals,
+  readDocumentProtectionSettings,
   requireAccess,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { AutoRefresh } from '../../../../../components/auto-refresh';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
 import { readingStatusCopy } from '../../../../../lib/document-reading';
+import { evidenceDocumentGroups } from '../../../../../lib/master-profile';
+import { protectedKindsOf } from '../../../../../lib/protected-kinds';
 import { createKeyManagementPort } from '../../../../../lib/providers';
+import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
+import {
+  type BatchFileStage,
+  batchFileLine,
+  currentFlowStep,
+  parseBatch,
+  stageIsWorking,
+} from '../../../../../lib/upload-batch';
 import { DocumentFindings, ReadAgainButton } from '../ai-review';
+import { documentSuggestionView } from '../document-suggestion';
+import { DocumentSuggestionCard } from '../document-suggestion-card';
 import { ReadingStatus } from '../reading-status';
+import { FlowSteps } from './flow-steps';
 
 export const metadata: Metadata = { title: 'What We Found' };
 
@@ -35,10 +52,14 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
  */
 export default async function WhatWeFoundPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
+  readonly searchParams?: Promise<{ batch?: string | string[] }>;
 }) {
   const { id } = await params;
+  // The files just added, when a person arrives from an import: followed one by one below.
+  const batchIds = parseBatch((await searchParams)?.batch);
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
     if (!applicant || applicant.ownerAccountId !== accountId) return null;
@@ -75,8 +96,16 @@ export default async function WhatWeFoundPage({
           .then((states) => states.ai_document_reading.available)
           .catch(() => false)
       : false;
+    // What kind each file looks like and what to call it: nothing is saved until it is accepted.
+    // Extras: if either cannot be read, the page simply offers no kind or name to approve.
+    const [waitingKinds, protection] = await Promise.all([
+      listPendingDocumentTypeProposals(db, id).catch(() => []),
+      readDocumentProtectionSettings(db).catch(() => DEFAULT_DOCUMENT_PROTECTION),
+    ]);
     return {
       name: applicant.displayName,
+      waitingKinds,
+      protection,
       coreGranted,
       proposals,
       reading,
@@ -87,20 +116,34 @@ export default async function WhatWeFoundPage({
   });
   if (!data) notFound();
 
-  // Each file with what was found in it, newest file first; only a reading that came from a file.
-  const groups = data.documents.flatMap((doc) => {
-    const versionId = doc.latestVersionId;
-    if (!versionId) return [];
-    const found = data.proposals.filter(
-      (reading) => reading.proposal.documentVersionId === versionId,
-    );
-    return found.length > 0 ? [{ doc, found }] : [];
+  // In the flow after an import, the page follows only the files just added; otherwise it lists
+  // everything that waits. An address naming no file of this person's is the plain page.
+  const followed = data.documents.filter((doc) => batchIds.includes(doc.id));
+  const inBatch = followed.length > 0;
+  const docs = inBatch ? followed : data.documents;
+
+  const readingOf = (versionId: string | null) =>
+    versionId ? data.reading?.states.get(versionId) : undefined;
+  const foundIn = (versionId: string | null) =>
+    versionId
+      ? data.proposals.filter((reading) => reading.proposal.documentVersionId === versionId)
+      : [];
+  const suggestionOf = (doc: (typeof docs)[number]) => {
+    const waitingKind = data.waitingKinds.find((p) => p.documentVersionId === doc.latestVersionId);
+    return documentSuggestionView(doc, waitingKind, data.name, data.protection);
+  };
+
+  // Each file with what was found in it and any kind and name to approve, newest file first.
+  const groups = docs.flatMap((doc) => {
+    const found = foundIn(doc.latestVersionId);
+    const suggestion = suggestionOf(doc);
+    return found.length > 0 || suggestion ? [{ doc, found, suggestion }] : [];
   });
   const total = groups.reduce((sum, group) => sum + group.found.length, 0);
   // Files nothing was found in, with why and, when asking is on, one tap to read them now.
-  const unread = data.documents.flatMap((doc) => {
+  const unread = docs.flatMap((doc) => {
     const versionId = doc.latestVersionId;
-    const state = versionId ? data.reading?.states.get(versionId) : undefined;
+    const state = readingOf(versionId);
     if (!versionId || state?.stage !== 'could_not_read') return [];
     const copy = readingStatusCopy(state, { canReadAgain: data.canAskToRead });
     return copy ? [{ doc, versionId, state, copy }] : [];
@@ -108,13 +151,76 @@ export default async function WhatWeFoundPage({
   /** Reasons a file was never read at all, so the button says "Read This Document". */
   const NEVER_READ = ['PROTECTED', 'NOT_TRIED', 'FEATURE_OFF', 'SWITCHED_OFF', 'NO_CONSENT'];
 
+  // Where each just-added file stands, so the page says plainly that it is saved and what is next.
+  const rows = inBatch
+    ? followed.map((doc) => {
+        const state = readingOf(doc.latestVersionId);
+        const found = foundIn(doc.latestVersionId).length;
+        const stage: BatchFileStage =
+          state?.stage === 'needs_attention'
+            ? 'needs_attention'
+            : state?.stage === 'checking' || state?.stage === 'reading'
+              ? state.stage
+              : !state && isStillProcessing(doc.processingStatus)
+                ? 'checking'
+                : found > 0
+                  ? 'found'
+                  : suggestionOf(doc)
+                    ? 'name'
+                    : state?.stage === 'could_not_read'
+                      ? 'not_read'
+                      : state?.stage === 'done'
+                        ? 'done'
+                        : 'saved';
+        return { doc, stage, found };
+      })
+    : [];
+  const working = rows.some((row) => stageIsWorking(row.stage));
+  // Done only when every file reached a finished state: a file that needs a look, or whose progress
+  // could not be read, is never reported as finished.
+  const allDone =
+    inBatch &&
+    rows.every((row) => row.stage === 'done') &&
+    groups.length === 0 &&
+    unread.length === 0;
+  const documentGroups = evidenceDocumentGroups();
+  const protectedKinds = protectedKindsOf(documentGroups, data.protection);
+
   return (
     <>
       <PageHeader
-        title="What We Found"
-        description="Details we read from your documents. Nothing is added to your profile until you accept it."
+        title={inBatch ? 'Your Files Are Saved' : 'What We Found'}
+        description={
+          inBatch
+            ? 'We check each file, read it, and bring you the details to approve. Nothing is added to your profile until you accept it.'
+            : 'Details we read from your documents. Nothing is added to your profile until you accept it.'
+        }
         back={{ href: `/app/applicant/${id}`, label: 'Home' }}
       />
+      {inBatch ? <FlowSteps current={allDone ? 'done' : currentFlowStep(working)} /> : null}
+      {inBatch ? (
+        <>
+          <AutoRefresh active={working} />
+          <section className="card u-mb-150" aria-labelledby="flow-files-title">
+            <h2 className="card-title" id="flow-files-title">
+              {rows.length === 1 ? '1 File Saved' : `${rows.length} Files Saved`}
+            </h2>
+            <ul className="flow-files">
+              {rows.map(({ doc, stage, found }) => (
+                <li key={doc.id} className="flow-file" data-stage={stage}>
+                  <span className="flow-file-name">{doc.approvedName ?? doc.originalName}</span>
+                  <span className="flow-file-line">{batchFileLine(stage, found)}</span>
+                </li>
+              ))}
+            </ul>
+            {working ? (
+              <output className="notice">
+                You can leave this page. We keep going, and Home tells you when details are ready.
+              </output>
+            ) : null}
+          </section>
+        </>
+      ) : null}
       {!data.coreGranted ? (
         <article className="card">
           <p className="card-body">
@@ -122,7 +228,25 @@ export default async function WhatWeFoundPage({
             <Link href="/app">Home</Link> to add details to your profile.
           </p>
         </article>
-      ) : groups.length === 0 && unread.length === 0 ? (
+      ) : allDone ? (
+        <article className="card u-mb-150" aria-labelledby="flow-done-title">
+          <h2 className="card-title" id="flow-done-title">
+            All Done
+          </h2>
+          <p className="card-body">
+            {rows.length === 1 ? 'Your file is' : `All ${rows.length} files are`} saved, named and
+            read. Nothing is waiting for you.
+          </p>
+          <div className="upload-drop-actions">
+            <Link className="btn btn-primary" href={`/app/applicant/${id}/profile`}>
+              Open My Profile
+            </Link>
+            <Link className="btn btn-secondary" href={`/app/applicant/${id}/documents/add`}>
+              Add More Documents
+            </Link>
+          </div>
+        </article>
+      ) : groups.length === 0 && unread.length === 0 && !inBatch ? (
         <EmptyState
           title="You Are Up to Date"
           why="Every detail we found has been answered. Add a document to find more."
@@ -134,21 +258,35 @@ export default async function WhatWeFoundPage({
         <>
           {groups.length > 0 ? (
             <p className="card-body u-mb-150">
-              {plural(total, 'Detail', 'Details')} found in{' '}
-              {plural(groups.length, 'document', 'documents')}. Accept the clear ones at once, or
-              one by one. Sensitive details, such as an ID number, are always decided one at a time.
+              {total > 0
+                ? `${plural(total, 'Detail', 'Details')} found in ${plural(
+                    groups.filter((group) => group.found.length > 0).length,
+                    'document',
+                    'documents',
+                  )}. Accept the clear ones at once, or one by one. Sensitive details, such as an ID number, are always decided one at a time.`
+                : 'Check the name we suggest for each document.'}
             </p>
           ) : null}
-          {groups.map(({ doc, found }) => (
+          {groups.map(({ doc, found, suggestion }) => (
             <article key={doc.id} className="card u-mb-150" aria-labelledby={`found-${doc.id}`}>
               <h2 className="card-title" id={`found-${doc.id}`}>
                 {doc.approvedName ?? doc.originalName}
               </h2>
-              <DocumentFindings
-                applicantId={id}
-                canApprove={data.coreGranted}
-                proposals={found.map((reading) => findingViewModel(reading, data.confirmed))}
-              />
+              {suggestion ? (
+                <DocumentSuggestionCard
+                  applicantId={id}
+                  suggestion={suggestion}
+                  groups={documentGroups}
+                  protectedKinds={protectedKinds}
+                />
+              ) : null}
+              {found.length > 0 ? (
+                <DocumentFindings
+                  applicantId={id}
+                  canApprove={data.coreGranted}
+                  proposals={found.map((reading) => findingViewModel(reading, data.confirmed))}
+                />
+              ) : null}
             </article>
           ))}
           {unread.length > 0 ? (
@@ -180,6 +318,11 @@ export default async function WhatWeFoundPage({
                 </article>
               ))}
             </section>
+          ) : null}
+          {inBatch ? (
+            <p className="field-hint">
+              <Link href={`/app/applicant/${id}/review`}>See everything that is waiting</Link>
+            </p>
           ) : null}
         </>
       )}

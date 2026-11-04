@@ -144,6 +144,10 @@ export interface AiProposalViewModel {
   /** The plain name of the field, resolved on the server so added fields are named too. */
   readonly fieldLabel?: string;
   readonly value: string | null;
+  /** How the value is changed by hand, when it is not plain text (decided on the server). */
+  readonly editor?:
+    | { readonly kind: 'date' }
+    | { readonly kind: 'choice'; readonly options: readonly string[] };
   /** 0-100. */
   readonly confidence: number;
   readonly rationale: string | null;
@@ -206,7 +210,14 @@ export function AiProposalReview({
     },
     INITIAL,
   );
-  const [editedValue, setEditedValue] = useState(proposal.value ?? '');
+  // A date is edited with a date picker, which only shows a value written year-month-day. A reading
+  // in any other shape (14 MAR 1990) starts empty, with the words found shown beside it, so the
+  // person picks the date; nothing unreadable is ever saved as a date.
+  const readAsWritten =
+    proposal.editor?.kind === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(proposal.value ?? '')
+      ? (proposal.value ?? '')
+      : '';
+  const [editedValue, setEditedValue] = useState(readAsWritten ? '' : (proposal.value ?? ''));
   const [choice, setChoice] = useState('');
   const headingId = useId();
   const valueId = useId();
@@ -281,18 +292,41 @@ export function AiProposalReview({
             <label className="field-label" htmlFor={valueId}>
               Value to Save
             </label>
-            <input
-              id={valueId}
-              type="text"
-              name="correctedValue"
-              className="input"
-              value={editedValue}
-              onChange={(event) => {
-                setEditedValue(event.target.value);
-                onEditedChange?.(proposal.id, event.target.value !== (proposal.value ?? ''));
-              }}
-            />
-            <small className="muted">Change it if it is not right before you accept.</small>
+            {proposal.editor?.kind === 'choice' ? (
+              <select
+                id={valueId}
+                name="correctedValue"
+                className="input"
+                value={editedValue}
+                onChange={(event) => {
+                  setEditedValue(event.target.value);
+                  onEditedChange?.(proposal.id, event.target.value !== (proposal.value ?? ''));
+                }}
+              >
+                {proposal.editor.options.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id={valueId}
+                type={proposal.editor?.kind === 'date' ? 'date' : 'text'}
+                name="correctedValue"
+                className="input"
+                value={editedValue}
+                onChange={(event) => {
+                  setEditedValue(event.target.value);
+                  onEditedChange?.(proposal.id, event.target.value !== (proposal.value ?? ''));
+                }}
+              />
+            )}
+            <small className="muted">
+              {readAsWritten
+                ? `We read "${readAsWritten}". Pick the date to save.`
+                : 'Change it if it is not right before you accept.'}
+            </small>
           </div>
         ) : null}
         {difference ? (

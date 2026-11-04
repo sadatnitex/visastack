@@ -14596,3 +14596,96 @@ output.notice {
 .app-frame[data-sidebar="collapsed"] .workspace-tools-chevron {
   display: none;
 }
+
+/* WP-UMPE-UX16 Upload flow: the three steps after files are added, and one line per saved file saying where it stands. Flat, tokens only, 44 px rows. */
+.flow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-step {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-tertiary);
+  font-weight: 605;
+}
+
+.flow-step[data-state="current"] {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.flow-step[data-state="done"] {
+  color: var(--success);
+}
+
+.flow-step-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  font-size: 0.85rem;
+}
+
+.flow-step[data-state="current"] .flow-step-mark {
+  background: var(--accent);
+  color: #fff;
+}
+
+.flow-step[data-state="done"] .flow-step-mark {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.flow-files {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.flow-file {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;
+  padding: 10px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.flow-file:first-child {
+  border-top: 0;
+}
+
+.flow-file-name {
+  overflow-wrap: anywhere;
+  font-weight: 605;
+}
+
+.flow-file-line {
+  color: var(--text-secondary);
+}
+
+.flow-file[data-stage="found"] .flow-file-line,
+.flow-file[data-stage="name"] .flow-file-line {
+  color: var(--accent);
+}
+
+.flow-file[data-stage="done"] .flow-file-line {
+  color: var(--success);
+}

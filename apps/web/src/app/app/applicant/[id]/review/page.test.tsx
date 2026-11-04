@@ -28,6 +28,10 @@ vi.mock('../../../../../lib/session', () => ({
     fn({ db: {}, accountId: 'acct-1', email: 'traveller@example.com' }),
 }));
 vi.mock('../../../../../lib/providers', () => ({ createKeyManagementPort: () => undefined }));
+vi.mock('../../../../../components/auto-refresh', () => ({ AutoRefresh: stub('AutoRefresh') }));
+vi.mock('../document-suggestion-card', () => ({
+  DocumentSuggestionCard: stub('DocumentSuggestionCard'),
+}));
 vi.mock('../ai-review', () => ({
   DocumentFindings: stub('DocumentFindings'),
   ReadAgainButton: stub('ReadAgainButton'),
@@ -35,7 +39,13 @@ vi.mock('../ai-review', () => ({
 
 const { default: WhatWeFoundPage } = await import('./page');
 
-const render = () => renderServer(WhatWeFoundPage({ params: Promise.resolve({ id: 'a1' }) }));
+const render = (batch?: string) =>
+  renderServer(
+    WhatWeFoundPage({
+      params: Promise.resolve({ id: 'a1' }),
+      searchParams: Promise.resolve(batch ? { batch } : {}),
+    }),
+  );
 
 const doc = (id: string, name: string) => ({
   id,
@@ -186,5 +196,147 @@ describe('the What We Found page', () => {
       mocks.listDocumentReadingStates.mockRejectedValue(new Error('unavailable'));
       expect(textOf(await render())).toContain('You Are Up to Date');
     });
+  });
+});
+
+describe('the page after an import (upload flow)', () => {
+  const states = (entries: [string, { stage: string; reason?: string }][]) => ({
+    ok: true,
+    value: { states: new Map(entries), sourceOfRun: new Map() },
+  });
+  // The record ids the address carries must be well formed, so the test documents use them.
+  const D1 = '11111111-1111-4111-8111-111111111111';
+  const D2 = '22222222-2222-4222-8222-222222222222';
+  const docs = () => ({
+    ok: true,
+    value: [doc(D1, 'Passport, Nazmus'), doc(D2, 'National ID, Nazmus')],
+  });
+
+  it('says the files are saved, follows only those files, and keeps itself up to date while they are read', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue(docs());
+    mocks.listDocumentReadingStates.mockResolvedValue(
+      states([
+        [`${D1}-v1`, { stage: 'reading' }],
+        [`${D2}-v1`, { stage: 'checking' }],
+      ]),
+    );
+    const html = await render(`${D1},${D2}`);
+    const text = textOf(html);
+    expect(text).toContain('Your Files Are Saved');
+    expect(text).toContain('2 Files Saved');
+    expect(text).toContain('Saved. Reading it now.');
+    expect(text).toContain('Saved. Checking that it is safe.');
+    expect(text).toContain('You can leave this page.');
+    expect(stubProps<{ active: boolean }>(html, 'AutoRefresh')).toEqual([{ active: true }]);
+    expect(html).toContain('aria-current="step"');
+    expect(text).not.toContain('All Done');
+  });
+
+  it('shows the details found in the followed files only, and stops refreshing', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue(docs());
+    mocks.listPendingProposals.mockResolvedValue([
+      reading('p1', `${D1}-v1`),
+      reading('p2', `${D1}-v1`, 'family_name'),
+      reading('p3', `${D2}-v1`),
+    ]);
+    mocks.listDocumentReadingStates.mockResolvedValue(
+      states([
+        [`${D1}-v1`, { stage: 'found' }],
+        [`${D2}-v1`, { stage: 'found' }],
+      ]),
+    );
+    const html = await render(D1);
+    const text = textOf(html);
+    expect(text).toContain('1 File Saved');
+    expect(text).toContain('Saved. 2 details found, waiting for you.');
+    const groups = stubProps<{ proposals: unknown[] }>(html, 'DocumentFindings');
+    expect(groups.map((group) => group.proposals.length)).toEqual([2]);
+    expect(stubProps<{ active: boolean }>(html, 'AutoRefresh')).toEqual([{ active: false }]);
+    expect(html).toContain('href="/app/applicant/a1/review"');
+  });
+
+  it('puts the suggested kind and name on the same card as the details, to approve together', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          ...doc(D1, 'Document, Nazmus'),
+          docType: null,
+          safetyStatus: 'CLEAN',
+          processingStatus: 'AWAITING_REVIEW',
+          pendingNameVersion: {
+            id: 'n1',
+            proposedName: 'Passport - Nazmus - Expires 4 Jun 2031.jpg',
+          },
+          classification: { classifiedType: 'PASSPORT', confidence: 95, reviewRequired: false },
+        },
+      ],
+    });
+    mocks.listPendingProposals.mockResolvedValue([reading('p1', `${D1}-v1`)]);
+    mocks.listDocumentReadingStates.mockResolvedValue(states([[`${D1}-v1`, { stage: 'found' }]]));
+    const html = await render(D1);
+    const cards = stubProps<{ suggestion: { proposedName: string; kind: string } }>(
+      html,
+      'DocumentSuggestionCard',
+    );
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.suggestion.kind).toBe('PASSPORT');
+    expect(cards[0]?.suggestion.proposedName).toContain('Passport');
+    expect(stubProps(html, 'DocumentFindings')).toHaveLength(1);
+  });
+
+  it('says a file waiting only for its name is waiting for its name', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          ...doc(D1, 'Document, Nazmus'),
+          docType: null,
+          safetyStatus: 'CLEAN',
+          processingStatus: 'AWAITING_REVIEW',
+          pendingNameVersion: { id: 'n1', proposedName: 'Passport - Nazmus.jpg' },
+          classification: { classifiedType: 'PASSPORT', confidence: 95, reviewRequired: false },
+        },
+      ],
+    });
+    mocks.listDocumentReadingStates.mockResolvedValue(states([[`${D1}-v1`, { stage: 'done' }]]));
+    const text = textOf(await render(D1));
+    expect(text).toContain('Saved. Its name is waiting for your answer.');
+    expect(text).toContain('Check the name we suggest for each document.');
+    expect(text).not.toContain('All Done');
+  });
+
+  it('ends with All Done and the next steps once everything is answered', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue(docs());
+    mocks.listDocumentReadingStates.mockResolvedValue(
+      states([
+        [`${D1}-v1`, { stage: 'done' }],
+        [`${D2}-v1`, { stage: 'done' }],
+      ]),
+    );
+    const html = await render(`${D1},${D2}`);
+    const text = textOf(html);
+    expect(text).toContain('All Done');
+    expect(text).toContain('All 2 files are saved, named and read.');
+    expect(html).toContain('href="/app/applicant/a1/profile"');
+    expect(html).toContain('href="/app/applicant/a1/documents/add"');
+  });
+
+  it('never says All Done while a file needs a look or its progress cannot be read', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue(docs());
+    mocks.listDocumentReadingStates.mockResolvedValue(
+      states([[`${D1}-v1`, { stage: 'needs_attention' }]]),
+    );
+    const text = textOf(await render(`${D1},${D2}`));
+    expect(text).toContain('Saved. This file needs a look.');
+    expect(text).toContain('Saved. We could not check how far it has got just now.');
+    expect(text).not.toContain('All Done');
+    expect(text).not.toContain('Nothing is waiting for you');
+  });
+
+  it('is the plain page when the address names no file of this person', async () => {
+    const text = textOf(await render('99999999-9999-4999-8999-999999999999,nonsense'));
+    expect(text).toContain('You Are Up to Date');
+    expect(text).not.toContain('Your Files Are Saved');
   });
 });

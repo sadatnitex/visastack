@@ -30,6 +30,7 @@ import {
   uploadIdFromHash,
 } from '../../../../../lib/import/import-queue';
 import { useDropZone } from '../../../../../lib/import/use-drop-zone';
+import { batchHref, canFollowBatch } from '../../../../../lib/upload-batch';
 import { uploadLimitsText } from '../../../../../lib/upload-rules';
 import { UPLOAD_UNKNOWN_OUTCOME } from '../document-uploader';
 import { deleteDuplicateAction, restoreDeletedAction } from '../documents/manage/delete/actions';
@@ -39,6 +40,9 @@ import { deletedLine } from '../documents/manage/delete/messages';
 export const LINES_SHOWN_FIRST = 50;
 
 const DEFAULT_LIMIT_BYTES = 4 * 1024 * 1024;
+
+/** How long "files are saved" stays on screen before the page moves on to What We Found. */
+const AUTO_CONTINUE_MS = 1800;
 
 /** The choice that sends files to the family route, where each waits for Which Person?. */
 const NOT_SURE = '__not_sure';
@@ -364,6 +368,8 @@ export function ImportPanel({
   const sentToFamily = useRef(false);
   // The people other than this page's person that files were actually sent for.
   const sentFor = useRef<ReadonlyMap<string, string>>(new Map());
+  /** Whom each stored document is for, so What We Found opens on the right person's page. */
+  const personOfDocument = useRef(new Map<string, string>());
   const limitsId = useId();
   const dropTitleId = useId();
   const dropHintId = useId();
@@ -427,7 +433,12 @@ export function ImportPanel({
             const name = peopleRef.current.find((person) => person.id === forPerson)?.name;
             if (name) sentFor.current = new Map(sentFor.current).set(forPerson, name);
           }
-          return sendThroughUploadRoute({ ...request, applicantId: forPerson });
+          return sendThroughUploadRoute({ ...request, applicantId: forPerson }).then((outcome) => {
+            if (outcome.kind === 'added' && outcome.documentId) {
+              personOfDocument.current.set(outcome.documentId, forPerson);
+            }
+            return outcome;
+          });
         },
         retryUnknown,
       }),
@@ -448,6 +459,31 @@ export function ImportPanel({
   const pending = counts.waiting > 0;
   const uploading = items.some((item) => item.state === 'uploading');
   const busy = items.some((item) => item.state === 'queued' || item.state === 'uploading');
+  // The files the server confirmed, by id and by person: the next screen follows these one by one.
+  // When every file in the list was added cleanly, for one person, and one address can follow
+  // them all, the page moves there by itself after a short pause that says the files are saved.
+  // With anything else to look at, a button per person does it.
+  const addedByPerson = new Map<string, string[]>();
+  for (const item of items) {
+    if (item.state !== 'added' || !item.documentId) continue;
+    const person = personOfDocument.current.get(item.documentId) ?? applicantId;
+    addedByPerson.set(person, [...(addedByPerson.get(person) ?? []), item.documentId]);
+  }
+  const addedCount = [...addedByPerson.values()].reduce((sum, ids) => sum + ids.length, 0);
+  const onlyPerson = addedByPerson.size === 1 ? [...addedByPerson][0] : undefined;
+  const goTo =
+    onlyPerson &&
+    addedCount === counts.total &&
+    canFollowBatch(addedCount) &&
+    !pending &&
+    !sentToFamily.current
+      ? batchHref(onlyPerson[0], onlyPerson[1])
+      : null;
+  useEffect(() => {
+    if (!goTo) return;
+    const timer = setTimeout(() => router.push(goTo), AUTO_CONTINUE_MS);
+    return () => clearTimeout(timer);
+  }, [goTo, router]);
 
   // The saved list is read in the browser only, after the first paint, so the page is the same
   // with or without it; whatever is waiting to be saved is saved when the page is hidden.
@@ -790,6 +826,16 @@ export function ImportPanel({
       ) : null}
       {counts.total > 0 && !pending ? (
         <nav className="umpe-g1-import-next" aria-label="After This Import">
+          {addedCount > 0 ? (
+            <output className="notice notice-ok">
+              <strong>
+                {addedCount === 1 ? '1 file is saved.' : `${addedCount} files are saved.`}
+              </strong>{' '}
+              {goTo
+                ? 'Taking you to what we found.'
+                : 'Open What We Found to follow them, or stay here to add more.'}
+            </output>
+          ) : null}
           {[...sentFor.current].map(([personId, name]) => (
             <p className="field-hint" key={personId}>
               Files for {name} were saved under {name}.{' '}
@@ -803,10 +849,21 @@ export function ImportPanel({
                 ? 'Most files are sorted on their own. Anything that needs your answer is in Needs One Decision, and details read from your files wait for your approval.'
                 : 'Your files are saved and checked for safety. Automatic reading is off, so nothing was read: you add the details yourself. Anything that needs your answer is in Needs One Decision.'}
           </p>
-          {showNext || sentToFamily.current ? (
+          {addedCount > 0 || showNext || sentToFamily.current ? (
             <div className="upload-drop-actions">
+              {[...addedByPerson].map(([person, ids]) => {
+                const name =
+                  person === applicantId
+                    ? null
+                    : peopleRef.current.find((p) => p.id === person)?.name;
+                return (
+                  <a key={person} className="btn btn-primary" href={batchHref(person, ids)}>
+                    {name ? `See What We Found for ${name}` : 'See What We Found'}
+                  </a>
+                );
+              })}
               <a
-                className="btn btn-primary"
+                className={`btn ${addedCount > 0 ? 'btn-secondary' : 'btn-primary'}`}
                 href={`/app/applicant/${applicantId}/documents#needs-decision`}
               >
                 {sentToFamily.current ? 'Choose Which Person' : 'Open Needs One Decision'}

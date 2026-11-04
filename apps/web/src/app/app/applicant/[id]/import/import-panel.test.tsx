@@ -12,7 +12,8 @@ import { isTitleCase } from '../../../../../lib/title-case';
  */
 
 const refresh = vi.hoisted(() => vi.fn());
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }));
+const push = vi.hoisted(() => vi.fn());
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh, push }) }));
 const actions = vi.hoisted(() => ({ remove: vi.fn(), restore: vi.fn() }));
 vi.mock('../documents/manage/delete/actions', () => ({
   deleteDuplicateAction: actions.remove,
@@ -102,6 +103,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   refresh.mockClear();
+  push.mockClear();
 });
 
 async function mount() {
@@ -442,6 +444,58 @@ describe('the words on the panel', () => {
   });
 });
 
+describe('the files are saved, then What We Found (upload flow)', () => {
+  const ID_ONE = '33333333-3333-4333-8333-333333333333';
+  const ID_TWO = '44444444-4444-4444-8444-444444444444';
+
+  it('says the file is saved and moves on to What We Found by itself', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await mount();
+      await choose([photo('passport.jpg')]);
+      await answer(0, 201, { ...added, documentId: ID_ONE });
+      expect(textOf(host.innerHTML)).toContain('1 file is saved. Taking you to what we found.');
+      expect(push).not.toHaveBeenCalled();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(push).toHaveBeenCalledWith(`/app/applicant/a-1/review?batch=${ID_ONE}`);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('offers See What We Found with every saved file, and does not move on when one needs a look', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await mount();
+      await choose([photo('a.jpg'), photo('b.jpg'), photo('c.jpg')]);
+      await answer(0, 201, { ...added, documentId: ID_ONE });
+      await answer(1, 201, { ...added, documentId: ID_TWO });
+      await answer(2, 400, { message: 'This file type cannot be safely processed.' });
+      const next = host.querySelector('nav[aria-label="After This Import"]');
+      expect(textOf(next?.innerHTML ?? '')).toContain('2 files are saved.');
+      expect(next?.querySelector('a.btn-primary')?.getAttribute('href')).toBe(
+        `/app/applicant/a-1/review?batch=${ID_ONE},${ID_TWO}`,
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(push).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says nothing is saved when no file was confirmed', async () => {
+    await mount();
+    await choose([photo('x.jpg')]);
+    await answer(0, 400, { message: 'This file type cannot be safely processed.' });
+    expect(textOf(host.innerHTML)).not.toContain('is saved');
+    expect(push).not.toHaveBeenCalled();
+  });
+});
+
 describe('after an import, and files for several people (UMPE G1)', () => {
   it('links the finished import to Needs One Decision and the details waiting for approval', async () => {
     await mount();
@@ -582,6 +636,86 @@ describe('after an import, and files for several people (UMPE G1)', () => {
       "Open Sara Uddin's Documents",
     );
     expect(await axeViolations(host.innerHTML)).toEqual([]);
+  });
+
+  it("opens What We Found on the person the files were saved for, never on this page's person", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const people = [
+        { id: 'a-1', name: 'Rahim Uddin' },
+        { id: 'a-2', name: 'Sara Uddin' },
+      ];
+      await act(async () => {
+        root.render(
+          <ImportPanel
+            applicantId="a-1"
+            limitBytes={1000}
+            limitLabel="1 KB"
+            familyBatch
+            people={people}
+          />,
+        );
+      });
+      const select = host.querySelector('select') as HTMLSelectElement;
+      await act(async () => {
+        select.value = 'a-2';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await choose([photo('marriage-1.jpg')]);
+      const saraDoc = '55555555-5555-4555-8555-555555555555';
+      await answer(0, 201, { message: 'Added.', documentId: saraDoc });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      expect(push).toHaveBeenCalledWith(`/app/applicant/a-2/review?batch=${saraDoc}`);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('offers one button per person, and does not move on by itself, when files went to two people', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const people = [
+        { id: 'a-1', name: 'Rahim Uddin' },
+        { id: 'a-2', name: 'Sara Uddin' },
+      ];
+      await act(async () => {
+        root.render(
+          <ImportPanel
+            applicantId="a-1"
+            limitBytes={1000}
+            limitLabel="1 KB"
+            familyBatch
+            people={people}
+          />,
+        );
+      });
+      const select = host.querySelector('select') as HTMLSelectElement;
+      await choose([photo('own.jpg')]);
+      const own = '66666666-6666-4666-8666-666666666666';
+      await answer(0, 201, { message: 'Added.', documentId: own });
+      await act(async () => {
+        select.value = 'a-2';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await choose([photo('hers.jpg')]);
+      const hers = '77777777-7777-4777-8777-777777777777';
+      await answer(1, 201, { message: 'Added.', documentId: hers });
+      const links = Array.from(
+        host.querySelectorAll('nav[aria-label="After This Import"] a.btn-primary'),
+      ).map((a) => [a.textContent, a.getAttribute('href')]);
+      expect(links).toEqual([
+        ['See What We Found', `/app/applicant/a-1/review?batch=${own}`],
+        ['See What We Found for Sara Uddin', `/app/applicant/a-2/review?batch=${hers}`],
+      ]);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(push).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('sends "not sure" to the family route and keeps one person to the ordinary route', async () => {

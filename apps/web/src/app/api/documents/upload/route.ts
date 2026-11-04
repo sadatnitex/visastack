@@ -21,28 +21,31 @@ const IN_PROGRESS_RETRY_AFTER_SECONDS = 5;
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-const json = (
-  message: string,
-  status: number,
-  title?: string,
-  upgrade?: UpgradeLineKind,
-  removableCopyId?: string,
-  extraHeaders: Readonly<Record<string, string>> = {},
-) =>
+interface AnswerExtras {
+  readonly title?: string | undefined;
+  readonly upgrade?: UpgradeLineKind | undefined;
+  /** LC-C: the new document's id, only when it is an exact copy the uploader may remove again. */
+  readonly removableCopyId?: string | undefined;
+  /** The new document's id, so the screen after the upload can follow this file by itself. */
+  readonly documentId?: string | undefined;
+  readonly headers?: Readonly<Record<string, string>>;
+}
+
+const json = (message: string, status: number, extras: AnswerExtras = {}) =>
   Response.json(
     {
       message,
-      ...(title ? { title } : {}),
-      ...(upgrade ? { upgrade } : {}),
-      // LC-C: the new document's id, only when it is an exact copy the uploader may remove again.
-      ...(removableCopyId ? { removableCopyId } : {}),
+      ...(extras.title ? { title: extras.title } : {}),
+      ...(extras.upgrade ? { upgrade: extras.upgrade } : {}),
+      ...(extras.removableCopyId ? { removableCopyId: extras.removableCopyId } : {}),
+      ...(extras.documentId ? { documentId: extras.documentId } : {}),
     },
     {
       status,
       headers: {
         'Cache-Control': 'no-store',
         'X-Content-Type-Options': 'nosniff',
-        ...extraHeaders,
+        ...extras.headers,
       },
     },
   );
@@ -111,25 +114,27 @@ export async function POST(request: Request): Promise<Response> {
       // Turned away by the hourly upload limit before anything was stored: a definite "not now",
       // with how long until the window frees, so a batch import waits instead of guessing.
       if (!result.ok && result.refusal === 'rate_limited') {
-        return json(result.message, 429, undefined, result.upgrade, undefined, {
-          'Retry-After': String(uploadRetryAfterSeconds()),
+        return json(result.message, 429, {
+          upgrade: result.upgrade,
+          headers: { 'Retry-After': String(uploadRetryAfterSeconds()) },
         });
       }
       // The same upload is being stored by another request right now: nothing was stored by this
       // one, so it is a definite "not yet" the browser asks again after.
       if (!result.ok && result.refusal === 'in_progress') {
-        return json(result.message, 503, undefined, undefined, undefined, {
-          'Retry-After': String(result.retryAfterSeconds ?? IN_PROGRESS_RETRY_AFTER_SECONDS),
+        return json(result.message, 503, {
+          headers: {
+            'Retry-After': String(result.retryAfterSeconds ?? IN_PROGRESS_RETRY_AFTER_SECONDS),
+          },
         });
       }
       if (!result.ok && result.refusal === 'upload_conflict') return json(result.message, 409);
-      return json(
-        result.message,
-        result.ok ? 201 : 400,
-        result.ok ? result.title : undefined,
-        result.ok ? undefined : result.upgrade,
-        result.ok ? result.removableCopyId : undefined,
-      );
+      if (!result.ok) return json(result.message, 400, { upgrade: result.upgrade });
+      return json(result.message, 201, {
+        title: result.title,
+        removableCopyId: result.removableCopyId,
+        documentId: result.documentId,
+      });
     }),
   );
 }
