@@ -491,10 +491,9 @@ function homeCardForms(entry: InventoryEntry): readonly InventoryEntry[] {
   const forms: string[] = [];
   const old = entry.name;
   // A person: "Name2 documents · 1 active case[ · 3 open requests][Action Needed]›".
-  const person =
-    /^(.*?)(\d+) documents? \u00b7 (\d+) active cases?(?: \u00b7 (\d+) open requests?)?(Action Needed)?\u203a$/.exec(
-      old,
-    );
+  const person = old.match(
+    /^(.*?)(\d+) documents? \u00b7 (\d+) active cases?(?: \u00b7 (\d+) open requests?)?(Action Needed)?\u203a$/,
+  );
   if (person && /^\/app\/applicant\/[^/]+$/.test(entry.detail ?? '')) {
     const head = person[1] ?? '';
     const digits = person[2] ?? '';
@@ -511,8 +510,8 @@ function homeCardForms(entry: InventoryEntry): readonly InventoryEntry[] {
     }
   }
   // A case: "Title" + "Active case · Person" + progress + [badge] + "›".
-  const caseRow = new RegExp(`^(.*?)Active case \\u00b7 (.*?)${PROGRESS_TEXT}(.*?)\\u203a$`).exec(
-    old,
+  const caseRow = old.match(
+    new RegExp(`^(.*?)Active case \\u00b7 (.*?)${PROGRESS_TEXT}(.*?)\\u203a$`),
   );
   if (caseRow) {
     forms.push(`${caseRow[1]}${caseRow[2]}${caseRow[4]}${caseRow[3]}`);
