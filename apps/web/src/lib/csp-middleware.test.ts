@@ -1,6 +1,6 @@
 import { type NextFetchEvent, type NextMiddleware, NextRequest, NextResponse } from 'next/server';
 import { describe, expect, it } from 'vitest';
-import { createCspMiddleware } from './csp-middleware';
+import { PATHNAME_REQUEST_HEADER, createCspMiddleware } from './csp-middleware';
 import { isNeonProtectedPath } from './identity-selection';
 
 /**
@@ -81,7 +81,8 @@ describe('outside a production build', () => {
 
     const original = get('/app');
     const app = await middleware(original, EVENT);
-    expect(calls).toEqual([original]);
+    expect(calls).toHaveLength(1);
+    expect((calls[0] as NextRequest).url).toBe(original.url);
     expect(app?.headers.get('content-security-policy')).toBeNull();
     expect(app?.headers.get('set-cookie')).toContain('session=sealed');
   });
@@ -349,5 +350,50 @@ describe('a downloaded billing document (S30)', () => {
       const response = await build({ auth: handler })(get(path), EVENT);
       expect(nonceIn(response?.headers.get('content-security-policy') ?? null)).toBe(NONCE);
     }
+  });
+});
+
+describe('the page address handed to the workspace render', () => {
+  const CASE = '/app/mission/00000000-0000-4000-8000-0000000000c1/snapshots';
+
+  it('is set on every workspace page, with the policy on and off', async () => {
+    for (const enabled of [true, false]) {
+      for (const path of ['/app', CASE, '/app/applicant/1']) {
+        const { handler, calls } = fakeSignIn();
+        const response = await build({ auth: handler, enabled })(get(path), EVENT);
+        expect(calls).toHaveLength(1);
+        expect((calls[0] as NextRequest).headers.get(PATHNAME_REQUEST_HEADER)).toBe(path);
+        expect(forwardedHeaders(response as Response).get(PATHNAME_REQUEST_HEADER), path).toBe(path);
+      }
+    }
+  });
+
+  it('cannot be chosen by the client', async () => {
+    for (const enabled of [true, false]) {
+      const { handler, calls } = fakeSignIn();
+      const response = await build({ auth: handler, enabled })(
+        get(CASE, { headers: { [PATHNAME_REQUEST_HEADER]: '/app/mission/someone-elses-case' } }),
+        EVENT,
+      );
+      expect((calls[0] as NextRequest).headers.get(PATHNAME_REQUEST_HEADER)).toBe(CASE);
+      expect(forwardedHeaders(response as Response).get(PATHNAME_REQUEST_HEADER)).toBe(CASE);
+    }
+  });
+
+  it('is not added to, and is removed from, pages outside the workspace', async () => {
+    for (const path of ['/', '/trust', '/collect/account/answers', '/application']) {
+      const response = await build({})(
+        get(path, { headers: { [PATHNAME_REQUEST_HEADER]: CASE } }),
+        EVENT,
+      );
+      expect(forwardedHeaders(response as Response).get(PATHNAME_REQUEST_HEADER), path).toBeNull();
+    }
+  });
+
+  it('leaves the original request body unread when the policy is off', async () => {
+    const original = get('/app/mission/7', { method: 'POST', body: 'form-data-payload' });
+    await build({ enabled: false })(original, EVENT);
+    expect(original.bodyUsed).toBe(false);
+    expect(await original.text()).toBe('form-data-payload');
   });
 });

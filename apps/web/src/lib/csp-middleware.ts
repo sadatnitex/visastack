@@ -15,6 +15,18 @@ import {
 
 type MiddlewareResult = Awaited<ReturnType<NextMiddleware>>;
 
+/**
+ * The request header that carries the page address to the render, for the workspace pages only.
+ * A layout cannot see the address of the page below it, and the case sidebar needs it on the very
+ * first paint. It is always overwritten here, so a client cannot choose it, and it only ever
+ * selects which record the layout then checks with its normal owner read.
+ */
+export const PATHNAME_REQUEST_HEADER = 'x-vs-pathname';
+
+function isWorkspacePath(pathname: string): boolean {
+  return pathname === '/app' || pathname.startsWith('/app/');
+}
+
 export interface CspMiddlewareDeps {
   /** The sign-in middleware (Neon Auth), wrapped unchanged. */
   readonly auth: NextMiddleware;
@@ -51,7 +63,16 @@ export function createCspMiddleware(deps: CspMiddlewareDeps): NextMiddleware {
     const runAuth = deps.needsSignIn(request.nextUrl.pathname);
 
     if (!deps.enabled) {
-      return runAuth ? deps.auth(request, event) : NextResponse.next();
+      if (!isWorkspacePath(request.nextUrl.pathname)) {
+        return runAuth ? deps.auth(request, event) : NextResponse.next();
+      }
+      const plainHeaders = new Headers(request.headers);
+      plainHeaders.set(PATHNAME_REQUEST_HEADER, request.nextUrl.pathname);
+      if (!runAuth) return NextResponse.next({ request: { headers: plainHeaders } });
+      return deps.auth(
+        new NextRequest(request.url, { method: request.method, headers: plainHeaders }),
+        event,
+      );
     }
 
     const nonce = makeNonce();
@@ -70,6 +91,11 @@ export function createCspMiddleware(deps: CspMiddlewareDeps): NextMiddleware {
     requestHeaders.set(NONCE_REQUEST_HEADER, nonce);
     requestHeaders.set(headerName, policy);
     requestHeaders.delete(mode === 'report-only' ? CSP_HEADER_ENFORCE : CSP_HEADER_REPORT_ONLY);
+    if (isWorkspacePath(request.nextUrl.pathname)) {
+      requestHeaders.set(PATHNAME_REQUEST_HEADER, request.nextUrl.pathname);
+    } else {
+      requestHeaders.delete(PATHNAME_REQUEST_HEADER);
+    }
 
     let response: MiddlewareResult = undefined;
     if (runAuth) {
