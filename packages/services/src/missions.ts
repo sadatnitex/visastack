@@ -32,6 +32,7 @@ import {
 } from './lifecycle/foundation';
 import { getLiveAcknowledgement, incrementMaterialRevision } from './material-revision';
 import { cancelQueuedNotificationsForResource } from './notifications';
+import { selectionRefusal } from './pack-selectable';
 import {
   type PackRequirement,
   getManifestFormat,
@@ -253,7 +254,7 @@ type CreateMissionInput = {
   readonly purpose?: string;
   /** IAM-04: an optional free-text label linking this mission to other missions as one family trip. Display/reference only, never an access mechanism (see `itineraryRef`'s own schema comment). */
   readonly itineraryRef?: string;
-  /** CAS-01 case-creation fields (Commercial V1 Part 4 §8). All optional and purely descriptive: none of them gate any authorization decision anywhere else. */
+  /** CAS-01 case-creation fields (Commercial V1 Part 4 §8). All optional and purely descriptive: none of them gate any authorization decision anywhere else. The one exception is `ownerOrganizationId` (set from an accepted agency invitation): it decides which of that agency's private checklists the case owner may pick, never access to anyone's records. */
   readonly jurisdiction?: string;
   readonly serviceCategory?: string;
   readonly travelStartDate?: Date;
@@ -3133,11 +3134,23 @@ function ownerProof<A extends PermissionAction>(
   return ok(proof.resource.mission);
 }
 
-/** The newest published version of the pack behind `packVersionId`, if any. */
+/**
+ * The newest published version of the pack behind `packVersionId`, if any, with what the
+ * checklist-selection rule needs to know about its pack (VS-006).
+ */
 async function latestPublishedVersionOfSamePack(
   db: Db,
   packVersionId: string,
-): Promise<{ id: string; packName: string; version: number } | undefined> {
+): Promise<
+  | {
+      id: string;
+      packName: string;
+      version: number;
+      authoritative: boolean;
+      ownerOrganizationId: string | null;
+    }
+  | undefined
+> {
   const previous = first(
     await db
       .select({ packId: schema.packVersions.packId })
@@ -3152,6 +3165,8 @@ async function latestPublishedVersionOfSamePack(
         id: schema.packVersions.id,
         packName: schema.packs.name,
         version: schema.packVersions.version,
+        authoritative: schema.packs.authoritative,
+        ownerOrganizationId: schema.packs.ownerOrganizationId,
       })
       .from(schema.packVersions)
       .innerJoin(schema.packs, eq(schema.packs.id, schema.packVersions.packId))
@@ -3353,7 +3368,10 @@ async function buildPrepareAgainPlan(
     };
   }
   const latest = await latestPublishedVersionOfSamePack(tx, source.packVersionId);
-  if (!latest) {
+  // VS-006: the new case is a personal case (no agency), so only a reviewed public checklist is
+  // carried forward. An unreviewed pack or an agency's private pack is treated as unavailable and
+  // the new case starts with no checklist, the same as when no version is published any more.
+  if (!latest || selectionRefusal({ ...latest, status: 'PUBLISHED' }, null) !== null) {
     return {
       source: sourceSummary,
       packVersion: null,
@@ -3387,7 +3405,12 @@ async function buildPrepareAgainPlan(
   }
   return {
     source: sourceSummary,
-    packVersion: { ...latest, changedSincePrevious: latest.id !== source.packVersionId },
+    packVersion: {
+      id: latest.id,
+      packName: latest.packName,
+      version: latest.version,
+      changedSincePrevious: latest.id !== source.packVersionId,
+    },
     checklistUnavailable: false,
     notApplicableCount,
     items,
@@ -3528,6 +3551,25 @@ export async function prepareCaseAgain(
       if (!answered.ok) abort(answered.error);
 
       if (plan.packVersion) {
+        // The plan above already holds only a selectable checklist; check again under a share
+        // lock so it cannot be withdrawn or reclassified between the plan and the attach.
+        const target = first(
+          await tx
+            .select({
+              status: schema.packVersions.status,
+              authoritative: schema.packs.authoritative,
+              ownerOrganizationId: schema.packs.ownerOrganizationId,
+            })
+            .from(schema.packVersions)
+            .innerJoin(schema.packs, eq(schema.packs.id, schema.packVersions.packId))
+            .where(eq(schema.packVersions.id, plan.packVersion.id))
+            .limit(1)
+            .for('share'),
+        );
+        const refusal = target
+          ? selectionRefusal(target, mission.ownerOrganizationId)
+          : serviceError('invalid', PLAN_CHANGED);
+        if (refusal) abort(refusal);
         const attached = await attachPackVersion(tx, {
           actorAccountId: ownerAccountId,
           missionId: mission.id,

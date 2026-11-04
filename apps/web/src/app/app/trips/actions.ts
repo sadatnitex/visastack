@@ -31,7 +31,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { after } from 'next/server';
 import type { FormResult } from '../../../components/form-feedback';
-import { caseCountry, casePurpose } from '../../../lib/case-choices';
+import { casePurpose, destinationRefusal, resolveCaseCountry } from '../../../lib/case-choices';
 import { createKeyManagementPort } from '../../../lib/providers';
 import { sendEmailNow } from '../../../lib/send-now';
 import { reportServerError } from '../../../lib/server-error';
@@ -357,8 +357,11 @@ export async function startGroupTripAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const country = caseCountry(String(formData.get('destination') ?? ''));
-  if (!country) return { ok: false, message: 'Choose where you are going.', field: 'destination' };
+  const typedDestination = String(formData.get('destination') ?? '');
+  const country = resolveCaseCountry(typedDestination);
+  if (!country) {
+    return { ok: false, message: destinationRefusal(typedDestination), field: 'destination' };
+  }
   const purpose = casePurpose(String(formData.get('purpose') ?? ''));
   if (!purpose) return { ok: false, message: 'Choose why you are travelling.', field: 'purpose' };
   const travellers = ticked(formData);

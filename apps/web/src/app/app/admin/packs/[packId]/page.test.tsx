@@ -232,3 +232,70 @@ describe('Platform > Rules > one pack', () => {
     expect(mocks.getPack).not.toHaveBeenCalled();
   });
 });
+
+describe('Platform > Rules > one pack: how cases find it (VS-006)', () => {
+  const whole = { ...PACK, jurisdiction: 'United Kingdom', purpose: 'Tourism', route: null };
+
+  it('shows what makes a case find the pack and names no gap when it is complete', async () => {
+    mocks.getPack.mockResolvedValue({ ...whole, ownerOrganizationId: null });
+    const text = textOf(await render());
+    expect(text).toContain('How Cases Find This Pack');
+    expect(text).toContain('For travel to United Kingdom · Tourism');
+    expect(text).toContain('A case finds a pack by the country it travels to');
+    expect(text).not.toContain('never finds this pack');
+    expect(text).not.toContain('Not marked authoritative');
+  });
+
+  it('warns plainly about each gap that keeps cases from finding it', async () => {
+    mocks.getPack.mockResolvedValue({
+      ...PACK,
+      authoritative: false,
+      ownerOrganizationId: null,
+      jurisdiction: null,
+      purpose: null,
+      route: 'Standard Visitor',
+    });
+    const text = textOf(await render());
+    expect(text).toContain('Not marked authoritative, so cases do not find it');
+    expect(text).toContain(
+      'No destination country is set, so a case that names where it travels never finds this pack',
+    );
+    expect(text).toContain('No purpose is set');
+    expect(text).toContain('is never linked on its own');
+  });
+
+  it('calls an unowned, unreviewed pack Not Reviewed and an agency pack an agency checklist', async () => {
+    mocks.getPack.mockResolvedValue({ ...whole, authoritative: false, ownerOrganizationId: null });
+    expect(textOf(await render())).toContain('Not Reviewed');
+    mocks.getPack.mockResolvedValue({ ...whole, authoritative: false, ownerOrganizationId: 'org' });
+    const text = textOf(await render());
+    expect(text).toContain('Agency Custom Checklist');
+    expect(text).toContain("This is an agency's own checklist");
+  });
+
+  it('warns about a published version whose review date has passed, and about no other', async () => {
+    mocks.getPack.mockResolvedValue({ ...whole, ownerOrganizationId: null });
+    mocks.listPackVersions.mockResolvedValue([
+      { ...version(2, 'PUBLISHED'), nextReviewDate: new Date('2020-01-02T00:00:00Z') },
+    ]);
+    const overdue = textOf(await render());
+    expect(overdue).toContain(
+      'Review overdue since 2 January 2020. Cases that hold this version keep it.',
+    );
+    mocks.listPackVersions.mockResolvedValue([
+      { ...version(2, 'PUBLISHED'), nextReviewDate: new Date('2999-01-01T00:00:00Z') },
+    ]);
+    expect(textOf(await render())).not.toContain('Review overdue');
+    mocks.listPackVersions.mockResolvedValue([
+      { ...version(2, 'WITHDRAWN'), nextReviewDate: new Date('2020-01-02T00:00:00Z') },
+    ]);
+    expect(textOf(await render())).not.toContain('Review overdue');
+  });
+
+  it('labels a requirement source as a source', async () => {
+    mocks.getPack.mockResolvedValue({ ...whole, ownerOrganizationId: null });
+    const text = textOf(await render());
+    expect(text).toContain('Source: Rule 0');
+    expect(text).not.toContain('Cite:');
+  });
+});

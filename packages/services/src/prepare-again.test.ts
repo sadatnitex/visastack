@@ -85,7 +85,13 @@ async function activeOrganization(db: Db, ownerEmail: string, name: string) {
   return { adminId: admin.id, organizationId: org.value.id };
 }
 
+/**
+ * Publishes a version of a pack. The pack is a reviewed public checklist afterwards (VS-006: only
+ * such a checklist is carried to a new case), set directly because one account plays every role
+ * here; it is cleared while approving, since an authoritative pack needs a second reviewer.
+ */
 async function publishVersion(db: Db, actor: string, packId: string, extra = false) {
+  await db.update(schema.packs).set({ authoritative: false }).where(eq(schema.packs.id, packId));
   const version = await addPackVersion(db, { actorAccountId: actor, packId });
   if (!isOk(version)) throw new Error('version');
   const add = async (input: Record<string, unknown>) => {
@@ -111,6 +117,7 @@ async function publishVersion(db: Db, actor: string, packId: string, extra = fal
     packVersionId: version.value.id,
   });
   if (!isOk(published)) throw new Error('publish');
+  await db.update(schema.packs).set({ authoritative: true }).where(eq(schema.packs.id, packId));
   return version.value.id;
 }
 
@@ -434,6 +441,77 @@ describe('Prepare Again: sorting one requirement (pure rules)', () => {
     ]);
     const unsafe = classifyPrepareAgainRequirement(docReq, [], [doc('d2', false, null)], none, now);
     expect(unsafe).toMatchObject({ group: 'NEEDS_REVIEW', reason: 'not_usable' });
+  });
+});
+
+describe('Prepare Again carries only a checklist the new case may hold (VS-006)', () => {
+  const start = async (s: Scenario) => {
+    const p = await plan(s);
+    const created = await prepareCaseAgain(await ownerProof(s, 'MANAGE'), {
+      title: 'Japan trip 2027',
+      expectedPackVersionId: p.packVersion?.id ?? null,
+      carry: [],
+      sharing: { allowedGrantIds: [], allowedInvitationIds: [] },
+    });
+    return { p, created };
+  };
+
+  it('carries a reviewed public checklist', async () => {
+    const s = await scenario();
+    const { p, created } = await start(s);
+    expect(p.packVersion?.id).toBe(s.v1);
+    expect(isOk(created) && created.value.packVersionId).toBe(s.v1);
+  });
+
+  it('does not carry an unreviewed checklist: the new case starts with none', async () => {
+    const s = await scenario();
+    await s.db
+      .update(schema.packs)
+      .set({ authoritative: false })
+      .where(eq(schema.packs.id, s.packId));
+    const { p, created } = await start(s);
+    expect(p.packVersion).toBeNull();
+    expect(p.checklistUnavailable).toBe(true);
+    expect(p.items).toEqual([]);
+    expect(isOk(created) && created.value.packVersionId).toBeNull();
+    // The previous case keeps the version it holds.
+    const previous = await s.db
+      .select({ packVersionId: schema.missions.packVersionId })
+      .from(schema.missions)
+      .where(eq(schema.missions.id, s.previousId));
+    expect(previous[0]?.packVersionId).toBe(s.v1);
+  });
+
+  it("does not carry an agency's private checklist to a personal case, reviewed or not", async () => {
+    for (const authoritative of [false, true]) {
+      const s = await scenario();
+      await s.db
+        .update(schema.packs)
+        .set({ ownerOrganizationId: s.a.organizationId, authoritative })
+        .where(eq(schema.packs.id, s.packId));
+      const { p, created } = await start(s);
+      expect(p.packVersion).toBeNull();
+      expect(p.checklistUnavailable).toBe(true);
+      expect(isOk(created) && created.value.packVersionId).toBeNull();
+      expect(isOk(created) && created.value.ownerOrganizationId).toBeNull();
+    }
+  });
+
+  it('refuses when the checklist stops being selectable between the plan and the create', async () => {
+    const s = await scenario();
+    const p = await plan(s);
+    await s.db
+      .update(schema.packs)
+      .set({ authoritative: false })
+      .where(eq(schema.packs.id, s.packId));
+    const created = await prepareCaseAgain(await ownerProof(s, 'MANAGE'), {
+      title: 'Japan trip 2027',
+      expectedPackVersionId: p.packVersion?.id ?? null,
+      carry: [],
+      sharing: { allowedGrantIds: [], allowedInvitationIds: [] },
+    });
+    expect(isErr(created) && created.error.code).toBe('invalid');
+    expect(await missionCount(s)).toBe(1);
   });
 });
 

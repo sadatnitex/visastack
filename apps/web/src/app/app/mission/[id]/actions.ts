@@ -3,7 +3,6 @@
 import type { MissionState } from '@visastack/core';
 import {
   accountPrincipal,
-  attachPackVersion,
   computeReadiness,
   createAppointment,
   createContributorRequest,
@@ -36,7 +35,9 @@ import { redirect } from 'next/navigation';
 import type { UpgradeLineKind } from '../../../../components/upgrade-line';
 import { resolveAiExplainer } from '../../../../lib/ai';
 import { resolveBaseUrl } from '../../../../lib/base-url';
+import { attachChecklistFor, selectableChecklists } from '../../../../lib/case-checklist-match';
 import { caseStateLabel } from '../../../../lib/case-stages';
+import { CHECKLISTS_NOT_LOADED } from '../../../../lib/pack-labels';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { sendEmailNow } from '../../../../lib/send-now';
 import { reportServerError } from '../../../../lib/server-error';
@@ -64,11 +65,21 @@ export async function attachPackAction(
   if (packVersionId.length === 0) return { ok: false, message: 'Choose a pack to attach.' };
 
   const result = await withSession(async ({ db, accountId }) => {
-    const attached = await attachPackVersion(db, {
-      actorAccountId: accountId,
-      missionId,
-      packVersionId,
-    });
+    // The picker only offers checklists that fit the case; the same rule is applied here, on the
+    // server, so a hand-made request cannot attach a reviewed checklist written for another route.
+    const owned = await getMissionForOwner(db, accountId, missionId);
+    if (!owned.ok) return { ok: false, message: owned.error.message } satisfies ActionState;
+    const choices = await selectableChecklists(db, { accountId, mission: owned.value });
+    if (choices.lookupFailed) {
+      return { ok: false, message: CHECKLISTS_NOT_LOADED } satisfies ActionState;
+    }
+    if (!choices.options.some((option) => option.packVersionId === packVersionId)) {
+      return {
+        ok: false,
+        message: 'That checklist does not fit this case. Choose one from the list.',
+      } satisfies ActionState;
+    }
+    const attached = await attachChecklistFor(db, accountId, missionId, packVersionId);
     if (!attached.ok) return { ok: false, message: attached.error.message } satisfies ActionState;
     const readiness = await computeReadiness(db, missionId);
     return {

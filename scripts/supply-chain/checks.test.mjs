@@ -324,6 +324,21 @@ test('the Render image is built by hand from main and holds only the deploy hook
   }
 });
 
+test('Neon staging journeys follow the same reviewed manual main rule', () => {
+  const safe =
+    "on:\n  workflow_dispatch: {}\njobs:\n  journeys:\n    if: github.ref == 'refs/heads/main'\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          persist-credentials: false\n      - run: node scripts/check-staging-target.mjs\n        env:\n          STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}\n";
+  const filename = '.github/workflows/neon-staging-journeys.yml';
+  assert.equal(checkPreviewCredentials(repo({ [filename]: safe })).status, 'passed');
+  for (const bad of [
+    safe.replace("    if: github.ref == 'refs/heads/main'\n", ''),
+    safe.replace('          persist-credentials: false\n', ''),
+    safe.replace('node scripts/check-staging-target.mjs', 'echo missing proof'),
+    safe.replace('workflow_dispatch: {}', 'pull_request: {}'),
+  ]) {
+    assert.equal(checkPreviewCredentials(repo({ [filename]: bad })).status, 'failed');
+  }
+});
+
 test('Neon credentialed acceptance requires reviewed manual main code and staging proof', () => {
   const safe =
     "on:\n  workflow_dispatch: {}\njobs:\n  routes:\n    if: github.ref == 'refs/heads/main'\n    env:\n      STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}\n    steps:\n      - uses: actions/checkout@v4\n        with:\n          persist-credentials: false\n      - run: node scripts/check-staging-target.mjs\n";

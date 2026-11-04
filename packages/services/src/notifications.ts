@@ -95,6 +95,9 @@ export type NotificationEventType =
   | 'MISSION_STATUS_CHANGED'
   | 'EVIDENCE_REPLACEMENT_REQUESTED'
   | 'EVIDENCE_REVIEW_ACCEPTED'
+  // Lane D: a traveller sent evidence for one of the agency's requests; for its owners and admins
+  // only, never naming the person, the kind of file, the file or any reason.
+  | 'EVIDENCE_RESPONSE_RECEIVED'
   | 'APPOINTMENT_SCHEDULED'
   | 'PLATFORM_ROLE_GRANTED'
   | 'PLATFORM_ROLE_REVOKED'
@@ -257,7 +260,12 @@ const BILLING_NOTICE_LIST = [
  * Notices for an agency's owners and admins only, checked again when sent and when listed: the
  * billing notices, and (UMPE P7) a traveller's answer submitted to one of the agency's requests.
  */
-const ADMIN_NOTICE_LIST = [...BILLING_NOTICE_LIST, 'AGENCY_COLLECTION_RESPONSE_SUBMITTED'];
+const ADMIN_NOTICE_LIST = [
+  ...BILLING_NOTICE_LIST,
+  'AGENCY_COLLECTION_RESPONSE_SUBMITTED',
+  // Lane D: evidence arrived on one of the agency's requests.
+  'EVIDENCE_RESPONSE_RECEIVED',
+];
 const BILLING_NOTICE_TYPES: ReadonlySet<string> = new Set(ADMIN_NOTICE_LIST);
 
 /**
@@ -392,6 +400,8 @@ export async function enqueueNotificationBothChannels(
 export async function cancelQueuedNotificationsForResource(
   tx: Db,
   resourceId: string,
+  /** Only this event type (other notices about the same record are left to go out). */
+  eventType?: string,
 ): Promise<{ readonly cancelled: number }> {
   const updated = await tx
     .update(schema.notifications)
@@ -400,6 +410,7 @@ export async function cancelQueuedNotificationsForResource(
       and(
         eq(schema.notifications.resourceId, resourceId),
         eq(schema.notifications.status, 'QUEUED'),
+        eventType === undefined ? undefined : eq(schema.notifications.eventType, eventType),
       ),
     )
     .returning({ id: schema.notifications.id });

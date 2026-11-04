@@ -508,6 +508,8 @@ export const SECRET_WORKFLOW_ALLOWLIST = {
   'workos-staging-e2e.yml': 'legacy staging diagnostics only; never Neon acceptance',
   'neon-staging-routes.yml':
     'manual main-only reviewed revision, independent staging proof before synthetic credentials, no checkout credentials',
+  'neon-staging-journeys.yml':
+    'manual main-only reviewed revision, staging environment limited to main, independent staging proof before synthetic credentials, secrets scoped to single steps, no checkout credentials, never a production target',
   'live-signed-in-check.yml':
     'production deployment or manual run only, live-check environment limited to main, read-only test account sign-in, no checkout credentials, no report upload',
   'render-cron.yml':
@@ -541,7 +543,7 @@ export function checkPreviewCredentials(root, files = trackedFiles(root)) {
       findings.push(`${f} must restrict backup secrets to main and discard checkout credentials`);
     }
     if (
-      base === 'neon-staging-routes.yml' &&
+      (base === 'neon-staging-routes.yml' || base === 'neon-staging-journeys.yml') &&
       usesSecrets &&
       (!/^\s*if:\s*github\.ref == 'refs\/heads\/main'\s*$/m.test(text) ||
         !/^\s*persist-credentials:\s*false\s*$/m.test(text) ||

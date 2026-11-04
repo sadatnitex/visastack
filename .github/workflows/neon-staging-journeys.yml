@@ -1,0 +1,154 @@
+name: Neon staging signed-in journeys
+# Manual, trusted-code, on demand only. There is no schedule, no pull request trigger and no
+# production target. A run drives the real sign-in form with synthetic accounts against an isolated
+# staging deployment of this exact revision (scripts/check-staging-target.mjs refuses anything
+# else). A journey that cannot run FAILS with a message that starts with BLOCKED and names the
+# missing setting; a skipped or retried test also fails the run (scripts/check-authenticated-results.mjs).
+# Green here means the listed journeys ran and passed on staging: it is not evidence about
+# production. Setup and what each journey proves: docs/operations/staging-journeys.md.
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Which journeys to run
+        type: choice
+        default: all
+        options:
+          - all
+          - traveller
+          - case
+          - isolation
+          - loop
+          - guest
+          - ui
+permissions:
+  contents: read
+jobs:
+  signed-in-journeys:
+    if: github.ref == 'refs/heads/main'
+    name: Signed-in journeys on isolated staging, zero skips
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # The secrets live in this environment, whose deployment rule allows main only (owner setup:
+    # docs/operations/staging-journeys.md). They are given to the few steps that need them and to
+    # no other; the install and browser-download steps run package scripts and see none.
+    environment: staging-journeys
+    env:
+      # Settings that are not secret.
+      PLAYWRIGHT_BASE_URL: ${{ vars.E2E_STAGING_BASE_URL }}
+      E2E_EXPECTED_SHA: ${{ github.sha }}
+      E2E_STAGING_DEPLOYMENT_ID: ${{ vars.E2E_STAGING_DEPLOYMENT_ID }}
+      E2E_SYNTHETIC_ISOLATION_VERIFIED: ${{ vars.E2E_SYNTHETIC_ISOLATION_VERIFIED }}
+      E2E_TRAVELLER_ID: ${{ vars.E2E_TRAVELLER_ID }}
+      E2E_CASE_ID: ${{ vars.E2E_CASE_ID }}
+      E2E_AGENCY_ORG_ID: ${{ vars.E2E_AGENCY_ORG_ID }}
+      E2E_UNRELATED_AGENCY_ORG_ID: ${{ vars.E2E_UNRELATED_AGENCY_ORG_ID }}
+      E2E_UK_TOURISM_PACK_SEEDED: ${{ vars.E2E_UK_TOURISM_PACK_SEEDED }}
+      E2E_UK_TOURISM_PACK_LABEL: ${{ vars.E2E_UK_TOURISM_PACK_LABEL }}
+      E2E_UNSUPPORTED_ROUTE_DESTINATION: ${{ vars.E2E_UNSUPPORTED_ROUTE_DESTINATION }}
+      E2E_EXACT_COPY_SERVICE_VERIFIED: ${{ vars.E2E_EXACT_COPY_SERVICE_VERIFIED }}
+      E2E_ACCESS_SEEDED: ${{ vars.E2E_ACCESS_SEEDED }}
+      E2E_GUEST_RECIPIENT_EMAIL: ${{ vars.E2E_GUEST_RECIPIENT_EMAIL }}
+      E2E_GUEST_INBOX_URL: ${{ vars.E2E_GUEST_INBOX_URL }}
+      SUITE: ${{ inputs.suite }}
+    steps:
+      - name: Checkout exact reviewed revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: List which journeys can run (setting names only)
+        env:
+          STAGING_ATTESTATION_SECRET: ${{ secrets.STAGING_ATTESTATION_SECRET }}
+          STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}
+          E2E_GUEST_INBOX_TOKEN: ${{ secrets.E2E_GUEST_INBOX_TOKEN }}
+          NEON_STAGING_TRAVELLER_EMAIL: ${{ secrets.NEON_STAGING_TRAVELLER_EMAIL }}
+          NEON_STAGING_TRAVELLER_PASSWORD: ${{ secrets.NEON_STAGING_TRAVELLER_PASSWORD }}
+          NEON_STAGING_AGENCY_ADMIN_EMAIL: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_EMAIL }}
+          NEON_STAGING_AGENCY_ADMIN_PASSWORD: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_PASSWORD }}
+          NEON_STAGING_UNRELATED_AGENCY_ADMIN_EMAIL: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_EMAIL }}
+          NEON_STAGING_UNRELATED_AGENCY_ADMIN_PASSWORD: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_PASSWORD }}
+          NEON_STAGING_TRAVELLER_TOTP_SECRET: ${{ secrets.NEON_STAGING_TRAVELLER_TOTP_SECRET }}
+          NEON_STAGING_AGENCY_ADMIN_TOTP_SECRET: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_TOTP_SECRET }}
+          NEON_STAGING_UNRELATED_AGENCY_ADMIN_TOTP_SECRET: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_TOTP_SECRET }}
+        run: node scripts/check-staging-journey-setup.mjs
+      - name: Require an exact non-production deployment of this revision
+        env:
+          STAGING_ATTESTATION_SECRET: ${{ secrets.STAGING_ATTESTATION_SECRET }}
+          STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}
+        run: node scripts/check-staging-target.mjs
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Run the signed-in journeys
+        id: journeys
+        working-directory: apps/web
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/signed-in-journeys.json
+          E2E_GUEST_INBOX_TOKEN: ${{ secrets.E2E_GUEST_INBOX_TOKEN }}
+          NEON_STAGING_TRAVELLER_EMAIL: ${{ secrets.NEON_STAGING_TRAVELLER_EMAIL }}
+          NEON_STAGING_TRAVELLER_PASSWORD: ${{ secrets.NEON_STAGING_TRAVELLER_PASSWORD }}
+          NEON_STAGING_AGENCY_ADMIN_EMAIL: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_EMAIL }}
+          NEON_STAGING_AGENCY_ADMIN_PASSWORD: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_PASSWORD }}
+          NEON_STAGING_UNRELATED_AGENCY_ADMIN_EMAIL: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_EMAIL }}
+          NEON_STAGING_UNRELATED_AGENCY_ADMIN_PASSWORD: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_PASSWORD }}
+          NEON_STAGING_TRAVELLER_TOTP_SECRET: ${{ secrets.NEON_STAGING_TRAVELLER_TOTP_SECRET }}
+          NEON_STAGING_AGENCY_ADMIN_TOTP_SECRET: ${{ secrets.NEON_STAGING_AGENCY_ADMIN_TOTP_SECRET }}
+          NEON_STAGING_UNRELATED_AGENCY_ADMIN_TOTP_SECRET: ${{ secrets.NEON_STAGING_UNRELATED_AGENCY_ADMIN_TOTP_SECRET }}
+        run: |
+          files=$(node ../../scripts/check-staging-journey-setup.mjs --files "$SUITE" | sed 's#^#e2e/signed-in/#')
+          # The config runs the spec that ends the agency's access in a last stage that depends on
+          # the first. Choosing a single suite runs just those files, in that same order.
+          flags=""
+          if [ "$SUITE" != all ]; then flags="--no-deps"; fi
+          # shellcheck disable=SC2086
+          pnpm exec playwright test --config=playwright.signed-in.config.ts $flags $files > "$RUNNER_TEMP/signed-in-output.txt" 2>&1
+      - name: Refuse missing, skipped, retried or failed execution evidence
+        if: always()
+        run: |
+          node scripts/check-authenticated-results.mjs "$RUNNER_TEMP/signed-in-journeys.json"
+          echo "Signed-in journeys ran on isolated staging with zero skips. This says nothing about production." >> "$GITHUB_STEP_SUMMARY"
+      - name: Show which journeys were blocked, by message only
+        if: failure()
+        run: grep -h "BLOCKED:" "$RUNNER_TEMP/signed-in-output.txt" | sort -u | head -40 >> "$GITHUB_STEP_SUMMARY" || true
+      # Page captures and timings are written into the output folder by the specs (support/ui.ts,
+      # keepEvidence). A run that executed the journeys and kept nothing is an error, not a pass.
+      - name: Retain synthetic page captures and timings
+        if: always() && steps.journeys.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-in-journey-evidence
+          path: |
+            apps/web/test-results/**/*.png
+            apps/web/test-results/**/*.json
+            apps/web/test-results/**/*.txt
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove raw authenticated diagnostic output
+        if: always()
+        run: rm -f "$RUNNER_TEMP/signed-in-journeys.json" "$RUNNER_TEMP/signed-in-output.txt"
+
+  evidence-result:
+    name: Refuse skipped signed-in journey jobs
+    needs: signed-in-journeys
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      JOURNEY_RESULT: ${{ needs.signed-in-journeys.result }}
+    steps:
+      - name: Require actual successful execution
+        run: |
+          if [ "$JOURNEY_RESULT" != "success" ]; then
+            echo "::error::BLOCKED: signed-in journeys did not complete successfully. Skipped or blocked journeys are not acceptance evidence."
+            echo "Signed-in journey evidence is blocked or failed." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Signed-in journeys ran successfully on isolated staging." >> "$GITHUB_STEP_SUMMARY"

@@ -15095,3 +15095,18 @@ output.notice {
     min-height: 56px;
   }
 }
+/* WP-LANE-H Where are you going: the country box (text with the browser list of names, a hint and a polite status line) stacks on the space tokens, and the Start a Trip form spacing now reads from the same tokens, with the values it already had. Flat, existing tokens only, no new colours. */
+.country-field {
+  display: grid;
+  gap: var(--space-1);
+}
+.trip-start-form {
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.trip-start-travellers {
+  margin: var(--space-2) 0 0;
+}
+.trip-start-cases {
+  margin-top: var(--space-2);
+}

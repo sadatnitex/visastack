@@ -10,6 +10,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -31,10 +32,14 @@ import { WorkspaceRecordToolbar } from './workspace-record-toolbar';
 type Subject = { readonly route: string; readonly applicantId: string };
 const SubjectContext = createContext<((subject: Subject) => void) | null>(null);
 
-/** The case layout supplies a subject only after its existing owner check succeeds. */
+/**
+ * The case layout supplies a subject only after its existing owner check succeeds. It registers
+ * before the browser paints, so moving to a case from another page never shows the neutral sidebar
+ * for a frame; the first load already carries the same subject from the server.
+ */
 export function WorkspaceCaseSubject({ route, applicantId }: Subject) {
   const register = useContext(SubjectContext);
-  useEffect(() => {
+  useLayoutEffect(() => {
     register?.({ route, applicantId });
   }, [register, route, applicantId]);
   return null;
@@ -269,6 +274,7 @@ export function WorkspaceShell({
   toolbarState,
   signOut,
   sidebarState = 'expanded',
+  initialCaseSubject = null,
   children,
 }: {
   readonly access: WorkspaceAccess;
@@ -279,12 +285,19 @@ export function WorkspaceShell({
   readonly signOut: ReactNode;
   /** The sidebar state this device chose, read from its cookie by the layout so the first paint is right. */
   readonly sidebarState?: SidebarState;
+  /**
+   * The traveller behind the case page this load opened, read on the server with the owner's own
+   * check so the first paint is right. It is used only while the address still matches its route.
+   */
+  readonly initialCaseSubject?: Subject | null;
   readonly children: ReactNode;
 }) {
   const pathname = usePathname();
   // Every case this visit has reported (its route and, from the layout's owner check, its
   // traveller), so going back to a case or one of its pages shows its traveller at once.
-  const [subjects, setSubjects] = useState<readonly Subject[]>([]);
+  const [subjects, setSubjects] = useState<readonly Subject[]>(() =>
+    initialCaseSubject ? [initialCaseSubject] : [],
+  );
   const registerSubject = useCallback((next: Subject) => {
     setSubjects((list) =>
       list.some((item) => item.route === next.route && item.applicantId === next.applicantId)

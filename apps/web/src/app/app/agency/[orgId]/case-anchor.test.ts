@@ -75,9 +75,7 @@ function resolveRelative(from: string, specifier: string): string | null {
  * Known offences still waiting for their owner's fix: the page cannot read the real labels. Each
  * entry must still be an offence, so the fix removes its entry here.
  */
-const PENDING = [
-  "/app/app/admin/packs/sources/page.tsx imports AUTHORITY_TIER_LABELS from a 'use client' module",
-];
+const PENDING: string[] = [];
 
 describe('server pages and client modules (VS-023)', () => {
   it('a server file imports only components, never plain values, from a client module', () => {

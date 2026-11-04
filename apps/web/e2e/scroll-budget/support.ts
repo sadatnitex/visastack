@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { type Locator, type Page, expect, test } from '@playwright/test';
@@ -65,9 +65,45 @@ function fixturePath(name: string): string {
 const MOUNT = 'virtual:scroll-budget-mount';
 const bundles = new Map<string, Promise<string>>();
 
+/** What every stand-in server action answers: a refusal that changes nothing. */
+const STAND_IN_ANSWER = "{ ok: false, message: 'Test fixture: nothing was changed.' }";
+
+/**
+ * Opt-in (`renderFixture(..., { standInServerActions: true })`): a product component that submits
+ * a form imports its server action module, which reads the database and cannot be bundled for a
+ * browser. This replaces every module under `src/` that starts with "use server" by one that
+ * exports the same async functions, each answering a refusal that changes nothing. The component
+ * itself stays the real one; only the server end of its form is a stand-in.
+ */
+const standInServerActions = {
+  name: 'stand-in-server-actions',
+  enforce: 'pre' as const,
+  load(id: string) {
+    const file = id.split('?')[0] ?? id;
+    if (file.includes('node_modules') || !file.includes('/src/') || !/\.tsx?$/.test(file)) {
+      return null;
+    }
+    let source: string;
+    try {
+      source = readFileSync(file, 'utf8');
+    } catch {
+      return null;
+    }
+    if (!/^\s*(?:\/\*[\s\S]*?\*\/\s*)?['"]use server['"]/.test(source)) return null;
+    const names = [
+      ...source.matchAll(/export\s+async\s+function\s+(\w+)/g),
+      ...source.matchAll(/export\s+const\s+(\w+)\s*=\s*async/g),
+    ].map((match) => match[1]);
+    return [...new Set(names)]
+      .map((n) => `export async function ${n}() { return ${STAND_IN_ANSWER}; }`)
+      .join('\n');
+  },
+};
+
 /** Bundles one fixture module (its default export is a component) with the real product code. */
-function fixtureBundle(name: string): Promise<string> {
-  const cached = bundles.get(name);
+function fixtureBundle(name: string, standIns: boolean): Promise<string> {
+  const key = `${name}|${standIns ? 'actions' : 'plain'}`;
+  const cached = bundles.get(key);
   if (cached) return cached;
   const entry = fixturePath(name);
   const shared = (file: string) => resolve(__dirname, '..', 'fixtures', file);
@@ -84,6 +120,7 @@ function fixtureBundle(name: string): Promise<string> {
         alias: { 'next/link': shared('link.tsx'), 'next/navigation': shared('navigation.ts') },
       },
       plugins: [
+        ...(standIns ? [standInServerActions] : []),
         {
           name: 'scroll-budget-mount',
           enforce: 'pre',
@@ -122,8 +159,8 @@ function fixtureBundle(name: string): Promise<string> {
     return code;
   })();
   // Never cache a failure: the next caller retries instead of inheriting it.
-  built.catch(() => bundles.delete(name));
-  bundles.set(name, built);
+  built.catch(() => bundles.delete(key));
+  bundles.set(key, built);
   return built;
 }
 
@@ -149,8 +186,13 @@ async function settle(page: Page): Promise<void> {
  * Opens the site's front page for its stylesheet (its own scripts are blocked), then replaces the
  * whole body with the named fixture, rendered with `props`. Props must be plain data.
  */
-export async function renderFixture(page: Page, name: string, props: unknown = {}): Promise<void> {
-  const code = await fixtureBundle(name);
+export async function renderFixture(
+  page: Page,
+  name: string,
+  props: unknown = {},
+  options: { readonly standInServerActions?: boolean } = {},
+): Promise<void> {
+  const code = await fixtureBundle(name, options.standInServerActions === true);
   await page.route('**/*', (route) =>
     route.request().resourceType() === 'script' ? route.abort() : route.continue(),
   );

@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   createMission: vi.fn(),
-  attachPackVersion: vi.fn(),
+  attachChecklistFor: vi.fn(),
   checklistToLink: vi.fn(),
   reportServerError: vi.fn(),
   revalidatePath: vi.fn(),
@@ -19,10 +19,10 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('@visastack/services', () => ({
   createMission: mocks.createMission,
-  attachPackVersion: mocks.attachPackVersion,
 }));
 vi.mock('../../../../../lib/case-checklist-match', () => ({
   checklistToLink: mocks.checklistToLink,
+  attachChecklistFor: mocks.attachChecklistFor,
 }));
 vi.mock('../../../../../lib/server-error', () => ({
   reportServerError: mocks.reportServerError,
@@ -47,7 +47,7 @@ const form = (values: Record<string, string>) => {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.createMission.mockResolvedValue({ ok: true, value: { id: 'case-1' } });
-  mocks.attachPackVersion.mockResolvedValue({ ok: true, value: {} });
+  mocks.attachChecklistFor.mockResolvedValue({ ok: true, value: {} });
   mocks.checklistToLink.mockResolvedValue(null);
 });
 
@@ -69,13 +69,46 @@ describe('createMissionAction: checking the answers', () => {
       form({ title: 'Trip', destination: 'Atlantis', purpose: 'smuggling' }),
     );
     expect(result.fieldErrors).toEqual({
-      destination: 'Choose a country from the list.',
+      destination: 'We could not match that to a country. Pick one from the list.',
       purpose: 'Choose a purpose from the list.',
     });
     expect(result.field).toBe('destination');
     expect(result.message).toBe('Check the 2 fields marked above.');
     expect(result.attempt).toBe(3);
     expect(mocks.createMission).not.toHaveBeenCalled();
+  });
+
+  it.each(['Korea', 'Congo', 'Japan, please', 'gb', 'Not Sure Yet'])(
+    'refuses the text "%s" as a country, saves nothing and never reads it as "not sure yet"',
+    async (typed) => {
+      const result = await createMissionAction(PREV, form({ title: 'Trip', destination: typed }));
+      expect(result.ok).toBe(false);
+      expect(result.field).toBe('destination');
+      expect(result.fieldErrors).toEqual({
+        destination: 'We could not match that to a country. Pick one from the list.',
+      });
+      expect(result.values?.destination).toBe(typed);
+      expect(mocks.createMission).not.toHaveBeenCalled();
+    },
+  );
+
+  it('saves the country a typed name, code or common name stands for, and nothing else', async () => {
+    for (const typed of ['Japan', 'japan ', 'JP', 'Côte d’Ivoire', 'uk']) {
+      mocks.createMission.mockClear();
+      await expect(
+        createMissionAction(PREV, form({ title: 'Trip', destination: typed })),
+      ).rejects.toThrow('REDIRECT');
+      const saved = mocks.createMission.mock.calls[0]?.[1] as { destination?: string };
+      expect(['Japan', "Côte d'Ivoire", 'United Kingdom'], typed).toContain(saved.destination);
+    }
+  });
+
+  it('keeps an empty destination as "not sure yet": no country is saved', async () => {
+    await expect(
+      createMissionAction(PREV, form({ title: 'Trip', destination: '  ' })),
+    ).rejects.toThrow('REDIRECT');
+    const saved = mocks.createMission.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(saved).not.toHaveProperty('destination');
   });
 
   it('refuses an unreal date and a trip that ends before it starts, focusing the first', async () => {
@@ -124,7 +157,7 @@ describe('createMissionAction: a good form', () => {
         PREV,
         form({
           title: ' UK Student Visa ',
-          destination: 'gb',
+          destination: 'United Kingdom',
           purpose: 'tourism',
           jurisdiction: 'British High Commission Dhaka',
           travelStartDate: '2026-12-01',
@@ -162,9 +195,11 @@ describe('createMissionAction: a good form', () => {
     expect(terms.purpose).toEqual(['tourism', 'Tourism']);
     // The traveller is read for the new case, so a checklist for other people is left out.
     expect(terms).toMatchObject({ accountId: 'owner', missionId: 'case-1' });
-    expect(mocks.attachPackVersion).toHaveBeenCalledWith(
+    expect(mocks.attachChecklistFor).toHaveBeenCalledWith(
       { tag: 'db' },
-      { actorAccountId: 'owner', missionId: 'case-1', packVersionId: 'pv-uk' },
+      'owner',
+      'case-1',
+      'pv-uk',
     );
   });
 
@@ -184,7 +219,7 @@ describe('createMissionAction: a good form', () => {
     await expect(
       createMissionAction(PREV, form({ title: 'Trip', destination: 'GB', purpose: 'tourism' })),
     ).rejects.toThrow('REDIRECT');
-    expect(mocks.attachPackVersion).not.toHaveBeenCalled();
+    expect(mocks.attachChecklistFor).not.toHaveBeenCalled();
   });
 
   it('still opens the case when linking the checklist is refused', async () => {
@@ -193,7 +228,7 @@ describe('createMissionAction: a good form', () => {
       packName: 'P',
       version: 1,
     });
-    mocks.attachPackVersion.mockResolvedValue({ ok: false, error: { code: 'invalid' } });
+    mocks.attachChecklistFor.mockResolvedValue({ ok: false, error: { code: 'invalid' } });
     await expect(
       createMissionAction(PREV, form({ title: 'Trip', destination: 'GB', purpose: 'tourism' })),
     ).rejects.toThrow('REDIRECT /app/mission/case-1?welcome=1');
@@ -205,7 +240,7 @@ describe('createMissionAction: a good form', () => {
       createMissionAction(PREV, form({ title: 'Trip', destination: 'GB', purpose: 'tourism' })),
     ).rejects.toThrow('REDIRECT /app/mission/case-1?welcome=1');
     expect(mocks.createMission).toHaveBeenCalledTimes(1);
-    expect(mocks.attachPackVersion).not.toHaveBeenCalled();
+    expect(mocks.attachChecklistFor).not.toHaveBeenCalled();
     expect(mocks.reportServerError).toHaveBeenCalledWith('createMissionAction', expect.any(Error), {
       step: 'checklist link',
     });
@@ -213,7 +248,7 @@ describe('createMissionAction: a good form', () => {
 
   it('never shows an error once the case exists: a failed link still opens the new case', async () => {
     mocks.checklistToLink.mockResolvedValue({ packVersionId: 'pv', packName: 'P', version: 1 });
-    mocks.attachPackVersion.mockRejectedValue(new Error('deadlock'));
+    mocks.attachChecklistFor.mockRejectedValue(new Error('deadlock'));
     await expect(
       createMissionAction(PREV, form({ title: 'Trip', destination: 'GB', purpose: 'tourism' })),
     ).rejects.toThrow('REDIRECT /app/mission/case-1?welcome=1');

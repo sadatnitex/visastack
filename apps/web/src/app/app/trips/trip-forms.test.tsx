@@ -263,3 +263,23 @@ describe('Remove for a companion asks once', () => {
     expect(button('Remove')?.getAttribute('aria-label')).toBe('Remove: Nadia Rahman');
   });
 });
+
+describe('Start a Group Trip: where are you going?', () => {
+  it('is a text box with the list of country names, sent as typed for the server to check', () => {
+    const countries = [
+      { iso2: 'JP', name: 'Japan' },
+      { iso2: 'GB', name: 'United Kingdom', aka: ['UK'] },
+    ];
+    act(() =>
+      root.render(<GroupTripStartForm countries={countries} purposes={[]} travellers={people} />),
+    );
+    expect(container.querySelector('select[name="destination"]')).toBeNull();
+    const box = field('destination');
+    expect(box?.type).toBe('text');
+    expect(box?.getAttribute('autocomplete')).toBe('off');
+    const options = container.querySelectorAll(
+      `datalist[id="${box?.getAttribute('list')}"] option`,
+    );
+    expect([...options].map((o) => o.getAttribute('value'))).toEqual(['Japan', 'United Kingdom']);
+  });
+});

@@ -1,23 +1,18 @@
 'use server';
 
-import {
-  type Db,
-  accountPrincipal,
-  attachPackVersion,
-  openOrStartTripCase,
-  requireAccess,
-} from '@visastack/services';
+import { type Db, accountPrincipal, openOrStartTripCase, requireAccess } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
-import { checklistToLink } from '../../../../lib/case-checklist-match';
+import { attachChecklistFor, checklistToLink } from '../../../../lib/case-checklist-match';
 import {
   type CaseCountryOption,
   type CasePurposeOption,
-  caseCountry,
   casePurpose,
   countryMatchTerms,
+  destinationRefusal,
   purposeMatchTerms,
+  resolveCaseCountry,
 } from '../../../../lib/case-choices';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
@@ -56,11 +51,7 @@ async function linkChecklistIfOneFits(
       purpose: purposeMatchTerms(purpose),
     });
     if (!match) return;
-    const attached = await attachPackVersion(db, {
-      actorAccountId: accountId,
-      missionId,
-      packVersionId: match.packVersionId,
-    });
+    const attached = await attachChecklistFor(db, accountId, missionId, match.packVersionId);
     if (!attached.ok) {
       reportServerError('startTripAction', new Error(attached.error.code), {
         step: 'checklist link refused',
@@ -75,8 +66,11 @@ export async function startTripAction(
   _prev: TripStartState,
   formData: FormData,
 ): Promise<TripStartState> {
-  const country = caseCountry(String(formData.get('destination') ?? ''));
-  if (!country) return { ok: false, message: 'Choose where you are going.', field: 'destination' };
+  const typedDestination = String(formData.get('destination') ?? '');
+  const country = resolveCaseCountry(typedDestination);
+  if (!country) {
+    return { ok: false, message: destinationRefusal(typedDestination), field: 'destination' };
+  }
   const purpose = casePurpose(String(formData.get('purpose') ?? ''));
   if (!purpose) return { ok: false, message: 'Choose why you are travelling.', field: 'purpose' };
   const travellers = [

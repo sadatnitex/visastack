@@ -4,9 +4,11 @@ import {
   caseCountry,
   caseCountryOptions,
   casePurposeGroups,
+  resolveCaseCountry,
   savedCaseMatchTerms,
   travellerMatchTerms,
 } from './case-choices';
+import { COUNTRY_ALIASES } from './country-start';
 
 describe('case choices', () => {
   it('takes a country only from the picker list, by its code in any case', () => {
@@ -86,5 +88,58 @@ describe('case choices', () => {
     expect([...caseCountriesForFamily(cases, 'study')]).toEqual(['IE']);
     expect([...caseCountriesForFamily(cases, 'visit')]).toEqual(['US']);
     expect(caseCountriesForFamily([], 'study').size).toBe(0);
+  });
+});
+
+describe('the destination box: a typed answer becomes one validated country or nothing', () => {
+  it('turns every country in the list, by its whole name, into that country and no other', () => {
+    for (const country of caseCountryOptions()) {
+      const wanted = { iso2: country.iso2, name: country.name };
+      expect(resolveCaseCountry(country.name), country.name).toEqual(wanted);
+      expect(resolveCaseCountry(country.name.toUpperCase()), country.name).toEqual(wanted);
+      expect(resolveCaseCountry(`  ${country.name.toLowerCase()}  `), country.name).toEqual(wanted);
+      expect(resolveCaseCountry(country.iso2), country.iso2).toEqual(wanted);
+    }
+  });
+
+  it('reads the other names people use, each for exactly one country', () => {
+    const claimed = new Map<string, string>();
+    for (const [iso2, names] of Object.entries(COUNTRY_ALIASES)) {
+      for (const name of names) {
+        expect(resolveCaseCountry(name)?.iso2, name).toBe(iso2);
+        const key = name.toLowerCase();
+        expect(claimed.get(key), `${name} is claimed twice`).toBeUndefined();
+        claimed.set(key, iso2);
+      }
+    }
+    expect(resolveCaseCountry('uk')?.iso2).toBe('GB');
+    expect(resolveCaseCountry('Holland')?.name).toBe('Netherlands');
+  });
+
+  it('does not mind accents, hyphens, apostrophes or extra spaces', () => {
+    expect(resolveCaseCountry("Cote d'Ivoire")?.iso2).toBe('CI');
+    expect(resolveCaseCountry('Côte d’Ivoire')?.iso2).toBe('CI');
+    expect(resolveCaseCountry('timor leste')?.iso2).toBe('TL');
+    expect(resolveCaseCountry('United   Kingdom')?.iso2).toBe('GB');
+  });
+
+  it('refuses part of a name, a name two countries share, and anything else', () => {
+    for (const text of [
+      '',
+      '   ',
+      'Korea',
+      'Congo',
+      'United',
+      'Unit',
+      'Atlantis',
+      'Japanese',
+      'gb',
+      'ZZ',
+      'GBR',
+      'Japan, please',
+      'Not Sure Yet',
+    ]) {
+      expect(resolveCaseCountry(text), text).toBeNull();
+    }
   });
 });

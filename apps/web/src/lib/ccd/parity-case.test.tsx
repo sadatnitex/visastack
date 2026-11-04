@@ -28,7 +28,8 @@ const mocks = vi.hoisted(() => ({
   listMissionsByItineraryRef: vi.fn(),
   listNotesForOwner: vi.fn(),
   listOutcomesForMission: vi.fn(),
-  listPublishedPackVersions: vi.fn(),
+  listSelectablePackVersions: vi.fn(),
+  explainNoFittingPack: vi.fn(),
   listRequirements: vi.fn(),
   listSelectedEvidence: vi.fn(),
   listSubmissionsForMission: vi.fn(),
@@ -154,7 +155,8 @@ function setUp(
   mocks.listMissionSnapshots.mockResolvedValue(ok({ items: [], nextCursor: null }));
   mocks.listComplaintsForMission.mockResolvedValue(ok({ items: [], total: 0 }));
   mocks.listFeedbackForMission.mockResolvedValue(ok({ items: [], total: 0 }));
-  mocks.listPublishedPackVersions.mockResolvedValue([]);
+  mocks.listSelectablePackVersions.mockResolvedValue(ok([]));
+  mocks.explainNoFittingPack.mockResolvedValue([]);
   mocks.listFittingPublicPacks.mockResolvedValue([]);
   mocks.readTravellerCoverage.mockResolvedValue({ nationality: ['Bangladeshi'], residence: [] });
   mocks.listMissionsByItineraryRef.mockResolvedValue([]);
