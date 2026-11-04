@@ -79,9 +79,9 @@ describe('describeReading', () => {
     ];
     for (const view of views) {
       expect(isTitleCase(view.headline)).toBe(true);
-      expect(`${view.headline} ${view.detail}`).not.toMatch(
-        /—|consent flag|feature flag|API|token/i,
-      );
+      const words = `${view.headline} ${view.detail}`;
+      expect(words).not.toMatch(/consent flag|feature flag|API|token/i);
+      expect(words).not.toContain(String.fromCharCode(0x2014));
     }
   });
 });
