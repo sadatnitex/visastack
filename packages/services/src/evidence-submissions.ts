@@ -262,7 +262,7 @@ export interface EvidenceSubmissionDownloadInput {
    * A recent identity confirmation by this agency admin for exactly this version
    * (`verifyStepUp`, action `DOWNLOAD_ORIGINAL`), as every original download needs.
    */
-  readonly stepUp?: StepUpProof;
+  readonly stepUp?: StepUpProof | undefined;
   readonly now?: Date;
 }
 

@@ -588,7 +588,8 @@ describe('Lane D: listing the copies', () => {
     for (const refused of [summit, bob, missing, malformed]) {
       expect(isErr(refused) && refused.error.code).toBe('not_found');
     }
-    expect(isErr(summit) && isErr(missing) && summit.error).toEqual(missing.error);
+    if (!isErr(summit) || !isErr(missing)) throw new Error('both must be refused');
+    expect(summit.error).toEqual(missing.error);
   });
 
   it('refuses an agency whose grant was revoked after the proof was made', async () => {
