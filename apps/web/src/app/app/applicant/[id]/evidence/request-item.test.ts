@@ -145,7 +145,10 @@ describe('guidance states what to do without inventing a rule or a promise', () 
     );
     expect(
       requestItemView({ request: { status: 'NEEDS_REPLACEMENT', kind: 'DOCUMENT' } }).guidance,
-    ).toContain('send a replacement');
+    ).toContain('upload a clearer copy');
+    expect(
+      requestItemView({ request: { status: 'NEEDS_REPLACEMENT', kind: 'FIELD' } }).guidance,
+    ).not.toContain('clearer copy');
   });
 });
 

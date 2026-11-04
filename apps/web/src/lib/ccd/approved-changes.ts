@@ -372,6 +372,16 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason:
       'D3 and D2: the page is "Evidence Requests", eyebrow the traveller\'s name, as the one page heading.',
   },
+  {
+    screen: 'evidence',
+    from: { kind: 'text', name: 'Next: send a replacement. The reason is shown below.' },
+    to: {
+      kind: 'text',
+      name: 'Next: send a replacement, or upload a clearer copy first. The reason is shown below.',
+    },
+    reason:
+      'Excellence lane E: a sent-back document request now offers Upload a Clearer Copy, so the guidance says so.',
+  },
   ...[
     { kind: 'text', name: 'No Evidence Requests' },
     {
