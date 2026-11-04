@@ -8,8 +8,8 @@
  *
  * Kept in its own file with no service imports so any module can ask without a circular import.
  */
-import { sql } from 'drizzle-orm';
-import type { Db } from './db';
+import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { type Db, schema } from './db';
 
 const SUBMISSION_TABLES = [
   'evidence_request_submissions',
@@ -43,4 +43,38 @@ export function pinnedVersionIntact(
     version.storageObjectId === submission.storageObjectId &&
     (version.sha256 ?? null) === (submission.contentSha256 ?? null)
   );
+}
+
+/**
+ * A decision on this request, made after the send was recorded, that is not linked to any send. It
+ * means an older deployment (running beside the new one) decided the request without knowing about
+ * exact copies, so the send was in fact already decided and must not serve bytes or be decided
+ * again. Returns the earliest such decision, or undefined.
+ */
+export async function newerUnlinkedDecision(
+  db: Db,
+  requestId: string,
+  sentAt: Date,
+): Promise<{ id: string; outcome: string; decidedAt: Date } | undefined> {
+  const rows = await db
+    .select({
+      id: schema.evidenceRequestDecisions.id,
+      outcome: schema.evidenceRequestDecisions.outcome,
+      decidedAt: schema.evidenceRequestDecisions.createdAt,
+    })
+    .from(schema.evidenceRequestDecisions)
+    .leftJoin(
+      schema.evidenceRequestDecisionSubmissions,
+      eq(schema.evidenceRequestDecisionSubmissions.decisionId, schema.evidenceRequestDecisions.id),
+    )
+    .where(
+      and(
+        eq(schema.evidenceRequestDecisions.evidenceRequestId, requestId),
+        gt(schema.evidenceRequestDecisions.createdAt, sentAt),
+        isNull(schema.evidenceRequestDecisionSubmissions.decisionId),
+      ),
+    )
+    .orderBy(asc(schema.evidenceRequestDecisions.createdAt))
+    .limit(1);
+  return rows[0];
 }

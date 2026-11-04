@@ -8,7 +8,20 @@ import type {
 } from '@visastack/core';
 import { type Result, err, ok } from '@visastack/core';
 import { authorize } from '@visastack/policy';
-import { type SQL, and, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import {
+  type SQL,
+  and,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';
 import {
   loadCaseExclusions,
   orgCaseRecordVisibleSql,
@@ -22,12 +35,17 @@ import { type Db, first, required, schema } from './db';
 import { isDocumentVersionUsable } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
-import { evidenceSubmissionsPresent, pinnedVersionIntact } from './evidence-submission-tables';
+import {
+  evidenceSubmissionsPresent,
+  newerUnlinkedDecision,
+  pinnedVersionIntact,
+} from './evidence-submission-tables';
 import {
   lifecycleTablesPresent,
   presentApplicantCondition,
   presentDocumentCondition,
 } from './lifecycle/foundation';
+import { isUuid } from './lifecycle/foundation/ids';
 import {
   cancelQueuedNotificationsForResource,
   enqueueNotificationBothChannels,
@@ -2576,6 +2594,8 @@ async function readEvidenceRequest(
   requestId: string,
   lock: boolean,
 ): Promise<EvidenceRequest | undefined> {
+  // A malformed id is answered like a missing one, never as a server error.
+  if (!isUuid(requestId)) return undefined;
   const query = db
     .select()
     .from(schema.evidenceRequests)
@@ -2618,8 +2638,9 @@ async function loadEvidenceRequestForOrg(
 ): Promise<Result<EvidenceRequest, ServiceError>> {
   const request = await readEvidenceRequest(db, requestId, lock);
   if (!request) return err(serviceError('not_found', 'evidence request not found'));
+  // Someone who is not an admin of the asking organisation is told the request does not exist.
   if (!(await isOrgAdmin(db, actorAccountId, request.organizationId))) {
-    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can act on this request'));
+    return err(serviceError('not_found', 'evidence request not found'));
   }
   if (
     !(await orgGrantPermits(
@@ -2657,7 +2678,8 @@ export type EvidenceDecisionResult = EvidenceRequest & {
   readonly decidedSubmissionId: string | null;
 };
 
-const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
+/** A retry key the page makes up (random, 16 to 200 plain characters); nothing else is accepted. */
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{16,200}$/;
 
 /**
  * The applicant owner submits a fact or document they already hold, a fresh
@@ -2697,11 +2719,18 @@ export async function submitEvidenceResponse(
     readonly idempotencyKey?: string;
   },
 ): Promise<Result<EvidenceSubmitResult, ServiceError>> {
-  if (
-    input.idempotencyKey !== undefined &&
-    (input.idempotencyKey.length === 0 || input.idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH)
-  ) {
+  if (input.idempotencyKey !== undefined && !IDEMPOTENCY_KEY.test(input.idempotencyKey)) {
     return err(serviceError('invalid', 'the retry key is not valid'));
+  }
+  // Malformed ids are answered like missing ones, never as a server error.
+  if (
+    (input.documentId !== undefined && !isUuid(input.documentId)) ||
+    (input.documentVersionId !== undefined && !isUuid(input.documentVersionId))
+  ) {
+    return err(serviceError('not_found', 'document not found for this applicant'));
+  }
+  if (input.factId !== undefined && !isUuid(input.factId)) {
+    return err(serviceError('not_found', 'fact not found for this applicant'));
   }
   const exact = await evidenceSubmissionsPresent(db);
   const lifecycle = await lifecycleTablesPresent(db);
@@ -2716,11 +2745,13 @@ export async function submitEvidenceResponse(
     if (!loaded.ok) return loaded;
     const request = loaded.value;
 
-    // A retry of a send already recorded: answered with that send, nothing written.
+    // A retry of a send already recorded is answered with that send and nothing is written, but
+    // only while that send is still the newest, still undecided, and names the same file. Anything
+    // else is not a retry: the person is told the page is out of date, never given a silent "sent".
     if (exact && input.idempotencyKey !== undefined) {
       const earlier = first(
         await tx
-          .select({ id: schema.evidenceRequestSubmissions.id })
+          .select()
           .from(schema.evidenceRequestSubmissions)
           .where(
             and(
@@ -2730,7 +2761,27 @@ export async function submitEvidenceResponse(
           )
           .limit(1),
       );
-      if (earlier) return ok({ ...request, submissionId: earlier.id, replayed: true });
+      if (earlier) {
+        if (
+          input.documentId !== earlier.documentId ||
+          (input.documentVersionId !== undefined &&
+            input.documentVersionId !== earlier.documentVersionId)
+        ) {
+          return err(
+            serviceError('invalid', 'this retry key was already used for a different file'),
+          );
+        }
+        const waiting = await waitingSubmission(tx, request);
+        if (waiting?.id !== earlier.id) {
+          return err(
+            serviceError(
+              'stale',
+              'This was already sent and has moved on. Refresh to see where it stands.',
+            ),
+          );
+        }
+        return ok({ ...request, submissionId: earlier.id, replayed: true });
+      }
     }
 
     if (!AWAITING_SUBMISSION_STATUSES.has(request.status)) {
@@ -2884,7 +2935,7 @@ export async function submitEvidenceResponse(
               titleAtSend: pin.title,
               sentByAccountId: input.actorAccountId,
               grantIdAtSend: grantId,
-              idempotencyKey: input.idempotencyKey ?? `round-${roundNo}`,
+              idempotencyKey: input.idempotencyKey ?? `auto:round-${roundNo}`,
             })
             .returning({ id: schema.evidenceRequestSubmissions.id }),
         ),
@@ -2968,22 +3019,28 @@ export async function startEvidenceReview(
   db: Db,
   input: { readonly actorAccountId: string; readonly requestId: string },
 ): Promise<Result<EvidenceRequest, ServiceError>> {
-  const loaded = await loadEvidenceRequestForOrg(db, input.actorAccountId, input.requestId);
-  if (!loaded.ok) return loaded;
-  if (loaded.value.status !== 'RECEIVED') {
-    return err(serviceError('invalid', 'only a RECEIVED request can start review'));
-  }
-  const updated = required(
-    first(
-      await db
+  return db.transaction(async (tx) => {
+    const loaded = await loadEvidenceRequestForOrg(tx, input.actorAccountId, input.requestId, true);
+    if (!loaded.ok) return loaded;
+    if (loaded.value.status !== 'RECEIVED') {
+      return err(serviceError('invalid', 'only a RECEIVED request can start review'));
+    }
+    // Only a request still RECEIVED moves: a decision made in the meantime is never undone by this.
+    const updated = first(
+      await tx
         .update(schema.evidenceRequests)
         .set({ status: 'UNDER_REVIEW', updatedAt: new Date() })
-        .where(eq(schema.evidenceRequests.id, input.requestId))
+        .where(
+          and(
+            eq(schema.evidenceRequests.id, input.requestId),
+            eq(schema.evidenceRequests.status, 'RECEIVED'),
+          ),
+        )
         .returning(),
-    ),
-    'evidence request',
-  );
-  return ok(updated);
+    );
+    if (!updated) return err(serviceError('invalid', 'only a RECEIVED request can start review'));
+    return ok(updated);
+  });
 }
 
 const DECIDABLE_STATUSES: ReadonlySet<string> = new Set(['RECEIVED', 'UNDER_REVIEW']);
@@ -3047,6 +3104,9 @@ export async function decideEvidenceResponse(
     readonly submissionId?: string;
   },
 ): Promise<Result<EvidenceDecisionResult, ServiceError>> {
+  if (input.submissionId !== undefined && !isUuid(input.submissionId)) {
+    return err(serviceError('not_found', 'evidence request not found'));
+  }
   const exact = await evidenceSubmissionsPresent(db);
   const lifecycle = await lifecycleTablesPresent(db);
 
@@ -3099,9 +3159,22 @@ export async function decideEvidenceResponse(
         ),
       );
     }
-    if (input.outcome === 'ACCEPTED' && pinned) {
-      const problem = await pinnedCopyProblem(tx, pinned, lifecycle);
-      if (problem) return err(serviceError('invalid', problem));
+    if (input.outcome === 'ACCEPTED' && request.kind === 'DOCUMENT') {
+      // Nothing was ever pointed at, so there is nothing to accept.
+      if (request.respondingDocumentId === null) {
+        return err(serviceError('invalid', 'this request has nothing submitted to decide on yet'));
+      }
+      if (pinned) {
+        const problem = await pinnedCopyProblem(tx, pinned, lifecycle);
+        if (problem) return err(serviceError('invalid', problem));
+      } else {
+        // A send recorded before exact copies were kept: the newest version of the document it
+        // points at must still be usable evidence (the check the older flow made at send time).
+        const newest = await chooseSendVersion(tx, request.respondingDocumentId, undefined);
+        if (!newest || !(await versionIsUsable(tx, newest))) {
+          return err(serviceError('invalid', UNAVAILABLE_COPY));
+        }
+      }
     }
 
     // The request moves only if it still waits for a decision (the row is locked, so it does).
@@ -3226,6 +3299,9 @@ export async function decideEvidenceResponse(
 
 type SubmissionRecord = typeof schema.evidenceRequestSubmissions.$inferSelect;
 
+const UNAVAILABLE_COPY =
+  'The copy that was sent is no longer available as it was sent, so it cannot be accepted. Ask for a replacement.';
+
 /**
  * The newest send of a request, if it is still waiting for a decision: not yet decided, and the
  * request still points at its document. A send recorded before migration 0132, or one an older
@@ -3251,7 +3327,10 @@ async function waitingSubmission(
       .where(eq(schema.evidenceRequestDecisionSubmissions.submissionId, latest.id))
       .limit(1),
   );
-  return decided ? undefined : latest;
+  if (decided) return undefined;
+  // An older deployment running beside this one may have decided it without a link.
+  if (await newerUnlinkedDecision(db, request.id, latest.sentAt)) return undefined;
+  return latest;
 }
 
 /**
@@ -3264,8 +3343,7 @@ async function pinnedCopyProblem(
   submission: SubmissionRecord,
   lifecycle: boolean,
 ): Promise<string | undefined> {
-  const unavailable =
-    'The copy that was sent is no longer available as it was sent, so it cannot be accepted. Ask for a replacement.';
+  const unavailable = UNAVAILABLE_COPY;
   const version = first(
     await db
       .select()
@@ -3299,14 +3377,27 @@ export async function cancelEvidenceRequest(
   db: Db,
   input: { readonly actorAccountId: string; readonly requestId: string; readonly reason?: string },
 ): Promise<Result<EvidenceRequest, ServiceError>> {
-  const loaded = await loadEvidenceRequestForOrg(db, input.actorAccountId, input.requestId);
-  if (!loaded.ok) return loaded;
-  const request = loaded.value;
-  if (request.status === 'CANCELLED' || request.status === 'ACCEPTED') {
-    return err(serviceError('invalid', 'this request is already closed'));
-  }
-
   return db.transaction(async (tx) => {
+    const loaded = await loadEvidenceRequestForOrg(tx, input.actorAccountId, input.requestId, true);
+    if (!loaded.ok) return loaded;
+    const request = loaded.value;
+    if (request.status === 'CANCELLED' || request.status === 'ACCEPTED') {
+      return err(serviceError('invalid', 'this request is already closed'));
+    }
+    // Only a request that is not yet closed moves: an acceptance made in the meantime stays.
+    const updated = first(
+      await tx
+        .update(schema.evidenceRequests)
+        .set({ status: 'CANCELLED', updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.evidenceRequests.id, request.id),
+            notInArray(schema.evidenceRequests.status, ['CANCELLED', 'ACCEPTED']),
+          ),
+        )
+        .returning(),
+    );
+    if (!updated) return err(serviceError('invalid', 'this request is already closed'));
     await tx.insert(schema.evidenceRequestDecisions).values({
       evidenceRequestId: request.id,
       outcome: 'CANCELLED',
@@ -3315,16 +3406,6 @@ export async function cancelEvidenceRequest(
       respondingDocumentId: request.respondingDocumentId,
       decidedByAccountId: input.actorAccountId,
     });
-    const updated = required(
-      first(
-        await tx
-          .update(schema.evidenceRequests)
-          .set({ status: 'CANCELLED', updatedAt: new Date() })
-          .where(eq(schema.evidenceRequests.id, request.id))
-          .returning(),
-      ),
-      'evidence request',
-    );
     await appendAuditEvent(tx, {
       eventType: 'EVIDENCE_REQUEST_CANCELLED',
       actorAccountId: input.actorAccountId,

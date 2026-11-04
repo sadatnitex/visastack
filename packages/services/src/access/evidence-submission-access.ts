@@ -1,7 +1,11 @@
 import { desc, eq } from 'drizzle-orm';
 import { orgGrantPermits } from '../agency';
 import { type Db, first, schema } from '../db';
-import { evidenceSubmissionsPresent, pinnedVersionIntact } from '../evidence-submission-tables';
+import {
+  evidenceSubmissionsPresent,
+  newerUnlinkedDecision,
+  pinnedVersionIntact,
+} from '../evidence-submission-tables';
 import { isUuid } from '../lifecycle/foundation/ids';
 import { getOrganization, isOrgAdmin } from '../organizations';
 
@@ -47,7 +51,7 @@ export type SubmissionServing =
  */
 export async function evidenceSubmissionServing(
   db: Db,
-  submission: Pick<SubmissionRow, 'id' | 'evidenceRequestId' | 'documentId' | 'roundNo'>,
+  submission: Pick<SubmissionRow, 'id' | 'evidenceRequestId' | 'documentId' | 'roundNo' | 'sentAt'>,
 ): Promise<SubmissionServing> {
   const request = first(
     await db
@@ -81,6 +85,10 @@ export async function evidenceSubmissionServing(
   }
   if (request.status !== 'RECEIVED' && request.status !== 'UNDER_REVIEW') {
     return { serves: false, reason: 'request_not_awaiting_decision' };
+  }
+  // An older deployment running beside this one may have decided the request without a link.
+  if (await newerUnlinkedDecision(db, submission.evidenceRequestId, submission.sentAt)) {
+    return { serves: false, reason: 'decided_without_link' };
   }
   const newest = first(
     await db

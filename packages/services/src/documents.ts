@@ -21,6 +21,7 @@ import {
   responseIdFromPurpose,
 } from './access/collection-response-access';
 import {
+  evidenceSubmissionPurpose,
   evidenceSubmissionStillCovers,
   submissionIdFromPurpose,
 } from './access/evidence-submission-access';
@@ -1440,7 +1441,7 @@ async function accessDocument(
  * token the serving route replays at redemption. Shared by every way a file is opened, so a link is
  * always minted, named and bound the same way.
  */
-export async function issueVersionReadRef(
+async function issueVersionReadRef(
   db: Db,
   storage: StoragePort,
   input: {
@@ -1495,6 +1496,46 @@ export async function issueVersionReadRef(
     sig: signDocumentAccessToken(input.accessTokenSecret, accessTokenFields),
   };
   return ok({ ...ref, url: appendDocumentAccessToken(ref.url, signedAccessTokenFields) });
+}
+
+/**
+ * The one way a link to a sent evidence copy is minted (Lane D). It fixes everything that makes the
+ * link an evidence copy link: the original, as a download, with the identity confirmation already
+ * checked by the caller, and a purpose that names the send. The caller (evidence-submissions.ts)
+ * has already proved the agency's standing and that the version is the pinned, servable one. The
+ * general helper stays private to this module so no other code can mint a link of another kind.
+ */
+export async function issueEvidenceSubmissionReadRef(
+  db: Db,
+  storage: StoragePort,
+  input: {
+    readonly document: Document;
+    readonly version: DocumentVersion;
+    readonly submissionId: string;
+    readonly accountId: string;
+    readonly organizationId: string;
+    readonly filename: string;
+    readonly accessTokenSecret: string;
+    readonly now: Date;
+  },
+): Promise<Result<AccessRef, ServiceError>> {
+  return issueVersionReadRef(db, storage, {
+    document: input.document,
+    version: input.version,
+    disposition: 'download',
+    variant: 'original',
+    now: input.now,
+    accessTokenSecret: input.accessTokenSecret,
+    filename: input.filename,
+    context: {
+      actorKind: 'evidence_submission',
+      actorAccountId: input.accountId,
+      organizationId: input.organizationId,
+      action: 'DOWNLOAD_ORIGINAL',
+      purpose: evidenceSubmissionPurpose(input.submissionId),
+      stepUpSatisfied: true,
+    },
+  });
 }
 
 export interface CollectionResponseDownloadInput {

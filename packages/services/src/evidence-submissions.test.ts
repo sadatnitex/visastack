@@ -160,8 +160,8 @@ describe('Lane D: sending an exact copy', () => {
   it('answers a retry with the same key with the first send and writes nothing more', async () => {
     const doc = await cleanDocument(w.db, w.alice);
     const requestId = await openRequest(w.db, w.harbor, w.alice);
-    const first = await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'tap-1' });
-    const again = await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'tap-1' });
+    const first = await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'tap-0000000000001' });
+    const again = await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'tap-0000000000001' });
     expect(isOk(first) && isOk(again)).toBe(true);
     if (!isOk(first) || !isOk(again)) return;
     expect(again.value.submissionId).toBe(first.value.submissionId);
@@ -178,9 +178,9 @@ describe('Lane D: sending an exact copy', () => {
     const doc = await cleanDocument(w.db, w.alice);
     const requestId = await openRequest(w.db, w.harbor, w.alice);
     expect(
-      isOk(await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'a' })),
+      isOk(await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'key-aaaaaaaaaaaaaaaa' })),
     ).toBe(true);
-    const second = await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'b' });
+    const second = await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'key-bbbbbbbbbbbbbbbb' });
     expect(isErr(second) && second.error.code).toBe('invalid');
     expect(await submissionRows(w.db, requestId)).toHaveLength(1);
   });
@@ -189,8 +189,8 @@ describe('Lane D: sending an exact copy', () => {
     const doc = await cleanDocument(w.db, w.alice);
     const requestId = await openRequest(w.db, w.harbor, w.alice);
     const results = await Promise.all([
-      send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'x' }),
-      send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'y' }),
+      send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'key-xxxxxxxxxxxxxxxx' }),
+      send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'key-yyyyyyyyyyyyyyyy' }),
     ]);
     expect(results.filter((r) => isOk(r))).toHaveLength(1);
     expect(await submissionRows(w.db, requestId)).toHaveLength(1);
@@ -420,7 +420,7 @@ describe('Lane D: deciding on an exact copy', () => {
   it('lets only the asking agency decide, and only while it holds its standing', async () => {
     const { requestId } = await sentRequest();
     const otherAgency = await decide(w, requestId, 'ACCEPTED', { agencyOf: w.summit });
-    expect(isErr(otherAgency) && otherAgency.error.code).toBe('forbidden');
+    expect(isErr(otherAgency) && otherAgency.error.code).toBe('not_found');
     expect(await w.db.select().from(schema.evidenceRequestDecisionSubmissions)).toEqual([]);
 
     const grants = await w.db

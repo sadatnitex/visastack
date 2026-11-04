@@ -1,18 +1,19 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, asc, eq } from 'drizzle-orm';
-import {
-  evidenceSubmissionPurpose,
-  evidenceSubmissionServing,
-} from './access/evidence-submission-access';
+import { evidenceSubmissionServing } from './access/evidence-submission-access';
 import type { AuthorizedApplicant } from './access/require-access';
 import { StepUpProof } from './access/step-up-proof';
 import { orgGrantPermits } from './agency';
 import { appendAuditEvent } from './audit';
 import { first, schema } from './db';
-import { isDocumentVersionUsable, issueVersionReadRef } from './documents';
+import { isDocumentVersionUsable, issueEvidenceSubmissionReadRef } from './documents';
 import { hasActiveOrVerifiedErasureJob } from './erasure';
 import { type ServiceError, serviceError } from './errors';
-import { evidenceSubmissionsPresent, pinnedVersionIntact } from './evidence-submission-tables';
+import {
+  evidenceSubmissionsPresent,
+  newerUnlinkedDecision,
+  pinnedVersionIntact,
+} from './evidence-submission-tables';
 import { lifecycleTablesPresent, presentDocumentCondition } from './lifecycle/foundation';
 import { isUuid } from './lifecycle/foundation/ids';
 import { isOrgAdmin } from './organizations';
@@ -193,10 +194,23 @@ export async function listEvidenceSubmissions(
       links.map((l) => [l.submissionId, decisions.find((d) => d.id === l.decisionId)]),
     );
     for (const l of links) linkedDecisionIds.add(l.decisionId);
+    const newestRow = rows.reduce((max, r) => Math.max(max, r.roundNo), 0);
     for (const row of rows) {
-      const decision = decisionBySubmission.get(row.id);
+      let decision = decisionBySubmission.get(row.id);
+      // The newest send may have been decided by an older deployment running beside this one,
+      // without a link: that decision is then its decision, not a separate older send.
+      if (!decision && row.roundNo === newestRow) {
+        const late = await newerUnlinkedDecision(db, request.id, row.sentAt);
+        decision = late ? decisions.find((d) => d.id === late.id) : undefined;
+        if (decision) linkedDecisionIds.add(decision.id);
+      }
       const state: EvidenceSubmissionState = decision
-        ? (decision.outcome as Exclude<EvidenceSubmissionState, 'AWAITING_DECISION' | 'WITHDRAWN'>)
+        ? decision.outcome === 'CANCELLED'
+          ? 'WITHDRAWN'
+          : (decision.outcome as Exclude<
+              EvidenceSubmissionState,
+              'AWAITING_DECISION' | 'WITHDRAWN'
+            >)
         : request.status === 'CANCELLED'
           ? 'WITHDRAWN'
           : 'AWAITING_DECISION';
@@ -374,21 +388,14 @@ export async function downloadEvidenceSubmissionFile(
     servable ? null : erased ? 'bytes_already_erased' : 'not_yet_safe_to_serve',
   );
   if (!servable) return err(serviceError('forbidden', 'this document is not yet available'));
-  return issueVersionReadRef(db, storage, {
+  return issueEvidenceSubmissionReadRef(db, storage, {
     document,
     version,
-    disposition: 'download',
-    variant: 'original',
-    now: input.now ?? new Date(),
-    accessTokenSecret: input.accessTokenSecret,
+    submissionId: submission.id,
+    accountId: agency.accountId,
+    organizationId: agency.organizationId,
     filename: submission.titleAtSend,
-    context: {
-      actorKind: 'evidence_submission',
-      actorAccountId: agency.accountId,
-      organizationId: agency.organizationId,
-      action: 'DOWNLOAD_ORIGINAL',
-      purpose: evidenceSubmissionPurpose(submission.id),
-      stepUpSatisfied: true,
-    },
+    accessTokenSecret: input.accessTokenSecret,
+    now: input.now ?? new Date(),
   });
 }
