@@ -61,21 +61,28 @@ function resolveRelative(from: string, specifier: string): string | null {
  * entry must still be an offence, so the fix removes its entry here.
  */
 const PENDING = [
+  "/app/app/applicant/[id]/documents/page.tsx imports SAFE_COPY_STATE_LABELS from a 'use client' module",
   "/app/app/admin/packs/sources/page.tsx imports AUTHORITY_TIER_LABELS from a 'use client' module",
 ];
 
 describe('server pages and client modules (VS-023)', () => {
   it('a server file imports only components, never plain values, from a client module', () => {
-    const files = sourceFiles(join(SRC, 'app'));
+    const files = sourceFiles(SRC);
     const clientFiles = new Set(files.filter((file) => isClientModule(readFileSync(file, 'utf8'))));
     const offences: string[] = [];
     for (const file of files) {
       if (clientFiles.has(file)) continue;
       const source = readFileSync(file, 'utf8');
-      for (const match of source.matchAll(/import\s+(type\s+)?\{([^}]*)\}\s+from\s+'(\.[^']*)'/g)) {
+      const importPattern =
+        /(?:import|export)\s+(type\s+)?(?:\w+\s*,\s*)?(?:\{([^}]*)\}|\*\s+as\s+(\w+))\s+from\s+['"](\.[^'"]*)['"]/g;
+      for (const match of source.matchAll(importPattern)) {
         if (match[1]) continue;
-        const target = resolveRelative(file, match[3] ?? '');
+        const target = resolveRelative(file, match[4] ?? '');
         if (!target || !clientFiles.has(target)) continue;
+        if (match[3]) {
+          offences.push(`${file.slice(SRC.length)} imports * from a 'use client' module`);
+          continue;
+        }
         for (const part of (match[2] ?? '').split(',')) {
           const name =
             part

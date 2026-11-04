@@ -10,7 +10,7 @@ describe('access log event labels (VS-015)', () => {
   it('names the commonly shown document, version and AI reading events in plain words', () => {
     expect(accessLogEventLabel('DOCUMENT_VERSION_ADDED')).toBe('New Version Saved');
     expect(accessLogEventLabel('DOCUMENT_SUPERSEDED')).toBe('Replaced by a Newer Version');
-    expect(accessLogEventLabel('AI_READING_JOB')).toBe('Automatic Reading Ran');
+    expect(accessLogEventLabel('AI_READING_JOB')).toBe('AI Reading Checked');
     expect(accessLogEventLabel('AI_OCR_RUN')).toBe('AI Read Document Text');
     expect(accessLogEventLabel('AI_EXTRACTION_RUN')).toBe('AI Read Document Details');
     expect(accessLogEventLabel('AI_CONTEXT_SERVED')).toBe('AI App Read Details');
@@ -29,7 +29,7 @@ describe('access log event labels (VS-015)', () => {
     const stored = { eventType: 'DOCUMENT_ACCESS', seq: 7 };
     const snapshot = JSON.stringify(stored);
     const label = accessLogEventLabel(stored.eventType);
-    expect(label).toBe('Document Opened');
+    expect(label).toBe('Document Access');
     expect(JSON.stringify(stored)).toBe(snapshot);
     expect(label).not.toBe(stored.eventType);
     // Asking twice gives the same answer: no hidden state.

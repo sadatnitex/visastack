@@ -18,6 +18,7 @@ import {
   collectionRuleImpact,
   getCollectionRequest,
   listCollectionPackChoices,
+  loadUploadQuotaConfig,
   protectedDetailsStepUp,
 } from '@visastack/services';
 import type { Metadata } from 'next';
@@ -28,7 +29,7 @@ import { formatDateOnly, formatTimestampDate } from '../../../../../../lib/forma
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
 import { establishStepUpProof } from '../../../../../../lib/step-up';
-import { STREAM_UPLOAD_LIMIT_LABEL } from '../../../../../../lib/upload-preflight';
+import { uploadLimitLabel } from '../../../../../../lib/upload-preflight';
 import {
   AddItemForm,
   EmailLinkForm,
@@ -330,7 +331,7 @@ export default async function CollectionRequestPage({
               The person opens the link and confirms it is them with a one-time code sent to the
               email address you entered, or by signing in. They then see this exact checklist, add
               their files and choose Submit Documents. Nothing reaches you before that. Each file
-              can be up to {STREAM_UPLOAD_LIMIT_LABEL}.
+              can be up to {uploadLimitLabel(loadUploadQuotaConfig())}.
             </p>
             <NewLinkForm organizationId={orgId} requestId={detail.id} />
             <h3>Send by Email</h3>

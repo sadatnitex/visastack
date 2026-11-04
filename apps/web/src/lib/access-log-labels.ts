@@ -10,7 +10,7 @@ import { humanizeCode } from './format-code';
  */
 const ACCESS_LOG_LABELS: ReadonlyMap<string, string> = new Map([
   // Documents and their versions
-  ['DOCUMENT_ACCESS', 'Document Opened'],
+  ['DOCUMENT_ACCESS', 'Document Access'],
   ['DOCUMENT_REGISTERED', 'Document Added'],
   ['DOCUMENT_UPLOADED', 'File Uploaded'],
   ['DOCUMENT_VERSION_ADDED', 'New Version Saved'],
@@ -25,11 +25,11 @@ const ACCESS_LOG_LABELS: ReadonlyMap<string, string> = new Map([
   ['DOCUMENT_DESTROYED', 'Document Permanently Removed'],
   ['DOCUMENT_RECOGNISED_AUTOMATICALLY', 'Document Recognised Automatically'],
   ['DOCUMENT_COPIED_TO_PERSON', 'Document Copied to Another Person'],
-  ['DOCUMENT_EXTRACTION_RUN', 'Document Details Read'],
+  ['DOCUMENT_EXTRACTION_RUN', 'Document Details Check'],
   ['DOCUMENT_REMOVAL_REQUESTED', 'Removal Requested'],
   ['DOCUMENT_REMOVAL_DECIDED', 'Removal Request Decided'],
   // AI reading and suggestions
-  ['AI_READING_JOB', 'Automatic Reading Ran'],
+  ['AI_READING_JOB', 'AI Reading Checked'],
   ['AI_OCR_RUN', 'AI Read Document Text'],
   ['AI_EXTRACTION_RUN', 'AI Read Document Details'],
   ['AI_CLASSIFICATION_RUN', 'AI Suggested a Document Type'],
