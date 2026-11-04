@@ -5,6 +5,7 @@ import { withPublicDb } from '../../../lib/public-db';
 import { reportServerError } from '../../../lib/server-error';
 import { createStorage } from '../../../lib/storage';
 import {
+  FILE_TOO_LARGE_MESSAGE,
   STREAM_UPLOAD_LIMIT,
   admitsHeicUpload,
   pdfUploadsAccepted,
@@ -60,7 +61,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   const size = Number(request.headers.get('content-length'));
   if (!Number.isSafeInteger(size) || size < 1 || size > STREAM_UPLOAD_LIMIT || !request.body) {
-    return json('Choose a file smaller than 4 MB.', 413);
+    return json(FILE_TOO_LARGE_MESSAGE, 413);
   }
   const proof = sessionProofFrom((await cookies()).get(COLLECT_COOKIE)?.value);
   if (!proof) return json('This page has closed. Open the link from your message again.', 403);

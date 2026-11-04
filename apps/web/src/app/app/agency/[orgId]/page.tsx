@@ -16,6 +16,7 @@ import { type SearchParamsRecord, nextShow, parseShow } from '../../../../lib/pa
 import { agree, plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { BillingStatusNotice, loadBillingNotice } from './billing-status-notice';
+import { agencyCaseHref } from './case-anchor';
 import { CaseSearchForm, STAGE_LABELS } from './case-search-form';
 import {
   loadApplicants,
@@ -514,7 +515,7 @@ export default async function AgencyDashboardPage({
                           : {})}
                       >
                         <th scope="row" className="cell-main">
-                          <Link href={`/app/agency/${orgId}/cases#mission-${mission.missionId}`}>
+                          <Link href={agencyCaseHref(orgId, mission.missionId)}>
                             {mission.applicantName} · {mission.title}
                           </Link>
                           {mission.destination ? (
@@ -674,7 +675,7 @@ export default async function AgencyDashboardPage({
                 {data.unassignedQueue.slice(0, queueShown).map((m) => (
                   <Link
                     key={m.missionId}
-                    href={`/app/agency/${orgId}/cases#mission-${m.missionId}`}
+                    href={agencyCaseHref(orgId, m.missionId)}
                     className="row row-link"
                   >
                     <span className="row-key">{m.title}</span>

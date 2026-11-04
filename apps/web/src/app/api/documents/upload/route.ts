@@ -2,6 +2,7 @@ import { getApplicant, isUploadId } from '@visastack/services';
 import type { UpgradeLineKind } from '../../../../components/upgrade-line';
 import { withSession } from '../../../../lib/session';
 import {
+  FILE_TOO_LARGE_MESSAGE,
   STREAM_UPLOAD_LIMIT,
   admitsHeicUpload,
   pdfUploadsAccepted,
@@ -76,7 +77,7 @@ export async function POST(request: Request): Promise<Response> {
     return json('Not authorized.', 403);
   const size = Number(request.headers.get('content-length'));
   if (!Number.isSafeInteger(size) || size < 1 || size > STREAM_UPLOAD_LIMIT || !request.body) {
-    return json('Choose a file smaller than 4 MB.', 413);
+    return json(FILE_TOO_LARGE_MESSAGE, 413);
   }
   const applicantId = new URL(request.url).searchParams.get('applicantId');
   if (!applicantId || !/^[a-f0-9-]{36}$/i.test(applicantId))

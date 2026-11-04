@@ -2,9 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-
-/** The anchor prefix of a case's workspace (a stored name kept in code, never shown). */
-export const CASE_ANCHOR = 'mission-';
+import { CASE_ANCHOR } from '../case-anchor';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

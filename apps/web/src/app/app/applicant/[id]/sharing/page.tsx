@@ -31,6 +31,7 @@ import {
 } from '../../../../../components/selected-scope-summary';
 import { ShowMore } from '../../../../../components/show-more';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { accessLogEventLabel } from '../../../../../lib/access-log-labels';
 import { AGENCY_AI_ALLOWED_LINE, agencyAiAccessLine } from '../../../../../lib/agency-ai';
 import { aiConnectorEnabled } from '../../../../../lib/ai-connector';
 import {
@@ -43,7 +44,6 @@ import { decodeAiFilePicks, rememberedAiFilePicks } from '../../../../../lib/ai-
 import { depthCopy } from '../../../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
-import { humanizeCode } from '../../../../../lib/format-code';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
 import { permissionActionLabel } from '../../../../../lib/labels';
@@ -761,7 +761,7 @@ export default async function SharingPage({
                     id: String(e.seq),
                     what: e.agencyAi
                       ? agencyAiAccessLine(e.agencyAi.agencyName, e.agencyAi.appHost)
-                      : humanizeCode(e.eventType),
+                      : accessLogEventLabel(e.eventType),
                     who: e.actorEmail ?? 'System',
                     ...(e.result
                       ? {
