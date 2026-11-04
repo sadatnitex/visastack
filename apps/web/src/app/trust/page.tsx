@@ -9,7 +9,9 @@ import { type SearchParamsRecord, firstParam, nextShow, parseShow } from '../../
 import { withPublicDb } from '../../lib/public-db';
 import { reportServerError } from '../../lib/server-error';
 
-export const metadata: Metadata = { title: 'Route Information' };
+// The page opens on the trust story (privacy, sharing and control), so its tab is named as the
+// footer link to it is: "Privacy and Control". The route list below it keeps its own heading.
+export const metadata: Metadata = { title: 'Privacy and Control' };
 
 export const dynamic = 'force-dynamic';
 

@@ -258,11 +258,46 @@ export interface DeletionReceiptView {
   readonly uploadedByRole: 'OWNER' | 'AGENCY_MEMBER' | 'CONTRIBUTOR' | 'SYSTEM' | null;
   readonly path: 'DUPLICATE' | 'REQUEST' | 'EMPTY_TRAVELLER';
   readonly requestedAt: Date;
+  /**
+   * Which account the request was recorded under, said only relative to the record's owner: never
+   * an account id, a name or an email. `OWNER_ACCOUNT` means the record owner's own account (a
+   * sign-in, not necessarily the person, so wording must not claim who it was); `NOT_RECORDED` is a
+   * record written without one.
+   */
+  readonly requestedBy: 'OWNER_ACCOUNT' | 'ANOTHER_ACCOUNT' | 'NOT_RECORDED';
+  /** `SUPPORT` when VisaStack support approved the removal (a request the owner made to support); otherwise null. */
+  readonly approvedBy: 'SUPPORT' | null;
   readonly scheduledFor: Date | null;
   readonly verifiedGoneAt: Date | null;
   readonly status: DeletionReceiptStatus;
   readonly effects: ReceiptEffects;
   readonly createdAt: Date;
+}
+
+/** Turn the two recorded account ids into the coarse words above, relative to the owner account. */
+export function describeReceiptActors(
+  recorded: {
+    readonly requestedByAccountId: string | null;
+    readonly approvedByAccountId: string | null;
+  },
+  ownerAccountId: string | null,
+): Pick<DeletionReceiptView, 'requestedBy' | 'approvedBy'> {
+  const { requestedByAccountId, approvedByAccountId } = recorded;
+  return {
+    requestedBy:
+      requestedByAccountId === null
+        ? 'NOT_RECORDED'
+        : requestedByAccountId === ownerAccountId
+          ? 'OWNER_ACCOUNT'
+          : 'ANOTHER_ACCOUNT',
+    approvedBy:
+      // Only said when the owner is known: with no owner to compare to, nothing proves a staff approval.
+      approvedByAccountId !== null &&
+      ownerAccountId !== null &&
+      approvedByAccountId !== ownerAccountId
+        ? 'SUPPORT'
+        : null,
+  };
 }
 
 const LIST_DEFAULT = 50;
@@ -272,7 +307,8 @@ const LIST_MAX = 200;
  * A traveller record's Removal Records, newest first. Read by the record's owner (an access proof
  * issued to the owner themself) or by a platform administrator with the compliance directory
  * view, who names the database and the applicant. Returns an empty list while migration 0113 has
- * not run. Never returns who asked or approved: codes, kinds, dates and counts only.
+ * not run. Returns codes, kinds, dates, counts and, coarsely, which kind of account asked and whether
+ * support approved (see `describeReceiptActors`); never an account id, a name or an email.
  */
 export async function listDeletionReceipts(
   access: AuthorizedApplicant<'VIEW_METADATA'> | StaffScope<'APPLICANT_DIRECTORY_VIEW'>,
@@ -280,6 +316,7 @@ export async function listDeletionReceipts(
 ): Promise<Result<readonly DeletionReceiptView[], ServiceError>> {
   let db: Db;
   let applicantId: string;
+  let ownerAccountId: string | null = null;
   if (access instanceof AuthorizedApplicant) {
     if (
       !AuthorizedApplicant.isGenuine(access, 'VIEW_METADATA') ||
@@ -289,6 +326,7 @@ export async function listDeletionReceipts(
     }
     db = access.tx;
     applicantId = access.applicant.id;
+    ownerAccountId = access.applicant.ownerAccountId;
   } else {
     const problem = staffScopeProblem(access, 'APPLICANT_DIRECTORY_VIEW');
     if (problem) return err(problem);
@@ -315,16 +353,32 @@ export async function listDeletionReceipts(
       verifiedGoneAt: receipts.verifiedGoneAt,
       status: receipts.status,
       effects: receipts.effects,
+      requestedByAccountId: receipts.requestedByAccountId,
+      approvedByAccountId: receipts.approvedByAccountId,
       createdAt: receipts.createdAt,
     })
     .from(receipts)
     .where(and(eq(receipts.applicantId, applicantId)))
     .orderBy(desc(receipts.createdAt), desc(receipts.id))
     .limit(limit);
+  if (ownerAccountId === null) {
+    ownerAccountId =
+      first(
+        await db
+          .select({ id: schema.applicants.ownerAccountId })
+          .from(schema.applicants)
+          .where(eq(schema.applicants.id, applicantId)),
+      )?.id ?? null;
+  }
   return ok(
-    rows.map((row) => {
+    rows.map(({ requestedByAccountId, approvedByAccountId, ...row }) => {
       const effects = receiptEffectsSchema.safeParse(row.effects);
-      return { ...row, effects: effects.success ? effects.data : {} };
+      return {
+        ...row,
+        // An unreadable owner makes every account read as "another", never as the owner's own.
+        ...describeReceiptActors({ requestedByAccountId, approvedByAccountId }, ownerAccountId),
+        effects: effects.success ? effects.data : {},
+      };
     }),
   );
 }

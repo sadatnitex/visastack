@@ -1,4 +1,4 @@
-import { type Result, err, ok } from '@visastack/core';
+import { type Result, err, formatUtcMoment, ok } from '@visastack/core';
 import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { LIVE_GRANT_STATUSES } from '../../access/grant-scope';
 import { AuthorizedApplicant } from '../../access/require-access';
@@ -353,6 +353,29 @@ export async function previewDeleteMyFile(
   });
 }
 
+/** "4 Nov 2026 at 14:05 UTC": one fixed zone, so the same words read the same in the app and in an email. */
+export const formatNoticeMoment = formatUtcMoment;
+
+/**
+ * The note the owner receives, in the app and by email, every time a file is deleted. It names the
+ * file by its reference code only: never a file name, a title, the kind of document or whose it is,
+ * because an email leaves the product. It says when, that it was done with the owner's own sign-in,
+ * what to do if it was them, and an unmistakable step if it was not. The button leads to Removal
+ * Records, which only the record owner can open. Words only: who may delete, when, the limits and
+ * the audit event are decided elsewhere.
+ */
+export function selfDeletedNotice(input: {
+  readonly documentCode: string;
+  readonly applicantId: string;
+  readonly at: Date;
+}): { readonly subject: string; readonly summary: string; readonly deepLinkPath: string } {
+  return {
+    subject: 'A document was removed from your record',
+    summary: `Document ${input.documentCode} was removed from one of your records on ${formatNoticeMoment(input.at)}, using your account. If this was you, nothing more is needed. If it was not, reset your password now and contact VisaStack support. Removal Records shows each removal and where it stands.`,
+    deepLinkPath: `/app/applicant/${input.applicantId}/removal-records`,
+  };
+}
+
 const OPEN_CASE_TASK =
   'A document was deleted by you. Choose another document for this case, then confirm the case again.';
 
@@ -517,11 +540,7 @@ export async function deleteMyFile(
           recipientAccountId: ownerAccountId,
           resourceId: receipt.value.id,
           applicantId,
-          payload: {
-            subject: 'A document was removed',
-            summary: `Document ${documentCode} was removed from VisaStack. If this was not you, secure your account and contact support.`,
-            deepLinkPath: `/app/applicant/${applicantId}/removal-records`,
-          },
+          payload: selfDeletedNotice({ documentCode, applicantId, at: now }),
         });
 
         await appendAuditEvent(tx, {

@@ -1,3 +1,4 @@
+import { formatUtcMoment } from '@visastack/core';
 import { formatTimestampDate } from '../../lib/format-date';
 import { documentTypeLabel } from '../../lib/labels';
 
@@ -10,6 +11,10 @@ export interface RemovalRecordRow {
   readonly scheduledFor: Date | string | null;
   readonly verifiedGoneAt: Date | string | null;
   readonly requestedAt: Date | string;
+  /** Which kind of account the removal was asked from, relative to the record owner. Absent reads as no detail line. */
+  readonly requestedBy?: 'OWNER_ACCOUNT' | 'ANOTHER_ACCOUNT' | 'NOT_RECORDED' | undefined;
+  /** SUPPORT when VisaStack support approved it. */
+  readonly approvedBy?: 'SUPPORT' | null | undefined;
   readonly status: 'SCHEDULED' | 'RESTORED' | 'REMOVING' | 'REMOVED' | 'BLOCKED';
   readonly effects: {
     readonly casesSwitched?: readonly string[] | undefined;
@@ -64,11 +69,30 @@ export function removalRecordSentence(row: RemovalRecordRow, now: Date = new Dat
   return `${lead}: ${what}.${used}`;
 }
 
+/**
+ * Who asked and when, from what the record itself holds: "Asked from your account on 3 Nov 2026,
+ * 14:05 UTC." It says the account, never the person, so it claims nothing about who was at the
+ * keyboard. Null for a row that carries no detail.
+ */
+export function removalRecordDetail(row: RemovalRecordRow): string | null {
+  if (row.requestedBy === undefined) return null;
+  const when = formatUtcMoment(new Date(row.requestedAt));
+  const lead =
+    row.requestedBy === 'OWNER_ACCOUNT'
+      ? `Asked from your account on ${when}.`
+      : row.requestedBy === 'ANOTHER_ACCOUNT'
+        ? `Asked from another account on ${when}.`
+        : `Recorded on ${when}.`;
+  return row.approvedBy === 'SUPPORT' ? `${lead} Approved by VisaStack support.` : lead;
+}
+
 function RecordItem({ row, now }: { readonly row: RemovalRecordRow; readonly now: Date }) {
+  const detail = removalRecordDetail(row);
   return (
     <li className="lc-record">
       <span className="lc-record-status">{REMOVAL_STATUS_LABELS[row.status]}</span>
       <span>{removalRecordSentence(row, now)}</span>
+      {detail ? <span className="muted">{detail}</span> : null}
     </li>
   );
 }

@@ -11,12 +11,32 @@ import { STORED_UPLOAD_TYPES, isHeicType } from './upload-rules';
 // Below Vercel's 4.5 MB request ceiling, including request overhead.
 export const STREAM_UPLOAD_LIMIT = 4 * 1024 * 1024;
 
+/** A size in whole megabytes as people read it ("4 MB"), rounded down so it never overstates. */
+function megabytesLabel(bytes: number): string {
+  return `${Math.floor(bytes / (1024 * 1024))} MB`;
+}
+
+/** What the request ceiling is called wherever a screen or refusal names it ("4 MB"). */
+export const STREAM_UPLOAD_LIMIT_LABEL = megabytesLabel(STREAM_UPLOAD_LIMIT);
+
+/** The refusal for a file that is empty or too big to send in one request. */
+export const FILE_TOO_LARGE_MESSAGE = `Choose a file smaller than ${STREAM_UPLOAD_LIMIT_LABEL}.`;
+
 /**
  * The size one file may be, as the upload form says it and checks it: the account's per-file
  * quota, but never more than one request to the host can carry, since each file is sent alone.
  */
 export function uploadLimitBytes(quota: { readonly maxUploadBytes: number }): number {
   return Math.min(quota.maxUploadBytes, STREAM_UPLOAD_LIMIT);
+}
+
+/**
+ * The effective per-file size as people read it ("4 MB"): what `uploadLimitBytes` allows, so a
+ * screen never promises the account quota (for example 20 MB) when one request carries less.
+ * The quota stays what it is; this only says the smaller number out loud.
+ */
+export function uploadLimitLabel(quota: { readonly maxUploadBytes: number }): string {
+  return megabytesLabel(uploadLimitBytes(quota));
 }
 /** The types stored as they are: the same list the upload form checks (upload-rules.ts). */
 const TYPES: ReadonlySet<string> = new Set(STORED_UPLOAD_TYPES);

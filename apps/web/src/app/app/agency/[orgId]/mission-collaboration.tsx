@@ -21,6 +21,7 @@ import {
   unassignMemberAction,
   updateTaskForOrgAction,
 } from './actions';
+import { caseAnchorId } from './case-anchor';
 import type { CaseTriageView } from './case-triage';
 import { CaseTriageSummary } from './case-triage-summary';
 
@@ -201,7 +202,7 @@ export function MissionCollaboration({
   return (
     // The row shows at Glance; a link to it (from Agency Overview) opens the whole case.
     <div
-      id={`mission-${missionId}`}
+      id={caseAnchorId(missionId)}
       {...revealAt('everything')}
       style={{
         padding: '0.85rem',

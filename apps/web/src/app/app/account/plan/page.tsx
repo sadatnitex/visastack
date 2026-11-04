@@ -31,6 +31,7 @@ import { PageHeader } from '../../../../components/ui';
 import { planFeatureView, readAiUsage } from '../../../../lib/ai-usage';
 import { SHOW_MAX, nextShow, parseShow } from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
+import { uploadLimitLabel } from '../../../../lib/upload-preflight';
 import { UsageMeter } from '../../applicant/[id]/usage-meter';
 import { BILLING_ROWS_STEP, billingRowId } from './billing/billing-list';
 import { BuyPlanForm, PayPurchaseForm, RenewalForm } from './plan-forms';
@@ -441,7 +442,7 @@ export default async function TravellerPlanPage({
           </h2>
           <p className="card-body u-mb-125">
             Every saved version of every document counts. Each file can be up to{' '}
-            {mbLabel(quota.maxUploadBytes)}.
+            {uploadLimitLabel(quota)}.
           </p>
           <div className="stack-sm u-mb-125">
             <UsageMeter

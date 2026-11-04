@@ -22,6 +22,7 @@ import { NextStepCard, PageHeader } from '../../../../../../components/ui';
 import { resolvePlatformCapabilities } from '../../../../../../lib/capabilities';
 import { evidenceDocumentGroups } from '../../../../../../lib/master-profile';
 import { describeReading } from '../../../../../../lib/reading-state';
+import { addCheckStep } from '../../../../../../lib/scan-state';
 import { withSession } from '../../../../../../lib/session';
 import { pdfUploadsAccepted, uploadLimitBytes } from '../../../../../../lib/upload-preflight';
 import { DocumentUploader } from '../../document-uploader';
@@ -37,10 +38,17 @@ const ORIGINAL_KINDS: readonly string[] = [...ORIGINAL_DOCUMENT_KEYS];
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-/** What happens to a file after it is added, in the order it happens. Plain words, no jargon. */
-function nextSteps(reads: boolean): readonly { readonly title: string; readonly line: string }[] {
+/**
+ * What happens to a file after it is added, in the order it happens. Plain words, no jargon. The
+ * first step follows whether virus scanning is really switched on (the platform check, not a
+ * promise): without it the step says the checks are about the file type and structure only.
+ */
+function nextSteps(
+  reads: boolean,
+  virusScanning: boolean,
+): readonly { readonly title: string; readonly line: string }[] {
   return [
-    { title: 'Checked for Safety', line: 'Every file is scanned before anyone can open it.' },
+    addCheckStep(virusScanning),
     reads
       ? { title: 'Read for Details', line: 'We suggest details from what we can read.' }
       : {
@@ -58,8 +66,8 @@ function nextSteps(reads: boolean): readonly { readonly title: string; readonly 
  * The one door for adding documents: drop files, or a whole folder, in one place. The
  * ways that need a choice (a photo from the camera, saying what kind of document it is) wait
  * behind one quiet disclosure so the first view is a single, simple action. The same rules apply as
- * everywhere: documents are added to this person's own record, pass the safety scan, and every
- * suggested detail is approved by a person.
+ * everywhere: documents are added to this person's own record, are checked as the platform really
+ * checks them (see scan-state.ts), and every suggested detail is approved by a person.
  */
 export default async function AddDocumentsPage({
   params,
@@ -159,7 +167,7 @@ export default async function AddDocumentsPage({
         description={
           data.reading.reads
             ? 'Drop your files or a whole folder here. We check each one, read what we can, and you approve every detail.'
-            : 'Drop your files or a whole folder here. We check each one for safety and keep it for you.'
+            : 'Drop your files or a whole folder here. We check each one and keep it for you.'
         }
         back={{ href: `/app/applicant/${id}/documents`, label: 'Documents' }}
       />
@@ -228,7 +236,7 @@ export default async function AddDocumentsPage({
               What Happens Next
             </h2>
             <ol className="add-next-list">
-              {nextSteps(data.reading.reads).map((step) => (
+              {nextSteps(data.reading.reads, data.virusScanning).map((step) => (
                 <li key={step.title}>
                   <strong>{step.title}</strong>
                   <span className="muted">{step.line}</span>

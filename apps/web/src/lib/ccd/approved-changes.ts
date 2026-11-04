@@ -576,4 +576,13 @@ export const APPROVED_RULES: readonly ApprovedRule[] = [
       'UX18: a person is a card (initials, name, one chip, two big numbers), and a case or a set of agency requests is a card (title, person, chip, thin bar). The same facts and the same address; only the order of the words and the chevron differ.',
     alternatives: homeCardForms,
   },
+  {
+    screens: ['documents'],
+    reason:
+      'Safety truth (Excellence Lane A): a file that only had its type and structure checked reads "Format Checked", never "No Problems Found", which could be taken for a virus scan. The same file, the same address; only the status word differs.',
+    alternatives: (entry) =>
+      entry.name.includes('No Problems Found')
+        ? [{ ...entry, name: entry.name.replace('No Problems Found', 'Format Checked') }]
+        : [],
+  },
 ];

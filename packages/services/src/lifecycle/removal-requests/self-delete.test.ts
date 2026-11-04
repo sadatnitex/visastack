@@ -15,7 +15,8 @@ import { placeLegalHold } from '../../legal-hold';
 import { listTasks } from '../../missions';
 import { RATE_LIMITS, windowStartFor } from '../../rate-limit';
 import type { AccessRef, IssueReadRefInput, StoragePort } from '../../storage';
-import { getDocumentLifecycle } from '../foundation';
+import { getDocumentLifecycle, listDeletionReceipts } from '../foundation';
+import { describeReceiptActors } from '../foundation/receipts';
 import {
   JOURNEY_TIMEOUT,
   type JourneyOwner,
@@ -48,7 +49,9 @@ import {
   SELF_DELETE_REFUSALS,
   type SelfDeleteImpact,
   deleteMyFile,
+  formatNoticeMoment,
   previewDeleteMyFile,
+  selfDeletedNotice,
 } from './self-delete';
 
 type Manage = AuthorizedApplicant<'MANAGE'>;
@@ -896,3 +899,165 @@ async function seedCollectionAnswer(
   });
   return responseId;
 }
+
+describe('the note the owner gets when a file is deleted, and the Removal Record that backs it', () => {
+  const LONG_DASH = String.fromCharCode(0x2014);
+  const AT = new Date('2026-11-04T09:05:00Z');
+
+  it('reads the moment in one fixed zone, padded and in words', () => {
+    expect(formatNoticeMoment(AT)).toBe('4 Nov 2026 at 09:05 UTC');
+    expect(formatNoticeMoment(new Date('2027-01-31T23:59:00Z'))).toBe('31 Jan 2027 at 23:59 UTC');
+  });
+
+  it('names the file by code and moment, says what to do either way, and leads to Removal Records', () => {
+    const note = selfDeletedNotice({
+      documentCode: 'D-7K2Q9M',
+      applicantId: '00000000-0000-4000-8000-000000000001',
+      at: AT,
+    });
+    expect(note.subject).toBe('A document was removed from your record');
+    expect(note.summary).toContain('Document D-7K2Q9M was removed');
+    expect(note.summary).toContain('4 Nov 2026 at 09:05 UTC');
+    expect(note.summary).toContain('using your account');
+    // Both readers are answered: it was them, and it was not.
+    expect(note.summary).toContain('If this was you, nothing more is needed.');
+    expect(note.summary).toContain(
+      'If it was not, reset your password now and contact VisaStack support.',
+    );
+    expect(note.deepLinkPath).toBe(
+      '/app/applicant/00000000-0000-4000-8000-000000000001/removal-records',
+    );
+    expect(`${note.subject} ${note.summary}`).not.toContain(LONG_DASH);
+    // It claims nothing about who was at the keyboard.
+    expect(note.summary).not.toMatch(/\bby you\b|you deleted|you removed/i);
+  });
+
+  it(
+    'sends exactly that note on both channels, with no name or kind of document, and the record shows who asked and when',
+    async () => {
+      const { db } = await fresh();
+      const owner = await seedOwner(db, 'sd-notice@example.com', {
+        displayName: 'Private Person',
+      });
+      const doc = await uploadDocument(db, owner, { sha: SHA_A, name: 'My Secret Passport.pdf' });
+      const proof = await ownerProof(db, owner);
+      const preview = await previewDeleteMyFile(proof, { documentId: doc.documentId });
+      if (!preview.ok) throw new Error('preview');
+      const deleted = await deleteMyFile(
+        proof,
+        {
+          documentId: doc.documentId,
+          typed: 'DELETE',
+          confirmed: preview.value.impact,
+          stepUpSatisfied: true,
+        },
+        { now: AT },
+      );
+      if (!deleted.ok) throw new Error(`delete: ${deleted.error.message}`);
+
+      const expected = selfDeletedNotice({
+        documentCode: deleted.value.documentCode,
+        applicantId: owner.applicantId,
+        at: AT,
+      });
+      const notices = (await db.select().from(schema.notifications)).filter(
+        (n) => n.eventType === 'DOCUMENT_SELF_DELETED',
+      );
+      expect(notices.map((n) => n.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
+      for (const notice of notices) {
+        expect(notice.recipientAccountId).toBe(owner.accountId);
+        expect(notice.payload).toEqual(expected);
+        const text = JSON.stringify(notice.payload);
+        for (const secret of ['Secret', 'Passport', 'passport', 'Private', 'pdf']) {
+          expect(text).not.toContain(secret);
+        }
+      }
+
+      const mine = await listDeletionReceipts(await ownerProof(db, owner, 'VIEW_METADATA'));
+      if (!mine.ok) throw new Error('list');
+      expect(mine.value).toHaveLength(1);
+      expect(mine.value[0]).toMatchObject({
+        subjectCode: deleted.value.documentCode,
+        requestedBy: 'OWNER_ACCOUNT',
+        approvedBy: null,
+      });
+      expect(mine.value[0]?.requestedAt).toEqual(AT);
+      // Never the account behind it.
+      expect(JSON.stringify(mine.value)).not.toContain(owner.accountId);
+      expect(JSON.stringify(mine.value)).not.toContain(owner.email);
+
+      const stranger = await seedOwner(db, 'sd-notice-stranger@example.com');
+      const strangerGate = await requireAccess(
+        db,
+        accountPrincipal(stranger.accountId),
+        'VIEW_METADATA',
+        { applicantId: owner.applicantId },
+        { purpose: EACH_GRANT },
+      );
+      expect(strangerGate.ok).toBe(false);
+    },
+    JOURNEY_TIMEOUT,
+  );
+
+  it(
+    'tells a removal asked from another account, or approved by support, apart from the owner own',
+    async () => {
+      const { db } = await fresh();
+      const owner = await seedOwner(db, 'sd-actors@example.com');
+      const other = await seedAccount(db, 'sd-actors-other@example.com');
+      const staff = await staffScope(db, STAFF, 'APPLICANT_DIRECTORY_VIEW');
+      const base = {
+        applicantId: owner.applicantId,
+        subjectKind: 'DOCUMENT',
+        path: 'REQUEST',
+        status: 'SCHEDULED',
+        requestedAt: AT,
+      } as const;
+      await db.insert(schema.deletionReceipts).values([
+        { ...base, subjectCode: 'D-AAAAAA', requestedByAccountId: other },
+        { ...base, subjectCode: 'D-BBBBBB', requestedByAccountId: null },
+        {
+          ...base,
+          subjectCode: 'D-CCCCCC',
+          requestedByAccountId: owner.accountId,
+          approvedByAccountId: staff.accountId,
+        },
+      ]);
+      const read = await listDeletionReceipts(await ownerProof(db, owner, 'VIEW_METADATA'));
+      if (!read.ok) throw new Error('list');
+      const by = Object.fromEntries(
+        read.value.map((r) => [r.subjectCode, [r.requestedBy, r.approvedBy]]),
+      );
+      expect(by).toEqual({
+        'D-AAAAAA': ['ANOTHER_ACCOUNT', null],
+        'D-BBBBBB': ['NOT_RECORDED', null],
+        'D-CCCCCC': ['OWNER_ACCOUNT', 'SUPPORT'],
+      });
+      // The privacy administrator's read gives the same words, relative to the same owner.
+      const byAdmin = await listDeletionReceipts(staff, { db, applicantId: owner.applicantId });
+      expect(byAdmin.ok && byAdmin.value.map((r) => r.requestedBy).sort()).toEqual([
+        'ANOTHER_ACCOUNT',
+        'NOT_RECORDED',
+        'OWNER_ACCOUNT',
+      ]);
+      expect(JSON.stringify(read.value)).not.toContain(other);
+      expect(JSON.stringify(read.value)).not.toContain(staff.accountId);
+    },
+    JOURNEY_TIMEOUT,
+  );
+
+  it('never reads an account as the owner own when the owner is unknown', () => {
+    expect(
+      describeReceiptActors({ requestedByAccountId: 'a', approvedByAccountId: null }, null),
+    ).toEqual({ requestedBy: 'ANOTHER_ACCOUNT', approvedBy: null });
+  });
+
+  it('says support approved only when the owner is known and the approver is someone else', () => {
+    const recorded = { requestedByAccountId: 'o', approvedByAccountId: 's' };
+    expect(describeReceiptActors(recorded, null).approvedBy).toBeNull();
+    expect(describeReceiptActors(recorded, 'o').approvedBy).toBe('SUPPORT');
+    expect(
+      describeReceiptActors({ ...recorded, approvedByAccountId: 'o' }, 'o').approvedBy,
+    ).toBeNull();
+  });
+});

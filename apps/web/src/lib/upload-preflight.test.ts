@@ -1,10 +1,14 @@
 import JSZip from 'jszip';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  FILE_TOO_LARGE_MESSAGE,
   STREAM_UPLOAD_LIMIT,
+  STREAM_UPLOAD_LIMIT_LABEL,
   pdfUploadsAccepted,
   permitsPdfAdmission,
   readBoundedUpload,
+  uploadLimitBytes,
+  uploadLimitLabel,
   validateUploadBytes,
 } from './upload-preflight';
 import { STORED_UPLOAD_TYPES } from './upload-rules';
@@ -20,6 +24,18 @@ async function minimalDocx(): Promise<Uint8Array> {
 const png = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]);
 describe('upload preflight', () => {
   afterEach(() => vi.unstubAllEnvs());
+
+  it('says the effective per-file size out loud: the smaller of the quota and one request (VS-007)', () => {
+    const MB = 1024 * 1024;
+    expect(STREAM_UPLOAD_LIMIT_LABEL).toBe('4 MB');
+    expect(FILE_TOO_LARGE_MESSAGE).toBe('Choose a file smaller than 4 MB.');
+    for (const quotaMb of [1, 2, 4, 5, 20, 50]) {
+      const quota = { maxUploadBytes: quotaMb * MB };
+      const effective = Math.min(quotaMb, 4);
+      expect(uploadLimitBytes(quota)).toBe(effective * MB);
+      expect(uploadLimitLabel(quota)).toBe(`${effective} MB`);
+    }
+  });
 
   it('asks the deployment once whether PDF files can be added', () => {
     vi.stubEnv('MALWARE_SCANNER_PROVIDER', 'github_clamav');
