@@ -20,6 +20,10 @@ import {
   liveCollectionResponse,
   responseIdFromPurpose,
 } from './access/collection-response-access';
+import {
+  evidenceSubmissionStillCovers,
+  submissionIdFromPurpose,
+} from './access/evidence-submission-access';
 import { StepUpProof } from './access/step-up-proof';
 import { orgGrantPermits } from './agency';
 import { getApplicant } from './applicants';
@@ -1436,7 +1440,7 @@ async function accessDocument(
  * token the serving route replays at redemption. Shared by every way a file is opened, so a link is
  * always minted, named and bound the same way.
  */
-async function issueVersionReadRef(
+export async function issueVersionReadRef(
   db: Db,
   storage: StoragePort,
   input: {
@@ -1676,6 +1680,29 @@ export async function recheckDocumentAccess(
     }
     const covered = await collectionResponseStillCovers(db, {
       responseId,
+      accountId: fields.actorAccountId,
+      organizationId: fields.organizationId,
+      documentId: document.id,
+      documentVersionId: fields.documentVersionId,
+    });
+    if (!covered.allowed) return covered;
+    return servableAtRedemption(db, document, fields.documentVersionId, objectKey);
+  }
+
+  // Lane D: a link to the exact copy a traveller sent in answer to an evidence request is replayed
+  // against the live send, never against a grant or the document's latest version: the same agency
+  // admin, the organization's current MANAGE standing, a send that is still the one being served,
+  // and the pinned version unchanged.
+  if (fields.actorKind === 'evidence_submission') {
+    const submissionId = submissionIdFromPurpose(fields.purpose);
+    if (!submissionId || !fields.actorAccountId || !fields.organizationId) {
+      return { allowed: false, reason: 'missing_evidence_submission_context' };
+    }
+    if (fields.action !== 'DOWNLOAD_ORIGINAL' || !fields.stepUpSatisfied) {
+      return { allowed: false, reason: 'action_not_granted' };
+    }
+    const covered = await evidenceSubmissionStillCovers(db, {
+      submissionId,
       accountId: fields.actorAccountId,
       organizationId: fields.organizationId,
       documentId: document.id,

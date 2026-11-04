@@ -3065,3 +3065,15 @@ export {
 export type { PackMatchNeed } from './pack-matching';
 export { latestSourceChecks } from './source-monitor';
 export { type CaseExpiryConflict, caseExpiryConflicts } from './notification-sweep';
+export type { EvidenceDecisionResult, EvidenceSubmitResult } from './agency';
+export {
+  LEGACY_SEND_LABEL,
+  type EvidenceSubmissionDownloadInput,
+  type EvidenceSubmissionList,
+  type EvidenceSubmissionState,
+  type EvidenceSubmissionView,
+  type LegacyEvidenceSend,
+  downloadEvidenceSubmissionFile,
+  evidenceSubmissionsPresent,
+  listEvidenceSubmissions,
+} from './evidence-submissions';

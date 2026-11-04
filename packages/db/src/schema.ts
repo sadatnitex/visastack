@@ -2789,6 +2789,65 @@ export const evidenceRequestDecisions = pgTable(
   (table) => [index('evidence_request_decisions_request_idx').on(table.evidenceRequestId)],
 );
 
+// Lane D (migration 0132): the exact copy a traveller sent in answer to an evidence request.
+// One row per send ("round"); never changed once written (a database trigger refuses any UPDATE).
+// A correction is a NEW row, so an earlier send stays exactly what it was. The pins (document
+// version, its stored object, its checksum when one was known) are what the reviewer decides on
+// and what an agency download is served from, never "the document's latest version".
+// `sent_by_account_id` and `grant_id_at_send` are plain ids on purpose: they are history, not live
+// links, and an ON DELETE SET NULL action on this table would be an UPDATE the trigger refuses.
+export const evidenceRequestSubmissions = pgTable(
+  'evidence_request_submissions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    evidenceRequestId: uuid('evidence_request_id')
+      .notNull()
+      .references(() => evidenceRequests.id, { onDelete: 'cascade' }),
+    // 1 for the first send on the request, then 2, 3 ... Unique per request.
+    roundNo: integer('round_no').notNull(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    storageObjectId: uuid('storage_object_id')
+      .notNull()
+      .references(() => storageObjects.id, { onDelete: 'cascade' }),
+    // Nullable: an older version may have no checksum recorded. Never invented.
+    contentSha256: text('content_sha256'),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }),
+    versionNumber: integer('version_number').notNull(),
+    docTypeAtSend: text('doc_type_at_send'),
+    titleAtSend: text('title_at_send').notNull(),
+    sentByAccountId: uuid('sent_by_account_id').notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+    grantIdAtSend: uuid('grant_id_at_send'),
+    // A retry of the same send carries the same key and is answered with the first result.
+    idempotencyKey: text('idempotency_key').notNull(),
+  },
+  (table) => [
+    unique('evidence_request_submissions_round_unique').on(table.evidenceRequestId, table.roundNo),
+    unique('evidence_request_submissions_key_unique').on(
+      table.evidenceRequestId,
+      table.idempotencyKey,
+    ),
+    index('evidence_request_submissions_version_idx').on(table.documentVersionId),
+  ],
+);
+
+// Lane D (migration 0132): which send a reviewer's decision was about. Exactly one decision per
+// send (the unique `submission_id` is the double-decision guard). Never changed once written.
+export const evidenceRequestDecisionSubmissions = pgTable('evidence_request_decision_submissions', {
+  decisionId: uuid('decision_id')
+    .primaryKey()
+    .references(() => evidenceRequestDecisions.id, { onDelete: 'cascade' }),
+  submissionId: uuid('submission_id')
+    .notNull()
+    .unique()
+    .references(() => evidenceRequestSubmissions.id, { onDelete: 'cascade' }),
+});
+
 // CAS-08 ("Contributor request"): a narrow, single-use, seven-day invitation
 // letting a named third party (a sponsor, a family member) who is NOT the
 // applicant submit exactly one named piece of evidence for one case,

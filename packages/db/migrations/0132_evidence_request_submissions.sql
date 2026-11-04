@@ -1,0 +1,48 @@
+CREATE TABLE "evidence_request_decision_submissions" (
+	"decision_id" uuid PRIMARY KEY NOT NULL,
+	"submission_id" uuid NOT NULL,
+	CONSTRAINT "evidence_request_decision_submissions_submission_id_unique" UNIQUE("submission_id")
+);
+--> statement-breakpoint
+CREATE TABLE "evidence_request_submissions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"evidence_request_id" uuid NOT NULL,
+	"round_no" integer NOT NULL,
+	"document_id" uuid NOT NULL,
+	"document_version_id" uuid NOT NULL,
+	"storage_object_id" uuid NOT NULL,
+	"content_sha256" text,
+	"size_bytes" bigint,
+	"version_number" integer NOT NULL,
+	"doc_type_at_send" text,
+	"title_at_send" text NOT NULL,
+	"sent_by_account_id" uuid NOT NULL,
+	"sent_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"grant_id_at_send" uuid,
+	"idempotency_key" text NOT NULL,
+	CONSTRAINT "evidence_request_submissions_round_unique" UNIQUE("evidence_request_id","round_no"),
+	CONSTRAINT "evidence_request_submissions_key_unique" UNIQUE("evidence_request_id","idempotency_key")
+);
+--> statement-breakpoint
+ALTER TABLE "evidence_request_decision_submissions" ADD CONSTRAINT "evidence_request_decision_submissions_decision_id_evidence_request_decisions_id_fk" FOREIGN KEY ("decision_id") REFERENCES "public"."evidence_request_decisions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "evidence_request_decision_submissions" ADD CONSTRAINT "evidence_request_decision_submissions_submission_id_evidence_request_submissions_id_fk" FOREIGN KEY ("submission_id") REFERENCES "public"."evidence_request_submissions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "evidence_request_submissions" ADD CONSTRAINT "evidence_request_submissions_evidence_request_id_evidence_requests_id_fk" FOREIGN KEY ("evidence_request_id") REFERENCES "public"."evidence_requests"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "evidence_request_submissions" ADD CONSTRAINT "evidence_request_submissions_document_id_documents_id_fk" FOREIGN KEY ("document_id") REFERENCES "public"."documents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "evidence_request_submissions" ADD CONSTRAINT "evidence_request_submissions_document_version_id_document_versions_id_fk" FOREIGN KEY ("document_version_id") REFERENCES "public"."document_versions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "evidence_request_submissions" ADD CONSTRAINT "evidence_request_submissions_storage_object_id_storage_objects_id_fk" FOREIGN KEY ("storage_object_id") REFERENCES "public"."storage_objects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "evidence_request_submissions_version_idx" ON "evidence_request_submissions" USING btree ("document_version_id");--> statement-breakpoint
+CREATE OR REPLACE FUNCTION "visastack_evidence_request_submissions_no_update"() RETURNS trigger LANGUAGE plpgsql AS $fn$
+BEGIN
+	-- A send, and the link from a decision to the send it judged, are history: never edited.
+	-- Removing them happens only by deleting the request, the document or the traveller (a cascade).
+	RAISE EXCEPTION '%: a recorded send is never changed', TG_TABLE_NAME USING ERRCODE = 'restrict_violation';
+END;
+$fn$;
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS "evidence_request_submissions_no_update" ON "evidence_request_submissions";
+--> statement-breakpoint
+CREATE TRIGGER "evidence_request_submissions_no_update" BEFORE UPDATE ON "evidence_request_submissions" FOR EACH ROW EXECUTE FUNCTION "visastack_evidence_request_submissions_no_update"();
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS "evidence_request_decision_submissions_no_update" ON "evidence_request_decision_submissions";
+--> statement-breakpoint
+CREATE TRIGGER "evidence_request_decision_submissions_no_update" BEFORE UPDATE ON "evidence_request_decision_submissions" FOR EACH ROW EXECUTE FUNCTION "visastack_evidence_request_submissions_no_update"();
