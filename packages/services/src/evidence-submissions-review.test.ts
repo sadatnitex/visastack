@@ -399,6 +399,29 @@ describe('Lane D review: members, case-scoped grants and mixed-up links', () => 
   );
 
   it(
+    'serves nothing when the request is no longer waiting, even with no decision recorded',
+    async () => {
+      const w = await world();
+      const { doc, requestId, submissionId } = await sentRequest(w);
+      await w.db
+        .update(schema.evidenceRequests)
+        .set({ status: 'NEEDS_REPLACEMENT' })
+        .where(eq(schema.evidenceRequests.id, requestId));
+      const refused = await downloadEvidenceSubmissionFile(
+        new FakeStorage(),
+        await agencyProof(w.db, w.harbor, w.alice.applicantId),
+        {
+          submissionId,
+          accessTokenSecret: ACCESS_TOKEN_SECRET,
+          stepUp: stepUpFor(w.harbor.accountId, doc.versionId),
+        },
+      );
+      expect(isErr(refused) && refused.error.code).toBe('forbidden');
+    },
+    TIMEOUT,
+  );
+
+  it(
     'refuses another agency admin replaying a link under their own agency, with the reason',
     async () => {
       const w = await world();
@@ -418,6 +441,15 @@ describe('Lane D review: members, case-scoped grants and mixed-up links', () => 
       expect(
         await recheckDocumentAccess(w.db, { ...fields, organizationId: w.summit.organizationId }),
       ).toEqual({ allowed: false, reason: 'not_an_agency_admin' });
+      // The other agency's own admin, replaying the link under their own agency: that agency holds
+      // a MANAGE grant on this traveller too, but the request is not theirs.
+      expect(
+        await recheckDocumentAccess(w.db, {
+          ...fields,
+          actorAccountId: w.summit.accountId,
+          organizationId: w.summit.organizationId,
+        }),
+      ).toEqual({ allowed: false, reason: 'not_this_organizations_request' });
     },
     TIMEOUT,
   );
