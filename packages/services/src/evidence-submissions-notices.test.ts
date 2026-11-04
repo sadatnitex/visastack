@@ -3,7 +3,12 @@ import { schema } from '@visastack/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
-import { cancelEvidenceRequest, decideEvidenceResponse } from './agency';
+import {
+  assignMember,
+  cancelEvidenceRequest,
+  decideEvidenceResponse,
+  requestEvidence,
+} from './agency';
 import type { Db } from './db';
 import { listEvidenceSubmissions } from './evidence-submissions';
 import {
@@ -18,6 +23,7 @@ import {
   share,
   traveller,
 } from './evidence-submissions.test-support';
+import { createMission } from './missions';
 import { runNotificationWorker } from './notifications';
 import { addMembership } from './organizations';
 
@@ -226,6 +232,55 @@ describe('Lane D: New Evidence Received', () => {
       const rows = await notices(w.db, NOTE);
       expect(rows.map((r) => r.status)).toEqual(['FAILED', 'FAILED']);
       expect(rows.every((r) => r.lastError === 'recipient no longer authorized')).toBe(true);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'is refused at send time for an assigned member who is not an owner or admin',
+    async () => {
+      const w = await world();
+      const dana = await traveller(w.db, 'dana-n@example.com');
+      const mission = await createMission(w.db, {
+        actorAccountId: dana.accountId,
+        applicantId: dana.applicantId,
+        title: 'Case D',
+      });
+      if (!isOk(mission)) throw new Error('mission');
+      await share(w.db, dana, w.harbor, mission.value.id);
+      const doc = await cleanDocument(w.db, dana);
+      const request = await requestEvidence(w.db, {
+        actorAccountId: w.harbor.accountId,
+        organizationId: w.harbor.organizationId,
+        applicantId: dana.applicantId,
+        missionId: mission.value.id,
+        kind: 'DOCUMENT',
+        docType: 'bank_statement',
+      });
+      if (!isOk(request)) throw new Error('request');
+      expect(
+        isOk(
+          await assignMember(w.db, {
+            actorAccountId: w.harbor.accountId,
+            organizationId: w.harbor.organizationId,
+            memberAccountId: w.harbor.accountId,
+            missionId: mission.value.id,
+          }),
+        ),
+      ).toBe(true);
+      expect(isOk(await send(w.db, dana, request.value.id, doc.documentId))).toBe(true);
+      // Now only a plain member (assigned to the case), no longer an owner or admin.
+      await w.db
+        .update(schema.memberships)
+        .set({ role: 'CASE_MANAGER' })
+        .where(eq(schema.memberships.accountId, w.harbor.accountId));
+      await runNotificationWorker(
+        w.db,
+        { send: async () => ({ ok: true, messageId: 'synthetic' }) } as never,
+        'https://app.example.test',
+      );
+      const rows = (await notices(w.db, NOTE)).map((r) => r.status);
+      expect(rows).toEqual(['FAILED', 'FAILED']);
     },
     TIMEOUT,
   );
