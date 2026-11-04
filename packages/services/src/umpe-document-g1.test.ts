@@ -28,6 +28,7 @@ import {
   holdFamilyFile,
   listHeldFiles,
   proposePerson,
+  proposePersonFromFileName,
   sweepHeldFiles,
 } from './umpe-document-holds';
 import { reserveUpload } from './uploads';
@@ -258,6 +259,46 @@ describe('pure rules', () => {
       basis: 'NO_MATCH',
     });
     expect(proposePerson(null, [anna, erik])).toEqual({ basis: 'NOT_READ' });
+  });
+});
+
+describe('a person named by a file name', () => {
+  const people = [
+    { applicantId: 'nazmus', displayName: 'Nazmus Sadat' },
+    { applicantId: 'salma', displayName: 'Salma Sadat' },
+    { applicantId: 'rafi', displayName: 'Rafi' },
+  ];
+
+  it('names one person only when every word of their name is in the file name', () => {
+    expect(proposePersonFromFileName('Passport_Nazmus Sadat.pdf', people)).toBe('nazmus');
+    expect(proposePersonFromFileName('NID. Smart Card. Salma Sadat.PDF', people)).toBe('salma');
+    expect(proposePersonFromFileName('rafi-birth-certificate.jpg', people)).toBe('rafi');
+    // Accents and case do not matter.
+    expect(
+      proposePersonFromFileName('passeport nazmus sadat.png', [
+        { applicantId: 'n', displayName: 'Nazmus Sâdat' },
+      ]),
+    ).toBe('n');
+  });
+
+  it('names nobody for a shared family name alone, two people, or a name that is not there', () => {
+    expect(proposePersonFromFileName('Sadat family papers.pdf', people)).toBeNull();
+    expect(proposePersonFromFileName('Nazmus and Salma Sadat marriage.pdf', people)).toBeNull();
+    expect(proposePersonFromFileName('nbr_tin_certificate_268305968906.pdf', people)).toBeNull();
+    expect(proposePersonFromFileName(null, people)).toBeNull();
+    expect(proposePersonFromFileName('', people)).toBeNull();
+    expect(proposePersonFromFileName('Passport.pdf', [])).toBeNull();
+  });
+
+  it('drops only a real document extension, so a name part after a dot stays', () => {
+    expect(proposePersonFromFileName('Passport Nazmus.Sadat', people)).toBe('nazmus');
+    expect(proposePersonFromFileName('Passport Nazmus.Sadat.PDF', people)).toBe('nazmus');
+  });
+
+  it('does not read the file extension as a name word', () => {
+    expect(
+      proposePersonFromFileName('scan.pdf', [{ applicantId: 'p', displayName: 'Pdf Khan' }]),
+    ).toBeNull();
   });
 });
 
@@ -528,6 +569,56 @@ describe('family batch and Which Person? (I09)', () => {
 
   const documentsOf = (applicantId: string) =>
     db.select().from(schema.documents).where(eq(schema.documents.applicantId, applicantId));
+
+  it('suggests the person the file name points to when nothing in the file could be read, and files nothing', async () => {
+    const outcome = await holdFamilyFile(
+      await proofFor(db, owner, anna),
+      { storage: store, checks, converter: extractorFor('') },
+      {
+        uploadId: '3b9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f',
+        originalFileName: 'Passport_Erik Eriksson.pdf',
+        bytes: new Uint8Array([...PDF, 51]),
+        contentType: 'application/pdf',
+        storedFileName: 'document.pdf',
+      },
+    );
+    expect(outcome).toEqual(expect.objectContaining({ kind: 'held', basis: 'NOT_READ' }));
+    const waiting = await listHeldFiles(await proofFor(db, owner, anna, 'VIEW_METADATA'));
+    expect(waiting.files).toHaveLength(1);
+    expect(waiting.files[0]).toMatchObject({
+      basis: 'NOT_READ',
+      proposedApplicantId: null,
+      nameSuggestionApplicantId: erik,
+    });
+    expect(await documentsOf(anna)).toHaveLength(0);
+    expect(await documentsOf(erik)).toHaveLength(0);
+  });
+
+  it('keeps a close call between people as a close call, and makes no name suggestion over a reading', async () => {
+    const readNamed = await holdFamilyFile(
+      await proofFor(db, owner, anna),
+      {
+        storage: store,
+        checks,
+        converter: extractorFor(
+          'Birth certificate. Name: Erik Eriksson. Date of birth: 04/03/2015',
+        ),
+      },
+      {
+        uploadId: '4b9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f',
+        originalFileName: 'Anna Eriksson.pdf',
+        bytes: new Uint8Array([...PDF, 52]),
+        contentType: 'application/pdf',
+        storedFileName: 'document.pdf',
+      },
+    );
+    expect(readNamed).toEqual(
+      expect.objectContaining({ kind: 'held', basis: 'NAME_AND_BIRTH_DATE' }),
+    );
+    const [file] = (await listHeldFiles(await proofFor(db, owner, anna, 'VIEW_METADATA'))).files;
+    // The reading wins: Erik is proposed from inside the file, and the file name (Anna) is ignored.
+    expect(file).toMatchObject({ proposedApplicantId: erik, nameSuggestionApplicantId: null });
+  });
 
   it('files each document of a two-person batch only after its decision, under the chosen person', async () => {
     const first = await hold('1b9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f', EXPIRED_PASSPORT);

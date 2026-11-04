@@ -122,7 +122,7 @@ describe('UMPE G1 additions to the list', () => {
     expect(html).toContain('name="exceptionId" value="x1"');
   });
 
-  it('asks Which Person? with the single suggestion chosen to start, and none when unsure', () => {
+  it('files the suggested person with one button, and keeps the full choice behind one quiet line', () => {
     const html = renderToStaticMarkup(
       <NeedsDecision
         applicantId="a1"
@@ -150,15 +150,69 @@ describe('UMPE G1 additions to the list', () => {
         ]}
       />,
     );
-    expect(html).toContain('Which Person Is erik passport.pdf For?');
+    // The suggested file: one button files it, nothing is filed until it is pressed.
     expect(html).toContain('The name and date of birth in this file match Erik Eriksson.');
+    expect(html).toContain('File Under Erik Eriksson');
+    expect(html).toContain('aria-label="File Under Erik Eriksson: erik passport.pdf"');
+    expect(html).toContain('name="personId" value="a2"');
+    expect(html).toContain('Choose Someone Else');
+    expect(html).toContain('aria-label="Remove This File: erik passport.pdf"');
+    // The file with no suggestion keeps the plain question and File It.
     expect(html).toContain('Which Person Is File Added 3 Nov 2026 For?');
     expect(html).toContain('could belong to more than one of your people');
-    // Exactly one radio starts chosen: the single suggestion of the first file.
-    expect(html.match(/checked=""/g)).toHaveLength(1);
-    expect(html).toContain('aria-label="File It: erik passport.pdf"');
-    expect(html).toContain('aria-label="Remove This File: erik passport.pdf"');
+    expect(html).toContain('aria-label="File It: File Added 3 Nov 2026"');
+    // No radio starts chosen anywhere: the person always presses a button to file.
+    expect(html).not.toContain('checked=""');
     expect(html).not.toContain('Nothing needs a decision right now.');
+  });
+
+  it('suggests the person the file name points to, says why, and says it was not read', () => {
+    const html = renderToStaticMarkup(
+      <NeedsDecision
+        applicantId="a1"
+        items={[]}
+        linked={[]}
+        held={[
+          {
+            holdId: 'h3',
+            fileName: 'Passport_Nazmus Sadat.pdf',
+            basis: 'NOT_READ',
+            proposedApplicantId: null,
+            nameSuggestionApplicantId: 'a1',
+            addedOn: '4 Nov 2026',
+          },
+          {
+            holdId: 'h4',
+            fileName: 'nbr_tin_certificate.pdf',
+            basis: 'NOT_READ',
+            proposedApplicantId: null,
+            nameSuggestionApplicantId: null,
+            addedOn: '4 Nov 2026',
+          },
+          {
+            holdId: 'h5',
+            fileName: 'bank letter.pdf',
+            basis: 'NO_MATCH',
+            proposedApplicantId: null,
+            nameSuggestionApplicantId: null,
+            addedOn: '4 Nov 2026',
+          },
+        ]}
+        people={[
+          { applicantId: 'a1', displayName: 'Nazmus Sadat' },
+          { applicantId: 'a2', displayName: 'Salma' },
+        ]}
+      />,
+    );
+    expect(html).toContain('The file name says Nazmus Sadat, so we think this is theirs.');
+    expect(html).toContain('File Under Nazmus Sadat');
+    // Honest wording: not read is not "we could not tell", and a read that matched nobody says so.
+    expect(html).toContain(
+      'We have not read anything from this file, so we cannot tell who it belongs to.',
+    );
+    expect(html).toContain('We read this file, but it does not match any of your people');
+    // Only the first file gets a one-tap button.
+    expect(html.match(/File Under /g)?.length).toBe(2);
   });
 });
 

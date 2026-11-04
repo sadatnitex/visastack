@@ -459,10 +459,46 @@ describe('after an import, and files for several people (UMPE G1)', () => {
     expect(await axeViolations(host.innerHTML)).toEqual([]);
   });
 
+  it('never says files were sorted on their own when automatic reading is off', async () => {
+    await act(async () => {
+      root.render(
+        <ImportPanel applicantId="a-1" limitBytes={1000} limitLabel="1 KB" readingOn={false} />,
+      );
+    });
+    await choose([photo('one.jpg')]);
+    await answer(0, 201, { message: 'Added.', title: 'One' });
+    expect(host.textContent).toContain('Automatic reading is off, so nothing was read');
+    expect(host.textContent).not.toContain('sorted on their own');
+  });
+
+  it('never claims reading unless the page says it is on', async () => {
+    await act(async () => {
+      root.render(<ImportPanel applicantId="a-1" limitBytes={1000} limitLabel="1 KB" />);
+    });
+    await choose([photo('one.jpg')]);
+    await answer(0, 201, { message: 'Added.', title: 'One' });
+    expect(host.textContent).not.toContain('sorted on their own');
+  });
+
+  it('keeps the earlier wording when reading is on', async () => {
+    await act(async () => {
+      root.render(<ImportPanel applicantId="a-1" limitBytes={1000} limitLabel="1 KB" readingOn />);
+    });
+    await choose([photo('one.jpg')]);
+    await answer(0, 201, { message: 'Added.', title: 'One' });
+    expect(host.textContent).toContain('Most files are sorted on their own');
+  });
+
   it('keeps the hint but drops both buttons when the page has its own next step', async () => {
     await act(async () => {
       root.render(
-        <ImportPanel applicantId="a-1" limitBytes={1000} limitLabel="1 KB" showNext={false} />,
+        <ImportPanel
+          applicantId="a-1"
+          limitBytes={1000}
+          limitLabel="1 KB"
+          showNext={false}
+          readingOn
+        />,
       );
     });
     await choose([photo('passport.jpg')]);

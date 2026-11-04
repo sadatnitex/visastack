@@ -3,6 +3,7 @@ import {
   accountPrincipal,
   documentUploadReceiptsReady,
   familyBatchReady,
+  getAiFeatureStates,
   getApplicant,
   getApplicantEvidenceBytes,
   hasConsent,
@@ -20,11 +21,13 @@ import { notFound } from 'next/navigation';
 import { NextStepCard, PageHeader } from '../../../../../../components/ui';
 import { resolvePlatformCapabilities } from '../../../../../../lib/capabilities';
 import { evidenceDocumentGroups } from '../../../../../../lib/master-profile';
+import { describeReading } from '../../../../../../lib/reading-state';
 import { withSession } from '../../../../../../lib/session';
 import { pdfUploadsAccepted, uploadLimitBytes } from '../../../../../../lib/upload-preflight';
 import { DocumentUploader } from '../../document-uploader';
 import { ImportPanel } from '../../import/import-panel';
 import { UsageMeter } from '../../usage-meter';
+import { ReadingSwitch } from './reading-switch';
 
 export const metadata: Metadata = { title: 'Add Documents' };
 
@@ -35,14 +38,21 @@ const ORIGINAL_KINDS: readonly string[] = [...ORIGINAL_DOCUMENT_KEYS];
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** What happens to a file after it is added, in the order it happens. Plain words, no jargon. */
-const NEXT_STEPS: readonly { readonly title: string; readonly line: string }[] = [
-  { title: 'Checked for Safety', line: 'Every file is scanned before anyone can open it.' },
-  { title: 'Read for Details', line: 'We suggest details from what we can read.' },
-  {
-    title: 'You Approve',
-    line: 'Nothing reaches your profile until you accept it, one detail at a time or all clear ones at once.',
-  },
-];
+function nextSteps(reads: boolean): readonly { readonly title: string; readonly line: string }[] {
+  return [
+    { title: 'Checked for Safety', line: 'Every file is scanned before anyone can open it.' },
+    reads
+      ? { title: 'Read for Details', line: 'We suggest details from what we can read.' }
+      : {
+          title: 'You Add the Details',
+          line: 'Automatic reading is off, so nothing is read from your files. You add each detail yourself.',
+        },
+    {
+      title: 'You Approve',
+      line: 'Nothing reaches your profile until you accept it, one detail at a time or all clear ones at once.',
+    },
+  ];
+}
 
 /**
  * The one door for adding documents: drop files, or a whole folder, in one place. The
@@ -93,6 +103,23 @@ export default async function AddDocumentsPage({
       ...everyone.filter((person) => person.id === id),
       ...everyone.filter((person) => person.id !== id),
     ].map((person) => ({ id: person.id, name: person.displayName }));
+    // Whether a file added now will really be read: the same platform, plan and limit check the
+    // reading job makes, and the person's own two consents. If any of it cannot be read, the page
+    // says reading is off; it never says on without knowing.
+    const [extractionAllowed, scansAllowed, readingFeature] = await Promise.all([
+      hasConsent(db, accountId, 'AI_EXTRACTION').catch(() => false),
+      hasConsent(db, accountId, 'AI_OCR').catch(() => false),
+      access.ok
+        ? getAiFeatureStates(db, ['ai_automatic_reading'] as const, { proof: access.value })
+            .then((states) => states.ai_automatic_reading)
+            .catch(() => null)
+        : Promise.resolve(null),
+    ]);
+    const reading = describeReading({
+      feature: readingFeature,
+      extraction: extractionAllowed,
+      ocr: scansAllowed,
+    });
     // What the files already added have produced, so the page can say so and offer the next
     // step. Read only for the person's own proof and with consent on; extras: if either cannot be
     // read the page just shows no card, never an error.
@@ -113,6 +140,7 @@ export default async function AddDocumentsPage({
       virusScanning,
       familyBatch,
       people,
+      reading,
       // Suggestions that came from a document (an app's suggestion about the profile is not one).
       foundDetails: pending.filter((p) => p.proposal.documentVersionId !== null).length,
       // Files, not rows: one file can have both a relation suggestion and an intake finding.
@@ -128,7 +156,11 @@ export default async function AddDocumentsPage({
     <>
       <PageHeader
         title="Add Documents"
-        description="Drop your files or a whole folder here. We check each one, read what we can, and you approve every detail."
+        description={
+          data.reading.reads
+            ? 'Drop your files or a whole folder here. We check each one, read what we can, and you approve every detail.'
+            : 'Drop your files or a whole folder here. We check each one for safety and keep it for you.'
+        }
         back={{ href: `/app/applicant/${id}/documents`, label: 'Documents' }}
       />
       {!data.coreGranted ? (
@@ -157,6 +189,7 @@ export default async function AddDocumentsPage({
             </p>
           ) : null}
           <article className="card add-door">
+            <ReadingSwitch applicantId={id} view={data.reading} />
             <ImportPanel
               applicantId={id}
               limitBytes={limitBytes}
@@ -165,6 +198,7 @@ export default async function AddDocumentsPage({
               retryUnknown={data.receiptsReady}
               familyBatch={data.familyBatch}
               people={data.people}
+              readingOn={data.reading.reads}
               showNext={false}
             />
             <details className="add-more" open={initialKind ? true : undefined}>
@@ -194,7 +228,7 @@ export default async function AddDocumentsPage({
               What Happens Next
             </h2>
             <ol className="add-next-list">
-              {NEXT_STEPS.map((step) => (
+              {nextSteps(data.reading.reads).map((step) => (
                 <li key={step.title}>
                   <strong>{step.title}</strong>
                   <span className="muted">{step.line}</span>

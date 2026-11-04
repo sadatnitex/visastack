@@ -14527,3 +14527,24 @@ html:has(.sticky-action-bar) {
   gap: var(--space-3);
   margin-top: var(--space-3);
 }
+
+/* WP-UMPE-UX14 Add Documents: the automatic reading line says what is true and carries the person's own switch, and a suggested person is filed with one button. Flat, tokens only, 44 px targets. */
+.add-reading {
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.add-reading-line {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.add-reading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
