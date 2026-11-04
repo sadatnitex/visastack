@@ -17,14 +17,15 @@ vi.mock('../../lib/workspace-chrome', () => ({
 }));
 vi.mock('../../lib/sign-out', () => ({ signOutCurrentUser: async () => undefined }));
 const jar = vi.hoisted(() => ({ values: {} as Record<string, string> }));
-const headerJar = vi.hoisted(() => ({ path: null as string | null }));
+const headerJar = vi.hoisted(() => ({ path: null as string | null, fail: false }));
 vi.mock('next/headers', () => ({
   cookies: async () => ({
     get: (name: string) => (name in jar.values ? { name, value: jar.values[name] } : undefined),
   }),
-  headers: async () => ({
-    get: (name: string) => (name === 'x-vs-pathname' ? headerJar.path : null),
-  }),
+  headers: async () => {
+    if (headerJar.fail) throw new Error('`headers` was called outside a request scope.');
+    return { get: (name: string) => (name === 'x-vs-pathname' ? headerJar.path : null) };
+  },
 }));
 const mocks = vi.hoisted(() => ({ getMissionForOwner: vi.fn() }));
 vi.mock('@visastack/services', () => mocks);
@@ -38,13 +39,11 @@ interface ShellProps {
   readonly initialCaseSubject: { readonly route: string; readonly applicantId: string } | null;
 }
 
-/** The layout hands the page address to the shared frame; render the frame to see what it passes the shell. */
+/** The layout renders the shared frame itself, so what it returns is the shell and its props. */
 async function AppLayout({
   children,
 }: { readonly children: null }): Promise<ReactElement<ShellProps>> {
-  const frame = (await RawAppLayout({ children })) as ReactElement<{ pathname: string | null }>;
-  const Frame = frame.type as (props: unknown) => Promise<ReactElement<ShellProps>>;
-  return Frame(frame.props);
+  return (await RawAppLayout({ children })) as ReactElement<ShellProps>;
 }
 
 describe('app layout hands the signed-in address only to the account menu', () => {
@@ -106,6 +105,17 @@ describe('app layout names the traveller of a case page on the first paint', () 
       expect(element.props.initialCaseSubject).toBeNull();
     }
     expect(results[0]).toBe(results[1]);
+  });
+
+  it('shows the neutral frame, not an error, when there is no request to read the address from', async () => {
+    headerJar.fail = true;
+    try {
+      const element = await AppLayout({ children: null });
+      expect(element.props.initialCaseSubject).toBeNull();
+      expect(mocks.getMissionForOwner).not.toHaveBeenCalled();
+    } finally {
+      headerJar.fail = false;
+    }
   });
 
   it('looks nothing up when the address is not a case, is Start a Trip, or is missing', async () => {
