@@ -15376,6 +15376,604 @@ output.notice {
   font-size: var(--text-caption);
   margin-top: 0.2rem;
 }
+/* Lift components (components/ui-lift): flat, tokens only. None of them is on a screen yet. */
+/* Status pill: the shared badge keeps its tone and mark; md is the 28px pill, info the brand blue. */
+.lift-pill {
+  flex: none;
+  max-width: 100%;
+}
+.lift-pill-sm {
+  min-height: 22px;
+}
+.lift-pill-md {
+  min-height: 28px;
+  padding: 0 0.7rem;
+  font-size: var(--text-small);
+}
+.lift-pill-info {
+  color: var(--brand);
+  background: var(--brand-bg);
+}
+
+/* Progress meter: a drawing with a name, the numbers beside it. The fill width is an attribute. */
+.lift-meter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.lift-meter-6 {
+  gap: var(--space-2);
+}
+.lift-meter-10 {
+  gap: var(--space-3);
+}
+.lift-meter-svg {
+  flex: 1 1 auto;
+  display: block;
+  min-width: 4rem;
+  box-sizing: content-box;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.lift-meter-track {
+  fill: var(--bg-subtle);
+}
+.lift-meter-fill {
+  fill: var(--success);
+}
+.lift-meter-text {
+  flex: none;
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Stat tile: a count with its name; a zero recedes, the selected filter takes the brand tint. */
+.lift-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  text-decoration: none;
+}
+a.lift-tile:hover {
+  background: var(--brand-tint-1);
+  text-decoration: none;
+}
+.lift-tile-numeral {
+  font-size: var(--text-title);
+  font-weight: 750;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.lift-tile-label {
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+.lift-tile-note {
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+.lift-tile-zero .lift-tile-numeral,
+.lift-tile-zero .lift-tile-label {
+  color: var(--text-tertiary);
+}
+.lift-tile-selected {
+  background: var(--brand-tint-2);
+  border-bottom: 2px solid var(--brand);
+}
+
+/* Section card: one card for every screen, a heading row then the body. */
+.lift-card {
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+.lift-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.lift-card-titles {
+  min-width: 0;
+}
+.lift-card-titles .card-kicker {
+  margin-bottom: var(--space-1);
+}
+.lift-card-title {
+  margin: 0;
+  font-size: var(--text-lead);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.012em;
+}
+.lift-card-action {
+  flex: none;
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+.lift-card-body {
+  min-width: 0;
+}
+.lift-card-tint .lift-card-body {
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--brand-tint-1);
+}
+
+/* Action row: 56px, icon tile, name and one line, a status, a chevron when it leads or opens. */
+.lift-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--hairline-soft);
+  color: var(--text);
+  text-decoration: none;
+  list-style: none;
+}
+.lift-action:last-child {
+  border-bottom: none;
+}
+.lift-action-link,
+.lift-action-summary {
+  cursor: pointer;
+}
+a.lift-action:hover {
+  background: var(--brand-tint-1);
+  text-decoration: none;
+}
+.lift-action-summary::-webkit-details-marker {
+  display: none;
+}
+.lift-action-tile {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-3);
+  color: var(--brand);
+}
+.lift-action-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.lift-action-title {
+  font-size: var(--text-body);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.lift-action-meta {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-action-pill {
+  flex: none;
+}
+.lift-action-chevron {
+  flex: none;
+  display: inline-grid;
+  color: var(--text-tertiary);
+}
+details[open] > .lift-action-summary .lift-action-chevron {
+  transform: rotate(180deg);
+}
+
+/* Checklist row: a status icon, the name with its tag, one next step, one action, the rest folded. */
+.lift-check {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-1) var(--space-3);
+}
+.lift-check-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  color: var(--bg-elevated);
+}
+.lift-check-success .lift-check-icon {
+  background: var(--success);
+}
+.lift-check-warning .lift-check-icon {
+  background: var(--warning);
+}
+.lift-check-danger .lift-check-icon {
+  background: var(--danger-strong);
+}
+.lift-check-info .lift-check-icon {
+  background: var(--brand);
+}
+.lift-check-neutral .lift-check-icon {
+  border: 2px solid var(--edge-control);
+  color: var(--text-secondary);
+}
+.lift-check-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.lift-check-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+.lift-check-name {
+  font-weight: 650;
+}
+.lift-check-tag {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+.lift-check-next {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-check-action {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+}
+.lift-check-note {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+.lift-row-more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--selected-text);
+}
+.lift-row-more-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+/* Step bar: numbered steps joined by a line; only the current step is filled. */
+.lift-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lift-steps-position {
+  margin: 0;
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+.lift-steps-list {
+  counter-reset: lift-step;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lift-step {
+  counter-increment: lift-step;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-step::before {
+  content: counter(lift-step);
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--edge-control);
+  border-radius: 50%;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-secondary);
+}
+.lift-step:not(.lift-step-apart):has(+ .lift-step:not(.lift-step-apart))::after {
+  content: "";
+  width: 1.25rem;
+  height: 2px;
+  margin: 0 var(--space-2);
+  background: var(--edge-card);
+}
+.lift-step-current {
+  font-weight: 700;
+  color: var(--text);
+}
+.lift-step-current::before {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--bg-elevated);
+}
+.lift-step-apart {
+  counter-increment: none;
+  min-height: 28px;
+  margin-left: var(--space-3);
+  padding: 0 var(--space-3);
+  border: 2px dashed var(--edge-card);
+  border-radius: var(--radius-pill);
+}
+.lift-step-apart::before {
+  display: none;
+}
+.lift-steps-strip {
+  display: none;
+}
+.lift-help > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--selected-text);
+}
+.lift-help-body {
+  padding-bottom: var(--space-2);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-help-body > p {
+  margin: 0 0 var(--space-2);
+}
+
+/* Next step panel: one tinted panel with a coloured edge and the page's one filled button. */
+.lift-next {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border-left: 4px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--brand-bg);
+}
+.lift-next-brand {
+  border-left-color: var(--brand);
+}
+.lift-next-danger {
+  border-left-color: var(--danger-strong);
+}
+.lift-next-success {
+  border-left-color: var(--success);
+}
+.lift-next-kicker {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+.lift-next-title {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.lift-next-body {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--text-secondary);
+}
+.lift-next .btn {
+  margin-top: var(--space-2);
+}
+.lift-next-ink {
+  background: var(--chapter-bg);
+  border-left-color: var(--chapter-stroke-strong);
+  color: var(--chapter-text);
+}
+.lift-next-ink .lift-next-kicker,
+.lift-next-ink .lift-next-body {
+  color: var(--chapter-text);
+}
+.lift-next-ink .lift-next-title {
+  color: var(--bg-elevated);
+}
+.lift-next-ink .btn-primary {
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+
+/* Alert banner: a tinted ground, a 4px edge, a mark and its words. */
+.lift-alert {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-left: 4px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--brand-bg);
+  color: var(--text);
+}
+.lift-alert-info {
+  border-left-color: var(--brand);
+  background: var(--brand-bg);
+}
+.lift-alert-danger {
+  border-left-color: var(--danger-strong);
+  background: var(--danger-bg);
+}
+.lift-alert-warning {
+  border-left-color: var(--warning);
+  background: var(--warning-bg);
+}
+.lift-alert-success {
+  border-left-color: var(--success);
+  background: var(--success-bg);
+}
+.lift-alert-icon {
+  flex: none;
+  display: inline-grid;
+  margin-top: 2px;
+  color: var(--brand);
+}
+.lift-alert-danger .lift-alert-icon {
+  color: var(--danger);
+}
+.lift-alert-warning .lift-alert-icon {
+  color: var(--warning);
+}
+.lift-alert-success .lift-alert-icon {
+  color: var(--success);
+}
+.lift-alert-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lift-alert-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+.lift-alert-body {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-alert-body > p {
+  margin: 0 0 var(--space-2);
+}
+.lift-alert-body > p:last-child {
+  margin-bottom: 0;
+}
+.lift-alert-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Empty panel: what a place looks like before anything is in it. */
+.lift-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: 2px dashed var(--edge-card);
+  border-radius: var(--radius-lg);
+}
+.lift-empty-tile {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius);
+  background: var(--brand-tint-3);
+  color: var(--brand);
+}
+.lift-empty-title {
+  margin: 0;
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+.lift-empty-line {
+  font-size: var(--text-body);
+  color: var(--text-secondary);
+}
+.lift-empty-line > p {
+  margin: 0;
+}
+.lift-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+/* Phone: tighter cards, the step bar becomes its position words and a strip, checklist rows stack. */
+@media (max-width: 760px) {
+  .lift-card,
+  .lift-next,
+  .lift-empty {
+    padding: var(--space-4);
+  }
+  .lift-next-title {
+    font-size: var(--text-lead);
+  }
+  .lift-steps-list {
+    display: block;
+  }
+  .lift-step:not(.lift-step-current) {
+    display: none;
+  }
+  .lift-step:not(.lift-step-apart):has(+ .lift-step:not(.lift-step-apart))::after {
+    display: none;
+  }
+  .lift-steps-strip {
+    display: flex;
+    gap: var(--space-1);
+  }
+  .lift-strip-part {
+    flex: 1 1 0;
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background: var(--bg-subtle);
+  }
+  .lift-strip-part-current {
+    background: var(--brand);
+  }
+  .lift-check-body {
+    display: contents;
+  }
+  .lift-check-icon {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .lift-check-line {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .lift-check > .lift-pill {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .lift-check-next,
+  .lift-check-action,
+  .lift-check-note,
+  .lift-row-more {
+    grid-column: 2 / -1;
+  }
+  .lift-check-action {
+    align-self: stretch;
+  }
+}
 /* end WP-LIFT-A */
 
 /* WP-LIFT-B case rail, secondary sections and phone bar: package B's classes for the right rail, the More for This Case section and the sticky next step bar. Flat, existing tokens only. Package B edits only inside this block. */
