@@ -154,6 +154,47 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason: 'What We Found: details read from documents wait on one screen, not inside the list.',
   },
   {
+    screen: 'home',
+    from: { kind: 'text', name: 'People' },
+    to: null,
+    reason:
+      'UX18 (owner, 4 Nov 2026: Home after Start Here approved): the small label above a section heading is gone; the heading says it.',
+  },
+  {
+    screen: 'home',
+    from: { kind: 'text', name: 'In Progress' },
+    to: null,
+    reason: 'UX18: the small label above a section heading is gone; the heading says it.',
+  },
+  {
+    screen: 'home',
+    from: { kind: 'heading', name: 'My Records', detail: '2' },
+    to: { kind: 'heading', name: 'People', detail: '2' },
+    reason: 'UX18: People, as cards with a face and two numbers.',
+  },
+  {
+    screen: 'home',
+    from: { kind: 'heading', name: 'Active Requests and Work', detail: '2' },
+    to: { kind: 'heading', name: 'Cases', detail: '2' },
+    reason: 'UX18: Cases, as cards with a thin bar.',
+  },
+  {
+    screen: 'home',
+    from: { kind: 'heading', name: 'My Next Journey', detail: '2' },
+    to: null,
+    reason:
+      'UX18: the next case is a dashed Start a Case tile at the end of Cases, with no words to read.',
+  },
+  {
+    screen: 'home',
+    from: {
+      kind: 'text',
+      name: 'Planning another trip? Start a case and check your saved documents against it.',
+    },
+    to: null,
+    reason: 'UX18: the dashed Start a Case tile replaces the sentence and its button.',
+  },
+  {
     screen: 'documents',
     from: { kind: 'heading', name: 'Add Documents', detail: '2' },
     to: null,
@@ -430,6 +471,58 @@ function travellerWords(name: string): string {
   return TRAVELLER_WORDS.reduce((text, [from, to]) => text.split(from).join(to), name);
 }
 
+/** The first letters of the first and last word, as the person card draws them. */
+function homeInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  return `${words[0]?.[0] ?? '?'}${words.length > 1 ? (words[words.length - 1]?.[0] ?? '') : ''}`.toUpperCase();
+}
+
+const label = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+const PROGRESS_TEXT =
+  '(\\d+ of \\d+ items? ready|Pick a checklist to see what is ready|This checklist has no required items to count\\.|Open the case to see its progress\\.)';
+
+/**
+ * The new Home card for each old Home row. Every way of reading an old row is tried, because a
+ * name can end in a digit and so be ambiguous against the count that follows it; the check keeps
+ * the one that is on the screen.
+ */
+function homeCardForms(entry: InventoryEntry): readonly InventoryEntry[] {
+  if (entry.kind !== 'link') return [];
+  const forms: string[] = [];
+  const old = entry.name;
+  // A person: "Name2 documents · 1 active case[ · 3 open requests][Action Needed]›".
+  const person = old.match(
+    /^(.*?)(\d+) documents? \u00b7 (\d+) active cases?(?: \u00b7 (\d+) open requests?)?(Action Needed)?\u203a$/,
+  );
+  if (person && /^\/app\/applicant\/[^/]+$/.test(entry.detail ?? '')) {
+    const head = person[1] ?? '';
+    const digits = person[2] ?? '';
+    // The digit run holds the end of the name and then the document count: try every split.
+    for (let k = 1; k <= digits.length; k += 1) {
+      const name = `${head}${digits.slice(0, digits.length - k)}`;
+      const documents = Number(digits.slice(digits.length - k));
+      const cases = Number(person[3]);
+      const requests = person[4] === undefined ? 0 : Number(person[4]);
+      const chip = person[5] ?? (documents === 0 ? 'Add a Document' : '');
+      forms.push(
+        `${homeInitials(name)}${name}${chip}${label(documents, 'Document', 'Documents')}${label(cases, 'Case', 'Cases')}${requests > 0 ? label(requests, 'Request', 'Requests') : ''}`,
+      );
+    }
+  }
+  // A case: "Title" + "Active case · Person" + progress + [badge] + "›".
+  const caseRow = old.match(
+    new RegExp(`^(.*?)Active case \\u00b7 (.*?)${PROGRESS_TEXT}(.*?)\\u203a$`),
+  );
+  if (caseRow) {
+    forms.push(`${caseRow[1]}${caseRow[2]}${caseRow[4]}${caseRow[3]}`);
+  }
+  // Requests from an agency: the same words without the chevron.
+  if (old.startsWith('Requests from an Agency') && old.endsWith('\u203a')) {
+    forms.push(old.slice(0, -1));
+  }
+  return forms.map((name) => ({ ...entry, name }));
+}
+
 /**
  * Approved changes that apply to a kind of element rather than one element: a link that now
  * carries an anchor so it lands on what it names (ADR 0023, links never land hidden).
@@ -476,5 +569,11 @@ export const APPROVED_RULES: readonly ApprovedRule[] = [
       entry.kind === 'link' && entry.detail?.endsWith('/missions')
         ? [{ ...entry, detail: `${entry.detail}#start-case` }]
         : [],
+  },
+  {
+    screens: ['home'],
+    reason:
+      'UX18: a person is a card (initials, name, one chip, two big numbers), and a case or a set of agency requests is a card (title, person, chip, thin bar). The same facts and the same address; only the order of the words and the chevron differ.',
+    alternatives: homeCardForms,
   },
 ];

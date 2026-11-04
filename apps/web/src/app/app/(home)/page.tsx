@@ -21,7 +21,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { CaseReadinessRing, type ReadinessCounts } from '../../../components/case-readiness-ring';
+import { CaseReadinessBar, type ReadinessCounts } from '../../../components/case-readiness-ring';
 import { DeadlineClock } from '../../../components/deadline-clock';
 import { DepthScope, atLevel } from '../../../components/depth';
 import { DepthSwitch } from '../../../components/depth-switch';
@@ -70,7 +70,8 @@ import {
   SETUP_LATER_HREF,
 } from '../first-run';
 import { HeldFilesLine, readHeldFileCount } from '../held-files-line';
-import { TidyUpCard, tidyUpLine } from './tidy-up';
+import { CaseCard, PersonCard, StartCaseTile } from './home-cards';
+import { TidyUpCard, tidyUpLine, tidyUpShortLine } from './tidy-up';
 
 export const metadata: Metadata = { title: 'Account Overview' };
 
@@ -192,7 +193,7 @@ function tidyUpSummary(
     readonly applicant: { readonly id: string };
     readonly tidy: TidyUpCounts | null;
   }[],
-): { readonly line: string; readonly href: string } | null {
+): { readonly line: string; readonly short: string; readonly href: string } | null {
   const withItems = rows.filter(
     (row) => row.tidy && row.tidy.duplicates + row.tidy.expired + row.tidy.replaced > 0,
   );
@@ -200,6 +201,7 @@ function tidyUpSummary(
   if (!first?.tidy) return null;
   return {
     line: tidyUpLine(first.tidy, withItems.length - 1),
+    short: tidyUpShortLine(first.tidy, withItems.length - 1),
     href: `/app/applicant/${first.applicant.id}/documents`,
   };
 }
@@ -768,13 +770,12 @@ export default async function AppPage({
 
         {coreGranted ? (
           <section
-            className="card u-mb-150"
+            className="home-block u-mb-150"
             aria-labelledby="home-records-heading"
             {...atLevel('browse')}
           >
-            <p className="card-kicker">People</p>
-            <h2 className="card-title" id="home-records-heading">
-              My Records
+            <h2 className="home-block-title" id="home-records-heading">
+              People
             </h2>
             {data.perApplicant.length === 0 ? (
               <EmptyState
@@ -787,31 +788,17 @@ export default async function AppPage({
                 reuse for each visa application.
               </EmptyState>
             ) : (
-              <ul className="attention-list">
+              <ul className="home-people">
                 {data.perApplicant.map((row) => (
-                  <li className="attention-item" key={row.applicant.id}>
-                    <Link className="attention-link" href={`/app/applicant/${row.applicant.id}`}>
-                      <span className="attention-text">
-                        <span className="attention-label">{row.applicant.displayName}</span>
-                        <span className="attention-detail">
-                          {plural(row.documentCount, 'document')}
-                          {' \u00b7 '}
-                          {plural(row.activeMissions, 'active case')}
-                          {row.waitingRequests > 0
-                            ? ` \u00b7 ${plural(row.waitingRequests, 'open request')}`
-                            : ''}
-                        </span>
-                      </span>
-                      <span className="attention-end">
-                        {row.itemCount > 0 ? (
-                          <StatusBadge tone="warning">Action Needed</StatusBadge>
-                        ) : null}
-                        <span className="attention-chevron" aria-hidden="true">
-                          ›
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
+                  <PersonCard
+                    key={row.applicant.id}
+                    href={`/app/applicant/${row.applicant.id}`}
+                    name={row.applicant.displayName}
+                    documents={row.documentCount}
+                    cases={row.activeMissions}
+                    requests={row.waitingRequests}
+                    actionNeeded={row.itemCount > 0}
+                  />
                 ))}
               </ul>
             )}
@@ -827,30 +814,23 @@ export default async function AppPage({
 
         {coreGranted && data.perApplicant.length > 0 ? (
           <section
-            className="card u-mb-150"
+            className="home-block u-mb-150"
             aria-labelledby="home-work-heading"
             {...atLevel('browse')}
           >
-            <p className="card-kicker">In Progress</p>
-            <h2 className="card-title" id="home-work-heading">
-              Active Requests and Work
+            <h2 className="home-block-title" id="home-work-heading">
+              Cases
             </h2>
-            {requestRows.length === 0 && activeCases.length === 0 ? (
-              <p className="card-body home-attention-why">
-                Nothing is open right now. When an agency asks you for something, or you start a
-                case, it appears here with the next step.
-              </p>
-            ) : (
-              <ul className="attention-list">
-                {requestRows.map((row) => (
-                  <li className="attention-item" key={`requests-${row.applicant.id}`}>
-                    <Link
-                      className="attention-link"
+            <div className="home-cases-area">
+              {requestRows.length > 0 || activeCases.length > 0 ? (
+                <ul className="home-cases">
+                  {requestRows.map((row) => (
+                    <CaseCard
+                      key={`requests-${row.applicant.id}`}
                       href={`/app/applicant/${row.applicant.id}/evidence`}
-                    >
-                      <span className="attention-text">
-                        <span className="attention-label">Requests from an Agency</span>
-                        <span className="attention-detail">
+                      title="Requests from an Agency"
+                      person={
+                        <>
                           {row.applicant.displayName}
                           {row.waitingRequests > 0
                             ? ` \u00b7 ${row.waitingRequests} waiting for you`
@@ -858,57 +838,51 @@ export default async function AppPage({
                           {row.requestsWithAgency > 0
                             ? ` \u00b7 ${row.requestsWithAgency} with the agency`
                             : ''}
-                        </span>
-                      </span>
-                      <span className="attention-end">
-                        {row.waitingRequests > 0 ? (
-                          <StatusBadge tone="warning">Action Needed</StatusBadge>
-                        ) : null}
-                        <span className="attention-chevron" aria-hidden="true">
-                          ›
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-                {activeCases.slice(0, HOME_CASES_VISIBLE).map((entry) => (
-                  <li className="attention-item" key={`case-${entry.id}`}>
-                    <Link
-                      className="attention-link"
+                        </>
+                      }
+                      {...(row.waitingRequests > 0
+                        ? { badge: <StatusBadge tone="warning">Action Needed</StatusBadge> }
+                        : {})}
+                    />
+                  ))}
+                  {activeCases.slice(0, HOME_CASES_VISIBLE).map((entry) => (
+                    <CaseCard
+                      key={`case-${entry.id}`}
                       href={data.caseNotices.get(entry.id)?.href ?? `/app/mission/${entry.id}`}
+                      title={entry.title}
+                      person={entry.person}
+                      {...(data.caseNotices.has(entry.id)
+                        ? {
+                            // Beside the trip it concerns (UMPE P13): what changed, in two words.
+                            badge: (
+                              <StatusBadge tone="warning">
+                                {data.caseNotices.get(entry.id)?.title}
+                              </StatusBadge>
+                            ),
+                          }
+                        : {})}
                     >
-                      <span className="attention-text">
-                        <span className="attention-label">{entry.title}</span>
-                        <span className="attention-detail">
-                          Active case{' \u00b7 '}
-                          {entry.person}
-                        </span>
-                        <span className="progress-ring-row">
-                          <CaseReadinessRing
-                            size="sm"
-                            readiness={data.readinessByCase.get(entry.id) ?? null}
-                            {...(data.unreadableCases.has(entry.id)
-                              ? { emptyLine: PROGRESS_IN_CASE_LINE }
-                              : {})}
-                          />
-                        </span>
-                      </span>
-                      <span className="attention-end">
-                        {data.caseNotices.has(entry.id) ? (
-                          // Beside the trip it concerns (UMPE P13): what changed, in two words.
-                          <StatusBadge tone="warning">
-                            {data.caseNotices.get(entry.id)?.title}
-                          </StatusBadge>
-                        ) : null}
-                        <span className="attention-chevron" aria-hidden="true">
-                          ›
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
+                      <CaseReadinessBar
+                        readiness={data.readinessByCase.get(entry.id) ?? null}
+                        {...(data.unreadableCases.has(entry.id)
+                          ? { emptyLine: PROGRESS_IN_CASE_LINE }
+                          : {})}
+                      />
+                    </CaseCard>
+                  ))}
+                </ul>
+              ) : (
+                <p className="card-body home-attention-why home-cases-empty">
+                  Nothing is open right now. When an agency asks you for something, or you start a
+                  case, it appears here with the next step.
+                </p>
+              )}
+              {!setupIncomplete && firstApplicant ? (
+                <StartCaseTile
+                  href={`/app/applicant/${firstApplicant.applicant.id}/missions#start-case`}
+                />
+              ) : null}
+            </div>
             {activeCases
               .slice(0, HOME_CASES_VISIBLE)
               .some((entry) => data.caseNotices.has(entry.id)) ? (
@@ -926,30 +900,16 @@ export default async function AppPage({
           </section>
         ) : null}
 
-        {/* Supporting content, after the actionable sections. One heading: the checklist's own, or the card's. */}
-        {setupIncomplete || firstApplicant ? (
+        {/* Supporting content, after the actionable sections: the get-started checklist while it is
+            unfinished. Once it is done the next case is the open slot at the end of Cases. */}
+        {setupIncomplete ? (
           <section
             id="home-journey"
             className="home-journey u-mb-150"
             aria-label="My Next Journey"
             {...atLevel('everything')}
           >
-            {setupIncomplete ? (
-              <Checklist title="My Next Journey" items={setupSteps} />
-            ) : firstApplicant ? (
-              <article className="card home-journey-card">
-                <h2 className="card-title">My Next Journey</h2>
-                <p className="card-body">
-                  Planning another trip? Start a case and check your saved documents against it.
-                </p>
-                <Link
-                  className="btn btn-secondary do-next-link"
-                  href={`/app/applicant/${firstApplicant.applicant.id}/missions#start-case`}
-                >
-                  Start a Case
-                </Link>
-              </article>
-            ) : null}
+            <Checklist title="My Next Journey" items={setupSteps} />
           </section>
         ) : null}
 

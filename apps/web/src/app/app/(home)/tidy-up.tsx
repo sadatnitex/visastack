@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { atLevel } from '../../../components/depth';
+import { Icon } from '../../../components/icons';
 import { plural } from '../../../lib/plural';
 
 /*
@@ -34,19 +35,49 @@ export function tidyUpLine(totals: TidyUpTotals, otherRecords = 0): string {
   return `${listed.charAt(0).toUpperCase()}${listed.slice(1)} could be tidied away in one record.${others} Nothing changes until you choose.`;
 }
 
-export function TidyUpCard({ line, href }: { readonly line: string; readonly href: string }) {
+/**
+ * The same counts in few words, for the slim line on Home: "1 expired document to tidy". Another
+ * record with something too adds "and more elsewhere"; the full sentence stays for a screen reader.
+ */
+export function tidyUpShortLine(totals: TidyUpTotals, otherRecords = 0): string {
+  const parts = [
+    totals.duplicates > 0 ? plural(totals.duplicates, 'exact copy', 'exact copies') : null,
+    totals.expired > 0 ? plural(totals.expired, 'expired document') : null,
+    totals.replaced > 0 ? plural(totals.replaced, 'replaced document') : null,
+  ].filter((part): part is string => part !== null);
+  const listed =
+    parts.length <= 1
+      ? (parts[0] ?? '')
+      : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  return `${listed.charAt(0).toUpperCase()}${listed.slice(1)} to tidy${otherRecords > 0 ? ', and more elsewhere' : ''}`;
+}
+
+export function TidyUpCard({
+  line,
+  short,
+  href,
+}: {
+  readonly line: string;
+  readonly short?: string;
+  readonly href: string;
+}) {
   return (
     <section
-      className="card u-mb-150 lc-tidy-up"
+      className="home-tidy u-mb-150"
       aria-labelledby="home-tidy-up-heading"
       {...atLevel('glance')}
     >
-      <h2 className="card-title" id="home-tidy-up-heading">
+      <span className="home-tidy-icon" aria-hidden="true">
+        <Icon name="folder" size={20} />
+      </span>
+      <h2 className="sr-only" id="home-tidy-up-heading">
         Tidy Up
       </h2>
-      <p className="lc-tidy-up-line">{line}</p>
-      <Link className="btn btn-secondary" href={href}>
-        Tidy Up Documents
+      <p className="home-tidy-line">{short ?? line}</p>
+      {/* The whole sentence, with its promise that nothing changes until the person chooses, for a screen reader. */}
+      {short ? <p className="sr-only">{line}</p> : null}
+      <Link className="btn home-tidy-button plain-link" href={href} aria-label="Tidy Up Documents">
+        Tidy Up
       </Link>
     </section>
   );

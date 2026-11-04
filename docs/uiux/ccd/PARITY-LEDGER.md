@@ -360,3 +360,7 @@ Unchanged: the agency and platform lists (pinned by `workspace-navigation.test.t
 ## UX17 Documents: removals approved by the owner (4 Nov 2026)
 
 The owner said "we dont need Add Documents at the bottom". The bottom Add Documents card is removed from the Documents page: its heading, its words (including the earlier UX7 wording that sat beside the link), and the consent hint that lived only inside it. The Add Documents page asks for the consent. The header button stays, a phone gets an Add button that stays in reach, and the empty list opens the Add Documents page directly. Recorded in `apps/web/src/lib/ccd/approved-changes.ts` against UX17.
+
+## UX18 Home after Start Here: changes approved by the owner (4 Nov 2026)
+
+The owner approved the drawing for Home after Start Here. Renames: My Records is People, Active Requests and Work is Cases. Removals: the small labels People and In Progress above those headings, the My Next Journey heading and its sentence (the next case is a dashed Start a Case tile at the end of Cases). Reshaped, same facts and same addresses: a person, a case and a set of agency requests are each one card; the order of the words in their link text and the chevron differ. Recorded in `apps/web/src/lib/ccd/approved-changes.ts` against UX18. Dates That Matter, Start Here, Needs Attention and the Permissions content are unchanged.

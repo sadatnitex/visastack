@@ -114,3 +114,36 @@ export function ProgressRing({
     </span>
   );
 }
+
+/**
+ * The same count as the ring, drawn as a thin bar for a card (UX18). Same words, same rule: it is
+ * a count of what is on file, never a decision, and an empty bar teaches the next step instead of
+ * showing a made-up number. A native progress element, so a screen reader gets the count from it.
+ */
+export function ProgressBar({
+  done,
+  total,
+  emptyLine = NO_CHECKLIST_LINE,
+}: Pick<ProgressRingProps, 'done' | 'total' | 'emptyLine'>): ReactNode {
+  if (total <= 0) {
+    return (
+      <span className="progress-bar progress-bar-empty">
+        <span className="progress-bar-line">{emptyLine}</span>
+      </span>
+    );
+  }
+  const words = progressRingWords(Math.min(done, total), total);
+  return (
+    <span className="progress-bar">
+      <progress
+        className="progress-bar-track"
+        max={100}
+        value={progressRingPercent(done, total)}
+        aria-label={words}
+      />
+      <span className="progress-bar-words" aria-hidden="true">
+        {words}
+      </span>
+    </span>
+  );
+}
