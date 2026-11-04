@@ -2,6 +2,7 @@ import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { EACH_GRANT, accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import {
   cancelEvidenceRequest,
@@ -514,7 +515,6 @@ describe('Lane D review: members, case-scoped grants and mixed-up links', () => 
       expect(
         isOk(await revokeGrant(w.db, { actorAccountId: carol.accountId, grantId: grantA })),
       ).toBe(true);
-      const { requireAccess, accountPrincipal, EACH_GRANT } = await import('./access');
       const proofB = await requireAccess(
         w.db,
         accountPrincipal(w.harbor.accountId),

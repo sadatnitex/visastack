@@ -160,8 +160,12 @@ describe('Lane D: sending an exact copy', () => {
   it('answers a retry with the same key with the first send and writes nothing more', async () => {
     const doc = await cleanDocument(w.db, w.alice);
     const requestId = await openRequest(w.db, w.harbor, w.alice);
-    const first = await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'tap-0000000000001' });
-    const again = await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'tap-0000000000001' });
+    const first = await send(w.db, w.alice, requestId, doc.documentId, {
+      idempotencyKey: 'tap-0000000000001',
+    });
+    const again = await send(w.db, w.alice, requestId, doc.documentId, {
+      idempotencyKey: 'tap-0000000000001',
+    });
     expect(isOk(first) && isOk(again)).toBe(true);
     if (!isOk(first) || !isOk(again)) return;
     expect(again.value.submissionId).toBe(first.value.submissionId);
@@ -178,9 +182,15 @@ describe('Lane D: sending an exact copy', () => {
     const doc = await cleanDocument(w.db, w.alice);
     const requestId = await openRequest(w.db, w.harbor, w.alice);
     expect(
-      isOk(await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'key-aaaaaaaaaaaaaaaa' })),
+      isOk(
+        await send(w.db, w.alice, requestId, doc.documentId, {
+          idempotencyKey: 'key-aaaaaaaaaaaaaaaa',
+        }),
+      ),
     ).toBe(true);
-    const second = await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: 'key-bbbbbbbbbbbbbbbb' });
+    const second = await send(w.db, w.alice, requestId, doc.documentId, {
+      idempotencyKey: 'key-bbbbbbbbbbbbbbbb',
+    });
     expect(isErr(second) && second.error.code).toBe('invalid');
     expect(await submissionRows(w.db, requestId)).toHaveLength(1);
   });
