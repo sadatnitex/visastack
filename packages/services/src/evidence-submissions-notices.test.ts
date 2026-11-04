@@ -124,7 +124,7 @@ describe('Lane D: New Evidence Received', () => {
         expect(row.resourceId).toBe(requestId);
         expect(row.applicantId).toBe(w.alice.applicantId);
         expect(row.organizationId).toBe(w.harbor.organizationId);
-        expect(row.idempotencyKey.endsWith(':round-1')).toBe(true);
+        expect(row.idempotencyKey).toMatch(/:submission-[0-9a-f-]{36}$/);
         expect(row.payload).toEqual({
           subject: 'New Evidence Received',
           summary: 'A traveller sent evidence for one of your requests.',
@@ -170,12 +170,10 @@ describe('Lane D: New Evidence Received', () => {
       ).toBe(true);
       expect(isOk(await send(w.db, w.alice, requestId, doc.documentId))).toBe(true);
       const rows = await notices(w.db, NOTE);
-      expect(rows.map((r) => r.idempotencyKey.split(':').pop()).sort()).toEqual([
-        'round-1',
-        'round-1',
-        'round-2',
-        'round-2',
-      ]);
+      const sends = await w.db.select().from(schema.evidenceRequestSubmissions);
+      const expected = sends.flatMap((r) => [`submission-${r.id}`, `submission-${r.id}`]);
+      expect(sends).toHaveLength(2);
+      expect(rows.map((r) => r.idempotencyKey.split(':').pop()).sort()).toEqual(expected.sort());
     },
     TIMEOUT,
   );
@@ -345,10 +343,11 @@ describe('Lane D: a second send-back on one request notifies again', () => {
             eq(schema.notifications.channel, 'IN_APP'),
           ),
         );
-      expect(rows.map((r) => r.idempotencyKey.split(':').pop()).sort()).toEqual([
-        'round-1',
-        'round-2',
-      ]);
+      const sends = await w.db.select().from(schema.evidenceRequestSubmissions);
+      expect(sends).toHaveLength(2);
+      expect(rows.map((r) => r.idempotencyKey.split(':').pop()).sort()).toEqual(
+        sends.map((r) => `submission-${r.id}`).sort(),
+      );
       // Each is still the neutral notice: no reason text.
       expect(JSON.stringify(rows)).not.toContain('does not stand');
     },
@@ -387,6 +386,58 @@ describe('Lane D: a second send-back on one request notifies again', () => {
           ),
         );
       expect(rows).toHaveLength(2);
+    },
+    TIMEOUT,
+  );
+});
+
+describe('Lane D: a reused round number never swallows a notice', () => {
+  it(
+    'still notifies the agency and the traveller after the first send was removed with its document',
+    async () => {
+      const w = await world();
+      const first = await cleanDocument(w.db, w.alice, 'bank_statement', 'first.pdf');
+      const second = await cleanDocument(w.db, w.alice, 'bank_statement', 'second.pdf');
+      const third = await cleanDocument(w.db, w.alice, 'bank_statement', 'third.pdf');
+      const requestId = await openRequest(w.db, w.harbor, w.alice);
+      const sendBack = () =>
+        decideEvidenceResponse(w.db, {
+          actorAccountId: w.harbor.accountId,
+          requestId,
+          outcome: 'NEEDS_REPLACEMENT',
+          reason: 'x',
+        });
+
+      // Round 1 is sent and sent back; then its document is hard-deleted (the send cascades away).
+      expect(isOk(await send(w.db, w.alice, requestId, first.documentId))).toBe(true);
+      expect(isOk(await sendBack())).toBe(true);
+      await w.db.delete(schema.documents).where(eq(schema.documents.id, first.documentId));
+      expect(await w.db.select().from(schema.evidenceRequestSubmissions)).toEqual([]);
+
+      // The next send is round 1 again, but it is a different send: its notices are not dropped.
+      expect(isOk(await send(w.db, w.alice, requestId, second.documentId))).toBe(true);
+      const [reused] = await w.db.select().from(schema.evidenceRequestSubmissions);
+      expect(reused?.roundNo).toBe(1);
+      expect(await notices(w.db, NOTE)).toHaveLength(4);
+      expect(isOk(await sendBack())).toBe(true);
+      const replacement = await w.db
+        .select()
+        .from(schema.notifications)
+        .where(
+          and(
+            eq(schema.notifications.eventType, 'EVIDENCE_REPLACEMENT_REQUESTED'),
+            eq(schema.notifications.channel, 'IN_APP'),
+          ),
+        );
+      expect(replacement).toHaveLength(2);
+
+      // And the next send after that carries on, with the default retry key still free.
+      expect(isOk(await send(w.db, w.alice, requestId, third.documentId))).toBe(true);
+      expect(await notices(w.db, NOTE)).toHaveLength(6);
+      const rounds = (await w.db.select().from(schema.evidenceRequestSubmissions))
+        .map((r) => r.roundNo)
+        .sort();
+      expect(rounds).toEqual([1, 2]);
     },
     TIMEOUT,
   );
