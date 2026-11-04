@@ -1,6 +1,6 @@
 import { isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { EACH_GRANT, accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
@@ -539,6 +539,54 @@ describe('Lane D review: members, case-scoped grants and mixed-up links', () => 
         outcome: 'ACCEPTED',
       });
       expect(isErr(decided) && decided.error.code).toBe('forbidden');
+    },
+    TIMEOUT,
+  );
+});
+
+describe('Lane D review: last follow-ups', () => {
+  it(
+    'does not answer a retry as sent once the request no longer waits',
+    async () => {
+      const w = await world();
+      const doc = await cleanDocument(w.db, w.alice);
+      const requestId = await openRequest(w.db, w.harbor, w.alice);
+      const key = 'retry-key-0000000003';
+      expect(
+        isOk(await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: key })),
+      ).toBe(true);
+      // Withdrawn after the send, with no decision row (the status alone has moved).
+      await w.db
+        .update(schema.evidenceRequests)
+        .set({ status: 'CANCELLED' })
+        .where(eq(schema.evidenceRequests.id, requestId));
+      const retry = await send(w.db, w.alice, requestId, doc.documentId, { idempotencyKey: key });
+      expect(isErr(retry) && retry.error.code).toBe('stale');
+      expect(await w.db.select().from(schema.evidenceRequestSubmissions)).toHaveLength(1);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'refuses a chosen version while the exact-copy tables are missing, and still sends without one',
+    async () => {
+      const w = await world();
+      const doc = await cleanDocument(w.db, w.alice);
+      const requestId = await openRequest(w.db, w.harbor, w.alice);
+      await w.db.execute(
+        sql`drop table evidence_request_decision_submissions, evidence_request_submissions`,
+      );
+      const chosen = await send(w.db, w.alice, requestId, doc.documentId, {
+        documentVersionId: doc.versionId,
+      });
+      expect(isErr(chosen) && chosen.error.code).toBe('invalid');
+      expect(isErr(chosen) && chosen.error.message).toMatch(/exact version is not available yet/);
+      const [untouched] = await w.db
+        .select()
+        .from(schema.evidenceRequests)
+        .where(eq(schema.evidenceRequests.id, requestId));
+      expect(untouched?.status).toBe('OPEN');
+      expect(isOk(await send(w.db, w.alice, requestId, doc.documentId))).toBe(true);
     },
     TIMEOUT,
   );

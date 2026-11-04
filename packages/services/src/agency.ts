@@ -2734,6 +2734,15 @@ export async function submitEvidenceResponse(
   }
   const exact = await evidenceSubmissionsPresent(db);
   const lifecycle = await lifecycleTablesPresent(db);
+  // Until the exact-copy tables exist a chosen version could not be kept, so it is not accepted.
+  if (!exact && input.documentVersionId !== undefined) {
+    return err(
+      serviceError(
+        'invalid',
+        'Choosing an exact version is not available yet. Send the document and its newest version is used.',
+      ),
+    );
+  }
 
   return db.transaction(async (tx) => {
     const loaded = await loadEvidenceRequestForOwner(
@@ -3309,8 +3318,10 @@ const UNAVAILABLE_COPY =
  */
 async function waitingSubmission(
   db: Db,
-  request: Pick<EvidenceRequest, 'id' | 'respondingDocumentId'>,
+  request: Pick<EvidenceRequest, 'id' | 'respondingDocumentId' | 'status'>,
 ): Promise<SubmissionRecord | undefined> {
+  // A request that no longer waits for a decision (withdrawn, sent back, closed) has no waiting send.
+  if (!DECIDABLE_STATUSES.has(request.status)) return undefined;
   const latest = first(
     await db
       .select()
