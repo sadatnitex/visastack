@@ -40,7 +40,8 @@ const respond = (props: { awaiting?: boolean } = {}) =>
       requestId="r1"
       kind="FIELD"
       candidateFacts={[{ factId: 'f1', value: 'A1234567' }]}
-      candidateDocuments={[]}
+      documentChoices={[]}
+      idempotencyKey="save-states-key-0001"
       timeZone="Asia/Dhaka"
       {...props}
     />,

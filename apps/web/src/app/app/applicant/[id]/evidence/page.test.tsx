@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   listEvidenceRequestDecisions: vi.fn(),
   requireAccess: vi.fn(),
   listRequestItemExtras: vi.fn(),
+  getDocumentLifecycles: vi.fn(),
+  loadVersionScanEvidence: vi.fn(),
+  evidenceSubmissionsPresent: vi.fn(),
 }));
 /**
  * The page asks for one page of requests (WP-SB3). Fixtures stay plain lists: this turns a list
@@ -45,6 +48,9 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listEvidenceRequestDecisions: mocks.listEvidenceRequestDecisions,
   requireAccess: mocks.requireAccess,
   listRequestItemExtras: mocks.listRequestItemExtras,
+  getDocumentLifecycles: mocks.getDocumentLifecycles,
+  loadVersionScanEvidence: mocks.loadVersionScanEvidence,
+  evidenceSubmissionsPresent: mocks.evidenceSubmissionsPresent,
 }));
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) => fn({ db: {}, accountId: 'owner' }),
@@ -52,6 +58,7 @@ vi.mock('../../../../../lib/session', () => ({
 vi.mock('../../../../../lib/ccd/depth.server', () => ({ readDepth: async () => 'auto' }));
 vi.mock('./submit-response-form', () => ({ SubmitResponseForm: stub('SubmitResponseForm') }));
 vi.mock('./ask-about-item-form', () => ({ AskAboutItemForm: stub('AskAboutItemForm') }));
+vi.mock('./clearer-copy-panel', () => ({ ClearerCopyPanel: stub('ClearerCopyPanel') }));
 
 const { default: EvidencePage } = await import('./page');
 const render = () => renderServer(EvidencePage({ params: Promise.resolve({ id: 'a1' }) }));
@@ -96,6 +103,13 @@ beforeEach(() => {
   mocks.listEvidenceRequestDecisions.mockResolvedValue({ ok: true, value: [] });
   mocks.requireAccess.mockResolvedValue({ ok: true, value: { gate: 'proof' } });
   mocks.listRequestItemExtras.mockResolvedValue(NO_EXTRAS);
+  // Every document is the everyday copy unless a test says otherwise.
+  mocks.getDocumentLifecycles.mockImplementation(async (_db: unknown, ids: string[]) => {
+    const current = { state: 'CURRENT', replaced: false };
+    return new Map(ids.map((id) => [id.toLowerCase(), current]));
+  });
+  mocks.loadVersionScanEvidence.mockResolvedValue(new Map());
+  mocks.evidenceSubmissionsPresent.mockResolvedValue(true);
 });
 
 const withRequests = (...requests: Record<string, unknown>[]) =>
@@ -380,5 +394,204 @@ describe('a long list of requests stays short (WP-SB3)', () => {
     expect(before.lastIndexOf('<div data-level="browse">')).toBeLessThan(
       before.lastIndexOf('class="rows"'),
     );
+  });
+});
+
+describe('the copies offered for a document request (Lane E)', () => {
+  type Choice = {
+    documentId: string;
+    versionId: string;
+    name: string;
+    kindLabel: string;
+    addedLabel: string;
+    scanLabel: string;
+    usable: boolean;
+    sentBack: boolean;
+    newest: boolean;
+  };
+  type FormProps = {
+    documentChoices: Choice[];
+    idempotencyKey: string;
+    exactCopies: boolean;
+    documentsRead: boolean;
+  };
+  const when = (iso: string) => ({ createdAt: iso });
+  const lifecycles = (map: Record<string, { state: string; replaced: boolean }>) =>
+    mocks.getDocumentLifecycles.mockImplementation(async () => new Map(Object.entries(map)));
+
+  it('offers only the everyday copy: an archived, removed or replaced one is not a choice', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        doc({ id: 'd1', latestVersionId: 'v1', ...when('2026-10-01T00:00:00Z') }),
+        doc({ id: 'd2', latestVersionId: 'v2', ...when('2026-10-02T00:00:00Z') }),
+        doc({ id: 'd3', latestVersionId: 'v3', ...when('2026-10-03T00:00:00Z') }),
+        doc({ id: 'd4', latestVersionId: 'v4', ...when('2026-10-04T00:00:00Z') }),
+        doc({
+          id: 'd5',
+          docType: 'PASSPORT',
+          latestVersionId: 'v5',
+          ...when('2026-10-05T00:00:00Z'),
+        }),
+      ],
+    });
+    lifecycles({
+      d1: { state: 'CURRENT', replaced: false },
+      d2: { state: 'ARCHIVED', replaced: false },
+      d3: { state: 'CURRENT', replaced: true },
+      d4: { state: 'RECENTLY_DELETED', replaced: false },
+      d5: { state: 'CURRENT', replaced: false },
+    });
+    const [form] = stubProps<FormProps>(await render(), 'SubmitResponseForm');
+    expect(form?.documentChoices.map((c) => c.documentId)).toEqual(['d1']);
+    expect(form?.documentChoices[0]).toMatchObject({
+      versionId: 'v1',
+      name: 'statement.pdf',
+      kindLabel: 'Bank Statement',
+      usable: true,
+      sentBack: false,
+    });
+  });
+
+  it('lists the newest first, marks only the newest, and words how each was checked', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        doc({ id: 'd1', latestVersionId: 'v1', ...when('2026-10-01T00:00:00Z') }),
+        doc({ id: 'd2', latestVersionId: 'v2', ...when('2026-10-20T00:00:00Z') }),
+      ],
+    });
+    mocks.loadVersionScanEvidence.mockResolvedValue(
+      new Map([
+        ['v1', { kind: 'VIRUS_SCANNED', scannedAt: '2026-10-01T00:05:00Z' }],
+        ['v2', { kind: 'FORMAT_CHECKED', scannedAt: null }],
+      ]),
+    );
+    const [form] = stubProps<FormProps>(await render(), 'SubmitResponseForm');
+    expect(form?.documentChoices.map((c) => [c.documentId, c.newest, c.scanLabel])).toEqual([
+      ['d2', true, 'Format Checked'],
+      ['d1', false, 'Checked for Viruses'],
+    ]);
+    expect(form?.documentChoices[0]?.addedLabel).toBe('20 Oct 2026, 06:00 GMT+6');
+  });
+
+  it('reads how each file was checked with the owner proof and only for the offered copies', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc({ id: 'd1', latestVersionId: 'v1' }), doc({ id: 'd2', latestVersionId: 'v2' })],
+    });
+    lifecycles({
+      d1: { state: 'CURRENT', replaced: false },
+      d2: { state: 'ARCHIVED', replaced: false },
+    });
+    await render();
+    expect(mocks.loadVersionScanEvidence).toHaveBeenCalledWith({ gate: 'proof' }, [
+      { id: 'v1', safetyStatus: 'CLEAN' },
+    ]);
+  });
+
+  it('marks the copy the agency sent back, and offers a clearer copy started from it', async () => {
+    withRequests({
+      ...request,
+      status: 'NEEDS_REPLACEMENT',
+      respondingDocumentId: 'd1',
+    });
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc({ id: 'd1', latestVersionId: 'v1' })],
+    });
+    const html = await render();
+    const [form] = stubProps<FormProps>(html, 'SubmitResponseForm');
+    expect(form?.documentChoices.map((c) => [c.documentId, c.sentBack])).toEqual([['d1', true]]);
+    const panels = stubProps<{
+      applicantId: string;
+      requestId: string;
+      documentId: string;
+      documentName: string;
+      primary: boolean;
+    }>(html, 'ClearerCopyPanel');
+    expect(panels).toEqual([
+      {
+        applicantId: 'a1',
+        requestId: 'r1',
+        documentId: 'd1',
+        documentName: 'statement.pdf',
+        primary: true,
+      },
+    ]);
+  });
+
+  it('does not make the clearer copy the main action while another copy can be sent', async () => {
+    withRequests({ ...request, status: 'NEEDS_REPLACEMENT', respondingDocumentId: 'd1' });
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        doc({ id: 'd1', latestVersionId: 'v1' }),
+        doc({ id: 'd2', latestVersionId: 'v2', ...when('2026-11-01T00:00:00Z') }),
+      ],
+    });
+    const [panel] = stubProps<{ primary: boolean }>(await render(), 'ClearerCopyPanel');
+    expect(panel?.primary).toBe(false);
+  });
+
+  it('offers Add Documents instead when the sent back copy is no longer an everyday copy', async () => {
+    withRequests({ ...request, status: 'NEEDS_REPLACEMENT', respondingDocumentId: 'd1' });
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc({ id: 'd1', latestVersionId: 'v1' })],
+    });
+    lifecycles({ d1: { state: 'ARCHIVED', replaced: false } });
+    const html = await render();
+    expect(stubProps(html, 'ClearerCopyPanel')).toHaveLength(0);
+    expect(html).toContain('href="/app/applicant/a1/documents/add"');
+    expect(textOf(html)).toContain('Add Documents');
+  });
+
+  it('offers no clearer copy for a request that is only waiting, or a detail request', async () => {
+    const waiting = await render();
+    expect(stubProps(waiting, 'ClearerCopyPanel')).toHaveLength(0);
+    withRequests({
+      ...request,
+      kind: 'FIELD',
+      docType: null,
+      fieldKey: 'passport_number',
+      status: 'NEEDS_REPLACEMENT',
+    });
+    expect(stubProps(await render(), 'ClearerCopyPanel')).toHaveLength(0);
+  });
+
+  it('makes a fresh retry key on the server for every render and every request', async () => {
+    withRequests({ ...request, id: 'r1' }, { ...request, id: 'r2' });
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc()] });
+    const first = stubProps<FormProps>(await render(), 'SubmitResponseForm');
+    const second = stubProps<FormProps>(await render(), 'SubmitResponseForm');
+    const keys = [...first, ...second].map((form) => form.idempotencyKey);
+    expect(new Set(keys).size).toBe(4);
+    for (const key of keys) expect(key).toMatch(/^[A-Za-z0-9_-]{16,200}$/);
+  });
+
+  it('tells the form whether the service keeps exact copies yet', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc()] });
+    expect(stubProps<FormProps>(await render(), 'SubmitResponseForm')[0]?.exactCopies).toBe(true);
+    mocks.evidenceSubmissionsPresent.mockResolvedValue(false);
+    expect(stubProps<FormProps>(await render(), 'SubmitResponseForm')[0]?.exactCopies).toBe(false);
+    mocks.evidenceSubmissionsPresent.mockRejectedValue(new Error('down'));
+    expect(stubProps<FormProps>(await render(), 'SubmitResponseForm')[0]?.exactCopies).toBe(false);
+  });
+
+  it('says the documents could not be read, and offers no copy, when the lifecycle read fails', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc()] });
+    mocks.getDocumentLifecycles.mockRejectedValue(new Error('down'));
+    const [form] = stubProps<FormProps>(await render(), 'SubmitResponseForm');
+    expect(form?.documentsRead).toBe(false);
+    expect(form?.documentChoices).toEqual([]);
+  });
+
+  it('says the documents could not be read when the owner proof is refused', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc()] });
+    mocks.requireAccess.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
+    const [form] = stubProps<FormProps>(await render(), 'SubmitResponseForm');
+    expect(form?.documentsRead).toBe(false);
+    expect(form?.documentChoices).toEqual([]);
   });
 });

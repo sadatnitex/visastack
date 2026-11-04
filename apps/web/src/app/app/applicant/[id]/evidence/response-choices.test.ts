@@ -1,0 +1,113 @@
+import type { DocumentSummary } from '@visastack/services';
+import { describe, expect, it } from 'vitest';
+import {
+  buildDocumentChoices,
+  chooseLegendId,
+  clearerCopyTarget,
+  initialChoice,
+} from './response-choices';
+
+const doc = (id: string, over: Partial<DocumentSummary> = {}): DocumentSummary =>
+  ({
+    id,
+    originalName: `${id}.pdf`,
+    approvedName: null,
+    docType: 'BANK_STATEMENT',
+    latestVersionId: `v-${id}`,
+    safetyStatus: 'CLEAN',
+    processingStatus: 'AWAITING_REVIEW',
+    createdAt: '2026-10-01T00:00:00Z',
+    ...over,
+  }) as DocumentSummary;
+
+const build = (
+  documents: DocumentSummary[],
+  over: Partial<Parameters<typeof buildDocumentChoices>[0]> = {},
+) =>
+  buildDocumentChoices({
+    documents,
+    docType: 'BANK_STATEMENT',
+    everyday: new Set(documents.map((d) => d.id.toLowerCase())),
+    scan: new Map(),
+    timeZone: 'Asia/Dhaka',
+    sentBackDocumentId: null,
+    ...over,
+  });
+
+describe('the copies offered for one request', () => {
+  it('offers only documents of the kind asked for that are still everyday copies', () => {
+    const choices = build(
+      [doc('a'), doc('b', { docType: 'PASSPORT' }), doc('c'), doc('d', { latestVersionId: null })],
+      { everyday: new Set(['a', 'b', 'd']) },
+    );
+    expect(choices.map((c) => c.documentId)).toEqual(['a']);
+  });
+
+  it('offers nothing for a request that names no kind', () => {
+    expect(build([doc('a')], { docType: null })).toEqual([]);
+  });
+
+  it('puts the newest first and marks it only when there is a choice to make', () => {
+    const two = build([
+      doc('old', { createdAt: '2026-10-01T00:00:00Z' }),
+      doc('new', { createdAt: '2026-10-09T00:00:00Z' }),
+    ]);
+    expect(two.map((c) => [c.documentId, c.newest])).toEqual([
+      ['new', true],
+      ['old', false],
+    ]);
+    expect(build([doc('only')])[0]?.newest).toBe(false);
+  });
+
+  it('names the file by its approved name first, and the exact version it would send', () => {
+    const [choice] = build([doc('a', { approvedName: 'March Statement' })]);
+    expect(choice).toMatchObject({
+      name: 'March Statement',
+      versionId: 'v-a',
+      kindLabel: 'Bank Statement',
+    });
+  });
+
+  it('words the time in the traveller own zone, with the zone', () => {
+    const [choice] = build([doc('a', { createdAt: '2026-10-27T08:32:00Z' })]);
+    expect(choice?.addedLabel).toBe('27 Oct 2026, 14:32 GMT+6');
+  });
+
+  it('says a copy cannot be sent until it has passed its checks, and says how it was checked', () => {
+    const choices = build([
+      doc('a', { safetyStatus: 'SCANNING', createdAt: '2026-10-02T00:00:00Z' }),
+      doc('b', { processingStatus: 'FAILED', createdAt: '2026-10-01T00:00:00Z' }),
+    ]);
+    expect(choices.map((c) => c.usable)).toEqual([false, false]);
+    expect(choices[0]?.scanLabel).toBe('Waiting to Be Checked');
+  });
+
+  it('marks the copy the agency sent back, whatever the letter case of its id', () => {
+    const choices = build([doc('ABC'), doc('def')], { sentBackDocumentId: 'abc' });
+    expect(choices.map((c) => c.sentBack).sort()).toEqual([false, true]);
+    expect(clearerCopyTarget(choices)?.documentId).toBe('ABC');
+    expect(clearerCopyTarget(build([doc('x')]))).toBeNull();
+  });
+});
+
+describe('what is chosen before the person chooses', () => {
+  it('is the only usable copy, unless the agency sent that copy back', () => {
+    expect(initialChoice(build([doc('a')]))).toBe('a');
+    expect(initialChoice(build([doc('a')], { sentBackDocumentId: 'a' }))).toBe('');
+  });
+
+  it('is nothing when several copies can be sent', () => {
+    expect(initialChoice(build([doc('a'), doc('b')]))).toBe('');
+  });
+
+  it('ignores a copy that cannot be sent when counting', () => {
+    const choices = build([doc('a'), doc('b', { safetyStatus: 'QUARANTINED' })]);
+    expect(initialChoice(choices)).toBe('a');
+  });
+});
+
+describe('the heading focus returns to', () => {
+  it('is one stable id per request', () => {
+    expect(chooseLegendId('r1')).toBe('choose-r1');
+  });
+});

@@ -1,4 +1,7 @@
+import { randomBytes } from 'node:crypto';
 import {
+  type AuthorizedApplicant,
+  type Db,
   type DocumentSummary,
   type EvidenceRequest,
   type EvidenceRequestDecision,
@@ -6,13 +9,17 @@ import {
   REQUEST_QUESTION_MAX_LENGTH,
   type RequestItemExtras,
   type TriageDocumentState,
+  type VersionScanEvidence,
   accountPrincipal,
+  evidenceSubmissionsPresent,
   getApplicant,
+  getDocumentLifecycles,
   listApplicantProfile,
   listDocumentsDetailed,
   listEvidenceRequestDecisions,
   listEvidenceRequestsForApplicant,
   listRequestItemExtras,
+  loadVersionScanEvidence,
   referenceCodesFor,
   requireAccess,
 } from '@visastack/services';
@@ -33,8 +40,10 @@ import { TRAVELLER_LIST_STEP, nextShow, parseShow } from '../../../../../lib/pag
 import { formatMoment } from '../../../../../lib/save-status';
 import { withSession } from '../../../../../lib/session';
 import { AskAboutItemForm } from './ask-about-item-form';
+import { ClearerCopyPanel } from './clearer-copy-panel';
 import { AWAITING_SUBMISSION, dueLabel } from './due-label';
 import { requestItemView } from './request-item';
+import { buildDocumentChoices, clearerCopyTarget } from './response-choices';
 import { SubmitResponseForm } from './submit-response-form';
 
 export const metadata: Metadata = { title: 'Evidence Requests' };
@@ -60,6 +69,65 @@ function respondingDocumentState(
     : undefined;
   if (!found?.latestVersionId || !found.processingStatus || !found.safetyStatus) return null;
   return { processingStatus: found.processingStatus, safetyStatus: found.safetyStatus };
+}
+
+/** What the copy lists need beyond the documents themselves. */
+interface ChoiceBasis {
+  /** False when the lifecycle of the documents could not be read: no copy is then offered. */
+  readonly read: boolean;
+  /** Documents (lower case ids) that are still the person's everyday copy. */
+  readonly everyday: ReadonlySet<string>;
+  /** How each candidate's latest file was checked, by version id. */
+  readonly scan: ReadonlyMap<string, VersionScanEvidence>;
+  /** The service keeps the exact copy that is sent (migration 0132 has run). */
+  readonly exactCopies: boolean;
+}
+
+/**
+ * The facts the copy pickers share, read once for the page: which documents are still the everyday
+ * copy, how each one's latest file was checked (through the owner's own access proof), and whether
+ * exact copies are kept at all. A failure to read says "not read", never "no copies".
+ */
+async function choiceBasisFor(input: {
+  readonly db: Db;
+  readonly access: AuthorizedApplicant<'VIEW_METADATA'> | null;
+  readonly documents: readonly DocumentSummary[];
+  readonly docTypes: ReadonlySet<string>;
+}): Promise<ChoiceBasis> {
+  const exactCopies = await evidenceSubmissionsPresent(input.db).catch(() => false);
+  const none: ChoiceBasis = {
+    read: input.docTypes.size === 0,
+    everyday: new Set(),
+    scan: new Map(),
+    exactCopies,
+  };
+  if (input.docTypes.size === 0 || !input.access) return none;
+  try {
+    const candidates = input.documents.filter(
+      (doc) => doc.docType !== null && input.docTypes.has(doc.docType),
+    );
+    const lifecycles = await getDocumentLifecycles(
+      input.db,
+      candidates.map((doc) => doc.id),
+      input.access,
+    );
+    const everyday = new Set<string>();
+    for (const doc of candidates) {
+      const lifecycle = lifecycles.get(doc.id.toLowerCase());
+      if (lifecycle?.state === 'CURRENT' && !lifecycle.replaced) everyday.add(doc.id.toLowerCase());
+    }
+    const scan = await loadVersionScanEvidence(
+      input.access,
+      candidates.flatMap((doc) =>
+        everyday.has(doc.id.toLowerCase()) && doc.latestVersionId && doc.safetyStatus
+          ? [{ id: doc.latestVersionId, safetyStatus: doc.safetyStatus }]
+          : [],
+      ),
+    );
+    return { read: true, everyday, scan, exactCopies };
+  } catch {
+    return none;
+  }
 }
 
 /** A person-readable name for what is being asked for, never the stored key. */
@@ -141,6 +209,21 @@ export default async function EvidencePage({
     const extras: RequestItemExtras = listedExtras?.ok
       ? listedExtras.value
       : { rules: new Map(), questions: new Map() };
+    // The copies that can be sent for a document request still waiting on the person: only the
+    // everyday copy of each document (not archived, removed or replaced), each with how its own
+    // file was checked. If any of it cannot be read, no copy is offered and the person is told.
+    const choiceBasis = await choiceBasisFor({
+      db,
+      access: access.ok ? access.value : null,
+      documents: documents.ok ? documents.value : [],
+      docTypes: new Set(
+        requestList.flatMap((req) =>
+          req.kind === 'DOCUMENT' && AWAITING_SUBMISSION.has(req.status) && req.docType
+            ? [req.docType]
+            : [],
+        ),
+      ),
+    });
     return {
       applicant,
       referenceCodes,
@@ -153,6 +236,7 @@ export default async function EvidencePage({
       documentsRead: documents.ok,
       decisionsByRequest,
       extras,
+      choiceBasis,
     };
   });
 
@@ -263,10 +347,24 @@ export default async function EvidencePage({
                           (entry) => entry.fieldKey === req.fieldKey && entry.value !== null,
                         )
                       : [];
-                  const candidateDocuments =
-                    req.kind === 'DOCUMENT'
-                      ? data.documents.filter((doc) => doc.docType === req.docType)
+                  // Only a request still waiting on the person offers copies to send.
+                  const documentChoices =
+                    req.kind === 'DOCUMENT' && awaitingReply
+                      ? buildDocumentChoices({
+                          documents: data.documents,
+                          docType: req.docType ?? null,
+                          everyday: data.choiceBasis.everyday,
+                          scan: data.choiceBasis.scan,
+                          timeZone,
+                          sentBackDocumentId:
+                            req.status === 'NEEDS_REPLACEMENT' ? req.respondingDocumentId : null,
+                        })
                       : [];
+                  const sentBackCopy =
+                    req.status === 'NEEDS_REPLACEMENT' ? clearerCopyTarget(documentChoices) : null;
+                  const otherCopyUsable = documentChoices.some(
+                    (choice) => choice.usable && !choice.sentBack,
+                  );
                   const due = req.dueDate
                     ? dueLabel(req.dueDate, req.status, data.applicant.timezone)
                     : null;
@@ -328,26 +426,45 @@ export default async function EvidencePage({
                       ) : null}
                       {item.group !== null ? (
                         <SubmitResponseForm
+                          // A new round (the status or the answer changed) or a changed list of
+                          // copies starts the form afresh, with its own retry key.
+                          key={`${req.id}:${req.status}:${req.respondedAt ? new Date(req.respondedAt).getTime() : 0}:${documentChoices.map((choice) => choice.documentId).join(',')}`}
                           applicantId={id}
                           requestId={req.id}
                           kind={req.kind}
                           awaiting={awaitingReply}
                           timeZone={timeZone}
                           itemLabel={itemName}
+                          idempotencyKey={randomBytes(18).toString('base64url')}
+                          exactCopies={data.choiceBasis.exactCopies}
+                          documentsRead={data.documentsRead && data.choiceBasis.read}
                           candidateFacts={candidateFacts.map((f) => ({
                             factId: f.factId,
                             value: f.value ?? '',
                           }))}
-                          candidateDocuments={candidateDocuments.map((d) => ({
-                            documentId: d.id,
-                            displayName: d.approvedName ?? d.originalName,
-                            usable: d.safetyStatus === 'CLEAN' && d.processingStatus !== 'FAILED',
-                            statusLabel:
-                              d.safetyStatus === 'CLEAN'
-                                ? (d.processingStatus ?? 'PROCESSING')
-                                : (d.safetyStatus ?? 'PROCESSING'),
-                          }))}
+                          documentChoices={documentChoices}
                         />
+                      ) : null}
+                      {awaitingReply &&
+                      req.kind === 'DOCUMENT' &&
+                      req.status === 'NEEDS_REPLACEMENT' ? (
+                        sentBackCopy ? (
+                          <ClearerCopyPanel
+                            applicantId={id}
+                            requestId={req.id}
+                            documentId={sentBackCopy.documentId}
+                            documentName={sentBackCopy.name}
+                            primary={!otherCopyUsable}
+                          />
+                        ) : !otherCopyUsable && data.documentsRead && data.choiceBasis.read ? (
+                          <Link
+                            className="btn btn-primary evidence-add-link"
+                            href={`/app/applicant/${id}/documents/add`}
+                          >
+                            Add Documents
+                            <span className="sr-only">: {itemName}</span>
+                          </Link>
+                        ) : null
                       ) : null}
                       {questions.length > 0 ? (
                         <div className="request-questions" {...atLevel('browse')}>

@@ -154,6 +154,37 @@
       "name": "SubmitResponseForm"
     }
   ],
+  "one sent back, with the copy to replace still among the documents": [
+    {
+      "kind": "heading",
+      "name": "Evidence Requests",
+      "detail": "1"
+    },
+    {
+      "kind": "text",
+      "name": "An agency request is that organisation asking you for something, never an official visa requirement on its own. You decide what to submit, and can reuse anything already in your wallet."
+    },
+    {
+      "kind": "text",
+      "name": "The agency did not add a reason. Ask them if you are unsure."
+    },
+    {
+      "kind": "text",
+      "name": "Next: send a replacement. The reason is shown below."
+    },
+    {
+      "kind": "text",
+      "name": "Replacement needed: The last page is cut off."
+    },
+    {
+      "kind": "component",
+      "name": "SubmitResponseForm"
+    },
+    {
+      "kind": "component",
+      "name": "ClearerCopyPanel"
+    }
+  ],
   "nothing waiting": [
     {
       "kind": "heading",
