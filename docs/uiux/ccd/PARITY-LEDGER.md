@@ -356,3 +356,7 @@ Guard: `apps/web/src/lib/experience-parity.test.ts` over the map in `apps/web/sr
 | (no menu entry) | More Tools: Answers to Agencies | `/collect/account/answers` |
 
 Unchanged: the agency and platform lists (pinned by `workspace-navigation.test.ts`), the account menu, the Record section tabs, every URL and every page's own access check. Application Memory, outputs, calendar, insights, removal records, billing, AI settings and the admin tools keep their contextual links, now pinned by the parity map. Home gains a Start Here row and, beside a case, a change note when one needs the traveller; nothing was removed from Home or the traveller's Home, so their baselines are unchanged.
+
+## UX17 Documents: removals approved by the owner (4 Nov 2026)
+
+The owner said "we dont need Add Documents at the bottom". The bottom Add Documents card is removed from the Documents page: its heading, its words (including the earlier UX7 wording that sat beside the link), and the consent hint that lived only inside it. The Add Documents page asks for the consent. The header button stays, a phone gets an Add button that stays in reach, and the empty list opens the Add Documents page directly. Recorded in `apps/web/src/lib/ccd/approved-changes.ts` against UX17.

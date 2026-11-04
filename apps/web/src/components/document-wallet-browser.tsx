@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DEPTH_PHONE_QUERY } from '../lib/ccd/depth';
 import { isPhoneNow, raiseToShow } from '../lib/ccd/reveal';
 import { formatTimestampDate } from '../lib/format-date';
@@ -60,6 +60,70 @@ export function DocumentWalletBrowser({
   readonly initialSelection?: string;
 }) {
   const [selectedId, setSelectedId] = useState(initialSelection ?? documents[0]?.id ?? '');
+  // On a phone the chosen document opens as a full screen of its own, with one way back. A link
+  // that names a document (a reminder) opens it straight away. Larger screens keep the side panel.
+  const [sheetOpen, setSheetOpen] = useState(Boolean(initialSelection));
+  const phone = useMediaQuery(DEPTH_PHONE_QUERY);
+  const sheetShown = phone && sheetOpen;
+  const sheet = useRef<HTMLElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  /**
+   * Leaves the full screen. The chosen document is also taken out of the address, so a refresh of
+   * the page (it refreshes by itself while files are read) never reopens the screen that was
+   * just closed.
+   */
+  const closeSheet = () => {
+    setSheetOpen(false);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('document');
+    url.searchParams.delete('action');
+    window.history.replaceState(window.history.state, '', url);
+    // Back to the row that opened it, so a keyboard or screen reader person is where they were.
+    opener.current?.focus();
+  };
+  const closeSheetRef = useRef(closeSheet);
+  closeSheetRef.current = closeSheet;
+  useEffect(() => {
+    if (!sheetShown) return;
+    sheet.current?.focus();
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (event: KeyboardEvent) => {
+      // A menu or confirmation inside the screen that already used Escape keeps it for itself.
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        closeSheetRef.current();
+        return;
+      }
+      // Tab stays inside the full screen: the page behind it is not visible and not reachable.
+      if (event.key !== 'Tab') return;
+      const panel = sheet.current;
+      if (!panel) return;
+      const focusable = [
+        ...panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((node) => node.offsetParent !== null);
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      const active = document.activeElement;
+      if (!panel.contains(active) || active === panel) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [sheetShown]);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [filter, setFilter] = useState<Filter>('all');
@@ -187,8 +251,10 @@ export function DocumentWalletBrowser({
                     type="button"
                     className="wallet-document-select"
                     aria-pressed={selectedId === doc.id}
-                    onClick={() => {
+                    onClick={(event) => {
                       setSelectedId(doc.id);
+                      opener.current = event.currentTarget;
+                      setSheetOpen(true);
                       const url = new URL(window.location.href);
                       url.searchParams.set('document', doc.id);
                       window.history.replaceState(window.history.state, '', url);
@@ -234,7 +300,10 @@ export function DocumentWalletBrowser({
                 ? {}
                 : {
                     why: 'You add each paper once, and it can fill a checklist item on any visa case.',
-                    action: { href: '#add-document', label: 'Add a Document' },
+                    action: {
+                      href: `/app/applicant/${applicantId}/documents/add`,
+                      label: 'Add a Document',
+                    },
                   })}
             >
               {documents.length
@@ -265,10 +334,18 @@ export function DocumentWalletBrowser({
         </section>
         <aside
           id="wallet-selected-document"
+          ref={sheet}
           tabIndex={-1}
           className="card wallet-selected-document"
+          data-sheet={sheetOpen ? 'open' : 'closed'}
           aria-label="Selected document details"
+          {...(sheetShown ? { role: 'dialog', 'aria-modal': true } : {})}
         >
+          <div className="wallet-sheet-bar">
+            <button type="button" className="btn btn-secondary" onClick={closeSheet}>
+              Back to Documents
+            </button>
+          </div>
           <h2 className="wallet-selected-title">Selected Document</h2>
           {selected ? (
             <>

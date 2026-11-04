@@ -1096,33 +1096,25 @@ export default async function ApplicantDocumentsPage({
             };
           })}
         />
-        {/*
-         * Adding documents has its own page, one door for files, folders and photos. The old
-         * anchors (#add-document, #document-upload) still land here, on the link to it.
-         */}
-        <section className="card" id="add-document" {...atLevel('everything')}>
-          <div>
-            <h2 className="card-title" id="document-upload">
-              Add Documents
-            </h2>
-            <p className="card-body">
-              Drop files or a whole folder in one place. Each one is checked for safety, and you
-              approve every detail we read.
-            </p>
-            {data.coreGranted ? (
-              <Link className="btn btn-primary" href={addDocumentsHref}>
-                Add Documents
-              </Link>
-            ) : (
-              <p className="card-body">
-                Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
-                <Link href="/app">Home</Link> to add new documents. Your existing documents remain
-                visible above.
-              </p>
-            )}
-          </div>
-        </section>
       </DepthScope>
+      {/* On a phone, adding a file is always one tap away; larger screens have the button in the header. The spacer keeps the end of the page clear of it. */}
+      <div className="docs-add-fab-space" aria-hidden="true" />
+      <Link className="docs-add-fab" href={addDocumentsHref} aria-label="Add Documents">
+        <svg
+          aria-hidden="true"
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        <span aria-hidden="true">Add</span>
+      </Link>
     </>
   );
 }
