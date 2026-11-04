@@ -1817,12 +1817,7 @@ export default async function MissionPage({
                     </p>
                   ) : null}
                   {data.packInfo.notice ? (
-                    <p
-                      className="muted"
-                      style={{ fontSize: 'var(--text-small)', margin: '0.35rem 0 0' }}
-                    >
-                      {data.packInfo.notice}
-                    </p>
+                    <p className="muted u-fs-085 u-mt-050">{data.packInfo.notice}</p>
                   ) : null}
                   {data.packInfo.effectiveDate ? (
                     <p
