@@ -1,5 +1,6 @@
-import { inArray } from 'drizzle-orm';
-import { type Db, schema } from './db';
+import { and, eq, inArray } from 'drizzle-orm';
+import { AuthorizedApplicant } from './access';
+import { schema } from './db';
 
 /**
  * What was really done to one document version, read from that version's own scan records
@@ -22,9 +23,10 @@ import { type Db, schema } from './db';
  *    the engine is later off, and a file added before the engine existed stays format checked when
  *    the engine is later on.
  *
- * Read-only and not an access check: callers authorise the person and the version first, exactly
- * as they already do for the document itself. The result holds no scanner name, version, stored
- * detail or storage key, so it is safe to hand to a page.
+ * Read-only, and it takes the traveller's access proof (VIEW_METADATA): only versions of that
+ * traveller's own documents are read, so a version id from anywhere else simply has no records. The
+ * result holds no scanner name, version, stored detail or storage key, so it is safe to hand to a
+ * page.
  */
 
 /**
@@ -102,16 +104,17 @@ export function deriveVersionScanEvidence(input: {
  * read the evidence degrades to the cautious wording, never to a claim.
  */
 export async function loadVersionScanEvidence(
-  db: Db,
+  access: AuthorizedApplicant<'VIEW_METADATA'>,
   versions: readonly { readonly id: string; readonly safetyStatus: VersionSafetyStatus | null }[],
 ): Promise<ReadonlyMap<string, VersionScanEvidence>> {
   const result = new Map<string, VersionScanEvidence>();
   if (versions.length === 0) return result;
   const byVersion = new Map<string, ScanRecordForEvidence[]>();
   try {
+    if (!AuthorizedApplicant.isGenuine(access, 'VIEW_METADATA')) throw new Error('no proof');
     // A nested transaction (a savepoint when the caller already holds one), so a failed read
     // cannot leave the caller's own transaction aborted for every later query on the page.
-    const rows = await db.transaction((tx) =>
+    const rows = await access.tx.transaction((tx) =>
       tx
         .select({
           documentVersionId: schema.documentScanResults.documentVersionId,
@@ -121,10 +124,18 @@ export async function loadVersionScanEvidence(
           scannedAt: schema.documentScanResults.scannedAt,
         })
         .from(schema.documentScanResults)
+        .innerJoin(
+          schema.documentVersions,
+          eq(schema.documentVersions.id, schema.documentScanResults.documentVersionId),
+        )
+        .innerJoin(schema.documents, eq(schema.documents.id, schema.documentVersions.documentId))
         .where(
-          inArray(
-            schema.documentScanResults.documentVersionId,
-            versions.map((version) => version.id),
+          and(
+            eq(schema.documents.applicantId, access.applicant.id),
+            inArray(
+              schema.documentScanResults.documentVersionId,
+              versions.map((version) => version.id),
+            ),
           ),
         ),
     );

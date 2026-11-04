@@ -263,16 +263,6 @@ export default async function ApplicantDocumentsPage({
       ),
     );
     const ocrRuns = new Map(documentRows.map((doc, i) => [doc.id, ocrRunLists[i]] as const));
-    // What was really done to each document's latest file, so the badge never says more than the
-    // records for that exact file support (scan-state.ts). One query for the whole list.
-    const scanEvidence = await loadVersionScanEvidence(
-      db,
-      documentRows.flatMap((doc) =>
-        doc.latestVersionId && doc.safetyStatus
-          ? [{ id: doc.latestVersionId, safetyStatus: doc.safetyStatus }]
-          : [],
-      ),
-    );
     const confirmed = confirmedValues(profile, encryption !== undefined);
     // How each file's reading is going and where each suggestion came from (S6, ADR 0019). Owner
     // only, through the access gate; if it is refused the page simply shows no reading states.
@@ -283,6 +273,19 @@ export default async function ApplicantDocumentsPage({
       { applicantId: id },
       { purpose: 'self' },
     );
+    // What was really done to each document's latest file, so the badge never says more than the
+    // records for that exact file support (scan-state.ts). One query for the whole list, through
+    // the same owner proof. Without a proof every file reads Format Checked, never scanned.
+    const scanEvidence = readingAccess.ok
+      ? await loadVersionScanEvidence(
+          readingAccess.value,
+          documentRows.flatMap((doc) =>
+            doc.latestVersionId && doc.safetyStatus
+              ? [{ id: doc.latestVersionId, safetyStatus: doc.safetyStatus }]
+              : [],
+          ),
+        )
+      : new Map<string, VersionScanEvidence>();
     const reading = readingAccess.ok
       ? await listDocumentReadingStates(
           readingAccess.value,

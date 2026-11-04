@@ -2,7 +2,8 @@ import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
 import { drizzle } from 'drizzle-orm/pglite';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
@@ -141,6 +142,7 @@ describe('deriveVersionScanEvidence', () => {
 describe('loadVersionScanEvidence, from the real intake pipeline', () => {
   let db: Db;
   let seq = 0;
+  let owner = { accountId: '', applicantId: '' };
   beforeEach(async () => {
     db = await freshDb();
   });
@@ -168,7 +170,21 @@ describe('loadVersionScanEvidence, from the real intake pipeline', () => {
       originalName: 'p.pdf',
     });
     if (!isOk(doc)) throw new Error('doc');
-    return { account, documentId: doc.value.id };
+    owner = { accountId: account.id, applicantId: applicant.value.id };
+    return { account, documentId: doc.value.id, applicantId: applicant.value.id };
+  }
+
+  // The traveller's own access proof, as the Documents page holds it.
+  async function proofOf(who: { accountId: string; applicantId: string } = owner) {
+    const gate = await requireAccess(
+      db,
+      accountPrincipal(who.accountId),
+      'VIEW_METADATA',
+      { applicantId: who.applicantId },
+      { purpose: 'self' },
+    );
+    if (!gate.ok) throw new Error('proof');
+    return gate.value;
   }
 
   async function version(documentId: string, accountId: string, key: string) {
@@ -186,7 +202,7 @@ describe('loadVersionScanEvidence, from the real intake pipeline', () => {
     const rows = await db.select().from(schema.documentVersions);
     const row = rows.find((candidate) => candidate.id === versionId);
     if (!row) throw new Error('missing version');
-    const result = await loadVersionScanEvidence(db, [
+    const result = await loadVersionScanEvidence(await proofOf(), [
       { id: row.id, safetyStatus: row.safetyStatus },
     ]);
     return { evidence: result.get(versionId), row };
@@ -263,7 +279,7 @@ describe('loadVersionScanEvidence, from the real intake pipeline', () => {
     expect(a.evidence?.kind).toBe('VIRUS_SCANNED');
     expect(b.evidence?.kind).toBe('FORMAT_CHECKED');
     // And a list read gives each its own answer in one call.
-    const both = await loadVersionScanEvidence(db, [
+    const both = await loadVersionScanEvidence(await proofOf(), [
       { id: first, safetyStatus: a.row.safetyStatus },
       { id: second, safetyStatus: b.row.safetyStatus },
     ]);
@@ -272,12 +288,27 @@ describe('loadVersionScanEvidence, from the real intake pipeline', () => {
   });
 
   it('falls back to the cautious reading, never to scanned, when the records cannot be read', async () => {
-    const broken = {
-      select() {
-        throw new Error('database unavailable');
-      },
-    } as unknown as Db;
-    const result = await loadVersionScanEvidence(broken, [{ id: 'v1', safetyStatus: 'CLEAN' }]);
+    await seed();
+    const proof = await proofOf();
+    vi.spyOn(proof.tx, 'transaction').mockRejectedValue(new Error('database unavailable'));
+    const result = await loadVersionScanEvidence(proof, [{ id: 'v1', safetyStatus: 'CLEAN' }]);
     expect(result.get('v1')?.kind).toBe('FORMAT_CHECKED');
+  });
+
+  it("reads only the proof's own traveller: another traveller's scanned version gives no evidence", async () => {
+    const { account, documentId } = await seed();
+    const scanned = await version(documentId, account.id, 'k-own');
+    await processIntake(db, scanner(ANTIVIRUS), extractor, limits, { documentVersionId: scanned });
+    const mine = await evidenceOf(scanned);
+    expect(mine.evidence?.kind).toBe('VIRUS_SCANNED');
+    const stranger = await seed();
+    const theirProof = await proofOf({
+      accountId: stranger.account.id,
+      applicantId: stranger.applicantId,
+    });
+    const theirs = await loadVersionScanEvidence(theirProof, [
+      { id: scanned, safetyStatus: mine.row.safetyStatus },
+    ]);
+    expect(theirs.get(scanned)?.kind).toBe('FORMAT_CHECKED');
   });
 });
