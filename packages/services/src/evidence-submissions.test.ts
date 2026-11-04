@@ -394,6 +394,10 @@ describe('Lane D: deciding on an exact copy', () => {
     expect(isOk(await decide(w, requestId, 'ACCEPTED', { submissionId }))).toBe(true);
     const again = await decide(w, requestId, 'NEEDS_REPLACEMENT', { submissionId });
     expect(isErr(again)).toBe(true);
+    // Not naming the copy changes nothing: a closed request has nothing left to decide.
+    const unnamed = await decide(w, requestId, 'NEEDS_REPLACEMENT');
+    expect(isErr(unnamed) && unnamed.error.code).toBe('invalid');
+    expect(await w.db.select().from(schema.evidenceRequestDecisions)).toHaveLength(1);
     expect(await w.db.select().from(schema.evidenceRequestDecisionSubmissions)).toHaveLength(1);
     // And the database itself refuses a second decision on the same copy.
     const [decision] = await w.db.select().from(schema.evidenceRequestDecisions);
@@ -472,6 +476,21 @@ describe('Lane D: deciding on an exact copy', () => {
       .where(eq(schema.documentVersions.id, doc.versionId));
     const accepted = await decide(w, requestId, 'ACCEPTED');
     expect(isErr(accepted) && accepted.error.code).toBe('invalid');
+  });
+
+  it('refuses to accept a copy whose document was moved to Recently Deleted', async () => {
+    const { doc, requestId } = await sentRequest();
+    const now = new Date();
+    await w.db.insert(schema.documentLifecycle).values({
+      documentId: doc.documentId,
+      applicantId: w.alice.applicantId,
+      deletedAt: now,
+      deletePath: 'DUPLICATE',
+      purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+    });
+    const accepted = await decide(w, requestId, 'ACCEPTED');
+    expect(isErr(accepted) && accepted.error.code).toBe('invalid');
+    expect(isOk(await decide(w, requestId, 'NEEDS_REPLACEMENT'))).toBe(true);
   });
 
   it('refuses to accept a copy that was filed as a different kind after it was sent', async () => {
@@ -585,6 +604,19 @@ describe('Lane D: listing the copies', () => {
     expect(
       isOk(await revokeGrant(w.db, { actorAccountId: w.alice.accountId, grantId: mine?.id ?? '' })),
     ).toBe(true);
+    const listed = await listEvidenceSubmissions(proof, { requestId });
+    expect(isErr(listed) && listed.error.code).toBe('not_found');
+  });
+
+  it('refuses an agency member who left after the proof was made', async () => {
+    const doc = await cleanDocument(w.db, w.alice);
+    const requestId = await openRequest(w.db, w.harbor, w.alice);
+    expect(isOk(await send(w.db, w.alice, requestId, doc.documentId))).toBe(true);
+    const proof = await agencyProof(w.db, w.harbor, w.alice.applicantId);
+    await w.db
+      .update(schema.memberships)
+      .set({ active: false })
+      .where(eq(schema.memberships.accountId, w.harbor.accountId));
     const listed = await listEvidenceSubmissions(proof, { requestId });
     expect(isErr(listed) && listed.error.code).toBe('not_found');
   });
@@ -826,6 +858,37 @@ describe('Lane D: the agency opens the exact original', () => {
     expect(isErr(withdrawn) && withdrawn.error.code).toBe('forbidden');
   });
 
+  it('serves nothing for an older undecided send once a newer one exists, or when the request points elsewhere', async () => {
+    const { doc, requestId, submissionId } = await sentCopy();
+    const other = await cleanDocument(w.db, w.alice, 'bank_statement', 'elsewhere.pdf');
+    // The request points at a different document than the send names.
+    await w.db
+      .update(schema.evidenceRequests)
+      .set({ respondingDocumentId: other.documentId })
+      .where(eq(schema.evidenceRequests.id, requestId));
+    const elsewhere = await open(w.harbor, submissionId, doc.versionId);
+    expect(isErr(elsewhere) && elsewhere.error.code).toBe('forbidden');
+    await w.db
+      .update(schema.evidenceRequests)
+      .set({ respondingDocumentId: doc.documentId })
+      .where(eq(schema.evidenceRequests.id, requestId));
+    expect(isOk(await open(w.harbor, submissionId, doc.versionId))).toBe(true);
+    // A newer send appears while the older one is still undecided (an older deployment wrote it).
+    await w.db.insert(schema.evidenceRequestSubmissions).values({
+      evidenceRequestId: requestId,
+      roundNo: 2,
+      documentId: doc.documentId,
+      documentVersionId: doc.versionId,
+      storageObjectId: doc.storageObjectId,
+      versionNumber: 1,
+      titleAtSend: 'newer.pdf',
+      sentByAccountId: w.alice.accountId,
+      idempotencyKey: 'anomaly',
+    });
+    const older = await open(w.harbor, submissionId, doc.versionId);
+    expect(isErr(older) && older.error.code).toBe('forbidden');
+  });
+
   it('serves nothing to another agency, the traveller or a stranger', async () => {
     const { doc, submissionId } = await sentCopy();
     const summit = await open(w.summit, submissionId, doc.versionId);
@@ -950,6 +1013,30 @@ describe('Lane D: the agency opens the exact original', () => {
       expect(await recheckDocumentAccess(w.db, fields)).toEqual({
         allowed: false,
         reason: 'not_an_agency_admin',
+      });
+    });
+
+    it('is refused once the organization is suspended', async () => {
+      const { fields } = await minted();
+      await w.db
+        .update(schema.organizations)
+        .set({ status: 'SUSPENDED' })
+        .where(eq(schema.organizations.id, w.harbor.organizationId));
+      expect(await recheckDocumentAccess(w.db, fields)).toEqual({
+        allowed: false,
+        reason: 'organization_not_active',
+      });
+    });
+
+    it('is refused once the stored file is no longer what was sent', async () => {
+      const { fields, doc } = await minted();
+      await w.db
+        .update(schema.documentVersions)
+        .set({ sha256: '7'.repeat(64) })
+        .where(eq(schema.documentVersions.id, doc.versionId));
+      expect(await recheckDocumentAccess(w.db, fields)).toEqual({
+        allowed: false,
+        reason: 'pinned_version_changed',
       });
     });
 
