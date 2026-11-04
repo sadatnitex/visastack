@@ -38,6 +38,12 @@ describe('POST /api/documents/upload-report', () => {
     expect(line).not.toContain('passport');
   });
 
+  it('takes the reason a file could not be read on the phone', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    expect((await post({ ...good, reason: 'unreadable' })).status).toBe(204);
+    expect(String(warn.mock.calls[0]?.[0])).toContain('reason=unreadable');
+  });
+
   it('refuses another origin, a missing or large body, and anything outside the fixed fields', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     expect((await post(good, { origin: 'https://evil.example' })).status).toBe(403);

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  UPLOAD_UNREADABLE_LINE,
   type UploadRequest,
   readAnswer,
   retryAfterSeconds,
@@ -32,6 +33,8 @@ function fakeRequest() {
   return request;
 }
 
+const started = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 describe('sending one file', () => {
   it('posts the raw file with its type, kind and Other name, and reports progress', async () => {
     const request = fakeRequest();
@@ -46,13 +49,16 @@ describe('sending one file', () => {
       onProgress: (fraction) => progress.push(fraction),
       createRequest: () => request as unknown as UploadRequest,
     });
+    await started();
     expect(request.opened).toEqual(['POST', '/api/documents/upload?applicantId=a%201']);
     expect(request.headers).toEqual({
       'Content-Type': 'image/heic',
       'X-Document-Kind': 'OTHER',
       'X-Document-Name': 'Acte%20de%20Mariage',
     });
-    expect(request.body).toBe(file);
+    // A copy of the file's bytes is sent, never the picker's own handle.
+    expect(request.body).not.toBe(file);
+    expect(await (request.body as Blob).text()).toBe('hello');
     expect(request.timeout).toBeGreaterThan(60_000);
     request.upload.onprogress?.({ lengthComputable: true, loaded: 1, total: 4 } as ProgressEvent);
     request.upload.onprogress?.({ lengthComputable: false, loaded: 2, total: 0 } as ProgressEvent);
@@ -75,6 +81,7 @@ describe('sending one file', () => {
         onProgress: () => undefined,
         createRequest: () => request as unknown as UploadRequest,
       });
+      await started();
       expect(Object.keys(request.headers)).toEqual(['Content-Type']);
       request[lose]?.();
       expect(await sent).toEqual({ kind: 'unknown' });
@@ -167,6 +174,7 @@ describe('reading the answer', () => {
       onProgress: () => undefined,
       createRequest: () => request as unknown as UploadRequest,
     });
+    await started();
     request.status = 429;
     request.responseText = JSON.stringify({ message: 'Too many uploads.' });
     request.onload?.();
@@ -192,6 +200,7 @@ describe('the upload id and the file name (UMPE P3)', () => {
       onProgress: () => undefined,
       createRequest: () => request as unknown as UploadRequest,
     });
+    await started();
     request.status = 201;
     request.responseText = JSON.stringify({ message: 'Added.' });
     request.onload?.();
@@ -238,6 +247,7 @@ describe('telling the server when a file ends with no usable answer', () => {
       calls.mockClear();
       const request = fakeRequest();
       const sent = send(request);
+      await started();
       request[lose]?.();
       expect(await sent).toEqual({ kind: 'unknown' });
       expect(calls).toHaveBeenCalledTimes(1);
@@ -258,6 +268,7 @@ describe('telling the server when a file ends with no usable answer', () => {
     vi.stubGlobal('fetch', calls);
     const broken = fakeRequest();
     const first = send(broken, 'hold');
+    await started();
     broken.status = 502;
     broken.responseText = '<html>Bad gateway</html>';
     broken.onload?.();
@@ -275,6 +286,7 @@ describe('telling the server when a file ends with no usable answer', () => {
       responseURL: 'https://x.test/auth/sign-in?next=%2Fapp',
     });
     const second = send(signIn);
+    await started();
     signIn.status = 200;
     signIn.responseText = '<html>Sign in</html>';
     signIn.onload?.();
@@ -295,12 +307,14 @@ describe('telling the server when a file ends with no usable answer', () => {
     vi.stubGlobal('fetch', calls);
     const added = fakeRequest();
     const first = send(added);
+    await started();
     added.status = 201;
     added.responseText = JSON.stringify({ message: 'Added.' });
     added.onload?.();
     expect((await first).kind).toBe('added');
     const refused = fakeRequest();
     const second = send(refused);
+    await started();
     refused.status = 400;
     refused.responseText = JSON.stringify({ message: 'No.' });
     refused.onload?.();
@@ -309,8 +323,52 @@ describe('telling the server when a file ends with no usable answer', () => {
 
     const lost = fakeRequest();
     const third = send(lost);
+    await started();
     lost.onerror?.();
     expect(await third).toEqual({ kind: 'unknown' });
     expect(calls).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('a file the phone will not let us read', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const unreadable = () => {
+    const file = new Blob(['x'], { type: 'application/pdf' });
+    Object.defineProperty(file, 'arrayBuffer', {
+      value: async () => {
+        throw new DOMException('The requested file could not be read', 'NotReadableError');
+      },
+    });
+    return file;
+  };
+
+  it('says so plainly, sends nothing, and tells the server why', async () => {
+    const calls = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', calls);
+    const request = fakeRequest();
+    const outcome = await sendDocumentFile({
+      applicantId: 'a1',
+      file: unreadable(),
+      contentType: 'application/pdf',
+      docType: '',
+      subject: '',
+      onProgress: () => undefined,
+      createRequest: () => request as unknown as UploadRequest,
+    });
+    expect(outcome).toEqual({ kind: 'refused', message: UPLOAD_UNREADABLE_LINE });
+    expect(request.opened).toEqual([]);
+    expect(request.body).toBeNull();
+    expect(calls).toHaveBeenCalledTimes(1);
+    const [url, init] = calls.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/documents/upload-report');
+    expect(JSON.parse(String(init.body))).toMatchObject({ route: 'upload', reason: 'unreadable' });
+  });
+
+  it('names no engineering terms in what a person reads', () => {
+    expect(UPLOAD_UNREADABLE_LINE).not.toMatch(/arrayBuffer|XHR|network error|blob/i);
+    expect(UPLOAD_UNREADABLE_LINE).not.toContain('\u2014');
   });
 });
