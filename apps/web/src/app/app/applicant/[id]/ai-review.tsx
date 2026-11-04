@@ -30,9 +30,12 @@ const INITIAL: ActionState = { ok: true, message: '' };
 export function ReadAgainButton({
   applicantId,
   documentVersionId,
+  label = 'Read Again',
 }: {
   readonly applicantId: string;
   readonly documentVersionId: string;
+  /** The button's words: "Read This Document" for a file that was never read. */
+  readonly label?: string;
 }) {
   const [state, formAction, pending] = useActionState(readAgainAction, INITIAL);
 
@@ -43,7 +46,7 @@ export function ReadAgainButton({
         <input type="hidden" name="documentVersionId" value={documentVersionId} />
         <SubmitButton
           pending={pending}
-          idle="Read Again"
+          idle={label}
           busy="Reading…"
           className="btn btn-secondary"
         />

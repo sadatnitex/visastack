@@ -177,7 +177,7 @@ export default async function AddDocumentsPage({
             <NextStepCard
               title={`We Found ${plural(data.foundDetails, 'Detail', 'Details')} to Check`}
               why="Accept what is right and skip what is not. Nothing reaches your profile until you do."
-              href={`/app/applicant/${id}/documents`}
+              href={`/app/applicant/${id}/review`}
               action={`Review ${plural(data.foundDetails, 'Detail', 'Details')}`}
             />
           ) : null}
