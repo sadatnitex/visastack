@@ -591,3 +591,77 @@ describe('Lane D review: last follow-ups', () => {
     TIMEOUT,
   );
 });
+
+describe('Lane D review: the file flag matches what the download would allow', () => {
+  async function listed(w: World, requestId: string) {
+    const result = await listEvidenceSubmissions(
+      await agencyProof(w.db, w.harbor, w.alice.applicantId),
+      { requestId },
+    );
+    if (!isOk(result)) throw new Error('list');
+    return result.value.submissions[0];
+  }
+
+  it(
+    'is true for a usable copy and false when the document was removed, the file is unsafe, or its checksum changed',
+    async () => {
+      const w = await world();
+      const removed = await sentRequest(w);
+      const unsafe = await sentRequest(w);
+      const changed = await sentRequest(w);
+      const fine = await sentRequest(w);
+      expect((await listed(w, fine.requestId))?.fileAvailable).toBe(true);
+
+      const now = new Date();
+      await w.db.insert(schema.documentLifecycle).values({
+        documentId: removed.doc.documentId,
+        applicantId: w.alice.applicantId,
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+      });
+      expect((await listed(w, removed.requestId))?.fileAvailable).toBe(false);
+
+      await w.db
+        .update(schema.documentVersions)
+        .set({ safetyStatus: 'QUARANTINED' })
+        .where(eq(schema.documentVersions.id, unsafe.doc.versionId));
+      expect((await listed(w, unsafe.requestId))?.fileAvailable).toBe(false);
+
+      await w.db
+        .update(schema.documentVersions)
+        .set({ sha256: '5'.repeat(64) })
+        .where(eq(schema.documentVersions.id, changed.doc.versionId));
+      expect((await listed(w, changed.requestId))?.fileAvailable).toBe(false);
+      expect((await listed(w, fine.requestId))?.fileAvailable).toBe(true);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'refuses to accept an older unpinned send whose document was moved to Recently Deleted',
+    async () => {
+      const w = await world();
+      const doc = await cleanDocument(w.db, w.alice);
+      const requestId = await openRequest(w.db, w.harbor, w.alice);
+      // As the older code wrote it: pointers only, no exact-copy row.
+      await w.db
+        .update(schema.evidenceRequests)
+        .set({ status: 'RECEIVED', respondingDocumentId: doc.documentId, respondedAt: new Date() })
+        .where(eq(schema.evidenceRequests.id, requestId));
+      const now = new Date();
+      await w.db.insert(schema.documentLifecycle).values({
+        documentId: doc.documentId,
+        applicantId: w.alice.applicantId,
+        deletedAt: now,
+        deletePath: 'DUPLICATE',
+        purgeAfter: new Date(now.getTime() + 30 * 86_400_000),
+      });
+      const accepted = await decide(w, requestId, 'ACCEPTED');
+      expect(isErr(accepted) && accepted.error.code).toBe('invalid');
+      expect(isErr(accepted) && accepted.error.message).toMatch(/no longer available/);
+      expect(isOk(await decide(w, requestId, 'NEEDS_REPLACEMENT'))).toBe(true);
+    },
+    TIMEOUT,
+  );
+});

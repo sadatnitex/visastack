@@ -3228,7 +3228,21 @@ export async function decideEvidenceResponse(
       } else {
         // A send recorded before exact copies were kept: the newest version of the document it
         // points at must still be usable evidence (the check the older flow made at send time).
-        const newest = await chooseSendVersion(tx, request.respondingDocumentId, undefined);
+        const present = first(
+          await tx
+            .select({ id: schema.documents.id })
+            .from(schema.documents)
+            .where(
+              and(
+                eq(schema.documents.id, request.respondingDocumentId),
+                lifecycle ? presentDocumentCondition() : undefined,
+              ),
+            )
+            .limit(1),
+        );
+        const newest = present
+          ? await chooseSendVersion(tx, request.respondingDocumentId, undefined)
+          : undefined;
         if (!newest || !(await versionIsUsable(tx, newest))) {
           return err(serviceError('invalid', UNAVAILABLE_COPY));
         }
@@ -3285,6 +3299,9 @@ export async function decideEvidenceResponse(
         .insert(schema.evidenceRequestDecisionSubmissions)
         .values({ decisionId: decision.id, submissionId: pinned.id });
     }
+    // The agency's "evidence arrived" notice is obsolete once the request has been decided; the
+    // notices to the traveller about this decision are not touched.
+    await cancelQueuedNotificationsForResource(tx, request.id, 'EVIDENCE_RESPONSE_RECEIVED');
     await appendAuditEvent(tx, {
       eventType: 'EVIDENCE_REQUEST_DECIDED',
       actorAccountId: input.actorAccountId,

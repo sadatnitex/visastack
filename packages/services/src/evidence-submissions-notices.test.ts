@@ -442,3 +442,63 @@ describe('Lane D: a reused round number never swallows a notice', () => {
     TIMEOUT,
   );
 });
+
+describe('Lane D: the "evidence arrived" notice ends with the decision', () => {
+  it(
+    'cancels the queued notice when the request is decided, and leaves the traveller notices alone',
+    async () => {
+      const w = await world();
+      const doc = await cleanDocument(w.db, w.alice);
+      const requestId = await openRequest(w.db, w.harbor, w.alice);
+      expect(isOk(await send(w.db, w.alice, requestId, doc.documentId))).toBe(true);
+      expect((await notices(w.db, NOTE)).map((r) => r.status)).toEqual(['QUEUED', 'QUEUED']);
+      expect(
+        isOk(
+          await decideEvidenceResponse(w.db, {
+            actorAccountId: w.harbor.accountId,
+            requestId,
+            outcome: 'ACCEPTED',
+          }),
+        ),
+      ).toBe(true);
+      expect((await notices(w.db, NOTE)).map((r) => r.status)).toEqual(['CANCELLED', 'CANCELLED']);
+      // Other notices about the same request are untouched: the traveller's own request notice
+      // (still queued here) is not an agency notice and keeps its place.
+      expect((await notices(w.db, 'EVIDENCE_REQUEST_CREATED')).map((r) => r.status)).toEqual([
+        'QUEUED',
+        'QUEUED',
+      ]);
+      const decision = await notices(w.db, 'EVIDENCE_REVIEW_ACCEPTED');
+      expect(decision.map((r) => r.status)).toEqual(['QUEUED', 'QUEUED']);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'does not cancel the notice of a later send after an earlier one was sent back',
+    async () => {
+      const w = await world();
+      const doc = await cleanDocument(w.db, w.alice);
+      const requestId = await openRequest(w.db, w.harbor, w.alice);
+      expect(isOk(await send(w.db, w.alice, requestId, doc.documentId))).toBe(true);
+      expect(
+        isOk(
+          await decideEvidenceResponse(w.db, {
+            actorAccountId: w.harbor.accountId,
+            requestId,
+            outcome: 'NEEDS_REPLACEMENT',
+            reason: 'x',
+          }),
+        ),
+      ).toBe(true);
+      expect(isOk(await send(w.db, w.alice, requestId, doc.documentId))).toBe(true);
+      const rows = (await notices(w.db, NOTE)).map((r) => r.status).sort();
+      expect(rows).toEqual(['CANCELLED', 'CANCELLED', 'QUEUED', 'QUEUED']);
+      expect((await notices(w.db, 'EVIDENCE_REPLACEMENT_REQUESTED')).map((r) => r.status)).toEqual([
+        'QUEUED',
+        'QUEUED',
+      ]);
+    },
+    TIMEOUT,
+  );
+});
