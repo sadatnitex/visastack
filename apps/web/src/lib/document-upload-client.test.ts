@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   type UploadRequest,
   readAnswer,
@@ -207,5 +207,110 @@ describe('the upload id and the file name (UMPE P3)', () => {
       message: 'Still being added.',
       retryAfterSeconds: 5,
     });
+  });
+});
+
+describe('telling the server when a file ends with no usable answer', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const send = (request: ReturnType<typeof fakeRequest>, route?: 'hold') =>
+    sendDocumentFile({
+      applicantId: 'a1',
+      file: new Blob(['x']),
+      contentType: 'image/png',
+      docType: '',
+      subject: '',
+      onProgress: () => undefined,
+      ...(route ? { route } : {}),
+      createRequest: () => request as unknown as UploadRequest,
+    });
+
+  it('reports each kind of lost request once, with only fixed fields', async () => {
+    const calls = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', calls);
+    for (const [lose, reason] of [
+      ['onerror', 'network'],
+      ['ontimeout', 'timeout'],
+      ['onabort', 'abort'],
+    ] as const) {
+      calls.mockClear();
+      const request = fakeRequest();
+      const sent = send(request);
+      request[lose]?.();
+      expect(await sent).toEqual({ kind: 'unknown' });
+      expect(calls).toHaveBeenCalledTimes(1);
+      const [url, init] = calls.mock.calls[0] as unknown as [string, RequestInit];
+      expect(url).toBe('/api/documents/upload-report');
+      expect(JSON.parse(String(init.body))).toEqual({
+        route: 'upload',
+        reason,
+        status: 0,
+        redirected: false,
+        ms: expect.any(Number),
+      });
+    }
+  });
+
+  it('reports a server error and a page that is not ours, with the status and any redirect', async () => {
+    const calls = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', calls);
+    const broken = fakeRequest();
+    const first = send(broken, 'hold');
+    broken.status = 502;
+    broken.responseText = '<html>Bad gateway</html>';
+    broken.onload?.();
+    expect(await first).toEqual({ kind: 'unknown' });
+    expect(
+      JSON.parse(String((calls.mock.calls[0] as unknown as [string, RequestInit])[1].body)),
+    ).toMatchObject({
+      route: 'hold',
+      reason: 'server_error',
+      status: 502,
+    });
+
+    calls.mockClear();
+    const signIn = Object.assign(fakeRequest(), {
+      responseURL: 'https://x.test/auth/sign-in?next=%2Fapp',
+    });
+    const second = send(signIn);
+    signIn.status = 200;
+    signIn.responseText = '<html>Sign in</html>';
+    signIn.onload?.();
+    expect(await second).toEqual({ kind: 'unknown' });
+    expect(
+      JSON.parse(String((calls.mock.calls[0] as unknown as [string, RequestInit])[1].body)),
+    ).toMatchObject({
+      reason: 'not_json',
+      status: 200,
+      redirected: true,
+    });
+  });
+
+  it('reports nothing for an answer the server gave, and never breaks the file when reporting fails', async () => {
+    const calls = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    vi.stubGlobal('fetch', calls);
+    const added = fakeRequest();
+    const first = send(added);
+    added.status = 201;
+    added.responseText = JSON.stringify({ message: 'Added.' });
+    added.onload?.();
+    expect((await first).kind).toBe('added');
+    const refused = fakeRequest();
+    const second = send(refused);
+    refused.status = 400;
+    refused.responseText = JSON.stringify({ message: 'No.' });
+    refused.onload?.();
+    expect((await second).kind).toBe('refused');
+    expect(calls).not.toHaveBeenCalled();
+
+    const lost = fakeRequest();
+    const third = send(lost);
+    lost.onerror?.();
+    expect(await third).toEqual({ kind: 'unknown' });
+    expect(calls).toHaveBeenCalledTimes(1);
   });
 });
