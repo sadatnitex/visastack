@@ -336,3 +336,15 @@ Given 31 Oct 2026: the owner asked for migration 0110 to run after the T1 pull r
 ## Paid traveller plans T2: O8 for migration 0111 (added 31 Oct 2026)
 
 After the T2 pull request merges, migration 0111 needs the owner's go-ahead for its run (runbook: `docs/operations/traveller-plans.md`). It only relaxes "who assigned it" for a person's own purchase (agency subscriptions keep it required) and adds two traveller storage plan rules. Nothing changes for anyone once it has run.
+
+## Product Excellence programme: what still needs the owner (added 4 Nov 2026)
+
+Done on the owner's blanket approval of 4 Nov 2026: migration 0132 (exact copies of evidence) was run in production after its pull request merged; production holds 131 migrations and the two new tables are empty.
+
+1. **Decision D1, a specific reading (ADR 0026 addendum 8).** A traveller's send lets the asking agency download the original of exactly that copy while the agency's MANAGE standing lives, even if the grant does not list Download Originals. The screen shows the consent line. Confirm it, or ask for Download Originals to be required.
+2. **Staging setup for the signed-in journeys** (`docs/operations/staging-journeys.md`): a staging deployment bound to the staging database and sign-in, three synthetic accounts (traveller, asking agency, unrelated agency), seeded ids, a mailbox that captures guest codes, and a GitHub environment named `staging-journeys` limited to main that holds the secrets. Until then the suite reports BLOCKED, never green.
+3. **Official UK content.** No UK or other route checklist was written. A named reviewer must write and approve it from current official sources. The old two-item test checklist ("Visitor1") should be withdrawn in the pack studio; it can no longer be attached or picked.
+4. **Overdue checklist rule.** A reviewed checklist past its review date stays selectable and says it is due for review. Say if you want it hidden instead.
+5. **Official pages as stand-ins.** Registered official pages are not offered as a stand-in checklist (they are registered, not verified). Say if you want a link shown with that wording.
+6. **Landing proof line** about agency usefulness: not built, awaiting your wording and approval (VS-016).
+7. **Not touched, still yours:** staff second factor, virus scanning on, real customer data, a dedicated migration credential, the agency collection form's flat country list (follow-up).

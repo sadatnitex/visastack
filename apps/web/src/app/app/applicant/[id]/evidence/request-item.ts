@@ -51,7 +51,9 @@ function guidanceFor(
         : 'The agency has it and will review it. Nothing more is needed from you yet. Received does not mean accepted.';
     case 'NEEDS_CORRECTION':
       return request.status === 'NEEDS_REPLACEMENT'
-        ? 'Next: send a replacement. The reason is shown below.'
+        ? request.kind === 'DOCUMENT'
+          ? 'Next: send a replacement, or upload a clearer copy first. The reason is shown below.'
+          : 'Next: send a replacement. The reason is shown below.'
         : 'The file you sent could not be used. Ask the agency below and they can request a replacement.';
     case 'REVIEWED':
       return 'The agency reviewed what you sent and accepted it. Nothing more is needed.';
