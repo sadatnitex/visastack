@@ -512,7 +512,7 @@ describe('after an import, and files for several people (UMPE G1)', () => {
       );
     });
     const select = host.querySelector('select') as HTMLSelectElement;
-    expect(host.querySelector('label[for="' + select.id + '"]')?.textContent).toBe(
+    expect(host.querySelector(`label[for="${select.id}"]`)?.textContent).toBe(
       'Who Are These Files For?',
     );
     expect(Array.from(select.options).map((option) => option.textContent)).toEqual([
