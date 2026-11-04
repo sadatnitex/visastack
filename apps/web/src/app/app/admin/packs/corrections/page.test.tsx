@@ -85,7 +85,7 @@ describe('Pack Studio > Checklist Corrections', () => {
   it('needs pack management rights and reads nothing without them', async () => {
     mocks.permission.mockResolvedValue(false);
     const text = textOf(await render());
-    expect(text).toContain('restricted to people who manage packs');
+    expect(text).toContain('Not available for your role');
     expect(mocks.queue).not.toHaveBeenCalled();
     expect(mocks.runs).not.toHaveBeenCalled();
     expect(mocks.permission.mock.calls[0]?.[2]).toBe('PACK_MANAGE');

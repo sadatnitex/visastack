@@ -13,7 +13,7 @@ import { RECOVER_FIELDS, type RecoverFormState } from './recover-state';
 /**
  * Recovers a traveller's payment lost in a restore (owner decision, 2 Nov 2026). Platform owner
  * only (`BILLING_REFUND_MANAGE`), with a fresh sign-in check first, as a refund is. The amount is
- * never typed: the service asks the payment gateway what was paid for this transaction and records
+ * never typed: the service asks the payment provider what was paid for this transaction and records
  * exactly that, the usual way. No reply names the traveller: only the purchase reference.
  */
 
@@ -60,7 +60,7 @@ export async function recoverTravellerPaymentAction(
   const transactionId = text(formData, 'transactionId');
   if (!/^VSP[0-9a-f]{26}$/i.test(transactionId)) {
     return fail(
-      'Enter the transaction id from the payment gateway. It starts with VSP.',
+      'Enter the payment code from the payment provider. It starts with VSP.',
       'transactionId',
     );
   }

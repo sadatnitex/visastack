@@ -40,9 +40,11 @@ export default async function PlatformSecurityPage() {
         {access.audit ? (
           <article className="card">
             <h2 className="card-title">Recorded Activity</h2>
-            <p className="card-body">Inspect the existing audit history and integrity readings.</p>
+            <p className="card-body">
+              See who did what on the platform, with the time of each action.
+            </p>
             <Link href="/app/admin/audit" className="btn btn-secondary">
-              Open Audit
+              Open Activity
             </Link>
           </article>
         ) : null}

@@ -31,15 +31,15 @@ import {
 
 /**
  * The Refunds and Credits card of the admin organization page (Small Commercial V1 S18): money
- * the gateway confirmed that was held for a check (apply it to the next invoice, or refund it),
+ * the payment provider confirmed that was held for a check (apply it to the next invoice, or refund it),
  * counted payments that can still give something back, and every refund with where it stands.
  * Forms are drawn only when their disclosure is opened.
  */
 
 const FAILURE_WORDS: Readonly<Record<string, string>> = {
-  provider_cancelled: 'The payment gateway cancelled it.',
-  provider_refused: 'The payment gateway refused it.',
-  invalid_request: 'The payment gateway could not take it.',
+  provider_cancelled: 'The payment provider cancelled it.',
+  provider_refused: 'The payment provider refused it.',
+  invalid_request: 'The payment provider could not take it.',
 };
 
 function failureWords(code: string | null): string {
@@ -87,7 +87,7 @@ function RefundLine({
         {request.fromHeldPayment ? ' from a payment that needed a check' : ''}.{' '}
         {request.method === 'MANUAL'
           ? `Made outside VisaStack, reference ${request.reference ?? ''}${request.refundedOn ? `, refunded on ${formatBillingDate(request.refundedOn)}` : ''}; recorded on ${formatBillingDate(request.createdAt)}.`
-          : `Through the payment gateway, asked on ${formatBillingDate(request.createdAt)}${request.refundedOn ? `, refunded on ${formatBillingDate(request.refundedOn)}` : ''}.`}
+          : `Through the payment provider, asked on ${formatBillingDate(request.createdAt)}${request.refundedOn ? `, refunded on ${formatBillingDate(request.refundedOn)}` : ''}.`}
       </span>
       <StatusBadge tone={needsCheck ? 'danger' : REFUND_STATUS_TONES[request.status]}>
         {needsCheck ? 'Needs a Check' : REFUND_STATUS_LABELS[request.status]}
@@ -99,20 +99,20 @@ function RefundLine({
       {needsCheck ? (
         <p className="invoice-note">
           {request.failureCode === MODE_CHANGED_CODE
-            ? 'The payment gateway changed between test and live since this refund was sent, so VisaStack does not ask it about this refund.'
+            ? 'The payment provider changed between test and live since this refund was sent, so VisaStack does not ask it about this refund.'
             : request.failureCode === DUPLICATE_REFERENCE_CODE
-              ? 'The payment gateway says this refund was made, but its refund reference is already recorded for another refund, so it was not counted again.'
-              : 'The payment gateway says this refund was made, but the invoice no longer holds that much money, so it was not taken off.'}{' '}
-          Look at the invoice and the gateway's merchant panel before doing anything else.
+              ? 'The payment provider says this refund was made, but its refund reference is already recorded for another refund, so it was not counted again.'
+              : 'The payment provider says this refund was made, but the invoice no longer holds that much money, so it was not taken off.'}{' '}
+          Look at the invoice and the payment provider's merchant panel before doing anything else.
         </p>
       ) : null}
       {unconfirmed ? (
         <>
           <p className="invoice-note">
             {request.failureCode === RETRY_REFUSED_CODE
-              ? 'The payment gateway answered "failed" to the second send, which can mean the first send already went through. The amount stays blocked.'
+              ? 'The payment provider answered "failed" to the second send, which can mean the first send already went through. The amount stays blocked.'
               : 'We could not confirm the refund was sent. The amount stays blocked until you decide.'}{' '}
-            Check the payment gateway's merchant panel for this refund. If it is there, choose It
+            Check the payment provider's merchant panel for this refund. If it is there, choose It
             Went Through and enter its reference and day. If it is not, choose It Did Not Go Through
             {gatewayAvailable ? ', or send it again' : ''}.
           </p>
@@ -222,9 +222,9 @@ export function RefundsCard({
   readonly organizationId: string;
   /** Undefined when the owner's refund scope could not be made (`problem` says why). */
   readonly work: OrganizationRefundWork | undefined;
-  /** True when refunds may be sent to the payment gateway here (switched on and set up). */
+  /** True when refunds may be sent to the payment provider here (switched on and set up). */
   readonly gatewayAvailable: boolean;
-  /** True when sent refunds can be checked with the payment gateway here. */
+  /** True when sent refunds can be checked with the payment provider here. */
   readonly checkAvailable: boolean;
   /** Today in Bangladesh (YYYY-MM-DD): the latest day a refund can have been made. */
   readonly latestDate: string;
@@ -243,9 +243,9 @@ export function RefundsCard({
       ) : (
         <RefundFeedback>
           <p className="card-body u-mb-100">
-            A refund through the payment gateway counts only once the gateway confirms it. A refund
-            made another way is recorded here with its reference. Every refund and credit asks you
-            to confirm it is you.
+            A refund through the payment provider counts only once the payment provider confirms it.
+            A refund made another way is recorded here with its reference. Every refund and credit
+            asks you to confirm it is you.
           </p>
           {gatewayAvailable ? null : <p className="card-body u-mb-100">{REFUNDS_IN_PANEL}</p>}
           <RefundPaging organizationId={organizationId} work={work} />

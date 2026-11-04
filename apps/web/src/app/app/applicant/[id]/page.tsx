@@ -191,6 +191,9 @@ export default async function ApplicantOverviewPage({
   const topItem = data.attentionRead?.items[0];
   // The ranking decides first, with Account Home's wording. Without it (a failed read) the page
   // checks requests and suggestions itself. Flagged documents and the profile come next.
+  // Details read from the person's documents come first unless something is already past due:
+  // they are the whole point of adding a document, and they wait for one answer on one screen.
+  const detailsFirst = readings.length > 0 && topItem?.tier !== 1;
   const next = !data.coreGranted
     ? {
         href: '/app#permissions',
@@ -198,29 +201,30 @@ export default async function ApplicantOverviewPage({
         why: 'Choose whether your profile and documents may be saved. You can withdraw this permission.',
         action: 'Review Permissions',
       }
-    : topItem
+    : detailsFirst
       ? {
-          href: topItem.href,
-          title: attentionHeading(topItem),
-          why: attentionContext(topItem)
-            ? `${attentionContext(topItem)}. ${topItem.why}`
-            : topItem.why,
-          action: attentionActionLabel(topItem),
+          href: `/app/applicant/${id}/review`,
+          title: `${readings.length === 1 ? 'One Detail' : `${readings.length} Details`} Found in Your Documents`,
+          why: 'Add them to your profile with one tap. Nothing is added until you accept it.',
+          action: 'Review Details',
           tone: 'warning' as const,
         }
-      : data.attentionRead === null && requests.length
+      : topItem
         ? {
-            href: `/app/applicant/${id}/evidence`,
-            title: 'Reply to an Evidence Request',
-            why: 'An agency is waiting for evidence before it can continue.',
-            action: 'Open Requests',
+            href: topItem.href,
+            title: attentionHeading(topItem),
+            why: attentionContext(topItem)
+              ? `${attentionContext(topItem)}. ${topItem.why}`
+              : topItem.why,
+            action: attentionActionLabel(topItem),
+            tone: 'warning' as const,
           }
-        : data.attentionRead === null && readings.length
+        : data.attentionRead === null && requests.length
           ? {
-              href: `/app/applicant/${id}/documents`,
-              title: 'Review Suggested Details',
-              why: 'Nothing is added to your profile until you approve it.',
-              action: 'Review Suggestions',
+              href: `/app/applicant/${id}/evidence`,
+              title: 'Reply to an Evidence Request',
+              why: 'An agency is waiting for evidence before it can continue.',
+              action: 'Open Requests',
             }
           : data.attentionRead === null && appSuggestions.length
             ? {
@@ -539,7 +543,7 @@ export default async function ApplicantOverviewPage({
                     </Link>
                   ) : null}
                   {readings.length ? (
-                    <Link className="row row-link" href={`/app/applicant/${id}/documents`}>
+                    <Link className="row row-link" href={`/app/applicant/${id}/review`}>
                       <span className="row-key">Suggested Details Awaiting Approval</span>
                       <StatusBadge tone="warning">{readings.length}</StatusBadge>
                     </Link>

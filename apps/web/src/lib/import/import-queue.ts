@@ -86,6 +86,8 @@ export interface ImportItem {
   readonly title: string | null;
   /** The added document when it is an exact copy that may be removed again (LC-C). */
   readonly removableCopyId: string | null;
+  /** The stored document's id once the server confirmed it (null before, or from an older server). */
+  readonly documentId: string | null;
   /** The line after a refusal a paid plan would help with. */
   readonly upgrade: UpgradeLineKind | null;
   readonly skipReason: SkipReason | null;
@@ -297,6 +299,7 @@ const blank = {
   message: '',
   title: null,
   removableCopyId: null,
+  documentId: null,
   upgrade: null,
   skipReason: null,
   busy: false,
@@ -781,6 +784,7 @@ function outcomeChange(outcome: Exclude<UploadOutcome, { kind: 'busy' }>): Parti
       message: outcome.message,
       title: outcome.title,
       removableCopyId: outcome.removableCopyId ?? null,
+      documentId: outcome.documentId ?? null,
     };
   }
   if (outcome.kind === 'refused') {

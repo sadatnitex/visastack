@@ -123,6 +123,21 @@ describe('reading the answer', () => {
     ).toEqual({ kind: 'added', message: 'Added.', title: null });
   });
 
+  it('keeps the new document id only when it is a record id', () => {
+    const id = '33333333-3333-4333-8333-333333333333';
+    expect(readAnswer(201, JSON.stringify({ message: 'Added.', documentId: id }))).toEqual({
+      kind: 'added',
+      message: 'Added.',
+      title: null,
+      documentId: id,
+    });
+    expect(readAnswer(201, JSON.stringify({ message: 'Added.', documentId: 'x/../y' }))).toEqual({
+      kind: 'added',
+      message: 'Added.',
+      title: null,
+    });
+  });
+
   it('carries the upgrade line with a refusal, and only a line it knows (ADR 0025)', () => {
     expect(readAnswer(400, JSON.stringify({ message: 'Full.', upgrade: 'storage' }))).toEqual({
       kind: 'refused',

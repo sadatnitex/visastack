@@ -480,3 +480,27 @@ export async function listActivePlatformRoles(db: Db): Promise<PlatformRoleGrant
     .orderBy(desc(schema.platformRoles.assignedAt));
   return rows;
 }
+
+/** An active grant with the sign-in email of the person who holds it (null once their account is gone). */
+export type PlatformRoleHolder = PlatformRoleGrant & { readonly holderEmail: string | null };
+
+/**
+ * The active grants with who holds each one, so a platform owner knows which Revoke button belongs
+ * to whom. Owner only, checked here: an address is personal data, so any other caller gets a
+ * refusal and never a row.
+ */
+export async function listActivePlatformRoleHolders(
+  db: Db,
+  actor: PlatformAuthInput,
+): Promise<Result<PlatformRoleHolder[], ServiceError>> {
+  if (!(await isPlatformOwner(db, actor))) {
+    return err(serviceError('forbidden', 'only a platform owner can see who holds each role'));
+  }
+  const rows = await db
+    .select({ grant: schema.platformRoles, holderEmail: schema.accounts.email })
+    .from(schema.platformRoles)
+    .leftJoin(schema.accounts, eq(schema.accounts.id, schema.platformRoles.accountId))
+    .where(isNull(schema.platformRoles.revokedAt))
+    .orderBy(desc(schema.platformRoles.assignedAt));
+  return ok(rows.map((row) => ({ ...row.grant, holderEmail: row.holderEmail ?? null })));
+}

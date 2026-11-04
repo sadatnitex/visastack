@@ -35,6 +35,9 @@ export async function loadWorkspaceChrome(
         hasPlatformPermission(db, actor, 'AUDIT_TRAIL_VIEW'),
         hasPlatformPermission(db, actor, 'APPLICANT_DIRECTORY_VIEW'),
         hasPlatformPermission(db, actor, 'FEEDBACK_VIEW'),
+        hasPlatformPermission(db, actor, 'PROCESSING_JOB_RETRY'),
+        hasPlatformPermission(db, actor, 'DOCUMENT_PROTECTION_MANAGE'),
+        hasPlatformPermission(db, actor, 'ACCOUNT_SIGN_IN_RECOVERY'),
       ])
     : null;
   // UMPE G3: a member (not an owner or admin) may send document requests only with May Request
@@ -99,6 +102,10 @@ export async function loadWorkspaceChrome(
           removals: permissions[4] === true && documentRemovalRequestsOn(),
           // UMPE P12: Field Insights uses the existing feedback permission.
           insights: permissions[5] === true,
+          // The Operations and Billing group lists only what this role can open.
+          email: permissions[6] === true,
+          protection: permissions[7] === true,
+          recovery: permissions[8] === true,
         }
       : null,
   };

@@ -27,7 +27,7 @@ import {
   receiptKindLabel,
 } from '../../../../../lib/invoice-labels';
 import { withSession } from '../../../../../lib/session';
-import { AdminRestricted } from '../../admin-restricted';
+import { AdminNotForRole } from '../../admin-restricted';
 import { LazyDisclosure, RefundFeedback } from '../../organizations/[orgId]/refund-feedback';
 import { TravellerRefundForm } from './forms';
 import { RecoverPaymentForm } from './recover-form';
@@ -36,7 +36,7 @@ import { RecoverPaymentForm } from './recover-form';
  * Traveller Billing (ADR 0025, T6b): the platform owner's view of one traveller's own purchases,
  * payments, held payments and refunds, found by the reference code their invoices carry or by a
  * purchase reference, with the traveller payments that need a check, and a form to record each
- * full refund made in the gateway panel. Platform owner only (`BILLING_REFUND_MANAGE`).
+ * full refund made in the payment provider panel. Platform owner only (`BILLING_REFUND_MANAGE`).
  *
  * A traveller is only ever shown by a reference code: this page never shows a name, an email or
  * an account id, and the services it reads return none. Payment ids travel only inside the hidden
@@ -50,7 +50,7 @@ export const dynamic = 'force-dynamic';
 const CODE_FIELD = 'traveller-code';
 const CODE_ERROR = 'traveller-code-error';
 const NOT_FOUND = 'No traveller has that reference code or purchase reference.';
-const CONFIRMING = 'Still confirming with the payment gateway after 30 minutes.';
+const CONFIRMING = 'Still confirming with the payment provider after 30 minutes.';
 
 /** A day as a date field takes it (YYYY-MM-DD), in Bangladesh time. */
 function dayField(at: Date): string {
@@ -473,7 +473,7 @@ function Person({
                   content: (
                     <>
                       <p className="card-body u-mb-100">
-                        Make the refund in the payment gateway's merchant panel first, then record
+                        Make the refund in the payment provider's merchant panel first, then record
                         it here with the panel's refund reference. A refund is always all that is
                         left of the payment. Refunding the period that covers today ends the
                         traveller's plan at once. Every refund asks you to confirm it is you.
@@ -559,7 +559,7 @@ function Results({
 
 /**
  * Recover a Payment (owner decision, 2 Nov 2026): after a restore from backup, a traveller's
- * purchase made after the restore point is recovered from the payment gateway's own record.
+ * purchase made after the restore point is recovered from the payment provider's own record.
  */
 function RecoverPayment({
   plans,
@@ -573,8 +573,9 @@ function RecoverPayment({
       </h2>
       <p className="card-body u-mb-100">
         After a restore from backup, a traveller who paid in the meantime can be missing their plan.
-        Check the payment in the payment gateway's merchant records first. VisaStack then asks the
-        gateway what was paid and records exactly that, with a receipt, as if they had just paid.
+        Check the payment in the payment provider's merchant records first. VisaStack then asks the
+        payment provider what was paid and records exactly that, with a receipt, as if they had just
+        paid.
       </p>
       <RecoverPaymentForm plans={plans} />
     </article>
@@ -638,7 +639,7 @@ export default async function TravellerBillingPage({
         }
       />
       {data.kind === 'restricted' ? (
-        <AdminRestricted />
+        <AdminNotForRole needs="a platform owner" />
       ) : (
         <>
           <NeedsCheck items={data.needs} />

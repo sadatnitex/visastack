@@ -160,7 +160,7 @@ describe('Platform > Traveller Plan Metrics', () => {
     const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(mocks.staffPrincipal.mock.calls[0]?.[2]).toBe('PLANS_MANAGE');
-    expect(text).toContain('This area is restricted to platform administrators.');
+    expect(text).toContain('Not available for your role.');
     expect(mocks.travellerPlanMetrics).not.toHaveBeenCalled();
     expect(mocks.travellerPlanHealth).not.toHaveBeenCalled();
     expect(text).not.toContain('Alert Thresholds');
@@ -265,7 +265,7 @@ describe('Platform > Traveller Plan Metrics', () => {
     expect(section.match(/class="badge badge-warning"/g)).toHaveLength(2);
     expect(section.match(/class="badge badge-success"/g)).toHaveLength(2);
     expect(text).toContain(
-      'Payments still confirming with the payment gateway after 30 minutes, however long ago they started.',
+      'Payments still confirming with the payment provider after 30 minutes, however long ago they started.',
     );
 
     mocks.travellerPlanHealth.mockResolvedValue(

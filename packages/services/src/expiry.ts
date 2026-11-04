@@ -112,6 +112,13 @@ export function parseDocumentDate(raw: string | null | undefined): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+/** A real calendar day written year-month-day: no 31 February rolling over into March. */
+export function isRealCalendarDay(raw: string): boolean {
+  if (!DOCUMENT_DATE_PATTERN.test(raw)) return false;
+  const parsed = new Date(`${raw}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === raw;
+}
+
 /** Validates a caller-supplied date string before it is ever stored (write-side counterpart to `parseDocumentDate`). */
 export function isValidDocumentDateString(raw: string, now: Date = new Date()): boolean {
   const parsed = parseDocumentDate(raw);

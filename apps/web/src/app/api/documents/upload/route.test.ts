@@ -117,6 +117,18 @@ describe('authenticated raw document upload', () => {
     expect(await (await POST(request())).json()).toEqual({ message: 'No.' });
   });
 
+  it('answers with the new document id so the next screen can follow the file', async () => {
+    const id = '33333333-3333-4333-8333-333333333333';
+    upload.mockResolvedValue({ ok: true, message: 'Passport added.', documentId: id });
+    expect(await (await POST(request())).json()).toEqual({
+      message: 'Passport added.',
+      documentId: id,
+    });
+    // A refusal never carries it.
+    upload.mockResolvedValue({ ok: false, message: 'No.', documentId: id });
+    expect(await (await POST(request())).json()).toEqual({ message: 'No.' });
+  });
+
   it('admits an iPhone photo for conversion, but not anything merely called one', async () => {
     const heic = Buffer.from(MADE_UP_HEIC_SMALL);
     expect((await POST(request('https://app.example', heic, 'image/heic'))).status).toBe(201);

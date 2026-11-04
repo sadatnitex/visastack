@@ -1068,27 +1068,51 @@ export async function activeOrVerifiedErasureStorageObjectIds(
  * though a terminal (FAILED/BLOCKED_BY_HOLD) row should never carry a live
  * one — cheap, and consistent with every other transition in this module.
  */
-export async function retryErasureJob(db: Db, jobId: string): Promise<boolean> {
-  const updated = await db
-    .update(schema.erasureJobs)
-    .set({
-      status: 'PENDING',
-      attempts: 0,
-      lastError: null,
-      leaseOwner: null,
-      leaseExpiresAt: null,
-      availableAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(schema.erasureJobs.id, jobId),
-        or(
-          eq(schema.erasureJobs.status, 'FAILED'),
-          eq(schema.erasureJobs.status, 'BLOCKED_BY_HOLD'),
+export async function retryErasureJob(
+  db: Db,
+  jobId: string,
+  actorAccountId: string,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const before = first(
+      await tx
+        .select({ status: schema.erasureJobs.status })
+        .from(schema.erasureJobs)
+        .where(eq(schema.erasureJobs.id, jobId))
+        .limit(1),
+    );
+    const updated = await tx
+      .update(schema.erasureJobs)
+      .set({
+        status: 'PENDING',
+        attempts: 0,
+        lastError: null,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        availableAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.erasureJobs.id, jobId),
+          or(
+            eq(schema.erasureJobs.status, 'FAILED'),
+            eq(schema.erasureJobs.status, 'BLOCKED_BY_HOLD'),
+          ),
         ),
-      ),
-    )
-    .returning({ id: schema.erasureJobs.id });
-  return updated.length > 0;
+      )
+      .returning({ id: schema.erasureJobs.id });
+    if (updated.length === 0) return false;
+    // A staff member re-queued it by hand: record who, which job and what state it was in.
+    await appendAuditEvent(tx, {
+      eventType: 'ERASURE_JOB_RETRIED',
+      actorAccountId,
+      resourceType: 'erasure_job',
+      resourceId: jobId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      metadata: { outcome: 'REQUEUED', was: before?.status ?? 'UNKNOWN' },
+    });
+    return true;
+  });
 }

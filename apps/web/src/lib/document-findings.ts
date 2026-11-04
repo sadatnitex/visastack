@@ -11,6 +11,7 @@ import {
 import type { AiProposalViewModel } from '../app/app/applicant/[id]/ai-review';
 import { humanizeFieldKey } from './field-key-label';
 import { fieldLabel, savableField } from './master-profile';
+import { profileField } from './profile-fields';
 
 /** What the profile holds for one detail, as far as a reading needs to know. */
 interface ConfirmedValue {
@@ -60,12 +61,21 @@ export function findingViewModel(
   const differs =
     current !== undefined && (!current.comparable || current.value !== (proposal.value ?? ''));
   const showCurrent = current !== undefined && !current.isProtected && !sensitive;
+  // How the value is changed by hand: a date as a date, a fixed list as that list, else as text.
+  const choices = key ? profileField(key)?.options : undefined;
+  const editor: AiProposalViewModel['editor'] =
+    field?.type === 'date'
+      ? { kind: 'date' }
+      : choices && proposal.value !== null && choices.includes(proposal.value)
+        ? { kind: 'choice', options: choices }
+        : undefined;
   return {
     id: proposal.id,
     type: proposal.type,
     fieldKey: key,
     ...(key ? { fieldLabel: fieldLabel(key) ?? humanizeFieldKey(key) } : {}),
     value: proposal.value,
+    ...(editor ? { editor } : {}),
     confidence: proposal.confidence,
     rationale: proposal.rationale,
     evidence: evidence.map((e) => ({ snippet: e.snippet, verified: e.verified })),

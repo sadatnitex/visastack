@@ -290,6 +290,22 @@ describe('legal hold overrides deletion', () => {
   });
 });
 
+describe('changing a retention policy', () => {
+  it('needs a fresh sign-in, and writes nothing without one', async () => {
+    const db = await freshDb();
+    const { account } = await consentedApplicant(db, 'policy-step@example.com');
+    const refused = await setRetentionPolicy(db, {
+      actorAccountId: account.id,
+      docType: 'receipt',
+      retentionDays: 30,
+      stepUpSatisfied: false,
+    });
+    expect(isOk(refused)).toBe(false);
+    if (!isOk(refused)) expect(refused.error.code).toBe('step_up_required');
+    expect(await db.select().from(schema.retentionPolicies)).toHaveLength(0);
+  });
+});
+
 describe('retention purge', () => {
   let db: Db;
   beforeEach(async () => {
@@ -304,6 +320,7 @@ describe('retention purge', () => {
       actorAccountId: account.id,
       docType: 'receipt',
       retentionDays: 30,
+      stepUpSatisfied: true,
     });
 
     // A receipt document with a version, and real bytes behind its object key.
@@ -394,6 +411,7 @@ describe('retention purge', () => {
       actorAccountId: account.id,
       docType: 'receipt',
       retentionDays: 30,
+      stepUpSatisfied: true,
     });
     const doc = await registerDocument(db, {
       actorAccountId: account.id,
@@ -454,6 +472,7 @@ describe('retention purge', () => {
       actorAccountId: account.id,
       docType: 'receipt',
       retentionDays: 30,
+      stepUpSatisfied: true,
     });
     const doc = await registerDocument(db, {
       actorAccountId: account.id,
@@ -511,6 +530,7 @@ describe('retention purge', () => {
       actorAccountId: account.id,
       docType: 'receipt',
       retentionDays: 30,
+      stepUpSatisfied: true,
     });
     const doc = await registerDocument(db, {
       actorAccountId: account.id,

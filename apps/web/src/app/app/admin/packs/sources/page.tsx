@@ -12,6 +12,7 @@ import { PageHeader } from '../../../../../components/ui';
 import { hasPlatformPermission } from '../../../../../lib/admin';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
+import { AdminNotForRole } from '../../admin-restricted';
 import {
   AUTHORITY_TIER_LABELS,
   CandidateDecisionForm,
@@ -193,9 +194,7 @@ export default async function OfficialSourcesPage() {
       />
 
       {!data.allowed ? (
-        <article className="card">
-          <p className="card-body">This area is restricted to people who manage packs.</p>
-        </article>
+        <AdminNotForRole needs="a Support Admin or a platform owner" />
       ) : !data.overview.ready ? (
         <article className="card">
           <p className="card-body">Source monitoring can be used once the database is updated.</p>

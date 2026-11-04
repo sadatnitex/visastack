@@ -28,7 +28,7 @@ import {
 } from '../../../../../components/catalogue-datalists';
 import { ShowMore } from '../../../../../components/show-more';
 import { PageHeader, StatusBadge } from '../../../../../components/ui';
-import { isPlatformAdmin } from '../../../../../lib/admin';
+import { hasPlatformPermission, isPlatformAdmin } from '../../../../../lib/admin';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import {
   type SearchParamsRecord,
@@ -163,11 +163,13 @@ export default async function PackDetailPage({
 
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
+    // Any staff role may read a pack; only the role the server accepts changes from gets the controls.
+    const canManage = await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE');
     const pack = await getPack(db, packId);
     if (!pack) return { admin: true as const, pack: null };
     const versions = await listPackVersions(db, packId);
     const open = versions.find((v) => v.id === wantedVersion) ?? versions[0];
-    if (!open) return { admin: true as const, pack, versions, open: null };
+    if (!open) return { admin: true as const, pack, versions, open: null, canManage };
     const [requirements, missionCount] = await Promise.all([
       // The read has no order of its own, so the page sorts on fields an edit never changes:
       // a requirement keeps its place (and its Show More page) after a source review is saved.
@@ -190,6 +192,7 @@ export default async function PackDetailPage({
     const routeConditions = conditions.get(open.id) ?? NO_ROUTE_CONDITIONS;
     return {
       admin: true as const,
+      canManage,
       pack,
       versions,
       open: { version: open, requirements, missionCount, details, routeConditions },
@@ -226,8 +229,14 @@ export default async function PackDetailPage({
               : ''}
           </>
         }
-        actions={<OpenVersionButton packId={packId} />}
+        actions={data.canManage ? <OpenVersionButton packId={packId} /> : undefined}
       />
+
+      {data.canManage ? null : (
+        <p className="muted u-fs-085">
+          You can read this pack. Only a Support Admin or a platform owner can change it.
+        </p>
+      )}
 
       {data.open === null ? (
         <article className="card">
@@ -305,7 +314,7 @@ export default async function PackDetailPage({
                     {routeSummary(data.open.routeConditions)}
                     {isDraft ? '' : ' Change it in a new draft version.'}
                   </p>
-                  {isDraft ? (
+                  {isDraft && data.canManage ? (
                     <details className="sb7-fold">
                       <summary>Change Who This Version Is For</summary>
                       <RouteConditionsForm
@@ -388,7 +397,7 @@ export default async function PackDetailPage({
                               </p>
                             ) : null}
                             {ruleDetailsSummary(req, data.open.details.get(req.id))}
-                            {isDraft ? (
+                            {isDraft && data.canManage ? (
                               <RequirementDetailsForm
                                 packId={data.pack.id}
                                 requirementId={req.id}
@@ -396,7 +405,7 @@ export default async function PackDetailPage({
                                 values={detailsValues(data.open.details.get(req.id))}
                               />
                             ) : null}
-                            {isDraft ? (
+                            {isDraft && data.canManage ? (
                               <RequirementSourceReviewForm
                                 packId={data.pack.id}
                                 requirementId={req.id}
@@ -406,11 +415,13 @@ export default async function PackDetailPage({
                                 observedDate={req.observedDate?.toISOString().slice(0, 10) ?? ''}
                               />
                             ) : null}
-                            <SourceInaccessibleButton
-                              packId={packId}
-                              requirementId={req.id}
-                              inaccessible={req.sourceInaccessibleAt !== null}
-                            />
+                            {data.canManage ? (
+                              <SourceInaccessibleButton
+                                packId={packId}
+                                requirementId={req.id}
+                                inaccessible={req.sourceInaccessibleAt !== null}
+                              />
+                            ) : null}
                           </details>
                         </div>
                       ))}
@@ -437,7 +448,7 @@ export default async function PackDetailPage({
                       Checksum: {version.checksum.slice(0, 16)}…
                     </p>
                     <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start' }}>
-                      <VerifyChecksumForm packVersionId={version.id} />
+                      {data.canManage ? <VerifyChecksumForm packVersionId={version.id} /> : null}
                       <a
                         href={`/app/admin/packs/${packId}/versions/${version.id}/manifest`}
                         className="btn btn-secondary u-btn-sm"
@@ -449,7 +460,7 @@ export default async function PackDetailPage({
                   </div>
                 ) : null}
 
-                {isDraft ? (
+                {isDraft && data.canManage ? (
                   <>
                     <div style={{ margin: '1.25rem 0' }}>
                       <>
@@ -479,13 +490,15 @@ export default async function PackDetailPage({
                   </>
                 ) : null}
 
-                {isApproved ? (
+                {isApproved && data.canManage ? (
                   <PublishVersionButton packId={packId} packVersionId={version.id} />
                 ) : null}
 
                 {isPublished ? (
                   <>
-                    <WithdrawVersionButton packId={packId} packVersionId={version.id} />
+                    {data.canManage ? (
+                      <WithdrawVersionButton packId={packId} packVersionId={version.id} />
+                    ) : null}
                     {data.pack.authoritative ? (
                       <div style={{ marginTop: '1.25rem' }}>
                         <p className="card-kicker" style={{ marginBottom: '0.5rem' }}>
@@ -525,7 +538,7 @@ export default async function PackDetailPage({
                             </span>
                           </div>
                         </div>
-                        {version.publicTrustPublishedAt ? (
+                        {version.publicTrustPublishedAt && data.canManage ? (
                           <div style={{ marginBottom: '0.75rem' }}>
                             <OfficialFeeStaleButton
                               packId={packId}
@@ -534,11 +547,13 @@ export default async function PackDetailPage({
                             />
                           </div>
                         ) : null}
-                        <PublicTrustPublishButton
-                          packId={packId}
-                          packVersionId={version.id}
-                          published={version.publicTrustPublishedAt !== null}
-                        />
+                        {data.canManage ? (
+                          <PublicTrustPublishButton
+                            packId={packId}
+                            packVersionId={version.id}
+                            published={version.publicTrustPublishedAt !== null}
+                          />
+                        ) : null}
                         {version.publicTrustPublishedAt ? (
                           <p
                             className="muted"

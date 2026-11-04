@@ -154,6 +154,24 @@ describe('a batch of 85 files', () => {
   });
 });
 
+describe('the stored document id', () => {
+  it('is kept on an added file so the next screen can follow it', async () => {
+    const id = '33333333-3333-4333-8333-333333333333';
+    const send: ImportSend = async () => ({
+      kind: 'added',
+      message: 'Added.',
+      title: 'Passport, Nazmus',
+      documentId: id,
+    });
+    const queue = queueWith(send);
+    await queue.add([{ file: photo('passport.jpg'), path: '' }]);
+    await queue.whenIdle();
+    const [item] = queue.list();
+    expect(item?.state).toBe('added');
+    expect(item?.documentId).toBe(id);
+  });
+});
+
 describe('each file ends in an honest state', () => {
   it('sorts mixed answers into added, duplicate, refused, not supported, unknown and busy', async () => {
     const sent: string[] = [];

@@ -365,7 +365,7 @@ describe('workspace navigation link list (characterization)', () => {
       ['Organizations', '/app/admin/organizations'],
       ['Activity', '/app/admin/audit'],
       ['Providers', '/app/admin#admin-provider-operations'],
-      ['Costs & Plans', '/app/admin#admin-usage'],
+      ['Costs & Plans', '/app/admin/plans'],
       ['Security', '/app/admin/security'],
     ]);
     expect(pairs(nav.tools)).toEqual([
@@ -376,6 +376,34 @@ describe('workspace navigation link list (characterization)', () => {
       ['Complaints', '/app/admin/complaints'],
     ]);
     expect(pairs(nav.settings)).toEqual([['Platform Settings', '/app/admin/settings']]);
+    expect(pairs(nav.billing ?? [])).toEqual([['Billing', '/app/admin/billing']]);
+  });
+
+  it('sends only the owner to the plans, and lists each Operations and Billing page only for the role that can open it', () => {
+    const staff = (platform: NonNullable<WorkspaceAccess['platform']>) =>
+      workspaceNavigation('/app/admin', { ...none, platform });
+    const limited = {
+      owner: false,
+      ai: false,
+      complaints: false,
+      audit: false,
+      privacy: false,
+    };
+    expect(pairs(staff(limited).primary)).toContainEqual([
+      'Costs & Plans',
+      '/app/admin#admin-usage',
+    ]);
+    expect(pairs(staff(limited).billing ?? [])).toEqual([]);
+    expect(pairs(staff({ ...limited, email: true }).billing ?? [])).toEqual([
+      ['Email Delivery', '/app/admin/email'],
+    ]);
+    expect(pairs(staff({ ...limited, protection: true, recovery: true }).billing ?? [])).toEqual([
+      ['Document Protection', '/app/admin/document-protection'],
+      ['Sign-In Recovery', '/app/admin/sign-in-recovery'],
+    ]);
+    expect(pairs(staff({ ...limited, owner: true }).billing ?? [])).toEqual([
+      ['Billing', '/app/admin/billing'],
+    ]);
   });
 });
 

@@ -112,7 +112,7 @@ export const MODE_CHANGED_CODE = 'mode_changed';
 /** On a sent refund: the gateway's refund reference is already behind another refund of the agency. */
 export const DUPLICATE_REFERENCE_CODE = 'duplicate_reference';
 export const RETRY_REFUSED_MESSAGE =
-  'This refund cannot be sent again: the payment gateway already answered "failed" to a second send. Check the payment gateway\'s merchant panel, then choose It Went Through or It Did Not Go Through.';
+  'This refund cannot be sent again: the payment provider already answered "failed" to a second send. Check the payment provider\'s merchant panel, then choose It Went Through or It Did Not Go Through.';
 /** How long one Send Again holds a refund, so a double click sends it once. */
 const SEND_LEASE_MS = 30_000;
 
@@ -726,7 +726,7 @@ function refundGateways(payments: PaymentPortResolver): RefundingPaymentPort[] {
 
 /** Said to staff when this payment cannot go back through a gateway from VisaStack. */
 const NOT_THROUGH_GATEWAY =
-  'This payment cannot be refunded through the payment gateway. Refund it another way, then record it here.';
+  'This payment cannot be refunded through the payment provider. Refund it another way, then record it here.';
 
 /**
  * Said to staff when the money was taken with a payment provider that is not configured here any
@@ -750,8 +750,8 @@ function sourceProvider(source: LockedSource): string | null {
 /** Why a refund cannot go through the gateway in its current mode (S29). */
 function modeMismatchMessage(sourceMode: PaymentMode): string {
   return sourceMode === 'TEST'
-    ? 'This was a test payment, so it cannot be refunded through the live payment gateway. No money was taken. If you need a record, use Record a Refund Made Outside VisaStack.'
-    : 'This was a real payment, and the payment gateway is in test mode now. Refund it when the gateway is live again, or refund it another way and record it here.';
+    ? 'This was a test payment, so it cannot be refunded through the live payment provider. No money was taken. If you need a record, use Record a Refund Made Outside VisaStack.'
+    : 'This was a real payment, and the payment provider is in test mode now. Refund it when the payment provider is live again, or refund it another way and record it here.';
 }
 
 export async function requestRefund(
@@ -819,7 +819,7 @@ export async function requestRefund(
         return err(
           serviceError(
             'invalid',
-            'Refunds through the payment gateway are not available here. Record a refund made outside VisaStack instead.',
+            'Refunds through the payment provider are not available here. Record a refund made outside VisaStack instead.',
           ),
         );
       }
@@ -1918,7 +1918,7 @@ export async function applyHeldPaymentCredit(
       return err(
         serviceError(
           'invalid',
-          'This payment did not match what the gateway reported, so it cannot be applied as a credit. Check it in the gateway panel, then refund it.',
+          'This payment did not match what the payment provider reported, so it cannot be applied as a credit. Check it in the payment provider panel, then refund it.',
         ),
       );
     }

@@ -131,8 +131,25 @@ describe('workspace chrome uses existing actor-scoped authorization reads', () =
       privacy: false,
       removals: false,
       insights: false,
+      email: false,
+      protection: false,
+      recovery: false,
     });
     expect(mocks.isPlatformOwnerAccount).toHaveBeenCalledWith({}, actor);
+  });
+  it('carries one proven permission for each page in the Operations and Billing group', async () => {
+    mocks.holdsPlatformRole.mockResolvedValue(true);
+    mocks.isPlatformOwnerAccount.mockResolvedValue(false);
+    const only = async (allowed: string) => {
+      mocks.hasPlatformPermission.mockImplementation(
+        async (_db, _actor, permission) => permission === allowed,
+      );
+      const { platform } = await loadWorkspaceChrome({} as never, actor);
+      return [platform?.email, platform?.protection, platform?.recovery];
+    };
+    expect(await only('PROCESSING_JOB_RETRY')).toEqual([true, false, false]);
+    expect(await only('DOCUMENT_PROTECTION_MANAGE')).toEqual([false, true, false]);
+    expect(await only('ACCOUNT_SIGN_IN_RECOVERY')).toEqual([false, false, true]);
   });
   it('offers the removal queue only with privacy access and the removal switch on', async () => {
     try {

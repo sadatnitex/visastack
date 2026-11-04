@@ -17,7 +17,7 @@ import {
   parseShow,
 } from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
-import { AdminRestricted } from '../admin-restricted';
+import { AdminNotForRole } from '../admin-restricted';
 import { DecideRemovalForm } from './decide-form';
 import { DecisionStatus } from './decision-status';
 import { REASON_LABELS, count, sizeLabel, waitingLabel } from './labels';
@@ -87,7 +87,7 @@ export default async function RemovalRequestsPage({
         message={data.kind === 'ready' ? done : undefined}
       />
       {data.kind === 'restricted' ? (
-        <AdminRestricted />
+        <AdminNotForRole needs="a Compliance Admin or a platform owner" />
       ) : data.queue.rows.length === 0 ? (
         <p className="notice">No removal requests are waiting.</p>
       ) : (

@@ -139,7 +139,7 @@ function TextField({
   );
 }
 
-/** Asks the payment gateway to refund part or all of one payment. Needs a fresh sign-in check. */
+/** Asks the payment provider to refund part or all of one payment. Needs a fresh sign-in check. */
 export function RefundForm({
   organizationId,
   source,
@@ -243,7 +243,7 @@ export function ManualRefundForm({
           name="reference"
           label="Refund Reference"
           maxLength={120}
-          hint="The bank transfer id, or the refund reference shown in the payment gateway's merchant panel."
+          hint="The bank transfer id, or the refund reference shown in the payment provider's merchant panel."
           state={state}
           errorId={errorId}
         />
@@ -328,7 +328,7 @@ export function ApplyCreditForm({
   );
 }
 
-/** Asks the payment gateway about this agency's sent refunds now. */
+/** Asks the payment provider about this agency's sent refunds now. */
 export function CheckRefundsButton({ organizationId }: { readonly organizationId: string }) {
   const [state, formAction, pending] = useRefundAction(checkRefundsAction);
   return (
@@ -343,7 +343,7 @@ export function CheckRefundsButton({ organizationId }: { readonly organizationId
       <FormMessage
         result={failureOnly(state)}
         pending={pending}
-        pendingText="Asking the payment gateway about sent refunds."
+        pendingText="Asking the payment provider about sent refunds."
       />
     </form>
   );
@@ -462,7 +462,7 @@ export function CancelRefundForm({
           name="reason"
           label="Why It Did Not Go Through"
           maxLength={500}
-          hint="Only when the payment gateway's merchant panel shows no such refund."
+          hint="Only when the payment provider's merchant panel shows no such refund."
           state={state}
           errorId={errorId}
         />

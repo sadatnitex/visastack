@@ -163,7 +163,7 @@ describe('Platform > Complaints (WP-SB6)', () => {
 
   it('keeps its role checks: no quality role, no read; no feedback role, no feedback read', async () => {
     mocks.hasPlatformPermission.mockResolvedValue(false);
-    expect(textOf(await renderServer(Page({})))).toContain('restricted to quality admins');
+    expect(textOf(await renderServer(Page({})))).toContain('Not available for your role');
     expect(mocks.listComplaintsForQualityReview).not.toHaveBeenCalled();
     mocks.hasPlatformPermission.mockImplementation(
       async (_db: unknown, _who: unknown, action: string) => action === 'COMPLAINT_MANAGE',

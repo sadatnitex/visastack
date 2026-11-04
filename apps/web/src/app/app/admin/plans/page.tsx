@@ -29,7 +29,7 @@ import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { PLAN_FORM_RETRY_COOKIE, decodePlanFormRetry } from '../../../../lib/plan-form-retry';
 import { withSession } from '../../../../lib/session';
 import { BillingRow } from '../../account/plan/billing/billing-row';
-import { AdminRestricted } from '../admin-restricted';
+import { AdminNotForRole } from '../admin-restricted';
 import { PlanForm, RetirePlanForm } from './forms';
 import {
   BYTES_PER_MB,
@@ -343,7 +343,7 @@ export default async function PlansPage() {
         description="The plans for agencies and travellers: what each includes, what it costs and for how long. A new agency price applies from each agency's next billing period."
       />
       {data.kind === 'restricted' ? (
-        <AdminRestricted />
+        <AdminNotForRole needs="a platform owner" />
       ) : (
         <>
           {data.available ? null : (

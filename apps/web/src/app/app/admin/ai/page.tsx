@@ -12,7 +12,7 @@ import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { AI_FEATURE_RETRY_COOKIE, decodeAiFeatureRetry } from '../../../../lib/ai-feature-retry';
 import { formatTimestamp } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
-import { AdminRestricted } from '../admin-restricted';
+import { AdminNotForRole } from '../admin-restricted';
 import { AiFeatureForm } from './forms';
 import { type AiFeatureValues, PRECEDENCE_NOTE, WHAT_OFF_DOES, limitLine } from './labels';
 import {
@@ -140,7 +140,9 @@ export default async function AiAreaPage() {
         title="AI Settings"
         description="Turn each AI feature on or off, set how much each person may use it a day, and manage AI providers, their data terms and AI apps. Everything in VisaStack works without AI."
       />
-      {data.features === null && data.providers === null ? <AdminRestricted /> : null}
+      {data.features === null && data.providers === null ? (
+        <AdminNotForRole needs="a platform owner or a Security Admin" />
+      ) : null}
       {data.features ? (
         <section id="ai-features" aria-labelledby="ai-features-title">
           <h2 className="section-title" id="ai-features-title">

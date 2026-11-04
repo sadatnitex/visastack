@@ -12,7 +12,7 @@ import type { Metadata } from 'next';
 import { PageHeader, StatusBadge } from '../../../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../../../lib/admin';
 import { withSession } from '../../../../../../lib/session';
-import { AdminRestricted } from '../../../admin-restricted';
+import { AdminNotForRole } from '../../../admin-restricted';
 import { TravellerThresholdsForm } from './forms';
 import {
   SIGNAL_MEANINGS,
@@ -239,7 +239,7 @@ export default async function TravellerPlanMetricsPage({
         description="How travellers find, buy, renew and stop their paid plans, day by day, and whether their payments are going through. Only counts are shown, never who."
       />
       {data.kind === 'restricted' ? (
-        <AdminRestricted />
+        <AdminNotForRole needs="a platform owner" />
       ) : (
         <>
           <article className="card u-mb-150" aria-labelledby="counts-title">

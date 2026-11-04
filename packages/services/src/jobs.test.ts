@@ -296,8 +296,21 @@ describe('low-volume durable job queue — async intake', () => {
     expect(failed[0]?.lastError).toContain('scanner unavailable');
     expect(failed[0]?.attempts).toBe(1);
 
-    const retried = await retryFailedJob(db, job.id);
+    const staffId = '00000000-0000-4000-8000-0000000000a1';
+    const retried = await retryFailedJob(db, job.id, staffId);
     expect(retried).toBe(true);
+    // The hand re-queue is on the record: who, which job, and what happened.
+    const trail = await db
+      .select()
+      .from(schema.auditEvents)
+      .where(eq(schema.auditEvents.eventType, 'PROCESSING_JOB_RETRIED'));
+    expect(trail).toHaveLength(1);
+    expect(trail[0]).toMatchObject({
+      actorAccountId: staffId,
+      resourceType: 'processing_job',
+      resourceId: job.id,
+      result: 'ALLOWED',
+    });
 
     const afterRetry = (
       await db.select().from(schema.processingJobs).where(eq(schema.processingJobs.id, job.id))
@@ -308,7 +321,13 @@ describe('low-volume durable job queue — async intake', () => {
     expect(await listFailedJobs(db)).toHaveLength(0);
 
     // Retrying a job that isn't FAILED is a safe no-op.
-    expect(await retryFailedJob(db, job.id)).toBe(false);
+    expect(await retryFailedJob(db, job.id, staffId)).toBe(false);
+    expect(
+      await db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, 'PROCESSING_JOB_RETRIED')),
+    ).toHaveLength(1);
   });
 
   it('is genuinely idempotent (master directive §7 "PR 6") — enqueuing the same document version twice returns the same row, never a duplicate', async () => {

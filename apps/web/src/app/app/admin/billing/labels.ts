@@ -49,7 +49,7 @@ export const WHAT_SUSPENDED_DOES =
 export const TRAVELLER_UPLOADS_NOTE =
   "While an agency is Suspended, travellers who share records with it still add their own files as usual. Only the agency's own team cannot add files until it is Active again.";
 
-/** S29: the gateway's mode, in the words Billing Rules shows it. */
+/** S29: the payment provider's mode, in the words Billing Rules shows it. */
 export const PAYMENT_MODE_WORDS = {
   TEST: {
     badge: 'Test Payments Only',

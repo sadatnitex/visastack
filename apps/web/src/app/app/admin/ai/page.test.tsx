@@ -136,7 +136,7 @@ describe('Platform > AI Features', () => {
     const text = textOf(await renderServer(Page()));
     expect(mocks.listAiFeatureSettings).not.toHaveBeenCalled();
     expect(text).not.toContain('AI App Suggestions');
-    expect(text).toContain('restricted');
+    expect(text).toContain('Not available for your role');
   });
 
   it('says plainly when the switches are not available yet', async () => {

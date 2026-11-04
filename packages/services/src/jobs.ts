@@ -543,22 +543,40 @@ export async function listFailedJobs(
  * Re-queue a FAILED job with a fresh retry budget (an admin has intervened,
  * so it deserves another full attempt count rather than picking up where a
  * possibly-transient failure left off). No-op (returns false) if the job
- * isn't currently FAILED — never resurrects a job another path already moved.
+ * isn't currently FAILED, so it never resurrects a job another path already moved. A real re-queue
+ * writes an audit event naming the staff member and the job.
  */
-export async function retryFailedJob(db: Db, jobId: string): Promise<boolean> {
-  const updated = await db
-    .update(schema.processingJobs)
-    .set({
-      status: 'PENDING',
-      attempts: 0,
-      lastError: null,
-      errorCode: null,
-      availableAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(and(eq(schema.processingJobs.id, jobId), eq(schema.processingJobs.status, 'FAILED')))
-    .returning({ id: schema.processingJobs.id });
-  return updated.length > 0;
+export async function retryFailedJob(
+  db: Db,
+  jobId: string,
+  actorAccountId: string,
+): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const updated = await tx
+      .update(schema.processingJobs)
+      .set({
+        status: 'PENDING',
+        attempts: 0,
+        lastError: null,
+        errorCode: null,
+        availableAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(schema.processingJobs.id, jobId), eq(schema.processingJobs.status, 'FAILED')))
+      .returning({ id: schema.processingJobs.id });
+    if (updated.length === 0) return false;
+    // A staff member re-queued it by hand: record who, which job and what happened.
+    await appendAuditEvent(tx, {
+      eventType: 'PROCESSING_JOB_RETRIED',
+      actorAccountId,
+      resourceType: 'processing_job',
+      resourceId: jobId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      metadata: { outcome: 'REQUEUED' },
+    });
+    return true;
+  });
 }
 
 export interface IntakeWorkerResult {

@@ -326,4 +326,15 @@ describe('Read Again (S6)', () => {
       ['documentVersionId', 'v1'],
     ]);
   });
+
+  it('can name itself for a file that was never read', () => {
+    act(() =>
+      root.render(
+        <ReadAgainButton applicantId="a1" documentVersionId="v1" label="Read This Document" />,
+      ),
+    );
+    expect([...host.querySelectorAll('button')].map((b) => b.textContent)).toEqual([
+      'Read This Document',
+    ]);
+  });
 });

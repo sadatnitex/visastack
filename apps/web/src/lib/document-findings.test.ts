@@ -35,6 +35,27 @@ const entry = (
   ...extra,
 });
 
+describe('how a value is changed by hand', () => {
+  const none = new Map();
+
+  it('a date field is changed as a date', () => {
+    expect(findingViewModel(reading('date_of_birth', '1990-03-12'), none).editor).toEqual({
+      kind: 'date',
+    });
+  });
+
+  it('a field with a fixed list is changed from that list, when the reading is on the list', () => {
+    const view = findingViewModel(reading('marital_status', 'Married'), none);
+    expect(view.editor?.kind).toBe('choice');
+    // A reading that is not on the list stays plain text, so nothing is silently replaced.
+    expect(findingViewModel(reading('marital_status', 'Wedded'), none).editor).toBeUndefined();
+  });
+
+  it('any other field is plain text', () => {
+    expect(findingViewModel(reading('given_name', 'Nazmus'), none).editor).toBeUndefined();
+  });
+});
+
 describe('comparing a reading with the profile, on the server', () => {
   it('only a real difference with a confirmed detail asks which is right', () => {
     const confirmed = confirmedValues(

@@ -19,6 +19,8 @@ export type UploadOutcome =
       readonly message: string;
       readonly title: string | null;
       readonly removableCopyId?: string;
+      /** The new document's id, when the server sent one. */
+      readonly documentId?: string;
     }
   /**
    * The server answered no, with its reason, and the line to add when a paid plan would give more
@@ -272,11 +274,12 @@ export function readAnswer(
     return { kind: 'unknown' };
   }
   if (typeof parsed !== 'object' || parsed === null) return { kind: 'unknown' };
-  const { message, title, upgrade, removableCopyId } = parsed as {
+  const { message, title, upgrade, removableCopyId, documentId } = parsed as {
     message?: unknown;
     title?: unknown;
     upgrade?: unknown;
     removableCopyId?: unknown;
+    documentId?: unknown;
   };
   if (typeof message !== 'string') return { kind: 'unknown' };
   if (status === 201) {
@@ -287,6 +290,7 @@ export function readAnswer(
       ...(typeof removableCopyId === 'string' && isRecordId(removableCopyId)
         ? { removableCopyId }
         : {}),
+      ...(typeof documentId === 'string' && isRecordId(documentId) ? { documentId } : {}),
     };
   }
   if (status >= 400 && status < 500) {

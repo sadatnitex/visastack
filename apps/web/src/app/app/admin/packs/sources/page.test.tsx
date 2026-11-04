@@ -111,7 +111,7 @@ describe('Pack Studio > Official Sources', () => {
   it('needs pack management rights and shows nothing else without them', async () => {
     mocks.permission.mockResolvedValue(false);
     const html = await render();
-    expect(textOf(html)).toContain('restricted to people who manage packs');
+    expect(textOf(html)).toContain('Not available for your role');
     expect(mocks.overview).not.toHaveBeenCalled();
     expect(mocks.permission.mock.calls[0]?.[2]).toBe('PACK_MANAGE');
   });

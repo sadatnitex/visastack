@@ -226,8 +226,32 @@ describe('traveller composition and independent record guards', () => {
       /href="\/app\/applicant\/person\/profile"[^>]*><span class="row-key">Suggestions from AI Apps Waiting for You<\/span>/,
     );
     expect(html).toMatch(
-      /href="\/app\/applicant\/person\/documents"[^>]*><span class="row-key">Suggested Details Awaiting Approval<\/span><span[^>]*>1</,
+      /href="\/app\/applicant\/person\/review"[^>]*><span class="row-key">Suggested Details Awaiting Approval<\/span><span[^>]*>1</,
     );
+  });
+  it('puts details found in documents first, one tap away on the screen made for them', async () => {
+    service.listPendingProposals.mockResolvedValue(
+      Array.from({ length: 8 }, (_, i) => ({
+        proposal: { id: `p${i}`, fieldKey: 'given_name', documentVersionId: 'v-1' },
+        evidence: [],
+      })),
+    );
+    const html = renderToStaticMarkup(await overview(params));
+    expect(html).toContain('8 Details Found in Your Documents');
+    expect(html).toMatch(/href="\/app\/applicant\/person\/review"[^>]*>[^<]*Review Details/);
+    expect(html).toContain('Add them to your profile with one tap.');
+  });
+  it('names one detail plainly', async () => {
+    service.listPendingProposals.mockResolvedValue([
+      { proposal: { id: 'p1', fieldKey: 'given_name', documentVersionId: 'v-1' }, evidence: [] },
+    ]);
+    expect(renderToStaticMarkup(await overview(params))).toContain(
+      'One Detail Found in Your Documents',
+    );
+  });
+  it('says nothing about found details when none are waiting', async () => {
+    service.listPendingProposals.mockResolvedValue([]);
+    expect(renderToStaticMarkup(await overview(params))).not.toContain('Found in Your Documents');
   });
   it('uses the newest active case and actual readiness, excluding closed cases', async () => {
     const now = new Date('2026-10-11');

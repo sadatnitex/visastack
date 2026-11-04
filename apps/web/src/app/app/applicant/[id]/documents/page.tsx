@@ -18,7 +18,6 @@ import {
   getWalletView,
   hasConsent,
   isPassportPhotoType,
-  isRestrictedDocumentType,
   isServableProcessingState,
   isSharedBetweenPeopleKind,
   lifecycleTablesPresent,
@@ -70,6 +69,7 @@ import { formatTimestampDate } from '../../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
 import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master-profile';
+import { protectedKindsOf } from '../../../../../lib/protected-kinds';
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { isStillProcessing } from '../../../../../lib/resilience';
 import { withSession } from '../../../../../lib/session';
@@ -435,9 +435,7 @@ export default async function ApplicantDocumentsPage({
   // itself: nobody has to reload, and nobody uploads the file again because nothing seemed
   // to happen (directive Part 9 section 3).
   // Kinds that need a fresh sign-in check, for the card's warning while a person edits the kind.
-  const protectedKinds = documentGroups
-    .flatMap((group) => group.choices.map((choice) => choice.key))
-    .filter((key) => isRestrictedDocumentType(key, data.protection));
+  const protectedKinds = protectedKindsOf(documentGroups, data.protection);
   // A document in Recently Deleted is never processed again (LC-A2), so it never keeps the page
   // refreshing, whatever state it was left in.
   const anyProcessing = data.documents.some((doc) => {

@@ -137,14 +137,14 @@ describe('Recover a Payment (owner tool)', () => {
     });
   });
 
-  it("says the gateway's answer in plain words and marks the box it is about", async () => {
+  it("says the payment provider's answer in plain words and marks the box it is about", async () => {
     mocks.recoverPersonPayment.mockResolvedValue({
       ok: false,
       error: {
         code: 'invalid',
         reason: 'recovery_transaction',
         message:
-          'The payment gateway does not show this transaction as paid, so nothing was recorded.',
+          'The payment provider does not show this transaction as paid, so nothing was recorded.',
       },
     });
     const result = await recoverTravellerPaymentAction(INITIAL, form());

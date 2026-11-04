@@ -18,7 +18,12 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../components/ui';
-import { bootstrapAdminEmails, isPlatformAdmin, staffPrincipal } from '../../../lib/admin';
+import {
+  bootstrapAdminEmails,
+  hasPlatformPermission,
+  isPlatformAdmin,
+  staffPrincipal,
+} from '../../../lib/admin';
 import { aiWarningLimitUnits, defaultAiLimits, resolveAiLimits, unitsToUsd } from '../../../lib/ai';
 import { formatDuration, formatMinorUnits, humanizeLabel } from '../../../lib/analytics-format';
 import { gateStatus } from '../../../lib/commercial-readiness';
@@ -38,6 +43,7 @@ import { RetryJobButton } from './action-buttons';
 import { AdminRestricted } from './admin-restricted';
 import { QueuePaging, QueuePastEnd } from './email/queue-paging';
 import { QueuePanel } from './email/queue-panel';
+import { hideFileNames } from './failed-job-view';
 import { FailedSectionsBanner } from './failed-sections-banner';
 import { LifecycleMeasuresCard } from './lifecycle-measures';
 import { ReconcileButtons } from './reconcile-buttons';
@@ -152,6 +158,20 @@ export default async function AdminOperationsPage({
   const jobsBefore = parseCursor(param('jobsBefore'));
   const data = await withSession(async ({ db, accountId, email }) => {
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
+    // What this role may see and do here. File names and error text can identify a traveller, so
+    // only the roles that may read traveller names see them; the Retry and Clean Up controls are
+    // drawn only for the role the server will accept them from.
+    const actor = { accountId, email };
+    const directoryStaff = await staffPrincipal(
+      db,
+      { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+      'APPLICANT_DIRECTORY_VIEW',
+    );
+    const fileNamesAllowed = directoryStaff.ok;
+    const [mayRetry, mayReconcile] = await Promise.all([
+      hasPlatformPermission(db, actor, 'PROCESSING_JOB_RETRY'),
+      hasPlatformPermission(db, actor, 'ORPHAN_RECONCILE'),
+    ]);
     // Sections that cannot be read (typically a table a pending migration has not
     // created) are left empty and named in a banner. The permission check above is
     // NOT wrapped: an authorization failure must stay an error.
@@ -179,13 +199,8 @@ export default async function AdminOperationsPage({
       t(
         'lifecycle measures',
         async () => {
-          const staff = await staffPrincipal(
-            db,
-            { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
-            'APPLICANT_DIRECTORY_VIEW',
-          );
-          if (!staff.ok) return 'restricted' as const;
-          const measures = await getLifecycleMeasures(db, staff.value);
+          if (!directoryStaff.ok) return 'restricted' as const;
+          const measures = await getLifecycleMeasures(db, directoryStaff.value);
           return measures.ok ? measures.value : ('unavailable' as const);
         },
         'unavailable' as const,
@@ -194,7 +209,7 @@ export default async function AdminOperationsPage({
         available: false as const,
         reason: 'schema_pending' as const,
       }),
-      t('evidence storage', () => getPlatformEvidenceBytes(db), 0),
+      t('file storage', () => getPlatformEvidenceBytes(db), 0),
       t('AI cost', () => totalAiCostUnits(db), 0),
       t('AI limits', () => resolveAiLimits(db), defaultAiLimits()),
     ]);
@@ -270,8 +285,10 @@ export default async function AdminOperationsPage({
       : undefined;
     return {
       admin: true as const,
+      mayRetry,
+      mayReconcile,
       overview,
-      failedJobs,
+      failedJobs: hideFileNames(failedJobs, fileNamesAllowed),
       scorecard,
       lifecycleMeasures,
       analytics,
@@ -287,7 +304,7 @@ export default async function AdminOperationsPage({
       travellerPlans,
       failedSections,
       providerOperations: describeProviderOperations({
-        ...(!failedSections.includes('evidence storage')
+        ...(!failedSections.includes('file storage')
           ? { evidenceBytes: platformEvidenceBytes }
           : {}),
         ...(!failedSections.includes('AI cost') ? { aiCostUnits } : {}),
@@ -443,7 +460,13 @@ export default async function AdminOperationsPage({
                             <span className="badge badge-danger">
                               {job.attempts}/{job.maxAttempts} attempts
                             </span>
-                            <RetryJobButton jobId={job.id} />
+                            {data.mayRetry ? (
+                              <RetryJobButton jobId={job.id} />
+                            ) : (
+                              <span className="muted u-fs-085">
+                                Support Admin or Platform Owner
+                              </span>
+                            )}
                           </span>
                         </div>
                         {job.lastError ? (
@@ -542,8 +565,8 @@ export default async function AdminOperationsPage({
                   <p className="card-kicker">Pilot Measurement</p>
                   <h2 className="card-title">Product Scorecard</h2>
                   <p className="card-body u-mb-100">
-                    Real usage milestones, counted from an append-only event log - no PII, no
-                    free-text properties.
+                    Real usage milestones, counted from a permanent record. It holds counts only: no
+                    names, no emails and no free text.
                   </p>
                   <div className="rows rows-grid admin-scorecard">
                     {data.scorecard.map((row) => (
@@ -608,18 +631,17 @@ export default async function AdminOperationsPage({
                   <p className="card-kicker">Capacity</p>
                   <h2 className="card-title">Platform Storage</h2>
                   <p className="card-body u-mb-125">
-                    Tracked evidence bytes across every account. New uploads are refused once the
-                    platform hits its hard stop; the warning threshold below is purely informational
-                    - it is not itself enforced anywhere.
+                    Space used by uploaded files across every account. New uploads are refused once
+                    the platform reaches its limit. The warning level below is only a heads-up; it
+                    does not stop anything.
                   </p>
-                  {data.failedSections.includes('evidence storage') ? (
+                  {data.failedSections.includes('file storage') ? (
                     <p className="card-body">
-                      Evidence storage could not be read. Usage and remaining capacity are
-                      unavailable.
+                      File storage could not be read. Space used and space left are unavailable.
                     </p>
                   ) : (
                     <UsageMeter
-                      label="Evidence Storage (Platform-Wide)"
+                      label="File Storage (All Accounts)"
                       usedBytes={data.platformEvidenceBytes}
                       limitBytes={data.quota.platformHardStopBytes}
                       warnBytes={data.quota.platformWarningBytes}
@@ -628,15 +650,14 @@ export default async function AdminOperationsPage({
                 </article>
                 <article className="card u-mt-150">
                   <p className="card-kicker">Capacity</p>
-                  <h2 className="card-title">AI Gateway Spend</h2>
+                  <h2 className="card-title">AI Spend</h2>
                   <p className="card-body u-mb-125">
-                    Lifetime-to-date spend against the configured pilot cap (never resets
-                    automatically - raising the limit is a deliberate operator action, not a monthly
-                    rollover). A cache hit costs nothing and does not add to this total. The cap
-                    shown here is whichever currently governs dispatch -- an ACTIVE AI Gateway
-                    configuration's own budget once one exists, environment variables otherwise; the
-                    warning threshold has no per-configuration equivalent yet and always comes from
-                    the environment.
+                    Total AI spend so far against the pilot limit. It never resets by itself, so
+                    raising the limit is a deliberate choice, not a monthly rollover. An answer
+                    reused from an earlier request costs nothing and is not counted. The limit shown
+                    is the one in force now: the budget of the live AI setup once there is one, the
+                    platform default until then. The warning level always comes from the platform
+                    default.
                   </p>
                   {(() => {
                     if (
@@ -997,12 +1018,19 @@ export default async function AdminOperationsPage({
                   <p className="card-kicker">Storage Integrity</p>
                   <h2 className="card-title">Orphan Reconciliation</h2>
                   <p className="card-body u-mb-125">
-                    Detects drift between storage metadata and actual bytes: dangling references,
-                    blobs with no reference, duplicate references, and size/hash mismatches. Cleanup
-                    only ever removes a metadata row with no backing bytes and no remaining document
-                    - it never deletes bytes that still exist.
+                    Checks that the list of stored files matches the files themselves: records that
+                    point to a missing file, files with no record, duplicate records, and files that
+                    differ from their record. Clean Up only removes a record that points to a
+                    missing file and has no document left. It never deletes a file that still
+                    exists.
                   </p>
-                  <ReconcileButtons />
+                  {data.mayReconcile ? (
+                    <ReconcileButtons />
+                  ) : (
+                    <p className="muted u-fs-085">
+                      Only a Support Admin or a platform owner can run this.
+                    </p>
+                  )}
                 </article>
               </div>
             </details>

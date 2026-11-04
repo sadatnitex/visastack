@@ -164,7 +164,7 @@ describe('Platform > Settings > Document Protection', () => {
   it('shows only the restricted notice to someone without the permission', async () => {
     mocks.staffPrincipal.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     const html = await renderServer(Page({}));
-    expect(textOf(html)).toContain('This area is restricted to platform administrators');
+    expect(textOf(html)).toContain('Not available for your role');
     expect(mocks.staffPrincipal.mock.calls[0]?.[2]).toBe('DOCUMENT_PROTECTION_MANAGE');
     expect(mocks.getDocumentProtectionOverview).not.toHaveBeenCalled();
     expect(stubProps(html, 'ProtectionSwitch')).toEqual([]);

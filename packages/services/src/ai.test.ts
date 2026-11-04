@@ -633,6 +633,49 @@ describe('AI Gateway — proposals never silently mutate', () => {
     expect(feedback[0]?.correctedValue).toBe('L898902C3-CORRECTED');
   });
 
+  it('refuses a typed value that is not a real date for a date field, and accepts a real one', async () => {
+    const { account, applicantId, versionId } = await seedVersion(db, 'ai-date-edit@example.com');
+    await grantAiConsent(db, account.id);
+    await registerFieldDefinition(db, { key: 'passport.number', dataType: 'string' });
+    const run = await runExtraction(db, stubAi(), {
+      feature: 'ai_document_reading',
+      actorAccountId: account.id,
+      applicantId,
+      documentVersionId: versionId,
+      text: 'MRZ...',
+      budgetLimitUnits: 10,
+    });
+    if (!isOk(run)) throw new Error('run failed');
+    const proposalId = run.value.proposals.find((p) => p.fieldKey === 'passport.number')
+      ?.id as string;
+    await db
+      .update(schema.fieldDefinitions)
+      .set({ dataType: 'date' })
+      .where(eq(schema.fieldDefinitions.key, 'passport.number'));
+
+    for (const typed of ['soon', '4 June 2031', '2031-02-31', '2031-13-01']) {
+      const refused = await approveProposal(db, {
+        actorAccountId: account.id,
+        proposalId,
+        correctedValue: typed,
+      });
+      expect(isOk(refused)).toBe(false);
+    }
+    const stillPending = await db
+      .select({ status: schema.fieldProposals.status })
+      .from(schema.fieldProposals)
+      .where(eq(schema.fieldProposals.id, proposalId));
+    expect(stillPending[0]?.status).toBe('PENDING');
+
+    const accepted = await approveProposal(db, {
+      actorAccountId: account.id,
+      proposalId,
+      correctedValue: '2031-06-04',
+    });
+    expect(isOk(accepted)).toBe(true);
+    if (isOk(accepted)) expect(accepted.value.version.value).toBe('2031-06-04');
+  });
+
   it('enforces a per-document budget cap independent of the platform-wide cap', async () => {
     const { account, applicantId, versionId } = await seedVersion(db, 'ai-doc-budget@example.com');
     await grantAiConsent(db, account.id);

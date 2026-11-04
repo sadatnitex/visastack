@@ -15,6 +15,7 @@ import { humanizeCode } from '../../../../../lib/format-code';
 import { formatTimestamp } from '../../../../../lib/format-date';
 import { fieldLabel } from '../../../../../lib/master-profile';
 import { withSession } from '../../../../../lib/session';
+import { AdminNotForRole } from '../../admin-restricted';
 import { CorrectionDecisionForm } from './correction-forms';
 
 export const metadata: Metadata = { title: 'Checklist Corrections', referrer: 'no-referrer' };
@@ -174,9 +175,7 @@ export default async function ChecklistCorrectionsPage() {
       />
 
       {!data.allowed ? (
-        <article className="card">
-          <p className="card-body">This area is restricted to people who manage packs.</p>
-        </article>
+        <AdminNotForRole needs="a Support Admin or a platform owner" />
       ) : !data.queue || !data.queue.ready ? (
         <article className="card">
           <p className="card-body">
