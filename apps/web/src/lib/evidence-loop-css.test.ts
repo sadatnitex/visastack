@@ -20,8 +20,9 @@ function block(marker: string): string {
 }
 
 const lane = block('/* WP-LANE-E evidence loop');
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const rule = (selector: string) =>
-  lane.match(new RegExp(`\\n${selector.replace(/\./g, '\\.')} \\{[^}]*\\}`))?.[0];
+  lane.match(new RegExp(`\\n${escapeRegExp(selector)} \\{[^}]*\\}`))?.[0];
 
 describe('the evidence loop block', () => {
   it('gives every control and toggle a 44 pixel target', () => {
