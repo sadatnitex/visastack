@@ -11,9 +11,9 @@ import { STORED_UPLOAD_TYPES, isHeicType } from './upload-rules';
 // Below Vercel's 4.5 MB request ceiling, including request overhead.
 export const STREAM_UPLOAD_LIMIT = 4 * 1024 * 1024;
 
-/** A size in whole megabytes as people read it ("4 MB"). */
+/** A size in whole megabytes as people read it ("4 MB"), rounded down so it never overstates. */
 function megabytesLabel(bytes: number): string {
-  return `${Math.round(bytes / (1024 * 1024))} MB`;
+  return `${Math.floor(bytes / (1024 * 1024))} MB`;
 }
 
 /** What the request ceiling is called wherever a screen or refusal names it ("4 MB"). */

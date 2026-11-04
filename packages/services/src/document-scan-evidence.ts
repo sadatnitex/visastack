@@ -109,21 +109,25 @@ export async function loadVersionScanEvidence(
   if (versions.length === 0) return result;
   const byVersion = new Map<string, ScanRecordForEvidence[]>();
   try {
-    const rows = await db
-      .select({
-        documentVersionId: schema.documentScanResults.documentVersionId,
-        scannerName: schema.documentScanResults.scannerName,
-        scanErrored: schema.documentScanResults.scanErrored,
-        safe: schema.documentScanResults.safe,
-        scannedAt: schema.documentScanResults.scannedAt,
-      })
-      .from(schema.documentScanResults)
-      .where(
-        inArray(
-          schema.documentScanResults.documentVersionId,
-          versions.map((version) => version.id),
+    // A nested transaction (a savepoint when the caller already holds one), so a failed read
+    // cannot leave the caller's own transaction aborted for every later query on the page.
+    const rows = await db.transaction((tx) =>
+      tx
+        .select({
+          documentVersionId: schema.documentScanResults.documentVersionId,
+          scannerName: schema.documentScanResults.scannerName,
+          scanErrored: schema.documentScanResults.scanErrored,
+          safe: schema.documentScanResults.safe,
+          scannedAt: schema.documentScanResults.scannedAt,
+        })
+        .from(schema.documentScanResults)
+        .where(
+          inArray(
+            schema.documentScanResults.documentVersionId,
+            versions.map((version) => version.id),
+          ),
         ),
-      );
+    );
     for (const row of rows) {
       const list = byVersion.get(row.documentVersionId) ?? [];
       list.push(row);

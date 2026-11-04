@@ -291,7 +291,12 @@ export function describeReceiptActors(
           ? 'OWNER_ACCOUNT'
           : 'ANOTHER_ACCOUNT',
     approvedBy:
-      approvedByAccountId !== null && approvedByAccountId !== ownerAccountId ? 'SUPPORT' : null,
+      // Only said when the owner is known: with no owner to compare to, nothing proves a staff approval.
+      approvedByAccountId !== null &&
+      ownerAccountId !== null &&
+      approvedByAccountId !== ownerAccountId
+        ? 'SUPPORT'
+        : null,
   };
 }
 

@@ -5,6 +5,7 @@ import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { type SearchParamsRecord, pagingHref, parseCursor } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
+import { caseAnchorId } from '../case-anchor';
 import { loadCaseActivity, loadMembers, loadOrgAccess } from '../console-data';
 
 export const metadata: Metadata = { title: 'Agency Case Activity' };
@@ -69,7 +70,7 @@ export default async function AgencyActivityPage({
               <ul>
                 {data.cases.map((c) => (
                   <li key={c.missionId}>
-                    <Link href={`${casesHref}?case=${c.missionId}#mission-${c.missionId}`}>
+                    <Link href={`${casesHref}?case=${c.missionId}#${caseAnchorId(c.missionId)}`}>
                       {c.title}
                     </Link>
                   </li>

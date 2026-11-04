@@ -1051,4 +1051,13 @@ describe('the note the owner gets when a file is deleted, and the Removal Record
       describeReceiptActors({ requestedByAccountId: 'a', approvedByAccountId: null }, null),
     ).toEqual({ requestedBy: 'ANOTHER_ACCOUNT', approvedBy: null });
   });
+
+  it('says support approved only when the owner is known and the approver is someone else', () => {
+    const recorded = { requestedByAccountId: 'o', approvedByAccountId: 's' };
+    expect(describeReceiptActors(recorded, null).approvedBy).toBeNull();
+    expect(describeReceiptActors(recorded, 'o').approvedBy).toBe('SUPPORT');
+    expect(
+      describeReceiptActors({ ...recorded, approvedByAccountId: 'o' }, 'o').approvedBy,
+    ).toBeNull();
+  });
 });
