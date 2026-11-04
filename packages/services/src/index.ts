@@ -87,6 +87,16 @@ export { listAllApplicants, listRecentAuditEvents } from './platform-reads';
 export { type DataKeyRewrapSummary, rewrapDataKeys } from './data-key-rewrap';
 
 export {
+  type ScanRecordForEvidence,
+  TRUSTED_VIRUS_SCANNER_NAMES,
+  type VersionSafetyStatus,
+  type VersionScanEvidence,
+  type VersionScanKind,
+  deriveVersionScanEvidence,
+  loadVersionScanEvidence,
+} from './document-scan-evidence';
+
+export {
   SCANNER_EVIDENCE_MAX_AGE_MS,
   SCANNER_VERIFIED_EVENT,
   type ScannerEvidence,

@@ -46,6 +46,8 @@ const mocks = vi.hoisted(() => ({
   ),
   /** The Manage registry as lanes will fill it: empty unless a test registers an action. */
   registry: {} as Record<string, { label: string; Component: () => null }>,
+  /** What was really done to each latest file, by version id (document-scan-evidence.ts). */
+  scanEvidence: new Map<string, { kind: string; scannedAt: string | null }>(),
 }));
 
 vi.mock('@visastack/services', async (importOriginal) => ({
@@ -87,6 +89,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   listDeletionReceipts: mocks.listDeletionReceipts,
   availableDocumentActions: mocks.availableDocumentActions,
   listCopyPeople: mocks.listCopyPeople,
+  loadVersionScanEvidence: async () => mocks.scanEvidence,
 }));
 vi.mock('../../../../../lib/ai', () => ({
   isClassificationConfigured: async () => false,
@@ -160,6 +163,7 @@ const render = async (document?: string, extra: Record<string, string> = {}) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.scanEvidence.clear();
   mocks.getApplicant.mockResolvedValue({ id: 'a1', ownerAccountId: 'acct-1' });
   mocks.getWalletView.mockResolvedValue({ ok: true, value: [] });
   mocks.hasConsent.mockResolvedValue(true);
@@ -359,6 +363,75 @@ describe('wallet ownership, explicit selection and truthful safety state', () =>
     const html = await render();
     expect(textOf(html)).toContain('Unavailable records are not reported as an empty wallet');
     expect(textOf(html)).not.toContain('No Documents Yet');
+  });
+});
+
+describe('the checks badge says only what was really done to that exact file', () => {
+  const LINES: Record<string, { label: string; detail: string }> = {
+    VIRUS_SCANNED: {
+      label: 'Checked for Viruses',
+      detail: 'A virus scan finished on this exact file and found nothing.',
+    },
+    FORMAT_CHECKED: {
+      label: 'Format Checked',
+      detail: 'It has not been scanned for viruses.',
+    },
+    WAITING: { label: 'Waiting to Be Checked', detail: 'It cannot be opened until it has.' },
+    CHECKING: { label: 'Being Checked', detail: 'The checks are running.' },
+    DELAYED: { label: 'Check Delayed', detail: 'The virus scan could not finish yet' },
+    HELD: { label: 'Held for Safety', detail: 'so it cannot be opened.' },
+    FAILED: { label: 'Could Not Be Checked', detail: 'Try adding it again.' },
+  };
+
+  it.each(Object.keys(LINES))('shows the %s wording for the file, never another', async (kind) => {
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('d', 'APPROVED')] });
+    mocks.scanEvidence.set('d-v1', { kind, scannedAt: null });
+    const text = textOf(await render('d'));
+    expect(text).toContain(LINES[kind]?.label);
+    expect(text).toContain(LINES[kind]?.detail);
+    for (const [other, line] of Object.entries(LINES)) {
+      if (other !== kind)
+        expect(text, `${kind} must not read as ${other}`).not.toContain(line.label);
+    }
+    expect(text).not.toContain('No Problems Found');
+  });
+
+  it('never calls a stored CLEAN file virus scanned when no scan evidence is readable', async () => {
+    // No evidence for the version (the read failed or no scan was recorded): the cautious reading.
+    mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [doc('d', 'APPROVED')] });
+    const text = textOf(await render('d'));
+    expect(text).not.toContain('Checked for Viruses');
+    expect(text).not.toContain('No Problems Found');
+  });
+
+  it('judges each document by its own latest file, not by another document or a platform switch', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc('old', 'APPROVED'), doc('new', 'APPROVED')],
+    });
+    mocks.scanEvidence.set('old-v1', { kind: 'FORMAT_CHECKED', scannedAt: null });
+    mocks.scanEvidence.set('new-v1', {
+      kind: 'VIRUS_SCANNED',
+      scannedAt: '2026-11-01T00:00:00.000Z',
+    });
+    const oldText = textOf(await render('old'));
+    expect(oldText).toContain('It has not been scanned for viruses.');
+    expect(oldText).not.toContain('A virus scan finished on this exact file');
+    const newText = textOf(await render('new'));
+    expect(newText).toContain('A virus scan finished on this exact file');
+  });
+
+  it('keeps the existing gate: a held file is still not previewable whatever its badge', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [{ ...doc('unsafe', 'APPROVED'), safetyStatus: 'QUARANTINED' }],
+    });
+    mocks.scanEvidence.set('unsafe-v1', {
+      kind: 'VIRUS_SCANNED',
+      scannedAt: '2026-11-01T00:00:00.000Z',
+    });
+    const html = await render('unsafe');
+    expect(html).not.toContain('>Preview</button>');
   });
 });
 

@@ -1,11 +1,12 @@
 import { isOtherDocumentType } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue';
-import { type MessageKey, type Translator, createTranslator } from '@visastack/i18n';
+import { type MessageKey, createTranslator } from '@visastack/i18n';
 import {
   CONVERTED_FROM_HEIC_SOURCE,
   DEFAULT_DOCUMENT_PROTECTION,
   type DocumentAction,
   type DocumentLifecycleStatus,
+  type VersionScanEvidence,
   accountPrincipal,
   availableDocumentActions,
   classifyExpiry,
@@ -34,6 +35,7 @@ import {
   listPendingInconsistencyFlags,
   listPendingProposals,
   listRedactionStates,
+  loadVersionScanEvidence,
   readDocumentProtectionSettings,
   referenceCodesFor,
   requireAccess,
@@ -72,6 +74,7 @@ import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master
 import { protectedKindsOf } from '../../../../../lib/protected-kinds';
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { isStillProcessing } from '../../../../../lib/resilience';
+import { type ScanStatePresentation, presentScanState } from '../../../../../lib/scan-state';
 import { withSession } from '../../../../../lib/session';
 import {
   previewDocumentAction,
@@ -117,19 +120,16 @@ const PROCESSING_STATE_KEYS: Record<string, MessageKey> = {
   REJECTED: 'document.processing.rejected',
 };
 
-const SAFETY_BADGE_KEYS: Record<string, { key: MessageKey; tone: string }> = {
-  CLEAN: { key: 'document.status.clean', tone: 'badge-success' },
-  QUARANTINED: { key: 'document.status.quarantined', tone: 'badge-danger' },
-  SCANNING: { key: 'document.status.scanning', tone: 'badge-neutral' },
-  PENDING: { key: 'document.status.pending', tone: 'badge-neutral' },
-};
-
-function safetyBadge(status: string, t: Translator): { label: string; tone: string } {
-  const entry = SAFETY_BADGE_KEYS[status] ?? {
-    key: 'document.status.pending' as const,
-    tone: 'badge-neutral',
-  };
-  return { label: t(entry.key), tone: entry.tone };
+/**
+ * The checks badge for a document's latest file, read from what was really done to that exact
+ * file (scan-state.ts). The stored CLEAN value still decides who can open it; it is never
+ * worded as a virus scan unless a trusted scan recorded a pass for this file.
+ */
+function safetyBadge(
+  doc: { readonly latestVersionId: string | null },
+  evidence: ReadonlyMap<string, VersionScanEvidence>,
+): ScanStatePresentation {
+  return presentScanState(doc.latestVersionId ? evidence.get(doc.latestVersionId) : null);
 }
 
 /** What a person can do next when a file could not be used (a state with no next step is a dead end). */
@@ -263,6 +263,16 @@ export default async function ApplicantDocumentsPage({
       ),
     );
     const ocrRuns = new Map(documentRows.map((doc, i) => [doc.id, ocrRunLists[i]] as const));
+    // What was really done to each document's latest file, so the badge never says more than the
+    // records for that exact file support (scan-state.ts). One query for the whole list.
+    const scanEvidence = await loadVersionScanEvidence(
+      db,
+      documentRows.flatMap((doc) =>
+        doc.latestVersionId && doc.safetyStatus
+          ? [{ id: doc.latestVersionId, safetyStatus: doc.safetyStatus }]
+          : [],
+      ),
+    );
     const confirmed = confirmedValues(profile, encryption !== undefined);
     // How each file's reading is going and where each suggestion came from (S6, ADR 0019). Owner
     // only, through the access gate; if it is refused the page simply shows no reading states.
@@ -397,6 +407,7 @@ export default async function ApplicantDocumentsPage({
       lifecycle,
       displayName: applicant.displayName ?? 'Unknown',
       documents: documentRows,
+      scanEvidence,
       recordsUnavailable: !documents.ok || !wallet.ok,
       coreGranted,
       aiGranted,
@@ -627,7 +638,7 @@ export default async function ApplicantDocumentsPage({
           applicantId={id}
           {...(selection ? { initialSelection: selection } : {})}
           documents={listedDocuments.map((doc) => {
-            const badge = safetyBadge(doc.safetyStatus ?? 'PENDING', t);
+            const badge = safetyBadge(doc, data.scanEvidence);
             const processingKey = doc.processingStatus
               ? PROCESSING_STATE_KEYS[doc.processingStatus]
               : undefined;
@@ -744,7 +755,7 @@ export default async function ApplicantDocumentsPage({
                         {doc.approvedName ?? doc.originalName}
                       </span>
                       <span className="row-end">
-                        <span className={`badge ${badge.tone}`}>{badge.label}</span>
+                        <span className={`badge ${badge.badgeClass}`}>{badge.label}</span>
                         {(() => {
                           const lifecycle = data.wallet.get(doc.id);
                           if (!lifecycle) return null;
@@ -795,6 +806,7 @@ export default async function ApplicantDocumentsPage({
                         ) : null}
                       </span>
                     </div>
+                    <p className="muted u-fs-075-m0">{badge.detail}</p>
                     {doc.source === CONVERTED_FROM_HEIC_SOURCE ? (
                       <p className="muted u-fs-075-m0">
                         Saved as a JPG copy of the iPhone photo (HEIC) that was uploaded, so it
