@@ -110,12 +110,9 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
       kind: 'text',
       name: 'Add several at once. Documents are stored privately and pass a structural safety scan before they can be previewed.',
     },
-    to: {
-      kind: 'text',
-      name: 'Drop files or a whole folder in one place. Each one is checked for safety, and you approve every detail we read.',
-    },
+    to: null,
     reason:
-      'UX7 (owner, 3 Nov 2026): the same promise, now beside the link to the Add Documents page.',
+      'UX7 (owner, 3 Nov 2026) moved this promise beside the link to the Add Documents page; UX17 (owner, 4 Nov 2026) removed that bottom card, and the Add Documents page says it.',
   },
   {
     screen: 'documents',
@@ -155,6 +152,26 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
       detail: '/app/applicant/person/review',
     },
     reason: 'What We Found: details read from documents wait on one screen, not inside the list.',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'heading', name: 'Add Documents', detail: '2' },
+    to: null,
+    reason:
+      'UX17 (owner, 4 Nov 2026: "we dont need Add Documents at the bottom"): the bottom card is gone; the page keeps the header button and, on a phone, an always-there Add button.',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'link', name: 'Home', detail: '/app' },
+    to: null,
+    reason:
+      'UX17: the consent hint lived only inside the removed card; the Add Documents page asks for it.',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'link', name: 'Add a Document', detail: '#add-document' },
+    to: { kind: 'link', name: 'Add a Document', detail: '/app/applicant/a1/documents/add' },
+    reason: 'UX17: the empty list opens the Add Documents page directly, not the removed card.',
   },
   {
     screen: 'documents',

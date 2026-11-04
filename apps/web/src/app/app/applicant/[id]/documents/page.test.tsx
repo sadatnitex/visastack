@@ -238,12 +238,14 @@ describe('a file that could not be used', () => {
 });
 
 describe('adding documents', () => {
-  it('links to the Add Documents page, and keeps the old anchors on that link', async () => {
+  it('keeps one Add button in reach and no Add Documents card at the bottom', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
     const html = await render();
-    expect(html).toContain('href="/app/applicant/a1/documents/add"');
-    expect(html).toContain('id="add-document"');
-    expect(html).toContain('id="document-upload"');
+    const button = html.match(/<a[^>]*class="docs-add-fab"[^>]*>/)?.[0] ?? '';
+    expect(button).toContain('href="/app/applicant/a1/documents/add"');
+    expect(html).not.toContain('id="add-document"');
+    expect(html).not.toContain('id="document-upload"');
+    expect(textOf(html)).not.toContain('Drop files or a whole folder');
     expect(stubProps(html, 'DocumentUploader')).toEqual([]);
   });
 
@@ -253,10 +255,12 @@ describe('adding documents', () => {
     expect(html).toMatch(/href="\/app\/applicant\/a1\/documents\/add\?type=[A-Z_]+"/);
   });
 
-  it('asks for core processing consent instead of offering the link inside the card', async () => {
+  it('leaves the consent question to the Add Documents page, so the Add button is always there', async () => {
     mocks.hasConsent.mockResolvedValue(false);
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
-    expect(textOf(await render())).toContain('to add new documents');
+    const html = await render();
+    expect(html).toContain('class="docs-add-fab"');
+    expect(textOf(html)).not.toContain('to add new documents');
   });
 });
 

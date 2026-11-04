@@ -208,3 +208,113 @@ describe('fewer rows a page on a phone (scroll budget, lane Z)', () => {
     expect(container.querySelectorAll('.wallet-metadata-list li')).toHaveLength(12);
   });
 });
+
+describe('a document opens as its own full screen on a phone (UX17)', () => {
+  const phone = (matches: boolean) =>
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) =>
+        ({
+          matches,
+          media: query,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+        }) as unknown as MediaQueryList,
+    );
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.body.style.overflow = '';
+  });
+  const mountWith = (matches: boolean, initialSelection?: string) => {
+    phone(matches);
+    act(() => root.unmount());
+    root = createRoot(container);
+    act(() =>
+      root.render(
+        <DocumentWalletBrowser
+          applicantId="synthetic-person"
+          documents={records}
+          {...(initialSelection ? { initialSelection } : {})}
+        />,
+      ),
+    );
+  };
+  const panel = () => container.querySelector('aside') as HTMLElement;
+
+  it('starts closed, opens on a tap as a dialog, and goes back to the row that opened it', () => {
+    mountWith(true);
+    expect(panel().getAttribute('data-sheet')).toBe('closed');
+    expect(panel().getAttribute('role')).toBeNull();
+    const row = button('Synthetic document 2');
+    act(() => row.click());
+    expect(panel().getAttribute('data-sheet')).toBe('open');
+    expect(panel().getAttribute('role')).toBe('dialog');
+    expect(panel().getAttribute('aria-modal')).toBe('true');
+    expect(document.body.style.overflow).toBe('hidden');
+    expect(document.activeElement).toBe(panel());
+    act(() => button('Back to Documents').click());
+    expect(panel().getAttribute('data-sheet')).toBe('closed');
+    expect(panel().getAttribute('role')).toBeNull();
+    expect(document.body.style.overflow).toBe('');
+    expect(document.activeElement).toBe(row);
+  });
+
+  it('closes on Escape', () => {
+    mountWith(true);
+    act(() => button('Synthetic document 3').click());
+    expect(panel().getAttribute('data-sheet')).toBe('open');
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(panel().getAttribute('data-sheet')).toBe('closed');
+  });
+
+  it('takes the document out of the address on the way back, so a refresh does not reopen it', () => {
+    mountWith(true);
+    act(() => button('Synthetic document 2').click());
+    expect(window.location.search).toContain('document=doc-2');
+    act(() => button('Back to Documents').click());
+    expect(window.location.search).not.toContain('document=');
+  });
+
+  it('leaves Escape to a menu inside that already used it', () => {
+    mountWith(true);
+    act(() => button('Synthetic document 3').click());
+    act(() => {
+      const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+      event.preventDefault();
+      document.dispatchEvent(event);
+    });
+    expect(panel().getAttribute('data-sheet')).toBe('open');
+  });
+
+  it('keeps Tab inside the open screen', () => {
+    mountWith(true);
+    act(() => button('Synthetic document 2').click());
+    const inside = [...panel().querySelectorAll<HTMLElement>('a[href], button')];
+    const last = inside[inside.length - 1] as HTMLElement;
+    const first = inside[0] as HTMLElement;
+    // jsdom has no layout, so every node counts as shown for this check.
+    for (const node of inside) Object.defineProperty(node, 'offsetParent', { value: container });
+    last.focus();
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true });
+    act(() => {
+      document.dispatchEvent(tab);
+    });
+    expect(tab.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(first);
+  });
+
+  it('opens at once for a link that names a document', () => {
+    mountWith(true, 'doc-4');
+    expect(panel().getAttribute('data-sheet')).toBe('open');
+    expect(panel().textContent).toContain('Authorized details for 4');
+  });
+
+  it('is a plain side panel on a larger screen: no dialog, no scroll lock', () => {
+    mountWith(false);
+    act(() => button('Synthetic document 2').click());
+    expect(panel().getAttribute('role')).toBeNull();
+    expect(document.body.style.overflow).toBe('');
+  });
+});
