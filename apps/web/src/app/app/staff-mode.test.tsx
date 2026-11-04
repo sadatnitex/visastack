@@ -25,7 +25,15 @@ const STAFF: WorkspaceAccess = {
     { id: CHILD, name: 'Synthetic Child', relationship: 'CHILD' },
   ],
   agencies: [{ id: 'agency-1', name: 'Synthetic Agency', admin: true }],
-  platform: { owner: true, ai: true, complaints: true, audit: true, privacy: true },
+  platform: {
+    owner: true,
+    ai: true,
+    complaints: true,
+    audit: true,
+    privacy: true,
+    insights: true,
+    email: true,
+  },
 };
 
 let root: Root;
@@ -122,6 +130,46 @@ describe('staff mode on platform pages (owner list item 18)', () => {
       }
       expect(text()).toContain('Platform tools for VisaStack staff.');
     }
+  });
+
+  it('draws the tools lists with the same icon and words row as the main links, and the closed list the same way', () => {
+    mount('/app/admin/insights');
+    const tools = container.querySelector('details.workspace-tools');
+    expect(tools?.hasAttribute('open')).toBe(true);
+    const rows = [...(tools?.querySelectorAll('nav.workspace-tools-list a') ?? [])];
+    expect(rows.length).toBeGreaterThan(3);
+    for (const row of rows) {
+      expect(row.querySelector('svg.icon'), `${row.textContent} has an icon`).not.toBeNull();
+      expect(row.querySelector('.app-link-label')?.textContent).toBe(row.textContent);
+    }
+    const primary = container.querySelector(
+      'nav.app-shell-links a[href="/app/admin/organizations"]',
+    );
+    expect(primary?.querySelector('svg.icon')).not.toBeNull();
+    // The closed list wears an icon too, with the arrow that says it opens.
+    const summary = tools?.querySelector('summary');
+    expect(summary?.querySelector('.workspace-tools-icon svg.icon')).not.toBeNull();
+    expect(summary?.querySelector('.workspace-tools-chevron svg.icon')).not.toBeNull();
+    expect(summary?.textContent).toContain('More Tools');
+  });
+
+  it('adds a Billing and Plans list only when the role has a page in it, closed unless one is open', () => {
+    mount('/app/admin');
+    expect(container.querySelectorAll('details.workspace-tools')).toHaveLength(2);
+    const group = [...container.querySelectorAll('details.workspace-tools')].find((item) =>
+      item.textContent?.includes('Billing and Plans'),
+    );
+    expect(group?.hasAttribute('open')).toBe(false);
+    expect([...(group?.querySelectorAll('a') ?? [])].map((a) => a.getAttribute('href'))).toEqual([
+      '/app/admin/billing',
+      '/app/admin/email',
+    ]);
+    mount('/app/admin/email');
+    expect(
+      [...container.querySelectorAll('details.workspace-tools')]
+        .find((item) => item.textContent?.includes('Billing and Plans'))
+        ?.hasAttribute('open'),
+    ).toBe(true);
   });
 
   it('leaves traveller pages exactly as they were: no staff banner, travellers listed by name', () => {

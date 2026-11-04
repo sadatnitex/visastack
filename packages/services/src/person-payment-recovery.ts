@@ -43,18 +43,18 @@ export interface RecoveredPersonPayment {
 const NOT_ALLOWED = 'Only the platform owner can recover a payment.';
 const STEP_UP = 'Confirm it is you, then recover the payment.';
 const NOT_AVAILABLE = 'Recovering a payment is not available yet.';
-const NO_GATEWAY = 'The payment gateway is not set up, so the payment cannot be checked.';
+const NO_GATEWAY = 'The payment provider is not set up, so the payment cannot be checked.';
 const BAD_ID = 'That is not a VisaStack transaction id. It starts with VSP.';
-const GATEWAY_DOWN = 'The payment gateway did not answer. Try again in a few minutes.';
+const GATEWAY_DOWN = 'The payment provider did not answer. Try again in a few minutes.';
 const NOT_PAID =
-  'The payment gateway does not show this transaction as paid, so nothing was recorded.';
+  'The payment provider does not show this transaction as paid, so nothing was recorded.';
 const ALREADY = 'This payment is already recorded. Nothing new was recorded.';
 const COVERED = 'This traveller already has a paid plan now, so nothing was recorded.';
 const NOT_TRAVELLER_PLAN = 'Choose a paid traveller plan.';
 const AMOUNT = 'The amount paid is not a price this plan has had. Check the plan they paid for.';
 const NO_ACCOUNT = 'No traveller has that account id. Check it in the restore report.';
 const NOT_SETTLED =
-  'The payment gateway has not confirmed it yet. Try Recover Payment again in a few minutes. Nothing is recorded twice.';
+  'The payment provider has not confirmed it yet. Try Recover Payment again in a few minutes. Nothing is recorded twice.';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

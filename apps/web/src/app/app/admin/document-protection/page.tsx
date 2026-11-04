@@ -10,7 +10,7 @@ import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { formatTimestamp } from '../../../../lib/format-date';
 import { type SearchParamsRecord, firstParam } from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
-import { AdminRestricted } from '../admin-restricted';
+import { AdminNotForRole } from '../admin-restricted';
 import { SectionTabs } from '../privacy/section-tabs';
 import { ProtectionSwitch } from './forms';
 
@@ -119,7 +119,7 @@ export default async function DocumentProtectionPage({
         description="Choose which documents need a fresh sign-in check before anyone, including the traveller, previews or downloads them. Change a switch when travellers or agencies tell you a check is missing or getting in the way."
       />
       {data.kind === 'restricted' ? (
-        <AdminRestricted />
+        <AdminNotForRole needs="a Security Admin or a platform owner" />
       ) : data.kind === 'unavailable' ? (
         <output className="notice notice-warn">{UNAVAILABLE}</output>
       ) : (

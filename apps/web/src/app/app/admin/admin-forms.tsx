@@ -229,7 +229,7 @@ export function LegalHoldForm({ applicantPicker }: LegalHoldFormProps) {
         {scope === 'mission' ? (
           <div className="field-row field-wide">
             <label className="field-label" htmlFor="missionId">
-              Case ID
+              Case Reference
             </label>
             <input
               id="missionId"
@@ -237,14 +237,14 @@ export function LegalHoldForm({ applicantPicker }: LegalHoldFormProps) {
               type="text"
               required
               className="input"
-              placeholder="UUID, from the case's own page"
+              placeholder="Copy it from the case's own page"
             />
           </div>
         ) : null}
         {scope === 'document' ? (
           <div className="field-row field-wide">
             <label className="field-label" htmlFor="documentId">
-              Document ID
+              Document Reference
             </label>
             <input
               id="documentId"
@@ -252,7 +252,7 @@ export function LegalHoldForm({ applicantPicker }: LegalHoldFormProps) {
               type="text"
               required
               className="input"
-              placeholder="UUID, from the document's own page"
+              placeholder="Copy it from the document's own page"
             />
           </div>
         ) : null}

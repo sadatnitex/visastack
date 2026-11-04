@@ -9,6 +9,7 @@ import {
 const mocks = vi.hoisted(() => ({
   isPlatformAdmin: vi.fn(),
   isPlatformOwnerAccount: vi.fn(),
+  hasPlatformPermission: vi.fn(),
   listAllOrganizations: vi.fn(),
 }));
 
@@ -44,6 +45,7 @@ beforeEach(() => {
   navigationState.pathname = '/app/admin/organizations';
   mocks.isPlatformAdmin.mockResolvedValue(true);
   mocks.isPlatformOwnerAccount.mockResolvedValue(false);
+  mocks.hasPlatformPermission.mockResolvedValue(true);
   mocks.listAllOrganizations.mockResolvedValue({ items: orgs, nextCursor: null });
 });
 
@@ -63,6 +65,25 @@ describe('Platform > Organizations', () => {
         (p) => p.organizationId,
       ),
     ).toEqual(['o-active', 'o-suspended']);
+  });
+
+  it('draws Review, Suspend and Close only for a role that can use them, and says why otherwise', async () => {
+    mocks.hasPlatformPermission.mockResolvedValue(false);
+    const html = await renderServer(Page({}));
+    expect(stubProps(html, 'OrgReviewButtons')).toHaveLength(0);
+    expect(stubProps(html, 'OrgSuspendButton')).toHaveLength(0);
+    expect(stubProps(html, 'OrgTerminateButton')).toHaveLength(0);
+    expect(textOf(html)).toContain(
+      'Only a Security Admin or a platform owner can review, suspend or close organizations.',
+    );
+    const asked = mocks.hasPlatformPermission.mock.calls.map((call) => call[2]);
+    expect(asked).toEqual(
+      expect.arrayContaining([
+        'ORGANIZATION_REVIEW',
+        'ORGANIZATION_SUSPEND',
+        'ORGANIZATION_TERMINATE',
+      ]),
+    );
   });
 
   it('offers the Manage link only to a platform owner', async () => {

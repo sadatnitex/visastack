@@ -12,9 +12,9 @@ import { RECOVER_NO_REPLY, type RecoverFormState } from './recover-state';
 
 /**
  * Recover a Payment (owner decision, 2 Nov 2026): a traveller's purchase lost in a restore from
- * backup, recovered from the payment gateway's own record. The owner types the traveller's full
- * code from the restore report, chooses the plan and gives the gateway's transaction id; the
- * amount is never typed, the gateway's record says it. Before anything is sent it asks the owner
+ * backup, recovered from the payment provider's own record. The owner types the traveller's full
+ * code from the restore report, chooses the plan and gives the payment provider's transaction id; the
+ * amount is never typed, the payment provider's record says it. Before anything is sent it asks the owner
  * to confirm. Needs a fresh sign-in check.
  */
 
@@ -46,7 +46,7 @@ export function RecoverPaymentForm({
       onSubmit={(event) => {
         if (
           !window.confirm(
-            "Recover this payment? First check in the merchant panel that it is this traveller's payment. VisaStack then asks the payment gateway what was paid and records exactly that, with a receipt.",
+            "Recover this payment? First check in the merchant panel that it is this traveller's payment. VisaStack then asks the payment provider what was paid and records exactly that, with a receipt.",
           )
         ) {
           event.preventDefault();
@@ -58,7 +58,7 @@ export function RecoverPaymentForm({
       <div key={state.replyId ?? 'form'} className="form-grid">
         <div className="field-row">
           <label className="field-label" htmlFor={`${ID}-code`}>
-            Traveller Account Id
+            Traveller Code
           </label>
           <input
             id={`${ID}-code`}
@@ -98,7 +98,7 @@ export function RecoverPaymentForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor={`${ID}-transaction`}>
-            Transaction Id
+            Payment Code
           </label>
           <input
             id={`${ID}-transaction`}
@@ -113,7 +113,7 @@ export function RecoverPaymentForm({
             {...field('transactionId', `${ID}-transaction-hint`)}
           />
           <p id={`${ID}-transaction-hint`} className="muted u-fs-085">
-            From the payment gateway's merchant records. It starts with VSP.
+            From the payment provider's merchant records. It starts with VSP.
           </p>
         </div>
       </div>

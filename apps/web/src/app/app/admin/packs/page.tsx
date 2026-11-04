@@ -10,7 +10,7 @@ import { DocumentTypeDatalist } from '../../../../components/catalogue-datalists
 import { CollapsibleGroup } from '../../../../components/collapsible-group';
 import { ShowMore } from '../../../../components/show-more';
 import { PageHeader } from '../../../../components/ui';
-import { isPlatformAdmin } from '../../../../lib/admin';
+import { hasPlatformPermission, isPlatformAdmin } from '../../../../lib/admin';
 import { formatDateOnly } from '../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../lib/labels';
 import {
@@ -47,6 +47,8 @@ export default async function PackStudioPage({
     if (!(await isPlatformAdmin(db, { accountId, email }))) return { admin: false as const };
     return {
       admin: true as const,
+      // Any staff role may read the packs; only the role the server accepts changes from gets the forms.
+      canManage: await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'),
       packs: await listPacks(db),
       expiryPolicies: await listDocumentExpiryPolicies(db),
       reviewQueue: await listPackVersionsDueForReview(db),
@@ -208,9 +210,15 @@ export default async function PackStudioPage({
           {/* The two forms span the whole row, so their fields can sit side by side. */}
           <article className="card grid-span-all">
             <p className="card-kicker">New</p>
-            <CollapsibleGroup title="Create a Pack">
-              <CreatePackForm />
-            </CollapsibleGroup>
+            {data.canManage ? (
+              <CollapsibleGroup title="Create a Pack">
+                <CreatePackForm />
+              </CollapsibleGroup>
+            ) : (
+              <p className="muted u-fs-085">
+                Only a Support Admin or a platform owner can create or change packs.
+              </p>
+            )}
           </article>
 
           <article className="card grid-span-all">
@@ -237,10 +245,12 @@ export default async function PackStudioPage({
                   ))}
                 </div>
               ) : null}
-              <>
-                <DocumentTypeDatalist />
-                <SetDocumentExpiryPolicyForm />
-              </>
+              {data.canManage ? (
+                <>
+                  <DocumentTypeDatalist />
+                  <SetDocumentExpiryPolicyForm />
+                </>
+              ) : null}
             </CollapsibleGroup>
           </article>
         </div>

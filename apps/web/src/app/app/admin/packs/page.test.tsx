@@ -5,6 +5,7 @@ import { navigationState, renderServer, textOf } from '../../../../lib/next-mock
 
 const mocks = vi.hoisted(() => ({
   isPlatformAdmin: vi.fn(),
+  hasPlatformPermission: vi.fn(),
   listPacks: vi.fn(),
   listDocumentExpiryPolicies: vi.fn(),
   listPackVersionsDueForReview: vi.fn(),
@@ -15,7 +16,10 @@ vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'admin@example.com' }),
 }));
-vi.mock('../../../../lib/admin', () => ({ isPlatformAdmin: mocks.isPlatformAdmin }));
+vi.mock('../../../../lib/admin', () => ({
+  isPlatformAdmin: mocks.isPlatformAdmin,
+  hasPlatformPermission: mocks.hasPlatformPermission,
+}));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   listPacks: (...args: unknown[]) => mocks.listPacks(...args),
@@ -40,6 +44,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   navigationState.pathname = '/app/admin/packs';
   mocks.isPlatformAdmin.mockResolvedValue(true);
+  mocks.hasPlatformPermission.mockResolvedValue(true);
   mocks.listPacks.mockResolvedValue(
     Array.from({ length: 130 }, (_, i) => ({ id: `p${i}`, key: `route-${i}`, name: `Route ${i}` })),
   );
@@ -87,6 +92,17 @@ describe('Platform > Rules > Pack Studio', () => {
     expect(textOf(html)).toContain('1 override');
     expect(html).toContain('data-stub="CreatePackForm"');
     expect(html).toContain('data-stub="SetDocumentExpiryPolicyForm"');
+  });
+
+  it('shows no create or change form to a staff role the server would refuse', async () => {
+    mocks.hasPlatformPermission.mockResolvedValue(false);
+    const html = await render();
+    expect(html).not.toContain('data-stub="CreatePackForm"');
+    expect(html).not.toContain('data-stub="SetDocumentExpiryPolicyForm"');
+    expect(textOf(html)).toContain(
+      'Only a Support Admin or a platform owner can create or change packs.',
+    );
+    expect(mocks.hasPlatformPermission.mock.calls[0]?.[2]).toBe('PACK_MANAGE');
   });
 
   it('refuses anyone who is not a platform administrator, reading nothing', async () => {

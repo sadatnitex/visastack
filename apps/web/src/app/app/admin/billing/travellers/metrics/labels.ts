@@ -50,7 +50,7 @@ export const SIGNAL_MEANINGS: Readonly<Record<TravellerHealthSignal['key'], stri
   confirmation_time:
     'How long a payment takes from the payment page to confirmed, for half of the payments in the last 7 days.',
   stuck_confirming:
-    'Payments still confirming with the payment gateway after 30 minutes, however long ago they started.',
+    'Payments still confirming with the payment provider after 30 minutes, however long ago they started.',
   needs_check: 'Traveller payments held for a check.',
 };
 

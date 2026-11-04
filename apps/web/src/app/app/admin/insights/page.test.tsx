@@ -1,5 +1,6 @@
 import type { FieldInsightsReport } from '@visastack/services';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { formatDateOnly } from '../../../../lib/format-date';
 import { renderServer, textOf } from '../../../../lib/next-mocks.test-support';
 
 const mocks = vi.hoisted(() => ({ staffPrincipal: vi.fn(), getFieldInsights: vi.fn() }));
@@ -94,5 +95,51 @@ describe('Field Insights', () => {
     const html = await renderServer(Page({ searchParams: Promise.resolve({}) }));
     expect(mocks.getFieldInsights).not.toHaveBeenCalled();
     expect(textOf(html)).not.toContain('Case Journey');
+    expect(textOf(html)).toContain('This view is for a Quality Admin or a platform owner.');
+  });
+
+  it('keeps the note to three short sentences with the date written for people', async () => {
+    const html = await renderServer(Page({ searchParams: Promise.resolve({}) }));
+    const note = /<output class="notice u-mb-150">([\s\S]*?)<\/output>/.exec(html)?.[1] ?? '';
+    const sentences = textOf(note).split('. ').filter(Boolean);
+    expect(sentences).toHaveLength(3);
+    expect(textOf(note)).toContain(
+      `Observed in VisaStack Cases from ${formatDateOnly('2025-11-03')}.`,
+    );
+    expect(textOf(note)).not.toContain('2025-11-03');
+  });
+
+  it('says how many numbers are hidden and how a number comes to show, without naming which', async () => {
+    const text = textOf(await renderServer(Page({ searchParams: Promise.resolve({}) })));
+    expect(text).toContain('Hidden Numbers');
+    expect(text).toContain('3 of 21 numbers on this page are hidden.');
+    expect(text).toContain(
+      'a number is hidden when it is under 10, from fewer than 5 people, or more than 70 percent from one agency.',
+    );
+    expect(text).not.toContain('Nothing can be shown yet');
+  });
+
+  it('explains plainly that nothing can be shown yet when every number is hidden or zero', async () => {
+    const quiet: FieldInsightsReport = {
+      ...report,
+      funnel: report.funnel.map((row) => ({ ...row, cell: hidden })),
+      missingOutcome: { reported: hidden, unknown: hidden, pending: shown(0) },
+      byRouteAndPeriod: [],
+      authorityRequests: { total: hidden, bySource: [], byDocType: [] },
+      correctionCauses: { checklistSuggestions: [], agencyCorrectionRequests: shown(0) },
+      coverageGaps: { requestsCompared: hidden, requestsWithoutChecklist: shown(0), byDocType: [] },
+      dataQuality: {
+        olderReportsNotAttempts: shown(0),
+        attemptsWithoutPackageRecord: hidden,
+        caseDecisionsNotTiedToAttempt: shown(0),
+      },
+    };
+    mocks.getFieldInsights.mockResolvedValue({ ok: true, value: quiet });
+    const html = await renderServer(Page({ searchParams: Promise.resolve({}) }));
+    const text = textOf(html);
+    expect(text).toContain('Nothing can be shown yet because every group is still small.');
+    expect(text).toContain('This is expected while the pilot is small.');
+    // Only the totals are said: never which number, never why that one.
+    expect(text).not.toMatch(/Mostly One Agency|Small Group|Protects Another/);
   });
 });

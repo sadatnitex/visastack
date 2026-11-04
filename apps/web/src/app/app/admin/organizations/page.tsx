@@ -4,7 +4,11 @@ import Link from 'next/link';
 import { StickyDetails } from '../../../../components/sticky-details';
 import { EmptyState, StatusBadge, type Tone } from '../../../../components/ui';
 import { PageHeader } from '../../../../components/ui';
-import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../../lib/admin';
+import {
+  hasPlatformPermission,
+  isPlatformAdmin,
+  isPlatformOwnerAccount,
+} from '../../../../lib/admin';
 import {
   type SearchParamsRecord,
   TEAM_LIST_STEP,
@@ -62,7 +66,8 @@ export default async function AdminOrganizationsPage({
     // left empty and named in a banner. The permission checks are NOT wrapped: an
     // authorization failure must stay an error.
     const { read: t, failed: failedSections } = tolerantReader();
-    const [page, owner] = await Promise.all([
+    const actor = { accountId, email };
+    const [page, owner, mayReview, maySuspend, mayTerminate] = await Promise.all([
       t(
         'organizations',
         () =>
@@ -74,13 +79,19 @@ export default async function AdminOrganizationsPage({
           }),
         { items: [], nextCursor: null },
       ),
-      isPlatformOwnerAccount(db, { accountId, email }),
+      isPlatformOwnerAccount(db, actor),
+      hasPlatformPermission(db, actor, 'ORGANIZATION_REVIEW'),
+      hasPlatformPermission(db, actor, 'ORGANIZATION_SUSPEND'),
+      hasPlatformPermission(db, actor, 'ORGANIZATION_TERMINATE'),
     ]);
     return {
       admin: true as const,
       orgs: page.items,
       nextCursor: page.nextCursor,
       owner,
+      mayReview,
+      maySuspend,
+      mayTerminate,
       failedSections,
     };
   });
@@ -170,7 +181,10 @@ export default async function AdminOrganizationsPage({
                     const pending = org.status === 'PENDING_VERIFICATION';
                     const active = org.status === 'ACTIVE';
                     const suspended = org.status === 'SUSPENDED';
-                    const menu = active || suspended || data.owner;
+                    const showReview = pending && data.mayReview;
+                    const showSuspend = active && data.maySuspend;
+                    const showTerminate = (active || suspended) && data.mayTerminate;
+                    const menu = showSuspend || showTerminate || data.owner;
                     return (
                       <tr key={org.id}>
                         <th scope="row" className="cell-main">
@@ -183,7 +197,7 @@ export default async function AdminOrganizationsPage({
                         </td>
                         <td data-label="Actions">
                           <span className="case-row-badges">
-                            {pending ? <OrgReviewButtons organizationId={org.id} /> : null}
+                            {showReview ? <OrgReviewButtons organizationId={org.id} /> : null}
                             {menu ? (
                               <StickyDetails
                                 initiallyOpen={false}
@@ -196,8 +210,10 @@ export default async function AdminOrganizationsPage({
                                 }
                               >
                                 <span className="sb7-row-menu-items">
-                                  {active ? <OrgSuspendButton organizationId={org.id} /> : null}
-                                  {active || suspended ? (
+                                  {showSuspend ? (
+                                    <OrgSuspendButton organizationId={org.id} />
+                                  ) : null}
+                                  {showTerminate ? (
                                     <OrgTerminateButton organizationId={org.id} />
                                   ) : null}
                                   {data.owner ? (
@@ -219,6 +235,12 @@ export default async function AdminOrganizationsPage({
                 </tbody>
               </table>
             )}
+            {data.orgs.length > 0 && !data.mayReview && !data.maySuspend && !data.mayTerminate ? (
+              <p className="muted u-fs-085 u-mt-050">
+                Only a Security Admin or a platform owner can review, suspend or close
+                organizations.
+              </p>
+            ) : null}
             {data.nextCursor || before ? (
               <nav className="show-more" aria-label="Organization pages">
                 {data.nextCursor ? (

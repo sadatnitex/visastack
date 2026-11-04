@@ -11,6 +11,7 @@ import {
   grantPlatformRole,
   hasAnyPlatformRole,
   isPlatformOwner,
+  listActivePlatformRoleHolders,
   listActivePlatformRoles,
   revokePlatformRole,
 } from './platform-roles';
@@ -812,5 +813,46 @@ describe('platform roles — concern-scoped action matrix (finding #15)', () => 
     ] as const) {
       expect(await canPerformPlatformAction(db, nobodyAuth, action)).toBe(false);
     }
+  });
+});
+
+describe('who holds each platform role', () => {
+  it('shows the owner the sign-in email of each holder, and refuses everyone else', async () => {
+    const db = await freshDb();
+    const owner = await seedAccount(db, 'holder-owner@example.com');
+    const support = await seedAccount(db, 'holder-support@example.com');
+    const ownerAuth = {
+      accountId: owner.id,
+      email: 'holder-owner@example.com',
+      bootstrapEmails: ['holder-owner@example.com'],
+    };
+    await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: owner.id,
+      role: 'PLATFORM_OWNER',
+      reason: 'founder',
+      stepUpSatisfied: true,
+    });
+    await grantPlatformRole(db, {
+      actor: ownerAuth,
+      targetAccountId: support.id,
+      role: 'SUPPORT_ADMIN',
+      reason: 'helper',
+      stepUpSatisfied: true,
+    });
+    const seen = await listActivePlatformRoleHolders(db, ownerAuth);
+    expect(isOk(seen)).toBe(true);
+    if (!isOk(seen)) return;
+    expect(seen.value.map((row) => [row.role, row.holderEmail]).sort()).toEqual([
+      ['PLATFORM_OWNER', 'holder-owner@example.com'],
+      ['SUPPORT_ADMIN', 'holder-support@example.com'],
+    ]);
+    const asSupport = await listActivePlatformRoleHolders(db, {
+      accountId: support.id,
+      email: 'holder-support@example.com',
+      bootstrapEmails: [],
+    });
+    expect(isErr(asSupport)).toBe(true);
+    if (isErr(asSupport)) expect(asSupport.error.code).toBe('forbidden');
   });
 });

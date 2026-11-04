@@ -9,9 +9,10 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
+import { formatDateOnly } from '../../../../lib/format-date';
 import { type SearchParamsRecord, firstParam } from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
-import { AdminRestricted } from '../admin-restricted';
+import { AdminNotForRole } from '../admin-restricted';
 import {
   CORRECTION_LABELS,
   FUNNEL_LABELS,
@@ -19,6 +20,7 @@ import {
   SOURCE_LABELS,
   UNIT_LABELS,
   cellText,
+  hiddenSummary,
 } from './insight-labels';
 
 export const metadata: Metadata = { title: 'Field Insights' };
@@ -48,14 +50,36 @@ function Observed() {
 
 function Report({ report }: { readonly report: FieldInsightsReport }) {
   const t = report.thresholds;
+  const summary = hiddenSummary(report);
   return (
     <>
       <output className="notice u-mb-150">
-        Observed in VisaStack Cases from {report.from}. These are counts of what people recorded,
-        not official requirements, not approval rates and not predictions. A count under {t.minCell}
-        , from fewer than {t.minPeople} people, or more than {Math.round(t.maxShare * 100)} percent
-        from one agency is hidden. Deleted cases, people and documents are left out.
+        Observed in VisaStack Cases from {formatDateOnly(report.from)}. These are counts of what
+        people recorded, not official requirements, approval rates or predictions. Deleted cases,
+        people and documents are left out.
       </output>
+
+      <article className="card u-mb-150" aria-labelledby="hidden-title">
+        <h2 className="card-title" id="hidden-title">
+          Hidden Numbers
+        </h2>
+        <p className="card-body">
+          {summary.hidden === 0
+            ? 'No number on this page is hidden.'
+            : `${summary.hidden} of ${summary.total} numbers on this page are hidden.`}
+        </p>
+        <p className="card-body">
+          To protect people, a number is hidden when it is under {t.minCell}, from fewer than{' '}
+          {t.minPeople} people, or more than {Math.round(t.maxShare * 100)} percent from one agency.
+          A larger number can also be hidden so a hidden one cannot be worked out from the rest.
+        </p>
+        {summary.nothingShownYet ? (
+          <p className="card-body">
+            Nothing can be shown yet because every group is still small. This is expected while the
+            pilot is small. Numbers appear as more people use VisaStack.
+          </p>
+        ) : null}
+      </article>
 
       <article className="card u-mb-150" aria-labelledby="funnel-title">
         <Observed />
@@ -315,7 +339,7 @@ export default async function FieldInsightsPage({
         description="What happened in VisaStack cases, counted with care: for finding confusing steps and checklist gaps, never for predicting a decision."
       />
       {data.kind === 'restricted' ? (
-        <AdminRestricted />
+        <AdminNotForRole needs="a Quality Admin or a platform owner" />
       ) : (
         <>
           <nav aria-label="Period" className="u-mb-150">

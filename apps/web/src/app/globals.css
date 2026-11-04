@@ -14548,3 +14548,51 @@ html:has(.sticky-action-bar) {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* WP-UMPE-UX15 Platform area: a wrapped notice is one block (an output is inline by default, so its padding and background drew over the text above and below), and the sidebar tools lists use the same icon and words row as the main links. Flat, tokens only, 44 px targets. */
+output.notice {
+  display: block;
+}
+
+.workspace-tools > summary {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 11px;
+  color: var(--text-secondary);
+  font-weight: 605;
+  list-style: none;
+}
+
+.workspace-tools > summary::-webkit-details-marker {
+  display: none;
+}
+
+.workspace-tools > summary:hover {
+  color: var(--text);
+  background: var(--bg-subtle);
+}
+
+.workspace-tools-icon {
+  display: inline-flex;
+  color: var(--text-tertiary);
+}
+
+.workspace-tools-label {
+  flex: 1 1 auto;
+}
+
+.workspace-tools-chevron {
+  display: inline-flex;
+  color: var(--text-tertiary);
+}
+
+.workspace-tools[open] > summary .workspace-tools-chevron {
+  transform: rotate(180deg);
+}
+
+.app-frame[data-sidebar="collapsed"] .workspace-tools-chevron {
+  display: none;
+}

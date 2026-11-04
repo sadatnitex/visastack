@@ -135,7 +135,7 @@ describe('refund actions (S18)', () => {
   it('send the typed amount with the step-up proved, and say what happens next', async () => {
     const result = await requestRefundAction(INITIAL, form({}));
     expect(result).toMatchObject({ ok: true });
-    expect(result.message).toContain('once the gateway confirms');
+    expect(result.message).toContain('once the payment provider confirms');
     expect(mocks.requestRefund.mock.calls[0]?.[3]).toMatchObject({
       organizationId: ORG,
       source: { kind: 'entry', invoicePaymentId: 'e1' },
@@ -278,19 +278,19 @@ describe('refund actions (S18)', () => {
     const both = await checkRefundsAction(INITIAL, form({}));
     expect(both.ok).toBe(false);
     expect(both.message).toMatch(
-      /^Checked with the payment gateway: 1 refunded\. 1 sent refund is waiting/,
+      /^Checked with the payment provider: 1 refunded\. 1 sent refund is waiting/,
     );
     // Every refund the gateway that is on was asked about went unanswered: both are said (round 3).
     mocks.checkRefundsNow.mockResolvedValue(
       summary({ checked: 2, unavailable: 2, providerNotConfigured: 1 }),
     );
     expect((await checkRefundsAction(INITIAL, form({}))).message).toBe(
-      "The payment gateway could not be reached, so 2 refunds were not asked about. Try again later. 1 sent refund is waiting on a payment method that is switched off now, so VisaStack cannot ask about it. Check it in that payment method's own panel, then record what happened.",
+      "The payment provider could not be reached, so 2 refunds were not asked about. Try again later. 1 sent refund is waiting on a payment method that is switched off now, so VisaStack cannot ask about it. Check it in that payment method's own panel, then record what happened.",
     );
     // Nothing on and nothing stranded: the plain "not set up".
     mocks.checkRefundsNow.mockResolvedValue(summary({ configured: false }));
     expect((await checkRefundsAction(INITIAL, form({}))).message).toBe(
-      'The payment gateway is not set up here.',
+      'The payment provider is not set up here.',
     );
   });
 

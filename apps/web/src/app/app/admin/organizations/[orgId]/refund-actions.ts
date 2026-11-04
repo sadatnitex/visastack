@@ -35,7 +35,7 @@ import type { RefundFormState } from './refund-state';
 /**
  * Refunds and credits on the admin organization page (Small Commercial V1 S18). Platform owner
  * only (`BILLING_REFUND_MANAGE`), and every action that moves or releases money asks for a fresh
- * sign-in check first. Only "Check Now" does not: it records nothing but what the payment gateway
+ * sign-in check first. Only "Check Now" does not: it records nothing but what the payment provider
  * itself confirms, exactly as the daily check does.
  *
  * Every reply carries the values as typed (so nothing is lost when a form is drawn again), a fresh
@@ -48,9 +48,9 @@ const DENIED_MESSAGE = 'Only the platform owner can refund or apply credits.';
 const STALE = 'This page is out of date. Reload it and try again.';
 
 const UNCONFIRMED =
-  "We could not confirm the refund was sent. Check the payment gateway's merchant panel, then choose It Went Through or It Did Not Go Through on the refund below.";
+  "We could not confirm the refund was sent. Check the payment provider's merchant panel, then choose It Went Through or It Did Not Go Through on the refund below.";
 const RETRY_REFUSED =
-  'The payment gateway answered "failed" to the second send. That can mean the first send already went through, so the amount stays blocked. Check the payment gateway\'s merchant panel, then choose It Went Through or It Did Not Go Through.';
+  'The payment provider answered "failed" to the second send. That can mean the first send already went through, so the amount stays blocked. Check the payment provider\'s merchant panel, then choose It Went Through or It Did Not Go Through.';
 
 function text(formData: FormData, name: string): string {
   return String(formData.get(name) ?? '').trim();
@@ -104,7 +104,8 @@ function replayMessage(request: RefundRequestView): Omit<RefundFormState, 'nextK
     case 'SUBMITTED':
       return {
         ok: true,
-        message: 'This refund was already sent. It shows as Refunded once the gateway confirms it.',
+        message:
+          'This refund was already sent. It shows as Refunded once the payment provider confirms it.',
       };
     case 'CONFIRMED':
       return { ok: true, message: 'This refund was already made. Nothing new was sent.' };
@@ -134,13 +135,13 @@ function outcomeMessage(outcome: RefundOutcome): Omit<RefundFormState, 'nextKey'
       return {
         ok: true,
         focusId,
-        message: `Refund of ${amount} sent to the payment gateway. It shows as Refunded once the gateway confirms it.`,
+        message: `Refund of ${amount} sent to the payment provider. It shows as Refunded once the payment provider confirms it.`,
       };
     case 'refused':
       return {
         ok: false,
         focusId,
-        message: 'The payment gateway refused this refund. Nothing was refunded.',
+        message: 'The payment provider refused this refund. Nothing was refunded.',
       };
     case 'unconfirmed':
       return {
@@ -231,7 +232,7 @@ function fieldOf(error: ServiceError): string | undefined {
 const REFUND_FIELDS = ['amount', 'reason'] as const;
 const MANUAL_FIELDS = ['amount', 'reference', 'refundedOn', 'reason'] as const;
 
-/** Asks the payment gateway to refund part or all of one payment. */
+/** Asks the payment provider to refund part or all of one payment. */
 export async function requestRefundAction(
   _prev: RefundFormState,
   formData: FormData,
@@ -276,7 +277,7 @@ export async function requestRefundAction(
   );
 }
 
-/** Records a refund already made outside VisaStack (a bank transfer back, or in the gateway panel). */
+/** Records a refund already made outside VisaStack (a bank transfer back, or in the payment provider panel). */
 export async function recordManualRefundAction(
   _prev: RefundFormState,
   formData: FormData,
@@ -378,7 +379,7 @@ export async function applyCreditAction(
   );
 }
 
-/** Asks the payment gateway about this agency's sent refunds now. Records only what the gateway confirms. */
+/** Asks the payment provider about this agency's sent refunds now. Records only what the payment provider confirms. */
 export async function checkRefundsAction(
   _prev: RefundFormState,
   formData: FormData,
@@ -400,7 +401,7 @@ export async function checkRefundsAction(
         : null;
     if (!summary.configured) {
       return stranded === null
-        ? { ok: false, message: 'The payment gateway is not set up here.' }
+        ? { ok: false, message: 'The payment provider is not set up here.' }
         : { ok: false, message: stranded };
     }
     if (summary.checked === 0 && summary.leftForLater === 0) {
@@ -409,7 +410,7 @@ export async function checkRefundsAction(
         : { ok: false, message: stranded };
     }
     if (summary.unavailable > 0 && summary.unavailable === summary.checked) {
-      const unreachable = `The payment gateway could not be reached, so ${plural(summary.unavailable, 'refund was', 'refunds were')} not asked about. Try again later.`;
+      const unreachable = `The payment provider could not be reached, so ${plural(summary.unavailable, 'refund was', 'refunds were')} not asked about. Try again later.`;
       return {
         ok: false,
         message: stranded === null ? unreachable : `${unreachable} ${stranded}`,
@@ -423,7 +424,7 @@ export async function checkRefundsAction(
       summary.unavailable > 0 ? `${summary.unavailable} could not be asked` : null,
       summary.leftForLater > 0 ? `${summary.leftForLater} left for the next check` : null,
     ].filter((part): part is string => part !== null);
-    const done = `Checked with the payment gateway: ${parts.join(', ')}.`;
+    const done = `Checked with the payment provider: ${parts.join(', ')}.`;
     return stranded === null
       ? { ok: true, message: done }
       : { ok: false, message: `${done} ${stranded}` };
@@ -455,7 +456,7 @@ export async function retryRefundAction(
   );
 }
 
-/** "It Went Through": records a refund found in the gateway panel, with the panel's reference and day. */
+/** "It Went Through": records a refund found in the payment provider panel, with the panel's reference and day. */
 export async function confirmUnsentRefundAction(
   _prev: RefundFormState,
   formData: FormData,
@@ -516,7 +517,7 @@ export async function confirmUnsentRefundAction(
   );
 }
 
-/** "It Did Not Go Through": cancels a refund the gateway panel does not show, with a reason. */
+/** "It Did Not Go Through": cancels a refund the payment provider panel does not show, with a reason. */
 export async function cancelRefundAction(
   _prev: RefundFormState,
   formData: FormData,

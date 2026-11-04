@@ -12,6 +12,7 @@ import {
   parseCursor,
 } from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
+import { AdminNotForRole } from '../admin-restricted';
 import { QueuePaging, QueuePastEnd } from '../email/queue-paging';
 import { QueuePanel } from '../email/queue-panel';
 import { AssignComplaintForm, UpdateComplaintStatusForm } from './forms';
@@ -118,12 +119,7 @@ export default async function AdminComplaintsPage({
   if (!data.authorized) {
     return (
       <section className="section container">
-        <article className="card">
-          <p className="card-body">
-            This area is restricted to quality admins. If you should have access, ask an existing
-            platform owner to grant you the QUALITY_ADMIN role.
-          </p>
-        </article>
+        <AdminNotForRole needs="a Quality Admin or a platform owner" />
       </section>
     );
   }

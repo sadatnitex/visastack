@@ -5,7 +5,7 @@ import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { formatTimestamp, formatTimestampDate } from '../../../../lib/format-date';
 import { type SearchParamsRecord, parseCursor } from '../../../../lib/paging';
 import { withSession } from '../../../../lib/session';
-import { AdminRestricted } from '../admin-restricted';
+import { AdminNotForRole } from '../admin-restricted';
 import { ResendEmailButton } from './forms';
 import { emailKindLabel, emailProblemReason } from './labels';
 import { QueuePaging, QueuePastEnd } from './queue-paging';
@@ -59,7 +59,7 @@ export default async function EmailDeliveryPage({
       ...(waitingAfter ? { waitingAfter } : {}),
     });
   });
-  if (!result) return <AdminRestricted />;
+  if (!result) return <AdminNotForRole needs="a Support Admin or a platform owner" />;
 
   return (
     <section className="section container">

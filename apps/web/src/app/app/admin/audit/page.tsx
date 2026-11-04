@@ -92,8 +92,8 @@ export default async function AdminAuditPage({
     <section className="section container">
       <PageHeader
         eyebrow="Platform"
-        title="Audit"
-        description="The platform's append-only, hash-chained audit trail."
+        title="Activity"
+        description="A permanent record of important actions on the platform. Entries cannot be edited or removed."
       />
 
       {!data.admin ? (
@@ -108,8 +108,8 @@ export default async function AdminAuditPage({
             <p className="card-kicker">Transparency</p>
             <h2 className="card-title">Recent Audit Events</h2>
             <p className="card-body u-mb-100">
-              The platform's append-only, hash-chained audit trail: every sensitive action across
-              every tenant.
+              A permanent record of every important action across every organization. Entries cannot
+              be edited or removed.
             </p>
             <form method="get" action={AUDIT_PATH} className="audit-who-search u-mb-100">
               <label className="field-label" htmlFor="audit-who">

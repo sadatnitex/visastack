@@ -88,7 +88,7 @@ describe('the Record Refund form of Traveller Billing (ADR 0025 T6b)', () => {
     await draw({ outsideWindow: true, testPayment: true });
     await submit();
     expect(confirm.mock.calls[0]?.[0]).toBe(
-      'Record a refund of BDT 1,500.00 for TP-9D1E2F3A-2? This is a test payment. This payment is more than 7 days old. Record the refund only if it was made in the gateway panel. This cannot be undone.',
+      'Record a refund of BDT 1,500.00 for TP-9D1E2F3A-2? This is a test payment. This payment is more than 7 days old. Record the refund only if it was made in the payment provider panel. This cannot be undone.',
     );
   });
 

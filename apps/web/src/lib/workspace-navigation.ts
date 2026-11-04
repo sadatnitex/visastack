@@ -38,6 +38,12 @@ export interface WorkspaceAccess {
     readonly removals?: boolean;
     /** FEEDBACK_VIEW: the Field Insights page (UMPE P12). */
     readonly insights?: boolean;
+    /** PROCESSING_JOB_RETRY: the Email Delivery page. */
+    readonly email?: boolean;
+    /** DOCUMENT_PROTECTION_MANAGE: the Document Protection page. */
+    readonly protection?: boolean;
+    /** ACCOUNT_SIGN_IN_RECOVERY: the Sign-In Recovery page. */
+    readonly recovery?: boolean;
   };
 }
 
@@ -49,6 +55,8 @@ export interface WorkspaceNavigation {
   readonly photo?: string;
   readonly primary: readonly NavLink[];
   readonly tools: readonly NavLink[];
+  /** Platform only: the Billing and Plans group, each link only for the role that can open it. */
+  readonly billing?: readonly NavLink[];
   readonly settings: readonly NavLink[];
 }
 
@@ -93,7 +101,10 @@ export function workspaceNavigation(
         { href: '/app/admin/organizations', label: 'Organizations' },
         ...(access.platform.audit ? [{ href: '/app/admin/audit', label: 'Activity' }] : []),
         { href: '/app/admin#admin-provider-operations', label: 'Providers', exact: true },
-        { href: '/app/admin#admin-usage', label: 'Costs & Plans', exact: true },
+        // The owner reaches the plans themselves; everyone else sees the storage and AI spend.
+        access.platform.owner
+          ? { href: '/app/admin/plans', label: 'Costs & Plans' }
+          : { href: '/app/admin#admin-usage', label: 'Costs & Plans', exact: true },
         { href: '/app/admin/security', label: 'Security' },
       ],
       tools: [
@@ -111,6 +122,18 @@ export function workspaceNavigation(
         { href: '/app/admin/access', label: 'Platform Access' },
         ...(access.platform.complaints
           ? [{ href: '/app/admin/complaints', label: 'Complaints' }]
+          : []),
+      ],
+      billing: [
+        ...(access.platform.owner ? [{ href: '/app/admin/billing', label: 'Billing' }] : []),
+        ...(access.platform.email === true
+          ? [{ href: '/app/admin/email', label: 'Email Delivery' }]
+          : []),
+        ...(access.platform.protection === true
+          ? [{ href: '/app/admin/document-protection', label: 'Document Protection' }]
+          : []),
+        ...(access.platform.recovery === true
+          ? [{ href: '/app/admin/sign-in-recovery', label: 'Sign-In Recovery' }]
           : []),
       ],
       settings: [{ href: '/app/admin/settings', label: 'Platform Settings' }],

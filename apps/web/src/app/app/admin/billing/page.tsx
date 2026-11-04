@@ -13,7 +13,7 @@ import { PageHeader, StatusBadge } from '../../../../components/ui';
 import { bootstrapAdminEmails, staffPrincipal } from '../../../../lib/admin';
 import { paymentCurrenciesByMode, paymentMode } from '../../../../lib/providers';
 import { withSession } from '../../../../lib/session';
-import { AdminRestricted } from '../admin-restricted';
+import { AdminNotForRole } from '../admin-restricted';
 import { BillingRulesForm } from './forms';
 import {
   MIXED_PAYMENT_MODE,
@@ -138,7 +138,7 @@ export default async function BillingRulesPage({
         description="Each agency on a paid plan gets an invoice at the start of every billing period, with reminders before and after its due date. Choose when invoices are due, and whether an invoice left unpaid moves the agency to Grace and then Suspended."
       />
       {data.kind === 'restricted' ? (
-        <AdminRestricted />
+        <AdminNotForRole needs="a platform owner" />
       ) : data.kind === 'unavailable' ? (
         <>
           <output className="notice notice-warn">{UNAVAILABLE}</output>

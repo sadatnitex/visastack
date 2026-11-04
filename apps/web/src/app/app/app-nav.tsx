@@ -47,10 +47,27 @@ const CONTEXT_ICONS: Readonly<Record<string, IconName>> = {
   Members: 'users',
   Organizations: 'building',
   Activity: 'activity',
-  Providers: 'folder',
-  'Costs & Plans': 'briefcase',
+  Providers: 'globe',
+  'Costs & Plans': 'file',
   Security: 'shield',
+  // The platform tools lists carry the same icon beside the words as the main links do.
+  'Rules & Packs': 'clipboard',
+  'AI Settings': 'key',
+  'Privacy Operations': 'lock',
+  'Removal Requests': 'clock',
+  'Field Insights': 'eye',
+  'Platform Access': 'users',
+  Complaints: 'alert',
+  Billing: 'briefcase',
+  'Email Delivery': 'mail',
+  'Document Protection': 'shield',
+  'Sign-In Recovery': 'key',
 };
+
+/** The icon that stands beside a destination's words, the same wherever the link is drawn. */
+export function navIconFor(item: { readonly href: string; readonly label: string }): IconName {
+  return CONTEXT_ICONS[item.label] ?? ICONS[item.href] ?? 'folder';
+}
 
 /**
  * How many links stay on the bar at the bottom of a phone; the rest sit under "More". For a
@@ -219,7 +236,7 @@ export function AppNav({
           : undefined
       }
     >
-      <Icon name={CONTEXT_ICONS[item.label] ?? ICONS[item.href] ?? 'folder'} size={20} />
+      <Icon name={navIconFor(item)} size={20} />
       <span className="app-link-label app-link-full">{item.label}</span>
       <span
         className={`app-link-label app-link-compact${compactLabel(item.label).length > 10 ? ' app-link-compact-long' : ''}`}

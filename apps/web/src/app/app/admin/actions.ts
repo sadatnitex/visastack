@@ -42,7 +42,7 @@ export interface ActionState {
 
 const DENIED: ActionState = { ok: false, message: 'Not authorized.' };
 
-/** Set (upsert) the retention policy for a document type. Platform-admin only. */
+/** Set (upsert) the retention policy for a document type. Compliance admin or owner. Step-up gated. */
 export async function setRetentionPolicyAction(
   _prev: ActionState,
   formData: FormData,
@@ -59,10 +59,20 @@ export async function setRetentionPolicyAction(
     if (!(await hasPlatformPermission(db, { accountId, email }, 'RETENTION_POLICY_SET'))) {
       return DENIED;
     }
+    // A shorter policy decides what the daily sweep deletes, so it needs a fresh sign-in too.
+    const stepUp = await tryEstablishStepUp(
+      { accountId, action: 'RETENTION_POLICY_SET', resourceId: named.key },
+      '/app/admin/privacy',
+    );
+    if (stepUp.kind === 'not_configured') {
+      return { ok: false, message: STEP_UP_NOT_CONFIGURED_MESSAGE } satisfies ActionState;
+    }
+    if (stepUp.kind === 'reauth_required') redirect(stepUp.reauthUrl);
     const set = await setRetentionPolicy(db, {
       actorAccountId: accountId,
       docType: named.key,
       retentionDays,
+      stepUpSatisfied: true,
     });
     if (!set.ok) return { ok: false, message: set.error.message } satisfies ActionState;
     return {
@@ -85,14 +95,14 @@ export async function placeLegalHoldAction(
   const scope = String(formData.get('scope') ?? 'applicant').trim();
   const missionId = String(formData.get('missionId') ?? '').trim();
   const documentId = String(formData.get('documentId') ?? '').trim();
-  if (applicantId.length === 0) return { ok: false, message: 'Enter an applicant ID.' };
+  if (applicantId.length === 0) return { ok: false, message: 'Choose a traveller.' };
   if (reason.length === 0) return { ok: false, message: 'A reason is required.' };
   if (reviewAtRaw.length === 0) return { ok: false, message: 'A review date is required.' };
   if (scope === 'mission' && missionId.length === 0) {
-    return { ok: false, message: 'Enter the case ID to scope this hold to.' };
+    return { ok: false, message: 'Enter the case reference for this hold.' };
   }
   if (scope === 'document' && documentId.length === 0) {
-    return { ok: false, message: 'Enter the document ID to scope this hold to.' };
+    return { ok: false, message: 'Enter the document reference for this hold.' };
   }
   const reviewAt = new Date(reviewAtRaw);
   if (Number.isNaN(reviewAt.getTime())) {
@@ -159,19 +169,19 @@ export async function releaseLegalHoldAction(
 /** Re-queue a FAILED intake job with a fresh retry budget. Platform-admin only. */
 export async function retryJobAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const jobId = String(formData.get('jobId') ?? '').trim();
-  if (jobId.length === 0) return { ok: false, message: 'Missing job id.' };
+  if (jobId.length === 0) return { ok: false, message: 'Choose a job to retry.' };
   const result = await withSession(async ({ db, accountId, email }) => {
     if (!(await hasPlatformPermission(db, { accountId, email }, 'PROCESSING_JOB_RETRY'))) {
       return DENIED;
     }
-    const retried = await retryFailedJob(db, jobId);
+    const retried = await retryFailedJob(db, jobId, accountId);
     if (!retried) {
       return {
         ok: false,
-        message: 'That job is no longer failed — it may have already been retried.',
+        message: 'That job is no longer failed. It may have already been retried.',
       } satisfies ActionState;
     }
-    return { ok: true, message: 'Job re-queued for another attempt.' } satisfies ActionState;
+    return { ok: true, message: 'Job queued for another attempt.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath('/app/admin');
   return result;
@@ -231,21 +241,21 @@ export async function retryErasureJobAction(
   formData: FormData,
 ): Promise<ActionState> {
   const jobId = String(formData.get('jobId') ?? '').trim();
-  if (jobId.length === 0) return { ok: false, message: 'Missing job id.' };
+  if (jobId.length === 0) return { ok: false, message: 'Choose a job to retry.' };
   const result = await withSession(async ({ db, accountId, email }) => {
     if (!(await hasPlatformPermission(db, { accountId, email }, 'ERASURE_JOB_RETRY'))) {
       return DENIED;
     }
-    const retried = await retryErasureJob(db, jobId);
+    const retried = await retryErasureJob(db, jobId, accountId);
     if (!retried) {
       return {
         ok: false,
-        message: 'That job is no longer failed or blocked — it may have already been retried.',
+        message: 'That job is no longer failed or blocked. It may have already been retried.',
       } satisfies ActionState;
     }
     return {
       ok: true,
-      message: 'Erasure job re-queued for another attempt.',
+      message: 'Deletion job queued for another attempt.',
     } satisfies ActionState;
   });
   if (result.ok) {
@@ -301,29 +311,32 @@ export async function reconcileOrphansAction(
       totals.sizeOrHashMismatches +
       totals.verifiedButStillPresent;
     if (total === 0)
-      return { ok: true, message: 'No drift found. Storage is consistent.' } satisfies ActionState;
+      return {
+        ok: true,
+        message: 'Nothing to fix. Stored files and records match.',
+      } satisfies ActionState;
     const summary = [
       totals.dbReferencesWithoutBlob > 0
-        ? `${totals.dbReferencesWithoutBlob} reference${totals.dbReferencesWithoutBlob === 1 ? '' : 's'} with no bytes`
+        ? `${totals.dbReferencesWithoutBlob} record${totals.dbReferencesWithoutBlob === 1 ? '' : 's'} pointing to a missing file`
         : null,
       totals.blobsWithoutDbReference > 0
-        ? `${totals.blobsWithoutDbReference} blob${totals.blobsWithoutDbReference === 1 ? '' : 's'} with no reference`
+        ? `${totals.blobsWithoutDbReference} stored file${totals.blobsWithoutDbReference === 1 ? '' : 's'} with no record`
         : null,
       totals.duplicateReferences > 0
-        ? `${totals.duplicateReferences} duplicate reference(s)`
+        ? `${totals.duplicateReferences} duplicate record${totals.duplicateReferences === 1 ? '' : 's'}`
         : null,
       totals.sizeOrHashMismatches > 0
-        ? `${totals.sizeOrHashMismatches} size/hash mismatch(es)`
+        ? `${totals.sizeOrHashMismatches} file${totals.sizeOrHashMismatches === 1 ? '' : 's'} that do not match their record`
         : null,
       totals.verifiedButStillPresent > 0
-        ? `${totals.verifiedButStillPresent} verified-deleted object(s) still present`
+        ? `${totals.verifiedButStillPresent} deleted file${totals.verifiedButStillPresent === 1 ? '' : 's'} still present`
         : null,
     ]
       .filter((part): part is string => part !== null)
       .join(', ');
     const action = dryRun
-      ? 'Dry run'
-      : `Cleaned ${totals.cleaned} dangling reference${totals.cleaned === 1 ? '' : 's'}`;
+      ? 'Check only, nothing changed'
+      : `Cleaned ${totals.cleaned} record${totals.cleaned === 1 ? '' : 's'} pointing to a missing file`;
     return { ok: true, message: `${action}: ${summary}.` } satisfies ActionState;
   });
   if (result.ok) revalidatePath('/app/admin');
@@ -614,7 +627,7 @@ export async function revokeInvitationAction(
 ): Promise<ActionState> {
   const invitationId = String(formData.get('invitationId') ?? '').trim();
   const reason = String(formData.get('reason') ?? '').trim();
-  if (invitationId.length === 0) return { ok: false, message: 'Missing invitation id.' };
+  if (invitationId.length === 0) return { ok: false, message: 'Choose an invitation to revoke.' };
   if (reason.length === 0) return { ok: false, message: 'A reason is required.' };
 
   const result = await withSession(async ({ db, accountId, email }) => {

@@ -596,7 +596,7 @@ describe('refunds through the gateway (S18)', () => {
         stepUpSatisfied: true,
       });
       expect(isErr(viaGateway) && viaGateway.error.message).toContain(
-        'cannot be refunded through the payment gateway',
+        'cannot be refunded through the payment provider',
       );
       expect(port.refundCalls).toHaveLength(0);
       expect(await requests(w)).toHaveLength(0);
@@ -2197,7 +2197,7 @@ describe('a second payment provider (S19 step 0)', () => {
       );
       expect(isErr(cannot) && cannot.error.reason).toBeUndefined();
       expect(isErr(cannot) && cannot.error.message).toBe(
-        'This payment cannot be refunded through the payment gateway. Refund it another way, then record it here.',
+        'This payment cannot be refunded through the payment provider. Refund it another way, then record it here.',
       );
       expect(ssl.refundCalls).toHaveLength(0);
       expect(await requests(w)).toHaveLength(0);

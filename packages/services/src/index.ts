@@ -377,11 +377,13 @@ export {
   type PlatformAuthInput,
   type PlatformRole,
   type PlatformRoleGrant,
+  type PlatformRoleHolder,
   type RevokePlatformRoleInput,
   canPerformPlatformAction,
   grantPlatformRole,
   hasAnyPlatformRole,
   isPlatformOwner,
+  listActivePlatformRoleHolders,
   listActivePlatformRoles,
   revokePlatformRole,
 } from './platform-roles';

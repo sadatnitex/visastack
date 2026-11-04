@@ -83,4 +83,4 @@ export function refundPorts(readEnv: ReadEnv = fromProcess): {
 
 /** The one plain sentence shown when refunds cannot be sent from VisaStack. */
 export const REFUNDS_IN_PANEL =
-  "Refunds are made in the payment gateway's merchant panel and recorded here with Record a Refund Made Outside VisaStack.";
+  "Refunds are made in the payment provider's merchant panel and recorded here with Record a Refund Made Outside VisaStack.";

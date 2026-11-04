@@ -8,6 +8,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   isPlatformAdmin: vi.fn(),
+  hasPlatformPermission: vi.fn(async (..._args: unknown[]) => true),
   getMigrationStatus: vi.fn(),
   collectOperationalSignals: vi.fn(),
   getPilotScorecard: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock('../../../lib/session', () => ({
 }));
 vi.mock('../../../lib/admin', () => ({
   isPlatformAdmin: mocks.isPlatformAdmin,
+  hasPlatformPermission: (...args: unknown[]) => mocks.hasPlatformPermission(...args),
   bootstrapAdminEmails: () => [],
   // Lane Z: the lifecycle measures need the privacy directory role; refused unless a test grants it.
   staffPrincipal: (...args: unknown[]) => mocks.staffPrincipal(...args),
@@ -142,6 +144,7 @@ beforeEach(() => {
     items: [
       {
         id: 'j1',
+        documentId: 'abcdef12-0000-4000-8000-000000000001',
         documentName: 'passport.pdf',
         errorCode: 'ocr_timeout',
         attempts: 5,
@@ -303,6 +306,7 @@ describe('Platform > Operations', () => {
   });
 
   it('lists a failed intake job with its error code and a retry control', async () => {
+    mocks.staffPrincipal.mockResolvedValueOnce({ ok: true, value: { staff: 'scope' } } as never);
     const html = await renderServer(Page({}));
     const text = textOf(html);
     expect(text).toContain('passport.pdf');
@@ -312,6 +316,28 @@ describe('Platform > Operations', () => {
       'j1',
     ]);
     expect(stubProps(html, 'ReconcileButtons')).toHaveLength(1);
+  });
+
+  it('shows only "Document" and a short code, no file name or error text, without the privacy directory role', async () => {
+    const html = await renderServer(Page({}));
+    const text = textOf(html);
+    expect(text).toContain('Document ABCDEF');
+    expect(text).not.toContain('passport.pdf');
+    expect(text).not.toContain('timed out');
+    expect(text).toContain('ocr_timeout');
+    expect(stubProps<{ jobId: string }>(html, 'RetryJobButton')).toHaveLength(1);
+  });
+
+  it('draws the Retry and Clean Up controls only for the role the server accepts them from', async () => {
+    mocks.hasPlatformPermission.mockResolvedValue(false);
+    const html = await renderServer(Page({}));
+    const text = textOf(html);
+    expect(stubProps(html, 'RetryJobButton')).toHaveLength(0);
+    expect(stubProps(html, 'ReconcileButtons')).toHaveLength(0);
+    expect(text).toContain('Support Admin Only');
+    expect(text).toContain('Only a Support Admin or a platform owner can run this.');
+    const asked = mocks.hasPlatformPermission.mock.calls.map((call) => call[2]);
+    expect(asked).toEqual(expect.arrayContaining(['PROCESSING_JOB_RETRY', 'ORPHAN_RECONCILE']));
   });
 
   it('says commercial mode does not apply yet while the deployment is a controlled pilot', async () => {
@@ -412,7 +438,7 @@ it('does not show zero spend or capacity meters when the readings are unavailabl
   mocks.getPlatformEvidenceBytes.mockRejectedValue(new Error('synthetic unavailable'));
   mocks.totalAiCostUnits.mockRejectedValue(new Error('synthetic unavailable'));
   const html = await renderServer(await Page({}));
-  expect(textOf(html)).toContain('Evidence storage could not be read');
+  expect(textOf(html)).toContain('File storage could not be read');
   expect(textOf(html)).toContain('AI usage or its limit could not be read');
   expect(html).not.toContain('meter-fill');
   expect(textOf(html)).not.toContain('$0.00 of');
@@ -422,6 +448,7 @@ it('does not show zero spend or capacity meters when the readings are unavailabl
 describe('WP-SB6 overview within the scroll budget', () => {
   const job = (n: number) => ({
     id: `job-${n}`,
+    documentId: `d${n}0000000-0000-4000-8000-000000000000`,
     documentName: `document-${n}.pdf`,
     errorCode: 'ocr_timeout',
     attempts: 5,

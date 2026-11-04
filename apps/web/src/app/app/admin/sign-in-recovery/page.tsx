@@ -9,7 +9,7 @@ import {
 } from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
-import { AdminRestricted } from '../admin-restricted';
+import { AdminNotForRole } from '../admin-restricted';
 import { ConnectSignInForm } from './forms';
 
 export const metadata: Metadata = { title: 'Sign-In Recovery' };
@@ -35,7 +35,7 @@ export default async function SignInRecoveryPage() {
     ]);
     return { requests, owner };
   });
-  if (!access) return <AdminRestricted />;
+  if (!access) return <AdminNotForRole needs="a Security Admin or a platform owner" />;
   const { requests: result, owner } = access;
   return (
     <section className="section container">

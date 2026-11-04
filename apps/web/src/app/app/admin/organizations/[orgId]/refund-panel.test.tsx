@@ -87,7 +87,7 @@ describe('the Refunds and Credits card (S18)', () => {
     const off = render({ gatewayAvailable: false });
     expect(off).not.toContain('Refund (INV-1)');
     expect(off).toContain('Record a Refund Made Outside VisaStack (INV-1)');
-    expect(off).toContain('Refunds are made in the payment gateway&#x27;s merchant panel');
+    expect(off).toContain('Refunds are made in the payment provider&#x27;s merchant panel');
   });
 
   it('draws no form, and no idempotency key, until a disclosure is opened', () => {

@@ -286,7 +286,7 @@ export async function approveVersionAction(
     if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
     const approved = await approvePackVersion(db, { actorAccountId: accountId, packVersionId });
     if (!approved.ok) return { ok: false, message: approved.error.message } satisfies ActionState;
-    return { ok: true, message: 'Version approved and checksummed.' } satisfies ActionState;
+    return { ok: true, message: 'Version approved and locked.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/admin/packs/${packId}`);
   return result;
@@ -306,8 +306,8 @@ export async function verifyChecksumAction(
     return {
       ok: valid,
       message: valid
-        ? 'Checksum matches — the requirement content is unchanged since approval.'
-        : 'Checksum mismatch — the requirement content has changed since approval.',
+        ? 'The requirements are exactly as approved. Nothing has changed.'
+        : 'The requirements no longer match what was approved. Something has changed.',
     } satisfies ActionState;
   });
 }

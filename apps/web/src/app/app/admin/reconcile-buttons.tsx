@@ -23,7 +23,7 @@ export function ReconcileButtons() {
           <input type="hidden" name="mode" value="dry-run" />
           <SubmitButton
             pending={dryRunPending}
-            idle="Scan for Drift (Dry Run)"
+            idle="Check Only"
             busy="Scanning…"
             className="btn btn-secondary"
           />
@@ -33,7 +33,7 @@ export function ReconcileButtons() {
           onSubmit={(e) => {
             if (
               !window.confirm(
-                'Clean up dangling references now? This only removes metadata rows with no backing bytes and no remaining document. It never deletes bytes that still exist.',
+                'Clean up now? This only removes records that point to a missing file and have no document left. It never deletes a file that still exists.',
               )
             ) {
               e.preventDefault();
@@ -43,7 +43,7 @@ export function ReconcileButtons() {
           <input type="hidden" name="mode" value="mutate" />
           <SubmitButton
             pending={mutatePending}
-            idle="Clean Up Dangling References"
+            idle="Clean Up Now"
             busy="Cleaning…"
             className="btn btn-danger"
           />

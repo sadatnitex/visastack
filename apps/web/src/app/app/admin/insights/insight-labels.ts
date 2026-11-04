@@ -1,4 +1,9 @@
-import type { FunnelStageKey, FunnelUnit, InsightCell } from '@visastack/services';
+import type {
+  FieldInsightsReport,
+  FunnelStageKey,
+  FunnelUnit,
+  InsightCell,
+} from '@visastack/services';
 
 /**
  * UMPE P12: plain names for Field Insights. Every stage says exactly what was counted, so nobody
@@ -65,4 +70,41 @@ export const PERIOD_LABELS: Readonly<Record<number, string>> = {
  */
 export function cellText(cell: InsightCell): string {
   return cell.shown ? String(cell.value) : 'Hidden';
+}
+
+/** Every number on the report, in one list, so the page can say how many are hidden. */
+function allCells(report: FieldInsightsReport): readonly InsightCell[] {
+  return [
+    ...report.funnel.map((row) => row.cell),
+    report.missingOutcome.reported,
+    report.missingOutcome.unknown,
+    report.missingOutcome.pending,
+    ...report.byRouteAndPeriod.map((row) => row.attempts),
+    report.authorityRequests.total,
+    ...report.authorityRequests.bySource.map((row) => row.cell),
+    ...report.authorityRequests.byDocType.map((row) => row.cell),
+    ...report.correctionCauses.checklistSuggestions.map((row) => row.cell),
+    report.correctionCauses.agencyCorrectionRequests,
+    report.coverageGaps.requestsCompared,
+    report.coverageGaps.requestsWithoutChecklist,
+    ...report.coverageGaps.byDocType.map((row) => row.cell),
+    report.dataQuality.olderReportsNotAttempts,
+    report.dataQuality.attemptsWithoutPackageRecord,
+    report.dataQuality.caseDecisionsNotTiedToAttempt,
+  ];
+}
+
+/**
+ * How many numbers the page shows and how many it hides, and whether nothing but zeros is visible.
+ * Only totals: never which number is hidden or why, so a hidden count cannot be narrowed down.
+ */
+export function hiddenSummary(report: FieldInsightsReport): {
+  readonly total: number;
+  readonly hidden: number;
+  readonly nothingShownYet: boolean;
+} {
+  const cells = allCells(report);
+  const hidden = cells.filter((cell) => !cell.shown).length;
+  const anyNumber = cells.some((cell) => cell.shown && cell.value > 0);
+  return { total: cells.length, hidden, nothingShownYet: hidden > 0 && !anyNumber };
 }

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   isPlatformAdmin: vi.fn(),
   isPlatformOwnerAccount: vi.fn(),
   listActivePlatformRoles: vi.fn(),
+  listActivePlatformRoleHolders: vi.fn(),
   listInvitations: vi.fn(),
   reportUnboundAccounts: vi.fn(),
   staffFactorCoverage: vi.fn(),
@@ -24,10 +25,13 @@ vi.mock('../../../../lib/session', () => ({
 vi.mock('../../../../lib/admin', () => ({
   isPlatformAdmin: mocks.isPlatformAdmin,
   isPlatformOwnerAccount: mocks.isPlatformOwnerAccount,
+  bootstrapAdminEmails: () => [],
 }));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   listActivePlatformRoles: (...args: unknown[]) => mocks.listActivePlatformRoles(...args),
+  listActivePlatformRoleHolders: (...args: unknown[]) =>
+    mocks.listActivePlatformRoleHolders(...args),
   listInvitations: (...args: unknown[]) => mocks.listInvitations(...args),
   reportUnboundAccounts: (...args: unknown[]) => mocks.reportUnboundAccounts(...args),
   staffFactorCoverage: (...args: unknown[]) => mocks.staffFactorCoverage(...args),
@@ -59,9 +63,28 @@ beforeEach(() => {
   mocks.staffFactorCoverage.mockResolvedValue({ staff: 3, enrolled: 1 });
   mocks.neonSessionRef.mockResolvedValue('ref-1');
   mocks.createKeyManagementPort.mockReturnValue({});
-  mocks.listActivePlatformRoles.mockResolvedValue([
-    { id: 'r1', role: 'PLATFORM_OWNER', assignedAt: new Date('2026-09-01'), reason: 'Founder' },
-  ]);
+  const grant = {
+    id: 'r1',
+    role: 'PLATFORM_OWNER',
+    accountId: 'acct-9',
+    assignedAt: new Date('2026-09-01'),
+    reason: 'Founder',
+  };
+  mocks.listActivePlatformRoles.mockResolvedValue([grant]);
+  mocks.listActivePlatformRoleHolders.mockResolvedValue({
+    ok: true,
+    value: [
+      { ...grant, holderEmail: 'founder@example.com' },
+      {
+        ...grant,
+        id: 'r2',
+        role: 'SUPPORT_ADMIN',
+        accountId: null,
+        holderEmail: null,
+        reason: 'Helper',
+      },
+    ],
+  });
   const invitations = [
     {
       id: 'i1',
@@ -108,7 +131,8 @@ describe('Platform > Access', () => {
     const text = textOf(html);
     expect(text).toContain('Platform Roles');
     expect(text).toContain('Platform Owner');
-    expect(text).toContain('Founder');
+    expect(text).toContain('founder@example.com · Founder');
+    expect(text).toContain('Removed Account · Helper');
     expect(text).toContain('Pending');
     expect(text).toContain('Accepted');
     expect(text).toContain('Revoked');
@@ -121,6 +145,7 @@ describe('Platform > Access', () => {
     expect(stubProps(html, 'InviteForm')).toHaveLength(1);
     expect(stubProps<{ grantId: string }>(html, 'RevokeRoleButton').map((p) => p.grantId)).toEqual([
       'r1',
+      'r2',
     ]);
     expect(
       stubProps<{ invitationId: string }>(html, 'RevokeInvitationButton').map(
@@ -139,6 +164,20 @@ describe('Platform > Access', () => {
     expect(text).toContain('Only a platform owner can invite or revoke pilot access.');
   });
 
+  it('shows a non-owner no email address at all: no role holder, no invitee, no older sign-in', async () => {
+    mocks.isPlatformOwnerAccount.mockResolvedValue(false);
+    mocks.reportUnboundAccounts.mockResolvedValue([
+      { id: 'a1', email: 'old@example.com', createdAt: new Date('2026-08-01'), applicantCount: 2 },
+    ]);
+    const html = await renderServer(Page({}));
+    const text = textOf(html);
+    expect(html).not.toMatch(/@example\.com/);
+    expect(text).toContain('1 waiting to be used and 2 accepted or revoked.');
+    expect(text).toContain('1 older sign-in not yet linked.');
+    expect(mocks.listActivePlatformRoleHolders).not.toHaveBeenCalled();
+    expect(stubProps(html, 'RevokeInvitationButton')).toHaveLength(0);
+  });
+
   it('says how many staff have set up an authenticator and whether codes can be checked here', async () => {
     const text = textOf(await renderServer(Page({})));
     expect(text).toContain('1 of 3 staff have set one up');
@@ -148,13 +187,14 @@ describe('Platform > Access', () => {
   });
 
   it('explains legacy references without claiming current Neon sign-in is missing', async () => {
-    expect(textOf(await renderServer(Page({})))).not.toContain('Legacy Sign-In References');
+    expect(textOf(await renderServer(Page({})))).not.toContain('Older Sign-Ins Not Yet Linked');
     mocks.reportUnboundAccounts.mockResolvedValue([
       { id: 'a1', email: 'old@example.com', createdAt: new Date('2026-08-01'), applicantCount: 2 },
     ]);
     const text = textOf(await renderServer(Page({})));
-    expect(text).toContain('Legacy Sign-In References');
-    expect(text).toContain('even when its current sign-in works');
+    expect(text).toContain('Older Sign-Ins Not Yet Linked');
+    expect(text).toContain('A person can still sign in while they appear here');
+    expect(text).not.toContain('Neon');
     expect(text).not.toContain('resolves itself');
     expect(text).not.toContain('column becomes required');
     expect(text).toContain('old@example.com');

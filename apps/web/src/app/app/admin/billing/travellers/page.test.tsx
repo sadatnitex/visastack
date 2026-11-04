@@ -247,7 +247,7 @@ describe('Platform > Traveller Billing (ADR 0025 T6b)', () => {
     });
     const html = await render('9D1E2F3A');
     expect(mocks.staffPrincipal.mock.calls[0]?.[2]).toBe('BILLING_REFUND_MANAGE');
-    expect(textOf(html)).toContain('This area is restricted to platform administrators.');
+    expect(textOf(html)).toContain('Not available for your role.');
     expect(textOf(html)).not.toContain('Needs a Check');
     expect(textOf(html)).not.toContain('Find a Traveller');
     expect(mocks.listTravellerNeedsCheck).not.toHaveBeenCalled();
@@ -260,7 +260,7 @@ describe('Platform > Traveller Billing (ADR 0025 T6b)', () => {
       ok: false,
       error: { code: 'forbidden', message: 'Only the platform owner can see traveller billing.' },
     });
-    expect(textOf(await render())).toContain('restricted to platform administrators');
+    expect(textOf(await render())).toContain('Not available for your role');
   });
 
   it('lists the payments that need a check, each with a link that looks the traveller up', async () => {
@@ -279,7 +279,7 @@ describe('Platform > Traveller Billing (ADR 0025 T6b)', () => {
     expect(text).toContain('TP-9D1E2F3A-3');
     expect(text).toContain('BDT 300.00');
     expect(text).toContain('The invoice was cancelled.');
-    expect(text).toContain('Still confirming with the payment gateway after 30 minutes.');
+    expect(text).toContain('Still confirming with the payment provider after 30 minutes.');
     expect(text).toContain('7A8B9C0D');
     expect(text).toContain('BDT 999.00');
     expect(text).toContain('30 Oct 2026, 16:00');
@@ -411,9 +411,9 @@ describe('Platform > Traveller Billing (ADR 0025 T6b)', () => {
     const html = await render();
     const text = textOf(html);
     expect(text).toContain('Recover a Payment');
-    expect(text).toContain('Traveller Account Id');
+    expect(text).toContain('Traveller Code');
     expect(text).toContain('Plan They Paid For');
-    expect(text).toContain('Transaction Id');
+    expect(text).toContain('Payment Code');
     expect(html).toContain(
       '<option value="traveller_plus">Traveller Plus (traveller_plus)</option>',
     );

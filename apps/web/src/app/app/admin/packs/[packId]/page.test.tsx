@@ -10,6 +10,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   isPlatformAdmin: vi.fn(),
+  hasPlatformPermission: vi.fn(),
   getPack: vi.fn(),
   listPackVersions: vi.fn(),
   listRequirements: vi.fn(),
@@ -22,7 +23,10 @@ vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'acct-1', email: 'admin@example.com' }),
 }));
-vi.mock('../../../../../lib/admin', () => ({ isPlatformAdmin: mocks.isPlatformAdmin }));
+vi.mock('../../../../../lib/admin', () => ({
+  isPlatformAdmin: mocks.isPlatformAdmin,
+  hasPlatformPermission: mocks.hasPlatformPermission,
+}));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   getPack: (...args: unknown[]) => mocks.getPack(...args),
@@ -117,6 +121,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   navigationState.pathname = '/app/admin/packs/pk1';
   mocks.isPlatformAdmin.mockResolvedValue(true);
+  mocks.hasPlatformPermission.mockResolvedValue(true);
   mocks.getPack.mockResolvedValue(PACK);
   // Worst case: 14 versions, the newest a draft, and 140 requirements on each.
   mocks.listPackVersions.mockResolvedValue(
@@ -136,6 +141,30 @@ describe('Platform > Rules > one pack', () => {
     // A draft never has cases attached, so that read is skipped.
     expect(mocks.listMissionsByPackVersion).not.toHaveBeenCalled();
     expect(stubProps(html, 'AddRequirementForm')).toHaveLength(1);
+  });
+
+  it('draws none of the change controls for a staff role the server would refuse, only the page', async () => {
+    mocks.hasPlatformPermission.mockResolvedValue(false);
+    const html = await render();
+    for (const name of [
+      'OpenVersionButton',
+      'AddRequirementForm',
+      'ApproveVersionButton',
+      'PublishVersionButton',
+      'WithdrawVersionButton',
+      'RequirementDetailsForm',
+      'RequirementSourceReviewForm',
+      'SourceInaccessibleButton',
+      'PublicTrustContentForm',
+      'PublicTrustPublishButton',
+      'VerifyChecksumForm',
+    ]) {
+      expect(html).not.toContain(`data-stub="${name}"`);
+    }
+    expect(textOf(html)).toContain(
+      'You can read this pack. Only a Support Admin or a platform owner can change it.',
+    );
+    expect(textOf(html)).toContain('Version 14');
   });
 
   it('shows 25 requirements as compact rows, with Show More to the next 25', async () => {

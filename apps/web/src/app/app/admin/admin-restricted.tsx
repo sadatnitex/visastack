@@ -10,12 +10,18 @@ export function AdminRestricted() {
   );
 }
 
-/** What a platform administrator sees on a page their own role does not cover. */
-export function AdminNotForRole() {
+/**
+ * What a platform administrator sees on a page their own role does not cover. `needs` names who
+ * can open it, in plain words ("a Support Admin or a platform owner").
+ */
+export function AdminNotForRole({ needs }: { readonly needs?: string }) {
   return (
     <article className="card">
       <p className="card-body">
-        Not available for your role. Ask a platform owner if you need this view.
+        Not available for your role.{' '}
+        {needs
+          ? `This view is for ${needs}. Ask a platform owner if you need it.`
+          : 'Ask a platform owner if you need this view.'}
       </p>
     </article>
   );

@@ -15,7 +15,7 @@ export function PurgeButton({ eligibleCount }: { readonly eligibleCount: number 
       onSubmit={(e) => {
         if (
           !window.confirm(
-            `Queue ${eligibleCount} document${eligibleCount === 1 ? '' : 's'} past retention for deletion? This cannot be undone once the erasure worker verifies the bytes are gone.`,
+            `Queue ${eligibleCount} document${eligibleCount === 1 ? '' : 's'} past retention for deletion? This cannot be undone once the files are confirmed deleted.`,
           )
         ) {
           e.preventDefault();

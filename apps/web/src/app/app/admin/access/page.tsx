@@ -1,5 +1,7 @@
 import {
   type PilotInvitation,
+  type PlatformRoleHolder,
+  listActivePlatformRoleHolders,
   listActivePlatformRoles,
   listInvitations,
   reportUnboundAccounts,
@@ -7,7 +9,11 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { PageHeader } from '../../../../components/ui';
-import { isPlatformAdmin, isPlatformOwnerAccount } from '../../../../lib/admin';
+import {
+  bootstrapAdminEmails,
+  isPlatformAdmin,
+  isPlatformOwnerAccount,
+} from '../../../../lib/admin';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { neonSessionRef } from '../../../../lib/neon-recency';
 import { type SearchParamsRecord, TEAM_LIST_STEP, parseCursor } from '../../../../lib/paging';
@@ -50,6 +56,9 @@ interface InvitationList {
   readonly counts: { readonly pending: number; readonly history: number } | null;
 }
 
+/** An active grant; the holder's email is there only when the owner is the one reading. */
+type RoleRow = Omit<PlatformRoleHolder, 'holderEmail'> & { readonly holderEmail?: string | null };
+
 const NO_INVITATIONS: InvitationList = { items: [], nextCursor: null, counts: null };
 
 /**
@@ -80,18 +89,37 @@ export default async function AdminAccessPage({
         ...(view === 'history' ? { withCounts: false } : {}),
         ...(before ? { before } : {}),
       });
-    const [roles, unboundAccounts, pending, history, owner, coverage] = await Promise.all([
-      t('platform roles', () => listActivePlatformRoles(db), []),
+    // Addresses are personal data: only the owner reads them. Everyone else gets the counts.
+    const owner = await isPlatformOwnerAccount(db, { accountId, email });
+    const countsOnly = (list: InvitationList): InvitationList => ({ ...list, items: [] });
+    const [roles, unbound, pendingRead, historyRead, coverage] = await Promise.all([
+      t(
+        'platform roles',
+        async (): Promise<readonly RoleRow[]> => {
+          if (!owner) return await listActivePlatformRoles(db);
+          const holders = await listActivePlatformRoleHolders(db, {
+            accountId,
+            email,
+            bootstrapEmails: bootstrapAdminEmails(),
+          });
+          if (!holders.ok) throw new Error(holders.error.message);
+          return holders.value;
+        },
+        [],
+      ),
       t('unbound accounts', () => reportUnboundAccounts(db), []),
       t('invitations', () => readInvitations('pending', pendingBefore), NO_INVITATIONS),
       t('invitation history', () => readInvitations('history', historyBefore), NO_INVITATIONS),
-      isPlatformOwnerAccount(db, { accountId, email }),
       t('authenticator coverage', () => staffFactorCoverage(db), null),
     ]);
+    const pending = owner ? pendingRead : countsOnly(pendingRead);
+    const history = owner ? historyRead : countsOnly(historyRead);
+    const unboundAccounts = owner ? unbound : [];
     return {
       admin: true as const,
       roles,
       unboundAccounts,
+      unboundCount: unbound.length,
       pending,
       history,
       owner,
@@ -167,7 +195,10 @@ export default async function AdminAccessPage({
                           {data.owner ? <RevokeRoleButton grantId={r.id} /> : null}
                         </span>
                       </div>
-                      <span className="muted u-fs-085">{r.reason}</span>
+                      <span className="muted u-fs-085">
+                        {data.owner ? `${r.holderEmail ?? 'Removed Account'} · ` : ''}
+                        {r.reason}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -183,38 +214,47 @@ export default async function AdminAccessPage({
               <p className="card-kicker">Controlled Pilot</p>
               <h2 className="card-title">Pilot Access</h2>
               <p className="card-body u-mb-100">
-                This is an invite-only controlled pilot: an authenticated identity that isn't
-                invited or allowlisted is denied a local account. An invitation is never deleted,
-                only revoked - the full history of who was invited, by whom, and why is always
-                reconstructable. Revoking only blocks a future, not-yet-provisioned sign-in; an
-                account already provisioned from this invitation keeps its access.
+                VisaStack is invite-only during the pilot. Only invited email addresses can create
+                an account. An invitation is never deleted, only revoked, so you can always see who
+                was invited, by whom and why. Revoking stops a sign-up that has not happened yet; a
+                person who already joined keeps their access.
               </p>
-              <h3 className="pilot-list-title">Waiting to Be Used</h3>
-              <InvitationQueue
-                id={PENDING_LIST}
-                label="Invitations Waiting to Be Used"
-                list={data.pending}
-                total={data.pending.counts?.pending}
-                owner={data.owner}
-                search={search}
-                param="pendingBefore"
-                before={pendingBefore}
-                none="No invitations are waiting to be used."
-                pastEnd="No older invitations waiting."
-              />
-              <h3 className="pilot-list-title u-mt-125">Accepted and Revoked</h3>
-              <InvitationQueue
-                id={HISTORY_PANEL}
-                label="Accepted and Revoked Invitations"
-                list={data.history}
-                total={data.pending.counts?.history}
-                owner={data.owner}
-                search={search}
-                param="historyBefore"
-                before={historyBefore}
-                none="No invitation has been accepted or revoked yet."
-                pastEnd="No older invitations."
-              />
+              {data.owner ? (
+                <>
+                  <h3 className="pilot-list-title">Waiting to Be Used</h3>
+                  <InvitationQueue
+                    id={PENDING_LIST}
+                    label="Invitations Waiting to Be Used"
+                    list={data.pending}
+                    total={data.pending.counts?.pending}
+                    owner={data.owner}
+                    search={search}
+                    param="pendingBefore"
+                    before={pendingBefore}
+                    none="No invitations are waiting to be used."
+                    pastEnd="No older invitations waiting."
+                  />
+                  <h3 className="pilot-list-title u-mt-125">Accepted and Revoked</h3>
+                  <InvitationQueue
+                    id={HISTORY_PANEL}
+                    label="Accepted and Revoked Invitations"
+                    list={data.history}
+                    total={data.pending.counts?.history}
+                    owner={data.owner}
+                    search={search}
+                    param="historyBefore"
+                    before={historyBefore}
+                    none="No invitation has been accepted or revoked yet."
+                    pastEnd="No older invitations."
+                  />
+                </>
+              ) : (
+                <p className="card-body u-mb-125" data-testid="invitation-counts">
+                  {data.pending.counts
+                    ? `${data.pending.counts.pending} waiting to be used and ${data.pending.counts.history} accepted or revoked. Email addresses are shown to a platform owner only.`
+                    : 'Invitation counts could not be read. Email addresses are shown to a platform owner only.'}
+                </p>
+              )}
               {data.owner ? (
                 <InviteForm />
               ) : (
@@ -225,14 +265,20 @@ export default async function AdminAccessPage({
             </article>
           </div>
 
+          {!data.owner && data.unboundCount > 0 ? (
+            <p className="muted u-fs-085 u-mb-150" data-testid="unbound-count">
+              {data.unboundCount} older sign-in{data.unboundCount === 1 ? '' : 's'} not yet linked.
+              Addresses are shown to a platform owner only.
+            </p>
+          ) : null}
           {data.unboundAccounts.length > 0 ? (
             <article className="card u-mb-150">
               <p className="card-kicker">Identity</p>
-              <h2 className="card-title">Legacy Sign-In References</h2>
+              <h2 className="card-title">Older Sign-Ins Not Yet Linked</h2>
               <p className="card-body u-mb-100">
-                This report tracks the older sign-in system. A Neon Auth account can appear here
-                even when its current sign-in works. This list does not grant access or transfer
-                account records.
+                These accounts were made before the current sign-in and are not linked to it yet. A
+                person can still sign in while they appear here. This list does not give anyone
+                access or move any records.
               </p>
               <div className="rows rows-grid">
                 {data.unboundAccounts.map((a) => (

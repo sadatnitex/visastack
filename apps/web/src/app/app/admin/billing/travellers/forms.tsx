@@ -56,7 +56,7 @@ function refundConfirmText({
     `Record a refund of ${amountText} for ${invoiceRef}?`,
     testPayment ? 'This is a test payment.' : null,
     outsideWindow
-      ? 'This payment is more than 7 days old. Record the refund only if it was made in the gateway panel.'
+      ? 'This payment is more than 7 days old. Record the refund only if it was made in the payment provider panel.'
       : null,
     'This cannot be undone.',
   ]
@@ -120,7 +120,7 @@ function Field({
   );
 }
 
-/** Records a traveller's refund made in the gateway panel. Needs a fresh sign-in check. */
+/** Records a traveller's refund made in the payment provider panel. Needs a fresh sign-in check. */
 export function TravellerRefundForm({
   formId,
   source,
@@ -187,7 +187,7 @@ export function TravellerRefundForm({
       <p id={amountId} className="card-body">
         This records a refund of {amountText}, all that is left of this payment.
         {outsideWindow
-          ? ' This payment is more than 7 days old. Record the refund only if it was made in the gateway panel.'
+          ? ' This payment is more than 7 days old. Record the refund only if it was made in the payment provider panel.'
           : ''}
       </p>
       <div key={key} className="form-grid">
@@ -196,7 +196,7 @@ export function TravellerRefundForm({
           name="reference"
           label="Refund Reference"
           maxLength={120}
-          hint="The refund reference shown in the payment gateway's merchant panel."
+          hint="The refund reference shown in the payment provider's merchant panel."
           state={state}
           errorId={errorId}
         />

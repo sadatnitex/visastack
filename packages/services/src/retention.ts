@@ -33,15 +33,26 @@ export {
 
 export type RetentionPolicy = typeof schema.retentionPolicies.$inferSelect;
 
-/** Create or update the retention policy for a document type (upsert by docType). */
+/**
+ * Create or update the retention policy for a document type (upsert by docType). A shorter policy
+ * decides which documents the daily sweep queues for deletion, so it needs a fresh sign-in like
+ * the other deletion-driving changes (legal hold, purge).
+ */
 export async function setRetentionPolicy(
   db: Db,
   input: {
     readonly actorAccountId: string;
     readonly docType: string;
     readonly retentionDays: number;
+    /** Required `true`, from a genuine fresh sign-in check; never inferred. */
+    readonly stepUpSatisfied: boolean;
   },
 ): Promise<Result<RetentionPolicy, ServiceError>> {
+  if (!input.stepUpSatisfied) {
+    return err(
+      serviceError('step_up_required', 'changing a retention policy requires reauthentication'),
+    );
+  }
   if (input.retentionDays <= 0)
     return err(serviceError('invalid', 'retentionDays must be positive'));
   return db.transaction(async (tx) => {

@@ -508,14 +508,30 @@ describe('erasure outbox', () => {
       storageObjectId: object.id,
     });
 
-    // Not FAILED/BLOCKED yet — no-op.
-    expect(await retryErasureJob(db, job.id)).toBe(false);
+    const staffId = randomUUID();
+    const retries = () =>
+      db
+        .select()
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.eventType, 'ERASURE_JOB_RETRIED'));
+
+    // Not FAILED/BLOCKED yet: no-op, and nothing recorded.
+    expect(await retryErasureJob(db, job.id, staffId)).toBe(false);
+    expect(await retries()).toHaveLength(0);
 
     await db
       .update(schema.erasureJobs)
       .set({ status: 'FAILED', attempts: 5, lastError: 'boom' })
       .where(eq(schema.erasureJobs.id, job.id));
-    expect(await retryErasureJob(db, job.id)).toBe(true);
+    expect(await retryErasureJob(db, job.id, staffId)).toBe(true);
+    expect(await retries()).toHaveLength(1);
+    expect((await retries())[0]).toMatchObject({
+      actorAccountId: staffId,
+      resourceType: 'erasure_job',
+      resourceId: job.id,
+      result: 'ALLOWED',
+      metadata: { outcome: 'REQUEUED', was: 'FAILED' },
+    });
     let reset = (await db.select().from(schema.erasureJobs))[0];
     expect(reset?.status).toBe('PENDING');
     expect(reset?.attempts).toBe(0);
@@ -525,7 +541,10 @@ describe('erasure outbox', () => {
       .update(schema.erasureJobs)
       .set({ status: 'BLOCKED_BY_HOLD', lastError: 'held' })
       .where(eq(schema.erasureJobs.id, job.id));
-    expect(await retryErasureJob(db, job.id)).toBe(true);
+    expect(await retryErasureJob(db, job.id, staffId)).toBe(true);
+    expect(
+      (await retries()).map((row) => (row.metadata as { was?: string } | null)?.was).sort(),
+    ).toEqual(['BLOCKED_BY_HOLD', 'FAILED']);
     reset = (await db.select().from(schema.erasureJobs))[0];
     expect(reset?.status).toBe('PENDING');
   });

@@ -13,7 +13,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Icon } from '../../components/icons';
+import { Icon, type IconName } from '../../components/icons';
 import { PersonAvatar } from '../../components/profile-photo/person-avatar';
 import { isCurrentPath } from '../../lib/navigation';
 import { type SidebarState, saveSidebarState } from '../../lib/sidebar-preference';
@@ -25,7 +25,7 @@ import {
 } from '../../lib/workspace-navigation';
 
 type WorkspaceKind = WorkspaceNavigation['kind'];
-import { AppNav } from './app-nav';
+import { AppNav, navIconFor } from './app-nav';
 import { WorkspaceRecordToolbar } from './workspace-record-toolbar';
 
 type Subject = { readonly route: string; readonly applicantId: string };
@@ -196,8 +196,15 @@ function WorkspaceTools({
   tools,
   primary = [],
   popover,
+  title = 'More Tools',
+  groupIcon = 'more',
+  listLabel = 'Contextual tools',
 }: {
   readonly tools: WorkspaceNavigation['tools'];
+  /** The words on the closed list, and the icon beside them (the same treatment as a main link). */
+  readonly title?: string;
+  readonly groupIcon?: IconName;
+  readonly listLabel?: string;
   /**
    * The sidebar's own destinations. When one of them already marks this page (an entry point
    * lights up on the pages that belong to it, UMPE P13), no tool marks it too, so a page has one
@@ -230,20 +237,24 @@ function WorkspaceTools({
         }
       }}
     >
-      <summary aria-label={popover ? 'More Tools' : undefined}>
+      <summary aria-label={popover ? title : undefined}>
         <span className="workspace-tools-icon">
-          <Icon name="more" size={20} />
+          <Icon name={groupIcon} size={20} />
         </span>
-        <span className="workspace-tools-label">More Tools</span>
+        <span className="workspace-tools-label">{title}</span>
+        <span className="workspace-tools-chevron">
+          <Icon name="chevronDown" size={16} />
+        </span>
       </summary>
-      <nav className="app-shell-links workspace-tools-list" aria-label="Contextual tools">
+      <nav className="app-shell-links workspace-tools-list" aria-label={listLabel}>
         {tools.map((item) => (
           <Link
             key={item.href}
             href={item.href}
             aria-current={currentTool(item) ? 'page' : undefined}
           >
-            {item.label}
+            <Icon name={navIconFor(item)} size={20} />
+            <span className="app-link-label app-link-full">{item.label}</span>
           </Link>
         ))}
       </nav>
@@ -372,6 +383,17 @@ export function WorkspaceShell({
               tools={nav.tools}
               primary={nav.primary}
               popover={railShown}
+            />
+          ) : null}
+          {nav.billing?.length ? (
+            <WorkspaceTools
+              key={`billing-${railShown ? 'rail' : 'full'}`}
+              tools={nav.billing}
+              primary={nav.primary}
+              popover={railShown}
+              title="Billing and Plans"
+              groupIcon="briefcase"
+              listLabel="Billing and plans"
             />
           ) : null}
         </AppNav>
