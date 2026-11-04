@@ -248,7 +248,7 @@ describe('what is posted', () => {
 describe('when there is nothing to choose', () => {
   it('says so and points to Documents when no copy of the kind exists', () => {
     const form = render({ kind: 'DOCUMENT', documentChoices: [] });
-    expect(form.text).toContain('You have not uploaded this document type yet.');
+    expect(form.text).toContain('No copy of this document type can be sent right now.');
     expect(form.page.querySelector('a.btn')?.textContent).toBe('Open Documents');
     expect(form.page.querySelector('a.btn')?.getAttribute('href')).toBe(
       '/app/applicant/a1/documents',

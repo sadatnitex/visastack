@@ -40,7 +40,9 @@ function plainSubmitReason(message: string): string {
   if (
     message === 'the retry key is not valid' ||
     message.startsWith('this retry key was already used') ||
-    message.startsWith('Choosing an exact version is not available yet')
+    message.startsWith('Choosing an exact version is not available yet') ||
+    message === 'document not found for this applicant' ||
+    message === "this document does not match the request's document type"
   ) {
     return 'This page is out of date. Refresh it and choose again.';
   }

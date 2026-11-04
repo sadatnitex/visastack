@@ -32,10 +32,11 @@ export const COPIES_STATUSES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The most requests read in one page view. The Clients page never lists more than 90 requests,
- * so every request on screen is covered; the bound only stops an unexpected caller.
+ * The most requests read in one page view. The Clients page never lists more than 90 requests
+ * and can show one more linked request from off the page, so every request on screen is covered;
+ * the bound only stops an unexpected caller.
  */
-export const COPIES_CAP = 90;
+export const COPIES_CAP = 91;
 
 export interface EvidenceCopies {
   readonly list: EvidenceSubmissionList;

@@ -113,7 +113,8 @@ export function SubmitResponseForm({
     return (
       <div className="request-response">
         <p className="muted u-fs-085 u-m-0">
-          You have not uploaded this document type yet. Upload it first, then come back to send it.
+          No copy of this document type can be sent right now. Add it in Documents, then come back
+          to send it.
         </p>
         <div className="request-response-actions">
           <a className="btn btn-secondary" href={`/app/applicant/${applicantId}/documents`}>

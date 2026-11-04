@@ -190,6 +190,8 @@ describe('submitEvidenceResponseAction: the time it reports is the server time',
       'the retry key is not valid',
       'this retry key was already used for a different file',
       'Choosing an exact version is not available yet. Send the document and its newest version is used.',
+      'document not found for this applicant',
+      "this document does not match the request's document type",
     ]) {
       mocks.submitEvidenceResponse.mockResolvedValue({
         ok: false,
