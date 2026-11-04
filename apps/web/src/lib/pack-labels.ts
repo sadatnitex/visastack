@@ -138,7 +138,7 @@ export function noChecklistLines(
   );
   if (mismatch.length > 0) {
     return [
-      `A reviewed checklist exists for ${route}, but it is written for ${mismatch.map((reason) => REASON_WORDS[reason]).join(' and ')}, so none was linked.`,
+      `A reviewed checklist exists for ${route}, but none of them fits this case. They are written for ${mismatch.map((reason) => REASON_WORDS[reason]).join(' or ')}, so none was linked.`,
       'Check the details on this case, or keep track of what the route asks for yourself.',
     ];
   }

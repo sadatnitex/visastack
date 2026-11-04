@@ -700,6 +700,7 @@ export {
   MAX_CITATION_LENGTH,
   addRequirement,
   citationProblem,
+  isFillerCitation,
   recordRequirementSourceReview,
   approvePackVersion,
   buildManifest,

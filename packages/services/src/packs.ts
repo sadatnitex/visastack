@@ -712,18 +712,25 @@ export const MAX_CITATION_LENGTH = 500;
  * checksum is touched. A citation must say where the rule comes from, not just fill the box.
  */
 export function citationProblem(citation: string): string | null {
-  const text = citation.trim();
-  if (text.length > MAX_CITATION_LENGTH) {
+  if (citation.trim().length > MAX_CITATION_LENGTH) {
     return `a citation can be at most ${MAX_CITATION_LENGTH} characters`;
   }
-  const words = text
+  return isFillerCitation(citation)
+    ? 'a citation must say where the requirement comes from, such as the page or section of the official guidance'
+    : null;
+}
+
+/**
+ * True when a citation is only filler ("Yes", "n/a", punctuation). Length is not judged here, so a
+ * long citation that is already stored still reads as a source when it is shown.
+ */
+export function isFillerCitation(citation: string): boolean {
+  const words = citation
+    .trim()
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
-  if (words.length === 0 || FILLER_CITATIONS.has(words)) {
-    return 'a citation must say where the requirement comes from, such as the page or section of the official guidance';
-  }
-  return null;
+  return words.length === 0 || FILLER_CITATIONS.has(words);
 }
 
 /** Add a cited requirement to a DRAFT pack version. */

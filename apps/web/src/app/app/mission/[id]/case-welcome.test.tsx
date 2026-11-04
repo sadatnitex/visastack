@@ -116,7 +116,7 @@ describe('caseWelcomeCopy: what a new case says to do first, from what it holds'
     });
     const text = copy.body.join(' ');
     expect(text).toContain(
-      'A reviewed checklist exists for this route, but it is written for travellers of other nationalities and a different embassy or visa centre than the one on this case, so none was linked.',
+      'A reviewed checklist exists for this route, but none of them fits this case. They are written for travellers of other nationalities or a different embassy or visa centre than the one on this case, so none was linked.',
     );
     expect(text).not.toMatch(/http|gov\.uk|official source|approved|guarantee/i);
     expect(copy.action.href).toBe('#evidence');

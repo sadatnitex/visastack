@@ -7,14 +7,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   attachSelectedPackVersion: vi.fn(),
+  getMissionForOwner: vi.fn(),
+  selectableChecklists: vi.fn(),
   selectEvidence: vi.fn(),
   computeReadiness: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 vi.mock('@visastack/services', () => ({
   attachSelectedPackVersion: mocks.attachSelectedPackVersion,
+  getMissionForOwner: mocks.getMissionForOwner,
   selectEvidence: mocks.selectEvidence,
   computeReadiness: mocks.computeReadiness,
+}));
+vi.mock('../../../../lib/case-checklist-match', () => ({
+  selectableChecklists: mocks.selectableChecklists,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: vi.fn() }));
@@ -42,6 +48,15 @@ const PREV = { ok: true, message: '' };
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.attachSelectedPackVersion.mockResolvedValue({ ok: true, value: {} });
+  mocks.getMissionForOwner.mockResolvedValue({
+    ok: true,
+    value: { id: 'm1', destination: 'JP', purpose: 'tourism' },
+  });
+  mocks.selectableChecklists.mockResolvedValue({
+    options: [{ packVersionId: 'p1' }],
+    fitting: [],
+    lookupFailed: false,
+  });
   mocks.selectEvidence.mockResolvedValue({ ok: true, value: {} });
 });
 
@@ -79,6 +94,38 @@ describe('attachPackAction', () => {
     const result = await attachPackAction(PREV, form({ missionId: 'm1', packVersionId: 'p1' }));
     expect(result).toEqual({ ok: false, message: 'this checklist is not published' });
     expect(mocks.computeReadiness).not.toHaveBeenCalled();
+  });
+});
+
+describe('attachPackAction, checklist must fit the case', () => {
+  it('refuses a checklist the picker would not have offered, and attaches nothing', async () => {
+    const result = await attachPackAction(PREV, form({ missionId: 'm1', packVersionId: 'other' }));
+    expect(result).toEqual({
+      ok: false,
+      message: 'That checklist does not fit this case. Choose one from the list.',
+    });
+    expect(mocks.attachSelectedPackVersion).not.toHaveBeenCalled();
+  });
+
+  it('says the checklists could not be loaded, never that none fits, when the look-up failed', async () => {
+    mocks.selectableChecklists.mockResolvedValue({
+      options: [],
+      fitting: [],
+      lookupFailed: true,
+    });
+    const result = await attachPackAction(PREV, form({ missionId: 'm1', packVersionId: 'p1' }));
+    expect(result).toEqual({ ok: false, message: 'Checklists could not be loaded right now.' });
+    expect(mocks.attachSelectedPackVersion).not.toHaveBeenCalled();
+  });
+
+  it('refuses when the case cannot be read by this person', async () => {
+    mocks.getMissionForOwner.mockResolvedValue({
+      ok: false,
+      error: { code: 'not_found', message: 'case not found' },
+    });
+    const result = await attachPackAction(PREV, form({ missionId: 'm1', packVersionId: 'p1' }));
+    expect(result.ok).toBe(false);
+    expect(mocks.attachSelectedPackVersion).not.toHaveBeenCalled();
   });
 });
 

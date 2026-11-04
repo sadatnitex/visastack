@@ -23,7 +23,6 @@ import {
   type RequirementResultState,
   accountPrincipal,
   caseExpiryConflicts,
-  citationProblem,
   computeReadiness,
   computeTripChecks,
   getAiFeatureState,
@@ -38,6 +37,7 @@ import {
   getPackVersion,
   grantReachesCase,
   isFactStatusEligible,
+  isFillerCitation,
   latestSourceChecks,
   legalTransitions,
   listAccessForApplicant,
@@ -849,6 +849,7 @@ export default async function MissionPage({
         ? {
             name: pack.name,
             badge: packBadge(pack).label,
+            reviewed: packBadge(pack).reviewed,
             coverage: packCoverageLine(pack),
             notice: packNoticeLine(
               packVersionRow
@@ -1061,7 +1062,7 @@ export default async function MissionPage({
     const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
     const sourceHref = safeHttpUrl(r.sourceUrl);
     // A citation that only fills the box ("Yes", "n/a") is not a source, so it is not shown as one.
-    const citationText = r.citation && citationProblem(r.citation) === null ? r.citation : '';
+    const citationText = r.citation && !isFillerCitation(r.citation) ? r.citation : '';
     const bookingReminder =
       r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION'
         ? bookingReminderFor(r.kind, r.key)
@@ -1805,7 +1806,7 @@ export default async function MissionPage({
                   >
                     <span className="card-body u-m-0">{data.packInfo.name}</span>
                     <span
-                      className={`badge ${data.packInfo.badge === 'Official Requirement Pack' ? 'badge-success' : 'badge-neutral'}`}
+                      className={`badge ${data.packInfo.reviewed ? 'badge-success' : 'badge-neutral'}`}
                     >
                       {data.packInfo.badge}
                     </span>

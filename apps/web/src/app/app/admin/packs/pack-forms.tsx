@@ -198,6 +198,7 @@ export function AddRequirementForm({
               name="citation"
               type="text"
               required
+              maxLength={500}
               className="input"
               placeholder="Source rule / URL - required"
             />

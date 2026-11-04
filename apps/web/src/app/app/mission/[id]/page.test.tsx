@@ -1501,7 +1501,7 @@ describe('the Requirement Pack card (VS-006)', () => {
     ]);
     const text = textOf(await render());
     expect(text).toContain(
-      'A reviewed checklist exists for travel to Japan for tourism, but it is written for a different embassy or visa centre than the one on this case and different travel dates',
+      'A reviewed checklist exists for travel to Japan for tourism, but none of them fits this case. They are written for a different embassy or visa centre than the one on this case or different travel dates',
     );
     expect(text).not.toMatch(/official source|gov\.uk|http/i);
   });

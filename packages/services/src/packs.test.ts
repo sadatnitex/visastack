@@ -17,6 +17,7 @@ import {
   createPack,
   diffPackVersions,
   getPublicTrustRoute,
+  isFillerCitation,
   listPackVersions,
   listPackVersionsDueForReview,
   listPacks,
@@ -140,6 +141,12 @@ describe('Pack Studio — versioned, cited, admin-approved requirement packs', (
     expect(isOk(await add('x'))).toBe(true);
     expect(citationProblem('Visitor guidance, section 4')).toBeNull();
     expect(citationProblem('yes')).toMatch(/where the requirement comes from/);
+    // A long citation is refused for a NEW requirement, but one already stored still counts as a
+    // source when it is shown: the display check ignores length.
+    const long = `Guidance section 4. ${'x'.repeat(600)}`;
+    expect(citationProblem(long)).toMatch(/at most 500/);
+    expect(isFillerCitation(long)).toBe(false);
+    expect(isFillerCitation('Yes')).toBe(true);
   });
 
   it('approves (freezing a checksum), then publishes; content then frozen', async () => {
