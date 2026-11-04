@@ -1,13 +1,18 @@
+import type { Result } from '@visastack/core';
 import {
   type Db,
+  type Mission,
   type NoPackReason,
   type PackMatch,
   type PackMatchTerms,
   type SelectablePackVersion,
+  type ServiceError,
   type TravellerMatchTerms,
   accountPrincipal,
+  attachSelectedPackVersion,
   explainNoFittingPack,
   findMatchingPublicPack,
+  getMissionForOwner,
   listFittingPublicPacks,
   listSelectablePackVersions,
   readTravellerCoverage,
@@ -112,12 +117,23 @@ export async function selectableChecklists(
     readonly accountId: string;
     readonly mission: {
       readonly id: string;
+      readonly applicantId: string;
       readonly destination: string | null;
       readonly purpose: string | null;
     };
   },
 ): Promise<SelectableChecklists> {
   const { accountId, mission } = input;
+  // The picker is read through the owner's gate proof for this traveller's record. A refusal
+  // means the case could not be read, never "nothing fits".
+  const proof = await requireAccess(
+    db,
+    accountPrincipal(accountId),
+    'VIEW_METADATA',
+    { applicantId: mission.applicantId },
+    { purpose: 'self' },
+  );
+  if (!proof.ok) return { options: [], fitting: null, lookupFailed: true };
   const route = savedCaseMatchTerms(mission.destination, mission.purpose);
   let fitting: readonly PackMatch[] | null = null;
   let lookupFailed = false;
@@ -134,8 +150,7 @@ export async function selectableChecklists(
     // Without a fit, no public checklist is offered rather than every one.
     if (lookupFailed) fitting = [];
   }
-  const listed = await listSelectablePackVersions(db, {
-    actorAccountId: accountId,
+  const listed = await listSelectablePackVersions(proof.value, {
     missionId: mission.id,
     ...(fitting ? { fitting } : {}),
   });
@@ -167,3 +182,27 @@ export const NOTHING_TO_PICK: SelectableChecklists = {
   fitting: null,
   lookupFailed: false,
 };
+
+/**
+ * Attach a checklist to the person's own case, only if it is one they may pick (reviewed, or their
+ * case's agency's own). Gets the owner's gate proof for the case's traveller and passes it to the
+ * checked attach; the web app attaches nowhere else. A case that is not theirs is `not_found`.
+ */
+export async function attachChecklistFor(
+  db: Db,
+  accountId: string,
+  missionId: string,
+  packVersionId: string,
+): Promise<Result<Mission, ServiceError>> {
+  const owned = await getMissionForOwner(db, accountId, missionId);
+  if (!owned.ok) return owned;
+  const access = await requireAccess(
+    db,
+    accountPrincipal(accountId),
+    'MANAGE',
+    { applicantId: owned.value.applicantId },
+    { purpose: 'self' },
+  );
+  if (!access.ok) return access;
+  return attachSelectedPackVersion(access.value, { missionId, packVersionId });
+}

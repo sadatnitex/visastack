@@ -3,7 +3,6 @@
 import type { MissionState } from '@visastack/core';
 import {
   accountPrincipal,
-  attachSelectedPackVersion,
   computeReadiness,
   createAppointment,
   createContributorRequest,
@@ -36,7 +35,7 @@ import { redirect } from 'next/navigation';
 import type { UpgradeLineKind } from '../../../../components/upgrade-line';
 import { resolveAiExplainer } from '../../../../lib/ai';
 import { resolveBaseUrl } from '../../../../lib/base-url';
-import { selectableChecklists } from '../../../../lib/case-checklist-match';
+import { attachChecklistFor, selectableChecklists } from '../../../../lib/case-checklist-match';
 import { caseStateLabel } from '../../../../lib/case-stages';
 import { CHECKLISTS_NOT_LOADED } from '../../../../lib/pack-labels';
 import { createKeyManagementPort } from '../../../../lib/providers';
@@ -80,11 +79,7 @@ export async function attachPackAction(
         message: 'That checklist does not fit this case. Choose one from the list.',
       } satisfies ActionState;
     }
-    const attached = await attachSelectedPackVersion(db, {
-      actorAccountId: accountId,
-      missionId,
-      packVersionId,
-    });
+    const attached = await attachChecklistFor(db, accountId, missionId, packVersionId);
     if (!attached.ok) return { ok: false, message: attached.error.message } satisfies ActionState;
     const readiness = await computeReadiness(db, missionId);
     return {

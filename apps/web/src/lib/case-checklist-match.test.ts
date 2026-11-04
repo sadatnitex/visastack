@@ -5,13 +5,17 @@ const mocks = vi.hoisted(() => ({
   readTravellerCoverage: vi.fn(),
   findMatchingPublicPack: vi.fn(),
   listFittingPublicPacks: vi.fn(),
+  getMissionForOwner: vi.fn(),
+  attachSelectedPackVersion: vi.fn(),
 }));
 vi.mock('@visastack/services', () => ({
   ...mocks,
   accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
 }));
 
-const { checklistToLink, checklistsToPick } = await import('./case-checklist-match');
+const { attachChecklistFor, checklistToLink, checklistsToPick } = await import(
+  './case-checklist-match'
+);
 
 const db = { tag: 'db' } as never;
 const ROUTE = {
@@ -71,5 +75,43 @@ describe('choosing a checklist for a case', () => {
       db,
       expect.objectContaining({ purpose: ['tourism'] }),
     );
+  });
+});
+
+describe('attachChecklistFor: the one way the web app attaches a checklist (VS-006)', () => {
+  beforeEach(() => {
+    mocks.getMissionForOwner.mockResolvedValue({ ok: true, value: { applicantId: 'person-1' } });
+    mocks.attachSelectedPackVersion.mockResolvedValue({ ok: true, value: { id: 'case-1' } });
+  });
+
+  it("attaches through the owner's MANAGE proof for the case's traveller", async () => {
+    const result = await attachChecklistFor(db, 'owner', 'case-1', 'pv-1');
+    expect(result.ok).toBe(true);
+    expect(mocks.requireAccess).toHaveBeenCalledWith(
+      db,
+      { kind: 'account', accountId: 'owner' },
+      'MANAGE',
+      { applicantId: 'person-1' },
+      { purpose: 'self' },
+    );
+    expect(mocks.attachSelectedPackVersion).toHaveBeenCalledWith(
+      { proof: true },
+      { missionId: 'case-1', packVersionId: 'pv-1' },
+    );
+  });
+
+  it("attaches nothing when the case is not the person's, or the gate refuses", async () => {
+    mocks.getMissionForOwner.mockResolvedValue({
+      ok: false,
+      error: { code: 'forbidden', message: 'no' },
+    });
+    expect((await attachChecklistFor(db, 'owner', 'case-1', 'pv-1')).ok).toBe(false);
+    mocks.getMissionForOwner.mockResolvedValue({ ok: true, value: { applicantId: 'person-1' } });
+    mocks.requireAccess.mockResolvedValue({
+      ok: false,
+      error: { code: 'not_found', message: 'no' },
+    });
+    expect((await attachChecklistFor(db, 'owner', 'case-1', 'pv-1')).ok).toBe(false);
+    expect(mocks.attachSelectedPackVersion).not.toHaveBeenCalled();
   });
 });

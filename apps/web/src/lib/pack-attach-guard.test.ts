@@ -33,10 +33,19 @@ describe('attaching a checklist from the web app (VS-006)', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('attaches through the checked function in all four places that attach', () => {
+  it('reaches the checked function only through attachChecklistFor, which holds the owner proof', () => {
     const users = files
       .filter((file) => SELECTED_ATTACH.test(readFileSync(file, 'utf8')))
       .map((file) => file.slice(SRC.length).replaceAll('\\', '/'))
+      .sort();
+    expect(users).toEqual(['/lib/case-checklist-match.ts']);
+  });
+
+  it('attaches from all four places that attach through attachChecklistFor', () => {
+    const users = files
+      .filter((file) => /\battachChecklistFor\(/.test(readFileSync(file, 'utf8')))
+      .map((file) => file.slice(SRC.length).replaceAll('\\', '/'))
+      .filter((file) => file !== '/lib/case-checklist-match.ts')
       .sort();
     expect(users).toEqual([
       '/app/app/applicant/[id]/missions/actions.ts',

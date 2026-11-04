@@ -603,7 +603,15 @@ describe('changed details inside the alert (WP-V3 part 3)', () => {
   it('reads nothing extra for a case that has not changed, and links Case History from the snapshots', async () => {
     setUp();
     const html = await render();
-    expect(mocks.requireAccess).not.toHaveBeenCalled();
+    // The only gate call is the picker's owner proof for this traveller; nothing reads changes.
+    expect(mocks.requireAccess).toHaveBeenCalledTimes(1);
+    expect(mocks.requireAccess).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'VIEW_METADATA',
+      { applicantId: 'synthetic-family' },
+      { purpose: 'self' },
+    );
     expect(html).not.toContain('class="case-changes"');
     const snapshots = html.slice(html.indexOf('id="snapshots"'));
     expect(snapshots).toContain('href="/app/applicant/synthetic-family/memory"');
@@ -1400,13 +1408,10 @@ describe('the Requirement Pack card (VS-006)', () => {
       await render(),
       'AttachPackForm',
     );
+    // Read through the owner's gate proof, not a bare account id.
     expect(mocks.listSelectablePackVersions).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        actorAccountId: 'synthetic-owner',
-        missionId: 'synthetic-case',
-        fitting: [fits],
-      }),
+      { synthetic: 'proof' },
+      expect.objectContaining({ missionId: 'synthetic-case', fitting: [fits] }),
     );
     expect(picker?.options).toEqual([
       { packVersionId: 'pv-jp', label: 'Japan Visitor · v1 · 3 requirements · review due' },

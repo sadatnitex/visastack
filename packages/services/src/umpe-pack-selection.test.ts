@@ -4,12 +4,15 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
 import { createMission, getMissionForOwner } from './missions';
+import { createOrganization, reviewOrganization } from './organizations';
 import { listFittingPublicPacks } from './pack-matching';
+import { acceptGrant, createGrant } from './sharing';
 import {
   attachSelectedPackVersion,
   listSelectablePackVersions,
@@ -124,9 +127,94 @@ describe('pack selection', () => {
     return version.id;
   }
 
-  const select = async (input: { fitting?: readonly { packVersionId: string }[] } = {}) => {
-    const listed = await listSelectablePackVersions(db, {
+  /** The gate's proof for this traveller record, as the case page and the actions get it. */
+  async function proofFor<A extends 'MANAGE' | 'VIEW_METADATA'>(
+    action: A,
+    accountId = actor,
+    forApplicant = applicantId,
+  ) {
+    const proof = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      action,
+      { applicantId: forApplicant },
+      { purpose: 'self' },
+    );
+    if (!isOk(proof)) throw new Error(`proof: ${proof.error.message}`);
+    return proof.value;
+  }
+
+  /** A stranger's own traveller record and case, so their proof is genuine but for another record. */
+  async function strangerWithCase() {
+    const account = await provisionAccount(db, { email: 'select-stranger@example.com' });
+    if (!isOk(account)) throw new Error('provision');
+    await setConsent(db, {
+      actorAccountId: account.value.id,
+      accountId: account.value.id,
+      type: 'CORE_PROCESSING',
+      granted: true,
+    });
+    const own = await createApplicant(db, {
+      actorAccountId: account.value.id,
+      ownerAccountId: account.value.id,
+      displayName: 'Stranger',
+    });
+    if (!isOk(own)) throw new Error('applicant');
+    return { accountId: account.value.id, applicantId: own.value.id };
+  }
+
+  /** A genuine MANAGE proof for an agency member the traveller shared this record with: not the owner. */
+  async function sharedMemberProof<A extends 'MANAGE' | 'VIEW_METADATA'>(action: A) {
+    const admin = await provisionAccount(db, { email: 'select-agency-admin@example.com' });
+    if (!isOk(admin)) throw new Error('provision');
+    for (const type of ['CORE_PROCESSING', 'SHARING'] as const) {
+      await setConsent(db, {
+        actorAccountId: actor,
+        accountId: actor,
+        type,
+        granted: true,
+      });
+    }
+    const org = await createOrganization(db, {
+      actorAccountId: admin.value.id,
+      name: 'Shared Agency',
+    });
+    if (!isOk(org)) throw new Error('org');
+    const reviewer = await provisionAccount(db, { email: 'select-reviewer@example.com' });
+    if (!isOk(reviewer)) throw new Error('reviewer');
+    const reviewed = await reviewOrganization(db, {
+      reviewerAccountId: reviewer.value.id,
+      organizationId: org.value.id,
+      decision: 'ACTIVE',
+      stepUpSatisfied: true,
+    });
+    if (!isOk(reviewed)) throw new Error('review');
+    const grant = await createGrant(db, {
       actorAccountId: actor,
+      applicantId,
+      recipientOrganizationId: org.value.id,
+      actions: ['VIEW_METADATA', 'COMMENT', 'MANAGE'],
+      purpose: 'collaboration',
+    });
+    if (!isOk(grant)) throw new Error(`grant: ${grant.error.message}`);
+    const accepted = await acceptGrant(db, {
+      actorAccountId: admin.value.id,
+      grantId: grant.value.id,
+    });
+    if (!isOk(accepted)) throw new Error('accept');
+    const proof = await requireAccess(
+      db,
+      accountPrincipal(admin.value.id),
+      action,
+      { applicantId },
+      { purpose: 'collaboration' },
+    );
+    if (!isOk(proof)) throw new Error(`member proof: ${proof.error.message}`);
+    return proof.value;
+  }
+
+  const select = async (input: { fitting?: readonly { packVersionId: string }[] } = {}) => {
+    const listed = await listSelectablePackVersions(await proofFor('VIEW_METADATA'), {
       missionId,
       ...input,
     });
@@ -201,8 +289,7 @@ describe('pack selection', () => {
       await pack({ name: 'Overdue', nextReviewDate: new Date('2026-10-23T00:00:00Z') });
       await pack({ name: 'Current', nextReviewDate: new Date('2027-01-01T00:00:00Z') });
       await pack({ name: 'Undated' });
-      const listed = await listSelectablePackVersions(db, {
-        actorAccountId: actor,
+      const listed = await listSelectablePackVersions(await proofFor('VIEW_METADATA'), {
         missionId,
         now,
       });
@@ -214,20 +301,32 @@ describe('pack selection', () => {
       ]);
     });
 
-    it('is closed to anyone but the case owner', async () => {
-      const stranger = await provisionAccount(db, { email: 'select-stranger@example.com' });
-      if (!isOk(stranger)) throw new Error('provision');
-      const listed = await listSelectablePackVersions(db, {
-        actorAccountId: stranger.value.id,
-        missionId,
+    it("refuses another traveller's proof as 'not found', the same as a missing case", async () => {
+      const stranger = await strangerWithCase();
+      const proof = await proofFor('VIEW_METADATA', stranger.accountId, stranger.applicantId);
+      const refused = await listSelectablePackVersions(proof, { missionId });
+      const missing = await listSelectablePackVersions(proof, {
+        missionId: '00000000-0000-4000-8000-000000000000',
       });
-      expect(isErr(listed) && listed.error.code).toBe('forbidden');
+      expect(isErr(refused) && refused.error.code).toBe('not_found');
+      expect(isErr(refused) && refused.error).toEqual(isErr(missing) && missing.error);
+    });
+
+    it('refuses a proof that is not the record owner, and a copied or wrong-action proof', async () => {
+      const member = await sharedMemberProof('VIEW_METADATA');
+      expect(member.actor.kind).not.toBe('applicant_owner');
+      const asMember = await listSelectablePackVersions(member, { missionId });
+      expect(isErr(asMember) && asMember.error.code).toBe('forbidden');
+      const owner = await proofFor('VIEW_METADATA');
+      const copy = { ...owner } as unknown as Parameters<typeof listSelectablePackVersions>[0];
+      const refusedCopy = await listSelectablePackVersions(copy, { missionId });
+      expect(isErr(refusedCopy) && refusedCopy.error.code).toBe('forbidden');
     });
   });
 
   describe('attachSelectedPackVersion', () => {
-    const attach = (packVersionId: string, actorAccountId = actor) =>
-      attachSelectedPackVersion(db, { actorAccountId, missionId, packVersionId });
+    const attach = async (packVersionId: string) =>
+      attachSelectedPackVersion(await proofFor('MANAGE'), { missionId, packVersionId });
 
     it('attaches a reviewed public pack', async () => {
       const id = await pack({});
@@ -287,12 +386,36 @@ describe('pack selection', () => {
       expect(isOk(attached) && attached.value.packVersionId).toBe(own);
     });
 
-    it('refuses a case that is not the actor', async () => {
+    it("refuses another traveller's proof as 'not found', the same as a missing case, and attaches nothing", async () => {
       const id = await pack({});
-      const stranger = await provisionAccount(db, { email: 'select-stranger2@example.com' });
-      if (!isOk(stranger)) throw new Error('provision');
-      const refused = await attach(id, stranger.value.id);
-      expect(isErr(refused) && refused.error.code).toBe('forbidden');
+      const stranger = await strangerWithCase();
+      const proof = await proofFor('MANAGE', stranger.accountId, stranger.applicantId);
+      const refused = await attachSelectedPackVersion(proof, { missionId, packVersionId: id });
+      const missing = await attachSelectedPackVersion(proof, {
+        missionId: '00000000-0000-4000-8000-000000000000',
+        packVersionId: id,
+      });
+      expect(isErr(refused) && refused.error.code).toBe('not_found');
+      expect(isErr(refused) && refused.error).toEqual(isErr(missing) && missing.error);
+      expect(await heldPack()).toBeNull();
+    });
+
+    it('refuses a proof that is not the record owner (a shared agency member), a copy and a wrong-action proof', async () => {
+      const id = await pack({});
+      const member = await sharedMemberProof('MANAGE');
+      expect(member.actor.kind).not.toBe('applicant_owner');
+      const asMember = await attachSelectedPackVersion(member, { missionId, packVersionId: id });
+      expect(isErr(asMember) && asMember.error.code).toBe('forbidden');
+      const owner = await proofFor('MANAGE');
+      const copy = { ...owner } as unknown as typeof owner;
+      const refusedCopy = await attachSelectedPackVersion(copy, { missionId, packVersionId: id });
+      expect(isErr(refusedCopy) && refusedCopy.error.code).toBe('forbidden');
+      const viewOnly = (await proofFor('VIEW_METADATA')) as unknown as typeof owner;
+      const refusedAction = await attachSelectedPackVersion(viewOnly, {
+        missionId,
+        packVersionId: id,
+      });
+      expect(isErr(refusedAction) && refusedAction.error.code).toBe('forbidden');
       expect(await heldPack()).toBeNull();
     });
 
