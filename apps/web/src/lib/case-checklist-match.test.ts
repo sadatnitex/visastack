@@ -13,9 +13,7 @@ vi.mock('@visastack/services', () => ({
   accountPrincipal: (accountId: string) => ({ kind: 'account', accountId }),
 }));
 
-const { attachChecklistFor, checklistToLink, checklistsToPick } = await import(
-  './case-checklist-match'
-);
+const { attachChecklistFor, checklistToLink } = await import('./case-checklist-match');
 
 const db = { tag: 'db' } as never;
 const ROUTE = {
@@ -60,21 +58,12 @@ describe('choosing a checklist for a case', () => {
     expect(terms.traveller.residence).toEqual({ terms: [], known: false });
   });
 
-  it('links nothing and lists nothing when the gate refuses the case', async () => {
+  it('links nothing when the gate refuses the case', async () => {
     mocks.requireAccess.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     expect(await checklistToLink(db, ROUTE)).toBeNull();
-    expect(await checklistsToPick(db, ROUTE)).toEqual([]);
     expect(mocks.readTravellerCoverage).not.toHaveBeenCalled();
     expect(mocks.findMatchingPublicPack).not.toHaveBeenCalled();
     expect(mocks.listFittingPublicPacks).not.toHaveBeenCalled();
-  });
-
-  it('lists the checklists the person could pick for the route', async () => {
-    await checklistsToPick(db, ROUTE);
-    expect(mocks.listFittingPublicPacks).toHaveBeenCalledWith(
-      db,
-      expect.objectContaining({ purpose: ['tourism'] }),
-    );
   });
 });
 

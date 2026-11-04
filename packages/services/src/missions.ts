@@ -254,7 +254,7 @@ type CreateMissionInput = {
   readonly purpose?: string;
   /** IAM-04: an optional free-text label linking this mission to other missions as one family trip. Display/reference only, never an access mechanism (see `itineraryRef`'s own schema comment). */
   readonly itineraryRef?: string;
-  /** CAS-01 case-creation fields (Commercial V1 Part 4 §8). All optional and purely descriptive: none of them gate any authorization decision anywhere else. */
+  /** CAS-01 case-creation fields (Commercial V1 Part 4 §8). All optional and purely descriptive: none of them gate any authorization decision anywhere else. The one exception is `ownerOrganizationId` (set from an accepted agency invitation): it decides which of that agency's private checklists the case owner may pick, never access to anyone's records. */
   readonly jurisdiction?: string;
   readonly serviceCategory?: string;
   readonly travelStartDate?: Date;

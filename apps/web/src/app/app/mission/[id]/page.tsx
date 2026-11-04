@@ -1133,7 +1133,7 @@ export default async function MissionPage({
         ) : null}
         {sourceLine || sourceHref || citationText ? (
           <span className="muted u-fs-075">
-            Source: {sourceLine || citationText}
+            Source{sourceLine || citationText ? `: ${sourceLine || citationText}` : ''}
             {r.observedDate ? ` · reviewed ${formatDateOnly(r.observedDate)}` : ''}
             {sourceHref ? (
               <>

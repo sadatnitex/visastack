@@ -18,8 +18,3 @@ Keep this file between 250 and 400 words. Memory between sessions; evidence live
 ## How to update
 
 After every package: update every line above with exact checks and outcomes on the current head SHA. Say "not verified" where that is the truth.
-
-## Product Excellence, Lane D (evidence request exact copies)
-
-- Done in branch: migration 0132 written (two new tables, generated), locked send and decision, exact-copy list and agency original download, both web callers updated. Not merged, not deployed.
-- Not run: migration 0132 in production (needs the owner's word "migrate 0132"); not verified: two-account browser proof, so "exact version custody" is not live. Decision D1 in ADR 0026 addendum 8 awaits the owner.
