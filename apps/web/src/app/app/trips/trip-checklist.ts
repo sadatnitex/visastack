@@ -1,4 +1,4 @@
-import { type Db, attachPackVersion } from '@visastack/services';
+import { type Db, attachSelectedPackVersion } from '@visastack/services';
 import { checklistToLink } from '../../../lib/case-checklist-match';
 import {
   caseCountryOptions,
@@ -34,7 +34,7 @@ export async function linkTripChecklist(
       purpose: purposeMatchTerms(purpose),
     });
     if (!match) return;
-    const attached = await attachPackVersion(db, {
+    const attached = await attachSelectedPackVersion(db, {
       actorAccountId: accountId,
       missionId,
       packVersionId: match.packVersionId,

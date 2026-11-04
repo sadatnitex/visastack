@@ -4,6 +4,7 @@ import {
   REMOVAL_STATUS_LABELS,
   RemovalRecordList,
   type RemovalRecordRow,
+  removalRecordDetail,
   removalRecordSentence,
 } from './removal-record-list';
 
@@ -65,6 +66,41 @@ describe('removal record sentences', () => {
       'Removed',
       'Kept (Legal Requirement)',
     ]);
+  });
+});
+
+describe('who asked and when', () => {
+  const asked = '2026-11-03T14:05:00Z';
+  it('says the account and the moment in UTC, and nothing about the person', () => {
+    expect(removalRecordDetail(row({ requestedAt: asked, requestedBy: 'OWNER_ACCOUNT' }))).toBe(
+      'Asked from your account on 3 Nov 2026 at 14:05 UTC.',
+    );
+    expect(removalRecordDetail(row({ requestedAt: asked, requestedBy: 'ANOTHER_ACCOUNT' }))).toBe(
+      'Asked from another account on 3 Nov 2026 at 14:05 UTC.',
+    );
+    expect(removalRecordDetail(row({ requestedAt: asked, requestedBy: 'NOT_RECORDED' }))).toBe(
+      'Recorded on 3 Nov 2026 at 14:05 UTC.',
+    );
+  });
+  it('adds support approval only when support approved it', () => {
+    expect(
+      removalRecordDetail(
+        row({ requestedAt: asked, requestedBy: 'OWNER_ACCOUNT', approvedBy: 'SUPPORT' }),
+      ),
+    ).toBe('Asked from your account on 3 Nov 2026 at 14:05 UTC. Approved by VisaStack support.');
+  });
+  it('shows no detail line for a row that carries none, and renders it under the sentence', () => {
+    expect(removalRecordDetail(row())).toBeNull();
+    const html = renderToStaticMarkup(
+      <RemovalRecordList
+        records={[row({ requestedAt: asked, requestedBy: 'OWNER_ACCOUNT' })]}
+        now={NOW}
+      />,
+    );
+    expect(html).toContain('Asked from your account on 3 Nov 2026 at 14:05 UTC.');
+    expect(renderToStaticMarkup(<RemovalRecordList records={[row()]} now={NOW} />)).not.toContain(
+      'Asked from',
+    );
   });
 });
 

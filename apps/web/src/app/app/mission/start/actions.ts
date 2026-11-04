@@ -3,7 +3,7 @@
 import {
   type Db,
   accountPrincipal,
-  attachPackVersion,
+  attachSelectedPackVersion,
   openOrStartTripCase,
   requireAccess,
 } from '@visastack/services';
@@ -56,7 +56,7 @@ async function linkChecklistIfOneFits(
       purpose: purposeMatchTerms(purpose),
     });
     if (!match) return;
-    const attached = await attachPackVersion(db, {
+    const attached = await attachSelectedPackVersion(db, {
       actorAccountId: accountId,
       missionId,
       packVersionId: match.packVersionId,

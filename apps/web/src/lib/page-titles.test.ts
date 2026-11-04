@@ -78,6 +78,11 @@ describe('page titles', () => {
     // D3: the page is "Notifications", as the menu and the finder name it (CCD-7).
     expect(titleOf('app/notifications/page.tsx')).toBe('Notifications');
     expect(titleOf('app/shared/(list)/page.tsx')).toBe('Shared with Me');
+    // VS-010: /trust opens on the privacy and control story, and the footer link names it so.
+    expect(titleOf('trust/page.tsx')).toBe('Privacy and Control');
+    expect(readFileSync(join(APP_DIR, 'layout.tsx'), 'utf8')).toContain(
+      '<Link href="/trust">Privacy and Control</Link>',
+    );
     expect(titleOf('app/applicant/[id]/documents/page.tsx')).toBe('Documents');
     expect(titleOf('app/applicant/[id]/missions/page.tsx')).toBe('Cases');
   });

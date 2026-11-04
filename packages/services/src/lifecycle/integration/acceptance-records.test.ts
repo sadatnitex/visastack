@@ -250,7 +250,7 @@ describe('Records', () => {
       expect(byAdmin.ok && byAdmin.value.map((r) => r.id).sort()).toEqual(
         mine.ok ? mine.value.map((r) => r.id).sort() : [],
       );
-      // Codes, kinds, dates and counts only: never who asked or approved.
+      // Codes, kinds, dates, counts and coarse words only: never the account that asked or approved.
       for (const record of mine.ok ? mine.value : []) {
         expect(Object.keys(record)).not.toContain('requestedByAccountId');
         expect(Object.keys(record)).not.toContain('approvedByAccountId');

@@ -98,6 +98,29 @@ describe('caseWelcomeCopy: what a new case says to do first, from what it holds'
     expect(copy.body.join(' ')).not.toMatch(/approved|ready to submit|guarantee/i);
     expect(copy.action.href).toBe('#evidence');
   });
+
+  it('keeps the plain none-yet words when the only reason is that nothing is reviewed', () => {
+    const copy = caseWelcomeCopy({
+      packName: null,
+      checklists: { kind: 'none', reasons: ['NO_REVIEWED_CHECKLIST'] },
+      firstGapHref: null,
+    });
+    expect(copy.body.join(' ')).toContain('There is no checklist for this route yet');
+  });
+
+  it('says why a reviewed checklist was not linked, without a link or a promise (VS-006)', () => {
+    const copy = caseWelcomeCopy({
+      packName: null,
+      checklists: { kind: 'none', reasons: ['OTHER_NATIONALITY', 'OTHER_APPLICATION_POST'] },
+      firstGapHref: null,
+    });
+    const text = copy.body.join(' ');
+    expect(text).toContain(
+      'A reviewed checklist exists for this route, but none of them fits this case. They are written for travellers of other nationalities or a different embassy or visa centre than the one on this case, so none was linked.',
+    );
+    expect(text).not.toMatch(/http|gov\.uk|official source|approved|guarantee/i);
+    expect(copy.action.href).toBe('#evidence');
+  });
 });
 
 describe('CaseWelcome', () => {

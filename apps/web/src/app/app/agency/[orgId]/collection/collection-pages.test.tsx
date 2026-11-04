@@ -418,6 +418,12 @@ describe('Document Requests pages', () => {
     expect(text).toContain('This revision no longer matches what was issued');
     expect(text).toContain('Copied Link');
     expect(text).not.toMatch(/\bdelivered\b/i);
+    // VS-018: answering through the link is built (the /collect desk), so the page says how it
+    // works and its real limit instead of saying it opens in a later release.
+    expect(text).not.toMatch(/later release|opens in a later|shows only who/i);
+    expect(text).toContain('one-time code sent to the email address you entered');
+    expect(text).toContain('choose Submit Documents. Nothing reaches you before that.');
+    expect(text).toContain('Each file can be up to 4 MB.');
   });
 
   it('end: a revoked request offers no editing, sharing or ending', async () => {

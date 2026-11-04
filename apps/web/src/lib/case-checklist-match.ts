@@ -1,15 +1,20 @@
 import {
   type Db,
+  type NoPackReason,
   type PackMatch,
   type PackMatchTerms,
+  type SelectablePackVersion,
   type TravellerMatchTerms,
   accountPrincipal,
+  explainNoFittingPack,
   findMatchingPublicPack,
   listFittingPublicPacks,
+  listSelectablePackVersions,
   readTravellerCoverage,
   requireAccess,
 } from '@visastack/services';
-import { travellerMatchTerms } from './case-choices';
+import { savedCaseMatchTerms, travellerMatchTerms } from './case-choices';
+import { reportServerError } from './server-error';
 
 /**
  * The published checklists that fit a case, worked out the same way when a case is started (to
@@ -85,3 +90,80 @@ export async function checklistsToPick(db: Db, route: CaseRoute): Promise<readon
   const terms = await termsFor(db, route);
   return terms ? listFittingPublicPacks(db, terms) : [];
 }
+
+/**
+ * Why no checklist fits this case, for words on the case page (VS-006). Empty when one fits. A
+ * refused gate gives no reasons, never a guess.
+ */
+export async function whyNoChecklist(db: Db, route: CaseRoute): Promise<readonly NoPackReason[]> {
+  const terms = await termsFor(db, route);
+  return terms ? explainNoFittingPack(db, terms) : [];
+}
+
+/**
+ * The checklists this person may pick for the case (VS-006): reviewed public checklists that fit
+ * the case's destination and purpose once it names them, plus the case's own agency checklists.
+ * An unreviewed test checklist and another agency's checklist are never in it. Fails closed: if
+ * the fit cannot be worked out, no public checklist is offered rather than every one.
+ */
+export async function selectableChecklists(
+  db: Db,
+  input: {
+    readonly accountId: string;
+    readonly mission: {
+      readonly id: string;
+      readonly destination: string | null;
+      readonly purpose: string | null;
+    };
+  },
+): Promise<SelectableChecklists> {
+  const { accountId, mission } = input;
+  const route = savedCaseMatchTerms(mission.destination, mission.purpose);
+  let fitting: readonly PackMatch[] | null = null;
+  let lookupFailed = false;
+  if (route) {
+    try {
+      const terms = await termsFor(db, { accountId, missionId: mission.id, ...route });
+      // A refused gate means the case's details could not be read: never "nothing fits".
+      if (terms) fitting = await listFittingPublicPacks(db, terms);
+      else lookupFailed = true;
+    } catch (error) {
+      reportServerError('MissionPage', error, { step: 'selectable checklists' });
+      lookupFailed = true;
+    }
+    // Without a fit, no public checklist is offered rather than every one.
+    if (lookupFailed) fitting = [];
+  }
+  const listed = await listSelectablePackVersions(db, {
+    actorAccountId: accountId,
+    missionId: mission.id,
+    ...(fitting ? { fitting } : {}),
+  });
+  if (!listed.ok) {
+    reportServerError('MissionPage', new Error(listed.error.code), {
+      step: 'list selectable checklists',
+    });
+    return { options: [], fitting, lookupFailed: true };
+  }
+  return { options: listed.value, fitting, lookupFailed };
+}
+
+/** What a person may pick for a case, and the fit it was worked out from. */
+export interface SelectableChecklists {
+  readonly options: readonly SelectablePackVersion[];
+  /** The reviewed public checklists that fit the case's route; null when the case names no route. */
+  readonly fitting: readonly PackMatch[] | null;
+  /**
+   * True when the checklists could not be looked up (a failed read, or the case's details could
+   * not be read). Then no public checklist is offered, and the page says it could not load them
+   * instead of saying none exists.
+   */
+  readonly lookupFailed: boolean;
+}
+
+/** For a case that already holds a checklist, which has nothing to pick. */
+export const NOTHING_TO_PICK: SelectableChecklists = {
+  options: [],
+  fitting: null,
+  lookupFailed: false,
+};

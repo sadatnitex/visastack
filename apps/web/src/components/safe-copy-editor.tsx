@@ -10,6 +10,9 @@ import {
 } from '@visastack/core/redaction-boxes';
 import { type KeyboardEvent, type PointerEvent, useEffect, useId, useRef, useState } from 'react';
 import { SafeCopyDownload, readMessage } from './safe-copy-download';
+import { SAFE_COPY_STATE_LABELS, type SafeCopyStateName } from './safe-copy-state';
+
+export type { SafeCopyStateName };
 
 /**
  * Safe Copy (ADR 0022, S23): the owner's section on the documents page for hiding parts of a
@@ -35,23 +38,6 @@ import { SafeCopyDownload, readMessage } from './safe-copy-download';
  *   Only the black boxes are hidden." Nothing to Hide on This Document is its own explicit choice.
  * - Every change is announced in a polite status line; errors use an alert.
  */
-
-export type SafeCopyStateName =
-  | 'NOT_PREPARED'
-  | 'PREPARING'
-  | 'MASKED'
-  | 'NOTHING_TO_HIDE'
-  | 'UNSUPPORTED'
-  | 'TOO_LARGE';
-
-export const SAFE_COPY_STATE_LABELS: Readonly<Record<SafeCopyStateName, string>> = {
-  NOT_PREPARED: 'Safe Copy: Not Prepared Yet',
-  PREPARING: 'Safe Copy: Preparing',
-  MASKED: 'Safe Copy: Ready',
-  NOTHING_TO_HIDE: 'Safe Copy: Ready, Nothing Hidden',
-  UNSUPPORTED: 'Safe Copy: Not Available',
-  TOO_LARGE: 'Safe Copy: Too Large',
-};
 
 export type SuggestionReason = 'mrz' | 'identifier' | 'account_number';
 

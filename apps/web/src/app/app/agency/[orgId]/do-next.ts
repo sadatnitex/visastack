@@ -21,11 +21,9 @@ import { type TriageDocumentState, evidenceRequestTriageGroup } from '@visastack
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { documentTypeLabel, titleCase } from '../../../../lib/labels';
 import { fieldLabel } from '../../../../lib/master-profile';
+import { caseAnchorId } from './case-anchor';
 import { type DueTask, daysUntilDue, overdueTasks } from './console-format';
 import { type FollowUpMessage, buildFollowUpMessage } from './follow-up-message';
-
-/** The Cases page anchor for one case (its row id is `mission-<id>`, a stored name kept in code). */
-const CASE_ANCHOR = '/cases#mission-';
 
 export type DoNextTier = 1 | 2 | 3 | 4;
 
@@ -270,7 +268,7 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
       (a, b) => time(a.dueDate) - time(b.dueDate),
     );
     const oldest = late[0];
-    const href = `${input.base}${CASE_ANCHOR}${c.missionId}`;
+    const href = `${input.base}/cases#${caseAnchorId(c.missionId)}`;
     if (oldest?.dueDate) {
       const count = late.length;
       ranked.push({

@@ -18,6 +18,7 @@ import { createTranslator } from '@visastack/i18n';
 import {
   type ChangesSinceConfirmed,
   type Db,
+  type NoPackReason,
   type OverallReadinessState,
   type RequirementResultState,
   accountPrincipal,
@@ -36,6 +37,7 @@ import {
   getPackVersion,
   grantReachesCase,
   isFactStatusEligible,
+  isFillerCitation,
   latestSourceChecks,
   legalTransitions,
   listAccessForApplicant,
@@ -52,13 +54,13 @@ import {
   listNotesForOwner,
   listOutcomeAttempts,
   listOutcomesForMission,
-  listPublishedPackVersions,
   listRequirementDetails,
   listRequirements,
   listSelectedEvidence,
   listSubmissionsForMission,
   listTasks,
   localDate,
+  pinnedPackNotice,
   referenceCodeFor,
   requireAccess,
   safeHttpUrl,
@@ -80,7 +82,12 @@ import { Disclosure, PageHeader, StatusBadge } from '../../../../components/ui';
 import { isExplanationConfigured } from '../../../../lib/ai';
 import { memoryHref } from '../../../../lib/application-memory-labels';
 import { bookingReminderFor } from '../../../../lib/booking-reminder';
-import { checklistsToPick } from '../../../../lib/case-checklist-match';
+import {
+  NOTHING_TO_PICK,
+  type SelectableChecklists,
+  selectableChecklists,
+  whyNoChecklist,
+} from '../../../../lib/case-checklist-match';
 import { savedCaseMatchTerms } from '../../../../lib/case-choices';
 import { CASE_STATE_LABELS, caseStateLabel, stageButtonStates } from '../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../lib/ccd/depth-copy';
@@ -89,6 +96,13 @@ import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { getLocale } from '../../../../lib/locale';
 import { fieldLabel } from '../../../../lib/master-profile';
+import {
+  CHECKLISTS_NOT_LOADED,
+  noChecklistLines,
+  packBadge,
+  packCoverageLine,
+  packNoticeLine,
+} from '../../../../lib/pack-labels';
 import {
   type SearchParamsRecord,
   TRAVELLER_LIST_STEP,
@@ -224,12 +238,42 @@ function madeJustNow(createdAt: Date | string): boolean {
 }
 
 /**
- * For the welcome note of a case with no checklist: whether published checklists fit its country
- * and purpose and may cover its traveller. A case that names no country or no purpose has no route
- * to narrow by, so it is offered the picker when any checklist is published. A failed check is
+ * For the welcome note of a case with no checklist: whether reviewed checklists fit its country
+ * and purpose and may cover its traveller, worked out once for the picker (`choices`). A case that
+ * names no country or no purpose has no route to narrow by, so it is offered the picker when any
+ * checklist may be picked. Reviewed checklists that do not fit but exist are `none` with the
+ * reason (`reasons`); an agency's own checklist still offers the picker. A failed check is
  * `unknown`, never a guess.
  */
-async function welcomeChecklists(
+function welcomeChecklists(
+  choices: SelectableChecklists,
+  reasons: readonly NoPackReason[],
+): WelcomeChecklists {
+  if (choices.lookupFailed) return { kind: 'unknown' };
+  const { fitting } = choices;
+  if (fitting === null) {
+    return choices.options.length > 0
+      ? { kind: 'pick', travellerUnconfirmed: false }
+      : { kind: 'none' };
+  }
+  if (fitting.length === 0) {
+    return choices.options.length > 0
+      ? { kind: 'pick', travellerUnconfirmed: false }
+      : { kind: 'none', reasons };
+  }
+  const caseDetailsNeeded = [...new Set(fitting.flatMap((checklist) => checklist.needs ?? []))];
+  return {
+    kind: 'pick',
+    travellerUnconfirmed: fitting.some((checklist) => !checklist.coversTraveller),
+    ...(caseDetailsNeeded.length > 0 ? { caseDetailsNeeded } : {}),
+  };
+}
+
+/**
+ * Why a case with a route has no reviewed checklist to pick (VS-006), or none when one fits, the
+ * case names no route, or the check failed. Read only to explain; it never changes what is offered.
+ */
+async function noChecklistReasons(
   db: Db,
   accountId: string,
   mission: {
@@ -237,24 +281,15 @@ async function welcomeChecklists(
     readonly destination: string | null;
     readonly purpose: string | null;
   },
-  publishedCount: number,
-): Promise<WelcomeChecklists> {
+  choices: SelectableChecklists,
+): Promise<readonly NoPackReason[]> {
   const route = savedCaseMatchTerms(mission.destination, mission.purpose);
-  if (!route) {
-    return publishedCount > 0 ? { kind: 'pick', travellerUnconfirmed: false } : { kind: 'none' };
-  }
+  if (!route || choices.lookupFailed || (choices.fitting?.length ?? 0) > 0) return [];
   try {
-    const fitting = await checklistsToPick(db, { accountId, missionId: mission.id, ...route });
-    if (fitting.length === 0) return { kind: 'none' };
-    const caseDetailsNeeded = [...new Set(fitting.flatMap((checklist) => checklist.needs ?? []))];
-    return {
-      kind: 'pick',
-      travellerUnconfirmed: fitting.some((checklist) => !checklist.coversTraveller),
-      ...(caseDetailsNeeded.length > 0 ? { caseDetailsNeeded } : {}),
-    };
+    return await whyNoChecklist(db, { accountId, missionId: mission.id, ...route });
   } catch (error) {
-    reportServerError('MissionPage', error, { step: 'welcome checklists' });
-    return { kind: 'unknown' };
+    reportServerError('MissionPage', error, { step: 'no checklist reasons' });
+    return [];
   }
 }
 
@@ -402,7 +437,7 @@ export default async function MissionPage({
       requirements,
       packVersionRow,
       snapshots,
-      packs,
+      choices,
       tasks,
       letters,
       selections,
@@ -427,7 +462,9 @@ export default async function MissionPage({
         ? getPackVersion(db, mission.packVersionId)
         : Promise.resolve(undefined),
       listMissionSnapshots(db, accountId, mission.id, { limit: SNAPSHOTS_ON_PAGE }),
-      listPublishedPackVersions(db),
+      mission.packVersionId
+        ? Promise.resolve(NOTHING_TO_PICK)
+        : selectableChecklists(db, { accountId, mission }),
       listTasks(db, accountId, mission.id, { limit: shown.tasks }),
       listGeneratedOutputs(db, accountId, mission.id),
       listSelectedEvidence(db, accountId, mission.id),
@@ -715,12 +752,15 @@ export default async function MissionPage({
     const referenceCode = await referenceCodeFor(db, 'C', mission.id);
     // The welcome note greets a case that was just made; an old case opened with the same address
     // shows none. `checklists` is null when the case already has one linked.
+    // VS-006: when reviewed checklists exist for the route but none fits, or none exists, the
+    // reason is worked out once and shared by the welcome note and the Requirement Pack card.
+    const emptyReasons = mission.packVersionId
+      ? []
+      : await noChecklistReasons(db, accountId, mission, choices);
     const welcomeNote =
       welcomeAsked && madeJustNow(mission.createdAt)
         ? {
-            checklists: mission.packVersionId
-              ? null
-              : await welcomeChecklists(db, accountId, mission, packs.length),
+            checklists: mission.packVersionId ? null : welcomeChecklists(choices, emptyReasons),
           }
         : null;
     return {
@@ -808,9 +848,17 @@ export default async function MissionPage({
       packInfo: pack
         ? {
             name: pack.name,
-            authoritative: pack.authoritative,
-            route: pack.route,
-            jurisdiction: pack.jurisdiction,
+            badge: packBadge(pack).label,
+            reviewed: packBadge(pack).reviewed,
+            coverage: packCoverageLine(pack),
+            notice: packNoticeLine(
+              packVersionRow
+                ? pinnedPackNotice(packVersionRow, {
+                    authoritative: pack.authoritative,
+                    ownerOrganizationId: pack.ownerOrganizationId ?? null,
+                  })
+                : null,
+            ),
             effectiveDate: packVersionRow?.effectiveDate
               ? packVersionRow.effectiveDate.toISOString()
               : null,
@@ -855,12 +903,18 @@ export default async function MissionPage({
         title: m.title,
         applicantName: linkedApplicantNames.get(m.applicantId) ?? 'Traveller',
       })),
-      packOptions: packs.map(
+      packOptions: choices.options.map(
         (p): PackOption => ({
           packVersionId: p.packVersionId,
-          label: `${p.packName} · v${p.version} · ${p.requirementCount} requirement${p.requirementCount === 1 ? '' : 's'}`,
+          label: `${p.packName} · v${p.version} · ${p.requirementCount} requirement${p.requirementCount === 1 ? '' : 's'}${p.reviewOverdue ? ' · review due' : ''}`,
         }),
       ),
+      noChecklistLines: choices.lookupFailed
+        ? [CHECKLISTS_NOT_LOADED]
+        : noChecklistLines(emptyReasons, {
+            destination: mission.destination,
+            purpose: mission.purpose,
+          }),
       selfReviewed,
       contributorRequests: contributorRequests.ok
         ? contributorRequests.value.map((r) => ({
@@ -1007,6 +1061,8 @@ export default async function MissionPage({
         : [];
     const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
     const sourceHref = safeHttpUrl(r.sourceUrl);
+    // A citation that only fills the box ("Yes", "n/a") is not a source, so it is not shown as one.
+    const citationText = r.citation && !isFillerCitation(r.citation) ? r.citation : '';
     const bookingReminder =
       r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION'
         ? bookingReminderFor(r.kind, r.key)
@@ -1075,9 +1131,9 @@ export default async function MissionPage({
             {data.evidenceLifecycle.chosenByRequirement[r.packRequirementId]?.join(', ')}
           </span>
         ) : null}
-        {r.citation ? (
+        {sourceLine || sourceHref || citationText ? (
           <span className="muted u-fs-075">
-            Cite: {sourceLine || r.citation}
+            Source: {sourceLine || citationText}
             {r.observedDate ? ` · reviewed ${formatDateOnly(r.observedDate)}` : ''}
             {sourceHref ? (
               <>
@@ -1712,7 +1768,7 @@ export default async function MissionPage({
               <p className="card-kicker">Case</p>
               <h2 className="card-title">Case Details</h2>
               <p className="card-body">
-                {mission.jurisdiction || 'Jurisdiction not set'}
+                {mission.jurisdiction || 'Embassy or visa centre not set'}
                 {mission.serviceCategory ? ` · ${mission.serviceCategory}` : ''}
               </p>
               <p className="muted">
@@ -1750,19 +1806,18 @@ export default async function MissionPage({
                   >
                     <span className="card-body u-m-0">{data.packInfo.name}</span>
                     <span
-                      className={`badge ${data.packInfo.authoritative ? 'badge-success' : 'badge-neutral'}`}
+                      className={`badge ${data.packInfo.reviewed ? 'badge-success' : 'badge-neutral'}`}
                     >
-                      {data.packInfo.authoritative
-                        ? 'Official Requirement Pack'
-                        : 'Agency Custom Checklist'}
+                      {data.packInfo.badge}
                     </span>
                   </div>
-                  {data.packInfo.jurisdiction || data.packInfo.route ? (
+                  {data.packInfo.coverage ? (
                     <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-                      {[data.packInfo.jurisdiction, data.packInfo.route]
-                        .filter(Boolean)
-                        .join(' · ')}
+                      {data.packInfo.coverage}
                     </p>
+                  ) : null}
+                  {data.packInfo.notice ? (
+                    <p className="muted u-fs-085 u-mt-050">{data.packInfo.notice}</p>
                   ) : null}
                   {data.packInfo.effectiveDate ? (
                     <p
@@ -1775,10 +1830,19 @@ export default async function MissionPage({
                 </>
               ) : (
                 <>
-                  <p className="card-body u-mb-100">
-                    Pick a checklist: attach a published requirement pack to see how many items are
-                    ready.
-                  </p>
+                  {data.packOptions.length === 0 ? (
+                    // VS-006: no reviewed checklist to pick. Say so and why, and promise nothing.
+                    data.noChecklistLines.map((line) => (
+                      <p className="card-body u-mb-100" key={line}>
+                        {line}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="card-body u-mb-100">
+                      Pick a checklist: attach a published requirement pack to see how many items
+                      are ready.
+                    </p>
+                  )}
                   <AttachPackForm
                     missionId={mission.id}
                     options={data.packOptions}

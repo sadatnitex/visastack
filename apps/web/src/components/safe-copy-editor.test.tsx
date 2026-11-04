@@ -3,7 +3,8 @@ import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isTitleCase } from '../lib/title-case';
-import { SAFE_COPY_STATE_LABELS, SafeCopyEditor, boxKeyAction } from './safe-copy-editor';
+import { SafeCopyEditor, boxKeyAction } from './safe-copy-editor';
+import { SAFE_COPY_STATE_LABELS } from './safe-copy-state';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

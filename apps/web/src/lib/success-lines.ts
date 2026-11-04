@@ -9,11 +9,11 @@ import { readyNote } from './readiness-words';
 
 type Counts = Parameters<typeof readyNote>[0];
 
-/** A file was uploaded. It counts toward a checklist only after its safety scan, so no count is promised. */
+/** A file was uploaded. It counts toward a checklist only after its checks, so no count is promised. */
 export function documentAddedLine(typeLabel: string | null, duplicateNote = ''): string {
   const first = typeLabel
-    ? `${typeLabel} added. It counts toward a checklist once its safety scan finishes.`
-    : 'Document added. Set its type so it can count toward a checklist once its safety scan finishes.';
+    ? `${typeLabel} added. It counts toward a checklist once its checks finish.`
+    : 'Document added. Set its type so it can count toward a checklist once its checks finish.';
   return `${first}${duplicateNote}`;
 }
 

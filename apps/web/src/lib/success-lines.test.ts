@@ -96,7 +96,7 @@ describe('success lines', () => {
 
   it('promise no count for a file that is still being checked', () => {
     expect(lines.documentAddedLine('Passport')).toBe(
-      'Passport added. It counts toward a checklist once its safety scan finishes.',
+      'Passport added. It counts toward a checklist once its checks finish.',
     );
     expect(lines.documentAddedLine('Passport')).not.toMatch(/\d/);
   });
