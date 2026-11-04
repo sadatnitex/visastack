@@ -208,7 +208,7 @@ Baseline: `baseline/privacy.json`, two states (no consent changes yet; consent h
 
 ## 10. Evidence Requests (`/app/applicant/{id}/evidence`)
 
-Baseline: `baseline/evidence.json`, five states (no requests; two waiting, one received, one accepted, with a question asked; one sent back with a reason; nothing waiting; requests could not be read). Stubbed forms are counted. Test: `parity-evidence.test.tsx`.
+Baseline: `baseline/evidence.json`, six states (no requests; two waiting, one received, one accepted, with a question asked; one sent back with a reason; one sent back with the copy to replace still among the documents (added 4 Nov 2026, Lane E: the entry was added to the file, no earlier entry was changed); nothing waiting; requests could not be read). Stubbed forms and panels are counted. Test: `parity-evidence.test.tsx`.
 
 | What it is | Level it lives at now | Condition (unchanged) |
 |---|---|---|
@@ -221,9 +221,15 @@ Baseline: `baseline/evidence.json`, five states (no requests; two waiting, one r
 | Requests already answered or closed (received, accepted, cancelled) | Browse | as before |
 | Your Questions and the link to replies in the case notes | Browse | questions asked |
 | Ask the Agency About This Item, and the "asked several questions" line | Everything | a case and a reference |
+| The copy picker inside the reply form (Lane E, 4 Nov 2026): the heading Choose the Copy to Send, each copy by name, kind, time added and how it was checked, the Newest and Sent Back by the Agency marks, the plain reason a copy cannot be sent yet, and the line saying what sending means for the exact copy | Glance, with the reply form it belongs to (tested) | a document request waiting on the person |
+| Upload a Clearer Copy (the Replace with a Newer Document steps, opened from the copy the agency sent back) | Glance (tested), so the way forward is never hidden | request sent back, the sent back copy still an everyday copy |
+| Add Documents, in its place | Glance | request sent back, no sendable copy, the sent back copy no longer an everyday copy |
+| Your documents could not be loaded. Refresh to try again. | Every level, as an alert in the reply form | the documents or their states could not be read |
 | Requests that could not be read | Every level: "Your requests could not be loaded. Refresh to try again." (was the empty state, which claimed there were none; approved change) | read failed |
 
 Links from notifications (`#request-{id}`) open the level that shows the request.
+
+Agency side (not a depth screen, so no baseline): on the agency Clients page each document request that has a copy sent shows that exact copy (name when sent, kind, which send, when, size, a short fingerprint, how it was checked, "Received is not Accepted"), earlier sends folded under "Earlier Sends (N)" with their state, time and the agency's own reason, and Download Sent File only where the service says the file can be opened. The Accept, reason and Cancel buttons are the same; they now post which copy the reviewer was shown. Test: `evidence-copies.test.tsx`, `evidence-request-actions.test.tsx`, `clients/page.test.tsx`.
 
 ## 11. Sharing (`/app/applicant/{id}/sharing`)
 

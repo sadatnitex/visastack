@@ -144,3 +144,15 @@ Added 3 Nov 2026 (UMPE P13, three traveller entry points; locked contract sectio
 | More Tools entries added | Group Trips (P5 page), Answers to Agencies (P7 page "Your Answers to Agencies") | "Agency Responses" | **New (P13)**: first menu entry for both pages |
 | Home's task row | Start Here: Add Documents, Start a Trip, Answer a Request (or See Sharing & Requests) | "Quick Start", "Get Started" | **New (P13)** |
 | A package change or checklist update beside a case on Home | Trip Package Changed, Checklist Updated; the history line "Every earlier change is kept in Notifications." | "Rule Impact", "Package Delta", "Drift" | **New (P13)** |
+
+Added 4 Nov 2026 (Lane E, the evidence loop between a traveller and an agency):
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The heading over the files a traveller can send for a document request | Choose the Copy to Send (a detail request: Choose the Detail to Send) | "Choose the Document to Send" | **New (Lane E)** |
+| The marks on a copy in that list | Newest; Sent Back by the Agency | "Latest", "Rejected", "Declined" | **New (Lane E)** |
+| The action that starts a better file after the agency sent one back | Upload a Clearer Copy (when no file of that kind can be added from the request, Add Documents) | "Replace", "Re-upload", "Fix This File" | **New (Lane E)**: it opens the existing Replace with a Newer Document steps and never sends anything by itself |
+| The agency's button to get the file a traveller sent | Download Sent File: it downloads the original after the person confirms it is them; there is no preview | "Open Sent File", "Preview", "View File" | **New (Lane E)** |
+| The agency's card for the copy waiting for a decision, and the folded older ones | Copy Waiting for Your Decision, Accepted Copy, Earlier Sends (N) | "Latest Version", "History" | **New (Lane E)** |
+| A send made before exact copies were kept | Sent before exact versions were kept (the wording the service gives) | "Unknown Version", "Legacy" | **New (Lane E)** |
+
