@@ -363,7 +363,9 @@ describe('the page address handed to the workspace render', () => {
         const response = await build({ auth: handler, enabled })(get(path), EVENT);
         expect(calls).toHaveLength(1);
         expect((calls[0] as NextRequest).headers.get(PATHNAME_REQUEST_HEADER)).toBe(path);
-        expect(forwardedHeaders(response as Response).get(PATHNAME_REQUEST_HEADER), path).toBe(path);
+        expect(forwardedHeaders(response as Response).get(PATHNAME_REQUEST_HEADER), path).toBe(
+          path,
+        );
       }
     }
   });

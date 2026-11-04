@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useActionState, useId, useRef, useState } from 'react';
+import { CountryField } from '../../../../components/country-field';
 import {
   FormMessage,
   SubmitButton,
@@ -38,7 +39,6 @@ export function TripStartForm({
   const id = useId();
   const messageId = `${id}-msg`;
   // Controlled, so a refused try (for example nobody ticked) keeps what was already chosen.
-  const [destination, setDestination] = useState('');
   const [purpose, setPurpose] = useState('');
   const [chosen, setChosen] = useState<ReadonlySet<string>>(
     () => new Set(travellers.length === 1 && travellers[0] ? [travellers[0].applicantId] : []),
@@ -55,23 +55,13 @@ export function TripStartForm({
       <label className="label" htmlFor={`${id}-destination`}>
         Where Are You Going?
       </label>
-      <select
+      <CountryField
         id={`${id}-destination`}
-        name="destination"
-        className="input"
-        value={destination}
-        onChange={(e) => setDestination(e.target.value)}
-        {...fieldProblem(state, 'destination', messageId)}
-      >
-        <option value="" disabled>
-          Choose a Country
-        </option>
-        {countries.map((country) => (
-          <option key={country.iso2} value={country.iso2}>
-            {country.name}
-          </option>
-        ))}
-      </select>
+        countries={countries}
+        placeholder="For example: Japan"
+        hint="Type a name or open the list."
+        problem={fieldProblem(state, 'destination', messageId)}
+      />
       <label className="label" htmlFor={`${id}-purpose`}>
         Why?
       </label>
