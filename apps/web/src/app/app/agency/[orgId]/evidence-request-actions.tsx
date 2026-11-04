@@ -20,15 +20,31 @@ const REASON_PLACEHOLDER: Record<
   CORRECTION_PROPOSED: 'The correction you suggest, and why',
 };
 
-/** The requesting org's side of a request awaiting their attention: start review, accept, ask for a replacement, or withdraw. */
+/** How the service starts the sentence it uses when a newer copy arrived or the copy was decided. */
+const STALE_START = 'A newer copy was sent';
+
+/**
+ * The requesting org's side of a request awaiting their attention: start review, accept, ask for a
+ * replacement, or withdraw.
+ *
+ * `submissionId` is the copy the reviewer was shown (the one waiting). It is posted with Accept and
+ * with every reason, so a copy that arrived after the page was drawn is never decided unseen: the
+ * service refuses and the reviewer is asked to refresh. It is left out only when nothing is pinned
+ * (a send made before exact copies were kept). `canDecide` is false when the copy could not be
+ * shown on the card: then no decision is offered, and withdrawing the request still is.
+ */
 export function EvidenceRequestActions({
   organizationId,
   requestId,
   status,
+  submissionId,
+  canDecide = true,
 }: {
   readonly organizationId: string;
   readonly requestId: string;
   readonly status: string;
+  readonly submissionId?: string | undefined;
+  readonly canDecide?: boolean;
 }) {
   const [reviewState, reviewAction, reviewPending] = useActionState(
     startEvidenceReviewAction,
@@ -48,11 +64,16 @@ export function EvidenceRequestActions({
 
   const anyMessage = reviewState.message || decideState.message || cancelState.message;
   const anyOk = reviewState.ok && decideState.ok && cancelState.ok;
+  const stale = !decideState.ok && decideState.message.startsWith(STALE_START);
+  const refreshHref = `/app/agency/${organizationId}/clients?request=${requestId}#request-${requestId}`;
+  const pinned = submissionId ? (
+    <input type="hidden" name="submissionId" value={submissionId} />
+  ) : null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-        {status === 'RECEIVED' ? (
+    <div className="request-decision">
+      <div className="request-decision-buttons">
+        {canDecide && status === 'RECEIVED' ? (
           <form action={reviewAction}>
             <input type="hidden" name="organizationId" value={organizationId} />
             <input type="hidden" name="requestId" value={requestId} />
@@ -60,51 +81,58 @@ export function EvidenceRequestActions({
               pending={reviewPending}
               idle="Start Review"
               busy="Starting…"
-              className="btn btn-secondary"
-              style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
+              className="btn btn-secondary request-decision-button"
             />
           </form>
         ) : null}
-        <form action={decideAction}>
-          <input type="hidden" name="organizationId" value={organizationId} />
-          <input type="hidden" name="requestId" value={requestId} />
-          <input type="hidden" name="outcome" value="ACCEPTED" />
-          <SubmitButton
-            pending={decidePending}
-            idle="Accept"
-            busy="Accept"
-            className="btn btn-primary"
-            style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
-          />
-        </form>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
-          onClick={() =>
-            setReasonOutcome((v) => (v === 'NEEDS_REPLACEMENT' ? null : 'NEEDS_REPLACEMENT'))
-          }
-        >
-          Needs Replacement
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
-          onClick={() => setReasonOutcome((v) => (v === 'CONTRADICTION' ? null : 'CONTRADICTION'))}
-        >
-          Contradiction
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
-          onClick={() =>
-            setReasonOutcome((v) => (v === 'CORRECTION_PROPOSED' ? null : 'CORRECTION_PROPOSED'))
-          }
-        >
-          Propose Correction
-        </button>
+        {canDecide ? (
+          <>
+            <form action={decideAction}>
+              <input type="hidden" name="organizationId" value={organizationId} />
+              <input type="hidden" name="requestId" value={requestId} />
+              <input type="hidden" name="outcome" value="ACCEPTED" />
+              {pinned}
+              <SubmitButton
+                pending={decidePending}
+                idle="Accept"
+                busy="Accept"
+                className="btn btn-primary request-decision-button"
+              />
+            </form>
+            <button
+              type="button"
+              className="btn btn-secondary request-decision-button"
+              aria-expanded={reasonOutcome === 'NEEDS_REPLACEMENT'}
+              onClick={() =>
+                setReasonOutcome((v) => (v === 'NEEDS_REPLACEMENT' ? null : 'NEEDS_REPLACEMENT'))
+              }
+            >
+              Needs Replacement
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary request-decision-button"
+              aria-expanded={reasonOutcome === 'CONTRADICTION'}
+              onClick={() =>
+                setReasonOutcome((v) => (v === 'CONTRADICTION' ? null : 'CONTRADICTION'))
+              }
+            >
+              Contradiction
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary request-decision-button"
+              aria-expanded={reasonOutcome === 'CORRECTION_PROPOSED'}
+              onClick={() =>
+                setReasonOutcome((v) =>
+                  v === 'CORRECTION_PROPOSED' ? null : 'CORRECTION_PROPOSED',
+                )
+              }
+            >
+              Propose Correction
+            </button>
+          </>
+        ) : null}
         <form action={cancelAction}>
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="requestId" value={requestId} />
@@ -112,21 +140,20 @@ export function EvidenceRequestActions({
             pending={cancelPending}
             idle="Cancel Request"
             busy="Cancelling…"
-            className="btn btn-secondary"
-            style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
+            className="btn btn-secondary request-decision-button"
           />
         </form>
       </div>
-      {reasonOutcome ? (
+      {canDecide && reasonOutcome ? (
         <form
           action={decideAction}
           // A sentence-long reason beside its button, kept to a readable width on a wide row.
-          className="form-compact"
-          style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}
+          className="form-compact request-decision-reason"
         >
           <input type="hidden" name="organizationId" value={organizationId} />
           <input type="hidden" name="requestId" value={requestId} />
           <input type="hidden" name="outcome" value={reasonOutcome} />
+          {pinned}
           <input
             name="reason"
             type="text"
@@ -139,12 +166,18 @@ export function EvidenceRequestActions({
             pending={decidePending}
             idle="Send"
             busy="Sending…"
-            className="btn btn-secondary"
-            style={{ padding: '0.3rem 0.75rem', fontSize: 'var(--text-small)' }}
+            className="btn btn-secondary request-decision-button"
           />
         </form>
       ) : null}
       <FormMessage result={{ ok: anyOk, message: anyMessage }} />
+      {stale ? (
+        <p className="u-m-0">
+          <a className="request-decision-refresh" href={refreshHref}>
+            Refresh
+          </a>
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   loadEvidenceRequestPage: vi.fn(),
   loadApplicants: vi.fn(),
   loadVisibleCaseList: vi.fn(),
+  loadEvidenceCopies: vi.fn(),
 }));
 
 vi.mock('../../../../../lib/session', () => ({
@@ -27,6 +28,11 @@ vi.mock('../console-data', async (importOriginal) => {
     REQUEST_VIEWS: actual.REQUEST_VIEWS,
   };
 });
+vi.mock('../evidence-copies-data', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../evidence-copies-data')>();
+  return { COPIES_STATUSES: actual.COPIES_STATUSES, loadEvidenceCopies: mocks.loadEvidenceCopies };
+});
+vi.mock('../evidence-copy-actions', () => ({ downloadEvidenceCopyAction: async () => undefined }));
 vi.mock('../client-invitation-form', async () => {
   const { stub } = await import('../../../../../lib/next-mocks.test-support');
   return { ClientInvitationForm: stub('ClientInvitationForm') };
@@ -110,6 +116,7 @@ beforeEach(() => {
       },
     ]),
   );
+  mocks.loadEvidenceCopies.mockResolvedValue(new Map());
   mocks.loadApplicants.mockResolvedValue([{ id: 'ap1', displayName: 'Rahim Uddin' }]);
   mocks.loadVisibleCaseList.mockResolvedValue([
     { missionId: 'm1', title: 'UK Visitor', applicantName: 'Rahim Uddin', extra: 'ignored' },
@@ -212,8 +219,9 @@ describe('agency Clients', () => {
     expect(text).not.toContain('PASSPORT');
     expect(text).toContain('Document: Bank Statement');
     expect(text).toContain('Open');
+    // Nothing was read for the received request here, so no decision is offered on it.
     expect(stubProps(html, 'EvidenceRequestActions')).toEqual([
-      { organizationId: 'o1', requestId: 'r1', status: 'RECEIVED' },
+      { organizationId: 'o1', requestId: 'r1', status: 'RECEIVED', canDecide: false },
     ]);
   });
 
@@ -455,5 +463,112 @@ describe('agency Clients: one list open at a time (WP-SB11)', () => {
     const html = await renderServer(Page(props));
     expect(html).not.toContain('id="client-invitations"');
     expect(textOf(html)).toContain('No Clients Invited Yet');
+  });
+});
+
+describe('agency Clients: the exact copy on each request (Lane E)', () => {
+  const sent = (over: Record<string, unknown> = {}) => ({
+    id: 's1',
+    roundNo: 2,
+    documentId: 'd1',
+    documentVersionId: 'v1',
+    versionNumber: 1,
+    docType: 'PASSPORT',
+    title: 'passport-clear.pdf',
+    sizeBytes: 250_000,
+    checksumFingerprint: 'abc123def456',
+    sentAt: new Date('2026-11-03T08:00:00Z'),
+    state: 'AWAITING_DECISION',
+    decidedAt: null,
+    reason: null,
+    fileAvailable: true,
+    safetyStatus: 'CLEAN',
+    ...over,
+  });
+  const copiesFor = (list: unknown) =>
+    mocks.loadEvidenceCopies.mockResolvedValue(
+      new Map([
+        ['r1', { list, scan: new Map([['v1', { kind: 'FORMAT_CHECKED', scannedAt: null }]]) }],
+      ]),
+    );
+
+  it('reads the copies of the requests it lists, with this organization and account', async () => {
+    await renderServer(Page(props));
+    expect(mocks.loadEvidenceCopies).toHaveBeenCalledWith(
+      {},
+      'acct-1',
+      'o1',
+      expect.arrayContaining([expect.objectContaining({ id: 'r1' })]),
+    );
+  });
+
+  it('shows the waiting copy and posts its id with the decision buttons', async () => {
+    copiesFor({ available: true, submissions: [sent()], legacy: [] });
+    const html = await renderServer(Page(props));
+    const text = textOf(html);
+    expect(text).toContain('Copy Waiting for Your Decision');
+    expect(text).toContain('passport-clear.pdf');
+    expect(text).toContain('Received is not Accepted. Accept it or send it back below.');
+    expect(text).toContain('File type checked. Not scanned for viruses.');
+    expect(stubProps(html, 'EvidenceRequestActions')).toEqual([
+      {
+        organizationId: 'o1',
+        requestId: 'r1',
+        status: 'RECEIVED',
+        submissionId: 's1',
+        canDecide: true,
+      },
+    ]);
+  });
+
+  it('posts no copy id for a send made before exact copies were kept, and still offers a decision', async () => {
+    copiesFor({
+      available: false,
+      submissions: [],
+      legacy: [
+        {
+          label: 'Sent before exact versions were kept',
+          documentId: 'd1',
+          sentAt: new Date('2026-10-20T08:00:00Z'),
+          state: 'AWAITING_DECISION',
+          decidedAt: null,
+        },
+      ],
+    });
+    const html = await renderServer(Page(props));
+    expect(textOf(html)).toContain('Sent before exact versions were kept');
+    expect(textOf(html)).toContain(
+      'Exact sent copies are not kept on this service yet, so this file cannot be opened from here.',
+    );
+    expect(html).not.toContain('Download Sent File');
+    expect(stubProps(html, 'EvidenceRequestActions')).toEqual([
+      { organizationId: 'o1', requestId: 'r1', status: 'RECEIVED', canDecide: true },
+    ]);
+  });
+
+  it('says the sent copy could not be shown, and offers no decision, when it could not be read', async () => {
+    mocks.loadEvidenceCopies.mockResolvedValue(new Map());
+    const html = await renderServer(Page(props));
+    expect(textOf(html)).toContain('The copy that was sent could not be shown here.');
+    expect(stubProps<{ canDecide: boolean }>(html, 'EvidenceRequestActions')[0]?.canDecide).toBe(
+      false,
+    );
+  });
+
+  it('shows a received-file notice only on the request the address names', async () => {
+    copiesFor({ available: true, submissions: [sent()], legacy: [] });
+    const text = textOf(
+      await renderServer(
+        Page({
+          params: Promise.resolve({ orgId: 'o1' }),
+          searchParams: Promise.resolve({
+            request: '11111111-1111-4111-8111-111111111111',
+            file: 'unavailable',
+          }),
+        }),
+      ),
+    );
+    // r1 is not that request, so no notice appears anywhere.
+    expect(text).not.toContain('That file could not be opened.');
   });
 });
