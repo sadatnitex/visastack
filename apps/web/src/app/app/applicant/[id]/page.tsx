@@ -384,6 +384,7 @@ export default async function ApplicantOverviewPage({
         ) : null}
         <div className="traveller-metrics" {...atLevel('browse')}>
           <Link
+            data-tone="blue"
             className={`card traveller-metric lift-tile${data.missions.ok && data.active.length === 0 ? ' lift-tile-zero' : ''}`}
             href={`/app/applicant/${id}/missions`}
           >
@@ -395,6 +396,7 @@ export default async function ApplicantOverviewPage({
             </strong>
           </Link>
           <Link
+            data-tone="teal"
             className={`card traveller-metric lift-tile${data.documents.ok && documents.length === 0 ? ' lift-tile-zero' : ''}`}
             href={`/app/applicant/${id}/documents`}
           >
@@ -406,6 +408,7 @@ export default async function ApplicantOverviewPage({
             </strong>
           </Link>
           <Link
+            data-tone={data.documents.ok && data.requests.ok && attention > 0 ? 'amber' : 'green'}
             className={`card traveller-metric lift-tile${data.documents.ok && data.requests.ok && attention === 0 ? ' lift-tile-zero' : ''}`}
             href={`/app/applicant/${id}/evidence`}
           >

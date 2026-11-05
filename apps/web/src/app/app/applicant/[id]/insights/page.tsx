@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { Icon, type IconName } from '../../../../../components/icons';
 import {
   type AttentionEntry,
   AttentionList,
@@ -67,6 +68,8 @@ function MoreOnItsPage({
   );
 }
 
+type Tone = 'blue' | 'green' | 'amber' | 'red' | 'violet' | 'teal';
+
 /**
  * One insights card that opens and closes (WP-SB3). The kicker and heading stay above the toggle,
  * so the card is still found by its heading; the toggle names what it holds and how many.
@@ -75,12 +78,17 @@ function InsightsCard({
   id,
   kicker,
   title,
+  tone,
+  icon,
   listName,
   count,
   open,
   children,
 }: {
   readonly id: string;
+  /** The colour this card speaks in, so a person can tell the cards apart before reading them. */
+  readonly tone: Tone;
+  readonly icon: IconName;
   readonly kicker: string;
   readonly title: string;
   /** What the card lists, as the toggle names it ("Dates", "Cases"). */
@@ -90,11 +98,18 @@ function InsightsCard({
   readonly children: ReactNode;
 }) {
   return (
-    <section className="card insights-card" aria-labelledby={id}>
-      <p className="card-kicker">{kicker}</p>
-      <h3 className="card-title" id={id}>
-        {title}
-      </h3>
+    <section className="card insights-card" aria-labelledby={id} data-tone={tone}>
+      <div className="insights-card-head">
+        <span className="insights-card-icon" aria-hidden="true">
+          <Icon name={icon} size={20} />
+        </span>
+        <div>
+          <p className="card-kicker">{kicker}</p>
+          <h3 className="card-title" id={id}>
+            {title}
+          </h3>
+        </div>
+      </div>
       <details className="insights-card-fold" open={open || undefined}>
         <summary className="insights-card-summary">
           <span className="insights-card-list">{listName}</span>
@@ -204,18 +219,42 @@ export default async function DocumentInsightsPage({
     })),
   ];
 
-  const summary = [
-    { key: 'documents', label: 'Documents', value: insights.summary.documents },
-    { key: 'check', label: 'Details to Check', value: insights.summary.toCheck },
+  // A count that asks for something is coloured by what it asks; a zero is green, so the page reads at a glance.
+  const calm = (value: number, asking: Tone): Tone => (value > 0 ? asking : 'green');
+  const summary: readonly {
+    readonly key: string;
+    readonly label: string;
+    readonly value: number;
+    readonly tone: Tone;
+    readonly icon: IconName;
+  }[] = [
+    {
+      key: 'documents',
+      label: 'Documents',
+      value: insights.summary.documents,
+      tone: 'blue',
+      icon: 'file',
+    },
+    {
+      key: 'check',
+      label: 'Details to Check',
+      value: insights.summary.toCheck,
+      tone: calm(insights.summary.toCheck, 'amber'),
+      icon: 'alert',
+    },
     {
       key: 'expiry',
       label: 'Expired or Expiring Soon',
       value: insights.summary.expired + insights.summary.expiringSoon,
+      tone: calm(insights.summary.expired + insights.summary.expiringSoon, 'red'),
+      icon: 'clock',
     },
     {
       key: 'coverage',
       label: 'Sections Without a Document',
       value: insights.summary.sectionsWithoutDocument,
+      tone: calm(insights.summary.sectionsWithoutDocument, 'violet'),
+      icon: 'clipboard',
     },
   ];
   const missingSections = insights.coverage.sections.filter((section) => !section.covered);
@@ -242,7 +281,10 @@ export default async function DocumentInsightsPage({
 
       <ul className="insights-summary" aria-label="Summary">
         {summary.map((item) => (
-          <li key={item.key} className="insights-summary-item">
+          <li key={item.key} className="insights-summary-item" data-tone={item.tone}>
+            <span className="insights-summary-icon" aria-hidden="true">
+              <Icon name={item.icon} size={20} />
+            </span>
             <span className="insights-summary-value">{item.value}</span>
             <span className="insights-summary-label">{item.label}</span>
           </li>
@@ -252,6 +294,8 @@ export default async function DocumentInsightsPage({
       <div className="insights-grid">
         <InsightsCard
           id="insights-check"
+          tone="amber"
+          icon="alert"
           kicker="Differences"
           title="Details to Check"
           listName="Details"
@@ -287,6 +331,8 @@ export default async function DocumentInsightsPage({
 
         <InsightsCard
           id="insights-expiry"
+          tone="red"
+          icon="calendar"
           kicker="Coming Up"
           title="Expiry Timeline"
           listName="Dates"
@@ -326,6 +372,8 @@ export default async function DocumentInsightsPage({
 
         <InsightsCard
           id="insights-cases"
+          tone="blue"
+          icon="briefcase"
           kicker="Cases"
           title="Readiness by Case"
           listName="Cases"
@@ -372,6 +420,8 @@ export default async function DocumentInsightsPage({
 
         <InsightsCard
           id="insights-originals"
+          tone="violet"
+          icon="file"
           kicker="Paper Copies"
           title="Originals to Bring"
           listName="Originals"
@@ -478,6 +528,8 @@ export default async function DocumentInsightsPage({
 
         <InsightsCard
           id="insights-coverage"
+          tone="teal"
+          icon="clipboard"
           kicker="Profile Coverage"
           title="Sections Backed by a Document"
           listName="Sections"
@@ -568,6 +620,8 @@ export default async function DocumentInsightsPage({
 
         <InsightsCard
           id="insights-evidence"
+          tone="blue"
+          icon="share"
           kicker="Evidence Map"
           title="Documents Behind Your Details"
           listName="Documents"

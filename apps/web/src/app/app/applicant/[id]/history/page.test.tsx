@@ -95,6 +95,28 @@ describe('Fact History (owner finding 6)', () => {
     expect(text).not.toContain('Nothing Saved to This Profile Yet');
   });
 
+  it('says why a version was saved in words, never as a stored code', async () => {
+    service.listApplicantProfile.mockResolvedValue(
+      okPage({
+        total: 4,
+        nextCursor: null,
+        items: [
+          entry({ id: 'v1', reason: 'ai_proposal_approved' }),
+          entry({ id: 'v2', reason: 'ai_app_suggestion_approved' }),
+          entry({ id: 'v3', reason: 'some_internal_code' }),
+          entry({ id: 'v4', reason: 'Corrected after the new passport' }),
+        ],
+      }),
+    );
+    const text = textOf(await page());
+    expect(text).toContain('You Approved a Suggestion');
+    expect(text).toContain('You Approved an App Suggestion');
+    // A typed reason is the person's own words and stays; an unlisted code is left out, not shown raw.
+    expect(text).toContain('Corrected after the new passport');
+    expect(text).not.toContain('ai_proposal_approved');
+    expect(text).not.toContain('some_internal_code');
+  });
+
   it("shows nothing, and reads nothing, for a file that is not the owner's", async () => {
     service.requireAccess.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     await expect(page()).rejects.toThrow('NEXT_NOT_FOUND');

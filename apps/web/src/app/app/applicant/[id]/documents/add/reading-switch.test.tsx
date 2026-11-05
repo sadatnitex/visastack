@@ -31,11 +31,16 @@ describe('the automatic reading switch', () => {
     expect(out).toContain('Automatic Reading Is Off for You');
     expect(out).toContain('Turn On Automatic Reading');
     expect(out).not.toContain('Turn Off Automatic Reading');
-    // What is sent is stated beside the button, never hidden behind a disclosure.
+    // What is sent is stated in the same panel as the button: the button cannot be reached
+    // without it being on the screen beside the button.
     expect(out).toContain('Reading scans:');
     expect(out).toContain('the picture of a scan is sent to an AI service');
     expect(out).toContain('the text of a document is sent to an AI service');
-    expect(out).not.toContain('<details');
+    const panel = out.slice(out.indexOf('reading-control-panel'));
+    expect(panel.indexOf('the picture of a scan is sent')).toBeGreaterThan(-1);
+    expect(panel.indexOf('Turn On Automatic Reading')).toBeGreaterThan(-1);
+    // The corner control itself always says the state in one short, true word.
+    expect(out).toContain('Automatic Reading: Needs Your OK');
     expect(out).toContain('href="/app/privacy"');
   });
 

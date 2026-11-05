@@ -18962,3 +18962,271 @@ article.card:has(> .trip-start-form) {
   }
 }
 /* end WP-PLAIN-NAV */
+
+/* WP-PLAIN-ADD Add Documents (Owner, 5 Nov 2026): adding files comes first, in colour you cannot miss. The drop area is the hero of the page, the automatic reading switch is a small control in the corner, and what happens next is three tonal cards. Flat, existing tokens only, 44 px targets. */
+.add-door .upload-drop {
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-5);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--brand-bg);
+  text-align: center;
+}
+.add-door .upload-drop[data-dragging="true"] {
+  border-style: solid;
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-elevated));
+}
+.upload-drop-icon {
+  display: grid;
+  place-items: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 1.25rem;
+  background: var(--accent);
+  color: #fff;
+}
+.add-door .upload-drop-title {
+  font-size: 1.5rem;
+  font-weight: 750;
+  color: var(--text);
+}
+.add-door .upload-drop-hint {
+  max-width: 34rem;
+}
+.add-door .upload-drop-actions {
+  justify-content: center;
+  margin-top: var(--space-2);
+}
+.add-door .upload-drop-actions .btn {
+  min-width: 11rem;
+}
+
+.reading-control {
+  position: relative;
+}
+.reading-control-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--text-small);
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+.reading-control-summary::-webkit-details-marker {
+  display: none;
+}
+.reading-dot {
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+.reading-dot[data-status="on"] {
+  background: var(--success);
+}
+.reading-dot[data-status="partly_on"],
+.reading-dot[data-status="needs_consent"] {
+  background: var(--warning);
+}
+.reading-control-caret {
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-inline-end: 0.2rem;
+  margin-top: -0.15rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+.reading-control[open] .reading-control-caret {
+  margin-top: 0.15rem;
+  transform: rotate(-135deg);
+}
+.reading-control-panel {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + var(--space-2));
+  z-index: 20;
+  display: grid;
+  gap: var(--space-3);
+  width: min(26rem, calc(100vw - 2rem));
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+@media (max-width: 760px) {
+  .reading-control-panel {
+    position: static;
+    width: auto;
+    margin-top: var(--space-2);
+  }
+}
+
+@media (min-width: 761px) {
+  .add-next-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+  }
+}
+.add-next-list li {
+  padding: var(--space-4) var(--space-4) var(--space-4) 3.75rem;
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.add-next-list li::before {
+  left: var(--space-4);
+  top: var(--space-4);
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  background: var(--brand-bg);
+  color: var(--accent);
+  font-weight: 800;
+}
+/* end WP-PLAIN-ADD */
+
+/* WP-PLAIN-TONE Colour that guides the eye (Owner, 5 Nov 2026: the app was too plain). Six tones, each a solid colour for icons and numbers with its own pale ground; a screen says what a thing is, or what it asks, by its tone, not by words alone. Blue is the brand, green means fine, amber means look at it, red means act now, violet and teal tell kinds of thing apart. Flat, no gradients or shadows, every text pair above 4.5:1. */
+[data-tone="blue"] {
+  --tone: #1d4c98;
+  --tone-bg: #e8f0fc;
+}
+[data-tone="green"] {
+  --tone: #0f5a41;
+  --tone-bg: #e8f4ee;
+}
+[data-tone="amber"] {
+  --tone: #7a3f1f;
+  --tone-bg: #fbeee7;
+}
+[data-tone="red"] {
+  --tone: #8f1f2b;
+  --tone-bg: #fbeaec;
+}
+[data-tone="violet"] {
+  --tone: #4a3a96;
+  --tone-bg: #efebfb;
+}
+[data-tone="teal"] {
+  --tone: #0b5b63;
+  --tone-bg: #e1f2f3;
+}
+
+/* The small label above a page's title is a tonal tag, so every page opens with one colour anchor. */
+.page-header .eyebrow {
+  align-self: flex-start;
+  width: fit-content;
+  padding: 0.2rem 0.65rem;
+  border-radius: var(--radius-pill);
+  background: var(--brand-bg);
+  margin-bottom: 0.6rem;
+}
+
+/* Document Insights: four coloured tiles that read at a glance, and six cards each with its own colour and icon. */
+.insights-summary-item {
+  padding: var(--space-4);
+  background: var(--tone-bg);
+  border-color: transparent;
+}
+.insights-summary-icon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-bottom: var(--space-2);
+  border-radius: 0.75rem;
+  background: var(--tone);
+  color: #fff;
+}
+.insights-summary-item .insights-summary-value {
+  font-size: 2.25rem;
+  font-weight: 750;
+  color: var(--tone);
+}
+.insights-summary-item .insights-summary-label {
+  font-weight: 600;
+  color: var(--text);
+}
+.insights-card {
+  border-top: 4px solid var(--tone);
+}
+.insights-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+.insights-card-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  background: var(--tone-bg);
+  color: var(--tone);
+}
+.insights-card-head .card-kicker {
+  margin: 0 0 0.15rem;
+  color: var(--tone);
+}
+.insights-card-head .card-title {
+  margin: 0;
+}
+.insights-card .insights-card-count {
+  background: var(--tone-bg);
+  color: var(--tone);
+  font-weight: 700;
+}
+
+/* Log rows (History, Access Log): each opens with a small coloured mark, so a long list can be read by colour first. */
+.activity-log-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.activity-log-mark {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin-top: 0.1rem;
+  border-radius: 0.65rem;
+  background: var(--tone-bg);
+  color: var(--tone);
+}
+
+/* Documents: the four numbers are four colours, and the one in use has a heavier edge. */
+.wallet-overview-strip button[data-tone] {
+  border: 2px solid transparent;
+  background: var(--tone-bg);
+  color: var(--text);
+}
+.wallet-overview-strip button[data-tone] strong {
+  color: var(--tone);
+}
+.wallet-overview-strip button[data-tone][aria-pressed="true"] {
+  border-color: var(--tone);
+  background: var(--tone-bg);
+}
+
+/* Traveller overview: the three counts carry their colour, and a count that asks for something is amber. */
+.lift-tile[data-tone] {
+  border-color: transparent;
+  background: var(--tone-bg);
+}
+.lift-tile[data-tone] .lift-tile-numeral {
+  color: var(--tone);
+}
+/* end WP-PLAIN-TONE */
