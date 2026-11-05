@@ -87,6 +87,7 @@ export default async function NotificationsPage({
             <EmptyState
               icon="bell"
               title="No Notifications Yet"
+              fold
               why="You never have to open every case to find out what changed."
               action={{ href: '/app', label: 'Go to Home' }}
             >

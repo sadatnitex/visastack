@@ -81,10 +81,9 @@ describe('the copy waiting for a decision', () => {
     expect(html).toContain('Copy Waiting for Your Decision');
   });
 
-  it('says Received is not Accepted, and names the next step', () => {
-    expect(render(list([sent()])).text).toContain(
-      'Received is not Accepted. Accept it or send it back below.',
-    );
+  it('says Received is not Accepted, in one short line (the decision buttons below are the next step)', () => {
+    expect(render(list([sent()])).text).toContain('Received is not Accepted.');
+    expect(render(list([sent()])).text).not.toContain('Accept it or send it back below');
   });
 
   it('says a virus scan happened only when a trusted scan is on record for this exact file', () => {

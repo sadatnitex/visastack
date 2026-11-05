@@ -91,7 +91,7 @@ export function RequestEvidenceForm({
               ))}
             </select>
             <small className="muted" id={missionHintId}>
-              Only needed if this organization's access is limited to one case.
+              Only if access is limited to one case.
             </small>
           </div>
         ) : null}

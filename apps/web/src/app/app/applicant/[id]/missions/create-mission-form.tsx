@@ -9,6 +9,7 @@ import {
 } from '../../../../../components/form-feedback';
 import { StickyActionBar } from '../../../../../components/sticky-action-bar';
 import { Disclosure } from '../../../../../components/ui';
+import { AboutDisclosure } from '../../../../../components/ui-lift';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../../../lib/case-choices';
 import { CASE_DATE_FIELDS } from '../../../../../lib/form-dates';
 import { usePartTypedDateCheck } from '../../../../../lib/use-part-typed-date-check';
@@ -137,7 +138,7 @@ export function CreateMissionForm({
             problem={control}
           />
         ),
-        'Type a country or open the list, or leave it empty if you are not sure yet. With a country and a purpose, the checklist for that visa route is linked when there is one.',
+        'Type a country, or leave it empty if unsure.',
       )}
       {field('purpose', 'What is the trip for?', (id, control) => (
         <select
@@ -159,6 +160,12 @@ export function CreateMissionForm({
           ))}
         </select>
       ))}
+      <AboutDisclosure summary="About Checklists">
+        <p className="muted u-fs-085 u-m-0">
+          With a country and a purpose, the checklist for that visa route is linked when there is
+          one.
+        </p>
+      </AboutDisclosure>
       <Disclosure
         title="Add More Details (Optional)"
         hint="Family trip label, embassy, dates and deadline"

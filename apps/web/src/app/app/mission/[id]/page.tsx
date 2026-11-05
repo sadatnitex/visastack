@@ -983,7 +983,6 @@ export default async function MissionPage({
           </div>
         </div>
         <CaseMobileBar
-          missionTitle={mission.title}
           nextStep={nextStepItem}
           progress={
             data.readiness

@@ -109,3 +109,44 @@ describe('EmptyState icon', () => {
     expect(named).not.toBe(plain);
   });
 });
+
+describe('EmptyState fold and the Next Step reason (the 30-word rule, Owner, 5 Nov 2026)', () => {
+  it('keeps only the title and the button visible when folded, with the sentences under About This', () => {
+    const html = renderToStaticMarkup(
+      <EmptyState
+        title="No Notifications Yet"
+        why="You never have to open every case."
+        action={{ href: '/app', label: 'Go to Home' }}
+        fold
+      >
+        This is where VisaStack tells you what needs you.
+      </EmptyState>,
+    );
+    const open = html.indexOf('<details');
+    const close = html.indexOf('</details>');
+    expect(open).toBeGreaterThan(html.indexOf('empty-state-title'));
+    expect(html.slice(open, close)).toContain('This is where VisaStack tells you what needs you.');
+    expect(html.slice(open, close)).toContain('You never have to open every case.');
+    expect(html.slice(open, close)).toContain('<summary>About This</summary>');
+    expect(html.indexOf('Go to Home')).toBeGreaterThan(close);
+    // Not folded by default: the sentences are on the page as before.
+    expect(
+      renderToStaticMarkup(<EmptyState title="No Alerts Yet">A reason.</EmptyState>),
+    ).not.toContain('<details');
+  });
+
+  it('folds the reason of a Next Step card under "Why This Step"', () => {
+    const html = renderToStaticMarkup(
+      <NextStepCard
+        title="Add Your Essentials"
+        why="0 of 12 essentials added."
+        href="/x"
+        action="Open"
+      />,
+    );
+    expect(html).toContain('<summary>Why This Step</summary>');
+    expect(html.indexOf('0 of 12 essentials added.')).toBeGreaterThan(
+      html.indexOf('<summary>Why This Step</summary>'),
+    );
+  });
+});

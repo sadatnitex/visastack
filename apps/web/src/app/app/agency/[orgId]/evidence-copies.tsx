@@ -7,7 +7,7 @@ import type {
 } from '@visastack/services';
 import { Icon } from '../../../../components/icons';
 import type { Tone } from '../../../../components/ui';
-import { StatusPill } from '../../../../components/ui-lift';
+import { AboutDisclosure, StatusPill } from '../../../../components/ui-lift';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatFileSize } from '../../../../lib/format-size';
 import { formatMoment } from '../../../../lib/save-status';
@@ -143,11 +143,7 @@ function CurrentCopy({
           {note.recipientNote}
         </p>
       ) : null}
-      {waiting ? (
-        <p className="evidence-copy-meta u-m-0">
-          Received is not Accepted. Accept it or send it back below.
-        </p>
-      ) : null}
+      {waiting ? <p className="evidence-copy-meta u-m-0">Received is not Accepted.</p> : null}
       {copy.fileAvailable ? (
         <form action={downloadEvidenceCopyAction} className="evidence-copy-file">
           <input type="hidden" name="organizationId" value={organizationId} />
@@ -157,15 +153,22 @@ function CurrentCopy({
             Download Sent File
             <span className="sr-only">: {copy.title}</span>
           </button>
-          <span className="evidence-copy-meta">
-            Downloads the original. You confirm it is you first.
-          </span>
+          <AboutDisclosure summary="About Downloading">
+            <p className="evidence-copy-meta u-m-0">
+              Downloads the original. You confirm it is you first.
+            </p>
+          </AboutDisclosure>
         </form>
       ) : (
-        <p className="evidence-copy-meta u-m-0">
-          This copy cannot be opened from here right now. It may still be being checked, or access
-          may have ended.
-        </p>
+        <>
+          <p className="evidence-copy-meta u-m-0">Cannot be opened right now.</p>
+          <AboutDisclosure summary="Why Not?">
+            <p className="evidence-copy-meta u-m-0">
+              This copy cannot be opened from here right now. It may still be being checked, or
+              access may have ended.
+            </p>
+          </AboutDisclosure>
+        </>
       )}
     </div>
   );
@@ -188,10 +191,12 @@ function LegacyCurrent({ send }: { readonly send: LegacyEvidenceSend }) {
       <p className="evidence-copy-meta u-m-0">
         {send.sentAt ? `Sent ${formatMoment(send.sentAt, MOMENT_ZONE)}` : 'Send time not kept'}
       </p>
-      <p className="evidence-copy-meta u-m-0">
-        Received is not Accepted. This send has no exact copy to open here. Accept it or send it
-        back below.
-      </p>
+      <p className="evidence-copy-meta u-m-0">Received is not Accepted.</p>
+      <AboutDisclosure summary="About This Send">
+        <p className="evidence-copy-meta u-m-0">
+          This send has no exact copy to open here. Accept it or send it back below.
+        </p>
+      </AboutDisclosure>
     </div>
   );
 }

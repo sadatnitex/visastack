@@ -156,3 +156,9 @@ Added 4 Nov 2026 (Lane E, the evidence loop between a traveller and an agency):
 | The agency's card for the copy waiting for a decision, and the folded older ones | Copy Waiting for Your Decision, Accepted Copy, Earlier Sends (N) | "Latest Version", "History" | **New (Lane E)** |
 | A send made before exact copies were kept | Sent before exact versions were kept (the wording the service gives) | "Unknown Version", "Legacy" | **New (Lane E)** |
 
+| The closed row of files filed without asking | Sorted for You (2), the number in brackets; inside, "Recognised Automatically" and Change | "Placed Automatically", "Auto-Filed" | **New (P1, 5 Nov 2026)** |
+| Files nobody could name, as one list | The heading "We Could Not Tell What These Are" (one file: "...This Is"), each row with Choose What It Is; "We Are Not Sure What These Are"; "Check These Suggestions" with Review Suggestion | One card and one sentence per file | **New (P1)** |
+| The explanation folded into the decisions card | About These Choices | "Help", "Learn More" | **New (P1)** |
+| The explanation of files with no kind | The row "2 Need a Kind" with Why? and Show Them (Show All once shown) | "Unsorted", "Uncategorised" | **New (P1)** |
+| The small round control that opens a level's sentence | A round i beside the switch, named "What each level shows" | An always-visible sentence under the switch | **New (P1)** |
+| The closed notes of the Documents page and of an opened document | About Documents; About This File | "Info", "Notes" | **New (P1)** |

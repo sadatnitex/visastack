@@ -8,7 +8,12 @@ import {
 import { atLevel } from '../../../../components/depth';
 import { Icon } from '../../../../components/icons';
 import { StatusBadge } from '../../../../components/ui';
-import { AlertBanner, EmptyPanel, NextStepPanel } from '../../../../components/ui-lift';
+import {
+  AboutDisclosure,
+  AlertBanner,
+  EmptyPanel,
+  NextStepPanel,
+} from '../../../../components/ui-lift';
 import {
   ATTENTION_ICON,
   type CaseAttentionItem,
@@ -114,19 +119,20 @@ export function CaseStatusPanel({
                       primary
                       align="start"
                     />
-                    <p className="lift-small-m0">
-                      <a href="#snapshots">Open Snapshots</a> to confirm the new one.
-                    </p>
+                    <AboutDisclosure summary="What Changed">
+                      <p>Take a new snapshot and confirm it again before you rely on this case.</p>
+                      {/* WP-V3 part 3: the list of changed details. */}
+                      <ChangesSinceConfirmedList
+                        applicantId={applicantId}
+                        changes={changesSinceConfirmed}
+                      />
+                      <p className="lift-small-m0">
+                        <a href="#snapshots">Open Snapshots</a> to confirm the new one.
+                      </p>
+                    </AboutDisclosure>
                   </>
                 }
-              >
-                <p>Take a new snapshot and confirm it again before you rely on this case.</p>
-                {/* WP-V3 part 3: the list of changed details. */}
-                <ChangesSinceConfirmedList
-                  applicantId={applicantId}
-                  changes={changesSinceConfirmed}
-                />
-              </AlertBanner>
+              />
             </div>
           ) : null}
 
@@ -135,7 +141,8 @@ export function CaseStatusPanel({
               kicker="Next Step"
               kickerId="case-next-step-heading"
               title={nextStepCopy.title(nextStep.count, missionTitle)}
-              body={nextStepCopy.body(nextStepFirstItem)}
+              body={nextStepCopy.lead(nextStepFirstItem) ?? undefined}
+              why={<p>{nextStepCopy.why}</p>}
               action={{
                 label: nextStepCopy.action,
                 href: nextStep.href,
@@ -154,6 +161,7 @@ export function CaseStatusPanel({
                 requiredUnverifiedCount={requiredUnverifiedCount}
                 requiredHardGapCount={requiredHardGapCount}
                 t={t}
+                confirmation={acknowledged ? 'Current snapshot confirmed' : 'Awaiting confirmation'}
               />
             ) : (
               <CaseNoChecklistSummary
@@ -162,15 +170,9 @@ export function CaseStatusPanel({
                 welcomeShown={welcomeShown}
               />
             )}
-            {readiness || selfReviewed ? (
+            {selfReviewed ? (
               <div className="lift-status-notes">
-                {readiness ? (
-                  <p className="case-confirmation-state">
-                    <strong>Traveller confirmation: </strong>
-                    {acknowledged ? 'Current snapshot confirmed' : 'Awaiting confirmation'}
-                  </p>
-                ) : null}
-                {selfReviewed ? <CaseSelfReviewedNote /> : null}
+                <CaseSelfReviewedNote />
               </div>
             ) : null}
           </div>
@@ -233,11 +235,13 @@ export function CaseStatusPanel({
           />
         </div>
       </div>
-      {/* Owner-approved wording, 25 Oct 2026. */}
-      <p className="case-journey-reminder">
-        Preparing a file is not the same as submitting it. VisaStack does not submit applications or
-        predict decisions.
-      </p>
+      {/* Owner-approved wording, 25 Oct 2026; folded under its own name on 5 Nov 2026 (the 30-word rule). */}
+      <AboutDisclosure summary="About This Case" className="case-journey-reminder">
+        <p>
+          Preparing a file is not the same as submitting it. VisaStack does not submit applications
+          or predict decisions.
+        </p>
+      </AboutDisclosure>
       {/* WP-V4 places the request triage summary directly under the next step. */}
     </>
   );
@@ -260,6 +264,8 @@ export interface CaseProgressSummaryProps {
   readonly requiredHardGapCount: number;
   /** The page's translator, so the sentence follows the person's language. */
   readonly t: Translator;
+  /** Where the traveller's confirmation stands, in words; folded under "How This Is Counted". */
+  readonly confirmation: string;
 }
 
 /** How far the checklist is: the big count and bar, the overall state and its one sentence. */
@@ -268,27 +274,38 @@ export function CaseProgressSummary({
   requiredUnverifiedCount,
   requiredHardGapCount,
   t,
+  confirmation,
 }: CaseProgressSummaryProps) {
   const meta = OVERALL_STATE_META[readiness.overallState];
   return (
-    <CasePreparationSummary readiness={readiness}>
+    <CasePreparationSummary
+      readiness={readiness}
+      explain={
+        <>
+          {readiness.overallState !== 'MANUAL_ONLY' ? (
+            <p className="lift-progress-sentence">
+              {readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
+                ? t('mission.readiness.ready')
+                : readiness.overallState === 'NEEDS_REVIEW'
+                  ? plainRequirementCount(
+                      t('mission.readiness.needsReview', { count: requiredUnverifiedCount }),
+                      requiredUnverifiedCount,
+                    )
+                  : plainRequirementCount(
+                      t('mission.readiness.missing', { count: requiredHardGapCount }),
+                      requiredHardGapCount,
+                    )}
+            </p>
+          ) : null}
+          <p className="case-confirmation-state">
+            <strong>Traveller confirmation: </strong>
+            {confirmation}
+          </p>
+        </>
+      }
+    >
       <div className="lift-progress-verdict">
         <p className={`badge ${meta.tone} lift-pill lift-pill-md`}>{meta.label}</p>
-        {readiness.overallState !== 'MANUAL_ONLY' ? (
-          <p className="lift-progress-sentence">
-            {readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
-              ? t('mission.readiness.ready')
-              : readiness.overallState === 'NEEDS_REVIEW'
-                ? plainRequirementCount(
-                    t('mission.readiness.needsReview', { count: requiredUnverifiedCount }),
-                    requiredUnverifiedCount,
-                  )
-                : plainRequirementCount(
-                    t('mission.readiness.missing', { count: requiredHardGapCount }),
-                    requiredHardGapCount,
-                  )}
-          </p>
-        ) : null}
       </div>
     </CasePreparationSummary>
   );
@@ -321,11 +338,21 @@ export function CaseNoChecklistSummary({
                 : { label: 'Add Evidence', href: '#evidence' },
           })}
     >
-      <p>
-        A checklist lists the papers this visa route asks for and shows which ones you already have
-        on file.
-      </p>
-      {!welcomeShown && packOptionCount === 0 && noChecklistLine ? <p>{noChecklistLine}</p> : null}
+      <AboutDisclosure
+        summary={
+          !welcomeShown && packOptionCount === 0 && noChecklistLine
+            ? 'Why Is There No Checklist?'
+            : 'What Is a Checklist?'
+        }
+      >
+        <p>
+          A checklist lists the papers this visa route asks for and shows which ones you already
+          have on file.
+        </p>
+        {!welcomeShown && packOptionCount === 0 && noChecklistLine ? (
+          <p>{noChecklistLine}</p>
+        ) : null}
+      </AboutDisclosure>
     </EmptyPanel>
   );
 }

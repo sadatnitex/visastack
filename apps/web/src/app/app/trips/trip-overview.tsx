@@ -10,6 +10,7 @@ import {
 } from '@visastack/services';
 import Link from 'next/link';
 import { NextStepCard } from '../../../components/ui';
+import { AboutDisclosure } from '../../../components/ui-lift';
 import {
   AddTravellersForm,
   AddTripEvidenceForm,
@@ -231,10 +232,12 @@ export function TripOverview({
             ))}
           </ul>
         )}
-        <p className="muted u-fs-085">
-          Each traveller has their own case, checklist, documents and privacy. Their readiness is
-          not a submission, and nothing is sent until you share it yourself.
-        </p>
+        <AboutDisclosure summary="About Travellers">
+          <p className="muted u-fs-085">
+            Each traveller below has their own case, checklist, documents and privacy. Their
+            readiness is not a submission, and nothing is sent until you share it yourself.
+          </p>
+        </AboutDisclosure>
       </section>
 
       {companionsOn && companions.length > 0 ? (
@@ -253,21 +256,25 @@ export function TripOverview({
           travellers={addable}
           companionsOn={companionsOn}
         />
-        <p className="muted u-fs-085">
-          Travelling with an adult who has their own VisaStack account? They start their own case
-          from their account and choose for themselves whether to share it with you. We never add or
-          change someone else&apos;s records.
-        </p>
+        <AboutDisclosure summary="Travelling With an Adult?">
+          <p className="muted u-fs-085">
+            Travelling with an adult who has their own VisaStack account? They start their own case
+            from their account and choose for themselves whether to share it with you. We never add
+            or change someone else&apos;s records.
+          </p>
+        </AboutDisclosure>
       </section>
 
       <section className="card trip-section" aria-labelledby="trip-documents-title">
         <h2 id="trip-documents-title" className="card-title">
           Shared Trip Documents
         </h2>
-        <p className="muted u-fs-085">
-          A shared booking or itinerary stays in its traveller&apos;s documents. It is used for
-          another traveller only after you allow it for them.
-        </p>
+        <AboutDisclosure summary="About Shared Documents">
+          <p className="muted u-fs-085">
+            A shared booking or itinerary stays in its traveller&apos;s documents. It is used for
+            another traveller only after you allow it for them.
+          </p>
+        </AboutDisclosure>
         {sharedDocuments.length > 0 ? (
           <ul className="trip-document-list">
             {sharedDocuments.map((d) => (
@@ -312,10 +319,14 @@ export function TripOverview({
         {documentOptions.length > 0 ? (
           <AddTripEvidenceForm tripId={tripId} documents={documentOptions} />
         ) : (
-          <p className="u-m-0">
-            No travel documents to share yet. Add a booking or itinerary to a traveller&apos;s
-            documents first.
-          </p>
+          <>
+            <p className="u-m-0">No travel documents to share yet.</p>
+            <AboutDisclosure summary="How to Add One">
+              <p className="u-m-0">
+                Add a booking or itinerary to a traveller&apos;s documents first.
+              </p>
+            </AboutDisclosure>
+          </>
         )}
       </section>
     </>

@@ -417,8 +417,12 @@ describe('case journey view (WP-X1)', () => {
     const cardText = textOf(html.slice(card, list));
     // It speaks of this case by name and names the first item to fix (CCD section 6).
     expect(cardText).toContain('Fix 2 required items for Japan visitor visa');
-    expect(cardText).toContain(
-      'First to fix: Bank Statement. Some required items are missing, out of date or do not match.',
+    // One short line shows; the longer reason is folded under "Why This Step" (the 30-word rule).
+    expect(cardText).toContain('First to fix: Bank Statement.');
+    expect(cardText).toContain('Why This Step');
+    expect(cardText).toContain('Some required items are missing, out of date or do not match.');
+    expect(html.slice(card, list)).toMatch(
+      /<details class="lift-help lift-about"><summary>Why This Step<\/summary>/,
     );
     expect(cardText).not.toContain('open task');
     expect(html.slice(card, list)).toContain('href="#readiness"');
@@ -491,7 +495,7 @@ describe('case journey view (WP-X1)', () => {
       const html = await render();
       expect(textOf(html)).toContain(reminder);
       // Directly under the status card, so after the card's own stage line.
-      const at = html.indexOf('class="case-journey-reminder"');
+      const at = html.indexOf('case-journey-reminder');
       expect(at).toBeGreaterThan(html.indexOf('aria-label="Actual case workflow state"'));
       expect(at).toBeGreaterThan(html.indexOf('class="case-context-strip"'));
     }
@@ -566,9 +570,12 @@ describe('changed details inside the alert (WP-V3 part 3)', () => {
     expect(alert).toContain(
       `href="/app/applicant/synthetic-family/memory/compare?snapshot=${SNAPSHOT}"`,
     );
-    expect(alert.indexOf('class="case-changes"')).toBeLessThan(
-      alert.indexOf('data-stub="SnapshotButton"'),
+    // The button comes first; the list is folded under "What Changed" (the 30-word rule).
+    expect(alert.indexOf('data-stub="SnapshotButton"')).toBeLessThan(
+      alert.indexOf('class="case-changes"'),
     );
+    expect(text).toContain('What Changed');
+    expect(alert).toMatch(/<details class="lift-help lift-about"><summary>What Changed<\/summary>/);
     expect(alert).not.toContain('role=');
     // Through the central gate, for this case, without a value anywhere.
     expect(mocks.requireAccess).toHaveBeenCalledWith(
@@ -1181,9 +1188,7 @@ describe('WP-SB2: a worst-case case stays short', () => {
     expect(wide?.querySelector('[data-stub="SnapshotButton"]')).not.toBeNull();
     const bar = page.querySelector('.case-sticky-next fieldset.sticky-action-bar');
     expect(bar?.querySelector('legend')?.textContent).toBe('Next Step');
-    expect(bar?.querySelector('output')?.textContent).toBe(
-      '0 of 1 \u00b7 Fix 1 required item for Japan visitor visa',
-    );
+    expect(bar?.querySelector('output')?.textContent).toBe('0 of 1 \u00b7 1 to fix');
     const action = bar?.querySelector('a');
     expect(action?.getAttribute('href')).toBe('#readiness');
     expect(action?.className).toBe('btn btn-secondary');
@@ -1577,7 +1582,7 @@ describe('the case status card and the checklist (WP-LIFT-A)', () => {
     const html = await render();
     const card = html.slice(
       html.indexOf('class="lift-status"'),
-      html.indexOf('class="case-journey-reminder"'),
+      html.indexOf('case-journey-reminder'),
     );
     expect(card.match(/btn-primary/g)).toHaveLength(1);
     setUp({ openTasks: 1 });
@@ -1596,7 +1601,7 @@ describe('the case status card and the checklist (WP-LIFT-A)', () => {
     expect(html).toContain('data-stub="CaseWelcome"');
     const card = html.slice(
       html.indexOf('class="lift-status"'),
-      html.indexOf('class="case-journey-reminder"'),
+      html.indexOf('case-journey-reminder'),
     );
     // The welcome note (a stand-in here) carries the pick; the panel only says what a checklist is.
     expect(textOf(card)).toContain('No Checklist Yet');

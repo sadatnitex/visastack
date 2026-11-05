@@ -33,7 +33,7 @@ import { Icon } from '../../../../../components/icons';
 import { ReferenceCode } from '../../../../../components/reference-code';
 import { ShowMore } from '../../../../../components/show-more';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
-import { AlertBanner, StatusPill } from '../../../../../components/ui-lift';
+import { AboutDisclosure, AlertBanner, StatusPill } from '../../../../../components/ui-lift';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { humanizeCode } from '../../../../../lib/format-code';
@@ -292,11 +292,16 @@ export default async function EvidencePage({
 
   return (
     <>
-      <PageHeader
-        eyebrow={data.applicant.displayName}
-        title="Evidence Requests"
-        description="An agency request is that organisation asking you for something, never an official visa requirement on its own. You decide what to submit, and can reuse anything already in your wallet."
-      />
+      <PageHeader eyebrow={data.applicant.displayName} title="Evidence Requests" />
+      {/* Owner, 5 Nov 2026: no page should have more than 30 words. The sentence on what a request is
+          (and is not) is one tap away instead of under the title. */}
+      <AboutDisclosure summary="About Requests">
+        <p>
+          An agency request is that organisation asking you for something, never an official visa
+          requirement on its own. You decide what to submit, and can reuse anything already in your
+          wallet.
+        </p>
+      </AboutDisclosure>
 
       <DepthScope family="evidence-requests" depth={depth}>
         <DepthSwitch family="evidence-requests" initial={depth} copy={depthCopyFor('evidence')} />
@@ -316,9 +321,7 @@ export default async function EvidencePage({
                   ? '1 request is waiting for you.'
                   : `${awaitingCount} requests are waiting for you.`
               }
-            >
-              <p>Reply to each one below.</p>
-            </AlertBanner>
+            />
           </div>
         ) : null}
 
@@ -332,6 +335,7 @@ export default async function EvidencePage({
             <EmptyState
               icon="clipboard"
               title="No Evidence Requests"
+              fold
               why="You reply from your saved documents in one step, and you decide what to send."
               action={{ href: `/app/applicant/${id}/documents`, label: 'Open Documents' }}
             >
@@ -420,11 +424,15 @@ export default async function EvidencePage({
                             </StatusPill>
                           </span>
                         </div>
-                        <p className="case-row-meta lc-card-reason u-m-0">
-                          {req.message
-                            ? `Why it is needed: \u201c${req.message}\u201d`
-                            : 'The agency did not add a reason. Ask them if you are unsure.'}
-                        </p>
+                        {/* When the agency gave no reason the card says nothing (5 Nov 2026: the 30-word
+                            rule); the person can still ask about the item. */}
+                        {req.message ? (
+                          <p className="case-row-meta lc-card-reason u-m-0">
+                            Why it is needed: {'\u201c'}
+                            <span className="lc-card-quote">{req.message}</span>
+                            {'\u201d'}
+                          </p>
+                        ) : null}
                         {req.dueDate ? (
                           <p className="case-row-meta u-m-0" {...atLevel('browse')}>
                             Needed by {formatDateOnly(req.dueDate)}
@@ -454,7 +462,7 @@ export default async function EvidencePage({
                         {latestDecision?.reason ? (
                           <p className="field-msg field-msg-err u-m-0">
                             {DECISION_PREFIX[latestDecision.outcome] ?? ''}
-                            {latestDecision.reason}
+                            <span className="lc-card-quote">{latestDecision.reason}</span>
                           </p>
                         ) : null}
                         {item.group !== null ? (

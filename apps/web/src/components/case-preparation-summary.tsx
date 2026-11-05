@@ -128,14 +128,18 @@ export function countRequirementItems(
 export function CasePreparationSummary({
   readiness,
   children,
+  explain,
 }: {
   readonly readiness: Readiness;
   /** The overall state and its sentence, shown right under the bar. */
   readonly children?: ReactNode;
+  /** The sentence and the confirmation line, folded with the counts under "How This Is Counted". */
+  readonly explain?: ReactNode;
 }) {
   const counts = countRequirementItems(readiness.requirementResults);
   const { requiredCount, satisfiedRequired } = readiness;
   const unit = 'required items on file';
+  const shortUnit = 'required on file';
   return (
     <section className="lift-progress" aria-label="Evidence preparation completeness">
       <h2 className="lift-progress-kicker">Evidence Progress</h2>
@@ -145,7 +149,7 @@ export function CasePreparationSummary({
             <span className="lift-progress-numeral">
               {satisfiedRequired} of {requiredCount}
             </span>
-            <span className="lift-progress-unit">{unit}</span>
+            <span className="lift-progress-unit">{shortUnit}</span>
           </p>
           <ProgressMeter
             value={satisfiedRequired}
@@ -166,6 +170,7 @@ export function CasePreparationSummary({
       <details className="lift-help">
         <summary>How This Is Counted</summary>
         <div className="lift-help-body">
+          {explain}
           <dl className="lift-counts">
             {(
               [

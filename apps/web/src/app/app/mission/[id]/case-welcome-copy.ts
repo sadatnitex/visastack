@@ -41,6 +41,8 @@ export function caseWelcomeCopy(input: {
   readonly firstGapHref: string | null;
 }): {
   readonly title: string;
+  /** One short sentence, always shown; the longer body is folded under it. */
+  readonly lead: string;
   readonly body: readonly string[];
   readonly action: { readonly href: string; readonly label: string };
 } {
@@ -48,6 +50,7 @@ export function caseWelcomeCopy(input: {
   if (input.packName) {
     return {
       title,
+      lead: 'Start with the items marked Missing.',
       body: [
         `Checklist linked: ${input.packName}. It lists what this visa route asks for and shows what you already have on file.`,
         'Start with the items marked Missing. Add each document or detail once and it counts for this case.',
@@ -60,6 +63,7 @@ export function caseWelcomeCopy(input: {
   if (needed.length > 0) {
     return {
       title,
+      lead: 'Pick the checklist that fits.',
       body: [
         `A checklist for this route depends on ${needed.map((n) => DETAIL_WORDS[n]).join(' and ')}, and the case does not say yet, so none was linked.`,
         'Pick the checklist that matches them, and add them under Edit Case Details so the case records them.',
@@ -70,6 +74,7 @@ export function caseWelcomeCopy(input: {
   if (checklists.kind === 'pick' && checklists.travellerUnconfirmed) {
     return {
       title,
+      lead: 'Confirm your profile, or pick a checklist now.',
       body: [
         'A checklist for this route is meant only for some nationalities or countries of residence, and the profile does not confirm them yet, so none was linked.',
         'Confirm the nationality and country of residence on the profile, as country names, and VisaStack can choose the checklist when a case starts. Or pick one now.',
@@ -80,6 +85,7 @@ export function caseWelcomeCopy(input: {
   if (checklists.kind === 'pick') {
     return {
       title,
+      lead: 'Pick the checklist for this visa route.',
       body: [
         'First, pick the checklist for this visa route. It lists the papers the route asks for and shows which ones you already have.',
       ],
@@ -89,6 +95,7 @@ export function caseWelcomeCopy(input: {
   if (checklists.kind === 'unknown') {
     return {
       title,
+      lead: 'Add documents and details as you go.',
       body: [
         'Add documents and details to the case as you go.',
         'The Requirement Pack section further down shows whether a checklist can be linked.',
@@ -99,12 +106,14 @@ export function caseWelcomeCopy(input: {
   if (checklists.kind === 'none' && (checklists.reasons ?? []).some(isMismatch)) {
     return {
       title,
+      lead: 'No checklist fits this case yet.',
       body: noChecklistLines(checklists.reasons, { destination: null, purpose: null }),
       action: { href: '#evidence', label: 'Add Evidence' },
     };
   }
   return {
     title,
+    lead: 'No checklist for this route yet.',
     body: [
       'There is no checklist for this route yet, so the case cannot show what is missing on its own.',
       'You can still add documents and details to the case and keep track of what the route asks for yourself.',

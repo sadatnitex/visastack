@@ -33,6 +33,7 @@ import {
 } from '../../../../../components/selected-scope-summary';
 import { ShowMore } from '../../../../../components/show-more';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { AboutDisclosure } from '../../../../../components/ui-lift';
 import { accessLogEventLabel } from '../../../../../lib/access-log-labels';
 import { AGENCY_AI_ALLOWED_LINE, agencyAiAccessLine } from '../../../../../lib/agency-ai';
 import { aiConnectorEnabled } from '../../../../../lib/ai-connector';
@@ -408,13 +409,24 @@ export default async function SharingPage({
       <PageHeader
         eyebrow={data.applicant.displayName}
         title="Sharing"
-        description="You control every grant. Access is purpose-bound, takes effect only once accepted, and can be paused or revoked at any time."
         actions={
           <a className="btn btn-primary" href="#new-sharing-request">
             New Sharing Request
           </a>
         }
       />
+
+      {/* Owner, 5 Nov 2026: no page should have more than 30 words. What sharing means is one tap away. */}
+      <AboutDisclosure summary="About Sharing">
+        <p>
+          You control every grant. Access is purpose-bound, takes effect only once accepted, and can
+          be paused or revoked at any time.
+        </p>
+        <p>Pending, paused and ended grants are labelled separately below.</p>
+        <p>
+          Pause stops access straight away and you can resume it later. Revoke ends this access.
+        </p>
+      </AboutDisclosure>
 
       <DepthScope family="sharing" depth={depth}>
         <DepthSwitch
@@ -443,29 +455,36 @@ export default async function SharingPage({
               <CollectionAnswersSharingLine applicantId={id} />
               <p className="card-body">
                 {data.accessAvailable
-                  ? `${plural(data.grantCounts.active, 'active grant')}. Pending, paused and ended grants are labelled separately below.`
+                  ? `${plural(data.grantCounts.active, 'active grant')}.`
                   : 'Access records are unavailable. Reload before making changes.'}
               </p>
               {notAtGlance > 0 ? (
                 <p className="card-body" data-only="glance">
                   {notAtGlance === 1
-                    ? '1 more is waiting to be accepted or has ended.'
-                    : `${notAtGlance} more are waiting to be accepted or have ended.`}{' '}
-                  Choose Browse to see them.
+                    ? '1 more waiting or ended, under Browse.'
+                    : `${notAtGlance} more waiting or ended, under Browse.`}
                 </p>
               ) : null}
               {data.grantCounts.total > 0 ? (
-                <p className="notice u-mb-100 lc-revoke-warning">
-                  Pausing or revoking stops all <em>future</em> access immediately. It cannot
-                  remotely erase copies the recipient already downloaded before that point.
-                </p>
+                <div className="notice u-mb-100 lc-revoke-warning">
+                  <p className="lc-revoke-short">
+                    Pausing or revoking stops access now; copies already downloaded cannot be
+                    erased.
+                  </p>
+                  <AboutDisclosure summary="About Revoking">
+                    <p>
+                      Pausing or revoking stops all <em>future</em> access immediately. It cannot
+                      remotely erase copies the recipient already downloaded before that point.
+                    </p>
+                  </AboutDisclosure>
+                </div>
               ) : null}
               {!data.accessAvailable ? (
                 <p role="alert">
                   We could not load sharing records. This does not mean nobody has access.
                 </p>
               ) : data.grantCounts.total === 0 ? (
-                <EmptyState icon="shield" title="Nobody Has Access Yet">
+                <EmptyState icon="shield" title="Nobody Has Access Yet" fold>
                   Your profile and documents are private. When you share with someone, they appear
                   here with what they can see and until when.
                 </EmptyState>
@@ -599,12 +618,6 @@ export default async function SharingPage({
                                   <span className="badge badge-neutral">
                                     {AGENCY_AI_ALLOWED_LINE}
                                   </span>
-                                </p>
-                              ) : null}
-                              {canPause || canResume || canRevoke ? (
-                                <p className="muted lc-small-m0 lc-grant-note">
-                                  Pause stops access straight away and you can resume it later.
-                                  Revoke ends this access.
                                 </p>
                               ) : null}
                               {canPause || canResume || canRevoke ? (

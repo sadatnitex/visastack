@@ -11,6 +11,7 @@ import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import { PROGRESS_IN_CASE_LINE } from '../../../../../components/progress-ring';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
+import { AboutDisclosure } from '../../../../../components/ui-lift';
 import { caseCountryOptions, casePurposeGroups } from '../../../../../lib/case-choices';
 import { caseStateLabel, openCasesNewestFirst } from '../../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
@@ -126,13 +127,17 @@ export default async function MissionsPage({
       <PageHeader
         eyebrow={data.applicant.displayName}
         title="Cases"
-        description="A case assembles this traveller's evidence against a published requirement pack."
         actions={
           <a className="btn btn-secondary" href="#start-case">
             Start a Case
           </a>
         }
       />
+
+      {/* Owner, 5 Nov 2026: no page should have more than 30 words. What a case is, one tap away. */}
+      <AboutDisclosure summary="About Cases">
+        <p>A case assembles this traveller's evidence against a published requirement pack.</p>
+      </AboutDisclosure>
 
       <DepthScope family="cases" depth={depth}>
         <DepthSwitch family="cases" initial={depth} copy={depthCopyFor('cases')} />
@@ -163,6 +168,7 @@ export default async function MissionsPage({
                 <EmptyState
                   icon="briefcase"
                   title="No Cases Yet"
+                  fold
                   why="Once a checklist is attached, you see how many items are ready and what is still missing."
                   action={{ href: '#start-case', label: 'Start a Case' }}
                 >

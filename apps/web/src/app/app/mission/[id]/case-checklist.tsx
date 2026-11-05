@@ -141,8 +141,11 @@ export function CaseChecklist({
           ) : null}
         </p>
       ) : null;
+    // The sentence on what to do next is folded with the rest: the status word and the one button
+    // already say it, and four rows must not repeat the same line (the 30-word rule, 5 Nov 2026).
     const more = (
       <>
+        {meta.next ? <p className="lift-check-next">{meta.next}</p> : null}
         {done ? facts : null}
         {source}
         {bookingReminder ? <p className="lift-check-aside">{bookingReminder}</p> : null}
@@ -168,7 +171,6 @@ export function CaseChecklist({
         tone={toneOfBadge(meta.tone)}
         status={meta.label}
         necessity={necessity}
-        next={meta.next || undefined}
         action={action}
         context={!done && facts.length > 0 ? facts : undefined}
         compact={done}
@@ -193,7 +195,8 @@ export function CaseChecklist({
                 <h5 className="case-category-heading">{category.label}</h5>
                 {reached ? (
                   <span className="lift-group-count">
-                    {reached.onFile} of {reached.total} on file
+                    {reached.onFile} of {reached.total}
+                    <span className="sr-only"> on file</span>
                   </span>
                 ) : null}
               </div>

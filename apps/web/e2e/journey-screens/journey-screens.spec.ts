@@ -46,23 +46,27 @@ for (const screen of SCREENS) {
 }
 
 test.describe('document wallet', () => {
-  test('the keyboard reaches the decisions first, then the finder, in reading order', async ({
+  test('the keyboard reaches the decisions first, then the list and the finder, in reading order', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await openScreen(page, 'wallet');
-    const stops = await tabStops(page, 9);
+    const stops = await tabStops(page, 13);
     // Named by the page itself, so a screen reader user hears which file each choice is about.
     expect(stops.map((s) => s.name)).toEqual([
       '← Overview',
+      'Choose What It Is: Specimen Letter Still Being Checked',
+      'What Happens Next',
       'Confirm: Specimen Passport, Newer Scan',
       'Keep Separate: Specimen Passport, Newer Scan',
+      'What Happens Next',
       'Confirm: Specimen Letter Still Being Checked',
       'Keep Separate: Specimen Letter Still Being Checked',
-      'Choose What It Is: Specimen Letter Still Being Checked',
+      'About These Choices',
       'Specimen Passport, Newer ScanReady',
       'Specimen Passport, First ScanReady',
       'Specimen Letter Still Being CheckedProcessing',
+      'Find a Document',
     ]);
     expect(
       stops.filter((s) => !s.marked).map((s) => s.name),
@@ -78,6 +82,8 @@ test.describe('document wallet', () => {
     await expect(
       card.getByText('looks like a new copy of Specimen Passport, First Scan.'),
     ).toBeVisible();
+    // What each choice does sits one tap away, under "What Happens Next" beside each decision.
+    for (const fold of await card.getByText('What Happens Next').all()) await fold.click();
     await expect(
       card.getByText('Confirm keeps both files and marks the older one as the Earlier Copy.'),
     ).toBeVisible();
@@ -97,7 +103,7 @@ test.describe('document wallet', () => {
     await expect(status).toContainText('Test fixture: nothing was changed.');
     await expect(status).toBeFocused();
     // The refusal is the stand-in server speaking: nothing was filed, so both files are still there.
-    await expect(page.locator('.umpe-p3-decision-item')).toHaveCount(3);
+    await expect(page.locator('.umpe-p3-decision-item')).toHaveCount(2);
   });
 
   test('the finder narrows the list and the preview never opens a file that is still being checked', async ({

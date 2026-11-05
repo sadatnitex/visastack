@@ -77,7 +77,10 @@ describe('the files that need one decision (UMPE P3)', () => {
         ]}
       />,
     );
-    expect(html).toContain('We are not sure what Untitled Document is.');
+    // The question is said once, in the heading; the file is one short row with one button.
+    expect(html).toContain('We Are Not Sure What This Is');
+    expect(html).toContain('Untitled Document');
+    expect(html).not.toContain('We are not sure what Untitled Document is.');
     expect(html).toContain(
       'href="/app/applicant/a1/documents?document=d9#wallet-selected-document"',
     );
@@ -111,9 +114,10 @@ describe('UMPE G1 additions to the list', () => {
         linked={[]}
       />,
     );
-    expect(html).toContain(
-      'We think Document, Anna is a Bank Statement. Nothing is saved until you accept it.',
-    );
+    expect(html).toContain('Check This Suggestion');
+    expect(html).toContain('Looks like a Bank Statement');
+    // The promise that a suggestion saves nothing stays one tap away.
+    expect(html).toContain('Nothing is saved until you accept it.');
     expect(html).toContain('aria-label="Review Suggestion: Document, Anna"');
     expect(html).toContain('Passport, Anna had already expired on the day it was added.');
     expect(html).toContain('We could not find any readable text in Scan, Anna.');
@@ -242,7 +246,11 @@ describe('UMPE G4: placed automatically', () => {
         ]}
       />,
     );
-    expect(html).toContain('Placed Automatically');
+    // One closed row with a number; the sentences and the Change buttons are inside it.
+    expect(html).toContain('Sorted for You');
+    expect(html).toContain('<span class="docs-count">(2)</span>');
+    expect(html).toMatch(/<details class="card u-mb-150 docs-sorted">/);
+    expect(html).not.toContain('<details class="card u-mb-150 docs-sorted" open');
     expect(html).toContain('Recognised Automatically');
     expect(html).toContain('Filed Under Anna Eriksson');
     expect(html).toContain('We recognised Hotel Booking, Anna as a Hotel or Stay Booking');
@@ -273,5 +281,78 @@ describe('UMPE G4: placed automatically', () => {
     );
     expect(html).toContain('Choose who this file belongs to.');
     expect(html).not.toContain('checked=""');
+  });
+});
+
+describe('plain words: one list for files that share a question (Owner, 5 Nov 2026: no page should have more than 30 words)', () => {
+  const sameQuestion = [
+    { kind: 'unknown_type' as const, documentId: 'u1', title: 'Document, Nazmus, 4 Nov 2026' },
+    { kind: 'unknown_type' as const, documentId: 'u2', title: 'Document, Nazmus, 4 Nov 2026' },
+  ];
+
+  it('asks the question once in a heading and lists each file as one short row with one button', () => {
+    const html = renderToStaticMarkup(
+      <NeedsDecision applicantId="a1" items={sameQuestion} linked={[]} />,
+    );
+    expect(html.match(/We Could Not Tell What These Are/g)).toHaveLength(1);
+    expect(html.match(/class="docs-choose-row"/g)).toHaveLength(2);
+    expect(html.match(/>Choose What It Is</g)).toHaveLength(2);
+    // The long sentence is not repeated for each file.
+    expect(html).not.toContain('We could not tell what');
+    // Each button still names its file.
+    expect(html).toContain('aria-label="Choose What It Is: Document, Nazmus, 4 Nov 2026"');
+    expect(html.match(/<h3 /g)).toHaveLength(1);
+  });
+
+  it('says it once for a single file, in the singular', () => {
+    const html = renderToStaticMarkup(
+      <NeedsDecision applicantId="a1" items={sameQuestion.slice(0, 1)} linked={[]} />,
+    );
+    expect(html).toContain('We Could Not Tell What This Is');
+    expect(html).not.toContain('These Are');
+  });
+
+  it('keeps the reassurance and the promise inside one closed disclosure of the same card', () => {
+    const html = renderToStaticMarkup(
+      <NeedsDecision
+        applicantId="a1"
+        items={[
+          ...sameQuestion,
+          { kind: 'suggested_kind', documentId: 's1', title: 'Scan', suggestedLabel: 'Passport' },
+        ]}
+        linked={[]}
+      />,
+    );
+    const about = html.match(/<details class="docs-more docs-decision-about">.*?<\/details>/s)?.[0];
+    expect(about).toContain('Most files are sorted on their own.');
+    expect(about).toContain('Nothing changes until you choose.');
+    expect(about).toContain('Nothing is saved until you accept it.');
+    expect(about).not.toContain(' open');
+  });
+
+  it('shows only the closed Sorted for You row when there is nothing to decide', () => {
+    const html = renderToStaticMarkup(
+      <NeedsDecision
+        applicantId="a1"
+        items={[]}
+        linked={[]}
+        personName="Anna Eriksson"
+        automatic={[
+          {
+            placementId: 'pl1',
+            documentId: 'd1',
+            placement: 'KIND',
+            title: 'Hotel Booking, Anna',
+            kindLabel: 'Hotel or Stay Booking',
+          },
+        ]}
+      />,
+    );
+    expect(html).not.toContain('Needs One Decision');
+    expect(html).not.toContain('Nothing needs a decision right now.');
+    expect(html).toContain('Sorted for You');
+    expect(html).toContain('<span class="docs-count">(1)</span>');
+    expect(html).toMatch(/<details class="card u-mb-150 docs-sorted"><summary/);
+    expect(html).toContain('aria-label="Change: Hotel Booking, Anna"');
   });
 });

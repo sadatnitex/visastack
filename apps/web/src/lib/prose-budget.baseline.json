@@ -1,0 +1,143 @@
+{
+  "measuredOn": "5 Nov 2026",
+  "viewport": "phone default depth (Glance), 390 wide",
+  "how": "countProse (prose-budget.test-support.ts) over the real page markup rendered by the screenshot harness with made-up data. words is the phone default depth; wordsDesktop is the same page at the desktop default (Browse). A page with no depth switch counts every sentence at both. Registered screens are held by prose-budget.test.ts; the others are the gap.",
+  "notMeasured": [
+    "Account Home",
+    "My Profile",
+    "Dates and Expiry",
+    "Cases list",
+    "Notifications",
+    "Privacy",
+    "Account",
+    "Agency Home",
+    "Agency Cases",
+    "Admin screens"
+  ],
+  "rows": [
+    {
+      "screen": "Documents",
+      "state": "files that need a name, some sorted for you, archived and deleted lists",
+      "words": 0,
+      "wordsDesktop": 24,
+      "registered": true,
+      "note": "owner's phone state; was 111 before the plain pass"
+    },
+    {
+      "screen": "Documents",
+      "state": "a few documents, one still being checked, one failed",
+      "words": 7,
+      "wordsDesktop": 31,
+      "registered": true,
+      "note": "was 49 before the plain pass"
+    },
+    {
+      "screen": "Documents",
+      "state": "a suggested link between two files, and a kind the AI suggested",
+      "words": 7,
+      "wordsDesktop": 31,
+      "registered": true,
+      "note": "was 78 before the plain pass"
+    },
+    {
+      "screen": "Documents",
+      "state": "nothing added yet",
+      "words": 13,
+      "wordsDesktop": 27,
+      "registered": true,
+      "note": "was 23 before the plain pass"
+    },
+    {
+      "screen": "Documents",
+      "state": "one document opened (the detail screen)",
+      "words": 31,
+      "wordsDesktop": 31,
+      "registered": false,
+      "note": "not held to the rule yet: a separate screen on a phone"
+    },
+    {
+      "screen": "Case",
+      "state": "checklist attached, 12 items",
+      "words": 124,
+      "wordsDesktop": 194,
+      "registered": false
+    },
+    {
+      "screen": "Case",
+      "state": "changed since it was confirmed",
+      "words": 139,
+      "wordsDesktop": 209,
+      "registered": false
+    },
+    {
+      "screen": "Case",
+      "state": "brand-new case with a checklist to pick",
+      "words": 78,
+      "wordsDesktop": 144,
+      "registered": false
+    },
+    {
+      "screen": "Case",
+      "state": "brand-new case, no checklist exists",
+      "words": 94,
+      "wordsDesktop": 186,
+      "registered": false
+    },
+    {
+      "screen": "Traveller Overview",
+      "state": "two active cases and things waiting",
+      "words": 46,
+      "wordsDesktop": 75,
+      "registered": false
+    },
+    {
+      "screen": "Traveller Overview",
+      "state": "brand-new traveller",
+      "words": 41,
+      "wordsDesktop": 110,
+      "registered": false
+    },
+    {
+      "screen": "Evidence Requests",
+      "state": "two waiting, one sent back, one received, one accepted",
+      "words": 200,
+      "wordsDesktop": 349,
+      "registered": false
+    },
+    {
+      "screen": "Evidence Requests",
+      "state": "none yet",
+      "words": 98,
+      "wordsDesktop": 98,
+      "registered": false
+    },
+    {
+      "screen": "Sharing",
+      "state": "active, paused, pending and revoked access",
+      "words": 112,
+      "wordsDesktop": 177,
+      "registered": false
+    },
+    {
+      "screen": "Sharing",
+      "state": "nobody has access yet",
+      "words": 73,
+      "wordsDesktop": 193,
+      "registered": false
+    },
+    {
+      "screen": "Agency Clients",
+      "state": "invitations and evidence requests",
+      "words": 178,
+      "wordsDesktop": 178,
+      "registered": false
+    },
+    {
+      "screen": "Agency Clients",
+      "state": "new agency, nobody invited",
+      "words": 183,
+      "wordsDesktop": 183,
+      "registered": false
+    }
+  ]
+}

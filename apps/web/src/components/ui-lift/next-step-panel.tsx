@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { AboutDisclosure } from './about-disclosure';
 import { LiftHeading, LiftLink } from './lift-parts';
 import type { LiftAction, LiftHeadingLevel } from './types';
 
@@ -20,6 +21,8 @@ export interface NextStepPanelProps {
   readonly variant?: 'default' | 'ink';
   /** Anything extra under the body, before the button. */
   readonly children?: ReactNode;
+  /** The longer reason, folded under "Why This Step" after the button (read only when asked). */
+  readonly why?: ReactNode;
 }
 
 /** The one thing to do next: a tinted panel with a coloured edge, a title and one primary button. */
@@ -33,6 +36,7 @@ export function NextStepPanel({
   edge = 'brand',
   variant = 'default',
   children,
+  why,
 }: NextStepPanelProps) {
   return (
     <section
@@ -48,6 +52,7 @@ export function NextStepPanel({
       <LiftLink className="btn btn-primary" href={action.href} openGroup={action.openGroup}>
         {action.label}
       </LiftLink>
+      {why ? <AboutDisclosure summary="Why This Step">{why}</AboutDisclosure> : null}
     </section>
   );
 }

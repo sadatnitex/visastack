@@ -27,12 +27,11 @@ const words = (el: Element | null | undefined) =>
 describe('the phone next step bar', () => {
   it('says how far the checklist is, then the step, with a small bar', () => {
     const doc = render({
-      missionTitle: 'Japan visitor visa',
       nextStep: missing,
       progress: { done: 6, total: 12 },
     });
     const note = doc.querySelector('fieldset.sticky-action-bar output');
-    expect(words(note)).toBe('6 of 12 · Fix 4 required items for Japan visitor visa');
+    expect(words(note)).toBe('6 of 12 · 4 to fix');
     const meter = note?.querySelector('svg[role="img"]');
     expect(meter?.getAttribute('aria-label')).toBe('6 of 12 required items on file');
     expect(note?.querySelector('.lift-meter-fill')?.getAttribute('width')).toBe('50');
@@ -47,7 +46,6 @@ describe('the phone next step bar', () => {
 
   it('lets a screen reader hear the numbers once: the bar says them, the written copy is hidden', () => {
     const doc = render({
-      missionTitle: 'Japan visitor visa',
       nextStep: missing,
       progress: { done: 6, total: 12 },
     });
@@ -62,22 +60,18 @@ describe('the phone next step bar', () => {
 
   it('shows only the step when there is no checklist to count', () => {
     for (const progress of [undefined, null, { done: 0, total: 0 }]) {
-      const doc = render({ missionTitle: 'Japan visitor visa', nextStep: missing, progress });
-      expect(words(doc.querySelector('output'))).toBe(
-        'Fix 4 required items for Japan visitor visa',
-      );
+      const doc = render({ nextStep: missing, progress });
+      // Short on purpose (the 30-word rule): the Next Step panel above says it in full.
+      expect(words(doc.querySelector('output'))).toBe('4 to fix');
       expect(doc.querySelector('svg')).toBeNull();
     }
   });
 
   it('shows nothing when there is no next step or the case changed (the alert holds it)', () => {
-    expect(
-      render({ missionTitle: 'Case', nextStep: null }).querySelector('.case-sticky-next'),
-    ).toBeNull();
+    expect(render({ nextStep: null }).querySelector('.case-sticky-next')).toBeNull();
     const changed: CaseAttentionItem = { ...missing, kind: 'changed' };
     expect(
       render({
-        missionTitle: 'Case',
         nextStep: changed,
         progress: { done: 1, total: 2 },
       }).querySelector('.case-sticky-next'),
@@ -86,7 +80,7 @@ describe('the phone next step bar', () => {
 
   it('carries no inline style', () => {
     const html = renderToStaticMarkup(
-      <CaseMobileBar missionTitle="Case" nextStep={missing} progress={{ done: 1, total: 2 }} />,
+      <CaseMobileBar nextStep={missing} progress={{ done: 1, total: 2 }} />,
     );
     expect(html).not.toContain('style=');
   });

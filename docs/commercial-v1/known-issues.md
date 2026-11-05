@@ -7535,3 +7535,14 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Not met yet: the Everything and Browse heights and both first-row positions. These stay open work for the 30-word pass and a second height pass.
 - Two small repairs in the same change: the turned arrow on the help and "more" rows no longer causes a 2 px sideways scroll; the deadline clock's empty title reads "No Expiry Dates Yet" in its end-to-end test.
 - Checked locally: all 444 browser checks in the pull request list pass on a production build.
+
+## 2026-11-05 - Plain pass: at most 30 words of explanation per screen at the phone default
+
+- Owner rule (5 Nov 2026): no page should carry more than 30 words of explanation at the phone default. The explanation moves behind one-tap "About" folds; nothing is deleted. Consent and warning lines that a person needs at the moment of an action stay visible in short form (the send-a-copy line, the pause or revoke line, the profile conflict line).
+- Documents: the list shows at the first level, the four numbers sit in one row, files nobody could name are grouped under one heading with one short row each, and what was sorted for you is one closed row. Words at the phone default, before then after: 111 then 0, 49 then 7, 78 then 7, 23 then 13.
+- Other screens (case, home, evidence requests, agency clients, sharing, trips, cases, profile, dates, notifications): per-screen counts moved from 15-200 words down to 0-27 (method in the P2 hand-back; counted in a real browser at 390 wide).
+- Guard: apps/web/src/lib/prose-budget.test.ts counts the words and fails over 30. It covers Documents only so far. The other screens are measured and listed in prose-budget.baseline.json but are NOT yet guarded, so a later edit can add words back there. Registering them is open work.
+- Case page heights (390 wide, worst-case data): Everything 3,579 px (was 3,788), Browse 3,183 (3,414), Glance 1,994 (2,199). Desktop Everything 3,306 (3,277) and the first checklist row at a desktop 1,097 px (1,068) are slightly worse because of the extra fold line. The gate now holds these measured ceilings.
+- Review fixes made before merge: the depth sentence stays out of the reading order for levels not chosen; the "i" note closes with Escape; the send-a-copy line keeps "the agency can download this exact copy while it has access" visible; the send-back hint stays visible; the pause or revoke line names both; the profile conflict line carries its instruction; a label class can no longer hide a sentence from the counter.
+- Judgement kept: document rows no longer show the neutral "format checked" note (it stays in the opened document); a row shows a mark only when something is not normal.
+- Not verified: nothing here has been seen on a real phone or in Safari or Firefox. The opened-document screen (31 words) and the desktop side panel are still wordier than the rule.

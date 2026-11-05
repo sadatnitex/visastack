@@ -138,7 +138,7 @@ describe('documents with no kind set', () => {
     );
     expect(rows.find((row) => row.includes('Loose file A'))).toContain('Kind not set');
     expect(rows.find((row) => row.includes('Loose file A'))).toContain('AI suggests Passport');
-    expect(rows.find((row) => row.includes('Sorted file'))).toContain('Passport · Identity');
+    expect(rows.find((row) => row.includes('Sorted file'))).toContain('Passport');
   });
 
   it('lists only those documents when "Not Set Yet" is chosen', () => {
@@ -320,28 +320,71 @@ describe('a document opens as its own full screen on a phone (UX17)', () => {
 });
 
 describe('the words about how a file was checked', () => {
-  it('shows an ordinary check as a quiet caption and keeps a problem as a pill', () => {
-    const pills = () =>
-      [...container.querySelectorAll('.wallet-document-state .badge')].map((n) => n.textContent);
-    const notes = () =>
-      [...container.querySelectorAll('.wallet-document-state .wallet-safety-note')].map(
-        (n) => n.textContent,
-      );
+  const pills = () =>
+    [...container.querySelectorAll('.wallet-document-state .badge')].map((n) => n.textContent);
+  const show = (documents: WalletBrowserDocument[]) =>
     act(() =>
-      root.render(
-        <DocumentWalletBrowser
-          applicantId="synthetic-person"
-          documents={
-            [
-              { ...records[1], id: 'a', safetyLabel: 'Format Checked', safetyTone: 'neutral' },
-              { ...records[1], id: 'b', safetyLabel: 'Held Back', safetyTone: 'danger' },
-            ] as WalletBrowserDocument[]
-          }
-        />,
-      ),
+      root.render(<DocumentWalletBrowser applicantId="synthetic-person" documents={documents} />),
     );
-    expect(notes()).toEqual(['Format Checked']);
-    expect(pills()).not.toContain('Format Checked');
-    expect(pills()).toContain('Held Back');
+
+  it('shows nothing in a row for an ordinary check, and one pill for a problem', () => {
+    show([
+      {
+        ...records[1],
+        id: 'a',
+        ready: true,
+        needsReview: false,
+        expiring: false,
+        safetyLabel: 'Format Checked',
+        safetyTone: 'neutral',
+      },
+      { ...records[1], id: 'b', safetyLabel: 'Held Back', safetyTone: 'danger' },
+    ] as WalletBrowserDocument[]);
+    // How the file was checked is in its details, never on every row.
+    expect(container.querySelector('.wallet-metadata-list')?.textContent).not.toContain(
+      'Format Checked',
+    );
+    expect(container.querySelectorAll('.wallet-document-state')).toHaveLength(1);
+    expect(pills()).toEqual(['Held Back']);
+  });
+
+  it('never puts two pills in one row: the most serious word wins', () => {
+    show([
+      {
+        ...records[0],
+        id: 'a',
+        needsReview: true,
+        expiring: true,
+        safetyLabel: 'Held Back',
+        safetyTone: 'danger',
+      },
+      { ...records[0], id: 'b', needsReview: true, expiring: true, safetyTone: 'neutral' },
+      { ...records[0], id: 'c', needsReview: false, expiring: true, safetyTone: 'neutral' },
+    ] as WalletBrowserDocument[]);
+    expect(pills()).toEqual(['Held Back', 'Blocked', 'Expiring Soon']);
+  });
+
+  it('takes the words the page gives for the row, including none', () => {
+    show([
+      { ...records[1], id: 'a', stateWords: null },
+      { ...records[1], id: 'b', stateWords: { label: 'Expired', tone: 'danger' } },
+    ] as WalletBrowserDocument[]);
+    expect(pills()).toEqual(['Expired']);
+  });
+
+  it('gives the name, the kind and the date their own pieces, so the name can take the whole line', () => {
+    show([
+      { ...records[1], id: 'a', name: 'A very long file name.pdf' },
+    ] as WalletBrowserDocument[]);
+    const row = container.querySelector('.wallet-metadata-list li');
+    expect(row?.querySelector('.wallet-document-name')?.textContent).toBe(
+      'A very long file name.pdf',
+    );
+    expect(row?.querySelector('.wallet-document-kind')?.textContent).toBe(
+      'Bank Statement · Version 2',
+    );
+    expect(row?.querySelector('.wallet-document-updated')?.textContent).toMatch(/2026/);
+    // One tap target for the row: the whole row is the one select button.
+    expect(row?.querySelectorAll('button.wallet-document-select')).toHaveLength(1);
   });
 });
