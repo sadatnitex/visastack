@@ -124,10 +124,10 @@ const LIFT = {
    * 1266 at a phone and 900 at a desktop). Those aspirations are NOT met yet and are tracked as
    * open work in docs/commercial-v1/known-issues.md. Lower these numbers when the page gets shorter.
    */
-  phonePage: { everything: 3830, browse: 3450, glance: 2240 },
-  desktopPage: { everything: 3320 },
+  phonePage: { everything: 3590, browse: 3190, glance: 2000 },
+  desktopPage: { everything: 3310 },
   /** Where the first checklist row may start (px from the top of the page). */
-  firstRow: { phone: 1640, desktop: 1090 },
+  firstRow: { phone: 1500, desktop: 1100 },
 } as const;
 
 type Level = 'glance' | 'browse' | 'everything';
