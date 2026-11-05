@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const route = vi.hoisted(() => ({ pathname: '/app/privacy' }));
 vi.mock('next/navigation', () => ({ usePathname: () => route.pathname }));
 vi.mock('next/link', () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...props }: { href: string; children?: ReactNode }) => (
     <a href={href} {...props}>
       {children}

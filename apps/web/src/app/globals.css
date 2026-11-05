@@ -19389,3 +19389,47 @@ article.card:has(> .trip-start-form) {
   color: var(--tone);
 }
 /* end WP-PLAIN-TYPE */
+
+/* WP-PLAIN-SPEED A tap is answered at once (Owner, 5 Nov 2026: navigation buttons felt slow to respond). Pages are built on the server, so there is a wait after every tap; the tapped link now takes its selected look immediately and a thin bar runs across the top of the workspace until the page arrives. Flat, existing tokens only. */
+.link-pending {
+  display: none;
+}
+.app-shell-links a:has(> .link-pending[data-pending="true"]),
+.app-nav-action:has(> .link-pending[data-pending="true"]) {
+  color: var(--selected-text);
+  background: var(--bg-elevated);
+}
+.subnav a:has(> .link-pending[data-pending="true"]) {
+  color: var(--text);
+  border-bottom-color: var(--brand);
+}
+.route-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 80;
+  height: 3px;
+  background: var(--brand);
+  transform: scaleX(0);
+  transform-origin: left center;
+  opacity: 0;
+  pointer-events: none;
+}
+body:has(.link-pending[data-pending="true"]) .route-progress {
+  opacity: 1;
+  animation: route-progress 8s cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
+}
+@keyframes route-progress {
+  from {
+    transform: scaleX(0.04);
+  }
+  to {
+    transform: scaleX(0.92);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body:has(.link-pending[data-pending="true"]) .route-progress {
+    animation: none;
+    transform: scaleX(0.6);
+  }
+}
+/* end WP-PLAIN-SPEED */

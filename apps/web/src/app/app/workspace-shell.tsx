@@ -15,6 +15,7 @@ import {
   useState,
 } from 'react';
 import { Icon, type IconName } from '../../components/icons';
+import { LinkPending, RouteProgress } from '../../components/link-pending';
 import { PersonAvatar } from '../../components/profile-photo/person-avatar';
 import { isCurrentPath } from '../../lib/navigation';
 import { type SidebarState, saveSidebarState } from '../../lib/sidebar-preference';
@@ -258,6 +259,7 @@ function WorkspaceTools({
             href={item.href}
             aria-current={currentTool(item) ? 'page' : undefined}
           >
+            <LinkPending />
             <Icon name={navIconFor(item)} size={20} />
             <span className="app-link-label app-link-full">{item.label}</span>
           </Link>
@@ -352,6 +354,7 @@ export function WorkspaceShell({
         data-workspace={nav.kind}
         data-sidebar={collapsed ? 'collapsed' : 'expanded'}
       >
+        <RouteProgress />
         <AppNav
           links={nav.primary}
           accountLabel={accountName}

@@ -23,6 +23,7 @@ const standIn = vi.hoisted(
 vi.mock('./actions', standIn);
 vi.mock('../../agency/[orgId]/actions', standIn);
 vi.mock('next/link', () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children }: { href: string; children?: ReactNode }) => (
     <a href={href}>{children}</a>
   ),

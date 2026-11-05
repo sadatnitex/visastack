@@ -121,6 +121,12 @@ const nextConfig = {
     return config;
   },
   experimental: {
+    // How long the browser keeps a page it has already shown (Owner, 5 Nov 2026: navigation felt
+    // slow). Every signed-in page is built on the server for the person, so Next's own default of
+    // zero makes every tap, and every return to a page, wait for a fresh build. Thirty seconds
+    // makes going back instant and still shows anything saved a moment ago: every change made
+    // through a form or button clears this memory (revalidatePath, cookies, router.refresh).
+    staleTimes: { dynamic: 30, static: 180 },
     serverActions: {
       // Next's own default is 1 MB, silently below the pilot's own upload
       // quota (packages/services/src/quotas.ts), so every upload above 1 MB

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
+import { LinkPending } from '../../components/link-pending';
 import { type NavLink, isCurrentPath } from '../../lib/navigation';
 
 /**
@@ -54,6 +55,7 @@ export function SubNav({
           aria-current={isCurrentPath(pathname, link) ? 'page' : undefined}
           {...(fit && link.short ? { 'aria-label': link.label } : {})}
         >
+          <LinkPending />
           {fit ? (link.short ?? link.label) : link.label}
         </Link>
       ))}

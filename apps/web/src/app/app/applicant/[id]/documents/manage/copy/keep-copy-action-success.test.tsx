@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const keep = vi.hoisted(() => vi.fn());
 vi.mock('./actions', () => ({ keepCopyAction: keep }));
 vi.mock('next/link', () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children }: { href: string; children: React.ReactNode }) => (
     <a href={href}>{children}</a>
   ),

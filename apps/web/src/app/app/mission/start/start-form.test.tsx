@@ -8,6 +8,7 @@ import { caseCountryOptions, casePurposeGroups } from '../../../../lib/case-choi
 const actions = vi.hoisted(() => ({ startTripAction: vi.fn() }));
 vi.mock('./actions', () => actions);
 vi.mock('next/link', () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children }: { href: string; children?: React.ReactNode }) => (
     <a href={href}>{children}</a>
   ),

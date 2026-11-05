@@ -16,6 +16,7 @@ vi.mock('./actions', () => ({
   deleteCancelledCaseAction: vi.fn(async () => ({ ok: true, message: '' })),
 }));
 vi.mock('next/link', () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...rest }: { href: string; children: unknown }) => (
     <a href={href} {...rest}>
       {children as never}
