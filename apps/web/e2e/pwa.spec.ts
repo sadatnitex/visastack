@@ -99,6 +99,36 @@ test.describe('install details', () => {
   });
 });
 
+test.describe('phone fit (the installed app is never a shrunken desktop page)', () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 3,
+    isMobile: true,
+    hasTouch: true,
+  });
+
+  test('declares the device width, and one wide element cannot widen the page', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+      'content',
+      /width=device-width, initial-scale=1/,
+    );
+    // Something far wider than the screen, as a long file name or a table can be on a real page.
+    await page.evaluate(() => {
+      const wide = document.createElement('div');
+      wide.style.cssText = 'width:1200px;height:20px';
+      document.body.appendChild(wide);
+    });
+    const widths = await page.evaluate(() => ({
+      window: window.innerWidth,
+      page: document.documentElement.scrollWidth,
+    }));
+    expect(widths, 'the page keeps the width of the screen').toEqual({ window: 390, page: 390 });
+  });
+});
+
 test.describe('service worker and the cache law', () => {
   test('registers under the security policy with no violation', async ({ page }) => {
     const violations: string[] = [];

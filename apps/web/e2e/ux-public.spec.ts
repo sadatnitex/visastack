@@ -379,6 +379,27 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
         expect(lastBottom, 'the page ends above the bar').toBeLessThanOrEqual(barTop + 1);
       });
 
+      test('the always-there Add button on Documents sits above the bottom bar, fully visible', async ({
+        page,
+      }) => {
+        test.skip(viewport.width > 760, 'the round Add button exists on phones only');
+        const found = await page.evaluate(() => {
+          const add = document.createElement('a');
+          add.className = 'docs-add-fab';
+          add.href = '#';
+          add.textContent = 'Add Documents';
+          document.body.appendChild(add);
+          const box = add.getBoundingClientRect();
+          const bar = document.querySelector('.app-shell-nav')?.getBoundingClientRect();
+          if (!bar) throw new Error('missing bottom bar');
+          return { buttonBottom: box.bottom, buttonTop: box.top, barTop: bar.top };
+        });
+        expect(found.buttonBottom, 'the button ends above the bar').toBeLessThanOrEqual(
+          found.barTop,
+        );
+        expect(found.buttonTop, 'the button is on screen').toBeGreaterThanOrEqual(0);
+      });
+
       test('every tab of every section bar can be scrolled into view, so none is out of reach', async ({
         page,
       }) => {

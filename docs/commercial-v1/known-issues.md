@@ -7546,3 +7546,12 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Review fixes made before merge: the depth sentence stays out of the reading order for levels not chosen; the "i" note closes with Escape; the send-a-copy line keeps "the agency can download this exact copy while it has access" visible; the send-back hint stays visible; the pause or revoke line names both; the profile conflict line carries its instruction; a label class can no longer hide a sentence from the counter.
 - Judgement kept: document rows no longer show the neutral "format checked" note (it stays in the opened document); a row shows a mark only when something is not normal.
 - Not verified: nothing here has been seen on a real phone or in Safari or Firefox. The opened-document screen (31 words) and the desktop side panel are still wordier than the rule.
+
+## 2026-11-05 - Installed app on a phone: page width guard and the Add button position
+
+- Owner report: the installed app looked like a desktop site on a phone, and the round Add button on Documents was cut off at the bottom right.
+- Cause of the desktop look (measured under phone emulation: touch, 390 wide): when any one element is wider than the screen, the phone lays the whole page out at that width and shrinks it (390 px became 1,200 px). It shows zoomed out, like a desktop site. The first signs were the 2 px arrow overflow fixed earlier; any long file name, table or similar on a real page can do the same.
+- Fix: on touch screens only, the page and its body never grow sideways (`overflow-x: clip` on both, under `(hover: none) and (pointer: coarse)`). A desktop keeps the normal rule, so the sideways-scroll checks there still see anything that sticks out. Both elements are needed (measured: either one alone does nothing).
+- New check: e2e/pwa.spec.ts "phone fit" injects a 1,200 px element under phone emulation and requires the page to stay at the screen width. It failed with the rule removed (page 1,208) and passes with it.
+- Add button: it sat 16 px from the bottom edge, behind the bottom bar. It now sits above the bar (5 rem plus the phone's bottom edge). New check in ux-public.spec.ts at 320, 360 and 390 wide; it failed on the old stylesheet by 55 px.
+- Not verified: not seen on the owner's device after this change. Chrome's "Desktop site" setting on a phone cannot be fixed from the page.
