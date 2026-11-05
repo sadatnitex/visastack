@@ -105,7 +105,7 @@ describe('the wait is shown', () => {
     // A quick action keeps its own lighter look: the row look is for the sidebar's destinations.
     expect(block).toMatch(/a:not\(\.app-nav-action, \.app-nav-action-row\):has\(> \.link-pending/);
     expect(block).toMatch(
-      /\.app-shell-links a:not\([^)]*\):has\(> \.link-pending\[data-pending="true"\]\)/,
+      /\.app-shell-links\s+a:not\([^)]*\):has\(> \.link-pending\[data-pending="true"\]\)/,
     );
     expect(block).toMatch(/\.subnav a:has\(> \.link-pending\[data-pending="true"\]\)/);
     expect(block).toMatch(/\.route-progress\[data-active="true"\] \{\s*opacity: 1;/);
