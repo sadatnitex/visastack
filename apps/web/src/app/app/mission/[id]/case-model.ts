@@ -350,7 +350,7 @@ export function buildCaseAttention(input: CaseAttentionInput): readonly CaseAtte
       ? [
           {
             kind: 'changed' as const,
-            label: 'Changed Since Confirmed',
+            label: 'changed since confirmed',
             href: '#snapshots',
             count: 1,
             tone: 'danger' as const,

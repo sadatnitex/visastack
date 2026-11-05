@@ -207,7 +207,9 @@ describe('ChecklistRow', () => {
     expect(row?.className).toContain('row');
     expect(row?.className).toContain('lift-check-danger');
     expect(row?.querySelector('.row-key')?.textContent).toBe('Income Tax Return');
-    expect(row?.querySelector('.lift-check-tag')?.textContent).toBe('Mandatory');
+    // The dot before the tag is for the eyes of a wide screen only; the word is the tag.
+    expect(row?.querySelector('.lift-check-tag')?.textContent).toBe('· Mandatory');
+    expect(row?.querySelector('.lift-check-dot')?.getAttribute('aria-hidden')).toBe('true');
     expect(row?.querySelector('.lift-check-next')?.textContent).toBe(
       'Add this to move the case forward.',
     );

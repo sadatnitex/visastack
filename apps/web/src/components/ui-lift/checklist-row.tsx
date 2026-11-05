@@ -62,7 +62,14 @@ export function ChecklistRow({
       <div className="lift-check-body">
         <div className="lift-check-line">
           <span className="row-key lift-check-name">{name}</span>
-          {necessity ? <span className="lift-check-tag">{necessity}</span> : null}
+          {necessity ? (
+            <span className="lift-check-tag">
+              <span className="lift-check-dot" aria-hidden="true">
+                {'· '}
+              </span>
+              {necessity}
+            </span>
+          ) : null}
         </div>
         {next ? <p className="lift-check-next">{next}</p> : null}
         {context ? <div className="lift-check-context">{context}</div> : null}

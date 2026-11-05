@@ -422,3 +422,18 @@ Owner, 4 Nov 2026: redesign the case pages and the others. Package C draws Home,
 | Cases (08) and Start a Trip | The empty state of Cases keeps its component and is drawn like an empty panel (dashed edge, tile, same words, the Start a Case link is a quiet button). Each question of a start form is a numbered card (numbers come from a counter, never from words); the one filled button sits in the sticky action bar. | Same words, same links. |
 
 Level plan: no level changed. Upcoming and Recent Activity stay at Everything on Home, so a phone at Glance is one screen (844px measured).
+
+### 09. Case: review fixes (WP-LIFT-A, owner, 4 Nov 2026: redesign the case pages)
+
+| What changed | Before | Now | Why |
+|---|---|---|---|
+| Changed-case chip | "1 Changed Since Confirmed" (Title Case) | "1 changed since confirmed" (same address, `#snapshots`) | Reads like its siblings ("2 need a check") |
+| Welcome note shown (a case made in the last hour) | Evidence Progress offered "Pick a Checklist" (or "Add Evidence") and the reason line again under the welcome note's own button | The empty Evidence Progress says only what a checklist is; the welcome note keeps the one way forward. The "Pick a Checklist" link (`#pack`) that the old ring offered is left to the welcome note in that state (a removal, Owner, 4 Nov 2026: one way forward, shown once). The parity test has no such state, so the entry in `approved-changes.ts` is recorded but not exercised | No duplicate calls to action |
+| Link names | "source" (cited page), "Resolve on Profile →" | "View Source", "Resolve on Profile" (same addresses); an approved rule for the case screen, because the parity states carry no source address | A link name must stand alone |
+| Stage bar | Ten steps always drawn | "Stage 2 of 9 - In Progress" and a strip at every width; the full numbered steps show when "About Stages" is opened on a wide screen | Height; the same words are on the page |
+| The six counts | Beside the bar | Inside "How This Is Counted" with the notes (same words, same numbers) | Height; Glance and Browse keep the number, the bar and the sentence |
+| Traveller confirmation, Self-reviewed | Under the chips | In the Evidence Progress column | One place for how far and who checked |
+| Next Step edge | Red edge for what needs fixing | Brand blue edge always; the status is in the words and the pill | An error stripe on an information panel |
+| Checklist fold | "1 More Item" hid a single row | Every row shows when only one would be folded | Nothing is folded for one row |
+| Working grid | The rail shared two rows, leaving a gap above "More for This Case" | Two rows, the second takes the rest | Layout |
+

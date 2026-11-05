@@ -64,6 +64,8 @@ export interface CaseStatusPanelProps {
   readonly packOptionCount: number;
   /** Why no checklist can be picked, the first plain line; null when there is none to give. */
   readonly noChecklistLine: string | null;
+  /** The welcome note is on the page and already offers the way forward, so the panel does not. */
+  readonly welcomeShown: boolean;
   /** The checklist is not on the page, so Evidence Progress is what the "Readiness" link opens. */
   readonly progressIsReadinessAnchor: boolean;
 }
@@ -90,6 +92,7 @@ export function CaseStatusPanel({
   selfReviewed,
   packOptionCount,
   noChecklistLine,
+  welcomeShown,
   progressIsReadinessAnchor,
 }: CaseStatusPanelProps) {
   const nextStepCopy =
@@ -133,7 +136,6 @@ export function CaseStatusPanel({
               kickerId="case-next-step-heading"
               title={nextStepCopy.title(nextStep.count, missionTitle)}
               body={nextStepCopy.body(nextStepFirstItem)}
-              edge={nextStep.kind === 'missing' || nextStep.kind === 'expiry' ? 'danger' : 'brand'}
               action={{
                 label: nextStepCopy.action,
                 href: nextStep.href,
@@ -157,8 +159,20 @@ export function CaseStatusPanel({
               <CaseNoChecklistSummary
                 packOptionCount={packOptionCount}
                 noChecklistLine={noChecklistLine}
+                welcomeShown={welcomeShown}
               />
             )}
+            {readiness || selfReviewed ? (
+              <div className="lift-status-notes">
+                {readiness ? (
+                  <p className="case-confirmation-state">
+                    <strong>Traveller confirmation: </strong>
+                    {acknowledged ? 'Current snapshot confirmed' : 'Awaiting confirmation'}
+                  </p>
+                ) : null}
+                {selfReviewed ? <CaseSelfReviewedNote /> : null}
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -208,17 +222,6 @@ export function CaseStatusPanel({
               ))
             )}
           </ul>
-          {readiness || selfReviewed ? (
-            <div className="lift-status-notes">
-              {readiness ? (
-                <p className="case-confirmation-state">
-                  <strong>Traveller confirmation: </strong>
-                  {acknowledged ? 'Current snapshot confirmed' : 'Awaiting confirmation'}
-                </p>
-              ) : null}
-              {selfReviewed ? <CaseSelfReviewedNote /> : null}
-            </div>
-          ) : null}
         </div>
 
         <div className="lift-status-stages" {...atLevel('browse')}>
@@ -299,24 +302,30 @@ export function CaseProgressSummary({
 export function CaseNoChecklistSummary({
   packOptionCount,
   noChecklistLine,
+  welcomeShown,
 }: {
   readonly packOptionCount: number;
   readonly noChecklistLine: string | null;
+  readonly welcomeShown: boolean;
 }) {
   return (
     <EmptyPanel
       title="No Checklist Yet"
-      secondary={
-        packOptionCount > 0
-          ? { label: 'Pick a Checklist', href: '#pack' }
-          : { label: 'Add Evidence', href: '#evidence' }
-      }
+      // The welcome note offers the same way forward in its own words, so it is not offered twice.
+      {...(welcomeShown
+        ? {}
+        : {
+            secondary:
+              packOptionCount > 0
+                ? { label: 'Pick a Checklist', href: '#pack' }
+                : { label: 'Add Evidence', href: '#evidence' },
+          })}
     >
       <p>
         A checklist lists the papers this visa route asks for and shows which ones you already have
         on file.
       </p>
-      {packOptionCount === 0 && noChecklistLine ? <p>{noChecklistLine}</p> : null}
+      {!welcomeShown && packOptionCount === 0 && noChecklistLine ? <p>{noChecklistLine}</p> : null}
     </EmptyPanel>
   );
 }

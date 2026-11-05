@@ -96,11 +96,11 @@ export function CaseChecklist({
         : null;
     const chosen = chosenByRequirement[r.packRequirementId];
     const necessity = r.coveredByAlternative
-      ? '· met by an alternative'
+      ? 'met by an alternative'
       : r.necessity
-        ? `· ${NECESSITY_LABELS[r.necessity]}`
+        ? NECESSITY_LABELS[r.necessity]
         : r.optional
-          ? '· optional'
+          ? 'optional'
           : undefined;
     // The one thing to do about the item: add it, or settle the two values on the profile.
     const action =
@@ -177,6 +177,9 @@ export function CaseChecklist({
     );
   };
   const groups = buildChecklistGroups(rows);
+  // A fold that would hide a single row hides nothing worth folding: every row shows.
+  const shown = (count: number) =>
+    count <= CHECKLIST_ROWS_SHOWN + 1 ? count : CHECKLIST_ROWS_SHOWN;
   const progress = categoryProgress(rows);
   // UMPE G2 (R02): category headings show only when the checklist gives categories at all.
   const hasCategories = rows.some((r) => r.category !== null);
@@ -226,15 +229,15 @@ export function CaseChecklist({
               </summary>
               <div className="collapsible-group-body">
                 <div className="rows">
-                  {checklistRows(group.rows.slice(0, CHECKLIST_ROWS_SHOWN))}
+                  {checklistRows(group.rows.slice(0, shown(group.rows.length)))}
                 </div>
-                {group.rows.length > CHECKLIST_ROWS_SHOWN ? (
+                {group.rows.length > shown(group.rows.length) ? (
                   <details className="case-checklist-rest">
                     <summary>
                       {plural(group.rows.length - CHECKLIST_ROWS_SHOWN, 'More Item', 'More Items')}
                     </summary>
                     <div className="rows">
-                      {checklistRows(group.rows.slice(CHECKLIST_ROWS_SHOWN))}
+                      {checklistRows(group.rows.slice(shown(group.rows.length)))}
                     </div>
                   </details>
                 ) : null}

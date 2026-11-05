@@ -881,6 +881,7 @@ export default async function MissionPage({
           selfReviewed={data.selfReviewed}
           packOptionCount={data.packOptions.length}
           noChecklistLine={data.noChecklistLines[0] ?? null}
+          welcomeShown={Boolean(data.welcomeNote)}
           // With a checklist on the page, #readiness points at the checklist itself.
           progressIsReadinessAnchor={!hasChecklist}
         />

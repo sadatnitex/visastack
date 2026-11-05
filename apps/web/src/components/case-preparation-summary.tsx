@@ -6,7 +6,6 @@ import {
 import type { Readiness } from '@visastack/services';
 import type { ReactNode } from 'react';
 import { progressRingPercent } from '../lib/readiness-words';
-import { atLevel } from './depth';
 import { NO_REQUIRED_LABEL, NO_REQUIRED_LINE } from './progress-ring';
 import { ProgressMeter, StepBar } from './ui-lift';
 
@@ -164,27 +163,29 @@ export function CasePreparationSummary({
         </>
       )}
       {children}
-      {/* The six counts are for Browse and deeper: Glance keeps the big number and the bar. */}
-      <dl className="lift-counts" {...atLevel('browse')}>
-        {(
-          [
-            ['On File', counts.satisfied],
-            ['Missing', counts.missing],
-            ['Out of Date or Two Values', counts.review],
-            ['To Confirm', counts.unknown],
-            ['Not Applicable', counts.notApplicable],
-            ['Optional Not Provided', counts.optionalMissing],
-          ] as const
-        ).map(([label, count]) => (
-          <div key={label} className={count === 0 ? 'lift-count lift-count-zero' : 'lift-count'}>
-            <dt>{label}</dt>
-            <dd>{count}</dd>
-          </div>
-        ))}
-      </dl>
       <details className="lift-help">
         <summary>How This Is Counted</summary>
         <div className="lift-help-body">
+          <dl className="lift-counts">
+            {(
+              [
+                ['On File', counts.satisfied],
+                ['Missing', counts.missing],
+                ['Out of Date or Two Values', counts.review],
+                ['To Confirm', counts.unknown],
+                ['Not Applicable', counts.notApplicable],
+                ['Optional Not Provided', counts.optionalMissing],
+              ] as const
+            ).map(([label, count]) => (
+              <div
+                key={label}
+                className={count === 0 ? 'lift-count lift-count-zero' : 'lift-count'}
+              >
+                <dt>{label}</dt>
+                <dd>{count}</dd>
+              </div>
+            ))}
+          </dl>
           <p>
             The bar counts required items that are on file. Optional and non-applicable items are
             counted separately.

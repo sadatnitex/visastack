@@ -343,7 +343,7 @@ describe('case page as it is today (WP-X1 characterization)', () => {
     expect(text).toContain(
       'Take a new snapshot and confirm it again before you rely on this case.',
     );
-    expect(text).toContain('Changed Since Confirmed');
+    expect(text).toContain('changed since confirmed');
     // The engineering words are gone.
     expect(text).not.toContain('material edit');
     expect(text).not.toContain('invalidated');
@@ -1587,6 +1587,57 @@ describe('the case status card and the checklist (WP-LIFT-A)', () => {
       empty.indexOf('class="case-journey-reminder"'),
     );
     expect(emptyCard.match(/btn-primary/g)).toHaveLength(1);
+  });
+
+  it('offers the way forward once when the welcome note is on the page', async () => {
+    setUp();
+    mocks.getMissionForOwner.mockResolvedValue(ok({ ...MISSION, createdAt: new Date() }));
+    const html = await render({ welcome: '1' });
+    expect(html).toContain('data-stub="CaseWelcome"');
+    const card = html.slice(
+      html.indexOf('class="lift-status"'),
+      html.indexOf('class="case-journey-reminder"'),
+    );
+    // The welcome note (a stand-in here) carries the pick; the panel only says what a checklist is.
+    expect(textOf(card)).toContain('No Checklist Yet');
+    expect(textOf(card)).toContain('A checklist lists the papers');
+    expect(card).not.toContain('Add Evidence');
+    expect(card).not.toContain('Pick a Checklist');
+    expect(card).not.toContain('no reviewed checklist');
+  });
+
+  it('folds nothing that hides a single row', async () => {
+    setUp({ requirements: ['CRITICAL_GAP', 'CRITICAL_GAP', 'CRITICAL_GAP', 'CRITICAL_GAP'] });
+    const four = await render();
+    expect(four).not.toContain('case-checklist-rest');
+    setUp({ requirements: Array.from({ length: 5 }, () => 'CRITICAL_GAP') });
+    const five = await render();
+    expect(textOf(five)).toContain('2 More Items');
+  });
+
+  it('keeps the necessity dot out of the way on a phone but in the words', async () => {
+    setUp({ requirements: ['CRITICAL_GAP'] });
+    mocks.computeReadiness.mockResolvedValue(
+      ok({
+        overallState: 'NEEDS_ACTION',
+        requirementResults: [
+          {
+            packRequirementId: 'req-0',
+            kind: 'DOCUMENT',
+            key: 'bank_statement',
+            optional: false,
+            state: 'CRITICAL_GAP',
+            necessity: 'MANDATORY',
+          },
+        ],
+        requiredCount: 1,
+        satisfiedRequired: 0,
+      }),
+    );
+    const html = await render();
+    expect(html).toContain('<span class="lift-check-dot" aria-hidden="true">· </span>Mandatory');
+    // In the words the dot is still there, so the line reads "Bank Statement · Mandatory".
+    expect(textOf(html)).toContain('Bank Statement · Mandatory');
   });
 
   it('shows the traveller confirmation beside the card, not as a second summary', async () => {
