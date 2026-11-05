@@ -675,7 +675,7 @@ export function ImportPanel({
         {...dropHandlers}
       >
         <span className="upload-drop-icon" aria-hidden="true">
-          <Icon name="upload" size={28} />
+          <Icon name="upload" size={44} />
         </span>
         <p className="upload-drop-title" id={dropTitleId}>
           Drop Files or a Folder Here
