@@ -10,6 +10,7 @@ import { formatDateOnly } from '../../../../lib/format-date';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
 import type { CaseSourceRow } from './case-model';
 import { CaseDetailsForm, ItineraryForm, TransitionButtons } from './mission-buttons';
+import { OpenFoldOnLink } from './open-fold-on-link';
 import { RailFold } from './rail-fold';
 import { isPacketSnapshot } from './snapshot-packet';
 import { TripChecksPanel, tripChecksSummary } from './trip-checks-panel';
@@ -74,6 +75,8 @@ export function CaseTripChecks({ view, checks }: CaseTripChecksProps) {
         icon="calendar"
         title="Trip Date Checks"
         meta={summary.meta}
+        // A check that needs a look is the point of the card, so a phone shows it already open.
+        open={summary.status?.tone === 'danger' || summary.status?.tone === 'warning'}
         pill={
           summary.status ? (
             <StatusPill tone={summary.status.tone}>{summary.status.label}</StatusPill>
@@ -413,6 +416,7 @@ export function CaseRail({
 }: CaseRailProps) {
   return (
     <aside className="split-rail lift-rail" aria-label="About this case" {...atLevel('browse')}>
+      <OpenFoldOnLink />
       <CaseDetailsCard mission={mission} showAddDatesHint={tripChecks?.view === 'add-dates'} />
       {tripChecks?.view === 'checks' ? <CaseTripChecks {...tripChecks} /> : null}
       <PackCard

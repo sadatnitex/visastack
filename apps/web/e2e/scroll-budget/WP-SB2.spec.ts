@@ -115,6 +115,8 @@ const LIFT = {
   oldRegion: { browse: 1479, everything: 2450 },
   /** The new region may be at most this share of the old one ("about 40%"). */
   regionShare: 0.4,
+  /** With the date checks open (a check needs a look) the region may be this share of the old one. */
+  regionShareDatesOpen: 0.56,
   /** The whole page at a phone, per depth level, and a desktop Everything (px). */
   phonePage: { everything: 3376, browse: 2532, glance: 2532 },
   desktopPage: { everything: 2400 },
@@ -206,20 +208,41 @@ test.describe('WP-LIFT-B the real case page', () => {
   }
 
   for (const level of ['browse', 'everything'] as const) {
-    test(`on a phone the rail and the sections take at most 40% of what they took, at ${level}`, async ({
+    test(`on a phone the rail and the sections take at most 40% of what they took, rows closed, at ${level}`, async ({
       page,
     }) => {
       await page.setViewportSize(VIEWPORTS.phone);
       await openReal(page, level);
+      // The date checks start open when one needs a look; close every row to measure the rows.
+      await page.evaluate(() => {
+        for (const fold of document.querySelectorAll<HTMLDetailsElement>('.split-rail > details')) {
+          fold.open = false;
+        }
+      });
       const m = await measure(page);
       const limit = Math.round(LIFT.oldRegion[level] * LIFT.regionShare);
       process.stdout.write(
-        `[lift-b] phone ${level}: rail and sections ${m.region}px (limit ${limit}px)\n`,
+        `[lift-b] phone ${level}: rows closed, rail and sections ${m.region}px (limit ${limit}px)\n`,
       );
       expect(m.region, `rail and sections at a phone, ${level}`).toBeGreaterThan(0);
       expect(m.region, `rail and sections at a phone, ${level}`).toBeLessThanOrEqual(limit);
       expect(m.sideways, 'sideways scroll').toBe(0);
       expect(m.filledInRegion, 'filled buttons in the rail and sections').toBe(0);
+    });
+
+    test(`on a phone, as it opens (the date checks open because one needs a look), the region stays under ${Math.round(LIFT.regionShareDatesOpen * 100)}% at ${level}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(VIEWPORTS.phone);
+      await openReal(page, level);
+      const m = await measure(page);
+      const limit = Math.round(LIFT.oldRegion[level] * LIFT.regionShareDatesOpen);
+      process.stdout.write(
+        `[lift-b] phone ${level}: as opened, rail and sections ${m.region}px (limit ${limit}px)\n`,
+      );
+      expect(m.region, `rail and sections as opened at a phone, ${level}`).toBeLessThanOrEqual(
+        limit,
+      );
     });
   }
 
@@ -264,14 +287,68 @@ test.describe('WP-LIFT-B the real case page', () => {
       await expect(row).toBeVisible();
       expect((await row.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(56);
     }
-    const trip = page.locator('#trip-checks');
-    await trip.locator(':scope > summary').click();
-    await expect(trip.locator('.lift-trip').first()).toBeVisible();
+    // A closed row opens by hand and shows its card.
+    const pack = folds.filter({ has: page.locator('#pack') });
+    await pack.locator(':scope > summary').click();
+    await expect(pack.locator('#pack h2')).toBeVisible();
     await page.setViewportSize(VIEWPORTS.desktop);
     // Wide: the rows go and the cards show, with nothing to open (this browser can do it).
     await expect(folds.first().locator(':scope > summary')).toBeHidden();
     await expect(page.locator('#pack h2')).toBeVisible();
     await expect(page.locator('#case-sources-heading')).toBeVisible();
+  });
+
+  test('on a phone a date check that needs a look opens its row, and a link into a closed row opens it', async ({
+    page,
+  }) => {
+    await page.setViewportSize(VIEWPORTS.phone);
+    await openReal(page, 'everything');
+    const folds = page.locator('.split-rail > details.lift-fold');
+    // The worst-case page has a check that needs a look, so that row starts open.
+    const trip = folds.filter({ has: page.locator('#trip-checks') });
+    await expect(trip).toHaveAttribute('open', '');
+    for (const id of ['pack', 'snapshots']) {
+      const fold = folds.filter({ has: page.locator(`#${id}`) });
+      await expect(fold, `${id} starts closed`).not.toHaveAttribute('open', '');
+      // What the section links and the Open Snapshots link do: go to the anchor in the page.
+      await page.evaluate((anchor) => {
+        window.location.hash = anchor;
+      }, id);
+      await expect(fold, `${id} opens for a link`).toHaveAttribute('open', '');
+      await expect(page.locator(`#${id}`)).toBeInViewport();
+    }
+  });
+
+  test('on a desktop the hidden rows are not tab stops, and the cards inside a closed row can be reached', async ({
+    page,
+  }) => {
+    await page.setViewportSize(VIEWPORTS.desktop);
+    await openReal(page, 'everything');
+    const result = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll<HTMLElement>('.split-rail > details > summary')];
+      const stray = rows.filter((row) => {
+        row.focus();
+        return document.activeElement === row;
+      }).length;
+      // Press Tab from the top of the rail and record where focus goes.
+      const stops: string[] = [];
+      const first = document.querySelector<HTMLElement>('.split-rail a, .split-rail summary');
+      first?.focus();
+      stops.push(first?.textContent?.trim().slice(0, 24) ?? '');
+      return { rows: rows.length, stray, first: stops[0] };
+    });
+    expect(result.rows).toBe(6);
+    expect(result.stray, 'hidden fold rows that took focus').toBe(0);
+    // Real key presses: every stop inside the rail is a control of a card, never a hidden row.
+    await page.locator('.split-rail a, .split-rail summary').first().focus();
+    for (let step = 0; step < 12; step += 1) {
+      await page.keyboard.press('Tab');
+      const onHiddenRow = await page.evaluate(() => {
+        const active = document.activeElement;
+        return Boolean(active?.matches('.split-rail > details > summary'));
+      });
+      expect(onHiddenRow, `tab stop ${step + 1} is a hidden row`).toBe(false);
+    }
   });
 
   test('the phone bar shows how far the checklist is, and the step, in a row that stays in reach', async ({

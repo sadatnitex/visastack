@@ -83,6 +83,9 @@ const dom = (element: React.ReactElement) =>
 
 const rail = (extra: Record<string, unknown> = {}) => dom(<CaseRail {...props(extra)} />);
 
+/** The fold (the one-row details) that holds the element with this id. */
+const foldOf = (doc: Document, id: string) => doc.getElementById(id)?.closest('details') ?? null;
+
 const words = (el: Element | null | undefined) =>
   (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
@@ -102,12 +105,36 @@ describe('the case rail', () => {
 
   it('keeps the ids and depth levels the page links to', () => {
     const doc = rail();
-    const level = (selector: string) => doc.querySelector(selector)?.getAttribute('data-level');
-    expect(level('#trip-checks')).toBe('browse');
-    expect(level('#pack')).toBe('browse');
-    expect(level('#snapshots')).toBe('everything');
+    const level = (id: string) => foldOf(doc, id)?.getAttribute('data-level');
+    expect(level('trip-checks')).toBe('browse');
+    expect(level('pack')).toBe('browse');
+    expect(level('snapshots')).toBe('everything');
     expect(doc.querySelector('aside')?.getAttribute('data-level')).toBe('browse');
     expect(doc.querySelectorAll('#pack, #trip-checks, #snapshots')).toHaveLength(3);
+  });
+
+  it('puts each anchor on the card inside its row, never on the row, so a link to it opens the row', () => {
+    const doc = rail();
+    for (const id of ['trip-checks', 'pack', 'snapshots']) {
+      const target = doc.getElementById(id);
+      const fold = target?.closest('details');
+      expect(fold, id).not.toBeNull();
+      expect(fold?.id, id).toBe('');
+      // Inside the closed row, after the summary the browser leaves showing.
+      expect(target?.parentElement, id).toBe(fold);
+      expect(target?.previousElementSibling?.tagName, id).toBe('SUMMARY');
+    }
+  });
+
+  it('starts the date checks open on a phone when a check needs a look or a fix, closed when all is fine', () => {
+    const open = (checks: unknown) =>
+      foldOf(rail({ tripChecks: { view: 'checks', checks } }), 'trip-checks')?.hasAttribute('open');
+    const fine = { key: 'passport_validity', level: 'ok', title: 'Passport', detail: 'x' };
+    expect(open([fine])).toBe(false);
+    expect(open([fine, { ...fine, key: 'insurance_cover', level: 'check' }])).toBe(true);
+    expect(open([{ ...fine, level: 'problem' }])).toBe(true);
+    expect(open([{ ...fine, level: 'unknown' }])).toBe(false);
+    expect(open(null)).toBe(false);
   });
 
   it('makes every card one native fold whose first child is its summary row', () => {
@@ -132,11 +159,13 @@ describe('the case rail', () => {
 
   it('says in the row what is inside, so a phone shows the state without opening anything', () => {
     const doc = rail();
-    const meta = (id: string) => words(doc.querySelector(`#${id} .lift-action-meta`));
+    const meta = (id: string) => words(foldOf(doc, id)?.querySelector('.lift-action-meta'));
     expect(meta('trip-checks')).toBe('2 checks on your trip dates');
-    expect(words(doc.querySelector('#trip-checks .lift-action-pill'))).toBe('Take a Look');
+    expect(words(foldOf(doc, 'trip-checks')?.querySelector('.lift-action-pill'))).toBe(
+      'Take a Look',
+    );
     expect(meta('pack')).toBe('Japan Temporary Visitor Visa (Tourism)');
-    expect(words(doc.querySelector('#pack .lift-action-pill'))).toBe('Reviewed');
+    expect(words(foldOf(doc, 'pack')?.querySelector('.lift-action-pill'))).toBe('Reviewed');
     expect(meta('snapshots')).toBe('1 saved');
     const advance = [...doc.querySelectorAll('aside > details')].find((d) =>
       words(d.querySelector('summary')).startsWith('Advance the Case'),
@@ -176,7 +205,7 @@ describe('the case rail', () => {
 
   it('shows the sources under the pack, once, with their dates', () => {
     const doc = rail();
-    const pack = doc.querySelector('#pack');
+    const pack = foldOf(doc, 'pack');
     expect(pack?.querySelectorAll('h3')).toHaveLength(1);
     expect(words(pack?.querySelector('h3'))).toBe('Sources for This Checklist');
     expect(doc.querySelectorAll('#case-sources-heading')).toHaveLength(1);
@@ -203,7 +232,7 @@ describe('the case rail', () => {
       packInfo: null,
       packOptions: [{ packVersionId: 'pv-9', label: 'Japan Visitor' }],
     });
-    const pack = doc.querySelector('#pack');
+    const pack = foldOf(doc, 'pack');
     expect(pack?.hasAttribute('open')).toBe(true);
     expect(words(pack)).toContain('Pick a checklist: attach a published requirement pack');
     expect(pack?.querySelector('[data-stub="AttachPackForm"]')).not.toBeNull();
@@ -216,14 +245,12 @@ describe('the case rail', () => {
       packInfo: null,
       noChecklistLines: ['VisaStack has no reviewed checklist for travel to Japan yet.'],
     });
-    expect(words(doc.querySelector('#pack'))).toContain(
-      'no reviewed checklist for travel to Japan',
-    );
-    expect(words(doc.querySelector('#pack'))).not.toContain('Pick a checklist: attach');
+    expect(words(foldOf(doc, 'pack'))).toContain('no reviewed checklist for travel to Japan');
+    expect(words(foldOf(doc, 'pack'))).not.toContain('Pick a checklist: attach');
   });
 
   it('leaves a pack that is attached closed on a phone', () => {
-    expect(rail().querySelector('#pack')?.hasAttribute('open')).toBe(false);
+    expect(foldOf(rail(), 'pack')?.hasAttribute('open')).toBe(false);
   });
 
   it('lists snapshots as rows that link to each one, marks packets and offers the rest', () => {
@@ -234,23 +261,23 @@ describe('the case rail', () => {
       ],
       moreSnapshots: true,
     });
-    const rows = [...doc.querySelectorAll('#snapshots a.row')];
+    const rows = [...(foldOf(doc, 'snapshots')?.querySelectorAll('a.row') ?? [])];
     expect(rows.map((a) => a.getAttribute('href'))).toEqual([
       '/app/mission/case-1/snapshots/snap-2',
       '/app/mission/case-1/snapshots/snap-1',
     ]);
     expect(words(rows[0])).toContain('Version 2');
-    const all = [...doc.querySelectorAll('#snapshots a')].find(
+    const all = [...(foldOf(doc, 'snapshots')?.querySelectorAll('a') ?? [])].find(
       (a) => a.textContent === 'See All Snapshots',
     );
     expect(all?.getAttribute('href')).toBe('/app/mission/case-1/snapshots');
-    expect(words(doc.querySelector('#snapshots .lift-action-meta'))).toBe('2+ saved');
+    expect(words(foldOf(doc, 'snapshots')?.querySelector('.lift-action-meta'))).toBe('2+ saved');
   });
 
   it('says plainly that there are no snapshots yet', () => {
     const doc = rail({ snapshots: [] });
-    expect(words(doc.querySelector('#snapshots'))).toContain('No snapshots yet.');
-    expect(words(doc.querySelector('#snapshots .lift-action-meta'))).toBe('None yet');
+    expect(words(foldOf(doc, 'snapshots'))).toContain('No snapshots yet.');
+    expect(words(foldOf(doc, 'snapshots')?.querySelector('.lift-action-meta'))).toBe('None yet');
   });
 
   it('tucks the family-trip form under a named fold, open once a label is set, and lists linked cases', () => {

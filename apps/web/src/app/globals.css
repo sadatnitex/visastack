@@ -17110,6 +17110,23 @@ a.row.lift-snap:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* A summary made a flex row loses the browser's triangle, so the rail's own folds draw a chevron. */
+.lift-fold-body details > summary::after {
+  content: "";
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: 0 var(--space-1) 0 auto;
+  border-right: 2px solid var(--text-tertiary);
+  border-bottom: 2px solid var(--text-tertiary);
+  transform: rotate(45deg);
+}
+.lift-fold-body details[open] > summary::after {
+  transform: rotate(-135deg);
+}
+.lift-fold-body {
+  scroll-margin-top: 6rem;
+}
 .lift-fold-body .lift-card {
   position: relative;
   border: none;
