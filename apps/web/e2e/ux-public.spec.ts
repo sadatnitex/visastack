@@ -492,8 +492,13 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
                 );
               }
               const next = links[i + 1];
+              // On a phone a long bar wraps into rows: only a neighbour on the same row can overlap.
+              const sameRow =
+                next &&
+                Math.abs(next.getBoundingClientRect().top - link.getBoundingClientRect().top) < 4;
               if (
                 next &&
+                sameRow &&
                 next.getBoundingClientRect().left < link.getBoundingClientRect().right - 0.5
               ) {
                 out.push(`${bar}: "${link.textContent}" overlaps "${next.textContent}"`);

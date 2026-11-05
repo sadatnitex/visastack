@@ -71,12 +71,24 @@ export interface AttentionEntry {
   readonly tone?: Tone;
 }
 
+/** The colour each kind of line wears: the small rule at its start, nothing else. */
+const ATTENTION_TONES: Readonly<Record<Tone, 'green' | 'amber' | 'red' | 'blue'>> = {
+  success: 'green',
+  warning: 'amber',
+  danger: 'red',
+  neutral: 'blue',
+};
+
 /** What needs a person's attention, each line a link to where it is dealt with. */
 export function AttentionList({ items }: { readonly items: readonly AttentionEntry[] }) {
   return (
     <ul className="attention-list">
       {items.map((item) => (
-        <li className="attention-item" key={item.key}>
+        <li
+          className="attention-item"
+          key={item.key}
+          data-tone={ATTENTION_TONES[item.tone ?? 'warning']}
+        >
           <Link className="attention-link" href={item.href}>
             <span className="attention-text">
               <span className="attention-label">{item.label}</span>
@@ -287,11 +299,11 @@ export function PageHeader({
   );
 }
 
-/** A round-cornered square holding an icon, for empty states and list leads. */
+/** An icon drawn large and bare (no tile behind it), for empty states and list leads. */
 export function IconTile({ name }: { readonly name: IconName }) {
   return (
     <span className="icon-tile">
-      <Icon name={name} size={20} />
+      <Icon name={name} size={36} />
     </span>
   );
 }

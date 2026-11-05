@@ -19483,3 +19483,56 @@ article.card:has(> .trip-start-form) {
   }
 }
 /* end WP-PLAIN-SPEED */
+
+/* WP-PLAIN-SCREENS The rest of the workspace speaks the same language (Owner, 5 Nov 2026: the new design must reach every screen). An icon in an empty state stands bare, ink with its one blue slice, with no tile behind it; a line that asks for attention wears the slice rule of its kind; and a section bar with many tabs wraps into equal cells on a phone, so nothing needs scrolling. Flat, existing tokens only, 44 px targets. */
+.icon-tile {
+  width: auto;
+  height: auto;
+  margin-bottom: var(--space-3);
+  border-radius: 0;
+  background: none;
+  color: var(--text);
+}
+.attention-item[data-tone] .attention-link {
+  justify-content: flex-start;
+}
+.attention-item[data-tone] .attention-link::before {
+  content: "";
+  flex: none;
+  align-self: flex-start;
+  margin-top: 0.4rem;
+  width: 1.1rem;
+  height: 1.5px;
+  border-top: 3px solid var(--tone);
+  border-bottom: 3px solid var(--tone);
+  border-radius: 1px;
+}
+.attention-item[data-tone] .attention-text {
+  flex: 1 1 auto;
+}
+.attention-item[data-tone] .attention-end {
+  margin-inline-start: auto;
+}
+@media (max-width: 640px) {
+  .subnav:not(.subnav-fit) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(6.25rem, 1fr));
+    gap: 0;
+    overflow-x: visible;
+    border-bottom: none;
+  }
+  .subnav:not(.subnav-fit) a {
+    display: grid;
+    place-items: center;
+    min-height: 44px;
+    padding: 0 var(--space-1);
+    border-bottom: 2px solid var(--hairline-soft);
+    /* A long name wraps inside its own cell; it never spills into the next. */
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .subnav:not(.subnav-fit) a[aria-current="page"] {
+    border-bottom-color: var(--brand);
+  }
+}
+/* end WP-PLAIN-SCREENS */
