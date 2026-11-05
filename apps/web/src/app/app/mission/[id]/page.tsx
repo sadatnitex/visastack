@@ -91,12 +91,7 @@ import {
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import type { PackOption } from './attach-pack-form';
-import {
-  CaseChecklist,
-  CaseExpiringDocuments,
-  CaseReadinessNote,
-  CaseSources,
-} from './case-checklist';
+import { CaseChecklist, CaseExpiringDocuments } from './case-checklist';
 import { CaseMobileBar } from './case-mobile-bar';
 import {
   CAPPED_LISTS,
@@ -112,14 +107,9 @@ import {
   welcomeChecklists,
 } from './case-model';
 import { CaseMoreMenu } from './case-more-menu';
-import { CaseRail, CaseTripChecks } from './case-rail';
+import { CaseRail } from './case-rail';
 import { CaseSecondary } from './case-secondary';
-import {
-  CaseNoChecklistSummary,
-  CaseProgressSummary,
-  CaseSelfReviewedNote,
-  CaseStatusPanel,
-} from './case-status-panel';
+import { CaseStatusPanel } from './case-status-panel';
 import { CaseWelcome } from './case-welcome';
 import { caseWelcomeCopy } from './case-welcome-copy';
 import { evidenceDocumentIds, evidenceLifecycleLabels } from './evidence-lifecycle';
@@ -802,7 +792,7 @@ export default async function MissionPage({
   const nextStepItem = showNextStep && nextStep ? nextStep : null;
 
   return (
-    <section className="section container">
+    <section className="section container lift-case">
       <PageHeader
         back={{
           href: `/app/applicant/${data.applicantId}/missions`,
@@ -883,6 +873,16 @@ export default async function MissionPage({
               : data.firstHardGapLabel
           }
           manualMode={mission.manualMode}
+          readiness={data.readiness}
+          acknowledged={Boolean(data.liveAcknowledgedAt) && !data.isDirty}
+          requiredUnverifiedCount={data.requiredUnverifiedCount}
+          requiredHardGapCount={data.requiredHardGapCount}
+          t={t}
+          selfReviewed={data.selfReviewed}
+          packOptionCount={data.packOptions.length}
+          noChecklistLine={data.noChecklistLines[0] ?? null}
+          // With a checklist on the page, #readiness points at the checklist itself.
+          progressIsReadinessAnchor={!hasChecklist}
         />
 
         {/* At every level: each link opens the level its section lives at. */}
@@ -897,67 +897,64 @@ export default async function MissionPage({
           <a href="#outcome">Submission and Outcome</a>
         </nav>
 
-        <div className="split case-working-area">
-          <div className="split-main">
-            <CaseTripChecks
-              view={
-                showTripChecks ? 'checks' : tripChecksApply(mission.state) ? 'add-dates' : 'none'
-              }
-              checks={data.tripChecks}
-            />
-            <article
-              className="card case-evidence-overview"
-              // With a checklist, #readiness points at the checklist itself (Browse), so a link to it
-              // opens that level; without one, it is the summary card.
-              {...(hasChecklist ? {} : { id: 'readiness' })}
-            >
-              {data.selfReviewed ? <CaseSelfReviewedNote /> : null}
-              {data.readiness ? (
-                <>
-                  <CaseProgressSummary
-                    readiness={data.readiness}
-                    acknowledged={Boolean(data.liveAcknowledgedAt) && !data.isDirty}
-                    requiredUnverifiedCount={data.requiredUnverifiedCount}
-                    requiredHardGapCount={data.requiredHardGapCount}
-                    t={t}
-                  />
-                  {data.requirementDetails.length > 0 ? (
-                    <CaseChecklist
-                      missionId={mission.id}
-                      applicantId={data.applicantId}
-                      rows={data.requirementDetails}
-                      chosenByRequirement={data.evidenceLifecycle.chosenByRequirement}
-                      explanations={{
-                        configured: data.explanationConfigured,
-                        off:
-                          data.explanationFeature && !data.explanationFeature.available
-                            ? data.explanationFeature.reason
-                            : undefined,
-                        byRequirement: new Map(
-                          [...data.explanationsByRequirement].map(
-                            ([id, entry]) => [id, entry?.explanation ?? null] as const,
-                          ),
-                        ),
-                      }}
-                    />
-                  ) : null}
-                  {data.expiringDocuments.length > 0 ? (
-                    <CaseExpiringDocuments documents={data.expiringDocuments} />
-                  ) : null}
-                  {data.caseSources.length > 0 ? <CaseSources sources={data.caseSources} /> : null}
-                  <CaseReadinessNote />
-                </>
-              ) : (
-                <CaseNoChecklistSummary />
-              )}
-            </article>
-
+        {/* One column on a phone, in reading order: the checklist, what the case is about, then
+            the rest. Two columns on a wide screen: the checklist and the rest on the left, the
+            facts about the case in a rail. */}
+        <div className="lift-case-grid case-working-area">
+          <div className="lift-case-checklist">
+            {hasChecklist ? (
+              <CaseChecklist
+                missionId={mission.id}
+                applicantId={data.applicantId}
+                rows={data.requirementDetails}
+                chosenByRequirement={data.evidenceLifecycle.chosenByRequirement}
+                packName={data.packInfo?.name ?? null}
+                explanations={{
+                  configured: data.explanationConfigured,
+                  off:
+                    data.explanationFeature && !data.explanationFeature.available
+                      ? data.explanationFeature.reason
+                      : undefined,
+                  byRequirement: new Map(
+                    [...data.explanationsByRequirement].map(
+                      ([id, entry]) => [id, entry?.explanation ?? null] as const,
+                    ),
+                  ),
+                }}
+              />
+            ) : null}
+            {data.readiness && data.expiringDocuments.length > 0 ? (
+              <CaseExpiringDocuments documents={data.expiringDocuments} />
+            ) : null}
             {data.casePackage ? (
               <article className="card" id="trip-package" {...atLevel('browse')}>
                 <PackagePanel pkg={data.casePackage} formatLines={data.formatLines} />
               </article>
             ) : null}
-
+          </div>
+          <CaseRail
+            mission={mission}
+            applicantId={data.applicantId}
+            packInfo={data.packInfo}
+            packOptions={data.packOptions}
+            noChecklistLines={data.noChecklistLines}
+            primaryAttach={!hasNextStepOrAlert && !data.welcomeNote}
+            nextStates={nextStates}
+            stageStates={stageStates}
+            snapshots={data.snapshots}
+            moreSnapshots={data.moreSnapshots}
+            linkedMissions={data.linkedMissions}
+            tripChecks={{
+              view: showTripChecks
+                ? 'checks'
+                : tripChecksApply(mission.state)
+                  ? 'add-dates'
+                  : 'none',
+              checks: data.tripChecks,
+            }}
+            sources={data.readiness ? data.caseSources : []}
+          />
+          <div className="lift-case-secondary">
             <CaseSecondary
               missionId={mission.id}
               missionState={mission.state}
@@ -980,23 +977,19 @@ export default async function MissionPage({
               canSubmitFeedback={data.canSubmitFeedback}
               expanded={expandedLists}
               more={more}
+              totals={{ openTasks: data.openTaskCount, notes: data.noteTotal }}
             />
           </div>
-          <CaseRail
-            mission={mission}
-            applicantId={data.applicantId}
-            packInfo={data.packInfo}
-            packOptions={data.packOptions}
-            noChecklistLines={data.noChecklistLines}
-            primaryAttach={!hasNextStepOrAlert && !data.welcomeNote}
-            nextStates={nextStates}
-            stageStates={stageStates}
-            snapshots={data.snapshots}
-            moreSnapshots={data.moreSnapshots}
-            linkedMissions={data.linkedMissions}
-          />
         </div>
-        <CaseMobileBar missionTitle={mission.title} nextStep={nextStepItem} />
+        <CaseMobileBar
+          missionTitle={mission.title}
+          nextStep={nextStepItem}
+          progress={
+            data.readiness
+              ? { done: data.readiness.satisfiedRequired, total: data.readiness.requiredCount }
+              : null
+          }
+        />
       </DepthScope>
     </section>
   );

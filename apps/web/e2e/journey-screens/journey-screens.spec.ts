@@ -125,8 +125,8 @@ test.describe('document wallet', () => {
 test.describe('case page card', () => {
   test('exactly one stage is marked, and it never talks about approval odds', async ({ page }) => {
     await openScreen(page, 'case');
-    await expect(page.locator('.case-stage-tracker [aria-current="step"]')).toHaveCount(1);
-    await expect(page.locator('.case-stage-tracker [aria-current="step"]')).toContainText(
+    await expect(page.locator('.lift-steps-list [aria-current="step"]')).toHaveCount(1);
+    await expect(page.locator('.lift-steps-list [aria-current="step"]')).toContainText(
       'In Progress',
     );
     const text = (await page.locator('main').innerText()).toLowerCase();

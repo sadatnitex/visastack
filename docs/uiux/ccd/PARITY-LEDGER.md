@@ -170,7 +170,7 @@ Baseline: `baseline/case.json`, four states (a new case with no checklist; a bus
 | Section links | Every level; each opens the level of its section | always |
 | Stage tracker, attention chips | Browse | always |
 | Evidence Progress summary, overall badge and sentence, the "completeness only" line | Glance; Evidence Progress is now an h2 at the same size (approved change) | with a checklist |
-| Evidence Checklist (Needs You, Needs a Check, Done) | Browse; `#readiness` now points at it | with a checklist |
+| Evidence Checklist (Needs You, Needs a Check, Done) | Glance (was Browse; Owner, 4 Nov 2026: the checklist is the heart of the page, so it shows at every level); `#readiness` points at it | with a checklist |
 | Case Details, Requirement Pack (`#pack`), Advance the Case | Browse (Advance was planned for Everything; kept at Browse so the next stage is never hidden by default) | always |
 | Tasks, Appointments and Letters (`#work`), Contributors and Notes (`#notes`) | Browse (planned for Everything; kept at Browse because notifications, tasks and request replies send people to the case for them) | always |
 | Select or Update Evidence (`#evidence`), Submission and Outcome (`#outcome`), Problems and Feedback, Snapshots (`#snapshots`), Itinerary Reference | Everything; every listed anchor raises the level first; the changed-case alert links to Snapshots | always |
@@ -312,7 +312,7 @@ A link to a case (`#mission-<id>`, from Agency Overview, Case Activity and the h
 | 06 Dates & Expiry | the document that runs out first | Intrinsic Expiry card | Route Rules card; Issuer Confirmations card |
 | 07 Notifications | unread only | plus recent | plus the latest 50 |
 | 08 Cases | active case and Start a Case | all cases | Start a Case form; Prepare a Brief; Application Memory |
-| 09 Case | Next Step, reminder line, progress | stage tracker, attention chips, jump links, readiness and checklist, Case Details, Requirement Pack | Tasks, Appointments, Cover Letters, Contributors and Notes, Advance the Case, Snapshots, Itinerary Reference, plus closed rows for Select or Update Evidence, Submission and Outcome, Problems and Feedback |
+| 09 Case | Next Step, reminder line, progress, the checklist | stage bar, attention chips, the six counts, jump links, Case Details, Requirement Pack | Tasks, Appointments, Cover Letters, Contributors and Notes, Advance the Case, Snapshots, Itinerary Reference, plus closed rows for Select or Update Evidence, Submission and Outcome, Problems and Feedback |
 | 10 Evidence Requests | waiting request and reply form | details, guidance, reference, closed requests | Ask the Agency About This Item |
 | 11 Sharing | who has access (and the revoke warning) | full scope of each grant, pending grants, Access Log | invitations, full Grant Access form |
 | 12 Privacy & Consent | three rights as rows and export | export card, consent history | export with files, account deletion, link to permissions |
@@ -386,3 +386,24 @@ Package B of the signed-in redesign. Nothing is removed; every id, link address,
 | Phone: each rail card folds into one 56px row (name, one line, a status) and opens in place; the next step bar shows "6 of 12 · the step" with a 40px bar; the section links are one row that scrolls inside its own box | every level | phones only; a wide screen shows the cards |
 
 Approved changes: the five section summary names (the hint line is replaced by a count: "Select or Update Evidence" now reads with "7 Checklist Items" or "No Items Yet", "Tasks, Appointments and Letters" with "2 Open Tasks" or "No Open Tasks", "Contributors and Notes from Your Agency" with "3 Notes" or "No Notes Yet", "Submission and Outcome" with "1 Outcome" or "No Outcome Yet", "Problems and Feedback" with "2 Raised" or "None Raised"). No sentence, link or heading was removed, so no owner removal entry is needed.
+
+## 09. Case: the status card and the checklist redesigned (WP-LIFT-A, owner, 4 Nov 2026)
+
+Owner, 4 Nov 2026: redesign the case pages and the others. The Case page top and the checklist are rebuilt as one calm status card and a checklist that leads the page. Every element that was on the screen is still there; what changed is recorded here and in `apps/web/src/lib/ccd/approved-changes.ts` under "WP-LIFT-A entries". The comparison test (`parity-case.test.tsx`) passes with those entries and nothing else.
+
+| What changed | Before | Now | Why |
+|---|---|---|---|
+| Three summaries become one | A dark Next Step slab, five chips and a ring in a grey box, with the same fact said seven times and two different counts ("Fix 4" and "Missing required 3") | One Case Status Panel: the Next Step (or the changed-case alert) beside Evidence Progress (a big "6 of 12" and a bar), the counts, the attention chips and the stage bar. The Next Step, the chip, the sentence and the checklist group all read the same count of items to fix | Numbers must agree |
+| Chip wording | "N required items missing" | "N required items to fix" (singular "1 required item to fix") | Same count as the Next Step |
+| Sentence under the overall state | "N requirement(s) still needed" | "N required items still needed" (singular correct) | Plain words |
+| Counts note | "The ring counts required items..." | "The bar counts required items..." | There is no ring on this page now |
+| Count names | On file, Missing required, Needs Review, Unknown applicability, Not applicable, Optional not provided | On File, Missing, Out of Date or Two Values, To Confirm, Not Applicable, Optional Not Provided (names of counts, not counted by the test) | Title Case, plain |
+| Changed-case alert | "This case has changed since it was last acknowledged." and "A material edit invalidated the previous sign-off. Capture a new snapshot and acknowledge it again before relying on this case as submission-ready." | "Something changed after you confirmed this case." and "Take a new snapshot and confirm it again before you rely on this case." (same snapshot button, same list of what changed) | No engineering words |
+| A case with no checklist | Green "Nothing needs attention right now"; an empty grey ring; "Pick a Checklist" even when none can be picked | Neutral "Nothing is checked yet: this case has no checklist" (the green all-clear stays for a case that has a checklist); an empty panel that offers "Pick a Checklist" only when one can be picked, otherwise "Add Evidence" | False all-clear and a pick that cannot be made |
+| Checklist action | "Provide Evidence ↓" (and "Resolve on Profile →") as underlined links | "Provide Evidence" (and "Resolve on Profile") as one button per row; same addresses | One clear action |
+| Source link in a row | "source" | "View Source", inside the row's "More About This Item" fold (same address) | Meaningful link name |
+| Stage tracker | Ten radio dots; "Only the current state is marked..." line | A stage bar: "Stage 2 of 9", numbered steps, only the current one filled (earlier steps are never ticked); Cancelled shown apart; the explanation folded under "About Stages" | Same list, same words |
+| Level | Checklist at Browse | Checklist at Glance; the six counts, chips and stage bar stay at Browse (the Glance sentence in the depth switch says so) | The checklist is the heart of the page |
+| Where things sit | Trip Date Checks and Sources for This Checklist in the main column | Passed to the rail (`tripChecks`, `sources`); the working grid reads: checklist, rail, rest | Package B places them |
+
+Not removed or merged: every heading (Evidence Progress stays an h2), every link address, every summary name, the "Preparing a file is not the same as submitting it" line (every level), the self-reviewed note, the traveller confirmation line, "Readiness is completeness only - never an approval likelihood", "Completeness is not an approval probability". The last two lines and the counts note now sit in one fold, "How This Is Counted". One primary button remains in the card. The ring component still serves Home and the agency pages (Package C).

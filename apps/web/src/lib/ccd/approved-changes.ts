@@ -435,6 +435,97 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason:
       'VS-006: with no reviewed checklist to pick, the card says so and why instead of asking for a pick.',
   },
+  // WP-LIFT-A entries (Owner, 4 Nov 2026: redesign the case pages and the others)
+  ...Array.from({ length: 9 }, (_, i) => i + 1).map(
+    (count): ApprovedChange => ({
+      screen: 'case',
+      from: {
+        kind: 'link',
+        name: `${count}required item${count === 1 ? '' : 's'} missing`,
+        detail: '#readiness',
+      },
+      to: {
+        kind: 'link',
+        name: `${count}required item${count === 1 ? '' : 's'} to fix`,
+        detail: '#readiness',
+      },
+      reason:
+        'Lift: the chip says "to fix", the same count the Next Step, the sentence under the progress bar and the checklist use.',
+    }),
+  ),
+  {
+    screen: 'case',
+    from: {
+      kind: 'text',
+      name: 'The ring counts required items that are on file. Optional and non-applicable items are counted separately.',
+    },
+    to: {
+      kind: 'text',
+      name: 'The bar counts required items that are on file. Optional and non-applicable items are counted separately.',
+    },
+    reason:
+      'Lift: Evidence Progress is a big number and a bar, not a ring, so the note says "bar".',
+  },
+  ...Array.from({ length: 10 }, (_, i) => i).map(
+    (count): ApprovedChange => ({
+      screen: 'case',
+      from: { kind: 'text', name: `${count} requirement(s) still needed` },
+      to: {
+        kind: 'text',
+        name: `${count} required ${count === 1 ? 'item' : 'items'} still needed`,
+      },
+      reason: 'Lift: the sentence is plural-correct and uses the same words as the Next Step.',
+    }),
+  ),
+  {
+    screen: 'case',
+    from: { kind: 'link', name: 'Provide Evidence ↓', detail: '#evidence' },
+    to: { kind: 'link', name: 'Provide Evidence', detail: '#evidence' },
+    reason:
+      'Lift: a checklist row has one action, shown as a button, so the arrow that pointed down the page is dropped. The same address.',
+  },
+  {
+    screen: 'case',
+    from: { kind: 'text', name: 'This case has changed since it was last acknowledged.' },
+    to: { kind: 'text', name: 'Something changed after you confirmed this case.' },
+    reason: 'Lift: the changed-case alert says what happened in plain words.',
+  },
+  {
+    screen: 'case',
+    from: {
+      kind: 'text',
+      name: 'A material edit invalidated the previous sign-off. Capture a new snapshot and acknowledge it again before relying on this case as submission-ready.',
+    },
+    to: {
+      kind: 'text',
+      name: 'Take a new snapshot and confirm it again before you rely on this case.',
+    },
+    reason: 'Lift: the changed-case alert drops the engineering words and says what to do.',
+  },
+  {
+    screen: 'case',
+    from: { kind: 'text', name: 'Nothing needs attention right now' },
+    to: (state) => ({
+      kind: 'text',
+      name:
+        state === 'a new case with no checklist'
+          ? 'Nothing is checked yet: this case has no checklist'
+          : 'Nothing needs attention right now',
+    }),
+    reason:
+      'Lift: a case with no checklist is not "fine", it is unchecked, so the green all-clear is kept only for a case that has a checklist.',
+  },
+  {
+    screen: 'case',
+    from: { kind: 'link', name: 'Pick a Checklist', detail: '#pack' },
+    to: (state) => ({
+      kind: 'link',
+      name: state === 'a new case with no checklist' ? 'Add Evidence' : 'Pick a Checklist',
+      detail: state === 'a new case with no checklist' ? '#evidence' : '#pack',
+    }),
+    reason:
+      'Lift: when no reviewed checklist can be picked, the empty Evidence Progress no longer offers a pick that cannot be made; it offers Add Evidence instead.',
+  },
   {
     screen: 'notifications',
     from: { kind: 'heading', name: 'Updates on Your Cases', detail: '1' },

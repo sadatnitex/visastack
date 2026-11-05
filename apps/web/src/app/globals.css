@@ -15659,44 +15659,64 @@ details[open] > .lift-action-summary .lift-action-chevron {
   padding-bottom: var(--space-2);
 }
 
-/* Step bar: numbered steps joined by a line; only the current step is filled. */
+/* Step bar: numbered steps joined by a line; only the current step is filled. The position words and
+   the folded explanation sit at the left, the steps to their right. */
 .lift-steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "position list"
+    "help list";
+  align-items: start;
+  column-gap: var(--space-5);
+  row-gap: 0;
 }
 .lift-steps-position {
+  grid-area: position;
   margin: 0;
+  padding-top: var(--space-1);
   font-size: var(--text-small);
-  font-weight: 650;
-  color: var(--text-secondary);
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
 }
 .lift-steps-list {
+  grid-area: list;
   counter-reset: lift-step;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) 0;
+  align-items: flex-start;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .lift-step {
   counter-increment: lift-step;
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-small);
+  gap: var(--space-1);
+  padding: 0 2px;
+  font-size: var(--text-caption);
+  line-height: 1.25;
+  text-align: center;
   color: var(--text-secondary);
 }
 .lift-step::before {
   content: counter(lift-step);
+  position: relative;
+  z-index: 1;
   flex: none;
   display: inline-grid;
   place-items: center;
+  box-sizing: border-box;
   width: 24px;
   height: 24px;
   border: 2px solid var(--edge-control);
   border-radius: 50%;
+  background: var(--bg-elevated);
   font-size: var(--text-caption);
   font-weight: 700;
   line-height: 1;
@@ -15704,9 +15724,11 @@ details[open] > .lift-action-summary .lift-action-chevron {
 }
 .lift-step:not(.lift-step-apart):has(+ .lift-step:not(.lift-step-apart))::after {
   content: "";
-  width: 1.25rem;
+  position: absolute;
+  top: 11px;
+  left: calc(50% + 14px);
+  right: calc(-50% + 14px);
   height: 2px;
-  margin: 0 var(--space-2);
   background: var(--edge-card);
 }
 .lift-step-current {
@@ -15720,6 +15742,9 @@ details[open] > .lift-action-summary .lift-action-chevron {
 }
 .lift-step-apart {
   counter-increment: none;
+  flex: none;
+  flex-direction: row;
+  align-self: flex-start;
   min-height: 28px;
   margin-left: var(--space-3);
   padding: 0 var(--space-3);
@@ -15729,8 +15754,14 @@ details[open] > .lift-action-summary .lift-action-chevron {
 .lift-step-apart::before {
   display: none;
 }
+.lift-step-apart > span {
+  align-self: center;
+}
 .lift-steps-strip {
   display: none;
+}
+.lift-steps > .lift-help {
+  grid-area: help;
 }
 .lift-help > summary {
   display: flex;
@@ -15748,6 +15779,10 @@ details[open] > .lift-action-summary .lift-action-chevron {
 }
 .lift-help-body > p {
   margin: 0 0 var(--space-2);
+}
+/* An opened explanation takes the whole width under the steps instead of squeezing into a corner. */
+.lift-steps > .lift-help[open] {
+  grid-area: 3 / 1 / 4 / -1;
 }
 
 /* Next step panel: one tinted panel with a coloured edge and the page's one filled button. */
@@ -15917,7 +15952,539 @@ details[open] > .lift-action-summary .lift-action-chevron {
   margin-top: var(--space-2);
 }
 
-/* Phone: tighter cards, the step bar becomes its position words and a strip, checklist rows stack. */
+/* Case Status Panel: one card says where the case stands. The next step (or the changed-case alert)
+   and Evidence Progress sit side by side; what needs attention and the stage line run under them. */
+.lift-status {
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+.lift-status-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+.lift-status-main > :only-child {
+  grid-column: 1 / -1;
+}
+.lift-status .lift-next,
+.lift-status .lift-alert {
+  box-sizing: border-box;
+  height: 100%;
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: 0;
+}
+.lift-status .lift-next {
+  justify-content: center;
+}
+.lift-status .case-alert {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.lift-status .case-alert > .lift-alert {
+  flex: 1 1 auto;
+}
+.lift-status .lift-alert-title {
+  font-size: var(--text-lead);
+}
+.lift-status-progress {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+}
+.lift-status-main > .lift-status-progress:not(:first-child) {
+  border-left: 1px solid var(--hairline-soft);
+}
+.lift-status .lift-empty {
+  padding: 0;
+  border: 0;
+}
+.lift-status .lift-empty-actions .btn {
+  min-height: 44px;
+}
+/* With no checklist the empty Evidence Progress is the whole card's top: tile, words, one way
+   forward, in a single row. */
+.lift-status-main > :only-child .lift-empty {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "tile title actions"
+    "tile line actions";
+  align-items: center;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+}
+.lift-status-main > :only-child .lift-empty-tile {
+  grid-area: tile;
+}
+.lift-status-main > :only-child .lift-empty-title {
+  grid-area: title;
+  align-self: end;
+}
+.lift-status-main > :only-child .lift-empty-line {
+  grid-area: line;
+  align-self: start;
+}
+.lift-status-main > :only-child .lift-empty-actions {
+  grid-area: actions;
+  margin: 0;
+}
+.lift-status-main > :only-child .lift-empty-line > p + p {
+  margin-top: var(--space-1);
+}
+.lift-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3) var(--space-3);
+  min-width: 0;
+}
+.lift-progress > * {
+  grid-column: 1 / -1;
+}
+.lift-progress > .lift-progress-kicker {
+  grid-column: 1;
+}
+/* The explanation sits at the top right as a quiet link; opened, it takes the full width below. */
+.lift-progress > .lift-help {
+  grid-column: 2;
+  grid-row: 1;
+}
+.lift-progress > .lift-help[open] {
+  grid-column: 1 / -1;
+  grid-row: auto;
+}
+.lift-progress-kicker {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+.lift-progress-figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+.lift-progress-numeral {
+  font-size: var(--text-display);
+  font-weight: 750;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.lift-progress-unit {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-progress-empty {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-progress-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+.lift-progress-verdict > .badge {
+  margin: 0;
+}
+.lift-progress-sentence {
+  margin: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.lift-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+}
+.lift-count {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.lift-count > dd {
+  order: -1;
+  flex: none;
+  min-width: 1.1em;
+  margin: 0;
+  font-size: var(--text-lead);
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.lift-count > dt {
+  font-size: var(--text-caption);
+  line-height: 1.3;
+  color: var(--text-secondary);
+}
+.lift-count-zero > dd,
+.lift-count-zero > dt {
+  color: var(--text-tertiary);
+}
+.lift-status-notes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  padding: 0 var(--space-5) var(--space-2);
+}
+.lift-status-notes > p {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-progress .lift-help > summary {
+  min-height: 44px;
+  margin-block: calc(var(--space-2) * -1);
+}
+.lift-status-notes > .lift-self-note {
+  font-size: var(--text-caption);
+}
+.lift-status .case-context-strip {
+  display: block;
+  margin: 0;
+}
+.lift-status .case-manual-notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--hairline-soft);
+}
+.lift-status .case-attention {
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-5);
+  border-top: 1px solid var(--hairline-soft);
+}
+.lift-status .case-attention a.lift-attn,
+.lift-status .case-attention .lift-attn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--text);
+}
+.lift-status .case-attention a.lift-attn,
+.lift-status .case-attention a.lift-attn:hover {
+  text-decoration: none;
+}
+.lift-status .case-attention a.lift-attn:hover {
+  background: var(--brand-tint-3);
+}
+.lift-status .case-attention .lift-attn-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.lift-status .case-attention .lift-attn-warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.lift-status .case-attention .lift-attn-neutral {
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+.lift-attn-icon {
+  display: inline-grid;
+  flex: none;
+}
+.lift-attn-count {
+  font-size: var(--text-body);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.lift-status .case-attention span.case-attention-ok {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.lift-status-stages {
+  padding: var(--space-2) var(--space-5) 0;
+  border-top: 1px solid var(--hairline-soft);
+}
+.case-journey-reminder {
+  margin: 0 0 var(--space-3);
+  padding: 0 var(--space-2);
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+/* The header keeps its place; the actions stay in one row of 44px buttons, quiet beside the card. */
+.lift-case .page-header {
+  margin-bottom: var(--space-4);
+}
+
+/* The section links under the card: one quiet row. */
+.lift-case .jump-nav {
+  gap: 0 var(--space-5);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-2);
+}
+
+/* The working grid: the checklist first, then the rail, then the rest, in that order in the page.
+   Wide: the checklist and the rest stack on the left, the rail runs down the right. */
+.lift-case-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+.lift-case-checklist,
+.lift-case-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.lift-case-checklist:empty,
+.lift-case-secondary:empty {
+  display: none;
+}
+@media (min-width: 1181px) {
+  .lift-case-grid {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+  }
+  .lift-case-checklist,
+  .lift-case-secondary {
+    grid-column: 1;
+  }
+  .lift-case-grid > .split-rail {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+.lift-case-grid > .split-rail {
+  gap: var(--space-5);
+}
+
+/* The checklist: a group per state with its own colour and mark, a line per item. */
+.lift-groups {
+  gap: var(--space-3);
+}
+.lift-group {
+  overflow: hidden;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+}
+.lift-group > .collapsible-group-summary {
+  min-height: 56px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--brand-tint-1);
+}
+.lift-group > .collapsible-group-summary::before {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--bg-elevated);
+}
+.lift-group-danger > .collapsible-group-summary::before {
+  content: "\2715" / "";
+  background: var(--danger-strong);
+}
+.lift-group-warning > .collapsible-group-summary::before {
+  content: "\25B2" / "";
+  background: var(--warning);
+}
+.lift-group-success > .collapsible-group-summary::before {
+  content: "\2713" / "";
+  background: var(--success);
+}
+.lift-group .case-group-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+.lift-state-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  font-size: var(--text-small);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.lift-group-danger .lift-state-count {
+  color: var(--danger);
+}
+.lift-group-warning .lift-state-count {
+  color: var(--warning);
+}
+.lift-group-success .lift-state-count {
+  color: var(--success);
+}
+.lift-group .collapsible-group-body {
+  padding: 0 var(--space-4) var(--space-2);
+}
+.lift-category-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 var(--space-3);
+  margin: var(--space-3) 0 var(--space-1);
+}
+.lift-category-head .case-category-heading {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.lift-group-count {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+.lift-card-note {
+  display: block;
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.lift-check {
+  padding-block: var(--space-3);
+  grid-template-rows: auto 1fr;
+}
+.lift-check-icon {
+  grid-row: 1;
+}
+.lift-check-body {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.lift-check > .lift-pill {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+.lift-check > .lift-check-action {
+  grid-column: 3;
+  grid-row: 2;
+  justify-self: end;
+  align-self: start;
+  margin-top: 0;
+}
+.lift-check-context {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-check-context > p,
+.lift-check-aside {
+  margin: 0;
+}
+.lift-check-aside {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-check-compact {
+  align-items: center;
+  padding-block: 0;
+  min-height: 48px;
+}
+.lift-check-compact .lift-check-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+.lift-check-compact {
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+}
+.lift-check-compact .lift-check-body {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+.lift-check-compact .lift-row-more[open] {
+  flex: 1 0 100%;
+}
+
+/* Documents that expire before the trip: rows with a calendar mark and the dates in bold. */
+.lift-expiring-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lift-expiring-list li.lift-expiring-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.lift-expiring-row:last-child {
+  border-bottom: 0;
+}
+.lift-expiring-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.lift-expiring-name {
+  font-weight: 650;
+}
+.lift-expiring-dates {
+  flex: 1 1 14rem;
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+.lift-expiring-dates strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Phone: tighter cards, the step bar becomes its position words, the current stage and a strip,
+   the section links scroll sideways inside their own row, checklist rows stack. */
 @media (max-width: 760px) {
   .lift-card,
   .lift-next,
@@ -15927,16 +16494,90 @@ details[open] > .lift-action-summary .lift-action-chevron {
   .lift-next-title {
     font-size: var(--text-lead);
   }
+  .lift-card-head {
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
+  }
+  .lift-card-note {
+    text-align: left;
+  }
+  .lift-status-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lift-status-main > .lift-status-progress:not(:first-child) {
+    border-left: 0;
+    border-top: 1px solid var(--hairline-soft);
+  }
+  .lift-status .lift-next,
+  .lift-status .lift-alert {
+    padding: var(--space-4);
+  }
+  .lift-status-progress {
+    padding: var(--space-3) var(--space-4);
+  }
+  .lift-progress {
+    gap: var(--space-2);
+  }
+  .lift-case .jump-nav {
+    margin-bottom: var(--space-3);
+  }
+  .lift-status .case-attention,
+  .lift-status .case-manual-notice,
+  .lift-status-notes,
+  .lift-status-stages {
+    padding-inline: var(--space-4);
+  }
+  .lift-status .lift-empty {
+    padding: 0;
+  }
+  .lift-status-main > :only-child .lift-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .lift-status-main > :only-child .lift-empty-title,
+  .lift-status-main > :only-child .lift-empty-line {
+    align-self: flex-start;
+  }
+  .lift-steps {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "position list help"
+      "strip strip strip";
+    column-gap: var(--space-2);
+    align-items: center;
+  }
+  .lift-steps-position {
+    padding-top: 0;
+  }
+  .lift-steps-position::after {
+    content: " \00b7";
+  }
   .lift-steps-list {
     display: block;
   }
   .lift-step:not(.lift-step-current) {
     display: none;
   }
+  .lift-step-current {
+    flex-direction: row;
+    padding: 0;
+    font-size: var(--text-small);
+    text-align: left;
+  }
+  .lift-step-current::before {
+    display: none;
+  }
   .lift-step:not(.lift-step-apart):has(+ .lift-step:not(.lift-step-apart))::after {
     display: none;
   }
+  .lift-step-apart.lift-step-current {
+    margin-left: 0;
+    border: 0;
+    padding: 0;
+  }
   .lift-steps-strip {
+    grid-area: strip;
     display: flex;
     gap: var(--space-1);
   }
@@ -15948,6 +16589,24 @@ details[open] > .lift-action-summary .lift-action-chevron {
   }
   .lift-strip-part-current {
     background: var(--brand);
+  }
+  .lift-steps > .lift-help[open] {
+    grid-area: 3 / 1 / 4 / -1;
+  }
+  .lift-case .jump-nav {
+    flex-wrap: nowrap;
+    gap: 0 var(--space-4);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .lift-case .jump-nav a {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    min-height: 44px;
+  }
+  .lift-group .collapsible-group-body {
+    padding-inline: var(--space-3);
   }
   .lift-check-body {
     display: contents;
@@ -15964,14 +16623,34 @@ details[open] > .lift-action-summary .lift-action-chevron {
     grid-column: 3;
     grid-row: 1;
   }
-  .lift-check-next,
-  .lift-check-action,
-  .lift-check-note,
-  .lift-row-more {
-    grid-column: 2 / -1;
+  .lift-check-body {
+    grid-row: auto;
   }
-  .lift-check-action {
+  .lift-check-next,
+  .lift-check-context,
+  .lift-check-note,
+  .lift-row-more,
+  .lift-check > .lift-check-action {
+    grid-column: 2 / -1;
+    grid-row: auto;
+  }
+  .lift-check > .lift-check-action {
+    order: 1;
+    justify-self: stretch;
     align-self: stretch;
+  }
+  .lift-row-more {
+    order: 2;
+  }
+  .lift-check-compact .lift-check-body {
+    display: contents;
+  }
+  .lift-check-compact {
+    align-items: start;
+    padding-block: var(--space-1) 0;
+  }
+  .lift-expiring-dates {
+    flex-basis: 100%;
   }
 }
 /* end WP-LIFT-A */

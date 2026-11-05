@@ -18,7 +18,11 @@ export interface ChecklistRowProps {
   /** The one thing to do about this item. */
   readonly action?: LiftAction | undefined;
   /** Where the rule comes from, one quiet line. */
-  readonly note?: string | undefined;
+  readonly note?: ReactNode;
+  /** Short facts that change what to do (which alternatives count, the chosen document), quiet. */
+  readonly context?: ReactNode;
+  /** A finished item: one line, with the fold beside the name instead of under it. */
+  readonly compact?: boolean | undefined;
   /** The status picture; defaults to the tone's own (tick, triangle, cross, ring). */
   readonly icon?: IconName | undefined;
   /** Everything else about the item, folded under `moreLabel`. */
@@ -44,12 +48,14 @@ export function ChecklistRow({
   next,
   action,
   note,
+  context,
+  compact,
   icon,
   more,
   moreLabel,
 }: ChecklistRowProps) {
   return (
-    <div className={`row lift-check lift-check-${tone}`}>
+    <div className={`row lift-check lift-check-${tone}${compact ? ' lift-check-compact' : ''}`}>
       <span className="lift-check-icon" aria-hidden="true">
         <Icon name={icon ?? TONE_ICON[tone]} size={16} />
       </span>
@@ -59,15 +65,7 @@ export function ChecklistRow({
           {necessity ? <span className="lift-check-tag">{necessity}</span> : null}
         </div>
         {next ? <p className="lift-check-next">{next}</p> : null}
-        {action ? (
-          <LiftLink
-            className="btn btn-secondary lift-check-action"
-            href={action.href}
-            openGroup={action.openGroup}
-          >
-            {action.label}
-          </LiftLink>
-        ) : null}
+        {context ? <div className="lift-check-context">{context}</div> : null}
         {note ? <p className="lift-check-note">{note}</p> : null}
         {more ? (
           <details className="lift-row-more">
@@ -79,6 +77,15 @@ export function ChecklistRow({
       <StatusPill tone={tone} size="md">
         {status}
       </StatusPill>
+      {action ? (
+        <LiftLink
+          className="btn btn-secondary lift-check-action"
+          href={action.href}
+          openGroup={action.openGroup}
+        >
+          {action.label}
+        </LiftLink>
+      ) : null}
     </div>
   );
 }
