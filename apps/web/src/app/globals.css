@@ -19280,4 +19280,61 @@ article.card:has(> .trip-start-form) {
   color: var(--text-tertiary);
   font-size: var(--text-small);
 }
+/* Documents: four tiles. The tone's rule first, then the number large, then its name on one line under it. A name never wraps: on a phone the four sit two by two, so each has the room to be read whole. The one in use has a heavier edge. */
+.wallet-overview-strip button[data-tone] {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--hairline-soft);
+  background: var(--bg-elevated);
+  color: var(--text);
+  text-align: start;
+}
+.wallet-overview-strip button[data-tone] strong {
+  order: 1;
+  font-size: 2rem;
+  font-weight: 750;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--tone);
+}
+.wallet-overview-strip button[data-tone] .wallet-tile-name {
+  order: 2;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.wallet-overview-strip button[data-tone][aria-pressed="true"] {
+  border-color: var(--text);
+}
+@media (max-width: 560px) {
+  .wallet-overview-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+}
+
+/* Traveller overview: the three counts, each with the rule of its tone. */
+.lift-tile[data-tone]::before {
+  margin-bottom: var(--space-2);
+}
+.lift-tile[data-tone] {
+  border-color: var(--hairline-soft);
+  background: var(--bg-elevated);
+}
+.lift-tile[data-tone] .lift-tile-numeral {
+  color: var(--tone);
+}
+
+/* The accent slice of every icon is the brand blue; the rest follows the text colour. */
+.icon .icon-accent {
+  color: var(--icon-accent, var(--brand));
+}
 /* end WP-PLAIN-TONE */
