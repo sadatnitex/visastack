@@ -22,6 +22,7 @@ import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { appendAuditEvent } from './audit';
 import { reconcileRestoredBranch } from './backup-reconciliation';
+import { deleteCancelledMission } from './case-deletion';
 import { sweepCaseRetentionPurge } from './case-retention';
 import { setConsent } from './consent';
 import { type Db, first } from './db';
@@ -804,6 +805,80 @@ describe('reconcileRestoredBranch (master directive Part 7 §15: backup resurrec
     // Already purged -- a second run must find nothing left to do.
     const secondReport = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
     expect(secondReport.counts.missionsPurged).toBe(0);
+    expect(secondReport.errors).toHaveLength(0);
+  });
+
+  it('replays an owner deleting a cancelled case: the case and what hangs off it go on the restored branch too, and a second run is a clean no-op', async () => {
+    const owner = await seedAccount(oldDb, 'delete-owner@example.com');
+    await mirrorRow(newDb, schema.accounts, owner);
+    const applicant = await seedApplicant(oldDb, owner.id);
+    await mirrorRow(newDb, schema.applicants, applicant);
+
+    const created = await createMission(oldDb, {
+      actorAccountId: owner.id,
+      applicantId: applicant.id,
+      title: 'Cancelled trip',
+    });
+    if (!isOk(created)) throw new Error('setup failed');
+    const missionId = created.value.id;
+    // The restore point predates the deletion: the case exists on the restored branch, with a note.
+    const missionRow = first(
+      await oldDb.select().from(schema.missions).where(eq(schema.missions.id, missionId)),
+    );
+    if (!missionRow) throw new Error('setup failed');
+    await mirrorRow(newDb, schema.missions, missionRow);
+    await oldDb
+      .insert(schema.missionNotes)
+      .values({ missionId, authorAccountId: owner.id, body: 'a note' });
+    const noteRow = first(
+      await oldDb
+        .select()
+        .from(schema.missionNotes)
+        .where(eq(schema.missionNotes.missionId, missionId)),
+    );
+    if (!noteRow) throw new Error('setup failed');
+    await mirrorRow(newDb, schema.missionNotes, noteRow);
+
+    const cancelled = await transitionMission(oldDb, {
+      actorAccountId: owner.id,
+      missionId,
+      to: 'CANCELLED',
+    });
+    expect(isOk(cancelled)).toBe(true);
+    const access = await requireAccess(
+      oldDb,
+      accountPrincipal(owner.id),
+      'MANAGE',
+      { missionId },
+      { purpose: 'owner_delete_cancelled_case' },
+    );
+    if (!access.ok) throw new Error('setup failed');
+    expect(isOk(await deleteCancelledMission(access.value))).toBe(true);
+    await oldDb
+      .update(schema.auditEvents)
+      .set({ occurredAt: AFTER })
+      .where(eq(schema.auditEvents.eventType, 'MISSION_DELETED_BY_OWNER'));
+
+    const report = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(report.counts.missionsDeleted).toBe(1);
+    expect(report.errors).toHaveLength(0);
+    expect(
+      await newDb.select().from(schema.missions).where(eq(schema.missions.id, missionId)),
+    ).toEqual([]);
+    expect(
+      await newDb
+        .select()
+        .from(schema.missionNotes)
+        .where(eq(schema.missionNotes.missionId, missionId)),
+    ).toEqual([]);
+    // The person is untouched.
+    expect(
+      (await newDb.select().from(schema.applicants).where(eq(schema.applicants.id, applicant.id)))
+        .length,
+    ).toBe(1);
+
+    const secondReport = await reconcileRestoredBranch(oldDb, newDb, RESTORE_POINT);
+    expect(secondReport.counts.missionsDeleted).toBe(0);
     expect(secondReport.errors).toHaveLength(0);
   });
 

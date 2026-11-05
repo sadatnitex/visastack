@@ -1492,6 +1492,11 @@ export {
   sweepCaseRetentionNotices,
   sweepCaseRetentionPurge,
 } from './case-retention';
+export {
+  CASE_KEPT_REASONS,
+  type DeletedMission,
+  deleteCancelledMission,
+} from './case-deletion';
 
 export {
   type InactiveAccountDeletionSweepResult,
