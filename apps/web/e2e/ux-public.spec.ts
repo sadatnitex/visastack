@@ -405,18 +405,30 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
             scrolls: nav.scrollWidth - nav.clientWidth,
             navLeft: box.left,
             navRight: box.right,
-            links: links.map((r) => ({ left: r.left, right: r.right, width: r.width, height: r.height })),
+            links: links.map((r) => ({
+              left: r.left,
+              right: r.right,
+              width: r.width,
+              height: r.height,
+            })),
           };
         }, sections);
         expect(found.scrolls, 'the bar has nothing off to the side').toBeLessThanOrEqual(0);
         expect(found.links.length).toBe(5);
         for (const [i, link] of found.links.entries()) {
-          expect(link.right, `tab ${i} ends inside the bar`).toBeLessThanOrEqual(found.navRight + 0.5);
-          expect(link.left, `tab ${i} starts inside the bar`).toBeGreaterThanOrEqual(found.navLeft - 0.5);
+          expect(link.right, `tab ${i} ends inside the bar`).toBeLessThanOrEqual(
+            found.navRight + 0.5,
+          );
+          expect(link.left, `tab ${i} starts inside the bar`).toBeGreaterThanOrEqual(
+            found.navLeft - 0.5,
+          );
           expect(link.height, `tab ${i} is tall enough to tap`).toBeGreaterThanOrEqual(44);
           expect(link.width, `tab ${i} is wide enough to tap`).toBeGreaterThanOrEqual(44);
           const next = found.links[i + 1];
-          if (next) expect(link.right, `tab ${i} does not run into the next`).toBeLessThanOrEqual(next.left + 0.5);
+          if (next)
+            expect(link.right, `tab ${i} does not run into the next`).toBeLessThanOrEqual(
+              next.left + 0.5,
+            );
         }
       });
 
