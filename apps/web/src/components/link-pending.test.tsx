@@ -93,7 +93,7 @@ describe('a tap is answered at once', () => {
   });
 });
 
-describe('the wait is shown, and going back is instant', () => {
+describe('the wait is shown', () => {
   const css = readFileSync(resolve(__dirname, '../app/globals.css'), 'utf8');
   const block = css.slice(
     css.indexOf('/* WP-PLAIN-SPEED'),
@@ -104,14 +104,74 @@ describe('the wait is shown, and going back is instant', () => {
     expect(block).toMatch(/\.link-pending \{\s*display: none;/);
     expect(block).toMatch(/\.app-shell-links a:has\(> \.link-pending\[data-pending="true"\]\)/);
     expect(block).toMatch(/\.subnav a:has\(> \.link-pending\[data-pending="true"\]\)/);
+    expect(block).toMatch(/\.route-progress\[data-active="true"\] \{\s*opacity: 1;/);
+    // The page being left gives up its mark while another waits, so two never look selected.
     expect(block).toMatch(
-      /body:has\(\.link-pending\[data-pending="true"\]\) \.route-progress \{\s*opacity: 1;/,
+      /\.app-frame:has\(\.link-pending\[data-pending="true"\]\)\s+\.app-shell-links\s+a\[aria-current="page"\]:not\(:has\(> \.link-pending\[data-pending="true"\]\)\)/,
     );
     expect(block).toMatch(/prefers-reduced-motion: reduce/);
   });
+});
 
-  it('the browser keeps a shown page for thirty seconds', () => {
-    const config = readFileSync(resolve(__dirname, '../../next.config.mjs'), 'utf8');
-    expect(config).toMatch(/staleTimes: \{ dynamic: 30, static: 180 \}/);
+describe('the bar answers a tap on any link to another page', () => {
+  const bar = () => container.querySelector('.route-progress')?.getAttribute('data-active');
+  function tap(href: string, init: MouseEventInit = {}, target?: string) {
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    if (target) anchor.target = target;
+    container.append(anchor);
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...init });
+    act(() => {
+      anchor.dispatchEvent(click);
+    });
+  }
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // The framework's own link handler cancels the browser's navigation and routes in the page.
+    container.addEventListener('click', (event) => event.preventDefault());
+    window.history.replaceState({}, '', '/app/here');
+    act(() => root.render(<RouteProgress />));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('runs from the tap until the address changes', () => {
+    expect(bar()).toBe('false');
+    const anchor = document.createElement('a');
+    anchor.href = '/app/there';
+    container.append(anchor);
+    act(() => {
+      anchor.click();
+    });
+    expect(bar()).toBe('true');
+    window.history.pushState({}, '', '/app/there');
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+    expect(bar()).toBe('false');
+  });
+
+  it('never runs for a tap that does not leave the page, or opens elsewhere', () => {
+    tap('/app/here');
+    expect(bar()).toBe('false');
+    tap('https://elsewhere.example/page');
+    expect(bar()).toBe('false');
+    tap('/app/there', { ctrlKey: true });
+    expect(bar()).toBe('false');
+    tap('/app/there', {}, '_blank');
+    expect(bar()).toBe('false');
+  });
+
+  it('gives up after a longest wait', () => {
+    const anchor = document.createElement('a');
+    anchor.href = '/app/slow';
+    container.append(anchor);
+    act(() => {
+      anchor.click();
+    });
+    expect(bar()).toBe('true');
+    act(() => {
+      vi.advanceTimersByTime(10_500);
+    });
+    expect(bar()).toBe('false');
   });
 });

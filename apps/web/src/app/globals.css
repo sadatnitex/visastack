@@ -19390,18 +19390,64 @@ article.card:has(> .trip-start-form) {
 }
 /* end WP-PLAIN-TYPE */
 
-/* WP-PLAIN-SPEED A tap is answered at once (Owner, 5 Nov 2026: navigation buttons felt slow to respond). Pages are built on the server, so there is a wait after every tap; the tapped link now takes its selected look immediately and a thin bar runs across the top of the workspace until the page arrives. Flat, existing tokens only. */
+/* WP-PLAIN-SPEED A tap is answered at once (Owner, 5 Nov 2026: navigation buttons felt slow to respond). Pages are built on the server, so there is a wait after every tap; the tapped link takes the selected look immediately, the page being left gives it up, and a thin bar runs across the top of the workspace until the page arrives. Flat, existing tokens only. */
 .link-pending {
   display: none;
 }
-.app-shell-links a:has(> .link-pending[data-pending="true"]),
+.app-shell-links a:has(> .link-pending[data-pending="true"]) {
+  color: var(--selected-text);
+  font-weight: 650;
+  background: var(--bg-elevated);
+  border: 1px solid var(--edge-card);
+  position: relative;
+}
+.app-shell-links a:has(> .link-pending[data-pending="true"])::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--brand);
+}
+.app-shell-links a:has(> .link-pending[data-pending="true"]) .icon {
+  color: var(--brand);
+}
 .app-nav-action:has(> .link-pending[data-pending="true"]) {
   color: var(--selected-text);
   background: var(--bg-elevated);
 }
+/* While one link waits, the page being left gives up its mark, so two never look selected. */
+.app-frame:has(.link-pending[data-pending="true"])
+  .app-shell-links
+  a[aria-current="page"]:not(:has(> .link-pending[data-pending="true"])) {
+  color: var(--text-secondary);
+  font-weight: 605;
+  background: transparent;
+  border-color: transparent;
+}
+.app-frame:has(.link-pending[data-pending="true"])
+  .app-shell-links
+  a[aria-current="page"]:not(:has(> .link-pending[data-pending="true"]))::before {
+  content: none;
+}
+.app-frame:has(.link-pending[data-pending="true"])
+  .app-shell-links
+  a[aria-current="page"]:not(:has(> .link-pending[data-pending="true"]))
+  .icon {
+  color: var(--text-tertiary);
+}
 .subnav a:has(> .link-pending[data-pending="true"]) {
   color: var(--text);
+  font-weight: 650;
   border-bottom-color: var(--brand);
+}
+.subnav:has(.link-pending[data-pending="true"])
+  a[aria-current="page"]:not(:has(> .link-pending[data-pending="true"])) {
+  color: var(--text-secondary);
+  font-weight: inherit;
+  border-bottom-color: transparent;
 }
 .route-progress {
   position: fixed;
@@ -19414,7 +19460,7 @@ article.card:has(> .trip-start-form) {
   opacity: 0;
   pointer-events: none;
 }
-body:has(.link-pending[data-pending="true"]) .route-progress {
+.route-progress[data-active="true"] {
   opacity: 1;
   animation: route-progress 8s cubic-bezier(0.1, 0.7, 0.3, 1) forwards;
 }
@@ -19427,7 +19473,7 @@ body:has(.link-pending[data-pending="true"]) .route-progress {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  body:has(.link-pending[data-pending="true"]) .route-progress {
+  .route-progress[data-active="true"] {
     animation: none;
     transform: scaleX(0.6);
   }
