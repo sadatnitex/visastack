@@ -7601,3 +7601,11 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Icons: all 34 redrawn (apps/web/src/components/icons.tsx): flat silhouette, one blue slice, gestures stay plain strokes. A test (icons.test.tsx) holds that every icon is decorative, flat, takes its colours from the page and that objects carry the slice and gestures do not; it fails when a gesture gets an accent.
 - Applied: Add Documents (bare icon instead of a tile, steps as numerals), Document Insights, Documents four numbers, traveller overview counts, label above page titles, log rows.
 - Not done, open: this is a rule and a first set of screens, not a finished identity. A custom type pairing and illustration need assets the product does not have yet (no font or illustration files can be fetched in this environment). The rest of the app (cases, sharing, profile, dates, agency, admin, the app shell) still carries the older look. Not seen on a real phone.
+
+## 2026-11-05 - Installed app icon on a white disc
+
+- Owner report: the VisaStack icon on the phone's home screen is a blue tile on a white circle.
+- Cause: the two "any" icons (192 and 512) had transparent rounded corners. A launcher that draws those instead of the maskable icon paints every transparent pixel white, so the tile sits on a white disc.
+- Fix: every icon in the manifest is now a full-bleed, opaque blue square (the Sliced V inside the safe zone), and a maskable icon exists at both 192 and 512. New test (src/lib/pwa/manifest-icons.test.ts) fails on any transparent pixel or a wrong size; it failed with the old 512 icon.
+- The phone keeps its old icon until it refreshes the installed app (usually within a day); removing the app from the home screen and adding it again shows the new icon at once.
+- Not verified: the owner's device after this change; which browser the app was added from is not known. Separately reported and still open: after signing in the installed app behaves like a desktop browser; one likely cause is a browser setting for that site ("desktop site"), which a page cannot override.
