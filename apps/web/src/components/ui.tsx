@@ -109,6 +109,7 @@ export function EmptyState({
   action,
   icon,
   fold = false,
+  foldWhy = false,
 }: {
   readonly title: string;
   readonly children: ReactNode;
@@ -117,6 +118,8 @@ export function EmptyState({
   readonly icon?: IconName;
   /** Keep the sentences under "About This" so the empty state is its title and one button. */
   readonly fold?: boolean;
+  /** Keep only the reason under "About This": the sentence that says why it is empty stays. */
+  readonly foldWhy?: boolean;
 }) {
   const sentences = (
     <>
@@ -128,7 +131,18 @@ export function EmptyState({
     <div className="empty-state">
       <IconTile name={icon ?? 'folder'} />
       <p className="empty-state-title">{title}</p>
-      {fold ? <AboutDisclosure summary="About This">{sentences}</AboutDisclosure> : sentences}
+      {fold ? (
+        <AboutDisclosure summary="About This">{sentences}</AboutDisclosure>
+      ) : foldWhy && why ? (
+        <>
+          <p className="empty-state-body">{children}</p>
+          <AboutDisclosure summary="About This">
+            <p className="empty-state-why">{why}</p>
+          </AboutDisclosure>
+        </>
+      ) : (
+        sentences
+      )}
       {action ? (
         <Link href={action.href} className="btn btn-secondary">
           {action.label}

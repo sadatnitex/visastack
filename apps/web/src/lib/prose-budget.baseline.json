@@ -50,10 +50,10 @@
     {
       "screen": "Documents",
       "state": "one document opened (the detail screen)",
-      "words": 31,
-      "wordsDesktop": 31,
+      "words": 22,
+      "wordsDesktop": 22,
       "registered": false,
-      "note": "not held to the rule yet: a separate screen on a phone"
+      "note": "held at 30 on phone and desktop by the parity guard (documents states: a failed file selected 22, several documents one selected 14); was 31"
     },
     {
       "screen": "Case",

@@ -254,7 +254,7 @@ describe('agency cases levels', () => {
     }
     const needs = rows.map((row) => row.querySelector('[data-only="glance"]')?.textContent);
     expect(needs[0]).toBe('Needs you: 1 task.');
-    expect(needs[1]).toBe('Needs you: 1 item to review and someone to look after it.');
+    expect(needs[1]).toBe('Needs you: 1 item to review and no owner set.');
   });
 
   it('keeps where things stand and who is assigned at Browse', async () => {

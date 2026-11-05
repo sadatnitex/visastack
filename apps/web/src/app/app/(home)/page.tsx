@@ -35,12 +35,18 @@ import {
   PageHeader,
   StatusBadge,
 } from '../../../components/ui';
+import { AboutDisclosure } from '../../../components/ui-lift';
 import { holdsPlatformRole } from '../../../lib/admin';
 import { depthCopyFor } from '../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../lib/ccd/depth.server';
 import { countryNameOf, countryStartData, parseCountryParam } from '../../../lib/country-start';
 import { COUNTRY_STEP_DONE } from '../../../lib/country-start-links';
-import { ATTENTION_TIER_LABELS, CONSENT_PLAIN, attentionActionLabel } from '../../../lib/labels';
+import {
+  ATTENTION_TIER_LABELS,
+  CONSENT_PLAIN,
+  CONSENT_SHORT,
+  attentionActionLabel,
+} from '../../../lib/labels';
 import { getLocale } from '../../../lib/locale';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import { openOwnerGate } from '../../../lib/owner-gate';
@@ -638,14 +644,24 @@ export default async function AppPage({
         title={greeting}
         description={
           <>
-            Signed in as <span className="depth-email">{data.email}</span>. What needs you across
-            every traveller on this account, with your agency work and the permissions you control.
+            Signed in as{' '}
+            <span className="depth-email" data-value>
+              {data.email}
+            </span>
           </>
         }
       />
 
+      {/* Owner, 5 Nov 2026: no page should have more than 30 words. What this page gathers is one tap away. */}
+      <AboutDisclosure summary="About This">
+        <p>
+          What needs you across every traveller on this account, with your agency work and the
+          permissions you control.
+        </p>
+      </AboutDisclosure>
+
       <DepthScope family="home" depth={depth}>
-        <DepthSwitch family="home" initial={depth} copy={depthWords} />
+        <DepthSwitch family="home" initial={depth} copy={depthWords} notesBehindInfo />
 
         <NextStepCard {...nextStep} />
 
@@ -928,31 +944,56 @@ export default async function AppPage({
             hint={`${grantedCount} of ${CONSENT_TYPES.length} on`}
             open={!coreGranted}
           >
-            <p className="card-body u-mb-100">
-              {locale === 'en'
-                ? 'Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. "Let VisaStack Process My Details" is needed before any traveller or profile can be created; the others are optional.'
-                : 'Each purpose is granted and revoked independently, at any time. Turning one off never requires turning another back on. Core processing is required before any traveller or profile records can be created; the others are optional.'}
-            </p>
+            {/* Owner, 5 Nov 2026: no page should have more than 30 words. A permission that sends
+                something out keeps one short line on its row; the full wording of every permission
+                is one tap away. */}
+            <AboutDisclosure summary="About Permissions">
+              <p>
+                {locale === 'en'
+                  ? 'Each one is on or off, and you can change it at any time. Turning one off never requires turning another back on. "Let VisaStack Process My Details" is needed before any traveller or profile can be created; the others are optional.'
+                  : 'Each purpose is granted and revoked independently, at any time. Turning one off never requires turning another back on. Core processing is required before any traveller or profile records can be created; the others are optional.'}
+              </p>
+              {locale === 'en' ? (
+                <ul>
+                  {CONSENT_TYPES.map((type) => {
+                    const plain = CONSENT_PLAIN[type];
+                    return plain ? (
+                      <li key={type}>
+                        {plain.name}: {plain.meaning}
+                      </li>
+                    ) : null;
+                  })}
+                </ul>
+              ) : null}
+            </AboutDisclosure>
             <div className="rows">
               {CONSENT_TYPES.map((type) => {
                 const plain = locale === 'en' ? CONSENT_PLAIN[type] : undefined;
                 const name = plain?.name ?? t(CONSENT_MESSAGE_KEYS[type]);
                 const on = Boolean(data.consents[type]);
+                const short = locale === 'en' ? CONSENT_SHORT[type] : undefined;
                 return (
                   <div className="row consent-row" key={type}>
                     <span className="row-key consent-text">
-                      <span className="consent-name">{name}</span>
-                      {plain ? (
+                      <span className="consent-name" data-value>
+                        {name}
+                      </span>
+                      {short?.line ? (
                         <>
                           {' '}
-                          <span className="consent-meaning">{plain.meaning}</span>
+                          <span className="consent-meaning">{short.line}</span>
                         </>
                       ) : null}
                     </span>
                     {plain ? (
-                      <span className={`badge ${on ? 'badge-success' : 'badge-neutral'}`}>
-                        {on ? 'On' : 'Off'}
-                      </span>
+                      <>
+                        {short?.chip ? (
+                          <span className="badge badge-neutral">{short.chip}</span>
+                        ) : null}
+                        <span className={`badge ${on ? 'badge-success' : 'badge-neutral'}`}>
+                          {on ? 'On' : 'Off'}
+                        </span>
+                      </>
                     ) : null}
                     <ConsentButton type={type} granted={on} locale={locale} label={name} />
                   </div>

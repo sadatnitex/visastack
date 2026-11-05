@@ -282,7 +282,7 @@ export default async function ApplicantProfilePage({
         />
       ) : null}
       <DepthScope family="profile" depth={depth}>
-        <DepthSwitch family="profile" initial={depth} copy={depthWords} />
+        <DepthSwitch family="profile" initial={depth} copy={depthWords} notesBehindInfo />
         <section
           className="profile-identity-banner"
           aria-label="Selected traveller and profile completion"
@@ -295,7 +295,7 @@ export default async function ApplicantProfilePage({
           />
           <div className="profile-identity-copy">
             <h2>{data.applicant.displayName}</h2>
-            <p className="muted">
+            <p className="muted" data-value>
               {nationality?.value || 'Nationality not recorded'} · Profile created{' '}
               {formatTimestampDate(data.applicant.createdAt)}
             </p>
@@ -407,7 +407,7 @@ export default async function ApplicantProfilePage({
               </article>
             </div>
             <div className="profile-review-note">
-              <strong>You Decide What Becomes a Fact</strong>
+              <strong className="profile-review-label">You Decide What Becomes a Fact</strong>
               <p>AI suggestions wait for your approval.</p>
               <AboutDisclosure summary="About Suggestions">
                 <p>

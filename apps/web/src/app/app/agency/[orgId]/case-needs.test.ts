@@ -79,7 +79,7 @@ describe('what on a case needs this person (Agency Cases, Glance)', () => {
         tasks: [{ status: 'OPEN', assigneeAccountId: 'me' }],
         triage: { items: [item({ requestId: 'r1' })] },
       }),
-    ).toBe('Needs you: 1 task, 1 item to review and someone to look after it.');
+    ).toBe('Needs you: 1 task, 1 item to review and no owner set.');
     expect(caseNeedsYou({ ...base, viewerAssigned: false, assignmentCount: 0 })).toBe(
       'Nothing needs you on this case right now.',
     );

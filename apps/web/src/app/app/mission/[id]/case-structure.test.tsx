@@ -316,6 +316,7 @@ beforeEach(() => {
 
 const EXPECTED_CHECKLIST: string[] = [
   'h1: Japan visitor visa',
+  'summary: i',
   'h2: Next Step',
   'summary: Why This Step',
   'h2: Evidence Progress',
@@ -389,6 +390,7 @@ const EXPECTED_CHECKLIST: string[] = [
 ];
 const EXPECTED_CHANGED: string[] = [
   'h1: Japan visitor visa',
+  'summary: i',
   '.case-alert',
   'summary: What Changed',
   'h2: Evidence Progress',
@@ -461,6 +463,7 @@ const EXPECTED_CHANGED: string[] = [
 ];
 const EXPECTED_NO_CHECKLIST: string[] = [
   'h1: Japan visitor visa',
+  'summary: i',
   'h2: Next Step',
   'summary: Why This Step',
   '#readiness',

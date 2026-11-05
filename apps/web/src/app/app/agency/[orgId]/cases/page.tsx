@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { DepthScope } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import { EmptyState } from '../../../../../components/ui';
+import { AboutDisclosure } from '../../../../../components/ui-lift/about-disclosure';
 import { depthCopy } from '../../../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
@@ -129,20 +130,28 @@ export default async function AgencyCasesPage({
   return (
     <DepthScope family="agency-cases" depth={depth}>
       <OpenCaseFromLink />
-      <DepthSwitch family="agency-cases" initial={depth} copy={depthWords} />
+      <DepthSwitch family="agency-cases" initial={depth} copy={depthWords} notesBehindInfo />
       <article className="card">
         <p className="card-kicker">Collaborate</p>
         <h2 className="card-title">Cases</h2>
-        <p className="card-body u-mb-125">
-          {data.admin
-            ? 'Assign a team member and leave case notes on any case this organization has a grant for.'
-            : "Leave case notes and record decisions on cases you're assigned to."}
-        </p>
+        <AboutDisclosure summary="About Cases" className="u-mb-125">
+          <p className="card-body">
+            {data.admin
+              ? 'Assign a team member and leave case notes on any case this organization has a grant for.'
+              : "Leave case notes and record decisions on cases you're assigned to."}
+          </p>
+          {!empty && !openId && !open ? (
+            <p className="card-body">
+              Choose a case to open its workspace: its team, notes, tasks and appointments.
+            </p>
+          ) : null}
+        </AboutDisclosure>
         {empty ? (
           <EmptyState
             title="No Cases Yet"
             icon="briefcase"
             why="Once a client accepts, their cases appear here with how many checklist items are ready."
+            foldWhy
             {...(data.admin
               ? { action: { href: `/app/agency/${orgId}/clients`, label: 'Invite a Client' } }
               : {})}
@@ -228,10 +237,6 @@ export default async function AgencyCasesPage({
             notesPage={notesPage}
           />
         </article>
-      ) : !empty && !openId ? (
-        <p className="card-body u-mt-100 muted">
-          Choose a case to open its workspace: its team, notes, tasks and appointments.
-        </p>
       ) : null}
     </DepthScope>
   );

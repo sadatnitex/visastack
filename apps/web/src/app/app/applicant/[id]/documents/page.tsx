@@ -74,7 +74,11 @@ import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master
 import { protectedKindsOf } from '../../../../../lib/protected-kinds';
 import { createKeyManagementPort } from '../../../../../lib/providers';
 import { isStillProcessing } from '../../../../../lib/resilience';
-import { type ScanStatePresentation, presentScanState } from '../../../../../lib/scan-state';
+import {
+  type ScanStatePresentation,
+  presentScanState,
+  shortScanLine,
+} from '../../../../../lib/scan-state';
 import { withSession } from '../../../../../lib/session';
 import {
   previewDocumentAction,
@@ -142,6 +146,16 @@ const PROBLEM_NEXT_STEP: Record<string, string> = {
   NEEDS_ATTENTION:
     'This file could not be accepted as it is. Try a different copy, such as a clearer scan or a smaller file.',
   REJECTED: 'This file was rejected. Upload a different copy if you still need it.',
+};
+
+/**
+ * The same advice in its shortest true form, for the opened document (Owner, 5 Nov 2026: no page
+ * should have more than 30 words). The full wording is read under "About This File".
+ */
+const PROBLEM_NEXT_STEP_SHORT: Record<string, string> = {
+  FAILED: 'We could not check this file. Upload it again.',
+  NEEDS_ATTENTION: 'This file was not accepted. Try a different copy.',
+  REJECTED: 'This file was rejected. Upload a different copy.',
 };
 
 /** Processing-state badge tone: attention states read as warning/danger, everything mid-flight as neutral. */
@@ -768,6 +782,26 @@ export default async function ApplicantDocumentsPage({
                   }
                 : {}),
               stateWords,
+              // Every sentence about this file that is not a fact or an action: one closed fold.
+              aboutFile: (
+                <>
+                  <p className="muted">{badge.detail}</p>
+                  {doc.source === CONVERTED_FROM_HEIC_SOURCE ? (
+                    <p className="muted">
+                      Saved as a JPG copy of the iPhone photo (HEIC) that was uploaded, so it opens
+                      anywhere. The HEIC file itself was not kept.
+                    </p>
+                  ) : null}
+                  {doc.processingStatus &&
+                  PROBLEM_NEXT_STEP[doc.processingStatus] &&
+                  !(doc.latestVersionId && data.reading?.states.has(doc.latestVersionId)) ? (
+                    <p className="muted">{PROBLEM_NEXT_STEP[doc.processingStatus]}</p>
+                  ) : null}
+                  <p className="field-hint" id={`date-hint-${doc.id}`}>
+                    Used to judge freshness for routes that require recently-dated evidence.
+                  </p>
+                </>
+              ),
               details: (
                 <div key={doc.id}>
                   <div
@@ -838,13 +872,7 @@ export default async function ApplicantDocumentsPage({
                         ) : null}
                       </span>
                     </div>
-                    <p className="muted u-fs-075-m0">{badge.detail}</p>
-                    {doc.source === CONVERTED_FROM_HEIC_SOURCE ? (
-                      <p className="muted u-fs-075-m0">
-                        Saved as a JPG copy of the iPhone photo (HEIC) that was uploaded, so it
-                        opens anywhere. The HEIC file itself was not kept.
-                      </p>
-                    ) : null}
+                    <p className="muted u-fs-075-m0">{shortScanLine(badge.kind)}</p>
                     {previewable && isPassportPhotoType(doc.docType) ? (
                       <VisaPhotoSizes
                         documentId={doc.id}
@@ -897,7 +925,9 @@ export default async function ApplicantDocumentsPage({
                     {doc.processingStatus &&
                     PROBLEM_NEXT_STEP[doc.processingStatus] &&
                     !(doc.latestVersionId && data.reading?.states.has(doc.latestVersionId)) ? (
-                      <p className="muted u-fs-075-m0">{PROBLEM_NEXT_STEP[doc.processingStatus]}</p>
+                      <p className="muted u-fs-075-m0">
+                        {PROBLEM_NEXT_STEP_SHORT[doc.processingStatus]}
+                      </p>
                     ) : null}
                     {(() => {
                       const wallet = data.wallet.get(doc.id);
@@ -941,9 +971,6 @@ export default async function ApplicantDocumentsPage({
                           Save
                         </button>
                       </div>
-                      <span className="field-hint" id={`date-hint-${doc.id}`}>
-                        Used to judge freshness for routes that require recently-dated evidence.
-                      </span>
                     </form>
                     <DocumentRenameForm
                       applicantId={id}
