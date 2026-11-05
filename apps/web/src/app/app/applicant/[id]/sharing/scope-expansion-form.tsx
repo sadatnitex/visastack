@@ -32,16 +32,13 @@ export function ScopeExpansionForm({
   );
 
   return (
-    <div
-      className="notice"
-      style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}
-    >
+    <div className="notice lc-scope-expansion">
       <p className="u-m-0">
         {candidates.length} new document{candidates.length === 1 ? '' : 's'} now match{' '}
         {candidates.length === 1 ? 'this grant category' : 'this grant categories'}. They stay
         hidden from the recipient until you confirm including them.
       </p>
-      <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+      <form action={formAction} className="lc-scope-expansion-form">
         <input type="hidden" name="applicantId" value={applicantId} />
         <input type="hidden" name="grantId" value={grantId} />
         <div className="checks">

@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
 import { CaseStageTracker } from '../../src/components/case-preparation-summary';
 import { CollapsibleGroups } from '../../src/components/collapsible-group';
+import { Icon } from '../../src/components/icons';
 import { ShowMore } from '../../src/components/show-more';
 import { StickyActionBar } from '../../src/components/sticky-action-bar';
-import { Disclosure, PageHeader, StatusBadge } from '../../src/components/ui';
+import { Disclosure, PageHeader } from '../../src/components/ui';
+import { NextStepPanel, ProgressMeter } from '../../src/components/ui-lift';
 import { CASE_STATE_LABELS } from '../../src/lib/case-stages';
 
 /**
@@ -164,77 +166,72 @@ function CaseView({ capped }: { readonly capped: boolean }) {
           </>
         }
       />
-      <CaseStageTracker
-        state="IN_PROGRESS"
-        labels={CASE_STATE_LABELS}
-        nextStates={['READY_FOR_REVIEW']}
-        cancelInMore
-      />
-      <section className="case-next-step" aria-labelledby="case-next-step-heading">
-        <h2 className="case-next-step-kicker" id="case-next-step-heading">
-          Next Step
-        </h2>
-        <p className="case-next-step-title">Fix 20 required items for Made-up visitor visa case</p>
-        <a className="btn btn-primary" href="#readiness">
-          See What Needs Fixing
-        </a>
-      </section>
+      {/* The Case Status Panel: the next step and Evidence Progress, what needs attention, the stages. */}
+      <div className="lift-status">
+        <div className="lift-status-main">
+          <NextStepPanel
+            kicker="Next Step"
+            kickerId="case-next-step-heading"
+            title="Fix 20 required items for Made-up visitor visa case"
+            edge="danger"
+            action={{ label: 'See What Needs Fixing', href: '#readiness' }}
+          />
+          <div className="lift-status-progress">
+            <section className="lift-progress" aria-label="Evidence preparation completeness">
+              <h2 className="lift-progress-kicker">Evidence Progress</h2>
+              <p className="lift-progress-figure">
+                <span className="lift-progress-numeral">40 of 60</span>
+                <span className="lift-progress-unit">required items on file</span>
+              </p>
+              <ProgressMeter value={40} max={60} label="required items on file" valueText="67%" />
+            </section>
+          </div>
+        </div>
+        <div className="case-context-strip">
+          <ul className="case-attention" aria-label="What needs attention on this case">
+            {(
+              [
+                ['#readiness', 'danger', 20, 'required items to fix'],
+                ['#readiness', 'warning', 10, 'need a check'],
+                ['#work', 'warning', 40, 'open tasks'],
+              ] as const
+            ).map(([href, tone, count, label]) => (
+              <li key={label}>
+                <a className={`plain-link lift-attn lift-attn-${tone}`} href={href}>
+                  <span className="lift-attn-icon" aria-hidden="true">
+                    <Icon name={tone === 'danger' ? 'close' : 'alert'} size={16} />
+                  </span>
+                  <span className="lift-attn-count">{count}</span>
+                  {label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="lift-status-stages">
+          <CaseStageTracker
+            state="IN_PROGRESS"
+            labels={CASE_STATE_LABELS}
+            nextStates={['READY_FOR_REVIEW']}
+            cancelInMore
+          />
+        </div>
+      </div>
       <p className="case-journey-reminder">
         Preparing a file is not the same as submitting it. VisaStack does not submit applications or
         predict decisions.
       </p>
-      <div className="case-context-strip">
-        <ul className="case-attention" aria-label="What needs attention on this case">
-          <li>
-            <a href="#readiness">
-              <StatusBadge tone="danger">20</StatusBadge>required items missing
-            </a>
-          </li>
-          <li>
-            <a href="#readiness">
-              <StatusBadge tone="warning">10</StatusBadge>need a check
-            </a>
-          </li>
-          <li>
-            <a href="#work">
-              <StatusBadge tone="warning">40</StatusBadge>open tasks
-            </a>
-          </li>
-        </ul>
-      </div>
       <nav className="jump-nav" aria-label="Sections of this case">
         <a href="#readiness">Readiness</a>
         <a href="#work">Tasks and Letters</a>
         <a href="#snapshots">Snapshots</a>
       </nav>
-      <div className="split case-working-area">
-        <div className="split-main">
-          <article className="card case-evidence-overview">
-            <div id="readiness">
-              <h3 className="case-checklist-heading">Evidence Checklist</h3>
-              {checklist(capped)}
-            </div>
-          </article>
-          {capped ? (
-            <>
-              <Disclosure
-                title="Tasks, Appointments and Letters"
-                hint="Open when you need to make a change"
-              >
-                {cappedList('Tasks', 120, capped)}
-              </Disclosure>
-              <Disclosure title="Contributors and Notes from Your Agency">
-                {cappedList('Notes', 80, capped)}
-              </Disclosure>
-            </>
-          ) : (
-            <>
-              {cappedList('Tasks', 120, capped)}
-              {cappedList('Notes', 80, capped)}
-              {cappedList('Complaints', 60, capped)}
-              {cappedList('Feedback', 60, capped)}
-            </>
-          )}
+      <div className="lift-case-grid case-working-area">
+        <div className="lift-case-checklist">
+          <div className="lift-card" id="readiness">
+            <h3 className="lift-card-title">Evidence Checklist</h3>
+            {checklist(capped)}
+          </div>
         </div>
         <aside className="split-rail" aria-label="About this case">
           <article className="card">
@@ -271,6 +268,28 @@ function CaseView({ capped }: { readonly capped: boolean }) {
             </article>
           )}
         </aside>
+        <div className="lift-case-secondary">
+          {capped ? (
+            <>
+              <Disclosure
+                title="Tasks, Appointments and Letters"
+                hint="Open when you need to make a change"
+              >
+                {cappedList('Tasks', 120, capped)}
+              </Disclosure>
+              <Disclosure title="Contributors and Notes from Your Agency">
+                {cappedList('Notes', 80, capped)}
+              </Disclosure>
+            </>
+          ) : (
+            <>
+              {cappedList('Tasks', 120, capped)}
+              {cappedList('Notes', 80, capped)}
+              {cappedList('Complaints', 60, capped)}
+              {cappedList('Feedback', 60, capped)}
+            </>
+          )}
+        </div>
       </div>
       {capped ? (
         <div className="case-sticky-next">

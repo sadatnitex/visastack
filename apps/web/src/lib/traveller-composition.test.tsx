@@ -222,11 +222,12 @@ describe('traveller composition and independent record guards', () => {
     ]);
     const html = renderToStaticMarkup(await overview(params));
     expect(html).toContain('2 items need a decision or a closer look.');
+    // Each is an action row: the link holds the name, then the count of what is waiting.
     expect(html).toMatch(
-      /href="\/app\/applicant\/person\/profile"[^>]*><span class="row-key">Suggestions from AI Apps Waiting for You<\/span>/,
+      /href="\/app\/applicant\/person\/profile"(?:(?!<\/a>)[\s\S])*Suggestions from AI Apps Waiting for You<\/span>/,
     );
     expect(html).toMatch(
-      /href="\/app\/applicant\/person\/review"[^>]*><span class="row-key">Suggested Details Awaiting Approval<\/span><span[^>]*>1</,
+      /href="\/app\/applicant\/person\/review"(?:(?!<\/a>)[\s\S])*Suggested Details Awaiting Approval<\/span>(?:(?!<\/a>)[\s\S])*>1</,
     );
   });
   it('puts details found in documents first, one tap away on the screen made for them', async () => {
@@ -287,14 +288,16 @@ describe('traveller composition and independent record guards', () => {
     });
     const html = renderToStaticMarkup(await overview(params));
     expect(service.computeReadiness).toHaveBeenCalledWith({}, 'latest');
-    expect(html).toContain('aria-label="2 of 5 items ready"');
-    expect(html).toContain('>2 of 5 items ready<');
-    // The case's progress is the ring now; the bar that remains on the page is profile completeness.
+    expect(html).toContain('aria-label="2 of 5 required items on file"');
+    expect(html).toContain('>2 of 5 required items on file<');
+    // The case's progress is a thin bar drawn as a named picture with its words beside it; the old
+    // meter element is not used for it.
     const checklist = html.slice(
       html.indexOf('traveller-checklist'),
       html.indexOf('Continue Case'),
     );
-    expect(checklist).not.toContain('meter');
+    expect(checklist).toContain('lift-meter');
+    expect(checklist).not.toMatch(/class="meter/);
     expect(html).toContain('/app/mission/latest');
     expect(html).not.toContain('Closed case');
   });
@@ -467,7 +470,7 @@ describe("the deadline clock on a person's overview (Growth G5)", () => {
   it('teaches when there are no dates, with the add-document button', async () => {
     const html = renderToStaticMarkup(await overview(params));
     const clock = html.slice(html.indexOf('Deadline Clock'), html.indexOf('>Upcoming<'));
-    expect(clock).toContain('No Dates Yet');
+    expect(clock).toContain('No Expiry Dates Yet');
     expect(clock).toContain(
       'Add a passport and its expiry date appears here, so you hear about it before it matters.',
     );
@@ -511,7 +514,7 @@ describe("the deadline clock on a person's overview (Growth G5)", () => {
     service.listDeadlineClock.mockResolvedValue({ ok: false, error: { code: 'upstream_error' } });
     const html = renderToStaticMarkup(await overview(params));
     expect(html).toContain('Dates are unavailable right now.');
-    expect(html).not.toContain('No Dates Yet');
+    expect(html).not.toContain('No Expiry Dates Yet');
   });
 
   it("is not read at all for a person who is not the owner's", async () => {

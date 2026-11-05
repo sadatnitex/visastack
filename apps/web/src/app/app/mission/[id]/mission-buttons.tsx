@@ -71,7 +71,7 @@ export function CaseDetailsForm({
         <label className="field-label" htmlFor="travelStartDate">
           Travel Dates
         </label>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div className="lift-date-pair">
           <input
             id="travelStartDate"
             name="travelStartDate"
@@ -102,14 +102,7 @@ export function CaseDetailsForm({
           className="input"
         />
       </div>
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          fontSize: 'var(--text-small)',
-        }}
-      >
+      <label className="lift-form-check">
         <input type="checkbox" name="manualMode" value="true" defaultChecked={manualMode} />
         No automated requirement pack covers this route (manual mode)
       </label>
@@ -136,7 +129,7 @@ export function ItineraryForm({
 }) {
   const [state, formAction, pending] = useActionState(setItineraryRefAction, INITIAL);
   return (
-    <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+    <form action={formAction} className="lift-stack-form">
       <input type="hidden" name="missionId" value={missionId} />
       <input
         name="itineraryRef"
@@ -178,12 +171,7 @@ export function SnapshotButton({
   const [state, formAction, pending] = useActionState(snapshotMissionAction, INITIAL);
   return (
     <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: align === 'start' ? 'flex-start' : 'flex-end',
-        gap: '0.3rem',
-      }}
+      className={`lift-snapshot-stack ${align === 'start' ? 'lift-align-start' : 'lift-align-end'}`}
     >
       <form action={formAction}>
         <input type="hidden" name="missionId" value={missionId} />
@@ -213,8 +201,8 @@ export function TransitionButtons({
 }) {
   const [state, formAction, pending] = useActionState(transitionMissionAction, INITIAL);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-      <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+    <div className="lift-stage-stack">
+      <div className="lift-stage-buttons">
         {nextStates.map((to) => (
           <form action={formAction} key={to}>
             <input type="hidden" name="missionId" value={missionId} />

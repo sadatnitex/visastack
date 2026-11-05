@@ -26,11 +26,14 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Fragment } from 'react';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
+import { Icon } from '../../../../../components/icons';
 import { ReferenceCode } from '../../../../../components/reference-code';
 import { ShowMore } from '../../../../../components/show-more';
-import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
+import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { AlertBanner, StatusPill } from '../../../../../components/ui-lift';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { humanizeCode } from '../../../../../lib/format-code';
@@ -273,6 +276,14 @@ export default async function EvidencePage({
     AWAITING_SUBMISSION.has(req.status) || items.get(req.id)?.group === 'NEEDS_CORRECTION';
   // With nothing for the person to do, the list itself starts at Browse: no empty card at Glance.
   // While more requests exist than this page shows, it never claims nothing is waiting.
+  // Received, reviewed and closed requests are finished for now: they sit last, under their own
+  // small heading, so the ones that need a reply are never mixed in with them.
+  const isFinished = (req: (typeof sorted)[number]) => {
+    const group = items.get(req.id)?.group;
+    return group === undefined || group === null || group === 'RECEIVED' || group === 'REVIEWED';
+  };
+  const ordered = [...sorted.filter((req) => !isFinished(req)), ...sorted.filter(isFinished)];
+  const firstFinished = ordered.findIndex(isFinished);
   const nothingWaiting =
     data.requestCounts.total > 0 &&
     awaitingCount === 0 &&
@@ -297,15 +308,21 @@ export default async function EvidencePage({
         ) : null}
 
         {awaitingCount > 0 ? (
-          <output className="notice notice-warn request-waiting-notice">
-            {awaitingCount === 1
-              ? '1 request is waiting for you.'
-              : `${awaitingCount} requests are waiting for you.`}{' '}
-            Reply to each one below.
-          </output>
+          <div className="request-waiting-notice">
+            <AlertBanner
+              tone="warning"
+              title={
+                awaitingCount === 1
+                  ? '1 request is waiting for you.'
+                  : `${awaitingCount} requests are waiting for you.`
+              }
+            >
+              <p>Reply to each one below.</p>
+            </AlertBanner>
+          </div>
         ) : null}
 
-        <article className="card" {...(nothingWaiting ? atLevel('browse') : {})}>
+        <article className="card lc-empty-host" {...(nothingWaiting ? atLevel('browse') : {})}>
           {!data.requestsRead ? (
             // A failed read never claims there are no requests: one may be waiting.
             <p className="notice notice-warn u-m-0" role="alert">
@@ -325,7 +342,7 @@ export default async function EvidencePage({
           ) : (
             <>
               <div className="rows">
-                {sorted.map((req, index) => {
+                {ordered.map((req, index) => {
                   const item =
                     items.get(req.id) ??
                     requestItemView({
@@ -371,155 +388,174 @@ export default async function EvidencePage({
                   const code = data.referenceCodes.get(req.id);
                   const questions = data.extras.questions.get(req.id) ?? [];
                   const canAsk = Boolean(req.missionId && code && item.group !== null);
+                  const finished = isFinished(req);
                   return (
-                    <div
-                      className={`case-row request-item request-item-${item.tone}`}
-                      key={req.id}
-                      id={`request-${req.id}`}
-                      {...(needsPerson(req) ? {} : atLevel('browse'))}
-                    >
-                      <div className="case-row-head">
-                        <span className="case-row-title" id={`evidence-row-${index + 1}`}>
-                          {req.kind === 'FIELD' ? 'Detail' : 'Document'}: {target}
-                        </span>
-                        <span className="case-row-badges">
-                          {due ? <StatusBadge tone={due.tone}>{due.label}</StatusBadge> : null}
-                          <StatusBadge tone={item.tone}>{item.statusLabel}</StatusBadge>
-                        </span>
-                      </div>
-                      <p className="case-row-meta u-m-0">
-                        {req.message
-                          ? `Why it is needed: \u201c${req.message}\u201d`
-                          : 'The agency did not add a reason. Ask them if you are unsure.'}
-                      </p>
-                      {req.dueDate ? (
-                        <p className="case-row-meta u-m-0" {...atLevel('browse')}>
-                          Needed by {formatDateOnly(req.dueDate)}
+                    <Fragment key={req.id}>
+                      {index === firstFinished && firstFinished > 0 ? (
+                        <p className="lc-card-group" {...atLevel('browse')}>
+                          Finished
                         </p>
                       ) : null}
-                      {item.rule ? (
-                        <p className="case-row-meta u-m-0" {...atLevel('browse')}>
-                          {item.rule}
-                        </p>
-                      ) : null}
-                      {code ? (
-                        <div className="depth-item" {...atLevel('browse')}>
-                          <ReferenceCode code={code} label="Request Reference" />
-                        </div>
-                      ) : null}
-                      <p
-                        className="case-row-meta u-m-0"
-                        {...(unusableFile ? {} : atLevel('browse'))}
+                      <div
+                        className={`case-row request-item request-item-${item.tone}${finished ? ' lc-card-finished' : ''} lc-request`}
+                        id={`request-${req.id}`}
+                        {...(needsPerson(req) ? {} : atLevel('browse'))}
                       >
-                        {item.guidance}
-                      </p>
-                      {req.respondedAt && ANSWERED_STATUSES.has(req.status) ? (
-                        <p className="case-row-meta u-m-0">
-                          You sent this on {formatMoment(req.respondedAt, timeZone)}.
+                        <div className="case-row-head">
+                          <span className="lc-card-name">
+                            <span className="lift-action-tile" aria-hidden="true">
+                              <Icon name={req.kind === 'FIELD' ? 'clipboard' : 'file'} size={20} />
+                            </span>
+                            <span
+                              className="case-row-title"
+                              id={`evidence-row-${sorted.indexOf(req) + 1}`}
+                            >
+                              {req.kind === 'FIELD' ? 'Detail' : 'Document'}: {target}
+                            </span>
+                          </span>
+                          <span className="case-row-badges">
+                            {due ? <StatusPill tone={due.tone}>{due.label}</StatusPill> : null}
+                            <StatusPill tone={item.group === 'RECEIVED' ? 'info' : item.tone}>
+                              {item.statusLabel}
+                            </StatusPill>
+                          </span>
+                        </div>
+                        <p className="case-row-meta lc-card-reason u-m-0">
+                          {req.message
+                            ? `Why it is needed: \u201c${req.message}\u201d`
+                            : 'The agency did not add a reason. Ask them if you are unsure.'}
                         </p>
-                      ) : null}
-                      {latestDecision?.reason ? (
-                        <p className="field-msg field-msg-err u-m-0">
-                          {DECISION_PREFIX[latestDecision.outcome] ?? ''}
-                          {latestDecision.reason}
+                        {req.dueDate ? (
+                          <p className="case-row-meta u-m-0" {...atLevel('browse')}>
+                            Needed by {formatDateOnly(req.dueDate)}
+                          </p>
+                        ) : null}
+                        {item.rule ? (
+                          <p className="case-row-meta u-m-0" {...atLevel('browse')}>
+                            {item.rule}
+                          </p>
+                        ) : null}
+                        {code ? (
+                          <div className="depth-item" {...atLevel('browse')}>
+                            <ReferenceCode code={code} label="Request Reference" />
+                          </div>
+                        ) : null}
+                        <p
+                          className="case-row-meta u-m-0"
+                          {...(unusableFile ? {} : atLevel('browse'))}
+                        >
+                          {item.guidance}
                         </p>
-                      ) : null}
-                      {item.group !== null ? (
-                        <SubmitResponseForm
-                          // A new round (the status or the answer changed) or a changed list of
-                          // copies starts the form afresh, with its own retry key.
-                          key={`${req.id}:${req.status}:${req.respondedAt ? new Date(req.respondedAt).getTime() : 0}:${documentChoices.map((choice) => choice.documentId).join(',')}`}
-                          applicantId={id}
-                          requestId={req.id}
-                          kind={req.kind}
-                          awaiting={awaitingReply}
-                          timeZone={timeZone}
-                          itemLabel={itemName}
-                          idempotencyKey={randomBytes(18).toString('base64url')}
-                          exactCopies={data.choiceBasis.exactCopies}
-                          documentsRead={data.documentsRead && data.choiceBasis.read}
-                          candidateFacts={candidateFacts.map((f) => ({
-                            factId: f.factId,
-                            value: f.value ?? '',
-                          }))}
-                          documentChoices={documentChoices}
-                        />
-                      ) : null}
-                      {awaitingReply &&
-                      req.kind === 'DOCUMENT' &&
-                      req.status === 'NEEDS_REPLACEMENT' ? (
-                        sentBackCopy ? (
-                          <ClearerCopyPanel
+                        {req.respondedAt && ANSWERED_STATUSES.has(req.status) ? (
+                          <p className="case-row-meta u-m-0">
+                            You sent this on {formatMoment(req.respondedAt, timeZone)}.
+                          </p>
+                        ) : null}
+                        {latestDecision?.reason ? (
+                          <p className="field-msg field-msg-err u-m-0">
+                            {DECISION_PREFIX[latestDecision.outcome] ?? ''}
+                            {latestDecision.reason}
+                          </p>
+                        ) : null}
+                        {item.group !== null ? (
+                          <SubmitResponseForm
+                            // A new round (the status or the answer changed) or a changed list of
+                            // copies starts the form afresh, with its own retry key.
+                            key={`${req.id}:${req.status}:${req.respondedAt ? new Date(req.respondedAt).getTime() : 0}:${documentChoices.map((choice) => choice.documentId).join(',')}`}
                             applicantId={id}
                             requestId={req.id}
-                            documentId={sentBackCopy.documentId}
-                            documentName={sentBackCopy.name}
-                            primary={!otherCopyUsable}
+                            kind={req.kind}
+                            awaiting={awaitingReply}
+                            timeZone={timeZone}
+                            itemLabel={itemName}
+                            idempotencyKey={randomBytes(18).toString('base64url')}
+                            exactCopies={data.choiceBasis.exactCopies}
+                            documentsRead={data.documentsRead && data.choiceBasis.read}
+                            candidateFacts={candidateFacts.map((f) => ({
+                              factId: f.factId,
+                              value: f.value ?? '',
+                            }))}
+                            documentChoices={documentChoices}
                           />
-                        ) : !otherCopyUsable && data.documentsRead && data.choiceBasis.read ? (
-                          <Link
-                            className="btn btn-primary evidence-add-link"
-                            href={`/app/applicant/${id}/documents/add`}
-                          >
-                            Add Documents
-                            <span className="sr-only">: {itemName}</span>
-                          </Link>
-                        ) : null
-                      ) : null}
-                      {questions.length > 0 ? (
-                        <div className="request-questions" {...atLevel('browse')}>
-                          <p className="request-questions-title u-m-0">Your Questions</p>
-                          <ul className="request-questions-list">
-                            {questions.map((question) => (
-                              <li key={question.askedAt.toISOString()}>
-                                <span className="case-row-meta">
-                                  Asked {formatMoment(question.askedAt, timeZone)}
-                                </span>
-                                <span className="request-question-text">{question.text}</span>
-                              </li>
-                            ))}
-                          </ul>
-                          {req.missionId ? (
+                        ) : null}
+                        {awaitingReply &&
+                        req.kind === 'DOCUMENT' &&
+                        req.status === 'NEEDS_REPLACEMENT' ? (
+                          sentBackCopy ? (
+                            <ClearerCopyPanel
+                              applicantId={id}
+                              requestId={req.id}
+                              documentId={sentBackCopy.documentId}
+                              documentName={sentBackCopy.name}
+                              primary={!otherCopyUsable}
+                            />
+                          ) : !otherCopyUsable && data.documentsRead && data.choiceBasis.read ? (
                             <Link
-                              href={`/app/mission/${req.missionId}#notes`}
-                              className="request-questions-link"
+                              className="btn btn-primary evidence-add-link"
+                              href={`/app/applicant/${id}/documents/add`}
                             >
-                              Read Replies in the Case Notes
+                              Add Documents
                               <span className="sr-only">: {itemName}</span>
                             </Link>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {canAsk && req.missionId ? (
-                        questions.length >= REQUEST_QUESTION_LIMIT ? (
-                          <p
-                            className="case-row-meta u-m-0"
-                            {...(unusableFile ? {} : atLevel('everything'))}
-                          >
-                            You have asked several questions about this item. The agency answers in
-                            the case notes.
-                          </p>
-                        ) : (
-                          <details
-                            className="request-ask"
-                            {...(unusableFile ? {} : atLevel('everything'))}
-                          >
-                            <summary className="request-ask-toggle">
-                              Ask the Agency About This Item
-                              <span className="sr-only">: {itemName}</span>
-                            </summary>
-                            <AskAboutItemForm
-                              applicantId={id}
-                              missionId={req.missionId}
-                              requestId={req.id}
-                              maxLength={REQUEST_QUESTION_MAX_LENGTH}
-                              timeZone={timeZone}
-                              itemLabel={itemName}
-                            />
-                          </details>
-                        )
-                      ) : null}
-                    </div>
+                          ) : null
+                        ) : null}
+                        {questions.length > 0 ? (
+                          <div className="request-questions lc-questions" {...atLevel('browse')}>
+                            <p className="request-questions-title lc-questions-title u-m-0">
+                              Your Questions
+                            </p>
+                            <ul className="request-questions-list">
+                              {questions.map((question) => (
+                                <li key={question.askedAt.toISOString()}>
+                                  <span className="case-row-meta">
+                                    Asked {formatMoment(question.askedAt, timeZone)}
+                                  </span>
+                                  <span className="request-question-text">{question.text}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            {req.missionId ? (
+                              <Link
+                                href={`/app/mission/${req.missionId}#notes`}
+                                className="request-questions-link"
+                              >
+                                Read Replies in the Case Notes
+                                <span className="sr-only">: {itemName}</span>
+                              </Link>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {canAsk && req.missionId ? (
+                          questions.length >= REQUEST_QUESTION_LIMIT ? (
+                            <p
+                              className="case-row-meta u-m-0"
+                              {...(unusableFile ? {} : atLevel('everything'))}
+                            >
+                              You have asked several questions about this item. The agency answers
+                              in the case notes.
+                            </p>
+                          ) : (
+                            <details
+                              className="request-ask lc-ask"
+                              {...(unusableFile ? {} : atLevel('everything'))}
+                            >
+                              <summary className="request-ask-toggle">
+                                Ask the Agency About This Item
+                                <span className="sr-only">: {itemName}</span>
+                              </summary>
+                              <AskAboutItemForm
+                                applicantId={id}
+                                missionId={req.missionId}
+                                requestId={req.id}
+                                maxLength={REQUEST_QUESTION_MAX_LENGTH}
+                                timeZone={timeZone}
+                                itemLabel={itemName}
+                              />
+                            </details>
+                          )
+                        ) : null}
+                      </div>
+                    </Fragment>
                   );
                 })}
               </div>

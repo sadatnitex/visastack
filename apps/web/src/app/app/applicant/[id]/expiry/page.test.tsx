@@ -113,7 +113,7 @@ describe('the deadline clock on the Expiry page (Growth G5)', () => {
       html.indexOf('expiry-deadline-clock-heading'),
       html.indexOf('Intrinsic Expiry'),
     );
-    expect(textOf(clock)).toContain('No Dates Yet');
+    expect(textOf(clock)).toContain('No Expiry Dates Yet');
     expect(textOf(clock)).toContain(
       'Add a passport and its expiry date appears here, so you hear about it before it matters.',
     );

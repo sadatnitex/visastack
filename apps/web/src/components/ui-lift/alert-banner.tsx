@@ -18,7 +18,7 @@ export interface AlertBannerProps {
 const TONE_ICON: Record<AlertBannerProps['tone'], IconName> = {
   danger: 'alert',
   warning: 'alert',
-  info: 'circle',
+  info: 'alert',
   success: 'check',
 };
 

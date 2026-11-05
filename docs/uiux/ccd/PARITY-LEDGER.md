@@ -170,7 +170,7 @@ Baseline: `baseline/case.json`, four states (a new case with no checklist; a bus
 | Section links | Every level; each opens the level of its section | always |
 | Stage tracker, attention chips | Browse | always |
 | Evidence Progress summary, overall badge and sentence, the "completeness only" line | Glance; Evidence Progress is now an h2 at the same size (approved change) | with a checklist |
-| Evidence Checklist (Needs You, Needs a Check, Done) | Browse; `#readiness` now points at it | with a checklist |
+| Evidence Checklist (Needs You, Needs a Check, Done) | Glance (was Browse; Owner, 4 Nov 2026: the checklist is the heart of the page, so it shows at every level); `#readiness` points at it | with a checklist |
 | Case Details, Requirement Pack (`#pack`), Advance the Case | Browse (Advance was planned for Everything; kept at Browse so the next stage is never hidden by default) | always |
 | Tasks, Appointments and Letters (`#work`), Contributors and Notes (`#notes`) | Browse (planned for Everything; kept at Browse because notifications, tasks and request replies send people to the case for them) | always |
 | Select or Update Evidence (`#evidence`), Submission and Outcome (`#outcome`), Problems and Feedback, Snapshots (`#snapshots`), Itinerary Reference | Everything; every listed anchor raises the level first; the changed-case alert links to Snapshots | always |
@@ -312,7 +312,7 @@ A link to a case (`#mission-<id>`, from Agency Overview, Case Activity and the h
 | 06 Dates & Expiry | the document that runs out first | Intrinsic Expiry card | Route Rules card; Issuer Confirmations card |
 | 07 Notifications | unread only | plus recent | plus the latest 50 |
 | 08 Cases | active case and Start a Case | all cases | Start a Case form; Prepare a Brief; Application Memory |
-| 09 Case | Next Step, reminder line, progress | stage tracker, attention chips, jump links, readiness and checklist, Case Details, Requirement Pack | Tasks, Appointments, Cover Letters, Contributors and Notes, Advance the Case, Snapshots, Itinerary Reference, plus closed rows for Select or Update Evidence, Submission and Outcome, Problems and Feedback |
+| 09 Case | Next Step, reminder line, progress, the checklist | stage bar, attention chips, the six counts, jump links, Case Details, Requirement Pack | Tasks, Appointments, Cover Letters, Contributors and Notes, Advance the Case, Snapshots, Itinerary Reference, plus closed rows for Select or Update Evidence, Submission and Outcome, Problems and Feedback |
 | 10 Evidence Requests | waiting request and reply form | details, guidance, reference, closed requests | Ask the Agency About This Item |
 | 11 Sharing | who has access (and the revoke warning) | full scope of each grant, pending grants, Access Log | invitations, full Grant Access form |
 | 12 Privacy & Consent | three rights as rows and export | export card, consent history | export with files, account deletion, link to permissions |
@@ -370,3 +370,70 @@ The owner said "we dont need Add Documents at the bottom". The bottom Add Docume
 ## UX18 Home after Start Here: changes approved by the owner (4 Nov 2026)
 
 The owner approved the drawing for Home after Start Here. Renames: My Records is People, Active Requests and Work is Cases. Removals: the small labels People and In Progress above those headings, the My Next Journey heading and its sentence (the next case is a dashed Start a Case tile at the end of Cases). Reshaped, same facts and same addresses: a person, a case and a set of agency requests are each one card; the order of the words in their link text and the chevron differ. Recorded in `apps/web/src/lib/ccd/approved-changes.ts` against UX18. Dates That Matter, Start Here, Needs Attention and the Permissions content are unchanged.
+
+## LIFT-B Case rail, More for This Case and phone bar (Owner, 4 Nov 2026: redesign the case pages and the others)
+
+Package B of the signed-in redesign. Nothing is removed; every id, link address, heading and fixed sentence of screen 09 stays. Recorded in `apps/web/src/lib/ccd/approved-changes.ts` under the line `WP-LIFT-B entries`. Tests: `parity-case.test.tsx` (unchanged), `case-rail.test.tsx`, `case-secondary.test.tsx`, `case-mobile-bar.test.tsx`, `trip-checks-panel.test.tsx`, `case-lift-b.test.ts`, and `e2e/scroll-budget/WP-SB2.spec.ts`, which now measures the real case page with worst-case data.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Case Details: the place, the travel dates as a calendar row, the target deadline (new, only when one is set), Edit Case Details; the "Add your travel dates..." line now sits here | Browse | always |
+| Trip Date Checks (`#trip-checks`): one compact row per check (mark, title, status in words, one line of detail); the long explanation sits under "About These Checks"; new line "No date checks apply yet." when no check applies. Moved from the main column into the rail | Browse | the stage shows date checks and the case has travel dates |
+| Requirement Pack (`#pack`) with "Sources for This Checklist" (moved here from the main column) | Browse | always; the sources only with a checklist |
+| Advance the Case | Browse | always |
+| Snapshots (`#snapshots`) as rows with a chevron; Itinerary Reference with its form under "Link to a Family Trip" (open once a label is set) | Everything | always |
+| More for This Case: one card, five rows (Select or Update Evidence at Everything, Tasks, Appointments and Letters at Browse, Contributors and Notes from Your Agency at Browse, Submission and Outcome at Everything, Problems and Feedback at Everything), each with a count where its hint was | the card shows at Browse; each row at its own level as before | always |
+| Phone: each rail card folds into one 56px row (name, one line, a status) and opens in place; the next step bar shows "6 of 12 · the step" with a 40px bar; the section links are one row that scrolls inside its own box | every level | phones only; a wide screen shows the cards |
+
+Approved changes: the five section summary names (the hint line is replaced by a count: "Select or Update Evidence" now reads with "7 Checklist Items" or "No Items Yet", "Tasks, Appointments and Letters" with "2 Open Tasks" or "No Open Tasks", "Contributors and Notes from Your Agency" with "3 Notes" or "No Notes Yet", "Submission and Outcome" with "1 Outcome" or "No Outcome Yet", "Problems and Feedback" with "2 Raised" or "None Raised"). No sentence, link or heading was removed, so no owner removal entry is needed.
+
+## 09. Case: the status card and the checklist redesigned (WP-LIFT-A, owner, 4 Nov 2026)
+
+Owner, 4 Nov 2026: redesign the case pages and the others. The Case page top and the checklist are rebuilt as one calm status card and a checklist that leads the page. Every element that was on the screen is still there; what changed is recorded here and in `apps/web/src/lib/ccd/approved-changes.ts` under "WP-LIFT-A entries". The comparison test (`parity-case.test.tsx`) passes with those entries and nothing else.
+
+| What changed | Before | Now | Why |
+|---|---|---|---|
+| Three summaries become one | A dark Next Step slab, five chips and a ring in a grey box, with the same fact said seven times and two different counts ("Fix 4" and "Missing required 3") | One Case Status Panel: the Next Step (or the changed-case alert) beside Evidence Progress (a big "6 of 12" and a bar), the counts, the attention chips and the stage bar. The Next Step, the chip, the sentence and the checklist group all read the same count of items to fix | Numbers must agree |
+| Chip wording | "N required items missing" | "N required items to fix" (singular "1 required item to fix") | Same count as the Next Step |
+| Sentence under the overall state | "N requirement(s) still needed" | "N required items still needed" (singular correct) | Plain words |
+| Counts note | "The ring counts required items..." | "The bar counts required items..." | There is no ring on this page now |
+| Count names | On file, Missing required, Needs Review, Unknown applicability, Not applicable, Optional not provided | On File, Missing, Out of Date or Two Values, To Confirm, Not Applicable, Optional Not Provided (names of counts, not counted by the test) | Title Case, plain |
+| Changed-case alert | "This case has changed since it was last acknowledged." and "A material edit invalidated the previous sign-off. Capture a new snapshot and acknowledge it again before relying on this case as submission-ready." | "Something changed after you confirmed this case." and "Take a new snapshot and confirm it again before you rely on this case." (same snapshot button, same list of what changed) | No engineering words |
+| A case with no checklist | Green "Nothing needs attention right now"; an empty grey ring; "Pick a Checklist" even when none can be picked | Neutral "Nothing is checked yet: this case has no checklist" (the green all-clear stays for a case that has a checklist); an empty panel that offers "Pick a Checklist" only when one can be picked, otherwise "Add Evidence" | False all-clear and a pick that cannot be made |
+| Checklist action | "Provide Evidence ↓" (and "Resolve on Profile →") as underlined links | "Provide Evidence" (and "Resolve on Profile") as one button per row; same addresses | One clear action |
+| Source link in a row | "source" | "View Source", inside the row's "More About This Item" fold (same address) | Meaningful link name |
+| Stage tracker | Ten radio dots; "Only the current state is marked..." line | A stage bar: "Stage 2 of 9", numbered steps, only the current one filled (earlier steps are never ticked); Cancelled shown apart; the explanation folded under "About Stages" | Same list, same words |
+| Level | Checklist at Browse | Checklist at Glance; the six counts, chips and stage bar stay at Browse (the Glance sentence in the depth switch says so) | The checklist is the heart of the page |
+| Where things sit | Trip Date Checks and Sources for This Checklist in the main column | Passed to the rail (`tripChecks`, `sources`); the working grid reads: checklist, rail, rest | Package B places them |
+
+Not removed or merged: every heading (Evidence Progress stays an h2), every link address, every summary name, the "Preparing a file is not the same as submitting it" line (every level), the self-reviewed note, the traveller confirmation line, "Readiness is completeness only - never an approval likelihood", "Completeness is not an approval probability". The last two lines and the counts note now sit in one fold, "How This Is Counted". One primary button remains in the card. The ring component still serves Home and the agency pages (Package C).
+
+## Lift Package C: the other signed-in screens (4 Nov 2026, owner: redesign the case pages and the others)
+
+Owner, 4 Nov 2026: redesign the case pages and the others. Package C draws Home, Documents, Evidence Requests, Agency Clients, Sharing and the start forms in the same language as the redesigned Case page (cards, a number first, status in words and a mark, one filled button to a region). Every element that existed is still on the screen with the same words and the same address, except the one wording change below. Structure that changed without changing a name:
+
+| Screen | What changed | Counted elements |
+|---|---|---|
+| 03 Traveller home | The Next Step banner is shorter and keeps its dark ground (one dark block, as the owner asked on 28 Oct). The three counts are tiles with the number first. A case with a checklist shows a thin bar with its words; other cases are action rows with a tile. Needs Your Attention rows are action rows with a tile. Essentials and details meters are drawn as pictures with a name. | Same links, same words, same levels. One new line on a case row with no checklist yet ("Pick a checklist to see what is ready"), recorded against the traveller screen in `approved-changes.ts` (WP-LIFT-C entries). |
+| 05 Documents | At 767px and under every row is one column (file names no longer squeezed to a letter a line). The four filters are tiles (number first, chosen tile tinted with a 2px edge). Each row has a file tile and its safety words as a pill. The "no kind set" notice is an information banner with a short title and the same sentence under it. | The "Show It" and "Show Them" button is kept. New: one title line on the banner. |
+| 10 Evidence Requests (traveller) | The waiting notice is a warning banner. Each request is its own card with a tile, the agency's reason on a light band, 56px choice rows with a file tile, and a pill for Received (information blue) that is never the colour of Reviewed (success green). Requests that need a reply or are being checked come first; Received, Reviewed and closed requests follow a small Finished heading. | New: the Finished heading, shown only when something finished sits under something that still needs a reply. Order change only: finished requests are listed last. |
+| Agency Clients | Inviting and requesting are one card, Add People and Requests, with the three disclosures as action rows (Pending Invitations with its count, Invite a Client, Ask for a Field or Document). The status filters are one segmented control with a count on each. Each request is a block; the copy that was sent sits on the light brand tint with a file tile, a monospace fingerprint and the not-scanned warning with an alert mark. Accept (filled) and Needs Replacement stay in view; Start Review, Contradiction, Propose Correction and Cancel Request are under More Decisions. Received is information blue, Accepted is success green. | The Clients and Request Evidence headings are level 3 inside the new card (level 2 before). The Intake and Collect labels and both sentences are kept. More Decisions is a new summary. |
+| 11 Sharing | Each grant is a card with a tile, its name and its state in words. Pause and Resume are quiet; Revoke is an outlined danger button and is filled only in its confirmation ("Yes, Revoke Access"). Ended grants sit under Ended Access (n). The revoke warning stays visible at every level. The scope-expansion box is an information box. The access summary stacks each name above its value. The access log filters fold under Filter the Log (open while a filter is in use). | New: the Ended Access summary and the Filter the Log summary. Nothing removed. |
+| Cases (08) and Start a Trip | The empty state of Cases keeps its component and is drawn like an empty panel (dashed edge, tile, same words, the Start a Case link is a quiet button). Each question of a start form is a numbered card (numbers come from a counter, never from words); the one filled button sits in the sticky action bar. | Same words, same links. |
+
+Level plan: no level changed. Upcoming and Recent Activity stay at Everything on Home, so a phone at Glance is one screen (844px measured).
+
+### 09. Case: review fixes (WP-LIFT-A, owner, 4 Nov 2026: redesign the case pages)
+
+| What changed | Before | Now | Why |
+|---|---|---|---|
+| Changed-case chip | "1 Changed Since Confirmed" (Title Case) | "1 changed since confirmed" (same address, `#snapshots`) | Reads like its siblings ("2 need a check") |
+| Welcome note shown (a case made in the last hour) | Evidence Progress offered "Pick a Checklist" (or "Add Evidence") and the reason line again under the welcome note's own button | The empty Evidence Progress says only what a checklist is; the welcome note keeps the one way forward. The "Pick a Checklist" link (`#pack`) that the old ring offered is left to the welcome note in that state (a removal, Owner, 4 Nov 2026: one way forward, shown once). The parity test has no such state, so the entry in `approved-changes.ts` is recorded but not exercised | No duplicate calls to action |
+| Link names | "source" (cited page), "Resolve on Profile →" | "View Source", "Resolve on Profile" (same addresses); an approved rule for the case screen, because the parity states carry no source address | A link name must stand alone |
+| Stage bar | Ten steps always drawn | "Stage 2 of 9 - In Progress" and a strip at every width; the full numbered steps show when "About Stages" is opened on a wide screen | Height; the same words are on the page |
+| The six counts | Beside the bar | Inside "How This Is Counted" with the notes (same words, same numbers) | Height; Glance and Browse keep the number, the bar and the sentence |
+| Traveller confirmation, Self-reviewed | Under the chips | In the Evidence Progress column | One place for how far and who checked |
+| Next Step edge | Red edge for what needs fixing | Brand blue edge always; the status is in the words and the pill | An error stripe on an information panel |
+| Checklist fold | "1 More Item" hid a single row | Every row shows when only one would be folded | Nothing is folded for one row |
+| Working grid | The rail shared two rows, leaving a gap above "More for This Case" | Two rows, the second takes the rest | Layout |
+

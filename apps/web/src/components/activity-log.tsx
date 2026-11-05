@@ -60,6 +60,7 @@ export function ActivityLog({
   olderHref,
   newestHref,
   totalLabel,
+  filtersFolded,
 }: {
   readonly entries: readonly ActivityLogEntry[];
   /** The accessible name of the scrolling box, for example "Access Log Entries". */
@@ -72,6 +73,8 @@ export function ActivityLog({
   readonly newestHref?: string;
   /** A closing sentence for the summary line, for example "1,240 entries in all." */
   readonly totalLabel?: string;
+  /** When set, the search and filters fold under this heading (open while a filter is in use). */
+  readonly filtersFolded?: string;
 }) {
   const id = useId();
   const box = useRef<HTMLElement>(null);
@@ -136,8 +139,8 @@ export function ActivityLog({
     setPeriod('any');
   };
 
-  return (
-    <div className="activity-log" id={anchorId}>
+  const filterControls = (
+    <>
       <fieldset className="activity-log-filters">
         <legend className="sr-only">Find an Activity</legend>
         <label className="activity-log-field activity-log-search" htmlFor={`${id}-q`}>
@@ -219,6 +222,19 @@ export function ActivityLog({
           </select>
         </label>
       </fieldset>
+    </>
+  );
+
+  return (
+    <div className="activity-log" id={anchorId}>
+      {filtersFolded ? (
+        <details className="activity-log-fold" open={filtered || undefined}>
+          <summary className="activity-log-fold-toggle">{filtersFolded}</summary>
+          {filterControls}
+        </details>
+      ) : (
+        filterControls
+      )}
       <div className="activity-log-summary">
         <output className="muted u-fs-085">
           {filtered

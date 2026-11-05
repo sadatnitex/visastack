@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer, stub, stubProps, textOf } from '../../../../../lib/next-mocks.test-support';
 
@@ -239,6 +240,98 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
     expect(text).not.toMatch(/Reviewed|Fulfilled/);
     expect(stubProps(html, 'SubmitResponseForm')).toHaveLength(0);
     expect(stubProps(html, 'AskAboutItemForm')).toHaveLength(0);
+  });
+
+  it('puts Received and Reviewed requests last under their own Finished heading, Received in the information colour and Reviewed in the success colour', async () => {
+    withRequests(
+      {
+        ...request,
+        id: 'done',
+        docType: 'PASSPORT',
+        status: 'ACCEPTED',
+        dueDate: new Date('2026-11-01'),
+      },
+      {
+        ...request,
+        id: 'got',
+        docType: 'VISA',
+        status: 'RECEIVED',
+        respondingDocumentId: 'd1',
+        dueDate: new Date('2026-11-02'),
+      },
+      // Still being checked: not finished, though its deadline is the latest.
+      {
+        ...request,
+        id: 'busy',
+        docType: 'NATIONAL_ID',
+        status: 'RECEIVED',
+        respondingDocumentId: 'd2',
+        dueDate: new Date('2026-12-01'),
+      },
+      { ...request, id: 'open', docType: 'BANK_STATEMENT', status: 'OPEN' },
+    );
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc(), doc({ id: 'd2', processingStatus: 'SCANNING', safetyStatus: 'SCANNING' })],
+    });
+    const html = await render();
+    const text = textOf(html);
+    // What needs a reply or is still being checked comes first; the finished ones follow the
+    // Finished heading, even when their deadline is sooner.
+    expect(text.indexOf('Bank Statement')).toBeLessThan(text.indexOf('Finished'));
+    expect(text.indexOf('National Id')).toBeLessThan(text.indexOf('Finished'));
+    expect(text.indexOf('Finished')).toBeLessThan(text.indexOf('Visa'));
+    expect(text.indexOf('Finished')).toBeLessThan(text.indexOf('Passport'));
+    expect(text.match(/Finished/g)).toHaveLength(1);
+    const dom = new JSDOM(html).window.document;
+    const pill = (label: string) =>
+      [...dom.querySelectorAll('.case-row-badges .badge')].find((b) => b.textContent === label);
+    expect(pill('Received')?.className).toContain('lift-pill-info');
+    expect(pill('Reviewed')?.className).toContain('badge-success');
+    expect(pill('Reviewed')?.className).not.toContain('lift-pill-info');
+    for (const row of dom.querySelectorAll('.lc-card-finished')) {
+      expect(row.className).not.toContain('request-item-warning');
+    }
+  });
+
+  it('numbers each row from the order the requests were read in, so Show More lands on the first new row, not on one already seen', async () => {
+    withRequests(
+      {
+        ...request,
+        id: 'done',
+        docType: 'PASSPORT',
+        status: 'ACCEPTED',
+        dueDate: new Date('2026-11-01'),
+      },
+      {
+        ...request,
+        id: 'busy',
+        docType: 'NATIONAL_ID',
+        status: 'RECEIVED',
+        respondingDocumentId: 'd2',
+        dueDate: new Date('2026-12-01'),
+      },
+      { ...request, id: 'open', docType: 'BANK_STATEMENT', status: 'OPEN' },
+    );
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc({ id: 'd2', processingStatus: 'SCANNING', safetyStatus: 'SCANNING' })],
+    });
+    const html = await render();
+    // Read order: open, done, busy. Drawn order: open, busy (still being checked), then done.
+    const idOf = (name: string) =>
+      html.match(new RegExp(`id="(evidence-row-\\d+)"[^>]*>Document: ${name}`))?.[1];
+    expect(idOf('Bank Statement')).toBe('evidence-row-1');
+    expect(idOf('Passport')).toBe('evidence-row-2');
+    expect(idOf('National Id')).toBe('evidence-row-3');
+  });
+
+  it('shows no Finished heading while every request still needs a reply', async () => {
+    withRequests(
+      { ...request, id: 'one', docType: 'PASSPORT', status: 'OPEN' },
+      { ...request, id: 'two', docType: 'VISA', status: 'OPEN' },
+    );
+    expect(textOf(await render())).not.toContain('Finished');
   });
 
   it('keeps requests waiting on the person first, soonest deadline first, and counts them', async () => {

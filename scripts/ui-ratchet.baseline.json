@@ -55,7 +55,6 @@
     "apps/web/src/app/app/mission/[id]/collaboration-panels.tsx": 28,
     "apps/web/src/app/app/mission/[id]/complaint-feedback-panel.tsx": 7,
     "apps/web/src/app/app/mission/[id]/contributor-requests-panel.tsx": 4,
-    "apps/web/src/app/app/mission/[id]/mission-buttons.tsx": 6,
     "apps/web/src/app/app/mission/[id]/outcome-panel.tsx": 4,
     "apps/web/src/app/app/mission/[id]/readiness-gap-explain.tsx": 4,
     "apps/web/src/app/app/mission/[id]/snapshots/[snapshotId]/acknowledgement-panel.tsx": 6,

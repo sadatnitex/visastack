@@ -32,9 +32,9 @@ export const DEPTH_WORDS = {
   'depth.cases.browse': 'Browse: every case, with its progress and stage.',
   'depth.cases.everything':
     'Everything: briefs, case history and, once you have a case, the Start a Case form.',
-  'depth.case.glance': 'Glance: the next step, the reminder and your progress.',
+  'depth.case.glance': 'Glance: the next step, your progress, the checklist and the reminder.',
   'depth.case.browse':
-    'Browse: the stages, the checklist, case details, the requirement pack, tasks, appointments, letters and notes.',
+    'Browse: the stages, what needs attention, case details, the requirement pack, tasks, appointments, letters and notes.',
   'depth.case.everything':
     'Everything: choosing evidence, submission and outcome, problems, snapshots and the itinerary.',
   'depth.evidence.glance': 'Glance: what is waiting for you, and the reply for each.',

@@ -15629,6 +15629,11 @@ details[open] > .lift-action-summary .lift-action-chevron {
   font-weight: 600;
   color: var(--text-tertiary);
 }
+@media (max-width: 760px) {
+  .lift-check-dot {
+    display: none;
+  }
+}
 .lift-check-next {
   margin: 0;
   font-size: var(--text-small);
@@ -15646,6 +15651,7 @@ details[open] > .lift-action-summary .lift-action-chevron {
 .lift-row-more > summary {
   display: flex;
   align-items: center;
+  gap: var(--space-2);
   min-height: 44px;
   cursor: pointer;
   font-size: var(--text-small);
@@ -15659,87 +15665,103 @@ details[open] > .lift-action-summary .lift-action-chevron {
   padding-bottom: var(--space-2);
 }
 
-/* Step bar: numbered steps joined by a line; only the current step is filled. */
+/* Step bar: the words "Stage 2 of 9 - In Progress", a strip of segments and the fold. Opened on a wide
+   screen, the fold also shows every numbered step joined by a line; only the current step is filled. */
 .lift-steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "position list help"
+    "strip strip strip";
+  align-items: center;
+  column-gap: var(--space-2);
 }
 .lift-steps-position {
+  grid-area: position;
   margin: 0;
   font-size: var(--text-small);
-  font-weight: 650;
-  color: var(--text-secondary);
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.lift-steps-position::after {
+  content: " \00b7";
+  font-weight: 400;
 }
 .lift-steps-list {
+  grid-area: list;
   counter-reset: lift-step;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) 0;
+  min-width: 0;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .lift-step {
   counter-increment: lift-step;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  display: none;
   font-size: var(--text-small);
+  line-height: 1.25;
   color: var(--text-secondary);
-}
-.lift-step::before {
-  content: counter(lift-step);
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--edge-control);
-  border-radius: 50%;
-  font-size: var(--text-caption);
-  font-weight: 700;
-  line-height: 1;
-  color: var(--text-secondary);
-}
-.lift-step:not(.lift-step-apart):has(+ .lift-step:not(.lift-step-apart))::after {
-  content: "";
-  width: 1.25rem;
-  height: 2px;
-  margin: 0 var(--space-2);
-  background: var(--edge-card);
 }
 .lift-step-current {
+  display: flex;
+  align-items: center;
   font-weight: 700;
   color: var(--text);
 }
-.lift-step-current::before {
-  border-color: var(--brand);
-  background: var(--brand);
-  color: var(--bg-elevated);
-}
 .lift-step-apart {
   counter-increment: none;
-  min-height: 28px;
-  margin-left: var(--space-3);
-  padding: 0 var(--space-3);
-  border: 2px dashed var(--edge-card);
-  border-radius: var(--radius-pill);
-}
-.lift-step-apart::before {
-  display: none;
 }
 .lift-steps-strip {
-  display: none;
+  grid-area: strip;
+  display: flex;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+.lift-strip-part {
+  flex: 1 1 0;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+}
+.lift-strip-part-current {
+  background: var(--brand);
+}
+.lift-steps > .lift-help {
+  grid-area: help;
 }
 .lift-help > summary {
   display: flex;
   align-items: center;
+  gap: var(--space-2);
   min-height: 44px;
   cursor: pointer;
+  list-style: none;
   font-size: var(--text-small);
   font-weight: 600;
   color: var(--selected-text);
+}
+.lift-help > summary::-webkit-details-marker,
+.lift-row-more > summary::-webkit-details-marker {
+  display: none;
+}
+.lift-help > summary::after,
+.lift-row-more > summary::after {
+  content: "";
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  /* The turned corner sticks out past the box: keep room for it so nothing scrolls sideways. */
+  margin-inline-end: 0.2rem;
+  margin-top: -0.15rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+.lift-help[open] > summary::after,
+.lift-row-more[open] > summary::after {
+  margin-top: 0.15rem;
+  transform: rotate(-135deg);
 }
 .lift-help-body {
   padding-bottom: var(--space-2);
@@ -15748,6 +15770,96 @@ details[open] > .lift-action-summary .lift-action-chevron {
 }
 .lift-help-body > p {
   margin: 0 0 var(--space-2);
+}
+.lift-steps > .lift-help[open] {
+  grid-area: 3 / 1 / 4 / -1;
+}
+@media (min-width: 761px) {
+  .lift-steps:has(> .lift-help[open]) {
+    grid-template-areas:
+      "position list help"
+      "full full full";
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-steps-position::after,
+  .lift-steps:has(> .lift-help[open]) .lift-steps-strip {
+    display: none;
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-steps-list {
+    grid-area: 2 / 1 / 3 / -1;
+    display: flex;
+    align-items: flex-start;
+    padding-top: var(--space-2);
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 0 2px;
+    font-size: var(--text-caption);
+    text-align: center;
+    font-weight: 400;
+    color: var(--text-secondary);
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step::before {
+    content: counter(lift-step);
+    position: relative;
+    z-index: 1;
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--edge-control);
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    font-size: var(--text-caption);
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-secondary);
+  }
+  .lift-steps:has(> .lift-help[open])
+    .lift-step:not(.lift-step-apart):has(+ .lift-step:not(.lift-step-apart))::after {
+    content: "";
+    position: absolute;
+    top: calc(var(--space-2) + 11px - var(--space-2));
+    left: calc(50% + 14px);
+    right: calc(-50% + 14px);
+    height: 2px;
+    background: var(--edge-card);
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step-current {
+    font-weight: 700;
+    color: var(--text);
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step-current::before {
+    border-color: var(--brand);
+    background: var(--brand);
+    color: var(--bg-elevated);
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step-apart {
+    flex: none;
+    flex-direction: row;
+    align-self: flex-start;
+    min-height: 28px;
+    margin-left: var(--space-3);
+    padding: 0 var(--space-3);
+    border: 2px dashed var(--edge-card);
+    border-radius: var(--radius-pill);
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step-apart::before {
+    display: none;
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step-apart > span {
+    align-self: center;
+  }
+  .lift-steps > .lift-help[open] {
+    grid-area: 3 / 1 / 4 / -1;
+  }
 }
 
 /* Next step panel: one tinted panel with a coloured edge and the page's one filled button. */
@@ -15917,7 +16029,546 @@ details[open] > .lift-action-summary .lift-action-chevron {
   margin-top: var(--space-2);
 }
 
-/* Phone: tighter cards, the step bar becomes its position words and a strip, checklist rows stack. */
+/* Case Status Panel: one card says where the case stands. The next step (or the changed-case alert)
+   and Evidence Progress sit side by side; what needs attention and the stage line run under them. */
+.lift-status {
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+.lift-status-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  align-items: stretch;
+}
+.lift-status-main > :only-child {
+  grid-column: 1 / -1;
+}
+.lift-status .lift-next,
+.lift-status .lift-alert {
+  box-sizing: border-box;
+  height: 100%;
+  margin: 0;
+  padding: var(--space-5);
+  border-radius: 0;
+}
+.lift-status .lift-next {
+  justify-content: center;
+}
+.lift-status .case-alert {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.lift-status .case-alert > .lift-alert {
+  flex: 1 1 auto;
+}
+.lift-status .lift-alert-title {
+  font-size: var(--text-lead);
+}
+.lift-status-progress {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+}
+.lift-status-main > .lift-status-progress:not(:first-child) {
+  border-left: 1px solid var(--hairline-soft);
+}
+.lift-status .lift-empty {
+  padding: 0;
+  border: 0;
+}
+.lift-status .lift-empty-actions .btn {
+  min-height: 44px;
+}
+/* With no checklist the empty Evidence Progress is the whole card's top: tile, words, one way
+   forward, in a single row. */
+.lift-status-main > :only-child .lift-empty {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "tile title actions"
+    "tile line actions";
+  align-items: center;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+}
+.lift-status-main > :only-child .lift-empty-tile {
+  grid-area: tile;
+}
+.lift-status-main > :only-child .lift-empty-title {
+  grid-area: title;
+  align-self: end;
+}
+.lift-status-main > :only-child .lift-empty-line {
+  grid-area: line;
+  align-self: start;
+}
+.lift-status-main > :only-child .lift-empty-actions {
+  grid-area: actions;
+  margin: 0;
+}
+.lift-status-main > :only-child .lift-empty-line > p + p {
+  margin-top: var(--space-1);
+}
+.lift-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3) var(--space-3);
+  min-width: 0;
+}
+.lift-progress > * {
+  grid-column: 1 / -1;
+}
+.lift-progress > .lift-progress-kicker {
+  grid-column: 1;
+}
+/* The explanation sits at the top right as a quiet link; opened, it takes the full width below. */
+.lift-progress > .lift-help {
+  grid-column: 2;
+  grid-row: 1;
+}
+.lift-progress > .lift-help[open] {
+  grid-column: 1 / -1;
+  grid-row: auto;
+}
+.lift-progress-kicker {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--brand);
+}
+.lift-progress-figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+.lift-progress-numeral {
+  font-size: var(--text-display);
+  font-weight: 750;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.lift-progress-unit {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-progress-empty {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-progress-verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+.lift-progress-verdict > .badge {
+  margin: 0;
+}
+.lift-progress-sentence {
+  margin: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.lift-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) 0 var(--space-3);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.lift-count {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.lift-count > dd {
+  order: -1;
+  flex: none;
+  min-width: 1.1em;
+  margin: 0;
+  font-size: var(--text-lead);
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.lift-count > dt {
+  font-size: var(--text-caption);
+  line-height: 1.3;
+  color: var(--text-secondary);
+}
+.lift-count-zero > dd,
+.lift-count-zero > dt {
+  color: var(--text-tertiary);
+}
+.lift-status-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0;
+}
+.lift-status-notes > p {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-progress .lift-help > summary {
+  min-height: 44px;
+  margin-block: calc(var(--space-2) * -1);
+}
+.lift-status-notes > .lift-self-note {
+  font-size: var(--text-caption);
+}
+.lift-status .case-context-strip {
+  display: block;
+  margin: 0;
+}
+.lift-status .case-manual-notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--hairline-soft);
+}
+.lift-status .case-attention {
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-5);
+  border-top: 1px solid var(--hairline-soft);
+}
+.lift-status .case-attention a.lift-attn,
+.lift-status .case-attention .lift-attn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--text);
+}
+.lift-status .case-attention a.lift-attn {
+  text-decoration: none;
+}
+.lift-status .case-attention a.lift-attn:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.lift-status .case-attention .lift-attn-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.lift-status .case-attention .lift-attn-warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.lift-status .case-attention .lift-attn-neutral {
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+.lift-attn-icon {
+  display: inline-grid;
+  flex: none;
+}
+.lift-attn-count {
+  font-size: var(--text-body);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.lift-status .case-attention span.case-attention-ok {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.lift-status-stages {
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+}
+.case-journey-reminder {
+  margin: 0 0 var(--space-3);
+  padding: 0 var(--space-2);
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+/* The header keeps its place; the actions stay in one row of 44px buttons, quiet beside the card. */
+.lift-case .page-header {
+  margin-bottom: var(--space-4);
+}
+
+/* The section links under the card: one quiet row. */
+.lift-case .jump-nav {
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.lift-case .jump-nav a {
+  padding: 0 var(--space-3);
+  font-size: var(--text-small);
+}
+
+/* The working grid: the checklist first, then the rail, then the rest, in that order in the page.
+   Wide: the checklist and the rest stack on the left, the rail runs down the right. */
+.lift-case-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+.lift-case-checklist,
+.lift-case-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.lift-case-checklist:empty,
+.lift-case-secondary:empty {
+  display: none;
+}
+@media (min-width: 1181px) {
+  .lift-case-grid {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    grid-template-rows: auto 1fr;
+  }
+  .lift-case-checklist,
+  .lift-case-secondary {
+    grid-column: 1;
+  }
+  .lift-case-grid > .split-rail {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+.lift-case-grid > .split-rail {
+  gap: var(--space-5);
+}
+
+/* The checklist: a group per state with its own colour and mark, a line per item. */
+.lift-groups {
+  gap: var(--space-3);
+}
+.lift-group {
+  overflow: hidden;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+}
+.lift-group > .collapsible-group-summary {
+  min-height: 56px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--brand-tint-1);
+}
+.lift-group > .collapsible-group-summary::before {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--bg-elevated);
+}
+.lift-group-danger > .collapsible-group-summary::before {
+  content: "\2715" / "";
+  background: var(--danger-strong);
+}
+.lift-group-warning > .collapsible-group-summary::before {
+  content: "\25B2" / "";
+  background: var(--warning);
+}
+.lift-group-success > .collapsible-group-summary::before {
+  content: "\2713" / "";
+  background: var(--success);
+}
+.lift-group .case-group-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+.lift-state-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  font-size: var(--text-small);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.lift-group-danger .lift-state-count {
+  color: var(--danger);
+}
+.lift-group-warning .lift-state-count {
+  color: var(--warning);
+}
+.lift-group-success .lift-state-count {
+  color: var(--success);
+}
+.lift-group .collapsible-group-body {
+  padding: 0 var(--space-4) var(--space-2);
+}
+.lift-category-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0 var(--space-3);
+  margin: var(--space-3) 0 var(--space-1);
+}
+.lift-category-head .case-category-heading {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.lift-group-count {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+.lift-card-note {
+  display: block;
+  text-align: right;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+}
+.lift-check {
+  padding-block: var(--space-3);
+  grid-template-rows: auto 1fr;
+}
+.lift-check-icon {
+  grid-row: 1;
+}
+.lift-check-body {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.lift-check > .lift-pill {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+.lift-check > .lift-check-action {
+  grid-column: 3;
+  grid-row: 2;
+  justify-self: end;
+  align-self: start;
+  margin-top: 0;
+}
+.lift-check-context {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-check-context > p,
+.lift-check-aside {
+  margin: 0;
+}
+.lift-check-aside {
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-check-compact {
+  align-items: center;
+  padding-block: 0;
+  min-height: 48px;
+}
+.lift-check-compact .lift-check-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+.lift-check-compact {
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+}
+.lift-check-compact .lift-check-body {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+.lift-check-compact .lift-row-more[open] {
+  flex: 1 0 100%;
+}
+
+/* Documents that expire before the trip: rows with a calendar mark and the dates in bold. */
+.lift-expiring-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lift-expiring-list li.lift-expiring-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.lift-expiring-row:last-child {
+  border-bottom: 0;
+}
+.lift-expiring-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.lift-expiring-name {
+  font-weight: 650;
+}
+.lift-expiring-dates {
+  flex: 1 1 14rem;
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+.lift-expiring-dates strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Phone: tighter cards, the step bar becomes its position words, the current stage and a strip,
+   the section links scroll sideways inside their own row, checklist rows stack. */
 @media (max-width: 760px) {
   .lift-card,
   .lift-next,
@@ -15927,27 +16578,65 @@ details[open] > .lift-action-summary .lift-action-chevron {
   .lift-next-title {
     font-size: var(--text-lead);
   }
-  .lift-steps-list {
-    display: block;
+  .lift-card-head {
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
   }
-  .lift-step:not(.lift-step-current) {
-    display: none;
+  .lift-card-note {
+    text-align: left;
   }
-  .lift-step:not(.lift-step-apart):has(+ .lift-step:not(.lift-step-apart))::after {
-    display: none;
+  .lift-status-main {
+    grid-template-columns: minmax(0, 1fr);
   }
-  .lift-steps-strip {
+  .lift-status-main > .lift-status-progress:not(:first-child) {
+    border-left: 0;
+    border-top: 1px solid var(--hairline-soft);
+  }
+  .lift-status .lift-next,
+  .lift-status .lift-alert {
+    padding: var(--space-4);
+  }
+  .lift-status-progress {
+    padding: var(--space-3) var(--space-4);
+  }
+  .lift-progress {
+    gap: var(--space-2);
+  }
+  .lift-case .jump-nav {
+    margin-bottom: var(--space-3);
+  }
+  .lift-status .case-attention,
+  .lift-status .case-manual-notice,
+  .lift-status-notes,
+  .lift-status-stages {
+    padding-inline: var(--space-4);
+  }
+  .lift-status .lift-empty {
+    padding: 0;
+  }
+  .lift-status-main > :only-child .lift-empty {
     display: flex;
-    gap: var(--space-1);
+    flex-direction: column;
+    align-items: flex-start;
   }
-  .lift-strip-part {
-    flex: 1 1 0;
-    height: 6px;
-    border-radius: var(--radius-pill);
-    background: var(--bg-subtle);
+  .lift-status-main > :only-child .lift-empty-title,
+  .lift-status-main > :only-child .lift-empty-line {
+    align-self: flex-start;
   }
-  .lift-strip-part-current {
-    background: var(--brand);
+  .lift-case .jump-nav {
+    flex-wrap: nowrap;
+    gap: 0 var(--space-4);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .lift-case .jump-nav a {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    min-height: 44px;
+  }
+  .lift-group .collapsible-group-body {
+    padding-inline: var(--space-3);
   }
   .lift-check-body {
     display: contents;
@@ -15964,20 +16653,1701 @@ details[open] > .lift-action-summary .lift-action-chevron {
     grid-column: 3;
     grid-row: 1;
   }
-  .lift-check-next,
-  .lift-check-action,
-  .lift-check-note,
-  .lift-row-more {
-    grid-column: 2 / -1;
+  .lift-check-body {
+    grid-row: auto;
   }
-  .lift-check-action {
+  .lift-check-next,
+  .lift-check-context,
+  .lift-check-note,
+  .lift-row-more,
+  .lift-check > .lift-check-action {
+    grid-column: 2 / -1;
+    grid-row: auto;
+  }
+  .lift-check > .lift-check-action {
+    order: 1;
+    justify-self: stretch;
     align-self: stretch;
+  }
+  .lift-row-more {
+    order: 2;
+  }
+  .lift-check-compact .lift-check-body {
+    display: contents;
+  }
+  .lift-check-compact {
+    align-items: start;
+    padding-block: var(--space-1) 0;
+  }
+  .lift-expiring-dates {
+    flex-basis: 100%;
   }
 }
 /* end WP-LIFT-A */
 
 /* WP-LIFT-B case rail, secondary sections and phone bar: package B's classes for the right rail, the More for This Case section and the sticky next step bar. Flat, existing tokens only. Package B edits only inside this block. */
+/* The rail: one column of cards, not sticky (it is taller than a screen), one gap between them. */
+.lift-rail {
+  position: static;
+  gap: var(--space-5);
+}
+.lift-rail-slot,
+.lift-more-slot {
+  min-width: 0;
+}
+.lift-rail .lift-card {
+  padding: var(--space-4);
+}
+.lift-rail-line {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.lift-rail-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+.lift-rail .case-memory-link a {
+  display: inline;
+  min-height: 0;
+}
+.lift-rail-subhead {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+.lift-rail-edit {
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+}
+.lift-rail-edit > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--text-small);
+  font-weight: 600;
+  color: var(--selected-text);
+}
+
+/* Case Details: the place, the dates and the target date, each a row with its picture. */
+.lift-fact {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.lift-fact-lead {
+  font-size: var(--text-body);
+  font-weight: 650;
+  color: var(--text);
+}
+.lift-fact-icon {
+  flex: none;
+  display: inline-grid;
+  margin-top: 2px;
+  color: var(--text-tertiary);
+}
+
+/* Trip Date Checks: a mark, the title, the status in words, then one quiet line of detail. */
+.lift-trip-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lift-trip {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.lift-trip:first-child {
+  padding-top: 0;
+}
+.lift-trip:last-child {
+  border-bottom: none;
+}
+.lift-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  color: var(--bg-elevated);
+}
+.lift-trip-success .lift-mark {
+  background: var(--success);
+}
+.lift-trip-warning .lift-mark {
+  background: var(--warning);
+}
+.lift-trip-danger .lift-mark {
+  background: var(--danger-strong);
+}
+.lift-trip-neutral .lift-mark {
+  border: 2px solid var(--edge-control);
+  color: var(--text-secondary);
+}
+.lift-trip-title {
+  min-width: 0;
+  font-size: var(--text-small);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.lift-trip-detail {
+  grid-column: 2 / -1;
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+
+/* Requirement Pack and its sources. */
+.lift-pack-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.lift-pack-name {
+  font-size: var(--text-body);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.lift-rail-sources {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hairline-soft);
+}
+.lift-source-list {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--text-small);
+}
+.lift-source-list li {
+  margin: 0 0 var(--space-2);
+}
+.lift-source-dates {
+  display: block;
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+
+/* Snapshots and linked cases: a picture, the name with one quiet line, a chevron. */
+.lift-snap-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+.row.lift-snap {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  text-decoration: none;
+  color: var(--text);
+}
+a.row.lift-snap:hover {
+  background: var(--brand-tint-1);
+  text-decoration: none;
+}
+.lift-snap-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-3);
+  color: var(--brand);
+}
+.lift-snap-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.lift-snap-name {
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.lift-snap-sum {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+  overflow-wrap: anywhere;
+}
+.lift-snap-chevron {
+  flex: none;
+  display: inline-grid;
+  color: var(--text-tertiary);
+}
+
+/* The small forms in the rail and the case header (their layout used to be inline). */
+.lift-date-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.lift-date-pair > .input {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+.lift-stack-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lift-form-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  font-size: var(--text-small);
+}
+.lift-snapshot-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.lift-align-start {
+  align-items: flex-start;
+}
+.lift-align-end {
+  align-items: flex-end;
+}
+.lift-stage-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lift-stage-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.lift-rail .lift-stage-buttons {
+  flex-direction: column;
+}
+.lift-rail .lift-stage-buttons > form,
+.lift-rail .lift-stage-buttons .btn {
+  width: 100%;
+}
+
+/* More for This Case: five closed rows, each its own outlined box, so a hidden row leaves no gap. */
+.lift-more-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lift-more-item {
+  min-width: 0;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.lift-more-item .lift-action {
+  border-bottom: none;
+  border-radius: var(--radius);
+}
+.lift-more-item details[open] > .lift-action-summary {
+  border-bottom: 1px solid var(--hairline-soft);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.lift-more-item .lift-action-summary:hover {
+  background: var(--brand-tint-1);
+}
+.lift-more-body {
+  padding: var(--space-4);
+}
+.lift-more-body > .grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+.lift-more-body > .grid > .card {
+  padding: var(--space-4) 0;
+  border: none;
+  border-top: 1px solid var(--hairline-soft);
+  border-radius: 0;
+  background: transparent;
+}
+.lift-more-body > .grid > .card:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+.lift-more-body > .grid > .card:last-child {
+  padding-bottom: 0;
+}
+
+/* The section links under the status panel: one row of quiet pills that scrolls inside its own box. */
+.jump-nav {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  max-width: 100%;
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  border-bottom: none;
+}
+@media (max-width: 760px) {
+  .jump-nav {
+    flex-wrap: nowrap;
+    padding-bottom: var(--space-1);
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+}
+.jump-nav a {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.jump-nav a:hover {
+  background: var(--brand-tint-1);
+  color: var(--text);
+  text-decoration: none;
+}
+
+/* The phone's next step bar: how far the checklist is, the step, one secondary button. */
+.lift-bar-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-right: var(--space-1);
+  vertical-align: middle;
+}
+.lift-bar-progress .lift-meter {
+  width: 2.5rem;
+}
+.lift-bar-progress .lift-meter-svg {
+  min-width: 0;
+}
+.lift-bar-title {
+  overflow-wrap: anywhere;
+}
+.lift-bar-count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.lift-bar-sep {
+  color: var(--text-tertiary);
+}
+@media (max-width: 640px) {
+  .case-sticky-next .sticky-action-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-3);
+    margin: 0;
+    padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--edge-card);
+  }
+  .case-sticky-next .sticky-action-bar-note {
+    display: block;
+    font-size: var(--text-small);
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text);
+  }
+  .case-sticky-next .sticky-action-bar-actions {
+    display: block;
+    width: auto;
+    margin: 0;
+  }
+  .case-sticky-next .sticky-action-bar-actions .btn {
+    max-width: 9.5rem;
+    padding: var(--space-2) var(--space-3);
+    line-height: 1.2;
+    text-align: center;
+    white-space: normal;
+  }
+}
+
+/* Folds: a rail card is one 56px row on a phone (its summary) and just the card on a wide screen.
+   Where the browser can show a closed details' content, the wide screen hides the row and shows
+   the card; where it cannot, the row stays and opens the card, so nothing is ever out of reach. */
+.lift-fold {
+  min-width: 0;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.lift-fold > .lift-action {
+  border-bottom: none;
+  border-radius: var(--radius);
+}
+.lift-fold[open] > .lift-action-summary {
+  border-bottom: 1px solid var(--hairline-soft);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.lift-fold > .lift-action-summary:hover {
+  background: var(--brand-tint-1);
+}
+.lift-fold > .lift-action {
+  gap: var(--space-2);
+  padding-inline: var(--space-3);
+}
+.lift-fold .lift-action-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A summary made a flex row loses the browser's triangle, so the rail's own folds draw a chevron. */
+.lift-fold-body details > summary::after {
+  content: "";
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: 0 var(--space-1) 0 auto;
+  border-right: 2px solid var(--text-tertiary);
+  border-bottom: 2px solid var(--text-tertiary);
+  transform: rotate(45deg);
+}
+.lift-fold-body details[open] > summary::after {
+  transform: rotate(-135deg);
+}
+.lift-fold-body {
+  scroll-margin-top: 6rem;
+}
+.lift-fold-body .lift-card {
+  position: relative;
+  border: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: transparent;
+}
+.lift-fold-body .lift-card-head {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+@supports selector(::details-content) {
+  @media (min-width: 761px) {
+    .lift-fold {
+      border: none;
+      border-radius: 0;
+      background: transparent;
+    }
+    .lift-fold > .lift-action-summary {
+      display: none;
+    }
+    .lift-fold::details-content {
+      content-visibility: visible;
+    }
+    .lift-fold-body .lift-card {
+      position: static;
+      border: 1px solid var(--edge-card);
+      border-radius: var(--radius-lg);
+      background: var(--bg-elevated);
+    }
+    .lift-fold-body .lift-card-head {
+      position: static;
+      width: auto;
+      height: auto;
+      margin: 0 0 var(--space-4);
+      overflow: visible;
+      clip: auto;
+      white-space: normal;
+    }
+  }
+}
+
+/* Phone: the rail and the More card sit at the page's own margins; each row's count goes under its name. */
+@media (max-width: 760px) {
+  .lift-rail {
+    gap: var(--space-2);
+  }
+  .lift-fold-body .lift-card {
+    padding: var(--space-3) var(--space-4) var(--space-4);
+  }
+  .lift-more-item .lift-action {
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "tile text chevron"
+      "tile pill chevron";
+    column-gap: var(--space-3);
+    row-gap: var(--space-1);
+  }
+  .lift-more-item .lift-action-tile {
+    grid-area: tile;
+    align-self: center;
+  }
+  .lift-more-item .lift-action-text {
+    grid-area: text;
+  }
+  .lift-more-item .lift-action-pill {
+    grid-area: pill;
+    justify-self: start;
+  }
+  .lift-more-item .lift-action-title,
+  .lift-fold .lift-action-title {
+    font-size: var(--text-small);
+    font-weight: 700;
+  }
+  .lift-fold .lift-action-pill .badge {
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+    font-size: var(--text-small);
+    font-weight: 650;
+  }
+  .lift-fold .lift-action-pill .badge-success {
+    color: var(--success);
+  }
+  .lift-fold .lift-action-pill .badge-warning {
+    color: var(--warning);
+  }
+  .lift-fold .lift-action-pill .badge-danger {
+    color: var(--danger);
+  }
+  .lift-more-item .lift-action-pill .badge {
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+    font-size: var(--text-small);
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .lift-more-item .lift-action-pill .badge::before {
+    display: none;
+  }
+  .lift-more-item .lift-action {
+    padding-block: var(--space-2);
+  }
+  .lift-more-item .lift-action-chevron {
+    grid-area: chevron;
+  }
+  .lift-more-body {
+    padding: var(--space-3);
+  }
+}
 /* end WP-LIFT-B */
 
 /* WP-LIFT-C other screens: package C's classes for Home, Documents, Evidence, Agency Clients, Sharing and the Start forms. Flat, existing tokens only. Package C edits only inside this block. */
+/* Documents: the four filter tiles. The number leads, the name follows; the chosen tile takes the brand tint and a 2px bottom edge, like a selected stat tile. */
+.wallet-overview-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+.wallet-overview-strip button {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.wallet-overview-strip button:last-child {
+  border-right: 1px solid var(--edge-card);
+}
+.wallet-overview-strip button:hover {
+  background: var(--brand-tint-1);
+}
+.wallet-overview-strip .wallet-tile-name {
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+.wallet-overview-strip strong {
+  font-size: var(--text-title);
+  font-weight: 750;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.wallet-overview-strip button[aria-pressed="true"] {
+  background: var(--brand-tint-2);
+  border-color: var(--edge-card);
+  border-bottom: 2px solid var(--brand);
+}
+
+/* Documents: each row is a file tile with the name and its date, the kind under the name, then the words of its state. The list is a narrow column beside the open document, so the parts stack. */
+.wallet-metadata-list .wallet-document-select {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid transparent;
+  border-left: 4px solid transparent;
+  border-radius: var(--radius-sm);
+}
+.wallet-metadata-list .wallet-document-select:hover {
+  background: var(--brand-tint-1);
+}
+.wallet-metadata-list .wallet-document-select[aria-pressed="true"] {
+  background: var(--brand-tint-2);
+  border-color: var(--edge-card);
+  border-left-color: var(--brand);
+}
+.wallet-document-select .wallet-document-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.wallet-document-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-3);
+  color: var(--brand);
+}
+.wallet-metadata-list .wallet-document-select > .wallet-document-kind {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  padding-left: 2.75rem;
+  font-size: var(--text-small);
+}
+.wallet-metadata-list .wallet-document-select .wallet-document-state {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding-left: 2.75rem;
+  margin-top: var(--space-1);
+}
+.wallet-metadata-list .wallet-document-select > .wallet-document-updated {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.wallet-metadata-list li {
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.wallet-metadata-list li:last-child {
+  border-bottom: 0;
+}
+.wallet-detail-jump {
+  padding-left: calc(var(--space-4) + 2.75rem);
+}
+
+/* Documents: the notice about files with no kind, drawn as a banner. */
+.document-wallet-list .lift-alert {
+  margin-bottom: var(--space-4);
+}
+.document-wallet-list .lift-alert-action .btn {
+  min-height: 44px;
+}
+
+/* Documents, phone: one column. The file name, its kind, its state and its date each take the full width, so a name is never squeezed to a letter a line. */
+@media (max-width: 767px) {
+  .wallet-overview-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .wallet-metadata-list .wallet-document-select {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wallet-document-select .wallet-document-name,
+  .wallet-metadata-list .wallet-document-select > .wallet-document-kind,
+  .wallet-metadata-list .wallet-document-select .wallet-document-state,
+  .wallet-metadata-list .wallet-document-select > .wallet-document-updated {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .wallet-metadata-list .wallet-document-select > .wallet-document-updated {
+    padding-left: 2.75rem;
+    white-space: normal;
+  }
+  .wallet-detail-jump {
+    padding-left: var(--space-4);
+  }
+}
+
+/* Shared by the screens below: a card whose rows run edge to edge (action rows carry their own padding). */
+.card.lc-flush {
+  padding: 0;
+  overflow: hidden;
+}
+.lc-flush > .lift-action:last-child {
+  border-bottom: 0;
+}
+
+/* Home: the Next Step banner stays the one dark block of the screen, but shorter, with a clear edge, a quiet label and the one light button. */
+.next-step {
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius);
+  border-left-color: var(--chapter-stroke-strong);
+}
+.next-step-tone-warning {
+  border-left-color: var(--warning-bg);
+}
+.next-step-tone-ok {
+  border-left-color: var(--success-bg);
+}
+.next-step .card-kicker {
+  margin-bottom: 0;
+  letter-spacing: 0.07em;
+}
+.next-step-title {
+  margin-top: var(--space-1);
+  font-size: var(--text-title);
+}
+.next-step-why {
+  margin-top: var(--space-2);
+  font-size: var(--text-body);
+}
+.next-step-text {
+  max-width: 40rem;
+}
+.next-step .btn-primary {
+  flex: none;
+}
+
+/* Home: the three counts. The number leads at display size, the name follows, a zero recedes. */
+@media (min-width: 761px) {
+  .traveller-metrics {
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+  }
+  .traveller-metrics .traveller-metric.lift-tile {
+    gap: var(--space-1);
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-lg);
+  }
+  .traveller-metrics .traveller-metric > .lift-tile-numeral {
+    order: -1;
+    font-size: var(--text-display);
+    font-weight: 750;
+  }
+  .traveller-metrics .traveller-metric > .lift-tile-label {
+    font-size: var(--text-body);
+    font-weight: 650;
+    color: var(--text);
+  }
+  .traveller-metrics .traveller-metric.lift-tile-zero > .lift-tile-label {
+    color: var(--text-secondary);
+  }
+  .traveller-metrics .traveller-metric > .lift-tile-note {
+    font-size: var(--text-small);
+    color: var(--text-secondary);
+  }
+}
+
+/* Home: the first steps are rows with a round mark; the step to take next is tinted and the finished ones are quiet. */
+.home-path h3 {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+.home-path-step {
+  gap: var(--space-3);
+  min-height: 64px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+}
+a.home-path-step:hover {
+  background: var(--brand-tint-1);
+}
+.home-path-steps li + li {
+  border-top-color: var(--hairline-soft);
+}
+.home-path-mark {
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid var(--edge-control);
+  color: var(--text-secondary);
+}
+.home-path-mark.home-path-done {
+  border-color: var(--success);
+  background: var(--success);
+  color: var(--bg-elevated);
+}
+.home-path-text strong {
+  font-weight: 650;
+}
+.home-path-state {
+  padding: 0.2rem 0.7rem;
+  background: var(--success-bg);
+  color: var(--success);
+}
+.home-path-state.home-path-next {
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+.home-path-steps li:has(.home-path-next) {
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-1);
+}
+
+/* Home: the case card. The stage word is a pill, progress is a thin bar with its numbers, the one way on is a button. */
+.traveller-featured-case {
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+}
+.traveller-featured-case .traveller-section-heading h4 {
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+.traveller-checklist {
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--brand-tint-1);
+}
+.traveller-checklist > strong {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+.traveller-checklist .lift-meter-text {
+  font-size: var(--text-small);
+}
+
+/* Home: dates read as a date first. */
+.traveller-agenda time,
+.traveller-activity time {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.traveller-agenda li > a,
+.traveller-activity li > a {
+  color: var(--text);
+}
+.home-profile .meter-label {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-small);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.home-profile .lift-meter {
+  margin: var(--space-2) 0;
+}
+.next-step,
+.next-step-tone-warning,
+.next-step-tone-ok {
+  border-left: 1px solid transparent;
+}
+.traveller-working-area .depth-item > h3,
+.traveller-working-area .split-rail .depth-item > h3 {
+  margin: var(--space-5) 0 var(--space-3);
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+.traveller-working-area .split-main > .depth-item:first-child > h3 {
+  margin-top: 0;
+}
+.traveller-working-area .split-main > .depth-item > .traveller-section-heading {
+  margin: var(--space-5) 0 var(--space-3);
+}
+@media (max-width: 760px) {
+  .home-path-step {
+    padding: var(--space-2) 0;
+  }
+  .traveller-featured-case {
+    padding: var(--space-4);
+  }
+  .traveller-checklist {
+    padding: var(--space-3);
+  }
+}
+
+/* Evidence Requests (traveller): each request is its own card; what needs a reply comes first, finished ones sit last and quiet. */
+.request-waiting-notice {
+  margin-bottom: var(--space-5);
+}
+.request-waiting-notice .lift-alert-body > p {
+  margin: 0;
+}
+.card:has(> .rows > .lc-request) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.rows:has(> .lc-request) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.rows > .case-row.lc-request {
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+.rows > .case-row.lc-request:last-child {
+  border-bottom: 1px solid var(--edge-card);
+}
+.lc-request .case-row-head {
+  align-items: center;
+}
+.lc-card-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.lc-request .case-row-title {
+  font-size: var(--text-lead);
+  font-weight: 700;
+  letter-spacing: -0.012em;
+}
+.lc-request .case-row-badges .badge {
+  min-height: 28px;
+  padding: 0 0.7rem;
+  font-size: var(--text-small);
+}
+.lc-card-reason {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-1);
+  color: var(--text);
+}
+.lc-request .field-msg-err {
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--danger-strong);
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-weight: 650;
+}
+.lc-card-group {
+  margin: var(--space-4) 0 calc(-1 * var(--space-1));
+  font-size: var(--text-small);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+.rows > .case-row.lc-card-finished {
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  background: var(--brand-tint-1);
+}
+.lc-card-finished .case-row-title {
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.lc-card-finished .lift-action-tile {
+  background: var(--bg-elevated);
+}
+
+/* Evidence Requests: choosing the copy to send. Each option is a 56px row you can press anywhere, with a file tile; the chosen one takes the brand tint; the one filled button follows. */
+.lc-request .lc-choices {
+  gap: var(--space-2);
+}
+.lc-request .lc-choice {
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  cursor: pointer;
+}
+.lc-request .lc-choice:has(input:checked) {
+  border-color: var(--brand);
+  background: var(--brand-tint-2);
+}
+.lc-request .lc-choice.lc-choice-unavailable {
+  background: var(--bg-subtle);
+  cursor: not-allowed;
+}
+.lc-request .lc-choice input[type="radio"] {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+}
+.lc-request .lc-pick {
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+}
+.lc-pick-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-3);
+  color: var(--brand);
+}
+.lc-request .lc-pick-name {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.lc-request .lc-pick-legend {
+  margin-bottom: var(--space-1);
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+.lc-request .lc-response-actions {
+  margin-top: var(--space-1);
+}
+.lc-request .lc-response > .muted {
+  font-size: var(--text-small);
+  color: var(--text-tertiary);
+}
+.lc-request .lc-questions {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-1);
+}
+.lc-request .lc-questions-title {
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+.lc-request .lc-ask {
+  border-top: 1px solid var(--hairline-soft);
+}
+.lc-request .lc-clearer {
+  border-radius: var(--radius-pill);
+}
+@media (max-width: 760px) {
+  .rows > .case-row.lc-request {
+    padding: var(--space-4);
+  }
+  .lc-request .lc-response-actions .btn {
+    flex: 1 1 100%;
+  }
+}
+
+/* Agency Clients: adding people and requests is one card. Each part has a small heading, a line of words and its rows, each row opening in place. */
+.agency-add-card {
+  margin-bottom: var(--space-5);
+}
+.agency-add-part + .agency-add-part {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--hairline-soft);
+}
+.agency-add-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+.agency-add-part > .card-body {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.agency-add-card .collapsible-group {
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+.agency-add-card .collapsible-group + .collapsible-group {
+  margin-top: var(--space-2);
+}
+.agency-add-card .collapsible-group:not([open]) > .lift-action-summary {
+  border-bottom: 0;
+}
+.agency-add-card .collapsible-group[open] > .lift-action-summary {
+  background: var(--brand-tint-1);
+}
+.agency-add-card .collapsible-group > .collapsible-group-body {
+  padding: var(--space-4);
+}
+.agency-add-card .collapsible-group .collapsible-group-count {
+  padding: 0 0.6rem;
+  background: var(--brand-bg);
+  color: var(--brand);
+  font-weight: 700;
+}
+.lc-invite-contact {
+  margin-left: var(--space-2);
+  font-size: var(--text-small);
+}
+.lc-small-note {
+  margin-top: var(--space-4);
+  font-size: var(--text-small);
+}
+
+/* Agency Clients: the status filters are one segmented control with a count on each; the chosen one takes the brand tint and a 2px edge. */
+.quick-views.lift-segments {
+  flex-wrap: nowrap;
+  gap: 0;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.quick-views.lift-segments .quick-view {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-right: 1px solid var(--hairline-soft);
+  border-radius: 0;
+  background: transparent;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.quick-views.lift-segments .quick-view:last-child {
+  border-right: 0;
+}
+.quick-views.lift-segments .quick-view:hover {
+  background: var(--brand-tint-1);
+}
+.quick-views.lift-segments .quick-view-on {
+  background: var(--brand-tint-2);
+  border-bottom: 2px solid var(--brand);
+  color: var(--selected-text);
+  font-weight: 700;
+}
+.quick-views.lift-segments .quick-view .muted {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Agency Clients: each request is a block. Received reads as information, Accepted as success; they are never the same colour. The sent copy sits on the light brand tint. */
+.rows > .row.request-row {
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.rows:has(> .request-row) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.request-row-head {
+  align-items: center;
+}
+.request-row-head .row-key {
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+.lc-copy {
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--brand-tint-1);
+}
+.lc-copy-file {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.lc-copy-file .lift-action-tile {
+  background: var(--bg-elevated);
+}
+.lc-copy-name {
+  font-size: var(--text-body);
+}
+.lc-copy-code {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+.lc-copy-scan {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-caption);
+}
+.lc-copy-scan-icon {
+  flex: none;
+  display: inline-grid;
+  margin-top: 1px;
+}
+.lc-earlier-toggle {
+  padding: 0 var(--space-1);
+}
+.request-decision-buttons {
+  align-items: flex-start;
+}
+.request-decision-more {
+  min-width: 0;
+}
+.request-decision-more-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  cursor: pointer;
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--selected-text);
+}
+.request-decision-more-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+@media (max-width: 760px) {
+  .quick-views.lift-segments {
+    width: 100%;
+  }
+  .rows > .row.request-row {
+    padding: var(--space-3);
+  }
+}
+
+/* Sharing: each grant is its own card with a tile, the name and its state in words. Pause and Resume are quiet; Revoke is an outlined danger button until it is confirmed. */
+.rows:has(> .sharing-grant),
+.rows:has(> .lc-ended-group) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.rows > .row.sharing-grant,
+.lc-ended-rows > .row.sharing-grant {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+.rows > .row.sharing-grant:last-child {
+  border-bottom: 1px solid var(--edge-card);
+}
+.lc-grant-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.lc-grant-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.lc-grant-name .row-key {
+  font-size: var(--text-lead);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.lc-ended-rows .lift-action-tile {
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+.lc-small-m0 {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.lc-grant-ops {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lc-grant-ops-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.lc-grant-ops .btn {
+  min-height: 44px;
+}
+.btn-danger-outline {
+  border: 1px solid var(--danger-strong);
+  background: var(--bg-elevated);
+  color: var(--danger);
+}
+.btn-danger-outline:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger-strong);
+}
+.lc-revoke-warning {
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: var(--warning-bg);
+  color: var(--text);
+}
+.lc-scope-expansion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  border-left: 4px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--brand-bg);
+  color: var(--text);
+}
+.lc-scope-expansion-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lc-ended-group {
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.lc-ended-summary {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+.lc-ended-rows {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+/* Sharing: the summary of what you are about to share stacks each name above its value, so a long value has the full width. */
+.sharing-composer-card .scope-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+}
+.sharing-composer-card .scope-row dt {
+  font-size: var(--text-caption);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+.sharing-composer-card .scope-row dd {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+/* Sharing: the access log filters fold under one heading. */
+.activity-log-fold {
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.activity-log-fold-toggle {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--selected-text);
+}
+.activity-log-fold > .activity-log-filters {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+/* Sharing and Evidence: a long name never shares a line with a long state; the state drops under it. Radio buttons and ticks use the brand colour. */
+.lc-grant-head {
+  flex-wrap: wrap;
+}
+.lc-grant-name {
+  flex: 1 1 12rem;
+}
+.sharing-grant-details-summary {
+  color: var(--selected-text);
+}
+.lc-request .lc-choice input[type="radio"],
+.sharing-composer input[type="radio"],
+.sharing-composer input[type="checkbox"] {
+  accent-color: var(--brand);
+}
+.lc-card-finished .lc-card-reason {
+  background: var(--bg-elevated);
+}
+@media (max-width: 760px) {
+  .rows > .row.sharing-grant,
+  .lc-ended-rows > .row.sharing-grant {
+    padding: var(--space-3);
+  }
+}
+
+/* Start forms: each question is its own numbered card; the numbers come from a counter, never from the words. Help text is small and quiet. One filled button sits in the bar at the bottom. */
+.lc-steps,
+.trip-start-form {
+  counter-reset: lc-step;
+}
+article.card:has(> .trip-start-form) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.trip-start-form {
+  gap: var(--space-4);
+  margin-top: 0;
+}
+.lc-step,
+.lc-steps > .field-row {
+  counter-increment: lc-step;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-4) var(--space-4) var(--space-4) 4rem;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+.lc-step::before,
+.lc-steps > .field-row::before {
+  content: counter(lc-step);
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--brand-tint-3);
+  color: var(--brand);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+.lc-step > legend {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+.lc-help {
+  font-size: var(--text-small);
+  color: var(--text-tertiary);
+}
+.lc-steps .field-hint {
+  font-size: var(--text-small);
+  color: var(--text-tertiary);
+}
+.lc-steps > .disclosure {
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+.lc-steps > .sticky-action-bar,
+.trip-start-form > .sticky-action-bar {
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+}
+@media (max-width: 760px) {
+  .lc-step,
+  .lc-steps > .field-row {
+    padding: var(--space-3) var(--space-3) var(--space-3) 3.25rem;
+  }
+  .lc-step::before,
+  .lc-steps > .field-row::before {
+    top: var(--space-3);
+    left: var(--space-3);
+  }
+}
+
+/* The empty panel on the Cases page: the second line, the reason it helps, is quiet. */
+.lc-empty-why {
+  font-size: var(--text-small);
+  color: var(--text-tertiary);
+}
+.lift-empty-line > p + p {
+  margin-top: var(--space-2);
+}
+
+/* Agency Clients on a phone: the request name takes the body size so it shares a line with its state, and the spacing tightens, keeping the page inside three screens. */
+@media (max-width: 760px) {
+  .request-row-head .row-key {
+    font-size: var(--text-body);
+  }
+  .rows > .row.request-row {
+    gap: var(--space-1);
+  }
+  .rows:has(> .request-row) {
+    gap: var(--space-2);
+  }
+  .agency-add-part + .agency-add-part {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+  }
+}
+
+/* Empty places on these screens look like the empty panel: a dashed edge, a 48px tile, a bold title, one quiet line and one way to begin. */
+:is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: 2px dashed var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: transparent;
+}
+:is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state .icon-tile {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 0;
+  border-radius: var(--radius);
+  background: var(--brand-tint-3);
+}
+:is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state-title {
+  margin: 0;
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+:is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state-body {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--text-secondary);
+}
+:is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state-why {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-tertiary);
+}
+:is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state > .btn {
+  margin-top: var(--space-2);
+}
+.traveller-featured-case:has(> .empty-state) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+@media (max-width: 760px) {
+  :is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state {
+    padding: var(--space-4);
+  }
+}
+
+/* Folds with a plain summary show a chevron that turns when they open (a flex summary loses the browser's own marker). */
+:is(
+    .lc-ended-summary,
+    .activity-log-fold-toggle,
+    .sharing-invitation-history > summary,
+    .request-decision-more-toggle,
+    .sharing-grant-details-summary,
+    .lc-ask > summary,
+    .lc-clearer:not(.lc-clearer-primary)
+  ) {
+  list-style: none;
+  gap: var(--space-2);
+}
+:is(
+    .lc-ended-summary,
+    .activity-log-fold-toggle,
+    .sharing-invitation-history > summary,
+    .request-decision-more-toggle,
+    .sharing-grant-details-summary,
+    .lc-ask > summary,
+    .lc-clearer:not(.lc-clearer-primary)
+  )::-webkit-details-marker {
+  display: none;
+}
+:is(
+    .lc-ended-summary,
+    .activity-log-fold-toggle,
+    .sharing-invitation-history > summary,
+    .request-decision-more-toggle,
+    .sharing-grant-details-summary,
+    .lc-ask > summary,
+    .lc-clearer:not(.lc-clearer-primary)
+  )::after {
+  content: "";
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-inline-start: var(--space-1);
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+:is(.lc-ended-summary, .activity-log-fold-toggle, .sharing-invitation-history > summary)::after {
+  margin-inline-start: auto;
+}
+[open]
+  > :is(
+    .lc-ended-summary,
+    .activity-log-fold-toggle,
+    .sharing-invitation-history > summary,
+    .request-decision-more-toggle,
+    .sharing-grant-details-summary,
+    .lc-ask > summary,
+    .lc-clearer:not(.lc-clearer-primary)
+  )::after {
+  transform: rotate(-135deg);
+}
+
+/* Sharing: the invitations fold is a row like the others, with no dead space under it. */
+.card.sharing-invitation-history {
+  padding: 0;
+}
+.sharing-invitation-history > summary {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--selected-text);
+}
+.sharing-invitation-history > :not(summary) {
+  margin-left: var(--space-4);
+  margin-right: var(--space-4);
+}
+.sharing-invitation-history[open] {
+  padding-bottom: var(--space-3);
+}
+
+/* Sharing: the sentence about Pause and Revoke is said in full on the first card; the others keep it for screen readers only. The revoke warning band above the list is never hidden. */
+.sharing-grant ~ .sharing-grant .lc-grant-note {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Documents: what was checked is a quiet caption beside the state, never a pill (a pill would read as a result). */
+.wallet-safety-note {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
 /* end WP-LIFT-C */

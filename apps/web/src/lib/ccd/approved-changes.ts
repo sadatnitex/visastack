@@ -435,6 +435,108 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason:
       'VS-006: with no reviewed checklist to pick, the card says so and why instead of asking for a pick.',
   },
+  // WP-LIFT-A entries (Owner, 4 Nov 2026: redesign the case pages and the others)
+  ...Array.from({ length: 9 }, (_, i) => i + 1).map(
+    (count): ApprovedChange => ({
+      screen: 'case',
+      from: {
+        kind: 'link',
+        name: `${count}required item${count === 1 ? '' : 's'} missing`,
+        detail: '#readiness',
+      },
+      to: {
+        kind: 'link',
+        name: `${count}required item${count === 1 ? '' : 's'} to fix`,
+        detail: '#readiness',
+      },
+      reason:
+        'Lift: the chip says "to fix", the same count the Next Step, the sentence under the progress bar and the checklist use.',
+    }),
+  ),
+  {
+    screen: 'case',
+    from: {
+      kind: 'text',
+      name: 'The ring counts required items that are on file. Optional and non-applicable items are counted separately.',
+    },
+    to: {
+      kind: 'text',
+      name: 'The bar counts required items that are on file. Optional and non-applicable items are counted separately.',
+    },
+    reason:
+      'Lift: Evidence Progress is a big number and a bar, not a ring, so the note says "bar".',
+  },
+  ...Array.from({ length: 10 }, (_, i) => i).map(
+    (count): ApprovedChange => ({
+      screen: 'case',
+      from: { kind: 'text', name: `${count} requirement(s) still needed` },
+      to: {
+        kind: 'text',
+        name: `${count} required ${count === 1 ? 'item' : 'items'} still needed`,
+      },
+      reason: 'Lift: the sentence is plural-correct and uses the same words as the Next Step.',
+    }),
+  ),
+  {
+    screen: 'case',
+    from: { kind: 'link', name: 'Provide Evidence ↓', detail: '#evidence' },
+    to: { kind: 'link', name: 'Provide Evidence', detail: '#evidence' },
+    reason:
+      'Lift: a checklist row has one action, shown as a button, so the arrow that pointed down the page is dropped. The same address.',
+  },
+  {
+    screen: 'case',
+    from: { kind: 'text', name: 'This case has changed since it was last acknowledged.' },
+    to: { kind: 'text', name: 'Something changed after you confirmed this case.' },
+    reason: 'Lift: the changed-case alert says what happened in plain words.',
+  },
+  {
+    screen: 'case',
+    from: {
+      kind: 'text',
+      name: 'A material edit invalidated the previous sign-off. Capture a new snapshot and acknowledge it again before relying on this case as submission-ready.',
+    },
+    to: {
+      kind: 'text',
+      name: 'Take a new snapshot and confirm it again before you rely on this case.',
+    },
+    reason: 'Lift: the changed-case alert drops the engineering words and says what to do.',
+  },
+  {
+    screen: 'case',
+    from: { kind: 'text', name: 'Nothing needs attention right now' },
+    to: (state) => ({
+      kind: 'text',
+      name:
+        state === 'a new case with no checklist'
+          ? 'Nothing is checked yet: this case has no checklist'
+          : 'Nothing needs attention right now',
+    }),
+    reason:
+      'Lift: a case with no checklist is not "fine", it is unchecked, so the green all-clear is kept only for a case that has a checklist.',
+  },
+  {
+    screen: 'case',
+    from: { kind: 'link', name: 'Pick a Checklist', detail: '#pack' },
+    to: (state) =>
+      // With the welcome note on the page the note already offers the way forward, once.
+      state === 'a new case with the welcome card'
+        ? null
+        : {
+            kind: 'link',
+            name: state === 'a new case with no checklist' ? 'Add Evidence' : 'Pick a Checklist',
+            detail: state === 'a new case with no checklist' ? '#evidence' : '#pack',
+          },
+    reason:
+      'Lift: when no reviewed checklist can be picked, the empty Evidence Progress no longer offers a pick that cannot be made; it offers Add Evidence instead. With the welcome note on the page (Owner, 4 Nov 2026: one way forward, shown once) the panel leaves the link to the note.',
+  },
+  {
+    screen: 'case',
+    from: { kind: 'link', name: '1Changed Since Confirmed', detail: '#snapshots' },
+    to: { kind: 'link', name: '1changed since confirmed', detail: '#snapshots' },
+    reason:
+      'Lift: the chip reads like its siblings ("2 need a check", "1 date to check"): a count, then lower-case words. The same address.',
+  },
   {
     screen: 'notifications',
     from: { kind: 'heading', name: 'Updates on Your Cases', detail: '1' },
@@ -466,6 +568,75 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
       detail: '/app/privacy/export?format=csv',
     },
     reason: 'D3: the two downloads share one form of words.',
+  },
+  // WP-LIFT-B entries
+  // Owner, 4 Nov 2026: redesign the case pages and the others. The five closed sections under the
+  // checklist become one card, More for This Case, whose rows show a count where the hint was.
+  // The summary name is the title followed by the count in words, so it depends on the case.
+  ...(
+    [
+      ['Select or Update Evidence', 'Open when you need to make a change', () => 'No Items Yet'],
+      [
+        'Tasks, Appointments and Letters',
+        'Open when you need to make a change',
+        (state: string) =>
+          state === 'a busy case with a checklist and open tasks'
+            ? '2 Open Tasks'
+            : 'No Open Tasks',
+      ],
+      [
+        'Contributors and Notes from Your Agency',
+        'Ask a sponsor for one document, read shared notes',
+        () => 'No Notes Yet',
+      ],
+      ['Submission and Outcome', 'Open when you need to make a change', () => 'No Outcome Yet'],
+      [
+        'Problems and Feedback',
+        'Raise a complaint or give feedback on this case',
+        () => 'None Raised',
+      ],
+    ] as const
+  ).map(
+    ([title, hint, count]): ApprovedChange => ({
+      screen: 'case',
+      from: { kind: 'button', name: `${title}${hint}` },
+      to: (state) => ({ kind: 'button', name: `${title}${count(state)}` }),
+      reason:
+        'Owner, 4 Nov 2026 (redesign the case pages): the five sections are rows of one card, More for This Case, and each shows how much is inside (a count) instead of the line that said when to open it. Same section, same panels, same ids.',
+    }),
+  ),
+  // WP-LIFT-C entries
+  {
+    screen: 'traveller',
+    from: { kind: 'text', name: 'No Dates Yet' },
+    to: { kind: 'text', name: 'No Expiry Dates Yet' },
+    reason:
+      'Owner, 4 Nov 2026: redesign the case pages and the others. The empty Deadline Clock is about expiry dates, so it says so; Upcoming beside it lists case dates.',
+  },
+  {
+    screen: 'home',
+    from: { kind: 'text', name: 'No Dates Yet' },
+    to: { kind: 'text', name: 'No Expiry Dates Yet' },
+    reason:
+      'Owner, 4 Nov 2026: redesign the case pages and the others. The empty Deadline Clock is about expiry dates, so it says so.',
+  },
+  {
+    screen: 'expiry',
+    from: { kind: 'text', name: 'No Dates Yet' },
+    to: { kind: 'text', name: 'No Expiry Dates Yet' },
+    reason:
+      'Owner, 4 Nov 2026: redesign the case pages and the others. The empty Deadline Clock is about expiry dates, so it says so.',
+  },
+  {
+    screen: 'traveller',
+    from: { kind: 'link', name: 'Korea VisitIn Progress', detail: '/app/mission/case-2' },
+    to: {
+      kind: 'link',
+      name: 'Korea VisitPick a checklist to see what is readyIn Progress',
+      detail: '/app/mission/case-2',
+    },
+    reason:
+      'Owner, 4 Nov 2026: redesign the case pages and the others. A case row with no checklist yet says what to do next, in the words the progress ring already uses, instead of a bare name.',
   },
 ];
 
@@ -621,5 +792,18 @@ export const APPROVED_RULES: readonly ApprovedRule[] = [
       entry.name.includes('No Problems Found')
         ? [{ ...entry, name: entry.name.replace('No Problems Found', 'Format Checked') }]
         : [],
+  },
+  {
+    screens: ['case'],
+    reason:
+      'Lift (Owner, 4 Nov 2026: redesign the case pages): a checklist row has one action shown as a button, so "Resolve on Profile \u2192" loses its arrow, and the cited source link reads "View Source" instead of "source" (a link name that stands alone). The same addresses.',
+    alternatives: (entry) => {
+      if (entry.kind !== 'link') return [];
+      if (entry.name === 'source') return [{ ...entry, name: 'View Source' }];
+      if (entry.name === 'Resolve on Profile \u2192') {
+        return [{ ...entry, name: 'Resolve on Profile' }];
+      }
+      return [];
+    },
   },
 ];

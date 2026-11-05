@@ -7,6 +7,7 @@ import {
   SubmitButton,
   useFocusInvalidField,
 } from '../../../../../components/form-feedback';
+import { StickyActionBar } from '../../../../../components/sticky-action-bar';
 import { Disclosure } from '../../../../../components/ui';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../../../lib/case-choices';
 import { CASE_DATE_FIELDS } from '../../../../../lib/form-dates';
@@ -106,7 +107,7 @@ export function CreateMissionForm({
       ref={formRef}
       action={formAction}
       onSubmit={dateCheck.onSubmit}
-      className="field-list"
+      className="field-list lc-steps"
       noValidate
     >
       <input type="hidden" name="applicantId" value={applicantId} />
@@ -240,15 +241,15 @@ export function CreateMissionForm({
           />
         ))}
       </Disclosure>
-      <div>
+      <StickyActionBar label="Create the Case">
         <SubmitButton
           pending={pending}
           idle="Create Case"
           busy="Creating…"
           className="btn btn-primary"
         />
-        <FormMessage id={messageId} result={state} />
-      </div>
+      </StickyActionBar>
+      <FormMessage id={messageId} result={state} />
     </form>
   );
 }

@@ -45,4 +45,34 @@ describe('GrantOpButtons', () => {
     expect(find('Revoke')).toBeDefined();
     expect(confirmSpy).not.toHaveBeenCalled();
   });
+
+  it('draws Revoke as an outlined danger button, and only the confirming button is filled', async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(
+        <GrantOpButtons
+          applicantId="a-1"
+          grantId="g-1"
+          ops={[
+            { op: 'pause', label: 'Pause', variant: 'btn-secondary' },
+            { op: 'revoke', label: 'Revoke', variant: 'btn-danger' },
+          ]}
+        />,
+      );
+    });
+    const find = (text: string) =>
+      Array.from(host.querySelectorAll('button')).find((b) => b.textContent === text);
+    expect(find('Revoke')?.className).toContain('btn-danger-outline');
+    expect(find('Revoke')?.className).not.toMatch(/btn-danger(?!-outline)/);
+    expect(find('Pause')?.className).toContain('btn-secondary');
+    await act(async () => {
+      find('Revoke')?.click();
+    });
+    expect(find('Yes, Revoke Access')?.className).toMatch(/btn-danger(?!-outline)/);
+    // No inline style is used to lay the buttons out.
+    expect(host.querySelector('[style]')).toBeNull();
+  });
 });

@@ -218,8 +218,9 @@ describe('the case reference code (ADR 0018)', () => {
 });
 
 describe('case page as it is today (WP-X1 characterization)', () => {
-  it('shows the stage tracker, the attention list and every section in order', async () => {
-    setUp();
+  it('shows the attention list, the stage tracker and every section in order', async () => {
+    // A checklist with everything on file: nothing needs attention, and the checklist is #readiness.
+    setUp({ requirements: ['SATISFIED'] });
     const html = await render();
     const text = textOf(html);
     expect(text).toContain('Japan visitor visa');
@@ -228,16 +229,16 @@ describe('case page as it is today (WP-X1 characterization)', () => {
     expect(html).toContain('aria-label="Actual case workflow state"');
     expect(html).toContain('aria-current="step"');
     const sections = order(html, [
-      'aria-label="Actual case workflow state"',
       'class="case-attention"',
+      'aria-label="Actual case workflow state"',
       'aria-label="Sections of this case"',
       'id="readiness"',
+      // The side column (snapshots) follows the checklist and comes before the other sections.
+      'id="snapshots"',
       'id="evidence"',
       'id="work"',
       'id="notes"',
       'id="outcome"',
-      // The side column (snapshots) follows the main column in the markup.
-      'id="snapshots"',
     ]);
     expect(sections.every((index) => index >= 0)).toBe(true);
     expect([...sections].sort((a, b) => a - b)).toEqual(sections);
@@ -335,31 +336,44 @@ describe('case page as it is today (WP-X1 characterization)', () => {
     expect(text).not.toContain('Add your travel dates under Edit Case Details');
   });
 
-  it('warns when the case changed since it was last acknowledged, keeping the wording', async () => {
+  it('warns when the case changed since it was confirmed, in plain words', async () => {
     setUp({ dirty: true });
     const text = textOf(await render());
-    expect(text).toContain('This case has changed since it was last acknowledged.');
+    expect(text).toContain('Something changed after you confirmed this case.');
     expect(text).toContain(
-      'A material edit invalidated the previous sign-off. Capture a new snapshot and acknowledge it again before relying on this case as submission-ready.',
+      'Take a new snapshot and confirm it again before you rely on this case.',
     );
-    expect(text).toContain('Changed Since Confirmed');
+    expect(text).toContain('changed since confirmed');
+    // The engineering words are gone.
+    expect(text).not.toContain('material edit');
+    expect(text).not.toContain('invalidated');
+  });
+
+  it('says a case with no checklist is unchecked, never that nothing needs attention', async () => {
+    setUp();
+    const text = textOf(await render());
+    expect(text).toContain('Nothing is checked yet: this case has no checklist');
+    expect(text).not.toContain('Nothing needs attention right now');
+    // No checklist can be picked here, so the empty progress offers Add Evidence, not a pick.
+    expect(text).toContain('No Checklist Yet');
+    expect(text).not.toContain('Pick a Checklist');
   });
 });
 
 describe('case journey view (WP-X1)', () => {
-  it('shows the first attention item as the next step, under the tracker and above the attention list', async () => {
+  it('shows the first attention item as the next step, above the attention list and the tracker', async () => {
     setUp({ openTasks: 2 });
     const html = await render();
     const text = textOf(html);
     expect(text).toContain('Next Step');
     expect(text).toContain('Finish 2 open tasks');
-    const [tracker, card, list] = order(html, [
-      'aria-label="Actual case workflow state"',
+    const [card, list, tracker] = order(html, [
       'aria-labelledby="case-next-step-heading"',
       'class="case-attention"',
+      'aria-label="Actual case workflow state"',
     ]);
-    expect(tracker).toBeLessThan(card ?? -1);
     expect(card).toBeLessThan(list ?? -1);
+    expect(list).toBeLessThan(tracker ?? -1);
     // One primary action, pointing where the attention item points.
     const cardHtml = html.slice(card, list);
     expect(cardHtml.match(/btn-primary/g)).toHaveLength(1);
@@ -367,28 +381,31 @@ describe('case journey view (WP-X1)', () => {
   });
 
   it('shows no card when nothing needs attention, keeping the success badge', async () => {
-    setUp();
+    setUp({ requirements: ['SATISFIED'] });
     const html = await render();
     expect(html).not.toContain('aria-labelledby="case-next-step-heading"');
     expect(textOf(html)).toContain('Nothing needs attention right now');
   });
 
-  it('a changed case shows the alert with its snapshot button directly under the tracker, and no card', async () => {
+  it('a changed case shows the alert with its snapshot button first in the status card, and no card', async () => {
     setUp({ dirty: true, openTasks: 1 });
     const html = await render();
     expect(html).not.toContain('aria-labelledby="case-next-step-heading"');
     const tracker = html.indexOf('aria-label="Actual case workflow state"');
     const alert = html.indexOf('class="case-alert"');
     const strip = html.indexOf('class="case-context-strip"');
-    expect(tracker).toBeLessThan(alert);
-    expect(alert).toBeLessThan(strip);
-    expect(html.slice(alert, strip)).toContain('data-stub="SnapshotButton"');
+    const progress = html.indexOf('class="lift-status-progress"');
+    expect(alert).toBeGreaterThan(-1);
+    expect(alert).toBeLessThan(progress);
+    expect(progress).toBeLessThan(strip);
+    expect(strip).toBeLessThan(tracker);
+    expect(html.slice(alert, progress)).toContain('data-stub="SnapshotButton"');
     // The alert's button is the primary, clearly named one; the header keeps its defaults.
     expect(stubProps(html, 'SnapshotButton')).toEqual([
       { missionId: 'synthetic-case' },
       { missionId: 'synthetic-case', label: 'Take a New Snapshot', primary: true, align: 'start' },
     ]);
-    expect(html.slice(alert, strip)).not.toContain('role=');
+    expect(html.slice(alert, progress)).not.toContain('role=');
   });
 
   it('the first item wins: required items to fix come before open tasks, with plain counts', async () => {
@@ -473,9 +490,10 @@ describe('case journey view (WP-X1)', () => {
       setUp(options);
       const html = await render();
       expect(textOf(html)).toContain(reminder);
+      // Directly under the status card, so after the card's own stage line.
       const at = html.indexOf('class="case-journey-reminder"');
       expect(at).toBeGreaterThan(html.indexOf('aria-label="Actual case workflow state"'));
-      expect(at).toBeLessThan(html.indexOf('class="case-context-strip"'));
+      expect(at).toBeGreaterThan(html.indexOf('class="case-context-strip"'));
     }
   });
 });
@@ -517,7 +535,10 @@ const EMPLOYER_CHANGED = {
 
 /** The markup of the changed-case alert only. */
 function alertOf(html: string): string {
-  return html.slice(html.indexOf('class="case-alert"'), html.indexOf('class="case-context-strip"'));
+  return html.slice(
+    html.indexOf('class="case-alert"'),
+    html.indexOf('class="lift-status-progress"'),
+  );
 }
 
 describe('changed details inside the alert (WP-V3 part 3)', () => {
@@ -534,7 +555,7 @@ describe('changed details inside the alert (WP-V3 part 3)', () => {
     const alert = alertOf(html);
     const text = textOf(alert);
     // The approved wording stays, the list follows it, the snapshot button stays last.
-    expect(text).toContain('This case has changed since it was last acknowledged.');
+    expect(text).toContain('Something changed after you confirmed this case.');
     expect(text).toContain('What changed since you confirmed snapshot 2 on 18 Oct 2026');
     expect(text).toMatch(/Travel Start Date\s*: changed/);
     expect(text).toMatch(/Employer[^:]*\s*: changed/);
@@ -595,7 +616,7 @@ describe('changed details inside the alert (WP-V3 part 3)', () => {
   it('keeps the alert when the list cannot be read, pointing to Case History', async () => {
     setUp({ dirty: true, gateRefuses: true });
     const alert = alertOf(await render());
-    expect(textOf(alert)).toContain('This case has changed since it was last acknowledged.');
+    expect(textOf(alert)).toContain('Something changed after you confirmed this case.');
     expect(alert).toContain('href="/app/applicant/synthetic-family/memory"');
     expect(mocks.listChangesSinceConfirmed).not.toHaveBeenCalled();
   });
@@ -906,9 +927,11 @@ describe('the case on Glance, Browse and Everything (CCD-4)', () => {
   it('puts every section a link can point at where the link opens it', async () => {
     setUp({ requirements: ['CRITICAL_GAP', 'SATISFIED'], openTasks: 1 });
     const doc = await dom(await render());
-    for (const id of ['#readiness', '#pack', '#work', '#notes']) {
+    for (const id of ['#pack', '#work', '#notes']) {
       expect(levelOf(doc, id), id).toBe('browse');
     }
+    // The checklist is the heart of the page, so it shows at every level (Owner, 4 Nov 2026).
+    expect(levelOf(doc, '#readiness'), '#readiness').toBe('glance');
     for (const id of ['#evidence', '#outcome', '#snapshots']) {
       expect(levelOf(doc, id), id).toBe('everything');
     }
@@ -1159,7 +1182,7 @@ describe('WP-SB2: a worst-case case stays short', () => {
     const bar = page.querySelector('.case-sticky-next fieldset.sticky-action-bar');
     expect(bar?.querySelector('legend')?.textContent).toBe('Next Step');
     expect(bar?.querySelector('output')?.textContent).toBe(
-      'Fix 1 required item for Japan visitor visa',
+      '0 of 1 \u00b7 Fix 1 required item for Japan visitor visa',
     );
     const action = bar?.querySelector('a');
     expect(action?.getAttribute('href')).toBe('#readiness');
@@ -1509,5 +1532,170 @@ describe('the Requirement Pack card (VS-006)', () => {
       'A reviewed checklist exists for travel to Japan for tourism, but none of them fits this case. They are written for a different embassy or visa centre than the one on this case or different travel dates',
     );
     expect(text).not.toMatch(/official source|gov\.uk|http/i);
+  });
+});
+
+/**
+ * WP-LIFT-A (owner, 4 Nov 2026: redesign the case pages): one status card, one set of numbers, a
+ * checklist where every row has one action and a finished row is one line.
+ */
+describe('the case status card and the checklist (WP-LIFT-A)', () => {
+  const MIXED = [
+    'CRITICAL_GAP',
+    'CRITICAL_GAP',
+    'EXPIRING_STALE',
+    'CONFLICTING',
+    'UNVERIFIED',
+    'SATISFIED',
+  ];
+
+  it('counts the items to fix once: the next step, the chip, the sentence, the counts and the group agree', async () => {
+    setUp({ requirements: MIXED });
+    const html = await render();
+    const text = textOf(html);
+    expect(text).toContain('Fix 4 required items for Japan visitor visa');
+    expect(text).toContain('4 required items to fix');
+    expect(text).toContain('4 required items still needed');
+    // Missing (2) and out of date or two values (2) are the four items to fix.
+    expect(html).toContain('<dt>Missing</dt><dd>2</dd>');
+    expect(html).toContain('<dt>Out of Date or Two Values</dt><dd>2</dd>');
+    expect(text).toContain('Needs You 4');
+    // The old wording that counted differently is gone.
+    expect(text).not.toContain('requirement(s)');
+    expect(text).not.toContain('required items missing');
+  });
+
+  it('says one required item in the singular everywhere', async () => {
+    setUp({ requirements: ['CRITICAL_GAP'] });
+    const text = textOf(await render());
+    expect(text).toContain('1 required item still needed');
+    expect(text).toContain('1 required item to fix');
+  });
+
+  it('keeps one filled button in the status card, and none in the empty progress', async () => {
+    setUp({ requirements: MIXED, openTasks: 2 });
+    const html = await render();
+    const card = html.slice(
+      html.indexOf('class="lift-status"'),
+      html.indexOf('class="case-journey-reminder"'),
+    );
+    expect(card.match(/btn-primary/g)).toHaveLength(1);
+    setUp({ openTasks: 1 });
+    const empty = await render();
+    const emptyCard = empty.slice(
+      empty.indexOf('class="lift-status"'),
+      empty.indexOf('class="case-journey-reminder"'),
+    );
+    expect(emptyCard.match(/btn-primary/g)).toHaveLength(1);
+  });
+
+  it('offers the way forward once when the welcome note is on the page', async () => {
+    setUp();
+    mocks.getMissionForOwner.mockResolvedValue(ok({ ...MISSION, createdAt: new Date() }));
+    const html = await render({ welcome: '1' });
+    expect(html).toContain('data-stub="CaseWelcome"');
+    const card = html.slice(
+      html.indexOf('class="lift-status"'),
+      html.indexOf('class="case-journey-reminder"'),
+    );
+    // The welcome note (a stand-in here) carries the pick; the panel only says what a checklist is.
+    expect(textOf(card)).toContain('No Checklist Yet');
+    expect(textOf(card)).toContain('A checklist lists the papers');
+    expect(card).not.toContain('Add Evidence');
+    expect(card).not.toContain('Pick a Checklist');
+    expect(card).not.toContain('no reviewed checklist');
+  });
+
+  it('folds nothing that hides a single row', async () => {
+    setUp({ requirements: ['CRITICAL_GAP', 'CRITICAL_GAP', 'CRITICAL_GAP', 'CRITICAL_GAP'] });
+    const four = await render();
+    expect(four).not.toContain('case-checklist-rest');
+    setUp({ requirements: Array.from({ length: 5 }, () => 'CRITICAL_GAP') });
+    const five = await render();
+    expect(textOf(five)).toContain('2 More Items');
+  });
+
+  it('keeps the necessity dot out of the way on a phone but in the words', async () => {
+    setUp({ requirements: ['CRITICAL_GAP'] });
+    mocks.computeReadiness.mockResolvedValue(
+      ok({
+        overallState: 'NEEDS_ACTION',
+        requirementResults: [
+          {
+            packRequirementId: 'req-0',
+            kind: 'DOCUMENT',
+            key: 'bank_statement',
+            optional: false,
+            state: 'CRITICAL_GAP',
+            necessity: 'MANDATORY',
+          },
+        ],
+        requiredCount: 1,
+        satisfiedRequired: 0,
+      }),
+    );
+    const html = await render();
+    expect(html).toContain('<span class="lift-check-dot" aria-hidden="true">· </span>Mandatory');
+    // In the words the dot is still there, so the line reads "Bank Statement · Mandatory".
+    expect(textOf(html)).toContain('Bank Statement · Mandatory');
+  });
+
+  it('shows the traveller confirmation beside the card, not as a second summary', async () => {
+    setUp({ requirements: ['SATISFIED'] });
+    const text = textOf(await render());
+    expect(text).toContain('Traveller confirmation: Awaiting confirmation');
+    expect(text.match(/Traveller confirmation/g)).toHaveLength(1);
+  });
+
+  it('gives each open row one action and no arrow, and finished rows one line', async () => {
+    setUp({ requirements: ['CRITICAL_GAP', 'EXPIRING_STALE', 'UNVERIFIED', 'SATISFIED'] });
+    const html = await render();
+    const rows = html.split('class="row lift-check ').slice(1);
+    expect(rows).toHaveLength(4);
+    const withAction = rows.filter((row) => row.includes('lift-check-action'));
+    // The missing and the out-of-date rows have the action; the one to confirm and the done one do not.
+    expect(withAction).toHaveLength(2);
+    for (const row of withAction) {
+      expect(row.match(/lift-check-action/g)).toHaveLength(1);
+      expect(row).toContain('>Provide Evidence</a>');
+    }
+    expect(html).not.toContain('Provide Evidence ↓');
+    expect(html).not.toContain('Provide Evidence ↓'.replace('↓', '&#x2193;'));
+    // A finished row is compact: the icon, the name and the pill, with its details folded.
+    const done = rows.filter((row) => row.includes('lift-check-compact'));
+    expect(done).toHaveLength(1);
+    expect(done[0]).toContain('On File');
+    expect(done[0]).toContain('More About This Item');
+  });
+
+  it('folds the source and every other detail under More About This Item', async () => {
+    setUp({ requirements: ['CRITICAL_GAP'] });
+    mocks.listRequirements.mockResolvedValue([
+      {
+        id: 'req-0',
+        citation: 'rule',
+        sourceInaccessibleAt: null,
+        sourceTitle: 'Synthetic Page',
+        sourceUrl: 'https://example.test/page',
+        publisher: 'Synthetic Authority',
+        observedDate: null,
+      },
+    ]);
+    const html = await render();
+    const row = html.slice(
+      html.indexOf('lift-row-more'),
+      html.indexOf('</details>', html.indexOf('lift-row-more')),
+    );
+    expect(textOf(row)).toContain('Source: Synthetic Authority · Synthetic Page');
+    expect(row).toContain('href="https://example.test/page"');
+    expect(textOf(row)).toContain('Suggest a Correction');
+  });
+
+  it('keeps the earlier stages unmarked: only the current stage is filled', async () => {
+    setUp({ requirements: ['SATISFIED'] });
+    const html = await render();
+    expect(html.match(/aria-current="step"/g)).toHaveLength(1);
+    expect(textOf(html)).toMatch(/Stage 2 of \d+/);
+    expect(html).not.toContain('lift-step-done');
   });
 });

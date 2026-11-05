@@ -4,13 +4,16 @@ import {
   type MissionState,
 } from '@visastack/core';
 import type { Readiness } from '@visastack/services';
+import type { ReactNode } from 'react';
 import { progressRingPercent } from '../lib/readiness-words';
-import { NO_REQUIRED_LABEL, NO_REQUIRED_LINE, ProgressRing } from './progress-ring';
+import { NO_REQUIRED_LABEL, NO_REQUIRED_LINE } from './progress-ring';
+import { ProgressMeter, StepBar } from './ui-lift';
 
 /**
  * The case's stages with the current one marked. `nextStates` are the stages the page offers as
  * buttons; when cancelling is offered from the page's More menu instead (`cancelInMore`), the line
- * below says so rather than listing it as a next stage.
+ * below says so rather than listing it as a next stage. Only the current stage is marked: the page
+ * keeps no history of finished stages, so an earlier stage is never ticked.
  */
 export function CaseStageTracker({
   state,
@@ -35,25 +38,34 @@ export function CaseStageTracker({
         'CANCELLED',
       ]
     : CANONICAL_CASE_STATES;
+  const named = (stage: MissionState) => ({
+    label: labels[stage] ?? stage,
+    current: stage === state,
+  });
+  // Cancelling is not a step along the way: it is shown apart, at the end.
+  const path: readonly MissionState[] = stages.filter((stage) => stage !== 'CANCELLED');
+  const apart = stages.filter((stage) => stage === 'CANCELLED');
+  const at = path.indexOf(state);
   return (
-    <section className="case-stage-region" aria-label="Actual case workflow state">
-      <ol className="case-stage-tracker">
-        {stages.map((stage) => (
-          <li key={stage} aria-current={stage === state ? 'step' : undefined}>
-            <span className="case-stage-marker" aria-hidden="true" />
-            <span>{labels[stage] ?? stage}</span>
-          </li>
-        ))}
-      </ol>
-      <p className="muted">
-        Only the current state is marked. This is not a completed-stage history.{' '}
-        {nextStates.length
-          ? `The workflow allows ${nextStates.map((stage) => labels[stage] ?? stage).join(', ')} next; permissions and traveller confirmation are checked by the existing actions.${cancelLine}`
-          : cancelInMore
-            ? `There is no further stage from here.${cancelLine}`
-            : 'This case is in a terminal state.'}
-      </p>
-    </section>
+    <StepBar
+      ariaLabel="Actual case workflow state"
+      steps={path.map(named)}
+      apart={apart.map(named)}
+      position={at >= 0 ? `Stage ${at + 1} of ${path.length}` : 'This case was cancelled'}
+      help={{
+        summary: 'About Stages',
+        children: (
+          <p>
+            Only the current state is marked. This is not a completed-stage history.{' '}
+            {nextStates.length
+              ? `The workflow allows ${nextStates.map((stage) => labels[stage] ?? stage).join(', ')} next; permissions and traveller confirmation are checked by the existing actions.${cancelLine}`
+              : cancelInMore
+                ? `There is no further stage from here.${cancelLine}`
+                : 'This case is in a terminal state.'}
+          </p>
+        ),
+      }}
+    />
   );
 }
 
@@ -68,20 +80,29 @@ const STATE_URGENCY: readonly Readiness['requirementResults'][number]['state'][]
   'NOT_APPLICABLE',
 ];
 
-/** Exact computed requirement states; no score or probability is invented. */
-export function CasePreparationSummary({
-  readiness,
-  acknowledged,
-}: {
-  readonly readiness: Readiness;
-  readonly acknowledged: boolean;
-}) {
-  // A group of alternatives (UMPE P1) is one item however many alternatives it lists: an
-  // alternative another member already covers is not counted, and an unmet group counts once,
-  // under its most urgent state. Every other requirement counts as itself, exactly as before.
-  type State = Readiness['requirementResults'][number]['state'];
+type State = Readiness['requirementResults'][number]['state'];
+
+/** The six counts of Evidence Progress, each an item (a group of alternatives is one item). */
+export interface RequirementItemCounts {
+  readonly satisfied: number;
+  readonly missing: number;
+  readonly review: number;
+  readonly unknown: number;
+  readonly notApplicable: number;
+  readonly optionalMissing: number;
+}
+
+/**
+ * Counts the case's items by state, once, for every place that shows them. A group of alternatives
+ * (UMPE P1) is one item however many alternatives it lists: an alternative another member already
+ * covers is not counted, and an unmet group counts once, under its most urgent state. Every other
+ * requirement counts as itself.
+ */
+export function countRequirementItems(
+  results: readonly Readiness['requirementResults'][number][],
+): RequirementItemCounts {
   const itemState = new Map<string, State>();
-  for (const r of readiness.requirementResults) {
+  for (const r of results) {
     if (r.coveredByAlternative) continue;
     const key = r.groupKey ? `group:${r.groupKey}` : r.packRequirementId;
     const seen = itemState.get(key);
@@ -90,7 +111,7 @@ export function CasePreparationSummary({
     }
   }
   const count = (match: (state: State) => boolean) => [...itemState.values()].filter(match).length;
-  const counts = {
+  return {
     satisfied: count((state) => state === 'SATISFIED'),
     missing: count((state) => state === 'CRITICAL_GAP'),
     review: count((state) => state === 'CONFLICTING' || state === 'EXPIRING_STALE'),
@@ -98,53 +119,81 @@ export function CasePreparationSummary({
     notApplicable: count((state) => state === 'NOT_APPLICABLE'),
     optionalMissing: count((state) => state === 'ATTENTION'),
   };
-  const progress =
-    readiness.requiredCount > 0
-      ? progressRingPercent(readiness.satisfiedRequired, readiness.requiredCount)
-      : null;
+}
+
+/**
+ * Evidence Progress: how many required items are on file as one big number and a bar, what that
+ * means in a word and a sentence (`children`), the six counts and how it is counted. Exact computed requirement states; no score or probability is invented.
+ */
+export function CasePreparationSummary({
+  readiness,
+  children,
+}: {
+  readonly readiness: Readiness;
+  /** The overall state and its sentence, shown right under the bar. */
+  readonly children?: ReactNode;
+}) {
+  const counts = countRequirementItems(readiness.requirementResults);
+  const { requiredCount, satisfiedRequired } = readiness;
+  const unit = 'required items on file';
   return (
-    <section className="case-preparation-summary" aria-label="Evidence preparation completeness">
-      <div className="case-preparation-ring">
-        <ProgressRing
-          size="lg"
-          done={readiness.satisfiedRequired}
-          total={readiness.requiredCount}
-          centre={progress === null ? 'N/A' : `${progress}%`}
-          emptyLabel={NO_REQUIRED_LABEL}
-          emptyLine={NO_REQUIRED_LINE}
-        />
-      </div>
-      <div className="case-preparation-counts">
-        <h2>Evidence Progress</h2>
-        <p className="muted">
-          The ring counts required items that are on file. Optional and non-applicable items are
-          counted separately.
-        </p>
-        <dl>
-          {(
-            [
-              ['On file', counts.satisfied],
-              ['Missing required', counts.missing],
-              ['Needs Review', counts.review],
-              ['Unknown applicability', counts.unknown],
-              ['Not applicable', counts.notApplicable],
-              ['Optional not provided', counts.optionalMissing],
-            ] as const
-          ).map(([label, count]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{count}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="case-confirmation-state">
-          <strong>Traveller confirmation: </strong>
-          {acknowledged ? 'Current snapshot confirmed' : 'Awaiting confirmation'}
-        </p>
-        <p className="muted">
-          Completeness is not an approval probability. Review each requirement below.
-        </p>
-      </div>
+    <section className="lift-progress" aria-label="Evidence preparation completeness">
+      <h2 className="lift-progress-kicker">Evidence Progress</h2>
+      {requiredCount > 0 ? (
+        <>
+          <p className="lift-progress-figure">
+            <span className="lift-progress-numeral">
+              {satisfiedRequired} of {requiredCount}
+            </span>
+            <span className="lift-progress-unit">{unit}</span>
+          </p>
+          <ProgressMeter
+            value={satisfiedRequired}
+            max={requiredCount}
+            label={unit}
+            valueText={`${progressRingPercent(satisfiedRequired, requiredCount)}%`}
+          />
+        </>
+      ) : (
+        <>
+          <p className="lift-progress-figure">
+            <span className="lift-progress-numeral">{NO_REQUIRED_LABEL}</span>
+          </p>
+          <p className="lift-progress-empty">{NO_REQUIRED_LINE}</p>
+        </>
+      )}
+      {children}
+      <details className="lift-help">
+        <summary>How This Is Counted</summary>
+        <div className="lift-help-body">
+          <dl className="lift-counts">
+            {(
+              [
+                ['On File', counts.satisfied],
+                ['Missing', counts.missing],
+                ['Out of Date or Two Values', counts.review],
+                ['To Confirm', counts.unknown],
+                ['Not Applicable', counts.notApplicable],
+                ['Optional Not Provided', counts.optionalMissing],
+              ] as const
+            ).map(([label, count]) => (
+              <div
+                key={label}
+                className={count === 0 ? 'lift-count lift-count-zero' : 'lift-count'}
+              >
+                <dt>{label}</dt>
+                <dd>{count}</dd>
+              </div>
+            ))}
+          </dl>
+          <p>
+            The bar counts required items that are on file. Optional and non-applicable items are
+            counted separately.
+          </p>
+          <p>Completeness is not an approval probability. Review each requirement below.</p>
+          <p>Readiness is completeness only - never an approval likelihood.</p>
+        </div>
+      </details>
     </section>
   );
 }

@@ -1,4 +1,5 @@
 import { ActivityLog, type ActivityLogEntry } from '../../src/components/activity-log';
+import { Icon } from '../../src/components/icons';
 import { ShowMore } from '../../src/components/show-more';
 
 /**
@@ -63,31 +64,33 @@ function Sharing({ total, shown, logCount }: { total: number; shown: number; log
             </p>
             <div className="rows u-mt-050">
               {rows(shown).map((n) => (
-                <div
-                  className="row sharing-grant"
-                  id={`sharing-grant-${n + 1}`}
-                  key={n}
-                  style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem' }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
-                    <span className="row-key">{`Made-up Agency ${n + 1} (organization)`}</span>
-                    <span className="badge badge-success">Active</span>
+                <div className="row sharing-grant" id={`sharing-grant-${n + 1}`} key={n}>
+                  <div className="lc-grant-head">
+                    <span className="lc-grant-name">
+                      <span className="lift-action-tile" aria-hidden="true">
+                        <Icon name="briefcase" size={20} />
+                      </span>
+                      <span className="row-key">{`Made-up Agency ${n + 1} (organization)`}</span>
+                    </span>
+                    <span className="badge badge-success lift-pill lift-pill-md">Active</span>
                   </div>
                   <details className="sharing-grant-details">
                     <summary className="sharing-grant-details-summary">Grant Details</summary>
                     <p>Visa review: can view the profile and three documents.</p>
                   </details>
-                  <p className="muted" style={{ margin: 0, fontSize: 'var(--text-small)' }}>
+                  <p className="muted lc-small-m0">
                     Pause stops access straight away and you can resume it later. Revoke ends this
                     access.
                   </p>
-                  <div className="row-end">
-                    <button className="btn btn-secondary" type="button">
-                      Pause
-                    </button>
-                    <button className="btn btn-danger" type="button">
-                      Revoke
-                    </button>
+                  <div className="lc-grant-ops">
+                    <div className="lc-grant-ops-row">
+                      <button className="btn btn-secondary u-btn-sm" type="button">
+                        Pause
+                      </button>
+                      <button className="btn btn-danger-outline u-btn-sm" type="button">
+                        Revoke
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -214,16 +217,24 @@ function Evidence({ total, shown }: { total: number; shown: number }) {
       <article className="card">
         <div className="rows">
           {rows(shown).map((n) => (
-            <div className="case-row request-item request-item-neutral" key={n}>
+            <div
+              className="case-row request-item request-item-neutral lc-card-finished lc-request"
+              key={n}
+            >
               <div className="case-row-head">
-                <span className="case-row-title" id={`evidence-row-${n + 1}`}>
-                  {`Document: Bank Statement ${n + 1}`}
+                <span className="lc-card-name">
+                  <span className="lift-action-tile" aria-hidden="true">
+                    <Icon name="file" size={20} />
+                  </span>
+                  <span className="case-row-title" id={`evidence-row-${n + 1}`}>
+                    {`Document: Bank Statement ${n + 1}`}
+                  </span>
                 </span>
                 <span className="case-row-badges">
-                  <span className="badge badge-success">Reviewed</span>
+                  <span className="badge badge-success lift-pill lift-pill-md">Reviewed</span>
                 </span>
               </div>
-              <p className="case-row-meta u-m-0">Accepted by the agency.</p>
+              <p className="case-row-meta lc-card-reason u-m-0">Accepted by the agency.</p>
             </div>
           ))}
         </div>

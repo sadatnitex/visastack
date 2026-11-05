@@ -5,7 +5,9 @@ import type {
   LegacyEvidenceSend,
   VersionScanEvidence,
 } from '@visastack/services';
-import { StatusBadge, type Tone } from '../../../../components/ui';
+import { Icon } from '../../../../components/icons';
+import type { Tone } from '../../../../components/ui';
+import { StatusPill } from '../../../../components/ui-lift';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatFileSize } from '../../../../lib/format-size';
 import { formatMoment } from '../../../../lib/save-status';
@@ -88,7 +90,8 @@ function CopyFacts({ copy }: { readonly copy: EvidenceSubmissionView }) {
 function Fingerprint({ copy }: { readonly copy: EvidenceSubmissionView }) {
   return copy.checksumFingerprint ? (
     <p className="evidence-copy-meta u-m-0">
-      Fingerprint <code className="evidence-copy-code">{copy.checksumFingerprint}</code>
+      Fingerprint{' '}
+      <code className="evidence-copy-code lc-copy-code">{copy.checksumFingerprint}</code>
     </p>
   ) : null;
 }
@@ -109,21 +112,34 @@ function CurrentCopy({
   const waiting = copy.state === 'AWAITING_DECISION';
   const note = presentScanState(scan);
   const requestWords = REQ_STATUS[status];
+  const copyPill = waiting ? (requestWords?.label ?? 'Received') : 'Accepted';
   return (
-    <div className="evidence-copy" data-copy-state={copy.state}>
+    <div className="evidence-copy lc-copy" data-copy-state={copy.state}>
       <div className="evidence-copy-head">
         <p className="evidence-copy-title u-m-0">
           {waiting ? 'Copy Waiting for Your Decision' : 'Accepted Copy'}
         </p>
-        <StatusBadge tone={waiting ? 'neutral' : 'success'}>
-          {waiting ? (requestWords?.label ?? 'Received') : 'Accepted'}
-        </StatusBadge>
+        {copyPill === requestWords?.label ? null : (
+          <StatusPill tone={waiting ? 'info' : 'success'}>{copyPill}</StatusPill>
+        )}
       </div>
-      <p className="evidence-copy-name u-m-0">{copy.title}</p>
+      <div className="lc-copy-file">
+        <span className="lift-action-tile" aria-hidden="true">
+          <Icon name="file" size={20} />
+        </span>
+        <p className="evidence-copy-name lc-copy-name u-m-0">{copy.title}</p>
+      </div>
       <CopyFacts copy={copy} />
       <Fingerprint copy={copy} />
       {note.recipientNote ? (
-        <p className={`evidence-copy-scan u-m-0${note.warn ? ' evidence-copy-scan-warn' : ''}`}>
+        <p
+          className={`evidence-copy-scan lc-copy-scan u-m-0${note.warn ? ' evidence-copy-scan-warn' : ''}`}
+        >
+          {note.warn ? (
+            <span className="lc-copy-scan-icon" aria-hidden="true">
+              <Icon name="alert" size={16} />
+            </span>
+          ) : null}
           {note.recipientNote}
         </p>
       ) : null}
@@ -158,12 +174,17 @@ function CurrentCopy({
 /** A send made before exact copies were kept that is still waiting: shown plainly, with no file. */
 function LegacyCurrent({ send }: { readonly send: LegacyEvidenceSend }) {
   return (
-    <div className="evidence-copy" data-copy-state="LEGACY_WAITING">
+    <div className="evidence-copy lc-copy" data-copy-state="LEGACY_WAITING">
       <div className="evidence-copy-head">
         <p className="evidence-copy-title u-m-0">Copy Waiting for Your Decision</p>
-        <StatusBadge tone="neutral">Waiting for a Decision</StatusBadge>
+        <StatusPill tone="info">Waiting for a Decision</StatusPill>
       </div>
-      <p className="evidence-copy-name u-m-0">{send.label}</p>
+      <div className="lc-copy-file">
+        <span className="lift-action-tile" aria-hidden="true">
+          <Icon name="file" size={20} />
+        </span>
+        <p className="evidence-copy-name lc-copy-name u-m-0">{send.label}</p>
+      </div>
       <p className="evidence-copy-meta u-m-0">
         {send.sentAt ? `Sent ${formatMoment(send.sentAt, MOMENT_ZONE)}` : 'Send time not kept'}
       </p>
@@ -183,7 +204,7 @@ function EarlierSend({ copy }: { readonly copy: EvidenceSubmissionView }) {
         <span className="evidence-copy-name">
           Send {copy.roundNo}: {copy.title}
         </span>
-        <StatusBadge tone={words.tone}>{words.label}</StatusBadge>
+        <StatusPill tone={words.tone}>{words.label}</StatusPill>
       </div>
       <p className="evidence-copy-meta u-m-0">
         {copy.docType ? `${humanizeCode(copy.docType)} · ` : ''}Sent{' '}
@@ -205,7 +226,7 @@ function LegacySend({ send }: { readonly send: LegacyEvidenceSend }) {
     <li className="evidence-earlier-item">
       <div className="evidence-copy-head">
         <span className="evidence-copy-name">{send.label}</span>
-        <StatusBadge tone={words.tone}>{words.label}</StatusBadge>
+        <StatusPill tone={words.tone}>{words.label}</StatusPill>
       </div>
       <p className="evidence-copy-meta u-m-0">
         {send.sentAt ? `Sent ${formatMoment(send.sentAt, MOMENT_ZONE)}` : 'Send time not kept'}
@@ -275,7 +296,9 @@ export function EvidenceCopies({
       {!list.available ? <p className="evidence-copy-notice u-m-0">{NOT_KEPT_NOTICE}</p> : null}
       {earlierCount > 0 ? (
         <details className="evidence-earlier">
-          <summary className="evidence-earlier-toggle">Earlier Sends ({earlierCount})</summary>
+          <summary className="evidence-earlier-toggle lc-earlier-toggle">
+            Earlier Sends ({earlierCount})
+          </summary>
           <ol className="evidence-earlier-list">
             {earlier.map((copy) => (
               <EarlierSend key={copy.id} copy={copy} />

@@ -75,6 +75,12 @@ describe('the copy waiting for a decision', () => {
     expect(text).toContain('File type checked. Not scanned for viruses.');
   });
 
+  it('does not say Received twice: the copy box leaves out a pill that the request already shows', () => {
+    const { html } = render(list([sent()]));
+    expect(html).not.toMatch(/class="badge[^"]*"[^>]*>(?:<[^>]*>)*Received</);
+    expect(html).toContain('Copy Waiting for Your Decision');
+  });
+
   it('says Received is not Accepted, and names the next step', () => {
     expect(render(list([sent()])).text).toContain(
       'Received is not Accepted. Accept it or send it back below.',

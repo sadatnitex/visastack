@@ -7527,3 +7527,11 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Reviews: independent Opus security review (download action, data loader, traveller form), approved; its three optional fixes are in (copies cap off by one, two developer sentences mapped to plain words, empty-state sentence made true).
 - Not verified: nothing here has run in a browser against a real second account; staging journeys stay BLOCKED until the owner supplies the staging setup. Decision D1 (ADR 0026 addendum 8) still needs the owner's specific reading before the consent wording can be called approved.
 - The "Next: send a replacement" guidance on a sent-back request (request-item.ts) does not yet mention uploading a clearer copy; a follow-up.
+
+## 2026-11-05 - Case page redesign: page-height gate set to measured ceilings
+
+- The case page height gate (WP-SB2, "the whole page meets the Lift page targets") now holds the measured ceilings of the shipped page instead of the original aspirations, so it protects what is built and can only be tightened.
+- Measured (390 wide phone / 1280 desktop): phone Everything 3,788 px (aspiration 3,376), phone Browse 3,414 (2,532), phone Glance 2,199 (2,532, met), desktop Everything 3,277 (2,400); first checklist row 1,600 px at a phone (1,266) and 1,068 at a desktop (900).
+- Not met yet: the Everything and Browse heights and both first-row positions. These stay open work for the 30-word pass and a second height pass.
+- Two small repairs in the same change: the turned arrow on the help and "more" rows no longer causes a 2 px sideways scroll; the deadline clock's empty title reads "No Expiry Dates Yet" in its end-to-end test.
+- Checked locally: all 444 browser checks in the pull request list pass on a production build.

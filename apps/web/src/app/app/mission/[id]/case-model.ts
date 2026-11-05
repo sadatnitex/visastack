@@ -10,7 +10,9 @@ import type {
   OverallReadinessState,
   RequirementResultState,
 } from '@visastack/services';
+import type { IconName } from '../../../../components/icons';
 import type { RowNoun } from '../../../../components/show-more';
+import type { LiftTone } from '../../../../components/ui-lift';
 import type { SelectableChecklists } from '../../../../lib/case-checklist-match';
 import { humanizeCode } from '../../../../lib/format-code';
 import { fieldLabel } from '../../../../lib/master-profile';
@@ -151,6 +153,66 @@ export function welcomeChecklists(
 export const plural = (count: number, one: string, many: string) =>
   `${count} ${count === 1 ? one : many}`;
 
+/** The tone a badge class name carries ("badge-danger" is "danger"). */
+export const toneOfBadge = (badge: string): LiftTone => {
+  const tone = badge.replace('badge-', '');
+  return tone === 'success' || tone === 'warning' || tone === 'danger' || tone === 'info'
+    ? tone
+    : 'neutral';
+};
+
+/**
+ * The sentence under the overall state, said plainly for a count of one or many. The shared
+ * message reads "{count} requirement(s) still needed"; this words it as the rest of the page does
+ * ("1 required item still needed"). Any other sentence, in any language, passes through unchanged.
+ */
+export function plainRequirementCount(sentence: string, count: number): string {
+  const one = count === 1;
+  return sentence
+    .replace('requirement(s) need', one ? 'required item needs' : 'required items need')
+    .replace('requirement(s)', one ? 'required item' : 'required items');
+}
+
+/** The mark each attention chip carries: a cross for what blocks, a triangle for what to check. */
+export const ATTENTION_ICON: Record<'warning' | 'danger', IconName> = {
+  danger: 'close',
+  warning: 'alert',
+};
+
+/** The tone of each checklist group: what needs you, what needs a check, what is done. */
+export const CHECKLIST_GROUP_TONE: Readonly<Record<string, 'danger' | 'warning' | 'success'>> = {
+  'needs-you': 'danger',
+  'needs-a-check': 'warning',
+  done: 'success',
+};
+
+/** How far one checklist category is: the items on file, out of the items that count. */
+export interface CategoryProgress {
+  readonly onFile: number;
+  readonly total: number;
+}
+
+/**
+ * Per category across the whole checklist, not only inside one group: an item that does not apply,
+ * or that another alternative already covers, is not counted, so "on file" is never short of a
+ * total the person cannot reach.
+ */
+export function categoryProgress(
+  rows: readonly RequirementDetailRow[],
+): ReadonlyMap<string, CategoryProgress> {
+  const progress = new Map<string, CategoryProgress>();
+  for (const r of rows) {
+    if (r.state === 'NOT_APPLICABLE' || r.coveredByAlternative) continue;
+    const key = r.category ?? 'other';
+    const seen = progress.get(key) ?? { onFile: 0, total: 0 };
+    progress.set(key, {
+      onFile: seen.onFile + (r.state === 'SATISFIED' ? 1 : 0),
+      total: seen.total + 1,
+    });
+  }
+  return progress;
+}
+
 // WP-X1 next step card: wording for the first attention item. A changed case
 // is shown by its own alert instead, so it has no card wording.
 // CCD section 6: it speaks of this case by its name, and names the first item to fix.
@@ -288,7 +350,7 @@ export function buildCaseAttention(input: CaseAttentionInput): readonly CaseAtte
       ? [
           {
             kind: 'changed' as const,
-            label: 'Changed Since Confirmed',
+            label: 'changed since confirmed',
             href: '#snapshots',
             count: 1,
             tone: 'danger' as const,
@@ -299,7 +361,8 @@ export function buildCaseAttention(input: CaseAttentionInput): readonly CaseAtte
       ? [
           {
             kind: 'missing' as const,
-            label: requiredHardGapCount === 1 ? 'required item missing' : 'required items missing',
+            // Owner, 4 Nov 2026: "to fix" counts what the Next Step and the checklist count.
+            label: requiredHardGapCount === 1 ? 'required item to fix' : 'required items to fix',
             href: '#readiness',
             count: requiredHardGapCount,
             tone: 'danger' as const,

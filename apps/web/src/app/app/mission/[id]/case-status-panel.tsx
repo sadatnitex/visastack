@@ -5,17 +5,26 @@ import {
   CasePreparationSummary,
   CaseStageTracker,
 } from '../../../../components/case-preparation-summary';
-import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
 import { atLevel } from '../../../../components/depth';
+import { Icon } from '../../../../components/icons';
 import { StatusBadge } from '../../../../components/ui';
-import { type CaseAttentionItem, NEXT_STEP_COPY, OVERALL_STATE_META } from './case-model';
+import { AlertBanner, EmptyPanel, NextStepPanel } from '../../../../components/ui-lift';
+import {
+  ATTENTION_ICON,
+  type CaseAttentionItem,
+  NEXT_STEP_COPY,
+  OVERALL_STATE_META,
+  plainRequirementCount,
+} from './case-model';
 import { ChangesSinceConfirmedList } from './changes-since-confirmed';
 import { SnapshotButton } from './mission-buttons';
 
 /**
- * The part of the case page next to the header: the stage line, the changed-case alert, the next
- * step, the journey reminder and the "what needs attention" list. One server component with plain
- * props; the page decides what to pass and this decides how it reads.
+ * The part of the case page under the header that says where the case stands, in one card: the
+ * next step (or the changed-case alert) beside Evidence Progress, then what needs attention, then
+ * the stage line, with the journey reminder under it. One server component with plain props; the
+ * page decides what to pass and this decides how it reads. The numbers agree because they are
+ * counted once: the Next Step, the attention list and the checklist all read the same counts.
  */
 export interface CaseStatusPanelProps {
   readonly missionId: string;
@@ -41,6 +50,24 @@ export interface CaseStatusPanelProps {
   readonly nextStepFirstItem: string | null;
   /** The route has no automated checklist, so completeness is not an official assessment. */
   readonly manualMode: boolean;
+  /** The case's readiness; null when it has no checklist yet. */
+  readonly readiness: Readiness | null;
+  /** The traveller confirmed the case and nothing changed since. */
+  readonly acknowledged: boolean;
+  readonly requiredUnverifiedCount: number;
+  readonly requiredHardGapCount: number;
+  /** The page's translator, so the sentence follows the person's language. */
+  readonly t: Translator;
+  /** No agency has access, so the traveller is the only one assessing the case. */
+  readonly selfReviewed: boolean;
+  /** How many checklists the person may pick from; 0 when none can be picked. */
+  readonly packOptionCount: number;
+  /** Why no checklist can be picked, the first plain line; null when there is none to give. */
+  readonly noChecklistLine: string | null;
+  /** The welcome note is on the page and already offers the way forward, so the panel does not. */
+  readonly welcomeShown: boolean;
+  /** The checklist is not on the page, so Evidence Progress is what the "Readiness" link opens. */
+  readonly progressIsReadinessAnchor: boolean;
 }
 
 export function CaseStatusPanel({
@@ -57,89 +84,161 @@ export function CaseStatusPanel({
   nextStep,
   nextStepFirstItem,
   manualMode,
+  readiness,
+  acknowledged,
+  requiredUnverifiedCount,
+  requiredHardGapCount,
+  t,
+  selfReviewed,
+  packOptionCount,
+  noChecklistLine,
+  welcomeShown,
+  progressIsReadinessAnchor,
 }: CaseStatusPanelProps) {
   const nextStepCopy =
     nextStep && nextStep.kind !== 'changed' ? NEXT_STEP_COPY[nextStep.kind] : null;
   return (
     <>
-      <div {...atLevel('browse')}>
-        <CaseStageTracker
-          state={state}
-          labels={stateLabels}
-          nextStates={nextStageStates}
-          cancelInMore={cancelInMore}
-        />
-      </div>
+      <div className="lift-status">
+        <div className="lift-status-main">
+          {isDirty ? (
+            <div className="case-alert">
+              <AlertBanner
+                tone="danger"
+                title="Something changed after you confirmed this case."
+                action={
+                  <>
+                    <SnapshotButton
+                      missionId={missionId}
+                      label="Take a New Snapshot"
+                      primary
+                      align="start"
+                    />
+                    <p className="lift-small-m0">
+                      <a href="#snapshots">Open Snapshots</a> to confirm the new one.
+                    </p>
+                  </>
+                }
+              >
+                <p>Take a new snapshot and confirm it again before you rely on this case.</p>
+                {/* WP-V3 part 3: the list of changed details. */}
+                <ChangesSinceConfirmedList
+                  applicantId={applicantId}
+                  changes={changesSinceConfirmed}
+                />
+              </AlertBanner>
+            </div>
+          ) : null}
 
-      {isDirty ? (
-        <div className="case-alert">
-          <p className="case-alert-title">This case has changed since it was last acknowledged.</p>
-          <p className="case-alert-body">
-            A material edit invalidated the previous sign-off. Capture a new snapshot and
-            acknowledge it again before relying on this case as submission-ready.
-          </p>
-          {/* WP-V3 part 3: the list of changed details. */}
-          <ChangesSinceConfirmedList applicantId={applicantId} changes={changesSinceConfirmed} />
-          <SnapshotButton missionId={missionId} label="Take a New Snapshot" primary align="start" />
-          <p className="case-alert-body">
-            <a href="#snapshots">Open Snapshots</a> to confirm the new one.
-          </p>
+          {nextStep && nextStepCopy ? (
+            <NextStepPanel
+              kicker="Next Step"
+              kickerId="case-next-step-heading"
+              title={nextStepCopy.title(nextStep.count, missionTitle)}
+              body={nextStepCopy.body(nextStepFirstItem)}
+              action={{
+                label: nextStepCopy.action,
+                href: nextStep.href,
+                openGroup: nextStep.opens,
+              }}
+            />
+          ) : null}
+
+          <div
+            className="lift-status-progress"
+            {...(progressIsReadinessAnchor ? { id: 'readiness' } : {})}
+          >
+            {readiness ? (
+              <CaseProgressSummary
+                readiness={readiness}
+                requiredUnverifiedCount={requiredUnverifiedCount}
+                requiredHardGapCount={requiredHardGapCount}
+                t={t}
+              />
+            ) : (
+              <CaseNoChecklistSummary
+                packOptionCount={packOptionCount}
+                noChecklistLine={noChecklistLine}
+                welcomeShown={welcomeShown}
+              />
+            )}
+            {readiness || selfReviewed ? (
+              <div className="lift-status-notes">
+                {readiness ? (
+                  <p className="case-confirmation-state">
+                    <strong>Traveller confirmation: </strong>
+                    {acknowledged ? 'Current snapshot confirmed' : 'Awaiting confirmation'}
+                  </p>
+                ) : null}
+                {selfReviewed ? <CaseSelfReviewedNote /> : null}
+              </div>
+            ) : null}
+          </div>
         </div>
-      ) : null}
 
-      {nextStep && nextStepCopy ? (
-        <section className="case-next-step" aria-labelledby="case-next-step-heading">
-          <h2 className="case-next-step-kicker" id="case-next-step-heading">
-            Next Step
-          </h2>
-          <p className="case-next-step-title">{nextStepCopy.title(nextStep.count, missionTitle)}</p>
-          <p className="case-next-step-body">{nextStepCopy.body(nextStepFirstItem)}</p>
-          <a className="btn btn-primary" href={nextStep.href} data-open-group={nextStep.opens}>
-            {nextStepCopy.action}
-          </a>
-        </section>
-      ) : null}
+        <div className="case-context-strip">
+          {manualMode ? (
+            <details className="case-manual-notice">
+              <summary>Manual assessment: this route has no automated requirement pack</summary>
+              <p>
+                You are responsible for confirming what this case needs. Completeness is not an
+                official readiness assessment, on this page or in an exported snapshot.
+              </p>
+            </details>
+          ) : null}
+
+          <ul
+            className="case-attention"
+            aria-label="What needs attention on this case"
+            {...atLevel('browse')}
+          >
+            {attention.length === 0 ? (
+              <li>
+                <span className="case-attention-ok">
+                  {readiness ? (
+                    <StatusBadge tone="success">Nothing needs attention right now</StatusBadge>
+                  ) : (
+                    <span className="lift-attn lift-attn-neutral">
+                      Nothing is checked yet: this case has no checklist
+                    </span>
+                  )}
+                </span>
+              </li>
+            ) : (
+              attention.map((item) => (
+                <li key={item.label}>
+                  <a
+                    className={`plain-link lift-attn lift-attn-${item.tone}`}
+                    href={item.href}
+                    data-open-group={item.opens}
+                  >
+                    <span className="lift-attn-icon" aria-hidden="true">
+                      <Icon name={ATTENTION_ICON[item.tone]} size={16} />
+                    </span>
+                    <span className="lift-attn-count">{item.count}</span>
+                    {item.label}
+                  </a>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+
+        <div className="lift-status-stages" {...atLevel('browse')}>
+          <CaseStageTracker
+            state={state}
+            labels={stateLabels}
+            nextStates={nextStageStates}
+            cancelInMore={cancelInMore}
+          />
+        </div>
+      </div>
       {/* Owner-approved wording, 25 Oct 2026. */}
       <p className="case-journey-reminder">
         Preparing a file is not the same as submitting it. VisaStack does not submit applications or
         predict decisions.
       </p>
       {/* WP-V4 places the request triage summary directly under the next step. */}
-
-      <div className="case-context-strip">
-        {manualMode ? (
-          <details className="case-manual-notice">
-            <summary>Manual assessment: this route has no automated requirement pack</summary>
-            <p>
-              You are responsible for confirming what this case needs. Completeness is not an
-              official readiness assessment, on this page or in an exported snapshot.
-            </p>
-          </details>
-        ) : null}
-
-        <ul
-          className="case-attention"
-          aria-label="What needs attention on this case"
-          {...atLevel('browse')}
-        >
-          {attention.length === 0 ? (
-            <li>
-              <span className="case-attention-ok">
-                <StatusBadge tone="success">Nothing needs attention right now</StatusBadge>
-              </span>
-            </li>
-          ) : (
-            attention.map((item) => (
-              <li key={item.label}>
-                <a href={item.href} data-open-group={item.opens}>
-                  <StatusBadge tone={item.tone}>{item.count}</StatusBadge>
-                  {item.label}
-                </a>
-              </li>
-            ))
-          )}
-        </ul>
-      </div>
     </>
   );
 }
@@ -147,7 +246,7 @@ export function CaseStatusPanel({
 /** The note that no agency has access, so the traveller is the only one assessing the case. */
 export function CaseSelfReviewedNote() {
   return (
-    <p {...atLevel('browse')} className="muted lift-small-mb-075">
+    <p {...atLevel('browse')} className="muted lift-self-note">
       <span className="badge badge-neutral">Self-reviewed</span> No agency currently has access to
       this case, so you are the only one assessing it.
     </p>
@@ -157,50 +256,76 @@ export function CaseSelfReviewedNote() {
 export interface CaseProgressSummaryProps {
   /** The case's readiness; the case has a checklist. */
   readonly readiness: Readiness;
-  /** The traveller confirmed the case and nothing changed since. */
-  readonly acknowledged: boolean;
   readonly requiredUnverifiedCount: number;
   readonly requiredHardGapCount: number;
   /** The page's translator, so the sentence follows the person's language. */
   readonly t: Translator;
 }
 
-/** How far the checklist is: the count summary, the overall state and its one sentence. */
+/** How far the checklist is: the big count and bar, the overall state and its one sentence. */
 export function CaseProgressSummary({
   readiness,
-  acknowledged,
   requiredUnverifiedCount,
   requiredHardGapCount,
   t,
 }: CaseProgressSummaryProps) {
+  const meta = OVERALL_STATE_META[readiness.overallState];
   return (
-    <>
-      <CasePreparationSummary readiness={readiness} acknowledged={acknowledged} />
-      <p className={`badge ${OVERALL_STATE_META[readiness.overallState].tone}`}>
-        {OVERALL_STATE_META[readiness.overallState].label}
-      </p>
-      {readiness.overallState !== 'MANUAL_ONLY' ? (
-        <p className="muted lift-small-mb-100">
-          {readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
-            ? t('mission.readiness.ready')
-            : readiness.overallState === 'NEEDS_REVIEW'
-              ? t('mission.readiness.needsReview', { count: requiredUnverifiedCount })
-              : t('mission.readiness.missing', { count: requiredHardGapCount })}
-        </p>
-      ) : null}
-    </>
+    <CasePreparationSummary readiness={readiness}>
+      <div className="lift-progress-verdict">
+        <p className={`badge ${meta.tone} lift-pill lift-pill-md`}>{meta.label}</p>
+        {readiness.overallState !== 'MANUAL_ONLY' ? (
+          <p className="lift-progress-sentence">
+            {readiness.overallState === 'READY_FOR_APPLICANT_REVIEW'
+              ? t('mission.readiness.ready')
+              : readiness.overallState === 'NEEDS_REVIEW'
+                ? plainRequirementCount(
+                    t('mission.readiness.needsReview', { count: requiredUnverifiedCount }),
+                    requiredUnverifiedCount,
+                  )
+                : plainRequirementCount(
+                    t('mission.readiness.missing', { count: requiredHardGapCount }),
+                    requiredHardGapCount,
+                  )}
+          </p>
+        ) : null}
+      </div>
+    </CasePreparationSummary>
   );
 }
 
-/** The empty summary of a case with no checklist yet: an empty ring and what a checklist is. */
-export function CaseNoChecklistSummary() {
+/**
+ * What the place of Evidence Progress says when the case has no checklist: what a checklist is and
+ * the one honest way forward. A checklist can be picked only when one fits; otherwise the way
+ * forward is to add evidence, and no pick is offered.
+ */
+export function CaseNoChecklistSummary({
+  packOptionCount,
+  noChecklistLine,
+  welcomeShown,
+}: {
+  readonly packOptionCount: number;
+  readonly noChecklistLine: string | null;
+  readonly welcomeShown: boolean;
+}) {
   return (
-    <>
-      <CaseReadinessRing readiness={null} pickHref="#pack" size="lg" />
-      <p className="card-body">
+    <EmptyPanel
+      title="No Checklist Yet"
+      // The welcome note offers the same way forward in its own words, so it is not offered twice.
+      {...(welcomeShown
+        ? {}
+        : {
+            secondary:
+              packOptionCount > 0
+                ? { label: 'Pick a Checklist', href: '#pack' }
+                : { label: 'Add Evidence', href: '#evidence' },
+          })}
+    >
+      <p>
         A checklist lists the papers this visa route asks for and shows which ones you already have
         on file.
       </p>
-    </>
+      {!welcomeShown && packOptionCount === 0 && noChecklistLine ? <p>{noChecklistLine}</p> : null}
+    </EmptyPanel>
   );
 }
