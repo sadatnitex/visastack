@@ -66,10 +66,10 @@ const settings: readonly NavLink[] = [];
 export function recordSections(applicantId: string): readonly NavLink[] {
   const base = `/app/applicant/${applicantId}`;
   return [
-    { href: `${base}/record`, label: 'All Records', exact: true },
-    { href: `${base}/profile`, label: 'My Profile' },
+    { href: `${base}/record`, label: 'All Records', short: 'Overview', exact: true },
+    { href: `${base}/profile`, label: 'My Profile', short: 'Profile' },
     { href: `${base}/documents`, label: 'Documents' },
-    { href: `${base}/expiry`, label: 'Dates & Expiry' },
+    { href: `${base}/expiry`, label: 'Dates & Expiry', short: 'Dates' },
     { href: `${base}/history`, label: 'History' },
   ];
 }

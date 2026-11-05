@@ -12,6 +12,8 @@
 export interface NavLink {
   readonly href: string;
   readonly label: string;
+  /** A shorter name for a tight tab bar on a phone. The full label stays the page's own name and the link's accessible name. */
+  readonly short?: string;
   /** Current only on this exact path, not on pages below it (an overview or home link). */
   readonly exact?: boolean;
   /** Further path prefixes that also belong to this link (pages that live elsewhere in the route tree). */

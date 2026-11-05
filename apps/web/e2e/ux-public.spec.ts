@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { type Page, expect, test } from '@playwright/test';
 import sharp from 'sharp';
 import { PRIMARY_NAV, agencyTabs, applicantTabs, platformTabs } from '../src/lib/navigation';
+import { recordSections } from '../src/lib/workspace-navigation';
 import { openUiFixture } from './flat-ui-support';
 
 /**
@@ -377,6 +378,58 @@ test.describe('signed-in layout building blocks on a narrow screen (real stylesh
         expect(barBottom, 'bar sits on the bottom edge').toBeGreaterThanOrEqual(innerHeight - 1);
         expect(barTop, 'bar is a bar, not a screen').toBeGreaterThan(innerHeight - 140);
         expect(lastBottom, 'the page ends above the bar').toBeLessThanOrEqual(barTop + 1);
+      });
+
+      test('the Record section bar shows every section at once, with no scrolling', async ({
+        page,
+      }) => {
+        const sections = recordSections('11111111-1111-4111-8111-111111111111').map((link, i) => ({
+          label: link.short ?? link.label,
+          current: i === 2,
+        }));
+        const found = await page.evaluate((tabs) => {
+          const nav = document.createElement('nav');
+          nav.className = 'subnav subnav-fit';
+          nav.setAttribute('aria-label', 'Record Sections');
+          for (const tab of tabs) {
+            const a = document.createElement('a');
+            a.href = '#';
+            a.textContent = tab.label;
+            if (tab.current) a.setAttribute('aria-current', 'page');
+            nav.appendChild(a);
+          }
+          document.querySelector('main')?.prepend(nav);
+          const box = nav.getBoundingClientRect();
+          const links = [...nav.querySelectorAll('a')].map((a) => a.getBoundingClientRect());
+          return {
+            scrolls: nav.scrollWidth - nav.clientWidth,
+            navLeft: box.left,
+            navRight: box.right,
+            links: links.map((r) => ({
+              left: r.left,
+              right: r.right,
+              width: r.width,
+              height: r.height,
+            })),
+          };
+        }, sections);
+        expect(found.scrolls, 'the bar has nothing off to the side').toBeLessThanOrEqual(0);
+        expect(found.links.length).toBe(5);
+        for (const [i, link] of found.links.entries()) {
+          expect(link.right, `tab ${i} ends inside the bar`).toBeLessThanOrEqual(
+            found.navRight + 0.5,
+          );
+          expect(link.left, `tab ${i} starts inside the bar`).toBeGreaterThanOrEqual(
+            found.navLeft - 0.5,
+          );
+          expect(link.height, `tab ${i} is tall enough to tap`).toBeGreaterThanOrEqual(44);
+          expect(link.width, `tab ${i} is wide enough to tap`).toBeGreaterThanOrEqual(44);
+          const next = found.links[i + 1];
+          if (next)
+            expect(link.right, `tab ${i} does not run into the next`).toBeLessThanOrEqual(
+              next.left + 0.5,
+            );
+        }
       });
 
       test('the always-there Add button on Documents sits above the bottom bar, fully visible', async ({
