@@ -34,6 +34,7 @@ export function depthCopy(summaries: DepthSwitchCopy['summaries']): DepthSwitchC
     },
     summaries,
     status: depthWord('depth.status'),
+    info: depthWord('depth.info'),
   };
 }
 

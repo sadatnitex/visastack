@@ -3,14 +3,12 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { DEPTH_PHONE_QUERY } from '../lib/ccd/depth';
-import { isPhoneNow, raiseToShow } from '../lib/ccd/reveal';
 import { formatTimestampDate } from '../lib/format-date';
 import { agree, plural } from '../lib/plural';
 import { useMediaQuery } from '../lib/use-popover';
 import { atLevel } from './depth';
 import { Icon } from './icons';
 import { EmptyState, StatusBadge } from './ui';
-import { AlertBanner } from './ui-lift';
 
 export interface WalletBrowserDocument {
   readonly id: string;
@@ -31,10 +29,17 @@ export interface WalletBrowserDocument {
   readonly safetyTone?: 'neutral' | 'success' | 'warning' | 'danger';
   readonly processingLabel: string;
   readonly previewAllowed: boolean;
+  /**
+   * The one word a row shows when something is not normal (Needs Review, Expiring Soon, Failed),
+   * or null when nothing is wrong. When the page leaves it out, the row works it out from the
+   * fields above. A normal file shows nothing here; how it was checked is in its details.
+   */
+  readonly stateWords?: { readonly label: string; readonly tone: RowTone } | null;
   readonly details: ReactNode;
   /** The row's Manage menu (resource lifecycle), drawn in the row next to its select button. */
   readonly manage?: ReactNode;
 }
+type RowTone = 'neutral' | 'success' | 'warning' | 'danger';
 type Filter = 'all' | 'ready' | 'review' | 'expiring';
 /** The summary tiles above the list, which also filter it. Names, so Title Case. */
 const FILTER_LABELS: Readonly<Record<Filter, string>> = {
@@ -52,6 +57,26 @@ const FILTER_LABELS: Readonly<Record<Filter, string>> = {
 export const WALLET_PAGE_SIZE = { desktop: 12, phone: 6 } as const;
 /** The filter choice for documents that no category holds yet. */
 const NOT_SORTED = '__not-sorted__';
+
+/** What a row says about its file when something is not normal; nothing when it is. */
+function rowState(doc: WalletBrowserDocument): { label: string; tone: RowTone } | null {
+  if (doc.stateWords !== undefined) return doc.stateWords;
+  const safety = doc.safetyTone ?? 'neutral';
+  if (safety === 'danger' || safety === 'warning') return { label: doc.safetyLabel, tone: safety };
+  if (doc.needsReview) return { label: doc.processingLabel, tone: 'warning' };
+  if (doc.expiring) return { label: 'Expiring Soon', tone: 'warning' };
+  return doc.ready ? null : { label: doc.processingLabel, tone: 'neutral' };
+}
+
+/** The kind part of a row's second line: data, never a sentence. The date follows as its own piece. */
+function rowKindLine(doc: WalletBrowserDocument): string {
+  const parts = [
+    doc.kind ?? 'Kind not set',
+    doc.kind === null && doc.suggestedKind ? `AI suggests ${doc.suggestedKind}` : null,
+    doc.version !== null && doc.version > 1 ? `Version ${doc.version}` : null,
+  ];
+  return parts.filter((part): part is string => Boolean(part)).join(' · ');
+}
 
 /** Metadata filters only. Byte access remains inside the existing authorized server actions. */
 export function DocumentWalletBrowser({
@@ -131,14 +156,6 @@ export function DocumentWalletBrowser({
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [filter, setFilter] = useState<Filter>('all');
-  // On a page with the depth switch, the list sits at Browse; a tile filters it, so a tile tapped
-  // at Glance also opens the list instead of filtering something out of sight.
-  const listArea = useRef<HTMLDivElement>(null);
-  const showList = () => {
-    const area = listArea.current;
-    const scope = area?.closest<HTMLElement>('[data-depth-scope]');
-    if (area && scope) raiseToShow(area, scope, isPhoneNow());
-  };
   const [page, setPage] = useState(0);
   const pageSize = useMediaQuery(DEPTH_PHONE_QUERY)
     ? WALLET_PAGE_SIZE.phone
@@ -171,150 +188,143 @@ export function DocumentWalletBrowser({
   };
   return (
     <>
-      <div className="wallet-overview-strip" aria-label="Document state filters">
-        {(Object.entries(FILTER_LABELS) as [Filter, string][]).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={filter === key}
-            onClick={() => {
-              setFilter(key);
-              setPage(0);
-              showList();
-            }}
-          >
-            <span className="wallet-tile-name">{label}</span>
-            <strong>{counts[key]}</strong>
-          </button>
-        ))}
-      </div>
-      <div className="document-wallet-layout" ref={listArea} {...atLevel('browse')}>
+      {/* Four zeros say nothing: with no documents at all the empty state below is the whole screen. */}
+      {documents.length > 0 ? (
+        <div className="wallet-overview-strip" aria-label="Document state filters">
+          {(Object.entries(FILTER_LABELS) as [Filter, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={filter === key}
+              onClick={() => {
+                setFilter(key);
+                setPage(0);
+              }}
+            >
+              <span className="wallet-tile-name">{label}</span>
+              <strong>{counts[key]}</strong>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="document-wallet-layout">
         <section className="card document-wallet-list" aria-label="Document metadata list">
-          <div className="wallet-filter-controls">
-            <label>
-              Category
-              <select
-                className="input"
-                value={category}
-                onChange={(event) => {
-                  setCategory(event.target.value);
-                  setPage(0);
-                }}
-              >
-                <option value="all">All Categories</option>
-                {categories.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-                {notSorted > 0 ? <option value={NOT_SORTED}>Not Set Yet</option> : null}
-              </select>
-            </label>
-            <label>
-              Search Documents
-              <input
-                className="input"
-                type="search"
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setPage(0);
-                }}
-                placeholder="Search names, kinds or categories"
-              />
-            </label>
-          </div>
+          {documents.length > 0 ? (
+            <div className="wallet-filter-controls" {...atLevel('browse')}>
+              <label>
+                <span className="sr-only">Category</span>
+                <select
+                  className="input"
+                  value={category}
+                  onChange={(event) => {
+                    setCategory(event.target.value);
+                    setPage(0);
+                  }}
+                >
+                  <option value="all">All Categories</option>
+                  {categories.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                  {notSorted > 0 ? <option value={NOT_SORTED}>Not Set Yet</option> : null}
+                </select>
+              </label>
+              <label>
+                <span className="sr-only">Search Documents</span>
+                <input
+                  className="input"
+                  type="search"
+                  value={query}
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                    setPage(0);
+                  }}
+                  placeholder="Search"
+                />
+              </label>
+            </div>
+          ) : null}
           {notSorted > 0 ? (
-            <div data-testid="wallet-not-sorted">
-              <AlertBanner
-                tone="info"
-                title={`${plural(notSorted, 'document')} ${agree(notSorted, 'needs', 'need')} a kind`}
-                action={
-                  category === NOT_SORTED ? undefined : (
-                    <button
-                      type="button"
-                      className="btn btn-secondary u-btn-xs"
-                      onClick={() => {
-                        setCategory(NOT_SORTED);
-                        setPage(0);
-                      }}
-                    >
-                      Show {notSorted === 1 ? 'It' : 'Them'}
-                    </button>
-                  )
-                }
-              >
+            <div className="wallet-nokind" data-testid="wallet-not-sorted">
+              <span className="wallet-nokind-icon" aria-hidden="true">
+                <Icon name="alert" size={18} />
+              </span>
+              <span className="wallet-nokind-title">
+                {notSorted} {agree(notSorted, 'Needs', 'Need')} a Kind
+              </span>
+              <details className="wallet-why">
+                <summary>Why?</summary>
                 <p>
                   {notSorted} document{notSorted === 1 ? ' has' : 's have'} no kind set yet, so{' '}
                   {notSorted === 1 ? 'it is' : 'they are'} in no category and left out when you
                   share by category. Open a document and choose its kind.
                 </p>
-              </AlertBanner>
+              </details>
+              <button
+                type="button"
+                className="btn btn-secondary u-btn-xs"
+                onClick={() => {
+                  setCategory(category === NOT_SORTED ? 'all' : NOT_SORTED);
+                  setPage(0);
+                }}
+              >
+                {category === NOT_SORTED ? 'Show All' : `Show ${notSorted === 1 ? 'It' : 'Them'}`}
+              </button>
             </div>
           ) : null}
-          <output className="muted">
+          <output className="sr-only">
             {plural(matches.length, 'document')} {agree(matches.length, 'matches', 'match')}. Page{' '}
             {activePage + 1} of {pageCount}.
           </output>
           {visible.length ? (
             <ul className="wallet-metadata-list">
-              {visible.map((doc) => (
-                <li key={doc.id} id={`document-${doc.id}`}>
-                  <button
-                    type="button"
-                    className="wallet-document-select"
-                    aria-pressed={selectedId === doc.id}
-                    onClick={(event) => {
-                      setSelectedId(doc.id);
-                      opener.current = event.currentTarget;
-                      setSheetOpen(true);
-                      const url = new URL(window.location.href);
-                      url.searchParams.set('document', doc.id);
-                      window.history.replaceState(window.history.state, '', url);
-                    }}
-                  >
-                    <span className="wallet-document-name">
+              {visible.map((doc) => {
+                const state = rowState(doc);
+                return (
+                  <li key={doc.id} id={`document-${doc.id}`}>
+                    <button
+                      type="button"
+                      className="wallet-document-select"
+                      aria-pressed={selectedId === doc.id}
+                      onClick={(event) => {
+                        setSelectedId(doc.id);
+                        opener.current = event.currentTarget;
+                        setSheetOpen(true);
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('document', doc.id);
+                        window.history.replaceState(window.history.state, '', url);
+                      }}
+                    >
                       <span className="wallet-document-icon" aria-hidden="true">
                         <Icon name="file" size={18} />
                       </span>
-                      {doc.name}
-                    </span>
-                    <span className="muted wallet-document-kind">
-                      {doc.kind ?? 'Kind not set'}
-                      {doc.category ? ` · ${doc.category}` : ''}
-                      {doc.kind === null && doc.suggestedKind
-                        ? ` · AI suggests ${doc.suggestedKind}`
-                        : ''}{' '}
-                      · {doc.version === null ? 'Version unavailable' : `Version ${doc.version}`}
-                    </span>
-                    <span className="wallet-document-state">
-                      <StatusBadge
-                        tone={doc.needsReview ? 'warning' : doc.ready ? 'success' : 'neutral'}
-                      >
-                        {doc.processingLabel}
-                      </StatusBadge>
-                      {(doc.safetyTone ?? 'neutral') === 'neutral' ? (
-                        <span className="wallet-safety-note">{doc.safetyLabel}</span>
-                      ) : (
-                        <StatusBadge tone={doc.safetyTone ?? 'neutral'}>
-                          {doc.safetyLabel}
-                        </StatusBadge>
-                      )}
-                    </span>
-                    <span className="muted wallet-document-updated">
-                      {doc.updatedAt
-                        ? `Updated ${formatTimestampDate(doc.updatedAt)}`
-                        : 'Update time unavailable'}
-                    </span>
-                  </button>
-                  {doc.manage ? <div className="wallet-document-manage">{doc.manage}</div> : null}
-                  {selectedId === doc.id ? (
-                    <a className="wallet-detail-jump" href="#wallet-selected-document">
-                      View Selected Details →
-                    </a>
-                  ) : null}
-                </li>
-              ))}
+                      <span className="wallet-document-name" data-value="name">
+                        {doc.name}
+                      </span>
+                      {state ? (
+                        <span className="wallet-document-state">
+                          <StatusBadge tone={state.tone}>{state.label}</StatusBadge>
+                        </span>
+                      ) : null}
+                      <span className="wallet-document-kind" data-value="kind">
+                        {rowKindLine(doc)}
+                      </span>
+                      {doc.updatedAt ? (
+                        <span className="wallet-document-updated" data-value="date">
+                          {formatTimestampDate(doc.updatedAt)}
+                        </span>
+                      ) : null}
+                    </button>
+                    {doc.manage ? <div className="wallet-document-manage">{doc.manage}</div> : null}
+                    {selectedId === doc.id ? (
+                      <a className="wallet-detail-jump" href="#wallet-selected-document">
+                        View Selected Details →
+                      </a>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <EmptyState
@@ -323,7 +333,7 @@ export function DocumentWalletBrowser({
               {...(documents.length
                 ? {}
                 : {
-                    why: 'You add each paper once, and it can fill a checklist item on any visa case.',
+                    why: 'Then use it on every case.',
                     action: {
                       href: `/app/applicant/${applicantId}/documents/add`,
                       label: 'Add a Document',
@@ -332,7 +342,7 @@ export function DocumentWalletBrowser({
             >
               {documents.length
                 ? 'Clear the search or choose another category or status.'
-                : 'This is your document vault: passports, bank statements, photos and the other papers you use again and again. Add your first one with Add Documents.'}
+                : 'Add each paper once.'}
             </EmptyState>
           )}
           {pageCount > 1 ? (
@@ -345,6 +355,9 @@ export function DocumentWalletBrowser({
               >
                 Previous
               </button>
+              <span className="wallet-page-count" data-value="page">
+                {activePage + 1} of {pageCount}
+              </span>
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -377,25 +390,35 @@ export function DocumentWalletBrowser({
                 <p className="muted">Your selected document is outside the current list filter.</p>
               ) : null}
               <div className="document-preview-placeholder">
-                <strong>{selected.name}</strong>
-                <p>
-                  {selected.previewAllowed
-                    ? 'Open the secure preview below. Permission and current safety are checked again before bytes are served.'
-                    : 'Preview is blocked while this file is unsafe, still processing or otherwise unavailable.'}
-                </p>
+                <strong data-value="name">{selected.name}</strong>
+                {selected.previewAllowed ? null : (
+                  <p>
+                    Preview is blocked while this file is unsafe, still processing or otherwise
+                    unavailable.
+                  </p>
+                )}
               </div>
-              <p className="muted">
-                File format is checked when the file is opened. A verified format is not recorded in
-                this metadata view.
-              </p>
               {selected.details}
               <Link className="btn btn-secondary" href={`/app/applicant/${applicantId}/sharing`}>
                 Review Sharing Permissions
               </Link>
-              <p className="wallet-ai-notice">
-                Sharing requires consent, an exact reviewed scope and recipient acceptance. AI
-                suggestions never update your profile until you approve them.
-              </p>
+              <details className="docs-more wallet-about-file">
+                <summary>About This File</summary>
+                {selected.previewAllowed ? (
+                  <p>
+                    Open the secure preview below. Permission and current safety are checked again
+                    before bytes are served.
+                  </p>
+                ) : null}
+                <p className="muted">
+                  File format is checked when the file is opened. A verified format is not recorded
+                  in this metadata view.
+                </p>
+                <p className="wallet-ai-notice">
+                  Sharing requires consent, an exact reviewed scope and recipient acceptance. AI
+                  suggestions never update your profile until you approve them.
+                </p>
+              </details>
             </>
           ) : (
             <EmptyState

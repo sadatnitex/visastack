@@ -437,3 +437,35 @@ Level plan: no level changed. Upcoming and Recent Activity stay at Everything on
 | Checklist fold | "1 More Item" hid a single row | Every row shows when only one would be folded | Nothing is folded for one row |
 | Working grid | The rail shared two rows, leaving a gap above "More for This Case" | Two rows, the second takes the rest | Layout |
 
+
+## 05. Documents: the plain pass (5 Nov 2026, owner: no page should have more than 30 words)
+
+Owner, 5 Nov 2026: no page should have more than 30 words while being exceptionally intuitive. He showed the live Documents screen on his phone: a wall of text, two identical "We could not tell what..." cards, a long Placed Automatically paragraph, four filter chips on two rows, four tiles, a grey paragraph about files with no kind, and a file name squeezed into a sliver with a pill and "Format Checked" on every row. The guard is `apps/web/src/lib/prose-budget.test.ts` (the definition is in `prose-budget.test-support.ts`): a registered screen shows at most 30 words of explanation at its phone default depth (Glance). Documents is registered; where every other screen stands is in `prose-budget.baseline.json`. Measured with the guard on the same four states (owner's phone state, a few documents, a link between two files and a suggested kind, nothing added yet): 111, 49, 78 and 23 words before; 0, 7, 7 and 13 now.
+
+Nothing was deleted without a way back: every sentence that left the first view is still in the page, behind a closed disclosure (the guard checks this), or was a pure duplicate (the same question asked once per file).
+
+Level plan: the list, the four numbers, the lists tabs and the no-kind row are now at Glance, with the document's own screen (the details a tap opens) at every level; only search and categories wait for Browse. The Glance screen used to show no document at all. Everything now matches Browse (the section it once held, adding documents, left the page on 3 Nov).
+
+| What changed | Before | Now | Why |
+|---|---|---|---|
+| Page sentence | "Keep reusable evidence together..." under the heading | The same sentence in the closed "About Documents" at the end | Words |
+| Depth switch sentence | One sentence under the switch ("Everything: adding new documents." was no longer true) | Behind the round i beside the switch; the three sentences now say what each level shows | Words |
+| Header buttons | See Document Insights and Add Documents | The same two; on a phone the always-there Add button is the one primary, so the header copy of it steps aside | One primary |
+| Files nobody could name | One card per file with the same sentence and its own button | One heading ("We Could Not Tell What These Are") over one row per file: the file name and one Choose What It Is. "We Are Not Sure What These Are" and "Check These Suggestions" are groups the same way | Identical items are one list |
+| Needs One Decision sentences | "Most files are sorted on their own..." and, for held files, "These files were added for several people at once..." | In the closed "About These Choices" in the same card, with "A suggestion is only a guess. Nothing is saved until you accept it." when a suggestion is waiting. A suggested link between two files keeps its one sentence and keeps what Confirm does behind "What Happens Next"; findings raised on arrival keep their sentence with the advice behind "What You Can Do" | Words; the safety promise stays one tap away |
+| "Nothing needs a decision right now." | A line in the card when only sorted files were listed | Gone: with nothing to decide the card is not shown | Nothing to say |
+| Placed Automatically | A heading, a paragraph and one long card per file | One closed row, "Sorted for You (2)"; inside, the same sentences and the same Change buttons | Words |
+| Linked Copies | A heading inside the decision card | Its own small card with the same list | Layout |
+| Four tiles | Two rows of two tiles | One row of four numbers (number over name); none at all while the wallet is empty | One row at 390 |
+| Lists (Current, Archived, Recently Deleted) | A row of tabs that wrapped, with Removal Records as a fourth tab | Compact tabs; Removal Records is a quiet link after them. The tabs are at Glance | One row |
+| Files with no kind | A banner with a paragraph and a Show Them button | One row, "2 Need a Kind", with Why? (the old paragraph) and Show Them; once shown, the button reads Show All | Words |
+| Category and search | Two labelled fields with a long hint | Two fields side by side, the labels read aloud only ("Search" as the hint). Hidden while the wallet is empty | Space |
+| "7 documents match. Page 1 of 2." | A line of words above the list | Read aloud only; the list ends with Previous, the place ("1 of 2") and Next | Counts, not sentences |
+| A row | A file tile, the name squeezed beside a "Needs Review" pill and "Format Checked", kind, category and version, "Updated 4 Nov 2026", then a Manage button of its own | The name has the whole line and ends in an ellipsis; under it one pill only when something is not normal, then the kind and the date; the whole row opens the file; Manage is a small round control at the end of the row with the same menu. A normal file shows no pill and no "Format Checked" (how it was checked is in its details). The category and "Version 1" are no longer on the row | One tap target, no sliver |
+| The opened document's three notes | Three paragraphs above and below its details | In one closed "About This File"; when the preview is blocked the reason stays visible | Words |
+| Empty list | A 38-word explanation and a reason | "No Documents Yet", "Add each paper once.", "Then use it on every case." and Add a Document | One short thing and one button |
+| Still being checked | A 26-word paragraph | "Checking your files. This page updates itself." (the long text is in About Documents) | Words |
+
+Approved changes (apps/web/src/lib/ccd/approved-changes.ts, all citing the owner, 5 Nov 2026): the four row buttons of the parity states (the new text of a row), the empty-state sentences, and the four zeros and two fields of an empty wallet. Not covered by a parity state, so recorded here only: every needs-decision change above.
+
+Not built: the opened document's details (the card with its reading, dates and safe copy) are not held to the rule yet; on a phone that is a separate full screen, on a desktop the side panel.

@@ -45,7 +45,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AiFeatureOffNote } from '../../../../../components/ai-feature-off';
 import { AutoRefresh } from '../../../../../components/auto-refresh';
-import { DepthScope, atLevel } from '../../../../../components/depth';
+import { DepthScope } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import { DocumentWalletBrowser } from '../../../../../components/document-wallet-browser';
 import { ReferenceCode } from '../../../../../components/reference-code';
@@ -105,6 +105,9 @@ import { NeedsDecision } from './needs-decision';
 export const metadata: Metadata = { title: 'Documents' };
 
 export const dynamic = 'force-dynamic';
+
+/** What a row says for a file that has no processing state yet. */
+const NOT_YET_CHECKED = 'Not Yet Checked';
 
 /** Real pipeline states (never fake progress - master directive §7 "PR 7"). */
 const PROCESSING_STATE_KEYS: Record<string, MessageKey> = {
@@ -534,20 +537,22 @@ export default async function ApplicantDocumentsPage({
       <PageHeader
         eyebrow="Record"
         title="Documents"
-        description="Keep reusable evidence together. Processing, review and expiry are separate signals."
         actions={
           <>
             <Link className="btn btn-secondary" href={`/app/applicant/${id}/insights`}>
               See Document Insights
             </Link>
-            <Link className="btn btn-primary" href={`/app/applicant/${id}/documents/add`}>
+            <Link
+              className="btn btn-primary docs-add-primary"
+              href={`/app/applicant/${id}/documents/add`}
+            >
               Add Documents
             </Link>
           </>
         }
       />
       <DepthScope family="documents" depth={depth}>
-        <DepthSwitch family="documents" initial={depth} copy={depthWords} />
+        <DepthSwitch family="documents" initial={depth} copy={depthWords} notesBehindInfo />
         {downloadError ? (
           <p role="alert" className="card-body">
             We could not download this document. Try again after confirming your account. Documents
@@ -556,10 +561,7 @@ export default async function ApplicantDocumentsPage({
         ) : null}
         <AutoRefresh active={anyProcessing || readingInProgress} />
         {anyProcessing ? (
-          <p className="muted">
-            Some documents are still being checked, which can take a few minutes. This page updates
-            by itself, so there is no need to upload them again.
-          </p>
+          <p className="muted docs-working-note">Checking your files. This page updates itself.</p>
         ) : null}
         {readingError ? (
           <p className="notice notice-warn" role="alert">
@@ -623,7 +625,7 @@ export default async function ApplicantDocumentsPage({
         />
 
         {data.lifecycle ? (
-          <div {...atLevel('browse')}>
+          <div>
             <LifecycleTabs
               basePath={`/app/applicant/${id}/documents`}
               active={tab}
@@ -689,6 +691,27 @@ export default async function ApplicantDocumentsPage({
               );
             const category = documentCategory(doc.docType);
             const suggested = doc.docType ? undefined : waitingKind;
+            // The one word a row shows when something is not normal. A normal file shows nothing;
+            // how it was checked is in its details (Owner, 5 Nov 2026: no page should have more
+            // than 30 words). The most serious thing wins, so a row never carries two pills.
+            const lifecycleStatus = data.wallet.get(doc.id)?.status;
+            const stateWords: { label: string; tone: 'neutral' | 'warning' | 'danger' } | null =
+              badge.tone === 'danger' || badge.tone === 'warning'
+                ? { label: badge.label, tone: badge.tone }
+                : needsReview
+                  ? { label: processingKey ? t(processingKey) : NOT_YET_CHECKED, tone: 'warning' }
+                  : lifecycleStatus === 'EXPIRED'
+                    ? { label: LIFECYCLE_BADGES.EXPIRED.label, tone: 'danger' }
+                    : lifecycleStatus === 'EXPIRING'
+                      ? { label: LIFECYCLE_BADGES.EXPIRING.label, tone: 'warning' }
+                      : lifecycleStatus === 'SUPERSEDED'
+                        ? { label: LIFECYCLE_BADGES.SUPERSEDED.label, tone: 'neutral' }
+                        : doc.processingStatus !== 'APPROVED'
+                          ? {
+                              label: processingKey ? t(processingKey) : NOT_YET_CHECKED,
+                              tone: 'neutral',
+                            }
+                          : null;
             // Read Again needs the switch for what it would do: text, or a scan first and then text.
             const readingOn = data.aiFeatures?.ai_document_reading.available !== false;
             const couldReadAgain =
@@ -720,14 +743,14 @@ export default async function ApplicantDocumentsPage({
               expiring: lifecycle === 'EXPIRING',
               safetyLabel: badge.label,
               safetyTone: badge.tone,
-              processingLabel: processingKey ? t(processingKey) : 'Not yet checked',
+              processingLabel: processingKey ? t(processingKey) : NOT_YET_CHECKED,
               previewAllowed: previewable,
               // The Manage menu, at Browse depth; absent (the row exactly as before) until the
               // lifecycle tables exist and a lane has registered an action this document allows.
               ...(actionsFor(doc.id).length > 0
                 ? {
                     manage: (
-                      <div {...atLevel('browse')}>
+                      <div>
                         <ManageMenu
                           applicantId={id}
                           documentId={doc.id}
@@ -744,8 +767,9 @@ export default async function ApplicantDocumentsPage({
                     ),
                   }
                 : {}),
+              stateWords,
               details: (
-                <div key={doc.id} {...atLevel('browse')}>
+                <div key={doc.id}>
                   <div
                     className="wallet-document-actions"
                     style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}
@@ -755,7 +779,11 @@ export default async function ApplicantDocumentsPage({
                       label="Document Reference"
                     />
                     <div className="row">
-                      <span className="row-key" style={{ wordBreak: 'break-word' }}>
+                      <span
+                        className="row-key"
+                        data-value="name"
+                        style={{ wordBreak: 'break-word' }}
+                      >
                         {doc.approvedName ?? doc.originalName}
                       </span>
                       <span className="row-end">
@@ -1112,6 +1140,18 @@ export default async function ApplicantDocumentsPage({
             };
           })}
         />
+        <details className="docs-about">
+          <summary>About Documents</summary>
+          <p>
+            Keep reusable evidence together. Processing, review and expiry are separate signals.
+          </p>
+          {anyProcessing ? (
+            <p className="muted">
+              Some documents are still being checked, which can take a few minutes. This page
+              updates by itself, so there is no need to upload them again.
+            </p>
+          ) : null}
+        </details>
       </DepthScope>
       {/* On a phone, adding a file is always one tap away; larger screens have the button in the header. The spacer keeps the end of the page clear of it. */}
       <div className="docs-add-fab-space" aria-hidden="true" />

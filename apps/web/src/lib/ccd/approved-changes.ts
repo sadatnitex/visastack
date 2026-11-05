@@ -638,6 +638,107 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason:
       'Owner, 4 Nov 2026: redesign the case pages and the others. A case row with no checklist yet says what to do next, in the words the progress ring already uses, instead of a bare name.',
   },
+  {
+    screen: 'documents',
+    from: {
+      kind: 'button',
+      name: 'passport.pdfPassport \u00b7 Universal \u00b7 Version 1Reviewed and ApprovedNo Problems FoundUpdated 20 Oct 2026',
+    },
+    // In the state where the passport is about to expire it carries the one pill for that.
+    to: (state) => ({
+      kind: 'button',
+      name:
+        state === 'several documents, one selected'
+          ? 'passport.pdfExpiring SoonPassport20 Oct 2026'
+          : 'passport.pdfPassport20 Oct 2026',
+    }),
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. A normal file shows no pill and no check caption on its row (how it was checked is in its details); the row is the name, then the kind and the date. Version shows only from the second one.',
+  },
+  {
+    screen: 'documents',
+    from: {
+      kind: 'button',
+      name: 'statement.pdfKind not set \u00b7 Version 1Needs ReviewNo Problems FoundUpdated 20 Oct 2026',
+    },
+    to: { kind: 'button', name: 'statement.pdfNeeds ReviewKind not set20 Oct 2026' },
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. A row shows one pill, only when something is not normal, and the date without the word Updated. Version shows only from the second one.',
+  },
+  {
+    screen: 'documents',
+    from: {
+      kind: 'button',
+      name: 'broken.pdfKind not set \u00b7 Version 1FailedNo Problems FoundUpdated 20 Oct 2026',
+    },
+    to: { kind: 'button', name: 'broken.pdfFailedKind not set20 Oct 2026' },
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. A row shows one pill, only when something is not normal, and the date without the word Updated. Version shows only from the second one.',
+  },
+  {
+    screen: 'documents',
+    from: {
+      kind: 'button',
+      name: 'scanning.pdfKind not set \u00b7 Version 1Checking the FileNo Problems FoundUpdated 20 Oct 2026',
+    },
+    to: { kind: 'button', name: 'scanning.pdfChecking the FileKind not set20 Oct 2026' },
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. A row shows one pill, only when something is not normal, and the date without the word Updated. Version shows only from the second one.',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'button', name: 'All Documents0' },
+    // With no documents at all the empty state is the whole screen; the four zeros and the search have nothing to act on.
+    to: (state) => (state === 'empty wallet' ? null : { kind: 'button', name: 'All Documents0' }),
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. A list with nothing in it shows its empty state alone: no row of zeros, no search over nothing.',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'button', name: 'Ready to Use0' },
+    // With no documents at all the empty state is the whole screen; the four zeros and the search have nothing to act on.
+    to: (state) => (state === 'empty wallet' ? null : { kind: 'button', name: 'Ready to Use0' }),
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. A list with nothing in it shows its empty state alone: no row of zeros, no search over nothing.',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'button', name: 'Needs Review0' },
+    // With no documents at all the empty state is the whole screen; the four zeros and the search have nothing to act on.
+    to: (state) => (state === 'empty wallet' ? null : { kind: 'button', name: 'Needs Review0' }),
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. A list with nothing in it shows its empty state alone: no row of zeros, no search over nothing.',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'button', name: 'Expiring Soon0' },
+    // With no documents at all the empty state is the whole screen; the four zeros and the search have nothing to act on.
+    to: (state) => (state === 'empty wallet' ? null : { kind: 'button', name: 'Expiring Soon0' }),
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. A list with nothing in it shows its empty state alone: no row of zeros, no search over nothing.',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'field', name: 'CategoryAll Categories', detail: 'select' },
+    // With no documents at all the empty state is the whole screen; the four zeros and the search have nothing to act on.
+    to: (state) =>
+      state === 'empty wallet'
+        ? null
+        : { kind: 'field', name: 'CategoryAll Categories', detail: 'select' },
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. A list with nothing in it shows its empty state alone: no row of zeros, no search over nothing.',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'field', name: 'Search Documents', detail: 'search' },
+    // With no documents at all the empty state is the whole screen; the four zeros and the search have nothing to act on.
+    to: (state) =>
+      state === 'empty wallet'
+        ? null
+        : { kind: 'field', name: 'Search Documents', detail: 'search' },
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. A list with nothing in it shows its empty state alone: no row of zeros, no search over nothing.',
+  },
 ];
 
 /**
@@ -802,6 +903,26 @@ export const APPROVED_RULES: readonly ApprovedRule[] = [
       if (entry.name === 'source') return [{ ...entry, name: 'View Source' }];
       if (entry.name === 'Resolve on Profile \u2192') {
         return [{ ...entry, name: 'Resolve on Profile' }];
+      }
+      return [];
+    },
+  },
+  {
+    screens: ['documents'],
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. The empty list says one short thing and offers one button; the longer explanation of the vault is gone, since the Add Documents page says what to add.',
+    alternatives: (entry) => {
+      if (entry.kind !== 'text') return [];
+      if (
+        entry.name ===
+        'This is your document vault: passports, bank statements, photos and the other papers you use again and again. Add your first one with Add Documents.'
+      ) {
+        return [{ ...entry, name: 'Add each paper once.' }];
+      }
+      if (
+        entry.name === 'You add each paper once, and it can fill a checklist item on any visa case.'
+      ) {
+        return [{ ...entry, name: 'Then use it on every case.' }];
       }
       return [];
     },

@@ -18351,3 +18351,484 @@ article.card:has(> .trip-start-form) {
   color: var(--text-secondary);
 }
 /* end WP-LIFT-C */
+
+/* WP-PLAIN-P1 Documents in thirty words (Owner, 5 Nov 2026: no page should have more than 30 words). One status row of four numbers, rows that give the file name the whole line, one pill only when something is not normal, a compact list for files that need a name, and one closed row for what was sorted for you. Flat, existing tokens only, 44 px targets. Package P1 edits only inside this block. */
+
+/* Header: on a phone the always-there Add button is the one primary, so the header copy of it steps aside. */
+@media (max-width: 760px) {
+  .docs-add-primary {
+    display: none;
+  }
+}
+
+/* The depth switch: its sentence sits behind a small round control beside the switch and opens as a note under it. */
+.depth-switch:has(.depth-info) {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: nowrap;
+}
+.depth-info {
+  position: static;
+}
+.depth-info-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-style: italic;
+  cursor: pointer;
+  list-style: none;
+}
+.depth-info-toggle::-webkit-details-marker {
+  display: none;
+}
+.depth-info[open] .depth-note {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + var(--space-1));
+  z-index: 5;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+/* The four numbers are one row that fits a phone: the number leads, the name sits under it, nothing wraps to a second row. */
+.wallet-overview-strip {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.wallet-overview-strip button {
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: var(--space-2) var(--space-1);
+  text-align: center;
+}
+.wallet-overview-strip .wallet-tile-name {
+  font-size: var(--text-caption);
+  line-height: 1.2;
+  text-align: center;
+}
+.wallet-overview-strip strong {
+  font-size: var(--text-lead);
+}
+
+/* The list card sits flat on the page: rows, not a box around the box. */
+.document-wallet-list.card {
+  padding: var(--space-2) 0 0;
+  border: 0;
+  background: transparent;
+}
+.document-wallet-list .wallet-filter-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+.document-wallet-list .wallet-filter-controls label {
+  margin: 0;
+}
+
+/* Files with no kind: one short row with its one action, the reason one tap away. */
+.wallet-nokind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-left: 4px solid var(--brand);
+  border-radius: var(--radius-sm);
+  background: var(--brand-bg);
+}
+.wallet-nokind-icon {
+  display: inline-grid;
+  color: var(--brand);
+}
+.wallet-nokind-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 650;
+}
+.wallet-why {
+  flex: 0 0 auto;
+}
+.wallet-why[open] {
+  flex: 1 0 100%;
+  order: 9;
+}
+.wallet-why > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--brand);
+  font-size: var(--text-small);
+  font-weight: 650;
+  cursor: pointer;
+}
+.wallet-why > p {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+
+/* A row: the whole row opens the file. The name has the full line and ends in an ellipsis; under it, the kind and date as data; one pill at the right only when something is not normal. */
+.document-wallet-list .wallet-metadata-list {
+  margin: 0 0 var(--space-3);
+}
+.document-wallet-list .wallet-metadata-list li {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.document-wallet-list .wallet-metadata-list .wallet-document-select {
+  grid-column: 1;
+  display: grid;
+  grid-template-columns: 2.25rem auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon name name name"
+    "icon state kind date";
+  gap: 2px 0;
+  align-items: center;
+  min-height: 56px;
+  padding: var(--space-3) var(--space-2);
+  border: 1px solid transparent;
+  border-left: 4px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+.document-wallet-list .wallet-metadata-list .wallet-document-select[aria-pressed="true"] {
+  background: var(--brand-tint-2);
+  border-color: var(--edge-card);
+  border-left-color: var(--brand);
+}
+.document-wallet-list .wallet-metadata-list .wallet-document-select > .wallet-document-icon {
+  grid-area: icon;
+  align-self: start;
+}
+.document-wallet-list .wallet-metadata-list .wallet-document-select > .wallet-document-name {
+  grid-area: name;
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.document-wallet-list .wallet-metadata-list .wallet-document-select > .wallet-document-kind {
+  grid-area: kind;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.document-wallet-list .wallet-metadata-list .wallet-document-select > .wallet-document-state {
+  grid-area: state;
+  display: inline-flex;
+  padding: 0;
+  margin: 0 var(--space-2) 0 0;
+  white-space: nowrap;
+}
+.document-wallet-list .wallet-metadata-list .wallet-document-select > .wallet-document-state .badge {
+  min-height: 0;
+  padding: 2px 8px;
+  font-size: var(--text-caption);
+  white-space: nowrap;
+}
+.document-wallet-list .wallet-metadata-list .wallet-document-select > .wallet-document-updated {
+  grid-area: date;
+  margin-left: var(--space-2);
+  padding: 0;
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+/* On a phone the file icon steps aside so the name and the words under it get the whole width. */
+@media (max-width: 480px) {
+  .document-wallet-list .wallet-metadata-list .wallet-document-select {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name name name"
+      "state kind date";
+    padding-left: var(--space-3);
+  }
+  .document-wallet-list .wallet-metadata-list .wallet-document-select > .wallet-document-icon,
+  .docs-choose-row > .docs-choose-icon {
+    display: none;
+  }
+  .document-wallet-list .wallet-metadata-list .wallet-document-select > .wallet-document-name {
+    font-size: var(--text-body);
+  }
+  .document-wallet-list .wallet-metadata-list .wallet-document-select > .wallet-document-kind {
+    font-size: var(--text-caption);
+  }
+  .document-wallet-list .wallet-metadata-list .wallet-document-select > .wallet-document-state {
+    margin-right: var(--space-1);
+  }
+  .document-wallet-list .wallet-metadata-list .wallet-document-select > .wallet-document-updated {
+    margin-left: var(--space-1);
+  }
+}
+/* On a phone a tap opens the file as its own screen, so a row never stays marked as the chosen one. */
+@media (max-width: 760px) {
+  .document-wallet-list .wallet-metadata-list .wallet-document-select[aria-pressed="true"] {
+    border-color: transparent;
+    background: transparent;
+  }
+}
+
+/* Manage is a small round control at the end of the row; its menu opens under the row, and an action's own panel takes the whole row. */
+.document-wallet-list .wallet-document-manage,
+.document-wallet-list .wallet-document-manage > div,
+.document-wallet-list .wallet-document-manage .lc-manage {
+  display: contents;
+}
+.document-wallet-list .wallet-document-manage .lc-manage-button {
+  grid-column: 2;
+  grid-row: 1;
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.document-wallet-list .wallet-document-manage .lc-manage-button:hover {
+  background: var(--brand-tint-1);
+}
+.document-wallet-list .wallet-document-manage .lc-manage-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.lc-manage-dots {
+  display: none;
+}
+.document-wallet-list .wallet-document-manage .lc-manage-dots {
+  display: block;
+}
+.document-wallet-list .wallet-document-manage .lc-manage-menu {
+  left: auto;
+  right: 0;
+  top: calc(100% - var(--space-1));
+}
+.document-wallet-list .wallet-document-manage .lc-manage-panel {
+  grid-column: 1 / -1;
+}
+.document-wallet-list .wallet-metadata-list .wallet-detail-jump {
+  grid-column: 1 / -1;
+  padding: 0 var(--space-3) var(--space-2) calc(var(--space-2) + 2.25rem + var(--space-3));
+  margin: 0;
+  font-size: var(--text-small);
+}
+
+/* Where the chosen document sits beside the list, a link down to it is not needed (the markup stays). */
+@media (min-width: 1101px) {
+  .document-wallet-list .wallet-metadata-list .wallet-detail-jump {
+    display: none;
+  }
+}
+
+/* Previous and Next sit at the two ends with the place between them. */
+.wallet-pagination {
+  align-items: center;
+}
+.wallet-pagination .btn {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+}
+.wallet-page-count {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Lists (Current, Archived, Recently Deleted) are compact tabs; Removal Records is a quiet link after them, never a fourth tab. */
+.lc-tabs-list {
+  gap: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.lc-tab {
+  padding: 0 var(--space-3);
+  white-space: nowrap;
+  font-size: var(--text-small);
+}
+.lc-tab.lc-tab-records {
+  border-color: transparent;
+  background: transparent;
+  color: var(--brand);
+  font-weight: 650;
+}
+
+/* Needs One Decision: files that share a question are one short list; each row is an icon, the file name and one button. */
+.umpe-p3-needs-decision .card-title {
+  margin-bottom: var(--space-2);
+}
+.docs-choose-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.docs-choose-row {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "icon name action"
+    "icon kind action";
+  align-items: center;
+  gap: 0 var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.docs-choose-row:last-child {
+  border-bottom: 0;
+}
+/* A row with only a name keeps the name level with its button. */
+.docs-choose-row:not(:has(.docs-choose-kind)) > .docs-choose-name {
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+.docs-choose-row > .docs-choose-icon {
+  align-self: center;
+}
+.docs-choose-icon {
+  grid-area: icon;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-3);
+  color: var(--brand);
+}
+.docs-choose-name {
+  grid-area: name;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-weight: 650;
+}
+.docs-choose-kind {
+  grid-area: kind;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.docs-choose-row > .btn {
+  grid-area: action;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .docs-choose-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name action"
+      "kind action";
+  }
+  .umpe-p3-needs-decision.card {
+    padding: var(--space-4) var(--space-3);
+  }
+}
+.docs-more > summary,
+.docs-about > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+  font-weight: 650;
+  cursor: pointer;
+}
+.docs-more > p,
+.docs-about > p {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+
+/* Sorted for You: one closed row with a number; the sentences and the Change buttons are inside. */
+.card.docs-sorted {
+  padding: 0 var(--space-4);
+}
+.docs-sorted-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 56px;
+  cursor: pointer;
+  list-style: none;
+}
+.docs-sorted-summary::-webkit-details-marker {
+  display: none;
+}
+.docs-sorted-summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  margin-right: var(--space-1);
+  border-right: 2px solid var(--text-secondary);
+  border-bottom: 2px solid var(--text-secondary);
+  transform: rotate(45deg);
+}
+.docs-sorted[open] .docs-sorted-summary::after {
+  transform: rotate(-135deg);
+}
+.docs-sorted-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.docs-count {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.docs-sorted[open] {
+  padding-bottom: var(--space-3);
+}
+
+/* About Documents: one quiet closed line at the end. */
+.docs-about {
+  margin: var(--space-2) 0 var(--space-4);
+}
+.docs-working-note {
+  margin: 0 0 var(--space-3);
+}
+
+/* Phone: the four numbers stay one row (the earlier phone rule made them two). */
+@media (max-width: 767px) {
+  .wallet-overview-strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+/* end WP-PLAIN-P1 */

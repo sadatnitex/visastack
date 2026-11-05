@@ -126,7 +126,19 @@ export function ManageMenu({
         onClick={() => (open ? closeMenu(false) : openAt(0))}
         onKeyDown={onButtonKey}
       >
-        Manage
+        <span className="lc-manage-text">Manage</span>
+        <svg
+          className="lc-manage-dots"
+          aria-hidden="true"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+        >
+          <circle cx="5" cy="12" r="2" />
+          <circle cx="12" cy="12" r="2" />
+          <circle cx="19" cy="12" r="2" />
+        </svg>
       </button>
       {open ? (
         <div

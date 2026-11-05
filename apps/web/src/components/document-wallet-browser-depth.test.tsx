@@ -6,7 +6,7 @@ import { DepthScope } from './depth';
 import { DepthSwitch, type DepthSwitchCopy } from './depth-switch';
 import { DocumentWalletBrowser, type WalletBrowserDocument } from './document-wallet-browser';
 
-/** The documents page at Glance: the list sits at Browse, so a filter tile opens it (CCD-3). */
+/** The documents page at Glance: the list is on screen at Glance (Owner, 5 Nov 2026: plain pages); only search and categories are Browse. */
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -58,8 +58,8 @@ const button = (text: string) =>
     b.textContent?.startsWith(text),
   ) as HTMLButtonElement;
 
-describe('filter tiles on a page with the depth switch', () => {
-  it('open the list when the page is at Glance, and the switch follows', async () => {
+describe('the documents list on a page with the depth switch', () => {
+  it('is on screen at Glance, with the four numbers; only search and categories wait for Browse', async () => {
     await act(async () => {
       root.render(
         <DepthScope family="record" depth="glance">
@@ -68,18 +68,38 @@ describe('filter tiles on a page with the depth switch', () => {
         </DepthScope>,
       );
     });
-    expect(container.querySelector('.document-wallet-layout')?.getAttribute('data-level')).toBe(
+    // The list and its filters carry no level, so Glance shows them.
+    expect(container.querySelector('.document-wallet-layout')?.hasAttribute('data-level')).toBe(
+      false,
+    );
+    expect(container.querySelector('.document-wallet-list')?.hasAttribute('data-level')).toBe(
+      false,
+    );
+    expect(container.querySelector('.wallet-overview-strip')?.hasAttribute('data-level')).toBe(
+      false,
+    );
+    expect(container.querySelector('.wallet-filter-controls')?.getAttribute('data-level')).toBe(
       'browse',
     );
+  });
+
+  it('filters the list with a tile and leaves the chosen level alone', async () => {
+    await act(async () => {
+      root.render(
+        <DepthScope family="record" depth="glance">
+          <DepthSwitch family="record" initial="glance" copy={copy} />
+          <DocumentWalletBrowser applicantId="p" documents={records} />
+        </DepthScope>,
+      );
+    });
     await act(async () => {
       button('Needs Review').click();
     });
-    expect(scope().getAttribute('data-depth')).toBe('browse');
-    expect(button('Browse').getAttribute('aria-pressed')).toBe('true');
-    expect(container.querySelector('output')?.textContent).toBe('Showing Browse');
+    expect(scope().getAttribute('data-depth')).toBe('glance');
+    expect(button('Glance').getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('leave a deeper level alone', async () => {
+  it('leaves a deeper level alone', async () => {
     await act(async () => {
       root.render(
         <DepthScope family="record" depth="everything">

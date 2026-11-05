@@ -626,8 +626,16 @@ describe('the lift block in globals.css', () => {
     ].map((marker) => tail.indexOf(marker));
     expect(order.every((index) => index >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    // Nothing else comes after the last block, so a package never edits another's lines.
-    expect(tail.trimEnd().endsWith('/* end WP-LIFT-C */')).toBe(true);
+    // Nothing but a later pass's own whole blocks (WP-PLAIN-..., each closed by its own end line)
+    // comes after the last Lift block, so a package never edits another's lines.
+    const afterLast = tail.slice(
+      tail.indexOf('/* end WP-LIFT-C */') + '/* end WP-LIFT-C */'.length,
+    );
+    const withoutPlain = afterLast.replace(
+      /\/\* WP-PLAIN-[A-Z0-9]+ [\s\S]*?\/\* end WP-PLAIN-[A-Z0-9]+ \*\//g,
+      '',
+    );
+    expect(withoutPlain.trim()).toBe('');
     expect(css.match(/\/\* WP-LIFT-A /g)).toHaveLength(1);
   });
 });

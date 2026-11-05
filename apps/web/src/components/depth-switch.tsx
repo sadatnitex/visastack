@@ -24,6 +24,8 @@ export interface DepthSwitchCopy {
   readonly summaries: Readonly<Record<DepthLevel, string>>;
   /** Spoken after a change, with {level} replaced by the level's name. */
   readonly status: string;
+  /** The name of the small control that opens the sentence about the chosen level. */
+  readonly info?: string;
 }
 
 /** How long after a form is sent its block is kept on screen while the page refreshes. */
@@ -61,10 +63,17 @@ export function DepthSwitch({
   family,
   initial,
   copy,
+  notesBehindInfo = false,
 }: {
   readonly family: DepthFamily;
   readonly initial: DepthChoice;
   readonly copy: DepthSwitchCopy;
+  /**
+   * Keeps the one sentence about the chosen level out of the screen's first view: it sits behind
+   * a small control beside the switch and opens on a tap. For screens held to a word budget
+   * (Owner, 5 Nov 2026: no page should have more than 30 words).
+   */
+  readonly notesBehindInfo?: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
   const [choice, setChoice] = useState<DepthChoice>(initial);
@@ -234,11 +243,24 @@ export function DepthSwitch({
           </button>
         ))}
       </fieldset>
-      {DEPTH_LEVELS.map((level) => (
-        <p key={level} className="depth-note" data-for={level}>
-          {copy.summaries[level]}
-        </p>
-      ))}
+      {notesBehindInfo ? (
+        <details className="depth-info">
+          <summary className="depth-info-toggle" aria-label={copy.info ?? copy.group}>
+            <span aria-hidden="true">i</span>
+          </summary>
+          {DEPTH_LEVELS.map((level) => (
+            <p key={level} className="depth-note" data-for={level}>
+              {copy.summaries[level]}
+            </p>
+          ))}
+        </details>
+      ) : (
+        DEPTH_LEVELS.map((level) => (
+          <p key={level} className="depth-note" data-for={level}>
+            {copy.summaries[level]}
+          </p>
+        ))
+      )}
       <output className="sr-only">{status}</output>
     </div>
   );
