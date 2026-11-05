@@ -116,7 +116,7 @@ export function EvidenceRequestActions({
           <details className="request-decision-more">
             <summary className="request-decision-more-toggle">More Decisions</summary>
             <div className="request-decision-more-body">
-              {canDecide && status === 'RECEIVED' ? (
+              {status === 'RECEIVED' ? (
                 <form action={reviewAction}>
                   <input type="hidden" name="organizationId" value={organizationId} />
                   <input type="hidden" name="requestId" value={requestId} />
@@ -128,32 +128,28 @@ export function EvidenceRequestActions({
                   />
                 </form>
               ) : null}
-              {canDecide ? (
-                <>
-                  <button
-                    type="button"
-                    className="btn btn-secondary request-decision-button"
-                    aria-expanded={reasonOutcome === 'CONTRADICTION'}
-                    onClick={() =>
-                      setReasonOutcome((v) => (v === 'CONTRADICTION' ? null : 'CONTRADICTION'))
-                    }
-                  >
-                    Contradiction
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary request-decision-button"
-                    aria-expanded={reasonOutcome === 'CORRECTION_PROPOSED'}
-                    onClick={() =>
-                      setReasonOutcome((v) =>
-                        v === 'CORRECTION_PROPOSED' ? null : 'CORRECTION_PROPOSED',
-                      )
-                    }
-                  >
-                    Propose Correction
-                  </button>
-                </>
-              ) : null}
+              <button
+                type="button"
+                className="btn btn-secondary request-decision-button"
+                aria-expanded={reasonOutcome === 'CONTRADICTION'}
+                onClick={() =>
+                  setReasonOutcome((v) => (v === 'CONTRADICTION' ? null : 'CONTRADICTION'))
+                }
+              >
+                Contradiction
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary request-decision-button"
+                aria-expanded={reasonOutcome === 'CORRECTION_PROPOSED'}
+                onClick={() =>
+                  setReasonOutcome((v) =>
+                    v === 'CORRECTION_PROPOSED' ? null : 'CORRECTION_PROPOSED',
+                  )
+                }
+              >
+                Propose Correction
+              </button>
               {cancelForm}
             </div>
           </details>
