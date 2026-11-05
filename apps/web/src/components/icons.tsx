@@ -87,10 +87,6 @@ const line = (d: string, width = 2, accent = false): Line => ({
   ...(accent ? { accent: true } : {}),
 });
 
-/** The pitch of a stack: a slice and the gap under it. */
-const P = 4.5;
-const y = (row: number, start: number) => start + row * P;
-
 const PATHS = {
   globe: [
     line('M12 3.6a8.4 8.4 0 1 0 0 16.8 8.4 8.4 0 0 0 0-16.8Z', 1.9),
