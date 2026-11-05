@@ -19394,14 +19394,14 @@ article.card:has(> .trip-start-form) {
 .link-pending {
   display: none;
 }
-.app-shell-links a:has(> .link-pending[data-pending="true"]) {
+.app-shell-links a:not(.app-nav-action, .app-nav-action-row):has(> .link-pending[data-pending="true"]) {
   color: var(--selected-text);
   font-weight: 650;
   background: var(--bg-elevated);
   border: 1px solid var(--edge-card);
   position: relative;
 }
-.app-shell-links a:has(> .link-pending[data-pending="true"])::before {
+.app-shell-links a:not(.app-nav-action, .app-nav-action-row):has(> .link-pending[data-pending="true"])::before {
   content: "";
   position: absolute;
   left: 0;
@@ -19411,7 +19411,7 @@ article.card:has(> .trip-start-form) {
   border-radius: 2px;
   background: var(--brand);
 }
-.app-shell-links a:has(> .link-pending[data-pending="true"]) .icon {
+.app-shell-links a:not(.app-nav-action, .app-nav-action-row):has(> .link-pending[data-pending="true"]) .icon {
   color: var(--brand);
 }
 .app-nav-action:has(> .link-pending[data-pending="true"]) {

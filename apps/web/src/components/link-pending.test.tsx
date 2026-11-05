@@ -102,7 +102,11 @@ describe('the wait is shown', () => {
 
   it('the mark draws nothing, the tapped link and the bar react to it', () => {
     expect(block).toMatch(/\.link-pending \{\s*display: none;/);
-    expect(block).toMatch(/\.app-shell-links a:has\(> \.link-pending\[data-pending="true"\]\)/);
+    // A quick action keeps its own lighter look: the row look is for the sidebar's destinations.
+    expect(block).toMatch(/a:not\(\.app-nav-action, \.app-nav-action-row\):has\(> \.link-pending/);
+    expect(block).toMatch(
+      /\.app-shell-links a:not\([^)]*\):has\(> \.link-pending\[data-pending="true"\]\)/,
+    );
     expect(block).toMatch(/\.subnav a:has\(> \.link-pending\[data-pending="true"\]\)/);
     expect(block).toMatch(/\.route-progress\[data-active="true"\] \{\s*opacity: 1;/);
     // The page being left gives up its mark while another waits, so two never look selected.
@@ -158,6 +162,13 @@ describe('the bar answers a tap on any link to another page', () => {
     tap('/app/there', { ctrlKey: true });
     expect(bar()).toBe('false');
     tap('/app/there', {}, '_blank');
+    expect(bar()).toBe('false');
+    // A file or an export is not a page: the address never changes.
+    tap('/app/mission/1/snapshots/2/download');
+    expect(bar()).toBe('false');
+    tap('/app/privacy/export?format=csv');
+    expect(bar()).toBe('false');
+    tap('/api/documents/safe-copy');
     expect(bar()).toBe('false');
   });
 

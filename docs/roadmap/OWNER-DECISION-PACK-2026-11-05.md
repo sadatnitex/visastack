@@ -79,7 +79,7 @@ Nothing on the landing page changes until you pick. Each line is a plain stateme
 
 ## 6. Where the site and database run
 
-**Today:** both in US East. From Bangladesh or Singapore each trip to the server costs about 0.3 seconds before any work starts. The tap feedback and the 30 second page memory remove most of what a person feels.
+**Today:** both in US East. From Bangladesh or Singapore each trip to the server costs about 0.3 seconds before any work starts. The tap feedback (the tapped link lights up at once and a thin bar runs along the top) removes some of what a person feels, not the wait itself. Keeping a shown page for a short time so going back is instant is possible, but needs an audit of every action that refreshes late first.
 **Option:** move both to Singapore. It is a real migration (database copy, a short freeze, sign-in settings) and I would plan it with a rollback.
 **Recommendation: decide after we measure the real server time.** Needs Vercel runtime logs, so I need Vercel access reconnected.
 

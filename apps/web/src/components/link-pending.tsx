@@ -16,6 +16,9 @@ export function LinkPending() {
   );
 }
 
+/** Addresses that hand over a file or data (downloads, exports, the platform's own endpoints). */
+const FILE_LINK = /(^\/api\/|\/download$|\/export$|\.(?:pdf|zip|json|csv|ics|png|jpe?g|webp)$)/i;
+
 /** Longest the bar runs, so a page that never arrives cannot leave it running for ever. */
 const LONGEST_WAIT_MS = 10_000;
 
@@ -30,6 +33,8 @@ function startsVisit(event: MouseEvent, anchor: HTMLAnchorElement): boolean {
   if (anchor.hasAttribute('download')) return false;
   const to = new URL(anchor.href, window.location.href);
   if (to.origin !== window.location.origin) return false;
+  // A file, not a page: the address never changes, so the bar would run for nothing.
+  if (FILE_LINK.test(to.pathname)) return false;
   return to.pathname + to.search !== window.location.pathname + window.location.search;
 }
 
