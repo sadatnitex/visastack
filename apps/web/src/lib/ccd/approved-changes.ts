@@ -794,6 +794,19 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason:
       'Owner, 5 Nov 2026: no page should have more than 30 words. The same sentence was repeated under every grant; it now stands once under "About Sharing" (and the revoke warning above the grants stays visible). A repeated line, so nothing is lost.',
   },
+  {
+    screen: 'profile',
+    from: {
+      kind: 'text',
+      name: '1 field has conflicting proposed values. Review the fields marked Conflicted before relying on them.',
+    },
+    to: {
+      kind: 'text',
+      name: '1 field has conflicting values. Check the fields marked Conflicted before relying on them.',
+    },
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. The warning and what to do about it are one sentence that stays visible: the same meaning in fewer words, with nothing folded away.',
+  },
 ];
 
 /**

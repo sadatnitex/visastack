@@ -599,9 +599,9 @@ describe("the deadline clock on a person's overview (Growth G5)", () => {
     const html = renderToStaticMarkup(await profile(params));
     const { JSDOM } = await import('jsdom');
     const alert = [...new JSDOM(html).window.document.querySelectorAll('[role="alert"]')].find(
-      (node) => node.textContent?.includes('conflicting proposed values'),
+      (node) => node.textContent?.includes('conflicting values'),
     );
-    expect(alert?.textContent).toContain('conflicting proposed values');
+    expect(alert?.textContent).toContain('Check the fields marked Conflicted');
     expect(alert?.closest('[data-level]')).toBeNull();
   });
 });

@@ -245,7 +245,7 @@ describe('sharing levels', () => {
     // The warning is one short line that stays at every level; the full wording is one tap away.
     const warning = doc.querySelector('.lc-revoke-warning');
     expect(warning?.textContent).toContain(
-      'Revoking stops access now; copies already downloaded cannot be erased.',
+      'Pausing or revoking stops access now; copies already downloaded cannot be erased.',
     );
     expect(warning?.textContent).toContain('Pausing or revoking stops all');
     expect(levelOf(warning)).toBe('glance');
