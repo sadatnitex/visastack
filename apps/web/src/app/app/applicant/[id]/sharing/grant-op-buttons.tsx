@@ -33,8 +33,8 @@ export function GrantOpButtons({
   }, [state]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+    <div className="lc-grant-ops">
+      <div className="lc-grant-ops-row">
         {ops.map(({ op, label, variant }) => {
           const question = CONFIRM_MESSAGE[op];
           return (
@@ -45,7 +45,7 @@ export function GrantOpButtons({
               {question && confirming === op ? (
                 <div className="notice" role="alert">
                   <p className="u-m-0">{question}</p>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div className="lc-grant-ops-row">
                     <SubmitButton
                       pending={pending}
                       idle={CONFIRM_LABEL[op] ?? label}
@@ -64,7 +64,7 @@ export function GrantOpButtons({
               ) : question ? (
                 <button
                   type="button"
-                  className={`btn ${variant} u-btn-sm`}
+                  className={`btn ${variant === 'btn-danger' ? 'btn-danger-outline' : variant} u-btn-sm`}
                   onClick={() => setConfirming(op)}
                 >
                   {label}

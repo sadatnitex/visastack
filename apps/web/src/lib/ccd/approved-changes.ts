@@ -594,6 +594,18 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
         'Owner, 4 Nov 2026 (redesign the case pages): the five sections are rows of one card, More for This Case, and each shows how much is inside (a count) instead of the line that said when to open it. Same section, same panels, same ids.',
     }),
   ),
+  // WP-LIFT-C entries
+  {
+    screen: 'traveller',
+    from: { kind: 'link', name: 'Korea VisitIn Progress', detail: '/app/mission/case-2' },
+    to: {
+      kind: 'link',
+      name: 'Korea VisitPick a checklist to see what is readyIn Progress',
+      detail: '/app/mission/case-2',
+    },
+    reason:
+      'Owner, 4 Nov 2026: redesign the case pages and the others. A case row with no checklist yet says what to do next, in the words the progress ring already uses, instead of a bare name.',
+  },
 ];
 
 /**

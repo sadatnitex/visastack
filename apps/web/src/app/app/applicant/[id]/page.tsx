@@ -19,7 +19,9 @@ import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
 import { DeadlineClock } from '../../../../components/deadline-clock';
 import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
+import { NO_CHECKLIST_LINE } from '../../../../components/progress-ring';
 import { EmptyState, NextStepCard, PageHeader, StatusBadge } from '../../../../components/ui';
+import { ActionRow, ProgressMeter } from '../../../../components/ui-lift';
 import { openCasesNewestFirst } from '../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../lib/ccd/depth.server';
@@ -381,32 +383,47 @@ export default async function ApplicantOverviewPage({
           </p>
         ) : null}
         <div className="traveller-metrics" {...atLevel('browse')}>
-          <Link className="card traveller-metric" href={`/app/applicant/${id}/missions`}>
-            <span>Active Cases</span>
-            <strong className={data.missions.ok ? undefined : 'traveller-metric-off'}>
+          <Link
+            className={`card traveller-metric lift-tile${data.missions.ok && data.active.length === 0 ? ' lift-tile-zero' : ''}`}
+            href={`/app/applicant/${id}/missions`}
+          >
+            <span className="lift-tile-label">Active Cases</span>
+            <strong
+              className={`lift-tile-numeral${data.missions.ok ? '' : ' traveller-metric-off'}`}
+            >
               {data.missions.ok ? data.active.length : 'Unavailable'}
             </strong>
-            <span className="muted traveller-metric-note">
+            <span className="muted traveller-metric-note lift-tile-note">
               Closed and cancelled cases are excluded.
             </span>
           </Link>
-          <Link className="card traveller-metric" href={`/app/applicant/${id}/documents`}>
-            <span>Documents in Your Wallet</span>
-            <strong className={data.documents.ok ? undefined : 'traveller-metric-off'}>
+          <Link
+            className={`card traveller-metric lift-tile${data.documents.ok && documents.length === 0 ? ' lift-tile-zero' : ''}`}
+            href={`/app/applicant/${id}/documents`}
+          >
+            <span className="lift-tile-label">Documents in Your Wallet</span>
+            <strong
+              className={`lift-tile-numeral${data.documents.ok ? '' : ' traveller-metric-off'}`}
+            >
               {data.documents.ok ? documents.length : 'Unavailable'}
             </strong>
-            <span className="muted traveller-metric-note">
+            <span className="muted traveller-metric-note lift-tile-note">
               Open documents to review processing and safety.
             </span>
           </Link>
-          <Link className="card traveller-metric" href={`/app/applicant/${id}/evidence`}>
-            <span>Items Needing Attention</span>
+          <Link
+            className={`card traveller-metric lift-tile${data.documents.ok && data.requests.ok && attention === 0 ? ' lift-tile-zero' : ''}`}
+            href={`/app/applicant/${id}/evidence`}
+          >
+            <span className="lift-tile-label">Items Needing Attention</span>
             <strong
-              className={data.documents.ok && data.requests.ok ? undefined : 'traveller-metric-off'}
+              className={`lift-tile-numeral${
+                data.documents.ok && data.requests.ok ? '' : ' traveller-metric-off'
+              }`}
             >
               {data.documents.ok && data.requests.ok ? attention : 'Unavailable'}
             </strong>
-            <span className="muted traveller-metric-note">
+            <span className="muted traveller-metric-note lift-tile-note">
               Requests, suggested details and flagged documents.
             </span>
           </Link>
@@ -474,13 +491,26 @@ export default async function ApplicantOverviewPage({
                     </p>
                     <div className="traveller-checklist">
                       <strong>Checklist Progress</strong>
-                      <CaseReadinessRing
-                        size="sm"
-                        readiness={data.readiness?.ok ? data.readiness.value : null}
-                        {...(data.featured.packVersionId
-                          ? { emptyLine: 'Progress could not be worked out. Refresh to try again.' }
-                          : { pickHref: `/app/mission/${data.featured.id}#pack` })}
-                      />
+                      {data.readiness?.ok && data.readiness.value.requiredCount > 0 ? (
+                        <ProgressMeter
+                          size={6}
+                          value={data.readiness.value.satisfiedRequired}
+                          max={data.readiness.value.requiredCount}
+                          label="items ready"
+                          valueText={`${data.readiness.value.satisfiedRequired} of ${data.readiness.value.requiredCount} items ready`}
+                        />
+                      ) : (
+                        <CaseReadinessRing
+                          size="sm"
+                          readiness={data.readiness?.ok ? data.readiness.value : null}
+                          {...(data.featured.packVersionId
+                            ? {
+                                emptyLine:
+                                  'Progress could not be worked out. Refresh to try again.',
+                              }
+                            : { pickHref: `/app/mission/${data.featured.id}#pack` })}
+                        />
+                      )}
                       <p className="muted">
                         {!data.featured.packVersionId
                           ? "Until a checklist is attached, you review this case's requirements by hand in the case."
@@ -512,14 +542,20 @@ export default async function ApplicantOverviewPage({
                 )}
               </article>
               {data.active.length > 1 ? (
-                <div className="card rows">
+                <div className="card lc-flush">
                   {data.active.slice(1, 4).map((m) => (
-                    <Link className="row row-link" href={`/app/mission/${m.id}`} key={m.id}>
-                      <span className="row-key">{m.title}</span>
-                      <StatusBadge tone="neutral">
-                        {STAGE_LABELS[m.state] ?? 'In Progress'}
-                      </StatusBadge>
-                    </Link>
+                    <ActionRow
+                      key={m.id}
+                      href={`/app/mission/${m.id}`}
+                      icon="briefcase"
+                      title={m.title}
+                      {...(m.packVersionId ? {} : { meta: NO_CHECKLIST_LINE })}
+                      pill={
+                        <StatusBadge tone="neutral">
+                          {STAGE_LABELS[m.state] ?? 'In Progress'}
+                        </StatusBadge>
+                      }
+                    />
                   ))}
                 </div>
               ) : null}
@@ -535,30 +571,38 @@ export default async function ApplicantOverviewPage({
                 </p>
               ) : null}
               {attention > 0 ? (
-                <article className="card rows">
+                <article className="card lc-flush">
                   {requests.length ? (
-                    <Link className="row row-link" href={`/app/applicant/${id}/evidence`}>
-                      <span className="row-key">Evidence Requests Waiting for a Reply</span>
-                      <StatusBadge tone="warning">{requests.length}</StatusBadge>
-                    </Link>
+                    <ActionRow
+                      href={`/app/applicant/${id}/evidence`}
+                      icon="clipboard"
+                      title="Evidence Requests Waiting for a Reply"
+                      pill={<StatusBadge tone="warning">{requests.length}</StatusBadge>}
+                    />
                   ) : null}
                   {readings.length ? (
-                    <Link className="row row-link" href={`/app/applicant/${id}/review`}>
-                      <span className="row-key">Suggested Details Awaiting Approval</span>
-                      <StatusBadge tone="warning">{readings.length}</StatusBadge>
-                    </Link>
+                    <ActionRow
+                      href={`/app/applicant/${id}/review`}
+                      icon="eye"
+                      title="Suggested Details Awaiting Approval"
+                      pill={<StatusBadge tone="warning">{readings.length}</StatusBadge>}
+                    />
                   ) : null}
                   {appSuggestions.length ? (
-                    <Link className="row row-link" href={`/app/applicant/${id}/profile`}>
-                      <span className="row-key">Suggestions from AI Apps Waiting for You</span>
-                      <StatusBadge tone="warning">{appSuggestions.length}</StatusBadge>
-                    </Link>
+                    <ActionRow
+                      href={`/app/applicant/${id}/profile`}
+                      icon="shield"
+                      title="Suggestions from AI Apps Waiting for You"
+                      pill={<StatusBadge tone="warning">{appSuggestions.length}</StatusBadge>}
+                    />
                   ) : null}
                   {flagged.length ? (
-                    <Link className="row row-link" href={`/app/applicant/${id}/documents`}>
-                      <span className="row-key">Documents Needing Review</span>
-                      <StatusBadge tone="warning">{flagged.length}</StatusBadge>
-                    </Link>
+                    <ActionRow
+                      href={`/app/applicant/${id}/documents`}
+                      icon="file"
+                      title="Documents Needing Review"
+                      pill={<StatusBadge tone="warning">{flagged.length}</StatusBadge>}
+                    />
                   ) : null}
                 </article>
               ) : null}
@@ -646,9 +690,13 @@ export default async function ApplicantOverviewPage({
                         {completed} / {completion.total}
                       </span>
                     </div>
-                    <div className="meter" aria-hidden="true">
-                      <div className="meter-fill" style={{ width: `${completeness}%` }} />
-                    </div>
+                    <ProgressMeter
+                      size={6}
+                      value={completed}
+                      max={completion.total}
+                      label="details with values in open sections"
+                      valueText={null}
+                    />
                   </>
                 ) : (
                   <>
@@ -658,14 +706,13 @@ export default async function ApplicantOverviewPage({
                         {essentials.answered} / {essentials.total}
                       </span>
                     </div>
-                    <div className="meter" aria-hidden="true">
-                      <div
-                        className="meter-fill"
-                        style={{
-                          width: `${essentials.percent}%`,
-                        }}
-                      />
-                    </div>
+                    <ProgressMeter
+                      size={6}
+                      value={essentials.answered}
+                      max={essentials.total}
+                      label="essentials added"
+                      valueText={null}
+                    />
                   </>
                 )}
                 <p className="muted">Completeness does not verify identity.</p>

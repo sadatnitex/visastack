@@ -719,6 +719,7 @@ export default async function ApplicantDocumentsPage({
               needsReview,
               expiring: lifecycle === 'EXPIRING',
               safetyLabel: badge.label,
+              safetyTone: badge.tone,
               processingLabel: processingKey ? t(processingKey) : 'Not yet checked',
               previewAllowed: previewable,
               // The Manage menu, at Browse depth; absent (the row exactly as before) until the

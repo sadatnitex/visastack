@@ -151,7 +151,7 @@ export default async function MissionsPage({
         </p>
 
         <div className="grid">
-          <article className="card" {...atLevel('browse')}>
+          <article className="card lc-empty-host" {...atLevel('browse')}>
             <div data-case-group="active">
               <h2 className="card-title">Active Cases</h2>
               {!data.missionsRead ? (

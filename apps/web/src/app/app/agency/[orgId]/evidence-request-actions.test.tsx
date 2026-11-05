@@ -148,3 +148,39 @@ describe('when a newer copy arrived since the page was drawn', () => {
     expect(container.querySelector('a.request-decision-refresh')).toBeNull();
   });
 });
+
+describe('the common decisions are in view and the others are under More Decisions', () => {
+  const inMore = () => container.querySelector('details.request-decision-more');
+  const names = (root: ParentNode | null) =>
+    [...(root?.querySelectorAll('button') ?? [])].map((b) => b.textContent);
+
+  it('shows Accept, as the one filled button, and Needs Replacement without opening anything', () => {
+    mount();
+    const accept = buttonNamed('Accept');
+    const replace = buttonNamed('Needs Replacement');
+    expect(inMore()?.contains(accept)).toBe(false);
+    expect(inMore()?.contains(replace)).toBe(false);
+    expect(accept.className).toContain('btn-primary');
+    expect(replace.className).not.toContain('btn-primary');
+    expect(container.querySelectorAll('.btn-primary')).toHaveLength(1);
+  });
+
+  it('keeps Start Review, Contradiction, Propose Correction and Cancel Request, all of them, under More Decisions', () => {
+    mount();
+    expect(inMore()?.querySelector('summary')?.textContent).toBe('More Decisions');
+    expect(names(inMore())).toEqual([
+      'Start Review',
+      'Contradiction',
+      'Propose Correction',
+      'Cancel Request',
+    ]);
+  });
+
+  it('offers Start Review only while the request is Received, and no decision when the copy could not be shown', () => {
+    mount({ status: 'UNDER_REVIEW' });
+    expect(names(inMore())).not.toContain('Start Review');
+    mount({ canDecide: false });
+    expect(container.textContent).not.toContain('Accept');
+    expect(names(inMore())).toEqual(['Cancel Request']);
+  });
+});

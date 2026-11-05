@@ -8,7 +8,9 @@ import { formatTimestampDate } from '../lib/format-date';
 import { agree, plural } from '../lib/plural';
 import { useMediaQuery } from '../lib/use-popover';
 import { atLevel } from './depth';
+import { Icon } from './icons';
 import { EmptyState, StatusBadge } from './ui';
+import { AlertBanner } from './ui-lift';
 
 export interface WalletBrowserDocument {
   readonly id: string;
@@ -25,6 +27,8 @@ export interface WalletBrowserDocument {
   readonly needsReview: boolean;
   readonly expiring: boolean;
   readonly safetyLabel: string;
+  /** The colour of the safety words; neutral when the page does not say. */
+  readonly safetyTone?: 'neutral' | 'success' | 'warning' | 'danger';
   readonly processingLabel: string;
   readonly previewAllowed: boolean;
   readonly details: ReactNode;
@@ -179,7 +183,7 @@ export function DocumentWalletBrowser({
               showList();
             }}
           >
-            <span>{label}</span>
+            <span className="wallet-tile-name">{label}</span>
             <strong>{counts[key]}</strong>
           </button>
         ))}
@@ -221,23 +225,32 @@ export function DocumentWalletBrowser({
             </label>
           </div>
           {notSorted > 0 ? (
-            <p className="notice" data-testid="wallet-not-sorted">
-              {notSorted} document{notSorted === 1 ? ' has' : 's have'} no kind set yet, so{' '}
-              {notSorted === 1 ? 'it is' : 'they are'} in no category and left out when you share by
-              category. Open a document and choose its kind.{' '}
-              {category === NOT_SORTED ? null : (
-                <button
-                  type="button"
-                  className="btn btn-secondary u-btn-xs"
-                  onClick={() => {
-                    setCategory(NOT_SORTED);
-                    setPage(0);
-                  }}
-                >
-                  Show {notSorted === 1 ? 'It' : 'Them'}
-                </button>
-              )}
-            </p>
+            <div data-testid="wallet-not-sorted">
+              <AlertBanner
+                tone="info"
+                title={`${plural(notSorted, 'document')} ${agree(notSorted, 'needs', 'need')} a kind`}
+                action={
+                  category === NOT_SORTED ? undefined : (
+                    <button
+                      type="button"
+                      className="btn btn-secondary u-btn-xs"
+                      onClick={() => {
+                        setCategory(NOT_SORTED);
+                        setPage(0);
+                      }}
+                    >
+                      Show {notSorted === 1 ? 'It' : 'Them'}
+                    </button>
+                  )
+                }
+              >
+                <p>
+                  {notSorted} document{notSorted === 1 ? ' has' : 's have'} no kind set yet, so{' '}
+                  {notSorted === 1 ? 'it is' : 'they are'} in no category and left out when you
+                  share by category. Open a document and choose its kind.
+                </p>
+              </AlertBanner>
+            </div>
           ) : null}
           <output className="muted">
             {plural(matches.length, 'document')} {agree(matches.length, 'matches', 'match')}. Page{' '}
@@ -260,8 +273,13 @@ export function DocumentWalletBrowser({
                       window.history.replaceState(window.history.state, '', url);
                     }}
                   >
-                    <span className="wallet-document-name">{doc.name}</span>
-                    <span className="muted">
+                    <span className="wallet-document-name">
+                      <span className="wallet-document-icon" aria-hidden="true">
+                        <Icon name="file" size={18} />
+                      </span>
+                      {doc.name}
+                    </span>
+                    <span className="muted wallet-document-kind">
                       {doc.kind ?? 'Kind not set'}
                       {doc.category ? ` · ${doc.category}` : ''}
                       {doc.kind === null && doc.suggestedKind
@@ -275,9 +293,11 @@ export function DocumentWalletBrowser({
                       >
                         {doc.processingLabel}
                       </StatusBadge>
-                      <span>{doc.safetyLabel}</span>
+                      <StatusBadge tone={doc.safetyTone ?? 'neutral'}>
+                        {doc.safetyLabel}
+                      </StatusBadge>
                     </span>
-                    <span className="muted">
+                    <span className="muted wallet-document-updated">
                       {doc.updatedAt
                         ? `Updated ${formatTimestampDate(doc.updatedAt)}`
                         : 'Update time unavailable'}

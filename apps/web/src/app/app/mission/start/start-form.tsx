@@ -9,6 +9,7 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { StickyActionBar } from '../../../../components/sticky-action-bar';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../../lib/case-choices';
 import { type TripStartState, startTripAction } from './actions';
 
@@ -52,41 +53,45 @@ export function TripStartForm({
     });
   return (
     <form ref={form} action={formAction} className="trip-start-form">
-      <label className="label" htmlFor={`${id}-destination`}>
-        Where Are You Going?
-      </label>
-      <CountryField
-        id={`${id}-destination`}
-        countries={countries}
-        placeholder="For example: Japan"
-        hint="Type a name or open the list."
-        problem={fieldProblem(state, 'destination', messageId)}
-      />
-      <label className="label" htmlFor={`${id}-purpose`}>
-        Why?
-      </label>
-      <select
-        id={`${id}-purpose`}
-        name="purpose"
-        className="input"
-        value={purpose}
-        onChange={(e) => setPurpose(e.target.value)}
-        {...fieldProblem(state, 'purpose', messageId)}
-      >
-        <option value="" disabled>
-          Choose a Purpose
-        </option>
-        {purposes.map((group) => (
-          <optgroup key={group.family} label={group.label}>
-            {group.options.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
-      <fieldset className="trip-start-travellers">
+      <div className="lc-step">
+        <label className="label" htmlFor={`${id}-destination`}>
+          Where Are You Going?
+        </label>
+        <CountryField
+          id={`${id}-destination`}
+          countries={countries}
+          placeholder="For example: Japan"
+          hint="Type a name or open the list."
+          problem={fieldProblem(state, 'destination', messageId)}
+        />
+      </div>
+      <div className="lc-step">
+        <label className="label" htmlFor={`${id}-purpose`}>
+          Why?
+        </label>
+        <select
+          id={`${id}-purpose`}
+          name="purpose"
+          className="input"
+          value={purpose}
+          onChange={(e) => setPurpose(e.target.value)}
+          {...fieldProblem(state, 'purpose', messageId)}
+        >
+          <option value="" disabled>
+            Choose a Purpose
+          </option>
+          {purposes.map((group) => (
+            <optgroup key={group.family} label={group.label}>
+              {group.options.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </div>
+      <fieldset className="trip-start-travellers lc-step">
         <legend className="label">Who&apos;s Travelling?</legend>
         {travellers.map((t, index) => (
           <label key={t.applicantId} className="package-check">
@@ -102,14 +107,14 @@ export function TripStartForm({
           </label>
         ))}
       </fieldset>
-      <p className="muted u-fs-085 u-m-0">
+      <p className="muted u-fs-085 u-m-0 lc-help">
         Each traveller gets their own case. We ask for dates or other details only when the
         checklist needs them.
       </p>
-      <div>
+      <StickyActionBar label="Start the Trip">
         <SubmitButton pending={pending} idle="Start Trip" busy="Starting…" />
-        <FormMessage id={messageId} result={state} />
-      </div>
+      </StickyActionBar>
+      <FormMessage id={messageId} result={state} />
       {state.cases && state.cases.length > 0 ? (
         <ul className="trip-start-cases">
           {state.cases.map((c) => (

@@ -17202,4 +17202,1007 @@ a.row.lift-snap:hover {
 /* end WP-LIFT-B */
 
 /* WP-LIFT-C other screens: package C's classes for Home, Documents, Evidence, Agency Clients, Sharing and the Start forms. Flat, existing tokens only. Package C edits only inside this block. */
+/* Documents: the four filter tiles. The number leads, the name follows; the chosen tile takes the brand tint and a 2px bottom edge, like a selected stat tile. */
+.wallet-overview-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+.wallet-overview-strip button {
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.wallet-overview-strip button:last-child {
+  border-right: 1px solid var(--edge-card);
+}
+.wallet-overview-strip button:hover {
+  background: var(--brand-tint-1);
+}
+.wallet-overview-strip .wallet-tile-name {
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+.wallet-overview-strip strong {
+  font-size: var(--text-title);
+  font-weight: 750;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.wallet-overview-strip button[aria-pressed="true"] {
+  background: var(--brand-tint-2);
+  border-color: var(--edge-card);
+  border-bottom: 2px solid var(--brand);
+}
+
+/* Documents: each row is a file tile with the name and its date, the kind under the name, then the words of its state. The list is a narrow column beside the open document, so the parts stack. */
+.wallet-metadata-list .wallet-document-select {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid transparent;
+  border-left: 4px solid transparent;
+  border-radius: var(--radius-sm);
+}
+.wallet-metadata-list .wallet-document-select:hover {
+  background: var(--brand-tint-1);
+}
+.wallet-metadata-list .wallet-document-select[aria-pressed="true"] {
+  background: var(--brand-tint-2);
+  border-color: var(--edge-card);
+  border-left-color: var(--brand);
+}
+.wallet-document-select .wallet-document-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.wallet-document-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-3);
+  color: var(--brand);
+}
+.wallet-metadata-list .wallet-document-select > .wallet-document-kind {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  padding-left: 2.75rem;
+  font-size: var(--text-small);
+}
+.wallet-metadata-list .wallet-document-select .wallet-document-state {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding-left: 2.75rem;
+  margin-top: var(--space-1);
+}
+.wallet-metadata-list .wallet-document-select > .wallet-document-updated {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.wallet-metadata-list li {
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.wallet-metadata-list li:last-child {
+  border-bottom: 0;
+}
+.wallet-detail-jump {
+  padding-left: calc(var(--space-4) + 2.75rem);
+}
+
+/* Documents: the notice about files with no kind, drawn as a banner. */
+.document-wallet-list .lift-alert {
+  margin-bottom: var(--space-4);
+}
+.document-wallet-list .lift-alert-action .btn {
+  min-height: 44px;
+}
+
+/* Documents, phone: one column. The file name, its kind, its state and its date each take the full width, so a name is never squeezed to a letter a line. */
+@media (max-width: 767px) {
+  .wallet-overview-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .wallet-metadata-list .wallet-document-select {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wallet-document-select .wallet-document-name,
+  .wallet-metadata-list .wallet-document-select > .wallet-document-kind,
+  .wallet-metadata-list .wallet-document-select .wallet-document-state,
+  .wallet-metadata-list .wallet-document-select > .wallet-document-updated {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .wallet-metadata-list .wallet-document-select > .wallet-document-updated {
+    padding-left: 2.75rem;
+    white-space: normal;
+  }
+  .wallet-detail-jump {
+    padding-left: var(--space-4);
+  }
+}
+
+/* Shared by the screens below: a card whose rows run edge to edge (action rows carry their own padding). */
+.card.lc-flush {
+  padding: 0;
+  overflow: hidden;
+}
+.lc-flush > .lift-action:last-child {
+  border-bottom: 0;
+}
+
+/* Home: the Next Step banner stays the one dark block of the screen, but shorter, with a clear edge, a quiet label and the one light button. */
+.next-step {
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius);
+  border-left-color: var(--chapter-stroke-strong);
+}
+.next-step-tone-warning {
+  border-left-color: var(--warning-bg);
+}
+.next-step-tone-ok {
+  border-left-color: var(--success-bg);
+}
+.next-step .card-kicker {
+  margin-bottom: 0;
+  letter-spacing: 0.07em;
+}
+.next-step-title {
+  margin-top: var(--space-1);
+  font-size: var(--text-title);
+}
+.next-step-why {
+  margin-top: var(--space-2);
+  font-size: var(--text-body);
+}
+.next-step-text {
+  max-width: 40rem;
+}
+.next-step .btn-primary {
+  flex: none;
+}
+
+/* Home: the three counts. The number leads at display size, the name follows, a zero recedes. */
+@media (min-width: 761px) {
+  .traveller-metrics {
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+  }
+  .traveller-metrics .traveller-metric.lift-tile {
+    gap: var(--space-1);
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-lg);
+  }
+  .traveller-metrics .traveller-metric > .lift-tile-numeral {
+    order: -1;
+    font-size: var(--text-display);
+    font-weight: 750;
+  }
+  .traveller-metrics .traveller-metric > .lift-tile-label {
+    font-size: var(--text-body);
+    font-weight: 650;
+    color: var(--text);
+  }
+  .traveller-metrics .traveller-metric.lift-tile-zero > .lift-tile-label {
+    color: var(--text-secondary);
+  }
+  .traveller-metrics .traveller-metric > .lift-tile-note {
+    font-size: var(--text-small);
+    color: var(--text-secondary);
+  }
+}
+
+/* Home: the first steps are rows with a round mark; the step to take next is tinted and the finished ones are quiet. */
+.home-path h3 {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+.home-path-step {
+  gap: var(--space-3);
+  min-height: 64px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+}
+a.home-path-step:hover {
+  background: var(--brand-tint-1);
+}
+.home-path-steps li + li {
+  border-top-color: var(--hairline-soft);
+}
+.home-path-mark {
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid var(--edge-control);
+  color: var(--text-secondary);
+}
+.home-path-mark.home-path-done {
+  border-color: var(--success);
+  background: var(--success);
+  color: var(--bg-elevated);
+}
+.home-path-text strong {
+  font-weight: 650;
+}
+.home-path-state {
+  padding: 0.2rem 0.7rem;
+  background: var(--success-bg);
+  color: var(--success);
+}
+.home-path-state.home-path-next {
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+.home-path-steps li:has(.home-path-next) {
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-1);
+}
+
+/* Home: the case card. The stage word is a pill, progress is a thin bar with its numbers, the one way on is a button. */
+.traveller-featured-case {
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+}
+.traveller-featured-case .traveller-section-heading h4 {
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+.traveller-checklist {
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--brand-tint-1);
+}
+.traveller-checklist > strong {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+.traveller-checklist .lift-meter-text {
+  font-size: var(--text-small);
+}
+
+/* Home: dates read as a date first. */
+.traveller-agenda time,
+.traveller-activity time {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.traveller-agenda li > a,
+.traveller-activity li > a {
+  color: var(--text);
+}
+.home-profile .meter-label {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-small);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.home-profile .lift-meter {
+  margin: var(--space-2) 0;
+}
+.next-step,
+.next-step-tone-warning,
+.next-step-tone-ok {
+  border-left: 1px solid transparent;
+}
+.traveller-working-area .depth-item > h3,
+.traveller-working-area .split-rail .depth-item > h3 {
+  margin: var(--space-5) 0 var(--space-3);
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+.traveller-working-area .split-main > .depth-item:first-child > h3 {
+  margin-top: 0;
+}
+.traveller-working-area .split-main > .depth-item > .traveller-section-heading {
+  margin: var(--space-5) 0 var(--space-3);
+}
+@media (max-width: 760px) {
+  .home-path-step {
+    padding: var(--space-2) 0;
+  }
+  .traveller-featured-case {
+    padding: var(--space-4);
+  }
+  .traveller-checklist {
+    padding: var(--space-3);
+  }
+}
+
+/* Evidence Requests (traveller): each request is its own card; what needs a reply comes first, finished ones sit last and quiet. */
+.request-waiting-notice {
+  margin-bottom: var(--space-5);
+}
+.request-waiting-notice .lift-alert-body > p {
+  margin: 0;
+}
+.card:has(> .rows > .lc-request) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.rows:has(> .lc-request) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.rows > .case-row.lc-request {
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+.rows > .case-row.lc-request:last-child {
+  border-bottom: 1px solid var(--edge-card);
+}
+.lc-request .case-row-head {
+  align-items: center;
+}
+.lc-card-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.lc-request .case-row-title {
+  font-size: var(--text-lead);
+  font-weight: 700;
+  letter-spacing: -0.012em;
+}
+.lc-request .case-row-badges .badge {
+  min-height: 28px;
+  padding: 0 0.7rem;
+  font-size: var(--text-small);
+}
+.lc-card-reason {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-1);
+  color: var(--text);
+}
+.lc-request .field-msg-err {
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--danger-strong);
+  border-radius: var(--radius-sm);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-weight: 650;
+}
+.lc-card-group {
+  margin: var(--space-4) 0 calc(-1 * var(--space-1));
+  font-size: var(--text-small);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+.rows > .case-row.lc-card-finished {
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  background: var(--brand-tint-1);
+}
+.lc-card-finished .case-row-title {
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.lc-card-finished .lift-action-tile {
+  background: var(--bg-elevated);
+}
+
+/* Evidence Requests: choosing the copy to send. Each option is a 56px row you can press anywhere, with a file tile; the chosen one takes the brand tint; the one filled button follows. */
+.lc-request .lc-choices {
+  gap: var(--space-2);
+}
+.lc-request .lc-choice {
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  cursor: pointer;
+}
+.lc-request .lc-choice:has(input:checked) {
+  border-color: var(--brand);
+  background: var(--brand-tint-2);
+}
+.lc-request .lc-choice.lc-choice-unavailable {
+  background: var(--bg-subtle);
+  cursor: not-allowed;
+}
+.lc-request .lc-choice input[type="radio"] {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+}
+.lc-request .lc-pick {
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+}
+.lc-pick-icon {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-3);
+  color: var(--brand);
+}
+.lc-request .lc-pick-name {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.lc-request .lc-pick-legend {
+  margin-bottom: var(--space-1);
+  font-size: var(--text-body);
+  font-weight: 700;
+}
+.lc-request .lc-response-actions {
+  margin-top: var(--space-1);
+}
+.lc-request .lc-response > .muted {
+  font-size: var(--text-small);
+  color: var(--text-tertiary);
+}
+.lc-request .lc-questions {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--brand-tint-1);
+}
+.lc-request .lc-questions-title {
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+.lc-request .lc-ask {
+  border-top: 1px solid var(--hairline-soft);
+}
+.lc-request .lc-clearer {
+  border-radius: var(--radius-pill);
+}
+@media (max-width: 760px) {
+  .rows > .case-row.lc-request {
+    padding: var(--space-4);
+  }
+  .lc-request .lc-response-actions .btn {
+    flex: 1 1 100%;
+  }
+}
+
+/* Agency Clients: adding people and requests is one card. Each part has a small heading, a line of words and its rows, each row opening in place. */
+.agency-add-card {
+  margin-bottom: var(--space-5);
+}
+.agency-add-part + .agency-add-part {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--hairline-soft);
+}
+.agency-add-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+.agency-add-part > .card-body {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.agency-add-card .collapsible-group {
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+.agency-add-card .collapsible-group + .collapsible-group {
+  margin-top: var(--space-2);
+}
+.agency-add-card .collapsible-group:not([open]) > .lift-action-summary {
+  border-bottom: 0;
+}
+.agency-add-card .collapsible-group[open] > .lift-action-summary {
+  background: var(--brand-tint-1);
+}
+.agency-add-card .collapsible-group > .collapsible-group-body {
+  padding: var(--space-4);
+}
+.agency-add-card .collapsible-group .collapsible-group-count {
+  padding: 0 0.6rem;
+  background: var(--brand-bg);
+  color: var(--brand);
+  font-weight: 700;
+}
+.lc-invite-contact {
+  margin-left: var(--space-2);
+  font-size: var(--text-small);
+}
+.lc-small-note {
+  margin-top: var(--space-4);
+  font-size: var(--text-small);
+}
+
+/* Agency Clients: the status filters are one segmented control with a count on each; the chosen one takes the brand tint and a 2px edge. */
+.quick-views.lift-segments {
+  flex-wrap: nowrap;
+  gap: 0;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.quick-views.lift-segments .quick-view {
+  flex: none;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-right: 1px solid var(--hairline-soft);
+  border-radius: 0;
+  background: transparent;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.quick-views.lift-segments .quick-view:last-child {
+  border-right: 0;
+}
+.quick-views.lift-segments .quick-view:hover {
+  background: var(--brand-tint-1);
+}
+.quick-views.lift-segments .quick-view-on {
+  background: var(--brand-tint-2);
+  border-bottom: 2px solid var(--brand);
+  color: var(--selected-text);
+  font-weight: 700;
+}
+.quick-views.lift-segments .quick-view .muted {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Agency Clients: each request is a block. Received reads as information, Accepted as success; they are never the same colour. The sent copy sits on the light brand tint. */
+.rows > .row.request-row {
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.rows:has(> .request-row) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.request-row-head {
+  align-items: center;
+}
+.request-row-head .row-key {
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+.lc-copy {
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--brand-tint-1);
+}
+.lc-copy-file {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.lc-copy-file .lift-action-tile {
+  background: var(--bg-elevated);
+}
+.lc-copy-name {
+  font-size: var(--text-body);
+}
+.lc-copy-code {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
+.lc-copy-scan {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-caption);
+}
+.lc-copy-scan-icon {
+  flex: none;
+  display: inline-grid;
+  margin-top: 1px;
+}
+.lc-earlier-toggle {
+  padding: 0 var(--space-1);
+}
+.request-decision-buttons {
+  align-items: flex-start;
+}
+.request-decision-more {
+  min-width: 0;
+}
+.request-decision-more-toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  cursor: pointer;
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--selected-text);
+}
+.request-decision-more-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+@media (max-width: 760px) {
+  .quick-views.lift-segments {
+    width: 100%;
+  }
+  .rows > .row.request-row {
+    padding: var(--space-3);
+  }
+}
+
+/* Sharing: each grant is its own card with a tile, the name and its state in words. Pause and Resume are quiet; Revoke is an outlined danger button until it is confirmed. */
+.rows:has(> .sharing-grant),
+.rows:has(> .lc-ended-group) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.rows > .row.sharing-grant,
+.lc-ended-rows > .row.sharing-grant {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+.rows > .row.sharing-grant:last-child {
+  border-bottom: 1px solid var(--edge-card);
+}
+.lc-grant-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.lc-grant-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.lc-grant-name .row-key {
+  font-size: var(--text-lead);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.lc-ended-rows .lift-action-tile {
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+.lc-small-m0 {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.lc-grant-ops {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lc-grant-ops-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.lc-grant-ops .btn {
+  min-height: 44px;
+}
+.btn-danger-outline {
+  border: 1px solid var(--danger-strong);
+  background: var(--bg-elevated);
+  color: var(--danger);
+}
+.btn-danger-outline:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger-strong);
+}
+.lc-revoke-warning {
+  padding: var(--space-3) var(--space-4);
+  border-left: 4px solid var(--warning);
+  border-radius: var(--radius-sm);
+  background: var(--warning-bg);
+  color: var(--text);
+}
+.lc-scope-expansion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  border-left: 4px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--brand-bg);
+  color: var(--text);
+}
+.lc-scope-expansion-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lc-ended-group {
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.lc-ended-summary {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+.lc-ended-rows {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+/* Sharing: the summary of what you are about to share stacks each name above its value, so a long value has the full width. */
+.sharing-composer-card .scope-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+}
+.sharing-composer-card .scope-row dt {
+  font-size: var(--text-caption);
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+.sharing-composer-card .scope-row dd {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+/* Sharing: the access log filters fold under one heading. */
+.activity-log-fold {
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.activity-log-fold-toggle {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--selected-text);
+}
+.activity-log-fold > .activity-log-filters {
+  margin: 0;
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+/* Sharing and Evidence: a long name never shares a line with a long state; the state drops under it. Radio buttons and ticks use the brand colour. */
+.lc-grant-head {
+  flex-wrap: wrap;
+}
+.lc-grant-name {
+  flex: 1 1 12rem;
+}
+.sharing-grant-details-summary {
+  color: var(--selected-text);
+}
+.lc-request .lc-choice input[type="radio"],
+.sharing-composer input[type="radio"],
+.sharing-composer input[type="checkbox"] {
+  accent-color: var(--brand);
+}
+.lc-card-finished .lc-card-reason {
+  background: var(--bg-elevated);
+}
+@media (max-width: 760px) {
+  .rows > .row.sharing-grant,
+  .lc-ended-rows > .row.sharing-grant {
+    padding: var(--space-3);
+  }
+}
+
+/* Start forms: each question is its own numbered card; the numbers come from a counter, never from the words. Help text is small and quiet. One filled button sits in the bar at the bottom. */
+.lc-steps,
+.trip-start-form {
+  counter-reset: lc-step;
+}
+article.card:has(> .trip-start-form) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.trip-start-form {
+  gap: var(--space-4);
+  margin-top: 0;
+}
+.lc-step,
+.lc-steps > .field-row {
+  counter-increment: lc-step;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-4) var(--space-4) var(--space-4) 4rem;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+.lc-step::before,
+.lc-steps > .field-row::before {
+  content: counter(lc-step);
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--brand-tint-3);
+  color: var(--brand);
+  font-size: var(--text-small);
+  font-weight: 700;
+}
+.lc-step > legend {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+.lc-help {
+  font-size: var(--text-small);
+  color: var(--text-tertiary);
+}
+.lc-steps .field-hint {
+  font-size: var(--text-small);
+  color: var(--text-tertiary);
+}
+.lc-steps > .disclosure {
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+}
+.lc-steps > .sticky-action-bar,
+.trip-start-form > .sticky-action-bar {
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-lg);
+}
+@media (max-width: 760px) {
+  .lc-step,
+  .lc-steps > .field-row {
+    padding: var(--space-3) var(--space-3) var(--space-3) 3.25rem;
+  }
+  .lc-step::before,
+  .lc-steps > .field-row::before {
+    top: var(--space-3);
+    left: var(--space-3);
+  }
+}
+
+/* The empty panel on the Cases page: the second line, the reason it helps, is quiet. */
+.lc-empty-why {
+  font-size: var(--text-small);
+  color: var(--text-tertiary);
+}
+.lift-empty-line > p + p {
+  margin-top: var(--space-2);
+}
+
+/* Agency Clients on a phone: the request name takes the body size so it shares a line with its state, and the spacing tightens, keeping the page inside three screens. */
+@media (max-width: 760px) {
+  .request-row-head .row-key {
+    font-size: var(--text-body);
+  }
+  .rows > .row.request-row {
+    gap: var(--space-1);
+  }
+  .rows:has(> .request-row) {
+    gap: var(--space-2);
+  }
+  .agency-add-part + .agency-add-part {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+  }
+}
+
+/* Empty places on these screens look like the empty panel: a dashed edge, a 48px tile, a bold title, one quiet line and one way to begin. */
+:is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: 2px dashed var(--edge-card);
+  border-radius: var(--radius-lg);
+  background: transparent;
+}
+:is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state .icon-tile {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 0;
+  border-radius: var(--radius);
+  background: var(--brand-tint-3);
+}
+:is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state-title {
+  margin: 0;
+  font-size: var(--text-lead);
+  font-weight: 700;
+}
+:is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state-body {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--text-secondary);
+}
+:is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state-why {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-tertiary);
+}
+:is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state > .btn {
+  margin-top: var(--space-2);
+}
+.traveller-featured-case:has(> .empty-state) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+@media (max-width: 760px) {
+  :is(.traveller-overview, .document-wallet-list, .lc-empty-host) .empty-state {
+    padding: var(--space-4);
+  }
+}
 /* end WP-LIFT-C */

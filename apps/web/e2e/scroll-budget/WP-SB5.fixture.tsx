@@ -1,9 +1,10 @@
+import { FormGroup } from '../../src/app/app/agency/[orgId]/clients/form-group';
 import { ActivityLog, type ActivityLogEntry } from '../../src/components/activity-log';
 import { CaseReadinessRing } from '../../src/components/case-readiness-ring';
-import { CollapsibleGroup } from '../../src/components/collapsible-group';
 import { ReferenceCode } from '../../src/components/reference-code';
 import { ShowMore } from '../../src/components/show-more';
 import { StatusBadge } from '../../src/components/ui';
+import { SectionCard } from '../../src/components/ui-lift';
 
 /**
  * WP-SB5 scroll budget fixture: the capped parts of the agency Cases, Activity, Clients and
@@ -141,74 +142,84 @@ function Clients({
   const requestsShown = Math.min(shown, 10);
   return (
     <>
-      <article className="card u-mb-150">
-        <p className="card-kicker">Intake</p>
-        <h2 className="card-title">Clients</h2>
-        <p className="card-body u-mb-125">
-          Invite a traveller as a new client. They alone choose which of their own traveller
-          profiles the resulting case attaches to, and their acceptance is what actually grants this
-          organization access, never the invitation itself.
-        </p>
-        {/* WP-SB11: the pending invitations fold into their own group, closed while there are
+      <div className="agency-add-card">
+        <SectionCard heading="Add People and Requests">
+          <section className="agency-add-part">
+            <p className="card-kicker">Intake</p>
+            <h3 className="agency-add-title">Clients</h3>
+            <p className="card-body">
+              Invite a traveller as a new client. They alone choose which of their own traveller
+              profiles the resulting case attaches to, and their acceptance is what actually grants
+              this organization access, never the invitation itself.
+            </p>
+            {/* WP-SB11: the pending invitations fold into their own group, closed while there are
             requests to follow, as on the real page. */}
-        <CollapsibleGroup
-          id="client-invitations"
-          title="Pending Invitations"
-          count={total}
-          noun={{ one: 'pending invitation', other: 'pending invitations' }}
-          open={invitationsOpen}
-        >
-          <div className="rows u-mb-100" id="client-invitation-list">
-            {rows(shown).map((n) => (
-              <div className="row" key={n}>
-                <span className="row-key">
-                  Client Number {n}
-                  <span
-                    className="muted"
-                    style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
-                  >
-                    client-{n}@example.test
-                  </span>
-                </span>
-                <span className="row-end">
-                  <span className="badge badge-warning">Invited &middot; expires 20 Dec 2026</span>
-                  <button type="button" className="btn btn-secondary u-btn-sm">
-                    Revoke
-                  </button>
-                </span>
+            <FormGroup
+              id="client-invitations"
+              title="Pending Invitations"
+              icon="mail"
+              count={total}
+              noun={{ one: 'pending invitation', other: 'pending invitations' }}
+              openAtFirst={invitationsOpen}
+            >
+              <div className="rows u-mb-100" id="client-invitation-list">
+                {rows(shown).map((n) => (
+                  <div className="row" key={n}>
+                    <span className="row-key">
+                      Client Number {n}
+                      <span className="muted lc-invite-contact">client-{n}@example.test</span>
+                    </span>
+                    <span className="row-end">
+                      <span className="badge badge-warning">
+                        Invited &middot; expires 20 Dec 2026
+                      </span>
+                      <button type="button" className="btn btn-secondary u-btn-sm">
+                        Revoke
+                      </button>
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <ShowMore
-            id="client-invitation-more"
-            landOn="client-invitation-list"
-            pathname="/app/agency/o1/clients"
-            next={shown < total ? { invitesBefore: 'next' } : null}
-            shown={shown}
-            total={total}
-            noun={{ one: 'pending invitation', other: 'pending invitations' }}
-          />
-        </CollapsibleGroup>
-        <CollapsibleGroup id="invite-client" title="Invite a Client">
-          <p>The invitation form.</p>
-        </CollapsibleGroup>
-      </article>
-      <article className="card u-mb-150">
-        <p className="card-kicker">Collect</p>
-        <h2 className="card-title">Request Evidence</h2>
-        <p className="card-body u-mb-125">
-          Ask a traveller for a specific field or document. They decide whether to fulfil it.
-        </p>
-        <CollapsibleGroup id="ask-for-evidence" title="Ask for a Field or Document">
-          <p>The request form.</p>
-        </CollapsibleGroup>
-      </article>
+              <ShowMore
+                id="client-invitation-more"
+                landOn="client-invitation-list"
+                pathname="/app/agency/o1/clients"
+                next={shown < total ? { invitesBefore: 'next' } : null}
+                shown={shown}
+                total={total}
+                noun={{ one: 'pending invitation', other: 'pending invitations' }}
+              />
+            </FormGroup>
+            <FormGroup id="invite-client" title="Invite a Client" icon="users" openAtFirst={false}>
+              <p>The invitation form.</p>
+            </FormGroup>
+          </section>
+          <section className="agency-add-part">
+            <p className="card-kicker">Collect</p>
+            <h3 className="agency-add-title">Request Evidence</h3>
+            <p className="card-body">
+              Ask a traveller for a specific field or document. They decide whether to fulfil it.
+            </p>
+            <FormGroup
+              id="ask-for-evidence"
+              title="Ask for a Field or Document"
+              icon="clipboard"
+              openAtFirst={false}
+            >
+              <p>The request form.</p>
+            </FormGroup>
+          </section>
+        </SectionCard>
+      </div>
       <article className="card">
         <p className="card-kicker">Activity</p>
         <h2 className="card-title" id="agency-evidence-requests">
           Evidence Requests
         </h2>
-        <nav className="quick-views u-mt-050" aria-label="Evidence requests by status">
+        <nav
+          className="quick-views lift-segments u-mt-050"
+          aria-label="Evidence requests by status"
+        >
           {['All 320', 'Open 300', 'Waiting on You 12', 'Needs Replacement 3', 'Closed 5'].map(
             (label, n) => (
               <a
@@ -224,13 +235,8 @@ function Clients({
         </nav>
         <div className="rows u-mt-050" id="agency-evidence-request-list">
           {rows(requestsShown).map((n) => (
-            <div
-              className="row"
-              key={n}
-              id={`request-r${n}`}
-              style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.2rem' }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+            <div className="row request-row" key={n} id={`request-r${n}`}>
+              <div className="request-row-head">
                 <span className="row-key">Document: Bank Statement</span>
                 <span className="badge badge-warning">Open</span>
               </div>

@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ReferenceCode } from '../../../../../components/reference-code';
 import { EmptyState } from '../../../../../components/ui';
+import { SectionCard } from '../../../../../components/ui-lift';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { evidenceDocumentGroups, evidenceFieldGroups } from '../../../../../lib/master-profile';
 import { type SearchParamsRecord, firstParam, pagingHref } from '../../../../../lib/paging';
@@ -176,129 +177,142 @@ export default async function AgencyClientsPage({
   return (
     <>
       <OpenRequestFromLink />
-      <article className="card u-mb-150">
-        <p className="card-kicker">Intake</p>
-        <h2 className="card-title">Clients</h2>
-        <p className="card-body u-mb-125">
-          Invite a traveller as a new client. They alone choose which of their own traveller
-          profiles the resulting case attaches to, and their acceptance is what actually grants this
-          organization access, never the invitation itself.
-        </p>
-        {invitations.total > 0 ? (
-          // Keeps the state it first opened with across this page's own links (Show More, Back to
-          // the Newest Invitations), so a link into the list never folds it shut.
-          <FormGroup
-            id="client-invitations"
-            title="Pending Invitations"
-            count={invitations.total}
-            noun={{ one: 'pending invitation', other: 'pending invitations' }}
-            openAtFirst={pagingInvitations || requests.viewCounts.all === 0}
-          >
-            <div className="rows u-mb-100" id="client-invitation-list">
-              {invitations.items.map((invitation) => (
-                <div className="row" key={invitation.id}>
-                  <span className="row-key">
-                    {invitation.displayName}
-                    <span
-                      className="muted"
-                      style={{ fontSize: 'var(--text-small)', marginLeft: '0.5rem' }}
-                    >
-                      {invitation.contactDestination}
-                    </span>
-                  </span>
-                  <span className="row-end">
-                    {!isAcceptableInvitationContact(invitation.contactDestination) ? (
-                      // Saved without a valid email address before invitations became email-only:
-                      // nobody can accept it.
-                      <span className="badge badge-danger">
-                        Cannot be accepted &middot; revoke and invite again by email
+      <div className="agency-add-card lc-empty-host">
+        <SectionCard heading="Add People and Requests">
+          <section className="agency-add-part" aria-labelledby="agency-add-clients">
+            <p className="card-kicker">Intake</p>
+            <h3 className="agency-add-title" id="agency-add-clients">
+              Clients
+            </h3>
+            <p className="card-body">
+              Invite a traveller as a new client. They alone choose which of their own traveller
+              profiles the resulting case attaches to, and their acceptance is what actually grants
+              this organization access, never the invitation itself.
+            </p>
+            {invitations.total > 0 ? (
+              // Keeps the state it first opened with across this page's own links (Show More, Back to
+              // the Newest Invitations), so a link into the list never folds it shut.
+              <FormGroup
+                id="client-invitations"
+                title="Pending Invitations"
+                icon="mail"
+                count={invitations.total}
+                noun={{ one: 'pending invitation', other: 'pending invitations' }}
+                openAtFirst={pagingInvitations || requests.viewCounts.all === 0}
+              >
+                <div className="rows u-mb-100" id="client-invitation-list">
+                  {invitations.items.map((invitation) => (
+                    <div className="row" key={invitation.id}>
+                      <span className="row-key">
+                        {invitation.displayName}
+                        <span className="muted lc-invite-contact">
+                          {invitation.contactDestination}
+                        </span>
                       </span>
-                    ) : new Date(invitation.expiresAt).getTime() < Date.now() ? (
-                      <span className="badge badge-neutral">
-                        Expired {formatTimestampDate(invitation.expiresAt)} &middot; invite again
+                      <span className="row-end">
+                        {!isAcceptableInvitationContact(invitation.contactDestination) ? (
+                          // Saved without a valid email address before invitations became email-only:
+                          // nobody can accept it.
+                          <span className="badge badge-danger">
+                            Cannot be accepted &middot; revoke and invite again by email
+                          </span>
+                        ) : new Date(invitation.expiresAt).getTime() < Date.now() ? (
+                          <span className="badge badge-neutral">
+                            Expired {formatTimestampDate(invitation.expiresAt)} &middot; invite
+                            again
+                          </span>
+                        ) : (
+                          <span className="badge badge-warning">
+                            Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
+                          </span>
+                        )}
+                        <ClientInvitationRevokeButton
+                          organizationId={orgId}
+                          invitationId={invitation.id}
+                        />
                       </span>
-                    ) : (
-                      <span className="badge badge-warning">
-                        Invited &middot; expires {formatTimestampDate(invitation.expiresAt)}
-                      </span>
-                    )}
-                    <ClientInvitationRevokeButton
-                      organizationId={orgId}
-                      invitationId={invitation.id}
-                    />
-                  </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <ListPager
-              id="client-invitation-more"
-              landOn="client-invitation-list"
-              pathname={pathname}
-              query={query}
-              keys={INVITE_KEYS}
-              sizes={AGENCY_LIST_SIZES}
-              window={invitePage}
-              shown={invitations.items.length}
-              total={invitations.total}
-              nextCursor={invitations.nextCursor}
-              noun={{ one: 'pending invitation', other: 'pending invitations' }}
-              newestLabel="Back to the Newest Invitations"
-            />
-          </FormGroup>
-        ) : (
-          <div className="u-mb-150">
-            <EmptyState
+                <ListPager
+                  id="client-invitation-more"
+                  landOn="client-invitation-list"
+                  pathname={pathname}
+                  query={query}
+                  keys={INVITE_KEYS}
+                  sizes={AGENCY_LIST_SIZES}
+                  window={invitePage}
+                  shown={invitations.items.length}
+                  total={invitations.total}
+                  nextCursor={invitations.nextCursor}
+                  noun={{ one: 'pending invitation', other: 'pending invitations' }}
+                  newestLabel="Back to the Newest Invitations"
+                />
+              </FormGroup>
+            ) : (
+              <div className="u-mb-150">
+                <EmptyState
+                  icon="users"
+                  title="No Clients Invited Yet"
+                  why="You see each client's progress here once they accept."
+                  action={{ href: '#invite-client', label: 'Invite a Client' }}
+                >
+                  This is where you invite the people you help. Each one gets a link, creates their
+                  file, and chooses what to share with you. Start with the form below.
+                </EmptyState>
+              </div>
+            )}
+            {/* Opens on its own while nobody is invited yet, and for a link to #invite-client. */}
+            <FormGroup
+              id="invite-client"
+              title="Invite a Client"
               icon="users"
-              title="No Clients Invited Yet"
-              why="You see each client's progress here once they accept."
-              action={{ href: '#invite-client', label: 'Invite a Client' }}
+              openAtFirst={invitations.total === 0}
             >
-              This is where you invite the people you help. Each one gets a link, creates their
-              file, and chooses what to share with you. Start with the form below.
-            </EmptyState>
-          </div>
-        )}
-        {/* Opens on its own while nobody is invited yet, and for a link to #invite-client. */}
-        <FormGroup id="invite-client" title="Invite a Client" openAtFirst={invitations.total === 0}>
-          <ClientInvitationForm
-            pendingInvitationIds={data.pendingInvitationIds}
-            organizationId={orgId}
-            members={data.members.map((m) => ({
-              accountId: m.accountId,
-              email: m.email,
-              active: m.active,
-            }))}
-          />
-        </FormGroup>
-      </article>
+              <ClientInvitationForm
+                pendingInvitationIds={data.pendingInvitationIds}
+                organizationId={orgId}
+                members={data.members.map((m) => ({
+                  accountId: m.accountId,
+                  email: m.email,
+                  active: m.active,
+                }))}
+              />
+            </FormGroup>
+          </section>
 
-      <article className="card u-mb-150">
-        <p className="card-kicker">Collect</p>
-        <h2 className="card-title">Request Evidence</h2>
-        <p className="card-body u-mb-125">
-          Ask a traveller for a specific field or document. They decide whether to fulfil it.
-        </p>
-        {/* Opens on its own while no request exists yet, and for a link to #ask-for-evidence. */}
-        <FormGroup
-          id="ask-for-evidence"
-          title="Ask for a Field or Document"
-          openAtFirst={requests.viewCounts.all === 0}
-        >
-          <RequestEvidenceForm
-            organizationId={orgId}
-            fieldGroups={evidenceFieldGroups()}
-            documentGroups={evidenceDocumentGroups()}
-            applicants={data.applicants}
-            missions={data.cases.map((m) => ({
-              missionId: m.missionId,
-              title: m.title,
-              applicantName: m.applicantName,
-            }))}
-          />
-        </FormGroup>
-      </article>
+          <section className="agency-add-part" aria-labelledby="agency-add-evidence">
+            <p className="card-kicker">Collect</p>
+            <h3 className="agency-add-title" id="agency-add-evidence">
+              Request Evidence
+            </h3>
+            <p className="card-body">
+              Ask a traveller for a specific field or document. They decide whether to fulfil it.
+            </p>
+            {/* Opens on its own while no request exists yet, and for a link to #ask-for-evidence. */}
+            <FormGroup
+              id="ask-for-evidence"
+              title="Ask for a Field or Document"
+              icon="clipboard"
+              openAtFirst={requests.viewCounts.all === 0}
+            >
+              <RequestEvidenceForm
+                organizationId={orgId}
+                fieldGroups={evidenceFieldGroups()}
+                documentGroups={evidenceDocumentGroups()}
+                applicants={data.applicants}
+                missions={data.cases.map((m) => ({
+                  missionId: m.missionId,
+                  title: m.title,
+                  applicantName: m.applicantName,
+                }))}
+              />
+            </FormGroup>
+          </section>
+        </SectionCard>
+      </div>
 
-      <article className="card">
+      <article className="card lc-empty-host">
         <p className="card-kicker">Activity</p>
         <h2 className="card-title" id="agency-evidence-requests">
           Evidence Requests
@@ -315,7 +329,10 @@ export default async function AgencyClientsPage({
           </EmptyState>
         ) : (
           <>
-            <nav className="quick-views u-mt-050" aria-label="Evidence requests by status">
+            <nav
+              className="quick-views lift-segments u-mt-050"
+              aria-label="Evidence requests by status"
+            >
               <Link
                 href={viewHref(null)}
                 className={`quick-view${view ? '' : ' quick-view-on'}`}
@@ -377,7 +394,7 @@ export default async function AgencyClientsPage({
             )}
           </>
         )}
-        <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '1rem' }}>
+        <p className="muted lc-small-note">
           Each request belongs to a case. To work on a case, open it in{' '}
           <Link href={`/app/agency/${orgId}/cases`}>Cases</Link>.
         </p>
@@ -415,7 +432,9 @@ function RequestRow({
         <span className="row-key">
           {req.kind === 'FIELD' ? 'Field' : 'Document'}: {target}
         </span>
-        <span className={`badge ${rb.tone}`}>{rb.label}</span>
+        <span className={`badge ${rb.tone}${req.status === 'RECEIVED' ? ' lift-pill-info' : ''}`}>
+          {rb.label}
+        </span>
       </div>
       <span className="muted u-fs-085">
         {req.applicantName}

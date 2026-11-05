@@ -2,6 +2,7 @@
 
 import { useActionState, useId, useState } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../../components/form-feedback';
+import { Icon } from '../../../../../components/icons';
 import { SAVING_TEXT, saveResult } from '../../../../../lib/save-status';
 import { type ActionState, submitEvidenceResponseAction } from './actions';
 import { type DocumentChoice, chooseLegendId, initialChoice } from './response-choices';
@@ -140,7 +141,7 @@ export function SubmitResponseForm({
           : null;
 
   return (
-    <form action={formAction} className="request-response">
+    <form action={formAction} className="request-response lc-response">
       <input type="hidden" name="applicantId" value={applicantId} />
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name={kind === 'FIELD' ? 'factId' : 'documentId'} value={selection} />
@@ -149,12 +150,16 @@ export function SubmitResponseForm({
       ) : null}
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <fieldset className="request-choices" aria-describedby={hint ? hintId : undefined}>
-        <legend className="evidence-pick-legend" id={chooseLegendId(requestId)} tabIndex={-1}>
+        <legend
+          className="evidence-pick-legend lc-pick-legend"
+          id={chooseLegendId(requestId)}
+          tabIndex={-1}
+        >
           {kind === 'FIELD' ? 'Choose the Detail to Send' : 'Choose the Copy to Send'}
         </legend>
         {kind === 'FIELD'
           ? candidateFacts.map((f) => (
-              <label key={f.factId} className="request-choice">
+              <label key={f.factId} className="request-choice lc-choice">
                 <input
                   type="radio"
                   name="choice"
@@ -167,7 +172,7 @@ export function SubmitResponseForm({
           : documentChoices.map((choice) => (
               <label
                 key={choice.documentId}
-                className={`request-choice evidence-pick${choice.usable ? '' : ' request-choice-unavailable'}`}
+                className={`request-choice evidence-pick lc-choice lc-pick${choice.usable ? '' : ' request-choice-unavailable lc-choice-unavailable'}`}
               >
                 <input
                   type="radio"
@@ -176,8 +181,11 @@ export function SubmitResponseForm({
                   checked={selection === choice.documentId}
                   onChange={() => setSelection(choice.documentId)}
                 />
+                <span className="lc-pick-icon" aria-hidden="true">
+                  <Icon name="file" size={20} />
+                </span>
                 <span className="evidence-pick-text">
-                  <span className="evidence-pick-name">{choice.name}</span>
+                  <span className="evidence-pick-name lc-pick-name">{choice.name}</span>
                   <span className="evidence-pick-meta">
                     {choice.kindLabel} · Added {choice.addedLabel} · {choice.scanLabel}
                   </span>
@@ -200,7 +208,7 @@ export function SubmitResponseForm({
           {hint}
         </p>
       ) : null}
-      <div className="request-response-actions">
+      <div className="request-response-actions lc-response-actions">
         <SubmitButton
           pending={pending}
           unavailable={selection.length === 0}
