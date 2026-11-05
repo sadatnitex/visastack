@@ -120,6 +120,17 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* A phone or tablet never widens its page to fit one wide thing. Without this, a single element
+   wider than the screen makes the phone lay the whole page out at that width and shrink it, so the
+   installed app looks like a zoomed-out desktop site. Touch screens only: a desktop keeps the
+   normal rule, so the sideways-scroll checks still see any element that sticks out. */
+@media (hover: none) and (pointer: coarse) {
+  html,
+  body {
+    overflow-x: clip;
+  }
+}
+
 a {
   color: var(--accent);
   text-decoration: none;
@@ -14744,7 +14755,8 @@ output.notice {
   .docs-add-fab {
     position: fixed;
     right: var(--space-4);
-    bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+    /* Above the bottom bar (60px tall, plus the phone's own bottom edge), never behind it. */
+    bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
     z-index: 40;
     display: inline-flex;
     align-items: center;
