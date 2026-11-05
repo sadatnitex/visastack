@@ -200,7 +200,10 @@ describe('Profile History in a fixed log (WP-SB1)', () => {
       value: [{ missionId: 'm1', title: 'Japan Visitor Visa' }],
     });
     const text = textOf(await page());
-    expect(text).toContain('Anna · Declared · Manual · Used by Japan Visitor Visa');
+    // The recorded value leads; the facts about it follow, each apart.
+    for (const part of ['Anna', 'Declared', 'Manual', 'Used by Japan Visitor Visa']) {
+      expect(text).toContain(part);
+    }
     expect(service.listMissionsUsingField).toHaveBeenCalledTimes(1);
   });
 

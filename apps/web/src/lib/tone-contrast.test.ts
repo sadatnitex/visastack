@@ -53,4 +53,16 @@ describe('the six tones', () => {
       expect(contrast(tone, '#ffffff'), `${tone} on white`).toBeGreaterThanOrEqual(4.5);
     });
   }
+
+  it('are used by the rules that paint them: the icon accent, the Documents tiles and the overview tiles', () => {
+    for (const rule of [
+      '.icon .icon-accent {',
+      '.wallet-overview-strip button[data-tone] {',
+      '.lift-tile[data-tone] {',
+      '.insights-summary-item .insights-summary-value',
+      '.row.activity-log-row {',
+    ]) {
+      expect(css, rule).toContain(rule);
+    }
+  });
 });

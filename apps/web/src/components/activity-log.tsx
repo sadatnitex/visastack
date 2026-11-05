@@ -28,6 +28,27 @@ function markFor(entry: ActivityLogEntry): { tone: 'green' | 'red' | 'blue'; ico
   return { tone: 'blue', icon: 'activity' };
 }
 
+/**
+ * The second line of an entry. A detail is a short list joined by a middle dot: the first part is
+ * what was recorded and reads as the line; the rest are the facts about it, set smaller and apart,
+ * so a long record never runs together into one hard line.
+ */
+function DetailLines({ detail }: { readonly detail: string }) {
+  const [value, ...facts] = detail.split(' \u00b7 ');
+  return (
+    <>
+      <p className="activity-log-detail">{value}</p>
+      {facts.length > 0 ? (
+        <ul className="activity-log-facts">
+          {facts.map((fact) => (
+            <li key={fact}>{fact}</li>
+          ))}
+        </ul>
+      ) : null}
+    </>
+  );
+}
+
 const PERIODS = [
   { key: 'any', label: 'Any Time', days: null },
   { key: 'day', label: 'Last 24 Hours', days: 1 },
@@ -262,29 +283,23 @@ export function ActivityLog({
         ) : (
           <ol className="rows activity-log-list">
             {shown.map((entry) => (
-              <li className="row activity-log-row" key={entry.id}>
-                <span
-                  className="activity-log-mark"
-                  data-tone={markFor(entry).tone}
-                  aria-hidden="true"
-                >
-                  <Icon name={markFor(entry).icon} size={16} />
+              <li className="row activity-log-row" key={entry.id} data-tone={markFor(entry).tone}>
+                <span className="activity-log-mark" aria-hidden="true">
+                  <Icon name={markFor(entry).icon} size={14} />
                 </span>
-                <span className="activity-log-what">
-                  <span className="row-key">{entry.what}</span>
-                  {entry.detail ? (
-                    <span className="activity-log-detail">{entry.detail}</span>
-                  ) : null}
-                  {entry.who ? <span className="muted u-fs-085">{entry.who}</span> : null}
-                </span>
-                <span className="row-end">
-                  {entry.outcome ? (
-                    <StatusBadge tone={entry.outcome.tone}>{entry.outcome.label}</StatusBadge>
-                  ) : null}
-                  <time className="muted u-fs-085" dateTime={entry.at}>
-                    {entry.when}
-                  </time>
-                </span>
+                <div className="activity-log-body">
+                  <div className="activity-log-head">
+                    <span className="row-key activity-log-what">{entry.what}</span>
+                    {entry.outcome ? (
+                      <StatusBadge tone={entry.outcome.tone}>{entry.outcome.label}</StatusBadge>
+                    ) : null}
+                  </div>
+                  {entry.detail ? <DetailLines detail={entry.detail} /> : null}
+                  <p className="activity-log-foot">
+                    <time dateTime={entry.at}>{entry.when}</time>
+                    {entry.who ? <span>{entry.who}</span> : null}
+                  </p>
+                </div>
               </li>
             ))}
           </ol>
