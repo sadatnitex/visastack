@@ -221,21 +221,27 @@ describe('the Record section links', () => {
     act(() => root.render(<RecordSections applicantId={person} />));
     const nav = container.querySelector('nav.subnav[aria-label="Record Sections"]');
     expect(nav).not.toBeNull();
+    // Short names so five tabs share a phone's width without scrolling; the full name is the
+    // link's accessible name, so the visible word is always part of it.
+    expect(nav?.classList.contains('subnav-fit')).toBe(true);
     expect([...(nav?.querySelectorAll('a') ?? [])].map((a) => a.textContent)).toEqual([
-      'All Records',
-      'My Profile',
+      'Overview',
+      'Profile',
       'Documents',
-      'Dates & Expiry',
+      'Dates',
       'History',
     ]);
-    expect(container.querySelector('a[aria-current="page"]')?.textContent).toBe('Dates & Expiry');
+    expect(
+      [...(nav?.querySelectorAll('a') ?? [])].map((a) => a.getAttribute('aria-label')),
+    ).toEqual(['All Records', 'My Profile', null, 'Dates & Expiry', null]);
+    expect(container.querySelector('a[aria-current="page"]')?.textContent).toBe('Dates');
   });
 
-  it('show on the hub itself, with All Records marked', () => {
+  it('show on the hub itself, with Overview marked', () => {
     route.pathname = `${base}/record`;
     act(() => root.render(<RecordSections applicantId={person} />));
     expect(container.querySelector('nav.subnav[aria-label="Record Sections"]')).not.toBeNull();
-    expect(container.querySelector('a[aria-current="page"]')?.textContent).toBe('All Records');
+    expect(container.querySelector('a[aria-current="page"]')?.textContent).toBe('Overview');
   });
 
   it('stay off pages that are not part of Record', () => {

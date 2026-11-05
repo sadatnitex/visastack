@@ -15,13 +15,19 @@ import { type NavLink, isCurrentPath } from '../../lib/navigation';
  * with its tab off to the right would otherwise hide where the visitor is, so
  * the bar scrolls the current tab into view. Only the bar's own scroll position
  * changes; the page itself never moves.
+ *
+ * `fit` is for a bar of at most five short tabs (the Record sections): the tabs share the width
+ * and use their short names, so nothing scrolls at any phone width. The full label stays the
+ * link's accessible name.
  */
 export function SubNav({
   links,
   label = 'Section',
+  fit = false,
 }: {
   readonly links: readonly NavLink[];
   readonly label?: string;
+  readonly fit?: boolean;
 }) {
   const pathname = usePathname();
   const bar = useRef<HTMLElement>(null);
@@ -40,14 +46,15 @@ export function SubNav({
   }, [pathname]);
 
   return (
-    <nav className="subnav" aria-label={label} ref={bar}>
+    <nav className={fit ? 'subnav subnav-fit' : 'subnav'} aria-label={label} ref={bar}>
       {links.map((link) => (
         <Link
           key={link.href}
           href={link.href}
           aria-current={isCurrentPath(pathname, link) ? 'page' : undefined}
+          {...(fit && link.short ? { 'aria-label': link.label } : {})}
         >
-          {link.label}
+          {fit ? (link.short ?? link.label) : link.label}
         </Link>
       ))}
     </nav>
