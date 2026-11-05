@@ -7617,3 +7617,12 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Screen readers: the facts are a real list, so they read as separate items instead of one run-on line.
 - Checked: 151 tests across the five pages that show a log pass; rendered at 412 and 1280 wide with the real stylesheet and made-up data: no broken words.
 - Not seen on a real phone; the scroll windows keep their fixed height, so page length is unchanged.
+
+## 2026-11-05 - One type scale for the signed-in workspace; rail cards say what they are by tone
+
+- Owner report (with a screenshot of a case page): font, text and icon sizes were inconsistent between the sidebar, the toolbar and the page.
+- Measured first, on the real sidebar, toolbar and case workspace drawn with made-up data: the sidebar names and the account line were 12 px while the buttons beside them were 13.6 and the list rows 16; a card title (16) was the same size as the rows under it; titles came in 16, 17.3 and 18.4; the page title was 34.2; icons were 14, 16, 18, 19 and 20 beside text of three different sizes.
+- Fix (WP-PLAIN-TYPE, end of globals.css): the six sizes are set once on the workspace frame (12, 14, 16, 18, 24, 32; 28 for the page title on a phone). Navigation, buttons and secondary lines read at 14, rows at 16, card titles at 18. Sidebar and toolbar icons are 18 beside 14 px text. Public pages are untouched (the scale is set on the workspace frame only).
+- The right-hand cards of the case page now say what they are by tone (details blue, dates amber, requirements violet, history and family trip teal, workflow green): the small rule and the line above the title, nothing else. `SectionCard` takes an optional `tone`.
+- Guard: e2e/type-scale.spec.ts (added to the browser checks in pr-browser-checks.yml and scripts/agent/full-check.sh) fails on any visible text off the scale at 1440 and 390 wide, on navigation or a button that is not 14, on rows and notes that lose their order, and on a sidebar icon that is not 18. Shown to fail: with the 14 px token put back to 13.6 the spec went red.
+- Not done, open: the cases list, sharing, profile, dates, agency and admin screens have the new sizes (they follow the frame) but not the tone treatment; the mobile bottom bar keeps its 12 px labels; seen only on the drawn fixtures, not on a real phone.

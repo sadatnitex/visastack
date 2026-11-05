@@ -19338,3 +19338,63 @@ article.card:has(> .trip-start-form) {
   color: var(--icon-accent, var(--brand));
 }
 /* end WP-PLAIN-TONE */
+
+/* WP-PLAIN-TYPE One type scale for the signed-in workspace (Owner, 5 Nov 2026: font, text and asset sizes were inconsistent between the sidebar, the toolbar and the pages). Six sizes, each with one job: 12 labels, badges and kickers; 14 controls, navigation and secondary lines; 16 body and list rows; 18 titles of cards and sections; 24 the next step; 32 the page title and big numbers. Icons follow their text: 18 beside 14, 20 beside 16. The scale is set once on the frame, so every rule that already names a token follows it. Flat, existing tokens only. */
+.app-frame {
+  --text-caption: 0.75rem;
+  --text-small: 0.875rem;
+  --text-body: 1rem;
+  --text-lead: 1.125rem;
+  --text-title: 1.5rem;
+  --text-display: 2rem;
+  font-size: var(--text-body);
+}
+.app-frame .card-title {
+  font-size: var(--text-lead);
+}
+.app-frame .page-title {
+  font-size: 1.75rem;
+}
+@media (min-width: 1024px) {
+  .app-frame .page-title {
+    font-size: var(--text-display);
+  }
+}
+@media (min-width: 1024px) {
+  .app-frame .app-shell-links a,
+  .app-frame .workspace-tools-label,
+  .app-frame .app-sidebar-account b {
+    font-size: var(--text-small);
+  }
+  .app-frame[data-sidebar="expanded"] .app-shell-links a .icon,
+  .app-frame[data-sidebar="expanded"] .workspace-tools-icon {
+    width: 18px;
+    height: 18px;
+  }
+}
+.app-frame .account-name-desktop {
+  font-size: var(--text-small);
+}
+.app-frame .record-search .icon,
+.app-frame .account-menu-row .icon {
+  width: 18px;
+  height: 18px;
+}
+/* A card says what kind it is by its tone: the small rule and the line above its heading, nothing else. */
+.lift-card[data-tone] .card-kicker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--tone);
+}
+.lift-card[data-tone] .card-kicker::before {
+  content: "";
+  flex: none;
+  display: block;
+  width: 1.1rem;
+  height: 1.5px;
+  border-top: 3px solid var(--tone);
+  border-bottom: 3px solid var(--tone);
+  border-radius: 1px;
+}
+/* end WP-PLAIN-TYPE */

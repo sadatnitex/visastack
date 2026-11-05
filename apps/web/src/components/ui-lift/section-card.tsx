@@ -10,6 +10,8 @@ export interface SectionCardProps {
   readonly kicker?: string | undefined;
   /** Something at the right of the heading row: a caption, a link. */
   readonly action?: ReactNode;
+  /** What kind of card it is, by colour: only the small rule and the line above the heading take it. */
+  readonly tone?: 'blue' | 'green' | 'amber' | 'red' | 'violet' | 'teal';
   /** `brand` gives the body the light blue band. */
   readonly tint?: 'none' | 'brand';
   readonly children: ReactNode;
@@ -22,6 +24,7 @@ export function SectionCard({
   kicker,
   action,
   tint = 'none',
+  tone,
   children,
 }: SectionCardProps) {
   const headingId = useId();
@@ -29,6 +32,7 @@ export function SectionCard({
     <section
       className={`lift-card${tint === 'brand' ? ' lift-card-tint' : ''}`}
       aria-labelledby={headingId}
+      data-tone={tone}
     >
       <div className="lift-card-head">
         <div className="lift-card-titles">
