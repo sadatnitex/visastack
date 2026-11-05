@@ -7609,3 +7609,11 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Fix: every icon in the manifest is now a full-bleed, opaque blue square (the Sliced V inside the safe zone), and a maskable icon exists at both 192 and 512. New test (src/lib/pwa/manifest-icons.test.ts) fails on any transparent pixel or a wrong size; it failed with the old 512 icon.
 - The phone keeps its old icon until it refreshes the installed app (usually within a day); removing the app from the home screen and adding it again shows the new icon at once.
 - Not verified: the owner's device after this change; which browser the app was added from is not known. Separately reported and still open: after signing in the installed app behaves like a desktop browser; one likely cause is a browser setting for that site ("desktop site"), which a page cannot override.
+
+## 2026-11-05 - History and every activity log read as a timeline
+
+- Owner report: on a phone the History list broke into one or two letters per line ("Pass / port / Numb / er"). Cause: the earlier colour pass made each log row a three-column grid, and on a phone the text column shrank to a sliver beside a wide badge and date. This was my regression (merged earlier the same day).
+- Fix and redesign (components/activity-log.tsx, shared by History, the access log, the platform activity log, the agency activity log and Privacy): each entry hangs on a rail. A mark says what kind it was (a filled tick for what is current, a ring for what was replaced, red for blocked); the name and its badge share the first line; what was recorded is the second, bold; the facts about it follow as a small list, each apart; the time and who are last. Every line has the whole width, wraps at words, and nothing sits in a column beside it.
+- Screen readers: the facts are a real list, so they read as separate items instead of one run-on line.
+- Checked: 151 tests across the five pages that show a log pass; rendered at 412 and 1280 wide with the real stylesheet and made-up data: no broken words.
+- Not seen on a real phone; the scroll windows keep their fixed height, so page length is unchanged.
