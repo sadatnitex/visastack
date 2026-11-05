@@ -30,3 +30,20 @@ Six tones with their pale grounds (`WP-PLAIN-TONE` in `globals.css`); `tone-cont
 ## Checking a screen
 
 Render it at 390 and 1440 wide. If the colour can be removed and the screen still reads, the colour is decoration; remove it. If a pattern above appears, replace it.
+
+## Type scale
+
+One scale for the whole signed-in workspace, set once on the frame (`WP-PLAIN-TYPE` in `globals.css`), so every rule that names a size token follows it and nothing picks its own size.
+
+| Size | Job |
+|---|---|
+| 12 | Labels, badges, the line above a title, small print |
+| 14 | Controls, navigation (sidebar, section bars), secondary lines, notes |
+| 16 | Body text and list rows |
+| 18 | Titles of section cards (a plain card title stays 16 in bold) |
+| 24 | The next step |
+| 28 / 32 | The page title (28 on a phone, 32 from 1024 wide) and large numbers |
+
+Icons beside the 14 navigation and menu text are 18; other icons keep their own size until their screen is moved onto the scale. The brand name is a logotype and keeps its own size. A row is larger than the note under it and not larger than the title above it, always. `e2e/type-scale.spec.ts` draws the real sidebar, toolbar and case workspace and fails on any visible text off this scale, on a navigation label or a button that is not 14, and on an icon in the sidebar that is not 18.
+
+A card can name its kind by tone (`tone` on the section card): only the slice rule and the line above the heading take the colour. A tone on a fixed card is a kind (blue, violet, teal), never a state: green, amber and red are kept for what a thing says about itself.

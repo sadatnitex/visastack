@@ -172,7 +172,7 @@ function CaseDetailsCard({
 }) {
   return (
     <RailFold level="browse" icon="briefcase" title="Case Details" meta={datesLine(mission)}>
-      <SectionCard kicker="Case" heading="Case Details">
+      <SectionCard kicker="Case" heading="Case Details" tone="blue">
         <p className={`lift-fact${mission.jurisdiction ? ' lift-fact-lead' : ''}`}>
           <span className="lift-fact-icon">
             <Icon name="briefcase" size={18} />
@@ -245,7 +245,7 @@ function PackCard({
       }
       open={!mission.packVersionId}
     >
-      <SectionCard kicker="Requirements" heading="Requirement Pack">
+      <SectionCard kicker="Requirements" heading="Requirement Pack" tone="violet">
         {mission.packVersionId && packInfo ? (
           <>
             <div className="lift-pack-head">
@@ -302,7 +302,7 @@ function SnapshotsCard({
         snapshots.length === 0 ? 'None yet' : `${snapshots.length}${moreSnapshots ? '+' : ''} saved`
       }
     >
-      <SectionCard kicker="History" heading="Snapshots">
+      <SectionCard kicker="History" heading="Snapshots" tone="teal">
         <p className="lift-rail-line case-memory-link">
           Each snapshot keeps exactly what it held.{' '}
           <Link href={memoryHref(applicantId)}>Open Case History</Link> to see every case for this
@@ -365,7 +365,7 @@ function ItineraryCard({
       title="Itinerary Reference"
       meta={mission.itineraryRef ? `Linked: ${mission.itineraryRef}` : 'Not linked'}
     >
-      <SectionCard kicker="Family Trip" heading="Itinerary Reference">
+      <SectionCard kicker="Family Trip" heading="Itinerary Reference" tone="violet">
         <p className="lift-rail-line">
           An optional label linking this case to another family member's, purely for display. Access
           and permissions stay entirely separate per case.
@@ -437,7 +437,7 @@ export function CaseRail({
             : 'No further stage from here'
         }
       >
-        <SectionCard kicker="Workflow" heading="Advance the Case">
+        <SectionCard kicker="Workflow" heading="Advance the Case" tone="blue">
           {stageStates.length === 0 ? (
             <p className="lift-rail-line">
               {nextStates.length === 0
