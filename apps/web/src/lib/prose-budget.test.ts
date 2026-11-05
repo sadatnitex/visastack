@@ -420,6 +420,18 @@ describe('countProse: the definition', () => {
     ).toBe(0);
   });
 
+  it('reports a sentence that hides in a label class instead of skipping it silently', () => {
+    const report = countProse(
+      '<main><div class="foo-label">This label is really a whole sentence that explains something to the reader.</div></main>',
+      { viewport: 'phone' },
+    );
+    expect(report.problems.join(' ')).toMatch(/a label class holds a sentence/);
+    const fine = countProse('<main><span class="foo-label">Ready to Use</span></main>', {
+      viewport: 'phone',
+    });
+    expect(fine.problems).toEqual([]);
+  });
+
   it('leaves out a sentence that is only a link or a button inside a paragraph', () => {
     expect(words('<p>Read <a href="#">the full rules here</a> please</p>')).toBe(2);
   });

@@ -328,15 +328,8 @@ export default async function ApplicantProfilePage({
           <div className="notice notice-warn" role="alert">
             <p className="u-m-0">
               {plural(conflictedCount, 'field')} {agree(conflictedCount, 'has', 'have')} conflicting
-              values.
+              values. Check the fields marked <strong>Conflicted</strong> before relying on them.
             </p>
-            <AboutDisclosure summary="What to Do">
-              <p className="u-m-0">
-                {plural(conflictedCount, 'field')} {agree(conflictedCount, 'has', 'have')}{' '}
-                conflicting proposed values. Review the fields marked <strong>Conflicted</strong>{' '}
-                before relying on them.
-              </p>
-            </AboutDisclosure>
           </div>
         ) : null}
         <div className="split profile-working-area">

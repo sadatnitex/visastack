@@ -18369,8 +18369,12 @@ article.card:has(> .trip-start-form) {
   gap: var(--space-2);
   flex-wrap: nowrap;
 }
+.depth-switch:has(.depth-info) .depth-segs {
+  min-width: 0;
+}
 .depth-info {
   position: static;
+  flex: none;
 }
 .depth-info-toggle {
   display: inline-grid;
@@ -18545,7 +18549,11 @@ article.card:has(> .trip-start-form) {
   margin: 0 var(--space-2) 0 0;
   white-space: nowrap;
 }
-.document-wallet-list .wallet-metadata-list .wallet-document-select > .wallet-document-state .badge {
+.document-wallet-list
+  .wallet-metadata-list
+  .wallet-document-select
+  > .wallet-document-state
+  .badge {
   min-height: 0;
   padding: 2px 8px;
   font-size: var(--text-caption);
@@ -18860,11 +18868,21 @@ article.card:has(> .trip-start-form) {
   margin-top: var(--space-1);
 }
 
-/* On a phone the three level buttons speak for themselves; the sentence under them stays for screen readers only. */
+/* On a phone the three level buttons speak for themselves; the sentence for the chosen level stays for screen readers only. Only the shown note is clipped, so the others stay out of the reading order, and the "i" note (Documents) is left alone. */
 @media (max-width: 760px) {
-  .depth-scope .depth-switch p.depth-note[data-for] {
+  .depth-scope[data-depth="glance"]
+    .depth-switch:not(:has(.depth-info))
+    p.depth-note[data-for="glance"],
+  .depth-scope[data-depth="browse"]
+    .depth-switch:not(:has(.depth-info))
+    p.depth-note[data-for="browse"],
+  .depth-scope[data-depth="everything"]
+    .depth-switch:not(:has(.depth-info))
+    p.depth-note[data-for="everything"],
+  .depth-scope[data-depth="auto"]
+    .depth-switch:not(:has(.depth-info))
+    p.depth-note[data-for="glance"] {
     position: absolute;
-    display: block;
     width: 1px;
     height: 1px;
     margin: -1px;

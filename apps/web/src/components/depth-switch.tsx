@@ -244,7 +244,16 @@ export function DepthSwitch({
         ))}
       </fieldset>
       {notesBehindInfo ? (
-        <details className="depth-info">
+        <details
+          className="depth-info"
+          onKeyDown={(event) => {
+            // Escape closes the note and puts focus back on the round control.
+            if (event.key === 'Escape' && event.currentTarget.open) {
+              event.currentTarget.open = false;
+              event.currentTarget.querySelector('summary')?.focus();
+            }
+          }}
+        >
           <summary className="depth-info-toggle" aria-label={copy.info ?? copy.group}>
             <span aria-hidden="true">i</span>
           </summary>

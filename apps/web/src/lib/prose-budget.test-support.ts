@@ -182,6 +182,18 @@ export function countProse(html: string, options: ProseOptions = {}): ProseRepor
     }
   }
 
+  // A label class (badge, pill, -label, ...) holds a label. One that reads as a sentence is prose in
+  // a label's clothes, so it is reported instead of being skipped silently.
+  for (const labelled of root.querySelectorAll('*')) {
+    const classes = classesOf(labelled);
+    if (!classes.some(isLabelClass) || classes.includes('sr-only')) continue;
+    if (labelled.hasAttribute('data-value') || skipped(labelled.parentElement ?? root)) continue;
+    const text = clean(labelled.textContent ?? '');
+    if (wordCount(text) > 12 || (wordCount(text) >= 6 && /[.!?]$/.test(text))) {
+      problems.push(`a label class holds a sentence: "${text}"`);
+    }
+  }
+
   return {
     words: passages.reduce((total, passage) => total + passage.words, 0),
     passages,

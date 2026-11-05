@@ -468,7 +468,8 @@ export default async function SharingPage({
               {data.grantCounts.total > 0 ? (
                 <div className="notice u-mb-100 lc-revoke-warning">
                   <p className="lc-revoke-short">
-                    Revoking stops access now; copies already downloaded cannot be erased.
+                    Pausing or revoking stops access now; copies already downloaded cannot be
+                    erased.
                   </p>
                   <AboutDisclosure summary="About Revoking">
                     <p>

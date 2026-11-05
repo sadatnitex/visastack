@@ -25,7 +25,7 @@ const HINT_SENT_BACK =
 export const CONSENT_LINE =
   'Sending lets the agency download this exact copy while it has access to your records. Later changes to the file are not sent.';
 /** The one short sentence that stays beside the Send button (the 30-word rule, 5 Nov 2026). */
-export const CONSENT_SHORT = 'Sending shares this exact copy.';
+export const CONSENT_SHORT = 'The agency can download this exact copy while it has access.';
 
 /**
  * The applicant's side of Commercial V1 Part 4 §10: pick a fact or a document they already hold
@@ -223,9 +223,14 @@ export function SubmitResponseForm({
       {kind === 'DOCUMENT' && exactCopies ? (
         <p className="muted u-fs-085 u-m-0">{CONSENT_SHORT}</p>
       ) : null}
-      {hint || (kind === 'DOCUMENT' && exactCopies) ? (
+      {hint === HINT_SENT_BACK ? (
+        <p className="muted u-fs-085 u-m-0" id={hintId}>
+          {hint}
+        </p>
+      ) : null}
+      {(hint && hint !== HINT_SENT_BACK) || (kind === 'DOCUMENT' && exactCopies) ? (
         <AboutDisclosure summary="About Sending">
-          {hint ? (
+          {hint && hint !== HINT_SENT_BACK ? (
             <p className="muted u-fs-085 u-m-0" id={hintId}>
               {hint}
             </p>
