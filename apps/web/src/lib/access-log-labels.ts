@@ -65,6 +65,7 @@ const ACCESS_LOG_LABELS: ReadonlyMap<string, string> = new Map([
   ['PROFILE_PHOTO_SET', 'Profile Photo Set'],
   ['PROFILE_PHOTO_REMOVED', 'Profile Photo Removed'],
   ['MISSION_CREATED', 'Case Created'],
+  ['MISSION_DELETED_BY_OWNER', 'Case Deleted'],
   ['EVIDENCE_REQUEST_CREATED', 'Document Request Sent'],
   ['EVIDENCE_RECEIVED', 'Requested Document Received'],
 ]);

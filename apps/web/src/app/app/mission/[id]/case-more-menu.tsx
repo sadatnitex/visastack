@@ -5,7 +5,7 @@ import { useActionState, useEffect, useId, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { Icon } from '../../../../components/icons';
 import { useCloseOnOutsidePress } from '../../../../lib/use-popover';
-import { type ActionState, transitionMissionAction } from './actions';
+import { type ActionState, deleteCancelledCaseAction, transitionMissionAction } from './actions';
 import { SnapshotButton } from './mission-buttons';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -27,12 +27,15 @@ export function CaseMoreMenu({
   missionId,
   applicantId,
   canCancel,
+  canDelete = false,
   headerActions,
 }: {
   readonly missionId: string;
   readonly applicantId: string;
   /** Whether the case's current stage allows cancelling. */
   readonly canCancel: boolean;
+  /** Whether the case is cancelled, the only stage a case can be deleted from. */
+  readonly canDelete?: boolean;
   /** The header's own actions, repeated here for phones (WP-SB2). */
   readonly headerActions?: {
     readonly addEvidenceHref: string;
@@ -40,12 +43,16 @@ export function CaseMoreMenu({
   };
 }) {
   const [state, formAction, pending] = useActionState(transitionMissionAction, INITIAL);
-  const [confirming, setConfirming] = useState(false);
+  const [deleteState, deleteAction, deleting] = useActionState(deleteCancelledCaseAction, INITIAL);
+  const [confirming, setConfirming] = useState<'cancel' | 'delete' | null>(null);
+  // The refusal under the delete question belongs to the attempt that just failed, not to the next time the question is opened.
+  const [deleteAttempted, setDeleteAttempted] = useState(false);
   const menu = useRef<HTMLDetailsElement>(null);
   const question = useRef<HTMLHeadingElement>(null);
   const cancelItem = useRef<HTMLButtonElement>(null);
+  const deleteItem = useRef<HTMLButtonElement>(null);
   // Set by Keep the Case: once the list is back, focus returns to the item that opened the question.
-  const backToCancel = useRef(false);
+  const backTo = useRef<'cancel' | 'delete' | null>(null);
   const panelId = useId();
   const questionId = useId();
   const consequencesId = useId();
@@ -53,16 +60,16 @@ export function CaseMoreMenu({
 
   const close = () => {
     if (menu.current) menu.current.open = false;
-    setConfirming(false);
+    setConfirming(null);
     menu.current?.querySelector('summary')?.focus();
   };
 
   // The question takes focus as soon as it is shown, so a keyboard or screen reader user hears it.
   useEffect(() => {
     if (confirming) question.current?.focus();
-    else if (backToCancel.current) {
-      backToCancel.current = false;
-      cancelItem.current?.focus();
+    else if (backTo.current) {
+      (backTo.current === 'delete' ? deleteItem : cancelItem).current?.focus();
+      backTo.current = null;
     }
   }, [confirming]);
 
@@ -78,7 +85,7 @@ export function CaseMoreMenu({
         ref={menu}
         className="case-more-menu"
         onToggle={() => {
-          if (!menu.current?.open) setConfirming(false);
+          if (!menu.current?.open) setConfirming(null);
         }}
         onKeyDown={(event) => {
           if (event.key === 'Escape' && menu.current?.open) {
@@ -92,7 +99,52 @@ export function CaseMoreMenu({
           <Icon name="chevronDown" size={14} />
         </summary>
         <div className="case-more-panel" id={panelId}>
-          {confirming ? (
+          {confirming === 'delete' ? (
+            <section
+              className="case-cancel-confirm"
+              aria-labelledby={questionId}
+              aria-describedby={consequencesId}
+            >
+              <h2 className="case-cancel-question" id={questionId} ref={question} tabIndex={-1}>
+                Delete this case?
+              </h2>
+              <ul className="case-cancel-consequences" id={consequencesId}>
+                <li>
+                  The case is removed for good, with its checklist, notes, tasks and what was sent
+                  for it.
+                </li>
+                <li>Your profile and documents are not touched.</li>
+                <li>This cannot be undone.</li>
+              </ul>
+              <form
+                action={deleteAction}
+                className="case-cancel-actions"
+                onSubmit={() => setDeleteAttempted(true)}
+              >
+                <input type="hidden" name="missionId" value={missionId} />
+                <input type="hidden" name="applicantId" value={applicantId} />
+                <input type="hidden" name="confirmDelete" value="yes" />
+                <SubmitButton
+                  pending={deleting}
+                  idle="Yes, Delete This Case"
+                  busy="Deleting…"
+                  className="btn btn-danger"
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    backTo.current = 'delete';
+                    setDeleteAttempted(false);
+                    setConfirming(null);
+                  }}
+                >
+                  Keep the Case
+                </button>
+              </form>
+              {deleteAttempted ? <FormMessage result={deleteState} /> : null}
+            </section>
+          ) : confirming === 'cancel' ? (
             <section
               className="case-cancel-confirm"
               aria-labelledby={questionId}
@@ -125,8 +177,8 @@ export function CaseMoreMenu({
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => {
-                    backToCancel.current = true;
-                    setConfirming(false);
+                    backTo.current = 'cancel';
+                    setConfirming(null);
                   }}
                 >
                   Keep the Case
@@ -167,9 +219,21 @@ export function CaseMoreMenu({
                     ref={cancelItem}
                     type="button"
                     className="case-more-item case-more-danger"
-                    onClick={() => setConfirming(true)}
+                    onClick={() => setConfirming('cancel')}
                   >
                     Cancel Case
+                  </button>
+                </li>
+              ) : null}
+              {canDelete ? (
+                <li>
+                  <button
+                    ref={deleteItem}
+                    type="button"
+                    className="case-more-item case-more-danger"
+                    onClick={() => setConfirming('delete')}
+                  >
+                    Delete Case
                   </button>
                 </li>
               ) : null}

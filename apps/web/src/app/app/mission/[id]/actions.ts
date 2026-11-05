@@ -9,6 +9,7 @@ import {
   createTask,
   decideAppointment,
   decideTask,
+  deleteCancelledMission,
   explainReadinessGap,
   fileComplaint,
   generateCoverLetter,
@@ -119,6 +120,54 @@ export async function transitionMissionAction(
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
   return result;
+}
+
+/**
+ * Delete a cancelled case for good (Owner, 5 Nov 2026). Final, so it is refused unless the request
+ * carries the answer to the page's own question (the More menu's Yes, Delete This Case). The
+ * service proves the caller owns the case, that it is cancelled, and that no hold or filed record
+ * keeps it; its refusal is shown in its own plain words. On success the person lands on their
+ * list of cases, which says it is gone.
+ */
+export async function deleteCancelledCaseAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const missionId = String(formData.get('missionId') ?? '');
+  const applicantId = String(formData.get('applicantId') ?? '');
+  if (missionId.length === 0 || applicantId.length === 0) {
+    return { ok: false, message: 'Missing case.' };
+  }
+  if (formData.get('confirmDelete') !== 'yes') {
+    return { ok: false, message: 'Confirm that you want to delete this case, then try again.' };
+  }
+  const result = await withSession(async ({ db, accountId }) => {
+    const access = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'MANAGE',
+      { missionId },
+      { purpose: 'owner_delete_cancelled_case' },
+    );
+    if (!access.ok || access.value.applicant.id !== applicantId) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    try {
+      const deleted = await deleteCancelledMission(access.value);
+      if (!deleted.ok) return { ok: false, message: deleted.error.message } satisfies ActionState;
+    } catch (error) {
+      // The deletion is all or nothing: a fault leaves the case exactly as it was.
+      reportServerError('deleteCancelledCaseAction', error);
+      return {
+        ok: false,
+        message: 'We could not delete this case, and nothing was changed. Try again in a moment.',
+      } satisfies ActionState;
+    }
+    return { ok: true, message: 'Case deleted.' } satisfies ActionState;
+  });
+  if (!result.ok) return result;
+  revalidatePath(`/app/applicant/${applicantId}/missions`);
+  redirect(`/app/applicant/${applicantId}/missions?deleted=1`);
 }
 
 /** Capture an immutable, checksummed snapshot of the mission. */

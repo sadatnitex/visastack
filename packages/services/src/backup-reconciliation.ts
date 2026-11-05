@@ -99,6 +99,7 @@ const RECONCILED_EVENT_TYPES = [
   'ORGANIZATION_TERMINATED',
   'ACCOUNT_DELETION_EXECUTED',
   'MISSION_RETENTION_PURGED',
+  'MISSION_DELETED_BY_OWNER',
   'ERASURE_VERIFIED',
   'GRANT_CASE_EXCLUDED',
   'GRANT_CASE_EXCLUSION_REMOVED',
@@ -136,6 +137,7 @@ export interface ReconciliationCounts {
   readonly organizationsForced: number;
   readonly accountsDeleted: number;
   readonly missionsPurged: number;
+  readonly missionsDeleted: number;
   readonly erasuresVerified: number;
   /** Per-case sharing exceptions (ADR 0017) written again on the restored branch. */
   readonly caseExceptionsAdded: number;
@@ -1339,6 +1341,34 @@ async function forceMissionRetentionPurged(newDb: Db, resourceId: string): Promi
 }
 
 /**
+ * An owner deleted a cancelled case on the old branch (`MISSION_DELETED_BY_OWNER`): force the same
+ * end state here. The case row goes, and with it everything that cascades from it, exactly as the
+ * original did (case-deletion.ts). The one reference that does not cascade, an agency invitation's
+ * pointer to the case it created, is cleared first. No eligibility is re-checked: the event is
+ * already proof the deletion was decided correctly on the old branch, and a hold or request on the
+ * restored branch may be stale. A case that never existed here, or is already gone, is a clean
+ * no-op, so a second run finds nothing to do.
+ */
+async function forceMissionDeleted(newDb: Db, resourceId: string): Promise<boolean> {
+  return newDb.transaction(async (tx) => {
+    const mission = first(
+      await tx
+        .select({ id: schema.missions.id })
+        .from(schema.missions)
+        .where(eq(schema.missions.id, resourceId))
+        .limit(1),
+    );
+    if (!mission) return false;
+    await tx
+      .update(schema.clientInvitations)
+      .set({ acceptedMissionId: null })
+      .where(eq(schema.clientInvitations.acceptedMissionId, resourceId));
+    await tx.delete(schema.missions).where(eq(schema.missions.id, resourceId));
+    return true;
+  });
+}
+
+/**
  * Unlike the two rules above, this does NOT recreate any erasure-worker
  * bookkeeping (an `erasureJobs` row) on the restored branch -- see this
  * module's own doc comment for why that is deliberate, not an oversight.
@@ -1522,6 +1552,7 @@ const EVENT_META: Readonly<
   ORGANIZATION_TERMINATED: { counter: 'organizationsForced', resourceType: 'organization' },
   ACCOUNT_DELETION_EXECUTED: { counter: 'accountsDeleted', resourceType: 'account' },
   MISSION_RETENTION_PURGED: { counter: 'missionsPurged', resourceType: 'mission' },
+  MISSION_DELETED_BY_OWNER: { counter: 'missionsDeleted', resourceType: 'mission' },
   ERASURE_VERIFIED: { counter: 'erasuresVerified', resourceType: 'storage_object' },
   GRANT_CASE_EXCLUDED: { counter: 'caseExceptionsAdded', resourceType: 'case_exception' },
   GRANT_CASE_EXCLUSION_REMOVED: {
@@ -1576,6 +1607,8 @@ async function applyEvent(oldDb: Db, newDb: Db, event: AuditEventRow): Promise<b
       return forceAccountDeletionExecuted(newDb, resourceId, event.occurredAt);
     case 'MISSION_RETENTION_PURGED':
       return forceMissionRetentionPurged(newDb, resourceId);
+    case 'MISSION_DELETED_BY_OWNER':
+      return forceMissionDeleted(newDb, resourceId);
     case 'ERASURE_VERIFIED':
       return forceErasureVerified(oldDb, newDb, resourceId, event.metadata);
     case 'GRANT_CASE_EXCLUDED':
@@ -1644,6 +1677,7 @@ export async function reconcileRestoredBranch(
     organizationsForced: 0,
     accountsDeleted: 0,
     missionsPurged: 0,
+    missionsDeleted: 0,
     erasuresVerified: 0,
     caseExceptionsAdded: 0,
     caseExceptionsRemoved: 0,

@@ -832,6 +832,7 @@ export default async function MissionPage({
               missionId={mission.id}
               applicantId={data.applicantId}
               canCancel={canCancel}
+              canDelete={mission.state === 'CANCELLED'}
               headerActions={{ addEvidenceHref: '#evidence', newCaseHref }}
             />
           </>

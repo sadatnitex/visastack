@@ -13,6 +13,7 @@ import { axeViolations } from '../../../../lib/axe.test-support';
 vi.mock('./actions', () => ({
   transitionMissionAction: vi.fn(async () => ({ ok: true, message: '' })),
   snapshotMissionAction: vi.fn(async () => ({ ok: true, message: '' })),
+  deleteCancelledCaseAction: vi.fn(async () => ({ ok: true, message: '' })),
 }));
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: unknown }) => (
@@ -38,9 +39,16 @@ afterEach(() => {
   container.remove();
 });
 
-function mount(canCancel = true) {
+function mount(canCancel = true, canDelete = false) {
   act(() =>
-    root.render(<CaseMoreMenu missionId="case-1" applicantId="person-1" canCancel={canCancel} />),
+    root.render(
+      <CaseMoreMenu
+        missionId="case-1"
+        applicantId="person-1"
+        canCancel={canCancel}
+        canDelete={canDelete}
+      />,
+    ),
   );
   const details = container.querySelector('details') as HTMLDetailsElement;
   const open = () =>
@@ -165,5 +173,62 @@ describe('CaseMoreMenu', () => {
     const { open } = mount();
     open();
     expect(container.querySelectorAll('.case-more-phone')).toHaveLength(0);
+  });
+
+  it('offers Delete Case only for a cancelled case, and never together with Cancel Case', () => {
+    const live = mount(true, false);
+    live.open();
+    expect(button('Delete Case')).toBeUndefined();
+    expect(button('Cancel Case')).toBeDefined();
+    act(() => root.unmount());
+    root = createRoot(container);
+    const cancelled = mount(false, true);
+    cancelled.open();
+    expect(button('Delete Case')).toBeDefined();
+    expect(button('Cancel Case')).toBeUndefined();
+  });
+
+  it('asks first on the page what deleting means, sends nothing until Yes, and backs out with Keep the Case', () => {
+    const { open } = mount(false, true);
+    open();
+    act(() => button('Delete Case')?.click());
+    const question = container.querySelector('.case-cancel-question');
+    expect(question?.textContent).toBe('Delete this case?');
+    expect(document.activeElement).toBe(question);
+    const consequences = container.querySelector('.case-cancel-consequences')?.textContent ?? '';
+    expect(consequences).toContain('removed for good');
+    expect(consequences).toContain('Your profile and documents are not touched.');
+    expect(consequences).toContain('This cannot be undone.');
+    // The form carries the answer the server asks for, and the case and person it is about.
+    const form = container.querySelector('form.case-cancel-actions') as HTMLFormElement;
+    expect(form.querySelector<HTMLInputElement>('input[name="confirmDelete"]')?.value).toBe('yes');
+    expect(form.querySelector<HTMLInputElement>('input[name="missionId"]')?.value).toBe('case-1');
+    expect(form.querySelector<HTMLInputElement>('input[name="applicantId"]')?.value).toBe(
+      'person-1',
+    );
+    expect(button('Yes, Delete This Case')).toBeDefined();
+    act(() => button('Keep the Case')?.click());
+    expect(container.querySelector('.case-cancel-question')).toBeNull();
+    expect(document.activeElement).toBe(button('Delete Case'));
+  });
+
+  it('shows a refusal under the question only for the attempt that failed, never when it is reopened', async () => {
+    const actions = await import('./actions');
+    vi.mocked(actions.deleteCancelledCaseAction).mockResolvedValue({
+      ok: false,
+      message: 'This case is under a legal hold, so it cannot be deleted for now.',
+    });
+    const { open } = mount(false, true);
+    open();
+    act(() => button('Delete Case')?.click());
+    const form = container.querySelector('form.case-cancel-actions') as HTMLFormElement;
+    await act(async () => {
+      form.requestSubmit();
+    });
+    expect(container.textContent).toContain('under a legal hold');
+    act(() => button('Keep the Case')?.click());
+    act(() => button('Delete Case')?.click());
+    expect(container.querySelector('.case-cancel-question')?.textContent).toBe('Delete this case?');
+    expect(container.textContent).not.toContain('under a legal hold');
   });
 });

@@ -85,10 +85,14 @@ function CaseRows({
 
 export default async function MissionsPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
+  readonly searchParams?: Promise<{ readonly deleted?: string }>;
 }) {
   const { id } = await params;
+  // A cancelled case was just deleted: say so once, then it is simply not in the list.
+  const justDeleted = (await searchParams)?.deleted === '1';
 
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
@@ -133,6 +137,7 @@ export default async function MissionsPage({
           </a>
         }
       />
+      {justDeleted ? <output className="notice u-mb-100">Case deleted.</output> : null}
 
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. What a case is, one tap away. */}
       <AboutDisclosure summary="About Cases">

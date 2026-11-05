@@ -709,6 +709,7 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
         missionId: 'synthetic-case',
         applicantId: 'synthetic-family',
         canCancel: true,
+        canDelete: false,
         // WP-SB2: on a phone the header's own actions are offered from More too.
         headerActions: {
           addEvidenceHref: '#evidence',
@@ -726,7 +727,8 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
     setUp();
     mocks.getMissionForOwner.mockResolvedValue(ok({ ...MISSION, state: 'CANCELLED' }));
     const html = await render();
-    expect(stubProps(html, 'CaseMoreMenu')[0]).toMatchObject({ canCancel: false });
+    // A cancelled case cannot be cancelled again, and is the one stage it can be deleted from.
+    expect(stubProps(html, 'CaseMoreMenu')[0]).toMatchObject({ canCancel: false, canDelete: true });
     expect(textOf(html)).toContain('This case is in a terminal state.');
     expect(html).not.toContain('data-stub="TransitionButtons"');
   });
