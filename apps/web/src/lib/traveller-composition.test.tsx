@@ -288,8 +288,8 @@ describe('traveller composition and independent record guards', () => {
     });
     const html = renderToStaticMarkup(await overview(params));
     expect(service.computeReadiness).toHaveBeenCalledWith({}, 'latest');
-    expect(html).toContain('aria-label="2 of 5 items ready"');
-    expect(html).toContain('>2 of 5 items ready<');
+    expect(html).toContain('aria-label="2 of 5 required items on file"');
+    expect(html).toContain('>2 of 5 required items on file<');
     // The case's progress is a thin bar drawn as a named picture with its words beside it; the old
     // meter element is not used for it.
     const checklist = html.slice(
@@ -470,7 +470,7 @@ describe("the deadline clock on a person's overview (Growth G5)", () => {
   it('teaches when there are no dates, with the add-document button', async () => {
     const html = renderToStaticMarkup(await overview(params));
     const clock = html.slice(html.indexOf('Deadline Clock'), html.indexOf('>Upcoming<'));
-    expect(clock).toContain('No Dates Yet');
+    expect(clock).toContain('No Expiry Dates Yet');
     expect(clock).toContain(
       'Add a passport and its expiry date appears here, so you hear about it before it matters.',
     );
@@ -514,7 +514,7 @@ describe("the deadline clock on a person's overview (Growth G5)", () => {
     service.listDeadlineClock.mockResolvedValue({ ok: false, error: { code: 'upstream_error' } });
     const html = renderToStaticMarkup(await overview(params));
     expect(html).toContain('Dates are unavailable right now.');
-    expect(html).not.toContain('No Dates Yet');
+    expect(html).not.toContain('No Expiry Dates Yet');
   });
 
   it("is not read at all for a person who is not the owner's", async () => {

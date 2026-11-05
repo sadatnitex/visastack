@@ -77,6 +77,22 @@ describe('the WP-LIFT-C block', () => {
     expect(block).not.toMatch(/\.lift-pill-info[^{]*\{[^}]*var\(--success/);
   });
 
+  it('gives every flat fold summary a chevron that turns when it opens, since a flex summary loses the browser marker', () => {
+    for (const name of [
+      '.lc-ended-summary',
+      '.request-decision-more-toggle',
+      '.activity-log-fold-toggle',
+      '.sharing-invitation-history > summary',
+    ]) {
+      const escaped = escapeRegExp(name);
+      const flat = withoutComments.replace(/\s+/g, ' ');
+      expect(flat, name).toMatch(new RegExp(`:is\\([^{]*${escaped}[^{]*\\)::after`));
+      expect(flat, name).toMatch(
+        new RegExp(`\\[open\\] > :is\\([^{]*${escaped}[^{]*::after \\{[^}]*rotate`),
+      );
+    }
+  });
+
   it('keeps the touch targets: filter tiles, segmented filters, grant buttons and the fold toggles are 44px or more', () => {
     expect(withoutComments).toMatch(/\.wallet-overview-strip button \{[^}]*min-height: 44px;/);
     expect(withoutComments).toMatch(

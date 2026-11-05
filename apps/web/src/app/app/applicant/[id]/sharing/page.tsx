@@ -381,7 +381,11 @@ export default async function SharingPage({
       <>
         {rows.filter((row) => !row.ended).map((row) => row.node)}
         {endedRows.length > 0 ? (
-          <details className="lc-ended-group" {...atLevel('browse')}>
+          <details
+            className="lc-ended-group"
+            {...(search[SHOW_KEY] !== undefined ? { open: true } : {})}
+            {...atLevel('browse')}
+          >
             <summary className="lc-ended-summary">Ended Access ({endedRows.length})</summary>
             <div className="rows lc-ended-rows">{endedRows.map((row) => row.node)}</div>
           </details>
@@ -598,7 +602,7 @@ export default async function SharingPage({
                                 </p>
                               ) : null}
                               {canPause || canResume || canRevoke ? (
-                                <p className="muted lc-small-m0">
+                                <p className="muted lc-small-m0 lc-grant-note">
                                   Pause stops access straight away and you can resume it later.
                                   Revoke ends this access.
                                 </p>

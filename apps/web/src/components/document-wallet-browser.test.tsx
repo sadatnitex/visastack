@@ -318,3 +318,30 @@ describe('a document opens as its own full screen on a phone (UX17)', () => {
     expect(document.body.style.overflow).toBe('');
   });
 });
+
+describe('the words about how a file was checked', () => {
+  it('shows an ordinary check as a quiet caption and keeps a problem as a pill', () => {
+    const pills = () =>
+      [...container.querySelectorAll('.wallet-document-state .badge')].map((n) => n.textContent);
+    const notes = () =>
+      [...container.querySelectorAll('.wallet-document-state .wallet-safety-note')].map(
+        (n) => n.textContent,
+      );
+    act(() =>
+      root.render(
+        <DocumentWalletBrowser
+          applicantId="synthetic-person"
+          documents={
+            [
+              { ...records[1], id: 'a', safetyLabel: 'Format Checked', safetyTone: 'neutral' },
+              { ...records[1], id: 'b', safetyLabel: 'Held Back', safetyTone: 'danger' },
+            ] as WalletBrowserDocument[]
+          }
+        />,
+      ),
+    );
+    expect(notes()).toEqual(['Format Checked']);
+    expect(pills()).not.toContain('Format Checked');
+    expect(pills()).toContain('Held Back');
+  });
+});

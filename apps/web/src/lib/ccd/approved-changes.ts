@@ -608,6 +608,27 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
   // WP-LIFT-C entries
   {
     screen: 'traveller',
+    from: { kind: 'text', name: 'No Dates Yet' },
+    to: { kind: 'text', name: 'No Expiry Dates Yet' },
+    reason:
+      'Owner, 4 Nov 2026: redesign the case pages and the others. The empty Deadline Clock is about expiry dates, so it says so; Upcoming beside it lists case dates.',
+  },
+  {
+    screen: 'home',
+    from: { kind: 'text', name: 'No Dates Yet' },
+    to: { kind: 'text', name: 'No Expiry Dates Yet' },
+    reason:
+      'Owner, 4 Nov 2026: redesign the case pages and the others. The empty Deadline Clock is about expiry dates, so it says so.',
+  },
+  {
+    screen: 'expiry',
+    from: { kind: 'text', name: 'No Dates Yet' },
+    to: { kind: 'text', name: 'No Expiry Dates Yet' },
+    reason:
+      'Owner, 4 Nov 2026: redesign the case pages and the others. The empty Deadline Clock is about expiry dates, so it says so.',
+  },
+  {
+    screen: 'traveller',
     from: { kind: 'link', name: 'Korea VisitIn Progress', detail: '/app/mission/case-2' },
     to: {
       kind: 'link',

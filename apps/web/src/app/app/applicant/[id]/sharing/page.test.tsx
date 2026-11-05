@@ -644,6 +644,20 @@ describe('a long list of grants stays short (WP-SB3)', () => {
     expect(html).toContain('id="sharing-grant-5"');
   });
 
+  it('keeps ended grants under Ended Access, closed at first and open when the address pages (so the new row can take focus)', async () => {
+    const ended = () => [grant('ACTIVE', 'g0'), grant('REVOKED', 'g1'), grant('REVOKED', 'g2')];
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: true, value: ended() });
+    const closed = await render();
+    expect(textOf(closed)).toContain('Ended Access (2)');
+    expect(closed).toMatch(/<details class="lc-ended-group"[^>]*data-level="browse"/);
+    expect(closed).not.toMatch(/<details class="lc-ended-group"[^>]*open/);
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: true, value: ended() });
+    const paged = await renderAt({ show: '10' });
+    expect(paged).toMatch(/<details class="lc-ended-group"[^>]*open/);
+    // The rows are in the group either way, so every id Show More lands on exists.
+    expect(paged).toContain('id="sharing-grant-3"');
+  });
+
   it('keeps each grant’s details behind its own Grant Details expander', async () => {
     mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: true, value: many() });
     const html = await render();

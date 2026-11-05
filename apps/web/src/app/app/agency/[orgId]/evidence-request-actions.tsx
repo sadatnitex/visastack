@@ -70,6 +70,19 @@ export function EvidenceRequestActions({
     <input type="hidden" name="submissionId" value={submissionId} />
   ) : null;
 
+  const cancelForm = (
+    <form action={cancelAction}>
+      <input type="hidden" name="organizationId" value={organizationId} />
+      <input type="hidden" name="requestId" value={requestId} />
+      <SubmitButton
+        pending={cancelPending}
+        idle="Cancel Request"
+        busy="Cancelling…"
+        className="btn btn-secondary request-decision-button"
+      />
+    </form>
+  );
+
   return (
     <div className="request-decision">
       <div className="request-decision-buttons">
@@ -99,59 +112,54 @@ export function EvidenceRequestActions({
             </button>
           </>
         ) : null}
-        <details className="request-decision-more">
-          <summary className="request-decision-more-toggle">More Decisions</summary>
-          <div className="request-decision-more-body">
-            {canDecide && status === 'RECEIVED' ? (
-              <form action={reviewAction}>
-                <input type="hidden" name="organizationId" value={organizationId} />
-                <input type="hidden" name="requestId" value={requestId} />
-                <SubmitButton
-                  pending={reviewPending}
-                  idle="Start Review"
-                  busy="Starting…"
-                  className="btn btn-secondary request-decision-button"
-                />
-              </form>
-            ) : null}
-            {canDecide ? (
-              <>
-                <button
-                  type="button"
-                  className="btn btn-secondary request-decision-button"
-                  aria-expanded={reasonOutcome === 'CONTRADICTION'}
-                  onClick={() =>
-                    setReasonOutcome((v) => (v === 'CONTRADICTION' ? null : 'CONTRADICTION'))
-                  }
-                >
-                  Contradiction
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary request-decision-button"
-                  aria-expanded={reasonOutcome === 'CORRECTION_PROPOSED'}
-                  onClick={() =>
-                    setReasonOutcome((v) =>
-                      v === 'CORRECTION_PROPOSED' ? null : 'CORRECTION_PROPOSED',
-                    )
-                  }
-                >
-                  Propose Correction
-                </button>
-              </>
-            ) : null}
-            <form action={cancelAction}>
-              <input type="hidden" name="organizationId" value={organizationId} />
-              <input type="hidden" name="requestId" value={requestId} />
-              <SubmitButton
-                pending={cancelPending}
-                idle="Cancel Request"
-                busy="Cancelling…"
-                className="btn btn-secondary request-decision-button"
-              />
-            </form>
-          </div>
-        </details>
+        {canDecide ? (
+          <details className="request-decision-more">
+            <summary className="request-decision-more-toggle">More Decisions</summary>
+            <div className="request-decision-more-body">
+              {canDecide && status === 'RECEIVED' ? (
+                <form action={reviewAction}>
+                  <input type="hidden" name="organizationId" value={organizationId} />
+                  <input type="hidden" name="requestId" value={requestId} />
+                  <SubmitButton
+                    pending={reviewPending}
+                    idle="Start Review"
+                    busy="Starting…"
+                    className="btn btn-secondary request-decision-button"
+                  />
+                </form>
+              ) : null}
+              {canDecide ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary request-decision-button"
+                    aria-expanded={reasonOutcome === 'CONTRADICTION'}
+                    onClick={() =>
+                      setReasonOutcome((v) => (v === 'CONTRADICTION' ? null : 'CONTRADICTION'))
+                    }
+                  >
+                    Contradiction
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary request-decision-button"
+                    aria-expanded={reasonOutcome === 'CORRECTION_PROPOSED'}
+                    onClick={() =>
+                      setReasonOutcome((v) =>
+                        v === 'CORRECTION_PROPOSED' ? null : 'CORRECTION_PROPOSED',
+                      )
+                    }
+                  >
+                    Propose Correction
+                  </button>
+                </>
+              ) : null}
+              {cancelForm}
+            </div>
+          </details>
+        ) : (
+          cancelForm
+        )}
       </div>
       {canDecide && reasonOutcome ? (
         <form

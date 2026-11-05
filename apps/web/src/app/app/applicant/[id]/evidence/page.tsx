@@ -406,7 +406,10 @@ export default async function EvidencePage({
                             <span className="lift-action-tile" aria-hidden="true">
                               <Icon name={req.kind === 'FIELD' ? 'clipboard' : 'file'} size={20} />
                             </span>
-                            <span className="case-row-title" id={`evidence-row-${index + 1}`}>
+                            <span
+                              className="case-row-title"
+                              id={`evidence-row-${sorted.indexOf(req) + 1}`}
+                            >
                               {req.kind === 'FIELD' ? 'Detail' : 'Document'}: {target}
                             </span>
                           </span>
