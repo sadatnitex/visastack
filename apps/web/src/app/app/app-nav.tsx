@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { type CSSProperties, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { BrandMark } from '../../components/brand-mark';
 import { Icon, type IconName } from '../../components/icons';
+import { LinkPending } from '../../components/link-pending';
 import { ShortcutHint } from '../../components/shortcut-hint';
 import { type NavAction, type NavLink, PRIMARY_NAV, isCurrentPath } from '../../lib/navigation';
 
@@ -218,6 +219,7 @@ export function AppNav({
         {...(iconOnly ? { 'aria-label': action.label } : {})}
         onClick={() => setOpen(false)}
       >
+        <LinkPending />
         <Icon name={CONTEXT_ICONS[action.label] ?? 'plus'} size={18} />
         {iconOnly ? null : <span>{action.label}</span>}
       </Link>
@@ -236,6 +238,7 @@ export function AppNav({
           : undefined
       }
     >
+      <LinkPending />
       <Icon name={navIconFor(item)} size={20} />
       <span className="app-link-label app-link-full">{item.label}</span>
       <span

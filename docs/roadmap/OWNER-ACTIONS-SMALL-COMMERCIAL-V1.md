@@ -348,3 +348,7 @@ Done on the owner's blanket approval of 4 Nov 2026: migration 0132 (exact copies
 5. **Official pages as stand-ins.** Registered official pages are not offered as a stand-in checklist (they are registered, not verified). Say if you want a link shown with that wording.
 6. **Landing proof line** about agency usefulness: not built, awaiting your wording and approval (VS-016).
 7. **Not touched, still yours:** staff second factor, virus scanning on, real customer data, a dedicated migration credential, the agency collection form's flat country list (follow-up).
+
+## Owner decision pack (added 5 Nov 2026)
+
+One page with a recommendation, the exact wording and a tick box for each open owner item (D1 consent line, overdue checklists, official pages as stand-ins, the test checklist, the landing proof line, where the site runs, launch routes and the reviewer, counsel, the recovery drill, the master key copy): [OWNER-DECISION-PACK-2026-11-05.md](OWNER-DECISION-PACK-2026-11-05.md). Supporting documents prepared with it: [ROUTE-REVIEWER-BRIEF.md](ROUTE-REVIEWER-BRIEF.md) (what a route checklist holds and what the qualified reviewer signs) and [the restore drill sign-off sheet](../operations/restore-drill-signoff.md). Bangla and staff sign-in protection are left out on the owner's instruction.

@@ -7,6 +7,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/app/applicant/10000000-0000-4000-8000-000000000001',
 }));
 vi.mock('next/link', () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({ href, children, ...props }: { href: string; children?: ReactNode }) => (
     <a href={href} {...props}>
       {children}
