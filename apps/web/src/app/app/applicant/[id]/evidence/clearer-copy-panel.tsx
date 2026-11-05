@@ -45,7 +45,7 @@ export function ClearerCopyPanel({
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary
-        className={`evidence-clearer-toggle lc-clearer${primary ? ' evidence-clearer-primary' : ''}`}
+        className={`evidence-clearer-toggle lc-clearer${primary ? ' evidence-clearer-primary lc-clearer-primary' : ''}`}
       >
         Upload a Clearer Copy
         <span className="sr-only">: {documentName}</span>

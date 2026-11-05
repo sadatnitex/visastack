@@ -293,9 +293,13 @@ export function DocumentWalletBrowser({
                       >
                         {doc.processingLabel}
                       </StatusBadge>
-                      <StatusBadge tone={doc.safetyTone ?? 'neutral'}>
-                        {doc.safetyLabel}
-                      </StatusBadge>
+                      {(doc.safetyTone ?? 'neutral') === 'neutral' ? (
+                        <span className="wallet-safety-note">{doc.safetyLabel}</span>
+                      ) : (
+                        <StatusBadge tone={doc.safetyTone ?? 'neutral'}>
+                          {doc.safetyLabel}
+                        </StatusBadge>
+                      )}
                     </span>
                     <span className="muted wallet-document-updated">
                       {doc.updatedAt

@@ -112,15 +112,16 @@ function CurrentCopy({
   const waiting = copy.state === 'AWAITING_DECISION';
   const note = presentScanState(scan);
   const requestWords = REQ_STATUS[status];
+  const copyPill = waiting ? (requestWords?.label ?? 'Received') : 'Accepted';
   return (
     <div className="evidence-copy lc-copy" data-copy-state={copy.state}>
       <div className="evidence-copy-head">
         <p className="evidence-copy-title u-m-0">
           {waiting ? 'Copy Waiting for Your Decision' : 'Accepted Copy'}
         </p>
-        <StatusPill tone={waiting ? 'info' : 'success'}>
-          {waiting ? (requestWords?.label ?? 'Received') : 'Accepted'}
-        </StatusPill>
+        {copyPill === requestWords?.label ? null : (
+          <StatusPill tone={waiting ? 'info' : 'success'}>{copyPill}</StatusPill>
+        )}
       </div>
       <div className="lc-copy-file">
         <span className="lift-action-tile" aria-hidden="true">

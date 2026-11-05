@@ -968,7 +968,7 @@ describe('Coming Up: the deadline clock on Home (Growth G5)', () => {
     data.applicants = [SELF];
     const html = comingUp(await page());
     const text = textOf(html);
-    expect(text).toContain('No Dates Yet');
+    expect(text).toContain('No Expiry Dates Yet');
     expect(text).toContain(
       'Add a passport and its expiry date appears here, so you hear about it before it matters.',
     );
@@ -995,7 +995,7 @@ describe('Coming Up: the deadline clock on Home (Growth G5)', () => {
     data.deadlineFails = [SELF.id];
     const text = textOf(comingUp(await page()));
     expect(text).toContain('Dates are unavailable right now.');
-    expect(text).not.toContain('No Dates Yet');
+    expect(text).not.toContain('No Expiry Dates Yet');
   });
 
   it('shows the dates it could read and says how many people it could not', async () => {

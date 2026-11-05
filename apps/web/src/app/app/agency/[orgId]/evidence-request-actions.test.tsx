@@ -181,6 +181,9 @@ describe('the common decisions are in view and the others are under More Decisio
     expect(names(inMore())).not.toContain('Start Review');
     mount({ canDecide: false });
     expect(container.textContent).not.toContain('Accept');
-    expect(names(inMore())).toEqual(['Cancel Request']);
+    // The only action left is not tucked away: it is in view, outside any fold.
+    expect(inMore()).toBeNull();
+    expect(container.querySelector('details')).toBeNull();
+    expect(buttonNamed('Cancel Request')).toBeDefined();
   });
 });

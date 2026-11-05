@@ -18,7 +18,7 @@ import { EmptyState } from './ui';
  */
 
 /** The line a person sees when there is nothing dated yet: what appears here, and why it helps. */
-export const CLOCK_EMPTY_TITLE = 'No Dates Yet';
+export const CLOCK_EMPTY_TITLE = 'No Expiry Dates Yet';
 export const CLOCK_EMPTY_BODY =
   'Add a passport and its expiry date appears here, so you hear about it before it matters.';
 /** When the dates could not be read just now, which is not the same as having none. */

@@ -294,6 +294,38 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
     }
   });
 
+  it('numbers each row from the order the requests were read in, so Show More lands on the first new row, not on one already seen', async () => {
+    withRequests(
+      {
+        ...request,
+        id: 'done',
+        docType: 'PASSPORT',
+        status: 'ACCEPTED',
+        dueDate: new Date('2026-11-01'),
+      },
+      {
+        ...request,
+        id: 'busy',
+        docType: 'NATIONAL_ID',
+        status: 'RECEIVED',
+        respondingDocumentId: 'd2',
+        dueDate: new Date('2026-12-01'),
+      },
+      { ...request, id: 'open', docType: 'BANK_STATEMENT', status: 'OPEN' },
+    );
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [doc({ id: 'd2', processingStatus: 'SCANNING', safetyStatus: 'SCANNING' })],
+    });
+    const html = await render();
+    // Read order: open, done, busy. Drawn order: open, busy (still being checked), then done.
+    const idOf = (name: string) =>
+      html.match(new RegExp(`id="(evidence-row-\\d+)"[^>]*>Document: ${name}`))?.[1];
+    expect(idOf('Bank Statement')).toBe('evidence-row-1');
+    expect(idOf('Passport')).toBe('evidence-row-2');
+    expect(idOf('National Id')).toBe('evidence-row-3');
+  });
+
   it('shows no Finished heading while every request still needs a reply', async () => {
     withRequests(
       { ...request, id: 'one', docType: 'PASSPORT', status: 'OPEN' },

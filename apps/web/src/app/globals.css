@@ -18205,4 +18205,102 @@ article.card:has(> .trip-start-form) {
     padding: var(--space-4);
   }
 }
+
+/* Folds with a plain summary show a chevron that turns when they open (a flex summary loses the browser's own marker). */
+:is(
+    .lc-ended-summary,
+    .activity-log-fold-toggle,
+    .sharing-invitation-history > summary,
+    .request-decision-more-toggle,
+    .sharing-grant-details-summary,
+    .lc-ask > summary,
+    .lc-clearer:not(.lc-clearer-primary)
+  ) {
+  list-style: none;
+  gap: var(--space-2);
+}
+:is(
+    .lc-ended-summary,
+    .activity-log-fold-toggle,
+    .sharing-invitation-history > summary,
+    .request-decision-more-toggle,
+    .sharing-grant-details-summary,
+    .lc-ask > summary,
+    .lc-clearer:not(.lc-clearer-primary)
+  )::-webkit-details-marker {
+  display: none;
+}
+:is(
+    .lc-ended-summary,
+    .activity-log-fold-toggle,
+    .sharing-invitation-history > summary,
+    .request-decision-more-toggle,
+    .sharing-grant-details-summary,
+    .lc-ask > summary,
+    .lc-clearer:not(.lc-clearer-primary)
+  )::after {
+  content: "";
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-inline-start: var(--space-1);
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+}
+:is(.lc-ended-summary, .activity-log-fold-toggle, .sharing-invitation-history > summary)::after {
+  margin-inline-start: auto;
+}
+[open]
+  > :is(
+    .lc-ended-summary,
+    .activity-log-fold-toggle,
+    .sharing-invitation-history > summary,
+    .request-decision-more-toggle,
+    .sharing-grant-details-summary,
+    .lc-ask > summary,
+    .lc-clearer:not(.lc-clearer-primary)
+  )::after {
+  transform: rotate(-135deg);
+}
+
+/* Sharing: the invitations fold is a row like the others, with no dead space under it. */
+.card.sharing-invitation-history {
+  padding: 0;
+}
+.sharing-invitation-history > summary {
+  display: flex;
+  align-items: center;
+  min-height: 56px;
+  padding: 0 var(--space-4);
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--selected-text);
+}
+.sharing-invitation-history > :not(summary) {
+  margin-left: var(--space-4);
+  margin-right: var(--space-4);
+}
+.sharing-invitation-history[open] {
+  padding-bottom: var(--space-3);
+}
+
+/* Sharing: the sentence about Pause and Revoke is said in full on the first card; the others keep it for screen readers only. The revoke warning band above the list is never hidden. */
+.sharing-grant ~ .sharing-grant .lc-grant-note {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Documents: what was checked is a quiet caption beside the state, never a pill (a pill would read as a result). */
+.wallet-safety-note {
+  font-size: var(--text-caption);
+  color: var(--text-secondary);
+}
 /* end WP-LIFT-C */

@@ -496,8 +496,8 @@ export default async function ApplicantOverviewPage({
                           size={6}
                           value={data.readiness.value.satisfiedRequired}
                           max={data.readiness.value.requiredCount}
-                          label="items ready"
-                          valueText={`${data.readiness.value.satisfiedRequired} of ${data.readiness.value.requiredCount} items ready`}
+                          label="required items on file"
+                          valueText={`${data.readiness.value.satisfiedRequired} of ${data.readiness.value.requiredCount} required items on file`}
                         />
                       ) : (
                         <CaseReadinessRing
