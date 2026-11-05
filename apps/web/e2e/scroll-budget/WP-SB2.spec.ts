@@ -1,3 +1,8 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { VIEWPORTS, expectWithinBudget, renderFixture } from './support';
@@ -7,6 +12,11 @@ import { VIEWPORTS, expectWithinBudget, renderFixture } from './support';
  * complaints, 60 feedback notes, 60 snapshots) stays within its phone budget, and the same case
  * laid out the old way does not. This file enforces its budgets (plan section 5), including the
  * open snapshot since WP-SB11.
+ *
+ * The last describe (WP-LIFT-B) measures the REAL case page, not a stand-in: the page component
+ * renders with worst-case made-up data (case-page-html.test.tsx writes the markup), and the
+ * browser lays that markup out with the real stylesheet at each depth level. The stand-in above
+ * once let the real page reach 6.8 phone screens while its own budget read 3.
  */
 
 const FIXTURE = 'WP-SB2';
@@ -96,5 +106,228 @@ test.describe('WP-SB2 case workspace', () => {
     await expect(
       expectWithinBudget(page, { screens: 2, viewport: 'phone', mode: 'enforce' }),
     ).rejects.toThrow(/page height at phone/);
+  });
+});
+
+/** What the Lift redesign promises for the case page (the owner called the old one punishing). */
+const LIFT = {
+  /** The old rail, trip checks, sources and five sections, at a phone, per depth level (px). */
+  oldRegion: { browse: 1479, everything: 2450 },
+  /** The new region may be at most this share of the old one ("about 40%"). */
+  regionShare: 0.4,
+  /** The whole page at a phone, per depth level, and a desktop Everything (px). */
+  phonePage: { everything: 3376, browse: 2532, glance: 2532 },
+  desktopPage: { everything: 2400 },
+  /** Where the first checklist row may start (px from the top of the page). */
+  firstRow: { phone: 1266, desktop: 900 },
+} as const;
+
+type Level = 'glance' | 'browse' | 'everything';
+type PageUnderTest = import('@playwright/test').Page;
+
+/** Renders the real page with worst-case data to a file, with the repository's own test runner. */
+function writeRealCasePage(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'real-case-'));
+  const out = join(dir, 'case.html');
+  const webRoot = resolve(__dirname, '..', '..');
+  const require = createRequire(__filename);
+  const vitest = join(dirname(require.resolve('vitest/package.json')), 'vitest.mjs');
+  try {
+    execFileSync(process.execPath, [vitest, 'run', 'case-page-html'], {
+      cwd: webRoot,
+      env: { ...process.env, CASE_PAGE_HTML_OUT: out },
+      stdio: 'pipe',
+      timeout: 240_000,
+    });
+    return readFileSync(out, 'utf8');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test.describe('WP-LIFT-B the real case page', () => {
+  let html = '';
+  test.beforeAll(() => {
+    test.setTimeout(300_000);
+    html = writeRealCasePage();
+  });
+
+  /** Loads the real page's markup under the site stylesheet, at the chosen depth level. */
+  async function openReal(page: PageUnderTest, level: Level): Promise<void> {
+    await page.route('**/*', (route) =>
+      route.request().resourceType() === 'script' ? route.abort() : route.continue(),
+    );
+    await page.goto('/');
+    await page.addStyleTag({
+      content:
+        // The workspace shell's side column on a wide screen; the page keeps its own margins.
+        '@media (min-width: 1024px) { main.scroll-fixture { margin-left: 16rem; } }',
+    });
+    await page.evaluate(
+      ({ markup, depth }) => {
+        const main = document.createElement('main');
+        main.className = 'scroll-fixture';
+        main.id = 'main';
+        main.innerHTML = markup;
+        document.body.replaceChildren(main);
+        // Scripts are blocked, so the page's own switch cannot run: set the level it would set.
+        for (const note of main.querySelectorAll('.depth-nojs')) note.remove();
+        main.querySelector('.depth-scope')?.setAttribute('data-depth', depth);
+      },
+      { markup: html, depth: level },
+    );
+    await page.locator('main.scroll-fixture h1').waitFor();
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+  }
+
+  /** What a person would see: the heights, the first checklist row, the filled buttons. */
+  async function measure(page: PageUnderTest) {
+    return page.evaluate(() => {
+      const box = (el: Element | null) => (el ? Math.round(el.getBoundingClientRect().height) : 0);
+      const sum = (selector: string) =>
+        [...document.querySelectorAll(selector)].reduce((total, el) => total + box(el), 0);
+      const shown = (el: Element) =>
+        el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
+      const root = document.documentElement;
+      const first = [...document.querySelectorAll('.lift-check, .collapsible-group .row')].find(
+        shown,
+      );
+      const filled = (scope: string) =>
+        [...document.querySelectorAll(`${scope} .btn-primary`)].filter(shown).length;
+      return {
+        page: root.scrollHeight,
+        sideways: root.scrollWidth - root.clientWidth,
+        region: box(document.querySelector('.split-rail')) + sum('.lift-more-slot'),
+        firstRow: first ? Math.round(first.getBoundingClientRect().top + window.scrollY) : null,
+        filledInRegion: filled('.split-rail') + filled('.lift-more-slot'),
+        filledOnPage: filled('main'),
+      };
+    });
+  }
+
+  for (const level of ['browse', 'everything'] as const) {
+    test(`on a phone the rail and the sections take at most 40% of what they took, at ${level}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(VIEWPORTS.phone);
+      await openReal(page, level);
+      const m = await measure(page);
+      const limit = Math.round(LIFT.oldRegion[level] * LIFT.regionShare);
+      process.stdout.write(
+        `[lift-b] phone ${level}: rail and sections ${m.region}px (limit ${limit}px)\n`,
+      );
+      expect(m.region, `rail and sections at a phone, ${level}`).toBeGreaterThan(0);
+      expect(m.region, `rail and sections at a phone, ${level}`).toBeLessThanOrEqual(limit);
+      expect(m.sideways, 'sideways scroll').toBe(0);
+      expect(m.filledInRegion, 'filled buttons in the rail and sections').toBe(0);
+    });
+  }
+
+  test('the page never scrolls sideways and holds at most one filled button, at every level and size', async ({
+    page,
+  }) => {
+    for (const viewport of ['phone', 'desktop'] as const) {
+      for (const level of ['glance', 'browse', 'everything'] as const) {
+        await page.setViewportSize(VIEWPORTS[viewport]);
+        await openReal(page, level);
+        const m = await measure(page);
+        expect(m.sideways, `sideways scroll at ${viewport}, ${level}`).toBe(0);
+        expect(m.filledOnPage, `filled buttons at ${viewport}, ${level}`).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  test('the section links are one row that scrolls inside its own box on a phone', async ({
+    page,
+  }) => {
+    await page.setViewportSize(VIEWPORTS.phone);
+    await openReal(page, 'browse');
+    const nav = page.locator('nav.jump-nav');
+    const box = await nav.boundingBox();
+    expect(box?.height ?? 0).toBeLessThanOrEqual(60);
+    expect(box?.width ?? 0).toBeLessThanOrEqual(VIEWPORTS.phone.width);
+    expect(await nav.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    for (const link of await nav.locator('a').all()) {
+      expect((await link.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    }
+  });
+
+  test('each rail card is one 56px row on a phone and opens in place; on a desktop it is the card', async ({
+    page,
+  }) => {
+    await page.setViewportSize(VIEWPORTS.phone);
+    await openReal(page, 'everything');
+    const folds = page.locator('.split-rail > details.lift-fold');
+    await expect(folds).toHaveCount(6);
+    for (const fold of await folds.all()) {
+      const row = fold.locator(':scope > summary');
+      await expect(row).toBeVisible();
+      expect((await row.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(56);
+    }
+    const trip = page.locator('#trip-checks');
+    await trip.locator(':scope > summary').click();
+    await expect(trip.locator('.lift-trip').first()).toBeVisible();
+    await page.setViewportSize(VIEWPORTS.desktop);
+    // Wide: the rows go and the cards show, with nothing to open (this browser can do it).
+    await expect(folds.first().locator(':scope > summary')).toBeHidden();
+    await expect(page.locator('#pack h2')).toBeVisible();
+    await expect(page.locator('#case-sources-heading')).toBeVisible();
+  });
+
+  test('the phone bar shows how far the checklist is, and the step, in a row that stays in reach', async ({
+    page,
+  }) => {
+    await page.setViewportSize(VIEWPORTS.phone);
+    await openReal(page, 'browse');
+    const bar = page.locator('.case-sticky-next .sticky-action-bar');
+    await expect(bar).toBeVisible();
+    await expect(bar.locator('output')).toContainText(/\d+ of \d+ · /);
+    const meter = await bar.locator('.lift-meter-svg').boundingBox();
+    expect(Math.round(meter?.width ?? 0)).toBeLessThanOrEqual(44);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight / 2));
+    const box = await bar.boundingBox();
+    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(VIEWPORTS.phone.height + 1);
+    expect(box?.height ?? 0).toBeLessThanOrEqual(110);
+  });
+
+  test('the whole page meets the Lift page targets', async ({ page }) => {
+    await page.setViewportSize(VIEWPORTS.phone);
+    for (const level of ['everything', 'browse', 'glance'] as const) {
+      await openReal(page, level);
+      const m = await measure(page);
+      process.stdout.write(`[lift-b] phone ${level}: page ${m.page}px, first row ${m.firstRow}\n`);
+      expect(m.page, `page at a phone, ${level}`).toBeLessThanOrEqual(LIFT.phonePage[level]);
+      if (level === 'everything') {
+        expect(
+          m.firstRow ?? Number.POSITIVE_INFINITY,
+          'first checklist row at a phone',
+        ).toBeLessThanOrEqual(LIFT.firstRow.phone);
+      }
+    }
+    await page.setViewportSize(VIEWPORTS.desktop);
+    await openReal(page, 'everything');
+    const wide = await measure(page);
+    process.stdout.write(
+      `[lift-b] desktop everything: page ${wide.page}px, first row ${wide.firstRow}\n`,
+    );
+    expect(wide.page, 'page at a desktop').toBeLessThanOrEqual(LIFT.desktopPage.everything);
+    expect(
+      wide.firstRow ?? Number.POSITIVE_INFINITY,
+      'first checklist row at a desktop',
+    ).toBeLessThanOrEqual(LIFT.firstRow.desktop);
+  });
+
+  test('the rail and the sections pass the serious accessibility rules', async ({ page }) => {
+    await page.setViewportSize(VIEWPORTS.desktop);
+    await openReal(page, 'everything');
+    const results = await new AxeBuilder({ page })
+      .include('.split-rail')
+      .include('.lift-more-slot')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag22aa'])
+      .analyze();
+    const blocking = results.violations.filter(
+      (v) => v.impact === 'critical' || v.impact === 'serious',
+    );
+    expect(blocking, JSON.stringify(blocking, null, 2)).toEqual([]);
   });
 });

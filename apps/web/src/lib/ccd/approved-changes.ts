@@ -467,6 +467,42 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     },
     reason: 'D3: the two downloads share one form of words.',
   },
+  // WP-LIFT-B entries
+  // Owner, 4 Nov 2026: redesign the case pages and the others. The five closed sections under the
+  // checklist become one card, More for This Case, whose rows show a count where the hint was.
+  // The summary name is the title followed by the count in words, so it depends on the case.
+  ...(
+    [
+      ['Select or Update Evidence', 'Open when you need to make a change', () => 'No Items Yet'],
+      [
+        'Tasks, Appointments and Letters',
+        'Open when you need to make a change',
+        (state: string) =>
+          state === 'a busy case with a checklist and open tasks'
+            ? '2 Open Tasks'
+            : 'No Open Tasks',
+      ],
+      [
+        'Contributors and Notes from Your Agency',
+        'Ask a sponsor for one document, read shared notes',
+        () => 'No Notes Yet',
+      ],
+      ['Submission and Outcome', 'Open when you need to make a change', () => 'No Outcome Yet'],
+      [
+        'Problems and Feedback',
+        'Raise a complaint or give feedback on this case',
+        () => 'None Raised',
+      ],
+    ] as const
+  ).map(
+    ([title, hint, count]): ApprovedChange => ({
+      screen: 'case',
+      from: { kind: 'button', name: `${title}${hint}` },
+      to: (state) => ({ kind: 'button', name: `${title}${count(state)}` }),
+      reason:
+        'Owner, 4 Nov 2026 (redesign the case pages): the five sections are rows of one card, More for This Case, and each shows how much is inside (a count) instead of the line that said when to open it. Same section, same panels, same ids.',
+    }),
+  ),
 ];
 
 /**

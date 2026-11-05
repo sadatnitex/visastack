@@ -370,3 +370,19 @@ The owner said "we dont need Add Documents at the bottom". The bottom Add Docume
 ## UX18 Home after Start Here: changes approved by the owner (4 Nov 2026)
 
 The owner approved the drawing for Home after Start Here. Renames: My Records is People, Active Requests and Work is Cases. Removals: the small labels People and In Progress above those headings, the My Next Journey heading and its sentence (the next case is a dashed Start a Case tile at the end of Cases). Reshaped, same facts and same addresses: a person, a case and a set of agency requests are each one card; the order of the words in their link text and the chevron differ. Recorded in `apps/web/src/lib/ccd/approved-changes.ts` against UX18. Dates That Matter, Start Here, Needs Attention and the Permissions content are unchanged.
+
+## LIFT-B Case rail, More for This Case and phone bar (Owner, 4 Nov 2026: redesign the case pages and the others)
+
+Package B of the signed-in redesign. Nothing is removed; every id, link address, heading and fixed sentence of screen 09 stays. Recorded in `apps/web/src/lib/ccd/approved-changes.ts` under the line `WP-LIFT-B entries`. Tests: `parity-case.test.tsx` (unchanged), `case-rail.test.tsx`, `case-secondary.test.tsx`, `case-mobile-bar.test.tsx`, `trip-checks-panel.test.tsx`, `case-lift-b.test.ts`, and `e2e/scroll-budget/WP-SB2.spec.ts`, which now measures the real case page with worst-case data.
+
+| What it is | Level it lives at now | Condition (unchanged) |
+|---|---|---|
+| Case Details: the place, the travel dates as a calendar row, the target deadline (new, only when one is set), Edit Case Details; the "Add your travel dates..." line now sits here | Browse | always |
+| Trip Date Checks (`#trip-checks`): one compact row per check (mark, title, status in words, one line of detail); the long explanation sits under "About These Checks"; new line "No date checks apply yet." when no check applies. Moved from the main column into the rail | Browse | the stage shows date checks and the case has travel dates |
+| Requirement Pack (`#pack`) with "Sources for This Checklist" (moved here from the main column) | Browse | always; the sources only with a checklist |
+| Advance the Case | Browse | always |
+| Snapshots (`#snapshots`) as rows with a chevron; Itinerary Reference with its form under "Link to a Family Trip" (open once a label is set) | Everything | always |
+| More for This Case: one card, five rows (Select or Update Evidence at Everything, Tasks, Appointments and Letters at Browse, Contributors and Notes from Your Agency at Browse, Submission and Outcome at Everything, Problems and Feedback at Everything), each with a count where its hint was | the card shows at Browse; each row at its own level as before | always |
+| Phone: each rail card folds into one 56px row (name, one line, a status) and opens in place; the next step bar shows "6 of 12 · the step" with a 40px bar; the section links are one row that scrolls inside its own box | every level | phones only; a wide screen shows the cards |
+
+Approved changes: the five section summary names (the hint line is replaced by a count: "Select or Update Evidence" now reads with "7 Checklist Items" or "No Items Yet", "Tasks, Appointments and Letters" with "2 Open Tasks" or "No Open Tasks", "Contributors and Notes from Your Agency" with "3 Notes" or "No Notes Yet", "Submission and Outcome" with "1 Outcome" or "No Outcome Yet", "Problems and Feedback" with "2 Raised" or "None Raised"). No sentence, link or heading was removed, so no owner removal entry is needed.
