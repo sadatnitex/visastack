@@ -223,7 +223,7 @@ describe('home (characterization before WP-V3)', () => {
     // out keeps one short line on its row; the others carry a one-word chip. Every full meaning is
     // read under "About Permissions".
     expect(html).toContain(
-      '<span class="consent-name" data-value="true">Let AI Read Details from My Documents</span> <span class="consent-meaning">Sends document text to an AI service.</span>',
+      '<span class="consent-name" data-value="true">Let AI Read Details from My Documents</span> <span class="consent-meaning">Sends text to an AI service. You approve each one.</span>',
     );
     expect(html.match(/class="consent-name"/g)).toHaveLength(6);
     expect(html.match(/class="consent-meaning"/g)).toHaveLength(3);

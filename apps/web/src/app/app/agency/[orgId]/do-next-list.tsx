@@ -35,6 +35,9 @@ export function DoNextList({
       <h2 className="card-title" id="do-next-heading">
         Do Next
       </h2>
+      {filtered ? (
+        <span className="badge badge-neutral do-next-filtered">Filtered View</span>
+      ) : null}
       <AboutDisclosure summary="How This Is Sorted">
         <p className="card-body do-next-intro">
           {filtered ? 'For the cases in your current view. ' : ''}

@@ -118,6 +118,10 @@ export function registerParity(screen: {
 
   describe(`${screen.name}: the 30-word rule`, () => {
     const ceilings = (JSON.parse(readFileSync(LIMITS_PATH, 'utf8')) as Ceilings)[screen.name] ?? {};
+    it('has no recorded ceiling for a state that no longer exists', () => {
+      const known = new Set(screen.states.map((s) => s.name));
+      expect(Object.keys(ceilings).filter((name) => !known.has(name))).toEqual([]);
+    });
     it.each(screen.states.map((s) => [s.name, s] as const))(
       '%s shows at most 30 words of explanation (and no recorded ceiling goes up)',
       async (_name, state) => {
@@ -155,6 +159,10 @@ export function registerParity(screen: {
           } else if (report.words > ceiling) {
             failures.push(
               `${where}: ${report.words} words is over its recorded ceiling ${ceiling}`,
+            );
+          } else if (ceiling <= PROSE_WORD_BUDGET) {
+            failures.push(
+              `${where}: a ceiling of ${ceiling} is at or under 30, remove it from prose-limits.json`,
             );
           } else if (report.words !== ceiling) {
             failures.push(

@@ -274,9 +274,9 @@ export const CONSENT_SHORT: Readonly<
   Record<string, { readonly line?: string; readonly chip?: string }>
 > = {
   CORE_PROCESSING: { chip: 'Needed' },
-  AI_EXTRACTION: { line: 'Sends document text to an AI service.' },
-  AI_OCR: { line: 'Sends scan pictures to an AI service.' },
-  SHARING: { chip: 'Needed' },
+  AI_EXTRACTION: { line: 'Sends text to an AI service. You approve each one.' },
+  AI_OCR: { line: 'Sends scan pictures, not just text, to an AI.' },
+  SHARING: { chip: 'Needed to Share' },
   MARKETING: { chip: 'Optional' },
   ISSUER_CONTACT: { line: 'An agency may contact the issuer.' },
 };

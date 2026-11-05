@@ -420,13 +420,11 @@ export default async function ApplicantOverviewPage({
           </Link>
         </div>
         {/* Owner, 5 Nov 2026: no page should have more than 30 words. What each total counts is one tap away. */}
-        <div {...atLevel('browse')}>
-          <AboutDisclosure summary="About These Totals">
-            <p>Closed and cancelled cases are excluded.</p>
-            <p>Open documents to review processing and safety.</p>
-            <p>Requests, suggested details and flagged documents.</p>
-          </AboutDisclosure>
-        </div>
+        <AboutDisclosure summary="About These Totals">
+          <p>Closed and cancelled cases are excluded.</p>
+          <p>Open documents to review processing and safety.</p>
+          <p>Requests, suggested details and flagged documents.</p>
+        </AboutDisclosure>
         <div className="split traveller-working-area">
           <div className="split-main">
             {showPath ? (
