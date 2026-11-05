@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import { Icon } from '../../../../../components/icons';
 import { UndoStatus } from '../../../../../components/lifecycle/undo-status';
 import { UpgradeLine } from '../../../../../components/upgrade-line';
 import { newUploadId } from '../../../../../lib/document-upload-client-id';
@@ -673,6 +674,9 @@ export function ImportPanel({
         aria-describedby={dropHintId}
         {...dropHandlers}
       >
+        <span className="upload-drop-icon" aria-hidden="true">
+          <Icon name="upload" size={44} />
+        </span>
         <p className="upload-drop-title" id={dropTitleId}>
           Drop Files or a Folder Here
         </p>
@@ -685,17 +689,17 @@ export function ImportPanel({
             type="button"
             className="btn btn-primary"
             aria-describedby={limitsId}
-            onClick={chooseFolder}
+            onClick={() => filesRef.current?.click()}
           >
-            Add a Folder
+            Choose Files
           </button>
           <button
             type="button"
             className="btn btn-secondary"
             aria-describedby={limitsId}
-            onClick={() => filesRef.current?.click()}
+            onClick={chooseFolder}
           >
-            Choose Files
+            Add a Folder
           </button>
         </div>
       </section>

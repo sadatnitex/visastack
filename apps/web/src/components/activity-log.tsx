@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Icon, type IconName } from './icons';
 import { StatusBadge } from './ui';
 
 export interface ActivityLogEntry {
@@ -18,6 +19,13 @@ export interface ActivityLogEntry {
   readonly at: string;
   /** The same time as people read it. */
   readonly when: string;
+}
+
+/** The colour and picture that open a row: green for fine, red for blocked, blue for everything else. */
+function markFor(entry: ActivityLogEntry): { tone: 'green' | 'red' | 'blue'; icon: IconName } {
+  if (entry.outcome?.tone === 'danger') return { tone: 'red', icon: 'alert' };
+  if (entry.outcome?.tone === 'success') return { tone: 'green', icon: 'check' };
+  return { tone: 'blue', icon: 'activity' };
 }
 
 const PERIODS = [
@@ -255,6 +263,13 @@ export function ActivityLog({
           <ol className="rows activity-log-list">
             {shown.map((entry) => (
               <li className="row activity-log-row" key={entry.id}>
+                <span
+                  className="activity-log-mark"
+                  data-tone={markFor(entry).tone}
+                  aria-hidden="true"
+                >
+                  <Icon name={markFor(entry).icon} size={16} />
+                </span>
                 <span className="activity-log-what">
                   <span className="row-key">{entry.what}</span>
                   {entry.detail ? (

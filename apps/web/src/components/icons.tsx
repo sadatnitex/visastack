@@ -1,75 +1,209 @@
 /**
- * A small set of line icons, drawn here so the product needs no icon package and no
- * network request. Every icon is decorative: the words beside it carry the meaning, so
- * the drawing is hidden from screen readers. Stroke follows the text colour.
+ * The VisaStack icon set, drawn here so the product needs no icon package and no network
+ * request. Every icon is decorative: the words beside it carry the meaning, so the drawing is
+ * hidden from screen readers.
+ *
+ * The drawing rule comes from the brand mark, the Sliced V: one shape cut into stacked slices,
+ * because a record is built in layers. An object is built from the same flat slices, 3 units tall
+ * with 1.5 between them, with rounded corners; one slice in each icon is the accent and takes the
+ * brand blue. The body follows the text colour. A globe is a sliced circle, a bell is slices that
+ * widen, a shield is slices that narrow. Controls that are only a gesture (a tick, a cross, an
+ * arrow, a chevron) stay a plain stroke with round ends, so they never compete with an object.
  */
+
+type Fill = {
+  readonly kind: 'fill';
+  readonly points: string;
+  readonly accent?: boolean;
+};
+type Dot = {
+  readonly kind: 'dot';
+  readonly x: number;
+  readonly y: number;
+  readonly r: number;
+  readonly accent?: boolean;
+};
+type Line = {
+  readonly kind: 'line';
+  readonly d: string;
+  readonly width?: number;
+  readonly accent?: boolean;
+};
+type Shape = Fill | Dot | Line;
+
+/** Rounded corners come from a 1.2 wide round-joined stroke, so the polygon is drawn 0.6 inside the slice. */
+const INSET = 0.6;
+const SLANT = 2.4;
+
+interface BarOptions {
+  /** The height of the slice. Three, unless a detail needs less. */
+  readonly h?: number;
+  /** A slanted end: the slice leans like the arms of the V. */
+  readonly cut?: 'l' | 'r' | 'lr';
+  /** Taper the slice so its lower edge is shorter, like one layer of the V. */
+  readonly taper?: boolean;
+  readonly accent?: boolean;
+}
+
+function fmt(n: number): string {
+  return String(Math.round(n * 100) / 100);
+}
+
+/** One slice: x and y are the slice's own outer corner, w and h its outer size. */
+function bar(x: number, y: number, w: number, options: BarOptions = {}): Fill {
+  const h = options.h ?? 3;
+  const left = x + INSET;
+  const right = x + w - INSET;
+  const top = y + INSET;
+  const bottom = y + h - INSET;
+  const lean = SLANT * (h / 3);
+  const cutLeft = options.cut === 'l' || options.cut === 'lr';
+  const cutRight = options.cut === 'r' || options.cut === 'lr';
+  const pull = options.taper ? lean : 0;
+  const pts: ReadonlyArray<readonly [number, number]> = [
+    [left + (cutLeft ? lean : 0), top],
+    [right - (cutRight ? lean : 0), top],
+    [right - pull, bottom],
+    [left + pull, bottom],
+  ];
+  return {
+    kind: 'fill',
+    points: pts.map(([px, py]) => `${fmt(px)},${fmt(py)}`).join(' '),
+    ...(options.accent ? { accent: true } : {}),
+  };
+}
+
+const dot = (x: number, y: number, r: number, accent = false): Dot => ({
+  kind: 'dot',
+  x,
+  y,
+  r,
+  ...(accent ? { accent: true } : {}),
+});
+const line = (d: string, width = 2, accent = false): Line => ({
+  kind: 'line',
+  d,
+  width,
+  ...(accent ? { accent: true } : {}),
+});
 
 const PATHS = {
   globe: [
-    'M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17Z',
-    'M3.5 12h17',
-    'M12 3.5c2.4 2.4 3.5 5.2 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.2-3.5-8.5S9.6 5.9 12 3.5Z',
+    line('M12 3.6a8.4 8.4 0 1 0 0 16.8 8.4 8.4 0 0 0 0-16.8Z', 1.9),
+    line(
+      'M12 3.6c2.3 2.3 3.4 5.1 3.4 8.4s-1.1 6.1-3.4 8.4c-2.3-2.3-3.4-5.1-3.4-8.4S9.7 5.9 12 3.6Z',
+      1.9,
+    ),
+    bar(3, 10.7, 18, { h: 2.6, cut: 'lr', accent: true }),
   ],
-  home: ['M3 11.5 12 4l9 7.5', 'M5.5 10v9.5h13V10', 'M10 19.5v-5h4v5'],
+  home: [
+    line('M3 11.5 12 4l9 7.5M5.5 10v9.5h13V10', 1.9),
+    bar(8.5, 13.2, 7, { h: 2.6, accent: true }),
+  ],
   users: [
-    'M9 11a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z',
-    'M3.5 19c.5-3.3 2.8-5 5.5-5s5 1.7 5.5 5',
-    'M16 5.2a3 3 0 0 1 0 5.6',
-    'M17.5 14.3c1.8.6 3 2.3 3.2 4.7',
+    line('M9 11.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z', 1.9),
+    line('M3.4 19.4c.5-3.2 2.7-4.9 5.6-4.9s5.1 1.7 5.6 4.9', 1.9),
+    line('M16.4 5.4a3 3 0 0 1 0 5.6M17.6 14.6c1.7.6 2.8 2.2 3 4.8', 1.9, true),
   ],
   share: [
-    'M17 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
-    'M7 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
-    'M17 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
-    'm9.2 10.8 5.6-3.1',
-    'm9.2 13.2 5.6 3.1',
+    dot(6, 12, 2.6),
+    dot(18, 6, 2.6, true),
+    dot(18, 18, 2.6),
+    line('m8.3 10.8 7.4-3.6M8.3 13.2l7.4 3.6', 1.8),
   ],
-  bell: ['M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15L6 16.5Z', 'M10 20.5a2.2 2.2 0 0 0 4 0'],
+  bell: [
+    line('M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 1.5h-15L6 16.5Z', 1.9),
+    bar(9.2, 20, 5.6, { h: 2.4, accent: true }),
+  ],
   shield: [
-    'M12 3.5 5 6v5.5c0 4.3 2.8 7.4 7 9 4.2-1.6 7-4.7 7-9V6l-7-2.5Z',
-    'm9 12 2.2 2.2L15.2 10',
+    line('M12 3.5 5 6v5.5c0 4.3 2.8 7.4 7 9 4.2-1.6 7-4.7 7-9V6l-7-2.5Z', 1.9),
+    bar(8, 10.7, 8, { h: 2.6, cut: 'lr', accent: true }),
   ],
-  user: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z', 'M4.5 20c.7-3.6 3.7-5.5 7.5-5.5s6.8 1.9 7.5 5.5'],
-  building: ['M5 20.5V4.5h9v16', 'M14 9.5h5v11', 'M8 8h3M8 11.5h3M8 15h3', 'M3.5 20.5h17'],
-  briefcase: ['M4 8h16v11H4Z', 'M9 8V5.5h6V8', 'M4 13h16'],
-  file: ['M7 3.5h7l4 4v13H7Z', 'M14 3.5v4h4', 'M9.5 12.5H15M9.5 15.5H15'],
-  clipboard: ['M8.5 5h7v2.5h-7Z', 'M7 6.5H5.5v14h13v-14H17', 'M9 12h6M9 15.5h4'],
-  clock: ['M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17Z', 'M12 7.5V12l3 2'],
-  check: ['m5 12.5 4.5 4.5L19 7.5'],
-  alert: ['M12 4 3.5 19h17L12 4Z', 'M12 10v4M12 16.8v.2'],
-  plus: ['M12 5v14M5 12h14'],
-  search: ['M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Z', 'm15.5 15.5 5 5'],
-  arrow: ['M5 12h14m-5-5 5 5-5 5'],
-  lock: ['M6 11h12v9H6Z', 'M8.5 11V8a3.5 3.5 0 0 1 7 0v3'],
-  upload: ['M12 16V5m-4.5 4.5L12 5l4.5 4.5', 'M5 19h14'],
-  calendar: ['M4.5 6.5h15v13h-15Z', 'M4.5 10.5h15M8.5 4v4M15.5 4v4'],
-  settings: [
-    'M5 7h8M17 7h2M5 17h2M11 17h8',
-    'M15 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
-    'M9 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z',
+  user: [
+    line('M12 11.6a3.8 3.8 0 1 0 0-7.6 3.8 3.8 0 0 0 0 7.6Z', 1.9),
+    line('M4.6 20c.7-3.6 3.6-5.4 7.4-5.4s6.7 1.8 7.4 5.4', 1.9, true),
   ],
-  logout: ['M10 4.5H5.5v15H10', 'm14 8 4 4-4 4M18 12H9'],
-  chevron: ['m9 6 6 6-6 6'],
-  chevronDown: ['m6 9 6 6 6-6'],
-  folder: ['M3.5 6.5h6l2 2.5h9v10h-17Z'],
-  mail: ['M4 6.5h16v11H4Z', 'm4.5 7 7.5 6 7.5-6'],
+  building: [
+    line('M5 20.5V4.5h9v16M14 9.5h5v11M3.5 20.5h17', 1.9),
+    bar(7.6, 8, 3.8, { h: 2.2, accent: true }),
+    bar(7.6, 12.2, 3.8, { h: 2.2 }),
+  ],
+  briefcase: [line('M4 8h16v11H4ZM9 8V5.5h6V8', 1.9), bar(3.5, 12, 17, { h: 2.6, accent: true })],
+  // A page: two slices of text, the first in blue.
+  file: [
+    line('M7 3.5h7l4 4v13H7Z M14 3.5v4h4', 1.9),
+    bar(9.6, 11.2, 6, { h: 2.4, cut: 'r', accent: true }),
+    bar(9.6, 15.2, 6, { h: 2.4 }),
+  ],
+  clipboard: [
+    line('M8.5 5h7v2.5h-7ZM7 6.5H5.5v14h13v-14H17', 1.9),
+    bar(9, 11.2, 6, { h: 2.4, cut: 'r', accent: true }),
+    bar(9, 15.2, 6, { h: 2.4 }),
+  ],
+  clock: [
+    line('M12 3.8a8.2 8.2 0 1 0 0 16.4 8.2 8.2 0 0 0 0-16.4Z', 1.9),
+    line('M12 7.6V12l3.2 2', 2, true),
+  ],
+  check: [line('m5 12.5 4.5 4.5L19 7.5', 2.4)],
+  alert: [
+    line('M12 4 3.5 19h17L12 4Z', 1.9),
+    line('M12 10v3.6', 2.2, true),
+    dot(12, 16.6, 1.2, true),
+  ],
+  plus: [line('M12 5v14M5 12h14', 2.2)],
+  search: [
+    line('M10.5 4.4a6.1 6.1 0 1 0 0 12.2 6.1 6.1 0 0 0 0-12.2Z', 1.9),
+    line('m15.2 15.2 4.8 4.8', 2.6, true),
+  ],
+  arrow: [line('M5 12h14m-5-5 5 5-5 5', 2)],
+  lock: [
+    line('M8.2 10.4V8a3.8 3.8 0 0 1 7.6 0v2.4M5.5 10.4h13v9.6h-13Z', 1.9),
+    bar(10, 13.6, 4, { h: 2.6, accent: true }),
+  ],
+  upload: [
+    line('M12 15.5V4.5m-4.5 4.5L12 4.5 16.5 9', 2),
+    bar(4, 18.4, 16, { h: 2.6, cut: 'lr', accent: true }),
+  ],
+  calendar: [
+    line('M4.5 6.5h15v13h-15ZM8.5 4v4M15.5 4v4', 1.9),
+    bar(4.5, 10.2, 15, { h: 2.6, accent: true }),
+  ],
+  // Three tracks and their stops.
+  settings: [line('M4 7h8M18 7h2M4 17h2M12 17h8', 1.9), dot(15, 7, 2.6, true), dot(9, 17, 2.6)],
+  logout: [line('M10 4.5H5.5v15H10', 1.9), line('m14 8 4 4-4 4M18 12H9', 2, true)],
+  chevron: [line('m9 6 6 6-6 6', 2.2)],
+  chevronDown: [line('m6 9 6 6 6-6', 2.2)],
+  folder: [
+    line('M3.5 6.5h6l2 2.5h9v10h-17Z', 1.9),
+    bar(7, 13.2, 10, { h: 2.4, cut: 'lr', accent: true }),
+  ],
+  mail: [line('M4 6.5h16v11H4Z', 1.9), line('m4.6 7.2 7.4 5.8 7.4-5.8', 1.9, true)],
+  // The pupil is the accent between two lids.
   eye: [
-    'M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z',
-    'M12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
+    line('M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z', 1.9),
+    dot(12, 12, 2.7, true),
   ],
-  activity: ['M3 12h4l2.5-6 4 12 2.5-6H21'],
-  key: ['M8 15a4 4 0 1 1 3.5-6H20v3h-2.5v2.5H15V12h-3.5A4 4 0 0 1 8 15Z'],
-  more: ['M5 12h.01M12 12h.01M19 12h.01'],
-  close: ['m6 6 12 12M18 6 6 18'],
+  activity: [line('M3 12h4l2.5-6 4 12 2.5-6H21', 2, true)],
+  key: [
+    line('M8.5 7.8a4.2 4.2 0 1 0 0 8.4 4.2 4.2 0 0 0 0-8.4Z', 1.9),
+    bar(12.6, 10.7, 8.4, { h: 2.6, cut: 'r', accent: true }),
+    bar(17.6, 13, 3.4, { h: 2.6 }),
+  ],
+  more: [dot(5, 12, 1.7), dot(12, 12, 1.7), dot(19, 12, 1.7)],
+  close: [line('m6 6 12 12M18 6 6 18', 2.2)],
   // An empty ring: an item with nothing done on it yet.
-  circle: ['M12 20.5a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17Z'],
+  circle: [line('M12 3.8a8.2 8.2 0 1 0 0 16.4 8.2 8.2 0 0 0 0-16.4Z', 1.9)],
   // An aeroplane seen from above: a trip.
   plane: [
-    'M12 3.5c.8 0 1.5.8 1.5 2V10l7 4.5v2l-7-2V18l2 1.5V21L12 20l-3.5 1v-1.5l2-1.5v-3.5l-7 2v-2l7-4.5V5.5c0-1.2.7-2 1.5-2Z',
+    line(
+      'M12 3.5c.8 0 1.5.8 1.5 2V10l7 4.5v2l-7-2V18l2 1.5V21L12 20l-3.5 1v-1.5l2-1.5v-3.5l-7 2v-2l7-4.5V5.5c0-1.2.7-2 1.5-2Z',
+      1.8,
+    ),
+    bar(9.8, 9.4, 4.4, { h: 2.4, accent: true }),
   ],
   // A page with its side panel marked: the show and hide control for the sidebar.
-  sidebar: ['M4 5.5h16v13H4Z', 'M9.5 5.5v13'],
-} as const;
+  sidebar: [line('M4 5.5h16v13H4Z', 1.9), line('M9.5 5.5v13', 1.9, true)],
+} as const satisfies Record<string, readonly Shape[]>;
 
 export type IconName = keyof typeof PATHS;
 
@@ -89,14 +223,45 @@ export function Icon({
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      {PATHS[name].map((d) => (
-        <path key={d} d={d} />
-      ))}
+      {(PATHS[name] as readonly Shape[]).map((shape) => {
+        const accent = shape.accent ? 'icon-accent' : undefined;
+        if (shape.kind === 'dot') {
+          return (
+            <circle
+              key={`d${shape.x},${shape.y},${shape.r}`}
+              className={accent}
+              cx={shape.x}
+              cy={shape.y}
+              r={shape.r}
+              fill="currentColor"
+            />
+          );
+        }
+        if (shape.kind === 'line') {
+          return (
+            <path
+              key={shape.d}
+              className={accent}
+              d={shape.d}
+              stroke="currentColor"
+              strokeWidth={shape.width ?? 2}
+            />
+          );
+        }
+        return (
+          <polygon
+            key={shape.points}
+            className={accent}
+            points={shape.points}
+            fill="currentColor"
+            stroke="currentColor"
+            strokeWidth={1.2}
+          />
+        );
+      })}
     </svg>
   );
 }

@@ -170,6 +170,9 @@ export default async function AddDocumentsPage({
             : 'Drop your files or a whole folder here. We check each one and keep it for you.'
         }
         back={{ href: `/app/applicant/${id}/documents`, label: 'Documents' }}
+        {...(data.coreGranted
+          ? { actions: <ReadingSwitch applicantId={id} view={data.reading} /> }
+          : {})}
       />
       {!data.coreGranted ? (
         <article className="card">
@@ -197,7 +200,6 @@ export default async function AddDocumentsPage({
             </p>
           ) : null}
           <article className="card add-door">
-            <ReadingSwitch applicantId={id} view={data.reading} />
             <ImportPanel
               applicantId={id}
               limitBytes={limitBytes}

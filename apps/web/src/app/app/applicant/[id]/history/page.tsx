@@ -43,6 +43,18 @@ const METHOD_LABELS: Record<string, string> = {
   SYSTEM: 'System',
 };
 
+/** Why a version was saved, in words a person reads. A stored code that is not listed is left out, never shown raw. */
+const REASON_LABELS: Record<string, string> = {
+  ai_proposal_approved: 'You Approved a Suggestion',
+  ai_app_suggestion_approved: 'You Approved an App Suggestion',
+};
+
+function reasonWords(reason: string | null): string | null {
+  if (!reason) return null;
+  if (/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(reason)) return REASON_LABELS[reason] ?? null;
+  return reason;
+}
+
 const ACTOR_LABELS = {
   owner: 'You',
   someone_else: 'Someone Else',
@@ -132,7 +144,7 @@ export default async function HistoryPage({
           value,
           STATUS_LABELS[v.status] ?? v.status,
           METHOD_LABELS[v.method] ?? v.method,
-          v.reason,
+          reasonWords(v.reason),
           uses.length > 0 ? `Used by ${uses.join(', ')}` : null,
         ].filter((part): part is string => Boolean(part));
         return {

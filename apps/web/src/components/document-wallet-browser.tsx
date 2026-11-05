@@ -48,6 +48,13 @@ export interface WalletBrowserDocument {
 }
 type RowTone = 'neutral' | 'success' | 'warning' | 'danger';
 type Filter = 'all' | 'ready' | 'review' | 'expiring';
+/** The colour each summary tile speaks in: blue is everything, green is ready, amber needs a look, red runs out. */
+const FILTER_TONES: Readonly<Record<Filter, 'blue' | 'green' | 'amber' | 'red'>> = {
+  all: 'blue',
+  ready: 'green',
+  review: 'amber',
+  expiring: 'red',
+};
 /** The summary tiles above the list, which also filter it. Names, so Title Case. */
 const FILTER_LABELS: Readonly<Record<Filter, string>> = {
   all: 'All Documents',
@@ -202,6 +209,7 @@ export function DocumentWalletBrowser({
             <button
               key={key}
               type="button"
+              data-tone={FILTER_TONES[key]}
               aria-pressed={filter === key}
               onClick={() => {
                 setFilter(key);
