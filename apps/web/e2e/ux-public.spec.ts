@@ -1117,7 +1117,7 @@ test.describe('authoritative appearance of actual workspace components', () => {
         clock.getByText('Expires in about 8 months, if the date is right'),
       ).toBeVisible();
       // The empty clock teaches and offers the way to add the first document.
-      await expect(clock.getByText('No Dates Yet')).toBeVisible();
+      await expect(clock.getByText('No Expiry Dates Yet')).toBeVisible();
       await expect(
         clock.getByText(
           'Add a passport and its expiry date appears here, so you hear about it before it matters.',

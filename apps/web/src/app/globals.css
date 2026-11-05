@@ -15751,6 +15751,8 @@ details[open] > .lift-action-summary .lift-action-chevron {
   flex: none;
   width: 0.45rem;
   height: 0.45rem;
+  /* The turned corner sticks out past the box: keep room for it so nothing scrolls sideways. */
+  margin-inline-end: 0.2rem;
   margin-top: -0.15rem;
   border-right: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
