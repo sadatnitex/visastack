@@ -45,7 +45,7 @@ export function tripChecksSummary(checks: readonly TripCheck[] | null): {
 
 export function TripChecksPanel({ checks }: { readonly checks: readonly TripCheck[] | null }) {
   return (
-    <SectionCard kicker="Dates" heading="Trip Date Checks" tone="amber">
+    <SectionCard kicker="Dates" heading="Trip Date Checks" tone="teal">
       {checks === null ? (
         <p className="muted lift-rail-line">
           We could not check your dates just now. Reload the page to try again.

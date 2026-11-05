@@ -19137,7 +19137,8 @@ article.card:has(> .trip-start-form) {
 .insights-summary-item::before,
 .insights-card-head::before,
 .wallet-overview-strip button[data-tone]::before,
-.lift-tile[data-tone]::before {
+.lift-tile[data-tone]::before,
+.lift-card[data-tone] .card-kicker::before {
   content: "";
   flex: none;
   display: block;
@@ -19339,7 +19340,7 @@ article.card:has(> .trip-start-form) {
 }
 /* end WP-PLAIN-TONE */
 
-/* WP-PLAIN-TYPE One type scale for the signed-in workspace (Owner, 5 Nov 2026: font, text and asset sizes were inconsistent between the sidebar, the toolbar and the pages). Six sizes, each with one job: 12 labels, badges and kickers; 14 controls, navigation and secondary lines; 16 body and list rows; 18 titles of cards and sections; 24 the next step; 32 the page title and big numbers. Icons follow their text: 18 beside 14, 20 beside 16. The scale is set once on the frame, so every rule that already names a token follows it. Flat, existing tokens only. */
+/* WP-PLAIN-TYPE One type scale for the signed-in workspace (Owner, 5 Nov 2026: font, text and asset sizes were inconsistent between the sidebar, the toolbar and the pages). Six sizes, each with one job: 12 labels, badges and kickers; 14 controls, navigation and secondary lines; 16 body and list rows; 18 titles of section cards (a plain card title stays 16 in bold, one step under); 24 the next step; 32 the page title and big numbers. Icons follow their text: 18 beside 14, 20 beside 16. The scale is set once on the frame, so every rule that already names a token follows it. Flat, existing tokens only. */
 .app-frame {
   --text-caption: 0.75rem;
   --text-small: 0.875rem;
@@ -19349,15 +19350,15 @@ article.card:has(> .trip-start-form) {
   --text-display: 2rem;
   font-size: var(--text-body);
 }
-.app-frame .card-title {
-  font-size: var(--text-lead);
+.app-frame {
+  --text-page: 1.75rem;
 }
-.app-frame .page-title {
-  font-size: 1.75rem;
+.app-frame :where(.page-title) {
+  font-size: var(--text-page);
 }
 @media (min-width: 1024px) {
-  .app-frame .page-title {
-    font-size: var(--text-display);
+  .app-frame {
+    --text-page: var(--text-display);
   }
 }
 @media (min-width: 1024px) {
@@ -19386,15 +19387,5 @@ article.card:has(> .trip-start-form) {
   align-items: center;
   gap: 0.5rem;
   color: var(--tone);
-}
-.lift-card[data-tone] .card-kicker::before {
-  content: "";
-  flex: none;
-  display: block;
-  width: 1.1rem;
-  height: 1.5px;
-  border-top: 3px solid var(--tone);
-  border-bottom: 3px solid var(--tone);
-  border-radius: 1px;
 }
 /* end WP-PLAIN-TYPE */

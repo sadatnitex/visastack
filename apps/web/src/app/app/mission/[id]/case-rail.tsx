@@ -365,7 +365,7 @@ function ItineraryCard({
       title="Itinerary Reference"
       meta={mission.itineraryRef ? `Linked: ${mission.itineraryRef}` : 'Not linked'}
     >
-      <SectionCard kicker="Family Trip" heading="Itinerary Reference" tone="teal">
+      <SectionCard kicker="Family Trip" heading="Itinerary Reference" tone="violet">
         <p className="lift-rail-line">
           An optional label linking this case to another family member's, purely for display. Access
           and permissions stay entirely separate per case.
@@ -437,7 +437,7 @@ export function CaseRail({
             : 'No further stage from here'
         }
       >
-        <SectionCard kicker="Workflow" heading="Advance the Case" tone="green">
+        <SectionCard kicker="Workflow" heading="Advance the Case" tone="blue">
           {stageStates.length === 0 ? (
             <p className="lift-rail-line">
               {nextStates.length === 0

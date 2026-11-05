@@ -5,12 +5,14 @@ import { renderFixture } from './scroll-budget/support';
  * One type scale for the signed-in workspace (Owner, 5 Nov 2026: font, text and asset sizes were
  * inconsistent between the sidebar, the toolbar and the pages). The real sidebar, toolbar and case
  * workspace are drawn with made-up data, and every piece of visible text must use one of the sizes
- * of the scale: 12 labels, 14 controls and navigation, 16 body, 18 card titles, 24 the next step,
- * 28 or 32 the page title. The brand name is a logotype, drawn at 23.
+ * of the scale: 12 labels, 14 controls and navigation, 16 body, 18 titles of section cards, 24 the
+ * next step, 32 big numbers and the page title (28 for the page title on a phone). The brand name
+ * is a logotype, drawn at 23.
  */
 
-const SCALE = new Set([12, 14, 16, 18, 24, 28, 32]);
-const LOGOTYPE = 23;
+const SCALE = new Set([12, 14, 16, 18, 24, 32]);
+/** The only places a size outside the scale is allowed, by the class of the element. */
+const EXCEPTIONS: Readonly<Record<string, number>> = { brand: 23, 'page-title': 28 };
 
 interface Seen {
   readonly size: number;
@@ -56,7 +58,7 @@ for (const viewport of [
       await renderFixture(page, 'type-audit', {}, { standInServerActions: true });
       const all = await seen(page);
       expect(all.length).toBeGreaterThan(40);
-      const off = all.filter((s) => !SCALE.has(s.size) && s.size !== LOGOTYPE);
+      const off = all.filter((s) => !SCALE.has(s.size) && EXCEPTIONS[s.cls] !== s.size);
       expect(
         off.map((s) => `${s.size}px ${s.area} .${s.cls} "${s.text}"`),
         'text drawn off the scale',
@@ -81,10 +83,13 @@ test('on a wide screen the sidebar, the toolbar and the page speak at the same s
   // A card's title is larger than the rows under it, and rows are larger than their notes.
   const title = all.find((s) => s.cls === 'lift-card-title');
   const row = all.find((s) => s.cls === 'row-key');
-  const note = all.find((s) => s.cls === 'muted' && s.text.startsWith('Add this'));
-  expect(title?.size).toBe(18);
-  expect(row?.size).toBe(16);
-  expect(note?.size).toBe(14);
+  const noteSize = await page.evaluate(() => {
+    const note = document.querySelector('.row .muted');
+    return note ? Number.parseFloat(getComputedStyle(note).fontSize) : null;
+  });
+  expect(title?.size, 'a section card title').toBe(18);
+  expect(row?.size, 'a list row').toBe(16);
+  expect(noteSize, 'the note under a row').toBe(14);
   // Icons follow their text: 18 beside the 14 px navigation.
   const iconSizes = await page.evaluate(() =>
     [...document.querySelectorAll('.app-shell-links a .icon')]
