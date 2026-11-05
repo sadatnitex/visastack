@@ -807,6 +807,17 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason:
       'Owner, 5 Nov 2026: no page should have more than 30 words. The warning and what to do about it are one sentence that stays visible: the same meaning in fewer words, with nothing folded away.',
   },
+
+  // WP-PLAIN-P3B entries
+  ...['agency-home', 'agency-cases'].map(
+    (screen): ApprovedChange => ({
+      screen,
+      from: { kind: 'text', name: 'Your clients, cases and team in one place.' },
+      to: null,
+      reason:
+        'Owner, 5 Nov 2026: no page should have more than 30 words. The line under the page name was the same on every agency page and only restated the heading and the section bar, so it is gone; nothing else said it.',
+    }),
+  ),
 ];
 
 /**

@@ -7,6 +7,7 @@ import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
 import { ShowMore } from '../../../../components/show-more';
 import { Checklist, EmptyState, StatusBadge } from '../../../../components/ui';
+import { AboutDisclosure } from '../../../../components/ui-lift/about-disclosure';
 import { depthCopy } from '../../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../lib/ccd/depth.server';
@@ -48,7 +49,11 @@ function Stat({
     <div className={`stat${state}`}>
       <span className="stat-label">{label}</span>
       <span className="stat-value">{value}</span>
-      {note ? <span className="stat-note">{note}</span> : null}
+      {note ? (
+        <span className="stat-note" data-value>
+          {note}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -316,7 +321,7 @@ export default async function AgencyDashboardPage({
   return (
     <DepthScope family="agency-home" depth={depth}>
       <BillingStatusNotice notice={data.billingStatus} admin={data.admin} organizationId={orgId} />
-      <DepthSwitch family="agency-home" initial={depth} copy={depthWords} />
+      <DepthSwitch family="agency-home" initial={depth} copy={depthWords} notesBehindInfo />
       <section className="agency-reference-metrics" aria-label="Agency overview">
         <Stat
           label={data.admin ? 'Active Clients' : 'Clients you can work with'}
@@ -434,12 +439,14 @@ export default async function AgencyDashboardPage({
             <h2 className="card-title" id="inbox-heading">
               Cases and Attention
             </h2>
-            <p className="card-body u-mb-100">Cases that need action come first.</p>
-            <div className="depth-item" {...(filtered ? {} : atLevel('everything'))}>
-              <p className="card-body u-mb-100">
+            <AboutDisclosure summary="About This List" className="u-mb-100">
+              <p className="card-body">Cases that need action come first.</p>
+              <p className="card-body">
                 Search covers only the cases you are already allowed to see, by traveller, case
                 title, reference, destination or stage.
               </p>
+            </AboutDisclosure>
+            <div className="depth-item" {...(filtered ? {} : atLevel('everything'))}>
               <CaseSearchForm
                 orgId={orgId}
                 members={data.members.map((m) => ({ accountId: m.accountId, email: m.email }))}
@@ -561,7 +568,9 @@ export default async function AgencyDashboardPage({
                           {mission.targetDeadline ? (
                             formatDateOnly(mission.targetDeadline)
                           ) : (
-                            <span className="muted">Not set</span>
+                            <span className="muted" data-value>
+                              Not set
+                            </span>
                           )}
                         </td>
                         <td data-label="Needs Attention">
@@ -591,7 +600,9 @@ export default async function AgencyDashboardPage({
                               row.overdueTasks +
                               (row.approaching ? 1 : 0) ===
                             0 ? (
-                              <span className="muted">Nothing</span>
+                              <span className="muted" data-value>
+                                Nothing
+                              </span>
                             ) : null}
                           </span>
                         </td>

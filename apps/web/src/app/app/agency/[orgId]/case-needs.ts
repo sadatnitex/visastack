@@ -39,7 +39,7 @@ export function caseNeedsYou(input: {
   const parts = [
     ...(tasks > 0 ? [plural(tasks, 'task')] : []),
     ...(toReview > 0 ? [`${plural(toReview, 'item')} to review`] : []),
-    ...(input.admin && input.assignmentCount === 0 ? ['someone to look after it'] : []),
+    ...(input.admin && input.assignmentCount === 0 ? ['an owner'] : []),
   ];
   if (parts.length === 0) return nothing;
   const last = parts.pop();

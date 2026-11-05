@@ -1,19 +1,19 @@
 {
   "agency-home": {
     "a new agency with nothing yet": {
-      "desktop": 137
+      "desktop": 81
     },
     "a busy administrator": {
-      "desktop": 267
+      "desktop": 153
     },
     "a member": {
-      "desktop": 277
+      "desktop": 182
     },
     "a quick view": {
-      "desktop": 290
+      "desktop": 153
     },
     "a search with no match": {
-      "desktop": 116
+      "desktop": 33
     }
   },
   "home": {
@@ -68,17 +68,11 @@
     }
   },
   "agency-cases": {
-    "an administrator with no cases": {
-      "desktop": 71
-    },
-    "a member with no cases": {
-      "desktop": 64
-    },
     "a busy administrator": {
-      "desktop": 137
+      "desktop": 35
     },
     "a member": {
-      "desktop": 141
+      "desktop": 57
     }
   },
   "evidence": {

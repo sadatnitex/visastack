@@ -60,8 +60,9 @@ export function AgencyWorkspaceHeading({
         ) : (
           <p className="page-title">{brand.name}</p>
         )}
-        <p className="page-description">Your clients, cases and team in one place.</p>
-        <p className="agency-hero-attribution">Powered by VisaStack</p>
+        <p className="agency-hero-attribution" data-value>
+          Powered by VisaStack
+        </p>
       </div>
       <div className="page-actions">
         {overview && admin ? (

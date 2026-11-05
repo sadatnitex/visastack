@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { atLevel } from '../../../../components/depth';
+import { AboutDisclosure } from '../../../../components/ui-lift/about-disclosure';
 import { agree } from '../../../../lib/plural';
 import type { DoNextItem, DoNextTier } from './do-next';
 import { FollowUpCopy } from './follow-up-copy';
@@ -34,12 +35,14 @@ export function DoNextList({
       <h2 className="card-title" id="do-next-heading">
         Do Next
       </h2>
-      <p className="card-body do-next-intro">
-        {filtered ? 'For the cases in your current view. ' : ''}
-        {admin
-          ? 'Past due items first, then items waiting for review, overdue tasks and cases with no owner.'
-          : 'Overdue tasks on the cases assigned to you, most overdue first.'}
-      </p>
+      <AboutDisclosure summary="How This Is Sorted">
+        <p className="card-body do-next-intro">
+          {filtered ? 'For the cases in your current view. ' : ''}
+          {admin
+            ? 'Past due items first, then items waiting for review, overdue tasks and cases with no owner.'
+            : 'Overdue tasks on the cases assigned to you, most overdue first.'}
+        </p>
+      </AboutDisclosure>
       {shown.length === 0 ? (
         <p className="do-next-empty">Nothing needs you first right now.</p>
       ) : (
@@ -55,7 +58,7 @@ export function DoNextList({
                 <span className="do-next-tier">{TIER_LABEL[item.tier]}</span>
                 <h3 className="do-next-title">{item.heading}</h3>
               </div>
-              <p className="do-next-context">
+              <p className="do-next-context" data-value>
                 {item.traveller}
                 {item.caseTitle && item.caseTitle !== item.heading ? ` · ${item.caseTitle}` : ''}
                 {item.caseTitle === null ? ' · Not tied to one case' : ''}
@@ -63,7 +66,7 @@ export function DoNextList({
               <dl className="do-next-facts">
                 <div>
                   <dt>Owner</dt>
-                  <dd>{item.owner}</dd>
+                  <dd data-value>{item.owner}</dd>
                 </div>
                 <div>
                   <dt>Why</dt>
