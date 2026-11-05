@@ -2,6 +2,7 @@ import { listApplicants, tripTablesReady } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
+import { AboutDisclosure } from '../../../../components/ui-lift';
 import { caseCountryOptions, casePurposeGroups } from '../../../../lib/case-choices';
 import { withSession } from '../../../../lib/session';
 import { TripStartForm } from './start-form';
@@ -22,10 +23,14 @@ export default async function TripStartPage() {
   }));
   return (
     <>
-      <PageHeader
-        title="Start a Trip"
-        description="Tell us where you are going, why, and who is travelling. We set up a case for each traveller and show what their visa usually needs."
-      />
+      <PageHeader title="Start a Trip" />
+      {/* Owner, 5 Nov 2026: no page should have more than 30 words. The explanation is one tap away. */}
+      <AboutDisclosure summary="About Starting a Trip">
+        <p>
+          Tell us where you are going, why, and who is travelling. We set up a case for each
+          traveller and show what their visa usually needs.
+        </p>
+      </AboutDisclosure>
       <article className="card">
         {travellers.length > 0 ? (
           <TripStartForm
@@ -40,10 +45,12 @@ export default async function TripStartPage() {
         )}
       </article>
       {groupTrips && travellers.length > 1 ? (
-        <p className="muted u-fs-085">
-          Travelling together? <Link href="/app/trips/new">Start a Group Trip</Link> to keep
-          everyone&apos;s cases together on one page.
-        </p>
+        <AboutDisclosure summary="Travelling Together?">
+          <p className="muted u-fs-085">
+            Travelling together? <Link href="/app/trips/new">Start a Group Trip</Link> to keep
+            everyone&apos;s cases together on one page.
+          </p>
+        </AboutDisclosure>
       ) : null}
     </>
   );

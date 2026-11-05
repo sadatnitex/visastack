@@ -4,6 +4,7 @@
  * WP-LIFT-A block of globals.css. A screen adopts one by wrapping it around markup it already has,
  * keeping every id, class and data hook the tests read.
  */
+export { AboutDisclosure, type AboutDisclosureProps } from './about-disclosure';
 export { ActionRow, type ActionRowProps } from './action-row';
 export { AlertBanner, type AlertBannerProps } from './alert-banner';
 export { ChecklistRow, type ChecklistRowProps } from './checklist-row';

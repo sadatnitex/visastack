@@ -242,12 +242,15 @@ describe('sharing levels', () => {
     }
     for (const id of ['g3', 'g4', 'g5'])
       expect(levelOf(rowFor(doc, `Recipient ${id}`))).toBe('browse');
-    const warning = [...doc.querySelectorAll('p.notice')].find((p) =>
-      p.textContent?.includes('Pausing or revoking stops all'),
+    // The warning is one short line that stays at every level; the full wording is one tap away.
+    const warning = doc.querySelector('.lc-revoke-warning');
+    expect(warning?.textContent).toContain(
+      'Revoking stops access now; copies already downloaded cannot be erased.',
     );
+    expect(warning?.textContent).toContain('Pausing or revoking stops all');
     expect(levelOf(warning)).toBe('glance');
     expect(doc.querySelector('[data-only="glance"]')?.textContent).toContain(
-      '3 more are waiting to be accepted or have ended.',
+      '3 more waiting or ended, under Browse.',
     );
     expect(levelOf(doc.getElementById('new-sharing-request'))).toBe('everything');
   });
@@ -277,7 +280,7 @@ describe('sharing levels', () => {
     try {
       const doc = await page();
       expect(doc.querySelector('[data-only="glance"]')?.textContent).toContain(
-        '1 more is waiting to be accepted or has ended.',
+        '1 more waiting or ended, under Browse.',
       );
       expect(levelOf(doc.querySelector('.sharing-invitation-history'))).toBe('browse');
     } finally {

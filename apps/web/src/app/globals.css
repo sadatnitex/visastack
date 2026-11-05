@@ -18832,3 +18832,73 @@ article.card:has(> .trip-start-form) {
   }
 }
 /* end WP-PLAIN-P1 */
+
+/* WP-PLAIN-P2 the 30-word rule on the main signed-in screens (Owner, 5 Nov 2026: no page should have more than 30 words): folds that hold the explanation, and the phone's switch without its sentence. Flat, existing tokens only. P2 edits only inside this block. */
+.lift-about {
+  margin-top: var(--space-1);
+}
+.lift-next .lift-about {
+  margin-top: var(--space-2);
+}
+.lift-next-ink .lift-help > summary {
+  color: var(--chapter-text);
+}
+.lift-next-ink .lift-help-body {
+  color: var(--chapter-text);
+}
+.case-journey-reminder.lift-help {
+  margin: 0 0 var(--space-3);
+  padding: 0 var(--space-2);
+}
+.case-journey-reminder.lift-help > summary {
+  font-size: var(--text-caption);
+}
+.case-welcome .lift-about {
+  margin-top: var(--space-1);
+}
+.lift-alert .lift-about {
+  margin-top: var(--space-1);
+}
+
+/* On a phone the three level buttons speak for themselves; the sentence under them stays for screen readers only. */
+@media (max-width: 760px) {
+  .depth-scope .depth-switch p.depth-note[data-for] {
+    position: absolute;
+    display: block;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+}
+
+/* Case page on a phone: a checklist row's action is a quiet link-style button, so four rows do not repeat four outlined buttons. */
+@media (max-width: 760px) {
+  .lift-check > .lift-check-action {
+    justify-self: start;
+    align-self: start;
+    min-height: 44px;
+    margin-top: 0;
+    padding-inline: 0;
+    border-color: transparent;
+    background: transparent;
+    color: var(--selected-text);
+  }
+}
+
+/* Home and the other dark Next Step banners: the reason sits behind "Why This Step", light on the dark ground. */
+.next-step .lift-about > summary,
+.next-step .lift-about .lift-help-body {
+  color: var(--chapter-text);
+}
+.next-step .lift-about {
+  margin-top: var(--space-1);
+}
+.next-step .lift-about .next-step-why {
+  margin-top: 0;
+}
+/* end WP-PLAIN-P2 */

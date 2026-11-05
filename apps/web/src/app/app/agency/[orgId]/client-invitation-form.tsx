@@ -62,7 +62,7 @@ export function ClientInvitationForm({
             placeholder="jane@example.com"
           />
           <p id="contactDestination-hint" className="disclosure-hint">
-            Only someone signed in with this email address can accept the invitation.
+            Only that email address can accept.
           </p>
         </div>
         <div className="field-row">

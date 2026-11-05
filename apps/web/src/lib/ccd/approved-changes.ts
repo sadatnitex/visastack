@@ -739,6 +739,61 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason:
       'Owner, 5 Nov 2026: no page should have more than 30 words. A list with nothing in it shows its empty state alone: no row of zeros, no search over nothing.',
   },
+
+  // WP-PLAIN-P2 entries
+  {
+    screen: 'traveller',
+    from: { kind: 'text', name: 'Your next steps, documents and cases in one place.' },
+    to: { kind: 'text', name: 'Nothing is waiting for you.' },
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. The status line under the name is one short sentence.',
+  },
+  ...Array.from({ length: 12 }, (_, i) => i + 1).map(
+    (count) =>
+      ({
+        screen: 'traveller',
+        from: {
+          kind: 'text',
+          name: `${count} ${count === 1 ? 'item needs' : 'items need'} a decision or a closer look.`,
+        },
+        to: {
+          kind: 'text',
+          name: `${count} ${count === 1 ? 'item needs' : 'items need'} a look.`,
+        },
+        reason:
+          'Owner, 5 Nov 2026: no page should have more than 30 words. The status line under the name is one short sentence.',
+      }) as const,
+  ),
+  {
+    screen: 'evidence',
+    from: { kind: 'text', name: 'The agency did not add a reason. Ask them if you are unsure.' },
+    to: null,
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. A request with no reason from the agency says nothing about it (the same sentence was repeated on every card); the question box at Everything is still the way to ask. A repeated line, so nothing is lost.',
+  },
+  ...Array.from({ length: 12 }, (_, i) => i).map(
+    (count) =>
+      ({
+        screen: 'sharing',
+        from: {
+          kind: 'text',
+          name: `${count} active ${count === 1 ? 'grant' : 'grants'}. Pending, paused and ended grants are labelled separately below.`,
+        },
+        to: { kind: 'text', name: `${count} active ${count === 1 ? 'grant' : 'grants'}.` },
+        reason:
+          'Owner, 5 Nov 2026: no page should have more than 30 words. The count is one short line; the sentence on how pending, paused and ended grants are labelled moves under "About Sharing".',
+      }) as const,
+  ),
+  {
+    screen: 'sharing',
+    from: {
+      kind: 'text',
+      name: 'Pause stops access straight away and you can resume it later. Revoke ends this access.',
+    },
+    to: null,
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. The same sentence was repeated under every grant; it now stands once under "About Sharing" (and the revoke warning above the grants stays visible). A repeated line, so nothing is lost.',
+  },
 ];
 
 /**
@@ -926,5 +981,19 @@ export const APPROVED_RULES: readonly ApprovedRule[] = [
       }
       return [];
     },
+  },
+
+  // WP-PLAIN-P2 rules
+  {
+    screens: ['case'],
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. The Next Step shows its one short line ("First to fix: {item}.") and the reason, unchanged, moves under "Why This Step", so the two sentences that used to be one paragraph are now two. The same words.',
+    alternatives: (entry) =>
+      entry.kind === 'text' &&
+      /^First to fix: .+\. Some required items are missing, out of date or do not match\.$/.test(
+        entry.name,
+      )
+        ? [{ ...entry, name: 'Some required items are missing, out of date or do not match.' }]
+        : [],
   },
 ];

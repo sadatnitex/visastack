@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Icon, type IconName } from './icons';
+import { AboutDisclosure } from './ui-lift/about-disclosure';
 
 /**
  * Small shared building blocks for the signed-in screens. They carry no state and no
@@ -47,7 +48,11 @@ export function NextStepCard({
         <h2 className="next-step-title" id="next-step-title">
           {title}
         </h2>
-        {why ? <p className="next-step-why">{why}</p> : null}
+        {why ? (
+          <AboutDisclosure summary="Why This Step" className="next-step-fold">
+            <p className="next-step-why">{why}</p>
+          </AboutDisclosure>
+        ) : null}
       </div>
       <Link href={href} className="btn btn-primary">
         {action}
@@ -103,19 +108,27 @@ export function EmptyState({
   why,
   action,
   icon,
+  fold = false,
 }: {
   readonly title: string;
   readonly children: ReactNode;
   readonly why?: string;
   readonly action?: { readonly href: string; readonly label: string };
   readonly icon?: IconName;
+  /** Keep the sentences under "About This" so the empty state is its title and one button. */
+  readonly fold?: boolean;
 }) {
+  const sentences = (
+    <>
+      <p className="empty-state-body">{children}</p>
+      {why ? <p className="empty-state-why">{why}</p> : null}
+    </>
+  );
   return (
     <div className="empty-state">
       <IconTile name={icon ?? 'folder'} />
       <p className="empty-state-title">{title}</p>
-      <p className="empty-state-body">{children}</p>
-      {why ? <p className="empty-state-why">{why}</p> : null}
+      {fold ? <AboutDisclosure summary="About This">{sentences}</AboutDisclosure> : sentences}
       {action ? (
         <Link href={action.href} className="btn btn-secondary">
           {action.label}

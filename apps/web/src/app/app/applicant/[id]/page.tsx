@@ -348,8 +348,8 @@ export default async function ApplicantOverviewPage({
           partial
             ? 'Some records could not be loaded. Try refreshing before relying on these totals.'
             : attention
-              ? `${plural(attention, 'item')} ${agree(attention, 'needs', 'need')} a decision or a closer look.`
-              : 'Your next steps, documents and cases in one place.'
+              ? `${plural(attention, 'item')} ${agree(attention, 'needs', 'need')} a look.`
+              : 'Nothing is waiting for you.'
         }
         actions={
           data.manage?.lifecycle.state === 'RECENTLY_DELETED' ? undefined : (

@@ -508,7 +508,7 @@ describe('agency Clients: the exact copy on each request (Lane E)', () => {
     const text = textOf(html);
     expect(text).toContain('Copy Waiting for Your Decision');
     expect(text).toContain('passport-clear.pdf');
-    expect(text).toContain('Received is not Accepted. Accept it or send it back below.');
+    expect(text).toContain('Received is not Accepted.');
     expect(text).toContain('File type checked. Not scanned for viruses.');
     expect(stubProps(html, 'EvidenceRequestActions')).toEqual([
       {

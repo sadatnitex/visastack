@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageHeader } from '../../../../components/ui';
+import { AboutDisclosure } from '../../../../components/ui-lift';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
 import { loadJoinedTrips, loadTripList } from '../trip-data';
@@ -21,7 +22,6 @@ export default async function TripsPage() {
     <>
       <PageHeader
         title="Group Trips"
-        description="Plan one trip for several travellers. Each traveller keeps their own case, documents and privacy."
         actions={
           hasTravellers ? (
             <Link className="btn btn-primary" href="/app/trips/new">
@@ -30,6 +30,12 @@ export default async function TripsPage() {
           ) : null
         }
       />
+      <AboutDisclosure summary="About Group Trips">
+        <p>
+          Plan one trip for several travellers. Each traveller keeps their own case, documents and
+          privacy.
+        </p>
+      </AboutDisclosure>
       <article className="card">
         {trips.length > 0 ? (
           <ul className="trip-list">

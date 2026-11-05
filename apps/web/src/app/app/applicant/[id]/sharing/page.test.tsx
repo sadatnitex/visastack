@@ -639,7 +639,7 @@ describe('a long list of grants stays short (WP-SB3)', () => {
     const text = textOf(html);
     expect(text).toContain('Showing 5 of 40 grants.');
     expect(text).toContain('8 active grants.');
-    expect(text).toContain('32 more are waiting to be accepted or have ended.');
+    expect(text).toContain('32 more waiting or ended, under Browse.');
     expect(html).toContain('href="/app/applicant/owned/sharing?show=10#sharing-grant-6"');
     expect(html).toContain('id="sharing-grant-5"');
   });

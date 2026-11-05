@@ -3,6 +3,7 @@
 import { useActionState, useId, useState } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../../components/form-feedback';
 import { Icon } from '../../../../../components/icons';
+import { AboutDisclosure } from '../../../../../components/ui-lift';
 import { SAVING_TEXT, saveResult } from '../../../../../lib/save-status';
 import { type ActionState, submitEvidenceResponseAction } from './actions';
 import { type DocumentChoice, chooseLegendId, initialChoice } from './response-choices';
@@ -20,8 +21,11 @@ const HINT_ONLY_ONE =
 const HINT_CHOOSE = 'Choose which one to send.';
 const HINT_SENT_BACK =
   'The copy the agency sent back is marked. Choose another, or upload a clearer copy.';
+/** The full wording of what sending does, kept whole under "About Sending". */
 export const CONSENT_LINE =
   'Sending lets the agency download this exact copy while it has access to your records. Later changes to the file are not sent.';
+/** The one short sentence that stays beside the Send button (the 30-word rule, 5 Nov 2026). */
+export const CONSENT_SHORT = 'Sending shares this exact copy.';
 
 /**
  * The applicant's side of Commercial V1 Part 4 §10: pick a fact or a document they already hold
@@ -203,11 +207,6 @@ export function SubmitResponseForm({
               </label>
             ))}
       </fieldset>
-      {hint ? (
-        <p className="muted u-fs-085 u-m-0" id={hintId}>
-          {hint}
-        </p>
-      ) : null}
       <div className="request-response-actions lc-response-actions">
         <SubmitButton
           pending={pending}
@@ -222,7 +221,19 @@ export function SubmitResponseForm({
         <FormMessage result={waitingResult} pending={pending} pendingText={SAVING_TEXT} />
       </div>
       {kind === 'DOCUMENT' && exactCopies ? (
-        <p className="muted u-fs-085 u-m-0">{CONSENT_LINE}</p>
+        <p className="muted u-fs-085 u-m-0">{CONSENT_SHORT}</p>
+      ) : null}
+      {hint || (kind === 'DOCUMENT' && exactCopies) ? (
+        <AboutDisclosure summary="About Sending">
+          {hint ? (
+            <p className="muted u-fs-085 u-m-0" id={hintId}>
+              {hint}
+            </p>
+          ) : null}
+          {kind === 'DOCUMENT' && exactCopies ? (
+            <p className="muted u-fs-085 u-m-0">{CONSENT_LINE}</p>
+          ) : null}
+        </AboutDisclosure>
       ) : null}
     </form>
   );

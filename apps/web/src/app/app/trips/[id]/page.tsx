@@ -42,7 +42,7 @@ export default async function GroupTripPage({
     <>
       <PageHeader
         title={data.title}
-        description={`${data.destination} for ${data.purpose}. Each traveller below has their own case.`}
+        description={`${data.destination} for ${data.purpose}.`}
         back={{ href: '/app/trips', label: 'Group Trips' }}
       />
       {notice ? <output className="trip-notice">{notice}</output> : null}

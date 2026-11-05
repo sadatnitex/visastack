@@ -10,6 +10,7 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../components/form-feedback';
+import { AboutDisclosure } from '../../../components/ui-lift';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../lib/case-choices';
 import { AUTHORITY_SENTENCE } from '../add-applicant-form';
 import {
@@ -365,10 +366,12 @@ export function GroupTripStartForm({
           />
         ) : null}
       </div>
-      <p className="muted u-fs-085 u-m-0">
-        Each traveller keeps their own case, documents and privacy. Nothing is shared between
-        travellers unless you choose it.
-      </p>
+      <AboutDisclosure summary="About This">
+        <p className="muted u-fs-085 u-m-0">
+          Each traveller keeps their own case, documents and privacy. Nothing is shared between
+          travellers unless you choose it.
+        </p>
+      </AboutDisclosure>
       <div>
         <SubmitButton pending={pending} idle="Start Group Trip" busy="Starting…" />
         <FormMessage id={messageId} result={state} />

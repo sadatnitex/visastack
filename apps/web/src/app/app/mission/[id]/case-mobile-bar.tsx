@@ -9,7 +9,6 @@ export interface CaseMobileBarProgress {
 }
 
 export interface CaseMobileBarProps {
-  readonly missionTitle: string;
   /** The attention item shown as the Next Step; null when the case changed or nothing needs doing. */
   readonly nextStep: CaseAttentionItem | null;
   /** The checklist's progress, shown as "6 of 12" with a small bar; left out when there is none. */
@@ -21,10 +20,11 @@ export interface CaseMobileBarProps {
  * says how far the checklist is ("6 of 12") with a small bar, then the step in plain words; the
  * one button is secondary, because the Next Step panel at the top holds the page's filled button.
  */
-export function CaseMobileBar({ missionTitle, nextStep, progress }: CaseMobileBarProps) {
+export function CaseMobileBar({ nextStep, progress }: CaseMobileBarProps) {
   if (!nextStep || nextStep.kind === 'changed') return null;
   const copy = NEXT_STEP_COPY[nextStep.kind];
-  const title = copy.title(nextStep.count, missionTitle);
+  // Short on purpose: the Next Step panel above already says it in full.
+  const title = copy.short(nextStep.count);
   const hasProgress = Boolean(progress && progress.total > 0);
   return (
     <div className="case-sticky-next">

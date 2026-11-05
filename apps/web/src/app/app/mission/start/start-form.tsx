@@ -10,6 +10,7 @@ import {
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
 import { StickyActionBar } from '../../../../components/sticky-action-bar';
+import { AboutDisclosure } from '../../../../components/ui-lift';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../../lib/case-choices';
 import { type TripStartState, startTripAction } from './actions';
 
@@ -107,10 +108,12 @@ export function TripStartForm({
           </label>
         ))}
       </fieldset>
-      <p className="muted u-fs-085 u-m-0 lc-help">
-        Each traveller gets their own case. We ask for dates or other details only when the
-        checklist needs them.
-      </p>
+      <AboutDisclosure summary="About This">
+        <p className="muted u-fs-085 u-m-0 lc-help">
+          Each traveller gets their own case. We ask for dates or other details only when the
+          checklist needs them.
+        </p>
+      </AboutDisclosure>
       <StickyActionBar label="Start the Trip">
         <SubmitButton pending={pending} idle="Start Trip" busy="Starting…" />
       </StickyActionBar>

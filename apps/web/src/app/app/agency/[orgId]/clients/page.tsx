@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ReferenceCode } from '../../../../../components/reference-code';
 import { EmptyState } from '../../../../../components/ui';
-import { SectionCard } from '../../../../../components/ui-lift';
+import { AboutDisclosure, SectionCard } from '../../../../../components/ui-lift';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { evidenceDocumentGroups, evidenceFieldGroups } from '../../../../../lib/master-profile';
 import { type SearchParamsRecord, firstParam, pagingHref } from '../../../../../lib/paging';
@@ -184,11 +184,13 @@ export default async function AgencyClientsPage({
             <h3 className="agency-add-title" id="agency-add-clients">
               Clients
             </h3>
-            <p className="card-body">
-              Invite a traveller as a new client. They alone choose which of their own traveller
-              profiles the resulting case attaches to, and their acceptance is what actually grants
-              this organization access, never the invitation itself.
-            </p>
+            <AboutDisclosure summary="About Invitations">
+              <p className="card-body">
+                Invite a traveller as a new client. They alone choose which of their own traveller
+                profiles the resulting case attaches to, and their acceptance is what actually
+                grants this organization access, never the invitation itself.
+              </p>
+            </AboutDisclosure>
             {invitations.total > 0 ? (
               // Keeps the state it first opened with across this page's own links (Show More, Back to
               // the Newest Invitations), so a link into the list never folds it shut.
@@ -254,6 +256,7 @@ export default async function AgencyClientsPage({
                 <EmptyState
                   icon="users"
                   title="No Clients Invited Yet"
+                  fold
                   why="You see each client's progress here once they accept."
                   action={{ href: '#invite-client', label: 'Invite a Client' }}
                 >
@@ -286,9 +289,11 @@ export default async function AgencyClientsPage({
             <h3 className="agency-add-title" id="agency-add-evidence">
               Request Evidence
             </h3>
-            <p className="card-body">
-              Ask a traveller for a specific field or document. They decide whether to fulfil it.
-            </p>
+            <AboutDisclosure summary="About Requests">
+              <p className="card-body">
+                Ask a traveller for a specific field or document. They decide whether to fulfil it.
+              </p>
+            </AboutDisclosure>
             {/* Opens on its own while no request exists yet, and for a link to #ask-for-evidence. */}
             <FormGroup
               id="ask-for-evidence"
@@ -321,6 +326,7 @@ export default async function AgencyClientsPage({
           <EmptyState
             icon="clipboard"
             title="No Evidence Requests Yet"
+            fold
             why="Clients reply from their own documents, so you get the right paper without chasing."
             action={{ href: '#ask-for-evidence', label: 'Request Evidence' }}
           >
@@ -394,10 +400,12 @@ export default async function AgencyClientsPage({
             )}
           </>
         )}
-        <p className="muted lc-small-note">
-          Each request belongs to a case. To work on a case, open it in{' '}
-          <Link href={`/app/agency/${orgId}/cases`}>Cases</Link>.
-        </p>
+        <AboutDisclosure summary="About Cases">
+          <p className="muted lc-small-note">
+            Each request belongs to a case. To work on a case, open it in{' '}
+            <Link href={`/app/agency/${orgId}/cases`}>Cases</Link>.
+          </p>
+        </AboutDisclosure>
       </article>
     </>
   );

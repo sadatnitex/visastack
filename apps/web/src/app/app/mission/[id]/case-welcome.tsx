@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { AboutDisclosure } from '../../../../components/ui-lift';
 
 /**
  * The note a new case opens with (owner list item 1): it says the case exists and what to do
@@ -13,11 +14,15 @@ import { useEffect, useRef, useState } from 'react';
  */
 export function CaseWelcome({
   title,
+  lead,
   body,
   action,
   primary = true,
 }: {
   readonly title: string;
+  /** One short sentence, always shown. */
+  readonly lead: string;
+  /** The longer words, folded under "About This". */
   readonly body: readonly string[];
   readonly action: { readonly href: string; readonly label: string };
   /** False when the next step or the changed-case alert holds the page's one primary button. */
@@ -46,11 +51,12 @@ export function CaseWelcome({
       <h2 className="case-welcome-title" id="case-welcome-heading" ref={heading} tabIndex={-1}>
         {title}
       </h2>
-      {body.map((line) => (
-        <p className="case-welcome-body" key={line}>
-          {line}
-        </p>
-      ))}
+      <p className="case-welcome-body">{lead}</p>
+      <AboutDisclosure summary="About This">
+        {body.map((line) => (
+          <p key={line}>{line}</p>
+        ))}
+      </AboutDisclosure>
       <div className="case-welcome-actions">
         <a className={primary ? 'btn btn-primary' : 'btn btn-secondary'} href={action.href}>
           {action.label}

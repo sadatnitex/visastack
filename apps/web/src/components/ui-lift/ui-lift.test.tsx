@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { axeViolations } from '../../lib/axe.test-support';
 import { Icon } from '../icons';
 import {
+  AboutDisclosure,
   ActionRow,
   AlertBanner,
   ChecklistRow,
@@ -637,5 +638,78 @@ describe('the lift block in globals.css', () => {
     );
     expect(withoutPlain.trim()).toBe('');
     expect(css.match(/\/\* WP-LIFT-A /g)).toHaveLength(1);
+  });
+});
+
+describe('AboutDisclosure (the 30-word rule, Owner, 5 Nov 2026)', () => {
+  it('is a closed native fold: its name is the only text shown, the words stay in the markup', () => {
+    const host = render(
+      <AboutDisclosure summary="About This">
+        <p>Preparing a file is not the same as submitting it.</p>
+      </AboutDisclosure>,
+    );
+    const details = host.querySelector('details');
+    expect(details?.hasAttribute('open')).toBe(false);
+    expect(details?.className).toBe('lift-help lift-about');
+    expect(details?.querySelector('summary')?.textContent).toBe('About This');
+    expect(details?.querySelector('p')?.textContent).toBe(
+      'Preparing a file is not the same as submitting it.',
+    );
+    // Closed by default and no inline style, so nothing is shown or hidden by hand.
+    expect(host.innerHTML).not.toContain('style=');
+  });
+
+  it('takes an extra class for the page that uses it', () => {
+    const host = render(
+      <AboutDisclosure summary="About This Case" className="case-journey-reminder">
+        <p>Words.</p>
+      </AboutDisclosure>,
+    );
+    expect(host.querySelector('details')?.className).toBe(
+      'lift-help lift-about case-journey-reminder',
+    );
+  });
+
+  it('is axe clean', async () => {
+    expect(
+      await axeViolations(
+        renderToStaticMarkup(
+          <AboutDisclosure summary="About This">
+            <p>Words.</p>
+          </AboutDisclosure>,
+        ),
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe('NextStepPanel why (the 30-word rule)', () => {
+  it('keeps the reason under "Why This Step", after the one button, and shows nothing without one', () => {
+    const withWhy = render(
+      <NextStepPanel
+        kicker="Next Step"
+        kickerId="x"
+        title="Fix 4 required items"
+        body="First to fix: Income Tax Return."
+        action={{ label: 'See What Needs Fixing', href: '#readiness' }}
+        why={<p>Some required items are missing, out of date or do not match.</p>}
+      />,
+    );
+    const details = withWhy.querySelector('details');
+    expect(details?.querySelector('summary')?.textContent).toBe('Why This Step');
+    expect(details?.textContent).toContain('Some required items are missing');
+    const button = withWhy.querySelector('.btn-primary');
+    expect(
+      (button?.compareDocumentPosition(details as Node) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const without = render(
+      <NextStepPanel
+        kicker="Next Step"
+        kickerId="y"
+        title="Do this"
+        action={{ label: 'Go', href: '#x' }}
+      />,
+    );
+    expect(without.querySelector('details')).toBeNull();
   });
 });

@@ -200,15 +200,13 @@ describe('traveller composition and independent record guards', () => {
 
   it('counts what needs attention in agreeing words: "1 item needs", "2 items need"', async () => {
     service.listPendingProposals.mockResolvedValue([{ id: 'p1', fieldKey: 'given_name' }]);
-    expect(renderToStaticMarkup(await overview(params))).toContain(
-      '1 item needs a decision or a closer look.',
-    );
+    expect(renderToStaticMarkup(await overview(params))).toContain('1 item needs a look.');
     service.listPendingProposals.mockResolvedValue([
       { id: 'p1', fieldKey: 'given_name' },
       { id: 'p2', fieldKey: 'family_name' },
     ]);
     const html = renderToStaticMarkup(await overview(params));
-    expect(html).toContain('2 items need a decision or a closer look.');
+    expect(html).toContain('2 items need a look.');
     expect(html).not.toContain('1 items');
   });
   it('counts an AI app’s suggestions about the profile apart from readings, and links to My Profile (S21)', async () => {
@@ -221,7 +219,7 @@ describe('traveller composition and independent record guards', () => {
       },
     ]);
     const html = renderToStaticMarkup(await overview(params));
-    expect(html).toContain('2 items need a decision or a closer look.');
+    expect(html).toContain('2 items need a look.');
     // Each is an action row: the link holds the name, then the count of what is waiting.
     expect(html).toMatch(
       /href="\/app\/applicant\/person\/profile"(?:(?!<\/a>)[\s\S])*Suggestions from AI Apps Waiting for You<\/span>/,

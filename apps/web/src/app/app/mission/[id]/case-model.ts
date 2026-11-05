@@ -220,7 +220,12 @@ export const NEXT_STEP_COPY: Record<
   Exclude<AttentionKind, 'changed'>,
   {
     readonly title: (count: number, caseTitle: string) => string;
-    readonly body: (firstItem: string | null) => string;
+    /** The one short line shown under the title (the first item to deal with); null when none. */
+    readonly lead: (firstItem: string | null) => string | null;
+    /** The longer reason, folded under "Why This Step". */
+    readonly why: string;
+    /** The short count for the phone bar ("4 to fix"). */
+    readonly short: (count: number) => string;
     readonly action: string;
   }
 > = {
@@ -228,33 +233,40 @@ export const NEXT_STEP_COPY: Record<
   missing: {
     title: (count, caseTitle) =>
       `Fix ${plural(count, 'required item', 'required items')} for ${caseTitle}`,
-    body: (firstItem) =>
-      `${firstItem ? `First to fix: ${firstItem}. ` : ''}Some required items are missing, out of date or do not match.`,
+    lead: (firstItem) => (firstItem ? `First to fix: ${firstItem}.` : null),
+    why: 'Some required items are missing, out of date or do not match.',
+    short: (count) => `${count} to fix`,
     action: 'See What Needs Fixing',
   },
   unconfirmed: {
     title: (count, caseTitle) => `Confirm ${plural(count, 'item', 'items')} for ${caseTitle}`,
-    body: () => 'Whether these apply depends on case details that are not confirmed yet.',
+    lead: () => null,
+    why: 'Whether these apply depends on case details that are not confirmed yet.',
+    short: (count) => `${count} to confirm`,
     action: 'See What to Confirm',
   },
   // UMPE G2 (R22): one item for every chosen document that will not last this trip.
   expiry: {
     title: (count, caseTitle) =>
       `Replace ${plural(count, 'document', 'documents')} that ${count === 1 ? 'expires' : 'expire'} before ${caseTitle} ends`,
-    body: (firstItem) =>
-      `${firstItem ? `First to replace: ${firstItem}. ` : ''}A chosen document must stay valid until your trip ends, and longer when this checklist says so. Renew it or choose another copy.`,
+    lead: (firstItem) => (firstItem ? `First to replace: ${firstItem}.` : null),
+    why: 'A chosen document must stay valid until your trip ends, and longer when this checklist says so. Renew it or choose another copy.',
+    short: (count) => `${count} expiring`,
     action: 'See Which Documents',
   },
   trip: {
     title: (count, caseTitle) => `Check ${plural(count, 'date', 'dates')} for ${caseTitle}`,
-    body: () =>
-      'Open Trip Date Checks to see which dates do not line up with your passport, insurance or plans.',
+    lead: () => null,
+    why: 'Open Trip Date Checks to see which dates do not line up with your passport, insurance or plans.',
+    short: (count) => `${count} to check`,
     action: 'See Trip Date Checks',
   },
   tasks: {
     title: (count, caseTitle) =>
       `Finish ${plural(count, 'open task', 'open tasks')} for ${caseTitle}`,
-    body: () => 'Your open tasks are listed under Tasks, appointments and letters.',
+    lead: () => null,
+    why: 'Your open tasks are listed under Tasks, appointments and letters.',
+    short: (count) => `${count} open`,
     action: 'Open Tasks',
   },
 };

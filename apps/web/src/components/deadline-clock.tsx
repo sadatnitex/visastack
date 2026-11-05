@@ -96,7 +96,7 @@ export function DeadlineClock({
       {lines === null ? (
         <p className="deadline-clock-note">{CLOCK_UNAVAILABLE_LINE}</p>
       ) : lines.length === 0 ? (
-        <EmptyState icon="calendar" title={CLOCK_EMPTY_TITLE} action={addAction}>
+        <EmptyState icon="calendar" title={CLOCK_EMPTY_TITLE} action={addAction} fold>
           {CLOCK_EMPTY_BODY}
         </EmptyState>
       ) : (

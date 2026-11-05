@@ -23,6 +23,7 @@ import { DepthSwitch } from '../../../../../components/depth-switch';
 import { initialsOf } from '../../../../../components/profile-photo/crop';
 import { ProfilePhotoControl } from '../../../../../components/profile-photo/profile-photo-control';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { AboutDisclosure } from '../../../../../components/ui-lift';
 import { caseCountriesForFamily } from '../../../../../lib/case-choices';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
@@ -251,7 +252,6 @@ export default async function ApplicantProfilePage({
       <PageHeader
         eyebrow="Record"
         title="My Profile"
-        description="One reusable set of details. Every saved change stays in your history."
         actions={
           data.coreGranted ? (
             <a href="#profile-editor" className="btn btn-primary">
@@ -264,6 +264,16 @@ export default async function ApplicantProfilePage({
           )
         }
       />
+      {/* Owner, 5 Nov 2026: no page should have more than 30 words. What the profile is, one tap away. */}
+      <AboutDisclosure summary="About This Profile">
+        <p>One reusable set of details. Every saved change stays in your history.</p>
+        <p className="muted">
+          {data.applicant.relationship === 'SELF'
+            ? 'Personal profile'
+            : 'Managed traveller profile'}
+          . Fact assurance is shown beside each field.
+        </p>
+      </AboutDisclosure>
       {data.appSuggestions.length > 0 || data.appSuggestionsInUse ? (
         <AppSuggestionsSection
           applicantId={id}
@@ -289,12 +299,6 @@ export default async function ApplicantProfilePage({
               {nationality?.value || 'Nationality not recorded'} · Profile created{' '}
               {formatTimestampDate(data.applicant.createdAt)}
             </p>
-            <p className="muted">
-              {data.applicant.relationship === 'SELF'
-                ? 'Personal profile'
-                : 'Managed traveller profile'}
-              . Fact assurance is shown beside each field.
-            </p>
           </div>
           {/* Essentials lead: a new person sees "0 of 12 essentials", not the size of the whole
             profile. The full count follows once the essentials are added (and is always shown
@@ -308,19 +312,32 @@ export default async function ApplicantProfilePage({
               <div className="meter-fill" style={{ width: `${essentialsPercent}%` }} />
             </div>
             <span className="muted">
-              {essentialsDone
-                ? `Full profile: ${completeness}% of the details in your ${plural(view.openSections, 'open section')}. `
-                : 'The details most visa forms ask for first. '}
+              {essentialsDone ? `Full profile: ${completeness}%. ` : ''}
               This does not verify identity.
             </span>
+            <AboutDisclosure summary="About Essentials">
+              <p className="muted">
+                {essentialsDone
+                  ? `Full profile: ${completeness}% of the details in your ${plural(view.openSections, 'open section')}.`
+                  : 'The details most visa forms ask for first.'}
+              </p>
+            </AboutDisclosure>
           </div>
         </section>
         {conflictedCount > 0 ? (
-          <p className="notice notice-warn" role="alert">
-            {plural(conflictedCount, 'field')} {agree(conflictedCount, 'has', 'have')} conflicting
-            proposed values. Review the fields marked <strong>Conflicted</strong> before relying on
-            them.
-          </p>
+          <div className="notice notice-warn" role="alert">
+            <p className="u-m-0">
+              {plural(conflictedCount, 'field')} {agree(conflictedCount, 'has', 'have')} conflicting
+              values.
+            </p>
+            <AboutDisclosure summary="What to Do">
+              <p className="u-m-0">
+                {plural(conflictedCount, 'field')} {agree(conflictedCount, 'has', 'have')}{' '}
+                conflicting proposed values. Review the fields marked <strong>Conflicted</strong>{' '}
+                before relying on them.
+              </p>
+            </AboutDisclosure>
+          </div>
         ) : null}
         <div className="split profile-working-area">
           <article className="card split-main" {...atLevel('browse')}>
@@ -398,10 +415,13 @@ export default async function ApplicantProfilePage({
             </div>
             <div className="profile-review-note">
               <strong>You Decide What Becomes a Fact</strong>
-              <p>
-                AI suggestions do not change your profile until you approve them. Human and issuer
-                assurance remain separate.
-              </p>
+              <p>AI suggestions wait for your approval.</p>
+              <AboutDisclosure summary="About Suggestions">
+                <p>
+                  AI suggestions do not change your profile until you approve them. Human and issuer
+                  assurance remain separate.
+                </p>
+              </AboutDisclosure>
               <Link href={`/app/applicant/${id}/documents`}>Review Document Suggestions →</Link>
             </div>
           </aside>
