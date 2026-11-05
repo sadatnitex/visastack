@@ -2,7 +2,9 @@ import type { MetadataRoute } from 'next';
 import { deepLinkPath } from '../lib/deep-links';
 
 // Install and home-screen details. The icons come from the VisaStack brand pack (the maskable one
-// keeps the mark inside the centre safe zone). Colours are Harbor brand-primary (theme, the
+// keeps the mark inside the centre safe zone). Every icon is a full-bleed, opaque blue square:
+// a launcher that does not use the maskable pair draws a transparent corner on a white disc, which
+// is what made the home-screen icon look like a tile on a white circle. Colours are Harbor brand-primary (theme, the
 // installed app's title bar before a page loads) and the light page ground (background, the
 // splash screen); each page then sets its own light theme colour in the root layout.
 //
@@ -27,6 +29,12 @@ export default function manifest(): MetadataRoute.Manifest {
     icons: [
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      {
+        src: '/icons/icon-maskable-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
       {
         src: '/icons/icon-maskable-512.png',
         sizes: '512x512',
