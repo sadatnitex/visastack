@@ -93,6 +93,17 @@ describe('the WP-LIFT-B stylesheet block', () => {
     expect(outside).not.toMatch(/\.lift-fold[^{]*\{[^}]*display: none/);
   });
 
+  it('draws a chevron on the own disclosures of the rail, whose flex summaries lose the triangle', () => {
+    expect(blockB).toMatch(
+      /\.lift-fold-body details > summary::after \{[^}]*border-right: 2px solid/s,
+    );
+    expect(blockB).toMatch(
+      /\.lift-fold-body details\[open\] > summary::after \{[^}]*transform: rotate\(-135deg\)/s,
+    );
+    // The row a link lands on keeps clear of the header.
+    expect(blockB).toMatch(/\.lift-fold-body \{[^}]*scroll-margin-top:/s);
+  });
+
   it('keeps the section links scrolling inside their own box on a phone, never the page', () => {
     const phone = atRule(blockB, '@media (max-width: 760px) {\n  .jump-nav');
     expect(phone).toMatch(/\.jump-nav \{[^}]*flex-wrap: nowrap;/s);

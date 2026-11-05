@@ -41,7 +41,8 @@ export function CaseMobileBar({ missionTitle, nextStep, progress }: CaseMobileBa
                   size={6}
                   valueText={null}
                 />
-                <span className="lift-bar-count">
+                {/* The bar's own name already says these numbers, so they are for the eyes only. */}
+                <span className="lift-bar-count" aria-hidden="true">
                   {progress.done} of {progress.total}
                 </span>
                 <span className="lift-bar-sep" aria-hidden="true">

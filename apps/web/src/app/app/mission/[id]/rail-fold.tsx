@@ -22,6 +22,7 @@ export function RailFold({
   pill,
   children,
 }: {
+  /** The anchor the page's links point at; it sits on the card inside the row. */
   readonly id?: string;
   readonly level: DepthLevel;
   /** Starts open on a phone, for a card whose content is the next thing to do. */
@@ -36,14 +37,12 @@ export function RailFold({
   readonly children: ReactNode;
 }) {
   return (
-    <details
-      className="lift-fold lift-rail-slot"
-      {...(id ? { id } : {})}
-      {...atLevel(level)}
-      open={open}
-    >
+    <details className="lift-fold lift-rail-slot" {...atLevel(level)} open={open}>
       <ActionRow asSummary icon={icon} title={title} meta={meta} pill={pill} />
-      <div className="lift-fold-body">{children}</div>
+      {/* The id is on the body, inside the closed row, so a link to it opens the row. */}
+      <div className="lift-fold-body" {...(id ? { id } : {})}>
+        {children}
+      </div>
     </details>
   );
 }

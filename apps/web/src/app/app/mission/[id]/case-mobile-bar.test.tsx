@@ -45,6 +45,21 @@ describe('the phone next step bar', () => {
     expect(doc.querySelector('legend')?.textContent).toBe('Next Step');
   });
 
+  it('lets a screen reader hear the numbers once: the bar says them, the written copy is hidden', () => {
+    const doc = render({
+      missionTitle: 'Japan visitor visa',
+      nextStep: missing,
+      progress: { done: 6, total: 12 },
+    });
+    const count = doc.querySelector('.lift-bar-count');
+    expect(count?.getAttribute('aria-hidden')).toBe('true');
+    expect(count?.textContent).toBe('6 of 12');
+    expect(doc.querySelector('.lift-bar-sep')?.getAttribute('aria-hidden')).toBe('true');
+    expect(doc.querySelector('svg[role="img"]')?.getAttribute('aria-label')).toBe(
+      '6 of 12 required items on file',
+    );
+  });
+
   it('shows only the step when there is no checklist to count', () => {
     for (const progress of [undefined, null, { done: 0, total: 0 }]) {
       const doc = render({ missionTitle: 'Japan visitor visa', nextStep: missing, progress });
