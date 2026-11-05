@@ -818,6 +818,18 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
         'Owner, 5 Nov 2026: no page should have more than 30 words. The line under the page name was the same on every agency page and only restated the heading and the section bar, so it is gone; nothing else said it.',
     }),
   ),
+
+  // WP-PLAIN-P3A entries
+  {
+    screen: 'home',
+    from: {
+      kind: 'text',
+      name: 'Signed in as me@example.com. What needs you across every traveller on this account, with your agency work and the permissions you control.',
+    },
+    to: { kind: 'text', name: 'Signed in as me@example.com' },
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. The line under the heading says who is signed in; "What needs you across every traveller on this account, with your agency work and the permissions you control." moved unchanged under "About This".',
+  },
 ];
 
 /**
@@ -910,6 +922,13 @@ function homeCardForms(entry: InventoryEntry): readonly InventoryEntry[] {
   }
   return forms.map((name) => ({ ...entry, name }));
 }
+
+/** The notes that sat under the three totals on a traveller's page before the 30-word rule. */
+const TRAVELLER_TOTAL_NOTES: readonly string[] = [
+  'Closed and cancelled cases are excluded.',
+  'Open documents to review processing and safety.',
+  'Requests, suggested details and flagged documents.',
+];
 
 /**
  * Approved changes that apply to a kind of element rather than one element: a link that now
@@ -1019,5 +1038,19 @@ export const APPROVED_RULES: readonly ApprovedRule[] = [
       )
         ? [{ ...entry, name: 'Some required items are missing, out of date or do not match.' }]
         : [],
+  },
+
+  // WP-PLAIN-P3A rules
+  {
+    screens: ['traveller'],
+    reason:
+      'Owner, 5 Nov 2026: no page should have more than 30 words. A total tile is its name and its number; the one-line note that sat under each total ("Closed and cancelled cases are excluded.", "Open documents to review processing and safety.", "Requests, suggested details and flagged documents.") moved unchanged under "About These Totals".',
+    alternatives: (entry) => {
+      if (entry.kind !== 'link') return [];
+      const note = TRAVELLER_TOTAL_NOTES.find((text) => entry.name.endsWith(text));
+      if (note === undefined) return [];
+      const name = entry.name.slice(0, -note.length).replace('Active Visa Cases', 'Active Cases');
+      return [{ ...entry, name }];
+    },
   },
 ];

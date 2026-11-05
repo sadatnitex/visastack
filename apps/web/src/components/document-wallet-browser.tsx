@@ -36,6 +36,13 @@ export interface WalletBrowserDocument {
    */
   readonly stateWords?: { readonly label: string; readonly tone: RowTone } | null;
   readonly details: ReactNode;
+  /**
+   * The sentences about this file that are not facts or actions (how it was checked, why a hint
+   * exists, what to try next). They sit in the one closed "About This File" fold, so the opened
+   * document shows its facts and its actions (Owner, 5 Nov 2026: no page should have more than 30
+   * words).
+   */
+  readonly aboutFile?: ReactNode;
   /** The row's Manage menu (resource lifecycle), drawn in the row next to its select button. */
   readonly manage?: ReactNode;
 }
@@ -391,12 +398,7 @@ export function DocumentWalletBrowser({
               ) : null}
               <div className="document-preview-placeholder">
                 <strong data-value="name">{selected.name}</strong>
-                {selected.previewAllowed ? null : (
-                  <p>
-                    Preview is blocked while this file is unsafe, still processing or otherwise
-                    unavailable.
-                  </p>
-                )}
+                {selected.previewAllowed ? null : <p>Preview is blocked for this file.</p>}
               </div>
               {selected.details}
               <Link className="btn btn-secondary" href={`/app/applicant/${applicantId}/sharing`}>
@@ -404,6 +406,13 @@ export function DocumentWalletBrowser({
               </Link>
               <details className="docs-more wallet-about-file">
                 <summary>About This File</summary>
+                {selected.previewAllowed ? null : (
+                  <p>
+                    Preview is blocked while this file is unsafe, still processing or otherwise
+                    unavailable.
+                  </p>
+                )}
+                {selected.aboutFile}
                 {selected.previewAllowed ? (
                   <p>
                     Open the secure preview below. Permission and current safety are checked again

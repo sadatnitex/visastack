@@ -503,3 +503,20 @@ Owner, 5 Nov 2026: no page should have more than 30 words. Agency Overview and A
 | 15 Agency Cases | The line on what this person can do on cases ("Assign a team member and leave case notes ...") sits under "About Cases", with the "Choose a case to open its workspace ..." line. The empty list ("Once a client accepts ..." sits under its own "About This", through a new EmptyState option that folds only the reason) keeps its title, the sentence that says why it is empty (an administrator: a traveller must grant this organization access; a member: ask an administrator to assign you) and, for an administrator, the Invite a Client button. The "Needs you" line for an administrator keeps every item but names the missing owner shorter: "... and an owner." | The "Needs you" wording is new (not in the baseline); no approved change needed. |
 
 Desktop: the two agency-cases states with no cases dropped under 30 and lost their ceiling; the other states keep lowered ceilings (prose-limits.json). Still over 30 on a desktop: Agency Overview in every state (the Do Next list repeats one reason per item and the side cards carry sentences) and Agency Cases with a case open.
+
+## PLAIN-P3A: the traveller screens under the 30-word guard (5 Nov 2026)
+
+Owner, 5 Nov 2026: no page should have more than 30 words. Every traveller-side state of Home, a traveller's page, the case page, Documents (including the opened document), Privacy, Sharing and My Profile now shows 30 or fewer words of explanation at the phone default. The Documents screen is held to 30 on a desktop as well. The words are moved behind one tap, not deleted.
+
+| Screen | What moved, and what stays on the screen | Counted elements |
+|---|---|---|
+| All seven | The one sentence about the chosen level sits behind the small round "i" beside the level switch (the same control Documents already had). | Words, same place in the markup, closed. |
+| Home | The line under the heading is "Signed in as {email}". "What needs you across every traveller on this account, with your agency work and the permissions you control." sits under "About This". Permissions: the paragraph about turning permissions on and off and the full meaning of every permission sit under "About Permissions". A permission that sends something out keeps one short line on its row ("Sends document text to an AI service.", "Sends scan pictures to an AI service.", "An agency may contact the issuer."); the others carry a one-word chip (Needed, Optional). | Approved: the old two-sentence line under the heading. Permission names are data. |
+| Traveller page | The three one-line notes under the total tiles sit under "About These Totals". | Approved rule: a tile link is its name and number. |
+| Case page | Only the level sentence moved. | None. |
+| Documents, opened document and side panel | The file's facts stay as short data. The checking truth is one short line ("File type checked. Not scanned for viruses." and the matching short line for every other check state). The preview-blocked reason is "Preview is blocked for this file."; a file with no reading status keeps one short next step ("We could not check this file. Upload it again."). Under "About This File": the full checking sentence, the full blocked reason, the full next step, the iPhone photo note and the Document Date hint. | The old long sentences are kept word for word in the fold. |
+| Privacy | The line under the heading sits under "About This". | Words. |
+| Sharing | Only the level sentence moved. | None. |
+| My Profile | The nationality and created-date line and the title of "You Decide What Becomes a Fact" are marked as data / label. | None. |
+
+Safety and consent wording shortened on a screen (full wording one tap away): the permission meanings above, the checking line, the preview-blocked reason and the failed-file next step. Every other consent, warning, "not scanned" and error line is unchanged.

@@ -107,6 +107,25 @@ const ENTRIES: Record<VersionScanKind, Entry> = {
 };
 
 /**
+ * The same truth in its shortest form, for a screen held to a word budget (Owner, 5 Nov 2026: no
+ * page should have more than 30 words). It never says more than `detail`: a file is called
+ * scanned for viruses only for VIRUS_SCANNED, and every state that is not usable says so. The
+ * full sentence stays one tap away.
+ */
+const SHORT_LINES: Record<VersionScanKind, string> = {
+  VIRUS_SCANNED: 'Virus scan found nothing.',
+  FORMAT_CHECKED: 'File type checked. Not scanned for viruses.',
+  WAITING: 'Not checked yet. It cannot be opened.',
+  CHECKING: 'Checks are running.',
+  DELAYED: 'Virus scan delayed. It cannot be opened yet.',
+  HELD: 'Held for safety. It cannot be opened.',
+  FAILED: 'Checks could not finish. It cannot be opened.',
+};
+
+/** The shortest true line about one version's checks. */
+export const shortScanLine = (kind: VersionScanKind): string => SHORT_LINES[kind];
+
+/**
  * The words for one version's checks. No evidence at all reads as waiting to be checked, and
  * nothing but a loaded VIRUS_SCANNED kind can ever read as virus scanned.
  */

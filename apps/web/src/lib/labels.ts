@@ -264,6 +264,23 @@ export const CONSENT_PLAIN: Readonly<
   },
 };
 
+/**
+ * What a permission's row shows at a glance (Owner, 5 Nov 2026: no page should have more than 30
+ * words). A permission that sends something out keeps one short true line beside its switch; one
+ * that only gates a feature carries a one-word chip. The full meaning stays in CONSENT_PLAIN and
+ * is read under "About Permissions".
+ */
+export const CONSENT_SHORT: Readonly<
+  Record<string, { readonly line?: string; readonly chip?: string }>
+> = {
+  CORE_PROCESSING: { chip: 'Needed' },
+  AI_EXTRACTION: { line: 'Sends document text to an AI service.' },
+  AI_OCR: { line: 'Sends scan pictures to an AI service.' },
+  SHARING: { chip: 'Needed' },
+  MARKETING: { chip: 'Optional' },
+  ISSUER_CONTACT: { line: 'An agency may contact the issuer.' },
+};
+
 /** The plain name of a consent, or the readable words of its code when it is not listed. */
 export const consentName = (type: string) => CONSENT_PLAIN[type]?.name ?? titleCase(type);
 

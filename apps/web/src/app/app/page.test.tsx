@@ -219,11 +219,18 @@ describe('home (characterization before WP-V3)', () => {
     data.consents = { CORE_PROCESSING: { grantedAt: new Date() } };
     data.applicants = [SELF];
     const html = await renderServer(Page({}));
+    // Owner, 5 Nov 2026: no page should have more than 30 words. A permission that sends something
+    // out keeps one short line on its row; the others carry a one-word chip. Every full meaning is
+    // read under "About Permissions".
     expect(html).toContain(
-      '<span class="consent-name">Let VisaStack Process My Details</span> <span class="consent-meaning">Needed before',
+      '<span class="consent-name" data-value="true">Let AI Read Details from My Documents</span> <span class="consent-meaning">Sends document text to an AI service.</span>',
     );
     expect(html.match(/class="consent-name"/g)).toHaveLength(6);
-    expect(html.match(/class="consent-meaning"/g)).toHaveLength(6);
+    expect(html.match(/class="consent-meaning"/g)).toHaveLength(3);
+    expect(html).toContain('Needed before documents are stored and your profile can be filled.');
+    expect(html).toContain(
+      'The text of a document is sent to an AI service to suggest values. You approve each one.',
+    );
   });
 
   it('puts what someone is waiting on first, and lists the rest', async () => {

@@ -445,6 +445,7 @@ export default async function SharingPage({
                 : 'depth.sharing.everything.nothingMore',
             ),
           })}
+          notesBehindInfo
         />
         <div className="sharing-workspace">
           <div className="sharing-access-column">

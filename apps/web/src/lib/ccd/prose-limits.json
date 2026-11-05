@@ -17,54 +17,45 @@
     }
   },
   "home": {
-    "core processing off, one traveller": {
-      "desktop": 182
-    },
     "nothing started yet, agency member": {
-      "desktop": 66
+      "desktop": 37
     },
     "busy: requests, items, dates, a sharing invitation, one active case": {
-      "desktop": 91
-    },
-    "all clear with a case and documents": {
-      "desktop": 36
+      "desktop": 62
     },
     "a household of two": {
-      "desktop": 67
+      "desktop": 38
     },
     "more people than Home reads": {
-      "desktop": 72
+      "desktop": 43
     }
   },
   "case": {
     "a new case with no checklist": {
-      "desktop": 109
+      "desktop": 93
     },
     "a busy case with a checklist and open tasks": {
-      "desktop": 81
+      "desktop": 65
     },
     "a case that changed since it was confirmed": {
-      "desktop": 72
+      "desktop": 56
     },
     "a closed case": {
-      "desktop": 58
+      "desktop": 42
     }
   },
   "traveller": {
     "empty account": {
-      "desktop": 71
+      "desktop": 59
     },
     "core processing off": {
-      "desktop": 71
+      "desktop": 59
     },
     "a request, suggested details and a flagged document": {
-      "desktop": 65
-    },
-    "an active case with a checklist, a second case and a grant": {
-      "desktop": 40
+      "desktop": 53
     },
     "some records could not be loaded": {
-      "desktop": 53
+      "desktop": 41
     }
   },
   "agency-cases": {
@@ -93,13 +84,13 @@
   },
   "sharing": {
     "nobody has access": {
-      "desktop": 60
+      "desktop": 50
     },
     "active, paused, pending, revoked, with exceptions, expansions, invitations and a log": {
-      "desktop": 75
+      "desktop": 55
     },
     "access records could not be read": {
-      "desktop": 69
+      "desktop": 49
     }
   },
   "expiry": {
@@ -118,21 +109,18 @@
   },
   "privacy": {
     "no consent changes yet": {
-      "desktop": 94
+      "desktop": 75
     },
     "consent history and a deletion scheduled": {
-      "desktop": 131
+      "desktop": 112
     }
   },
   "profile": {
-    "a new profile": {
+    "core processing off": {
       "desktop": 48
     },
-    "core processing off": {
-      "desktop": 72
-    },
     "confirmed, supported and conflicting details": {
-      "desktop": 60
+      "desktop": 38
     }
   }
 }

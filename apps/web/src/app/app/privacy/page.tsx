@@ -13,6 +13,7 @@ import { ActivityLog, type ActivityLogEntry } from '../../../components/activity
 import { DepthScope, atLevel } from '../../../components/depth';
 import { DepthSwitch } from '../../../components/depth-switch';
 import { EmptyState, PageHeader } from '../../../components/ui';
+import { AboutDisclosure } from '../../../components/ui-lift';
 import { readAiUsage, usageBadge, usageLine } from '../../../lib/ai-usage';
 import { depthCopyFor } from '../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../lib/ccd/depth.server';
@@ -119,14 +120,20 @@ export default async function PrivacyPage({
 
   return (
     <section className="section container">
-      <PageHeader
-        eyebrow="Account"
-        title="Privacy & Consent"
-        description="Export everything, review your consent history, or delete your account."
-      />
+      <PageHeader eyebrow="Account" title="Privacy & Consent" />
+
+      {/* Owner, 5 Nov 2026: no page should have more than 30 words. What this page holds is one tap away. */}
+      <AboutDisclosure summary="About This">
+        <p>Export everything, review your consent history, or delete your account.</p>
+      </AboutDisclosure>
 
       <DepthScope family="privacy" depth={depth}>
-        <DepthSwitch family="privacy" initial={depth} copy={depthCopyFor('privacy')} />
+        <DepthSwitch
+          family="privacy"
+          initial={depth}
+          copy={depthCopyFor('privacy')}
+          notesBehindInfo
+        />
 
         {/* The three rights, each one tap from where it is used (the link opens its level). */}
         <nav className="card rows u-mb-150" aria-label="Your rights">

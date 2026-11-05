@@ -487,8 +487,9 @@ describe("the deadline clock on a person's overview (Growth G5)", () => {
     ]) {
       expect(html, label).toMatch(new RegExp(`class="home-more plain-link"[^>]*>\\s*${label}`));
     }
-    // The metric captions stay in the page (hidden from the eye on a phone only, by style).
-    expect(html).toContain('traveller-metric-note');
+    // The metric captions stay in the page, one tap away under "About These Totals" (Owner,
+    // 5 Nov 2026: no page should have more than 30 words).
+    expect(html).toContain('About These Totals');
     expect(html).toContain('Closed and cancelled cases are excluded.');
     // Nothing needs a decision: a quiet success line with a mark that is not read aloud.
     expect(html).toContain('class="home-clear"');

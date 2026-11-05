@@ -21,7 +21,7 @@ import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
 import { NO_CHECKLIST_LINE } from '../../../../components/progress-ring';
 import { EmptyState, NextStepCard, PageHeader, StatusBadge } from '../../../../components/ui';
-import { ActionRow, ProgressMeter } from '../../../../components/ui-lift';
+import { AboutDisclosure, ActionRow, ProgressMeter } from '../../../../components/ui-lift';
 import { openCasesNewestFirst } from '../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../lib/ccd/depth.server';
@@ -366,7 +366,7 @@ export default async function ApplicantOverviewPage({
         outcome={outcome}
       />
       <DepthScope family="traveller-home" depth={depth}>
-        <DepthSwitch family="traveller-home" initial={depth} copy={depthWords} />
+        <DepthSwitch family="traveller-home" initial={depth} copy={depthWords} notesBehindInfo />
         {partial ? (
           <output className="notice notice-warn">
             Some sections are unavailable. Unavailable totals are not reported as zero.
@@ -393,9 +393,6 @@ export default async function ApplicantOverviewPage({
             >
               {data.missions.ok ? data.active.length : 'Unavailable'}
             </strong>
-            <span className="muted traveller-metric-note lift-tile-note">
-              Closed and cancelled cases are excluded.
-            </span>
           </Link>
           <Link
             className={`card traveller-metric lift-tile${data.documents.ok && documents.length === 0 ? ' lift-tile-zero' : ''}`}
@@ -407,9 +404,6 @@ export default async function ApplicantOverviewPage({
             >
               {data.documents.ok ? documents.length : 'Unavailable'}
             </strong>
-            <span className="muted traveller-metric-note lift-tile-note">
-              Open documents to review processing and safety.
-            </span>
           </Link>
           <Link
             className={`card traveller-metric lift-tile${data.documents.ok && data.requests.ok && attention === 0 ? ' lift-tile-zero' : ''}`}
@@ -423,10 +417,15 @@ export default async function ApplicantOverviewPage({
             >
               {data.documents.ok && data.requests.ok ? attention : 'Unavailable'}
             </strong>
-            <span className="muted traveller-metric-note lift-tile-note">
-              Requests, suggested details and flagged documents.
-            </span>
           </Link>
+        </div>
+        {/* Owner, 5 Nov 2026: no page should have more than 30 words. What each total counts is one tap away. */}
+        <div {...atLevel('browse')}>
+          <AboutDisclosure summary="About These Totals">
+            <p>Closed and cancelled cases are excluded.</p>
+            <p>Open documents to review processing and safety.</p>
+            <p>Requests, suggested details and flagged documents.</p>
+          </AboutDisclosure>
         </div>
         <div className="split traveller-working-area">
           <div className="split-main">

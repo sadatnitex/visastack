@@ -839,7 +839,7 @@ export default async function MissionPage({
       />
 
       <DepthScope family="case" depth={depth}>
-        <DepthSwitch family="case" initial={depth} copy={depthCopyFor('case')} />
+        <DepthSwitch family="case" initial={depth} copy={depthCopyFor('case')} notesBehindInfo />
 
         {data.welcomeNote ? (
           <CaseWelcome

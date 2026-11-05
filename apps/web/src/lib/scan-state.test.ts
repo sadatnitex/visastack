@@ -1,7 +1,7 @@
 import { BasicSafetyScanner, ClamAvScanner } from '@visastack/adapters';
 import { TRUSTED_VIRUS_SCANNER_NAMES, type VersionScanKind } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
-import { addCheckStep, presentScanState, uploadCheckNotice } from './scan-state';
+import { addCheckStep, presentScanState, shortScanLine, uploadCheckNotice } from './scan-state';
 
 const KINDS: readonly VersionScanKind[] = [
   'VIRUS_SCANNED',
@@ -50,6 +50,23 @@ describe('presentScanState', () => {
         expect(words, kind).not.toMatch(/\b(safe|clean|no problems)\b/i);
       }
     }
+  });
+
+  it('the short line is short, and never says more than the full sentence about viruses', () => {
+    for (const kind of KINDS) {
+      const line = shortScanLine(kind);
+      expect(line.split(/\s+/).length, kind).toBeLessThanOrEqual(8);
+      if (kind === 'VIRUS_SCANNED') {
+        expect(line).toMatch(/virus scan found nothing/i);
+      } else {
+        // Only the scanned kind may talk about a virus scan having happened.
+        expect(line.replace(/not scanned for viruses/gi, ''), kind).not.toMatch(
+          /virus scan found|scanned for viruses|checked for viruses/i,
+        );
+        expect(line, kind).not.toMatch(/\b(safe|clean|no problems)\b/i);
+      }
+    }
+    expect(shortScanLine('FORMAT_CHECKED')).toBe('File type checked. Not scanned for viruses.');
   });
 
   it('calls a format-only file Format Checked and says out loud that no virus scan happened', () => {
