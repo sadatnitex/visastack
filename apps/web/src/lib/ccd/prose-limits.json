@@ -1,0 +1,144 @@
+{
+  "agency-home": {
+    "a new agency with nothing yet": {
+      "desktop": 137
+    },
+    "a busy administrator": {
+      "desktop": 267
+    },
+    "a member": {
+      "desktop": 277
+    },
+    "a quick view": {
+      "desktop": 290
+    },
+    "a search with no match": {
+      "desktop": 116
+    }
+  },
+  "home": {
+    "core processing off, one traveller": {
+      "desktop": 182
+    },
+    "nothing started yet, agency member": {
+      "desktop": 66
+    },
+    "busy: requests, items, dates, a sharing invitation, one active case": {
+      "desktop": 91
+    },
+    "all clear with a case and documents": {
+      "desktop": 36
+    },
+    "a household of two": {
+      "desktop": 67
+    },
+    "more people than Home reads": {
+      "desktop": 72
+    }
+  },
+  "case": {
+    "a new case with no checklist": {
+      "desktop": 109
+    },
+    "a busy case with a checklist and open tasks": {
+      "desktop": 81
+    },
+    "a case that changed since it was confirmed": {
+      "desktop": 72
+    },
+    "a closed case": {
+      "desktop": 58
+    }
+  },
+  "traveller": {
+    "empty account": {
+      "desktop": 71
+    },
+    "core processing off": {
+      "desktop": 71
+    },
+    "a request, suggested details and a flagged document": {
+      "desktop": 65
+    },
+    "an active case with a checklist, a second case and a grant": {
+      "desktop": 40
+    },
+    "some records could not be loaded": {
+      "desktop": 53
+    }
+  },
+  "agency-cases": {
+    "an administrator with no cases": {
+      "desktop": 71
+    },
+    "a member with no cases": {
+      "desktop": 64
+    },
+    "a busy administrator": {
+      "desktop": 137
+    },
+    "a member": {
+      "desktop": 141
+    }
+  },
+  "evidence": {
+    "two waiting, one received, one accepted, with a question asked": {
+      "desktop": 136
+    },
+    "one sent back with a reason": {
+      "desktop": 44
+    },
+    "one sent back, with the copy to replace still among the documents": {
+      "desktop": 44
+    }
+  },
+  "notifications": {
+    "two new and fourteen read": {
+      "desktop": 99
+    }
+  },
+  "sharing": {
+    "nobody has access": {
+      "desktop": 60
+    },
+    "active, paused, pending, revoked, with exceptions, expansions, invitations and a log": {
+      "desktop": 75
+    },
+    "access records could not be read": {
+      "desktop": 69
+    }
+  },
+  "expiry": {
+    "nothing yet": {
+      "desktop": 112
+    },
+    "a passport expiring soon, a statement and one of unknown kind": {
+      "desktop": 154
+    },
+    "a route rule waiting for a document date": {
+      "desktop": 134
+    },
+    "dates could not be read": {
+      "desktop": 117
+    }
+  },
+  "privacy": {
+    "no consent changes yet": {
+      "desktop": 94
+    },
+    "consent history and a deletion scheduled": {
+      "desktop": 131
+    }
+  },
+  "profile": {
+    "a new profile": {
+      "desktop": 48
+    },
+    "core processing off": {
+      "desktop": 72
+    },
+    "confirmed, supported and conflicting details": {
+      "desktop": 60
+    }
+  }
+}
