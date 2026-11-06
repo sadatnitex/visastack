@@ -16,7 +16,7 @@ import {
   updateDraftRequirement,
 } from '@visastack/services';
 import { revalidatePath } from 'next/cache';
-import { hasPlatformPermission } from '../../../../lib/admin';
+import { bootstrapAdminEmails, hasPlatformPermission, staffPrincipal } from '../../../../lib/admin';
 import { parseDocumentTypeInput } from '../../../../lib/catalogue-input';
 import { withSession } from '../../../../lib/session';
 import type { ActionState } from './actions';
@@ -28,6 +28,20 @@ import type { ActionState } from './actions';
  */
 
 const DENIED: ActionState = { ok: false, message: 'Not authorized.' };
+
+/** A fresh Pack Studio staff scope for this request, or null (the same check as the rule detail forms). */
+async function packScope(
+  db: Parameters<typeof staffPrincipal>[0],
+  accountId: string,
+  email: string,
+) {
+  const staff = await staffPrincipal(
+    db,
+    { accountId, email, bootstrapEmails: bootstrapAdminEmails() },
+    'PACK_MANAGE',
+  );
+  return staff.ok ? staff.value : null;
+}
 /** A sheet this large is far past any real list (the supplied one is about 90 KB). */
 const MAX_SHEET_CHARACTERS = 600_000;
 const MAX_SHEET_LINES = 5_000;
@@ -99,8 +113,9 @@ export async function loadStarterListAction(
   );
   if (!definition) return { ok: false, message: 'That list is not in the sheet.' };
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
-    const done = await applyStarterPack(db, { actorAccountId: accountId, definition });
+    const staff = await packScope(db, accountId, email);
+    if (!staff) return DENIED;
+    const done = await applyStarterPack(db, staff, { definition });
     if (!done.ok) return { ok: false, message: done.error.message } satisfies ActionState;
     const words =
       done.value.outcome === 'created'
@@ -122,11 +137,9 @@ export async function startPackUpdateAction(
   const packId = String(formData.get('packId') ?? '').trim();
   const packVersionId = String(formData.get('packVersionId') ?? '').trim();
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
-    const draft = await cloneVersionToDraft(db, {
-      actorAccountId: accountId,
-      fromPackVersionId: packVersionId,
-    });
+    const staff = await packScope(db, accountId, email);
+    if (!staff) return DENIED;
+    const draft = await cloneVersionToDraft(db, staff, { fromPackVersionId: packVersionId });
     if (!draft.ok) return { ok: false, message: draft.error.message } satisfies ActionState;
     return {
       ok: true,
@@ -156,9 +169,9 @@ export async function updateDraftItemAction(
     docType = named.key;
   }
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
-    const changed = await updateDraftRequirement(db, {
-      actorAccountId: accountId,
+    const staff = await packScope(db, accountId, email);
+    if (!staff) return DENIED;
+    const changed = await updateDraftRequirement(db, staff, {
       requirementId,
       patch: {
         ...(docType ? { docType } : {}),
@@ -182,11 +195,9 @@ export async function removeDraftItemAction(
   const packId = String(formData.get('packId') ?? '').trim();
   const requirementId = String(formData.get('requirementId') ?? '').trim();
   const result = await withSession(async ({ db, accountId, email }) => {
-    if (!(await hasPlatformPermission(db, { accountId, email }, 'PACK_MANAGE'))) return DENIED;
-    const removed = await removeDraftRequirement(db, {
-      actorAccountId: accountId,
-      requirementId,
-    });
+    const staff = await packScope(db, accountId, email);
+    if (!staff) return DENIED;
+    const removed = await removeDraftRequirement(db, staff, { requirementId });
     if (!removed.ok) return { ok: false, message: removed.error.message } satisfies ActionState;
     return { ok: true, message: 'Item removed.' } satisfies ActionState;
   });

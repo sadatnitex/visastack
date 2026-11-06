@@ -11,6 +11,7 @@ import {
   starterContentHash,
 } from '@visastack/core';
 import { eq, inArray, like } from 'drizzle-orm';
+import { type StaffScope, staffScopeProblem } from './access/principal';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { newestPublishedVersion } from './pack-draft-edit';
@@ -160,11 +161,15 @@ export interface StarterApplyResult {
  */
 export async function applyStarterPack(
   db: Db,
-  input: { readonly actorAccountId: string; readonly definition: StarterPackDefinition },
+  staff: StaffScope<'PACK_MANAGE'>,
+  input: { readonly definition: StarterPackDefinition },
 ): Promise<Result<StarterApplyResult, ServiceError>> {
+  const denied = staffScopeProblem(staff, 'PACK_MANAGE');
+  if (denied) return err(denied);
   const waiting = await packStudioWaiting(db);
   if (waiting) return waiting;
-  const { definition, actorAccountId } = input;
+  const { definition } = input;
+  const actorAccountId = staff.accountId;
   if (!isStarterPackKey(definition.key) || definition.requirements.length === 0) {
     return err(serviceError('invalid', 'that is not a starter checklist'));
   }

@@ -136,8 +136,13 @@ export async function selectableChecklists(
       if (terms) {
         fitting = await listFittingPublicPacks(db, terms);
         // Starter lists for the same route are offered for the person to pick, kept apart from the
-        // reviewed fit so they never count as one and are never linked automatically.
-        starterFitting = await listFittingStarterPacks(db, terms);
+        // reviewed fit so they never count as one and are never linked automatically. They are an
+        // addition: if they cannot be read the reviewed lists still show, as before.
+        try {
+          starterFitting = await listFittingStarterPacks(db, terms);
+        } catch (error) {
+          reportServerError('MissionPage', error, { step: 'starter checklists' });
+        }
       } else lookupFailed = true;
     } catch (error) {
       reportServerError('MissionPage', error, { step: 'selectable checklists' });

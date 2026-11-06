@@ -15,6 +15,7 @@ import {
   requirementProvenance,
 } from '@visastack/core';
 import { type SQL, and, eq, getTableColumns, isNotNull, lte, ne, sql } from 'drizzle-orm';
+import { type StaffScope, staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -475,10 +476,11 @@ export async function createPack(
 
 /**
  * Opens the next DRAFT version of a pack inside a transaction the caller already holds: numbers it,
- * records who opened it, carries the route conditions forward and writes the audit event. The one
- * place a draft is made, so adding a version and copying one to a draft can never differ.
+ * records who opened it and carries the route conditions forward. The one place a draft is made, so
+ * adding a version and copying one to a draft can never differ. It writes no audit record: the
+ * gated caller that opens the draft writes `PACK_VERSION_OPENED` (see `auditDraftOpened`).
  */
-export async function openDraftVersion(
+async function openDraftVersion(
   tx: Db,
   input: { readonly actorAccountId: string; readonly packId: string },
 ): Promise<PackVersion> {
@@ -507,15 +509,6 @@ export async function openDraftVersion(
     packId: input.packId,
     toVersionId: version.id,
   });
-  await appendAuditEvent(tx, {
-    eventType: 'PACK_VERSION_OPENED',
-    actorAccountId: input.actorAccountId,
-    method: 'MANUAL',
-    result: 'ALLOWED',
-    resourceType: 'pack_version',
-    resourceId: version.id,
-    metadata: { packId: input.packId, version: nextVersion },
-  });
   return version;
 }
 
@@ -531,7 +524,106 @@ export async function addPackVersion(
   );
   if (!pack) return err(serviceError('not_found', 'pack not found'));
 
-  return db.transaction(async (tx) => ok(await openDraftVersion(tx, input)));
+  return db.transaction(async (tx) => {
+    const version = await openDraftVersion(tx, input);
+    await appendAuditEvent(tx, {
+      eventType: 'PACK_VERSION_OPENED',
+      actorAccountId: input.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pack_version',
+      resourceId: version.id,
+      metadata: { packId: input.packId, version: version.version },
+    });
+    return ok(version);
+  });
+}
+
+const OPEN_DRAFT_WORDS =
+  'This checklist already has a draft open. Finish it or publish it before starting another.';
+
+/**
+ * A new draft of the pack that holds `fromPackVersionId`, with every item of that version copied in
+ * the order they are read. Refused when the pack already has a draft open, so two people never
+ * edit two copies. The copy and the new draft are made in one transaction.
+ */
+export async function cloneVersionToDraft(
+  db: Db,
+  staff: StaffScope<'PACK_MANAGE'>,
+  input: { readonly fromPackVersionId: string },
+): Promise<Result<PackVersion, ServiceError>> {
+  const denied = staffScopeProblem(staff, 'PACK_MANAGE');
+  if (denied) return err(denied);
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
+  const actorAccountId = staff.accountId;
+  return db.transaction(async (tx) => {
+    const from = first(
+      await tx
+        .select()
+        .from(schema.packVersions)
+        .where(eq(schema.packVersions.id, input.fromPackVersionId))
+        .limit(1),
+    );
+    if (!from) return err(serviceError('not_found', 'pack version not found'));
+    const open = first(
+      await tx
+        .select({ id: schema.packVersions.id })
+        .from(schema.packVersions)
+        .where(
+          and(eq(schema.packVersions.packId, from.packId), eq(schema.packVersions.status, 'DRAFT')),
+        )
+        .limit(1),
+    );
+    if (open) return err(serviceError('invalid', OPEN_DRAFT_WORDS));
+
+    const draft = await openDraftVersion(tx, { actorAccountId, packId: from.packId });
+    await appendAuditEvent(tx, {
+      eventType: 'PACK_VERSION_OPENED',
+      actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pack_version',
+      resourceId: draft.id,
+      metadata: { packId: from.packId, version: draft.version },
+    });
+    const items = await listRequirements(tx, from.id);
+    for (const item of items) {
+      await tx.insert(schema.packRequirements).values({
+        packVersionId: draft.id,
+        kind: item.kind,
+        fieldKey: item.fieldKey,
+        docType: item.docType,
+        citation: item.citation,
+        optional: item.optional,
+        necessity: item.necessity,
+        provenance: item.provenance,
+        groupKey: item.groupKey,
+        groupMode: item.groupMode,
+        notes: item.notes,
+        maxAgeDays: item.maxAgeDays,
+        condition: item.condition,
+        sourceUrl: item.sourceUrl,
+        sourceTitle: item.sourceTitle,
+        publisher: item.publisher,
+        officialExtract: item.officialExtract,
+        interpretation: item.interpretation,
+        sourceType: item.sourceType,
+        observedDate: item.observedDate,
+        authorAccountId: actorAccountId,
+      });
+    }
+    await appendAuditEvent(tx, {
+      eventType: 'PACK_VERSION_CLONED',
+      actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pack_version',
+      resourceId: draft.id,
+      metadata: { fromPackVersionId: from.id, items: items.length },
+    });
+    return ok(draft);
+  });
 }
 
 /**

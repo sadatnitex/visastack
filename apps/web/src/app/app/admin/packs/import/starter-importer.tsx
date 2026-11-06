@@ -30,7 +30,10 @@ export function StarterImporter({ suppliedCount }: { readonly suppliedCount: num
   const [running, startRunning] = useTransition();
   const [finished, setFinished] = useState('');
 
-  const pending = preview.rows.filter((row) => row.status !== 'unchanged');
+  // A result that holds no rows (a refusal, or nothing checked yet) shows the message alone.
+  const rows = preview.rows ?? [];
+  const skipped = preview.skipped ?? [];
+  const pending = rows.filter((row) => row.status !== 'unchanged');
 
   const loadAll = () => {
     setFinished('');
@@ -77,7 +80,7 @@ export function StarterImporter({ suppliedCount }: { readonly suppliedCount: num
               checked={source === 'sheet'}
               onChange={() => setSource('sheet')}
             />{' '}
-            A sheet saved as CSV
+            A Sheet Saved as CSV
           </label>
           {source === 'sheet' ? (
             <div className="field-row">
@@ -109,14 +112,14 @@ export function StarterImporter({ suppliedCount }: { readonly suppliedCount: num
         <FormMessage result={preview} pending={checking} pendingText="Checking" />
       </form>
 
-      {preview.rows.length > 0 ? (
+      {rows.length > 0 ? (
         <>
-          <PreviewTable preview={preview} progress={progress} />
-          {preview.skipped.length > 0 ? (
+          <PreviewTable rows={rows} progress={progress} />
+          {skipped.length > 0 ? (
             <details>
-              <summary>Lines Left Out ({preview.skipped.length})</summary>
+              <summary>Lines Left Out ({skipped.length})</summary>
               <ul>
-                {preview.skipped.map((line) => (
+                {skipped.map((line) => (
                   <li key={line}>{line}</li>
                 ))}
               </ul>
@@ -125,8 +128,10 @@ export function StarterImporter({ suppliedCount }: { readonly suppliedCount: num
           <button
             type="button"
             className="btn btn-primary"
-            disabled={running || pending.length === 0}
-            onClick={loadAll}
+            aria-disabled={running || pending.length === 0}
+            onClick={() => {
+              if (!running && pending.length > 0) loadAll();
+            }}
           >
             {running
               ? 'Loading'
@@ -142,10 +147,10 @@ export function StarterImporter({ suppliedCount }: { readonly suppliedCount: num
 }
 
 function PreviewTable({
-  preview,
+  rows,
   progress,
 }: {
-  readonly preview: StarterPreviewState;
+  readonly rows: StarterPreviewState['rows'];
   readonly progress: Progress;
 }) {
   return (
@@ -161,7 +166,7 @@ function PreviewTable({
           </tr>
         </thead>
         <tbody>
-          {preview.rows.map((row) => (
+          {rows.map((row) => (
             <tr key={row.key}>
               <th scope="row">{row.name}</th>
               <td>

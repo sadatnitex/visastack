@@ -54,6 +54,7 @@ const mocks = vi.hoisted(() => ({
   listTasks: vi.fn(),
   listChangesSinceConfirmed: vi.fn(),
   listFittingPublicPacks: vi.fn(),
+  listFittingStarterPacks: vi.fn(),
   readTravellerCoverage: vi.fn(),
   requireAccess: vi.fn(),
 }));
@@ -287,6 +288,7 @@ function setUp() {
   mocks.listSelectablePackVersions.mockResolvedValue(ok([]));
   mocks.explainNoFittingPack.mockResolvedValue([]);
   mocks.listFittingPublicPacks.mockResolvedValue([]);
+  mocks.listFittingStarterPacks.mockResolvedValue([]);
   mocks.readTravellerCoverage.mockResolvedValue({ nationality: ['Bangladeshi'], residence: [] });
   mocks.listMissionsByItineraryRef.mockResolvedValue([
     { id: 'case-2', title: 'Japan visitor visa', applicantName: 'Amina Rahman' },

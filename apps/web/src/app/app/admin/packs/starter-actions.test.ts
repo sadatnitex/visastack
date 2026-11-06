@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   permission: vi.fn(),
+  staff: vi.fn(),
   preview: vi.fn(),
   apply: vi.fn(),
   clone: vi.fn(),
@@ -16,7 +17,11 @@ vi.mock('@visastack/services', async (load) => ({
   updateDraftRequirement: mocks.update,
   removeDraftRequirement: mocks.remove,
 }));
-vi.mock('../../../../lib/admin', () => ({ hasPlatformPermission: mocks.permission }));
+vi.mock('../../../../lib/admin', () => ({
+  hasPlatformPermission: mocks.permission,
+  staffPrincipal: mocks.staff,
+  bootstrapAdminEmails: () => [],
+}));
 vi.mock('../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
     fn({ db: {}, accountId: 'synthetic-admin', email: 'admin@example.com' }),
@@ -40,8 +45,10 @@ const form = (entries: Record<string, string>) => {
 const SHEET =
   'Country,Purpose,Applies when,Document / requirement,Keep?,Reference file\nJapan,Tourist (base),All applicants,Valid passport.,Yes,Japan.pdf\n';
 
+const STAFF = { accountId: 'synthetic-admin' };
 beforeEach(() => {
   mocks.permission.mockResolvedValue(true);
+  mocks.staff.mockResolvedValue({ ok: true, value: STAFF });
   mocks.preview.mockResolvedValue([
     {
       key: 'starter.jp.tourist',
@@ -102,8 +109,8 @@ describe('loading one starter list', () => {
       form({ source: 'sheet', csv: SHEET, key: 'starter.jp.tourist' }),
     );
     expect(result).toEqual({ ok: true, message: 'Loaded: version 1.' });
-    expect(mocks.apply.mock.calls[0]?.[1].definition.key).toBe('starter.jp.tourist');
-    expect(mocks.apply.mock.calls[0]?.[1].definition.requirements).toHaveLength(1);
+    expect(mocks.apply.mock.calls[0]?.[2].definition.key).toBe('starter.jp.tourist');
+    expect(mocks.apply.mock.calls[0]?.[2].definition.requirements).toHaveLength(1);
   });
 
   it('refuses a key the sheet does not hold, and refuses without the permission', async () => {
@@ -112,7 +119,7 @@ describe('loading one starter list', () => {
       form({ source: 'sheet', csv: SHEET, key: 'starter.fr.tourist' }),
     );
     expect(missing.ok).toBe(false);
-    mocks.permission.mockResolvedValue(false);
+    mocks.staff.mockResolvedValue({ ok: false, error: { code: 'forbidden', message: 'no' } });
     const denied = await loadStarterListAction(
       START,
       form({ source: 'sheet', csv: SHEET, key: 'starter.jp.tourist' }),
@@ -145,10 +152,8 @@ describe('updating a published checklist', () => {
     const result = await startPackUpdateAction(START, form({ packId: 'p', packVersionId: 'v' }));
     expect(result.ok).toBe(true);
     expect(result.message).toContain('Draft version 2 started');
-    expect(mocks.clone.mock.calls[0]?.[1]).toEqual({
-      actorAccountId: 'synthetic-admin',
-      fromPackVersionId: 'v',
-    });
+    expect(mocks.clone.mock.calls[0]?.[1]).toBe(STAFF);
+    expect(mocks.clone.mock.calls[0]?.[2]).toEqual({ fromPackVersionId: 'v' });
   });
 
   it('changes an item, naming the document type from the catalogue, and removes an item', async () => {
@@ -164,7 +169,7 @@ describe('updating a published checklist', () => {
       }),
     );
     expect(saved).toEqual({ ok: true, message: 'Item saved.' });
-    expect(mocks.update.mock.calls[0]?.[1].patch).toMatchObject({
+    expect(mocks.update.mock.calls[0]?.[2].patch).toMatchObject({
       docType: 'BANK_STATEMENT',
       necessity: 'OPTIONAL',
       notes: 'Six months.',
@@ -181,7 +186,7 @@ describe('updating a published checklist', () => {
       form({ packId: 'p', requirementId: 'r', docType: 'Not A Real Type Anywhere' }),
     );
     expect(bad.ok).toBe(false);
-    mocks.permission.mockResolvedValue(false);
+    mocks.staff.mockResolvedValue({ ok: false, error: { code: 'forbidden', message: 'no' } });
     for (const result of [
       await startPackUpdateAction(START, form({ packId: 'p', packVersionId: 'v' })),
       await updateDraftItemAction(START, form({ packId: 'p', requirementId: 'r', wording: 'x' })),

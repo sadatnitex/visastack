@@ -53,8 +53,8 @@ export interface StarterBuildResult {
 /** The key prefix that marks a starter checklist. The one place that says so. */
 export const STARTER_KEY_PREFIX = 'starter.';
 
-export function isStarterPackKey(key: string): boolean {
-  return key.startsWith(STARTER_KEY_PREFIX);
+export function isStarterPackKey(key: string | null | undefined): boolean {
+  return typeof key === 'string' && key.startsWith(STARTER_KEY_PREFIX);
 }
 
 /** The words every starter checklist carries, so no one reads it as official. */

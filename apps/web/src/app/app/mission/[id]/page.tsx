@@ -364,7 +364,7 @@ export default async function MissionPage({
         ? source
         : { ...source, inEffectSince: versionEffective.toISOString() },
     );
-    const starterPack = pack ? isStarterPackKey(pack.key) : false;
+    const starterPack = isStarterPackKey(pack?.key);
     const requirementDetails: RequirementDetailRow[] = (readinessValue?.requirementResults ?? [])
       .map((r): RequirementDetailRow => {
         const row = requirementRowsById.get(r.packRequirementId);

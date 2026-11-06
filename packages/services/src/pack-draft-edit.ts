@@ -1,5 +1,6 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq } from 'drizzle-orm';
+import { type StaffScope, staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -7,8 +8,6 @@ import {
   type PackRequirement,
   type PackVersion,
   citationProblem,
-  listRequirements,
-  openDraftVersion,
   packStudioWaiting,
 } from './packs';
 
@@ -19,83 +18,7 @@ import {
  * next version. Cases already on the old version keep it, as they always have.
  */
 
-const OPEN_DRAFT_WORDS =
-  'This checklist already has a draft open. Finish it or publish it before starting another.';
 const NOT_DRAFT_WORDS = 'Items can only change while the version is a draft.';
-
-/**
- * A new draft of the pack that holds `fromPackVersionId`, with every item of that version copied in
- * the order they are read. Refused when the pack already has a draft open, so two people never
- * edit two copies. The copy and the new draft are made in one transaction.
- */
-export async function cloneVersionToDraft(
-  db: Db,
-  input: { readonly actorAccountId: string; readonly fromPackVersionId: string },
-): Promise<Result<PackVersion, ServiceError>> {
-  const waiting = await packStudioWaiting(db);
-  if (waiting) return waiting;
-  return db.transaction(async (tx) => {
-    const from = first(
-      await tx
-        .select()
-        .from(schema.packVersions)
-        .where(eq(schema.packVersions.id, input.fromPackVersionId))
-        .limit(1),
-    );
-    if (!from) return err(serviceError('not_found', 'pack version not found'));
-    const open = first(
-      await tx
-        .select({ id: schema.packVersions.id })
-        .from(schema.packVersions)
-        .where(
-          and(eq(schema.packVersions.packId, from.packId), eq(schema.packVersions.status, 'DRAFT')),
-        )
-        .limit(1),
-    );
-    if (open) return err(serviceError('invalid', OPEN_DRAFT_WORDS));
-
-    const draft = await openDraftVersion(tx, {
-      actorAccountId: input.actorAccountId,
-      packId: from.packId,
-    });
-    const items = await listRequirements(tx, from.id);
-    for (const item of items) {
-      await tx.insert(schema.packRequirements).values({
-        packVersionId: draft.id,
-        kind: item.kind,
-        fieldKey: item.fieldKey,
-        docType: item.docType,
-        citation: item.citation,
-        optional: item.optional,
-        necessity: item.necessity,
-        provenance: item.provenance,
-        groupKey: item.groupKey,
-        groupMode: item.groupMode,
-        notes: item.notes,
-        maxAgeDays: item.maxAgeDays,
-        condition: item.condition,
-        sourceUrl: item.sourceUrl,
-        sourceTitle: item.sourceTitle,
-        publisher: item.publisher,
-        officialExtract: item.officialExtract,
-        interpretation: item.interpretation,
-        sourceType: item.sourceType,
-        observedDate: item.observedDate,
-        authorAccountId: input.actorAccountId,
-      });
-    }
-    await appendAuditEvent(tx, {
-      eventType: 'PACK_VERSION_CLONED',
-      actorAccountId: input.actorAccountId,
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      resourceType: 'pack_version',
-      resourceId: draft.id,
-      metadata: { fromPackVersionId: from.id, items: items.length },
-    });
-    return ok(draft);
-  });
-}
 
 /** What an admin may change on an item of a draft. Anything left out stays as it is. */
 export interface DraftRequirementPatch {
@@ -137,12 +60,14 @@ async function draftItem(
 /** Changes one item of a draft: its document type, how necessary it is, its wording or its source. */
 export async function updateDraftRequirement(
   db: Db,
+  staff: StaffScope<'PACK_MANAGE'>,
   input: {
-    readonly actorAccountId: string;
     readonly requirementId: string;
     readonly patch: DraftRequirementPatch;
   },
 ): Promise<Result<PackRequirement, ServiceError>> {
+  const denied = staffScopeProblem(staff, 'PACK_MANAGE');
+  if (denied) return err(denied);
   const waiting = await packStudioWaiting(db);
   if (waiting) return waiting;
   const { patch } = input;
@@ -191,7 +116,7 @@ export async function updateDraftRequirement(
     );
     await appendAuditEvent(tx, {
       eventType: 'PACK_REQUIREMENT_CHANGED',
-      actorAccountId: input.actorAccountId,
+      actorAccountId: staff.accountId,
       method: 'MANUAL',
       result: 'ALLOWED',
       resourceType: 'pack_version',
@@ -205,8 +130,11 @@ export async function updateDraftRequirement(
 /** Removes one item from a draft. Never from a version that has been approved or published. */
 export async function removeDraftRequirement(
   db: Db,
-  input: { readonly actorAccountId: string; readonly requirementId: string },
+  staff: StaffScope<'PACK_MANAGE'>,
+  input: { readonly requirementId: string },
 ): Promise<Result<{ readonly removed: true }, ServiceError>> {
+  const denied = staffScopeProblem(staff, 'PACK_MANAGE');
+  if (denied) return err(denied);
   const waiting = await packStudioWaiting(db);
   if (waiting) return waiting;
   return db.transaction(async (tx) => {
@@ -216,7 +144,7 @@ export async function removeDraftRequirement(
     await tx.delete(schema.packRequirements).where(eq(schema.packRequirements.id, item.id));
     await appendAuditEvent(tx, {
       eventType: 'PACK_REQUIREMENT_REMOVED',
-      actorAccountId: input.actorAccountId,
+      actorAccountId: staff.accountId,
       method: 'MANUAL',
       result: 'ALLOWED',
       resourceType: 'pack_version',

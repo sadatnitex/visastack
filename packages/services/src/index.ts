@@ -728,6 +728,7 @@ export {
   unpublishFromPublicTrust,
   verifyPackChecksum,
   withdrawPackVersion,
+  cloneVersionToDraft,
 } from './packs';
 
 export { isHttpUrl, safeHttpUrl } from './external-url';
@@ -3107,7 +3108,6 @@ export {
 } from './evidence-submissions';
 export {
   type DraftRequirementPatch,
-  cloneVersionToDraft,
   newestPublishedVersion,
   removeDraftRequirement,
   updateDraftRequirement,

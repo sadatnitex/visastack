@@ -4,26 +4,49 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { staffPrincipal } from './access/principal';
 import { provisionAccount } from './accounts';
 import type { Db } from './db';
 import {
-  cloneVersionToDraft,
   newestPublishedVersion,
   removeDraftRequirement,
   updateDraftRequirement,
 } from './pack-draft-edit';
 import {
   approvePackVersion,
+  cloneVersionToDraft,
   createPack,
   listPackVersions,
   listRequirements,
   publishPackVersion,
 } from './packs';
+import { grantPlatformRole } from './platform-roles';
 import { applyStarterPack, previewStarterImport } from './starter-packs';
 
 async function freshDb(): Promise<Db> {
   const client = await createMigratedPglite();
   return drizzle(client, { schema }) as unknown as Db;
+}
+
+const OWNER_EMAIL = 'admin@example.com';
+
+/** A fresh Pack Studio scope for an account made a platform owner, as the web action mints one. */
+async function staffFor(db: Db, accountId: string) {
+  const granted = await grantPlatformRole(db, {
+    actor: { accountId, email: OWNER_EMAIL, bootstrapEmails: [OWNER_EMAIL] },
+    targetAccountId: accountId,
+    role: 'PLATFORM_OWNER',
+    reason: 'seed',
+    stepUpSatisfied: true,
+  });
+  if (!isOk(granted)) throw new Error('grant');
+  const minted = await staffPrincipal(
+    db,
+    { accountId, email: OWNER_EMAIL, bootstrapEmails: [OWNER_EMAIL] },
+    'PACK_MANAGE',
+  );
+  if (!isOk(minted)) throw new Error('scope');
+  return minted.value;
 }
 
 const line = (text: string, over: Partial<StarterPackDefinition['requirements'][number]> = {}) => ({
@@ -54,11 +77,13 @@ function definition(
 describe('loading starter checklists into Pack Studio', () => {
   let db: Db;
   let actor: string;
+  let staff: Awaited<ReturnType<typeof staffFor>>;
   beforeEach(async () => {
     db = await freshDb();
     const account = await provisionAccount(db, { email: 'admin@example.com' });
     if (!isOk(account)) throw new Error('provision');
     actor = account.value.id;
+    staff = await staffFor(db, actor);
   });
 
   // The hash the importer compares is computed from stored content, so the tests build the
@@ -77,7 +102,7 @@ describe('loading starter checklists into Pack Studio', () => {
         appliesWhen: 'Employee',
       }),
     ]);
-    const result = await applyStarterPack(db, { actorAccountId: actor, definition: def });
+    const result = await applyStarterPack(db, staff, { definition: def });
     expect(isOk(result) && result.value).toEqual({ key: def.key, outcome: 'created', version: 1 });
 
     const [pack] = await db.select().from(schema.packs).where(eq(schema.packs.key, def.key));
@@ -101,9 +126,9 @@ describe('loading starter checklists into Pack Studio', () => {
   it('leaves a list alone when nothing changed, and says so before and after', async () => {
     const def = await build([line('Valid passport.')]);
     expect((await previewStarterImport(db, [def]))[0]?.status).toBe('new');
-    await applyStarterPack(db, { actorAccountId: actor, definition: def });
+    await applyStarterPack(db, staff, { definition: def });
     expect((await previewStarterImport(db, [def]))[0]?.status).toBe('unchanged');
-    const again = await applyStarterPack(db, { actorAccountId: actor, definition: def });
+    const again = await applyStarterPack(db, staff, { definition: def });
     expect(isOk(again) && again.value.outcome).toBe('unchanged');
     const versions = await db.select().from(schema.packVersions);
     expect(versions).toHaveLength(1);
@@ -114,14 +139,14 @@ describe('loading starter checklists into Pack Studio', () => {
       line('Valid passport.'),
       line('Hotel booking.', { docType: 'HOTEL_BOOKING' }),
     ]);
-    await applyStarterPack(db, { actorAccountId: actor, definition: first });
+    await applyStarterPack(db, staff, { definition: first });
     const second = await build([
       line('Valid passport.'),
       line('Return ticket.', { docType: 'FLIGHT_BOOKING' }),
     ]);
     const preview = (await previewStarterImport(db, [second]))[0];
     expect(preview).toMatchObject({ status: 'changed', added: 1, removed: 1, currentVersion: 1 });
-    const done = await applyStarterPack(db, { actorAccountId: actor, definition: second });
+    const done = await applyStarterPack(db, staff, { definition: second });
     expect(isOk(done) && done.value).toMatchObject({ outcome: 'updated', version: 2 });
     const versions = await db.select().from(schema.packVersions);
     expect(versions.map((v) => [v.version, v.status]).sort()).toEqual([
@@ -138,7 +163,7 @@ describe('loading starter checklists into Pack Studio', () => {
       authoritative: true,
     });
     const def = await build([line('Valid passport.')]);
-    const result = await applyStarterPack(db, { actorAccountId: actor, definition: def });
+    const result = await applyStarterPack(db, staff, { definition: def });
     expect(isErr(result)).toBe(true);
     const packs = await db.select().from(schema.packs);
     expect(packs.map((p) => p.name)).toEqual(['Official look-alike']);
@@ -146,9 +171,7 @@ describe('loading starter checklists into Pack Studio', () => {
 
   it('refuses a key that is not a starter key', async () => {
     const def = { ...(await build([line('Valid passport.')])), key: 'uk.tourist' };
-    expect(isErr(await applyStarterPack(db, { actorAccountId: actor, definition: def }))).toBe(
-      true,
-    );
+    expect(isErr(await applyStarterPack(db, staff, { definition: def }))).toBe(true);
   });
 });
 
@@ -156,17 +179,16 @@ describe('updating a published checklist system-wide', () => {
   let db: Db;
   let actor: string;
   let packId: string;
+  let staff: Awaited<ReturnType<typeof staffFor>>;
   beforeEach(async () => {
     db = await freshDb();
     const account = await provisionAccount(db, { email: 'admin@example.com' });
     if (!isOk(account)) throw new Error('provision');
     actor = account.value.id;
+    staff = await staffFor(db, actor);
     const { starterContentHash } = await import('@visastack/core');
     const lines = [line('Valid passport.'), line('Hotel booking.', { docType: 'HOTEL_BOOKING' })];
-    await applyStarterPack(db, {
-      actorAccountId: actor,
-      definition: definition(lines, starterContentHash(lines)),
-    });
+    await applyStarterPack(db, staff, { definition: definition(lines, starterContentHash(lines)) });
     const [pack] = await db.select().from(schema.packs);
     packId = pack?.id ?? '';
   });
@@ -179,10 +201,7 @@ describe('updating a published checklist system-wide', () => {
 
   it('starts a draft that is a copy of the published version, and refuses a second open draft', async () => {
     const v1 = await published();
-    const draft = await cloneVersionToDraft(db, {
-      actorAccountId: actor,
-      fromPackVersionId: v1.id,
-    });
+    const draft = await cloneVersionToDraft(db, staff, { fromPackVersionId: v1.id });
     expect(isOk(draft) && draft.value).toMatchObject({ version: 2, status: 'DRAFT' });
     if (!isOk(draft)) return;
     const copied = await listRequirements(db, draft.value.id);
@@ -190,10 +209,7 @@ describe('updating a published checklist system-wide', () => {
     expect(copied.map((r) => [r.docType, r.notes, r.necessity]).sort()).toEqual(
       original.map((r) => [r.docType, r.notes, r.necessity]).sort(),
     );
-    const again = await cloneVersionToDraft(db, {
-      actorAccountId: actor,
-      fromPackVersionId: v1.id,
-    });
+    const again = await cloneVersionToDraft(db, staff, { fromPackVersionId: v1.id });
     expect(isErr(again)).toBe(true);
   });
 
@@ -204,8 +220,7 @@ describe('updating a published checklist system-wide', () => {
     // A published version never changes.
     expect(
       isErr(
-        await updateDraftRequirement(db, {
-          actorAccountId: actor,
+        await updateDraftRequirement(db, staff, {
           requirementId: target?.id ?? '',
           patch: { notes: 'x' },
         }),
@@ -213,33 +228,26 @@ describe('updating a published checklist system-wide', () => {
     ).toBe(true);
     expect(
       isErr(
-        await removeDraftRequirement(db, {
-          actorAccountId: actor,
+        await removeDraftRequirement(db, staff, {
           requirementId: target?.id ?? '',
         }),
       ),
     ).toBe(true);
 
-    const draft = await cloneVersionToDraft(db, {
-      actorAccountId: actor,
-      fromPackVersionId: v1.id,
-    });
+    const draft = await cloneVersionToDraft(db, staff, { fromPackVersionId: v1.id });
     if (!isOk(draft)) throw new Error('clone');
     const items = await listRequirements(db, draft.value.id);
     const passport = items.find((r) => r.docType === 'PASSPORT');
     const hotel = items.find((r) => r.docType === 'HOTEL_BOOKING');
-    const changed = await updateDraftRequirement(db, {
-      actorAccountId: actor,
+    const changed = await updateDraftRequirement(db, staff, {
       requirementId: passport?.id ?? '',
       patch: { notes: 'Passport valid for the whole stay.', necessity: 'RECOMMENDED' },
     });
     expect(isOk(changed) && changed.value.notes).toBe('Passport valid for the whole stay.');
     expect(isOk(changed) && changed.value.optional).toBe(false);
-    expect(
-      isOk(
-        await removeDraftRequirement(db, { actorAccountId: actor, requirementId: hotel?.id ?? '' }),
-      ),
-    ).toBe(true);
+    expect(isOk(await removeDraftRequirement(db, staff, { requirementId: hotel?.id ?? '' }))).toBe(
+      true,
+    );
 
     const approved = await approvePackVersion(db, {
       actorAccountId: actor,
@@ -257,16 +265,12 @@ describe('updating a published checklist system-wide', () => {
 
   it('refuses an empty document type, a filler source and an unknown item', async () => {
     const v1 = await published();
-    const draft = await cloneVersionToDraft(db, {
-      actorAccountId: actor,
-      fromPackVersionId: v1.id,
-    });
+    const draft = await cloneVersionToDraft(db, staff, { fromPackVersionId: v1.id });
     if (!isOk(draft)) throw new Error('clone');
     const [item] = await listRequirements(db, draft.value.id);
     expect(
       isErr(
-        await updateDraftRequirement(db, {
-          actorAccountId: actor,
+        await updateDraftRequirement(db, staff, {
           requirementId: item?.id ?? '',
           patch: { docType: ' ' },
         }),
@@ -274,8 +278,7 @@ describe('updating a published checklist system-wide', () => {
     ).toBe(true);
     expect(
       isErr(
-        await updateDraftRequirement(db, {
-          actorAccountId: actor,
+        await updateDraftRequirement(db, staff, {
           requirementId: item?.id ?? '',
           patch: { citation: 'n/a' },
         }),
@@ -283,8 +286,7 @@ describe('updating a published checklist system-wide', () => {
     ).toBe(true);
     expect(
       isErr(
-        await updateDraftRequirement(db, {
-          actorAccountId: actor,
+        await updateDraftRequirement(db, staff, {
           requirementId: '00000000-0000-4000-8000-000000000000',
           patch: { notes: 'x' },
         }),
