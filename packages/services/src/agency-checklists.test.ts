@@ -527,7 +527,8 @@ describe('agency checklists', () => {
         .select()
         .from(schema.productEvents)
         .where(eq(schema.productEvents.eventType, 'SOURCE_REVIEWED'));
-      expect(events).toHaveLength(0);
+      // The platform's own load of the shared list counts; the agency's approval does not.
+      expect(events.filter((e) => e.accountId === ownerA)).toHaveLength(0);
     });
   });
 

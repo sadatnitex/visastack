@@ -1365,9 +1365,9 @@ export async function approvePackVersion(
       resourceId: updated.id,
       metadata: { checksum, manifestFormat, nextReviewDate: nextReviewDate.toISOString() },
     });
-    // OPS-04 source review: a reviewer signing off a version's sources. Only an official pack's
-    // approval is a source review; an agency approving its own list, or a starter list, is not.
-    if (pack?.authoritative) {
+    // OPS-04 source review: a reviewer signing off a version's sources. An agency approving its
+    // own list is not a platform source review, so it is not counted.
+    if (!pack?.ownerOrganizationId) {
       await recordProductEvent(tx, {
         eventType: 'SOURCE_REVIEWED',
         accountId: input.actorAccountId,
