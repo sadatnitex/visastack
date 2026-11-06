@@ -46,7 +46,7 @@ function isAsyncFunctionValue(node: ts.Expression | undefined): boolean {
 }
 
 /** What a "use server" file exports that is not an async function, as "file: name". */
-export function badServerExports(file: string, text: string): string[] {
+function badServerExports(file: string, text: string): string[] {
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   if (!isUseServer(sf)) return [];
   const rel = path.relative(appRoot, file).replace(/\\/g, '/');
