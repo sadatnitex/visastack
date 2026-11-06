@@ -174,6 +174,7 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
   '/app/admin/members': nav,
   '/app/admin/organizations': nav,
   '/app/admin/packs': nav,
+  '/app/admin/packs/import': link('app/app/admin/packs/page.tsx', '/app/admin/packs/import'),
   '/app/admin/privacy': nav,
   '/app/admin/removals': nav,
   '/app/admin/security': nav,

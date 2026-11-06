@@ -15,6 +15,7 @@ import {
   requirementProvenance,
 } from '@visastack/core';
 import { type SQL, and, eq, getTableColumns, isNotNull, lte, ne, sql } from 'drizzle-orm';
+import { type StaffScope, staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -371,7 +372,7 @@ const PACK_STUDIO_WAITING =
   'Pack Studio is waiting for a database update before packs can change. Try again after it runs.';
 
 /** A refusal while migration 0116 has not run (every pack write names the new columns), else null. */
-async function packStudioWaiting(db: Db): Promise<Result<never, ServiceError> | null> {
+export async function packStudioWaiting(db: Db): Promise<Result<never, ServiceError> | null> {
   return (await packRuleColumnsReady(db))
     ? null
     : err(serviceError('invalid', PACK_STUDIO_WAITING));
@@ -473,6 +474,44 @@ export async function createPack(
   });
 }
 
+/**
+ * Opens the next DRAFT version of a pack inside a transaction the caller already holds: numbers it,
+ * records who opened it and carries the route conditions forward. The one place a draft is made, so
+ * adding a version and copying one to a draft can never differ. It writes no audit record: the
+ * gated caller that opens the draft writes `PACK_VERSION_OPENED` (see `auditDraftOpened`).
+ */
+async function openDraftVersion(
+  tx: Db,
+  input: { readonly actorAccountId: string; readonly packId: string },
+): Promise<PackVersion> {
+  const existing = await tx
+    .select({ version: schema.packVersions.version })
+    .from(schema.packVersions)
+    .where(eq(schema.packVersions.packId, input.packId));
+  const nextVersion = existing.reduce((max, r) => Math.max(max, r.version), 0) + 1;
+
+  const version = required(
+    first(
+      await tx
+        .insert(schema.packVersions)
+        .values({
+          packId: input.packId,
+          version: nextVersion,
+          authoredByAccountId: input.actorAccountId,
+        })
+        .returning(),
+    ),
+    'pack version',
+  );
+  // UMPE G2: who the checklist is for carries forward into the new draft.
+  await copyRouteConditionsForward(tx, {
+    actorAccountId: input.actorAccountId,
+    packId: input.packId,
+    toVersionId: version.id,
+  });
+  return version;
+}
+
 /** Open a new DRAFT version of a pack. */
 export async function addPackVersion(
   db: Db,
@@ -486,31 +525,7 @@ export async function addPackVersion(
   if (!pack) return err(serviceError('not_found', 'pack not found'));
 
   return db.transaction(async (tx) => {
-    const existing = await tx
-      .select({ version: schema.packVersions.version })
-      .from(schema.packVersions)
-      .where(eq(schema.packVersions.packId, input.packId));
-    const nextVersion = existing.reduce((max, r) => Math.max(max, r.version), 0) + 1;
-
-    const version = required(
-      first(
-        await tx
-          .insert(schema.packVersions)
-          .values({
-            packId: input.packId,
-            version: nextVersion,
-            authoredByAccountId: input.actorAccountId,
-          })
-          .returning(),
-      ),
-      'pack version',
-    );
-    // UMPE G2: who the checklist is for carries forward into the new draft.
-    await copyRouteConditionsForward(tx, {
-      actorAccountId: input.actorAccountId,
-      packId: input.packId,
-      toVersionId: version.id,
-    });
+    const version = await openDraftVersion(tx, input);
     await appendAuditEvent(tx, {
       eventType: 'PACK_VERSION_OPENED',
       actorAccountId: input.actorAccountId,
@@ -518,9 +533,119 @@ export async function addPackVersion(
       result: 'ALLOWED',
       resourceType: 'pack_version',
       resourceId: version.id,
-      metadata: { packId: input.packId, version: nextVersion },
+      metadata: { packId: input.packId, version: version.version },
     });
     return ok(version);
+  });
+}
+
+const OPEN_DRAFT_WORDS =
+  'This checklist already has a draft open. Finish it or publish it before starting another.';
+
+/**
+ * A new draft of the pack that holds `fromPackVersionId`, with every item of that version copied in
+ * the order they are read. Refused when the pack already has a draft open, so two people never
+ * edit two copies. The copy and the new draft are made in one transaction.
+ */
+export async function cloneVersionToDraft(
+  db: Db,
+  staff: StaffScope<'PACK_MANAGE'>,
+  input: { readonly fromPackVersionId: string },
+): Promise<Result<PackVersion, ServiceError>> {
+  const denied = staffScopeProblem(staff, 'PACK_MANAGE');
+  if (denied) return err(denied);
+  const waiting = await packStudioWaiting(db);
+  if (waiting) return waiting;
+  const actorAccountId = staff.accountId;
+  return db.transaction(async (tx) => {
+    const from = first(
+      await tx
+        .select()
+        .from(schema.packVersions)
+        .where(eq(schema.packVersions.id, input.fromPackVersionId))
+        .limit(1),
+    );
+    if (!from) return err(serviceError('not_found', 'pack version not found'));
+    // One draft at a time: the pack row is locked, so two clicks at once cannot both pass the check.
+    await tx
+      .select({ id: schema.packs.id })
+      .from(schema.packs)
+      .where(eq(schema.packs.id, from.packId))
+      .for('update');
+    const open = first(
+      await tx
+        .select({ id: schema.packVersions.id })
+        .from(schema.packVersions)
+        .where(
+          and(eq(schema.packVersions.packId, from.packId), eq(schema.packVersions.status, 'DRAFT')),
+        )
+        .limit(1),
+    );
+    if (open) return err(serviceError('invalid', OPEN_DRAFT_WORDS));
+
+    const draft = await openDraftVersion(tx, { actorAccountId, packId: from.packId });
+    await appendAuditEvent(tx, {
+      eventType: 'PACK_VERSION_OPENED',
+      actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pack_version',
+      resourceId: draft.id,
+      metadata: { packId: from.packId, version: draft.version },
+    });
+    const items = await listRequirements(tx, from.id);
+    const detailsPresent = await ruleDetailTablesPresent(tx);
+    for (const item of items) {
+      const [made] = await tx
+        .insert(schema.packRequirements)
+        .values({
+          packVersionId: draft.id,
+          kind: item.kind,
+          fieldKey: item.fieldKey,
+          docType: item.docType,
+          citation: item.citation,
+          optional: item.optional,
+          necessity: item.necessity,
+          provenance: item.provenance,
+          groupKey: item.groupKey,
+          groupMode: item.groupMode,
+          notes: item.notes,
+          maxAgeDays: item.maxAgeDays,
+          condition: item.condition,
+          sourceUrl: item.sourceUrl,
+          sourceTitle: item.sourceTitle,
+          publisher: item.publisher,
+          officialExtract: item.officialExtract,
+          interpretation: item.interpretation,
+          sourceType: item.sourceType,
+          observedDate: item.observedDate,
+          authorAccountId: actorAccountId,
+        })
+        .returning({ id: schema.packRequirements.id });
+      // The item's rule details (category, accepted form, validity) travel with it.
+      if (detailsPresent && made) {
+        await tx.execute(sql`
+          insert into pack_requirement_details
+            (pack_requirement_id, category, accepted_form, translation_needed, original_needed,
+             statement_period_months, valid_months_after_travel, effective_since,
+             updated_by_account_id, updated_at)
+          select ${made.id}, category, accepted_form, translation_needed, original_needed,
+                 statement_period_months, valid_months_after_travel, effective_since,
+                 ${actorAccountId}, now()
+            from pack_requirement_details
+           where pack_requirement_id = ${item.id}`);
+      }
+    }
+    await appendAuditEvent(tx, {
+      eventType: 'PACK_VERSION_CLONED',
+      actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      resourceType: 'pack_version',
+      resourceId: draft.id,
+      metadata: { fromPackVersionId: from.id, items: items.length },
+    });
+    return ok(draft);
   });
 }
 

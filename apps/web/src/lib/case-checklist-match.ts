@@ -14,6 +14,7 @@ import {
   findMatchingPublicPack,
   getMissionForOwner,
   listFittingPublicPacks,
+  listFittingStarterPacks,
   listSelectablePackVersions,
   readTravellerCoverage,
   requireAccess,
@@ -126,23 +127,36 @@ export async function selectableChecklists(
   if (!proof.ok) return { options: [], fitting: null, lookupFailed: true };
   const route = savedCaseMatchTerms(mission.destination, mission.purpose);
   let fitting: readonly PackMatch[] | null = null;
+  let starterFitting: readonly PackMatch[] = [];
   let lookupFailed = false;
   if (route) {
     try {
       const terms = await termsFor(db, { accountId, missionId: mission.id, ...route });
       // A refused gate means the case's details could not be read: never "nothing fits".
-      if (terms) fitting = await listFittingPublicPacks(db, terms);
-      else lookupFailed = true;
+      if (terms) {
+        fitting = await listFittingPublicPacks(db, terms);
+        // Starter lists for the same route are offered for the person to pick, kept apart from the
+        // reviewed fit so they never count as one and are never linked automatically. They are an
+        // addition: if they cannot be read the reviewed lists still show, as before.
+        try {
+          starterFitting = await listFittingStarterPacks(db, terms);
+        } catch (error) {
+          reportServerError('MissionPage', error, { step: 'starter checklists' });
+        }
+      } else lookupFailed = true;
     } catch (error) {
       reportServerError('MissionPage', error, { step: 'selectable checklists' });
       lookupFailed = true;
     }
     // Without a fit, no public checklist is offered rather than every one.
-    if (lookupFailed) fitting = [];
+    if (lookupFailed) {
+      fitting = [];
+      starterFitting = [];
+    }
   }
   const listed = await listSelectablePackVersions(proof.value, {
     missionId: mission.id,
-    ...(fitting ? { fitting } : {}),
+    ...(fitting ? { fitting: [...fitting, ...starterFitting] } : {}),
   });
   if (!listed.ok) {
     reportServerError('MissionPage', new Error(listed.error.code), {

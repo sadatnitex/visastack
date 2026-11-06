@@ -186,6 +186,11 @@ export async function addRequirementAction(
   const sourceUrl = String(formData.get('sourceUrl') ?? '').trim();
   const sourceTitle = String(formData.get('sourceTitle') ?? '').trim();
   const publisher = String(formData.get('publisher') ?? '').trim();
+  const wording = String(formData.get('wording') ?? '').trim();
+  const appliesWhen = String(formData.get('appliesWhen') ?? '').trim();
+  if (wording.length > 400 || appliesWhen.length > 120) {
+    return { ok: false, message: 'The wording is too long, or the note on who it is for is.' };
+  }
   const observedRaw = String(formData.get('observedDate') ?? '').trim();
   const observedDate = observedRaw ? new Date(observedRaw) : undefined;
   if (
@@ -225,6 +230,8 @@ export async function addRequirementAction(
       ...(sourceUrl ? { sourceUrl } : {}),
       ...(sourceTitle ? { sourceTitle } : {}),
       ...(publisher ? { publisher } : {}),
+      ...(wording ? { notes: wording } : {}),
+      ...(appliesWhen ? { interpretation: appliesWhen } : {}),
       ...(observedDate ? { observedDate } : {}),
       ...(maxAgeDays !== undefined ? { maxAgeDays } : {}),
     });

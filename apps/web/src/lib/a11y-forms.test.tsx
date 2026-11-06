@@ -72,6 +72,14 @@ vi.mock('../app/app/admin/organizations/[orgId]/actions', standIn);
 vi.mock('../app/app/admin/organizations/[orgId]/refund-actions', standIn);
 vi.mock('../app/app/admin/packs/actions', standIn);
 vi.mock('../app/app/admin/packs/rule-detail-actions', standIn);
+vi.mock('../app/app/admin/packs/starter-actions', () => ({
+  NO_PREVIEW: { ok: false, message: '', rows: [], skipped: [] },
+  previewStarterAction: async () => ({ ok: true, message: '', rows: [], skipped: [] }),
+  loadStarterListAction: async () => ({ ok: true, message: '' }),
+  startPackUpdateAction: async () => ({ ok: true, message: '' }),
+  updateDraftItemAction: async () => ({ ok: true, message: '' }),
+  removeDraftItemAction: async () => ({ ok: true, message: '' }),
+}));
 vi.mock('../app/app/admin/packs/sources/actions', standIn);
 // UMPE P11: checklist corrections.
 vi.mock('../app/app/admin/packs/corrections/actions', standIn);
@@ -140,6 +148,8 @@ const refundForms = await import('../app/app/admin/organizations/[orgId]/refund-
 const packForms = await import('../app/app/admin/packs/pack-forms');
 const ruleDetailForms = await import('../app/app/admin/packs/rule-detail-forms');
 const packVersionButtons = await import('../app/app/admin/packs/pack-version-buttons');
+const starterForms = await import('../app/app/admin/packs/starter-forms');
+const starterImporter = await import('../app/app/admin/packs/import/starter-importer');
 const sourceForms = await import('../app/app/admin/packs/sources/source-forms');
 const correctionForms = await import('../app/app/admin/packs/corrections/correction-forms');
 const correctionForm = await import('../components/checklist-correction-form');
@@ -2884,6 +2894,24 @@ const ADMIN: readonly Case[] = [
   {
     name: 'open a pack version',
     element: () => <packVersionButtons.OpenVersionButton packId="pk1" />,
+  },
+  row('start an update of a published pack version', () => (
+    <starterForms.StartUpdateButton packId="pk1" packVersionId={rowId()} />
+  )),
+  row('change or remove one item of a draft pack version', () => (
+    <starterForms.DraftItemEditor
+      packId="pk1"
+      requirementId={rowId()}
+      kind="DOCUMENT"
+      docType="PASSPORT"
+      necessity="MANDATORY"
+      wording="Valid passport."
+      appliesWhen="All applicants"
+    />
+  )),
+  {
+    name: 'load the starter country lists',
+    element: () => <starterImporter.StarterImporter suppliedCount={485} />,
   },
   row('approve a pack version', () => (
     <packVersionButtons.ApproveVersionButton packId="pk1" packVersionId={rowId()} />

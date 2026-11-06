@@ -275,7 +275,14 @@ export const NEXT_STEP_COPY: Record<
 export const requirementLabel = (r: {
   readonly kind: 'FIELD' | 'DOCUMENT';
   readonly key: string;
-}) => (r.kind === 'FIELD' ? (fieldLabel(r.key) ?? humanizeCode(r.key)) : humanizeCode(r.key));
+  /** A starter list's own sentence for the item, shown as the agency wrote it. */
+  readonly wording?: string | undefined;
+}) =>
+  r.wording
+    ? r.wording
+    : r.kind === 'FIELD'
+      ? (fieldLabel(r.key) ?? humanizeCode(r.key))
+      : humanizeCode(r.key);
 
 export interface RequirementDetailRow {
   readonly packRequirementId: string;
@@ -294,6 +301,12 @@ export interface RequirementDetailRow {
   readonly provenance?: RequirementProvenance;
   readonly groupKey?: string;
   readonly coveredByAlternative?: true;
+  /** The item is from a starter list: the agency's reading of country files, not official. */
+  readonly fromStarter?: true;
+  /** A starter item's own sentence, as written in the agency's file. */
+  readonly wording?: string;
+  /** Who a starter item is for ("All applicants", "Employee"). */
+  readonly appliesWhen?: string;
   /** UMPE G2 (R02): the rule category, when the checklist gives one. */
   readonly category: RequirementCategory | null;
 }

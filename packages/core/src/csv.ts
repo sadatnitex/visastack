@@ -33,3 +33,47 @@ export function csvCell(text: string, options: { readonly alwaysQuote?: boolean 
   }
   return safe;
 }
+
+/**
+ * Reads CSV text into rows of cells: comma separated, double quotes around a cell that holds a
+ * comma, a quote (written twice) or a line break, and either kind of line ending. A leading byte
+ * order mark is ignored. Nothing is trimmed here; the reader decides what its columns mean.
+ */
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let quoted = false;
+  const source = text.replace(/^﻿/, '');
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i];
+    if (quoted) {
+      if (ch === '"' && source[i + 1] === '"') {
+        cell += '"';
+        i += 1;
+      } else if (ch === '"') {
+        quoted = false;
+      } else {
+        cell += ch;
+      }
+    } else if (ch === '"') {
+      quoted = true;
+    } else if (ch === ',') {
+      row.push(cell);
+      cell = '';
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && source[i + 1] === '\n') i += 1;
+      row.push(cell);
+      cell = '';
+      rows.push(row);
+      row = [];
+    } else {
+      cell += ch;
+    }
+  }
+  if (cell !== '' || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
+}

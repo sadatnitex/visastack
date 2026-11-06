@@ -728,6 +728,7 @@ export {
   unpublishFromPublicTrust,
   verifyPackChecksum,
   withdrawPackVersion,
+  cloneVersionToDraft,
 } from './packs';
 
 export { isHttpUrl, safeHttpUrl } from './external-url';
@@ -1833,6 +1834,7 @@ export {
   explainNoFittingPack,
   findMatchingPublicPack,
   listFittingPublicPacks,
+  listFittingStarterPacks,
   packMatchKey,
   readTravellerCoverage,
 } from './pack-matching';
@@ -3104,3 +3106,17 @@ export {
   evidenceSubmissionsPresent,
   listEvidenceSubmissions,
 } from './evidence-submissions';
+export {
+  type DraftRequirementPatch,
+  newestPublishedVersion,
+  removeDraftRequirement,
+  updateDraftRequirement,
+} from './pack-draft-edit';
+export {
+  type StarterApplyResult,
+  type StarterImportPreviewRow,
+  type StarterImportStatus,
+  applyStarterPack,
+  currentStarterPacks,
+  previewStarterImport,
+} from './starter-packs';

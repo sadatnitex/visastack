@@ -71,6 +71,11 @@ export default async function PackStudioPage({
         title="Requirement Packs"
         description="Author versioned, cited requirement packs. A published version becomes attachable by cases."
       />
+      {data.admin ? (
+        <p>
+          <Link href="/app/admin/packs/import">Starter Country Lists</Link>
+        </p>
+      ) : null}
 
       {!data.admin ? (
         <article className="card">

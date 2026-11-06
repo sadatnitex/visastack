@@ -1,5 +1,6 @@
 import { type Result, err, ok } from '@visastack/core';
-import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import { STARTER_KEY_PREFIX, isStarterPackKey } from '@visastack/core';
+import { and, eq, inArray, isNull, like, or } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -25,8 +26,10 @@ import type { PublishedPackVersion } from './packs';
 
 /** One checklist a person may pick for a case. */
 export interface SelectablePackVersion extends PublishedPackVersion {
-  /** True for a reviewed public checklist, false for the agency's own. */
+  /** True for a reviewed public checklist, false for the agency's own or a starter checklist. */
   readonly authoritative: boolean;
+  /** True for a starter checklist: the agency's reading of country files, not official. */
+  readonly starter: boolean;
   /** True when it belongs to the agency this case belongs to. */
   readonly ownedByCaseAgency: boolean;
   /** When the published version is due its regular review (`pack_versions.next_review_date`). */
@@ -94,6 +97,13 @@ export async function listSelectablePackVersions(
     isNull(schema.packs.ownerOrganizationId),
     eq(schema.packs.authoritative, true),
   );
+  // A starter checklist is public and not authoritative. It is listed only when it fits the case's
+  // route (`fitting` names it), never in the open, so the picker never offers every country.
+  const starterPublic = and(
+    isNull(schema.packs.ownerOrganizationId),
+    eq(schema.packs.authoritative, false),
+    like(schema.packs.key, `${STARTER_KEY_PREFIX}%`),
+  );
   const rows = await db
     .select({
       packVersionId: schema.packVersions.id,
@@ -110,16 +120,20 @@ export async function listSelectablePackVersions(
       and(
         eq(schema.packVersions.status, 'PUBLISHED'),
         caseAgencyId
-          ? or(reviewedPublic, eq(schema.packs.ownerOrganizationId, caseAgencyId))
-          : reviewedPublic,
+          ? or(reviewedPublic, starterPublic, eq(schema.packs.ownerOrganizationId, caseAgencyId))
+          : or(reviewedPublic, starterPublic),
       ),
     );
 
   const fittingIds = input.fitting ? new Set(input.fitting.map((f) => f.packVersionId)) : null;
-  const allowed = rows.filter(
-    (row) =>
-      row.ownerOrganizationId !== null || fittingIds === null || fittingIds.has(row.packVersionId),
-  );
+  const allowed = rows.filter((row) => {
+    if (row.ownerOrganizationId !== null) return true;
+    // A starter checklist needs a route to fit; without one nothing starter is offered.
+    if (isStarterPackKey(row.packKey)) {
+      return fittingIds?.has(row.packVersionId) === true;
+    }
+    return fittingIds === null || fittingIds.has(row.packVersionId);
+  });
   if (allowed.length === 0) return ok([]);
 
   const counts = new Map<string, number>();
@@ -146,6 +160,7 @@ export async function listSelectablePackVersions(
           version: row.version,
           requirementCount: counts.get(row.packVersionId) ?? 0,
           authoritative: row.authoritative,
+          starter: isStarterPackKey(row.packKey),
           ownedByCaseAgency: row.ownerOrganizationId !== null,
           nextReviewDate: row.nextReviewDate,
           reviewOverdue: isPast(row.nextReviewDate, now),
@@ -184,6 +199,7 @@ export async function attachSelectedPackVersion(
           status: schema.packVersions.status,
           authoritative: schema.packs.authoritative,
           ownerOrganizationId: schema.packs.ownerOrganizationId,
+          packKey: schema.packs.key,
         })
         .from(schema.packVersions)
         .innerJoin(schema.packs, eq(schema.packs.id, schema.packVersions.packId))
@@ -206,7 +222,8 @@ export async function attachSelectedPackVersion(
 export type PinnedPackNotice =
   | { readonly kind: 'WITHDRAWN'; readonly since: Date | null }
   | { readonly kind: 'REVIEW_OVERDUE'; readonly since: Date }
-  | { readonly kind: 'NOT_REVIEWED' };
+  | { readonly kind: 'NOT_REVIEWED' }
+  | { readonly kind: 'STARTER' };
 
 /**
  * A plain notice for the checklist a case holds. It never removes or replaces the checklist: a case
@@ -220,11 +237,20 @@ export function pinnedPackNotice(
     readonly withdrawnAt: Date | null;
     readonly nextReviewDate: Date | null;
   },
-  pack: { readonly authoritative: boolean; readonly ownerOrganizationId: string | null },
+  pack: {
+    readonly authoritative: boolean;
+    readonly ownerOrganizationId: string | null;
+    /** The pack's key; a starter checklist is known by it. */
+    readonly key?: string | null;
+  },
   now: Date = new Date(),
 ): PinnedPackNotice | null {
   if (version.status === 'WITHDRAWN') return { kind: 'WITHDRAWN', since: version.withdrawnAt };
-  if (pack.ownerOrganizationId === null && !pack.authoritative) return { kind: 'NOT_REVIEWED' };
+  if (pack.ownerOrganizationId === null && !pack.authoritative) {
+    return pack.key != null && isStarterPackKey(pack.key)
+      ? { kind: 'STARTER' }
+      : { kind: 'NOT_REVIEWED' };
+  }
   if (
     version.status === 'PUBLISHED' &&
     version.nextReviewDate &&

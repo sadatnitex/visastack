@@ -1,3 +1,4 @@
+import { isStarterPackKey } from '@visastack/core';
 import type { NoPackReason, PinnedPackNotice } from '@visastack/services';
 
 /**
@@ -5,12 +6,19 @@ import type { NoPackReason, PinnedPackNotice } from '@visastack/services';
  * checklist reads the same everywhere (VS-006). Pure: no server code, safe in client files.
  */
 
-/** The badge for a pack: reviewed public, an agency's own, or published with no review. */
+/** The badge words of a starter checklist: the agency's reading of country files, never official. */
+export const STARTER_BADGE = 'Starter List, Not Official';
+
+/** The badge for a pack: reviewed public, a starter list, an agency's own, or published with no review. */
 export function packBadge(pack: {
   readonly authoritative: boolean;
   readonly ownerOrganizationId: string | null | undefined;
+  readonly key?: string | null | undefined;
 }): { readonly label: string; readonly reviewed: boolean } {
   if (pack.authoritative) return { label: 'Official Requirement Pack', reviewed: true };
+  if (!pack.ownerOrganizationId && pack.key != null && isStarterPackKey(pack.key)) {
+    return { label: STARTER_BADGE, reviewed: false };
+  }
   // A pack with an owning agency is that agency's own checklist. One with no owner and no review
   // is not an agency's, so calling it "Agency Custom Checklist" would be wrong.
   return pack.ownerOrganizationId
@@ -52,6 +60,8 @@ export function packNoticeLine(notice: PinnedPackNotice | null): string | null {
       return `${notice.since ? `Withdrawn on ${dateWords(notice.since)}. ` : 'Withdrawn. '}It stays on this case as it was, so check the official guidance yourself.`;
     case 'NOT_REVIEWED':
       return 'Nobody has reviewed this checklist yet. Check it against the official guidance before relying on it.';
+    case 'STARTER':
+      return 'A starter list from agency files. It is not official. Check it against the official guidance before relying on it.';
   }
 }
 

@@ -27,3 +27,4 @@ export * from './switches';
 export * from './trip-checks';
 export * from './requirement-necessity';
 export * from './requirement-categories';
+export * from './starter-checklists';

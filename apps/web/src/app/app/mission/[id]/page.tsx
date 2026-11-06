@@ -4,6 +4,7 @@ import {
   tripChecksApply,
   tripChecksNeedingAction,
 } from '@visastack/core';
+import { isStarterPackKey } from '@visastack/core';
 import { aiAppLabel } from '@visastack/core/ai-features';
 import { createTranslator } from '@visastack/i18n';
 import {
@@ -363,6 +364,9 @@ export default async function MissionPage({
         ? source
         : { ...source, inEffectSince: versionEffective.toISOString() },
     );
+    // A starter list is public and not authoritative, as the picker and the badge both require.
+    const starterPack =
+      isStarterPackKey(pack?.key) && !pack?.authoritative && !pack?.ownerOrganizationId;
     const requirementDetails: RequirementDetailRow[] = (readinessValue?.requirementResults ?? [])
       .map((r): RequirementDetailRow => {
         const row = requirementRowsById.get(r.packRequirementId);
@@ -382,6 +386,10 @@ export default async function MissionPage({
           ...(r.provenance ? { provenance: r.provenance } : {}),
           ...(r.groupKey ? { groupKey: r.groupKey } : {}),
           ...(r.coveredByAlternative ? { coveredByAlternative: true } : {}),
+          // A starter list keeps the agency's own sentence and who it is for, shown as written.
+          ...(starterPack ? { fromStarter: true as const } : {}),
+          ...(starterPack && row?.notes ? { wording: row.notes } : {}),
+          ...(starterPack && row?.interpretation ? { appliesWhen: row.interpretation } : {}),
           category: ruleDetails.get(r.packRequirementId)?.category ?? null,
         };
       })
@@ -621,6 +629,7 @@ export default async function MissionPage({
                 ? pinnedPackNotice(packVersionRow, {
                     authoritative: pack.authoritative,
                     ownerOrganizationId: pack.ownerOrganizationId ?? null,
+                    key: pack.key,
                   })
                 : null,
             ),
@@ -671,7 +680,7 @@ export default async function MissionPage({
       packOptions: choices.options.map(
         (p): PackOption => ({
           packVersionId: p.packVersionId,
-          label: `${p.packName} · v${p.version} · ${p.requirementCount} requirement${p.requirementCount === 1 ? '' : 's'}${p.reviewOverdue ? ' · review due' : ''}`,
+          label: `${p.packName} · v${p.version} · ${p.requirementCount} requirement${p.requirementCount === 1 ? '' : 's'}${p.starter ? ' · starter list, not official' : ''}${p.reviewOverdue ? ' · review due' : ''}`,
         }),
       ),
       noChecklistLines: choices.lookupFailed

@@ -14,6 +14,7 @@ import {
   explainNoFittingPack,
   findMatchingPublicPack,
   listFittingPublicPacks,
+  listFittingStarterPacks,
   packMatchKey,
   readTravellerCoverage,
 } from './pack-matching';
@@ -61,12 +62,13 @@ describe('findMatchingPublicPack', () => {
     readonly residence?: readonly string[];
     readonly authoritative?: boolean;
     readonly route?: string;
+    readonly key?: string;
   }) {
     n += 1;
     const [row] = await db
       .insert(schema.packs)
       .values({
-        key: `synthetic.pack.${n}`,
+        key: input.key ?? `synthetic.pack.${n}`,
         name: `Synthetic Pack ${n}`,
         jurisdiction: input.jurisdiction,
         purpose: input.purpose,
@@ -100,6 +102,47 @@ describe('findMatchingPublicPack', () => {
       version: 1,
       coversTraveller: true,
       coversRoute: true,
+    });
+  });
+
+  describe('starter checklists', () => {
+    it('are found for the route on their own list and never linked or counted as reviewed', async () => {
+      const starter = await pack({
+        key: 'starter.gb.tourist',
+        jurisdiction: 'GB',
+        purpose: 'tourism',
+        authoritative: false,
+      });
+      await pack({
+        key: 'starter.fr.tourist',
+        jurisdiction: 'FR',
+        purpose: 'tourism',
+        authoritative: false,
+      });
+      expect(await listFittingStarterPacks(db, ukTrip())).toEqual([
+        expect.objectContaining({ packVersionId: starter.versionIds[0] }),
+      ]);
+      expect(await listFittingPublicPacks(db, ukTrip())).toEqual([]);
+      expect(await findMatchingPublicPack(db, ukTrip())).toBeNull();
+      // With only a starter list published, the case still says no reviewed checklist exists.
+      expect(await explainNoFittingPack(db, ukTrip())).toEqual(['NO_REVIEWED_CHECKLIST']);
+    });
+
+    it('are not found when withdrawn, or when the key is not a starter key', async () => {
+      await pack({
+        key: 'starter.gb.tourist',
+        jurisdiction: 'GB',
+        purpose: 'tourism',
+        authoritative: false,
+        status: 'WITHDRAWN',
+      });
+      await pack({
+        key: 'synthetic.unreviewed',
+        jurisdiction: 'GB',
+        purpose: 'tourism',
+        authoritative: false,
+      });
+      expect(await listFittingStarterPacks(db, ukTrip())).toEqual([]);
     });
   });
 

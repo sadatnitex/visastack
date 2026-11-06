@@ -10,6 +10,7 @@ import { Icon } from '../../../../components/icons';
 import { ChecklistRow, SectionCard } from '../../../../components/ui-lift';
 import { bookingReminderFor } from '../../../../lib/booking-reminder';
 import { formatDateOnly } from '../../../../lib/format-date';
+import { STARTER_BADGE } from '../../../../lib/pack-labels';
 import {
   CHECKLIST_GROUP_TONE,
   CHECKLIST_ID_PREFIX,
@@ -111,8 +112,13 @@ export function CaseChecklist({
           : undefined;
     // Short facts that change what to do stay under the sentence; a finished row folds them away.
     const facts: ReactNode[] = [
-      r.provenance && r.provenance !== 'OFFICIAL' ? (
+      r.fromStarter ? (
+        <p key="provenance">{STARTER_BADGE}</p>
+      ) : r.provenance && r.provenance !== 'OFFICIAL' ? (
         <p key="provenance">{PROVENANCE_LABELS[r.provenance]}</p>
+      ) : null,
+      r.appliesWhen && r.appliesWhen.toLowerCase() !== 'all applicants' ? (
+        <p key="applies">For: {r.appliesWhen}</p>
       ) : null,
       alternatives.length > 0 ? (
         <p key="alternatives">
