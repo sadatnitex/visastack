@@ -92,9 +92,9 @@ export const FALLBACK_DOC_TYPE = 'OTHER';
 export function mapDocType(text: string): string {
   let best: { readonly at: number; readonly docType: string } | null = null;
   for (const rule of RULES) {
-    const found = rule.words.exec(text);
-    if (found && (best === null || found.index < best.at)) {
-      best = { at: found.index, docType: rule.docType };
+    const at = text.search(rule.words);
+    if (at >= 0 && (best === null || at < best.at)) {
+      best = { at, docType: rule.docType };
     }
   }
   return best?.docType ?? FALLBACK_DOC_TYPE;
