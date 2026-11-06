@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNotNull, isNull, lte, notInArray } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
+import { caseChecklistEditsTablePresent } from './case-checklist-edit-tables';
 import { type Db, first, schema } from './db';
 import { missionBlockedByLegalHold } from './legal-hold';
 import { enqueueNotificationBothChannels } from './notifications';
@@ -293,6 +294,13 @@ export async function purgeMissionUnconditionally(
     await db
       .delete(schema.umpePackageChanges)
       .where(eq(schema.umpePackageChanges.missionId, mission.missionId));
+  }
+  // The sentences the traveller wrote for their own checklist go with the case too. Before their
+  // migration runs the table is missing and there is nothing to delete.
+  if (await caseChecklistEditsTablePresent(db)) {
+    await db
+      .delete(schema.caseChecklistEdits)
+      .where(eq(schema.caseChecklistEdits.missionId, mission.missionId));
   }
   // UMPE P11: the case's rule change impacts (ids and kinds only) go with it. Before their
   // migration runs the tables are missing and there is nothing to delete.

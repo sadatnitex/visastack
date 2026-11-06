@@ -271,8 +271,12 @@ export const NEXT_STEP_COPY: Record<
   },
 };
 
-/** A checklist item's name, as the checklist shows it. */
-export const requirementLabel = (r: {
+/**
+ * A checklist item's official name: the pack's own sentence when it has one, else the item's plain
+ * name. Summaries (the Next Step, the attention list, a correction suggestion) always use this, so
+ * a traveller's own wording can never disguise what has to be fixed.
+ */
+export const officialLabel = (r: {
   readonly kind: 'FIELD' | 'DOCUMENT';
   readonly key: string;
   /** A starter list's own sentence for the item, shown as the agency wrote it. */
@@ -283,6 +287,15 @@ export const requirementLabel = (r: {
     : r.kind === 'FIELD'
       ? (fieldLabel(r.key) ?? humanizeCode(r.key))
       : humanizeCode(r.key);
+
+/** A checklist item's name, as the checklist row shows it: the traveller's own words first. */
+export const requirementLabel = (r: {
+  readonly kind: 'FIELD' | 'DOCUMENT';
+  readonly key: string;
+  readonly wording?: string | undefined;
+  /** The traveller's own sentence for this item on this case (display only). */
+  readonly myWording?: string | undefined;
+}) => (r.myWording ? r.myWording : officialLabel(r));
 
 export interface RequirementDetailRow {
   readonly packRequirementId: string;
@@ -305,6 +318,8 @@ export interface RequirementDetailRow {
   readonly fromStarter?: true;
   /** A starter item's own sentence, as written in the agency's file. */
   readonly wording?: string;
+  /** The traveller's own sentence for this item on this case, shown as the row title. */
+  readonly myWording?: string;
   /** Who a starter item is for ("All applicants", "Employee"). */
   readonly appliesWhen?: string;
   /** UMPE G2 (R02): the rule category, when the checklist gives one. */

@@ -41,6 +41,6 @@ A starter list is due for review 120 days after it is published and shows "revie
 
 ## What is not in this release
 
-- A traveller cannot yet reword, add, or turn off items on their own case. The case keeps the exact version it was attached to; the traveller can leave a non-blocking item out with a reason, leave an item missing, and add tasks, as before. Editing a case's own copy needs a new table (a database change that runs only on the owner's word); it is the next package.
+- A traveller can reword an item on their own case (Edit Wording inside More About This Item). The change is display only and belongs to that one case: the official sentence stays visible as "Original", the status and the Mandatory or Optional word come from the checklist and cannot be reworded, and the Next Step and the correction suggestion keep the official name. It is available while the case is open. It needs one new table (migration 0133, which runs only on the owner's word); until it runs there are no edit controls and the page reads as before. A traveller still cannot hide a required item: Leave Out, with a reason, stays for items that can never block, as before. A traveller cannot yet add their own items, and an agency on the case does not yet see the traveller's wording (the next two packages).
 - The Trip Package panel and the evidence request screens still name an item by its document type, not by the sentence.
 - Document types were read by rules and have not been checked line by line by a person. Review them in the studio.

@@ -21,6 +21,7 @@ import {
   type RequirementDetailRow,
   buildChecklistGroups,
   categoryProgress,
+  officialLabel,
   plural,
   requirementLabel,
   toneOfBadge,
@@ -28,6 +29,7 @@ import {
 import { OpenGroupOnLink } from './open-group-on-link';
 import { ExplainGapButton } from './readiness-gap-explain';
 import { SuggestCorrection } from './suggest-correction';
+import { WordingEditor } from './wording-editor';
 
 /** Why Gap Explanations is off, when it is (S28); undefined when it is on. */
 export type GapExplanationOff = ComponentProps<typeof ExplainGapButton>['off'];
@@ -52,6 +54,8 @@ export interface CaseChecklistProps {
   readonly explanations: ChecklistExplanations;
   /** The checklist the rows come from, named beside the heading; null when it could not be read. */
   readonly packName: string | null;
+  /** The traveller may reword items: the case is open and the feature is switched on. */
+  readonly wordingEditable?: boolean;
 }
 
 /**
@@ -68,11 +72,14 @@ export function CaseChecklist({
   chosenByRequirement,
   explanations,
   packName,
+  wordingEditable = false,
 }: CaseChecklistProps) {
   /** One checklist row (WP-SB2 moved it out of the group so a group can show its first rows). */
   const requirementRow = (r: RequirementDetailRow) => {
     const meta = REQUIREMENT_STATE_META[r.state];
     const label = requirementLabel(r);
+    // Summaries and suggestions keep the official name, whatever the traveller has written.
+    const officialName = officialLabel(r);
     const done = r.state === 'SATISFIED' || r.state === 'ATTENTION' || r.state === 'NOT_APPLICABLE';
     // UMPE P1: the other items any one of which would meet the same requirement.
     // A member whose rule says it does not apply to this case is no alternative.
@@ -112,6 +119,7 @@ export function CaseChecklist({
           : undefined;
     // Short facts that change what to do stay under the sentence; a finished row folds them away.
     const facts: ReactNode[] = [
+      r.myWording ? <p key="mine">Your Wording</p> : null,
       r.fromStarter ? (
         <p key="provenance">{STARTER_BADGE}</p>
       ) : r.provenance && r.provenance !== 'OFFICIAL' ? (
@@ -152,6 +160,7 @@ export function CaseChecklist({
     const more = (
       <>
         {meta.next ? <p className="lift-check-next">{meta.next}</p> : null}
+        {r.myWording ? <p className="lift-check-aside">Original: {officialName}</p> : null}
         {done ? facts : null}
         {source}
         {bookingReminder ? <p className="lift-check-aside">{bookingReminder}</p> : null}
@@ -166,8 +175,15 @@ export function CaseChecklist({
         <SuggestCorrection
           missionId={missionId}
           packRequirementId={r.packRequirementId}
-          itemName={label || 'This Item'}
+          itemName={officialName || 'This Item'}
         />
+        {wordingEditable ? (
+          <WordingEditor
+            missionId={missionId}
+            packRequirementId={r.packRequirementId}
+            current={r.myWording ?? ''}
+          />
+        ) : null}
       </>
     );
     return (
