@@ -4,12 +4,8 @@ import { useActionState, useState, useTransition } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { StatusBadge } from '../../../../../components/ui';
 import type { ActionState } from '../actions';
-import {
-  NO_PREVIEW,
-  type StarterPreviewState,
-  loadStarterListAction,
-  previewStarterAction,
-} from '../starter-actions';
+import { NO_PREVIEW, type StarterPreviewState } from '../preview-state';
+import { loadStarterListAction, previewStarterAction } from '../starter-actions';
 
 const STATUS_WORDS = { new: 'New', changed: 'Changed', unchanged: 'Up to Date' } as const;
 const STATUS_TONES = { new: 'success', changed: 'warning', unchanged: 'neutral' } as const;

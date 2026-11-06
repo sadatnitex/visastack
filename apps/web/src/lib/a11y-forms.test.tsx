@@ -73,7 +73,6 @@ vi.mock('../app/app/admin/organizations/[orgId]/refund-actions', standIn);
 vi.mock('../app/app/admin/packs/actions', standIn);
 vi.mock('../app/app/admin/packs/rule-detail-actions', standIn);
 vi.mock('../app/app/admin/packs/starter-actions', () => ({
-  NO_PREVIEW: { ok: false, message: '', rows: [], skipped: [] },
   previewStarterAction: async () => ({ ok: true, message: '', rows: [], skipped: [] }),
   loadStarterListAction: async () => ({ ok: true, message: '' }),
   startPackUpdateAction: async () => ({ ok: true, message: '' }),

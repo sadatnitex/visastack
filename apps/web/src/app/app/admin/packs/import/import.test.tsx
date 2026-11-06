@@ -20,7 +20,6 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('../starter-actions', () => ({
-  NO_PREVIEW: { ok: false, message: '', rows: [], skipped: [] },
   previewStarterAction: vi.fn(),
   loadStarterListAction: vi.fn(),
 }));
