@@ -302,7 +302,10 @@ describe('updating a published checklist system-wide', () => {
       .select()
       .from(schema.packRequirementDetails)
       .where(eq(schema.packRequirementDetails.packRequirementId, twin?.id ?? ''));
-    expect(detail).toMatchObject({ category: 'IDENTITY_TRAVEL_DOCUMENTS', translationNeeded: true });
+    expect(detail).toMatchObject({
+      category: 'IDENTITY_TRAVEL_DOCUMENTS',
+      translationNeeded: true,
+    });
   });
 
   it('refuses wording and audience notes that are too long', async () => {
