@@ -51,7 +51,7 @@ const PRESSED_SEGMENT = [
   '.depth-scope[data-depth="glance"] .depth-seg[data-for="glance"],',
   '.depth-scope[data-depth="browse"] .depth-seg[data-for="browse"],',
   '.depth-scope[data-depth="everything"] .depth-seg[data-for="everything"],',
-  '.depth-scope[data-depth="auto"] .depth-seg[data-for="browse"] {',
+  '.depth-scope[data-depth="auto"] .depth-seg[data-for="glance"] {',
 ].join('\n');
 
 describe('surfaces and edges by role (WP-C2)', () => {
