@@ -739,6 +739,15 @@ export {
 } from './access/agency-checklist-scope';
 
 export {
+  CHECKLIST_EDITS_MAX,
+  CHECKLIST_WORDING_MAX,
+  type CaseChecklistEdits,
+  listCaseChecklistEdits,
+  setChecklistWording,
+  tidyWording,
+} from './case-checklist-edits';
+
+export {
   type AgencyListDetail,
   type AgencyOwnList,
   type AgencyStartingList,

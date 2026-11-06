@@ -39,8 +39,14 @@ A starter list is due for review 120 days after it is published and shows "revie
 - Agency owners and admins keep their own copy of any shared list ("Make It Our Own"), under Checklists in the agency workspace (an admin-only link). The copy belongs to that agency alone: only that agency's cases offer it (marked "your agency's list"), no other agency can see or change it, and the shared list is never touched. An agency changes its copy as a draft (change or remove items, add its own, with the wording a traveller reads), then publishes it as the next version. Cases already on an older version keep it. A change made by the platform to the shared list does not flow into an agency's copy, by design: the agency decided what its copy says.
 - A case worker who is not an owner or admin cannot change checklists. Every step checks the person live against the agency, and each change is recorded in the audit trail under the person who made it.
 
+## What a traveller can change on a case
+
+- A traveller can reword an item on their own case (Edit Wording inside More About This Item). The change is display only and belongs to that one case: the official sentence stays visible as "Original", the status and the Mandatory or Optional word come from the checklist and cannot be reworded, and the Next Step and the correction suggestion keep the official name. The words are the traveller's own: they are not shown to an agency, in exports, snapshots, cover letters, document requests or AI. It is available while the case is open, with up to 400 characters per sentence and 100 changes per case.
+- It needs one new table (migration 0133, which runs only on the owner's word). Until it runs there are no edit controls and the page reads as before.
+- Leave Out, with a reason, stays for items that can never block, exactly as before.
+
 ## What is not in this release
 
-- A traveller cannot yet reword, add, or turn off items on their own case. The case keeps the exact version it was attached to; the traveller can leave a non-blocking item out with a reason, leave an item missing, and add tasks, as before. Editing a case's own copy needs a new table (a database change that runs only on the owner's word); it is the next package.
+- A traveller cannot yet add their own items to the checklist, and an agency on the case does not yet see the traveller's wording (the next two packages). A traveller cannot hide a required item, and will not be able to.
 - The Trip Package panel and the evidence request screens still name an item by its document type, not by the sentence.
 - Document types were read by rules and have not been checked line by line by a person. Review them in the studio.

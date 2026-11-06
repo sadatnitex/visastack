@@ -83,6 +83,7 @@ vi.mock('../app/app/admin/packs/sources/actions', standIn);
 // UMPE P11: checklist corrections.
 vi.mock('../app/app/admin/packs/corrections/actions', standIn);
 vi.mock('../app/app/mission/[id]/suggest-correction-actions', standIn);
+vi.mock('../app/app/mission/[id]/edits-actions', standIn);
 vi.mock('../app/app/agency/[orgId]/collection/request/checklist-correction-actions', standIn);
 vi.mock('../app/app/account/whatsapp/actions', standIn);
 vi.mock('../app/app/agency/actions', standIn);
@@ -154,6 +155,7 @@ const sourceForms = await import('../app/app/admin/packs/sources/source-forms');
 const correctionForms = await import('../app/app/admin/packs/corrections/correction-forms');
 const correctionForm = await import('../components/checklist-correction-form');
 const caseCorrectionActions = await import('../app/app/mission/[id]/suggest-correction-actions');
+const wordingEditor = await import('../app/app/mission/[id]/wording-editor');
 const collectionForms = await import('../app/app/agency/[orgId]/collection/collection-forms');
 const checklistForms = await import('../app/app/agency/[orgId]/checklists/checklist-forms');
 const responseForms = await import('../app/collect/account/response-form');
@@ -2908,6 +2910,16 @@ const ADMIN: readonly Case[] = [
       necessity="MANDATORY"
       wording="Valid passport."
       appliesWhen="All applicants"
+    />
+  )),
+  row('reword one item of the checklist on a case', () => (
+    <wordingEditor.WordingEditor
+      missionId={rowId()}
+      packRequirementId={rowId()}
+      itemName="Valid passport."
+      original="Valid passport."
+      current="My own words"
+      maxLength={400}
     />
   )),
   row('make a shared checklist our own', () => (

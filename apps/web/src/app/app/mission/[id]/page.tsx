@@ -8,6 +8,7 @@ import { isStarterPackKey } from '@visastack/core';
 import { aiAppLabel } from '@visastack/core/ai-features';
 import { createTranslator } from '@visastack/i18n';
 import {
+  CHECKLIST_WORDING_MAX,
   type ChangesSinceConfirmed,
   type Db,
   type NoPackReason,
@@ -31,6 +32,7 @@ import {
   listAccessForApplicant,
   listAcknowledgementsForMission,
   listAppointments,
+  listCaseChecklistEdits,
   listChangesSinceConfirmed,
   listComplaintEvents,
   listComplaintsForMission,
@@ -104,7 +106,7 @@ import {
   SNAPSHOTS_ON_PAGE,
   buildCaseAttention,
   madeJustNow,
-  requirementLabel,
+  officialLabel,
   welcomeChecklists,
 } from './case-model';
 import { CaseMoreMenu } from './case-more-menu';
@@ -288,6 +290,18 @@ export default async function MissionPage({
           .then((result) => (result?.ok ? result.value : null))
           .catch(() => null)
       : null;
+    // The traveller's own sentences for checklist items, read through this case's own access proof.
+    // Before the table exists, or on a refusal or an error, there are none and no edit controls.
+    const checklistEdits = mission.packVersionId
+      ? await selfView()
+          .then((gate) => (gate.ok ? listCaseChecklistEdits(gate.value, mission.id) : null))
+          .then((result) => (result?.ok ? result.value : null))
+          .catch(() => null)
+      : null;
+    const myWordings = new Map(
+      (checklistEdits?.rewords ?? []).map((r) => [r.packRequirementId, r.wording] as const),
+    );
+    const wordingEditable = checklistEdits?.editable === true;
     const complaintList = complaints.ok ? complaints.value.items : [];
     const complaintEventsById = new Map(
       await Promise.all(
@@ -390,6 +404,10 @@ export default async function MissionPage({
           ...(starterPack ? { fromStarter: true as const } : {}),
           ...(starterPack && row?.notes ? { wording: row.notes } : {}),
           ...(starterPack && row?.interpretation ? { appliesWhen: row.interpretation } : {}),
+          // The traveller's own sentence for the item, display only (never read by readiness).
+          ...(myWordings.get(r.packRequirementId)
+            ? { myWording: myWordings.get(r.packRequirementId) as string }
+            : {}),
           category: ruleDetails.get(r.packRequirementId)?.category ?? null,
         };
       })
@@ -430,7 +448,7 @@ export default async function MissionPage({
     const requiredHardGapCount = new Set(requiredHardGaps.map(itemKey)).size;
     // The first in checklist order: the Next Step names it.
     const firstHardGap = requiredHardGaps[0];
-    const firstHardGapLabel = firstHardGap ? requirementLabel(firstHardGap) : null;
+    const firstHardGapLabel = firstHardGap ? officialLabel(firstHardGap) : null;
     const requiredUnverifiedCount = new Set(
       requirementDetails.filter((r) => !r.optional && r.state === 'UNVERIFIED').map(itemKey),
     ).size;
@@ -617,6 +635,7 @@ export default async function MissionPage({
         neededUntil: c.neededUntil.toISOString(),
       })),
       explanationFeature,
+      wordingEditable,
       explanationsByRequirement,
       packInfo: pack
         ? {
@@ -920,6 +939,8 @@ export default async function MissionPage({
                 rows={data.requirementDetails}
                 chosenByRequirement={data.evidenceLifecycle.chosenByRequirement}
                 packName={data.packInfo?.name ?? null}
+                wordingEditable={data.wordingEditable}
+                wordingMax={CHECKLIST_WORDING_MAX}
                 explanations={{
                   configured: data.explanationConfigured,
                   off:

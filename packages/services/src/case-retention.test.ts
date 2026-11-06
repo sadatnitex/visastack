@@ -1,7 +1,7 @@
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { provisionAccount } from './accounts';
@@ -260,6 +260,65 @@ describe('sweepCaseRetentionPurge (PRV-02, Part 7 §11: "closed case... 30d noti
     await backdateRetentionNotice(db, created.value.id, thirtyOneDaysAgo);
     return created.value.id;
   }
+
+  async function seedReword(missionId: string) {
+    const [pack] = await db
+      .insert(schema.packs)
+      .values({ key: `synthetic.purge.${missionId}`, name: 'Synthetic Purge Pack' })
+      .returning();
+    const [version] = await db
+      .insert(schema.packVersions)
+      .values({ packId: pack?.id ?? '', version: 1, status: 'PUBLISHED' })
+      .returning();
+    const [item] = await db
+      .insert(schema.packRequirements)
+      .values({
+        packVersionId: version?.id ?? '',
+        kind: 'DOCUMENT',
+        docType: 'PASSPORT',
+        citation: 'Synthetic rule',
+        optional: false,
+      })
+      .returning();
+    await db.insert(schema.caseChecklistEdits).values({
+      missionId,
+      applicantId,
+      kind: 'REWORD',
+      packRequirementId: item?.id ?? '',
+      wording: 'Words the traveller wrote',
+    });
+  }
+
+  it("removes the traveller's own checklist wording with the case, and keeps the redacted case row", async () => {
+    setEnv('CASE_RETENTION_PURGE_ENABLED', 'true');
+    const missionId = await seedClosedCaseDueForPurge();
+    await seedReword(missionId);
+    expect(await db.select().from(schema.caseChecklistEdits)).toHaveLength(1);
+
+    await sweepCaseRetentionPurge(db);
+
+    expect(await db.select().from(schema.caseChecklistEdits)).toEqual([]);
+    const [mission] = await db
+      .select()
+      .from(schema.missions)
+      .where(eq(schema.missions.id, missionId));
+    expect(mission?.purgedAt).not.toBeNull();
+  });
+
+  it('purges a case without error before the checklist edits table exists', async () => {
+    setEnv('CASE_RETENTION_PURGE_ENABLED', 'true');
+    const missionId = await seedClosedCaseDueForPurge();
+    await db.execute(sql`drop table case_checklist_edits`);
+
+    const result = await sweepCaseRetentionPurge(db);
+
+    expect(result.purged).toBe(1);
+    const [mission] = await db
+      .select()
+      .from(schema.missions)
+      .where(eq(schema.missions.id, missionId));
+    expect(mission?.purgedAt).not.toBeNull();
+  });
 
   it('is a no-op by default -- CASE_RETENTION_PURGE_ENABLED unset never touches anything', async () => {
     const missionId = await seedClosedCaseDueForPurge();

@@ -6043,6 +6043,57 @@ export const umpePackageChoices = pgTable(
   ],
 );
 
+// Edits a traveller makes to the checklist on their own case (Owner, 6 Nov 2026). Display-only: a
+// REWORD replaces the sentence shown for one item of the case's pack version, and an OWN_ITEM is a
+// personal reminder. Nothing here is read by the readiness engine, the package, the handoff or any
+// frozen record, so an edit can never make a case look ready. One reword per case and item; many
+// own items. The services copy applicant_id from the case and keep the row caps.
+export const caseChecklistEdits = pgTable(
+  'case_checklist_edits',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    missionId: uuid('mission_id')
+      .notNull()
+      .references(() => missions.id, { onDelete: 'cascade' }),
+    applicantId: uuid('applicant_id')
+      .notNull()
+      .references(() => applicants.id, { onDelete: 'cascade' }),
+    /** REWORD (a new sentence for one pack item) or OWN_ITEM (a personal reminder). */
+    kind: text('kind').notNull(),
+    packRequirementId: uuid('pack_requirement_id').references(() => packRequirements.id, {
+      onDelete: 'cascade',
+    }),
+    wording: text('wording').notNull(),
+    /** Set only on an own item the traveller ticked off. */
+    doneAt: timestamp('done_at', { withTimezone: true }),
+    createdByAccountId: uuid('created_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('case_checklist_edits_reword_unique').on(table.missionId, table.packRequirementId),
+    index('case_checklist_edits_mission_idx').on(table.missionId, table.kind, table.createdAt),
+    index('case_checklist_edits_applicant_idx').on(table.applicantId),
+    index('case_checklist_edits_requirement_idx').on(table.packRequirementId),
+    index('case_checklist_edits_created_by_idx').on(table.createdByAccountId),
+    check('case_checklist_edits_kind_known', sql`${table.kind} in ('REWORD', 'OWN_ITEM')`),
+    check(
+      'case_checklist_edits_shape',
+      sql`(${table.kind} = 'REWORD') = (${table.packRequirementId} is not null)`,
+    ),
+    check(
+      'case_checklist_edits_done_own_only',
+      sql`${table.doneAt} is null or ${table.kind} = 'OWN_ITEM'`,
+    ),
+    check(
+      'case_checklist_edits_wording_length',
+      sql`char_length(btrim(${table.wording})) between 1 and 400 and char_length(${table.wording}) <= 400`,
+    ),
+  ],
+);
+
 // The traveller's explicit "Prepared for Handoff" confirmation: an immutable record of the exact
 // package (pack version and checksum, every selection by version id, the caveats still open, the
 // freshness check and the steps outside VisaStack) at that moment. A database trigger refuses any
