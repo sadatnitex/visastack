@@ -122,7 +122,7 @@ Protected fields (passport numbers, incomes) are wrapped by one key held in Verc
 
 ## 11. Words on desktop screens
 
-**Today:** every phone screen is held to 30 words of explanation, and so is Documents on a desktop. On the other desktop screens the default level is Browse, which shows more. Measured on made-up data, 42 desktop states are over 30 words (the busiest: the agency member home at 182, expiry at 154, evidence requests at 136, the notifications list at 99).
+**Today:** every phone screen is held to 30 words of explanation, and so is Documents on a desktop. On the other desktop screens the default level is Browse, which shows more. Measured on made-up data, 37 desktop states are over 30 words (the busiest: the agency member home at 182, expiry at 154, evidence requests at 136, the notifications list at 99).
 **Why not just change it:** Browse is the level the approved mockups show, and your latest instruction says the mockup composition rules the screens.
 **Options:**
 - A. Start every desktop screen at Glance, as phones do. Browse is one tap away and each screen remembers the choice. Every screen is then within 30 words by default. It is a small change, and reversing it is as small.
