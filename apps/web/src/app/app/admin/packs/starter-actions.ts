@@ -8,7 +8,6 @@ import {
   readStarterSheet,
 } from '@visastack/core';
 import {
-  type StarterImportPreviewRow,
   applyStarterPack,
   cloneVersionToDraft,
   previewStarterImport,
@@ -20,6 +19,7 @@ import { bootstrapAdminEmails, hasPlatformPermission, staffPrincipal } from '../
 import { parseDocumentTypeInput } from '../../../../lib/catalogue-input';
 import { withSession } from '../../../../lib/session';
 import type { ActionState } from './actions';
+import { NO_PREVIEW, type StarterPreviewState } from './preview-state';
 
 /**
  * Starter country checklists in Pack Studio (Owner, 6 Nov 2026): load the supplied lists or a sheet
@@ -45,16 +45,6 @@ async function packScope(
 /** A sheet this large is far past any real list (the supplied one is about 90 KB). */
 const MAX_SHEET_CHARACTERS = 600_000;
 const MAX_SHEET_LINES = 5_000;
-
-export interface StarterPreviewState {
-  readonly ok: boolean;
-  readonly message: string;
-  readonly rows: readonly StarterImportPreviewRow[];
-  /** Lines of the sheet that could not be placed, with the plain reason. */
-  readonly skipped: readonly string[];
-}
-
-export const NO_PREVIEW: StarterPreviewState = { ok: false, message: '', rows: [], skipped: [] };
 
 type Source = { readonly rows: readonly StarterSheetRow[] } | { readonly problem: string };
 

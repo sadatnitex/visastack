@@ -27,8 +27,8 @@ vi.mock('../../../../lib/session', () => ({
     fn({ db: {}, accountId: 'synthetic-admin', email: 'admin@example.com' }),
 }));
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+import { NO_PREVIEW } from './preview-state';
 import {
-  NO_PREVIEW,
   loadStarterListAction,
   previewStarterAction,
   removeDraftItemAction,
