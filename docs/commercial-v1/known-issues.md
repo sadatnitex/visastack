@@ -7662,3 +7662,9 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - 1 (D1): ADR 0026 addendum 9 records the owner's approval.
 - 2: no change needed (it is today's behaviour).
 - Not done: 4 is an action in the pack studio by an admin, not a code change (withdraw "Visitor1" there); 6 needs Vercel access to read runtime logs; 7 needs the route names and a reviewer written in the note; 9 stays BLOCKED at the files and key steps (no independent document copy, no key escrow yet), so a drill can only prove the database part again; 10 and 8 are the owner's to do; 12 follows 6.
+
+## 2026-11-06 - Restore drill, partial (owner said "run the drill")
+
+- A branch of the production project was made from the current state (`drill/2026-11-06-restore-check`) and compared with production: the same 124 tables and 1,077 rows, identical per-table fingerprint. Production was not written.
+- The result is BLOCKED, not PASS: no independent copy of the documents and no key escrow exist yet, and no application was started against the branch, so the files, protected data, access, deletion and timing steps were not done. Record: docs/operations/restore-drill-record-2026-11-06.md.
+- The drill branch is still in the project and needs the owner's word to be deleted (the Neon tool asks before deleting a branch). The project holds 3 branches with it, under the limit of 9.
