@@ -2,8 +2,9 @@
 // Updates apps/web/src/lib/ccd/prose-limits.json from a measurement run.
 //   PROSE_MEASURE=/tmp/m.jsonl pnpm --filter @visastack/web exec vitest run src/lib/ccd/parity
 //   node scripts/agent/prose-limits.mjs /tmp/m.jsonl
-// A ceiling exists only for a state over 30 words at a view that is not held to 30 (the desktop
-// view of every screen except Documents; keep HELD_AT_DESKTOP in step with parity-kit.test-support.ts).
+// A ceiling exists only for a state over 30 words at a view that is not held to 30. Since 6 Nov 2026
+// every screen is held to 30 at every width (the depth "auto" is Glance everywhere), so no ceilings
+// remain; this script only helps if the owner ever allows an exception again.
 // This script only ever LOWERS or removes a ceiling for a state it measured. A state that grew past
 // its ceiling, or a state with no ceiling that is over 30, stops the script: raising a ceiling
 // needs the owner. States and screens that are not in the run are left exactly as they are.

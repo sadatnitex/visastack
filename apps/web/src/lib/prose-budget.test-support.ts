@@ -1,5 +1,5 @@
 import { JSDOM } from 'jsdom';
-import { DEPTH_LEVELS, type DepthLevel, depthRank, isDepthLevel } from './ccd/depth';
+import { type DepthLevel, depthRank, isDepthLevel, resolveAuto } from './ccd/depth';
 
 /**
  * The 30-word rule (Owner, 5 Nov 2026: "no page should have more than 30 words while being
@@ -33,7 +33,7 @@ import { DEPTH_LEVELS, type DepthLevel, depthRank, isDepthLevel } from './ccd/de
 export const PROSE_WORD_BUDGET = 30;
 
 export interface ProseOptions {
-  /** Where the page is read. A phone reads the depth "auto" as Glance; a desktop as Browse. */
+  /** Where the page is read. Every width reads the depth "auto" as Glance (Owner, 6 Nov 2026). */
   readonly viewport?: 'phone' | 'desktop';
   /** A level to read the page at, instead of the one on the page's depth scope. */
   readonly depth?: DepthLevel;
@@ -109,8 +109,7 @@ export function countProse(html: string, options: ProseOptions = {}): ProseRepor
   const scope = root.querySelector<HTMLElement>('[data-depth-scope]');
   const scopeDepth = scope?.getAttribute('data-depth') ?? 'auto';
   const level: DepthLevel =
-    options.depth ??
-    (isDepthLevel(scopeDepth) ? scopeDepth : phone ? DEPTH_LEVELS[0] : DEPTH_LEVELS[1]);
+    options.depth ?? (isDepthLevel(scopeDepth) ? scopeDepth : resolveAuto());
 
   const problems: string[] = [];
   const passages: ProsePassage[] = [];

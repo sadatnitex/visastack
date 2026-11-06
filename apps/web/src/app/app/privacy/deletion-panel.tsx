@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../components/form-feedback';
-import { currentLevel, isPhoneNow } from '../../../lib/ccd/reveal';
+import { currentLevel } from '../../../lib/ccd/reveal';
 import { type ActionState, cancelDeletionAction, requestDeletionAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -71,7 +71,7 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
     if (!cancelState.ok || !cancelState.message) return;
     const card = document.getElementById('delete-account');
     const scope = card?.closest<HTMLElement>('[data-depth-scope]');
-    if (scope && currentLevel(scope, isPhoneNow()) !== 'everything') {
+    if (scope && currentLevel(scope) !== 'everything') {
       scope.setAttribute('data-depth', 'everything');
     }
   }, [cancelState]);

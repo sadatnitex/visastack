@@ -1,16 +1,9 @@
-import {
-  DEPTH_LEVELS,
-  DEPTH_PHONE_QUERY,
-  type DepthLevel,
-  depthRank,
-  isDepthLevel,
-  resolveAuto,
-} from './depth';
+import { DEPTH_LEVELS, type DepthLevel, depthRank, isDepthLevel, resolveAuto } from './depth';
 
-/** The level a scope shows right now, turning "auto" into what this screen width means. */
-export function currentLevel(scope: HTMLElement, isPhone: boolean): DepthLevel {
+/** The level a scope shows right now, turning "auto" into Glance. */
+export function currentLevel(scope: HTMLElement): DepthLevel {
   const set = scope.getAttribute('data-depth');
-  return isDepthLevel(set) ? set : resolveAuto(isPhone);
+  return isDepthLevel(set) ? set : resolveAuto();
 }
 
 /**
@@ -34,14 +27,13 @@ export function levelContaining(element: HTMLElement, scope: HTMLElement): Depth
 export function raiseToShow(
   target: HTMLElement,
   scope: HTMLElement,
-  isPhone: boolean,
   options: { readonly asLinkTarget?: boolean } = {},
 ): DepthLevel | null {
   if (!scope.contains(target)) return null;
   const needed = options.asLinkTarget
     ? levelForLink(target, scope)
     : levelContaining(target, scope);
-  if (depthRank(needed) <= depthRank(currentLevel(scope, isPhone))) return null;
+  if (depthRank(needed) <= depthRank(currentLevel(scope))) return null;
   scope.setAttribute('data-depth', needed);
   return needed;
 }
@@ -65,8 +57,4 @@ export function focusTarget(target: HTMLElement): void {
   }
   target.focus({ preventScroll: true });
   target.scrollIntoView({ block: 'start' });
-}
-
-export function isPhoneNow(): boolean {
-  return window.matchMedia(DEPTH_PHONE_QUERY).matches;
 }

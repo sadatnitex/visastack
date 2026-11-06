@@ -481,11 +481,12 @@ describe('countProse: the definition', () => {
     ).toBe(0);
   });
 
-  it('reads the depth: "auto" is Glance on a phone and Browse on a desktop', () => {
+  it('reads the depth: "auto" is Glance on a phone and on a desktop (Owner, 6 Nov 2026)', () => {
     const body =
       '<p>Always shown</p><p data-level="browse">Browse only line</p><p data-level="everything">Everything only here today</p>';
     expect(words(body, { viewport: 'phone' })).toBe(2);
-    expect(words(body, { viewport: 'desktop' })).toBe(5);
+    expect(words(body, { viewport: 'desktop' })).toBe(2);
+    expect(words(body, { viewport: 'desktop' }, 'browse')).toBe(5);
     expect(words(body, { viewport: 'phone' }, 'browse')).toBe(5);
     expect(words(body, { viewport: 'phone' }, 'everything')).toBe(9);
     expect(words(body, { viewport: 'phone', depth: 'everything' })).toBe(9);
@@ -495,7 +496,8 @@ describe('countProse: the definition', () => {
     const notes =
       '<p class="depth-note" data-for="glance">Glance says this</p><p class="depth-note" data-for="browse">Browse says something longer</p>';
     expect(words(notes, { viewport: 'phone' })).toBe(3);
-    expect(words(notes, { viewport: 'desktop' })).toBe(4);
+    expect(words(notes, { viewport: 'desktop' })).toBe(3);
+    expect(words(notes, { viewport: 'desktop' }, 'browse')).toBe(4);
   });
 
   it('shows a glance-only line at Glance and hides it deeper', () => {

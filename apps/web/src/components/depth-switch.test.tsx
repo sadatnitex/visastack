@@ -71,15 +71,15 @@ afterEach(() => {
 });
 
 describe('the depth switch', () => {
-  it('shows three buttons with Browse pressed on a wide screen when nothing is saved', () => {
+  it('shows three buttons with Glance pressed on a wide screen when nothing is saved (Owner, 6 Nov 2026)', () => {
     act(() => root.render(page('auto')));
     expect([...container.querySelectorAll('button')].map((b) => b.textContent)).toEqual([
       'Glance',
       'Browse',
       'Everything',
     ]);
-    expect(button('Browse').getAttribute('aria-pressed')).toBe('true');
-    expect(button('Glance').getAttribute('aria-pressed')).toBe('false');
+    expect(button('Glance').getAttribute('aria-pressed')).toBe('true');
+    expect(button('Browse').getAttribute('aria-pressed')).toBe('false');
   });
 
   it('starts at Glance on a phone', () => {

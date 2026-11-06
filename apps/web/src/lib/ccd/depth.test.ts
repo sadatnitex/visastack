@@ -38,8 +38,8 @@ describe('the depth cookie', () => {
   });
 
   it('means Glance on a phone and Browse on a wider screen', () => {
-    expect(resolveAuto(true)).toBe('glance');
-    expect(resolveAuto(false)).toBe('browse');
+    // Owner, 6 Nov 2026: wider screens start at Glance too, so no screen opens past 30 words.
+    expect(resolveAuto()).toBe('glance');
     expect(depthRank('glance')).toBeLessThan(depthRank('browse'));
     expect(depthRank('browse')).toBeLessThan(depthRank('everything'));
   });

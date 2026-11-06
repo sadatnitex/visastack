@@ -35,3 +35,9 @@ The promise that outranks the look: no feature, control, state or message is los
 - **Hide levels on the server (render only the chosen level).** Rejected: loses typed values on change, hides content from tests, and can strand deep links.
 - **Separate pages per level.** Rejected: triples the routes and breaks every anchor.
 - **A per-account setting in the database.** Rejected: needs a migration and carries a preference for no reason a cookie cannot serve.
+
+## Addendum, 6 November 2026 (owner decision 11 of the decision pack: "auto" is Glance on every width)
+- The depth "auto" (no level chosen yet) now means Glance on every screen width. It used to mean Glance on a phone and Browse on a wider screen. The owner chose this so that no screen opens past 30 words of explanation; Browse and Everything are one tap away and each screen remembers the choice.
+- What changed: `resolveAuto` returns Glance for every width; the stylesheet treats `data-depth="auto"` as Glance at all widths (blocks, level buttons, notes, one-column working areas, the full Next Step banner); the sentence for the chosen level is clipped at every width, as it was on a phone. The 30-word check now holds every screen at every width, and `prose-limits.json` holds no ceilings.
+- Not changed: an explicit level a person has chosen, the cookie, the three levels, Documents (which already held 30 words on a desktop).
+- Reversing it is one function and the stylesheet block above; the word check then needs its ceilings back.

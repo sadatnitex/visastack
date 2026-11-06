@@ -30,14 +30,12 @@ const BASELINE_DIR = join(dirname(fileURLToPath(import.meta.url)), 'baseline');
 
 /**
  * The 30-word rule (Owner, 5 Nov 2026) for every converted screen in every state it can be in.
- * A state is held to 30 words of explanation at a phone's default depth. A state that is still
- * over has a recorded ceiling in prose-limits.json: it may not grow, and the ceiling must come
- * down when the words do. The screens in HELD_AT_DESKTOP are held to 30 on a desktop as well; the
- * others record their desktop count so it cannot grow.
+ * A state is held to 30 words of explanation at every width (a phone, and a desktop since the owner's
+ * decision of 6 Nov 2026). prose-limits.json holds no ceilings and a ceiling put back there fails
+ * the test; an exception needs the owner.
  */
 const LIMITS_PATH = join(dirname(fileURLToPath(import.meta.url)), 'prose-limits.json');
 const MEASURE_VARIABLE = 'PROSE_MEASURE';
-const HELD_AT_DESKTOP: ReadonlySet<string> = new Set(['documents']);
 type Ceilings = Record<string, Record<string, { phone?: number; desktop?: number }>>;
 
 export function registerParity(screen: {
@@ -140,34 +138,13 @@ export function registerParity(screen: {
         });
         const failures: string[] = [];
         for (const { viewport, report } of reports) {
-          const held = viewport === 'phone' || HELD_AT_DESKTOP.has(screen.name);
+          // Every screen is held to 30 words at every width (Owner, 6 Nov 2026): no ceilings remain.
           const ceiling = ceilings[state.name]?.[viewport];
           const where = `${screen.name} / ${state.name} / ${viewport}`;
           if (report.problems.length > 0) failures.push(`${where}: ${report.problems.join('; ')}`);
-          if (held) {
-            // Held to 30: no recorded ceiling is allowed to stand in for the rule.
-            if (ceiling !== undefined) failures.push(`${where}: a held screen has no ceiling`);
-            if (report.words > PROSE_WORD_BUDGET) {
-              failures.push(`${where} shows ${report.words} words (limit ${PROSE_WORD_BUDGET})`);
-            }
-          } else if (ceiling === undefined) {
-            if (report.words > PROSE_WORD_BUDGET) {
-              failures.push(
-                `${where}: ${report.words} words needs a recorded ceiling in prose-limits.json`,
-              );
-            }
-          } else if (report.words > ceiling) {
-            failures.push(
-              `${where}: ${report.words} words is over its recorded ceiling ${ceiling}`,
-            );
-          } else if (ceiling <= PROSE_WORD_BUDGET) {
-            failures.push(
-              `${where}: a ceiling of ${ceiling} is at or under 30, remove it from prose-limits.json`,
-            );
-          } else if (report.words !== ceiling) {
-            failures.push(
-              `${where}: lower its ceiling from ${ceiling} to ${report.words} in prose-limits.json (remove it when 30 or fewer)`,
-            );
+          if (ceiling !== undefined) failures.push(`${where}: no screen has a ceiling any more`);
+          if (report.words > PROSE_WORD_BUDGET) {
+            failures.push(`${where} shows ${report.words} words (limit ${PROSE_WORD_BUDGET})`);
           }
         }
         expect(failures).toEqual([]);

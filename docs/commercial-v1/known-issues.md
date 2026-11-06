@@ -7652,3 +7652,19 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - The installed app: sign-in is a server action with relative redirects, so it never leaves the site; the manifest opens full screen; the service worker is on unless PWA_SERVICE_WORKER=off. The most likely cause of the browser look and the white-disc icon is an app added as a shortcut. Decision 13 holds the two-minute test.
 - The phone bottom bar keeps 12 px labels on purpose: five destinations share 390 px, and the type scale check allows 12 for labels.
 - Needs the owner: Vercel access (runtime logs to measure server time per page; domain redirect check).
+
+## 2026-11-06 - Owner decisions applied: desktop starts at Glance, official page link, landing proof line, D1 confirmed
+
+- Decision pack answers (read back from the page): 1 approve D1 as written; 2 keep an overdue checklist usable; 3 show the official page with its words; 4 withdraw the test checklist "Visitor1"; 5 landing line B; 6 measure first; 7 routes and reviewer named but the note was left empty; 8 sent to counsel (no date written); 9 run the drill; 10 neither key step done yet; 11 option A; 12 approve after item 6 is measured; 13 installed, opens full screen.
+- 11 (words): "auto" is Glance on every width. All 214 screen states now hold 30 words at both a phone and a desktop with no recorded ceilings (the 37 desktop ceilings are gone). ADR 0023 addendum records it. Browse and Everything stay one tap away and are remembered per screen.
+- 3 (official page): a case with no reviewed checklist shows "Official Page. VisaStack has not checked it." with the destination's official page when the data holds one (new `officialPageForDestination`, matched on the whole name, a code or an alias). It is a link, not a stand-in checklist.
+- 5 (landing): "One traveller profile, so agencies stop asking for the same documents twice." sits under the audience cards (VS-016 closed).
+- 1 (D1): ADR 0026 addendum 9 records the owner's approval.
+- 2: no change needed (it is today's behaviour).
+- Not done: 4 is an action in the pack studio by an admin, not a code change (withdraw "Visitor1" there); 6 needs Vercel access to read runtime logs; 7 needs the route names and a reviewer written in the note; 9 stays BLOCKED at the files and key steps (no independent document copy, no key escrow yet), so a drill can only prove the database part again; 10 and 8 are the owner's to do; 12 follows 6.
+
+## 2026-11-06 - Restore drill, partial (owner said "run the drill")
+
+- A branch of the production project was made from the current state (`drill/2026-11-06-restore-check`) and compared with production: the same 124 tables and 1,077 rows, identical per-table fingerprint. Production was not written.
+- The result is BLOCKED, not PASS: no independent copy of the documents and no key escrow exist yet, and no application was started against the branch, so the files, protected data, access, deletion and timing steps were not done. Record: docs/operations/restore-drill-record-2026-11-06.md.
+- The drill branch is still in the project and needs the owner's word to be deleted (the Neon tool asks before deleting a branch). The project holds 3 branches with it, under the limit of 9.

@@ -51,7 +51,7 @@ const PRESSED_SEGMENT = [
   '.depth-scope[data-depth="glance"] .depth-seg[data-for="glance"],',
   '.depth-scope[data-depth="browse"] .depth-seg[data-for="browse"],',
   '.depth-scope[data-depth="everything"] .depth-seg[data-for="everything"],',
-  '.depth-scope[data-depth="auto"] .depth-seg[data-for="browse"] {',
+  '.depth-scope[data-depth="auto"] .depth-seg[data-for="glance"] {',
 ].join('\n');
 
 describe('surfaces and edges by role (WP-C2)', () => {
@@ -106,6 +106,17 @@ describe('surfaces and edges by role (WP-C2)', () => {
     expect(last('.depth-scope[data-depth="auto"] .depth-seg[data-for="glance"]')).toMatch(
       /border-color: var\(--brand\);/,
     );
+  });
+
+  it('treats the automatic depth as Glance in every layout rule that names Glance (Owner, 6 Nov 2026)', () => {
+    // A rule that changes the grid at Glance must change it for "auto" as well, or a screen with no
+    // saved level shows Glance with the layout of Browse (an empty column).
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*grid-template-columns[^{}]*)\}/g)];
+    const missing = rules
+      .map((rule) => (rule[1] ?? '').trim())
+      .filter((selector) => /\[data-depth="glance"\]/.test(selector))
+      .filter((selector) => !/\[data-depth="auto"\]/.test(selector));
+    expect(missing).toEqual([]);
   });
 
   it('draws the empty part of a progress ring at 3:1, and every placeholder in the meta tier', () => {
