@@ -10,7 +10,7 @@ import {
   requirementNecessity,
   starterContentHash,
 } from '@visastack/core';
-import { eq, inArray, like } from 'drizzle-orm';
+import { and, eq, inArray, like } from 'drizzle-orm';
 import { type StaffScope, staffScopeProblem } from './access/principal';
 import { type Db, first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
@@ -51,6 +51,8 @@ export interface StarterImportPreviewRow {
   /** For a changed list: lines in the new list that are not in the current one, and the reverse. */
   readonly added: number;
   readonly removed: number;
+  /** Lines in both lists with the same words but a different type, necessity or audience (often an admin's edit, which loading replaces). */
+  readonly modified: number;
   readonly currentVersion: number | null;
 }
 
@@ -97,6 +99,7 @@ export async function previewStarterImport(
         requirementCount: definition.requirements.length,
         added: definition.requirements.length,
         removed: 0,
+        modified: 0,
         currentVersion: null,
       });
       continue;
@@ -104,6 +107,18 @@ export async function previewStarterImport(
     const same = starterContentHash(current.lines) === definition.contentHash;
     const now = new Set(definition.requirements.map((r) => r.text));
     const before = new Set(current.lines.map((r) => r.text));
+    const wasLine = new Map(current.lines.map((r) => [r.text, r]));
+    const modified = same
+      ? 0
+      : definition.requirements.filter((line) => {
+          const old = wasLine.get(line.text);
+          return (
+            old !== undefined &&
+            (old.docType !== line.docType ||
+              old.necessity !== line.necessity ||
+              old.appliesWhen !== line.appliesWhen)
+          );
+        }).length;
     out.push({
       key: definition.key,
       name: definition.name,
@@ -111,6 +126,7 @@ export async function previewStarterImport(
       requirementCount: definition.requirements.length,
       added: same ? 0 : [...now].filter((text) => !before.has(text)).length,
       removed: same ? 0 : [...before].filter((text) => !now.has(text)).length,
+      modified,
       currentVersion: current.version,
     });
   }
@@ -203,8 +219,29 @@ export async function applyStarterPack(
     created = true;
   }
 
+  // An admin's own draft is never taken over or doubled: finish or discard it first.
+  const open = first(
+    await db
+      .select({ id: schema.packVersions.id })
+      .from(schema.packVersions)
+      .where(and(eq(schema.packVersions.packId, pack.id), eq(schema.packVersions.status, 'DRAFT')))
+      .limit(1),
+  );
+  if (open) {
+    return err(
+      serviceError(
+        'invalid',
+        `${definition.key}: this checklist has a draft open. Publish or discard it first.`,
+      ),
+    );
+  }
   const draft = await addPackVersion(db, { actorAccountId, packId: pack.id });
   if (!draft.ok) return draft;
+  // The list is built in several steps. If one fails, the half-built draft goes, so nothing is stuck
+  // and a retry starts clean.
+  const dropDraft = async () => {
+    await db.delete(schema.packVersions).where(eq(schema.packVersions.id, draft.value.id));
+  };
   for (const line of definition.requirements) {
     const added = await addRequirement(db, {
       actorAccountId,
@@ -220,8 +257,10 @@ export async function applyStarterPack(
       publisher: 'Agency starter list',
       sourceType: 'agency_sheet',
     });
-    if (!added.ok)
+    if (!added.ok) {
+      await dropDraft();
       return err(serviceError(added.error.code, `${definition.key}: ${added.error.message}`));
+    }
   }
   const reviewBy = new Date(Date.now() + STARTER_REVIEW_DAYS * 24 * 60 * 60 * 1000);
   const approved = await approvePackVersion(db, {
@@ -230,12 +269,18 @@ export async function applyStarterPack(
     nextReviewDate: reviewBy,
     reviewIntervalReason: STARTER_REVIEW_REASON,
   });
-  if (!approved.ok) return approved;
+  if (!approved.ok) {
+    await dropDraft();
+    return approved;
+  }
   const published = await publishPackVersion(db, {
     actorAccountId,
     packVersionId: draft.value.id,
   });
-  if (!published.ok) return published;
+  if (!published.ok) {
+    await dropDraft();
+    return published;
+  }
   return ok({
     key: definition.key,
     outcome: created ? 'created' : 'updated',

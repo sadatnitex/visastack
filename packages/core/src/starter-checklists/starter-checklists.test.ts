@@ -216,3 +216,28 @@ describe('the CSV reader', () => {
     ]);
   });
 });
+
+describe('the sheet reader on a downloaded sheet', () => {
+  const header = 'Country,Purpose,Applies when,Document / requirement,Keep?,Reference file';
+
+  it('takes the protective apostrophe off a cell that began like a formula', () => {
+    const read = readStarterSheet(
+      `${header}\nJapan,Tourist,All applicants,"'=Bank letter",Yes,file.pdf\n`,
+    );
+    expect(read.ok && read.rows[0]?.text).toBe('=Bank letter');
+  });
+
+  it('keeps a plain leading apostrophe that guards nothing', () => {
+    const read = readStarterSheet(
+      `${header}\nJapan,Tourist,All applicants,'Quoted word,Yes,file.pdf\n`,
+    );
+    expect(read.ok && read.rows[0]?.text).toBe("'Quoted word");
+  });
+
+  it('treats a Keep? cell holding only spaces as Yes', () => {
+    const read = readStarterSheet(
+      `${header}\nJapan,Tourist,All applicants,Passport,   ,file.pdf\n`,
+    );
+    expect(read.ok && read.rows[0]?.keep).toBe('Yes');
+  });
+});

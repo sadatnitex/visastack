@@ -188,6 +188,9 @@ export async function addRequirementAction(
   const publisher = String(formData.get('publisher') ?? '').trim();
   const wording = String(formData.get('wording') ?? '').trim();
   const appliesWhen = String(formData.get('appliesWhen') ?? '').trim();
+  if (wording.length > 400 || appliesWhen.length > 120) {
+    return { ok: false, message: 'The wording is too long, or the note on who it is for is.' };
+  }
   const observedRaw = String(formData.get('observedDate') ?? '').trim();
   const observedDate = observedRaw ? new Date(observedRaw) : undefined;
   if (

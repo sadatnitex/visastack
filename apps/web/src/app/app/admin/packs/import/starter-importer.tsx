@@ -171,7 +171,9 @@ function PreviewTable({
               <th scope="row">{row.name}</th>
               <td>
                 {row.requirementCount}
-                {row.status === 'changed' ? ` (+${row.added} / -${row.removed})` : ''}
+                {row.status === 'changed'
+                  ? ` (+${row.added} / -${row.removed}${row.modified > 0 ? ` / ~${row.modified}` : ''})`
+                  : ''}
               </td>
               <td>
                 <StatusBadge tone={STATUS_TONES[row.status]}>

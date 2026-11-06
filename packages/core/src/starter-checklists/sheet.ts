@@ -1,4 +1,4 @@
-import { csvCell, parseCsv } from '../csv';
+import { csvCell, isCsvFormula, parseCsv } from '../csv';
 import {
   type StarterPackDefinition,
   type StarterRequirement,
@@ -21,6 +21,14 @@ const PURPOSE_NAMES = {
   business: 'Business (extra)',
   medical: 'Medical (extra)',
 } as const;
+
+/**
+ * The writer puts an apostrophe in front of a cell a spreadsheet could read as a formula. The reader
+ * takes it off again, so a sheet that was downloaded and loaded back gives the same words.
+ */
+function unprotect(cell: string): string {
+  return cell.startsWith("'") && isCsvFormula(cell.slice(1)) ? cell.slice(1) : cell;
+}
 
 export type StarterSheetRead =
   | { readonly ok: true; readonly rows: readonly StarterSheetRow[] }
@@ -51,7 +59,14 @@ export function readStarterSheet(csv: string): StarterSheetRead {
     const [country = '', purpose = '', appliesWhen = '', text = '', keep = '', reference = ''] =
       cells;
     if (country.trim() === '' && text.trim() === '') continue;
-    rows.push({ country, purpose, appliesWhen, text, keep: keep === '' ? 'Yes' : keep, reference });
+    rows.push({
+      country: unprotect(country),
+      purpose: unprotect(purpose),
+      appliesWhen: unprotect(appliesWhen),
+      text: unprotect(text),
+      keep: keep.trim() === '' ? 'Yes' : keep,
+      reference: unprotect(reference),
+    });
   }
   return { ok: true, rows };
 }

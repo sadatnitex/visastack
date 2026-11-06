@@ -18,6 +18,9 @@ import {
  * next version. Cases already on the old version keep it, as they always have.
  */
 
+/** The longest wording a traveller reads for one item, and the longest note on who it is for. */
+export const MAX_WORDING_LENGTH = 400;
+export const MAX_AUDIENCE_LENGTH = 120;
 const NOT_DRAFT_WORDS = 'Items can only change while the version is a draft.';
 
 /** What an admin may change on an item of a draft. Anything left out stays as it is. */
@@ -71,6 +74,16 @@ export async function updateDraftRequirement(
   const waiting = await packStudioWaiting(db);
   if (waiting) return waiting;
   const { patch } = input;
+  if ((patch.notes?.trim().length ?? 0) > MAX_WORDING_LENGTH) {
+    return err(
+      serviceError('invalid', `the wording can be at most ${MAX_WORDING_LENGTH} characters`),
+    );
+  }
+  if ((patch.interpretation?.trim().length ?? 0) > MAX_AUDIENCE_LENGTH) {
+    return err(
+      serviceError('invalid', `who it is for can be at most ${MAX_AUDIENCE_LENGTH} characters`),
+    );
+  }
   if (patch.docType !== undefined && patch.docType.trim() === '') {
     return err(serviceError('invalid', 'a document item needs a document type'));
   }

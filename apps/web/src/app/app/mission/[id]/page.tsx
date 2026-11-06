@@ -364,7 +364,9 @@ export default async function MissionPage({
         ? source
         : { ...source, inEffectSince: versionEffective.toISOString() },
     );
-    const starterPack = isStarterPackKey(pack?.key);
+    // A starter list is public and not authoritative, as the picker and the badge both require.
+    const starterPack =
+      isStarterPackKey(pack?.key) && !pack?.authoritative && !pack?.ownerOrganizationId;
     const requirementDetails: RequirementDetailRow[] = (readinessValue?.requirementResults ?? [])
       .map((r): RequirementDetailRow => {
         const row = requirementRowsById.get(r.packRequirementId);

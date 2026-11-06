@@ -566,6 +566,12 @@ export async function cloneVersionToDraft(
         .limit(1),
     );
     if (!from) return err(serviceError('not_found', 'pack version not found'));
+    // One draft at a time: the pack row is locked, so two clicks at once cannot both pass the check.
+    await tx
+      .select({ id: schema.packs.id })
+      .from(schema.packs)
+      .where(eq(schema.packs.id, from.packId))
+      .for('update');
     const open = first(
       await tx
         .select({ id: schema.packVersions.id })
@@ -588,30 +594,47 @@ export async function cloneVersionToDraft(
       metadata: { packId: from.packId, version: draft.version },
     });
     const items = await listRequirements(tx, from.id);
+    const detailsPresent = await ruleDetailTablesPresent(tx);
     for (const item of items) {
-      await tx.insert(schema.packRequirements).values({
-        packVersionId: draft.id,
-        kind: item.kind,
-        fieldKey: item.fieldKey,
-        docType: item.docType,
-        citation: item.citation,
-        optional: item.optional,
-        necessity: item.necessity,
-        provenance: item.provenance,
-        groupKey: item.groupKey,
-        groupMode: item.groupMode,
-        notes: item.notes,
-        maxAgeDays: item.maxAgeDays,
-        condition: item.condition,
-        sourceUrl: item.sourceUrl,
-        sourceTitle: item.sourceTitle,
-        publisher: item.publisher,
-        officialExtract: item.officialExtract,
-        interpretation: item.interpretation,
-        sourceType: item.sourceType,
-        observedDate: item.observedDate,
-        authorAccountId: actorAccountId,
-      });
+      const [made] = await tx
+        .insert(schema.packRequirements)
+        .values({
+          packVersionId: draft.id,
+          kind: item.kind,
+          fieldKey: item.fieldKey,
+          docType: item.docType,
+          citation: item.citation,
+          optional: item.optional,
+          necessity: item.necessity,
+          provenance: item.provenance,
+          groupKey: item.groupKey,
+          groupMode: item.groupMode,
+          notes: item.notes,
+          maxAgeDays: item.maxAgeDays,
+          condition: item.condition,
+          sourceUrl: item.sourceUrl,
+          sourceTitle: item.sourceTitle,
+          publisher: item.publisher,
+          officialExtract: item.officialExtract,
+          interpretation: item.interpretation,
+          sourceType: item.sourceType,
+          observedDate: item.observedDate,
+          authorAccountId: actorAccountId,
+        })
+        .returning({ id: schema.packRequirements.id });
+      // The item's rule details (category, accepted form, validity) travel with it.
+      if (detailsPresent && made) {
+        await tx.execute(sql`
+          insert into pack_requirement_details
+            (pack_requirement_id, category, accepted_form, translation_needed, original_needed,
+             statement_period_months, valid_months_after_travel, effective_since,
+             updated_by_account_id, updated_at)
+          select ${made.id}, category, accepted_form, translation_needed, original_needed,
+                 statement_period_months, valid_months_after_travel, effective_since,
+                 ${actorAccountId}, now()
+            from pack_requirement_details
+           where pack_requirement_id = ${item.id}`);
+      }
     }
     await appendAuditEvent(tx, {
       eventType: 'PACK_VERSION_CLONED',

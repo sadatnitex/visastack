@@ -155,6 +155,29 @@ describe('loading starter checklists into Pack Studio', () => {
     ]);
   });
 
+  it('counts an edited line as modified, so an admin sees what loading would replace', async () => {
+    await applyStarterPack(db, staff, { definition: await build([line('Valid passport.')]) });
+    const edited = await build([line('Valid passport.', { necessity: 'OPTIONAL' })]);
+    const preview = (await previewStarterImport(db, [edited]))[0];
+    expect(preview).toMatchObject({ status: 'changed', added: 0, removed: 0, modified: 1 });
+  });
+
+  it('refuses a list with a draft open, and leaves no half-built draft when a step fails', async () => {
+    const def = await build([line('Valid passport.')]);
+    await applyStarterPack(db, staff, { definition: def });
+    const [pack] = await db.select().from(schema.packs);
+    const [v1] = await db.select().from(schema.packVersions);
+    const opened = await cloneVersionToDraft(db, staff, { fromPackVersionId: v1?.id ?? '' });
+    expect(isOk(opened)).toBe(true);
+    const next = await build([line('Valid passport.'), line('Hotel booking.')]);
+    expect(isErr(await applyStarterPack(db, staff, { definition: next }))).toBe(true);
+    const drafts = await db
+      .select()
+      .from(schema.packVersions)
+      .where(eq(schema.packVersions.packId, pack?.id ?? ''));
+    expect(drafts.filter((v) => v.status === 'DRAFT')).toHaveLength(1);
+  });
+
   it("never touches a checklist that is official or an agency's own", async () => {
     await createPack(db, {
       actorAccountId: actor,
@@ -261,6 +284,42 @@ describe('updating a published checklist system-wide', () => {
     expect(now.map((r) => r.notes)).toEqual(['Passport valid for the whole stay.']);
     // The first version still holds its two items, for the cases on it.
     expect(await listRequirements(db, v1.id)).toHaveLength(2);
+  });
+
+  it('copies the rule details of each item into the new draft', async () => {
+    const v1 = await published();
+    const [original] = await listRequirements(db, v1.id);
+    await db.insert(schema.packRequirementDetails).values({
+      packRequirementId: original?.id ?? '',
+      category: 'IDENTITY_TRAVEL_DOCUMENTS',
+      translationNeeded: true,
+    });
+    const draft = await cloneVersionToDraft(db, staff, { fromPackVersionId: v1.id });
+    if (!isOk(draft)) throw new Error('clone');
+    const copied = await listRequirements(db, draft.value.id);
+    const twin = copied.find((r) => r.notes === original?.notes);
+    const [detail] = await db
+      .select()
+      .from(schema.packRequirementDetails)
+      .where(eq(schema.packRequirementDetails.packRequirementId, twin?.id ?? ''));
+    expect(detail).toMatchObject({ category: 'IDENTITY_TRAVEL_DOCUMENTS', translationNeeded: true });
+  });
+
+  it('refuses wording and audience notes that are too long', async () => {
+    const v1 = await published();
+    const draft = await cloneVersionToDraft(db, staff, { fromPackVersionId: v1.id });
+    if (!isOk(draft)) throw new Error('clone');
+    const [item] = await listRequirements(db, draft.value.id);
+    const long = await updateDraftRequirement(db, staff, {
+      requirementId: item?.id ?? '',
+      patch: { notes: 'a'.repeat(401) },
+    });
+    expect(isErr(long)).toBe(true);
+    const audience = await updateDraftRequirement(db, staff, {
+      requirementId: item?.id ?? '',
+      patch: { interpretation: 'b'.repeat(121) },
+    });
+    expect(isErr(audience)).toBe(true);
   });
 
   it('refuses an empty document type, a filler source and an unknown item', async () => {
