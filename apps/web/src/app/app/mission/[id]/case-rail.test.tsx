@@ -260,6 +260,7 @@ describe('the case rail', () => {
     const link = line?.querySelector('a');
     expect(link?.getAttribute('href')).toMatch(/^https:\/\//);
     expect(link?.getAttribute('rel')).toContain('noopener');
+    expect(link?.getAttribute('aria-label')).toBe('Official page for Japan, opens in a new tab');
     expect(words(line)).toBe('Official Page. VisaStack has not checked it.');
   });
 

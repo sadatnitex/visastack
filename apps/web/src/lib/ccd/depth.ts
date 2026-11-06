@@ -81,7 +81,7 @@ export function choiceFor(map: DepthMap, family: DepthFamily): DepthChoice {
   return map[family] ?? 'auto';
 }
 
-/** What "auto" means on this screen width: Glance on every width, so no screen opens past 30 words. */
-export function resolveAuto(_isPhone: boolean): DepthLevel {
+/** What "auto" means: Glance on every screen width, so no screen opens past 30 words (Owner, 6 Nov 2026). */
+export function resolveAuto(): DepthLevel {
   return 'glance';
 }

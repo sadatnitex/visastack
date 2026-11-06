@@ -173,11 +173,22 @@ export function countryNameOf(iso2: string | null): string | null {
 export function officialPageForDestination(destination: string | null | undefined): string | null {
   const wanted = (destination ?? '').trim().toLowerCase();
   if (wanted === '') return null;
-  const country = countryStartData().countries.find(
-    (entry) =>
-      entry.name.toLowerCase() === wanted ||
-      entry.iso2.toLowerCase() === wanted ||
-      entry.aka.some((name) => name.toLowerCase() === wanted),
-  );
-  return country?.officialUrl ?? null;
+  return officialPageIndex().get(wanted) ?? null;
+}
+
+let officialPages: ReadonlyMap<string, string> | undefined;
+/** Every whole name, code and alias of a country that has an official page, in lower case. */
+function officialPageIndex(): ReadonlyMap<string, string> {
+  if (officialPages === undefined) {
+    const index = new Map<string, string>();
+    for (const country of countryStartData().countries) {
+      if (country.officialUrl === null) continue;
+      for (const name of [country.name, country.iso2, ...country.aka]) {
+        const key = name.toLowerCase();
+        if (!index.has(key)) index.set(key, country.officialUrl);
+      }
+    }
+    officialPages = index;
+  }
+  return officialPages;
 }

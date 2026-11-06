@@ -277,7 +277,12 @@ function PackCard({
                 ))}
                 {officialPage ? (
                   <p className="lift-rail-line case-official-page">
-                    <a href={officialPage} target="_blank" rel="noopener noreferrer">
+                    <a
+                      href={officialPage}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Official page for ${mission.destination}, opens in a new tab`}
+                    >
                       Official Page
                     </a>
                     . VisaStack has not checked it.

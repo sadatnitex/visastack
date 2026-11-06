@@ -109,7 +109,7 @@ export function countProse(html: string, options: ProseOptions = {}): ProseRepor
   const scope = root.querySelector<HTMLElement>('[data-depth-scope]');
   const scopeDepth = scope?.getAttribute('data-depth') ?? 'auto';
   const level: DepthLevel =
-    options.depth ?? (isDepthLevel(scopeDepth) ? scopeDepth : resolveAuto(phone));
+    options.depth ?? (isDepthLevel(scopeDepth) ? scopeDepth : resolveAuto());
 
   const problems: string[] = [];
   const passages: ProsePassage[] = [];

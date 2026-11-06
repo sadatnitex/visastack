@@ -108,6 +108,17 @@ describe('surfaces and edges by role (WP-C2)', () => {
     );
   });
 
+  it('treats the automatic depth as Glance in every layout rule that names Glance (Owner, 6 Nov 2026)', () => {
+    // A rule that changes the grid at Glance must change it for "auto" as well, or a screen with no
+    // saved level shows Glance with the layout of Browse (an empty column).
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*grid-template-columns[^{}]*)\}/g)];
+    const missing = rules
+      .map((rule) => (rule[1] ?? '').trim())
+      .filter((selector) => /\[data-depth="glance"\]/.test(selector))
+      .filter((selector) => !/\[data-depth="auto"\]/.test(selector));
+    expect(missing).toEqual([]);
+  });
+
   it('draws the empty part of a progress ring at 3:1, and every placeholder in the meta tier', () => {
     expect(last('.progress-ring-track')).toMatch(/stroke: var\(--edge-control\);/);
     const placeholder = last('::placeholder');
