@@ -3,12 +3,14 @@ import { and, desc, eq } from 'drizzle-orm';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
+import { isUuid } from './lifecycle/foundation/ids';
 import {
   type PackEditor,
   type PackRequirement,
   type PackVersion,
   citationProblem,
   packEditorProblem,
+  packEditorQuickProblem,
   packStudioWaiting,
 } from './packs';
 
@@ -36,10 +38,18 @@ export interface DraftRequirementPatch {
   readonly sourceTitle?: string;
 }
 
+/**
+ * The item and its version, locked, for an editor who may change that pack and only while the
+ * version is a draft. The editor is checked before the status, so a person who may not change the
+ * pack gets the same "item not found" as for an id that does not exist, never a hint that it does.
+ */
 async function draftItem(
   tx: Db,
+  editor: PackEditor,
   requirementId: string,
 ): Promise<Result<{ item: PackRequirement; version: PackVersion }, ServiceError>> {
+  const missing = serviceError('not_found', 'item not found');
+  if (!isUuid(requirementId)) return err(missing);
   const item = first(
     await tx
       .select()
@@ -47,7 +57,17 @@ async function draftItem(
       .where(eq(schema.packRequirements.id, requirementId))
       .limit(1),
   );
-  if (!item) return err(serviceError('not_found', 'item not found'));
+  if (!item) return err(missing);
+  const owner = first(
+    await tx
+      .select({ packId: schema.packVersions.packId })
+      .from(schema.packVersions)
+      .where(eq(schema.packVersions.id, item.packVersionId))
+      .limit(1),
+  );
+  if (!owner) return err(missing);
+  const refused = await packEditorProblem(tx, editor, owner.packId);
+  if (refused) return err(refused.code === 'not_found' ? missing : refused);
   const version = first(
     await tx
       .select()
@@ -56,7 +76,7 @@ async function draftItem(
       .limit(1)
       .for('update'),
   );
-  if (!version) return err(serviceError('not_found', 'pack version not found'));
+  if (!version) return err(missing);
   if (version.status !== 'DRAFT') return err(serviceError('invalid', NOT_DRAFT_WORDS));
   return ok({ item: item as PackRequirement, version });
 }
@@ -70,6 +90,8 @@ export async function updateDraftRequirement(
     readonly patch: DraftRequirementPatch;
   },
 ): Promise<Result<PackRequirement, ServiceError>> {
+  const quick = packEditorQuickProblem(editor);
+  if (quick) return err(quick);
   const waiting = await packStudioWaiting(db);
   if (waiting) return waiting;
   const { patch } = input;
@@ -93,11 +115,9 @@ export async function updateDraftRequirement(
     }
   }
   return db.transaction(async (tx) => {
-    const found = await draftItem(tx, input.requirementId);
+    const found = await draftItem(tx, editor, input.requirementId);
     if (!found.ok) return found;
-    const { item, version } = found.value;
-    const refused = await packEditorProblem(tx, editor, version.packId);
-    if (refused) return err(refused);
+    const { item } = found.value;
     if (patch.docType !== undefined && item.kind !== 'DOCUMENT') {
       return err(serviceError('invalid', 'only a document item has a document type'));
     }
@@ -147,14 +167,14 @@ export async function removeDraftRequirement(
   editor: PackEditor,
   input: { readonly requirementId: string },
 ): Promise<Result<{ readonly removed: true }, ServiceError>> {
+  const quick = packEditorQuickProblem(editor);
+  if (quick) return err(quick);
   const waiting = await packStudioWaiting(db);
   if (waiting) return waiting;
   return db.transaction(async (tx) => {
-    const found = await draftItem(tx, input.requirementId);
+    const found = await draftItem(tx, editor, input.requirementId);
     if (!found.ok) return found;
-    const { item, version } = found.value;
-    const refused = await packEditorProblem(tx, editor, version.packId);
-    if (refused) return err(refused);
+    const { item } = found.value;
     await tx.delete(schema.packRequirements).where(eq(schema.packRequirements.id, item.id));
     await appendAuditEvent(tx, {
       eventType: 'PACK_REQUIREMENT_REMOVED',

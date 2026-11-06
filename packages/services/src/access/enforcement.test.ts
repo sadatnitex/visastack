@@ -1378,6 +1378,7 @@ const AGENCY_CHECKLIST_FUNCTIONS = [
   'packs#cloneVersionToDraft',
   'packs#openPackDraft',
   'packs#packEditorProblem',
+  'packs#packEditorQuickProblem',
 ] as const;
 
 describe('agency checklist gate', () => {
@@ -1407,7 +1408,9 @@ describe('agency checklist gate', () => {
           const visit = (node: ts.Node) => {
             if (
               ts.isCallExpression(node) &&
-              (isCall(node, 'agencyChecklistScopeProblem') || isCall(node, 'packEditorProblem')) &&
+              (isCall(node, 'agencyChecklistScopeProblem') ||
+                isCall(node, 'packEditorProblem') ||
+                isCall(node, 'packEditorQuickProblem')) &&
               node.arguments.some((a) => ts.isIdentifier(a) && names.has(a.text))
             ) {
               checks = true;

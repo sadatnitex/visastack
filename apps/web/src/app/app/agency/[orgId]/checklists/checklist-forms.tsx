@@ -71,6 +71,8 @@ export function ItemEditor({
   organizationId,
   packId,
   requirementId,
+  kind,
+  label,
   docType,
   necessity,
   wording,
@@ -79,6 +81,9 @@ export function ItemEditor({
   readonly organizationId: string;
   readonly packId: string;
   readonly requirementId: string;
+  readonly kind: 'FIELD' | 'DOCUMENT';
+  /** The item's name as the checklist shows it, so the person can tell which one they are changing. */
+  readonly label: string;
   readonly docType: string | null;
   readonly necessity: 'MANDATORY' | 'RECOMMENDED' | 'OPTIONAL' | 'CONDITIONAL';
   readonly wording: string | null;
@@ -91,6 +96,7 @@ export function ItemEditor({
   const plain = necessity === 'CONDITIONAL' ? 'MANDATORY' : necessity;
   return (
     <div className="field-list">
+      <strong>{label}</strong>
       <form action={saveAction} className="form-grid">
         <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="packId" value={packId} />
@@ -108,19 +114,21 @@ export function ItemEditor({
             defaultValue={wording ?? ''}
           />
         </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor={`${id}-type`}>
-            Document Type
-          </label>
-          <input
-            id={`${id}-type`}
-            name="docType"
-            type="text"
-            className="input"
-            list="catalogue-document-types"
-            defaultValue={docType ?? ''}
-          />
-        </div>
+        {kind === 'DOCUMENT' ? (
+          <div className="field-row">
+            <label className="field-label" htmlFor={`${id}-type`}>
+              Document Type
+            </label>
+            <input
+              id={`${id}-type`}
+              name="docType"
+              type="text"
+              className="input"
+              list="catalogue-document-types"
+              defaultValue={docType ?? ''}
+            />
+          </div>
+        ) : null}
         {necessity === 'CONDITIONAL' ? null : (
           <div className="field-row">
             <label className="field-label" htmlFor={`${id}-necessity`}>

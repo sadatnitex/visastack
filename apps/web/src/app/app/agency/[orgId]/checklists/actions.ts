@@ -1,6 +1,8 @@
 'use server';
 
 import {
+  AGENCY_CHECKLIST_REFUSAL,
+  type AgencyChecklistScope,
   type Db,
   addAgencyItem,
   agencyChecklistPrincipal,
@@ -28,10 +30,7 @@ export interface ChecklistActionState {
   readonly message: string;
 }
 
-const DENIED: ChecklistActionState = {
-  ok: false,
-  message: 'Only an owner or an admin of the agency can change its checklists.',
-};
+const DENIED: ChecklistActionState = { ok: false, message: AGENCY_CHECKLIST_REFUSAL };
 
 function field(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -41,10 +40,7 @@ function field(formData: FormData, name: string): string {
 /** Runs one change with a fresh scope; the screen sees a plain message either way. */
 async function act(
   orgId: string,
-  run: (
-    scope: Extract<Awaited<ReturnType<typeof agencyChecklistPrincipal>>, { ok: true }>['value'],
-    db: Db,
-  ) => Promise<ChecklistActionState>,
+  run: (scope: AgencyChecklistScope, db: Db) => Promise<ChecklistActionState>,
 ): Promise<ChecklistActionState> {
   return withSession(async ({ db, accountId }) => {
     const scope = await agencyChecklistPrincipal(db, accountId, orgId);
@@ -109,7 +105,6 @@ export async function saveItemAction(
   formData: FormData,
 ): Promise<ChecklistActionState> {
   const orgId = field(formData, 'organizationId');
-  const packId = field(formData, 'packId');
   const docTypeRaw = field(formData, 'docType');
   const necessity = NECESSITIES.find((n) => n === field(formData, 'necessity'));
   let docType: string | undefined;
@@ -142,7 +137,6 @@ export async function removeItemAction(
   formData: FormData,
 ): Promise<ChecklistActionState> {
   const orgId = field(formData, 'organizationId');
-  const packId = field(formData, 'packId');
   const result = await act(orgId, async (scope, db) => {
     const removed = await removeAgencyItem(db, scope, {
       requirementId: field(formData, 'requirementId'),
@@ -161,7 +155,6 @@ export async function addItemAction(
   formData: FormData,
 ): Promise<ChecklistActionState> {
   const orgId = field(formData, 'organizationId');
-  const packId = field(formData, 'packId');
   const named = parseDocumentTypeInput(field(formData, 'docType'));
   if (!named.ok) return { ok: false, message: named.message };
   const necessity = NECESSITIES.find((n) => n === field(formData, 'necessity')) ?? 'RECOMMENDED';
@@ -187,7 +180,6 @@ export async function publishDraftAction(
   formData: FormData,
 ): Promise<ChecklistActionState> {
   const orgId = field(formData, 'organizationId');
-  const packId = field(formData, 'packId');
   const result = await act(orgId, async (scope, db) => {
     const published = await publishAgencyDraft(db, scope, {
       packVersionId: field(formData, 'packVersionId'),
@@ -209,7 +201,6 @@ export async function discardDraftAction(
   formData: FormData,
 ): Promise<ChecklistActionState> {
   const orgId = field(formData, 'organizationId');
-  const packId = field(formData, 'packId');
   const result = await act(orgId, async (scope, db) => {
     const discarded = await discardAgencyDraft(db, scope, {
       packVersionId: field(formData, 'packVersionId'),

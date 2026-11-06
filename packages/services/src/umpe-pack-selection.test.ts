@@ -11,7 +11,7 @@ import { setConsent } from './consent';
 import type { Db } from './db';
 import { createMission, getMissionForOwner } from './missions';
 import { createOrganization, reviewOrganization } from './organizations';
-import { listFittingPublicPacks } from './pack-matching';
+import { type PackMatchTerms, listFittingPublicPacks } from './pack-matching';
 import { acceptGrant, createGrant } from './sharing';
 import {
   attachSelectedPackVersion,
@@ -214,7 +214,9 @@ describe('pack selection', () => {
     return proof.value;
   }
 
-  const select = async (input: { fitting?: readonly { packVersionId: string }[] } = {}) => {
+  const select = async (
+    input: { fitting?: readonly { packVersionId: string }[]; matchTerms?: PackMatchTerms } = {},
+  ) => {
     const listed = await listSelectablePackVersions(await proofFor('VIEW_METADATA'), {
       missionId,
       ...input,
@@ -260,6 +262,27 @@ describe('pack selection', () => {
       const listed = await select();
       expect(listed.map((p) => p.packName)).toEqual(['A Own']);
       expect(listed[0]).toMatchObject({ packVersionId: ownA, ownedByCaseAgency: true });
+    });
+
+    it("narrows the agency's own lists to the case's country and purpose when the route terms are given", async () => {
+      const uk = await pack({ organizationId: agencyA, authoritative: false, name: 'A Own UK' });
+      await pack({
+        organizationId: agencyA,
+        authoritative: false,
+        name: 'A Own Canada',
+        jurisdiction: 'Canada',
+      });
+      await setCaseAgency(agencyA);
+      const none = { terms: [], known: false };
+      const terms: PackMatchTerms = {
+        country: ['UK', 'United Kingdom'],
+        purpose: ['Tourism'],
+        traveller: { nationality: none, residence: none },
+      };
+      // Without the route terms every list the agency owns is offered, as before.
+      expect((await select()).map((p) => p.packName)).toEqual(['A Own Canada', 'A Own UK']);
+      // With them a copy made for another country is not offered on this case.
+      expect((await select({ matchTerms: terms })).map((p) => p.packVersionId)).toEqual([uk]);
     });
 
     it('narrows reviewed public packs to the fitting list but keeps the agency own packs', async () => {

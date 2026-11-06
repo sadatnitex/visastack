@@ -21,6 +21,7 @@ import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isHttpUrl } from './external-url';
+import { isUuid } from './lifecycle/foundation/ids';
 import {
   type ManifestExtras,
   NO_MANIFEST_EXTRAS,
@@ -550,6 +551,17 @@ const OPEN_DRAFT_WORDS =
 export type PackEditor = StaffScope<'PACK_MANAGE'> | AgencyChecklistScope;
 
 /**
+ * The part of the editor check that needs no database: platform staff hold PACK_MANAGE, or an
+ * agency scope is genuine and fresh. Run first, so a refused caller never reaches a lookup or a
+ * lock. It is the check `packEditorProblem` starts with; ownership of the pack follows it.
+ */
+export function packEditorQuickProblem(editor: PackEditor): ServiceError | undefined {
+  return AgencyChecklistScope.isGenuine(editor)
+    ? agencyChecklistScopeProblem(editor)
+    : staffScopeProblem(editor, 'PACK_MANAGE');
+}
+
+/**
  * The refusal for an editor that may not change this pack, or undefined. An agency's scope is
  * checked as genuine and fresh, and the pack must belong to that agency: any other pack is "not
  * found", so one agency can never learn that another agency's list exists.
@@ -559,9 +571,10 @@ export async function packEditorProblem(
   editor: PackEditor,
   packId: string,
 ): Promise<ServiceError | undefined> {
+  const quick = packEditorQuickProblem(editor);
+  if (quick) return quick;
   if (AgencyChecklistScope.isGenuine(editor)) {
-    const denied = agencyChecklistScopeProblem(editor);
-    if (denied) return denied;
+    if (!isUuid(packId)) return serviceError('not_found', 'pack version not found');
     const own = first(
       await db
         .select({ id: schema.packs.id })
@@ -576,7 +589,7 @@ export async function packEditorProblem(
     );
     return own ? undefined : serviceError('not_found', 'pack version not found');
   }
-  return staffScopeProblem(editor, 'PACK_MANAGE');
+  return undefined;
 }
 
 /**
@@ -591,10 +604,22 @@ export async function copyVersionItems(
     readonly toVersionId: string;
     readonly actorAccountId: string;
     readonly provenance?: PackRequirement['provenance'];
+    /** Also copy who the version is for (application posts and travel window), for a copy into a new pack. */
+    readonly withRouteConditions?: boolean;
   },
 ): Promise<number> {
   const items = await listRequirements(tx, input.fromVersionId);
   const detailsPresent = await ruleDetailTablesPresent(tx);
+  if (input.withRouteConditions && detailsPresent) {
+    await tx.execute(sql`
+      insert into ${schema.packRouteConditions}
+        (pack_version_id, consular_posts, travel_from, travel_until, updated_by_account_id, updated_at)
+      select ${input.toVersionId}, c.consular_posts, c.travel_from, c.travel_until,
+             ${input.actorAccountId}, now()
+        from ${schema.packRouteConditions} c
+       where c.pack_version_id = ${input.fromVersionId}
+      on conflict do nothing`);
+  }
   for (const item of items) {
     const [made] = await tx
       .insert(schema.packRequirements)
@@ -677,6 +702,10 @@ export async function cloneVersionToDraft(
   editor: PackEditor,
   input: { readonly fromPackVersionId: string },
 ): Promise<Result<PackVersion, ServiceError>> {
+  const quick = packEditorQuickProblem(editor);
+  if (quick) return err(quick);
+  if (!isUuid(input.fromPackVersionId))
+    return err(serviceError('not_found', 'pack version not found'));
   const waiting = await packStudioWaiting(db);
   if (waiting) return waiting;
   const actorAccountId = editor.accountId;
@@ -1336,12 +1365,15 @@ export async function approvePackVersion(
       resourceId: updated.id,
       metadata: { checksum, manifestFormat, nextReviewDate: nextReviewDate.toISOString() },
     });
-    // OPS-04 source review: a reviewer signing off a version's sources.
-    await recordProductEvent(tx, {
-      eventType: 'SOURCE_REVIEWED',
-      accountId: input.actorAccountId,
-      dimension: 'VERSION_APPROVED',
-    });
+    // OPS-04 source review: a reviewer signing off a version's sources. Only an official pack's
+    // approval is a source review; an agency approving its own list, or a starter list, is not.
+    if (pack?.authoritative) {
+      await recordProductEvent(tx, {
+        eventType: 'SOURCE_REVIEWED',
+        accountId: input.actorAccountId,
+        dimension: 'VERSION_APPROVED',
+      });
+    }
     return ok(updated);
   });
 }

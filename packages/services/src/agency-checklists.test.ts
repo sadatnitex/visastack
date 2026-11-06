@@ -25,7 +25,7 @@ import {
 import type { Db } from './db';
 import { addMembership, createOrganization } from './organizations';
 import { updateDraftRequirement } from './pack-draft-edit';
-import { cloneVersionToDraft, listRequirements } from './packs';
+import { approvePackVersion, cloneVersionToDraft, listRequirements } from './packs';
 import { grantPlatformRole } from './platform-roles';
 import { applyStarterPack } from './starter-packs';
 
@@ -390,6 +390,144 @@ describe('agency checklists', () => {
       const scopeB = await scopeFor(db, ownerB, orgB);
       const shared = await listAgencyStartingLists(db, scopeB, { search: 'Japan' });
       expect(isOk(shared) && shared.value).toHaveLength(1);
+    });
+  });
+
+  describe('review fixes', () => {
+    async function copyOf() {
+      const made = await makeAgencyCopy(db, scopeA, { fromPackVersionId: sharedVersionId });
+      if (!isOk(made)) throw new Error('copy');
+      return made.value;
+    }
+
+    it('discarding the only draft of a new copy removes the empty list, so it can be copied again', async () => {
+      const own = await copyOf();
+      expect(
+        isOk(await discardAgencyDraft(db, scopeA, { packVersionId: own.draftVersionId })),
+      ).toBe(true);
+      const lists = await listAgencyOwnLists(db, scopeA);
+      expect(isOk(lists) && lists.value).toEqual([]);
+      expect(isOk(await makeAgencyCopy(db, scopeA, { fromPackVersionId: sharedVersionId }))).toBe(
+        true,
+      );
+    });
+
+    it('finishes a version left approved by a failure between the two publish steps', async () => {
+      const own = await copyOf();
+      const approved = await approvePackVersion(db, {
+        actorAccountId: ownerA,
+        packVersionId: own.draftVersionId,
+        nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      });
+      expect(isOk(approved)).toBe(true);
+      const detail = await getAgencyListDetail(db, scopeA, { packId: own.packId });
+      expect(isOk(detail) && detail.value.version.status).toBe('APPROVED');
+      const lists = await listAgencyOwnLists(db, scopeA);
+      expect(isOk(lists) && lists.value[0]?.openDraftVersion).toBe(1);
+      expect(
+        isErr(await discardAgencyDraft(db, scopeA, { packVersionId: own.draftVersionId })),
+      ).toBe(true);
+      const done = await publishAgencyDraft(db, scopeA, { packVersionId: own.draftVersionId });
+      expect(isOk(done) && done.value.status).toBe('PUBLISHED');
+    });
+
+    it('refuses to start a new change while one waits to be published', async () => {
+      const own = await copyOf();
+      await publishAgencyDraft(db, scopeA, { packVersionId: own.draftVersionId });
+      const next = await startAgencyListUpdate(db, scopeA, { packId: own.packId });
+      if (!isOk(next)) throw new Error('update');
+      await approvePackVersion(db, {
+        actorAccountId: ownerA,
+        packVersionId: next.value.id,
+        nextReviewDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      });
+      const again = await startAgencyListUpdate(db, scopeA, { packId: own.packId });
+      expect(isErr(again) && again.error.message).toContain('Publish it first');
+    });
+
+    it('says in plain words when there is nothing to publish', async () => {
+      const own = await copyOf();
+      for (const item of await listRequirements(db, own.draftVersionId)) {
+        await removeAgencyItem(db, scopeA, { requirementId: item.id });
+      }
+      const result = await publishAgencyDraft(db, scopeA, { packVersionId: own.draftVersionId });
+      expect(isErr(result) && result.error.message).toBe(
+        'Add at least one item before you publish.',
+      );
+    });
+
+    it("answers the same for another agency's item as for an id that does not exist", async () => {
+      const own = await copyOf();
+      await publishAgencyDraft(db, scopeA, { packVersionId: own.draftVersionId });
+      const [item] = await listRequirements(
+        db,
+        (
+          await db
+            .select()
+            .from(schema.packVersions)
+            .where(eq(schema.packVersions.packId, own.packId))
+        )[0]?.id ?? '',
+      );
+      const scopeB = await scopeFor(db, ownerB, orgB);
+      const foreign = await updateAgencyItem(db, scopeB, {
+        requirementId: item?.id ?? '',
+        patch: { notes: 'x' },
+      });
+      const unknown = await updateAgencyItem(db, scopeB, {
+        requirementId: '00000000-0000-4000-8000-000000000000',
+        patch: { notes: 'x' },
+      });
+      if (!isErr(foreign) || !isErr(unknown)) throw new Error('both should be refused');
+      expect(foreign.error).toEqual(unknown.error);
+    });
+
+    it('answers not found, never a server error, for ids that are not ids', async () => {
+      for (const bad of ['', 'abc', "1' or '1'='1"]) {
+        expect(isErr(await getAgencyListDetail(db, scopeA, { packId: bad }))).toBe(true);
+        expect(isErr(await makeAgencyCopy(db, scopeA, { fromPackVersionId: bad }))).toBe(true);
+        expect(isErr(await startAgencyListUpdate(db, scopeA, { packId: bad }))).toBe(true);
+        expect(isErr(await publishAgencyDraft(db, scopeA, { packVersionId: bad }))).toBe(true);
+        expect(isErr(await discardAgencyDraft(db, scopeA, { packVersionId: bad }))).toBe(true);
+        expect(
+          isErr(await updateAgencyItem(db, scopeA, { requirementId: bad, patch: { notes: 'x' } })),
+        ).toBe(true);
+        expect(isErr(await removeAgencyItem(db, scopeA, { requirementId: bad }))).toBe(true);
+      }
+    });
+
+    it('two copies at the same moment give one list and a plain answer to the other', async () => {
+      const results = await Promise.all([
+        makeAgencyCopy(db, scopeA, { fromPackVersionId: sharedVersionId }),
+        makeAgencyCopy(db, scopeA, { fromPackVersionId: sharedVersionId }),
+      ]);
+      expect(results.filter((r) => isOk(r))).toHaveLength(1);
+      const refused = results.find((r) => isErr(r));
+      expect(refused && isErr(refused) && refused.error.message).toBe(
+        'Your agency already has a copy of this list.',
+      );
+    });
+
+    it('carries who the list is for (application posts) into the copy', async () => {
+      await db.insert(schema.packRouteConditions).values({
+        packVersionId: sharedVersionId,
+        consularPosts: ['Dhaka'],
+      });
+      const own = await copyOf();
+      const [row] = await db
+        .select()
+        .from(schema.packRouteConditions)
+        .where(eq(schema.packRouteConditions.packVersionId, own.draftVersionId));
+      expect(row?.consularPosts).toEqual(['Dhaka']);
+    });
+
+    it("an agency's own approval is not counted as an official source review", async () => {
+      const own = await copyOf();
+      await publishAgencyDraft(db, scopeA, { packVersionId: own.draftVersionId });
+      const events = await db
+        .select()
+        .from(schema.productEvents)
+        .where(eq(schema.productEvents.eventType, 'SOURCE_REVIEWED'));
+      expect(events).toHaveLength(0);
     });
   });
 

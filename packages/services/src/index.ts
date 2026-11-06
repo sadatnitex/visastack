@@ -1857,6 +1857,7 @@ export {
   explainNoFittingPack,
   findMatchingPublicPack,
   listFittingPublicPacks,
+  listFittingAgencyPacks,
   listFittingStarterPacks,
   packMatchKey,
   readTravellerCoverage,

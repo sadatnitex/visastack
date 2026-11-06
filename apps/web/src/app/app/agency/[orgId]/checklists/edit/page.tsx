@@ -4,9 +4,9 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { DocumentTypeDatalist } from '../../../../../../components/catalogue-datalists';
 import { PageHeader, StatusBadge } from '../../../../../../components/ui';
-import { documentTypeLabel } from '../../../../../../lib/labels';
 import { type SearchParamsRecord, firstParam } from '../../../../../../lib/paging';
 import { withSession } from '../../../../../../lib/session';
+import { requirementLabel } from '../../../../mission/[id]/case-model';
 import {
   AddItemForm,
   DiscardButton,
@@ -38,6 +38,8 @@ export default async function AgencyChecklistPage({
   });
   if (!detail) notFound();
   const editing = detail.version.status === 'DRAFT';
+  // A version approved but not yet published (a publish that stopped halfway) only needs finishing.
+  const waiting = detail.version.status === 'APPROVED';
   return (
     <div className="stack">
       <PageHeader
@@ -47,13 +49,17 @@ export default async function AgencyChecklistPage({
         description={
           editing
             ? 'You are changing a draft. Cases keep the published version until you publish.'
-            : 'Cases on your agency offer this version. Open a draft to change it.'
+            : waiting
+              ? 'A change is ready but not published yet. Publish it to finish.'
+              : 'Cases on your agency offer this version. Open a draft to change it.'
         }
         meta={
-          <StatusBadge tone={editing ? 'warning' : 'success'}>
+          <StatusBadge tone={editing || waiting ? 'warning' : 'success'}>
             {editing
               ? `Draft, Version ${detail.version.version}`
-              : `Published, Version ${detail.version.version}`}
+              : waiting
+                ? `Ready to Publish, Version ${detail.version.version}`
+                : `Published, Version ${detail.version.version}`}
           </StatusBadge>
         }
       />
@@ -66,7 +72,11 @@ export default async function AgencyChecklistPage({
         <ul className="field-list">
           {detail.items.map((item) => {
             const necessity = requirementNecessity(item);
-            const label = item.notes ?? documentTypeLabel(item.docType ?? '');
+            const label = requirementLabel({
+              kind: item.kind,
+              key: item.fieldKey ?? item.docType ?? '',
+              wording: item.notes ?? undefined,
+            });
             return (
               <li key={item.id}>
                 {editing ? (
@@ -74,6 +84,8 @@ export default async function AgencyChecklistPage({
                     organizationId={orgId}
                     packId={packId}
                     requirementId={item.id}
+                    kind={item.kind}
+                    label={label}
                     docType={item.docType}
                     necessity={necessity}
                     wording={item.notes}
@@ -93,6 +105,9 @@ export default async function AgencyChecklistPage({
           })}
         </ul>
       </section>
+      {waiting ? (
+        <PublishButton organizationId={orgId} packId={packId} packVersionId={detail.version.id} />
+      ) : null}
       {editing ? (
         <>
           <section className="stack" aria-labelledby="add-item">
@@ -117,7 +132,7 @@ export default async function AgencyChecklistPage({
             />
           </section>
         </>
-      ) : (
+      ) : waiting ? null : (
         <StartChangesButton organizationId={orgId} packId={packId} />
       )}
     </div>
