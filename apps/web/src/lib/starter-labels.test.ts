@@ -30,7 +30,7 @@ describe('how a starter list is named on a case', () => {
     const line = packNoticeLine({ kind: 'STARTER' });
     expect(line).toContain('not official');
     expect(line).toContain('official guidance');
-    expect(line).not.toContain('—');
+    expect(line).not.toContain(String.fromCharCode(0x2014));
   });
 });
 

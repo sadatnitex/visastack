@@ -156,9 +156,16 @@ export function starterContentHash(
   );
 }
 
+/** The long dashes a sheet may carry (en and em), written as a plain hyphen. Built from code points so no source file holds one. */
+const LONG_DASHES = new RegExp(
+  `[${String.fromCharCode(0x2013)}${String.fromCharCode(0x2014)}]`,
+  'g',
+);
+const NO_BREAK_SPACE = new RegExp(String.fromCharCode(0xa0), 'g');
+
 /** Dashes and spaces a sheet may carry, written the plain way. */
 export function plainText(text: string): string {
-  return text.replace(/[–—]/g, '-').replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+  return text.replace(LONG_DASHES, '-').replace(NO_BREAK_SPACE, ' ').replace(/\s+/g, ' ').trim();
 }
 
 /**

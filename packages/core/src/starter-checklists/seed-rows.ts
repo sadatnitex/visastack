@@ -1115,7 +1115,7 @@ export const STARTER_SEED_ROWS: readonly StarterSheetRow[] = [
     country: 'India',
     purpose: 'Tourist (base)',
     appliesWhen: 'All applicants',
-    text: 'Bank statement (six months) or dollar endorsement; the original medical file leaves the USD minimum blank—do not infer an amount.',
+    text: 'Bank statement (six months) or dollar endorsement; the original medical file leaves the USD minimum blank - do not infer an amount.',
     keep: 'Yes',
     reference: 'India Medical Visa Submission Checklist.pdf',
   },
