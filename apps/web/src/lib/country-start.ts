@@ -164,3 +164,20 @@ export function countryNameOf(iso2: string | null): string | null {
   if (iso2 === null) return null;
   return DESTINATIONS.find((destination) => destination.iso2 === iso2)?.country ?? null;
 }
+
+/**
+ * The official page for a place a case travels to, matched on the whole name or a name people
+ * type for it (never part of a word), or null when we hold no page for it. A stand-in for a
+ * checklist we do not have: the case shows it with the words that VisaStack has not checked it.
+ */
+export function officialPageForDestination(destination: string | null | undefined): string | null {
+  const wanted = (destination ?? '').trim().toLowerCase();
+  if (wanted === '') return null;
+  const country = countryStartData().countries.find(
+    (entry) =>
+      entry.name.toLowerCase() === wanted ||
+      entry.iso2.toLowerCase() === wanted ||
+      entry.aka.some((name) => name.toLowerCase() === wanted),
+  );
+  return country?.officialUrl ?? null;
+}

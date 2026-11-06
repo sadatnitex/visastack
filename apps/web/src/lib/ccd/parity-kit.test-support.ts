@@ -32,12 +32,13 @@ const BASELINE_DIR = join(dirname(fileURLToPath(import.meta.url)), 'baseline');
  * The 30-word rule (Owner, 5 Nov 2026) for every converted screen in every state it can be in.
  * A state is held to 30 words of explanation at a phone's default depth. A state that is still
  * over has a recorded ceiling in prose-limits.json: it may not grow, and the ceiling must come
- * down when the words do. The screens in HELD_AT_DESKTOP are held to 30 on a desktop as well; the
- * others record their desktop count so it cannot grow.
+ * down when the words do. Every screen is held to 30 on a desktop as well (Owner, 6 Nov 2026), so
+ * a ceiling is only a place to record a state that is still over; none remain.
  */
 const LIMITS_PATH = join(dirname(fileURLToPath(import.meta.url)), 'prose-limits.json');
 const MEASURE_VARIABLE = 'PROSE_MEASURE';
-const HELD_AT_DESKTOP: ReadonlySet<string> = new Set(['documents']);
+/** Every screen is held to 30 words at every width (Owner, 6 Nov 2026): no recorded ceilings remain. */
+const HELD_AT_DESKTOP: ReadonlySet<string> | 'all' = 'all';
 type Ceilings = Record<string, Record<string, { phone?: number; desktop?: number }>>;
 
 export function registerParity(screen: {
@@ -140,7 +141,8 @@ export function registerParity(screen: {
         });
         const failures: string[] = [];
         for (const { viewport, report } of reports) {
-          const held = viewport === 'phone' || HELD_AT_DESKTOP.has(screen.name);
+          const held =
+            viewport === 'phone' || HELD_AT_DESKTOP === 'all' || HELD_AT_DESKTOP.has(screen.name);
           const ceiling = ceilings[state.name]?.[viewport];
           const where = `${screen.name} / ${state.name} / ${viewport}`;
           if (report.problems.length > 0) failures.push(`${where}: ${report.problems.join('; ')}`);

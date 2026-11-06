@@ -569,6 +569,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
                 </article>
               ))}
             </div>
+            {/* VS-016, chosen by the owner on 6 Nov 2026: what the product does, with no number to prove. */}
+            <p className="land-sub land-proof">
+              One traveller profile, so agencies stop asking for the same documents twice.
+            </p>
           </StoryGroup>
 
           <StoryGroup

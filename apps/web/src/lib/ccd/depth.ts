@@ -8,7 +8,7 @@
 export const DEPTH_LEVELS = ['glance', 'browse', 'everything'] as const;
 export type DepthLevel = (typeof DEPTH_LEVELS)[number];
 
-/** A saved level, or "auto": phones start at Glance, wider screens at Browse. */
+/** A saved level, or "auto": every screen width starts at Glance (Owner, 6 Nov 2026); Browse is one tap away. */
 export type DepthChoice = DepthLevel | 'auto';
 
 export const DEPTH_FAMILIES = [
@@ -81,7 +81,7 @@ export function choiceFor(map: DepthMap, family: DepthFamily): DepthChoice {
   return map[family] ?? 'auto';
 }
 
-/** What "auto" means on this screen width. */
-export function resolveAuto(isPhone: boolean): DepthLevel {
-  return isPhone ? 'glance' : 'browse';
+/** What "auto" means on this screen width: Glance on every width, so no screen opens past 30 words. */
+export function resolveAuto(_isPhone: boolean): DepthLevel {
+  return 'glance';
 }

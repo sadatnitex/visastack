@@ -6,6 +6,7 @@ import { Icon } from '../../../../components/icons';
 import { SectionCard, StatusPill } from '../../../../components/ui-lift';
 import { memoryHref } from '../../../../lib/application-memory-labels';
 import { CASE_STATE_LABELS } from '../../../../lib/case-stages';
+import { officialPageForDestination } from '../../../../lib/country-start';
 import { formatDateOnly } from '../../../../lib/format-date';
 import { AttachPackForm, type PackOption } from './attach-pack-form';
 import type { CaseSourceRow } from './case-model';
@@ -225,6 +226,8 @@ function PackCard({
   CaseRailProps,
   'mission' | 'packInfo' | 'packOptions' | 'noChecklistLines' | 'primaryAttach'
 > & { readonly sources: readonly CaseSourceRow[] }) {
+  // The official page for the place the case travels to: a stand-in where no checklist exists.
+  const officialPage = officialPageForDestination(mission.destination);
   return (
     <RailFold
       id="pack"
@@ -266,11 +269,21 @@ function PackCard({
           <>
             {packOptions.length === 0 ? (
               // VS-006: no reviewed checklist to pick. Say so and why, and promise nothing.
-              noChecklistLines.map((line) => (
-                <p className="lift-rail-line" key={line}>
-                  {line}
-                </p>
-              ))
+              <>
+                {noChecklistLines.map((line) => (
+                  <p className="lift-rail-line" key={line}>
+                    {line}
+                  </p>
+                ))}
+                {officialPage ? (
+                  <p className="lift-rail-line case-official-page">
+                    <a href={officialPage} target="_blank" rel="noopener noreferrer">
+                      Official Page
+                    </a>
+                    . VisaStack has not checked it.
+                  </p>
+                ) : null}
+              </>
             ) : (
               <p className="lift-rail-line">
                 Pick a checklist: attach a published requirement pack to see how many items are

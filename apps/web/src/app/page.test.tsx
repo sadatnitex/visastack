@@ -65,6 +65,13 @@ describe('the public home page (Harbor C1, WP-L1)', () => {
     expect(text).toContain('Privacy and sharing are governed by actual product permissions.');
   });
 
+  it('carries the agency proof line the owner chose (VS-016, 6 Nov 2026), once, with no number', async () => {
+    const text = textOf(await render());
+    const line = 'One traveller profile, so agencies stop asking for the same documents twice.';
+    expect(text.split(line).length - 1).toBe(1);
+    expect(line).not.toMatch(/\d/);
+  });
+
   it('is honest that this is a private pilot with some features not switched on', async () => {
     const text = textOf(await render());
     expect(text).toContain('some features are still being switched on');

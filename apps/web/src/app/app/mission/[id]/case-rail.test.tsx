@@ -249,6 +249,30 @@ describe('the case rail', () => {
     expect(words(foldOf(doc, 'pack'))).not.toContain('Pick a checklist: attach');
   });
 
+  it('shows the official page beside the reason, as a link that says VisaStack has not checked it', () => {
+    const doc = rail({
+      mission: mission({ packVersionId: null, destination: 'Japan' }),
+      packInfo: null,
+      noChecklistLines: ['VisaStack has no reviewed checklist for travel to Japan yet.'],
+    });
+    const line = foldOf(doc, 'pack')?.querySelector('.case-official-page');
+    expect(line).not.toBeNull();
+    const link = line?.querySelector('a');
+    expect(link?.getAttribute('href')).toMatch(/^https:\/\//);
+    expect(link?.getAttribute('rel')).toContain('noopener');
+    expect(words(line)).toBe('Official Page. VisaStack has not checked it.');
+  });
+
+  it('shows no official page where there is a checklist, or where we hold none for the place', () => {
+    expect(foldOf(rail(), 'pack')?.querySelector('.case-official-page')).toBeNull();
+    const unknown = rail({
+      mission: mission({ packVersionId: null, destination: 'Nowhere Land' }),
+      packInfo: null,
+      noChecklistLines: ['VisaStack has no reviewed checklist for travel to Nowhere Land yet.'],
+    });
+    expect(foldOf(unknown, 'pack')?.querySelector('.case-official-page')).toBeNull();
+  });
+
   it('leaves a pack that is attached closed on a phone', () => {
     expect(foldOf(rail(), 'pack')?.hasAttribute('open')).toBe(false);
   });

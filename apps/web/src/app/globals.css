@@ -10117,13 +10117,9 @@ summary.visa-photo-title {
 .depth-scope:not(:has(.depth-nojs))[data-depth="glance"] [data-level="browse"],
 .depth-scope:not(:has(.depth-nojs))[data-depth="glance"] [data-level="everything"],
 .depth-scope:not(:has(.depth-nojs))[data-depth="browse"] [data-level="everything"],
+.depth-scope:not(:has(.depth-nojs))[data-depth="auto"] [data-level="browse"],
 .depth-scope:not(:has(.depth-nojs))[data-depth="auto"] [data-level="everything"] {
   display: none;
-}
-@media (max-width: 760px) {
-  .depth-scope:not(:has(.depth-nojs))[data-depth="auto"] [data-level="browse"] {
-    display: none;
-  }
 }
 .depth-scope:has(.depth-nojs) .depth-switch {
   display: none;
@@ -10134,7 +10130,7 @@ summary.visa-photo-title {
 .depth-scope[data-depth="glance"] .depth-seg[data-for="glance"],
 .depth-scope[data-depth="browse"] .depth-seg[data-for="browse"],
 .depth-scope[data-depth="everything"] .depth-seg[data-for="everything"],
-.depth-scope[data-depth="auto"] .depth-seg[data-for="browse"] {
+.depth-scope[data-depth="auto"] .depth-seg[data-for="glance"] {
   background: var(--bg-elevated);
   color: var(--text);
   border-color: var(--brand);
@@ -10142,44 +10138,24 @@ summary.visa-photo-title {
 .depth-scope[data-depth="glance"] .depth-note[data-for="glance"],
 .depth-scope[data-depth="browse"] .depth-note[data-for="browse"],
 .depth-scope[data-depth="everything"] .depth-note[data-for="everything"],
-.depth-scope[data-depth="auto"] .depth-note[data-for="browse"] {
+.depth-scope[data-depth="auto"] .depth-note[data-for="glance"] {
   display: block;
-}
-@media (max-width: 760px) {
-  .depth-scope[data-depth="auto"] .depth-seg[data-for="browse"] {
-    background: transparent;
-    color: var(--text-secondary);
-    border-color: transparent;
-  }
-  .depth-scope[data-depth="auto"] .depth-seg[data-for="glance"] {
-    background: var(--bg-elevated);
-    color: var(--text);
-    border-color: var(--brand);
-  }
-  .depth-scope[data-depth="auto"] .depth-note[data-for="browse"] {
-    display: none;
-  }
-  .depth-scope[data-depth="auto"] .depth-note[data-for="glance"] {
-    display: block;
-  }
 }
 
 /* WP-CCD2 depth: a line that belongs to Glance only (for example "2 more things are waiting"),
    hidden once the level is deeper. Shown on phones while the level is "auto". */
 .depth-scope[data-depth="browse"] [data-only="glance"],
 .depth-scope[data-depth="everything"] [data-only="glance"],
-.depth-scope[data-depth="auto"] [data-only="glance"],
 .depth-scope:has(.depth-nojs) [data-only="glance"] {
   display: none;
 }
-@media (max-width: 760px) {
-  .depth-scope:not(:has(.depth-nojs))[data-depth="auto"] [data-only="glance"] {
-    display: block;
-  }
+.depth-scope:not(:has(.depth-nojs))[data-depth="auto"] [data-only="glance"] {
+  display: block;
 }
 
 /* WP-CCD2 traveller page: at an explicit Glance the working area has nothing in its second column. */
-.depth-scope:not(:has(.depth-nojs))[data-depth="glance"] .traveller-working-area {
+.depth-scope:not(:has(.depth-nojs)):is([data-depth="glance"], [data-depth="auto"])
+  .traveller-working-area {
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -10190,7 +10166,8 @@ summary.visa-photo-title {
 }
 
 /* WP-CCD3 profile: at an explicit Glance the working area is one column. */
-.depth-scope:not(:has(.depth-nojs))[data-depth="glance"] .profile-working-area {
+.depth-scope:not(:has(.depth-nojs)):is([data-depth="glance"], [data-depth="auto"])
+  .profile-working-area {
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -10200,17 +10177,16 @@ summary.visa-photo-title {
   margin: 0;
   font-size: 1.17em;
 }
-.depth-scope:not(:has(.depth-nojs))[data-depth="glance"] .case-working-area {
+.depth-scope:not(:has(.depth-nojs)):is([data-depth="glance"], [data-depth="auto"])
+  .case-working-area {
   grid-template-columns: minmax(0, 1fr);
 }
 
 /* WP-CCD5 sharing: when the level hides the Grant Access column, the access column takes the
    whole width instead of leaving an empty half. */
-.depth-scope:not(:has(.depth-nojs))[data-depth="glance"]
+.depth-scope:not(:has(.depth-nojs)):is([data-depth="glance"], [data-depth="auto"])
   .sharing-workspace:has(> .sharing-composer-card[data-level]),
 .depth-scope:not(:has(.depth-nojs))[data-depth="browse"]
-  .sharing-workspace:has(> .sharing-composer-card[data-level="everything"]),
-.depth-scope:not(:has(.depth-nojs))[data-depth="auto"]
   .sharing-workspace:has(> .sharing-composer-card[data-level="everything"]) {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -10292,7 +10268,7 @@ summary.visa-photo-title {
 .case-next-step :focus-visible {
   outline-color: #ffffff;
 }
-/* The shorter form: Browse and Everything, and "auto" on wider screens (Browse there). */
+/* The shorter form: Browse and Everything. "Auto" is Glance on every screen width (Owner, 6 Nov 2026). */
 .depth-scope:not(:has(.depth-nojs)):is([data-depth="browse"], [data-depth="everything"]) {
   --ns-pad: 20px 24px;
   --ns-direction: row;
@@ -10300,16 +10276,6 @@ summary.visa-photo-title {
   --ns-text-flex: 1 1 18rem;
   --ns-title-gap: 8px;
   --ns-title-size: var(--text-lead);
-}
-@media (min-width: 761px) {
-  .depth-scope:not(:has(.depth-nojs))[data-depth="auto"] {
-    --ns-pad: 20px 24px;
-    --ns-direction: row;
-    --ns-align: center;
-    --ns-text-flex: 1 1 18rem;
-    --ns-title-gap: 8px;
-    --ns-title-size: var(--text-lead);
-  }
 }
 @media (max-width: 760px) {
   .next-step,
@@ -18880,30 +18846,28 @@ article.card:has(> .trip-start-form) {
   margin-top: var(--space-1);
 }
 
-/* On a phone the three level buttons speak for themselves; the sentence for the chosen level stays for screen readers only. Only the shown note is clipped, so the others stay out of the reading order, and the "i" note (Documents) is left alone. */
-@media (max-width: 760px) {
-  .depth-scope[data-depth="glance"]
-    .depth-switch:not(:has(.depth-info))
-    p.depth-note[data-for="glance"],
-  .depth-scope[data-depth="browse"]
-    .depth-switch:not(:has(.depth-info))
-    p.depth-note[data-for="browse"],
-  .depth-scope[data-depth="everything"]
-    .depth-switch:not(:has(.depth-info))
-    p.depth-note[data-for="everything"],
-  .depth-scope[data-depth="auto"]
-    .depth-switch:not(:has(.depth-info))
-    p.depth-note[data-for="glance"] {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
+/* The three level buttons speak for themselves; the sentence for the chosen level stays for screen readers only, at every width (Owner, 6 Nov 2026: 30 words on every screen). Only the shown note is clipped, so the others stay out of the reading order, and the "i" note (Documents) is left alone. */
+.depth-scope[data-depth="glance"]
+  .depth-switch:not(:has(.depth-info))
+  p.depth-note[data-for="glance"],
+.depth-scope[data-depth="browse"]
+  .depth-switch:not(:has(.depth-info))
+  p.depth-note[data-for="browse"],
+.depth-scope[data-depth="everything"]
+  .depth-switch:not(:has(.depth-info))
+  p.depth-note[data-for="everything"],
+.depth-scope[data-depth="auto"]
+  .depth-switch:not(:has(.depth-info))
+  p.depth-note[data-for="glance"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Case page on a phone: a checklist row's action is a quiet link-style button, so four rows do not repeat four outlined buttons. */
@@ -19536,3 +19500,11 @@ article.card:has(> .trip-start-form) {
   }
 }
 /* end WP-PLAIN-SCREENS */
+
+/* WP-PLAIN-DECIDED Owner decisions of 6 Nov 2026 that need a style: the landing proof line sits under the audience cards, in ink, one line of weight, no number. */
+.land-proof {
+  margin-top: var(--space-4);
+  color: var(--text);
+  font-weight: 600;
+}
+/* end WP-PLAIN-DECIDED */
