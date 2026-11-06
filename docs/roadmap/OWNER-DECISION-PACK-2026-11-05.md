@@ -16,6 +16,9 @@ How to read the boxes: **Approve** means build it as written. **Change** means w
 | 8 | Privacy notice and terms | Send the counsel pack | A lawyer |
 | 9 | Recovery drill | Run once before real data | A sign-off |
 | 10 | Master key copy and rotation | Offline copy now, key service next | Your copy and an AWS account |
+| 11 | Words on desktop screens | Start every desktop screen at Glance | One tick |
+| 12 | Instant "back" navigation | Do it after an audit of 46 actions | One tick |
+| 13 | Installing the phone app | Use the Install app menu item | You test it |
 
 ## 1. Exact copies of evidence sent to an agency (D1)
 
@@ -116,6 +119,37 @@ Protected fields (passport numbers, incomes) are wrapped by one key held in Verc
 
 - [ ] Offline copy done on: ______________________
 - [ ] AWS account ready
+
+## 11. Words on desktop screens
+
+**Today:** every phone screen is held to 30 words of explanation, and so is Documents on a desktop. On the other desktop screens the default level is Browse, which shows more. Measured on made-up data, 42 desktop states are over 30 words (the busiest: the agency member home at 182, expiry at 154, evidence requests at 136, the notifications list at 99).
+**Why not just change it:** Browse is the level the approved mockups show, and your latest instruction says the mockup composition rules the screens.
+**Options:**
+- A. Start every desktop screen at Glance, as phones do. Browse is one tap away and each screen remembers the choice. Every screen is then within 30 words by default. It is a small change, and reversing it is as small.
+- B. Keep Browse as the default and trim the words state by state (move sentences behind "About This"). It keeps the mockup look but is a larger job, about 12 screens.
+**Recommendation: A.** It follows your 30-word instruction on every screen at once, and the people who want more tap once.
+
+- [ ] A   - [ ] B   - [ ] Leave as it is
+
+## 12. Instant "back" navigation
+
+Keeping a page the browser has already shown for 30 seconds makes going back instant. I did not turn it on, because 46 actions (archive, replace, delete, trip changes, refunds and others) rely on the page refreshing later, so a kept page could show an old list right after you changed something.
+**Plan if you approve:** make each of those 46 actions refresh the workspace when it succeeds, add a test that fails when an action that changes data forgets to, then turn the 30 seconds on. List of the 46: in the known-issues entry of 6 Nov 2026.
+**Recommendation: approve, after item 6 is measured,** so we know how much of the wait this removes before spending the time.
+
+- [ ] Approve
+- [ ] Not now
+
+## 13. Installing the phone app
+
+Your report: after signing in, the installed app looks like a desktop browser. The code keeps sign-in inside the site (no jump to another address), the app is set to open full screen, and a service worker is present. The most likely cause is that the app was added as a shortcut, not installed. A shortcut opens in a browser tab and draws its icon on a white disc, which is what you saw.
+**Test (two minutes):**
+1. Remove the old icon from the home screen.
+2. In Chrome, open https://vs.obsidianglobal.studio.
+3. Open the Chrome menu and choose **Install app** (not "Add to Home screen"). If only "Add to Home screen" is offered, tell me and I will check the install conditions.
+4. Open it from the new icon and sign in. It should open full screen with no address bar.
+
+- [ ] Tested on: ______________________   Result: ______________________
 
 ---
 Approved by: ______________________   Date: ______________________
