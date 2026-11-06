@@ -6,6 +6,7 @@ import {
   REQUIREMENT_CATEGORY_LABELS,
   requirementFormatLines,
 } from '@visastack/core';
+import { requirementNecessity } from '@visastack/core';
 import {
   NO_REQUIREMENT_DETAILS,
   NO_ROUTE_CONDITIONS,
@@ -68,6 +69,7 @@ import {
   type RequirementDetailsValues,
   RouteConditionsForm,
 } from '../rule-detail-forms';
+import { DraftItemEditor, StartUpdateButton } from '../starter-forms';
 
 export const metadata: Metadata = { title: 'Rule Pack' };
 
@@ -438,6 +440,17 @@ export default async function PackDetailPage({
                             ) : null}
                             {ruleDetailsSummary(req, data.open.details.get(req.id))}
                             {isDraft && data.canManage ? (
+                              <DraftItemEditor
+                                packId={data.pack.id}
+                                requirementId={req.id}
+                                kind={req.kind}
+                                docType={req.docType}
+                                necessity={requirementNecessity(req)}
+                                wording={req.notes}
+                                appliesWhen={req.interpretation}
+                              />
+                            ) : null}
+                            {isDraft && data.canManage ? (
                               <RequirementDetailsForm
                                 packId={data.pack.id}
                                 requirementId={req.id}
@@ -536,6 +549,9 @@ export default async function PackDetailPage({
 
                 {isPublished ? (
                   <>
+                    {data.canManage ? (
+                      <StartUpdateButton packId={packId} packVersionId={version.id} />
+                    ) : null}
                     {data.canManage ? (
                       <WithdrawVersionButton packId={packId} packVersionId={version.id} />
                     ) : null}

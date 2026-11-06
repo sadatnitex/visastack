@@ -186,6 +186,8 @@ export async function addRequirementAction(
   const sourceUrl = String(formData.get('sourceUrl') ?? '').trim();
   const sourceTitle = String(formData.get('sourceTitle') ?? '').trim();
   const publisher = String(formData.get('publisher') ?? '').trim();
+  const wording = String(formData.get('wording') ?? '').trim();
+  const appliesWhen = String(formData.get('appliesWhen') ?? '').trim();
   const observedRaw = String(formData.get('observedDate') ?? '').trim();
   const observedDate = observedRaw ? new Date(observedRaw) : undefined;
   if (
@@ -225,6 +227,8 @@ export async function addRequirementAction(
       ...(sourceUrl ? { sourceUrl } : {}),
       ...(sourceTitle ? { sourceTitle } : {}),
       ...(publisher ? { publisher } : {}),
+      ...(wording ? { notes: wording } : {}),
+      ...(appliesWhen ? { interpretation: appliesWhen } : {}),
       ...(observedDate ? { observedDate } : {}),
       ...(maxAgeDays !== undefined ? { maxAgeDays } : {}),
     });

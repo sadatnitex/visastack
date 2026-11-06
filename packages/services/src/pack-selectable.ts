@@ -1,3 +1,4 @@
+import { isStarterPackKey } from '@visastack/core';
 import { type ServiceError, serviceError } from './errors';
 
 /**
@@ -5,8 +6,10 @@ import { type ServiceError, serviceError } from './errors';
  * and by Prepare Again so the two can never disagree. Pure: no database here.
  *
  * A checklist may go on a case when it is published and is either a reviewed public checklist (no
- * owning agency, marked authoritative) or owned by the agency the case belongs to. A case with no
- * agency (a personal case) therefore only ever takes reviewed public checklists.
+ * owning agency, marked authoritative), a starter checklist (the agency's own reading of country
+ * files, public, labelled not official, and only ever picked by the person, never linked for them),
+ * or owned by the agency the case belongs to. A case with no agency (a personal case) therefore only
+ * takes reviewed public and starter checklists.
  */
 
 export const NOT_REVIEWED_WORDS =
@@ -19,6 +22,8 @@ export interface SelectionTarget {
   readonly status: string;
   readonly authoritative: boolean;
   readonly ownerOrganizationId: string | null;
+  /** The pack's key; a starter checklist is known by it. */
+  readonly packKey?: string | null;
 }
 
 /**
@@ -34,7 +39,11 @@ export function selectionRefusal(
     return serviceError('not_found', NOT_FOUND_WORDS);
   }
   if (target.status !== 'PUBLISHED') return serviceError('invalid', NOT_PUBLISHED_WORDS);
-  if (target.ownerOrganizationId === null && !target.authoritative) {
+  if (
+    target.ownerOrganizationId === null &&
+    !target.authoritative &&
+    !(target.packKey != null && isStarterPackKey(target.packKey))
+  ) {
     return serviceError('invalid', NOT_REVIEWED_WORDS);
   }
   return null;

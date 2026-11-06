@@ -3148,6 +3148,7 @@ async function latestPublishedVersionOfSamePack(
       version: number;
       authoritative: boolean;
       ownerOrganizationId: string | null;
+      packKey: string;
     }
   | undefined
 > {
@@ -3167,6 +3168,7 @@ async function latestPublishedVersionOfSamePack(
         version: schema.packVersions.version,
         authoritative: schema.packs.authoritative,
         ownerOrganizationId: schema.packs.ownerOrganizationId,
+        packKey: schema.packs.key,
       })
       .from(schema.packVersions)
       .innerJoin(schema.packs, eq(schema.packs.id, schema.packVersions.packId))
@@ -3559,6 +3561,7 @@ export async function prepareCaseAgain(
               status: schema.packVersions.status,
               authoritative: schema.packs.authoritative,
               ownerOrganizationId: schema.packs.ownerOrganizationId,
+              packKey: schema.packs.key,
             })
             .from(schema.packVersions)
             .innerJoin(schema.packs, eq(schema.packs.id, schema.packVersions.packId))

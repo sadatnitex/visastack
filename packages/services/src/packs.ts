@@ -371,7 +371,7 @@ const PACK_STUDIO_WAITING =
   'Pack Studio is waiting for a database update before packs can change. Try again after it runs.';
 
 /** A refusal while migration 0116 has not run (every pack write names the new columns), else null. */
-async function packStudioWaiting(db: Db): Promise<Result<never, ServiceError> | null> {
+export async function packStudioWaiting(db: Db): Promise<Result<never, ServiceError> | null> {
   return (await packRuleColumnsReady(db))
     ? null
     : err(serviceError('invalid', PACK_STUDIO_WAITING));
@@ -473,6 +473,52 @@ export async function createPack(
   });
 }
 
+/**
+ * Opens the next DRAFT version of a pack inside a transaction the caller already holds: numbers it,
+ * records who opened it, carries the route conditions forward and writes the audit event. The one
+ * place a draft is made, so adding a version and copying one to a draft can never differ.
+ */
+export async function openDraftVersion(
+  tx: Db,
+  input: { readonly actorAccountId: string; readonly packId: string },
+): Promise<PackVersion> {
+  const existing = await tx
+    .select({ version: schema.packVersions.version })
+    .from(schema.packVersions)
+    .where(eq(schema.packVersions.packId, input.packId));
+  const nextVersion = existing.reduce((max, r) => Math.max(max, r.version), 0) + 1;
+
+  const version = required(
+    first(
+      await tx
+        .insert(schema.packVersions)
+        .values({
+          packId: input.packId,
+          version: nextVersion,
+          authoredByAccountId: input.actorAccountId,
+        })
+        .returning(),
+    ),
+    'pack version',
+  );
+  // UMPE G2: who the checklist is for carries forward into the new draft.
+  await copyRouteConditionsForward(tx, {
+    actorAccountId: input.actorAccountId,
+    packId: input.packId,
+    toVersionId: version.id,
+  });
+  await appendAuditEvent(tx, {
+    eventType: 'PACK_VERSION_OPENED',
+    actorAccountId: input.actorAccountId,
+    method: 'MANUAL',
+    result: 'ALLOWED',
+    resourceType: 'pack_version',
+    resourceId: version.id,
+    metadata: { packId: input.packId, version: nextVersion },
+  });
+  return version;
+}
+
 /** Open a new DRAFT version of a pack. */
 export async function addPackVersion(
   db: Db,
@@ -485,43 +531,7 @@ export async function addPackVersion(
   );
   if (!pack) return err(serviceError('not_found', 'pack not found'));
 
-  return db.transaction(async (tx) => {
-    const existing = await tx
-      .select({ version: schema.packVersions.version })
-      .from(schema.packVersions)
-      .where(eq(schema.packVersions.packId, input.packId));
-    const nextVersion = existing.reduce((max, r) => Math.max(max, r.version), 0) + 1;
-
-    const version = required(
-      first(
-        await tx
-          .insert(schema.packVersions)
-          .values({
-            packId: input.packId,
-            version: nextVersion,
-            authoredByAccountId: input.actorAccountId,
-          })
-          .returning(),
-      ),
-      'pack version',
-    );
-    // UMPE G2: who the checklist is for carries forward into the new draft.
-    await copyRouteConditionsForward(tx, {
-      actorAccountId: input.actorAccountId,
-      packId: input.packId,
-      toVersionId: version.id,
-    });
-    await appendAuditEvent(tx, {
-      eventType: 'PACK_VERSION_OPENED',
-      actorAccountId: input.actorAccountId,
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      resourceType: 'pack_version',
-      resourceId: version.id,
-      metadata: { packId: input.packId, version: nextVersion },
-    });
-    return ok(version);
-  });
+  return db.transaction(async (tx) => ok(await openDraftVersion(tx, input)));
 }
 
 /**

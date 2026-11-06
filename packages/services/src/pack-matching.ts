@@ -1,5 +1,5 @@
-import { packMatchKey } from '@visastack/core';
-import { type SQL, and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { STARTER_KEY_PREFIX, packMatchKey } from '@visastack/core';
+import { type SQL, and, desc, eq, inArray, isNotNull, isNull, like, sql } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { AuthorizedApplicant } from './access';
 import { isTrustedFactStatus } from './ai';
@@ -267,7 +267,11 @@ interface PublicPackEvaluation {
  * Reads every published catalogue pack for this country and purpose and decides, for each, whether
  * it fits the case or why it does not. The one place the matching rules live.
  */
-async function evaluatePublicPacks(db: Db, terms: PackMatchTerms): Promise<PublicPackEvaluation> {
+async function evaluatePublicPacks(
+  db: Db,
+  terms: PackMatchTerms,
+  kind: 'reviewed' | 'starter' = 'reviewed',
+): Promise<PublicPackEvaluation> {
   const countries = keySet(terms.country);
   const purposes = keySet(terms.purpose);
   const excludedBecause = new Set<NoPackReason>();
@@ -301,7 +305,12 @@ async function evaluatePublicPacks(db: Db, terms: PackMatchTerms): Promise<Publi
     .where(
       and(
         eq(schema.packVersions.status, 'PUBLISHED'),
-        eq(schema.packs.authoritative, true),
+        kind === 'reviewed'
+          ? eq(schema.packs.authoritative, true)
+          : and(
+              eq(schema.packs.authoritative, false),
+              like(schema.packs.key, `${STARTER_KEY_PREFIX}%`),
+            ),
         isNull(schema.packs.ownerOrganizationId),
         isNotNull(schema.packs.jurisdiction),
         isNotNull(schema.packs.purpose),
@@ -367,6 +376,15 @@ async function evaluatePublicPacks(db: Db, terms: PackMatchTerms): Promise<Publi
  */
 export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Promise<PackMatch[]> {
   return (await evaluatePublicPacks(db, terms)).fitting;
+}
+
+/**
+ * The starter checklists (the agency's reading of country files, not official) that fit this
+ * country and purpose, in name order. Offered for the person to pick, never linked on their behalf
+ * and never counted when explaining why no reviewed checklist fits.
+ */
+export async function listFittingStarterPacks(db: Db, terms: PackMatchTerms): Promise<PackMatch[]> {
+  return (await evaluatePublicPacks(db, terms, 'starter')).fitting;
 }
 
 /**

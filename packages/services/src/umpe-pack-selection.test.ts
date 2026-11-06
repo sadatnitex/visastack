@@ -91,12 +91,13 @@ describe('pack selection', () => {
     readonly name?: string;
     readonly nextReviewDate?: Date | null;
     readonly requirements?: number;
+    readonly key?: string;
   }) {
     n += 1;
     const [row] = await db
       .insert(schema.packs)
       .values({
-        key: `synthetic.selection.${n}`,
+        key: input.key ?? `synthetic.selection.${n}`,
         name: input.name ?? `Synthetic Pack ${n}`,
         jurisdiction: input.jurisdiction ?? 'UK',
         purpose: 'Tourism',
@@ -479,6 +480,55 @@ describe('pack selection', () => {
           now,
         ),
       ).toBeNull();
+    });
+  });
+  describe('starter checklists (agency files, not official)', () => {
+    it('is attachable by the person, and listed only when it fits the case route', async () => {
+      const starter = await pack({
+        key: 'starter.gb.tourist',
+        authoritative: false,
+        requirements: 2,
+        name: 'United Kingdom Tourist Starter List',
+      });
+      const proof = await proofFor('VIEW_METADATA');
+      // With no route to narrow by, nothing starter is offered.
+      const open = await listSelectablePackVersions(proof, { missionId });
+      expect(isOk(open) && open.value.map((v) => v.packVersionId)).toEqual([]);
+      // With the route fitting, it is offered and marked as a starter list.
+      const listed = await listSelectablePackVersions(proof, {
+        missionId,
+        fitting: [{ packVersionId: starter }],
+      });
+      expect(isOk(listed) && listed.value).toEqual([
+        expect.objectContaining({ packVersionId: starter, starter: true, authoritative: false }),
+      ]);
+      // Another route's fit does not list it.
+      const other = await listSelectablePackVersions(proof, { missionId, fitting: [] });
+      expect(isOk(other) && other.value).toEqual([]);
+      const attached = await attachSelectedPackVersion(await proofFor('MANAGE'), {
+        missionId,
+        packVersionId: starter,
+      });
+      expect(isOk(attached) && attached.value.packVersionId).toBe(starter);
+    });
+
+    it("is never linked on the person's behalf: the automatic match ignores it", async () => {
+      await pack({ key: 'starter.gb.tourist', authoritative: false, requirements: 1 });
+      const fit = await listFittingPublicPacks(db, {
+        country: UK,
+        purpose: TOURISM,
+        traveller: UNKNOWN,
+      });
+      expect(fit).toEqual([]);
+    });
+
+    it('keeps refusing an unreviewed pack that is not a starter list', async () => {
+      const unreviewed = await pack({ authoritative: false, requirements: 1 });
+      const refused = await attachSelectedPackVersion(await proofFor('MANAGE'), {
+        missionId,
+        packVersionId: unreviewed,
+      });
+      expect(isErr(refused)).toBe(true);
     });
   });
 });

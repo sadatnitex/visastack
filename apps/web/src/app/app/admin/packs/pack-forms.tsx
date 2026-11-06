@@ -203,6 +203,32 @@ export function AddRequirementForm({
               placeholder="Source rule / URL - required"
             />
           </div>
+          <div className="field-row field-wide">
+            <label className="field-label" htmlFor="wording">
+              Wording for the Traveller (Optional)
+            </label>
+            <input
+              id="wording"
+              name="wording"
+              type="text"
+              maxLength={400}
+              className="input"
+              placeholder="The item as a traveller should read it"
+            />
+          </div>
+          <div className="field-row">
+            <label className="field-label" htmlFor="appliesWhen">
+              Who It Is For (Optional)
+            </label>
+            <input
+              id="appliesWhen"
+              name="appliesWhen"
+              type="text"
+              maxLength={120}
+              className="input"
+              placeholder="e.g. All applicants, Employee"
+            />
+          </div>
           <div className="field-row">
             <label className="field-label" htmlFor="maxAgeDays">
               Max Age in Days (Document Only)
