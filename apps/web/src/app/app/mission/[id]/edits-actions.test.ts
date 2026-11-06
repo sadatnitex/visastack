@@ -57,6 +57,28 @@ describe('saveWordingAction', () => {
     expect(result).toEqual({ ok: true, message: 'Original wording is back.' });
   });
 
+  it('typing the original just as it is shown puts the original back', async () => {
+    mocks.set.mockResolvedValue({ ok: true, value: { wording: null } });
+    await saveWordingAction(
+      START,
+      form({
+        missionId: CASE,
+        packRequirementId: ITEM,
+        wording: '  Valid   passport. ',
+        original: 'Valid passport.',
+      }),
+    );
+    expect(mocks.set.mock.calls[0]?.[1].wording).toBe('');
+  });
+
+  it('tidies hidden characters before saving', async () => {
+    await saveWordingAction(
+      START,
+      form({ missionId: CASE, packRequirementId: ITEM, wording: 'My\u200b words' }),
+    );
+    expect(mocks.set.mock.calls[0]?.[1].wording).toBe('My words');
+  });
+
   it('refuses ids that are not ids before asking for anything', async () => {
     expect(
       (await saveWordingAction(START, form({ missionId: 'x', packRequirementId: ITEM }))).ok,

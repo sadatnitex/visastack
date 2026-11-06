@@ -1,4 +1,5 @@
 import { type Result, err, ok } from '@visastack/core';
+import { isHiddenCodePoint } from '@visastack/core/ai-features';
 import { and, eq, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
@@ -15,9 +16,10 @@ import { INACTIVE_CASE_STATES } from './umpe-package-tables';
  * test keeps those files from naming this module), so an edit can never make a case look ready, hide
  * an item, or change what is required. The pack version stays exactly as it was published.
  *
- * Every function takes the gate's proof for this traveller. Writes need the traveller who owns the
- * case; an agency never writes. A refused or unknown case, or an item that is not on the case's
- * checklist, gets the same "not available" answer.
+ * Every function takes the gate's proof for this traveller, and reads and writes both need the
+ * traveller who owns the case: the words are the traveller's own and are not shown to an agency
+ * (a later package adds a separate, deliberate agency read). A refused or unknown case, or an item
+ * that is not on the case's checklist, gets the same "not available" answer.
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -33,11 +35,13 @@ export const CHECKLIST_EDITS_MAX = 100;
 export interface CaseChecklistEdits {
   /** False until the table exists: no edit controls are shown and nothing is changed. */
   readonly available: boolean;
+  /** The table exists and the case is open with a checklist: the traveller may change the words. */
+  readonly editable: boolean;
   /** The traveller's sentence for each reworded item of the case's current checklist. */
   readonly rewords: readonly { readonly packRequirementId: string; readonly wording: string }[];
 }
 
-const NOTHING: CaseChecklistEdits = { available: false, rewords: [] };
+const NOTHING: CaseChecklistEdits = { available: false, editable: false, rewords: [] };
 
 /** The case as the proof names it, or a refusal. Writes need the traveller who owns the case. */
 function missionOf<A extends 'VIEW_METADATA' | 'MANAGE'>(
@@ -48,7 +52,7 @@ function missionOf<A extends 'VIEW_METADATA' | 'MANAGE'>(
   if (!AuthorizedApplicant.isGenuine(proof, action)) {
     return err(serviceError('forbidden', 'You cannot change this list.'));
   }
-  if (action === 'MANAGE' && proof.actor.kind !== 'applicant_owner') {
+  if (proof.actor.kind !== 'applicant_owner') {
     return err(serviceError('forbidden', 'Only the traveller who owns this case can do this.'));
   }
   const resource = proof.resource;
@@ -63,16 +67,27 @@ function missionOf<A extends 'VIEW_METADATA' | 'MANAGE'>(
   return ok({ id: resource.mission.id, applicantId: proof.applicant.id });
 }
 
-/** A control or line-separator character: not part of any sentence a traveller means to write. */
-function isControlCode(code: number): boolean {
-  return code <= 0x1f || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029;
-}
-
-/** What a sentence is saved as: control characters and runs of spaces become one space. */
+/**
+ * What a sentence is saved as: control, zero-width, line-separator and text-direction characters
+ * (the same list every other text filter uses) and runs of spaces become one space.
+ */
 export function tidyWording(raw: string): string {
   let out = '';
-  for (const char of raw) out += isControlCode(char.codePointAt(0) ?? 0) ? ' ' : char;
+  for (const char of raw) out += isHiddenCodePoint(char.codePointAt(0) ?? 0) ? ' ' : char;
   return out.replace(/\s+/g, ' ').trim();
+}
+
+/** The case is open and holds a checklist: the one rule for whether its words may change. */
+function openWithChecklist(mission: {
+  readonly purgedAt: Date | null;
+  readonly state: string;
+  readonly packVersionId: string | null;
+}): boolean {
+  return (
+    mission.purgedAt === null &&
+    !(INACTIVE_CASE_STATES as readonly string[]).includes(mission.state) &&
+    mission.packVersionId !== null
+  );
 }
 
 /**
@@ -88,6 +103,23 @@ export async function listCaseChecklistEdits(
   if (!owned.ok) return owned;
   const tx = proof.tx;
   if (!(await caseChecklistEditsTablePresent(tx))) return ok(NOTHING);
+  const mission = first(
+    await tx
+      .select({
+        purgedAt: schema.missions.purgedAt,
+        state: schema.missions.state,
+        packVersionId: schema.missions.packVersionId,
+      })
+      .from(schema.missions)
+      .where(
+        and(
+          eq(schema.missions.id, owned.value.id),
+          eq(schema.missions.applicantId, owned.value.applicantId),
+        ),
+      )
+      .limit(1),
+  );
+  if (!mission) return err(serviceError('not_found', NOT_AVAILABLE));
   const rows = await tx
     .select({
       packRequirementId: schema.caseChecklistEdits.packRequirementId,
@@ -111,6 +143,7 @@ export async function listCaseChecklistEdits(
     );
   return ok({
     available: true,
+    editable: openWithChecklist(mission),
     rewords: rows.flatMap((row) =>
       row.packRequirementId
         ? [{ packRequirementId: row.packRequirementId, wording: row.wording }]
@@ -121,7 +154,7 @@ export async function listCaseChecklistEdits(
 
 /**
  * Saves the traveller's sentence for one item of their case's checklist, or puts the original back
- * when the sentence is empty or is the original. Only while the case is open. Never changes the
+ * when the sentence is empty. Only while the case is open. Never changes the
  * item's kind, key, necessity, state or evidence, and never counts as a change to the case, so a
  * handoff already confirmed stays confirmed. The audit record names the item, never the words.
  */
@@ -166,7 +199,7 @@ export async function setChecklistWording(
     ) {
       return err(serviceError('invalid', 'This case is finished, so its list cannot change.'));
     }
-    if (!mission.packVersionId) {
+    if (!openWithChecklist(mission) || !mission.packVersionId) {
       return err(serviceError('invalid', 'This case has no checklist yet.'));
     }
     const requirement = (await listRequirements(inner, mission.packVersionId)).find(
@@ -186,9 +219,9 @@ export async function setChecklistWording(
         )
         .limit(1),
     );
-    // The original sentence is the pack's wording, or the item's plain name when it has none.
-    const original = tidyWording(requirement.notes ?? '');
-    const clear = wording === '' || (original !== '' && wording === original);
+    // An empty sentence puts the original back. The page also sends an empty sentence when the
+    // traveller types the original as it is shown, because only the page knows how it is shown.
+    const clear = wording === '';
 
     if (clear) {
       if (!existing) return ok({ wording: null });

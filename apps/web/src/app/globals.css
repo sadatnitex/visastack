@@ -12958,7 +12958,8 @@ html:has(.sticky-action-bar) {
 }
 
 /* WP-UMPE-P11 checklist corrections: Suggest a Correction on case checklist lines and agency requests, and the editors' queue. */
-.correction-suggest > summary {
+.correction-suggest > summary,
+.lift-check-edit > summary {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -12966,7 +12967,8 @@ html:has(.sticky-action-bar) {
   color: var(--accent, currentColor);
   font-size: var(--text-small, 0.875rem);
 }
-.correction-suggest[open] {
+.correction-suggest[open],
+.lift-check-edit[open] {
   border-top: 1px solid var(--hairline-soft);
   padding-top: 0.5rem;
   display: grid;

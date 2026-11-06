@@ -169,15 +169,31 @@ describe('case checklist edits', () => {
       expect(await listRequirements(db, versionId)).toEqual(before);
     });
 
-    it('changes a saved sentence, and puts the original back when it is emptied or equals the original', async () => {
+    it('changes a saved sentence, and puts the original back when it is emptied', async () => {
       await set(required, 'Passport please');
       await set(required, 'Passport, nine months');
       expect((await list()).rewords[0]?.wording).toBe('Passport, nine months');
       await set(required, '   ');
       expect((await list()).rewords).toEqual([]);
-      await set(required, 'Something else');
-      await set(required, 'Valid passport, six months.');
+    });
+
+    it('treats a sentence of only hidden characters as empty, so a row title is never blank', async () => {
+      expect(tidyWording('\u200b\u200b')).toBe('');
+      expect(tidyWording('a\u202eb\ufeffc')).toBe('a b c');
+      await set(required, 'Real words');
+      await set(required, '\u200b\u200b');
       expect((await list()).rewords).toEqual([]);
+    });
+
+    it('says whether the words can be changed: open case with a checklist only', async () => {
+      expect((await list()).editable).toBe(true);
+      await db
+        .update(schema.missions)
+        .set({ state: 'CLOSED' })
+        .where(eq(schema.missions.id, missionId));
+      expect((await list()).editable).toBe(false);
+      const bare = await newCase('No checklist', null);
+      expect((await list(bare)).editable).toBe(false);
     });
 
     it('tidies control characters and spacing, and refuses a sentence that is too long', async () => {
@@ -329,6 +345,18 @@ describe('case checklist edits', () => {
       });
       expect(isErr(refused) && refused.error.code).toBe('forbidden');
       expect(await db.select().from(schema.caseChecklistEdits)).toEqual([]);
+      // The words are the traveller's own: a shared agency member cannot read them either.
+      await set(required, 'Private words');
+      const viewProof = await requireAccess(
+        db,
+        accountPrincipal(admin.value.id),
+        'VIEW_METADATA',
+        { missionId },
+        { purpose: 'collaboration' },
+      );
+      if (!isOk(viewProof)) throw new Error('view proof');
+      const read = await listCaseChecklistEdits(viewProof.value, missionId);
+      expect(isErr(read) && read.error.code).toBe('forbidden');
     });
   });
 
@@ -401,7 +429,7 @@ describe('case checklist edits', () => {
     it('reads as nothing and refuses to write in plain words, and readiness is unaffected', async () => {
       const before = await computeReadiness(db, missionId);
       const listed = await list();
-      expect(listed).toEqual({ available: false, rewords: [] });
+      expect(listed).toEqual({ available: false, editable: false, rewords: [] });
       const refused = await set(required, 'Hello');
       expect(isErr(refused) && refused.error.message).toContain('not switched on');
       expect(await computeReadiness(db, missionId)).toEqual(before);

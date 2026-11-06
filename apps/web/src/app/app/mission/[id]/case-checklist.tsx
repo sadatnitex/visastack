@@ -56,6 +56,8 @@ export interface CaseChecklistProps {
   readonly packName: string | null;
   /** The traveller may reword items: the case is open and the feature is switched on. */
   readonly wordingEditable?: boolean;
+  /** The longest sentence the service accepts, so the box and the service agree. */
+  readonly wordingMax?: number;
 }
 
 /**
@@ -73,6 +75,7 @@ export function CaseChecklist({
   explanations,
   packName,
   wordingEditable = false,
+  wordingMax = 400,
 }: CaseChecklistProps) {
   /** One checklist row (WP-SB2 moved it out of the group so a group can show its first rows). */
   const requirementRow = (r: RequirementDetailRow) => {
@@ -181,7 +184,10 @@ export function CaseChecklist({
           <WordingEditor
             missionId={missionId}
             packRequirementId={r.packRequirementId}
+            itemName={officialName}
+            original={officialName}
             current={r.myWording ?? ''}
+            maxLength={wordingMax}
           />
         ) : null}
       </>

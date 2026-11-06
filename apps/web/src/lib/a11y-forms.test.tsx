@@ -2916,7 +2916,10 @@ const ADMIN: readonly Case[] = [
     <wordingEditor.WordingEditor
       missionId={rowId()}
       packRequirementId={rowId()}
+      itemName="Valid passport."
+      original="Valid passport."
       current="My own words"
+      maxLength={400}
     />
   )),
   row('make a shared checklist our own', () => (

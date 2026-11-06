@@ -13,8 +13,7 @@ vi.mock('./readiness-gap-explain', async () => {
   const { stub } = await import('../../../../lib/next-mocks.test-support');
   return { ExplainGapButton: stub('ExplainGapButton') };
 });
-vi.mock('./suggest-correction', async () => {
-  const { stub } = await import('../../../../lib/next-mocks.test-support');
+vi.mock('./suggest-correction', () => {
   return {
     SuggestCorrection: ({ itemName }: { itemName: string }) => (
       <span data-suggest={itemName}>{`Suggest: ${itemName}`}</span>

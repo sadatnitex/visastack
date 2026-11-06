@@ -2,17 +2,12 @@
 
 import {
   type PackageChoiceInput,
-  accountPrincipal,
   confirmPackageHandoff,
   markPackageChangeReviewed,
   recordPackageChoice,
-  requireAccess,
 } from '@visastack/services';
-import { revalidatePath } from 'next/cache';
-import { unstable_rethrow } from 'next/navigation';
 import type { FormResult } from '../../../../components/form-feedback';
-import { reportServerError } from '../../../../lib/server-error';
-import { withSession } from '../../../../lib/session';
+import { UUID, withCaseProof } from './with-case-proof';
 
 type ActionState = FormResult;
 
@@ -21,9 +16,6 @@ type ActionState = FormResult;
  * out, mark the change as reviewed, confirm Prepared for Handoff). Each runs through the access
  * gate for the owner of this one case; the service checks everything again.
  */
-
-const CASE_UNAVAILABLE = 'This case is not available to you.';
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** One choice value from the form: a copy (`d:<id>` or `f:<id>`), `missing`, `exclude` or `clear`. */
 function readChoice(missionId: string, formData: FormData): PackageChoiceInput | string {
@@ -47,33 +39,6 @@ function readChoice(missionId: string, formData: FormData): PackageChoiceInput |
   return 'Choose what to use for this item.';
 }
 
-async function withCaseProof<T extends ActionState>(
-  missionId: string,
-  run: (proof: Parameters<typeof recordPackageChoice>[0]) => Promise<T>,
-): Promise<ActionState> {
-  if (!UUID.test(missionId)) return { ok: false, message: CASE_UNAVAILABLE };
-  try {
-    const outcome = await withSession(async ({ db, accountId }) => {
-      const proof = await requireAccess(
-        db,
-        accountPrincipal(accountId),
-        'MANAGE',
-        { missionId },
-        { purpose: 'self' },
-      );
-      if (!proof.ok) return { ok: false, message: CASE_UNAVAILABLE } satisfies ActionState;
-      return run(proof.value);
-    });
-    if (outcome.ok) revalidatePath(`/app/mission/${missionId}`);
-    return outcome;
-  } catch (error) {
-    // Signing in again (a redirect) goes ahead; anything else is a failed try they can repeat.
-    unstable_rethrow(error);
-    reportServerError('packageAction', error);
-    return { ok: false, message: 'Something went wrong. Try again.' };
-  }
-}
-
 export async function recordPackageChoiceAction(
   _prev: ActionState,
   formData: FormData,
@@ -87,7 +52,7 @@ export async function recordPackageChoiceAction(
       ...(input.startsWith('Say') ? { field: 'reason' } : { field: 'choice' }),
     };
   }
-  return withCaseProof(missionId, async (proof) => {
+  return withCaseProof(missionId, 'packageAction', async (proof) => {
     const saved = await recordPackageChoice(proof, input);
     if (!saved.ok) return { ok: false, message: saved.error.message };
     return { ok: true, message: 'Choice saved. Your package is up to date.' };
@@ -99,7 +64,7 @@ export async function markPackageChangeReviewedAction(
   formData: FormData,
 ): Promise<ActionState> {
   const missionId = String(formData.get('missionId') ?? '');
-  return withCaseProof(missionId, async (proof) => {
+  return withCaseProof(missionId, 'packageAction', async (proof) => {
     const reviewed = await markPackageChangeReviewed(proof, missionId);
     if (!reviewed.ok) return { ok: false, message: reviewed.error.message };
     return { ok: true, message: 'Marked as reviewed.' };
@@ -118,7 +83,7 @@ export async function confirmPackageHandoffAction(
       field: 'outsideStepsSeen',
     };
   }
-  return withCaseProof(missionId, async (proof) => {
+  return withCaseProof(missionId, 'packageAction', async (proof) => {
     const confirmed = await confirmPackageHandoff(proof, { missionId, outsideStepsSeen: true });
     if (!confirmed.ok) return { ok: false, message: confirmed.error.message };
     return {

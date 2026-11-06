@@ -8,6 +8,7 @@ import { isStarterPackKey } from '@visastack/core';
 import { aiAppLabel } from '@visastack/core/ai-features';
 import { createTranslator } from '@visastack/i18n';
 import {
+  CHECKLIST_WORDING_MAX,
   type ChangesSinceConfirmed,
   type Db,
   type NoPackReason,
@@ -300,9 +301,7 @@ export default async function MissionPage({
     const myWordings = new Map(
       (checklistEdits?.rewords ?? []).map((r) => [r.packRequirementId, r.wording] as const),
     );
-    const wordingEditable =
-      checklistEdits?.available === true &&
-      !['CLOSED', 'CANCELLED', 'SUBMITTED'].includes(mission.state);
+    const wordingEditable = checklistEdits?.editable === true;
     const complaintList = complaints.ok ? complaints.value.items : [];
     const complaintEventsById = new Map(
       await Promise.all(
@@ -941,6 +940,7 @@ export default async function MissionPage({
                 chosenByRequirement={data.evidenceLifecycle.chosenByRequirement}
                 packName={data.packInfo?.name ?? null}
                 wordingEditable={data.wordingEditable}
+                wordingMax={CHECKLIST_WORDING_MAX}
                 explanations={{
                   configured: data.explanationConfigured,
                   off:

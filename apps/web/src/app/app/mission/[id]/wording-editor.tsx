@@ -8,37 +8,50 @@ const INITIAL = { ok: true, message: '' };
 
 /**
  * One checklist item's wording, in the traveller's own words. The official sentence stays on the
- * row, and nothing here changes what the case needs. The words show only to the traveller.
+ * row, and nothing here changes what the case needs. The words show only to the traveller. One
+ * form holds both buttons, so its message stays on screen when the original comes back.
  */
 export function WordingEditor({
   missionId,
   packRequirementId,
+  itemName,
+  original,
   current,
+  maxLength,
 }: {
   readonly missionId: string;
   readonly packRequirementId: string;
+  /** The item's official name, so each editor on the page says which item it is for. */
+  readonly itemName: string;
+  /** How the item is named when nothing has been reworded. */
+  readonly original: string;
   /** The traveller's sentence now, or empty when the original is showing. */
   readonly current: string;
+  readonly maxLength: number;
 }) {
   const [state, action, pending] = useActionState(saveWordingAction, INITIAL);
-  const [backState, backAction, backPending] = useActionState(saveWordingAction, INITIAL);
   const id = `wording-${packRequirementId}`;
   return (
     <details className="lift-check-edit">
-      <summary>Edit Wording</summary>
+      <summary>
+        Edit Wording<span className="sr-only"> for {itemName}</span>
+      </summary>
       <form action={action} className="field-list">
         <input type="hidden" name="missionId" value={missionId} />
         <input type="hidden" name="packRequirementId" value={packRequirementId} />
+        <input type="hidden" name="original" value={original} />
         <div className="field-row">
           <label className="field-label" htmlFor={id}>
-            Your Wording
+            Your Wording<span className="sr-only"> for {itemName}</span>
           </label>
+          {/* Keyed by the saved sentence, so the box shows what is saved after a save or a reset. */}
           <textarea
+            key={current}
             id={id}
             name="wording"
             className="input"
             rows={2}
-            maxLength={400}
+            maxLength={maxLength}
             defaultValue={current}
           />
         </div>
@@ -46,24 +59,22 @@ export function WordingEditor({
           pending={pending}
           idle="Save Wording"
           busy="Saving"
+          label={`Save Wording for ${itemName}`}
           className="btn btn-secondary"
         />
-        <FormMessage result={state} pending={pending} pendingText="Saving" />
-      </form>
-      {current ? (
-        <form action={backAction}>
-          <input type="hidden" name="missionId" value={missionId} />
-          <input type="hidden" name="packRequirementId" value={packRequirementId} />
-          <input type="hidden" name="intent" value="original" />
+        {current ? (
           <SubmitButton
-            pending={backPending}
+            pending={pending}
             idle="Back to Original Wording"
             busy="Restoring"
+            label={`Back to Original Wording for ${itemName}`}
+            name="intent"
+            value="original"
             className="btn btn-secondary"
           />
-          <FormMessage result={backState} pending={backPending} pendingText="Restoring" />
-        </form>
-      ) : null}
+        ) : null}
+        <FormMessage result={state} pending={pending} pendingText="Saving" />
+      </form>
     </details>
   );
 }
