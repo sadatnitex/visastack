@@ -15,11 +15,13 @@ import {
   requirementProvenance,
 } from '@visastack/core';
 import { type SQL, and, eq, getTableColumns, isNotNull, lte, ne, sql } from 'drizzle-orm';
+import { AgencyChecklistScope, agencyChecklistScopeProblem } from './access/agency-checklist-scope';
 import { type StaffScope, staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { isHttpUrl } from './external-url';
+import { isUuid } from './lifecycle/foundation/ids';
 import {
   type ManifestExtras,
   NO_MANIFEST_EXTRAS,
@@ -543,20 +545,170 @@ const OPEN_DRAFT_WORDS =
   'This checklist already has a draft open. Finish it or publish it before starting another.';
 
 /**
+ * Who may change a checklist: platform staff holding PACK_MANAGE (any checklist), or an agency
+ * owner or admin through an `AgencyChecklistScope` (only a checklist that agency owns).
+ */
+export type PackEditor = StaffScope<'PACK_MANAGE'> | AgencyChecklistScope;
+
+/**
+ * The part of the editor check that needs no database: platform staff hold PACK_MANAGE, or an
+ * agency scope is genuine and fresh. Run first, so a refused caller never reaches a lookup or a
+ * lock. It is the check `packEditorProblem` starts with; ownership of the pack follows it.
+ */
+export function packEditorQuickProblem(editor: PackEditor): ServiceError | undefined {
+  return AgencyChecklistScope.isGenuine(editor)
+    ? agencyChecklistScopeProblem(editor)
+    : staffScopeProblem(editor, 'PACK_MANAGE');
+}
+
+/**
+ * The refusal for an editor that may not change this pack, or undefined. An agency's scope is
+ * checked as genuine and fresh, and the pack must belong to that agency: any other pack is "not
+ * found", so one agency can never learn that another agency's list exists.
+ */
+export async function packEditorProblem(
+  db: Db,
+  editor: PackEditor,
+  packId: string,
+): Promise<ServiceError | undefined> {
+  const quick = packEditorQuickProblem(editor);
+  if (quick) return quick;
+  if (AgencyChecklistScope.isGenuine(editor)) {
+    if (!isUuid(packId)) return serviceError('not_found', 'pack version not found');
+    const own = first(
+      await db
+        .select({ id: schema.packs.id })
+        .from(schema.packs)
+        .where(
+          and(
+            eq(schema.packs.id, packId),
+            eq(schema.packs.ownerOrganizationId, editor.organizationId),
+          ),
+        )
+        .limit(1),
+    );
+    return own ? undefined : serviceError('not_found', 'pack version not found');
+  }
+  return undefined;
+}
+
+/**
+ * Copies every item of one version into another (an open draft), with each item's rule details.
+ * `provenance` replaces how each item is presented when set (an agency's copy of a shared list is
+ * the agency's own). Returns how many items were copied. Runs inside the caller's transaction.
+ */
+export async function copyVersionItems(
+  tx: Db,
+  input: {
+    readonly fromVersionId: string;
+    readonly toVersionId: string;
+    readonly actorAccountId: string;
+    readonly provenance?: PackRequirement['provenance'];
+    /** Also copy who the version is for (application posts and travel window), for a copy into a new pack. */
+    readonly withRouteConditions?: boolean;
+  },
+): Promise<number> {
+  const items = await listRequirements(tx, input.fromVersionId);
+  const detailsPresent = await ruleDetailTablesPresent(tx);
+  if (input.withRouteConditions && detailsPresent) {
+    await tx.execute(sql`
+      insert into ${schema.packRouteConditions}
+        (pack_version_id, consular_posts, travel_from, travel_until, updated_by_account_id, updated_at)
+      select ${input.toVersionId}, c.consular_posts, c.travel_from, c.travel_until,
+             ${input.actorAccountId}, now()
+        from ${schema.packRouteConditions} c
+       where c.pack_version_id = ${input.fromVersionId}
+      on conflict do nothing`);
+  }
+  for (const item of items) {
+    const [made] = await tx
+      .insert(schema.packRequirements)
+      .values({
+        packVersionId: input.toVersionId,
+        kind: item.kind,
+        fieldKey: item.fieldKey,
+        docType: item.docType,
+        citation: item.citation,
+        optional: item.optional,
+        necessity: item.necessity,
+        provenance: input.provenance ?? item.provenance,
+        groupKey: item.groupKey,
+        groupMode: item.groupMode,
+        notes: item.notes,
+        maxAgeDays: item.maxAgeDays,
+        condition: item.condition,
+        sourceUrl: item.sourceUrl,
+        sourceTitle: item.sourceTitle,
+        publisher: item.publisher,
+        officialExtract: item.officialExtract,
+        interpretation: item.interpretation,
+        sourceType: item.sourceType,
+        observedDate: item.observedDate,
+        authorAccountId: input.actorAccountId,
+      })
+      .returning({ id: schema.packRequirements.id });
+    // The item's rule details (category, accepted form, validity) travel with it.
+    if (detailsPresent && made) {
+      await tx.execute(sql`
+        insert into pack_requirement_details
+          (pack_requirement_id, category, accepted_form, translation_needed, original_needed,
+           statement_period_months, valid_months_after_travel, effective_since,
+           updated_by_account_id, updated_at)
+        select ${made.id}, category, accepted_form, translation_needed, original_needed,
+               statement_period_months, valid_months_after_travel, effective_since,
+               ${input.actorAccountId}, now()
+          from pack_requirement_details
+         where pack_requirement_id = ${item.id}`);
+    }
+  }
+  return items.length;
+}
+
+/**
+ * Opens a draft of a pack for an editor, inside the caller's transaction (an agency's brand-new
+ * copy of a shared list starts here). Checks the editor may change this pack, then opens the draft
+ * the same way adding a version does and audits it.
+ */
+export async function openPackDraft(
+  tx: Db,
+  editor: PackEditor,
+  input: { readonly packId: string },
+): Promise<Result<PackVersion, ServiceError>> {
+  const denied = await packEditorProblem(tx, editor, input.packId);
+  if (denied) return err(denied);
+  const draft = await openDraftVersion(tx, {
+    actorAccountId: editor.accountId,
+    packId: input.packId,
+  });
+  await appendAuditEvent(tx, {
+    eventType: 'PACK_VERSION_OPENED',
+    actorAccountId: editor.accountId,
+    method: 'MANUAL',
+    result: 'ALLOWED',
+    resourceType: 'pack_version',
+    resourceId: draft.id,
+    metadata: { packId: input.packId, version: draft.version },
+  });
+  return ok(draft);
+}
+
+/**
  * A new draft of the pack that holds `fromPackVersionId`, with every item of that version copied in
  * the order they are read. Refused when the pack already has a draft open, so two people never
  * edit two copies. The copy and the new draft are made in one transaction.
  */
 export async function cloneVersionToDraft(
   db: Db,
-  staff: StaffScope<'PACK_MANAGE'>,
+  editor: PackEditor,
   input: { readonly fromPackVersionId: string },
 ): Promise<Result<PackVersion, ServiceError>> {
-  const denied = staffScopeProblem(staff, 'PACK_MANAGE');
-  if (denied) return err(denied);
+  const quick = packEditorQuickProblem(editor);
+  if (quick) return err(quick);
+  if (!isUuid(input.fromPackVersionId))
+    return err(serviceError('not_found', 'pack version not found'));
   const waiting = await packStudioWaiting(db);
   if (waiting) return waiting;
-  const actorAccountId = staff.accountId;
+  const actorAccountId = editor.accountId;
   return db.transaction(async (tx) => {
     const from = first(
       await tx
@@ -566,6 +718,8 @@ export async function cloneVersionToDraft(
         .limit(1),
     );
     if (!from) return err(serviceError('not_found', 'pack version not found'));
+    const denied = await packEditorProblem(tx, editor, from.packId);
+    if (denied) return err(denied);
     // One draft at a time: the pack row is locked, so two clicks at once cannot both pass the check.
     await tx
       .select({ id: schema.packs.id })
@@ -593,49 +747,11 @@ export async function cloneVersionToDraft(
       resourceId: draft.id,
       metadata: { packId: from.packId, version: draft.version },
     });
-    const items = await listRequirements(tx, from.id);
-    const detailsPresent = await ruleDetailTablesPresent(tx);
-    for (const item of items) {
-      const [made] = await tx
-        .insert(schema.packRequirements)
-        .values({
-          packVersionId: draft.id,
-          kind: item.kind,
-          fieldKey: item.fieldKey,
-          docType: item.docType,
-          citation: item.citation,
-          optional: item.optional,
-          necessity: item.necessity,
-          provenance: item.provenance,
-          groupKey: item.groupKey,
-          groupMode: item.groupMode,
-          notes: item.notes,
-          maxAgeDays: item.maxAgeDays,
-          condition: item.condition,
-          sourceUrl: item.sourceUrl,
-          sourceTitle: item.sourceTitle,
-          publisher: item.publisher,
-          officialExtract: item.officialExtract,
-          interpretation: item.interpretation,
-          sourceType: item.sourceType,
-          observedDate: item.observedDate,
-          authorAccountId: actorAccountId,
-        })
-        .returning({ id: schema.packRequirements.id });
-      // The item's rule details (category, accepted form, validity) travel with it.
-      if (detailsPresent && made) {
-        await tx.execute(sql`
-          insert into pack_requirement_details
-            (pack_requirement_id, category, accepted_form, translation_needed, original_needed,
-             statement_period_months, valid_months_after_travel, effective_since,
-             updated_by_account_id, updated_at)
-          select ${made.id}, category, accepted_form, translation_needed, original_needed,
-                 statement_period_months, valid_months_after_travel, effective_since,
-                 ${actorAccountId}, now()
-            from pack_requirement_details
-           where pack_requirement_id = ${item.id}`);
-      }
-    }
+    const copied = await copyVersionItems(tx, {
+      fromVersionId: from.id,
+      toVersionId: draft.id,
+      actorAccountId,
+    });
     await appendAuditEvent(tx, {
       eventType: 'PACK_VERSION_CLONED',
       actorAccountId,
@@ -643,7 +759,7 @@ export async function cloneVersionToDraft(
       result: 'ALLOWED',
       resourceType: 'pack_version',
       resourceId: draft.id,
-      metadata: { fromPackVersionId: from.id, items: items.length },
+      metadata: { fromPackVersionId: from.id, items: copied },
     });
     return ok(draft);
   });
@@ -1249,12 +1365,15 @@ export async function approvePackVersion(
       resourceId: updated.id,
       metadata: { checksum, manifestFormat, nextReviewDate: nextReviewDate.toISOString() },
     });
-    // OPS-04 source review: a reviewer signing off a version's sources.
-    await recordProductEvent(tx, {
-      eventType: 'SOURCE_REVIEWED',
-      accountId: input.actorAccountId,
-      dimension: 'VERSION_APPROVED',
-    });
+    // OPS-04 source review: a reviewer signing off a version's sources. An agency approving its
+    // own list is not a platform source review, so it is not counted.
+    if (!pack?.ownerOrganizationId) {
+      await recordProductEvent(tx, {
+        eventType: 'SOURCE_REVIEWED',
+        accountId: input.actorAccountId,
+        dimension: 'VERSION_APPROVED',
+      });
+    }
     return ok(updated);
   });
 }

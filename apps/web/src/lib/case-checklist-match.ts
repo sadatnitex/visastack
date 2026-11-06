@@ -128,12 +128,14 @@ export async function selectableChecklists(
   const route = savedCaseMatchTerms(mission.destination, mission.purpose);
   let fitting: readonly PackMatch[] | null = null;
   let starterFitting: readonly PackMatch[] = [];
+  let matchTerms: Awaited<ReturnType<typeof termsFor>> | undefined;
   let lookupFailed = false;
   if (route) {
     try {
       const terms = await termsFor(db, { accountId, missionId: mission.id, ...route });
       // A refused gate means the case's details could not be read: never "nothing fits".
       if (terms) {
+        matchTerms = terms;
         fitting = await listFittingPublicPacks(db, terms);
         // Starter lists for the same route are offered for the person to pick, kept apart from the
         // reviewed fit so they never count as one and are never linked automatically. They are an
@@ -157,6 +159,9 @@ export async function selectableChecklists(
   const listed = await listSelectablePackVersions(proof.value, {
     missionId: mission.id,
     ...(fitting ? { fitting: [...fitting, ...starterFitting] } : {}),
+    // The agency's own lists are narrowed to the case's country and purpose too, only when the
+    // route was read: a failed lookup keeps offering every list the agency owns, as before.
+    ...(matchTerms && !lookupFailed ? { matchTerms } : {}),
   });
   if (!listed.ok) {
     reportServerError('MissionPage', new Error(listed.error.code), {

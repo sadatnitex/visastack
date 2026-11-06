@@ -344,7 +344,10 @@ describe('workspace navigation link list (characterization)', () => {
       ['Case Activity', `${a}/activity`],
       ['Countries', `${a}/countries`],
     ]);
-    expect(pairs(admin.tools)).toEqual([['Plan & Usage', `${a}/plan`]]);
+    expect(pairs(admin.tools)).toEqual([
+      ['Checklists', `${a}/checklists`],
+      ['Plan & Usage', `${a}/plan`],
+    ]);
     expect(pairs(admin.settings)).toEqual([['Agency Settings', `${a}/settings`]]);
     const m = `/app/agency/${member}`;
     const worker = workspaceNavigation(m, linkAccess);

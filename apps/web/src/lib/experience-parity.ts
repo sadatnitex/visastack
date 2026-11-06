@@ -135,6 +135,7 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
   '/app/agency/[orgId]/cases': nav,
   '/app/agency/[orgId]/clients': nav,
   '/app/agency/[orgId]/collection': nav,
+  '/app/agency/[orgId]/checklists': nav,
   '/app/agency/[orgId]/countries': nav,
   '/app/agency/[orgId]/plan': nav,
   '/app/agency/[orgId]/settings': nav,
@@ -150,6 +151,10 @@ export const ROUTE_PARITY: Readonly<Record<string, ParityReach>> = {
   '/app/agency/[orgId]/collection/request': link(
     'app/app/agency/[orgId]/collection/page.tsx',
     '`${base}/request?id=',
+  ),
+  '/app/agency/[orgId]/checklists/edit': link(
+    'app/app/agency/[orgId]/checklists/page.tsx',
+    '/checklists/edit?pack=',
   ),
   '/app/agency/[orgId]/countries/[iso2]': link(
     'app/app/agency/[orgId]/countries/page.tsx',

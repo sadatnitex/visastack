@@ -270,7 +270,7 @@ interface PublicPackEvaluation {
 async function evaluatePublicPacks(
   db: Db,
   terms: PackMatchTerms,
-  kind: 'reviewed' | 'starter' = 'reviewed',
+  kind: 'reviewed' | 'starter' | { readonly agency: string } = 'reviewed',
 ): Promise<PublicPackEvaluation> {
   const countries = keySet(terms.country);
   const purposes = keySet(terms.purpose);
@@ -305,13 +305,18 @@ async function evaluatePublicPacks(
     .where(
       and(
         eq(schema.packVersions.status, 'PUBLISHED'),
-        kind === 'reviewed'
-          ? eq(schema.packs.authoritative, true)
+        typeof kind === 'object'
+          ? // An agency's own lists are read for that agency alone.
+            eq(schema.packs.ownerOrganizationId, kind.agency)
           : and(
-              eq(schema.packs.authoritative, false),
-              like(schema.packs.key, `${STARTER_KEY_PREFIX}%`),
+              isNull(schema.packs.ownerOrganizationId),
+              kind === 'reviewed'
+                ? eq(schema.packs.authoritative, true)
+                : and(
+                    eq(schema.packs.authoritative, false),
+                    like(schema.packs.key, `${STARTER_KEY_PREFIX}%`),
+                  ),
             ),
-        isNull(schema.packs.ownerOrganizationId),
         isNotNull(schema.packs.jurisdiction),
         isNotNull(schema.packs.purpose),
         inArray(sqlCoarseKey(schema.packs.jurisdiction), [...countries].map(coarseKey)),
@@ -385,6 +390,19 @@ export async function listFittingPublicPacks(db: Db, terms: PackMatchTerms): Pro
  */
 export async function listFittingStarterPacks(db: Db, terms: PackMatchTerms): Promise<PackMatch[]> {
   return (await evaluatePublicPacks(db, terms, 'starter')).fitting;
+}
+
+/**
+ * The published lists of one agency that fit a case's country and purpose, so the case's picker
+ * offers that agency's copy of the country and not every country it has copied. Read for the
+ * agency that owns the case; never offered to anyone else.
+ */
+export async function listFittingAgencyPacks(
+  db: Db,
+  terms: PackMatchTerms,
+  organizationId: string,
+): Promise<PackMatch[]> {
+  return (await evaluatePublicPacks(db, terms, { agency: organizationId })).fitting;
 }
 
 /**

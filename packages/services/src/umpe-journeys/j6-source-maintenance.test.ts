@@ -529,8 +529,10 @@ describe('J6 official-source maintenance', () => {
         .map((file) => path.relative(servicesDir, file));
       // The pack studio module itself and the one module that loads the starter country lists
       // (6 Nov 2026), which a person starts from a Pack Studio action and which runs the same
-      // studio steps; never the source check, AI, rule impact or any job.
-      expect(callers).toEqual(['packs.ts', 'starter-packs.ts']);
+      // studio steps, and the agency checklist module (6 Nov 2026), where an owner or admin changes
+      // only the lists their own agency owns, behind an AgencyChecklistScope; never the source
+      // check, AI, rule impact or any job.
+      expect(callers).toEqual(['agency-checklists.ts', 'packs.ts', 'starter-packs.ts']);
       // Wider net: any mention of the approve or publish names (an aliased import included) and any
       // direct write to pack_versions, across services and the web app. Services: only packs.ts
       // and the index re-export; web: only the staff Pack Studio actions a person presses.
@@ -549,9 +551,18 @@ describe('J6 official-source maintenance', () => {
           .map((file) => path.relative(base, file))
           .sort();
       expect(mentions(sourceFiles(servicesDir), servicesDir, named)).toEqual([
+        'agency-checklists.ts',
         'index.ts',
         'packs.ts',
         'starter-packs.ts',
+      ]);
+      // An agency publishes its own list only from the agency checklist page action a person presses.
+      expect(mentions(webFiles(webDir), webDir, /\bpublishAgencyDraft\b/)).toEqual([
+        'app/app/agency/[orgId]/checklists/actions.ts',
+      ]);
+      expect(mentions(sourceFiles(servicesDir), servicesDir, /\bpublishAgencyDraft\b/)).toEqual([
+        'agency-checklists.ts',
+        'index.ts',
       ]);
       // The loader is reached only by the staff action a person presses, never by a job or a worker.
       expect(mentions(webFiles(webDir), webDir, /\bapplyStarterPack\b/)).toEqual([

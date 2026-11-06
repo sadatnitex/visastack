@@ -36,7 +36,8 @@ A starter list is due for review 120 days after it is published and shows "revie
 ## Who can change what
 
 - Platform staff with the Pack Studio permission load and update the shared starter lists. A change reaches every new case that picks the list.
-- Agency owners and admins keeping their own copy of a list ("Make It Our Own") is the next package; until then an agency can build its own checklist for a client request, as before.
+- Agency owners and admins keep their own copy of any shared list ("Make It Our Own"), under Checklists in the agency workspace (an admin-only link). The copy belongs to that agency alone: only that agency's cases offer it (marked "your agency's list"), no other agency can see or change it, and the shared list is never touched. An agency changes its copy as a draft (change or remove items, add its own, with the wording a traveller reads), then publishes it as the next version. Cases already on an older version keep it. A change made by the platform to the shared list does not flow into an agency's copy, by design: the agency decided what its copy says.
+- A case worker who is not an owner or admin cannot change checklists. Every step checks the person live against the agency, and each change is recorded in the audit trail under the person who made it.
 
 ## What is not in this release
 

@@ -680,7 +680,7 @@ export default async function MissionPage({
       packOptions: choices.options.map(
         (p): PackOption => ({
           packVersionId: p.packVersionId,
-          label: `${p.packName} · v${p.version} · ${p.requirementCount} requirement${p.requirementCount === 1 ? '' : 's'}${p.starter ? ' · starter list, not official' : ''}${p.reviewOverdue ? ' · review due' : ''}`,
+          label: `${p.packName} · v${p.version} · ${p.requirementCount} requirement${p.requirementCount === 1 ? '' : 's'}${p.starter ? ' · starter list, not official' : ''}${p.ownedByCaseAgency ? " · your agency's list" : ''}${p.reviewOverdue ? ' · review due' : ''}`,
         }),
       ),
       noChecklistLines: choices.lookupFailed

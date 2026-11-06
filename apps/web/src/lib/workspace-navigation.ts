@@ -168,7 +168,10 @@ export function workspaceNavigation(
         { href: `${base}/activity`, label: 'Case Activity' },
         { href: `${base}/countries`, label: 'Countries' },
       ],
-      tools: [{ href: `${base}/plan`, label: 'Plan & Usage' }],
+      tools: [
+        ...(agency.admin ? [{ href: `${base}/checklists`, label: 'Checklists' }] : []),
+        { href: `${base}/plan`, label: 'Plan & Usage' },
+      ],
       settings: [...(agency.admin ? [{ href: `${base}/settings`, label: 'Agency Settings' }] : [])],
     };
   }

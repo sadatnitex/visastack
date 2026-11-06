@@ -729,7 +729,30 @@ export {
   verifyPackChecksum,
   withdrawPackVersion,
   cloneVersionToDraft,
+  type PackEditor,
 } from './packs';
+
+export {
+  AGENCY_CHECKLIST_REFUSAL,
+  type AgencyChecklistScope,
+  agencyChecklistPrincipal,
+} from './access/agency-checklist-scope';
+
+export {
+  type AgencyListDetail,
+  type AgencyOwnList,
+  type AgencyStartingList,
+  addAgencyItem,
+  discardAgencyDraft,
+  getAgencyListDetail,
+  listAgencyOwnLists,
+  listAgencyStartingLists,
+  makeAgencyCopy,
+  publishAgencyDraft,
+  removeAgencyItem,
+  startAgencyListUpdate,
+  updateAgencyItem,
+} from './agency-checklists';
 
 export { isHttpUrl, safeHttpUrl } from './external-url';
 
@@ -1834,6 +1857,7 @@ export {
   explainNoFittingPack,
   findMatchingPublicPack,
   listFittingPublicPacks,
+  listFittingAgencyPacks,
   listFittingStarterPacks,
   packMatchKey,
   readTravellerCoverage,

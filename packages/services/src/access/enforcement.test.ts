@@ -55,6 +55,9 @@ const GATE_TYPES = [
   // UMPE UX6: a live row of one trip's companions bound to the signed-in account (a joined companion,
   // or an invited person holding the emailed link). Minted only in access/trip-companion-access.ts.
   'TripCompanionAccess',
+  // Agency checklists: a live owner or admin of one open agency, minted only in
+  // access/agency-checklist-scope.ts and held to the reviewed list further down.
+  'AgencyChecklistScope',
 ] as const;
 
 /**
@@ -348,6 +351,7 @@ function gateDeclarations(
     'collection-response-access.ts',
     'guest-collection.ts',
     'trip-companion-access.ts',
+    'agency-checklist-scope.ts',
   ]) {
     const sf = sourceFileAt(program, path.join(accessDir, file));
     const moduleSymbol = checker.getSymbolAtLocation(sf);
@@ -1346,6 +1350,91 @@ describe('trip companion gate (UMPE UX6)', () => {
         `only the companion service and pages may call ${name}`,
       ).toEqual([]);
     }
+  }, 180_000);
+});
+
+/**
+ * Agency checklists (Owner, 6 Nov 2026): an `AgencyChecklistScope` counts as a full gate, so its
+ * scope (one open agency, and only the packs that agency owns) rests on each function's own WHERE
+ * clauses. Every function taking it, alone or inside a `PackEditor` union, is listed here, each
+ * reviewed for that scoping and tested in agency-checklists.test.ts. A new one fails until it is
+ * reviewed and added; an entry that no longer exists fails too. Each must also check the scope at
+ * run time before anything else (`agencyChecklistScopeProblem`, or `packEditorProblem` for the
+ * shared studio functions, which also refuses a pack the agency does not own).
+ */
+const AGENCY_CHECKLIST_FUNCTIONS = [
+  'agency-checklists#addAgencyItem',
+  'agency-checklists#discardAgencyDraft',
+  'agency-checklists#getAgencyListDetail',
+  'agency-checklists#listAgencyOwnLists',
+  'agency-checklists#listAgencyStartingLists',
+  'agency-checklists#makeAgencyCopy',
+  'agency-checklists#publishAgencyDraft',
+  'agency-checklists#removeAgencyItem',
+  'agency-checklists#startAgencyListUpdate',
+  'agency-checklists#updateAgencyItem',
+  'pack-draft-edit#removeDraftRequirement',
+  'pack-draft-edit#updateDraftRequirement',
+  'packs#cloneVersionToDraft',
+  'packs#openPackDraft',
+  'packs#packEditorProblem',
+  'packs#packEditorQuickProblem',
+] as const;
+
+describe('agency checklist gate', () => {
+  it('only the reviewed functions take an AgencyChecklistScope, and each checks it at run time', () => {
+    const { program } = programOnce();
+    const checker = program.getTypeChecker();
+    const decls = gateDeclarations(program, checker, ['AgencyChecklistScope']);
+    // A `PackEditor` is a union of the platform scope and this one: it counts when any member is.
+    const takes = (type: ts.Type): boolean =>
+      type.isUnion() ? type.types.some((t) => takes(t)) : isGateType(type, decls);
+    const found: string[] = [];
+    const problems: string[] = [];
+    for (const sf of program.getSourceFiles()) {
+      const fileName = real(sf.fileName);
+      if (sf.isDeclarationFile || !fileName.startsWith(srcDir + path.sep) || isTestFile(fileName)) {
+        continue;
+      }
+      if (fileName.startsWith(accessDir + path.sep)) continue;
+      for (const [name, shape] of exportedFunctions(checker, sf)) {
+        for (const fn of shape.fns) {
+          const params = fn.parameters.filter((p) => takes(checker.getTypeAtLocation(p)));
+          if (params.length === 0) continue;
+          const id = `${moduleId(fileName)}#${name}`;
+          found.push(id);
+          const names = new Set(params.map((p) => p.name.getText()));
+          let checks = false;
+          const visit = (node: ts.Node) => {
+            if (
+              ts.isCallExpression(node) &&
+              (isCall(node, 'agencyChecklistScopeProblem') ||
+                isCall(node, 'packEditorProblem') ||
+                isCall(node, 'packEditorQuickProblem')) &&
+              node.arguments.some((a) => ts.isIdentifier(a) && names.has(a.text))
+            ) {
+              checks = true;
+            }
+            ts.forEachChild(node, visit);
+          };
+          if (fn.body) visit(fn.body);
+          if (!checks) problems.push(`${id} does not check its gate at run time`);
+        }
+      }
+    }
+    expect([...new Set(found)].sort()).toEqual([...AGENCY_CHECKLIST_FUNCTIONS]);
+    expect(problems).toEqual([]);
+  }, 180_000);
+
+  it('only the agency checklist pages may make an AgencyChecklistScope', () => {
+    // The minting function takes a bare account id, which proves nothing by itself: the pages must
+    // pass the signed-in account of withSession. Keeping the callers to these pages keeps a form
+    // field or an address from ever naming the account.
+    const allowedDirs = [path.join(webSrcDir, 'app', 'app', 'agency', '[orgId]', 'checklists')];
+    expect(
+      mintUsers('agencyChecklistPrincipal', [], allowedDirs),
+      'only the agency checklist pages may call agencyChecklistPrincipal',
+    ).toEqual([]);
   }, 180_000);
 });
 

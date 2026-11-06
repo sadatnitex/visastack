@@ -5,6 +5,7 @@ import { AuthorizedApplicant } from './access';
 import { first, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import { type Mission, attachPackVersion } from './missions';
+import { type PackMatchTerms, listFittingAgencyPacks } from './pack-matching';
 import { NOT_FOUND_WORDS, selectionRefusal } from './pack-selectable';
 import type { PublishedPackVersion } from './packs';
 
@@ -84,6 +85,12 @@ export async function listSelectablePackVersions(
   input: {
     readonly missionId: string;
     readonly fitting?: readonly { readonly packVersionId: string }[];
+    /**
+     * The case's route terms. When given, an agency list that names a country and purpose is
+     * offered only if it fits them, so a copy of another country is not offered. Without them every
+     * list of the agency is offered, as before.
+     */
+    readonly matchTerms?: PackMatchTerms;
     readonly now?: Date;
   },
 ): Promise<Result<SelectablePackVersion[], ServiceError>> {
@@ -109,6 +116,8 @@ export async function listSelectablePackVersions(
       packVersionId: schema.packVersions.id,
       packKey: schema.packs.key,
       packName: schema.packs.name,
+      jurisdiction: schema.packs.jurisdiction,
+      purpose: schema.packs.purpose,
       version: schema.packVersions.version,
       authoritative: schema.packs.authoritative,
       ownerOrganizationId: schema.packs.ownerOrganizationId,
@@ -126,8 +135,20 @@ export async function listSelectablePackVersions(
     );
 
   const fittingIds = input.fitting ? new Set(input.fitting.map((f) => f.packVersionId)) : null;
+  const agencyIds =
+    caseAgencyId && input.matchTerms
+      ? new Set(
+          (await listFittingAgencyPacks(db, input.matchTerms, caseAgencyId)).map(
+            (f) => f.packVersionId,
+          ),
+        )
+      : null;
   const allowed = rows.filter((row) => {
-    if (row.ownerOrganizationId !== null) return true;
+    if (row.ownerOrganizationId !== null) {
+      // An agency list with no country or purpose cannot be matched, so it stays offered.
+      if (agencyIds === null || row.jurisdiction === null || row.purpose === null) return true;
+      return agencyIds.has(row.packVersionId);
+    }
     // A starter checklist needs a route to fit; without one nothing starter is offered.
     if (isStarterPackKey(row.packKey)) {
       return fittingIds?.has(row.packVersionId) === true;
