@@ -90,6 +90,7 @@ vi.mock('../app/app/agency/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/team/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/collection/actions', standIn);
+vi.mock('../app/app/agency/[orgId]/checklists/actions', standIn);
 vi.mock('../app/collect/account/actions', standIn);
 vi.mock('../app/collect/actions', standIn);
 vi.mock('../app/app/agency/[orgId]/collection/collection-review-actions', standIn);
@@ -155,6 +156,7 @@ const correctionForms = await import('../app/app/admin/packs/corrections/correct
 const correctionForm = await import('../components/checklist-correction-form');
 const caseCorrectionActions = await import('../app/app/mission/[id]/suggest-correction-actions');
 const collectionForms = await import('../app/app/agency/[orgId]/collection/collection-forms');
+const checklistForms = await import('../app/app/agency/[orgId]/checklists/checklist-forms');
 const responseForms = await import('../app/collect/account/response-form');
 const guestForms = await import('../app/collect/guest-forms');
 const guestFileForms = await import('../app/collect/guest-files');
@@ -2908,6 +2910,36 @@ const ADMIN: readonly Case[] = [
       wording="Valid passport."
       appliesWhen="All applicants"
     />
+  )),
+  row('make a shared checklist our own', () => (
+    <checklistForms.CopyListButton
+      organizationId={rowId()}
+      packVersionId={rowId()}
+      name="Japan Tourist Starter List"
+    />
+  )),
+  row('open a draft of our checklist', () => (
+    <checklistForms.StartChangesButton organizationId={rowId()} packId="pk1" />
+  )),
+  row('change or remove one item of our checklist', () => (
+    <checklistForms.ItemEditor
+      organizationId={rowId()}
+      packId="pk1"
+      requirementId={rowId()}
+      docType="PASSPORT"
+      necessity="MANDATORY"
+      wording="Valid passport."
+      appliesWhen="All applicants"
+    />
+  )),
+  row('add an item to our checklist', () => (
+    <checklistForms.AddItemForm organizationId={rowId()} packId="pk1" packVersionId={rowId()} />
+  )),
+  row('publish our checklist', () => (
+    <checklistForms.PublishButton organizationId={rowId()} packId="pk1" packVersionId={rowId()} />
+  )),
+  row('discard the draft of our checklist', () => (
+    <checklistForms.DiscardButton organizationId={rowId()} packId="pk1" packVersionId={rowId()} />
   )),
   {
     name: 'load the starter country lists',

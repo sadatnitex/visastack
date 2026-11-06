@@ -1,13 +1,14 @@
 import { type Result, err, ok } from '@visastack/core';
 import { and, desc, eq } from 'drizzle-orm';
-import { type StaffScope, staffScopeProblem } from './access/principal';
 import { appendAuditEvent } from './audit';
 import { type Db, first, required, schema } from './db';
 import { type ServiceError, serviceError } from './errors';
 import {
+  type PackEditor,
   type PackRequirement,
   type PackVersion,
   citationProblem,
+  packEditorProblem,
   packStudioWaiting,
 } from './packs';
 
@@ -63,14 +64,12 @@ async function draftItem(
 /** Changes one item of a draft: its document type, how necessary it is, its wording or its source. */
 export async function updateDraftRequirement(
   db: Db,
-  staff: StaffScope<'PACK_MANAGE'>,
+  editor: PackEditor,
   input: {
     readonly requirementId: string;
     readonly patch: DraftRequirementPatch;
   },
 ): Promise<Result<PackRequirement, ServiceError>> {
-  const denied = staffScopeProblem(staff, 'PACK_MANAGE');
-  if (denied) return err(denied);
   const waiting = await packStudioWaiting(db);
   if (waiting) return waiting;
   const { patch } = input;
@@ -96,7 +95,9 @@ export async function updateDraftRequirement(
   return db.transaction(async (tx) => {
     const found = await draftItem(tx, input.requirementId);
     if (!found.ok) return found;
-    const { item } = found.value;
+    const { item, version } = found.value;
+    const refused = await packEditorProblem(tx, editor, version.packId);
+    if (refused) return err(refused);
     if (patch.docType !== undefined && item.kind !== 'DOCUMENT') {
       return err(serviceError('invalid', 'only a document item has a document type'));
     }
@@ -129,7 +130,7 @@ export async function updateDraftRequirement(
     );
     await appendAuditEvent(tx, {
       eventType: 'PACK_REQUIREMENT_CHANGED',
-      actorAccountId: staff.accountId,
+      actorAccountId: editor.accountId,
       method: 'MANUAL',
       result: 'ALLOWED',
       resourceType: 'pack_version',
@@ -143,21 +144,21 @@ export async function updateDraftRequirement(
 /** Removes one item from a draft. Never from a version that has been approved or published. */
 export async function removeDraftRequirement(
   db: Db,
-  staff: StaffScope<'PACK_MANAGE'>,
+  editor: PackEditor,
   input: { readonly requirementId: string },
 ): Promise<Result<{ readonly removed: true }, ServiceError>> {
-  const denied = staffScopeProblem(staff, 'PACK_MANAGE');
-  if (denied) return err(denied);
   const waiting = await packStudioWaiting(db);
   if (waiting) return waiting;
   return db.transaction(async (tx) => {
     const found = await draftItem(tx, input.requirementId);
     if (!found.ok) return found;
-    const { item } = found.value;
+    const { item, version } = found.value;
+    const refused = await packEditorProblem(tx, editor, version.packId);
+    if (refused) return err(refused);
     await tx.delete(schema.packRequirements).where(eq(schema.packRequirements.id, item.id));
     await appendAuditEvent(tx, {
       eventType: 'PACK_REQUIREMENT_REMOVED',
-      actorAccountId: staff.accountId,
+      actorAccountId: editor.accountId,
       method: 'MANUAL',
       result: 'ALLOWED',
       resourceType: 'pack_version',
