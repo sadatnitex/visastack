@@ -298,7 +298,7 @@ export function CaseProgressSummary({
             </p>
           ) : null}
           <p className="case-confirmation-state">
-            <strong>Traveller confirmation: </strong>
+            <strong>Your confirmation: </strong>
             {confirmation}
           </p>
         </>

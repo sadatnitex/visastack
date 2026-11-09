@@ -520,3 +520,12 @@ Owner, 5 Nov 2026: no page should have more than 30 words. Every traveller-side 
 | My Profile | The nationality and created-date line and the title of "You Decide What Becomes a Fact" are marked as data / label. | None. |
 
 Safety and consent wording shortened on a screen (full wording one tap away): the permission meanings above, the checking line, the preview-blocked reason and the failed-file next step. Every other consent, warning, "not scanned" and error line is unchanged.
+
+## 09. Case: package 0 of the case page plan (9 Nov 2026)
+
+| Was | Now | Level |
+|---|---|---|
+| "Traveller has not confirmed yet", "Confirmed by the traveller on <date>", "Traveller confirmation:" | "You have not confirmed this case yet", "You confirmed this case on <date>", "Your confirmation:" | always |
+| Header buttons Start a New Case from This One and Take a Snapshot at every level | Browse and deeper (still in More on a phone and in the page); Add Evidence stays at every level | Browse |
+| The 8-link section row at every level | Row hidden at Glance; each link carries the level of its section | Browse |
+| "Requested by Your Agency" on an agency-added line with no agency on the case | "Added by an Agency" (with an agency on the case it still reads "Requested by Your Agency"); starter lines read "Starter List, Not Official" | always |

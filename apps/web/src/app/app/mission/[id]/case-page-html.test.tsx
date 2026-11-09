@@ -96,7 +96,7 @@ const CATEGORIES = [
 ] as const;
 const ITEMS = 60;
 
-const requirements = Array.from({ length: ITEMS }, (_, i) => ({
+const everyRequirement = Array.from({ length: ITEMS }, (_, i) => ({
   id: `req-${i}`,
   kind: i % 5 === 0 ? ('FIELD' as const) : ('DOCUMENT' as const),
   key: i % 5 === 0 ? 'full_name' : 'bank_statement',
@@ -105,11 +105,72 @@ const requirements = Array.from({ length: ITEMS }, (_, i) => ({
   optional: i % 9 === 8,
 }));
 
+/** A starter list holds about this many lines (the Japan list has 19). */
+const STARTER_ITEMS = 19;
+/** The requirements of the case under test: the worst case, or a starter-sized list. */
+let requirements = everyRequirement;
+
+/** The case's trip package for the same checklist: one item per applicable requirement, each with a copy. */
+function casePackage() {
+  const copy = {
+    kind: 'DOCUMENT' as const,
+    documentId: 'doc-1',
+    documentVersionId: 'dv-1',
+    factId: null,
+    factVersionId: null,
+    displayName: 'Specimen bank statement',
+    documentDate: '2026-10-01',
+    usable: true,
+    tooOld: false,
+    conflicting: false,
+  };
+  return {
+    missionId: CASE_ID,
+    phrase: 'NEEDS_ATTENTION' as const,
+    reasons: ['REQUIRED_GAP' as const],
+    overallState: 'NEEDS_ACTION' as const,
+    requiredCount: requirements.filter((r) => !r.optional).length,
+    satisfiedRequired: requirements.filter((r) => r.state === 'SATISFIED').length,
+    items: requirements
+      .filter((r) => r.state !== 'NOT_APPLICABLE')
+      .map((r) => ({
+        packRequirementId: r.id,
+        kind: r.kind,
+        key: r.key,
+        citation: 'Bank statement for the last 6 months, stamped by the bank',
+        necessity: 'MANDATORY' as const,
+        provenance: 'OFFICIAL' as const,
+        groupKey: null,
+        state: r.state,
+        blocking: !r.optional,
+        proposed: r.kind === 'DOCUMENT' ? copy : null,
+        chosen: null,
+        alternatives: [],
+        newerCopy: null,
+        canExclude: r.optional,
+      })),
+    questions: [],
+    freshness: null,
+    outsideSteps: [
+      {
+        kind: 'APPLICATION_FORM' as const,
+        label: 'Fill in the official application form',
+        namedByChecklist: false,
+      },
+    ],
+    latestHandoff: null,
+    change: null,
+    available: true,
+    active: true,
+  };
+}
+
 /** The first `limit` of `total` rows, as a capped read answers. */
 const page = <T,>(total: number, limit: number | undefined, row: (i: number) => T) =>
   Array.from({ length: Math.min(total, limit ?? total) }, (_, i) => row(i));
 
-function setUp() {
+function setUp(count = ITEMS) {
+  requirements = everyRequirement.slice(0, count);
   mocks.getMissionForOwner.mockResolvedValue(
     ok({
       id: CASE_ID,
@@ -196,7 +257,9 @@ function setUp() {
     new Map([['https://www.bd.emb-japan.go.jp/itpr_en/visa.html', daysAgo(3)]]),
   );
   mocks.caseExpiryConflicts.mockResolvedValue([]);
-  mocks.getCasePackage.mockResolvedValue(ok(null));
+  // The Trip Package lists every applicable item again with its own choice form, so the worst case
+  // must carry it: without it the budget never measured the longest block on the page.
+  mocks.getCasePackage.mockResolvedValue(ok(casePackage()));
   mocks.getPackVersion.mockResolvedValue({
     packId: 'p1',
     version: 4,
@@ -326,6 +389,9 @@ function setUp() {
   mocks.listAcknowledgementsForMission.mockResolvedValue(ok([]));
 }
 
+const applicable = (count: number) =>
+  everyRequirement.slice(0, count).filter((r) => r.state !== 'NOT_APPLICABLE').length;
+
 describe('the real case page with worst-case data', () => {
   it('renders every part of the page from it, and writes the markup for the scroll budget check', async () => {
     setUp();
@@ -345,10 +411,27 @@ describe('the real case page with worst-case data', () => {
     // The capped lists show their first rows, not all of them.
     expect((html.match(/id="case-task-/g) ?? []).length).toBe(10);
     expect((html.match(/id="case-note-/g) ?? []).length).toBe(10);
+    // The Trip Package is on the page and lists every applicable item, so the budget measures it.
+    expect(html).toContain('Trip Package');
+    expect((html.match(/class="package-item"/g) ?? []).length).toBe(applicable(ITEMS));
     const out = readEnv(OUT_VARIABLE);
     if (out) {
       mkdirSync(dirname(out), { recursive: true });
       writeFileSync(out, html);
     }
+  });
+
+  it('draws a starter-sized list with its package, so the totals are checked at the size people get', async () => {
+    setUp(STARTER_ITEMS);
+    const html = await renderServer(
+      await MissionPage({
+        params: Promise.resolve({ id: CASE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(html).toContain('Evidence Checklist');
+    expect((html.match(/class="package-item"/g) ?? []).length).toBe(applicable(STARTER_ITEMS));
+    // Every checklist row is on the page once, whatever group holds it.
+    expect((html.match(/class="lift-check/g) ?? []).length).toBeGreaterThanOrEqual(STARTER_ITEMS);
   });
 });

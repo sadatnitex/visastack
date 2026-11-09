@@ -226,7 +226,7 @@ describe('case page as it is today (WP-X1 characterization)', () => {
     const html = await render();
     const text = textOf(html);
     expect(text).toContain('Japan visitor visa');
-    expect(text).toContain('Traveller has not confirmed yet');
+    expect(text).toContain('You have not confirmed this case yet');
     expect(text).toContain('Nothing needs attention right now');
     expect(html).toContain('aria-label="Actual case workflow state"');
     expect(html).toContain('aria-current="step"');
@@ -484,7 +484,32 @@ describe('case journey view (WP-X1)', () => {
     expect(text).toContain('Bank Statement · Mandatory');
     expect(text).toContain('Any One of These: Bank Statement or Sponsor Letter');
     expect(text).toContain('Hotel Booking · Recommended');
-    expect(text).toContain('Requested by Your Agency');
+    // No agency has access, so the line says who added the item, not who asked.
+    expect(text).toContain('Added by an Agency');
+    expect(text).not.toContain('Requested by Your Agency');
+    // Once an agency can see the case, it did ask.
+    mocks.listAccessForApplicant.mockResolvedValue(
+      ok([
+        {
+          id: 'g-live',
+          applicantId: 'synthetic-family',
+          recipientAccountId: null,
+          recipientOrganizationId: 'org-a',
+          missionId: null,
+          actions: ['VIEW_METADATA'],
+          categories: null,
+          documentIds: null,
+          documentScopeSnapshot: null,
+          purpose: 'review',
+          status: 'ACTIVE',
+          acceptedAt: new Date('2026-10-01T00:00:00Z'),
+          startAt: new Date('2026-10-01T00:00:00Z'),
+          expiryAt: null,
+          caseExceptions: [],
+        },
+      ]),
+    );
+    expect(textOf(await render())).toContain('Requested by Your Agency');
     // Two alternatives are one item to provide.
     expect(text).toMatch(/Fix 1 required item(?!s)/);
   });
@@ -946,8 +971,14 @@ describe('the case on Glance, Browse and Everything (CCD-4)', () => {
     for (const id of ['#evidence', '#outcome', '#snapshots']) {
       expect(levelOf(doc, id), id).toBe('everything');
     }
-    // The section links themselves are at every level.
-    expect(levelOf(doc, 'nav.jump-nav')).toBe('glance');
+    // The section links show at the level their section shows at, so a link never points at a
+    // hidden block: the row of links starts at Browse, and each link carries its target's level.
+    expect(levelOf(doc, 'nav.jump-nav')).toBe('browse');
+    expect(levelOf(doc, 'nav.jump-nav a[href="#readiness"]')).toBe('browse');
+    for (const link of doc.querySelectorAll<HTMLElement>('nav.jump-nav a[data-level]')) {
+      const target = link.getAttribute('href') ?? '';
+      expect(link.getAttribute('data-level'), target).toBe(levelOf(doc, target));
+    }
     expect(doc.querySelectorAll('#readiness')).toHaveLength(1);
   });
 
@@ -1184,12 +1215,16 @@ describe('WP-SB2: a worst-case case stays short', () => {
   it('folds the header actions into More on a phone and keeps the next step in reach', async () => {
     setUp({ requirements: ['CRITICAL_GAP'] });
     const page = await doc(await renderWith({}));
-    const wide = page.querySelector('.page-actions .case-header-wide');
+    // At Glance the header holds the one job; the other two show from Browse and stay in More.
+    const [wide, deeper] = [...page.querySelectorAll('.page-actions .case-header-wide')];
     expect([...(wide?.querySelectorAll('a') ?? [])].map((a) => a.textContent)).toEqual([
       'Add Evidence',
+    ]);
+    expect(deeper?.getAttribute('data-level')).toBe('browse');
+    expect([...(deeper?.querySelectorAll('a') ?? [])].map((a) => a.textContent)).toEqual([
       'Start a New Case from This One',
     ]);
-    expect(wide?.querySelector('[data-stub="SnapshotButton"]')).not.toBeNull();
+    expect(deeper?.querySelector('[data-stub="SnapshotButton"]')).not.toBeNull();
     const bar = page.querySelector('.case-sticky-next fieldset.sticky-action-bar');
     expect(bar?.querySelector('legend')?.textContent).toBe('Next Step');
     expect(bar?.querySelector('output')?.textContent).toBe('0 of 1 \u00b7 1 to fix');
@@ -1652,8 +1687,8 @@ describe('the case status card and the checklist (WP-LIFT-A)', () => {
   it('shows the traveller confirmation beside the card, not as a second summary', async () => {
     setUp({ requirements: ['SATISFIED'] });
     const text = textOf(await render());
-    expect(text).toContain('Traveller confirmation: Awaiting confirmation');
-    expect(text.match(/Traveller confirmation/g)).toHaveLength(1);
+    expect(text).toContain('Your confirmation: Awaiting confirmation');
+    expect(text.match(/Your confirmation/g)).toHaveLength(1);
   });
 
   it('gives each open row one action and no arrow, and finished rows one line', async () => {
