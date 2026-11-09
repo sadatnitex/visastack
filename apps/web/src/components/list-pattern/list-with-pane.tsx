@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useMediaQuery } from '../../lib/use-popover';
 import { PANE_SHEET_QUERY } from './pane-query';
+import { useSheetBehaviour } from './use-sheet';
 
 /** One item's panel, drawn by the server. */
 export interface PaneEntry {
@@ -11,9 +12,6 @@ export interface PaneEntry {
   readonly title: string;
   readonly content: ReactNode;
 }
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
 /** The address with the chosen item set or removed, everything else on it left alone. */
 function withItem(param: string, id: string | null): URL {
@@ -157,47 +155,18 @@ export function ListWithPane({
 
   // The panel takes focus when it opens by a click; Esc closes it; on a narrow screen Tab stays in
   // the full screen and the page behind it does not scroll.
-  useEffect(() => {
-    if (selected === null) return;
-    if (takeFocus.current) {
+  useSheetBehaviour({
+    open: selected !== null,
+    trap: sheetShown,
+    panel: pane,
+    focusKey: selected,
+    onClose: () => closeRef.current(),
+    shouldFocus: () => {
+      const take = takeFocus.current;
       takeFocus.current = false;
-      pane.current?.focus();
-    }
-    const previous = document.body.style.overflow;
-    if (sheetShown) document.body.style.overflow = 'hidden';
-    const onKey = (event: KeyboardEvent) => {
-      // A menu or question inside the panel that already used Escape keeps it for itself.
-      if (event.key === 'Escape' && !event.defaultPrevented) {
-        closeRef.current();
-        return;
-      }
-      if (event.key !== 'Tab' || !sheetShown) return;
-      const panel = pane.current;
-      if (!panel) return;
-      const focusable = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
-        (node) => node.offsetParent !== null,
-      );
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (!first || !last) return;
-      const active = document.activeElement;
-      if (!panel.contains(active) || active === panel) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-      } else if (event.shiftKey && active === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = previous;
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [selected, sheetShown]);
+      return take;
+    },
+  });
 
   return (
     <div className="lp-root" ref={root} data-pattern="list-with-pane">
