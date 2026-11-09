@@ -7,7 +7,8 @@ import { formatTimestampDate } from '../lib/format-date';
 import { agree, plural } from '../lib/plural';
 import { useMediaQuery } from '../lib/use-popover';
 import { Icon } from './icons';
-import { ListFilterBar, useSheetBehaviour } from './list-pattern';
+import { ListFilterBar } from './list-pattern';
+import { useSheetBehaviour } from './list-pattern/use-sheet';
 import { EmptyState, StatusBadge } from './ui';
 
 export interface WalletBrowserDocument {

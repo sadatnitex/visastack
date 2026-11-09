@@ -28,8 +28,10 @@ describe('type on the case page is consistent', () => {
     expect(css.match(/\/\* WP-TS1 /g)).toHaveLength(1);
   });
 
-  it('makes a folder header smaller than a row name (14px against 16px)', () => {
-    expect(block).toMatch(/\.lift-group \.case-group-heading\s*\{[^}]*font-size:\s*0\.875rem/);
+  it('makes a folder header smaller than a row name (the 14px token against 16px)', () => {
+    expect(block).toMatch(
+      /\.lift-group \.case-group-heading\s*\{[^}]*font-size:\s*var\(--text-small\)/,
+    );
     expect(lastSize('.row-key')).toBe('var(--text-body)');
     expect(css).toMatch(/--text-body:\s*1rem;/);
   });

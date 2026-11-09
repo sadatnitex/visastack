@@ -19709,7 +19709,7 @@ article.card:has(> .trip-start-form) {
 
 /* WP-TS1 One size for the same kind of thing on the case page (owner screenshot, 9 Nov 2026): a folder header is a quieter 14px label so a row's 16px name reads first, the small blue fold links all share one size and sit on the card's left edge, and the header badge matches the line beside it. Flat, existing tokens only. */
 .lift-group .case-group-heading {
-  font-size: 0.875rem;
+  font-size: var(--text-small);
   letter-spacing: 0.01em;
   color: var(--text-secondary);
 }
