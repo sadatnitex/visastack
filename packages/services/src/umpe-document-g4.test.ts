@@ -609,7 +609,10 @@ describe('family files', () => {
   });
 
   it('reminds once after 7 days, and sends nothing once the file is filed', async () => {
-    const start = new Date('2026-11-01T10:00:00Z');
+    // Relative to the real clock: the reminders the worker finds are created with the database
+    // clock, so a fixed date in the past makes "8 days later" fall behind them once it is old
+    // enough (this test began to fail on 9 Nov 2026 for that reason alone).
+    const start = new Date(Date.now() - 60 * 1000);
     const held = await hold('4c9f8c1e-2d3a-4c5b-8e7f-6a5b4c3d2e1f', 'nothing useful', start);
     if (held.kind !== 'held') throw new Error('not held');
     const later = new Date(start.getTime() + 8 * 24 * 60 * 60 * 1000);
