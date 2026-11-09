@@ -630,6 +630,13 @@ export default async function MissionPage({
       casePackage,
       formatLines,
       openItem: firstParam(itemShow) ?? null,
+      // The address as it came, one value per name, so a no-script link to an item keeps the rest.
+      currentQuery: Object.fromEntries(
+        Object.entries(query).flatMap(([name, value]) => {
+          const first = firstParam(value);
+          return first === undefined ? [] : [[name, first] as const];
+        }),
+      ) as Record<string, string>,
       caseSources,
       expiringDocuments: expiryConflicts.map((c) => ({
         documentId: c.documentId,
@@ -834,6 +841,11 @@ export default async function MissionPage({
       ),
     ),
   };
+  const itemHref = (id: string) => {
+    const next = new URLSearchParams(data.currentQuery);
+    next.set('item', id);
+    return `?${next.toString()}#readiness`;
+  };
   const checklistIds = new Set(data.requirementDetails.map((r) => r.packRequirementId));
   // One panel per checklist item; the package choice of an item sits in its own panel.
   const checklistPanes = hasChecklist
@@ -842,7 +854,6 @@ export default async function MissionPage({
         applicantId: data.applicantId,
         rows: data.requirementDetails,
         chosenByRequirement: data.evidenceLifecycle.chosenByRequirement,
-        packName: data.packInfo?.name ?? null,
         wordingEditable: data.wordingEditable,
         wordingMax: CHECKLIST_WORDING_MAX,
         selfReviewed: data.selfReviewed,
@@ -999,15 +1010,11 @@ export default async function MissionPage({
             <div className="lift-case-checklist">
               {hasChecklist ? (
                 <CaseChecklist
-                  missionId={mission.id}
                   applicantId={data.applicantId}
                   rows={data.requirementDetails}
-                  chosenByRequirement={data.evidenceLifecycle.chosenByRequirement}
                   packName={data.packInfo?.name ?? null}
-                  wordingEditable={data.wordingEditable}
-                  wordingMax={CHECKLIST_WORDING_MAX}
-                  selfReviewed={data.selfReviewed}
-                  explanations={explanations}
+                  itemHref={itemHref}
+                  openItem={data.openItem}
                 />
               ) : null}
               {data.readiness && data.expiringDocuments.length > 0 ? (

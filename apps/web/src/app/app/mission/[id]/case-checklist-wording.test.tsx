@@ -57,7 +57,12 @@ function Both({ rows, editable = true }: { rows: RequirementDetailRow[]; editabl
   const given = props(rows, editable);
   return (
     <>
-      <CaseChecklist {...given} />
+      <CaseChecklist
+        applicantId={given.applicantId}
+        rows={given.rows}
+        packName={given.packName}
+        itemHref={(id) => `?item=${id}`}
+      />
       {caseItemPanes({
         ...given,
         packageItems: new Map(),

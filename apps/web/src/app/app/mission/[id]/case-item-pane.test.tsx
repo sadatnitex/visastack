@@ -168,9 +168,10 @@ describe('the item panel', () => {
     expect(textOf(closed)).toContain('Suggested: Passport Scan (2026-10-01).');
   });
 
-  it('keeps the reason for leaving an item out in the page, hidden until Leave Out is picked', async () => {
+  it('keeps the reason for leaving an item out in the page, and shown until the page script runs', async () => {
     const html = await pane({ packageItem: item, packageEditable: true });
-    expect(html).toMatch(/<div hidden="" class="package-reason">/);
+    expect(html).toContain('class="package-reason"');
+    expect(html).not.toMatch(/<div hidden="" class="package-reason">/);
     expect(html).toContain('name="reason"');
   });
 

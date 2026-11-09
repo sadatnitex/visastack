@@ -35,26 +35,42 @@ export interface ChecklistExplanations {
   readonly byRequirement: ReadonlyMap<string, string | null>;
 }
 
+/** What the rows of the checklist need. */
 export interface CaseChecklistProps {
-  readonly missionId: string;
   readonly applicantId: string;
   /** Every checklist row of the case, in checklist order (`requirementDetails`). */
+  readonly rows: readonly RequirementDetailRow[];
+  /** The checklist the rows come from, named beside the heading; null when it could not be read. */
+  readonly packName: string | null;
+  /**
+   * The address that opens one item's panel without script. It keeps the rest of the address, so a
+   * list the person had expanded stays expanded.
+   */
+  readonly itemHref: (id: string) => string;
+  /** The item named by the address, if any: its folder starts open. */
+  readonly openItem?: string | null | undefined;
+}
+
+/** What the panels of the items need (the rows do not read any of it). */
+export interface CaseItemPanesProps {
+  readonly missionId: string;
+  readonly applicantId: string;
   readonly rows: readonly RequirementDetailRow[];
   /** The chosen document names per checklist item (`evidenceLifecycle.chosenByRequirement`). */
   readonly chosenByRequirement: Readonly<Record<string, readonly string[] | undefined>>;
   readonly explanations: ChecklistExplanations;
-  /** The checklist the rows come from, named beside the heading; null when it could not be read. */
-  readonly packName: string | null;
   /** The traveller may reword items: the case is open and the feature is switched on. */
   readonly wordingEditable?: boolean;
   /** The longest sentence the service accepts, so the box and the service agree. */
   readonly wordingMax?: number;
   /** No agency has access to the case: an agency-added item says who added it, not who asked. */
   readonly selfReviewed?: boolean;
+  readonly packageItems: ReadonlyMap<string, PackageItem>;
+  /** The traveller may still change what the package uses: the package is open. */
+  readonly packageEditable: boolean;
+  /** How each document must be provided, by item (the checklist's format rules). */
+  readonly formatLines: Readonly<Record<string, readonly string[]>>;
 }
-
-/** The address that opens one item's panel without script; the page returns to the checklist. */
-const itemHref = (id: string) => `?item=${encodeURIComponent(id)}#readiness`;
 
 /** The group that starts open: what needs the person, else what is on file. */
 function openGroupKey(keys: readonly string[]): string | undefined {
@@ -72,7 +88,13 @@ function openGroupKey(keys: readonly string[]): string | undefined {
  * action; opening it shows everything else in the item's panel (`caseItemPanes`). The anchor
  * `#readiness` points at this block.
  */
-export function CaseChecklist({ applicantId, rows, packName }: CaseChecklistProps) {
+export function CaseChecklist({
+  applicantId,
+  rows,
+  packName,
+  itemHref,
+  openItem = null,
+}: CaseChecklistProps) {
   const requirementRow = (r: RequirementDetailRow) => {
     const status = itemStatus(r);
     return (
@@ -134,10 +156,13 @@ export function CaseChecklist({ applicantId, rows, packName }: CaseChecklistProp
               heading: group.heading,
               count: group.rows.length,
               tone: CHECKLIST_GROUP_TONE[group.key] ?? 'success',
-              open: group.key === opened,
+              // The chosen item's folder is open, so its row is on screen beside its panel.
+              open:
+                group.key === opened || group.rows.some((r) => r.packRequirementId === openItem),
               children: checklistRows(group.rows.slice(0, first)),
               ...(group.rows.length > first
                 ? {
+                    restOpen: group.rows.slice(first).some((r) => r.packRequirementId === openItem),
                     rest: checklistRows(group.rows.slice(first)),
                     restLabel: plural(
                       group.rows.length - CHECKLIST_ROWS_SHOWN,
@@ -167,11 +192,7 @@ export function caseItemPanes({
   packageItems,
   packageEditable,
   formatLines,
-}: CaseChecklistProps & {
-  readonly packageItems: ReadonlyMap<string, PackageItem>;
-  readonly packageEditable: boolean;
-  readonly formatLines: Readonly<Record<string, readonly string[]>>;
-}): PaneEntry[] {
+}: CaseItemPanesProps): PaneEntry[] {
   return rows.map((row) => ({
     id: row.packRequirementId,
     title: requirementLabel(row) || '(unnamed)',

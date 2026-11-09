@@ -135,7 +135,12 @@ describe('the rows and panels the kit draws (rendered)', () => {
         backLabel="Back to the Checklist"
         backHref="/app/mission/x#readiness"
       >
-        <CaseChecklist {...given} />
+        <CaseChecklist
+          applicantId={given.applicantId}
+          rows={given.rows}
+          packName={given.packName}
+          itemHref={(id) => `?item=${id}`}
+        />
       </ListWithPane>,
     );
   }

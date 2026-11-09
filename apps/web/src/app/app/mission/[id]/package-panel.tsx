@@ -90,7 +90,7 @@ export function PackagePanel({
         This shows what you have ready. It is not a submission and nothing is sent until you share
         it yourself.
       </p>
-      {pkg.items.length > 0 ? (
+      {editable && listedIds.size > 0 ? (
         <p className="muted u-fs-085">
           To choose which file an item uses, open the item in the Evidence Checklist.
         </p>

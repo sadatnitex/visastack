@@ -66,10 +66,13 @@ export function ListWithPane({
   const root = useRef<HTMLDivElement>(null);
   const pane = useRef<HTMLElement>(null);
   const opener = useRef<HTMLElement | null>(null);
+  // Set only by a person's own click on a row, so a panel opened by the address never steals focus.
+  const takeFocus = useRef(false);
   const pushed = useRef(false);
 
   const open = (id: string, from: HTMLElement | null) => {
     opener.current = from;
+    takeFocus.current = true;
     const url = withItem(param, id);
     // The first open adds a history entry, so Back closes the panel; moving between rows replaces.
     if (selected === null) {
@@ -90,6 +93,7 @@ export function ListWithPane({
       window.history.replaceState(window.history.state, '', withItem(param, null));
     }
     opener.current?.focus();
+    opener.current = null;
   };
   const closeRef = useRef(close);
   closeRef.current = close;
@@ -102,6 +106,17 @@ export function ListWithPane({
     const onClick = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0) return;
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      // A link inside the panel to somewhere on this page (Provide Evidence) leaves the panel, so a
+      // full screen never covers the place the link points at. The link then does its own work.
+      const inside = (event.target as Element | null)?.closest<HTMLAnchorElement>(
+        '.lp-pane a[href^="#"]',
+      );
+      if (inside && el.contains(inside)) {
+        setSelected(null);
+        pushed.current = false;
+        window.history.replaceState(window.history.state, '', withItem(param, null));
+        return;
+      }
       const link = (event.target as Element | null)?.closest<HTMLElement>('a[data-pane-open]');
       const id = known(link?.getAttribute('data-pane-open'));
       if (!link || !id || !el.contains(link)) return;
@@ -118,6 +133,11 @@ export function ListWithPane({
       const named = known(new URL(window.location.href).searchParams.get(param));
       pushed.current = false;
       setSelected(named);
+      // Back from a panel puts a keyboard or screen reader person on the row they came from.
+      if (named === null) {
+        opener.current?.focus();
+        opener.current = null;
+      }
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -141,8 +161,10 @@ export function ListWithPane({
   // the full screen and the page behind it does not scroll.
   useEffect(() => {
     if (selected === null) return;
-    const wasOpener = opener.current;
-    if (wasOpener) pane.current?.focus();
+    if (takeFocus.current) {
+      takeFocus.current = false;
+      pane.current?.focus();
+    }
     const previous = document.body.style.overflow;
     if (sheetShown) document.body.style.overflow = 'hidden';
     const onKey = (event: KeyboardEvent) => {
@@ -195,6 +217,7 @@ export function ListWithPane({
             className="btn btn-secondary"
             href={backHref}
             onClick={(event) => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
               event.preventDefault();
               close();
             }}

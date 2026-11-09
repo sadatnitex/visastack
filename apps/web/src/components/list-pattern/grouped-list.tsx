@@ -17,6 +17,8 @@ export interface ListGroupProps {
   readonly rest?: ReactNode;
   /** The label of the fold of the rest ("4 More Items"). */
   readonly restLabel?: string | undefined;
+  /** The fold of the rest starts open (the chosen item is in it). */
+  readonly restOpen?: boolean | undefined;
 }
 
 /**
@@ -43,7 +45,7 @@ export function GroupedList({ groups }: { readonly groups: readonly ListGroupPro
           <div className="collapsible-group-body">
             <div className="rows">{group.children}</div>
             {group.rest ? (
-              <details className="case-checklist-rest">
+              <details className="case-checklist-rest" open={group.restOpen === true}>
                 <summary>{group.restLabel ?? 'More Items'}</summary>
                 <div className="rows">{group.rest}</div>
               </details>

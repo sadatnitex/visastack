@@ -55,6 +55,10 @@ export function PackageItemChoiceForm({
   // Controlled, so the list shows what is saved (the page's `current`), never a stale default.
   const [value, setValue] = useState(current);
   useEffect(() => setValue(current), [current]);
+  // The reason box is hidden only once the page's script is running: without it the box stays in
+  // view, so Leave Out can still be completed.
+  const [scripted, setScripted] = useState(false);
+  useEffect(() => setScripted(true), []);
   return (
     <form ref={form} action={formAction} className="package-choice-form">
       <input type="hidden" name="missionId" value={missionId} />
@@ -82,7 +86,7 @@ export function PackageItemChoiceForm({
       {canExclude ? (
         // The reason is asked only once Leave Out is picked. The box stays in the page, hidden,
         // so a typed reason is never lost by looking at another choice and coming back.
-        <div hidden={value !== 'exclude'} className="package-reason">
+        <div hidden={scripted && value !== 'exclude'} className="package-reason">
           <label className="label" htmlFor={`${id}-reason`}>
             Reason for Leaving Out
           </label>
