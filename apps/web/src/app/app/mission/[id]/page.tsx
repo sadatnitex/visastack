@@ -627,6 +627,7 @@ export default async function MissionPage({
       tripChecks,
       casePackage,
       formatLines,
+      starterPack,
       caseSources,
       expiringDocuments: expiryConflicts.map((c) => ({
         documentId: c.documentId,
@@ -821,53 +822,57 @@ export default async function MissionPage({
 
   return (
     <section className="section container lift-case">
-      <PageHeader
-        back={{
-          href: `/app/applicant/${data.applicantId}/missions`,
-          label: `${data.applicantName} · Cases`,
-        }}
-        eyebrow="Case"
-        title={mission.title}
-        meta={
-          <>
-            <span>
-              {mission.destination ? `${mission.destination} · ` : ''}
-              {caseStateLabel(mission.state)}
-            </span>
-            <ReferenceCode code={data.referenceCode} label="Case Reference" />
-            {data.liveAcknowledgedAt ? (
-              <StatusBadge tone="success">
-                Confirmed by the traveller on {formatTimestampDate(data.liveAcknowledgedAt)}
-              </StatusBadge>
-            ) : (
-              <StatusBadge tone="neutral">Traveller has not confirmed yet</StatusBadge>
-            )}
-          </>
-        }
-        actions={
-          <>
-            {/* On a phone these three fold into More (WP-SB2), which repeats them there. */}
-            <div className="case-header-wide">
-              <a className="btn btn-secondary" href="#evidence">
-                Add Evidence
-              </a>
-              <Link className="btn btn-secondary" href={newCaseHref}>
-                Start a New Case from This One
-              </Link>
-              <SnapshotButton missionId={mission.id} />
-            </div>
-            <CaseMoreMenu
-              missionId={mission.id}
-              applicantId={data.applicantId}
-              canCancel={canCancel}
-              canDelete={mission.state === 'CANCELLED'}
-              headerActions={{ addEvidenceHref: '#evidence', newCaseHref }}
-            />
-          </>
-        }
-      />
-
+      {/* The scope wraps the header too, so the header's own buttons can sit at a depth. */}
       <DepthScope family="case" depth={depth}>
+        <PageHeader
+          back={{
+            href: `/app/applicant/${data.applicantId}/missions`,
+            label: `${data.applicantName} · Cases`,
+          }}
+          eyebrow="Case"
+          title={mission.title}
+          meta={
+            <>
+              <span>
+                {mission.destination ? `${mission.destination} · ` : ''}
+                {caseStateLabel(mission.state)}
+              </span>
+              <ReferenceCode code={data.referenceCode} label="Case Reference" />
+              {data.liveAcknowledgedAt ? (
+                <StatusBadge tone="success">
+                  You confirmed this case on {formatTimestampDate(data.liveAcknowledgedAt)}
+                </StatusBadge>
+              ) : (
+                <StatusBadge tone="neutral">You have not confirmed this case yet</StatusBadge>
+              )}
+            </>
+          }
+          actions={
+            <>
+              {/* On a phone these three fold into More (WP-SB2), which repeats them there. */}
+              <div className="case-header-wide">
+                <a className="btn btn-secondary" href="#evidence">
+                  Add Evidence
+                </a>
+              </div>
+              {/* Browse and deeper: at Glance the header holds the one job, Add Evidence. */}
+              <div className="case-header-wide" {...atLevel('browse')}>
+                <Link className="btn btn-secondary" href={newCaseHref}>
+                  Start a New Case from This One
+                </Link>
+                <SnapshotButton missionId={mission.id} />
+              </div>
+              <CaseMoreMenu
+                missionId={mission.id}
+                applicantId={data.applicantId}
+                canCancel={canCancel}
+                canDelete={mission.state === 'CANCELLED'}
+                headerActions={{ addEvidenceHref: '#evidence', newCaseHref }}
+              />
+            </>
+          }
+        />
+
         <DepthSwitch family="case" initial={depth} copy={depthCopyFor('case')} notesBehindInfo />
 
         {data.welcomeNote ? (
@@ -915,16 +920,34 @@ export default async function MissionPage({
           progressIsReadinessAnchor={!hasChecklist}
         />
 
-        {/* At every level: each link opens the level its section lives at. */}
-        <nav className="jump-nav" aria-label="Sections of this case">
-          {showTripChecks ? <a href="#trip-checks">Dates</a> : null}
+        {/* Each link shows at the level its section shows at, so none points at a hidden block. */}
+        <nav className="jump-nav" aria-label="Sections of this case" {...atLevel('browse')}>
+          {showTripChecks ? (
+            <a href="#trip-checks" {...atLevel('browse')}>
+              Dates
+            </a>
+          ) : null}
           <a href="#readiness">Readiness</a>
-          {data.casePackage ? <a href="#trip-package">Trip Package</a> : null}
-          <a href="#evidence">Evidence</a>
-          <a href="#work">Tasks and Letters</a>
-          <a href="#snapshots">Snapshots</a>
-          <a href="#notes">Contributors and Notes</a>
-          <a href="#outcome">Submission and Outcome</a>
+          {data.casePackage ? (
+            <a href="#trip-package" {...atLevel('browse')}>
+              Trip Package
+            </a>
+          ) : null}
+          <a href="#evidence" {...atLevel('everything')}>
+            Evidence
+          </a>
+          <a href="#work" {...atLevel('browse')}>
+            Tasks and Letters
+          </a>
+          <a href="#snapshots" {...atLevel('everything')}>
+            Snapshots
+          </a>
+          <a href="#notes" {...atLevel('browse')}>
+            Contributors and Notes
+          </a>
+          <a href="#outcome" {...atLevel('everything')}>
+            Submission and Outcome
+          </a>
         </nav>
 
         {/* One column on a phone, in reading order: the checklist, what the case is about, then
@@ -941,6 +964,7 @@ export default async function MissionPage({
                 packName={data.packInfo?.name ?? null}
                 wordingEditable={data.wordingEditable}
                 wordingMax={CHECKLIST_WORDING_MAX}
+                selfReviewed={data.selfReviewed}
                 explanations={{
                   configured: data.explanationConfigured,
                   off:
@@ -960,7 +984,12 @@ export default async function MissionPage({
             ) : null}
             {data.casePackage ? (
               <article className="card" id="trip-package" {...atLevel('browse')}>
-                <PackagePanel pkg={data.casePackage} formatLines={data.formatLines} />
+                <PackagePanel
+                  pkg={data.casePackage}
+                  formatLines={data.formatLines}
+                  starter={data.starterPack}
+                  selfReviewed={data.selfReviewed}
+                />
               </article>
             ) : null}
           </div>

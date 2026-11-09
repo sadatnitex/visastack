@@ -1,4 +1,4 @@
-import { isStarterPackKey } from '@visastack/core';
+import { PROVENANCE_LABELS, type RequirementProvenance, isStarterPackKey } from '@visastack/core';
 import type { NoPackReason, PinnedPackNotice } from '@visastack/services';
 
 /**
@@ -8,6 +8,26 @@ import type { NoPackReason, PinnedPackNotice } from '@visastack/services';
 
 /** The badge words of a starter checklist: the agency's reading of country files, never official. */
 export const STARTER_BADGE = 'Starter List, Not Official';
+
+/** Who added an item, once no agency has access to the case. */
+export const ADDED_BY_AGENCY = 'Added by an Agency';
+
+/**
+ * Where an item on a case came from, in words, or null for an official one. A starter list stamps
+ * every line as added by an agency, so its lines read as the starter list; with no agency on the
+ * case, "Requested by Your Agency" would be untrue, so an agency-added line reads "Added by an
+ * Agency". Display only: the stored provenance, the published lists and the agency pages' own
+ * labels are not touched.
+ */
+export function provenanceLine(
+  provenance: RequirementProvenance | null | undefined,
+  context: { readonly starter: boolean; readonly selfReviewed: boolean },
+): string | null {
+  if (context.starter) return STARTER_BADGE;
+  if (!provenance || provenance === 'OFFICIAL') return null;
+  if (provenance === 'AGENCY_ADDED' && context.selfReviewed) return ADDED_BY_AGENCY;
+  return PROVENANCE_LABELS[provenance];
+}
 
 /** The badge for a pack: reviewed public, a starter list, an agency's own, or published with no review. */
 export function packBadge(pack: {

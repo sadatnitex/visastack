@@ -1,4 +1,4 @@
-import { NECESSITY_LABELS, PROVENANCE_LABELS } from '@visastack/core';
+import { NECESSITY_LABELS } from '@visastack/core';
 import {
   type CasePackage,
   type FreshnessCaveat,
@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { fieldLabel } from '../../../../lib/master-profile';
+import { provenanceLine } from '../../../../lib/pack-labels';
 import {
   PackageChangeReviewedForm,
   type PackageChoiceOption,
@@ -111,8 +112,14 @@ function choiceOptions(item: PackageItem): { options: PackageChoiceOption[]; cur
 export function PackagePanel({
   pkg,
   formatLines = {},
+  starter = false,
+  selfReviewed = false,
 }: {
   readonly pkg: CasePackage;
+  /** The case's checklist is a starter list: every line reads as the starter list, not an agency. */
+  readonly starter?: boolean;
+  /** No agency has access to the case, so an agency-added line says who added it, not who asked. */
+  readonly selfReviewed?: boolean;
   /**
    * UMPE G2 (R12): how each document must be provided, by requirement id, from the checklist's
    * structured format rules (the notes are read only as a fallback). Absent means nothing stated.
@@ -178,17 +185,16 @@ export function PackagePanel({
             {items.map((item) => {
               const name = itemName(item);
               const { options, current } = choiceOptions(item);
+              const provenance = provenanceLine(item.provenance, { starter, selfReviewed });
               return (
                 <li key={item.packRequirementId} className="package-item">
                   <p className="u-m-0">
                     <strong>{name}</strong>{' '}
                     <span className="badge badge-neutral">{NECESSITY_LABELS[item.necessity]}</span>
-                    {item.provenance !== 'OFFICIAL' ? (
+                    {provenance ? (
                       <>
                         {' '}
-                        <span className="badge badge-neutral">
-                          {PROVENANCE_LABELS[item.provenance]}
-                        </span>
+                        <span className="badge badge-neutral">{provenance}</span>
                       </>
                     ) : null}
                   </p>

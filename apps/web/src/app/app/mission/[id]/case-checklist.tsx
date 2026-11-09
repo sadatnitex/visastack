@@ -1,16 +1,11 @@
-import {
-  ANY_OF_LABEL,
-  NECESSITY_LABELS,
-  PROVENANCE_LABELS,
-  groupByRequirementCategory,
-} from '@visastack/core';
+import { ANY_OF_LABEL, NECESSITY_LABELS, groupByRequirementCategory } from '@visastack/core';
 import { isFillerCitation, safeHttpUrl } from '@visastack/services';
 import type { ComponentProps, ReactNode } from 'react';
 import { Icon } from '../../../../components/icons';
 import { ChecklistRow, SectionCard } from '../../../../components/ui-lift';
 import { bookingReminderFor } from '../../../../lib/booking-reminder';
 import { formatDateOnly } from '../../../../lib/format-date';
-import { STARTER_BADGE } from '../../../../lib/pack-labels';
+import { provenanceLine } from '../../../../lib/pack-labels';
 import {
   CHECKLIST_GROUP_TONE,
   CHECKLIST_ID_PREFIX,
@@ -58,6 +53,8 @@ export interface CaseChecklistProps {
   readonly wordingEditable?: boolean;
   /** The longest sentence the service accepts, so the box and the service agree. */
   readonly wordingMax?: number;
+  /** No agency has access to the case: an agency-added item says who added it, not who asked. */
+  readonly selfReviewed?: boolean;
 }
 
 /**
@@ -76,6 +73,7 @@ export function CaseChecklist({
   packName,
   wordingEditable = false,
   wordingMax = 400,
+  selfReviewed = false,
 }: CaseChecklistProps) {
   /** One checklist row (WP-SB2 moved it out of the group so a group can show its first rows). */
   const requirementRow = (r: RequirementDetailRow) => {
@@ -106,6 +104,10 @@ export function CaseChecklist({
         ? bookingReminderFor(r.kind, r.key)
         : null;
     const chosen = chosenByRequirement[r.packRequirementId];
+    const provenance = provenanceLine(r.provenance, {
+      starter: r.fromStarter === true,
+      selfReviewed,
+    });
     const necessity = r.coveredByAlternative
       ? 'met by an alternative'
       : r.necessity
@@ -123,11 +125,7 @@ export function CaseChecklist({
     // Short facts that change what to do stay under the sentence; a finished row folds them away.
     const facts: ReactNode[] = [
       r.myWording ? <p key="mine">Your Wording</p> : null,
-      r.fromStarter ? (
-        <p key="provenance">{STARTER_BADGE}</p>
-      ) : r.provenance && r.provenance !== 'OFFICIAL' ? (
-        <p key="provenance">{PROVENANCE_LABELS[r.provenance]}</p>
-      ) : null,
+      provenance ? <p key="provenance">{provenance}</p> : null,
       r.appliesWhen && r.appliesWhen.toLowerCase() !== 'all applicants' ? (
         <p key="applies">For: {r.appliesWhen}</p>
       ) : null,

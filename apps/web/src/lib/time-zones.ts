@@ -119,12 +119,17 @@ function regionOf(id: string): string {
   return id.includes('/') ? first : 'Other';
 }
 
-/** One option for a zone, or null when the runtime does not know it. */
+/** The latest official name of a zone, for a runtime that reports an old one (Asia/Calcutta). */
+export function modernZoneId(id: string): string {
+  return MODERN_NAMES[id] ?? id;
+}
+
 /** A real IANA time zone name this runtime knows, as the picker offers (never free text). */
 export function isKnownTimeZone(id: string): boolean {
   return id.length <= 64 && offsetMinutesAt(id, new Date()) !== null;
 }
 
+/** One option for a zone, or null when the runtime does not know it. */
 export function describeTimeZone(id: string, at: Date): TimeZoneOption | null {
   const offsetMinutes = offsetMinutesAt(id, at);
   if (offsetMinutes === null) return null;
