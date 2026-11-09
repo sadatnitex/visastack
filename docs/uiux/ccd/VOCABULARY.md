@@ -162,3 +162,19 @@ Added 4 Nov 2026 (Lane E, the evidence loop between a traveller and an agency):
 | The explanation of files with no kind | The row "2 Need a Kind" with Why? and Show Them (Show All once shown) | "Unsorted", "Uncategorised" | **New (P1)** |
 | The small round control that opens a level's sentence | A round i beside the switch, named "What each level shows" | An always-visible sentence under the switch | **New (P1)** |
 | The closed notes of the Documents page and of an opened document | About Documents; About This File | "Info", "Notes" | **New (P1)** |
+
+## Case checklist and item panel (9 Nov 2026, case page plan section 5 and 8)
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| Checklist folders | Needs You, Needs a Check, Optional, On File, Does Not Apply (the last is hidden when empty) | "Done" (it counted optional items with nothing uploaded) | **Done (case page package 1)** |
+| A line another option already covers | folder On File, chip "Covered by Another Option" | "Optional" for a covered line | **Done (package 1)** |
+| The words on a row's chip | the specific word: Missing, Two Values, Out of Date, To Confirm, Optional, On File, Not Applicable; Received is blue and never green (`lib/status-words.ts`) | a second word list on any screen | **Done (package 1)** |
+| Panel a row opens | Item Details; way back "Back to the Checklist" | "More About This Item" fold under each row | **Done (package 1)** |
+| Choice of file for the handoff, in the panel | What This Item Uses | "What This Package Uses" (the list that repeated every item) | **Done (package 1)** |
+| A package item with no checklist row (should not occur) | Other Items in This Package | none | **Done (package 1)** |
+| Adding a missing item | row action "Add" (a file goes to the Documents page, an answer to the profile); the panel keeps "Provide Evidence" to choose among files already on file | "Provide Evidence" as the row button | **Done (package 1)** |
+| Who added an item | "Added by an Agency" while no agency has access; "Requested by Your Agency" while one has; "Starter List, Not Official" on a starter list | "Requested by Your Agency" on a case no agency can see | **Done (package 0)** |
+| Header lines of the case | "You have not confirmed this case yet", "You confirmed this case on {date}", "Your confirmation" | "Traveller has not confirmed yet" to the traveller | **Done (package 0)** |
+
+Decided on 9 Nov 2026 and not yet built (a later package): Snapshot becomes Saved Copy, Freshness Check becomes Is This Still Up to Date?, Trip Package becomes Your Package, and Readiness in the section links becomes How Complete.

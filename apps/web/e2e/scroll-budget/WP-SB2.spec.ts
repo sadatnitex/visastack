@@ -124,14 +124,14 @@ const LIFT = {
    * 1266 at a phone and 900 at a desktop). Those aspirations are NOT met yet and are tracked as
    * open work in docs/commercial-v1/known-issues.md. Lower these numbers when the page gets shorter.
    *
-   * 9 Nov 2026: the worst case now carries the Trip Package (51 items, each repeated with its own
-   * choice form), which this budget never measured. Browse and Everything are measured as they are
-   * (18383, 17987 and 15832 px) and held there; the case page package ("Shared kit plus the case
-   * checklist") removes the per-item list and these three numbers must then come down to the old
-   * ones. Glance does not show the package and is unchanged.
+   * 9 Nov 2026: the worst case carries the Trip Package (51 items). Measured with every item
+   * repeated in the package it was 18383, 17987 and 15832 px (phone Everything, phone Browse,
+   * desktop Everything). The shared list kit moved each item's choice into its own panel and made
+   * the package a summary, and the page now measures 3986, 3590, 1826 and 3274 px with the
+   * package in it. Held there with a little headroom; Glance is back under 2000.
    */
-  phonePage: { everything: 18600, browse: 18200, glance: 2000 },
-  desktopPage: { everything: 16000 },
+  phonePage: { everything: 4050, browse: 3650, glance: 1900 },
+  desktopPage: { everything: 3300 },
   /** Where the first checklist row may start (px from the top of the page). */
   firstRow: { phone: 1500, desktop: 1100 },
 } as const;

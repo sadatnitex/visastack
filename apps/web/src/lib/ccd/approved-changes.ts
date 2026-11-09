@@ -1006,6 +1006,20 @@ export const APPROVED_RULES: readonly ApprovedRule[] = [
     },
   },
   {
+    screens: ['case'],
+    reason:
+      'Owner, 9 Nov 2026 (case page plan, section 5): the checklist folder "Done" counted optional items with nothing uploaded, so it is split by what is true: On File (met), Optional (nothing needed), and Does Not Apply. A folder that was "Done N" is now "On File N", "Optional N" or "Does Not Apply N". Readiness is unchanged.',
+    alternatives: (entry) => {
+      if (entry.kind !== 'heading') return [];
+      const match = entry.name.match(/^Done (\d+)$/);
+      if (!match) return [];
+      return ['On File', 'Optional', 'Does Not Apply'].map((word) => ({
+        ...entry,
+        name: `${word} ${match[1]}`,
+      }));
+    },
+  },
+  {
     screens: ['documents'],
     reason:
       'Owner, 5 Nov 2026: no page should have more than 30 words. The empty list says one short thing and offers one button; the longer explanation of the vault is gone, since the Add Documents page says what to add.',

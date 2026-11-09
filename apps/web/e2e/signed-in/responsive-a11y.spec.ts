@@ -23,6 +23,8 @@ const TRAVELLER_PAGES = (traveller: string) => [
   { name: 'documents', path: `/app/applicant/${traveller}/documents` },
   { name: 'add-documents', path: `/app/applicant/${traveller}/documents/add` },
   { name: 'cases', path: `/app/applicant/${traveller}/missions` },
+  // The case page with its list and item panel (case page plan, package 1).
+  { name: 'case', path: `/app/mission/${ids.case()}` },
   { name: 'sharing', path: `/app/applicant/${traveller}/sharing` },
 ];
 

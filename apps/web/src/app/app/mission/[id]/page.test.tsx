@@ -188,7 +188,7 @@ function setUp(
   );
 }
 
-const render = async (query: { readonly welcome?: string } = {}) =>
+const render = async (query: { readonly welcome?: string; readonly item?: string } = {}) =>
   renderServer(
     await MissionPage({
       params: Promise.resolve({ id: 'synthetic-case' }),
@@ -482,8 +482,8 @@ describe('case journey view (WP-X1)', () => {
     );
     const text = textOf(await render());
     expect(text).toContain('Bank Statement · Mandatory');
-    expect(text).toContain('Any One of These: Bank Statement or Sponsor Letter');
-    expect(text).toContain('Hotel Booking · Recommended');
+    expect(text).toContain('Any One of These: Bank Statement or Sponsorship Letter');
+    expect(text).toContain('Hotel or Stay Booking · Recommended');
     // No agency has access, so the line says who added the item, not who asked.
     expect(text).toContain('Added by an Agency');
     expect(text).not.toContain('Requested by Your Agency');
@@ -1047,7 +1047,7 @@ describe('WP-SB2: a worst-case case stays short', () => {
     expect(groups.map((g) => g.querySelector('summary > h4')?.textContent)).toEqual([
       'Needs You 20',
       'Needs a Check 10',
-      'Done 30',
+      'On File 30',
     ]);
     expect(groups.map((g) => g.hasAttribute('open'))).toEqual([true, false, false]);
     expect(groups[0]?.id).toBe('case-checklist-needs-you');
@@ -1691,28 +1691,33 @@ describe('the case status card and the checklist (WP-LIFT-A)', () => {
     expect(text.match(/Your confirmation/g)).toHaveLength(1);
   });
 
-  it('gives each open row one action and no arrow, and finished rows one line', async () => {
+  it('gives each open row one action and no arrow, and a finished row no action', async () => {
     setUp({ requirements: ['CRITICAL_GAP', 'EXPIRING_STALE', 'UNVERIFIED', 'SATISFIED'] });
     const html = await render();
-    const rows = html.split('class="row lift-check ').slice(1);
+    const rows = html.split('data-pattern="list-row"').slice(1);
     expect(rows).toHaveLength(4);
     const withAction = rows.filter((row) => row.includes('lift-check-action'));
     // The missing and the out-of-date rows have the action; the one to confirm and the done one do not.
     expect(withAction).toHaveLength(2);
     for (const row of withAction) {
       expect(row.match(/lift-check-action/g)).toHaveLength(1);
-      expect(row).toContain('>Provide Evidence</a>');
+      expect(row).toContain('>Add</a>');
     }
     expect(html).not.toContain('Provide Evidence ↓');
     expect(html).not.toContain('Provide Evidence ↓'.replace('↓', '&#x2193;'));
-    // A finished row is compact: the icon, the name and the pill, with its details folded.
-    const done = rows.filter((row) => row.includes('lift-check-compact'));
+    // A row is a mark, a name, a chip and at most one action; the rest is in its panel.
+    for (const row of rows) {
+      expect(row).toContain('lp-row-name');
+    }
+    expect(html).not.toContain('More About This Item');
+    const done = rows.filter((row) => row.includes('>On File<'));
     expect(done).toHaveLength(1);
-    expect(done[0]).toContain('On File');
-    expect(done[0]).toContain('More About This Item');
+    expect(done[0]).not.toContain('lift-check-action');
+    // The old link is still on the page, in the panels of the two items that need evidence.
+    expect(html.match(/>Provide Evidence<\/a>/g)).toHaveLength(2);
   });
 
-  it('folds the source and every other detail under More About This Item', async () => {
+  it('puts the source and every other detail in the item panel', async () => {
     setUp({ requirements: ['CRITICAL_GAP'] });
     mocks.listRequirements.mockResolvedValue([
       {
@@ -1726,13 +1731,24 @@ describe('the case status card and the checklist (WP-LIFT-A)', () => {
       },
     ]);
     const html = await render();
-    const row = html.slice(
-      html.indexOf('lift-row-more'),
-      html.indexOf('</details>', html.indexOf('lift-row-more')),
-    );
-    expect(textOf(row)).toContain('Source: Synthetic Authority · Synthetic Page');
-    expect(row).toContain('href="https://example.test/page"');
-    expect(textOf(row)).toContain('Suggest a Correction');
+    const pane = html.slice(html.indexOf('data-pattern="detail-pane"'));
+    expect(textOf(pane)).toContain('Source: Synthetic Authority · Synthetic Page');
+    expect(pane).toContain('href="https://example.test/page"');
+    expect(textOf(pane)).toContain('Suggest a Correction');
+    // The panel is hidden until its row is opened, and the row names it.
+    expect(html).toMatch(/<section[^>]*data-pattern="detail-pane"[^>]*hidden=""/);
+    expect(html).toContain('data-pane-open="req-0"');
+  });
+
+  it('opens the item named by the address, so a link or a reload lands on it', async () => {
+    setUp({ requirements: ['CRITICAL_GAP', 'SATISFIED'] });
+    const html = await render({ item: 'req-1' });
+    const panes = html.split('data-pattern="detail-pane"').slice(1);
+    expect(panes).toHaveLength(2);
+    expect(panes[0]).toContain('hidden=""');
+    expect(panes[1]?.slice(0, 80)).not.toContain('hidden=""');
+    expect(html).toContain('data-sheet="open"');
+    expect(await render({ item: 'not-an-item' })).toContain('data-sheet="closed"');
   });
 
   it('keeps the earlier stages unmarked: only the current stage is filled', async () => {

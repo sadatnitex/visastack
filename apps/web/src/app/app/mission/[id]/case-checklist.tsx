@@ -1,30 +1,26 @@
-import { ANY_OF_LABEL, NECESSITY_LABELS, groupByRequirementCategory } from '@visastack/core';
-import { isFillerCitation, safeHttpUrl } from '@visastack/services';
-import type { ComponentProps, ReactNode } from 'react';
+import { groupByRequirementCategory } from '@visastack/core';
+import type { PackageItem } from '@visastack/services';
+import type { ComponentProps } from 'react';
 import { Icon } from '../../../../components/icons';
-import { ChecklistRow, SectionCard } from '../../../../components/ui-lift';
-import { bookingReminderFor } from '../../../../lib/booking-reminder';
+import { GroupedList, ListRow, type PaneEntry } from '../../../../components/list-pattern';
+import { SectionCard } from '../../../../components/ui-lift';
 import { formatDateOnly } from '../../../../lib/format-date';
-import { provenanceLine } from '../../../../lib/pack-labels';
+import { CaseItemPane } from './case-item-pane';
+import { itemAction, itemNecessity, itemStatus } from './case-item-view';
 import {
   CHECKLIST_GROUP_TONE,
   CHECKLIST_ID_PREFIX,
   CHECKLIST_ROWS_SHOWN,
   type CaseSourceRow,
   type ExpiringDocumentRow,
-  REQUIREMENT_STATE_META,
   type RequirementDetailRow,
   buildChecklistGroups,
   categoryProgress,
-  officialLabel,
   plural,
   requirementLabel,
-  toneOfBadge,
 } from './case-model';
 import { OpenGroupOnLink } from './open-group-on-link';
-import { ExplainGapButton } from './readiness-gap-explain';
-import { SuggestCorrection } from './suggest-correction';
-import { WordingEditor } from './wording-editor';
+import type { ExplainGapButton } from './readiness-gap-explain';
 
 /** Why Gap Explanations is off, when it is (S28); undefined when it is on. */
 export type GapExplanationOff = ComponentProps<typeof ExplainGapButton>['off'];
@@ -39,168 +35,78 @@ export interface ChecklistExplanations {
   readonly byRequirement: ReadonlyMap<string, string | null>;
 }
 
+/** What the rows of the checklist need. */
 export interface CaseChecklistProps {
-  readonly missionId: string;
   readonly applicantId: string;
   /** Every checklist row of the case, in checklist order (`requirementDetails`). */
+  readonly rows: readonly RequirementDetailRow[];
+  /** The checklist the rows come from, named beside the heading; null when it could not be read. */
+  readonly packName: string | null;
+  /**
+   * The address that opens one item's panel without script. It keeps the rest of the address, so a
+   * list the person had expanded stays expanded.
+   */
+  readonly itemHref: (id: string) => string;
+  /** The item named by the address, if any: its folder starts open. */
+  readonly openItem?: string | null | undefined;
+}
+
+/** What the panels of the items need (the rows do not read any of it). */
+export interface CaseItemPanesProps {
+  readonly missionId: string;
+  readonly applicantId: string;
   readonly rows: readonly RequirementDetailRow[];
   /** The chosen document names per checklist item (`evidenceLifecycle.chosenByRequirement`). */
   readonly chosenByRequirement: Readonly<Record<string, readonly string[] | undefined>>;
   readonly explanations: ChecklistExplanations;
-  /** The checklist the rows come from, named beside the heading; null when it could not be read. */
-  readonly packName: string | null;
   /** The traveller may reword items: the case is open and the feature is switched on. */
   readonly wordingEditable?: boolean;
   /** The longest sentence the service accepts, so the box and the service agree. */
   readonly wordingMax?: number;
   /** No agency has access to the case: an agency-added item says who added it, not who asked. */
   readonly selfReviewed?: boolean;
+  readonly packageItems: ReadonlyMap<string, PackageItem>;
+  /** The traveller may still change what the package uses: the package is open. */
+  readonly packageEditable: boolean;
+  /** How each document must be provided, by item (the checklist's format rules). */
+  readonly formatLines: Readonly<Record<string, readonly string[]>>;
+}
+
+/** The group that starts open: what needs the person, else what is on file. */
+function openGroupKey(keys: readonly string[]): string | undefined {
+  return (
+    keys.find((key) => key === 'needs-you' || key === 'needs-a-check') ??
+    (keys.includes('on-file') ? 'on-file' : keys[0])
+  );
 }
 
 /**
- * The Evidence Checklist, the heart of the case page: one group per state (Needs You, Needs a
- * Check, Done), each group's first rows shown and the rest folded, with the category headings and
- * how far each category is when the checklist has categories. Each row says what it is, what to do
- * in one sentence and gives one action; the rest of what is known about it is folded under "More
- * About This Item". A finished row is one line. The anchor `#readiness` points at this block.
+ * The Evidence Checklist, the heart of the case page: one folder per kind of item (Needs You, Needs
+ * a Check, Optional, On File, Does Not Apply), each folder's first rows shown and the rest folded,
+ * with the category headings and how far each category is when the checklist has categories. A row
+ * is a status mark, a name cut to twelve words, a chip with the specific word and at most one
+ * action; opening it shows everything else in the item's panel (`caseItemPanes`). The anchor
+ * `#readiness` points at this block.
  */
 export function CaseChecklist({
-  missionId,
   applicantId,
   rows,
-  chosenByRequirement,
-  explanations,
   packName,
-  wordingEditable = false,
-  wordingMax = 400,
-  selfReviewed = false,
+  itemHref,
+  openItem = null,
 }: CaseChecklistProps) {
-  /** One checklist row (WP-SB2 moved it out of the group so a group can show its first rows). */
   const requirementRow = (r: RequirementDetailRow) => {
-    const meta = REQUIREMENT_STATE_META[r.state];
-    const label = requirementLabel(r);
-    // Summaries and suggestions keep the official name, whatever the traveller has written.
-    const officialName = officialLabel(r);
-    const done = r.state === 'SATISFIED' || r.state === 'ATTENTION' || r.state === 'NOT_APPLICABLE';
-    // UMPE P1: the other items any one of which would meet the same requirement.
-    // A member whose rule says it does not apply to this case is no alternative.
-    const alternatives =
-      r.groupKey && r.state !== 'NOT_APPLICABLE'
-        ? rows
-            .filter(
-              (o) =>
-                o.groupKey === r.groupKey &&
-                o.packRequirementId !== r.packRequirementId &&
-                o.state !== 'NOT_APPLICABLE',
-            )
-            .map(requirementLabel)
-        : [];
-    const sourceLine = [r.publisher, r.sourceTitle].filter(Boolean).join(' · ');
-    const sourceHref = safeHttpUrl(r.sourceUrl);
-    // A citation that only fills the box ("Yes", "n/a") is not a source, so it is not shown as one.
-    const citationText = r.citation && !isFillerCitation(r.citation) ? r.citation : '';
-    const bookingReminder =
-      r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION'
-        ? bookingReminderFor(r.kind, r.key)
-        : null;
-    const chosen = chosenByRequirement[r.packRequirementId];
-    const provenance = provenanceLine(r.provenance, {
-      starter: r.fromStarter === true,
-      selfReviewed,
-    });
-    const necessity = r.coveredByAlternative
-      ? 'met by an alternative'
-      : r.necessity
-        ? NECESSITY_LABELS[r.necessity]
-        : r.optional
-          ? 'optional'
-          : undefined;
-    // The one thing to do about the item: add it, or settle the two values on the profile.
-    const action =
-      r.state === 'CONFLICTING'
-        ? { label: 'Resolve on Profile', href: `/app/applicant/${applicantId}/profile` }
-        : r.state === 'CRITICAL_GAP' || r.state === 'EXPIRING_STALE'
-          ? { label: 'Provide Evidence', href: '#evidence' }
-          : undefined;
-    // Short facts that change what to do stay under the sentence; a finished row folds them away.
-    const facts: ReactNode[] = [
-      r.myWording ? <p key="mine">Your Wording</p> : null,
-      provenance ? <p key="provenance">{provenance}</p> : null,
-      r.appliesWhen && r.appliesWhen.toLowerCase() !== 'all applicants' ? (
-        <p key="applies">For: {r.appliesWhen}</p>
-      ) : null,
-      alternatives.length > 0 ? (
-        <p key="alternatives">
-          {ANY_OF_LABEL}: {[label, ...alternatives].join(' or ')}
-        </p>
-      ) : null,
-      chosen ? <p key="chosen">Chosen document: {chosen.join(', ')}</p> : null,
-      r.sourceInaccessible ? (
-        <p key="unreachable">
-          <span className="badge badge-danger">Source Currently Unreachable - Under Review</span>
-        </p>
-      ) : null,
-    ].filter(Boolean);
-    const source =
-      sourceLine || sourceHref || citationText ? (
-        <p className="lift-check-aside lift-check-source">
-          Source{sourceLine || citationText ? `: ${sourceLine || citationText}` : ''}
-          {r.observedDate ? ` · reviewed ${formatDateOnly(r.observedDate)}` : ''}
-          {sourceHref ? (
-            <>
-              {' · '}
-              <a href={sourceHref} target="_blank" rel="noreferrer">
-                View Source
-              </a>
-            </>
-          ) : null}
-        </p>
-      ) : null;
-    // The sentence on what to do next is folded with the rest: the status word and the one button
-    // already say it, and four rows must not repeat the same line (the 30-word rule, 5 Nov 2026).
-    const more = (
-      <>
-        {meta.next ? <p className="lift-check-next">{meta.next}</p> : null}
-        {r.myWording ? <p className="lift-check-aside">Original: {officialName}</p> : null}
-        {done ? facts : null}
-        {source}
-        {bookingReminder ? <p className="lift-check-aside">{bookingReminder}</p> : null}
-        {explanations.configured && (r.state === 'CRITICAL_GAP' || r.state === 'ATTENTION') ? (
-          <ExplainGapButton
-            missionId={missionId}
-            packRequirementId={r.packRequirementId}
-            explanation={explanations.byRequirement.get(r.packRequirementId) ?? null}
-            {...(explanations.off !== undefined ? { off: explanations.off } : {})}
-          />
-        ) : null}
-        <SuggestCorrection
-          missionId={missionId}
-          packRequirementId={r.packRequirementId}
-          itemName={officialName || 'This Item'}
-        />
-        {wordingEditable ? (
-          <WordingEditor
-            missionId={missionId}
-            packRequirementId={r.packRequirementId}
-            itemName={officialName}
-            original={officialName}
-            current={r.myWording ?? ''}
-            maxLength={wordingMax}
-          />
-        ) : null}
-      </>
-    );
+    const status = itemStatus(r);
     return (
-      <ChecklistRow
+      <ListRow
         key={r.packRequirementId}
-        name={label || '(unnamed)'}
-        tone={toneOfBadge(meta.tone)}
-        status={meta.label}
-        necessity={necessity}
-        action={action}
-        context={!done && facts.length > 0 ? facts : undefined}
-        compact={done}
-        more={more}
+        id={r.packRequirementId}
+        name={requirementLabel(r) || '(unnamed)'}
+        tone={status.tone}
+        status={status.word}
+        tag={itemNecessity(r)}
+        action={itemAction(r, applicantId)}
+        openHref={itemHref(r.packRequirementId)}
       />
     );
   };
@@ -231,6 +137,7 @@ export function CaseChecklist({
           );
         })
       : part.map(requirementRow);
+  const opened = openGroupKey(groups.map((group) => group.key));
   return (
     <div id="readiness">
       <SectionCard
@@ -238,45 +145,74 @@ export function CaseChecklist({
         level={3}
         action={packName ? <span className="lift-card-note">From {packName}</span> : undefined}
       >
-        {/* WP-SB2: each group opens and closes; the first one with rows (what is
-            missing, when anything is) starts open. Its heading stays a real heading
-            inside the opener, so heading navigation still finds every group. */}
+        {/* WP-SB2: each group opens and closes. Its heading stays a real heading inside the
+            opener, so heading navigation still finds every group. */}
         <OpenGroupOnLink scopeId="readiness" />
-        <div className="collapsible-groups lift-groups">
-          {groups.map((group, index) => (
-            <details
-              className={`collapsible-group lift-group lift-group-${CHECKLIST_GROUP_TONE[group.key] ?? 'success'}`}
-              id={`${CHECKLIST_ID_PREFIX}-${group.key}`}
-              key={group.key}
-              open={index === 0}
-            >
-              <summary className="collapsible-group-summary">
-                <h4 className="case-group-heading collapsible-group-title">
-                  {group.heading}{' '}
-                  <span className="muted lift-state-count">{group.rows.length}</span>
-                </h4>
-              </summary>
-              <div className="collapsible-group-body">
-                <div className="rows">
-                  {checklistRows(group.rows.slice(0, shown(group.rows.length)))}
-                </div>
-                {group.rows.length > shown(group.rows.length) ? (
-                  <details className="case-checklist-rest">
-                    <summary>
-                      {plural(group.rows.length - CHECKLIST_ROWS_SHOWN, 'More Item', 'More Items')}
-                    </summary>
-                    <div className="rows">
-                      {checklistRows(group.rows.slice(shown(group.rows.length)))}
-                    </div>
-                  </details>
-                ) : null}
-              </div>
-            </details>
-          ))}
-        </div>
+        <GroupedList
+          groups={groups.map((group) => {
+            const first = shown(group.rows.length);
+            return {
+              id: `${CHECKLIST_ID_PREFIX}-${group.key}`,
+              heading: group.heading,
+              count: group.rows.length,
+              tone: CHECKLIST_GROUP_TONE[group.key] ?? 'success',
+              // The chosen item's folder is open, so its row is on screen beside its panel.
+              open:
+                group.key === opened || group.rows.some((r) => r.packRequirementId === openItem),
+              children: checklistRows(group.rows.slice(0, first)),
+              ...(group.rows.length > first
+                ? {
+                    restOpen: group.rows.slice(first).some((r) => r.packRequirementId === openItem),
+                    rest: checklistRows(group.rows.slice(first)),
+                    restLabel: plural(
+                      group.rows.length - CHECKLIST_ROWS_SHOWN,
+                      'More Item',
+                      'More Items',
+                    ),
+                  }
+                : {}),
+            };
+          })}
+        />
       </SectionCard>
     </div>
   );
+}
+
+/** One panel per checklist item, in checklist order, for the list to open (`ListWithPane`). */
+export function caseItemPanes({
+  missionId,
+  applicantId,
+  rows,
+  chosenByRequirement,
+  explanations,
+  wordingEditable = false,
+  wordingMax = 400,
+  selfReviewed = false,
+  packageItems,
+  packageEditable,
+  formatLines,
+}: CaseItemPanesProps): PaneEntry[] {
+  return rows.map((row) => ({
+    id: row.packRequirementId,
+    title: requirementLabel(row) || '(unnamed)',
+    content: (
+      <CaseItemPane
+        missionId={missionId}
+        applicantId={applicantId}
+        row={row}
+        rows={rows}
+        chosen={chosenByRequirement[row.packRequirementId]}
+        formatLines={formatLines[row.packRequirementId]}
+        packageItem={packageItems.get(row.packRequirementId)}
+        packageEditable={packageEditable}
+        explanations={explanations}
+        wordingEditable={wordingEditable}
+        wordingMax={wordingMax}
+        selfReviewed={selfReviewed}
+      />
+    ),
+  }));
 }
 
 /** Chosen documents that will not last the trip, each with when it expires and what it must cover. */
