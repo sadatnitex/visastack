@@ -5,6 +5,7 @@ import {
   STARTER_SEED_ROWS,
   buildStarterPacks,
   isOtherType,
+  isOwnPassportLine,
   isStarterPackKey,
   mapDocType,
   necessityFor,
@@ -72,13 +73,69 @@ describe('the supplied country checklists', () => {
     }
   });
 
-  it('never makes an item Required unless it is for every applicant and names a real document', () => {
+  it("never makes an item Required unless it is for every applicant (or is the traveller's own passport) and names a real document", () => {
     for (const pack of built.packs) {
       for (const requirement of pack.requirements) {
         if (requirement.necessity !== 'MANDATORY') continue;
-        expect(requirement.appliesWhen.toLowerCase()).toBe('all applicants');
+        if (!isOwnPassportLine(requirement.docType, requirement.text)) {
+          expect(requirement.appliesWhen.toLowerCase()).toBe('all applicants');
+        }
         expect(isOtherType(requirement.docType)).toBe(false);
       }
+    }
+  });
+
+  it("makes the traveller's own passport Required on every list, whatever the sheet says about who it is for", () => {
+    let seen = 0;
+    for (const pack of built.packs) {
+      for (const requirement of pack.requirements) {
+        if (!isOwnPassportLine(requirement.docType, requirement.text)) continue;
+        seen += 1;
+        expect(requirement.necessity, `${pack.key}: ${requirement.text}`).toBe('MANDATORY');
+      }
+    }
+    expect(seen).toBeGreaterThan(40);
+  });
+
+  it("does not make someone else's passport, the lost passport diary or a photograph Required because of the passport rule", () => {
+    const NOT_FORCED = [
+      /signatory/i,
+      /^Host /i,
+      /Host passport/i,
+      /lost-passport/i,
+      /should match the passport/i,
+      /passport photograph/i,
+      /passport-style photograph/i,
+    ];
+    let checked = 0;
+    for (const pack of built.packs) {
+      for (const requirement of pack.requirements) {
+        if (!NOT_FORCED.some((pattern) => pattern.test(requirement.text))) continue;
+        checked += 1;
+        expect(isOwnPassportLine(requirement.docType, requirement.text), requirement.text).toBe(
+          false,
+        );
+        // Only a line that is for every applicant under the ordinary rule may be Required.
+        if (requirement.necessity === 'MANDATORY') {
+          expect(requirement.appliesWhen.toLowerCase(), requirement.text).toBe('all applicants');
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(5);
+  });
+
+  it("every list that names the traveller's own passport has it Required", () => {
+    const withPassport = built.packs.filter((pack) =>
+      pack.requirements.some((r) => isOwnPassportLine(r.docType, r.text)),
+    );
+    expect(withPassport.length).toBeGreaterThan(20);
+    for (const pack of withPassport) {
+      expect(
+        pack.requirements.some(
+          (r) => isOwnPassportLine(r.docType, r.text) && r.necessity === 'MANDATORY',
+        ),
+        pack.key,
+      ).toBe(true);
     }
   });
 
@@ -128,8 +185,45 @@ describe('reading a document type from a sentence', () => {
 });
 
 describe('how necessary a line is', () => {
-  it('is Required only for every applicant with a real document', () => {
+  it('is Required only for every applicant with a real document, and always for the passport', () => {
     expect(necessityFor('All applicants', 'PASSPORT')).toBe('MANDATORY');
+    const own =
+      'Original Passport 6 Months Validity. [If Have Old Passport, Must Be Taken With It]';
+    expect(necessityFor('As applicable', 'PASSPORT', own)).toBe('MANDATORY');
+    expect(necessityFor('Student', 'PASSPORT', 'Current passport with six months validity')).toBe(
+      'MANDATORY',
+    );
+    expect(necessityFor('', 'PASSPORT', 'Passport.')).toBe('MANDATORY');
+    // Not the traveller's own passport: the ordinary rule applies.
+    expect(
+      necessityFor(
+        'Business traveller',
+        'PASSPORT',
+        "Copy of the Italian signatory's passport or identity document.",
+      ),
+    ).not.toBe('MANDATORY');
+    expect(
+      necessityFor(
+        'Visiting family / friends',
+        'PASSPORT',
+        'Host passport/ID and resident permit copy if applicable.',
+      ),
+    ).not.toBe('MANDATORY');
+    expect(
+      necessityFor(
+        'If passport was lost',
+        'PASSPORT',
+        'General diary (GD) and lost-passport certificate if applicable.',
+      ),
+    ).toBe('OPTIONAL');
+    expect(
+      necessityFor(
+        'As applicable',
+        'PASSPORT',
+        'Applicant name and parents names on supporting documents should match the passport.',
+      ),
+    ).toBe('OPTIONAL');
+    expect(necessityFor('As applicable', 'PHOTO')).toBe('OPTIONAL');
     expect(necessityFor('Employee', 'NOC_EMPLOYER')).toBe('RECOMMENDED');
     expect(necessityFor('As applicable', 'TAX_RETURN')).toBe('OPTIONAL');
     expect(necessityFor('All applicants', 'OTHER')).toBe('OPTIONAL');

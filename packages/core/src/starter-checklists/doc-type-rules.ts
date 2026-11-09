@@ -111,6 +111,28 @@ export type StarterNecessity = 'MANDATORY' | 'RECOMMENDED' | 'OPTIONAL';
 const SOFTENED_BY_TEXT =
   /not mandatory|not required|optional|may also|if (?:have|has|any|available|applicable|relevant|requested|held|needed|asked)|where (?:required|specified|applicable)|if you have|\(if have\)/i;
 
+/**
+ * The passport is required for every traveller on every list (owner decision, 9 Nov 2026), whatever
+ * a sheet line says about who it is for. The document type alone cannot say which lines those are:
+ * the rules read any line that names a passport as a passport, including a host's or a signatory's
+ * passport, the lost-passport police diary, a passport-size photograph, and a note that names on
+ * documents must match the passport. So a line is the traveller's own passport only when it
+ * carries one of the signs of the traveller's own document (original, current, valid, validity,
+ * biodata, bio page, information page, or the word passport alone) and is not about someone else
+ * or a photograph. Any other passport line keeps the ordinary rule.
+ */
+const OWN_PASSPORT_SIGNS =
+  /\b(?:original|current|valid|validity|biodata|bio page|information page)\b|^passport[.:]?$/i;
+const NOT_THE_TRAVELLERS_OWN =
+  /\b(?:host|signatory|sponsor|inviter|invited|photograph|passport[- ]style|passport[- ]size)/i;
+
+/** True for a passport line that is the traveller's own passport (always required). */
+export function isOwnPassportLine(docType: string, text: string): boolean {
+  if (docType !== 'PASSPORT') return false;
+  const line = text.trim();
+  return OWN_PASSPORT_SIGNS.test(line) && !NOT_THE_TRAVELLERS_OWN.test(line);
+}
+
 /** "Applies when" values that say the item is for everyone. */
 const FOR_EVERYONE = new Set(['all applicants']);
 /** Values that say the item may not apply at all. */
@@ -120,10 +142,13 @@ const MAY_NOT_APPLY = /^(?:as applicable|if applicable|if |where required)/i;
  * How necessary an item is, from who it applies to. Only an item for every applicant, with a real
  * document type, is Required, so a traveller can reach Ready on the list. An item for one kind of
  * traveller (an employee, a student) is Recommended, because nothing on a record yet says which
- * kind the traveller is. An item that may not apply, that the sentence itself says is not
+ * kind the traveller is. The traveller's own passport is always Required. An item that may not apply, that the sentence itself says is not
  * mandatory or only if held, or that names no document, is Optional.
  */
 export function necessityFor(appliesWhen: string, docType: string, text = ''): StarterNecessity {
+  // The traveller's own passport is required on every list, whatever the sheet says about who an
+  // item is for (owner decision, 9 Nov 2026). No other document has this rule.
+  if (isOwnPassportLine(docType, text)) return 'MANDATORY';
   const when = appliesWhen.trim().toLowerCase();
   if (isOtherType(docType) || MAY_NOT_APPLY.test(when) || when === '') return 'OPTIONAL';
   if (SOFTENED_BY_TEXT.test(text)) return 'OPTIONAL';

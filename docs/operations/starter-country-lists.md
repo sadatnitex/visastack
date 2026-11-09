@@ -17,7 +17,7 @@ Prepared 6 November 2026 from the owner's workbook "VisaStack Country Checklists
 | Country and purpose | The two-letter country code and the purpose key a case matches on (`tourism`, `business_visit`, `medical_treatment`) |
 | Item wording | The sheet's sentence, kept as written (only long dashes and spaces are tidied) |
 | Document type | Read from the sentence by a fixed set of rules (`packages/core/src/starter-checklists/doc-type-rules.ts`): the document named first wins. A sentence that names no document, or is an instruction, becomes "Other" and never counts a document by itself |
-| How necessary | Required only for an item for every applicant with a real document type. An item for one kind of traveller is Recommended. An item that may not apply, that its own sentence calls not mandatory, or that names no document is Optional |
+| How necessary | Required for an item for every applicant with a real document type, and always for the traveller's own passport (owner decision, 9 Nov 2026), whatever the sheet says about who it is for. A host's or signatory's passport, the lost-passport police diary and a passport photograph are not the traveller's own passport and follow the ordinary rule. An item for one kind of traveller is Recommended. An item that may not apply, that its own sentence calls not mandatory, or that names no document is Optional |
 | Source | "Starter list: <reference file>" and the file name from the sheet. No link and no date is invented |
 | Who asked for it | "Agency added" |
 
