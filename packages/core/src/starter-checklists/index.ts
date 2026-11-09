@@ -15,6 +15,7 @@ export {
   FALLBACK_DOC_TYPE,
   isOtherType,
   mapDocType,
+  isOwnPassportLine,
   necessityFor,
   type StarterNecessity,
 } from './doc-type-rules';
