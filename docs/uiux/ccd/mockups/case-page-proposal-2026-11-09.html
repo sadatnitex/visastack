@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Case page mockup</title>
+<style>
+:root{
+  --bg:#f6f8fc; --surface:#ffffff; --ink:#14213d; --muted:#5b6b86; --hair:#e3e8f2; --hair-soft:#eef1f8;
+  --accent:#1f4fb2; --accent-ink:#ffffff; --accent-soft:#e9effc;
+  --danger:#b4232a; --danger-soft:#fdecec; --ok:#1c7c4a; --ok-soft:#e5f5ec; --warn:#8a5a00; --warn-soft:#fff3dc;
+  --side:#eef2fb; --radius:12px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--accent);text-decoration:none}
+.app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+.side{background:var(--side);border-right:1px solid var(--hair);padding:18px 14px;display:flex;flex-direction:column;gap:6px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;padding:2px 8px 14px}
+.brand i{width:28px;height:28px;border-radius:8px;background:var(--accent);display:inline-block}
+.who{background:#fff;border:1px solid var(--hair);border-radius:10px;padding:8px 10px;margin-bottom:10px;font-size:13px}
+.who b{display:block;font-size:13px}.who span{color:var(--muted);font-size:12px}
+.nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;color:var(--ink);font-size:14px}
+.nav a.on{background:#fff;border:1px solid var(--hair);font-weight:600}
+.nav svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:1.8}
+.main{min-width:0}
+.top{display:flex;align-items:center;gap:12px;padding:12px 28px;border-bottom:1px solid var(--hair);background:var(--surface)}
+.search{flex:1;max-width:420px;background:var(--bg);border:1px solid var(--hair);border-radius:10px;padding:8px 12px;color:var(--muted);font-size:13px}
+.top .sp{flex:1}
+.page{padding:20px 28px 40px;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:24px;align-items:start}
+.crumb{font-size:13px;color:var(--muted);margin-bottom:6px}
+.head{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+h1{font-size:26px;line-height:1.2;margin:0}
+.meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;color:var(--muted);font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;border:1px solid transparent;white-space:nowrap}
+.pill.draft{background:#eef1f8;color:#42527a}.pill.need{background:var(--danger-soft);color:var(--danger)}
+.pill.opt{background:#eef1f8;color:#53638a}.pill.ok{background:var(--ok-soft);color:var(--ok)}.pill.req{background:var(--warn-soft);color:var(--warn)}
+.pill.note{background:#fff;border-color:var(--hair);color:var(--muted);font-weight:500}
+.actions{margin-left:auto;display:flex;gap:10px;align-items:center}
+.btn{border-radius:10px;padding:9px 16px;font-weight:600;border:1px solid var(--hair);background:#fff}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.small{padding:6px 12px;font-size:13px}
+.next{margin-top:16px;background:var(--accent-soft);border:1px solid #d2defa;border-radius:var(--radius);padding:14px 16px;display:flex;gap:14px;align-items:center}
+.next .t{flex:1}.next b{font-size:15px}.next p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.bar{height:8px;background:#fff;border-radius:99px;overflow:hidden;border:1px solid #d2defa;width:160px}
+.bar i{display:block;height:100%;width:25%;background:var(--accent)}
+.tabs{display:flex;gap:4px;margin:18px 0 12px;border-bottom:1px solid var(--hair);overflow:auto}
+.tabs a{padding:10px 14px;color:var(--muted);font-weight:600;font-size:14px;border-bottom:2px solid transparent;white-space:nowrap}
+.tabs a.on{color:var(--ink);border-color:var(--accent)}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.filter{background:#fff;border:1px solid var(--hair);border-radius:10px;padding:7px 12px;color:var(--muted);font-size:13px;flex:1;max-width:300px}
+.chips{display:flex;gap:6px}.chips .pill{background:#fff;border-color:var(--hair);color:var(--muted)}.chips .pill.on{background:var(--ink);color:#fff}
+.list{background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius);overflow:hidden}
+.group{display:flex;align-items:center;gap:8px;padding:10px 16px;background:#fafbfe;border-bottom:1px solid var(--hair);font-weight:700;font-size:13px;color:var(--muted);letter-spacing:.02em}
+.group .c{background:#e8edf8;border-radius:99px;padding:0 8px;font-size:12px}
+.group svg{width:14px;height:14px;stroke:var(--muted);fill:none;stroke-width:2}
+.row{display:grid;grid-template-columns:36px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--hair-soft);min-height:60px}
+.row:last-child{border-bottom:0}
+.row.sel{background:var(--accent-soft)}
+.ico{width:36px;height:36px;border-radius:9px;background:#eef2fb;display:grid;place-items:center}
+.ico svg{width:20px;height:20px;stroke:#3b4f7d;fill:none;stroke-width:1.7}
+.name{min-width:0}.name b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.name span{display:block;color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.more{padding:12px 16px;color:var(--accent);font-weight:600;font-size:14px;border-top:1px solid var(--hair-soft)}
+.pane{position:sticky;top:16px;background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:14px}
+.pane h2{font-size:17px;line-height:1.3;margin:0}
+.pane .x{margin-left:auto;color:var(--muted)}
+.pane .meta{margin:0}
+.sec{border-top:1px solid var(--hair-soft);padding-top:12px}
+.sec h3{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.opt-row{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--hair);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.opt-row.on{border-color:var(--accent);background:var(--accent-soft)}
+.radio{width:16px;height:16px;border-radius:50%;border:2px solid #9aa9c6;margin-top:3px;flex:none}
+.on .radio{border-color:var(--accent);background:radial-gradient(var(--accent) 45%,transparent 50%)}
+.opt-row small{display:block;color:var(--muted);font-size:12.5px}
+.opt-row.off{opacity:.55}
+.links{display:flex;gap:14px;flex-wrap:wrap;font-size:14px;font-weight:600}
+.sheet-handle{display:none}
+.mtop,.mnav{display:none}
+@media (max-width:760px){
+  .app{display:block}.side,.top{display:none}
+  .mtop{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid var(--hair)}
+  .mtop .brand{padding:0}.mtop .sp{flex:1}
+  .mnav{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--hair);padding:8px 4px 12px;z-index:5;text-align:center;font-size:11.5px;color:var(--muted)}
+  .mnav b{display:block;font-weight:600}.mnav .on{color:var(--accent)}
+  .page{display:block;padding:14px 16px 90px}
+  h1{font-size:22px}.actions{margin-left:0;width:100%}.actions .btn.primary{flex:1;text-align:center}
+  .next{flex-wrap:wrap}.bar{width:100%}
+  .row{grid-template-columns:36px minmax(0,1fr) auto;padding:12px}
+  .row .act{display:none}
+  .pane{display:none}
+  body.sheet .pane{display:flex;position:fixed;left:0;right:0;bottom:0;top:auto;max-height:78vh;overflow:auto;border-radius:18px 18px 0 0;z-index:9;box-shadow:0 -12px 40px rgba(20,33,61,.25);padding-top:10px}
+  body.sheet .scrim{display:block}
+  .scrim{display:none;position:fixed;inset:0;background:rgba(20,33,61,.35);z-index:8}
+  .sheet-handle{display:block;width:44px;height:5px;border-radius:99px;background:#cdd6e8;margin:0 auto 6px}
+  .filter{max-width:none}.chips{display:none}
+}
+</style>
+</head>
+<body>
+<div class="mtop"><div class="brand"><i></i>VisaStack</div><div class="sp"></div><span class="pill note">Nazmus Sadat</span></div>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><i></i>VisaStack</div>
+    <div class="who"><b>Audit Test Traveller</b><span>Managed Traveller</span></div>
+    <nav class="nav">
+      <a><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9H4z"/></svg>Home</a>
+      <a><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/></svg>My Documents</a>
+      <a class="on"><svg viewBox="0 0 24 24"><path d="M4 7h16v12H4zM9 7V4h6v3"/></svg>My Trips</a>
+      <a><svg viewBox="0 0 24 24"><path d="M4 12h12M12 6l6 6-6 6"/></svg>Sharing &amp; Requests</a>
+      <a><svg viewBox="0 0 24 24"><path d="M6 17V11a6 6 0 0112 0v6l2 2H4z"/></svg>Notifications</a>
+      <a><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18"/></svg>Countries</a>
+    </nav>
+  </aside>
+  <div class="main">
+    <div class="top"><div class="search">Search profiles, cases, documents</div><div class="sp"></div><span class="pill note">Traveller Free</span><span class="pill note">Nazmus Sadat</span></div>
+    <div class="page">
+      <section>
+        <div class="crumb">Audit Test Traveller &nbsp;/&nbsp; Cases</div>
+        <div class="head">
+          <div>
+            <h1>United Kingdom, Business Visit</h1>
+            <div class="meta"><span class="pill draft">Draft</span><span>Case C-6YXD3V</span><span>Travel dates not set</span></div>
+          </div>
+          <div class="actions"><button class="btn">More</button><button class="btn primary">Add Files</button></div>
+        </div>
+        <div class="next">
+          <div class="t"><b>3 required items still need your files</b><p>Start with your passport. Nothing is sent until you share it yourself.</p></div>
+          <div class="bar" title="1 of 4 required items ready"><i></i></div>
+        </div>
+        <nav class="tabs"><a class="on">Checklist</a><a>Files</a><a>Tasks and Letters</a><a>Notes</a><a>Submission</a><a>History</a></nav>
+        <div class="toolbar"><div class="filter">Filter this checklist</div><div class="chips"><span class="pill on">All 19</span><span class="pill">Required 4</span><span class="pill">Optional 15</span></div></div>
+        <div class="list">
+          <div class="group"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>Needs You <span class="c">3</span></div>
+          <div class="row sel"><div class="ico"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M14 10h4M14 14h4M6 16c1-2 5-2 6 0"/></svg></div><div class="name"><b>Passport: Original passport, valid at least 6 months</b><span>Required for everyone</span></div><span class="pill need">Needs You</span><button class="btn small act">Add</button></div>
+          <div class="row"><div class="ico"><svg viewBox="0 0 24 24"><path d="M3 10h18M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18M12 4l9 4H3z"/></svg></div><div class="name"><b>Financial and Solvency Documents</b><span>Bank statement and solvency letter</span></div><span class="pill need">Needs You</span><button class="btn small act">Add</button></div>
+          <div class="row"><div class="ico"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h6M9 16h6"/></svg></div><div class="name"><b>Tax Proof: tax certificate and return receipt, last 3 years</b><span>Translated and notarized</span></div><span class="pill need">Needs You</span><button class="btn small act">Add</button></div>
+          <div class="group"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>On File <span class="c">1</span></div>
+          <div class="row"><div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="9" cy="12" r="2"/><path d="M14 10h4M14 14h3"/></svg></div><div class="name"><b>Identification: NID Card or Digital Birth Certificate</b><span>National ID Card - Nazmus Sadat.pdf</span></div><span class="pill ok">On File</span><button class="btn small act">Replace</button></div>
+          <div class="group"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>Optional, not required <span class="c">15</span></div>
+          <div class="row"><div class="ico"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 9h8M8 13h6"/></svg></div><div class="name"><b>Cover letter, sponsor letter, hotel and ticket booking</b><span>For a sponsored applicant</span></div><span class="pill opt">Optional</span><button class="btn small act">Add</button></div>
+          <div class="row"><div class="ico"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M8 9h8M8 13h6"/></svg></div><div class="name"><b>Memorandum of Association / Form XII</b><span>For a business owner</span></div><span class="pill opt">Optional</span><button class="btn small act">Add</button></div>
+          <div class="more">Show 13 more optional items</div>
+        </div>
+      </section>
+      <aside class="pane">
+        <div class="sheet-handle"></div>
+        <div style="display:flex;align-items:center"><span class="pill req">Required</span><button class="btn small x" style="margin-left:auto;border:0;background:none">Close</button></div>
+        <h2>Passport: Original passport, valid at least 6 months, and all previous passports if any</h2>
+        <div class="meta"><span class="pill note">Starter List, Not Official</span><span>For everyone</span></div>
+        <div class="sec"><h3>Use for this item</h3>
+          <div class="opt-row on"><span class="radio"></span><div><b>Passport - Nazmus Sadat - BGD.pdf</b><small>Suggested. Expires 17 Dec 2024, too old for this trip.</small></div></div>
+          <div class="opt-row"><span class="radio"></span><div><b>Leave missing for now</b><small>Keeps it on your list.</small></div></div>
+          <div class="opt-row off"><span class="radio"></span><div><b>Leave out</b><small>Not allowed for a required item.</small></div></div>
+          <button class="btn primary" style="width:100%">Add a Newer Passport</button>
+        </div>
+        <div class="sec"><h3>Where this comes from</h3><div style="font-size:13.5px;color:var(--muted)">Agency starter list, UK VISA REQUIREMENT.pdf. Check it against the official guidance before relying on it.</div></div>
+        <div class="sec links"><a>Edit Wording</a><a>Suggest a Correction</a><a>Explain This with AI</a></div>
+      </aside>
+    </div>
+  </div>
+</div>
+<div class="scrim"></div>
+<nav class="mnav"><div class="on"><b>Home</b></div><div><b>Documents</b></div><div class="on"><b>Trips</b></div><div><b>More</b></div></nav>
+<script>if(location.hash==='#sheet')document.body.classList.add('sheet');</script>
+</body></html>
