@@ -72,13 +72,40 @@ describe('the supplied country checklists', () => {
     }
   });
 
-  it('never makes an item Required unless it is for every applicant and names a real document', () => {
+  it('never makes an item Required unless it is for every applicant (or is the passport) and names a real document', () => {
     for (const pack of built.packs) {
       for (const requirement of pack.requirements) {
         if (requirement.necessity !== 'MANDATORY') continue;
-        expect(requirement.appliesWhen.toLowerCase()).toBe('all applicants');
+        if (requirement.docType !== 'PASSPORT') {
+          expect(requirement.appliesWhen.toLowerCase()).toBe('all applicants');
+        }
         expect(isOtherType(requirement.docType)).toBe(false);
       }
+    }
+  });
+
+  it('makes every passport line Required on every list, whatever the sheet says about who it is for', () => {
+    let seen = 0;
+    for (const pack of built.packs) {
+      for (const requirement of pack.requirements) {
+        if (requirement.docType !== 'PASSPORT') continue;
+        seen += 1;
+        expect(requirement.necessity, `${pack.key}: ${requirement.text}`).toBe('MANDATORY');
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+
+  it('every list has a Required passport line, when its sheet names a passport at all', () => {
+    const withPassport = built.packs.filter((pack) =>
+      pack.requirements.some((r) => r.docType === 'PASSPORT'),
+    );
+    expect(withPassport.length).toBeGreaterThan(20);
+    for (const pack of withPassport) {
+      expect(
+        pack.requirements.some((r) => r.docType === 'PASSPORT' && r.necessity === 'MANDATORY'),
+        pack.key,
+      ).toBe(true);
     }
   });
 
@@ -128,8 +155,12 @@ describe('reading a document type from a sentence', () => {
 });
 
 describe('how necessary a line is', () => {
-  it('is Required only for every applicant with a real document', () => {
+  it('is Required only for every applicant with a real document, and always for the passport', () => {
     expect(necessityFor('All applicants', 'PASSPORT')).toBe('MANDATORY');
+    expect(necessityFor('As applicable', 'PASSPORT')).toBe('MANDATORY');
+    expect(necessityFor('Student', 'PASSPORT')).toBe('MANDATORY');
+    expect(necessityFor('', 'PASSPORT', 'Passport copy, if any')).toBe('MANDATORY');
+    expect(necessityFor('As applicable', 'PHOTO')).toBe('OPTIONAL');
     expect(necessityFor('Employee', 'NOC_EMPLOYER')).toBe('RECOMMENDED');
     expect(necessityFor('As applicable', 'TAX_RETURN')).toBe('OPTIONAL');
     expect(necessityFor('All applicants', 'OTHER')).toBe('OPTIONAL');

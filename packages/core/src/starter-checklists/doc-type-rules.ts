@@ -111,6 +111,9 @@ export type StarterNecessity = 'MANDATORY' | 'RECOMMENDED' | 'OPTIONAL';
 const SOFTENED_BY_TEXT =
   /not mandatory|not required|optional|may also|if (?:have|has|any|available|applicable|relevant|requested|held|needed|asked)|where (?:required|specified|applicable)|if you have|\(if have\)/i;
 
+/** The one document type that is required whatever a sheet line says about who it applies to. */
+const ALWAYS_REQUIRED_DOC_TYPE = 'PASSPORT';
+
 /** "Applies when" values that say the item is for everyone. */
 const FOR_EVERYONE = new Set(['all applicants']);
 /** Values that say the item may not apply at all. */
@@ -120,10 +123,13 @@ const MAY_NOT_APPLY = /^(?:as applicable|if applicable|if |where required)/i;
  * How necessary an item is, from who it applies to. Only an item for every applicant, with a real
  * document type, is Required, so a traveller can reach Ready on the list. An item for one kind of
  * traveller (an employee, a student) is Recommended, because nothing on a record yet says which
- * kind the traveller is. An item that may not apply, that the sentence itself says is not
+ * kind the traveller is. A passport is always Required. An item that may not apply, that the sentence itself says is not
  * mandatory or only if held, or that names no document, is Optional.
  */
 export function necessityFor(appliesWhen: string, docType: string, text = ''): StarterNecessity {
+  // The passport is required for every traveller on every list, whatever the sheet says about who
+  // an item is for (owner decision, 9 Nov 2026). No other document type has this rule.
+  if (docType === ALWAYS_REQUIRED_DOC_TYPE) return 'MANDATORY';
   const when = appliesWhen.trim().toLowerCase();
   if (isOtherType(docType) || MAY_NOT_APPLY.test(when) || when === '') return 'OPTIONAL';
   if (SOFTENED_BY_TEXT.test(text)) return 'OPTIONAL';
