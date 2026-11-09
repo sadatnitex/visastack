@@ -19,6 +19,8 @@ export interface PatternScreen {
   readonly files: readonly string[];
   /** Built from the kit. */
   readonly converted: boolean;
+  /** Not yet fully on the kit, and what already is (a screen with this still counts as waiting). */
+  readonly partial?: string;
   /** The rollout package that converts it (plan section 9). */
   readonly phase: number;
   readonly reason?: string;
@@ -35,8 +37,11 @@ export const PATTERN_SCREENS: readonly PatternScreen[] = [
   {
     screen: 'documents',
     pattern: 'list+pane',
-    files: ['app/app/applicant/[id]/documents/page.tsx', 'components/document-wallet-browser.tsx'],
+    // The list is the wallet browser; the page only hands it the documents and their detail panes.
+    files: ['components/document-wallet-browser.tsx'],
     converted: false,
+    partial:
+      'The panel behaviour and the filter bar come from the kit. The rows and the selection stay its own: they carry the file-kind icon and the date line, the one list where a file-kind icon belongs (plan decision 10).',
     phase: 2,
   },
   {

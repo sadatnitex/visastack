@@ -19693,4 +19693,33 @@ article.card:has(> .trip-start-form) {
 .package-reason[hidden] {
   display: none;
 }
+/* The search and filters above a list. */
+.lp-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+@media (max-width: 760px) {
+  .lp-filter-bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 /* end WP-LP1 */
+
+/* WP-TS1 One size for the same kind of thing on the case page (owner screenshot, 9 Nov 2026): a folder header is a quieter 14px label so a row's 16px name reads first, the small blue fold links all share one size and sit on the card's left edge, and the header badge matches the line beside it. Flat, existing tokens only. */
+.lift-group .case-group-heading {
+  font-size: var(--text-small);
+  letter-spacing: 0.01em;
+  color: var(--text-secondary);
+}
+.case-journey-reminder.lift-help {
+  padding: 0;
+}
+.case-journey-reminder.lift-help > summary {
+  font-size: var(--text-small);
+}
+.lift-case .page-meta .badge {
+  font-size: var(--text-small);
+}
+/* end WP-TS1 */

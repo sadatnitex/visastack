@@ -1,13 +1,14 @@
 'use client';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { DEPTH_PHONE_QUERY } from '../lib/ccd/depth';
 import { formatTimestampDate } from '../lib/format-date';
 import { agree, plural } from '../lib/plural';
 import { useMediaQuery } from '../lib/use-popover';
-import { atLevel } from './depth';
 import { Icon } from './icons';
+import { ListFilterBar } from './list-pattern';
+import { useSheetBehaviour } from './list-pattern/use-sheet';
 import { EmptyState, StatusBadge } from './ui';
 
 export interface WalletBrowserDocument {
@@ -126,47 +127,13 @@ export function DocumentWalletBrowser({
   };
   const closeSheetRef = useRef(closeSheet);
   closeSheetRef.current = closeSheet;
-  useEffect(() => {
-    if (!sheetShown) return;
-    sheet.current?.focus();
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const onKey = (event: KeyboardEvent) => {
-      // A menu or confirmation inside the screen that already used Escape keeps it for itself.
-      if (event.key === 'Escape' && !event.defaultPrevented) {
-        closeSheetRef.current();
-        return;
-      }
-      // Tab stays inside the full screen: the page behind it is not visible and not reachable.
-      if (event.key !== 'Tab') return;
-      const panel = sheet.current;
-      if (!panel) return;
-      const focusable = [
-        ...panel.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
-        ),
-      ].filter((node) => node.offsetParent !== null);
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (!first || !last) return;
-      const active = document.activeElement;
-      if (!panel.contains(active) || active === panel) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-      } else if (event.shiftKey && active === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = previous;
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [sheetShown]);
+  // Esc, Tab inside the full screen and no scrolling behind it: the one behaviour of every panel.
+  useSheetBehaviour({
+    open: sheetShown,
+    trap: sheetShown,
+    panel: sheet,
+    onClose: () => closeSheetRef.current(),
+  });
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [filter, setFilter] = useState<Filter>('all');
@@ -225,7 +192,17 @@ export function DocumentWalletBrowser({
       <div className="document-wallet-layout">
         <section className="card document-wallet-list" aria-label="Document metadata list">
           {documents.length > 0 ? (
-            <div className="wallet-filter-controls" {...atLevel('browse')}>
+            <ListFilterBar
+              rows={documents.length}
+              minRows={1}
+              level="browse"
+              query={query}
+              onQuery={(value) => {
+                setQuery(value);
+                setPage(0);
+              }}
+              searchLabel="Search Documents"
+            >
               <label>
                 <span className="sr-only">Category</span>
                 <select
@@ -245,20 +222,7 @@ export function DocumentWalletBrowser({
                   {notSorted > 0 ? <option value={NOT_SORTED}>Not Set Yet</option> : null}
                 </select>
               </label>
-              <label>
-                <span className="sr-only">Search Documents</span>
-                <input
-                  className="input"
-                  type="search"
-                  value={query}
-                  onChange={(event) => {
-                    setQuery(event.target.value);
-                    setPage(0);
-                  }}
-                  placeholder="Search"
-                />
-              </label>
-            </div>
+            </ListFilterBar>
           ) : null}
           {notSorted > 0 ? (
             <div className="wallet-nokind" data-testid="wallet-not-sorted">

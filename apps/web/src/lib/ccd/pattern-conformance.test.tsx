@@ -52,7 +52,7 @@ describe('the pattern registry (static)', () => {
     for (const screen of converted) {
       const sources = screen.files.map(read);
       expect(
-        sources.some((source) => source.includes('components/list-pattern')),
+        sources.some((source) => /from ['"][^'"]*list-pattern['"]/.test(source)),
         `${screen.screen} imports the list kit`,
       ).toBe(true);
       for (const [index, source] of sources.entries()) {
@@ -61,6 +61,17 @@ describe('the pattern registry (static)', () => {
           /className=["']row["']/,
         );
       }
+    }
+  });
+
+  it('holds a partly converted screen to the part it claims: it imports the kit', () => {
+    for (const screen of PATTERN_SCREENS.filter((s) => s.partial)) {
+      expect(
+        screen.files
+          .map(read)
+          .some((source) => /from ['"][^'"]*list-pattern(?:\/[\w-]+)?['"]/.test(source)),
+        `${screen.screen} imports the list kit`,
+      ).toBe(true);
     }
   });
 
