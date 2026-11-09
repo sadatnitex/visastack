@@ -2,9 +2,7 @@
 
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useMediaQuery } from '../../lib/use-popover';
-
-/** At and below this width the panel is a full screen of its own (the case page is one column). */
-export const PANE_SHEET_QUERY = '(max-width: 1180px)';
+import { PANE_SHEET_QUERY } from './pane-query';
 
 /** One item's panel, drawn by the server. */
 export interface PaneEntry {
