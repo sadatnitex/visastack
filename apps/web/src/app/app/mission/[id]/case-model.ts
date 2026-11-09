@@ -15,9 +15,11 @@ import type { RowNoun } from '../../../../components/show-more';
 import type { LiftTone } from '../../../../components/ui-lift';
 import type { SelectableChecklists } from '../../../../lib/case-checklist-match';
 import { humanizeCode } from '../../../../lib/format-code';
+import { documentKindLabel } from '../../../../lib/item-names';
 import { fieldLabel } from '../../../../lib/master-profile';
 import { TRAVELLER_LIST_STEP } from '../../../../lib/paging';
-import { REQUIREMENT_GROUPS } from '../../../../lib/requirement-groups';
+import { COVERED_HEADING, REQUIREMENT_GROUPS } from '../../../../lib/requirement-groups';
+import { REQUIREMENT_STATUS } from '../../../../lib/status-words';
 import type { WelcomeChecklists } from './case-welcome-copy';
 
 /**
@@ -45,38 +47,43 @@ export const REQUIREMENT_STATE_META: Record<
   { label: string; tone: string; next: string; order: number }
 > = {
   CRITICAL_GAP: {
-    label: 'Missing',
+    label: REQUIREMENT_STATUS.CRITICAL_GAP.word,
     tone: 'badge-danger',
     next: 'Add this to move the case forward.',
     order: 0,
   },
   CONFLICTING: {
-    label: 'Two Values',
+    label: REQUIREMENT_STATUS.CONFLICTING.word,
     tone: 'badge-danger',
     next: 'Two different values are on file. Pick the right one on your profile before it can count.',
     order: 1,
   },
   EXPIRING_STALE: {
-    label: 'Out of Date',
+    label: REQUIREMENT_STATUS.EXPIRING_STALE.word,
     tone: 'badge-danger',
     next: 'The evidence on file is too old for this route. Add a current version.',
     order: 2,
   },
   UNVERIFIED: {
-    label: 'To Confirm',
+    label: REQUIREMENT_STATUS.UNVERIFIED.word,
     tone: 'badge-warning',
     next: 'Whether this applies depends on case details that are not confirmed yet.',
     order: 3,
   },
   ATTENTION: {
-    label: 'Optional',
+    label: REQUIREMENT_STATUS.ATTENTION.word,
     tone: 'badge-neutral',
     next: 'Optional for this case.',
     order: 4,
   },
-  SATISFIED: { label: 'On File', tone: 'badge-success', next: '', order: 5 },
+  SATISFIED: {
+    label: REQUIREMENT_STATUS.SATISFIED.word,
+    tone: 'badge-success',
+    next: '',
+    order: 5,
+  },
   NOT_APPLICABLE: {
-    label: 'Not Applicable',
+    label: REQUIREMENT_STATUS.NOT_APPLICABLE.word,
     tone: 'badge-neutral',
     next: 'Does not apply to this case.',
     order: 6,
@@ -179,11 +186,15 @@ export const ATTENTION_ICON: Record<'warning' | 'danger', IconName> = {
   warning: 'alert',
 };
 
-/** The tone of each checklist group: what needs you, what needs a check, what is done. */
-export const CHECKLIST_GROUP_TONE: Readonly<Record<string, 'danger' | 'warning' | 'success'>> = {
+/** The tone of each checklist group, by its id: what needs you, what to check, optional, on file. */
+export const CHECKLIST_GROUP_TONE: Readonly<
+  Record<string, 'danger' | 'warning' | 'success' | 'neutral'>
+> = {
   'needs-you': 'danger',
   'needs-a-check': 'warning',
-  done: 'success',
+  optional: 'neutral',
+  'on-file': 'success',
+  'does-not-apply': 'neutral',
 };
 
 /** How far one checklist category is: the items on file, out of the items that count. */
@@ -286,7 +297,7 @@ export const officialLabel = (r: {
     ? r.wording
     : r.kind === 'FIELD'
       ? (fieldLabel(r.key) ?? humanizeCode(r.key))
-      : humanizeCode(r.key);
+      : documentKindLabel(r.key);
 
 /** A checklist item's name, as the checklist row shows it: the traveller's own words first. */
 export const requirementLabel = (r: {
@@ -468,13 +479,23 @@ export interface ChecklistGroup {
   readonly rows: readonly RequirementDetailRow[];
 }
 
-/** The checklist's groups that have rows, in their fixed order (WP-SB2). */
+/** The id of a group, from its heading: "Needs a Check" is `needs-a-check`. */
+export const groupKeyOf = (heading: string) => heading.toLowerCase().replace(/\s+/g, '-');
+
+/**
+ * The checklist's groups that have rows, in their fixed order (WP-SB2). A line another option
+ * already covers is an optional outcome, and it is shown under On File.
+ */
 export function buildChecklistGroups(
   requirementDetails: readonly RequirementDetailRow[],
 ): readonly ChecklistGroup[] {
+  const headingOf = (r: RequirementDetailRow) =>
+    r.state === 'ATTENTION' && r.coveredByAlternative
+      ? COVERED_HEADING
+      : (REQUIREMENT_GROUPS.find((group) => group.states.includes(r.state))?.heading ?? '');
   return REQUIREMENT_GROUPS.flatMap((group) => {
     const rows = requirementDetails
-      .filter((r) => group.states.includes(r.state))
+      .filter((r) => headingOf(r) === group.heading)
       // UMPE G2 (R02): rule categories, in their fixed order, inside each group (a stable sort, so
       // a checklist with no categories keeps exactly its old order).
       .map((r, index) => ({ r, index }))
@@ -486,6 +507,6 @@ export function buildChecklistGroups(
       .map(({ r }) => r);
     return rows.length === 0
       ? []
-      : [{ key: group.heading.toLowerCase().replace(/\s+/g, '-'), heading: group.heading, rows }];
+      : [{ key: groupKeyOf(group.heading), heading: group.heading, rows }];
   });
 }

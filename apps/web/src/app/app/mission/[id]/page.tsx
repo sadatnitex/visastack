@@ -61,6 +61,7 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
+import { ListWithPane } from '../../../../components/list-pattern';
 import { ReferenceCode } from '../../../../components/reference-code';
 import { ShowMore } from '../../../../components/show-more';
 import { PageHeader, StatusBadge } from '../../../../components/ui';
@@ -94,7 +95,7 @@ import {
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import type { PackOption } from './attach-pack-form';
-import { CaseChecklist, CaseExpiringDocuments } from './case-checklist';
+import { CaseChecklist, CaseExpiringDocuments, caseItemPanes } from './case-checklist';
 import { CaseMobileBar } from './case-mobile-bar';
 import {
   CAPPED_LISTS,
@@ -165,6 +166,7 @@ export default async function MissionPage({
     outcomes: outcomesShow,
     complaints: complaintsShow,
     feedback: feedbackShow,
+    item: itemShow,
   } = query;
   // Start a Case and Start a New Case from This One both arrive with `welcome=1`.
   const welcomeAsked = firstParam(welcome) === '1';
@@ -627,7 +629,7 @@ export default async function MissionPage({
       tripChecks,
       casePackage,
       formatLines,
-      starterPack,
+      openItem: firstParam(itemShow) ?? null,
       caseSources,
       expiringDocuments: expiryConflicts.map((c) => ({
         documentId: c.documentId,
@@ -820,6 +822,39 @@ export default async function MissionPage({
   // The attention item the Next Step shows: none when the case changed (its alert is the next step).
   const nextStepItem = showNextStep && nextStep ? nextStep : null;
 
+  const explanations = {
+    configured: data.explanationConfigured,
+    off:
+      data.explanationFeature && !data.explanationFeature.available
+        ? data.explanationFeature.reason
+        : undefined,
+    byRequirement: new Map(
+      [...data.explanationsByRequirement].map(
+        ([id, entry]) => [id, entry?.explanation ?? null] as const,
+      ),
+    ),
+  };
+  const checklistIds = new Set(data.requirementDetails.map((r) => r.packRequirementId));
+  // One panel per checklist item; the package choice of an item sits in its own panel.
+  const checklistPanes = hasChecklist
+    ? caseItemPanes({
+        missionId: mission.id,
+        applicantId: data.applicantId,
+        rows: data.requirementDetails,
+        chosenByRequirement: data.evidenceLifecycle.chosenByRequirement,
+        packName: data.packInfo?.name ?? null,
+        wordingEditable: data.wordingEditable,
+        wordingMax: CHECKLIST_WORDING_MAX,
+        selfReviewed: data.selfReviewed,
+        explanations,
+        packageItems: new Map(
+          (data.casePackage?.items ?? []).map((item) => [item.packRequirementId, item] as const),
+        ),
+        packageEditable: Boolean(data.casePackage?.available && data.casePackage?.active),
+        formatLines: data.formatLines,
+      })
+    : [];
+
   return (
     <section className="section container lift-case">
       {/* The scope wraps the header too, so the header's own buttons can sit at a depth. */}
@@ -954,45 +989,37 @@ export default async function MissionPage({
             the rest. Two columns on a wide screen: the checklist and the rest on the left, the
             facts about the case in a rail. */}
         <div className="lift-case-grid case-working-area">
-          <div className="lift-case-checklist">
-            {hasChecklist ? (
-              <CaseChecklist
-                missionId={mission.id}
-                applicantId={data.applicantId}
-                rows={data.requirementDetails}
-                chosenByRequirement={data.evidenceLifecycle.chosenByRequirement}
-                packName={data.packInfo?.name ?? null}
-                wordingEditable={data.wordingEditable}
-                wordingMax={CHECKLIST_WORDING_MAX}
-                selfReviewed={data.selfReviewed}
-                explanations={{
-                  configured: data.explanationConfigured,
-                  off:
-                    data.explanationFeature && !data.explanationFeature.available
-                      ? data.explanationFeature.reason
-                      : undefined,
-                  byRequirement: new Map(
-                    [...data.explanationsByRequirement].map(
-                      ([id, entry]) => [id, entry?.explanation ?? null] as const,
-                    ),
-                  ),
-                }}
-              />
-            ) : null}
-            {data.readiness && data.expiringDocuments.length > 0 ? (
-              <CaseExpiringDocuments documents={data.expiringDocuments} />
-            ) : null}
-            {data.casePackage ? (
-              <article className="card" id="trip-package" {...atLevel('browse')}>
-                <PackagePanel
-                  pkg={data.casePackage}
-                  formatLines={data.formatLines}
-                  starter={data.starterPack}
+          <ListWithPane
+            panes={checklistPanes}
+            initial={data.openItem ?? undefined}
+            paneLabel="Item Details"
+            backLabel="Back to the Checklist"
+            backHref={`/app/mission/${mission.id}#readiness`}
+          >
+            <div className="lift-case-checklist">
+              {hasChecklist ? (
+                <CaseChecklist
+                  missionId={mission.id}
+                  applicantId={data.applicantId}
+                  rows={data.requirementDetails}
+                  chosenByRequirement={data.evidenceLifecycle.chosenByRequirement}
+                  packName={data.packInfo?.name ?? null}
+                  wordingEditable={data.wordingEditable}
+                  wordingMax={CHECKLIST_WORDING_MAX}
                   selfReviewed={data.selfReviewed}
+                  explanations={explanations}
                 />
-              </article>
-            ) : null}
-          </div>
+              ) : null}
+              {data.readiness && data.expiringDocuments.length > 0 ? (
+                <CaseExpiringDocuments documents={data.expiringDocuments} />
+              ) : null}
+              {data.casePackage ? (
+                <article className="card" id="trip-package" {...atLevel('browse')}>
+                  <PackagePanel pkg={data.casePackage} listedIds={checklistIds} />
+                </article>
+              ) : null}
+            </div>
+          </ListWithPane>
           <CaseRail
             mission={mission}
             applicantId={data.applicantId}

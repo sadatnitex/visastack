@@ -1,25 +1,22 @@
-import { NECESSITY_LABELS } from '@visastack/core';
 import {
   type CasePackage,
   type FreshnessCaveat,
   PACKAGE_CHANGE_LABELS,
   PACKAGE_PHRASE_LABELS,
   type PackageAttentionReason,
-  type PackageCopy,
-  type PackageItem,
   type PackagePhrase,
 } from '@visastack/services';
 import Link from 'next/link';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { documentKindLabel } from '../../../../lib/item-names';
 import { fieldLabel } from '../../../../lib/master-profile';
-import { provenanceLine } from '../../../../lib/pack-labels';
 import {
   PackageChangeReviewedForm,
-  type PackageChoiceOption,
   PackageHandoffForm,
   PackageItemChoiceForm,
 } from './package-forms';
+import { choiceOptions, usingLine } from './package-item-model';
 
 /**
  * UMPE P4: the case's trip package. One plain phrase (Needs Attention, Ready for Final Review,
@@ -58,75 +55,27 @@ const CAVEAT_WORDS: Readonly<Record<FreshnessCaveat, string>> = {
   SOURCES_NOT_CHECKED: 'Official pages have not been checked for this checklist yet.',
 };
 
-function itemName(item: Pick<PackageItem, 'kind' | 'key'>): string {
+function itemName(item: { readonly kind: 'FIELD' | 'DOCUMENT'; readonly key: string }): string {
   return item.kind === 'FIELD'
     ? (fieldLabel(item.key) ?? humanizeCode(item.key))
-    : humanizeCode(item.key);
-}
-
-function copyName(copy: PackageCopy): string {
-  if (copy.kind === 'FIELD') return 'Your Saved Answer';
-  const name = copy.displayName ?? 'Document';
-  return copy.documentDate ? `${name} (${copy.documentDate})` : name;
-}
-
-function optionValue(copy: PackageCopy): string | null {
-  if (copy.documentVersionId) return `d:${copy.documentVersionId}`;
-  if (copy.factVersionId) return `f:${copy.factVersionId}`;
-  return null;
-}
-
-function usingLine(item: PackageItem): string {
-  const chosen = item.chosen;
-  if (chosen?.choice === 'EXCLUDE') return 'Left out of this package by you.';
-  if (chosen?.choice === 'LEAVE_MISSING') return 'Left missing for now.';
-  if (chosen?.copy) return `Using: ${copyName(chosen.copy)}, chosen by you.`;
-  if (item.proposed) return `Suggested: ${copyName(item.proposed)}.`;
-  return 'Nothing on file matches yet.';
-}
-
-function choiceOptions(item: PackageItem): { options: PackageChoiceOption[]; current: string } {
-  const copies: PackageCopy[] = [];
-  const seen = new Set<string>();
-  for (const copy of [item.chosen?.copy, item.proposed, item.newerCopy, ...item.alternatives]) {
-    const value = copy ? optionValue(copy) : null;
-    if (!copy || !value || seen.has(value) || !copy.usable) continue;
-    seen.add(value);
-    copies.push(copy);
-  }
-  const options = copies.map((copy) => ({
-    value: optionValue(copy) as string,
-    label: `Use ${copyName(copy)}`,
-  }));
-  const current =
-    item.chosen?.choice === 'LEAVE_MISSING'
-      ? 'missing'
-      : item.chosen?.choice === 'EXCLUDE'
-        ? 'exclude'
-        : ((item.chosen?.copy ? optionValue(item.chosen.copy) : null) ??
-          (item.proposed ? optionValue(item.proposed) : null) ??
-          'missing');
-  return { options, current };
+    : documentKindLabel(item.key);
 }
 
 export function PackagePanel({
   pkg,
-  formatLines = {},
-  starter = false,
-  selfReviewed = false,
+  listedIds = new Set<string>(),
 }: {
   readonly pkg: CasePackage;
-  /** The case's checklist is a starter list: every line reads as the starter list, not an agency. */
-  readonly starter?: boolean;
-  /** No agency has access to the case, so an agency-added line says who added it, not who asked. */
-  readonly selfReviewed?: boolean;
   /**
-   * UMPE G2 (R12): how each document must be provided, by requirement id, from the checklist's
-   * structured format rules (the notes are read only as a fallback). Absent means nothing stated.
+   * The checklist rows already on the page. Every item of the package is one of them, with its
+   * choice in that row's panel; an item without a row (it should never happen) is drawn below
+   * the summary so no choice is ever out of reach.
    */
-  readonly formatLines?: Readonly<Record<string, readonly string[]>>;
+  readonly listedIds?: ReadonlySet<string>;
 }) {
-  const items = pkg.items.filter((item) => item.state !== 'NOT_APPLICABLE');
+  const items = pkg.items.filter(
+    (item) => item.state !== 'NOT_APPLICABLE' && !listedIds.has(item.packRequirementId),
+  );
   const editable = pkg.available && pkg.active;
   const caveats = pkg.freshness?.caveats ?? [];
   return (
@@ -141,6 +90,11 @@ export function PackagePanel({
         This shows what you have ready. It is not a submission and nothing is sent until you share
         it yourself.
       </p>
+      {pkg.items.length > 0 ? (
+        <p className="muted u-fs-085">
+          To choose which file an item uses, open the item in the Evidence Checklist.
+        </p>
+      ) : null}
       {pkg.reasons.length > 0 ? (
         <ul className="package-reasons">
           {pkg.reasons.map((reason) => (
@@ -179,40 +133,18 @@ export function PackagePanel({
       {items.length > 0 ? (
         <section aria-labelledby="package-items-heading">
           <h3 id="package-items-heading" className="package-subheading">
-            What This Package Uses
+            Other Items in This Package
           </h3>
           <ul className="package-items">
             {items.map((item) => {
               const name = itemName(item);
               const { options, current } = choiceOptions(item);
-              const provenance = provenanceLine(item.provenance, { starter, selfReviewed });
               return (
                 <li key={item.packRequirementId} className="package-item">
                   <p className="u-m-0">
-                    <strong>{name}</strong>{' '}
-                    <span className="badge badge-neutral">{NECESSITY_LABELS[item.necessity]}</span>
-                    {provenance ? (
-                      <>
-                        {' '}
-                        <span className="badge badge-neutral">{provenance}</span>
-                      </>
-                    ) : null}
+                    <strong>{name}</strong>
                   </p>
                   <p className="muted u-fs-085 u-m-0">{usingLine(item)}</p>
-                  {(formatLines[item.packRequirementId]?.length ?? 0) > 0 ? (
-                    <p className="u-fs-085 u-m-0 package-item-format">
-                      How to Provide It: {formatLines[item.packRequirementId]?.join(' · ')}
-                    </p>
-                  ) : null}
-                  {item.newerCopy ? (
-                    <p className="u-fs-085 u-m-0">
-                      A newer copy is available: {copyName(item.newerCopy)}. Your choice stays as it
-                      is until you change it.
-                    </p>
-                  ) : null}
-                  {item.chosen?.copy && !item.chosen.copy.usable ? (
-                    <p className="u-fs-085 u-m-0">The chosen copy can no longer be used.</p>
-                  ) : null}
                   {editable ? (
                     <PackageItemChoiceForm
                       missionId={pkg.missionId}

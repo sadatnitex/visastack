@@ -21,7 +21,7 @@ vi.mock('./suggest-correction', () => {
   };
 });
 
-const { CaseChecklist } = await import('./case-checklist');
+const { CaseChecklist, caseItemPanes } = await import('./case-checklist');
 
 function row(over: Partial<RequirementDetailRow> = {}): RequirementDetailRow {
   return {
@@ -52,6 +52,24 @@ const props = (rows: RequirementDetailRow[], wordingEditable = true) => ({
   wordingEditable,
 });
 
+/** The list and the panels its rows open, as the page draws them side by side. */
+function Both({ rows, editable = true }: { rows: RequirementDetailRow[]; editable?: boolean }) {
+  const given = props(rows, editable);
+  return (
+    <>
+      <CaseChecklist {...given} />
+      {caseItemPanes({
+        ...given,
+        packageItems: new Map(),
+        packageEditable: false,
+        formatLines: {},
+      }).map((pane) => (
+        <div key={pane.id}>{pane.content}</div>
+      ))}
+    </>
+  );
+}
+
 describe('label precedence', () => {
   it("puts the traveller's words first and keeps the official name for summaries", () => {
     const r = row({ wording: 'Valid passport, six months.', myWording: 'My passport' });
@@ -64,9 +82,7 @@ describe('label precedence', () => {
 describe('the checklist with the traveller wording', () => {
   it('shows the traveller title, the original sentence, a tag, and an edit control', async () => {
     const html = await renderServer(
-      <CaseChecklist
-        {...props([row({ wording: 'Valid passport, six months.', myWording: 'My passport' })])}
-      />,
+      <Both rows={[row({ wording: 'Valid passport, six months.', myWording: 'My passport' })]} />,
     );
     const text = textOf(html);
     expect(text).toContain('My passport');
@@ -78,7 +94,7 @@ describe('the checklist with the traveller wording', () => {
   });
 
   it('shows no tag and no original line for an item that is not reworded, but still offers editing', async () => {
-    const html = await renderServer(<CaseChecklist {...props([row()])} />);
+    const html = await renderServer(<Both rows={[row()]} />);
     const text = textOf(html);
     expect(text).not.toContain('Your Wording');
     expect(text).not.toContain('Original:');
@@ -87,19 +103,17 @@ describe('the checklist with the traveller wording', () => {
 
   it('offers no edit control when editing is off (case finished, or not switched on yet)', async () => {
     const html = await renderServer(
-      <CaseChecklist {...props([row({ myWording: 'My passport' })], false)} />,
+      <Both rows={[row({ myWording: 'My passport' })]} editable={false} />,
     );
     expect(html).not.toContain('WordingEditor');
     expect(textOf(html)).toContain('My passport');
   });
 
   it('keeps the status of a reworded required item exactly as it was', async () => {
-    const html = await renderServer(
-      <CaseChecklist {...props([row({ myWording: 'Optional, skip this' })])} />,
-    );
+    const html = await renderServer(<Both rows={[row({ myWording: 'Optional, skip this' })]} />);
     const text = textOf(html);
     expect(text).toContain('Optional, skip this');
-    // The row still says it is mandatory, is still missing, and still asks for evidence.
+    // The row still says it is mandatory, is still missing, and its panel still asks for evidence.
     expect(text).toContain('Mandatory');
     expect(text).toContain('Missing');
     expect(text).toContain('Provide Evidence');

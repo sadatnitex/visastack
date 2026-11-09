@@ -97,26 +97,10 @@ describe('PackagePanel', () => {
     expect(html).not.toMatch(/\b(approved|submitted to authority|guaranteed)\b/i);
   });
 
-  it('shows a newer copy as a proposal and keeps the chosen one', () => {
+  it('keeps the change note and its review button, and no longer lists each item again', () => {
     const html = renderToStaticMarkup(
       <PackagePanel
         pkg={pkg({
-          items: [
-            {
-              ...passport,
-              chosen: {
-                choice: 'USE_COPY',
-                copy: passport.proposed,
-                reason: null,
-                chosenAt: '2026-11-01T00:00:00.000Z',
-              },
-              newerCopy: {
-                ...(passport.proposed as NonNullable<PackageItem['proposed']>),
-                documentVersionId: '00000000-0000-4000-8000-0000000000a2',
-                documentDate: '2026-10-20',
-              },
-            },
-          ],
           change: {
             kind: 'NEWER_DOCUMENT',
             firstSeenAt: '2026-11-02T00:00:00.000Z',
@@ -124,24 +108,21 @@ describe('PackagePanel', () => {
             changeCount: 1,
           },
         })}
+        listedIds={new Set([passport.packRequirementId])}
       />,
     );
-    expect(html).toContain('Using: Passport Scan (2026-10-01), chosen by you.');
-    expect(html).toContain('A newer copy is available: Passport Scan (2026-10-20)');
     expect(html).toContain('I Have Reviewed This');
+    expect(html).not.toContain('package-item');
+    expect(html).not.toContain('package-choice-form');
+    expect(html).toContain('open the item in the Evidence Checklist');
   });
 
-  it('shows how each document must be provided when the checklist says (UMPE G2, R12)', () => {
-    const html = renderToStaticMarkup(
-      <PackagePanel
-        pkg={pkg()}
-        formatLines={{
-          [passport.packRequirementId]: ['Accepted As: Certified Copy', 'Translation Needed'],
-        }}
-      />,
-    );
-    expect(html).toContain('How to Provide It: Accepted As: Certified Copy · Translation Needed');
-    expect(renderToStaticMarkup(<PackagePanel pkg={pkg()} />)).not.toContain('How to Provide It');
+  it('draws an item that has no checklist row, so no choice is ever out of reach', () => {
+    const html = renderToStaticMarkup(<PackagePanel pkg={pkg()} />);
+    expect(html).toContain('Other Items in This Package');
+    expect(html).toContain('package-choice-form');
+    // It reads by its document kind, in plain words.
+    expect(html).toContain('<strong>Passport</strong>');
   });
 
   it('shows a finished case as it is, with no forms', () => {

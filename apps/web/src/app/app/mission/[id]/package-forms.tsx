@@ -80,7 +80,9 @@ export function PackageItemChoiceForm({
         {hasChoice ? <option value="clear">Go Back to the Suggested Copy</option> : null}
       </select>
       {canExclude ? (
-        <>
+        // The reason is asked only once Leave Out is picked. The box stays in the page, hidden,
+        // so a typed reason is never lost by looking at another choice and coming back.
+        <div hidden={value !== 'exclude'} className="package-reason">
           <label className="label" htmlFor={`${id}-reason`}>
             Reason for Leaving Out
           </label>
@@ -94,7 +96,7 @@ export function PackageItemChoiceForm({
           <p id={reasonHint} className="muted u-fs-085 u-m-0">
             Needed only when you leave this item out. It stays with this case.
           </p>
-        </>
+        </div>
       ) : null}
       <div>
         <SubmitButton

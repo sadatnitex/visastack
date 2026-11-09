@@ -529,3 +529,13 @@ Safety and consent wording shortened on a screen (full wording one tap away): th
 | Header buttons Start a New Case from This One and Take a Snapshot at every level | Browse and deeper (still in More on a phone and in the page); Add Evidence stays at every level | Browse |
 | The 8-link section row at every level | Row hidden at Glance; each link carries the level of its section | Browse |
 | "Requested by Your Agency" on an agency-added line with no agency on the case | "Added by an Agency" (with an agency on the case it still reads "Requested by Your Agency"); starter lines read "Starter List, Not Official" | always |
+
+## 09. Case: package 1 of the case page plan (9 Nov 2026)
+
+| Was | Now | Level |
+|---|---|---|
+| Checklist folders Needs You, Needs a Check, Done | Needs You, Needs a Check, Optional, On File, Does Not Apply (hidden when empty); a heading "Done N" is now "On File N", "Optional N" or "Does Not Apply N" | always |
+| Each row had a "More About This Item" fold with the source, the format lines, the forms and the other actions | The same content and forms are in the item's panel, opened from the row's name (`?item=<id>`); nothing was removed | always |
+| Row button "Provide Evidence" | Row button "Add" (Documents page or profile); "Provide Evidence" (to `#evidence`) is in the item's panel | always |
+| Trip Package listed every item again with its own choice form | Each item's choice is in its panel; the package is the summary; an item with no checklist row is drawn under "Other Items in This Package" | Browse |
+| Item named by file type in the package ("Other", "Nid", "Noc") | Named by its own sentence, else the catalogue label ("National ID") | always |

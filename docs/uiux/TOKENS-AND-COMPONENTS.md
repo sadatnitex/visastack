@@ -28,3 +28,14 @@ Selected navigation and registration labels use the separate selected-text token
 ## Approved appearance correction, 2026-10-11
 
 Remove both automatic prefers-color-scheme dark override blocks. Keep color-scheme light and a fixed paper theme color. Separate paper public background, white surfaces, #fafaf7 workspace content and #f1f3ee sidebar. Retain deliberate #102937/#183844 navy accents, teal actions, mint selection and rust serif headlines. Shared AuthShell, AppNav, WorkspaceToolbar, SiteNavigation and trust story translate the original desktop proportions into purposeful tablet/phone reflow. No alternate dark theme is provided.
+
+## One list pattern, 9 Nov 2026 (case page plan, sections 8 and 10)
+
+Every list screen is built from `apps/web/src/components/list-pattern/`: `ListRow` (a status glyph, a name cut to twelve words, one chip, at most one action), `GroupedList` (folders with a Title Case header and a count, the first rows shown and the rest under "n More Items", stable ids), and `ListWithPane` (the panel a row opens: Back, Esc and the browser's Back close it, focus returns to the row, a link with `?item=<id>` opens it at once). The look lives in one block of `globals.css` (`WP-LP1`) and is held by `lib/list-pattern-css.test.ts`; the use of the kit is held by `lib/ccd/pattern-registry.ts` and `pattern-conformance.test.tsx`.
+
+- Row: minimum height 56px on every width; one line of name, cut with an ellipsis and marked `data-value`, the full sentence in the panel and in the link's accessible name; at most one meta line; the leading mark is the status glyph in a circle (no tile); a file-kind icon appears only on the Documents list.
+- Chip: the word comes from `lib/status-words.ts` (Missing, Two Values, Out of Date, To Confirm, Optional, On File, Not Applicable, Covered by Another Option, Received). Green, amber and red are states; blue is Received and is never green.
+- Folder header: Title Case, with the count of rows, an `h4` inside the opener of a native fold. A folder with no rows is not drawn.
+- Panel: wide screens, it takes the side column (24rem, 384px) and the rail steps aside; at 1180px and below it is a full screen (no dimmed backdrop, because translucent surfaces are not allowed) with one way back and the page behind it locked. 1px border, no shadow.
+- Buttons: the page's one filled button is the Next Step. A row action is a secondary 14px button, 44px high. The panel's save buttons are secondary unless one is the page's only primary.
+- Adding a file: a new file is added on the Documents page. The panel's Add button goes there; "Provide Evidence" chooses among files already on file.

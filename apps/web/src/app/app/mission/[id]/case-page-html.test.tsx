@@ -411,9 +411,13 @@ describe('the real case page with worst-case data', () => {
     // The capped lists show their first rows, not all of them.
     expect((html.match(/id="case-task-/g) ?? []).length).toBe(10);
     expect((html.match(/id="case-note-/g) ?? []).length).toBe(10);
-    // The Trip Package is on the page and lists every applicable item, so the budget measures it.
+    // The Trip Package is on the page, and every item has a panel (with its package choice) the
+    // list opens, so the budget measures the page a person gets with all of them in it.
     expect(html).toContain('Trip Package');
-    expect((html.match(/class="package-item"/g) ?? []).length).toBe(applicable(ITEMS));
+    expect((html.match(/data-pattern="detail-pane"/g) ?? []).length).toBe(ITEMS);
+    expect((html.match(/class="package-choice-form"/g) ?? []).length).toBe(applicable(ITEMS));
+    // The package no longer lists its items a second time.
+    expect(html).not.toContain('class="package-item"');
     const out = readEnv(OUT_VARIABLE);
     if (out) {
       mkdirSync(dirname(out), { recursive: true });
@@ -430,8 +434,11 @@ describe('the real case page with worst-case data', () => {
       }),
     );
     expect(html).toContain('Evidence Checklist');
-    expect((html.match(/class="package-item"/g) ?? []).length).toBe(applicable(STARTER_ITEMS));
-    // Every checklist row is on the page once, whatever group holds it.
-    expect((html.match(/class="lift-check/g) ?? []).length).toBeGreaterThanOrEqual(STARTER_ITEMS);
+    expect((html.match(/data-pattern="detail-pane"/g) ?? []).length).toBe(STARTER_ITEMS);
+    expect((html.match(/class="package-choice-form"/g) ?? []).length).toBe(
+      applicable(STARTER_ITEMS),
+    );
+    // Every checklist row is on the page once, whatever folder holds it.
+    expect((html.match(/data-pattern="list-row"/g) ?? []).length).toBe(STARTER_ITEMS);
   });
 });

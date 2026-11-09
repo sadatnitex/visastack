@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REQUIREMENT_GROUPS } from './requirement-groups';
+import { COVERED_HEADING, REQUIREMENT_GROUPS } from './requirement-groups';
 
 const ALL_STATES = [
   'CRITICAL_GAP',
@@ -19,13 +19,25 @@ describe('REQUIREMENT_GROUPS', () => {
     }
   });
 
-  it('puts what the person must do first and finished work last', () => {
+  it('puts what the person must do first and what is on file after the optional items', () => {
     expect(REQUIREMENT_GROUPS.map((group) => group.heading)).toEqual([
       'Needs You',
       'Needs a Check',
-      'Done',
+      'Optional',
+      'On File',
+      'Does Not Apply',
     ]);
     expect(REQUIREMENT_GROUPS[0]?.states).toContain('CRITICAL_GAP');
-    expect(REQUIREMENT_GROUPS[2]?.states).toContain('SATISFIED');
+    expect(REQUIREMENT_GROUPS[3]?.states).toEqual(['SATISFIED']);
+  });
+
+  it('never counts an optional item with nothing uploaded as on file', () => {
+    const onFile = REQUIREMENT_GROUPS.find((group) => group.heading === 'On File');
+    expect(onFile?.states).not.toContain('ATTENTION');
+    expect(onFile?.states).not.toContain('NOT_APPLICABLE');
+  });
+
+  it('moves only a covered line into On File', () => {
+    expect(COVERED_HEADING).toBe('On File');
   });
 });
