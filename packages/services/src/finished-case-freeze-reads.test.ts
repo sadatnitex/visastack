@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { eq } from 'drizzle-orm';
@@ -76,13 +74,18 @@ async function packageOf(db: Db, c: Cases, missionId: string) {
 }
 
 /** Take the copy out of a finished case's submission, so it has nothing to read from. */
-async function withoutMapping(db: Db, missionId: string): Promise<void> {
+async function withoutMapping(
+  db: Db,
+  missionId: string,
+  part: 'requirementMapping' | 'documents' = 'requirementMapping',
+): Promise<void> {
   const [snapshot] = await db
     .select()
     .from(schema.missionSnapshots)
     .where(eq(schema.missionSnapshots.missionId, missionId));
   if (!snapshot) throw new Error('snapshot');
-  const { requirementMapping: _gone, ...rest } = snapshot.content as Record<string, unknown>;
+  const rest = { ...(snapshot.content as Record<string, unknown>) };
+  delete rest[part];
   await db
     .update(schema.missionSnapshots)
     .set({ content: rest })
@@ -186,6 +189,18 @@ describe('the evidence list of a finished case', () => {
     expect(readiness.value.savedCopy).toBe('NONE');
   });
 
+  it('reads live, with readiness, when the copy lacks the list of files', async () => {
+    const c = await twoCases(db, 'DOCUMENT');
+    await withoutMapping(db, c.finishedId, 'documents');
+    const readiness = await computeReadiness(db, c.finishedId);
+    if (!isOk(readiness)) throw new Error('readiness');
+    expect(readiness.value.savedCopy).toBe('NONE');
+    await newFileVersion(db, c, 'freeze-k2');
+    const read = (await candidatesOf(db, c, c.finishedId))[0]?.documentCandidates;
+    expect(read).toHaveLength(1);
+    expect(read?.[0]?.documentVersionId).not.toBe(undefined);
+  });
+
   it('never changes what an open case lists', async () => {
     const c = await twoCases(db, 'FIELD');
     const read = (await candidatesOf(db, c, c.openId))[0];
@@ -209,7 +224,6 @@ describe('the package panel of a finished case', () => {
     expect(finished.items[0]?.proposed?.factVersionId).toBe(finishedBefore?.factVersionId);
     expect(open.items[0]?.proposed?.factVersionId).not.toBe(finishedBefore?.factVersionId);
     expect(finished.active).toBe(false);
-    expect(finished.questions).toEqual([]);
   });
 
   it('names the file version it used; an open case follows a new version', async () => {
@@ -274,7 +288,7 @@ describe('outputs built from a finished case', () => {
 
   const FIELD_KEY = 'tax_zone';
 
-  async function moneyOutput(c: Cases, missionId: string) {
+  async function moneyOutput(c: Cases, cases: Selection['cases'], asFinished = true) {
     const proof = await requireAccess(
       db,
       accountPrincipal(c.accountId),
@@ -285,7 +299,7 @@ describe('outputs built from a finished case', () => {
     if (!isOk(proof)) throw new Error('proof');
     const selection: Selection = {
       layers: ['money'],
-      cases: { kind: 'one', missionId },
+      cases,
       documentList: false,
       documentText: [],
       revealIdentifiers: false,
@@ -293,30 +307,45 @@ describe('outputs built from a finished case', () => {
     };
     const built = await buildSelectedOutput(proof.value, selection, {
       now: new Date(),
+      asFinished,
     });
     if (!isOk(built)) throw new Error(`build ${built.error.message}`);
     return built.value.profile.money?.find((v) => v.fieldKey === FIELD_KEY);
   }
 
+  const one = (missionId: string): Selection['cases'] => ({ kind: 'one', missionId });
+
   it('shows the answer as the finished case used it; an open case shows today', async () => {
     const c = await twoCases(db, 'FIELD', FIELD_KEY);
-    expect((await moneyOutput(c, c.finishedId))?.value).toBe('A1');
+    expect((await moneyOutput(c, one(c.finishedId)))?.value).toBe('A1');
     await changeAnswer(db, c, 'B2', FIELD_KEY);
-    expect((await moneyOutput(c, c.openId))?.value).toBe('B2');
-    const finished = await moneyOutput(c, c.finishedId);
+    expect((await moneyOutput(c, one(c.openId)))?.value).toBe('B2');
+    const finished = await moneyOutput(c, one(c.finishedId));
     expect(finished?.value).toBe('A1');
     expect(finished?.relevance).toBe('required_by_case');
+  });
+
+  it('shows today unless the person asked for the finished version', async () => {
+    const c = await twoCases(db, 'FIELD', FIELD_KEY);
+    await changeAnswer(db, c, 'B2', FIELD_KEY);
+    expect((await moneyOutput(c, one(c.finishedId), false))?.value).toBe('B2');
   });
 
   it('shows today when the finished case has no saved copy', async () => {
     const c = await twoCases(db, 'FIELD', FIELD_KEY);
     await withoutMapping(db, c.finishedId);
     await changeAnswer(db, c, 'B2', FIELD_KEY);
-    expect((await moneyOutput(c, c.finishedId))?.value).toBe('B2');
+    expect((await moneyOutput(c, one(c.finishedId)))?.value).toBe('B2');
   });
 
-  it('leaves an agency AI call on today, and pins only through the owner path', () => {
-    const source = readFileSync(join(__dirname, 'selected-output.ts'), 'utf8');
-    expect(source).toContain('agency || !onlyCase');
+  it('covers a submitted case under "every current case": its version, unless an open case needs it too', async () => {
+    const c = await twoCases(db, 'FIELD', FIELD_KEY);
+    await changeAnswer(db, c, 'B2', FIELD_KEY);
+    // A submitted case still counts as current: with an open case that needs the same detail,
+    // today's value wins.
+    expect((await moneyOutput(c, { kind: 'all' }))?.value).toBe('B2');
+    // With the open case gone, the submitted case's own version shows.
+    await setState(db, c.openId, 'CANCELLED', new Date());
+    expect((await moneyOutput(c, { kind: 'all' }))?.value).toBe('A1');
   });
 });

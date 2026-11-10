@@ -45,12 +45,7 @@ export interface Cases {
   readonly documentId?: string;
 }
 
-async function publishedPack(
-  db: Db,
-  actor: string,
-  kind: Kind,
-  fieldKey: string,
-): Promise<string> {
+async function publishedPack(db: Db, actor: string, kind: Kind, fieldKey: string): Promise<string> {
   const pack = await createPack(db, { actorAccountId: actor, key: `freeze.${kind}`, name: 'Pack' });
   if (!isOk(pack)) throw new Error('pack');
   const version = await addPackVersion(db, { actorAccountId: actor, packId: pack.value.id });
@@ -70,11 +65,7 @@ async function publishedPack(
 
 /** One open case and one submitted case over the same record, each with a live confirmation. */
 /** `fieldKey` is the answer a FIELD case uses (the default is not in the catalogue). */
-export async function twoCases(
-  db: Db,
-  kind: Kind,
-  fieldKey = 'passport.number',
-): Promise<Cases> {
+export async function twoCases(db: Db, kind: Kind, fieldKey = 'passport.number'): Promise<Cases> {
   const provisioned = await provisionAccount(db, { email: `freeze-${kind}@example.com` });
   if (!isOk(provisioned)) throw new Error('provision');
   const accountId = provisioned.value.id;

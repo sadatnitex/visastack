@@ -1,4 +1,5 @@
-import type { FactStatus } from '@visastack/core';
+import { FACT_STATUSES, type FactStatus } from '@visastack/core';
+import { isObject } from './finished-case-readiness';
 import type { DocumentInstance, FactInstance } from './missions';
 
 /**
@@ -18,24 +19,24 @@ export interface StoredCaseEvidence {
   readonly byRequirement: ReadonlyMap<string, StoredRequirementEvidence>;
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function text(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
+}
+
+function isFactStatus(value: unknown): value is FactStatus {
+  return typeof value === 'string' && (FACT_STATUSES as readonly string[]).includes(value);
 }
 
 function readFact(raw: unknown): FactInstance | null {
   if (!isObject(raw)) return null;
   const { factId, factVersionId, repeatingRecordKey, value, status, evidenceLinkIds } = raw;
-  if (typeof factId !== 'string' || typeof status !== 'string') return null;
+  if (typeof factId !== 'string' || !isFactStatus(status)) return null;
   return {
     factId,
     factVersionId: text(factVersionId),
     repeatingRecordKey: text(repeatingRecordKey),
     value: text(value),
-    status: status as FactStatus,
+    status,
     evidenceLinkIds: Array.isArray(evidenceLinkIds)
       ? evidenceLinkIds.filter((id): id is string => typeof id === 'string')
       : [],

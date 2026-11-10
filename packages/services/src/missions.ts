@@ -1073,8 +1073,8 @@ export async function computeReadiness(
   );
   if (!mission) return err(serviceError('not_found', 'case not found'));
   if (!isInactiveCaseState(mission.state)) return computeLiveReadiness(db, mission, now);
-  const saved = await savedReadinessForFinishedCase(db, mission);
-  if (saved) return ok({ ...saved, savedCopy: 'AS_FINISHED' });
+  const saved = await finishedCaseCopy(db, mission);
+  if (saved) return ok({ ...saved.readiness, savedCopy: 'AS_FINISHED' });
   const live = await computeLiveReadiness(db, mission, now);
   return live.ok ? ok({ ...live.value, savedCopy: 'NONE' }) : live;
 }
@@ -1085,7 +1085,7 @@ export async function computeReadiness(
  * progress, the evidence list and the package panel can never disagree about whether a saved
  * copy exists. Only the parts needed are pulled out of the stored copy, so a long list of cases
  * does not read whole copies. A copy is usable only when its readiness is complete and it holds
- * the requirement mapping the evidence screens read.
+ * the requirement mapping and the list of files the evidence screens read.
  */
 async function finishedCaseCopy(
   db: Db,
@@ -1095,7 +1095,7 @@ async function finishedCaseCopy(
     snapshotId: schema.missionSnapshots.id,
     readiness: sql<unknown>`${schema.missionSnapshots.content} -> 'readiness'`,
     copiedPackVersionId: sql<unknown>`${schema.missionSnapshots.content} #> '{packVersion,id}'`,
-    hasMapping: sql<boolean>`jsonb_typeof(${schema.missionSnapshots.content} -> 'requirementMapping') = 'array'`,
+    hasMapping: sql<boolean>`jsonb_typeof(${schema.missionSnapshots.content} -> 'requirementMapping') = 'array' and jsonb_typeof(${schema.missionSnapshots.content} -> 'documents') = 'array'`,
   };
   const usable = (
     copy: {
@@ -1153,13 +1153,6 @@ async function finishedCaseCopy(
   );
   if (!latest || latest.revision !== mission.materialRevision) return null;
   return usable(latest);
-}
-
-async function savedReadinessForFinishedCase(
-  db: Db,
-  mission: Mission,
-): Promise<SavedReadiness | null> {
-  return (await finishedCaseCopy(db, mission))?.readiness ?? null;
 }
 
 async function computeLiveReadiness(
@@ -1479,7 +1472,13 @@ export async function pinnedFactVersionsOfFinishedCase(
   mission: Mission,
 ): Promise<Map<string, PinnedFactVersion>> {
   const pins = new Map<string, PinnedFactVersion>();
-  if (!AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA')) return pins;
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
+    proof.actor.kind !== 'applicant_owner' ||
+    proof.resource.kind !== 'applicant'
+  ) {
+    return pins;
+  }
   if (mission.applicantId !== proof.applicant.id || !isInactiveCaseState(mission.state)) {
     return pins;
   }
@@ -1499,7 +1498,8 @@ export async function pinnedFactVersionsOfFinishedCase(
  * `buildRequirementMapping` (used for readiness/snapshots, which narrows to
  * only the selection once one exists), this always lists every candidate so
  * the evidence-selection UI can show what's currently chosen alongside what
- * else is available to switch to.
+ * else is available to switch to. A finished case instead lists what it used when it finished
+ * (see `loadFinishedCaseEvidence`).
  */
 export async function getEvidenceCandidates(
   db: Db,
