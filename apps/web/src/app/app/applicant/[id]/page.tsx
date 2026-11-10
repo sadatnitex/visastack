@@ -199,7 +199,7 @@ export default async function ApplicantOverviewPage({
   const next = !data.coreGranted
     ? {
         href: '/app#permissions',
-        title: 'Allow Core Processing',
+        title: 'Let VisaStack Process My Details',
         why: 'Choose whether your profile and documents may be saved. You can withdraw this permission.',
         action: 'Review Permissions',
       }

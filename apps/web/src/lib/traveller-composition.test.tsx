@@ -322,7 +322,7 @@ describe('traveller composition and independent record guards', () => {
       'Essentials Added',
       'Profile Health',
       'Latest Changes',
-      'Conflicted',
+      'Does Not Match',
       'Versioned editor',
       'You Decide What Becomes a Fact',
       'This does not verify identity',
@@ -602,7 +602,7 @@ describe("the deadline clock on a person's overview (Growth G5)", () => {
     const alert = [...new JSDOM(html).window.document.querySelectorAll('[role="alert"]')].find(
       (node) => node.textContent?.includes('conflicting values'),
     );
-    expect(alert?.textContent).toContain('Check the fields marked Conflicted');
+    expect(alert?.textContent).toContain('Check the fields marked Does Not Match');
     expect(alert?.closest('[data-level]')).toBeNull();
   });
 });

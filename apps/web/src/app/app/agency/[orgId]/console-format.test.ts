@@ -5,6 +5,7 @@ import {
   ORG_STATUS,
   REQ_STATUS,
   countOverdueTasks,
+  daysSinceSent,
   nextApproachingDate,
   overdueTasks,
   summarizeAttention,
@@ -215,5 +216,30 @@ describe('dashboard counts agree with Do Next (WP-V4 review)', () => {
         new Date('2026-10-06T00:01:00.000Z'),
       ),
     ).toBe(1);
+  });
+});
+
+describe('daysSinceSent', () => {
+  const now = new Date(Date.UTC(2027, 5, 10, 1, 0));
+  const sent = new Date(Date.UTC(2027, 5, 7, 20, 0));
+
+  it('counts whole calendar days in the traveller time zone', () => {
+    expect(daysSinceSent(sent, now, 'UTC')).toBe(3);
+    expect(daysSinceSent(sent, now, 'Asia/Dhaka')).toBe(2);
+    expect(daysSinceSent(sent.toISOString(), now, null)).toBe(3);
+  });
+
+  it('counts a send late in one day and a check early the next as one day', () => {
+    expect(
+      daysSinceSent(
+        new Date(Date.UTC(2027, 5, 9, 23, 0)),
+        new Date(Date.UTC(2027, 5, 10, 1, 0)),
+        'UTC',
+      ),
+    ).toBe(1);
+  });
+
+  it('treats an unknown zone name as UTC rather than failing', () => {
+    expect(daysSinceSent(sent, now, 'Not/AZone')).toBe(3);
   });
 });
