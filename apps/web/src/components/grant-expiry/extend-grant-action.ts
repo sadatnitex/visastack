@@ -49,7 +49,7 @@ export async function extendGrantAction(
     return { ok: false, message: COULD_NOT_EXTEND_LINE };
   }
   const expectedExpiryAt = parseExpected(formData.get('expectedExpiryAt'));
-  const returnTo = `/app/applicant/${applicantId}/sharing#extend-grant-${grantId}`;
+  const returnTo = `/app/applicant/${applicantId}/sharing?item=${grantId}`;
 
   return withSession(async ({ db, accountId }): Promise<ExtendGrantState> => {
     const access = await requireAccess(
@@ -97,7 +97,7 @@ export async function extendGrantAction(
     return {
       ok: true,
       message: '',
-      refreshPath: `/app/applicant/${applicantId}/sharing?done=${done}`,
+      refreshPath: `/app/applicant/${applicantId}/sharing?done=${done}&item=${grantId}`,
     };
   });
 }

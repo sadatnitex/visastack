@@ -205,7 +205,7 @@ describe('sharing ends soon: the reminder', () => {
     expect(inAppPayload.summary).toContain('friend@example.com');
     expect(inAppPayload.summary).toContain('30 more days');
     expect(inAppPayload.deepLinkPath).toBe(
-      `/app/applicant/${applicantId}/sharing#extend-grant-${grant.id}`,
+      `/app/applicant/${applicantId}/sharing?item=${grant.id}`,
     );
   });
 
@@ -738,7 +738,7 @@ describe('a note that is no longer true is cancelled, not sent and not failed', 
     expect(toTraveller?.subject).toBe('Your Sharing Ends Soon');
     expect(toTraveller?.body).toContain('Keep Sharing for 30 More Days');
     expect(toTraveller?.body).toContain(
-      `https://app.example.com/app/applicant/${applicantId}/sharing#extend-grant-${grant.id}`,
+      `https://app.example.com/app/applicant/${applicantId}/sharing?item=${grant.id}`,
     );
     const toAdmin = email.sent.find((mail) => mail.to === 'agency-admin@acme.example.com');
     expect(toAdmin?.subject).toBe('Client Access Ends Soon');

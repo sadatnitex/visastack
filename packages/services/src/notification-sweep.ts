@@ -376,7 +376,7 @@ export async function sweepGrantExpiryReminders(
           subject: 'Your Sharing Ends Soon',
           summary: `Your sharing with ${recipientLabel} ends on ${day}. You can keep it going for 30 more days.`,
           emailSummary: `Your sharing with an agency or person ends on ${day}. You can keep it going for 30 more days.`,
-          deepLinkPath: `/app/applicant/${row.applicantId}/sharing#extend-grant-${row.grantId}`,
+          deepLinkPath: `/app/applicant/${row.applicantId}/sharing?item=${row.grantId}`,
         },
       });
       const organizationId = row.organizationId;

@@ -8,7 +8,7 @@ const INITIAL: ExtendGrantState = { ok: true, message: '' };
 
 /**
  * The traveller's one-tap Keep Sharing for 30 More Days, on a sharing row and the place the
- * "sharing ends soon" reminder leads (`#extend-grant-<id>`). Shown only to the traveller who owns
+ * "sharing ends soon" reminder leads (the grant's panel, `?item=<id>`). Shown only to the traveller who owns
  * the sharing; the server checks that again, so showing it is a courtesy, not the protection.
  */
 export function ExtendGrantButton({
