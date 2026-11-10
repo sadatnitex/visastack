@@ -207,3 +207,13 @@ Added 10 Nov 2026 (Lane 1, the traveller's first journey, plain words for a grad
 | Where a passport is read from its two printed lines | Read from the Two Lines at the Bottom of the Passport | "Read from the Machine-Readable Lines", "Code Lines" | **Done (Lane 1)** |
 | The storage meter on Add Documents, and the Documents subtitle | Document Storage; "Your private documents" | "Evidence Storage", "Your private evidence wallet" | **Done (Lane 1)** |
 | An agency request with no due date that has had no reply for 3 days, in the agency Do Next list (P4) | The group heading No Reply Yet; the line reads "Sent N days ago with no due date. No reply yet." | "Stale", "Dormant", "Chase", "Past Due" (it has no due date) | **New (P4)** |
+
+Send on WhatsApp, everywhere a person sends something (10 Nov 2026). Owner decision, 10 Nov 2026: "Open in WhatsApp feature should exist in all its flares. This is one of the things users are most familiar with." WhatsApp comes first wherever a person sends someone something. A message may hold the recipient's first name, the agency name, document kind names, the case name, a due date and one VisaStack link to the place to act. It never holds an identifier number, a date of birth, an address, file contents, a preview, a storage address or a link that opens a file. VisaStack never sends it: the person presses Send inside WhatsApp. This replaces the older rule that WhatsApp text carries nothing from the record.
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The button that opens WhatsApp with the message ready | Send on WhatsApp (first action, small green mark, quiet secondary button) | "Share on WhatsApp", "Open WhatsApp" (as a send button) | **Done (package P6)** |
+| The phone's own share sheet | More Ways to Send (only where the browser has one) | "Share Link" on an invitation | **Done (package P6)** |
+| Copying the whole message | Copy Message (always there) | none | **Done (package P6)** |
+| Copying only the link | Copy Link (kept on invitation and request links) | none | **Done (package P6)** |
+| WhatsApp to VisaStack support | Send on WhatsApp under "Something Is Not Working" on Help, only when the business number is set | none | **Done (package P6)** |

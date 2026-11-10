@@ -19792,3 +19792,21 @@ details.collapsible-group[hidden],
   font-size: var(--text-small);
 }
 /* end WP-LP3 */
+
+/* WP-P6 Send on WhatsApp, the same everywhere a person sends something. The WhatsApp mark is a small green accent beside the words; the buttons stay the quiet secondary kind. Flat, tokens only, 44 px targets. */
+.wa-share {
+  display: grid;
+  gap: var(--space-2);
+}
+.wa-share-icon {
+  flex: none;
+  color: var(--success);
+}
+.wa-share-manual {
+  display: grid;
+  gap: var(--space-1);
+}
+.do-next-action .wa-share {
+  margin-bottom: var(--space-2);
+}
+/* end WP-P6 */
