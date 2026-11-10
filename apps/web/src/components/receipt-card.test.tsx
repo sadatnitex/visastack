@@ -98,4 +98,13 @@ describe('ReceiptCard', () => {
     expect(document.activeElement).toBe(origin);
     origin.remove();
   });
+
+  it('does not take focus from a field the person is typing in', async () => {
+    const field = document.createElement('input');
+    document.body.append(field);
+    field.focus();
+    await render();
+    expect(document.activeElement).toBe(field);
+    field.remove();
+  });
 });

@@ -308,6 +308,21 @@ describe('the photo check before sending (F2)', () => {
     expect(FakeRequest.sent).toHaveLength(0);
   });
 
+  it('Retake keeps focus on Take a Photo, so cancelling the camera does not drop it to the page top', async () => {
+    await mount();
+    await choose(camera(), [file('IMG_1.jpg', 10, 'image/jpeg')]);
+    // The next frame, after the preview is gone and the buttons are back.
+    vi.stubGlobal('requestAnimationFrame', (run: () => void) => {
+      setTimeout(run, 0);
+      return 1;
+    });
+    await act(async () => {
+      button('Retake')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    expect(document.activeElement).toBe(button('Take a Photo'));
+  });
+
   it('a file the form cannot take is turned away on Use This, like any other file', async () => {
     await mount();
     await choose(camera(), [file('huge.pdf', 5000, 'application/pdf')]);
@@ -354,7 +369,9 @@ describe('the receipt after a document is saved (F2)', () => {
     expect(card.querySelector('h3')?.textContent).toBe('Document Saved');
     expect(card.textContent).toContain('Passport is saved in your documents.');
     expect(card.querySelector('time')).not.toBeNull();
-    expect(card.textContent).toContain('Nobody else can open it until you share it.');
+    expect(card.textContent).toContain(
+      'Stored privately. Only you and the people you choose to share with can open it.',
+    );
     expect(card.querySelector('a')?.getAttribute('href')).toBe('/app/applicant/a-1/documents');
     expect(card.textContent).not.toMatch(/reviewed|approved|accepted/i);
     expect(document.activeElement).toBe(card.querySelector('h3'));

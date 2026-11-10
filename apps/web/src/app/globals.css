@@ -20286,6 +20286,9 @@ html:has(.sticky-action-bar) .toast-region {
   border-radius: var(--radius);
   background: #152b37;
 }
+.capture-frame[hidden] {
+  display: none;
+}
 .capture-image {
   display: block;
   width: 100%;

@@ -207,6 +207,7 @@ export function DocumentUploader({
   const pickerRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
+  const cameraButtonRef = useRef<HTMLButtonElement>(null);
   // A photo just taken, shown for Use This or Retake before anything is sent (F2).
   const [photo, setPhoto] = useState<File | null>(null);
   // On a phone the camera comes first, the way a bank's identity check opens. Decided after the
@@ -368,6 +369,7 @@ export function DocumentUploader({
   const finished = items.length > 0 && !items.some((item) => ACTIVE.has(item.status));
   const cameraButton = (
     <button
+      ref={cameraButtonRef}
       type="button"
       className={`btn ${phone ? 'btn-primary' : 'btn-secondary'}`}
       onClick={() => cameraRef.current?.click()}
@@ -376,7 +378,14 @@ export function DocumentUploader({
     </button>
   );
   const unreceipted = finished
-    ? items.filter((item) => item.status === 'added' && !item.receipted)
+    ? items.filter(
+        (item) =>
+          item.status === 'added' &&
+          !item.receipted &&
+          // A new copy the person just removed is no longer saved, so the receipt skips it.
+          item.removal !== 'removed' &&
+          item.removal !== 'busy',
+      )
     : [];
   const notAddedCount = items.filter((item) => item.status !== 'added').length;
 
@@ -449,8 +458,10 @@ export function DocumentUploader({
           }}
           onRetake={() => {
             setPhoto(null);
-            // Pressed by the person, so the phone's camera may open again at once.
+            // Pressed by the person, so the phone's camera may open again at once. Focus waits on
+            // Take a Photo meanwhile, so cancelling the camera does not drop it to the page top.
             cameraRef.current?.click();
+            requestAnimationFrame(() => cameraButtonRef.current?.focus());
           }}
         />
       ) : (
@@ -525,7 +536,7 @@ export function DocumentUploader({
           title={unreceipted.length === 1 ? 'Document Saved' : 'Documents Saved'}
           what={receiptWhat(unreceipted, notAddedCount)}
           at={Math.max(...unreceipted.map((item) => item.addedAt ?? 0))}
-          honestLine="Saved privately. Nobody else can open it until you share it."
+          honestLine="Stored privately. Only you and the people you choose to share with can open it."
           next={{ label: 'View Your Documents', href: `/app/applicant/${applicantId}/documents` }}
           onDone={() =>
             setItems((current) =>

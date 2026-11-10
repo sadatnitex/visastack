@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useMemo, useRef } from 'react';
 import { Icon } from './icons';
 import { ReferenceCode } from './reference-code';
 
@@ -16,7 +16,7 @@ import { ReferenceCode } from './reference-code';
  * reviewed"). Focus moves to the heading when the receipt appears, so a screen reader hears it at
  * once; Done hands focus back to where the person started (`returnFocusTo`).
  *
- * Colour comes only from the green tone of `[data-tone]` (WP-PLAIN-TONE).
+ * Focus is not taken from a field the person is typing in. Colour comes only from the green tone of `[data-tone]` (WP-PLAIN-TONE).
  */
 
 export interface ReceiptNext {
@@ -85,10 +85,18 @@ export function ReceiptCard({
   const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    heading.current?.focus();
+    // Moves focus to the heading so a screen reader hears the receipt at once, unless the person
+    // is typing somewhere else (a receipt that appears when a background upload finishes must not
+    // take the keys from the field they are in): the heading is then announced by the page's own
+    // status line instead.
+    const active = document.activeElement;
+    const typing =
+      active instanceof HTMLElement &&
+      (active.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName));
+    if (!typing) heading.current?.focus();
   }, []);
 
-  const when = receiptTime(at, timeZone);
+  const when = useMemo(() => receiptTime(at, timeZone), [at, timeZone]);
 
   return (
     <section className="receipt-card" data-tone="green" aria-labelledby={headingId}>

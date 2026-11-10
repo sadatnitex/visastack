@@ -19,6 +19,7 @@ let root: Root;
 let container: HTMLDivElement;
 
 beforeEach(() => {
+  answer.next = { ok: true, message: 'Shared. They see only what you chose.' };
   vi.stubGlobal('requestAnimationFrame', (run: () => void) => {
     run();
     return 1;
@@ -73,9 +74,11 @@ describe('the receipt after a sharing request (F2)', () => {
     expect(card.textContent).toContain('sara@example.com');
     expect(card.querySelector('time')).not.toBeNull();
     expect(card.textContent).toContain('Not shared yet. They see nothing until they accept.');
-    expect(card.querySelector('a')?.getAttribute('href')).toBe(
-      '/app/applicant/owned-person/sharing#who-has-access',
-    );
+    // An in-page link, so the sheet the form sits in on a phone closes before it scrolls.
+    expect(card.querySelector('a')?.getAttribute('href')).toBe('#who-has-access');
+    // One account of the outcome: the old "Shared." line does not sit beside "Not shared yet."
+    expect(container.textContent).not.toContain('Shared. They see only what you chose.');
+    expect(card.textContent).toContain('only after they accept');
     expect(document.activeElement).toBe(card.querySelector('h3'));
   });
 
@@ -88,18 +91,22 @@ describe('the receipt after a sharing request (F2)', () => {
     await send();
     const card = container.querySelector('.receipt-card') as HTMLElement;
     expect(card.querySelector('h3')?.textContent).toBe('Invitation Created');
+    // The email outcome is the truth about this invitation, so the receipt carries it.
+    expect(card.textContent).toContain('Invitation emailed.');
     expect(container.textContent).toContain('Private Invitation Link');
     const values = [...container.querySelectorAll('input')].map((input) => input.value);
     expect(values).toContain('https://example.test/invitation?kind=sharing&token=x');
   });
 
-  it('Done closes the receipt and puts focus back on the first field', async () => {
-    answer.next = { ok: true, message: 'Shared. They see only what you chose.' };
+  it('Done closes the receipt and puts focus on a button, never a field that would raise the keyboard', async () => {
     await send();
     const done = container.querySelector('.receipt-card .btn-secondary') as HTMLButtonElement;
     await act(async () => done.click());
     expect(container.querySelector('.receipt-card')).toBeNull();
-    expect(document.activeElement).toBe(container.querySelector('#recipientEmail'));
+    expect(document.activeElement?.tagName).toBe('BUTTON');
+    expect(
+      container.querySelector('.sharing-confirm-controls')?.contains(document.activeElement),
+    ).toBe(true);
   });
 
   it('gives no receipt when the request was refused', async () => {

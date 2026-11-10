@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { decodePhoto } from './profile-photo/photo-canvas';
 
 /**
  * The look-before-you-send step after a photo is taken (owner direction, 10 Nov 2026, batch F2),
@@ -12,8 +13,16 @@ import { useEffect, useId, useRef, useState } from 'react';
  * over the finished photo, so it can never get in the way of taking it, and it ignores taps, so it
  * can never block the photo or the buttons.
  *
+ * The page's security policy allows no `blob:` or `data:` images, so the photo is decoded into a
+ * bitmap and drawn on a canvas, never shown through an image address (the same way as the profile
+ * photo). A photo this browser cannot decode (some HEIC files) cannot be shown; the step says so
+ * and still offers Use This, because the checks after sending do not depend on the preview.
+ *
  * It never says the photo is good or will be accepted: the same checks run after it is sent.
  */
+
+/** The longest side of the drawn preview, so a large photo costs the screen little memory. */
+const PREVIEW_SIDE = 1280;
 export function CapturePreview({
   file,
   onUse,
@@ -26,24 +35,47 @@ export function CapturePreview({
   const headingId = useId();
   const hintId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
-  const [url, setUrl] = useState<string | null>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const [shown, setShown] = useState<'loading' | 'ready' | 'unreadable'>('loading');
   const [shape, setShape] = useState<'card' | 'page'>('card');
-  const [unreadable, setUnreadable] = useState(false);
 
   useEffect(() => {
     heading.current?.focus();
   }, []);
 
   useEffect(() => {
-    if (typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
-      setUnreadable(true);
-      return;
-    }
-    const made = URL.createObjectURL(file);
-    setUrl(made);
-    setUnreadable(false);
-    return () => URL.revokeObjectURL(made);
+    let current = true;
+    let release: (() => void) | null = null;
+    setShown('loading');
+    decodePhoto(file).then(
+      (photo) => {
+        release = photo.close;
+        const target = canvas.current;
+        const context = target?.getContext('2d') ?? null;
+        if (!current || !target || !context || photo.width < 1 || photo.height < 1) {
+          photo.close();
+          if (current) setShown('unreadable');
+          return;
+        }
+        const scale = Math.min(1, PREVIEW_SIDE / Math.max(photo.width, photo.height));
+        target.width = Math.max(1, Math.round(photo.width * scale));
+        target.height = Math.max(1, Math.round(photo.height * scale));
+        context.drawImage(photo.source, 0, 0, target.width, target.height);
+        photo.close();
+        setShape(photo.height > photo.width ? 'page' : 'card');
+        setShown('ready');
+      },
+      () => {
+        if (current) setShown('unreadable');
+      },
+    );
+    return () => {
+      current = false;
+      release?.();
+    };
   }, [file]);
+
+  const unreadable = shown === 'unreadable';
 
   return (
     <section className="capture-preview" aria-labelledby={headingId} aria-describedby={hintId}>
@@ -51,29 +83,18 @@ export function CapturePreview({
         Check Your Photo
       </h3>
       <p className="capture-hint" id={hintId}>
-        Is the whole card or page inside the outline, and is the writing easy to read? If not,
-        retake it.
+        {unreadable
+          ? 'This device cannot show the photo here, so check it on your phone first. If it looks right, press Use This. If not, retake it.'
+          : 'Is the whole card or page inside the outline, and is the writing easy to read? If not, retake it.'}
       </p>
-      <div className="capture-frame" data-shape={shape}>
-        {url && !unreadable ? (
-          <img
-            className="capture-image"
-            src={url}
-            alt="Preview of what you just captured, shown so you can check it before it is sent"
-            onLoad={(event) => {
-              const { naturalWidth, naturalHeight } = event.currentTarget;
-              if (naturalWidth > 0 && naturalHeight > 0) {
-                setShape(naturalHeight > naturalWidth ? 'page' : 'card');
-              }
-            }}
-            onError={() => setUnreadable(true)}
-          />
-        ) : (
-          <p className="capture-unreadable">
-            This device cannot show a preview of the photo. You can still use it.
-          </p>
-        )}
-        {unreadable ? null : <span className="capture-outline" aria-hidden="true" />}
+      <div className="capture-frame" data-shape={shape} hidden={unreadable}>
+        <canvas
+          ref={canvas}
+          className="capture-image"
+          role="img"
+          aria-label="Preview of what you just captured, shown so you can check it before it is sent"
+        />
+        {shown === 'ready' ? <span className="capture-outline" aria-hidden="true" /> : null}
       </div>
       <p className="capture-note">
         We check the file again after you send it, so a photo that looks fine here can still be
