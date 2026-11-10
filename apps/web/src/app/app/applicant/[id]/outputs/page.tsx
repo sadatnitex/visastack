@@ -8,7 +8,6 @@ import {
   OUTPUT_TEMPLATE_IDS,
   type OutputView,
   type SelectedOutput,
-  buildWhatsAppShare,
   longDay,
 } from '@visastack/services';
 import type { Metadata } from 'next';
@@ -16,10 +15,12 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { CollapsibleGroup } from '../../../../../components/collapsible-group';
 import { SelectedScopeSummary } from '../../../../../components/selected-scope-summary';
+import { WhatsAppShare } from '../../../../../components/share/whatsapp-share';
 import { StickyActionBar } from '../../../../../components/sticky-action-bar';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { resolveBaseUrl } from '../../../../../lib/base-url';
 import { plural } from '../../../../../lib/plural';
+import { composeShareMessage } from '../../../../../lib/whatsapp-link';
 import { CopyTextButton, PrintButton } from './copy-button';
 import { outputsPath, prepareOutput } from './load';
 import { parseOutputRequest, requestFields } from './query';
@@ -218,7 +219,12 @@ export default async function OutputsPage({
     output?.selection.layers.includes(layer.key),
   ).map((layer) => layer.label);
   const chosenCase = ready.cases.find((item) => item.id === ready.missionId) ?? null;
-  const whatsapp = template.whatsapp ? buildWhatsAppShare(resolveBaseUrl()) : null;
+  const whatsapp = template.whatsapp
+    ? composeShareMessage(
+        { template: 'summary-link', link: `${resolveBaseUrl()}/app/shared` },
+        { allowedOrigins: [resolveBaseUrl()] },
+      )
+    : null;
   const carriedFields = requestFields({
     ...request,
     choice: { ...choice, missionId: ready.missionId },
@@ -657,21 +663,10 @@ export default async function OutputsPage({
             readOnly
             className="input output-whatsapp-message"
             rows={3}
-            value={whatsapp.value.message}
+            value={whatsapp.message.text}
             aria-label="The WhatsApp message"
           />
-          <div className="output-actions">
-            <a
-              href={whatsapp.value.href}
-              className="btn btn-secondary output-action"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Open WhatsApp
-              <span className="sr-only"> (opens in a new tab)</span>
-            </a>
-            <CopyTextButton text={whatsapp.value.message} label="Copy Message" />
-          </div>
+          <WhatsAppShare message={whatsapp.message} title="VisaStack" />
           <p className="muted u-fs-075">
             For them to see your details, share them through{' '}
             <Link href={`/app/applicant/${id}/sharing`}>Sharing</Link>. They sign in and see only

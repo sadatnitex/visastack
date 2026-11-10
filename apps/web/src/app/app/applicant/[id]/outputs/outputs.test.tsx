@@ -372,6 +372,8 @@ describe('the briefs and summaries page', () => {
     const html = await render({ output: 'agency_brief', case: missionId });
     const text = textOf(html);
     expect(text).toContain('Tell Them on WhatsApp');
+    expect(text).toContain('Send on WhatsApp');
+    expect(text).toContain('Copy Message');
     expect(html).toContain('https://wa.me/?text=');
     expect(html).toContain('https://vs.example.test/app/shared');
     const section = html.slice(html.indexOf('output-whatsapp-heading'));

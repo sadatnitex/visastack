@@ -1678,7 +1678,6 @@ export {
   OUTPUT_TEMPLATE_IDS,
   TRIP_DOCUMENT_SLOTS,
   TRIP_FIELD_KEYS,
-  buildWhatsAppShare,
   cleanText,
   defaultChoice,
   engineRequest,
@@ -1701,7 +1700,6 @@ export {
   type OutputView,
   type ViewRow,
   type ViewSection,
-  type WhatsAppShare,
 } from './selected-output-views';
 export {
   REQUEST_QUESTION_LIMIT,

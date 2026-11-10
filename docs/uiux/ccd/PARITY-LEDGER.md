@@ -550,3 +550,15 @@ Safety and consent wording shortened on a screen (full wording one tap away): th
 | Link "Contributors and Notes" | Links "Contributors" and "Notes" | Browse |
 | Item panel: "What This Item Uses" only | "Which File Counts" (new in the panel, same actions) and "Which File Goes in the Handoff" | always |
 | No search on a long checklist | Search the Checklist from 8 rows, after the script runs | always |
+
+## P6: Send on WhatsApp everywhere (10 Nov 2026, owner decision)
+
+Approved change. Nothing is removed: "Copy Link" stays on invitation and request links, "Copy Message" stays on the follow-up and on the summaries page. Guard tests: `lib/whatsapp-link.test.ts`, `components/share/whatsapp-share.test.tsx`, `app/app/agency/[orgId]/invitation-link.test.tsx`, `follow-up-copy.test.tsx`, `collection/collection-link-panel.test.tsx`, `applicant/[id]/outputs/outputs.test.tsx`, `app/help/page.test.tsx`.
+
+| Before | After | Where |
+|---|---|---|
+| Follow-up: copy-only behind a fold | "Send on WhatsApp" first (outside the fold), "Copy Message", fold keeps the full text | Agency Do Next |
+| Request link: "Copy Link", "Share on WhatsApp" | "Send on WhatsApp", "Copy Link", "Copy Message", "More Ways to Send" on a phone | Agency Document Requests |
+| Invitation link: "Copy Link", "Share Link" | "Send on WhatsApp", "More Ways to Send" on a phone, "Copy Link", "Copy Message" | Agency Clients, Team; traveller Sharing |
+| Summaries: "Open WhatsApp", "Copy Message" | "Send on WhatsApp", "Copy Message" (same generic message) | Traveller Summaries |
+| Help: email only | Adds "Send on WhatsApp" when the business number is set | Help |
