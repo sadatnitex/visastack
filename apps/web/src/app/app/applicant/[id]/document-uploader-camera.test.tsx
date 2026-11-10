@@ -156,7 +156,7 @@ describe('adding several files at once', () => {
       file('MHM.png', 100, 'image/png'),
       file('IMG_2041.HEIC', 200, ''),
       file('notes.exe', 50, 'application/x-msdownload'),
-      file('big.jpg', 5000, 'image/jpeg'),
+      file('big.txt', 5000, 'text/plain'),
     ]);
 
     expect(rows()).toHaveLength(4);

@@ -9,6 +9,8 @@ import { appendAuditEvent } from './audit';
 import { classifyDocumentText, findTd3Block } from './classification';
 import { hasConsent } from './consent';
 import { type Db, first, required, schema } from './db';
+import { expiryDay, isTypedMirror, toExpiryEntry } from './document-expiry-rules';
+import { documentExpiryEntriesTablePresent } from './document-expiry-tables';
 import { proposeDocumentName } from './document-naming';
 import { documentVersionBelongsToApplicant } from './document-version-owner';
 import { type ServiceError, serviceError } from './errors';
@@ -19,6 +21,7 @@ import {
   presentApplicantCondition,
   presentDocumentCondition,
 } from './lifecycle/foundation';
+import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import { type MrzReading, mrzFieldDefinitions, mrzFieldReadings } from './mrz-suggestions';
 import { buildProposedName, extensionOf } from './naming';
 import { registerFieldDefinitions } from './profile';
@@ -433,6 +436,55 @@ async function recordMrzSuggestions(
 }
 
 /**
+ * The expiry day a passport's check-digit verified lines may save on the document, or undefined to
+ * leave the saved date alone. The document row is locked and read again inside the transaction, so
+ * a date a person types at the same moment is never missed. A saved date from the lines, or from
+ * before typed dates existed, is left as it is. An empty date takes the read one. A date that is
+ * only a mirror of one the person typed is replaced by the read one: the typed row stays in the
+ * history, the read date is added beside it, and the person is told when the two differ
+ * (document-expiry-rules.ts). Until the entries table exists, only the empty case applies.
+ */
+async function passportExpiryToSave(
+  tx: Db,
+  documentId: string,
+  readDay: string,
+): Promise<Date | undefined> {
+  const current = first(
+    await tx
+      .select({ expiresAt: schema.documents.expiresAt })
+      .from(schema.documents)
+      .where(eq(schema.documents.id, documentId))
+      .limit(1)
+      .for('update'),
+  )?.expiresAt;
+  const readDate = new Date(readDay);
+  if (!(await documentExpiryEntriesTablePresent(tx))) return current ? undefined : readDate;
+  const rows = await tx
+    .select({
+      source: schema.documentExpiryEntries.source,
+      expiresOn: schema.documentExpiryEntries.expiresOn,
+      mirrored: schema.documentExpiryEntries.mirrored,
+    })
+    .from(schema.documentExpiryEntries)
+    .where(eq(schema.documentExpiryEntries.documentId, documentId))
+    .orderBy(desc(schema.documentExpiryEntries.createdAt), desc(schema.documentExpiryEntries.id));
+  const entries = rows.map(toExpiryEntry);
+  if (current && !isTypedMirror(current, entries)) return undefined;
+  await tx.insert(schema.documentExpiryEntries).values({
+    documentId,
+    expiresOn: expiryDay(readDate),
+    source: 'READ',
+  });
+  if (!current) return readDate;
+  if (expiryDay(current) === expiryDay(readDate)) return undefined;
+  // The in-force date changed from the person's typed one: what counts as valid evidence can too.
+  for (const missionId of await missionsSelectingDocument(tx, documentId)) {
+    await incrementMaterialRevision(tx, missionId);
+  }
+  return readDate;
+}
+
+/**
  * Run deterministic extraction + classification + naming for one document
  * version and persist the result. Never throws for an expected extraction
  * failure (unsupported format, corrupt file, etc.) — those are recorded on
@@ -622,7 +674,8 @@ async function runExtractionStep(
     const metadataUpdate: Partial<typeof schema.documents.$inferInsert> = {};
     if (classification.classifiedType && !classification.reviewRequired && classification.mrz) {
       if (!document.issuer) metadataUpdate.issuer = classification.mrz.issuingCountry;
-      if (!document.expiresAt) metadataUpdate.expiresAt = new Date(classification.mrz.expiryDate);
+      const readExpiry = await passportExpiryToSave(tx, document.id, classification.mrz.expiryDate);
+      if (readExpiry) metadataUpdate.expiresAt = readExpiry;
     }
     const populatedFields = Object.keys(metadataUpdate);
     if (populatedFields.length > 0) {

@@ -112,6 +112,7 @@ vi.mock('../actions', () => ({
   setDocumentTypeAction: async () => undefined,
 }));
 vi.mock('../document-rename-form', () => ({ DocumentRenameForm: stub('DocumentRenameForm') }));
+vi.mock('../document-expiry-form', () => ({ DocumentExpiryForm: stub('DocumentExpiryForm') }));
 vi.mock('../ai-review', () => ({
   AiProposalReview: stub('AiProposalReview'),
   DocumentFindings: stub('DocumentFindings'),
@@ -309,6 +310,36 @@ describe('naming a document', () => {
       applicantId: 'a1',
       documentId: 'letter',
       name: 'Passport, Nazmus',
+    });
+  });
+
+  it('offers the expiry date form on any document once typed dates are switched on, and not before', async () => {
+    mocks.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          ...doc('visa', 'APPROVED'),
+          docType: 'VISA',
+          expiresAt: '2031-04-30T00:00:00.000Z',
+          expiry: { origin: 'TYPED', typedOn: '2031-04-30', mismatch: false, canType: true },
+        },
+        {
+          ...doc('old', 'APPROVED'),
+          expiry: { origin: 'NONE', typedOn: null, mismatch: false, canType: false },
+        },
+      ],
+    });
+    const forms = stubProps<{ documentId: string; origin: string; typedOn: string | null }>(
+      await render('visa'),
+      'DocumentExpiryForm',
+    );
+    expect(forms).toHaveLength(1);
+    expect(forms[0]).toMatchObject({
+      applicantId: 'a1',
+      documentId: 'visa',
+      origin: 'TYPED',
+      typedOn: '2031-04-30',
+      mismatch: false,
     });
   });
 

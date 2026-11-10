@@ -147,9 +147,27 @@ describe('summaries', () => {
     const text = expiryText([
       person('Rahim', {
         expiry: [
-          { referenceCode: null, kind: 'Visa', expiresOn: '2027-01-30', daysLeft: 95 },
-          { referenceCode: null, kind: 'Passport', expiresOn: '2026-11-06', daysLeft: 10 },
-          { referenceCode: null, kind: 'Insurance', expiresOn: '2027-09-01', daysLeft: 309 },
+          {
+            referenceCode: null,
+            kind: 'Visa',
+            expiresOn: '2027-01-30',
+            expirySource: null,
+            daysLeft: 95,
+          },
+          {
+            referenceCode: null,
+            kind: 'Passport',
+            expiresOn: '2026-11-06',
+            expirySource: null,
+            daysLeft: 10,
+          },
+          {
+            referenceCode: null,
+            kind: 'Insurance',
+            expiresOn: '2027-09-01',
+            expirySource: null,
+            daysLeft: 309,
+          },
         ],
       } as Partial<SelectedOutput>),
     ]);

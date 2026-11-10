@@ -556,6 +556,7 @@ export {
   type RecipientFieldView,
   type RecipientWorkspaceView,
   type ScopeExpansionCandidate,
+  GRANT_DEFAULT_DURATION_DAYS,
   acceptGrant,
   applyCaseSharingAnswers,
   createGrant,
@@ -1623,6 +1624,7 @@ export { type PlatformOverview, getPlatformOverview } from './platform-overview'
 
 export {
   createSharingInvitation,
+  sharingInvitationSender,
   previewSharingInvitation,
   acceptSharingInvitation,
   listSharingInvitations,
@@ -1884,6 +1886,12 @@ export {
   titleDate,
 } from './naming';
 export { OWNER_RENAME_REASON, renameDocument } from './document-naming';
+export {
+  type SetDocumentExpiryInput,
+  type SetDocumentExpiryOutcome,
+  setDocumentExpiry,
+} from './document-expiry';
+export type { ExpiryOrigin, ExpiryState } from './document-expiry-rules';
 export { CONVERTED_FROM_HEIC_SOURCE, type RegisteredDocumentWithVersion } from './documents';
 export { type GrowUploadReservationInput, growUploadReservation } from './uploads';
 export {
