@@ -7774,6 +7774,14 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Deletion is proof-based and recoverable: a branch is removed only when nothing on it is missing from main, or its PR merged with an identical tip, or every changed file is identical on main; each deletion prints the sha and the restore command. Unmerged work, parked `wip/` branches, Neon branches and Vercel settings are listed for the owner, never removed by the tool.
 - Not covered yet: unused exports and dead code (a baseline-ratchet check is the next package); workflow caches cannot be listed from a cloud session, so only the scheduled workflow cleans them.
 
+## 2026-11-10 - Restore drill teardown and the Neon and Vercel inventory
+
+- Neon project `long-sun-23747504`: the drill branch `drill/2026-11-06-restore-check` was deleted on the owner's word of 10 Nov, after the proof list in CLAUDE.md section 7 (no child branch, compute idle since 6 Nov, nothing written after creation, no Vercel domain, alias or workflow referring to it). Branches now: `main` and `preview/public-beta/r2-encrypted-recovery` (2 of the 9 allowed).
+- The preview branch stays: a verified Vercel preview domain is still bound to `public-beta/r2-encrypted-recovery`. It can be removed after the owner removes that binding in the Vercel dashboard (the Neon branch, the GitHub branch and the old preview deployment go together).
+- Vercel inventory (read-only): 30 deployments shown, 28 production all READY, the current one is the Steward merge `8ef6d01`; the readiness check on the live site returned `ready` in `controlled_pilot`. Environment variables were not read. The project is set to Node 24.x while the repository expects Node 22; not checked whether that is intended.
+- Correction to the Steward notes: a claim push on a branch with no pull request still creates a Vercel deployment record, shown as CANCELED by the main-only setting. No build ran; whether the record counts against the daily deployment limit was not verified.
+- First Steward cleanup: 5 merged branches deleted by the daily workflow run of 10 Nov and 1,139 old artifacts removed. Nine branches with work not on main are waiting for the owner's decision.
+
 ## 2026-11-10 - UX packet P4: agency Do Next chases requests with no due date
 
 - Owner decision, 10 Nov 2026 ("yes P4", after 3 days without a reply; friction register E3). Before: `do-next.ts` skipped every request with no due date, so a request sent with no due date was never chased. After: a request still waiting for a first answer (triage group MISSING, status Open) with no due date joins the first group once it has waited 3 or more whole days, after every past-due item, oldest sent first. Same ranking tie rules; tiers are not renumbered.
