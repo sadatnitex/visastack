@@ -88,6 +88,7 @@ function pane(
       rows={[r]}
       chosen={undefined}
       formatLines={undefined}
+      candidate={undefined}
       packageItem={undefined}
       packageEditable={false}
       explanations={{ configured: false, off: undefined, byRequirement: new Map() }}

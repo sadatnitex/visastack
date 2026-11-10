@@ -96,6 +96,7 @@ import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import type { PackOption } from './attach-pack-form';
 import { CaseChecklist, CaseExpiringDocuments, caseItemPanes } from './case-checklist';
+import { candidateViews } from './case-evidence-view';
 import { CaseMobileBar } from './case-mobile-bar';
 import {
   CAPPED_LISTS,
@@ -846,6 +847,8 @@ export default async function MissionPage({
     next.set('item', id);
     return `?${next.toString()}#readiness`;
   };
+  // Notes show at Browse when there are some or an agency can see the case, else at Everything.
+  const notesLevel = data.selfReviewed && data.noteTotal === 0 ? 'everything' : 'browse';
   const checklistIds = new Set(data.requirementDetails.map((r) => r.packRequirementId));
   // One panel per checklist item; the package choice of an item sits in its own panel.
   const checklistPanes = hasChecklist
@@ -858,6 +861,11 @@ export default async function MissionPage({
         wordingMax: CHECKLIST_WORDING_MAX,
         selfReviewed: data.selfReviewed,
         explanations,
+        evidence: new Map(
+          candidateViews(data.candidates, data.evidenceLifecycle, data.selectionIdsByCandidate).map(
+            (view) => [view.packRequirementId, view] as const,
+          ),
+        ),
         packageItems: new Map(
           (data.casePackage?.items ?? []).map((item) => [item.packRequirementId, item] as const),
         ),
@@ -988,8 +996,11 @@ export default async function MissionPage({
           <a href="#snapshots" {...atLevel('everything')}>
             Snapshots
           </a>
-          <a href="#notes" {...atLevel('browse')}>
-            Contributors and Notes
+          <a href="#contributors" {...atLevel('browse')}>
+            Contributors
+          </a>
+          <a href="#notes" {...atLevel(notesLevel)}>
+            Notes
           </a>
           <a href="#outcome" {...atLevel('everything')}>
             Submission and Outcome
@@ -1036,6 +1047,7 @@ export default async function MissionPage({
             primaryAttach={!hasNextStepOrAlert && !data.welcomeNote}
             nextStates={nextStates}
             stageStates={stageStates}
+            selfReviewed={data.selfReviewed}
             snapshots={data.snapshots}
             moreSnapshots={data.moreSnapshots}
             linkedMissions={data.linkedMissions}
@@ -1073,6 +1085,7 @@ export default async function MissionPage({
               expanded={expandedLists}
               more={more}
               totals={{ openTasks: data.openTaskCount, notes: data.noteTotal }}
+              selfReviewed={data.selfReviewed}
             />
           </div>
         </div>

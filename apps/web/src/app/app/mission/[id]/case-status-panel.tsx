@@ -226,7 +226,9 @@ export function CaseStatusPanel({
           </ul>
         </div>
 
-        <div className="lift-status-stages" {...atLevel('browse')}>
+        {/* The seven stages are an agency's workflow; while no agency has access the traveller is
+            the only reviewer, so they sit at Everything. With an agency on the case: Browse. */}
+        <div className="lift-status-stages" {...atLevel(selfReviewed ? 'everything' : 'browse')}>
           <CaseStageTracker
             state={state}
             labels={stateLabels}

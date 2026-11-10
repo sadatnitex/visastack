@@ -1439,6 +1439,39 @@ const CASES_MISSION: readonly Case[] = [
     ),
   },
   {
+    name: 'choose which file counts for one item',
+    element: () => (
+      <collaborationPanels.EvidenceItemChoices
+        missionId="m1"
+        candidate={{
+          packRequirementId: 'req1',
+          kind: 'DOCUMENT',
+          label: 'Valid passport',
+          citation: 'Guidance 4.2',
+          factCandidates: [],
+          documentCandidates: [
+            {
+              documentId: 'd1',
+              displayName: 'Passport',
+              eligible: true,
+              staleness: 'fresh',
+              lifecycleLabel: null,
+            },
+            {
+              documentId: 'd2',
+              displayName: 'Old passport',
+              eligible: false,
+              staleness: 'stale',
+            },
+          ],
+          selectedFactIds: [],
+          selectedDocumentIds: ['d1'],
+          selectionIdsByCandidate: { d1: 'sel1' },
+        }}
+      />
+    ),
+  },
+  {
     name: 'complaints',
     element: () => (
       <complaintFeedbackPanels.ComplaintPanel

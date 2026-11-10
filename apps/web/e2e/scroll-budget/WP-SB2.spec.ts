@@ -129,8 +129,10 @@ const LIFT = {
    * desktop Everything). The shared list kit moved each item's choice into its own panel and made
    * the package a summary, and the page now measures 3986, 3590, 1826 and 3274 px with the
    * package in it. Held there with a little headroom; Glance is back under 2000.
+   * After the section tabs and the folders (10 Nov 2026): 3636, 3308, 1828 and 3275 px, held at
+   * 3700, 3350, 1900 and 3300.
    */
-  phonePage: { everything: 4050, browse: 3650, glance: 1900 },
+  phonePage: { everything: 3700, browse: 3350, glance: 1900 },
   desktopPage: { everything: 3300 },
   /** Where the first checklist row may start (px from the top of the page). */
   firstRow: { phone: 1500, desktop: 1100 },
@@ -187,6 +189,13 @@ test.describe('WP-LIFT-B the real case page', () => {
         // Scripts are blocked, so the page's own switch cannot run: set the level it would set.
         for (const note of main.querySelectorAll('.depth-nojs')) note.remove();
         main.querySelector('.depth-scope')?.setAttribute('data-depth', depth);
+        // The section tabs (More for This Case) also need their script: set the state they would
+        // set, which is the tabs drawn and no section showing until a tab is chosen.
+        for (const switcher of main.querySelectorAll('.sw-root')) {
+          switcher.querySelector('.sw-tabs')?.removeAttribute('hidden');
+          for (const panel of switcher.querySelectorAll<HTMLElement>('.sw-panel'))
+            panel.hidden = true;
+        }
       },
       { markup: html, depth: level },
     );
