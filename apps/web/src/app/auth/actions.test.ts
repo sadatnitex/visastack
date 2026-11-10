@@ -215,7 +215,7 @@ describe('signUpAction', () => {
       email: 'a@b.co',
       password: 'longenough',
       name: 'Ana',
-      callbackURL: 'https://app.example.test/auth/sign-in?n=confirmed',
+      callbackURL: 'https://app.example.test/auth/confirmed',
     });
   });
 
@@ -354,7 +354,7 @@ describe('resendConfirmationAction', () => {
     );
     expect(sendVerificationEmail).toHaveBeenCalledWith({
       email: 'a@b.co',
-      callbackURL: 'https://app.example.test/auth/sign-in?n=confirmed',
+      callbackURL: 'https://app.example.test/auth/confirmed',
     });
     expect(await destination(() => resendConfirmationAction(form({ email: 'bad' })))).toBe(
       '/auth/verify-email?e=invalid',
@@ -420,7 +420,7 @@ describe('invitation account handoff', () => {
     );
     expect(signUpEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        callbackURL: `https://app.example.test/auth/sign-in?n=confirmed${target}`,
+        callbackURL: `https://app.example.test/auth/confirmed?next=${encodeURIComponent(next)}`,
       }),
     );
     expect(await destination(() => resendConfirmationAction(form({ email: 'a@b.co', next })))).toBe(
@@ -428,7 +428,7 @@ describe('invitation account handoff', () => {
     );
     expect(sendVerificationEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        callbackURL: `https://app.example.test/auth/sign-in?n=confirmed${target}`,
+        callbackURL: `https://app.example.test/auth/confirmed?next=${encodeURIComponent(next)}`,
       }),
     );
   });
@@ -452,7 +452,7 @@ describe('invitation account handoff', () => {
       '/auth/verify-email?s=1',
     );
     expect(signUpEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ callbackURL: 'https://app.example.test/auth/sign-in?n=confirmed' }),
+      expect.objectContaining({ callbackURL: 'https://app.example.test/auth/confirmed' }),
     );
   });
 });

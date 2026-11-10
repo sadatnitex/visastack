@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { withinAuthLimits } from '../../lib/auth-throttle';
 import { resolveBaseUrl } from '../../lib/base-url';
+import { confirmedCallbackUrl } from '../../lib/confirmed-landing';
 import { safeReturnPath } from '../../lib/neon-recency';
 import { consumeSignupForm, readSignupForm } from '../../lib/signup-form';
 
@@ -134,7 +135,7 @@ export async function signUpAction(formData: FormData): Promise<void> {
     email,
     password,
     name: name || email.split('@')[0] || 'Traveller',
-    callbackURL: `${resolveBaseUrl()}/auth/sign-in?n=confirmed${target}`,
+    callbackURL: confirmedCallbackUrl(resolveBaseUrl(), next),
   });
   if (error) {
     if (
@@ -152,7 +153,8 @@ export async function signUpAction(formData: FormData): Promise<void> {
 
 /** Send the confirmation email again. Same answer for every address. */
 export async function resendConfirmationAction(formData: FormData): Promise<void> {
-  const target = signInTarget(safeReturnPath(field(formData, 'next')));
+  const returnTo = safeReturnPath(field(formData, 'next'));
+  const target = signInTarget(returnTo);
   // "Send the Link Again" on the page that already knows the address sends `saved`; a typed
   // address (the "Use a Different Email" form) always wins.
   const typed = field(formData, 'email').trim();
@@ -173,7 +175,7 @@ export async function resendConfirmationAction(formData: FormData): Promise<void
   try {
     const { error } = await getNeonAuth().sendVerificationEmail({
       email,
-      callbackURL: `${resolveBaseUrl()}/auth/sign-in?n=confirmed${target}`,
+      callbackURL: confirmedCallbackUrl(resolveBaseUrl(), returnTo),
     });
     throttled = error?.status === 429;
     const unknownAccount = error?.code === 'USER_NOT_FOUND' || error?.message === 'User not found';

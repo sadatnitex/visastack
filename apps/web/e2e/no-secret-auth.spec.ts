@@ -91,6 +91,29 @@ test.describe('unauthenticated access is denied, never leaked', () => {
     );
   }
 
+  test('the confirmation link landing with no sign-in goes to the sign-in form, never off-site', async ({
+    request,
+    baseURL,
+  }) => {
+    if (!baseURL) throw new Error('A deployment URL is required');
+    for (const [query, expected] of [
+      ['', '/auth/sign-in?n=confirmed'],
+      [
+        `?next=${encodeURIComponent('/app/privacy')}`,
+        `/auth/sign-in?n=confirmed&next=${encodeURIComponent('/app/privacy')}`,
+      ],
+      ['?next=https%3A%2F%2Fevil.example%2Fx', '/auth/sign-in?n=confirmed'],
+      ['?next=%2F%2Fevil.example', '/auth/sign-in?n=confirmed'],
+    ] as const) {
+      const response = await request.get(`/auth/confirmed${query}`, { maxRedirects: 0 });
+      expect([302, 307]).toContain(response.status());
+      const locationHeader = 'location';
+      const location = new URL(response.headers()[locationHeader] ?? '', baseURL);
+      expect(location.origin).toBe(new URL(baseURL).origin);
+      expect(`${location.pathname}${location.search}`).toBe(expected);
+    }
+  });
+
   test('/callback is publicly reachable (not itself gated by auth)', async ({ request }) => {
     const response = await request.get('/callback', { maxRedirects: 0 });
     expect(response.status()).toBeLessThan(500);
