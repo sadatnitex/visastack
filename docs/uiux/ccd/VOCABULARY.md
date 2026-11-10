@@ -217,3 +217,5 @@ Send on WhatsApp, everywhere a person sends something (10 Nov 2026). Owner decis
 | Copying the whole message | Copy Message (always there) | none | **Done (package P6)** |
 | Copying only the link | Copy Link (kept on invitation and request links) | none | **Done (package P6)** |
 | WhatsApp to VisaStack support | Send on WhatsApp under "Something Is Not Working" on Help, only when the business number is set | none | **Done (package P6)** |
+| Asking a client for several things at once (agency side), 10 Nov 2026 | Search Documents and Details (search box), Missing for This Case (first group on a case), Ask for All Missing (N), Selected (N) (the tray, each item with Remove, plus Clear All), Request Evidence (N) (the button; it counts what will go out) | "Basket", "Cart", "Add to Request"; "Evidence" is kept on the button because the traveller's list is called Evidence Requests | **Done (P10)** |
+| Words shown to a person who finds nothing in the asking list | "Not in the list? Choose Other Document and explain in the message." | A free-text document name (the old "Something Else (Type Its Name)" is gone from the picker) | **Done (P10)** |

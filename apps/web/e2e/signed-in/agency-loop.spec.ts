@@ -72,8 +72,10 @@ test('the agency asks the traveller for a passport', async () => {
     has: page.getByRole('button', { name: S.requestEvidenceButton }),
   });
   await form.getByLabel(S.requestTravellerField, { exact: true }).selectOption({ index: 1 });
-  await form.getByLabel(S.requestKindField).selectOption('DOCUMENT');
-  await selectByText(form.getByLabel(S.requestKeyField), /passport/i);
+  // The picker: find the document by its name, tick it, and it shows in the Selected tray.
+  await form.getByLabel(S.requestSearchField).fill('passport');
+  await form.getByRole('checkbox', { name: /^Passport$/ }).check();
+  await expect(form.getByText('Selected (1)')).toBeVisible();
   await form.getByLabel('Message (Optional)').fill('Specimen request for the exact-copy test');
   await form.getByRole('button', { name: S.requestEvidenceButton }).click();
   await expect(page.getByRole('status').or(page.locator('.field-msg')).first()).toBeVisible();

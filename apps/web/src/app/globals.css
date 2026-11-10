@@ -20254,6 +20254,155 @@ html:has(.sticky-action-bar) .toast-region {
 }
 /* end WP-F3C */
 
+/* WP-P10 The agency picker for asking a traveller for several documents and details in one send: a search box, foldable groups of ticks, a Selected tray with Remove buttons. Flat, tokens only, 44 px targets. */
+.ask-picker,
+.ask-kind,
+.ask-group {
+  display: grid;
+  gap: var(--space-2);
+}
+.ask-kind-title {
+  margin: var(--space-3) 0 0;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ask-group {
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+}
+.ask-missing {
+  border-color: var(--accent);
+  background: var(--brand-bg);
+}
+.ask-group-head {
+  display: flex;
+}
+.ask-group-toggle {
+  flex: 1;
+  min-height: 44px;
+  padding: var(--space-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+.ask-group-toggle::after {
+  content: "+";
+  float: inline-end;
+  font-weight: 400;
+}
+.ask-group-toggle[aria-expanded="true"]::after {
+  content: "\2212";
+}
+.ask-count {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.ask-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ask-list {
+  display: grid;
+  gap: 0;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+.ask-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-1) 0;
+  cursor: pointer;
+}
+.ask-row input[type="checkbox"] {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+}
+.ask-row-static {
+  cursor: default;
+}
+.ask-row-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ask-hint {
+  color: var(--text-secondary);
+}
+.ask-note {
+  margin-inline-start: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.ask-anyof {
+  min-width: 0;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--hairline);
+  border-radius: var(--radius-sm);
+}
+.ask-anyof legend {
+  padding: 0 var(--space-1);
+  font-weight: 600;
+}
+.ask-empty {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.ask-tray {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.ask-tray-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.ask-tray-title {
+  margin: 0;
+  font-weight: 600;
+}
+.ask-tray-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ask-tray-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+}
+.ask-tray-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ask-remove {
+  flex: none;
+}
+/* end WP-P10 */
+
 /* WP-F2 Camera check and receipt (batch F2, 10 Nov 2026): the look-before-you-send step after a photo, and the receipt after a saved document or a sharing request, the way a bank's identity check and a bKash receipt read. Flat, tokens and the green tone, no shadows or translucent surfaces; the photo viewer's near-black ground and its white and dark outline are fixed on purpose, so the outline shows on any photo in light and dark. */
 .capture-preview {
   display: grid;

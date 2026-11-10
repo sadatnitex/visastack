@@ -5,6 +5,7 @@ import type {
   EssentialsView,
   MasterProfileView,
 } from './master-profile-types';
+import type { MissingForCase, RequestPicker } from './request-picker-types';
 
 /**
  * A small, hand-written profile view for tests and visual fixtures. It has no link to the catalogue,
@@ -186,23 +187,74 @@ export function fixtureView(overrides: Partial<MasterProfileView> = {}): MasterP
   };
 }
 
-/** Pick-lists for the agency evidence form, hand-written so the form's tests stay light. */
-export const fixtureFieldGroups: readonly ChoiceGroup[] = [
-  {
-    key: 'universal',
-    label: 'Identity and Contact',
-    choices: [
-      { key: 'passport_number', label: 'Passport Number' },
-      { key: 'full_name', label: 'Full Name' },
-    ],
-  },
-  {
-    key: 'study',
-    label: 'Study',
-    choices: [{ key: 'study_institution_name', label: 'Institution Name' }],
-  },
-];
+/**
+ * The asking picker's list, hand-written so the form's tests stay light. It holds a shared name
+ * (Date of Birth, for the traveller and for a dependant) and a plain search name (NID).
+ */
+export const fixturePicker: RequestPicker = {
+  groups: [
+    {
+      id: 'DOCUMENT:identity_civil',
+      label: 'Identity and Civil',
+      kind: 'DOCUMENT',
+      items: [
+        ['PASSPORT', 'Passport'],
+        ['NID', 'National ID Card', '', 'NID|Smart Card|Voter ID'],
+      ],
+    },
+    {
+      id: 'DOCUMENT:financial',
+      label: 'Financial',
+      kind: 'DOCUMENT',
+      items: [
+        ['BANK_STATEMENT', 'Bank Statement', '', 'Account Statement|Passbook'],
+        ['SOLVENCY_CERTIFICATE', 'Bank Solvency Certificate', '', 'Solvency'],
+      ],
+    },
+    {
+      id: 'DOCUMENT:other_documents',
+      label: 'Other Documents',
+      kind: 'DOCUMENT',
+      items: [['OTHER', 'Other Document', '', 'Other|Something Else|Not in the List']],
+    },
+    {
+      id: 'FIELD:universal',
+      label: 'Identity and Contact',
+      kind: 'FIELD',
+      items: [
+        ['passport_number', 'Passport Number', 'Current Passport'],
+        ['historical_passport_number', 'Passport Number', 'Earlier Passport'],
+        ['date_of_birth', 'Date of Birth', 'Traveller'],
+        ['dependant_date_of_birth', 'Date of Birth', 'Dependant'],
+        ['full_name', 'Full Name'],
+      ],
+    },
+    {
+      id: 'FIELD:study',
+      label: 'Study',
+      kind: 'FIELD',
+      items: [['study_institution_name', 'Institution Name']],
+    },
+  ],
+};
 
+/** A case with three gaps, one request already waiting, and one pair of alternatives. */
+export const fixtureMissing: MissingForCase = {
+  rows: [
+    { id: 'DOCUMENT:PASSPORT', label: 'Passport', hint: '', state: 'ask' },
+    { id: 'DOCUMENT:BANK_STATEMENT', label: 'Bank Statement', hint: '', state: 'ask' },
+    { id: 'FIELD:full_name', label: 'Full Name', hint: '', state: 'asked' },
+    { id: '', label: 'Village Elder Letter', hint: '', state: 'unlisted' },
+  ],
+  anyOf: [
+    [
+      { id: 'DOCUMENT:NID', label: 'National ID Card', hint: '', state: 'alternative' },
+      { id: 'DOCUMENT:PASSPORT', label: 'Passport', hint: '', state: 'alternative' },
+    ],
+  ],
+};
+
+/** Pick-list for the document-type form, hand-written so its tests stay light. */
 export const fixtureDocumentGroups: readonly ChoiceGroup[] = [
   {
     key: 'identity_civil',
