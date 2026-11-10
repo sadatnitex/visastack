@@ -2260,6 +2260,8 @@ test.describe('public invitation page on a phone (UX-G)', () => {
 
 test.describe('the three traveller entry points (UMPE P13)', () => {
   const ENTRY = ['My Documents', 'My Trips', 'Sharing & Requests'] as const;
+  // Home carries a count of new notices when there are any ("Home, 2 new").
+  const HOME_TAB = /^Home(, \d+ new)?$/;
 
   for (const width of [1280, 1024] as const) {
     test(`the sidebar leads with them, each task under its destination, at ${width}px`, async ({
@@ -2281,7 +2283,7 @@ test.describe('the three traveller entry points (UMPE P13)', () => {
       // The phone copy of the tasks stays out of the sidebar.
       await expect(page.getByRole('navigation', { name: 'Quick actions' })).toBeHidden();
       // Keyboard: Tab walks Home, My Documents, Add Documents, My Trips, Start a Trip, Sharing.
-      await sidebar.getByRole('link', { name: 'Home', exact: true }).focus();
+      await sidebar.getByRole('link', { name: HOME_TAB }).focus();
       const names: string[] = [];
       for (let step = 0; step < 5; step++) {
         await page.keyboard.press('Tab');
@@ -2315,13 +2317,19 @@ test.describe('the three traveller entry points (UMPE P13)', () => {
       await page.setViewportSize({ width, height: 900 });
       await openUiFixture(page, 'shell');
       const bar = page.locator('.app-bar .app-shell-links');
-      for (const name of ['Home', ...ENTRY]) {
-        const tab = bar.getByRole('link', { name, exact: true });
+      const tabs = [
+        bar.getByRole('link', { name: HOME_TAB }),
+        ...ENTRY.map((name) => bar.getByRole('link', { name, exact: true })),
+      ];
+      for (const tab of tabs) {
         await expect(tab).toBeVisible();
         const box = await tab.boundingBox();
         expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
         expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
       }
+      // The fixture has 2 unread notices, none about requests: the count sits on Home, said aloud as "2 new".
+      const home = bar.getByRole('link', { name: 'Home, 2 new', exact: true });
+      await expect(home.locator('.app-tab-badge')).toHaveText('2');
       await expect(bar.getByRole('link', { name: 'Add Documents', exact: true })).toBeHidden();
       // One row: every tab shares the same top edge, so nothing wraps under the page padding.
       const tops = await bar

@@ -843,32 +843,6 @@ export function outputFingerprint(
     .slice(0, 32);
 }
 
-// --- WhatsApp --------------------------------------------------------------
-
-export interface WhatsAppShare {
-  /** The words to send. Generic: no name, no number, no document. */
-  readonly message: string;
-  /** Opens WhatsApp with the words ready. Nothing is sent until the person sends it. */
-  readonly href: string;
-}
-
-const ORIGIN_PATTERN = /^https:\/\/[a-z0-9.-]+(:\d+)?$|^http:\/\/localhost(:\d+)?$/i;
-
-/**
- * The prepared WhatsApp message: a generic greeting and a link to the signed-in shared workspace,
- * where only what the person has actually shared with the reader can be seen. It takes nothing
- * from the record, so it cannot carry a document, an identifier or a name. It is never sent by
- * VisaStack; it only opens WhatsApp with the words filled in.
- */
-export function buildWhatsAppShare(origin: string): Result<WhatsAppShare, ServiceError> {
-  if (!ORIGIN_PATTERN.test(origin)) {
-    return err(serviceError('invalid', 'the site address is not usable for a share link'));
-  }
-  const link = `${origin}/app/shared`;
-  const message = `Hello, I have put my visa details together on VisaStack and shared what you need there. Please sign in to VisaStack to see it: ${link}`;
-  return ok({ message, href: `https://wa.me/?text=${encodeURIComponent(message)}` });
-}
-
 // --- Record keeping --------------------------------------------------------
 
 export const OUTPUT_PREPARED_EVENT = 'SELECTED_OUTPUT_PREPARED';

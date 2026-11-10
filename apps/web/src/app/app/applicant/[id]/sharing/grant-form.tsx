@@ -439,7 +439,9 @@ export function GrantForm({
           className="btn btn-primary"
         />
         <FormMessage result={state} />
-        {state.ok && state.invitationUrl ? <InvitationLink url={state.invitationUrl} /> : null}
+        {state.ok && state.invitationUrl ? (
+          <InvitationLink url={state.invitationUrl} purpose="sharing" />
+        ) : null}
       </div>
     </form>
   );

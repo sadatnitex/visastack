@@ -1,6 +1,11 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { safeReturnPath } from '../../../lib/neon-recency';
+import {
+  PENDING_CONFIRMATION_COOKIE,
+  decodePendingConfirmation,
+} from '../../../lib/pending-confirmation';
 import { signInAction } from '../actions';
 import { AuthShell, ErrorLine, Notice, TextField } from '../auth-ui';
 
@@ -25,6 +30,13 @@ export default async function SignInPage({
   const { e, n, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   const notice = n ? NOTICES[n] : undefined;
+  // After the confirmation link, start with the address this browser just asked us to confirm
+  // (the signed, short-lived cookie the confirmation page already uses). It is read here and put
+  // in the form only: the address is never added to a link, so it cannot reach logs or history.
+  const prefill =
+    n === 'confirmed'
+      ? decodePendingConfirmation((await cookies()).get(PENDING_CONFIRMATION_COOKIE)?.value)
+      : null;
   return (
     <AuthShell title="Sign In">
       {notice ? <Notice>{notice}</Notice> : null}
@@ -40,6 +52,7 @@ export default async function SignInPage({
             autoComplete="email"
             required
             maxLength={254}
+            defaultValue={prefill ?? undefined}
             errorId={error ? 'signin-error' : undefined}
           />
           <TextField
