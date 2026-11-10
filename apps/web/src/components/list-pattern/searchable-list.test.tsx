@@ -2,7 +2,8 @@
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type SearchableItem, SearchableList, matchesSearch } from './searchable-list';
+import { matchesSearch } from './search-match';
+import { type SearchableItem, SearchableList } from './searchable-list';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

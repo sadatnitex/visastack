@@ -5,4 +5,5 @@ export { PANE_SHEET_QUERY } from './pane-query';
 export { ROW_NAME_WORDS, shortName } from './short-name';
 export { ListFilterBar } from './list-filter-bar';
 export { SwitcherTabs, type SwitcherSection } from './section-switcher';
-export { SearchableList, matchesSearch, type SearchableItem } from './searchable-list';
+export { SearchableList, type SearchableItem } from './searchable-list';
+export { matchesSearch } from './search-match';

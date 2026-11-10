@@ -3,6 +3,7 @@
 import { Fragment, type ReactNode, useState } from 'react';
 import type { RowNoun } from '../show-more';
 import { ListFilterBar } from './list-filter-bar';
+import { matchesSearch } from './search-match';
 
 /** One row a person can search for: the words it is found by, and the row as the server drew it. */
 export interface SearchableItem {
@@ -12,16 +13,6 @@ export interface SearchableItem {
   readonly node: ReactNode;
   /** The heading the row sits under in the page's layout ("Past Cases"); kept in the results. */
   readonly group?: string;
-}
-
-/**
- * Every typed word has to be somewhere in the text, in any order, ignoring capital letters
- * ("japan tourist" finds "Tourist visa for Japan").
- */
-export function matchesSearch(text: string, query: string): boolean {
-  const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
-  const haystack = text.toLocaleLowerCase();
-  return words.every((word) => haystack.includes(word));
 }
 
 /**
