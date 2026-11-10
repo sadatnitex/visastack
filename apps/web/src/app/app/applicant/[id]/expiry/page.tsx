@@ -209,8 +209,8 @@ export default async function ExpiryCentrePage({
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. What the three signals are, one tap away. */}
       <AboutDisclosure summary="About These Dates">
         <p>
-          Three separate signals - a document's own expiry, whether a route needs it more recently
-          dated, and how long an issuer confirmation stays valid. Never merged into one status.
+          Three separate dates: when a document expires, whether a route wants a newer one, and how
+          long a confirmation from an issuer stays valid. We never merge them into one status.
         </p>
       </AboutDisclosure>
 
@@ -229,7 +229,7 @@ export default async function ExpiryCentrePage({
 
         <div className="grid">
           <article className="card" {...atLevel('browse')}>
-            <p className="card-kicker">Intrinsic Expiry</p>
+            <p className="card-kicker">Document Expiry</p>
             <h2 className="card-title">Documents</h2>
             {data.intrinsic.length === 0 ? (
               <EmptyState
@@ -298,7 +298,7 @@ export default async function ExpiryCentrePage({
           </article>
 
           <article className="card" {...atLevel('browse')}>
-            <p className="card-kicker">Case-Specific Freshness</p>
+            <p className="card-kicker">Route Date Rules</p>
             <h2 className="card-title">Route Rules</h2>
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '0.75rem' }}>
               Some requirements demand evidence dated within a set window, separate from the
@@ -358,8 +358,8 @@ export default async function ExpiryCentrePage({
           </article>
 
           <article className="card" {...atLevel('browse')}>
-            <p className="card-kicker">Verification Expiry</p>
-            <h2 className="card-title">Issuer Confirmations</h2>
+            <p className="card-kicker">Confirmation Dates</p>
+            <h2 className="card-title">Confirmations from Issuers</h2>
             {data.verifications.length === 0 ? (
               <EmptyState icon="check" title="No Confirmations Yet">
                 When an issuer, such as a bank or employer, confirms a document, the confirmation

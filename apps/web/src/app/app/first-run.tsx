@@ -122,7 +122,7 @@ export function FirstRunConsent({
         type="CORE_PROCESSING"
         granted={false}
         locale={locale}
-        text="Allow core processing"
+        text="Let VisaStack Process My Details"
       />
       <p className="first-run-later">
         <Link href={laterHref}>Not Now</Link>
@@ -228,7 +228,7 @@ export function FirstRunTask({
         {briefHref ? (
           <li>
             <Link href={briefHref}>
-              <b>Prepare a Brief</b>
+              <b>Prepare a Summary</b>
               <span>Choose what goes in, then copy or download it</span>
             </Link>
           </li>

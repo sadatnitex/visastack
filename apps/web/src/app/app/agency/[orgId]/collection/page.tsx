@@ -128,7 +128,7 @@ export default async function CollectionRequestsPage({
     <div className="stack">
       <PageHeader
         title="Document Requests"
-        description="Ask someone for documents before they are your client. Nothing is shared until they choose to respond."
+        description="For people who are not your clients yet. Nothing is shared until they choose to respond."
         actions={
           <Link className="btn btn-primary" href={`${base}/new`}>
             New Request

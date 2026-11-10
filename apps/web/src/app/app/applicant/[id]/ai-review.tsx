@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReadingSource } from '@visastack/services';
+import Link from 'next/link';
 import { useActionState, useCallback, useId, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import { StatusBadge } from '../../../../components/ui';
@@ -280,8 +281,9 @@ export function AiProposalReview({
       ) : null}
       {mappable && !canApprove ? (
         <p className="muted u-fs-085">
-          Found: <q>{proposal.value ?? ''}</q>. Turn on processing on Home to save details to your
-          profile.
+          Found: <q>{proposal.value ?? ''}</q>. Turn on{' '}
+          <strong>Let VisaStack Process My Details</strong> on{' '}
+          <Link href="/app#permissions">Home</Link> to save details to your profile.
         </p>
       ) : null}
       <form action={formAction} className="finding-form">

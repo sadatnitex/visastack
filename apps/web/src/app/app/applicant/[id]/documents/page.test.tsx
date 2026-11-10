@@ -220,9 +220,7 @@ describe('a file that could not be used', () => {
       value: [doc('a', 'FAILED'), doc('b', 'NEEDS_ATTENTION'), doc('c', 'REJECTED')],
     });
     const text = (await Promise.all(['a', 'b', 'c'].map((id) => render(id)))).map(textOf).join(' ');
-    expect(text).toContain(
-      'We could not finish checking this file. Try uploading it again. If it keeps failing, contact support.',
-    );
+    expect(text).toContain('We could not finish checking this file. Try uploading it again.');
     expect(text).toContain(
       'This file could not be accepted as it is. Try a different copy, such as a clearer scan or a smaller file.',
     );
@@ -361,7 +359,7 @@ describe('wallet ownership, explicit selection and truthful safety state', () =>
   it('reports failed reads as unavailable rather than an empty wallet', async () => {
     mocks.listDocumentsDetailed.mockResolvedValue({ ok: false, error: { code: 'forbidden' } });
     const html = await render();
-    expect(textOf(html)).toContain('Unavailable records are not reported as an empty wallet');
+    expect(textOf(html)).toContain('Unavailable records are not shown as an empty list');
     expect(textOf(html)).not.toContain('No Documents Yet');
   });
 });

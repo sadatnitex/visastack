@@ -225,7 +225,7 @@ export default async function WhatWeFoundPage({
         <article className="card">
           <p className="card-body">
             Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
-            <Link href="/app">Home</Link> to add details to your profile.
+            <Link href="/app#permissions">Home</Link> to add details to your profile.
           </p>
         </article>
       ) : allDone ? (

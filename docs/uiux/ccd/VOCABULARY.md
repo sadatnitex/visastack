@@ -176,6 +176,9 @@ Added 4 Nov 2026 (Lane E, the evidence loop between a traveller and an agency):
 | Adding a missing item | row action "Add" (a file goes to the Documents page, an answer to the profile); the panel keeps "Provide Evidence" to choose among files already on file | "Provide Evidence" as the row button | **Done (package 1)** |
 | Who added an item | "Added by an Agency" while no agency has access; "Requested by Your Agency" while one has; "Starter List, Not Official" on a starter list | "Requested by Your Agency" on a case no agency can see | **Done (package 0)** |
 | Header lines of the case | "You have not confirmed this case yet", "You confirmed this case on {date}", "Your confirmation" | "Traveller has not confirmed yet" to the traveller | **Done (package 0)** |
+| Asking a client for a document or detail (agency side) | Ask for a Document or Detail (the group heading, on Clients and on an open case); the button stays "Request Evidence" and the list stays "Evidence Requests", the traveller's own name for the same thing | "Ask for a Field or Document" ("field" is a profile word); renaming the button or list would split the agency and traveller names for one object | **Done (UX lane 2, E7)** |
+| Who each request page is for (agency side) | Clients, Request Evidence: "For people who are already your clients."; Document Requests: "For people who are not your clients yet." | One line that read as if both pages ask the same people | **Done (UX lane 2, E8)** |
+| Taking a member off a case | button "Remove", named "Remove {member email}", busy "Removing" followed by the three-dot character | A bare multiplication sign as the only label | **Done (UX lane 2, E10)** |
 
 Decided on 9 Nov 2026 and not yet built (a later package): Snapshot becomes Saved Copy, Freshness Check becomes Is This Still Up to Date?, Trip Package becomes Your Package, and Readiness in the section links becomes How Complete.
 
@@ -188,3 +191,19 @@ Case page package 3 (10 Nov 2026):
 | Section links | Dates, Readiness, Trip Package, Contributors, Notes, Tasks and Letters, Evidence, Snapshots, Submission and Outcome | none | **Done** |
 | Two stored choices in an item's panel | "Which File Counts" (counts toward readiness) and "Which File Goes in the Handoff" (the package) | "What This Item Uses" | **Done (package 3)** |
 | Checklist search | Search the Checklist; empty result "No Items Match" | none | **Done (package 3)** |
+
+Added 10 Nov 2026 (Lane 1, the traveller's first journey, plain words for a grade 5 to 8 reader). Stored codes and server action names do not change; these are display words only. The guard `apps/web/src/lib/vocabulary.test.ts` (traveller screens) keeps the retired words out of visible text.
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The switch for processing a person's details | Let VisaStack Process My Details, on every button, heading, step and message that names it; the link that says to turn it on goes to Home, Permissions (`/app#permissions`) | "Allow core processing", "Allow Core Processing", "Turn On Core Processing to Begin" | **Done (Lane 1)** |
+| Starting a case from the Cases list | The main button is Start a Trip (the three-question flow, with that traveller already ticked); the by-name form stays under "Not Sure Where Yet? Add a Case by Name". With processing off the button stays Start a Case and points at the card that says what to turn on | A typed title as the only way in | **Done (Lane 1)** |
+| A trip form where the country is not known | A plain link, Start a Case by Name | A refusal with no way forward | **Done (Lane 1)** |
+| The one-time copies a traveller prepares | Summary (page Summaries, button Prepare a Summary, step Choose a Summary, last step Check and Copy); not "Brief", and never labelled Share (Sharing is its own section) | "Brief", "Briefs and Summaries", "Prepare a Brief", "Preview and Share", eyebrow "Share" | **Done (Lane 1)** |
+| Where a saved value stands (display words; stored codes unchanged) | Entered, Suggested, Confirmed, Backed by a Document, Reviewed by an Agency, Does Not Match, No Longer Current, Replaced. Suggested is never Confirmed; Reviewed is only for a real agency review | "Declared", "Extracted (Pending)", "Document-supported", "Agency-reviewed", "Conflicted", "Stale", "Superseded" | **Done (Lane 1)**; `lib/field-state-words.ts`, the one map that History, the profile pages and Application Memory (compare page) all read; Application Memory's older words (Entered by Hand, Marked as Not Matching, Out of Date, Replaced by a Newer Version) are retired |
+| How a saved value was recorded | Typed In, From a Document, From a Connected App, Added by VisaStack | "Manual", "API", "System", the raw code | **Done (Lane 1)** |
+| The three dates cards on Dates & Expiry | Document Expiry, Route Date Rules, Confirmation Dates; the card Confirmations from Issuers | "Intrinsic Expiry", "Case-Specific Freshness", "Verification Expiry", "Issuer Confirmations" | **Done (Lane 1)** |
+| The profile page counts and notes | Fields Backed by a Document, Fields That Do Not Match, "Every save keeps the earlier value", "How This Was Checked" (no internal tier shown) | "Document-supported fields", "Conflicting fields", "immutable version", "Assurance (E2)" | **Done (Lane 1)** |
+| Where a passport is read from its two printed lines | Read from the Two Lines at the Bottom of the Passport | "Read from the Machine-Readable Lines", "Code Lines" | **Done (Lane 1)** |
+| The storage meter on Add Documents, and the Documents subtitle | Document Storage; "Your private documents" | "Evidence Storage", "Your private evidence wallet" | **Done (Lane 1)** |
+| An agency request with no due date that has had no reply for 3 days, in the agency Do Next list (P4) | The group heading No Reply Yet; the line reads "Sent N days ago with no due date. No reply yet." | "Stale", "Dormant", "Chase", "Past Due" (it has no due date) | **New (P4)** |

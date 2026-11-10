@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { atLevel } from '../../../../components/depth';
 import { AboutDisclosure } from '../../../../components/ui-lift/about-disclosure';
 import { agree } from '../../../../lib/plural';
-import type { DoNextItem, DoNextTier } from './do-next';
+import { CHASE_AFTER_DAYS, type DoNextItem, type DoNextTier } from './do-next';
 import { FollowUpCopy } from './follow-up-copy';
 
 /** How many items the dashboard shows before pointing to the case list for the rest. */
@@ -42,7 +42,7 @@ export function DoNextList({
         <p className="card-body do-next-intro">
           {filtered ? 'For the cases in your current view. ' : ''}
           {admin
-            ? 'Past due items first, then items waiting for review, overdue tasks and cases with no owner.'
+            ? `Past due items first, then requests with no reply after ${CHASE_AFTER_DAYS} days, items waiting for review, overdue tasks and cases with no owner.`
             : 'Overdue tasks on the cases assigned to you, most overdue first.'}
         </p>
       </AboutDisclosure>
@@ -54,11 +54,11 @@ export function DoNextList({
             // The first item is the one thing to do now; the rest wait at Browse.
             <li
               key={item.key}
-              className={`do-next-item do-next-tier-${item.tier}`}
+              className={`do-next-item do-next-tier-${item.tier}${item.tierLabel ? ' do-next-chase' : ''}`}
               {...(index === 0 ? {} : atLevel('browse'))}
             >
               <div className="do-next-item-head">
-                <span className="do-next-tier">{TIER_LABEL[item.tier]}</span>
+                <span className="do-next-tier">{item.tierLabel ?? TIER_LABEL[item.tier]}</span>
                 <h3 className="do-next-title">{item.heading}</h3>
               </div>
               <p className="do-next-context" data-value>
