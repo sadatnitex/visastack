@@ -941,7 +941,13 @@ const PROFILE: readonly Case[] = [
 const SHARING: readonly Case[] = [
   {
     name: 'share with someone',
-    element: () => <GrantForm applicantId="a1" documents={DOCUMENTS} />,
+    element: () => (
+      <>
+        <GrantForm applicantId="a1" documents={DOCUMENTS} />
+        {/* The receipt's See Who Has Access link points at the access list further down the page. */}
+        <section id="who-has-access" aria-label="Who Has Access" />
+      </>
+    ),
   },
   row('pause, resume or stop a share', () => (
     <GrantOpButtons

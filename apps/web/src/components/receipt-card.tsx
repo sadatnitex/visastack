@@ -58,6 +58,7 @@ export function ReceiptCard({
   onDone,
   returnFocusTo,
   timeZone,
+  onlyIfIdle = false,
 }: {
   /** What happened, as a short Title Case heading, for example `Document Saved`. */
   readonly title: string;
@@ -80,6 +81,12 @@ export function ReceiptCard({
   readonly returnFocusTo?: () => HTMLElement | null;
   /** The person's time zone name when it is known; the device's own zone otherwise. */
   readonly timeZone?: string | undefined;
+  /**
+   * For a receipt that appears when background work finishes (an upload), not because the person
+   * just pressed something: focus moves to the heading only when it is on nothing in particular,
+   * so the person's place in the page, and the buttons for adding more, are never taken from them.
+   */
+  readonly onlyIfIdle?: boolean;
 }) {
   const headingId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
@@ -101,8 +108,10 @@ export function ReceiptCard({
       active instanceof HTMLElement &&
       active !== document.body &&
       !(scope?.contains(active) ?? false);
-    if (!typing && !elsewhere) heading.current?.focus();
-  }, []);
+    const onSomething = active instanceof HTMLElement && active !== document.body;
+    if (typing || elsewhere || (onlyIfIdle && onSomething)) return;
+    heading.current?.focus();
+  }, [onlyIfIdle]);
 
   const when = useMemo(() => receiptTime(at, timeZone), [at, timeZone]);
 

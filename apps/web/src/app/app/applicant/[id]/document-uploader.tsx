@@ -535,6 +535,7 @@ export function DocumentUploader({
       {unreceipted.length > 0 ? (
         <ReceiptCard
           key={Math.max(...unreceipted.map((item) => item.addedAt ?? 0))}
+          onlyIfIdle
           title={unreceipted.length === 1 ? 'Document Saved' : 'Documents Saved'}
           what={receiptWhat(unreceipted, notAddedCount)}
           at={Math.max(...unreceipted.map((item) => item.addedAt ?? 0))}

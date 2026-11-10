@@ -129,4 +129,33 @@ describe('ReceiptCard', () => {
     await render();
     expect(document.activeElement).toBe(host.querySelector('h3'));
   });
+
+  it('with onlyIfIdle keeps focus on the control the person is on, and takes it only from nowhere', async () => {
+    const card = (
+      <ReceiptCard
+        title="Document Saved"
+        what="Saved."
+        at={AT}
+        onlyIfIdle
+        next={{ label: 'View', href: '/x' }}
+        onDone={() => undefined}
+      />
+    );
+    await act(async () => root.render(<button type="button">Choose Files</button>));
+    const mine = host.querySelector('button') as HTMLButtonElement;
+    mine.focus();
+    await act(async () =>
+      root.render(
+        <>
+          <button type="button">Choose Files</button>
+          {card}
+        </>,
+      ),
+    );
+    expect(document.activeElement).toBe(mine);
+    await act(async () => root.render(<div />));
+    (document.activeElement as HTMLElement | null)?.blur();
+    await act(async () => root.render(card));
+    expect(document.activeElement).toBe(host.querySelector('h3'));
+  });
 });
