@@ -231,6 +231,8 @@ Links from notifications (`#request-{id}`) open the level that shows the request
 
 Agency side (not a depth screen, so no baseline): on the agency Clients page each document request that has a copy sent shows that exact copy (name when sent, kind, which send, when, size, a short fingerprint, how it was checked, "Received is not Accepted"), earlier sends folded under "Earlier Sends (N)" with their state, time and the agency's own reason, and Download Sent File only where the service says the file can be opened. The Accept, reason and Cancel buttons are the same; they now post which copy the reviewer was shown. Test: `evidence-copies.test.tsx`, `evidence-request-actions.test.tsx`, `clients/page.test.tsx`.
 
+Package 4 (10 Nov 2026): the traveller screen is now rows in folders with a panel per request (the shared list kit), titled "Requests from Agencies". Nothing from the baseline is lost: the heading and the intro moved as the approved changes say, the agency's "Why it is needed" quote is the first message of the conversation in the panel (approved rule), and every form, link and sentence of the old card is in the panel. New: the conversation (Sent, Received, Reviewed, Sent Back for a Fix, each with its time). On the agency Clients page each request has a folded "Conversation". Test: `parity-evidence.test.tsx`, `request-thread.test.tsx`, `evidence/page.test.tsx`.
+
 ## 11. Sharing (`/app/applicant/{id}/sharing`)
 
 Baseline: `baseline/sharing.json`, three states (nobody has access; active, paused, pending and revoked access with exceptions, a scope confirmation, invitations and a log; records could not be read). Stubbed panels are counted. Test: `parity-sharing.test.tsx`.
@@ -585,3 +587,17 @@ Approved changes (coordinator brief, 10 Nov 2026; `lib/ccd/approved-changes.ts`)
 | Contributor request: link only | Adds "Send on WhatsApp" (document kind and the private link only) | Case page, Ask a Contributor |
 
 Guard tests: `lib/ccd/parity-sharing.test.tsx`, `lib/ccd/pattern-conformance.test.tsx` (Sharing converted, waiting count 15), `lib/grant-row-line.test.ts`, `lib/permission-phrases.test.ts`, `applicant/[id]/sharing/{page,grant-form}.test.tsx`, `client-invitations/accept/page.test.tsx`, `sharing-invitations/accept/page.test.tsx`, `lib/whatsapp-link.test.ts`, `mission/[id]/contributor-requests-panel.test.tsx`, services `sharing-invitations.test.ts` (a different recipient learns nothing) and `client-invitations.test.ts` (the 30 days).
+
+## P7: a finished case is frozen (10 Nov 2026, owner decision "yes, freeze finished cases")
+
+A submitted, closed or cancelled case can no longer change, so the case page stops offering what would change it, and says so once under the header: "This case is finished, so it can no longer change." An open case keeps all of these.
+
+| Before (finished case) | After (finished case) | Where |
+|---|---|---|
+| "Edit Case Details" and its form | The line above, in the same place | Case, Case Details card |
+| "Take a Snapshot" in the header and in the phone More menu | Not offered | Case header, More |
+| "Attach Pack" and the checklist picker | Not offered; "No checklist was linked to this case." when none was | Case, Requirement Pack card |
+| "Generate New Version" for cover letters | The line above; earlier versions stay readable | Case, Cover Letters |
+| The "Something changed after you confirmed this case" alert with "Take a New Snapshot" | Not shown (a finished case is never shown as needing to be confirmed again) | Case, status area |
+
+Held by `parity-case.test.tsx` through three approved changes in `approved-changes.ts` (they apply to the closed-case state only) and by `page.test.tsx`.

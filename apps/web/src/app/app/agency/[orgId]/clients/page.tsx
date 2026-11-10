@@ -5,8 +5,8 @@ import { ReferenceCode } from '../../../../../components/reference-code';
 import { EmptyState } from '../../../../../components/ui';
 import { AboutDisclosure, SectionCard } from '../../../../../components/ui-lift';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
-import { evidenceDocumentGroups, evidenceFieldGroups } from '../../../../../lib/master-profile';
 import { type SearchParamsRecord, firstParam, pagingHref } from '../../../../../lib/paging';
+import { buildRequestPicker } from '../../../../../lib/request-picker';
 import { withSession } from '../../../../../lib/session';
 import { ListPager } from '../cases/list-pager';
 import { type ListKeys, listWindow } from '../cases/list-window';
@@ -33,6 +33,7 @@ import {
   loadEvidenceCopies,
 } from '../evidence-copies-data';
 import { EvidenceRequestActions } from '../evidence-request-actions';
+import { RequestConversation } from '../request-conversation';
 import { RequestEvidenceForm } from '../request-evidence-form';
 import { FormGroup } from './form-group';
 import { OpenRequestFromLink } from './open-request-from-link';
@@ -304,8 +305,7 @@ export default async function AgencyClientsPage({
             >
               <RequestEvidenceForm
                 organizationId={orgId}
-                fieldGroups={evidenceFieldGroups()}
-                documentGroups={evidenceDocumentGroups()}
+                picker={buildRequestPicker()}
                 applicants={data.applicants}
                 missions={data.cases.map((m) => ({
                   missionId: m.missionId,
@@ -450,6 +450,7 @@ function RequestRow({
         {req.dueDate ? ` · due ${formatDateOnly(req.dueDate)}` : ''}
       </span>
       <ReferenceCode code={req.referenceCode} label="Request Reference" />
+      <RequestConversation req={req} copies={copies} hasCopies={hasCopies} />
       {hasCopies ? (
         <EvidenceCopies
           organizationId={orgId}

@@ -410,6 +410,8 @@ export {
   type CreateAppointmentForOrgInput,
   type CreateTaskForOrgInput,
   type EvidenceRequest,
+  type EvidenceRequestItem,
+  MAX_EVIDENCE_REQUESTS_PER_SEND,
   type EvidenceRequestDecision,
   type EvidenceRequestWithApplicant,
   type MissionDecision,
@@ -459,6 +461,7 @@ export {
   orgGrantPermits,
   recordMissionDecision,
   requestEvidence,
+  requestEvidenceBatch,
   requirementTriageGroup,
   startEvidenceReview,
   submitEvidenceResponse,
@@ -612,6 +615,7 @@ export {
   type SelectedEvidence,
   type UpdateAppointmentInput,
   type UpdateTaskInput,
+  CASE_FINISHED_NO_CHANGE,
   attachPackVersion,
   classifyPrepareAgainRequirement,
   computeReadiness,
@@ -648,6 +652,8 @@ export {
   updateMissionCaseDetails,
   updateTask,
 } from './missions';
+export { NO_SAVED_COPY } from './finished-case-readiness';
+export { isInactiveCaseState } from './umpe-package-tables';
 
 export {
   ACKNOWLEDGEMENT_TEXT_VERSION,
@@ -3149,6 +3155,13 @@ export {
   pinnedPackNotice,
 } from './umpe-pack-selection';
 export type { EvidenceDecisionResult, EvidenceSubmitResult } from './agency';
+export {
+  REQUEST_HISTORY_MAX_REQUESTS,
+  REQUEST_HISTORY_SENDS_SHOWN,
+  type RequestHistory,
+  type RequestHistoryDecision,
+  listRequestHistoriesForOwner,
+} from './evidence-request-histories';
 export {
   LEGACY_SEND_LABEL,
   type EvidenceSubmissionDownloadInput,

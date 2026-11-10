@@ -747,6 +747,7 @@ export default async function ApplicantDocumentsPage({
                   ? doc.subject
                   : documentTypeLabel(doc.docType)
                 : null,
+              docType: doc.docType ?? null,
               suggestedKind: suggested ? documentTypeLabel(suggested.suggestedType) : null,
               category: category ? categoryLabel(category) : null,
               version: doc.latestVersionNumber ?? null,

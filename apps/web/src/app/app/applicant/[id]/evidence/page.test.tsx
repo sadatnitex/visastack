@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   listEvidenceRequestsForApplicant: vi.fn(),
   referenceCodesFor: vi.fn(),
   listDocumentsDetailed: vi.fn(),
-  listEvidenceRequestDecisions: vi.fn(),
+  listRequestHistoriesForOwner: vi.fn(),
   requireAccess: vi.fn(),
   listRequestItemExtras: vi.fn(),
   getDocumentLifecycles: vi.fn(),
@@ -46,7 +46,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   referenceCodesFor: mocks.referenceCodesFor,
   listApplicantProfile: async () => [],
   listDocumentsDetailed: mocks.listDocumentsDetailed,
-  listEvidenceRequestDecisions: mocks.listEvidenceRequestDecisions,
+  listRequestHistoriesForOwner: mocks.listRequestHistoriesForOwner,
   requireAccess: mocks.requireAccess,
   listRequestItemExtras: mocks.listRequestItemExtras,
   getDocumentLifecycles: mocks.getDocumentLifecycles,
@@ -101,7 +101,6 @@ beforeEach(() => {
   mocks.listEvidenceRequestsForApplicant.mockResolvedValue({ ok: true, value: [request] });
   mocks.referenceCodesFor.mockResolvedValue(new Map());
   mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
-  mocks.listEvidenceRequestDecisions.mockResolvedValue({ ok: true, value: [] });
   mocks.requireAccess.mockResolvedValue({ ok: true, value: { gate: 'proof' } });
   mocks.listRequestItemExtras.mockResolvedValue(NO_EXTRAS);
   // Every document is the everyday copy unless a test says otherwise.
@@ -111,7 +110,35 @@ beforeEach(() => {
   });
   mocks.loadVersionScanEvidence.mockResolvedValue(new Map());
   mocks.evidenceSubmissionsPresent.mockResolvedValue(true);
+  // One batched read gives every answered request its history. By default nothing was said and no
+  // exact sends are kept (migration 0132 not run): the thread is built from the decisions.
+  setHistories({});
 });
+
+type Decision = { outcome: string; reason: string | null; createdAt: Date };
+const SENT_BACK = {
+  outcome: 'NEEDS_REPLACEMENT',
+  reason: 'The last page is cut off.',
+  createdAt: new Date('2026-10-21T09:00:00Z'),
+};
+/** The history the batched read returns, by request id; anything not named has none. */
+function setHistories(byId: Record<string, { decisions?: Decision[]; olderSends?: number }>) {
+  mocks.listRequestHistoriesForOwner.mockImplementation(
+    async (_proof: unknown, input: { requestIds: string[] }) => ({
+      ok: true,
+      value: new Map(
+        input.requestIds.map((id) => [
+          id,
+          {
+            decisions: byId[id]?.decisions ?? [],
+            sends: { available: false, submissions: [], legacy: [] },
+            olderSends: byId[id]?.olderSends ?? 0,
+          },
+        ]),
+      ),
+    }),
+  );
+}
 
 const withRequests = (...requests: Record<string, unknown>[]) =>
   mocks.listEvidenceRequestsForApplicant.mockResolvedValue({ ok: true, value: requests });
@@ -137,7 +164,7 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
     const text = textOf(html);
     expect(text).toContain('Missing');
     expect(text).toContain('Next: send a document from your wallet');
-    expect(html).toContain('request-item-warning');
+    expect(html).toContain('lift-pill-md');
     const [form] = stubProps<{ awaiting: boolean; timeZone: string }>(html, 'SubmitResponseForm');
     expect(form).toMatchObject({ awaiting: true, timeZone: 'Asia/Dhaka' });
   });
@@ -186,15 +213,7 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
       { ...request, id: 'r1', status: 'NEEDS_REPLACEMENT' },
       { ...request, id: 'r2', status: 'ACCEPTED', respondedAt: new Date('2026-10-27T08:32:00Z') },
     );
-    mocks.listEvidenceRequestDecisions.mockImplementation(
-      async (_db: unknown, _a: string, id: string) =>
-        id === 'r1'
-          ? {
-              ok: true,
-              value: [{ outcome: 'NEEDS_REPLACEMENT', reason: 'The last page is cut off.' }],
-            }
-          : { ok: true, value: [] },
-    );
+    setHistories({ r1: { decisions: [SENT_BACK] } });
     const text = textOf(await render());
     expect(text).toContain('Needs Correction');
     expect(text).toContain('Replacement needed: The last page is cut off.');
@@ -202,24 +221,84 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
     expect(text).toContain('You sent this on 27 Oct 2026, 14:32 GMT+6.');
   });
 
-  it('shows no old reason beside a request that was answered again, and reads reasons only where one applies', async () => {
+  it('reads what was said only on requests that have been answered, and shows a reason only where it was given', async () => {
     withRequests(
+      { ...request, id: 'r0', status: 'OPEN' },
       { ...request, id: 'r1', status: 'RECEIVED' },
       { ...request, id: 'r2', status: 'ACCEPTED' },
       { ...request, id: 'r3', status: 'NEEDS_REPLACEMENT' },
     );
-    mocks.listEvidenceRequestDecisions.mockResolvedValue({
-      ok: true,
-      value: [{ outcome: 'NEEDS_REPLACEMENT', reason: 'The last page is cut off.' }],
-    });
+    setHistories({ r3: { decisions: [SENT_BACK] } });
     const text = textOf(await render());
-    expect(mocks.listEvidenceRequestDecisions).toHaveBeenCalledTimes(1);
-    expect(mocks.listEvidenceRequestDecisions).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'r3',
+    // One batched read for the whole page, and an open request nobody has answered is not in it.
+    expect(mocks.listRequestHistoriesForOwner).toHaveBeenCalledTimes(1);
+    const asked = mocks.listRequestHistoriesForOwner.mock.calls.flatMap(
+      (call) => (call[1] as { requestIds: string[] }).requestIds,
     );
+    expect([...asked].sort()).toEqual(['r1', 'r2', 'r3']);
     expect(text.match(/The last page is cut off\./g)).toHaveLength(1);
+  });
+
+  it('says earlier history could not be loaded when a read fails, never that there is none', async () => {
+    withRequests({
+      ...request,
+      id: 'r1',
+      status: 'RECEIVED',
+      respondedAt: new Date('2026-10-27T08:32:00Z'),
+    });
+    mocks.listRequestHistoriesForOwner.mockRejectedValue(new Error('down'));
+    const text = textOf(await render());
+    expect(text).toContain('Earlier history could not be loaded. Refresh to try again.');
+    expect(text).not.toMatch(/no history|nothing was sent/i);
+  });
+
+  it('reads the history once for the whole page, with the owner proof', async () => {
+    withRequests(
+      { ...request, id: 'r1', status: 'RECEIVED', respondedAt: new Date('2026-10-27T08:32:00Z') },
+      {
+        ...request,
+        id: 'r2',
+        kind: 'FIELD',
+        docType: null,
+        fieldKey: 'passport_number',
+        status: 'RECEIVED',
+      },
+    );
+    await render();
+    expect(mocks.requireAccess).toHaveBeenCalledWith(
+      {},
+      expect.anything(),
+      'MANAGE',
+      { applicantId: 'a1' },
+      { purpose: 'self' },
+    );
+    expect(mocks.listRequestHistoriesForOwner).toHaveBeenCalledTimes(1);
+    expect(mocks.listRequestHistoriesForOwner).toHaveBeenCalledWith(
+      { gate: 'proof' },
+      { requestIds: ['r1', 'r2'] },
+    );
+  });
+
+  it('says earlier history could not be loaded when the service leaves a request out', async () => {
+    withRequests({
+      ...request,
+      id: 'r1',
+      status: 'RECEIVED',
+      respondedAt: new Date('2026-10-27T08:32:00Z'),
+    });
+    mocks.listRequestHistoriesForOwner.mockResolvedValue({ ok: true, value: new Map() });
+    expect(textOf(await render())).toContain('Earlier history could not be loaded.');
+  });
+
+  it('says older sends are not shown when only the newest were read', async () => {
+    withRequests({
+      ...request,
+      id: 'r1',
+      status: 'RECEIVED',
+      respondedAt: new Date('2026-10-27T08:32:00Z'),
+    });
+    setHistories({ r1: { olderSends: 4 } });
+    expect(textOf(await render())).toContain('Older sends are not shown here.');
   });
 
   it('shows a cancelled or older closed request as closed, with no form and no question box', async () => {
@@ -285,13 +364,15 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
     expect(text.match(/Finished/g)).toHaveLength(1);
     const dom = new JSDOM(html).window.document;
     const pill = (label: string) =>
-      [...dom.querySelectorAll('.case-row-badges .badge')].find((b) => b.textContent === label);
+      [...dom.querySelectorAll('[data-pattern="list-row"] .lift-pill')].find(
+        (b) => b.textContent === label,
+      );
     expect(pill('Received')?.className).toContain('lift-pill-info');
     expect(pill('Reviewed')?.className).toContain('badge-success');
     expect(pill('Reviewed')?.className).not.toContain('lift-pill-info');
-    for (const row of dom.querySelectorAll('.lc-card-finished')) {
-      expect(row.className).not.toContain('request-item-warning');
-    }
+    // A row never wears a tick for an accepted request: its mark is the kind of thing asked for.
+    expect(dom.querySelector('[data-row="done"] .lift-check-mark svg')).not.toBeNull();
+    expect(dom.querySelector('[data-row="done"] .lift-check-icon')).toBeNull();
   });
 
   it('numbers each row from the order the requests were read in, so Show More lands on the first new row, not on one already seen', async () => {
@@ -320,7 +401,9 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
     const html = await render();
     // Read order: open, done, busy. Drawn order: open, busy (still being checked), then done.
     const idOf = (name: string) =>
-      html.match(new RegExp(`id="(evidence-row-\\d+)"[^>]*>Document: ${name}`))?.[1];
+      html.match(
+        new RegExp(`id="(evidence-row-\\d+)"(?:(?!evidence-row-)[^])*?Document: ${name}`),
+      )?.[1];
     expect(idOf('Bank Statement')).toBe('evidence-row-1');
     expect(idOf('Passport')).toBe('evidence-row-2');
     expect(idOf('National Id')).toBe('evidence-row-3');
@@ -466,7 +549,7 @@ describe('a long list of requests stays short (WP-SB3)', () => {
     expect(mocks.listEvidenceRequestsForApplicant).toHaveBeenCalledWith({}, 'owner', 'a1', {
       limit: 10,
     });
-    expect(html.match(/class="case-row request-item /g)).toHaveLength(10);
+    expect(html.match(/data-pattern="list-row"/g)).toHaveLength(10);
     const text = textOf(html);
     expect(text).toContain('12 requests are waiting for you.');
     expect(text).toContain('Showing 10 of 30 requests.');
@@ -479,7 +562,7 @@ describe('a long list of requests stays short (WP-SB3)', () => {
     expect(mocks.listEvidenceRequestsForApplicant).toHaveBeenLastCalledWith({}, 'owner', 'a1', {
       limit: 20,
     });
-    expect(html.match(/class="case-row request-item /g)).toHaveLength(20);
+    expect(html.match(/data-pattern="list-row"/g)).toHaveLength(20);
     expect(textOf(html)).not.toContain('Nothing is waiting for you.');
     // The way to the rest shows at every level, so Glance is never an empty card.
     expect(html).toMatch(/<div class="show-more" id="evidence-requests-more">/);

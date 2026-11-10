@@ -15370,6 +15370,16 @@ output.notice {
   color: var(--brand);
   background: var(--brand-bg);
 }
+/* A status chip with its own symbol shows the symbol in place of the plain tick, triangle or cross. */
+.lift-pill-icon::before {
+  display: none;
+}
+.lift-pill .icon {
+  flex: none;
+}
+.lift-pill .icon .icon-accent {
+  color: inherit;
+}
 
 /* Progress meter: a drawing with a name, the numbers beside it. The fill width is an attribute. */
 .lift-meter {
@@ -20133,3 +20143,421 @@ html:has(.sticky-action-bar) .toast-region {
   color: var(--brand);
 }
 /* end WP-LP4 */
+
+/* WP-F3B Search first, like the box at the top of Drive or Gmail: the search box fills the row, a quiet Filters button with the number of filters in use sits beside it (also on a phone), and the screen's own filters open under it. Flat, tokens only, 44 px targets. */
+.lp-filter-bar-wrap {
+  margin: 0 0 var(--space-3);
+}
+.lp-filter-bar-wrap .lp-filter-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  margin: 0;
+}
+.lp-filter-bar-wrap .lp-filter-bar label {
+  margin: 0;
+}
+.lp-filters-toggle {
+  min-height: 44px;
+  gap: var(--space-1);
+}
+.lp-filters-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--accent-strong);
+  color: #fff;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  line-height: 1;
+}
+.lp-filters-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.lp-filters-panel[hidden] {
+  display: none;
+}
+.lp-filters-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--text-small);
+}
+@media (max-width: 760px) {
+  .lp-filters-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.lp-filter-none {
+  margin: var(--space-2) 0 0;
+}
+.lp-filter-none .btn {
+  margin-inline-start: var(--space-1);
+}
+.lp-sticky-filter .lp-filter-bar-wrap {
+  margin: 0;
+}
+/* end WP-F3B */
+
+/* WP-F3C Recent Activity on Home, a short dated statement like bKash: what happened, when, and who. Flat, tokens only. */
+.home-activity {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.home-activity-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3);
+}
+.home-activity-row + .home-activity-row {
+  border-top: 1px solid var(--hairline);
+}
+.home-activity-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+.home-activity-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+.home-activity-what {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-activity-when,
+.home-activity-who {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.home-activity-who {
+  flex: 0 0 auto;
+}
+.home-activity-all {
+  margin-top: var(--space-3);
+}
+.home-activity-empty {
+  margin: 0;
+}
+/* end WP-F3C */
+
+/* WP-P10 The agency picker for asking a traveller for several documents and details in one send: a search box, foldable groups of ticks, a Selected tray with Remove buttons. Flat, tokens only, 44 px targets. */
+.ask-picker,
+.ask-kind,
+.ask-group {
+  display: grid;
+  gap: var(--space-2);
+}
+.ask-kind-title {
+  margin: var(--space-3) 0 0;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ask-group {
+  border: 1px solid var(--hairline-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+}
+.ask-missing {
+  border-color: var(--accent);
+  background: var(--brand-bg);
+}
+.ask-group-head {
+  display: flex;
+}
+.ask-group-toggle {
+  flex: 1;
+  min-height: 44px;
+  padding: var(--space-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+.ask-group-toggle::after {
+  content: "+";
+  float: inline-end;
+  font-weight: 400;
+}
+.ask-group-toggle[aria-expanded="true"]::after {
+  content: "\2212";
+}
+.ask-count {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.ask-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ask-list {
+  display: grid;
+  gap: 0;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+.ask-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-1) 0;
+  cursor: pointer;
+}
+.ask-row input[type="checkbox"] {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+}
+.ask-row-static {
+  cursor: default;
+}
+.ask-row-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ask-hint {
+  color: var(--text-secondary);
+}
+.ask-note {
+  margin-inline-start: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.ask-anyof {
+  min-width: 0;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--hairline);
+  border-radius: var(--radius-sm);
+}
+.ask-anyof legend {
+  padding: 0 var(--space-1);
+  font-weight: 600;
+}
+.ask-empty {
+  margin: 0;
+  color: var(--text-secondary);
+}
+.ask-tray {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+.ask-tray-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.ask-tray-title {
+  margin: 0;
+  font-weight: 600;
+}
+.ask-tray-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ask-tray-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+}
+.ask-tray-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ask-remove {
+  flex: none;
+}
+/* end WP-P10 */
+
+/* WP-P13 Visual language (Owner, 10 Nov 2026: things talk loudly, like flags - an icon says what a thing is or where it stands, always beside its plain word). A flat line icon sits in a soft tile of one of the six Harbor tones (WP-PLAIN-TONE): green, amber and red say how a thing stands, blue, violet and teal say what kind of thing it is, grey is the neutral token. No new colour value, nothing but flat fills. The tile is the size of the glyph it replaces, so a row keeps its 56px. */
+.mark-tile {
+  --icon-accent: var(--tone, var(--text-secondary));
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  background: var(--tone-bg, var(--bg-subtle));
+  color: var(--tone, var(--text-secondary));
+}
+.mark-tile[data-size="sm"] {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+.mark-tile[data-size="lg"] {
+  width: 3rem;
+  height: 3rem;
+}
+.mark-tile .icon {
+  display: block;
+}
+.lift-check.lp-row > .lift-check-mark {
+  grid-column: 1;
+  grid-row: 1;
+}
+/* The small drawing in an empty Documents, Trips or Sharing place: three tiles, the middle one large. */
+.empty-art {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+/* The Why list on the forms that start a trip: the chosen purpose as a picture beside the native list. */
+.purpose-select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.purpose-select > select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* end WP-P13 */
+
+/* WP-RT1 Requests from Agencies: the list with its panel, and each request read as a conversation (owner, 10 Nov 2026, familiar pattern F3). The agency's ask on one side, the traveller's replies on the other, each with a time and one state in words. Tone fills only: flat, no shadow, gradient or picture, no tick marks. Tokens only, 44 px targets. */
+.req-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.req-list {
+  min-width: 0;
+}
+@media (min-width: 1181px) {
+  .req-grid > .lp-root > .lp-pane {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: calc(var(--header-height) + 1rem);
+    max-height: calc(100vh - var(--header-height) - 2rem);
+    overflow-y: auto;
+  }
+  .req-grid:has(> .lp-root > .lp-pane[data-sheet="open"]) {
+    grid-template-columns: minmax(0, 1fr) 24rem;
+  }
+}
+.rt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.rt-title {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.rt-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rt-msg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 85%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+.rt-msg-other {
+  align-self: flex-start;
+  background: var(--bg-subtle);
+}
+.rt-msg-own {
+  align-self: flex-end;
+  background: var(--brand-bg);
+}
+.rt-text {
+  margin: 0;
+}
+.rt-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+.rt-word {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius);
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+}
+.rt-word-received {
+  color: var(--brand);
+  background: var(--bg-elevated);
+}
+.rt-word-reviewed {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.rt-word-fix {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+.rt-note {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+.request-conversation > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--selected-text);
+}
+/* end WP-RT1 */

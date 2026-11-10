@@ -55,6 +55,13 @@ export const EVIDENCE_SENT_LINE = 'Sent to the agency. It shows as received unti
 /** An agency asked a traveller for something. */
 export const REQUEST_SENT_LINE = 'Request sent. It stays open until the traveller replies.';
 
+/** An agency asked a traveller for several things in one send; each is its own request. */
+export function requestsSentLine(count: number): string {
+  return count === 1
+    ? REQUEST_SENT_LINE
+    : `${count} requests sent. They stay open until the traveller replies.`;
+}
+
 /**
  * What happened to an invitation email by the time the screen answers: handed to the mail
  * service while the person waited (`sent`), not out yet and still being retried (`pending`),

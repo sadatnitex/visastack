@@ -1,5 +1,5 @@
 import type { AttentionItem, DeadlineEntry } from '@visastack/services';
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderServer } from '../next-mocks.test-support';
 import { registerParity } from './parity-kit.test-support';
 
@@ -19,6 +19,8 @@ const data = vi.hoisted(() => ({
   deadlines: [] as DeadlineEntry[],
   readiness: null as { requiredCount: number; satisfiedRequired: number } | null,
   depth: 'auto' as string,
+  events: [] as { seq: number; eventType: string }[],
+  auditReads: [] as { applicantId: string; limit: unknown }[],
 }));
 
 vi.mock('../session', () => ({
@@ -83,6 +85,22 @@ vi.mock('@visastack/services', async (importOriginal) => {
       Array.from({ length: data.pendingGrants }, () => ({
         grant: { status: 'PENDING_ACCEPTANCE', createdAt: new Date('2026-10-01T00:00:00Z') },
       })),
+    listAuditEventsForApplicant: async (
+      _db: unknown,
+      _account: string,
+      applicantId: string,
+      limit: unknown,
+    ) => {
+      data.auditReads.push({ applicantId, limit });
+      return data.events.map((event) => ({
+        ...event,
+        actorEmail: 'me@example.com',
+        action: null,
+        result: 'ALLOWED',
+        occurredAt: new Date('2026-11-09T10:00:00Z'),
+        agencyAi: null,
+      }));
+    },
     listMembershipsForAccount: async () => data.memberships,
     listDocuments: async () => ({ ok: true, value: Array.from({ length: data.documents }) }),
   };
@@ -143,6 +161,8 @@ registerParity({
     data.deadlines = [];
     data.readiness = null;
     data.depth = 'auto';
+    data.events = [];
+    data.auditReads = [];
   },
   render: async () => await renderServer(Page({})),
   states: [
@@ -259,4 +279,55 @@ registerParity({
       },
     },
   ],
+});
+
+describe('home: recent activity', () => {
+  beforeEach(() => {
+    data.consents = {};
+    data.applicants = [];
+    data.events = [];
+    data.platformAdmin = false;
+    data.memberships = [];
+    data.items = [];
+    data.deadlines = [];
+    data.depth = 'auto';
+    data.auditReads = [];
+  });
+  const events = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      seq: count - index,
+      eventType: 'DOCUMENT_UPLOADED',
+    }));
+  const rows = (html: string) => html.match(/home-activity-row/g)?.length ?? 0;
+
+  it('lists the newest five events of the own record with See All to its Access Log', async () => {
+    consentOn();
+    data.applicants = [person(1, 'Sam Other', 'CHILD'), person(2, 'Karim Hossain')];
+    data.events = events(7);
+    const html = await renderServer(Page({}));
+    expect(html).toContain('Recent Activity');
+    // The core call in the page asks for five; the mock returns more, and Home still shows five.
+    expect(rows(html)).toBe(5);
+    // One bounded read, for the own record only, never a loop over people.
+    expect(data.auditReads).toEqual([{ applicantId: person(2, 'x').id, limit: 5 }]);
+    expect(html).toContain('File Uploaded');
+    expect(html).toContain(`href="/app/applicant/${person(2, 'x').id}/sharing#access-log"`);
+  });
+
+  it('says nothing yet in one plain line when the record has no events', async () => {
+    consentOn();
+    data.applicants = [person(1, 'Karim Hossain')];
+    const html = await renderServer(Page({}));
+    expect(html).toContain('Recent Activity');
+    expect(rows(html)).toBe(0);
+    expect(html).toContain('Nothing yet. Each time your record is opened or changed');
+  });
+
+  it('is left out while core processing is off', async () => {
+    data.applicants = [person(1, 'Karim Hossain')];
+    data.events = events(3);
+    const html = await renderServer(Page({}));
+    expect(html).not.toContain('Recent Activity');
+    expect(data.auditReads).toEqual([]);
+  });
 });

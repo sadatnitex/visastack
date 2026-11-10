@@ -70,18 +70,50 @@ export const FAMILIAR_ROWS: readonly FamiliarRow[] = [
   {
     screen: 'case, documents',
     pattern: 'grouped list with folders',
-    class: 'partly',
-    matches: 'Drive folders',
+    class: 'familiar',
+    matches: 'Drive folders, each file with the picture of its kind and a status beside it',
     weight: 4,
-    files: ['components/list-pattern/grouped-list.tsx'],
+    files: [
+      'components/list-pattern/grouped-list.tsx',
+      'components/list-pattern/list-row.tsx',
+      'app/app/mission/[id]/case-checklist.tsx',
+    ],
+    proof: { file: 'app/app/mission/[id]/case-checklist.tsx', includes: 'documentMark(r.key)' },
   },
   {
-    screen: 'case, documents',
+    screen: 'documents, case checklist',
     pattern: 'filter bar',
-    class: 'partly',
-    matches: 'Daraz filter chips',
+    class: 'familiar',
+    matches:
+      'Google Drive and Gmail: the search box is always in view, the other filters sit behind a Filters button with a number',
     weight: 3,
     files: ['components/list-pattern/list-filter-bar.tsx'],
+    proof: { file: 'components/list-pattern/list-filter-bar.tsx', includes: 'lp-filters-toggle' },
+  },
+  {
+    screen: 'cases, group trips',
+    pattern: 'search box above a long list',
+    class: 'familiar',
+    matches: 'Gmail and Drive search: type, the list narrows, one plain line when nothing matches',
+    weight: 2,
+    files: [
+      'components/list-pattern/searchable-list.tsx',
+      'app/app/applicant/[id]/missions/page.tsx',
+      'app/app/trips/(list)/page.tsx',
+    ],
+    proof: {
+      file: 'app/app/applicant/[id]/missions/page.tsx',
+      includes: 'searchLabel="Search Cases"',
+    },
+  },
+  {
+    screen: 'home',
+    pattern: 'recent activity statement',
+    class: 'familiar',
+    matches: 'bKash statement: the last few dated lines, then See All',
+    weight: 3,
+    files: ['app/app/(home)/recent-activity.tsx', 'lib/recent-activity.ts'],
+    proof: { file: 'app/app/(home)/recent-activity.tsx', includes: 'See All' },
   },
   {
     screen: 'agency cases',
@@ -222,7 +254,24 @@ export const FAMILIAR_ROWS: readonly FamiliarRow[] = [
     class: 'partly',
     matches: 'WhatsApp chat list, but grouped by who is waiting',
     weight: 4,
-    files: ['app/app/applicant/[id]/evidence/page.tsx'],
+    files: [
+      'app/app/applicant/[id]/evidence/page.tsx',
+      'app/app/applicant/[id]/evidence/requests-list.tsx',
+    ],
+  },
+  {
+    screen: 'evidence requests, agency clients',
+    pattern: 'request conversation',
+    class: 'familiar',
+    matches:
+      'WhatsApp and Messenger chat: their message on one side, yours on the other, each with a time. The state is a word (Sent, Received, Reviewed, Sent Back for a Fix), never a tick, because Received is not Reviewed',
+    weight: 4,
+    files: [
+      'components/request-thread/request-thread.tsx',
+      'components/request-thread/thread-model.ts',
+      'app/app/agency/[orgId]/request-conversation.tsx',
+    ],
+    proof: { file: 'components/request-thread/request-thread.tsx', includes: 'rt-msg-own' },
   },
   {
     screen: 'sharing',

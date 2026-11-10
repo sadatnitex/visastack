@@ -29,7 +29,7 @@ import {
   loadUnassignedQueue,
 } from './console-data';
 import { countOverdueTasks, nextApproachingDate, summarizeAttention } from './console-format';
-import { buildDoNext } from './do-next';
+import { buildDoNextList } from './do-next';
 import { DoNextList } from './do-next-list';
 
 function Stat({
@@ -268,7 +268,7 @@ export default async function AgencyDashboardPage({
     assigneeFilter.length > 0 ||
     activeQuick !== undefined;
   // Do Next ranks only what this page already loaded, narrowed to the cases in view.
-  const doNext = buildDoNext({
+  const { items: doNext, quietHidden } = buildDoNextList({
     admin: data.admin,
     viewerAccountId: data.viewerAccountId,
     cases: searched.map((row) => row.mission),
@@ -387,7 +387,13 @@ export default async function AgencyDashboardPage({
         </article>
       ) : null}
 
-      <DoNextList items={doNext} admin={data.admin} filtered={filtered} />
+      <DoNextList
+        items={doNext}
+        admin={data.admin}
+        filtered={filtered}
+        quietHidden={quietHidden}
+        base={base}
+      />
 
       <div className="agency-working-area" {...(listLevel ? atLevel(listLevel) : {})}>
         <div className="agency-case-column">
