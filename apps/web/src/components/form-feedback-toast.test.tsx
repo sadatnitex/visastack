@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
@@ -89,19 +89,19 @@ describe('the done strip after a form result', () => {
 });
 
 describe('how forms hand over their result', () => {
+  // The same walk the other source-scan guards use: one directory listing gives each entry's kind,
+  // so no file is checked and then read separately.
+  const sourceFiles = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) return entry.name === 'node_modules' ? [] : sourceFiles(full);
+      return /\.tsx$/.test(entry.name) && !/\.test\./.test(entry.name) ? [full] : [];
+    });
+
   it('never builds the result inline, which would echo it again on every render', () => {
-    const offenders: string[] = [];
-    const walk = (dir: string) => {
-      for (const name of readdirSync(dir)) {
-        const path = join(dir, name);
-        if (statSync(path).isDirectory()) walk(path);
-        else if (/\.tsx$/.test(name) && !/\.test\./.test(name)) {
-          if (/<FormMessage[^>]*\sresult=\{\{/.test(readFileSync(path, 'utf8')))
-            offenders.push(path);
-        }
-      }
-    };
-    walk(join(__dirname, '..'));
+    const offenders = sourceFiles(join(__dirname, '..')).filter((file) =>
+      /<FormMessage[^>]*\sresult=\{\{/.test(readFileSync(file, 'utf8')),
+    );
     expect(offenders).toEqual([]);
   });
 });
