@@ -9,7 +9,7 @@ import {
   ok,
   requirementNecessity,
 } from '@visastack/core';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { AuthorizedApplicant, accountPrincipal, requireAccess } from './access';
 import { lockCaseSharing } from './access/grant-scope';
 import { orgGrantPermits } from './agency';
@@ -24,6 +24,7 @@ import { checkCaseCreationEntitlement } from './entitlement-enforcement';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
+import { readStoredReadiness } from './finished-case-readiness';
 import {
   everydayDocumentCondition,
   lifecycleTablesPresent,
@@ -113,6 +114,13 @@ const TRANSITIONS: Readonly<Record<MissionState, readonly MissionState[]>> = {
   // happen once TRU-04 lands a mission here some other way.
   SUBMITTED: ['CLOSED'],
 };
+
+/** The plain line shown when someone tries to change a finished case (submitted, closed, cancelled). */
+export const CASE_FINISHED_NO_CHANGE = 'This case is finished, so it can no longer change.';
+
+function finishedCaseRefusal(): ServiceError {
+  return serviceError('invalid', CASE_FINISHED_NO_CHANGE);
+}
 
 async function ownedMission(
   db: Db,
@@ -425,6 +433,7 @@ export async function updateMissionCaseDetails(
 ): Promise<Result<Mission, ServiceError>> {
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
+  if (isInactiveCaseState(owned.value.state)) return err(finishedCaseRefusal());
   // TRU-03 (Part 7 §4): jurisdiction/serviceCategory/dates/ownerOrganization/
   // manualMode are all case-identity/scope data the directive's own material
   // list means to cover ("itinerary; destination; purpose" and siblings) --
@@ -441,7 +450,10 @@ export async function updateMissionCaseDetails(
     input.manualMode !== undefined;
 
   return db.transaction(async (tx) => {
-    if (anyFieldProvided) await incrementMaterialRevision(tx, input.missionId);
+    // First write in the transaction: a case finished meanwhile changes nothing here.
+    if (anyFieldProvided && !(await incrementMaterialRevision(tx, input.missionId))) {
+      return err(finishedCaseRefusal());
+    }
     const updated = required(
       first(
         await tx
@@ -515,6 +527,7 @@ export async function attachPackVersion(
 ): Promise<Result<Mission, ServiceError>> {
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
+  if (isInactiveCaseState(owned.value.state)) return err(finishedCaseRefusal());
   const packVersion = first(
     await db
       .select({ status: schema.packVersions.status })
@@ -528,7 +541,8 @@ export async function attachPackVersion(
   }
 
   return db.transaction(async (tx) => {
-    await incrementMaterialRevision(tx, input.missionId);
+    // First write in the transaction: a case finished meanwhile changes nothing here.
+    if (!(await incrementMaterialRevision(tx, input.missionId))) return err(finishedCaseRefusal());
     const mission = required(
       first(
         await tx
@@ -628,6 +642,12 @@ export interface Readiness {
   /** RUL-04: every requirement's richer result state, including NOT_APPLICABLE ones (never excluded, since a case-not-applicable verdict is itself something a reviewer needs to see, not silently dropped). */
   readonly requirementResults: readonly RequirementResultSummary[];
   readonly overallState: OverallReadinessState;
+  /**
+   * Only on a finished case (submitted, closed or cancelled). `AS_FINISHED`: read from the copy
+   * saved while the case was open, so later changes to the traveller's record do not show here.
+   * `NONE`: no copy to read from, so this is today's reading (`NO_SAVED_COPY` says so).
+   */
+  readonly savedCopy?: 'AS_FINISHED' | 'NONE';
 }
 
 export interface MissionUsingField {
@@ -1036,7 +1056,12 @@ async function loadSelectionsByRequirement(db: Db, missionId: string): Promise<S
   return { factIdsByRequirement, documentIdsByRequirement };
 }
 
-/** Compute completeness of a mission against its attached pack version. */
+/**
+ * Compute completeness of a mission against its attached pack version. An open case reads the
+ * traveller's record as it is now. A finished case (submitted, closed, cancelled) reads the copy
+ * saved while it was open, so editing a profile answer or adding a file later changes nothing it
+ * shows; with no copy it reads live and is marked `savedCopy: 'NONE'`.
+ */
 export async function computeReadiness(
   db: Db,
   missionId: string,
@@ -1046,6 +1071,75 @@ export async function computeReadiness(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
   if (!mission) return err(serviceError('not_found', 'case not found'));
+  if (!isInactiveCaseState(mission.state)) return computeLiveReadiness(db, mission, now);
+  const saved = await savedReadinessForFinishedCase(db, mission);
+  if (saved) return ok({ ...saved, savedCopy: 'AS_FINISHED' });
+  const live = await computeLiveReadiness(db, mission, now);
+  return live.ok ? ok({ ...live.value, savedCopy: 'NONE' }) : live;
+}
+
+/**
+ * The readiness a finished case had when it finished, or null when there is no copy to trust
+ * (the rules for choosing the copy are in `finished-case-readiness.ts`). Only the two parts
+ * needed are pulled out of the stored copy, so a long list of cases does not read whole copies.
+ */
+async function savedReadinessForFinishedCase(
+  db: Db,
+  mission: Mission,
+): Promise<ReturnType<typeof readStoredReadiness>> {
+  const parts = {
+    readiness: sql<unknown>`${schema.missionSnapshots.content} -> 'readiness'`,
+    copiedPackVersionId: sql<unknown>`${schema.missionSnapshots.content} #> '{packVersion,id}'`,
+  };
+  const submission = first(
+    await db
+      .select({ snapshotId: schema.missionSubmissions.snapshotId })
+      .from(schema.missionSubmissions)
+      .where(eq(schema.missionSubmissions.missionId, mission.id))
+      .orderBy(desc(schema.missionSubmissions.createdAt))
+      .limit(1),
+  );
+  if (submission) {
+    const copy = first(
+      await db
+        .select(parts)
+        .from(schema.missionSnapshots)
+        .where(
+          and(
+            eq(schema.missionSnapshots.id, submission.snapshotId),
+            eq(schema.missionSnapshots.missionId, mission.id),
+          ),
+        )
+        .limit(1),
+    );
+    return copy
+      ? readStoredReadiness(copy.readiness, copy.copiedPackVersionId, mission.packVersionId)
+      : null;
+  }
+  if (!mission.closedAt) return null;
+  const latest = first(
+    await db
+      .select({ ...parts, revision: schema.missionSnapshots.materialRevisionAtCapture })
+      .from(schema.missionSnapshots)
+      .where(
+        and(
+          eq(schema.missionSnapshots.missionId, mission.id),
+          lte(schema.missionSnapshots.createdAt, mission.closedAt),
+        ),
+      )
+      .orderBy(desc(schema.missionSnapshots.version))
+      .limit(1),
+  );
+  if (!latest || latest.revision !== mission.materialRevision) return null;
+  return readStoredReadiness(latest.readiness, latest.copiedPackVersionId, mission.packVersionId);
+}
+
+async function computeLiveReadiness(
+  db: Db,
+  mission: Mission,
+  now: Date,
+): Promise<Result<Readiness, ServiceError>> {
+  const missionId = mission.id;
   if (!mission.packVersionId) {
     return err(serviceError('invalid', 'case has no attached pack version'));
   }
@@ -1940,6 +2034,9 @@ export async function snapshotMission(
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
   const mission = owned.value;
+  // A new snapshot of a finished case would hold today's values and read as an official copy
+  // of what was sent. The copies taken before it finished are the only ones.
+  if (isInactiveCaseState(mission.state)) return err(finishedCaseRefusal());
 
   const { requirementMapping, packVersionSnapshot, facts, documents, evidenceScope } =
     await loadCaseEvidence(db, mission);
@@ -3004,6 +3101,7 @@ export async function generateCoverLetter(
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
   const mission = owned.value;
+  if (isInactiveCaseState(mission.state)) return err(finishedCaseRefusal());
   if (!mission.packVersionId) {
     return err(serviceError('invalid', 'case has no attached pack version'));
   }
@@ -3039,7 +3137,8 @@ export async function generateCoverLetter(
       );
     const nextVersion = existing.reduce((max, r) => Math.max(max, r.version), 0) + 1;
 
-    await incrementMaterialRevision(tx, mission.id);
+    // First write in the transaction: a case finished meanwhile changes nothing here.
+    if (!(await incrementMaterialRevision(tx, mission.id))) return err(finishedCaseRefusal());
     const output = required(
       first(
         await tx
