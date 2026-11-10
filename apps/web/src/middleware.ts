@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server';
+import { neonLoginUrlFor } from './lib/confirmed-landing';
 import { createCspMiddleware } from './lib/csp-middleware';
 import { isNeonProtectedPath } from './lib/identity-selection';
 
@@ -8,10 +9,8 @@ import { isNeonProtectedPath } from './lib/identity-selection';
  */
 async function neonMiddleware(request: NextRequest) {
   const { getNeonAuth } = await import('./lib/neon-auth');
-  const next = `${request.nextUrl.pathname}${request.nextUrl.search}`;
-  return getNeonAuth().middleware({ loginUrl: `/auth/sign-in?next=${encodeURIComponent(next)}` })(
-    request,
-  );
+  const loginUrl = neonLoginUrlFor(request.nextUrl.pathname, request.nextUrl.search);
+  return getNeonAuth().middleware({ loginUrl })(request);
 }
 
 /**

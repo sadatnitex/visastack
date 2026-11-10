@@ -1,6 +1,7 @@
 import type { Locale } from '@visastack/i18n';
 import Link from 'next/link';
 import { CountryChecklistPicker } from '../../components/country-checklist-picker';
+import { CONFIRMED_LINE } from '../../lib/confirmed-landing';
 import type { StartData } from '../../lib/country-start';
 import { appHrefForCountry, permissionStepHref } from '../../lib/country-start-links';
 import { AddApplicantForm } from './add-applicant-form';
@@ -60,8 +61,11 @@ export function FirstRunCountry({
   data,
   iso2,
   action,
+  confirmed = false,
 }: {
   readonly data: StartData;
+  /** True right after the email confirmation link signed the person in: shows the line once. */
+  readonly confirmed?: boolean;
   /** A country already chosen (from the home page or an earlier visit), checked against the data. */
   readonly iso2: string | null;
   /** Records the confirmed choice, then moves on to the permission screen. */
@@ -73,6 +77,11 @@ export function FirstRunCountry({
       aria-labelledby="first-run-title"
     >
       <Steps current={1} total={3} />
+      {confirmed ? (
+        <p className="first-run-notice">
+          <output>{CONFIRMED_LINE}</output>
+        </p>
+      ) : null}
       <h1 className="section-title" id="first-run-title">
         Where do you want <em>to go?</em>
       </h1>
