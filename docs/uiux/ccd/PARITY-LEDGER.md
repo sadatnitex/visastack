@@ -550,3 +550,16 @@ Safety and consent wording shortened on a screen (full wording one tap away): th
 | Link "Contributors and Notes" | Links "Contributors" and "Notes" | Browse |
 | Item panel: "What This Item Uses" only | "Which File Counts" (new in the panel, same actions) and "Which File Goes in the Handoff" | always |
 | No search on a long checklist | Search the Checklist from 8 rows, after the script runs | always |
+| 14 Agency Overview, Do Next (P4, owner 10 Nov 2026) | The line on how the list is sorted now reads "Past due items first, then requests with no reply after 3 days, items waiting for review, overdue tasks and cases with no owner." (same line with "For the cases in your current view." in front when narrowed). Requests with no due date that have waited 3 or more days for a first answer join the first group after every past-due item, headed No Reply Yet. | Recorded as two approved changes in `apps/web/src/lib/ccd/approved-changes.ts`; nothing else on the screen changed. |
+
+## P6: Send on WhatsApp everywhere (10 Nov 2026, owner decision)
+
+Approved change. Nothing is removed: "Copy Link" stays on invitation and request links, "Copy Message" stays on the follow-up and on the summaries page. Guard tests: `lib/whatsapp-link.test.ts`, `components/share/whatsapp-share.test.tsx`, `app/app/agency/[orgId]/invitation-link.test.tsx`, `follow-up-copy.test.tsx`, `collection/collection-link-panel.test.tsx`, `applicant/[id]/outputs/outputs.test.tsx`, `app/help/page.test.tsx`.
+
+| Before | After | Where |
+|---|---|---|
+| Follow-up: copy-only behind a fold | "Send on WhatsApp" first (outside the fold), "Copy Message", fold keeps the full text | Agency Do Next |
+| Request link: "Copy Link", "Share on WhatsApp" | "Send on WhatsApp", "Copy Link", "Copy Message", "More Ways to Send" on a phone | Agency Document Requests |
+| Invitation link: "Copy Link", "Share Link" | "Send on WhatsApp", "More Ways to Send" on a phone, "Copy Link", "Copy Message" | Agency Clients, Team; traveller Sharing |
+| Summaries: "Open WhatsApp", "Copy Message" | "Send on WhatsApp", "Copy Message" (same generic message) | Traveller Summaries |
+| Help: email only | Adds "Send on WhatsApp" when the business number is set | Help |

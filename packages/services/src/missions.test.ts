@@ -1266,6 +1266,205 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
     if (isOk(afterRemoval)) expect(afterRemoval.value).toHaveLength(0);
   });
 
+  describe('a finished case keeps the evidence it was sent with (owner decision, 10 Nov 2026)', () => {
+    const FINISHED =
+      'This case is finished, so the files and answers it uses can no longer change.';
+
+    async function setState(missionId: string, state: MissionState) {
+      await db.update(schema.missions).set({ state }).where(eq(schema.missions.id, missionId));
+    }
+    async function revisionOf(missionId: string) {
+      const [row] = await db
+        .select({ revision: schema.missions.materialRevision })
+        .from(schema.missions)
+        .where(eq(schema.missions.id, missionId));
+      return row?.revision;
+    }
+    async function selectionAudits(missionId: string) {
+      const rows = await db
+        .select({ seq: schema.auditEvents.seq })
+        .from(schema.auditEvents)
+        .where(eq(schema.auditEvents.missionId, missionId));
+      return rows.length;
+    }
+    /** A database whose next transaction starts only after another request has set the state. */
+    function flippedBeforeTransaction(missionId: string, state: MissionState): Db {
+      return new Proxy(db, {
+        get(target, key) {
+          if (key === 'transaction') {
+            return async (fn: unknown, ...rest: unknown[]) => {
+              await setState(missionId, state);
+              return (target.transaction as (...a: unknown[]) => unknown)(fn, ...rest);
+            };
+          }
+          const value = Reflect.get(target, key, target);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+    }
+
+    it('still selects and unselects on an open case, with one audit record each', async () => {
+      const { account, missionId, factId, fieldRequirementId } = await setUp(db);
+      const before = await selectionAudits(missionId);
+      const chosen = await selectEvidence(db, {
+        actorAccountId: account.id,
+        missionId,
+        packRequirementId: fieldRequirementId,
+        factId,
+      });
+      expect(isOk(chosen)).toBe(true);
+      if (!isOk(chosen)) return;
+      const removed = await unselectEvidence(db, {
+        actorAccountId: account.id,
+        missionId,
+        selectionId: chosen.value.id,
+      });
+      expect(isOk(removed)).toBe(true);
+      expect(await selectionAudits(missionId)).toBe(before + 2);
+    });
+
+    it.each(['SUBMITTED', 'CLOSED', 'CANCELLED'] as const)(
+      'refuses to select or unselect once the case is %s, and changes nothing',
+      async (state) => {
+        const {
+          account,
+          missionId,
+          factId,
+          documentId,
+          fieldRequirementId,
+          documentRequirementId,
+        } = await setUp(db);
+        const chosen = await selectEvidence(db, {
+          actorAccountId: account.id,
+          missionId,
+          packRequirementId: fieldRequirementId,
+          factId,
+        });
+        if (!isOk(chosen)) throw new Error('chosen');
+        await setState(missionId, state);
+        const revision = await revisionOf(missionId);
+        const audits = await selectionAudits(missionId);
+
+        const select = await selectEvidence(db, {
+          actorAccountId: account.id,
+          missionId,
+          packRequirementId: documentRequirementId,
+          documentId,
+        });
+        expect(isErr(select)).toBe(true);
+        if (isErr(select)) {
+          expect(select.error.code).toBe('invalid');
+          expect(select.error.message).toBe(FINISHED);
+        }
+        const unselect = await unselectEvidence(db, {
+          actorAccountId: account.id,
+          missionId,
+          selectionId: chosen.value.id,
+        });
+        expect(isErr(unselect)).toBe(true);
+        if (isErr(unselect)) {
+          expect(unselect.error.code).toBe('invalid');
+          expect(unselect.error.message).toBe(FINISHED);
+        }
+
+        const list = await listSelectedEvidence(db, account.id, missionId);
+        expect(isOk(list) && list.value.map((row) => row.id)).toEqual([chosen.value.id]);
+        expect(await revisionOf(missionId)).toBe(revision);
+        expect(await selectionAudits(missionId)).toBe(audits);
+      },
+    );
+
+    it('a finished case answers with the finished line before looking at what was chosen', async () => {
+      const { account, missionId, fieldRequirementId } = await setUp(db);
+      await setState(missionId, 'SUBMITTED');
+      const probe = await selectEvidence(db, {
+        actorAccountId: account.id,
+        missionId,
+        packRequirementId: fieldRequirementId,
+        factId: '00000000-0000-4000-8000-000000000000',
+      });
+      expect(isErr(probe) && probe.error.message).toBe(FINISHED);
+    });
+
+    it('a case still being prepared or reviewed is not locked', async () => {
+      const { account, missionId, factId, fieldRequirementId } = await setUp(db);
+      await setState(missionId, 'SUBMISSION_READY');
+      const chosen = await selectEvidence(db, {
+        actorAccountId: account.id,
+        missionId,
+        packRequirementId: fieldRequirementId,
+        factId,
+      });
+      expect(isOk(chosen)).toBe(true);
+    });
+
+    it('a stranger gets the same answer on a finished case as on an open one, and learns nothing about its state', async () => {
+      const { missionId, factId, fieldRequirementId } = await setUp(db);
+      const stranger = await provisionAccount(db, { email: 'stranger@example.com' });
+      if (!isOk(stranger)) throw new Error('stranger');
+      const attempt = () =>
+        selectEvidence(db, {
+          actorAccountId: stranger.value.id,
+          missionId,
+          packRequirementId: fieldRequirementId,
+          factId,
+        });
+      const attemptRemoval = () =>
+        unselectEvidence(db, {
+          actorAccountId: stranger.value.id,
+          missionId,
+          selectionId: '00000000-0000-4000-8000-000000000000',
+        });
+      const openSelect = await attempt();
+      const openUnselect = await attemptRemoval();
+      await setState(missionId, 'CLOSED');
+      const closedSelect = await attempt();
+      const closedUnselect = await attemptRemoval();
+      expect(isErr(closedSelect) && closedSelect.error).toEqual(
+        isErr(openSelect) && openSelect.error,
+      );
+      expect(isErr(closedUnselect) && closedUnselect.error).toEqual(
+        isErr(openUnselect) && openUnselect.error,
+      );
+      if (isErr(closedSelect)) expect(closedSelect.error.message).not.toBe(FINISHED);
+      if (isErr(closedUnselect)) expect(closedUnselect.error.message).not.toBe(FINISHED);
+    });
+
+    it('a submit that lands between the first check and the write still wins', async () => {
+      const { account, missionId, factId, fieldRequirementId } = await setUp(db);
+      const racing = flippedBeforeTransaction(missionId, 'SUBMITTED');
+      const select = await selectEvidence(racing, {
+        actorAccountId: account.id,
+        missionId,
+        packRequirementId: fieldRequirementId,
+        factId,
+      });
+      expect(isErr(select) && select.error.message).toBe(FINISHED);
+      const list = await listSelectedEvidence(db, account.id, missionId);
+      expect(isOk(list) && list.value).toHaveLength(0);
+    });
+
+    it('a submit that lands before an unselect writes keeps the selection', async () => {
+      const { account, missionId, factId, fieldRequirementId } = await setUp(db);
+      const chosen = await selectEvidence(db, {
+        actorAccountId: account.id,
+        missionId,
+        packRequirementId: fieldRequirementId,
+        factId,
+      });
+      if (!isOk(chosen)) throw new Error('chosen');
+      const racing = flippedBeforeTransaction(missionId, 'CLOSED');
+      const unselect = await unselectEvidence(racing, {
+        actorAccountId: account.id,
+        missionId,
+        selectionId: chosen.value.id,
+      });
+      expect(isErr(unselect) && unselect.error.message).toBe(FINISHED);
+      const list = await listSelectedEvidence(db, account.id, missionId);
+      expect(isOk(list) && list.value).toHaveLength(1);
+    });
+  });
+
   it("refuses a selection whose fact/document doesn't match the requirement's own field key/docType, even for the applicant's own data (finding #34, post-programme defect register)", async () => {
     const {
       account,

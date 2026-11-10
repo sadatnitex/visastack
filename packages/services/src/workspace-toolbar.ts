@@ -1,10 +1,24 @@
-import { and, count, eq, isNull, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { type Db, schema } from './db';
 import { billingNoticeStillAllowedSql } from './notifications';
 import { TRAVELLER_FREE_PLAN_KEY, getPlanByKey } from './plans';
 
+/**
+ * The unread notice types that are about a request waiting on the traveller (an agency asked for
+ * something, or asked for a better copy). They are counted apart so the phone bar can put a count
+ * on Sharing & Requests; every other unread notice counts toward Home. An unread notice is not the
+ * same as a request still open, so the screen says "new", never "waiting".
+ */
+export const REQUEST_NOTICE_EVENT_TYPES = [
+  'EVIDENCE_REQUEST_CREATED',
+  'EVIDENCE_REPLACEMENT_REQUESTED',
+] as const;
+
 export interface WorkspaceToolbarState {
+  /** Every sent, unread in-app notice for this account (the bell). */
   readonly unread: number;
+  /** The part of `unread` that is about a request (see `REQUEST_NOTICE_EVENT_TYPES`). Never above `unread`; left out by a caller that has none. */
+  readonly unreadRequests?: number;
   readonly personalPlan: { readonly key: string; readonly name: string } | null;
   readonly agencyPlans: readonly {
     readonly organizationId: string;
@@ -20,7 +34,14 @@ export async function loadWorkspaceToolbarState(
 ): Promise<WorkspaceToolbarState> {
   const [unread, personalPlan, agencyPlans] = await Promise.all([
     db
-      .select({ count: count() })
+      .select({
+        count: count(),
+        // The same rows, counted a second way: no extra read.
+        requests:
+          sql<number>`count(*) filter (where ${inArray(schema.notifications.eventType, [...REQUEST_NOTICE_EVENT_TYPES])})`.mapWith(
+            Number,
+          ),
+      })
       .from(schema.notifications)
       .where(
         and(
@@ -57,6 +78,7 @@ export async function loadWorkspaceToolbarState(
   ]);
   return {
     unread: unread[0]?.count ?? 0,
+    unreadRequests: unread[0]?.requests ?? 0,
     personalPlan: personalPlan ? { key: personalPlan.key, name: personalPlan.name } : null,
     agencyPlans,
   };

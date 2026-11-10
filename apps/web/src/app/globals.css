@@ -12712,11 +12712,6 @@ html:has(.sticky-action-bar) {
   display: block;
   margin-block: var(--space-3);
 }
-.collect-page .collect-code-input {
-  max-width: 12rem;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.2em;
-}
 .collect-checklist {
   display: grid;
   gap: var(--space-4);
@@ -19757,3 +19752,330 @@ details.collapsible-group[hidden],
   margin-top: var(--space-5);
 }
 /* end WP-LP2 */
+
+/* WP-PLAIN-P4 A chased request in Do Next (10 Nov 2026) has no due date, so it takes the warning colour, not the past-due red. */
+.do-next-chase {
+  border-left-color: var(--warning);
+}
+.do-next-chase .do-next-tier {
+  color: var(--warning);
+}
+/* end WP-PLAIN-P4 */
+
+/* WP-LP3 The choice of which file counts, one row per file: the name, its chips and one button. Flat, tokens only. */
+.lp-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.lp-choice-label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.lp-choice-chip {
+  margin-inline-start: var(--space-2);
+}
+.lp-choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lp-choice-intro {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-small);
+}
+/* end WP-LP3 */
+
+/* WP-P6 Send on WhatsApp, the same everywhere a person sends something. The WhatsApp mark is a small green accent beside the words; the buttons stay the quiet secondary kind. Flat, tokens only, 44 px targets. */
+.wa-share {
+  display: grid;
+  gap: var(--space-2);
+}
+.wa-share-icon {
+  flex: none;
+  color: var(--success);
+}
+.wa-share-manual {
+  display: grid;
+  gap: var(--space-1);
+}
+.do-next-action .wa-share {
+  margin-bottom: var(--space-2);
+}
+/* end WP-P6 */
+
+/* WP-F1A Done strip and tab count. The done strip after an action (a short bordered line at the bottom, above the phone bar, clear of the sticky action bar and the Add button), and the count on a phone tab. Flat: 1px borders, no shadow, no gradient. Tokens only. */
+.toast-region {
+  position: fixed;
+  inset-inline: 0;
+  bottom: var(--space-5);
+  z-index: 80;
+  display: flex;
+  justify-content: center;
+  padding-inline: var(--space-4);
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  width: min(100%, 30rem);
+  min-height: 48px;
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: var(--text-small);
+}
+.toast-mark {
+  display: inline-flex;
+  flex: none;
+  color: var(--success);
+}
+.toast-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.toast-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+/* Above the bar a page keeps at the bottom, so the strip never covers a button the person needs. */
+html:has(.sticky-action-bar) .toast-region {
+  bottom: 6rem;
+}
+@media (max-width: 1023px) {
+  .toast-region {
+    bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+  html:has(.sticky-action-bar) .toast-region,
+  html:has(.docs-add-fab) .toast-region {
+    bottom: calc(9.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .toast {
+    animation: toast-in 160ms ease-out;
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* Tab count: same shape as the bell's count (.record-unread), in the danger fill. On a laptop it ends the row; on a phone it sits on the icon. */
+.app-tab-badge {
+  flex: none;
+  margin-inline-start: auto;
+  min-width: 16px;
+  padding: 2px 5px;
+  border-radius: 10px;
+  background: var(--danger-strong);
+  color: #fff;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+}
+@media (max-width: 1023px) {
+  .app-bar a:has(.app-tab-badge) {
+    position: relative;
+  }
+  .app-bar .app-tab-badge {
+    position: absolute;
+    top: 6px;
+    left: calc(50% + 4px);
+    margin: 0;
+    padding: 2px 3px;
+  }
+}
+/* The slim rail on a laptop has no room beside the icon: the count sits on the icon's corner. */
+@media (min-width: 1024px) {
+  .app-frame[data-sidebar="collapsed"] .app-shell-links a:has(.app-tab-badge) {
+    position: relative;
+  }
+  .app-frame[data-sidebar="collapsed"] .app-shell-links .app-tab-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    margin: 0;
+    padding: 2px 3px;
+  }
+}
+/* end WP-F1A */
+
+/* WP-F1B Case stages like an order tracker. A "Now:" headline above the position words and the strip; the fold shows every step, in a row on a wide screen and down a line on a phone with the current step marked. Replaces the one-line "Stage 2 of 7 - name" layout above. */
+.lift-steps {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "now help"
+    "position position"
+    "strip strip";
+}
+.lift-steps-now {
+  grid-area: now;
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.lift-steps-position {
+  white-space: normal;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.lift-steps-position::after {
+  content: none;
+}
+.lift-steps-list {
+  display: none;
+}
+.lift-steps:has(> .lift-help[open]) {
+  grid-template-areas:
+    "now help"
+    "position position"
+    "list list"
+    "full full";
+}
+.lift-steps:has(> .lift-help[open]) .lift-steps-list {
+  grid-area: list;
+}
+.lift-steps:has(> .lift-help[open]) .lift-steps-strip {
+  display: none;
+}
+.lift-steps > .lift-help[open] {
+  grid-area: full;
+}
+@media (max-width: 760px) {
+  .lift-steps:has(> .lift-help[open]) .lift-steps-list {
+    display: block;
+    padding-top: var(--space-2);
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 44px;
+    font-size: var(--text-small);
+    color: var(--text-secondary);
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step::before {
+    content: counter(lift-step);
+    position: relative;
+    z-index: 1;
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--edge-control);
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    font-size: var(--text-caption);
+    font-weight: 700;
+    line-height: 1;
+    color: var(--text-secondary);
+  }
+  /* The line down from this step's circle to the next one. */
+  .lift-steps:has(> .lift-help[open])
+    .lift-step:not(.lift-step-apart):has(+ .lift-step:not(.lift-step-apart))::after {
+    content: "";
+    position: absolute;
+    top: calc(50% + 12px);
+    left: 11px;
+    width: 2px;
+    height: 100%;
+    background: var(--edge-card);
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step-current {
+    font-weight: 700;
+    color: var(--text);
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step-current::before {
+    border-color: var(--brand);
+    background: var(--brand);
+    color: var(--bg-elevated);
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step-apart {
+    margin-top: var(--space-2);
+    padding: 0 var(--space-3);
+    border: 2px dashed var(--edge-card);
+    border-radius: var(--radius-pill);
+  }
+  .lift-steps:has(> .lift-help[open]) .lift-step-apart::before {
+    display: none;
+  }
+}
+/* end WP-F1B */
+
+/* WP-F1C Code boxes. One real input drawn as a box per digit; the boxes are decoration over it. Flat, 1px borders, tokens only. Before the page runs, the plain input shows. */
+.code-boxes {
+  position: relative;
+  max-width: 20rem;
+}
+.code-boxes-cells {
+  display: none;
+}
+.code-boxes[data-drawn="true"] .code-boxes-cells {
+  display: flex;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+.code-box {
+  display: grid;
+  flex: 1 1 0;
+  place-items: center;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 52px;
+  border: 1px solid var(--edge-control);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.code-box[data-active="true"] {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* The input stays where the boxes are, takes the taps and the paste, and shows nothing itself. */
+.code-boxes[data-drawn="true"] .code-boxes-input {
+  position: absolute;
+  inset: 0;
+  min-height: 52px;
+  opacity: 0;
+  caret-color: transparent;
+}
+.code-boxes[data-drawn="true"]
+  .code-boxes-input[aria-invalid="true"]
+  ~ .code-boxes-cells
+  .code-box {
+  border-color: var(--danger);
+}
+/* end WP-F1C */

@@ -89,6 +89,7 @@ function pane(
       chosen={undefined}
       formatLines={undefined}
       candidate={undefined}
+      evidenceEditable={true}
       packageItem={undefined}
       packageEditable={false}
       explanations={{ configured: false, off: undefined, byRequirement: new Map() }}
@@ -174,6 +175,41 @@ describe('the item panel', () => {
     expect(html).toContain('class="package-reason"');
     expect(html).not.toMatch(/<div hidden="" class="package-reason">/);
     expect(html).toContain('name="reason"');
+  });
+
+  it('offers the choice of which file counts only while the case is open; a closed case shows the chosen file as text', async () => {
+    const several = {
+      packRequirementId: ID,
+      kind: 'DOCUMENT' as const,
+      label: 'Passport',
+      citation: 'rule',
+      factCandidates: [],
+      documentCandidates: [
+        {
+          documentId: 'd1',
+          displayName: 'Passport Scan',
+          eligible: true,
+          staleness: 'fresh' as const,
+        },
+        {
+          documentId: 'd2',
+          displayName: 'Old Passport',
+          eligible: true,
+          staleness: 'fresh' as const,
+        },
+      ],
+      selectedFactIds: [],
+      selectedDocumentIds: ['d1'],
+      selectionIdsByCandidate: { d1: 'sel1' },
+    };
+    const open = await pane({ candidate: several, evidenceEditable: true });
+    expect(open).toContain('Which File Counts');
+    expect(open).toContain('>Select<');
+    const closed = await pane({ candidate: several, evidenceEditable: false });
+    expect(textOf(closed)).toContain('Which File Counts');
+    expect(textOf(closed)).toContain('Chosen: Passport Scan');
+    expect(closed).not.toContain('<form');
+    expect(closed).not.toContain('>Select<');
   });
 
   it('shows how a document must be provided when the checklist says', async () => {

@@ -7,6 +7,7 @@ import { BrandMark } from '../../components/brand-mark';
 import { Icon, type IconName } from '../../components/icons';
 import { LinkPending } from '../../components/link-pending';
 import { ShortcutHint } from '../../components/shortcut-hint';
+import { countLabel } from '../../lib/count-label';
 import { type NavAction, type NavLink, PRIMARY_NAV, isCurrentPath } from '../../lib/navigation';
 
 /** One icon per primary destination, keyed by its path. The words beside it carry the meaning. */
@@ -100,6 +101,17 @@ function compactLabel(label: string): string {
 }
 
 /**
+ * How a tab's count is drawn and spoken: nothing at zero, "9+" above nine on the tab (it is small),
+ * and the real number in the link's name up to "99+". Exported for the tests.
+ */
+export function badgeFor(
+  count: number | undefined,
+): { readonly shown: string; readonly spoken: string } | null {
+  if (count === undefined || !Number.isFinite(count) || count < 1) return null;
+  return { shown: countLabel(count, 9), spoken: countLabel(count, 99) };
+}
+
+/**
  * The signed-in navigation (master directive section 7 "PR 7"; names in `lib/navigation.ts`).
  *
  * On a laptop or larger it is a sidebar listing every destination, with the account
@@ -119,8 +131,14 @@ export function AppNav({
   footer,
   sidebarCollapsed = false,
   onToggleSidebar,
+  badges = {},
 }: {
   readonly links: readonly NavLink[];
+  /**
+   * A count of new things on a destination, by its path (see `lib/tab-badges.ts`). A destination
+   * with none, or a zero, shows nothing. The count is part of the link's name.
+   */
+  readonly badges?: Readonly<Record<string, number>>;
   readonly accountLabel?: string;
   readonly identity?: ReactNode;
   readonly secondaryLinks?: readonly NavLink[];
@@ -226,29 +244,41 @@ export function AppNav({
     );
   };
   const actions = links.flatMap((item) => (item.action ? [item.action] : []));
-  const link = (item: NavLink) => (
-    <Link
-      key={item.href}
-      href={item.href}
-      aria-label={item.label}
-      onClick={() => setOpen(false)}
-      aria-current={
-        (activeFragment ? activeFragment.href === item.href : isCurrentPath(pathname + hash, item))
-          ? 'page'
-          : undefined
-      }
-    >
-      <LinkPending />
-      <Icon name={navIconFor(item)} size={20} />
-      <span className="app-link-label app-link-full">{item.label}</span>
-      <span
-        className={`app-link-label app-link-compact${compactLabel(item.label).length > 10 ? ' app-link-compact-long' : ''}`}
-        aria-hidden="true"
+  const link = (item: NavLink) => {
+    const badge = badgeFor(badges[item.href]);
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        aria-label={badge ? `${item.label}, ${badge.spoken} new` : item.label}
+        onClick={() => setOpen(false)}
+        aria-current={
+          (
+            activeFragment
+              ? activeFragment.href === item.href
+              : isCurrentPath(pathname + hash, item)
+          )
+            ? 'page'
+            : undefined
+        }
       >
-        {compactLabel(item.label)}
-      </span>
-    </Link>
-  );
+        <LinkPending />
+        <Icon name={navIconFor(item)} size={20} />
+        <span className="app-link-label app-link-full">{item.label}</span>
+        <span
+          className={`app-link-label app-link-compact${compactLabel(item.label).length > 10 ? ' app-link-compact-long' : ''}`}
+          aria-hidden="true"
+        >
+          {compactLabel(item.label)}
+        </span>
+        {badge ? (
+          <span className="app-tab-badge" aria-hidden="true">
+            {badge.shown}
+          </span>
+        ) : null}
+      </Link>
+    );
+  };
 
   return (
     <div className="app-shell-nav" id={navId} data-open={open ? 'true' : 'false'}>
