@@ -52,6 +52,34 @@ export interface RequestPanesProps {
   readonly answeredId?: string;
 }
 
+/** How long after an answer its receipt may be drawn: it is for the visit that sent it, not for a bookmark. */
+const RECEIPT_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * The receipt after an answer (F2), or null: only when the address names this request, it holds an
+ * answer saved a few minutes ago, and it is in a state that says it was received. The honest line
+ * follows the state, so it never says "not yet reviewed" once the agency has started or finished.
+ */
+export function answerReceiptFor(
+  req: Pick<EvidenceRequest, 'id' | 'status' | 'respondedAt'>,
+  answeredId: string | undefined,
+  now: number = Date.now(),
+): { readonly respondedAt: string; readonly honestLine: string | null } | null {
+  if (answeredId !== req.id || !req.respondedAt) return null;
+  const at = new Date(req.respondedAt).getTime();
+  if (Number.isNaN(at) || now - at > RECEIPT_WINDOW_MS || at - now > RECEIPT_WINDOW_MS) return null;
+  const honestLine =
+    req.status === 'RECEIVED'
+      ? 'Received, not yet reviewed.'
+      : req.status === 'UNDER_REVIEW'
+        ? 'Received. The agency has started reviewing it.'
+        : req.status === 'ACCEPTED'
+          ? null
+          : undefined;
+  if (honestLine === undefined) return null;
+  return { respondedAt: new Date(at).toISOString(), honestLine };
+}
+
 function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & RequestPanesProps) {
   const { req, item } = entry;
   const { applicantId: id, timeZone, choiceBasis } = data;
@@ -80,6 +108,7 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
   const otherCopyUsable = documentChoices.some((choice) => choice.usable && !choice.sentBack);
   const due = req.dueDate ? dueLabel(req.dueDate, req.status, timeZone) : null;
   const code = data.referenceCodes.get(req.id);
+  const receipt = answerReceiptFor(req, data.answeredId);
   const questions = data.extras.questions.get(req.id) ?? [];
   const canAsk = Boolean(req.missionId && code && item.group !== null);
   const chip = requestChip(item);
@@ -108,16 +137,18 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
         <p className="case-row-meta">Needed by {formatDateOnly(req.dueDate)}</p>
       ) : null}
       {item.rule ? <p className="case-row-meta">{item.rule}</p> : null}
-      {data.answeredId === req.id && req.respondedAt && req.status === 'RECEIVED' ? (
+      {receipt ? (
         <AnswerReceipt
           applicantId={id}
           itemName={itemName}
-          respondedAt={new Date(req.respondedAt).toISOString()}
+          respondedAt={receipt.respondedAt}
           timeZone={timeZone}
+          {...(receipt.honestLine ? { honestLine: receipt.honestLine } : {})}
           {...(code ? { referenceCode: code } : {})}
         />
+      ) : code ? (
+        <ReferenceCode code={code} label="Request Reference" />
       ) : null}
-      {code ? <ReferenceCode code={code} label="Request Reference" /> : null}
       <p className="case-row-meta">{item.guidance}</p>
       {req.respondedAt && ANSWERED_STATUSES.has(req.status) ? (
         <p className="case-row-meta">You sent this on {formatMoment(req.respondedAt, timeZone)}.</p>

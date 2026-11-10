@@ -27,7 +27,8 @@ const { requestItemView } = await import('./request-item');
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const ID = '11111111-1111-4111-8111-111111111111';
-const SAVED = '2026-11-10T08:05:00.000Z';
+// Minutes ago, relative to the clock: the receipt is only drawn for a recent answer.
+const SAVED = new Date(Date.now() - 2 * 60 * 1000).toISOString();
 
 const request = (over: Partial<EvidenceRequest>): EvidenceRequest =>
   ({
@@ -119,7 +120,10 @@ describe('the receipt after an answer', () => {
     expect(card.textContent).toContain('R-7K2Q9M');
     expect(card.textContent).toContain('Received, not yet reviewed.');
     // The server's confirmed moment, in the traveller's zone.
-    expect(card.querySelector('time')?.textContent).toMatch(/10 Nov 2026.*2:05\s?pm.*GMT\+6/i);
+    expect(card.querySelector('time')?.getAttribute('datetime')).toBe(SAVED);
+    expect(card.querySelector('time')?.textContent).toMatch(/GMT\+6/);
+    // One reference, not two.
+    expect(host.textContent?.split('R-7K2Q9M').length).toBe(2);
     // The reply form has nothing left to say, so there is one account of what happened.
     expect(host.querySelector('form')).toBeNull();
   });
@@ -130,11 +134,32 @@ describe('the receipt after an answer', () => {
     expect(host.querySelector('.receipt-card')).toBeNull();
     await act(async () => root.render(pane(answered, 'some-other-request')));
     expect(host.querySelector('.receipt-card')).toBeNull();
-    // Already under review or accepted: "not yet reviewed" would be untrue, so no receipt.
+    // Sent back, or open again: not an answer that was received.
     await act(async () =>
-      root.render(pane(request({ status: 'UNDER_REVIEW', respondedAt: new Date(SAVED) }), ID)),
+      root.render(pane(request({ status: 'NEEDS_REPLACEMENT', respondedAt: new Date(SAVED) }), ID)),
     );
     expect(host.querySelector('.receipt-card')).toBeNull();
+  });
+
+  it('keeps its honest line true once the agency has started or finished', async () => {
+    const line = async (status: string) => {
+      await act(async () =>
+        root.render(pane(request({ status: status as never, respondedAt: new Date(SAVED) }), ID)),
+      );
+      return host.querySelector('.receipt-honest')?.textContent ?? null;
+    };
+    expect(await line('RECEIVED')).toBe('Received, not yet reviewed.');
+    expect(await line('UNDER_REVIEW')).toBe('Received. The agency has started reviewing it.');
+    expect(await line('ACCEPTED')).toBeNull();
+    expect(host.querySelector('.receipt-card')).not.toBeNull();
+  });
+
+  it('is for the visit that sent the answer, not for a bookmark or a reload days later', async () => {
+    const old = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    await act(async () => root.render(pane(request({ status: 'RECEIVED', respondedAt: old }), ID)));
+    expect(host.querySelector('.receipt-card')).toBeNull();
+    // The plain reference is back where the receipt is not.
+    expect(host.textContent).toContain('R-7K2Q9M');
   });
 
   it('Done takes done out of the address, keeps the request open and hands focus to a control in the panel', async () => {

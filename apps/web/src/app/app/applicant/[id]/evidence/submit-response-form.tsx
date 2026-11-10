@@ -88,10 +88,16 @@ export function SubmitResponseForm({
     async (previous: ActionState, formData: FormData): Promise<ActionState> => {
       const next = await submitEvidenceResponseAction(previous, formData);
       if (next.ok && next.savedAt) {
-        const url = new URL(window.location.href);
-        url.searchParams.set('item', requestId);
-        url.searchParams.set('done', 'answered');
-        router.replace(`${url.pathname}${url.search}`, { scroll: false });
+        // Best effort: the answer is already saved, so a failure to move the address must never
+        // turn that into an error on screen.
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('item', requestId);
+          url.searchParams.set('done', 'answered');
+          router.replace(`${url.pathname}${url.search}`, { scroll: false });
+        } catch {
+          // The page still refreshes and shows the request as answered.
+        }
       }
       return next;
     },

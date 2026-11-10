@@ -17,6 +17,7 @@ export function AnswerReceipt({
   respondedAt,
   timeZone,
   referenceCode,
+  honestLine,
 }: {
   readonly applicantId: string;
   readonly itemName: string;
@@ -24,6 +25,8 @@ export function AnswerReceipt({
   readonly respondedAt: string;
   readonly timeZone: string;
   readonly referenceCode?: string;
+  /** What is true about review right now; left out once the agency has already decided. */
+  readonly honestLine?: string;
 }) {
   const router = useRouter();
   return (
@@ -33,7 +36,7 @@ export function AnswerReceipt({
       at={respondedAt}
       timeZone={timeZone}
       reference={referenceCode ? { code: referenceCode, label: 'Request Reference' } : undefined}
-      honestLine="Received, not yet reviewed."
+      honestLine={honestLine}
       next={{
         label: 'Back to Requests',
         href: `/app/applicant/${applicantId}/evidence`,

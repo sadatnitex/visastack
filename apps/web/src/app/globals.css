@@ -20634,7 +20634,10 @@ html:has(.sticky-action-bar) .toast-region {
 .receipt-actions .btn {
   min-height: 44px;
 }
-/* A phone: the camera first and the main button, by style alone, so nothing moves after the page loads. */
+.upload-hint-touch {
+  display: none;
+}
+/* A phone: the camera first and the main button, and the hint that fits, by style alone, so nothing moves after the page loads. */
 @media (pointer: coarse) {
   .upload-drop-actions .btn {
     flex: 1 1 100%;
@@ -20644,6 +20647,12 @@ html:has(.sticky-action-bar) .toast-region {
     background: var(--accent-strong);
     color: #fff;
     border-color: transparent;
+  }
+  .upload-hint-touch {
+    display: inline;
+  }
+  .upload-hint-pointer {
+    display: none;
   }
   .upload-drop-actions .btn[data-camera]:hover {
     background: var(--accent-hover);

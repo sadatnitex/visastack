@@ -455,8 +455,13 @@ export function DocumentUploader({
             Drop Files Here
           </p>
           <p className="upload-drop-hint" id={dropHintId}>
-            Drag one or more files into this box, or use a button. Each file gets its own line
-            below.
+            <span className="upload-hint-pointer">
+              Drag one or more files into this box, or use a button.
+            </span>
+            <span className="upload-hint-touch">
+              Take a photo of the card or page, or choose files already on your phone.
+            </span>{' '}
+            Each file gets its own line below.
           </p>
           <div className="upload-drop-actions" ref={actionsRef}>
             {/* On a phone the camera button comes first and is the main one, by style alone

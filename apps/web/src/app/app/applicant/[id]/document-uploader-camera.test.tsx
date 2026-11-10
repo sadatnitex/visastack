@@ -352,6 +352,9 @@ describe('the photo check before sending (F2)', () => {
     const phone = own.slice(own.indexOf('@media (pointer: coarse)'));
     expect(phone).toMatch(/\.btn\[data-camera\]\s*\{[^}]*order:\s*-1/);
     expect(phone).toMatch(/\.btn\[data-camera\]\s*\{[^}]*background:\s*var\(--accent-strong\)/);
+    // The hint that fits the device is chosen the same way.
+    expect(phone).toMatch(/\.upload-hint-touch\s*\{[^}]*display:\s*inline/);
+    expect(phone).toMatch(/\.upload-hint-pointer\s*\{[^}]*display:\s*none/);
     expect(phone).toMatch(/\.btn\[data-choose\]\s*\{[^}]*background:\s*var\(--bg-elevated\)/);
   });
 });

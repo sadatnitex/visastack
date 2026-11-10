@@ -65,7 +65,16 @@ describe('a link in the panel that closes it', () => {
     expect(container.querySelector('.lp-pane')?.getAttribute('data-sheet')).toBe('open');
     await click('Back to the List');
     expect(container.querySelector('.lp-pane')?.getAttribute('data-sheet')).toBe('closed');
+  });
+
+  it('ends a finished-action notice in the address when the panel is closed or another item opens', async () => {
+    await mount();
+    expect(new URL(window.location.href).searchParams.get('done')).toBe('answered');
+    await act(async () => {
+      (container.querySelector('.lp-pane-bar a') as HTMLAnchorElement).click();
+    });
     expect(new URL(window.location.href).searchParams.get('item')).toBeNull();
+    expect(new URL(window.location.href).searchParams.get('done')).toBeNull();
   });
 
   it('leaves the panel open for an ordinary link', async () => {
