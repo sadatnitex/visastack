@@ -10,6 +10,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { DestinationLabel } from '../../../../../components/destination-label';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { withSession } from '../../../../../lib/session';
@@ -205,7 +206,9 @@ export default async function CollectionRequestsPage({
                       {request.recipientNameHint ?? 'Not Named Yet'}
                     </Link>
                   </td>
-                  <td data-label="Destination">{destinationName(request.destination)}</td>
+                  <td data-label="Destination">
+                    <DestinationLabel destination={destinationName(request.destination)} />
+                  </td>
                   <td data-label="Purpose">{request.purpose ?? 'Not Sure Yet'}</td>
                   <td data-label="Status">
                     <StatusBadge tone={STATUS_TONES[request.status]}>

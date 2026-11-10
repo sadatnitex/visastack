@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { flagEmoji } from '../../../components/country-flag';
 import { renderServer, textOf } from '../../../lib/next-mocks.test-support';
 
 /**
@@ -43,6 +44,10 @@ vi.mock('next/headers', () => ({
 
 const { default: AccountPage, metadata } = await import('./page');
 const { default: AnswersPage } = await import('./answers/page');
+
+/** The page's words as a reader hears them: the flags are hidden from readers, so they are left out. */
+const spoken = (html: string) =>
+  textOf(html.replace(/<span class="country-flag"[^>]*>.*?<\/span>/g, ''));
 
 const SESSION = 'S'.repeat(43);
 const LINK = '11111111-2222-4333-8444-555555555555';
@@ -177,6 +182,18 @@ describe('/collect/account', () => {
     expect(mocks.propose).not.toHaveBeenCalled();
   });
 
+  it('draws the flag before the written destination on the request line, and none for a code it does not hold (P16)', async () => {
+    const html = await renderServer(AccountPage({}));
+    expect(html).toContain(
+      `For <span class="country-flag-inline"><span class="country-flag" data-size="sm" data-flag-kind="emoji" aria-hidden="true">${flagEmoji('GB')}</span>United Kingdom</span> · Tourism`,
+    );
+    expect(spoken(html)).toContain('For United Kingdom · Tourism');
+    mocks.desk.mockResolvedValue({ ok: true, value: { ...DESK, destination: 'ZZ' } });
+    const unknown = await renderServer(AccountPage({}));
+    expect(spoken(unknown)).toContain('For ZZ · Tourism');
+    expect(unknown).not.toContain('country-flag');
+  });
+
   it('names an item observed in VisaStack cases as an observation, never as official (UMPE G2, S08)', async () => {
     const { itemSource } = await import('./terms');
     expect(itemSource({ ...PASSPORT, provenance: 'FIELD_OBSERVATION' } as never, 'Agency')).toBe(
@@ -247,11 +264,15 @@ describe('/collect/account/answers', () => {
         },
       ],
     });
-    const text = textOf(
-      await renderServer(AnswersPage({ searchParams: Promise.resolve({ sent: '1' }) })),
-    );
+    const html = await renderServer(AnswersPage({ searchParams: Promise.resolve({ sent: '1' }) }));
+    const text = textOf(html);
     expect(text).toContain('Submitted to Agency');
     expect(text).toContain('Withdrawn');
+    // P16: each answer's destination has its flag in front of the written country.
+    expect(html).toContain(
+      `, for <span class="country-flag-inline"><span class="country-flag" data-size="sm" data-flag-kind="emoji" aria-hidden="true">${flagEmoji('GB')}</span>United Kingdom</span> (Request`,
+    );
+    expect(spoken(html)).toContain('for United Kingdom (Request Version 1)');
     expect(text).toContain('Withdraw Answer');
     expect(text).toContain('1 Still Missing');
     expect(text).not.toMatch(/Reviewed|Accepted/);

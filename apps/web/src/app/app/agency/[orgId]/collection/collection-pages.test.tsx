@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { flagEmoji } from '../../../../../components/country-flag';
 import {
   navigationState,
   renderServer,
@@ -113,6 +114,10 @@ function detail(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** The page's words as a reader hears them: the flags are hidden from readers, so they are left out. */
+const spoken = (html: string) =>
+  textOf(html.replace(/<span class="country-flag"[^>]*>.*?<\/span>/g, ''));
+
 beforeEach(() => {
   vi.clearAllMocks();
   navigationState.pathname = `/app/agency/${ORG}/collection`;
@@ -156,6 +161,36 @@ describe('Document Requests pages', () => {
       expect(text).toContain(word);
     }
     expect(text).toContain('United Kingdom');
+  });
+
+  it('draws the flag beside the written destination in the list, and none for a code it does not hold (P16)', async () => {
+    const at = new Date('2026-11-02T00:00:00Z');
+    const base = {
+      status: 'SENT',
+      purpose: 'Tourism',
+      route: null,
+      recipientNameHint: 'Synthetic Anna',
+      dueAt: null,
+      createdAt: at,
+      updatedAt: at,
+    };
+    mocks.list.mockResolvedValue({
+      ok: true,
+      value: [
+        { ...base, id: '30000001-0000-4000-8000-000000000001', destination: 'GB' },
+        { ...base, id: '30000002-0000-4000-8000-000000000001', destination: 'ZZ' },
+      ],
+    });
+    const html = await renderServer(ListPage(props));
+    const cells = html.split('<td data-label="Destination">').slice(1);
+    expect(cells).toHaveLength(2);
+    expect(cells[0]?.split('</td>')[0]).toBe(
+      `<span class="country-flag-inline"><span class="country-flag" data-size="sm" data-flag-kind="emoji" aria-hidden="true">${flagEmoji('GB')}</span>United Kingdom</span>`,
+    );
+    // A code the country list does not hold is written as it is: no flag, no empty badge.
+    expect(cells[1]?.split('</td>')[0]).toBe('ZZ');
+    expect(html.match(/class="country-flag"/g)).toHaveLength(1);
+    expect(html).not.toContain('country-flag-unknown');
   });
 
   describe('the list, by status', () => {
@@ -367,6 +402,21 @@ describe('Document Requests pages', () => {
     ]);
     expect(stubProps(html, 'IssueRequestForm')).toHaveLength(1);
     expect(stubProps(html, 'NewLinkForm')).toHaveLength(0);
+  });
+
+  it('keeps the request heading text and draws the flag of its destination inside it, hidden from readers (P16)', async () => {
+    mocks.get.mockResolvedValue({ ok: true, value: detail() });
+    const html = await renderServer(DetailPage(detailProps));
+    const heading = html.match(/<h1 class="page-title">(.*?)<\/h1>/)?.[1] ?? '';
+    expect(spoken(heading)).toContain('Document Request: United Kingdom');
+    expect(heading).toContain(
+      `<span class="country-flag" data-size="md" data-flag-kind="emoji" aria-hidden="true">${flagEmoji('GB')}</span>`,
+    );
+    mocks.get.mockResolvedValue({ ok: true, value: detail({ destination: 'ZZ' }) });
+    const unknown = await renderServer(DetailPage(detailProps));
+    const plain = unknown.match(/<h1 class="page-title">(.*?)<\/h1>/)?.[1] ?? '';
+    expect(spoken(plain)).toContain('Document Request: ZZ');
+    expect(plain).not.toContain('country-flag');
   });
 
   it('label a request with no official checklist as the agency own, never official', async () => {
