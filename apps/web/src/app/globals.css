@@ -19757,6 +19757,16 @@ details.collapsible-group[hidden],
   margin-top: var(--space-5);
 }
 /* end WP-LP2 */
+
+/* WP-PLAIN-P4 A chased request in Do Next (10 Nov 2026) has no due date, so it takes the warning colour, not the past-due red. */
+.do-next-chase {
+  border-left-color: var(--warning);
+}
+.do-next-chase .do-next-tier {
+  color: var(--warning);
+}
+/* end WP-PLAIN-P4 */
+
 /* WP-P6 Send on WhatsApp, the same everywhere a person sends something. The WhatsApp mark is a small green accent beside the words; the buttons stay the quiet secondary kind. Flat, tokens only, 44 px targets. */
 .wa-share {
   display: grid;
