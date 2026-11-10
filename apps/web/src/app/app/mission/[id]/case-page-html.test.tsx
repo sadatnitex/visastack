@@ -169,7 +169,7 @@ function casePackage() {
 const page = <T,>(total: number, limit: number | undefined, row: (i: number) => T) =>
   Array.from({ length: Math.min(total, limit ?? total) }, (_, i) => row(i));
 
-function setUp(count = ITEMS) {
+function setUp(count = ITEMS, purpose: string | null = null) {
   requirements = everyRequirement.slice(0, count);
   mocks.getMissionForOwner.mockResolvedValue(
     ok({
@@ -177,7 +177,7 @@ function setUp(count = ITEMS) {
       applicantId: PERSON_ID,
       title: 'Japan visitor visa',
       destination: 'Japan',
-      purpose: null,
+      purpose,
       jurisdiction: 'Japan Visa Application Centre, Dhaka',
       serviceCategory: 'Tourist visa',
       state: 'IN_PROGRESS',
@@ -423,6 +423,35 @@ describe('the real case page with worst-case data', () => {
       mkdirSync(dirname(out), { recursive: true });
       writeFileSync(out, html);
     }
+  });
+
+  it('draws the purpose picture in front of the purpose word in the header, hidden from readers', async () => {
+    setUp(STARTER_ITEMS, 'Medical Treatment');
+    const html = await renderServer(
+      await MissionPage({
+        params: Promise.resolve({ id: CASE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    const header = html.slice(html.indexOf('Japan visitor visa'));
+    const picture = header.match(
+      /<span class="country-flag-purpose"><span class="mark-tile"[^>]*>/,
+    )?.[0];
+    expect(picture).toContain('data-mark="tripMedical"');
+    expect(picture).toContain('aria-hidden="true"');
+    expect(header).toMatch(/country-flag-purpose.*?<\/span><\/span>Medical Treatment/);
+  });
+
+  it('shows the purpose word but no picture for words the picker does not offer', async () => {
+    setUp(STARTER_ITEMS, 'Seeing my cousin');
+    const html = await renderServer(
+      await MissionPage({
+        params: Promise.resolve({ id: CASE_ID }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(html).toContain('Seeing my cousin');
+    expect(html).not.toContain('country-flag-purpose');
   });
 
   it('draws a starter-sized list with its package, so the totals are checked at the size people get', async () => {

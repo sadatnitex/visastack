@@ -66,6 +66,7 @@ import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
 import { DestinationLabel } from '../../../../components/destination-label';
 import { ListWithPane } from '../../../../components/list-pattern';
+import { MarkTile } from '../../../../components/mark-tile';
 import { ReferenceCode } from '../../../../components/reference-code';
 import { ShowMore } from '../../../../components/show-more';
 import { PageHeader, StatusBadge } from '../../../../components/ui';
@@ -76,7 +77,7 @@ import {
   selectableChecklists,
   whyNoChecklist,
 } from '../../../../lib/case-checklist-match';
-import { savedCaseMatchTerms } from '../../../../lib/case-choices';
+import { savedCaseMatchTerms, savedPurposeMark } from '../../../../lib/case-choices';
 import { CASE_STATE_LABELS, stageButtonStates } from '../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../lib/ccd/depth.server';
@@ -752,6 +753,8 @@ export default async function MissionPage({
   if (!data) notFound();
 
   const { mission } = data;
+  // The picture of the case's purpose, from the purpose already on the case: no new read.
+  const headerPurposeMark = savedPurposeMark(mission.purpose);
   const nextStates = legalTransitions(mission.state);
   // Cancelling is final, so it is offered only from the More menu, behind a question.
   const stageStates = stageButtonStates(nextStates);
@@ -904,6 +907,17 @@ export default async function MissionPage({
                 {mission.destination ? (
                   <>
                     <DestinationLabel destination={mission.destination} />
+                    {' \u00b7 '}
+                  </>
+                ) : null}
+                {mission.purpose?.trim() ? (
+                  <>
+                    {headerPurposeMark ? (
+                      <span className="country-flag-purpose">
+                        <MarkTile mark={headerPurposeMark} size="sm" />
+                      </span>
+                    ) : null}
+                    {mission.purpose.trim()}
                     {' \u00b7 '}
                   </>
                 ) : null}

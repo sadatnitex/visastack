@@ -241,6 +241,11 @@ describe('Active and Past Trips (LC-G2, P12)', () => {
     );
     expect(jp.querySelector('.country-flag')?.getAttribute('data-size')).toBe('lg');
     expect(jp.querySelector('.trip-card-sub')?.textContent).toBe('Japan \u00b7 Tourism');
+    // The purpose picture sits in front of the purpose word, and says nothing to a screen reader.
+    const picture = jp.querySelector('.trip-card-purpose .mark-tile');
+    expect(picture?.getAttribute('data-mark')).toBe('tripTourist');
+    expect(picture?.getAttribute('aria-hidden')).toBe('true');
+    expect(jp.querySelector('.trip-card-purpose')?.nextSibling?.textContent).toBe('Tourism');
     expect(jp.querySelector('.trip-card-count')?.textContent).toBe('6 of 8 ready');
     expect(jp.querySelector('.trip-card-next')?.textContent).toBe('Next: Add Bank Statement');
     // No checklist: no bar, picking one is the step; a destination that names no country has no flag.
@@ -248,6 +253,8 @@ describe('Active and Past Trips (LC-G2, P12)', () => {
     expect(kr.querySelector('progress')).toBeNull();
     expect(kr.querySelector('.trip-card-next')?.textContent).toBe('Next: Pick a Checklist');
     expect(kr.querySelector('.country-flag-unknown')).not.toBeNull();
+    // No purpose saved: no picture, and no empty slot.
+    expect(kr.querySelector('.trip-card-purpose')).toBeNull();
     // A finished case gets no advice.
     const old = doc.querySelector('[data-case-id="old"]') as HTMLElement;
     expect(old.querySelector('.trip-card-next')).toBeNull();
