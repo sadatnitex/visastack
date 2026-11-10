@@ -870,6 +870,7 @@ export {
   type ExpirySweepResult,
   type SweepResult,
   computeTaskDeadlineThreshold,
+  localDateDiffInDays,
   sweepExpiryReminders,
   sweepTaskDeadlineReminders,
 } from './notification-sweep';

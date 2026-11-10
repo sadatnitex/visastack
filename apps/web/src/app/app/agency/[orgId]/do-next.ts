@@ -7,7 +7,9 @@
  *
  * Ranking, approved by the owner on 2026-10-25 (W0 ledger Q1, option A):
  *   1. Items asked of a traveller that are past their due date, oldest due date first. This
- *      includes items sent back for a fix.
+ *      includes items sent back for a fix. After every one of those come requests with no due
+ *      date that are still waiting for a first answer, CHASE_AFTER_DAYS or more whole days after
+ *      they were sent, oldest sent first (owner decision, 10 Nov 2026).
  *   2. Items a traveller sent that are waiting for the agency to review.
  *   3. Cases with overdue tasks, most overdue first.
  *   4. Cases with nobody assigned (administrators only).
@@ -22,10 +24,23 @@ import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date
 import { documentTypeLabel, titleCase } from '../../../../lib/labels';
 import { fieldLabel } from '../../../../lib/master-profile';
 import { caseAnchorId } from './case-anchor';
-import { type DueTask, daysUntilDue, overdueTasks } from './console-format';
+import { type DueTask, daysSinceSent, daysUntilDue, overdueTasks } from './console-format';
 import { type FollowUpMessage, buildFollowUpMessage } from './follow-up-message';
 
 export type DoNextTier = 1 | 2 | 3 | 4;
+
+/**
+ * A request with no due date is chased once it has waited this many whole days (in the
+ * traveller's time zone) for a first answer. Owner decision, 10 Nov 2026 (friction register E3,
+ * packet P4): "after 3 days without a reply".
+ */
+export const CHASE_AFTER_DAYS = 3;
+
+/** The heading a chased request carries in place of "Past Due" (it has no due date). */
+export const CHASE_LABEL = 'No Reply Yet';
+
+/** Sorts after every past-due date inside tier 1, so chased requests follow all overdue ones. */
+const AFTER_OVERDUE = Number.MAX_SAFE_INTEGER;
 
 export type DoNextAction =
   | { readonly kind: 'follow-up'; readonly label: string; readonly message: FollowUpMessage }
@@ -35,6 +50,8 @@ export interface DoNextItem {
   /** Stable and unique within the list; used as the React key, never shown. */
   readonly key: string;
   readonly tier: DoNextTier;
+  /** A heading of its own for an item that does not fit its tier's usual heading; the tier's heading otherwise. */
+  readonly tierLabel?: string;
   /** What the item is about: the thing asked for, or the case title. */
   readonly heading: string;
   readonly traveller: string;
@@ -138,7 +155,10 @@ export function requestItemLabel(request: {
 
 interface Ranked {
   readonly item: DoNextItem;
-  /** Inside a tier: the due date for row 1, the oldest overdue task for row 3, otherwise 0. */
+  /**
+   * Inside a tier: the due date for row 1 (`AFTER_OVERDUE` for a chased request with no due date),
+   * the oldest overdue task for row 3, otherwise 0.
+   */
   readonly primary: number;
   readonly created: number;
 }
@@ -193,7 +213,46 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
       // The traveller's time zone decides when the due day ends (ADR 0015 amendment).
       const timezone = request.applicantTimezone ?? caseRow?.applicantTimezone ?? null;
 
-      if (group === 'MISSING' || group === 'NEEDS_CORRECTION') {
+      const followUp = (status: 'OPEN' | 'NEEDS_REPLACEMENT'): DoNextAction => ({
+        kind: 'follow-up',
+        label: 'Review Follow-Up Message',
+        message: buildFollowUpMessage({
+          travellerName: traveller,
+          itemLabel: label,
+          kind: request.kind,
+          status,
+          dueDate: request.dueDate ?? null,
+          caseTitle: caseRow?.title ?? null,
+          agencyNote: request.message ?? null,
+          requestReference: request.referenceCode ?? null,
+          organizationName: input.organizationName,
+          now,
+          timezone,
+        }),
+      });
+
+      if (group === 'MISSING' && !request.dueDate) {
+        // No due date to pass, so it is chased by how long it has gone unanswered. Sent-back items
+        // are not counted this way: their send date is the original request, not the fix request.
+        if (created === 0) continue; // no usable sent date, so nothing to count
+        const waited = daysSinceSent(new Date(created), now, timezone);
+        if (waited < CHASE_AFTER_DAYS) continue;
+        ranked.push({
+          primary: AFTER_OVERDUE,
+          created,
+          item: {
+            key: `request:${request.id}`,
+            tier: 1,
+            tierLabel: CHASE_LABEL,
+            heading: label,
+            traveller,
+            caseTitle: caseRow?.title ?? null,
+            owner,
+            reason: `Sent ${waited} days ago with no due date. No reply yet.`,
+            action: followUp('OPEN'),
+          },
+        });
+      } else if (group === 'MISSING' || group === 'NEEDS_CORRECTION') {
         if (!request.dueDate || daysUntilDue(request.dueDate, now, timezone) >= 0) continue;
         // Sent back for a fix: the one traveller-side status that triage reads as Needs Correction.
         const sentBack = request.status === 'NEEDS_REPLACEMENT';
@@ -215,23 +274,7 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
               : unusable
                 ? `The file sent could not be used and it was due ${due}.`
                 : `Was due ${due} and has not arrived.`,
-            action: {
-              kind: 'follow-up',
-              label: 'Review Follow-Up Message',
-              message: buildFollowUpMessage({
-                travellerName: traveller,
-                itemLabel: label,
-                kind: request.kind,
-                status: sentBack || unusable ? 'NEEDS_REPLACEMENT' : 'OPEN',
-                dueDate: request.dueDate,
-                caseTitle: caseRow?.title ?? null,
-                agencyNote: request.message ?? null,
-                requestReference: request.referenceCode ?? null,
-                organizationName: input.organizationName,
-                now,
-                timezone,
-              }),
-            },
+            action: followUp(sentBack || unusable ? 'NEEDS_REPLACEMENT' : 'OPEN'),
           },
         });
       } else if (group === 'RECEIVED') {
