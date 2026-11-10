@@ -8,6 +8,11 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type { ActivityLogEntry } from '../../../../../components/activity-log';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import {
+  FIELD_STATUS_WORDS,
+  REPLACED_WORD,
+  fieldMethodWords,
+} from '../../../../../lib/field-state-words';
 import { evidenceFieldGroups, fieldLabel } from '../../../../../lib/master-profile';
 import {
   type SearchParamsRecord,
@@ -24,24 +29,6 @@ export const dynamic = 'force-dynamic';
 
 /** How many saved versions one load shows (the log budget: 50 per load, older ones on request). */
 const HISTORY_PAGE_SIZE = 50;
-
-const STATUS_LABELS: Record<string, string> = {
-  DECLARED: 'Declared',
-  EXTRACTED_PENDING: 'Extracted (Pending)',
-  APPLICANT_CONFIRMED: 'Confirmed',
-  DOCUMENT_SUPPORTED: 'Document-supported',
-  AGENCY_REVIEWED: 'Agency-reviewed',
-  CONFLICTED: 'Conflicted',
-  STALE: 'Stale',
-  SUPERSEDED: 'Superseded',
-};
-
-const METHOD_LABELS: Record<string, string> = {
-  MANUAL: 'Manual',
-  DOCUMENT: 'From Document',
-  API: 'API',
-  SYSTEM: 'System',
-};
 
 /** Why a version was saved, in words a person reads. A stored code that is not listed is left out, never shown raw. */
 const REASON_LABELS: Record<string, string> = {
@@ -142,8 +129,8 @@ export default async function HistoryPage({
         const uses = v.isCurrent ? (usedBy.get(v.fieldKey) ?? []) : [];
         const detail = [
           value,
-          STATUS_LABELS[v.status] ?? v.status,
-          METHOD_LABELS[v.method] ?? v.method,
+          FIELD_STATUS_WORDS[v.status] ?? v.status,
+          fieldMethodWords(v.method) ?? 'Recorded Update',
           reasonWords(v.reason),
           uses.length > 0 ? `Used by ${uses.join(', ')}` : null,
         ].filter((part): part is string => Boolean(part));
@@ -154,7 +141,7 @@ export default async function HistoryPage({
           who: ACTOR_LABELS[v.actor],
           outcome: v.isCurrent
             ? { label: 'Current', tone: 'success' }
-            : { label: 'Superseded', tone: 'neutral' },
+            : { label: REPLACED_WORD, tone: 'neutral' },
           at,
           when: formatDateTime(at),
         };
@@ -173,7 +160,7 @@ export default async function HistoryPage({
       <PageHeader
         eyebrow="Record"
         title="History"
-        description="Every value is an immutable version - nothing is ever overwritten. This is the full, ordered trail with its provenance."
+        description="Every saved value is kept, and nothing is overwritten. This is the full trail, in order, with where each value came from."
       />
 
       {nothingSaved ? (

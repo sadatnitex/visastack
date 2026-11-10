@@ -178,3 +178,18 @@ Added 4 Nov 2026 (Lane E, the evidence loop between a traveller and an agency):
 | Header lines of the case | "You have not confirmed this case yet", "You confirmed this case on {date}", "Your confirmation" | "Traveller has not confirmed yet" to the traveller | **Done (package 0)** |
 
 Decided on 9 Nov 2026 and not yet built (a later package): Snapshot becomes Saved Copy, Freshness Check becomes Is This Still Up to Date?, Trip Package becomes Your Package, and Readiness in the section links becomes How Complete.
+
+Added 10 Nov 2026 (Lane 1, the traveller's first journey, plain words for a grade 5 to 8 reader). Stored codes and server action names do not change; these are display words only. The guard `apps/web/src/lib/vocabulary.test.ts` (traveller screens) keeps the retired words out of visible text.
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The switch for processing a person's details | Let VisaStack Process My Details, on every button, heading, step and message that names it; the link that says to turn it on goes to Home, Permissions (`/app#permissions`) | "Allow core processing", "Allow Core Processing", "Turn On Core Processing to Begin" | **Done (Lane 1)** |
+| Starting a case from the Cases list | The main button is Start a Trip (the three-question flow, with that traveller already ticked); the by-name form stays under "Not Sure Where Yet? Add a Case by Name". With processing off the button stays Start a Case and points at the card that says what to turn on | A typed title as the only way in | **Done (Lane 1)** |
+| A trip form where the country is not known | A plain link, Start a Case by Name | A refusal with no way forward | **Done (Lane 1)** |
+| The one-time copies a traveller prepares | Summary (page Summaries, button Prepare a Summary, step Choose a Summary, last step Check and Copy); not "Brief", and never labelled Share (Sharing is its own section) | "Brief", "Briefs and Summaries", "Prepare a Brief", "Preview and Share", eyebrow "Share" | **Done (Lane 1)** |
+| Where a saved value stands (display words; stored codes unchanged) | Entered, Suggested, Confirmed, Backed by a Document, Reviewed by an Agency, Does Not Match, No Longer Current, Replaced. Suggested is never Confirmed; Reviewed is only for a real agency review | "Declared", "Extracted (Pending)", "Document-supported", "Agency-reviewed", "Conflicted", "Stale", "Superseded" | **Done (Lane 1)**; `lib/field-state-words.ts` |
+| How a saved value was recorded | Typed In, From a Document, From a Connected App, Added by VisaStack | "Manual", "API", "System", the raw code | **Done (Lane 1)** |
+| The three dates cards on Dates & Expiry | Document Expiry, Route Date Rules, Confirmation Dates; the card Confirmations from Issuers | "Intrinsic Expiry", "Case-Specific Freshness", "Verification Expiry", "Issuer Confirmations" | **Done (Lane 1)** |
+| The profile page counts and notes | Fields Backed by a Document, Fields That Do Not Match, "Every save keeps the earlier value", "How This Was Checked" (no internal tier shown) | "Document-supported fields", "Conflicting fields", "immutable version", "Assurance (E2)" | **Done (Lane 1)** |
+| Where a passport is read from its code lines | Read from the Code Lines | "Read from the Machine-Readable Lines" | **Done (Lane 1)** |
+| The storage meter on Add Documents, and the Documents subtitle | Document Storage; "Your private documents" | "Evidence Storage", "Your private evidence wallet" | **Done (Lane 1)** |

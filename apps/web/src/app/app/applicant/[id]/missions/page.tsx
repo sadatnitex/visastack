@@ -88,11 +88,14 @@ export default async function MissionsPage({
   searchParams,
 }: {
   readonly params: Promise<{ id: string }>;
-  readonly searchParams?: Promise<{ readonly deleted?: string }>;
+  readonly searchParams?: Promise<{ readonly deleted?: string; readonly manual?: string }>;
 }) {
   const { id } = await params;
   // A cancelled case was just deleted: say so once, then it is simply not in the list.
-  const justDeleted = (await searchParams)?.deleted === '1';
+  const query = await searchParams;
+  const justDeleted = query?.deleted === '1';
+  // Arriving from Start a Trip with "not sure where yet": the by-name form is already open.
+  const manualOpen = query?.manual === '1';
 
   const data = await withSession(async ({ db, accountId }) => {
     const applicant = await getApplicant(db, id);
@@ -125,6 +128,11 @@ export default async function MissionsPage({
   const { active: activeCases, past: pastCases } = data.groups;
   const active = activeCases[0];
   const hasNoCase = activeCases.length + pastCases.length === 0;
+  // The main way to start a case is the same three questions as Start a Trip, with this traveller
+  // already chosen. The person is checked again on that page against the signed-in account. Without
+  // consent the start card explains what to turn on first, so the links stay on this page.
+  const startHref = data.coreGranted ? `/app/mission/start?traveller=${id}` : '#start-case';
+  const startLabel = data.coreGranted ? 'Start a Trip' : 'Start a Case';
 
   return (
     <>
@@ -132,16 +140,16 @@ export default async function MissionsPage({
         eyebrow={data.applicant.displayName}
         title="Cases"
         actions={
-          <a className="btn btn-secondary" href="#start-case">
-            Start a Case
-          </a>
+          <Link className="btn btn-secondary" href={startHref}>
+            {startLabel}
+          </Link>
         }
       />
       {justDeleted ? <output className="notice u-mb-100">Case deleted.</output> : null}
 
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. What a case is, one tap away. */}
       <AboutDisclosure summary="About Cases">
-        <p>A case assembles this traveller's evidence against a published requirement pack.</p>
+        <p>A case checks this traveller's documents against the list for one visa.</p>
       </AboutDisclosure>
 
       <DepthScope family="cases" depth={depth}>
@@ -175,14 +183,14 @@ export default async function MissionsPage({
                   title="No Cases Yet"
                   fold
                   why="Once a checklist is attached, you see how many items are ready and what is still missing."
-                  action={{ href: '#start-case', label: 'Start a Case' }}
+                  action={{ href: startHref, label: startLabel }}
                 >
                   A case checks this person's documents against the checklist of one visa route.
-                  Start one with the form on this page.
+                  Start one by saying where and why.
                 </EmptyState>
               ) : activeCases.length === 0 ? (
                 <p className="muted u-mt-050">
-                  No case is being worked on right now. <a href="#start-case">Start a Case</a>
+                  No case is being worked on right now. <Link href={startHref}>{startLabel}</Link>
                 </p>
               ) : (
                 <CaseRows cases={activeCases} readiness={data.readiness} />
@@ -218,15 +226,26 @@ export default async function MissionsPage({
             <p className="card-kicker">New</p>
             <h2 className="card-title">Start a Case</h2>
             {data.coreGranted ? (
-              <CreateMissionForm
-                applicantId={id}
-                countries={caseCountryOptions()}
-                purposes={casePurposeGroups()}
-                openDetails
-              />
+              <>
+                <p className="card-body">
+                  Say where you are going and why. We set up the case and its checklist.
+                </p>
+                <Link className="btn btn-primary" href={startHref}>
+                  Start a Trip
+                </Link>
+                <AboutDisclosure summary="Not Sure Where Yet? Add a Case by Name" open={manualOpen}>
+                  <CreateMissionForm
+                    applicantId={id}
+                    countries={caseCountryOptions()}
+                    purposes={casePurposeGroups()}
+                    openDetails
+                  />
+                </AboutDisclosure>
+              </>
             ) : (
               <p className="card-body">
-                Turn on <strong>Let VisaStack Process My Details</strong> on Home to create cases.
+                Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
+                <Link href="/app#permissions">Home</Link> to create cases.
               </p>
             )}
           </article>
@@ -234,7 +253,7 @@ export default async function MissionsPage({
 
         <div className="action-row u-mt-150" {...atLevel('everything')}>
           <Link className="btn btn-secondary" href={`/app/applicant/${id}/outputs`}>
-            Prepare a Brief
+            Prepare a Summary
           </Link>
           <Link className="btn btn-secondary" href={`/app/applicant/${id}/memory`}>
             Case History

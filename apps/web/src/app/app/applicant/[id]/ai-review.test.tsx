@@ -96,8 +96,10 @@ describe('check what we found', () => {
     expect(host.querySelector('.document-findings-bulk')).toBeNull();
     // Without consent nothing can be saved, but skipping still works.
     expect(host.textContent).toContain(
-      'Turn on processing on Home to save details to your profile.',
+      'Turn on Let VisaStack Process My Details on Home to save details to your profile.',
     );
+    // The words that say where to turn it on are a working link to that switch on Home.
+    expect(host.querySelector('a[href="/app#permissions"]')?.textContent).toBe('Home');
     expect(host.querySelector('button[value="approve"]')).toBeNull();
     expect(host.querySelectorAll('button[value="reject"]')).toHaveLength(2);
   });
@@ -286,7 +288,7 @@ describe('where each suggestion came from (S6)', () => {
       [...host.querySelectorAll('.finding-card')]
         .find((card) => card.querySelector('h4')?.textContent === heading)
         ?.querySelector('.finding-origin')?.textContent;
-    expect(origin('Family Name')).toContain('Read from the Machine-Readable Lines');
+    expect(origin('Family Name')).toContain('Read from the Code Lines');
     expect(origin('Family Name')).toContain('No AI was used.');
     expect(origin('City')).toContain('Read from the Document');
     expect(origin('Occupation')).toContain('Read with AI');

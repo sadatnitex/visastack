@@ -207,4 +207,44 @@ describe('Active Cases and Past Cases (LC-G2)', () => {
     ]);
     expect(textOf(await render()).toLowerCase()).not.toContain('mission');
   });
+
+  it('leads the main button to Start a Trip with this traveller chosen, and keeps the by-name form', async () => {
+    const doc = parse(await render());
+    const hrefs = [...doc.querySelectorAll('a')]
+      .filter((a) => a.textContent === 'Start a Trip')
+      .map((a) => a.getAttribute('href'));
+    expect(hrefs.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(hrefs)).toEqual(new Set(['/app/mission/start?traveller=person']));
+    const card = doc.querySelector('#start-case') as HTMLElement;
+    const fold = card.querySelector('details');
+    expect(fold?.querySelector('summary')?.textContent).toBe(
+      'Not Sure Where Yet? Add a Case by Name',
+    );
+    // The old form is still there, inside the fold, so no capability is lost.
+    expect(fold?.querySelector('[data-stub="CreateMissionForm"]')).not.toBeNull();
+    expect(fold?.hasAttribute('open')).toBe(false);
+  });
+
+  it('opens the by-name form when the person arrives from Start a Trip not knowing the country', async () => {
+    const html = await renderServer(
+      CasesPage({
+        params: Promise.resolve({ id: 'person' }),
+        searchParams: Promise.resolve({ manual: '1' }),
+      }),
+    );
+    const card = new JSDOM(html).window.document.querySelector('#start-case') as HTMLElement;
+    expect(card.querySelector('details')?.hasAttribute('open')).toBe(true);
+  });
+
+  it('with processing off, says what to turn on, links to the switch and offers no trip yet', async () => {
+    service.hasConsent.mockResolvedValue(false);
+    const doc = parse(await render());
+    const card = doc.querySelector('#start-case') as HTMLElement;
+    expect(card.textContent).toContain('Let VisaStack Process My Details');
+    expect(card.querySelector('a[href="/app#permissions"]')?.textContent).toBe('Home');
+    expect(card.querySelector('details')).toBeNull();
+    expect([...doc.querySelectorAll('a')].some((a) => a.textContent === 'Start a Trip')).toBe(
+      false,
+    );
+  });
 });

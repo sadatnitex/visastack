@@ -90,7 +90,7 @@ export function readingStatusCopy(
 
 /** Where a suggestion came from, as a short name. */
 export const READING_SOURCE_LABELS: Readonly<Record<ReadingSource, string>> = {
-  machine_readable: 'Read from the Machine-Readable Lines',
+  machine_readable: 'Read from the Code Lines',
   document_text: 'Read from the Document',
   ai_image: 'Read with AI',
   ai_app: 'Suggested by an AI App',

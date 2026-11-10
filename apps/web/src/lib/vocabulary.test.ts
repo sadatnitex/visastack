@@ -96,3 +96,56 @@ describe('lifecycle screens use the lifecycle words (docs/uiux/ccd/VOCABULARY.md
     expect(hits, hits.join('\n')).toEqual([]);
   });
 });
+
+describe('traveller screens keep engineering words out (first journey, lane 1)', () => {
+  /**
+   * Words a Bangladesh traveller reading English as a second language should not meet. A stored
+   * code such as STALE is not visible text, so it is untouched; only what a person sees is checked.
+   * Sharing, evidence, agency, admin and the case page belong to other packages and are scanned
+   * once those packages rewrite their wording.
+   */
+  const BANNED: readonly { readonly pattern: RegExp; readonly say: string }[] = [
+    { pattern: /\bintrinsic\b/i, say: 'say "the document\'s own date"' },
+    { pattern: /\bmachine-readable\b/i, say: 'say "code lines"' },
+    { pattern: /\bimmutable\b/i, say: 'say what is kept, in plain words' },
+    { pattern: /\bsuperseded\b/i, say: 'say "replaced"' },
+    { pattern: /\bstale\b/i, say: 'say "no longer current"' },
+    { pattern: /\bconflicted\b/i, say: 'say "does not match"' },
+    { pattern: /\bpurpose-bound\b/i, say: 'say what it is used for' },
+    { pattern: /\bprovenance\b/i, say: 'say where it came from' },
+    { pattern: /\bevidence wallet\b/i, say: 'say "documents"' },
+    { pattern: /\bdocument-supported\b/i, say: 'say "backed by a document"' },
+    { pattern: /\bassurance\b/i, say: 'say what is confirmed and by whom' },
+    {
+      pattern: /\b(allow|turn on) core processing\b/i,
+      say: 'say "Let VisaStack Process My Details"',
+    },
+    { pattern: /\b(briefs? and summaries|prepare a brief)\b/i, say: 'say "Summaries"' },
+  ];
+  const OTHER_PACKAGES = [
+    join('app', 'app', 'agency'),
+    join('app', 'app', 'admin'),
+    join('app', 'app', 'shared'),
+    join('app', 'app', 'mission', '[id]'),
+    join('app', 'app', 'applicant', '[id]', 'sharing'),
+    join('app', 'app', 'applicant', '[id]', 'evidence'),
+  ];
+  const files = sourceFiles(join(WEB_SRC, 'app', 'app')).filter(
+    (file) => !OTHER_PACKAGES.some((part) => relative(WEB_SRC, file).startsWith(part)),
+  );
+  const all = files.flatMap((file) => visibleText(file, readFileSync(file, 'utf8')));
+
+  it('scans the traveller screens', () => {
+    expect(files.length).toBeGreaterThan(40);
+    expect(all.some((v) => v.text.includes('Fields Backed by a Document'))).toBe(true);
+  });
+
+  for (const { pattern, say } of BANNED) {
+    it(`shows no ${pattern} (${say})`, () => {
+      const hits = all
+        .filter((v) => pattern.test(v.text))
+        .map((v) => `${relative(WEB_SRC, v.file)}:${v.line}: ${JSON.stringify(v.text)}`);
+      expect(hits, hits.join('\n')).toEqual([]);
+    });
+  }
+});

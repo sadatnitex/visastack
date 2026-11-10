@@ -22,6 +22,18 @@ export interface TripTraveller {
 }
 
 /**
+ * Where a person goes when they do not know the country yet: the Cases page of the first
+ * traveller they ticked (or the first one listed), with the by-name form already open.
+ */
+function manualHref(
+  chosen: ReadonlySet<string>,
+  travellers: readonly TripTraveller[],
+): string | null {
+  const who = travellers.find((t) => chosen.has(t.applicantId)) ?? travellers[0];
+  return who ? `/app/applicant/${who.applicantId}/missions?manual=1#start-case` : null;
+}
+
+/**
  * UMPE P4 (R13): start from the trip, not from an empty case form. Three questions; each chosen
  * traveller gets their own case (or their existing one for the same trip is opened). Dates,
  * embassy and other details are asked later, and only when the checklist needs them.
@@ -30,10 +42,13 @@ export function TripStartForm({
   countries,
   purposes,
   travellers,
+  initialTravellerId,
 }: {
   readonly countries: readonly CaseCountryOption[];
   readonly purposes: readonly CasePurposeGroup[];
   readonly travellers: readonly TripTraveller[];
+  /** A traveller to tick on arrival (for example from the Cases list); only used when listed above. */
+  readonly initialTravellerId?: string;
 }) {
   const [state, formAction, pending] = useActionState(startTripAction, INITIAL);
   const form = useRef<HTMLFormElement>(null);
@@ -43,7 +58,14 @@ export function TripStartForm({
   // Controlled, so a refused try (for example nobody ticked) keeps what was already chosen.
   const [purpose, setPurpose] = useState('');
   const [chosen, setChosen] = useState<ReadonlySet<string>>(
-    () => new Set(travellers.length === 1 && travellers[0] ? [travellers[0].applicantId] : []),
+    () =>
+      new Set(
+        initialTravellerId && travellers.some((t) => t.applicantId === initialTravellerId)
+          ? [initialTravellerId]
+          : travellers.length === 1 && travellers[0]
+            ? [travellers[0].applicantId]
+            : [],
+      ),
   );
   const toggle = (applicantId: string, on: boolean) =>
     setChosen((prev) => {
@@ -118,6 +140,12 @@ export function TripStartForm({
         <SubmitButton pending={pending} idle="Start Trip" busy="Starting…" />
       </StickyActionBar>
       <FormMessage id={messageId} result={state} />
+      {!state.ok && state.field === 'destination' && manualHref(chosen, travellers) ? (
+        <p className="muted u-fs-085">
+          Not sure where yet?{' '}
+          <Link href={manualHref(chosen, travellers) as string}>Start a Case by Name</Link>
+        </p>
+      ) : null}
       {state.cases && state.cases.length > 0 ? (
         <ul className="trip-start-cases">
           {state.cases.map((c) => (
