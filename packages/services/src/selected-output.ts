@@ -20,6 +20,8 @@ import {
 } from './access/restricted-documents';
 import { type NeedsAttention, daysUntilDueDay, listNeedsAttention } from './attention';
 import { type Db, schema } from './db';
+import { type ExpiryEntry, describeExpiry, toExpiryEntry } from './document-expiry-rules';
+import { documentExpiryEntriesTablePresent } from './document-expiry-tables';
 import { isServableProcessingState } from './documents';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
@@ -196,6 +198,9 @@ export interface OutputCase {
   readonly nextActions: readonly OutputAction[];
 }
 
+/** Whether an expiry date was typed by the person or read from a passport's lines (never "confirmed"). */
+export type ExpirySourceLabel = 'typed' | 'read' | null;
+
 export type DocumentListStatus = 'current' | 'expires_soon' | 'expired' | 'being_checked';
 
 export interface OutputDocument {
@@ -205,6 +210,8 @@ export interface OutputDocument {
   readonly groupKey: DocumentGroupKey;
   readonly documentDate: string | null;
   readonly expiresOn: string | null;
+  /** Who gave the date: the person typed it, or it was read from a passport's lines; null without one. */
+  readonly expirySource: ExpirySourceLabel;
   readonly status: DocumentListStatus;
   readonly relevance: ValueRelevance;
 }
@@ -213,6 +220,7 @@ export interface OutputExpiry {
   readonly referenceCode: string | null;
   readonly kind: string;
   readonly expiresOn: string;
+  readonly expirySource: ExpirySourceLabel;
   readonly daysLeft: number;
 }
 
@@ -1239,6 +1247,31 @@ async function loadDocumentParts(
     .orderBy(asc(schema.documents.createdAt), asc(schema.documents.id));
   if (documentRows.length === 0) return { documents: [], expiry: [], documentText: [] };
 
+  // Where each date came from, so a typed date is never passed on as one read from the document.
+  const expiryEntries = new Map<string, ExpiryEntry[]>();
+  if (await documentExpiryEntriesTablePresent(db)) {
+    const entryRows = await db
+      .select({
+        documentId: schema.documentExpiryEntries.documentId,
+        source: schema.documentExpiryEntries.source,
+        expiresOn: schema.documentExpiryEntries.expiresOn,
+        mirrored: schema.documentExpiryEntries.mirrored,
+      })
+      .from(schema.documentExpiryEntries)
+      .where(
+        inArray(
+          schema.documentExpiryEntries.documentId,
+          documentRows.map((document) => document.id),
+        ),
+      )
+      .orderBy(desc(schema.documentExpiryEntries.createdAt), desc(schema.documentExpiryEntries.id));
+    for (const row of entryRows) {
+      const list = expiryEntries.get(row.documentId) ?? [];
+      list.push(toExpiryEntry(row));
+      expiryEntries.set(row.documentId, list);
+    }
+  }
+
   const versionRows = await db
     .select({
       id: schema.documentVersions.id,
@@ -1312,6 +1345,12 @@ async function loadDocumentParts(
 
     const usable =
       version.safetyStatus === 'CLEAN' && isServableProcessingState(version.processingStatus);
+    const expiryOrigin = describeExpiry(
+      document.expiresAt,
+      expiryEntries.get(document.id) ?? [],
+    ).origin;
+    const expirySource: ExpirySourceLabel =
+      expiryOrigin === 'TYPED' ? 'typed' : expiryOrigin === 'READ' ? 'read' : null;
     // A day is over only once it has ended where the person is.
     const days = document.expiresAt
       ? daysUntilDueDay(document.expiresAt, now, input.timezone)
@@ -1338,6 +1377,7 @@ async function loadDocumentParts(
           groupKey,
           documentDate: document.documentDate,
           expiresOn: isoDay(document.expiresAt),
+          expirySource,
           status,
           relevance: requiredNow ? 'required_by_case' : 'context',
         });
@@ -1357,6 +1397,7 @@ async function loadDocumentParts(
         referenceCode: codes.get(document.id) ?? null,
         kind: documentKindName(document.docType),
         expiresOn: isoDay(document.expiresAt) as string,
+        expirySource,
         daysLeft: days,
       });
     }

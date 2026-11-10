@@ -315,6 +315,15 @@ export function longDay(iso: string | null | undefined): string {
   return month ? `${Number(match[3])} ${month} ${match[1]}` : iso;
 }
 
+/** "Expires 30 April 2031", with "(typed by the person)" when they typed it themselves. */
+function expiresNote(document: {
+  readonly expiresOn: string | null;
+  readonly expirySource: 'typed' | 'read' | null;
+}): string | null {
+  if (!document.expiresOn) return null;
+  return `Expires ${longDay(document.expiresOn)}${document.expirySource === 'typed' ? ' (typed by the person)' : ''}`;
+}
+
 const STATUS_WORDS: Readonly<Record<ValueStatus, string>> = {
   self_declared: 'Typed by the traveller, not checked',
   suggested_not_confirmed: 'Suggested, not confirmed',
@@ -486,7 +495,7 @@ function documentRows(documents: readonly OutputDocument[]): ViewRow[] {
     note: [
       document.referenceCode,
       document.documentDate ? `Dated ${longDay(document.documentDate)}` : null,
-      document.expiresOn ? `Expires ${longDay(document.expiresOn)}` : null,
+      expiresNote(document),
     ]
       .filter(Boolean)
       .join('. '),
@@ -610,7 +619,7 @@ function tripView(output: SelectedOutput, preparedOn: string): OutputView {
         note: [
           document.referenceCode,
           document.documentDate ? `Dated ${longDay(document.documentDate)}` : null,
-          document.expiresOn ? `Expires ${longDay(document.expiresOn)}` : null,
+          expiresNote(document),
         ]
           .filter(Boolean)
           .join('. '),

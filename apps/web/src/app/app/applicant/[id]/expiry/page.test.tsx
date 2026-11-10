@@ -184,6 +184,56 @@ describe('dates the page does not have (owner finding 6)', () => {
     expect(text).not.toContain('Unknown');
   });
 
+  it('offers Set Expiry Date on a document with no date once typed dates are switched on, linking to the document', async () => {
+    const typeable = { origin: 'NONE', typedOn: null, mismatch: false, canType: true };
+    service.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        doc({ id: 'd2', docType: 'VISA', expiry: typeable }),
+        doc({ id: 'd3', docType: 'PASSPORT', expiry: typeable }),
+      ],
+    });
+    const node = await page();
+    const text = textOf(node);
+    expect(text).toContain(
+      'No expiry date is on file. Enter the date printed on this document yourself.',
+    );
+    expect(text).toContain(
+      'No expiry date has been read from this passport yet. Check the file again on Documents, or enter the date yourself.',
+    );
+    expect(text).not.toContain('read only from passports');
+    expect(text.match(/Set Expiry Date/g)).toHaveLength(2);
+    const html = JSON.stringify(node);
+    expect(html).toContain('/documents?document=d2#expiry-d2');
+    expect(html).toContain('/documents?document=d3#expiry-d3');
+  });
+
+  it('labels a typed date as entered by the person and flags a typed date that differs from the one read', async () => {
+    const soon = new Date(Date.now() + 400 * 24 * 60 * 60 * 1000).toISOString();
+    service.listDocumentsDetailed.mockResolvedValue({
+      ok: true,
+      value: [
+        doc({
+          id: 'd2',
+          docType: 'VISA',
+          expiresAt: soon,
+          expiry: { origin: 'TYPED', typedOn: soon.slice(0, 10), mismatch: false, canType: true },
+        }),
+        doc({
+          id: 'd3',
+          docType: 'PASSPORT',
+          expiresAt: soon,
+          expiry: { origin: 'READ', typedOn: '2040-01-01', mismatch: true, canType: true },
+        }),
+      ],
+    });
+    const text = textOf(await page());
+    expect(text.match(/Entered by you\./g)).toHaveLength(1);
+    expect(
+      text.match(/You entered a different date\. Check which is right on Documents\./g),
+    ).toHaveLength(1);
+  });
+
   it('keeps a known date as it was: the countdown and the date, with no missing-date note', async () => {
     const soon = new Date(Date.now() + 400 * 24 * 60 * 60 * 1000).toISOString();
     service.listDocumentsDetailed.mockResolvedValue({

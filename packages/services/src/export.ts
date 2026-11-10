@@ -1,10 +1,11 @@
 import { type Result, err, ok } from '@visastack/core';
-import { eq, inArray, or, sql } from 'drizzle-orm';
+import { desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { listCaseExclusionsForApplicant } from './access/grant-scope';
 import { aiSuggestionsAvailable } from './ai-suggestions';
 import { appendAuditEvent } from './audit';
 import { type ConsentRecord, getConsents, listConsentHistory } from './consent';
 import { type Db, schema } from './db';
+import { documentExpiryEntriesTablePresent } from './document-expiry-tables';
 import { type ServiceError, serviceError } from './errors';
 import {
   everydayApplicantCondition,
@@ -139,6 +140,8 @@ export interface AccountExport {
       readonly status?: ExportLifecycleLabel;
       readonly versions: ReadonlyArray<typeof schema.documentVersions.$inferSelect>;
       readonly nameVersions: ReadonlyArray<typeof schema.documentNameVersions.$inferSelect>;
+      /** Typed and read expiry dates, newest first (empty until the entries table exists). */
+      readonly expiryEntries: ReadonlyArray<typeof schema.documentExpiryEntries.$inferSelect>;
       readonly scanResults: ReadonlyArray<typeof schema.documentScanResults.$inferSelect>;
     }>;
     readonly missions: ReadonlyArray<{
@@ -205,6 +208,7 @@ export async function exportAccount(
 
   // Tables later migrations add are read only once they exist (S21: 0105; AI connections: 0100).
   const suggestionsReady = await aiSuggestionsAvailable(db);
+  const expiryReady = await documentExpiryEntriesTablePresent(db);
   const connectionsReady =
     (
       await db
@@ -252,6 +256,16 @@ export async function exportAccount(
               .select()
               .from(schema.documentNameVersions)
               .where(eq(schema.documentNameVersions.documentId, document.id)),
+            expiryEntries: expiryReady
+              ? await db
+                  .select()
+                  .from(schema.documentExpiryEntries)
+                  .where(eq(schema.documentExpiryEntries.documentId, document.id))
+                  .orderBy(
+                    desc(schema.documentExpiryEntries.createdAt),
+                    desc(schema.documentExpiryEntries.id),
+                  )
+              : [],
             scanResults:
               versionIds.length > 0
                 ? await db

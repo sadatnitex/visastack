@@ -1,6 +1,8 @@
-import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
 import { type Db, schema } from './db';
+import { type ExpiryEntry, expiryDay, isTypedMirror, toExpiryEntry } from './document-expiry-rules';
+import { documentExpiryEntriesTablePresent } from './document-expiry-tables';
 import { classifyExpiry, getReminderThresholds } from './expiry';
 import {
   everydayApplicantCondition,
@@ -280,6 +282,39 @@ export async function sweepExpiryReminders(
     )
     .limit(options.limit ?? 200);
 
+  // A date the person typed can be corrected, and a corrected date must be reminded about again:
+  // its reminders carry the day in their key. Every other date keeps the key it always had, so
+  // nothing already sent is sent twice.
+  const typedMirrors = new Set<string>();
+  if (documentRows.length > 0 && (await documentExpiryEntriesTablePresent(db))) {
+    const entryRows = await db
+      .select({
+        documentId: schema.documentExpiryEntries.documentId,
+        source: schema.documentExpiryEntries.source,
+        expiresOn: schema.documentExpiryEntries.expiresOn,
+        mirrored: schema.documentExpiryEntries.mirrored,
+      })
+      .from(schema.documentExpiryEntries)
+      .where(
+        inArray(
+          schema.documentExpiryEntries.documentId,
+          documentRows.map((row) => row.documentId),
+        ),
+      )
+      .orderBy(desc(schema.documentExpiryEntries.createdAt), desc(schema.documentExpiryEntries.id));
+    const newestFirst = new Map<string, ExpiryEntry[]>();
+    for (const entry of entryRows) {
+      const list = newestFirst.get(entry.documentId) ?? [];
+      list.push(toExpiryEntry(entry));
+      newestFirst.set(entry.documentId, list);
+    }
+    for (const row of documentRows) {
+      if (isTypedMirror(row.expiresAt, newestFirst.get(row.documentId) ?? [])) {
+        typedMirrors.add(row.documentId);
+      }
+    }
+  }
+
   let enqueued = 0;
   let missionsDirtied = 0;
   for (const row of documentRows) {
@@ -301,12 +336,15 @@ export async function sweepExpiryReminders(
     if (classification.urgency !== 'reminder' || classification.thresholdCrossed === null) continue;
     if (row.everyday !== true) continue;
 
+    const expiresOn = expiryDay(row.expiresAt);
     await db.transaction(async (tx) => {
       await enqueueNotificationBothChannels(tx, {
         eventType: 'DOCUMENT_EXPIRY',
         resourceId: row.documentId,
         recipientAccountId: row.ownerAccountId,
-        threshold: String(classification.thresholdCrossed),
+        threshold: typedMirrors.has(row.documentId)
+          ? `${classification.thresholdCrossed}@${expiresOn}`
+          : String(classification.thresholdCrossed),
         applicantId: row.applicantId,
         payload: {
           subject: 'A document is expiring soon',

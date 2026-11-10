@@ -28,7 +28,7 @@ Objective means anyone can reproduce it (dead end, missing feedback, two forms f
 | B3 | Pages say "turn on processing on Home" with no button | profile near 354, review near 227, `ai-review.tsx` near 283 | People who chose Not Now | Objective | A link to where it is switched on | Lane 1 |
 | B6 | History labels: Extracted (Pending), Declared, Stale, Conflicted, Superseded, API, System | `applicant/[id]/history/page.tsx:27-45` | Every reader | Wording | Plain labels, display only | Lane 1 |
 | C1 | 4 MB cap with no help for large phone photos | `lib/upload-preflight.ts:12` | Phone users, the main audience | Objective | Shrink large photos in the browser before sending | Needs the owner (packet P2) |
-| B1 | No way to give a non-passport document an expiry date | `expiry/page.tsx:79` | Anyone with a visa, permit or certificate | Objective | A "Set Expiry Date" action | Needs the owner (packet P3), new capability |
+| B1 | No way to give a non-passport document an expiry date | `expiry/page.tsx:79` | Anyone with a visa, permit or certificate | Objective | A "Set Expiry Date" action | Owner said yes (P3); built on branch `claude/ux-p3-document-expiry`, migration 0134 pending the owner's word |
 | C2 | "Contact support" with no link | `documents/page.tsx:143-153` | Anyone with a failed file | Objective | Link to help | Lane 1 |
 | D1, D2 | Two start forms; one demands a typed title | `create-mission-form.tsx:115-124`, `mission/start/start-form.tsx:115-151` | Travellers | Objective | One start path (3 questions), old form kept for "Not sure where yet" and extra details | Lane 1 |
 | D3 | Trip form refuses an undecided traveller | `mission/start/actions.ts:71-73` | Travellers | Objective | A plain link to start without a country | Lane 1 |
