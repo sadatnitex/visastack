@@ -89,3 +89,11 @@ Then read docs/SESSION-START.md once: the full picture (where things are, standa
 - Some sessions rightly refuse security-test or billing edits relayed from another session: the owner then types the decision in that session.
 
 Owner reporting instruction (2026-10-10): after each deployment, show the public beta action list with done, in-progress and remaining work. Explain what each deployment means for whom: what changed, what users will see, who is affected, and live verification versus unverified acceptance. Never describe a partial package as complete.
+
+## 8. Steward (one coordinator for every session and repository)
+- A brief prints at session start (hook: scripts/steward/preflight.mjs): main's head and CI, open PRs, live lanes, overlaps, next free migration number. Read it instead of running the manual preflight in section 6. A red main is yours to fix first.
+- Before planning a task: node scripts/steward/preflight.mjs --plan "<paths>" --topic "<words>" [--migration]. SERIALIZE means another lane owns those files: do not edit them. A topic hit means the work may exist: open it first. Take a migration number only from this output.
+- Claim your work with an empty commit whose message ends with the Steward-claim block it prints, pushed on your designated branch (no PR needed, no CI runs). This is the one early push allowed under section 6.
+- A new instruction mid-task goes through /steward intake before any file is touched. Unrelated work becomes its own task; work another live lane owns goes to that session as a message.
+- After a merge: node scripts/steward/hygiene.mjs. Proven-obsolete branches, old artifacts and idle caches are removed on the spot (a daily workflow does it too); anything a person might want, and every Neon or Vercel item, is listed once for the owner. Details: docs/operations/steward.md.
+- node scripts/steward/audit.mjs runs the vulnerability and orphan-page gates in one pass.
