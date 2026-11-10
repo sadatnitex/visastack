@@ -2,7 +2,6 @@ import { CONSISTENCY_RESULTS } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import {
   CASE_FIELD_LABELS,
-  FACT_STATUS_LABELS,
   RESULT_NEXT_STEPS,
   RESULT_TONES,
   changeLine,
@@ -13,6 +12,7 @@ import {
   profileSectionHref,
   reviewSentence,
 } from './application-memory-labels';
+import { FIELD_METHOD_WORDS, FIELD_STATUS_WORDS } from './field-state-words';
 
 const SNAP = '11111111-1111-4111-8111-111111111111';
 const PRIOR = '22222222-2222-4222-8222-222222222222';
@@ -116,7 +116,8 @@ describe('Application Memory wording (WP-V3 part 3)', () => {
   it('uses no forbidden claim and no long dash in any label', () => {
     const all = JSON.stringify([
       CASE_FIELD_LABELS,
-      FACT_STATUS_LABELS,
+      FIELD_STATUS_WORDS,
+      FIELD_METHOD_WORDS,
       RESULT_NEXT_STEPS,
       eventLine({
         kind: 'outcome',
@@ -131,7 +132,7 @@ describe('Application Memory wording (WP-V3 part 3)', () => {
   });
 
   it('says a typed value was entered by hand, and links a fix to the section that holds the detail', () => {
-    expect(FACT_STATUS_LABELS).toMatchObject({ DECLARED: 'Entered by Hand' });
+    expect(FIELD_STATUS_WORDS).toMatchObject({ DECLARED: 'Entered' });
     expect(profileSectionHref('a1', 'passport_number')).toMatch(
       /^\/app\/applicant\/a1\/profile#section-[a-z0-9_]+$/,
     );

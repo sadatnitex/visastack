@@ -1,0 +1,48 @@
+name: Steward hygiene
+
+# Removes only what can be proven obsolete: git branches whose work is already on main, old workflow
+# artifacts, and caches of closed pull requests or caches nobody used for a week. Everything a
+# person might still want is only listed. Runs from the default branch, so it always uses trusted
+# code. A manual run is a dry run unless "apply" is ticked.
+on:
+  schedule:
+    - cron: '41 4 * * *'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Delete what is proven obsolete (leave off for a dry run)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # delete proven-obsolete branch refs
+  actions: write # delete old artifacts and caches
+  pull-requests: read
+
+concurrency:
+  group: steward-hygiene
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: Steward hygiene sweep
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Sweep
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          APPLY_INPUT: ${{ inputs.apply }}
+        run: |
+          flag=""
+          if [ "$EVENT" = "schedule" ] || [ "$APPLY_INPUT" = "true" ]; then flag="--apply"; fi
+          node scripts/steward/hygiene.mjs $flag | tee -a "$GITHUB_STEP_SUMMARY"

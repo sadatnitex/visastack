@@ -21,7 +21,7 @@ export function ConsentButton({
   readonly label?: string;
   /**
    * Visible words instead of Turn on / Turn off, for a screen that shows this one consent alone
-   * (first run: "Allow core processing"). The form and the values it sends are unchanged.
+   * (first run: "Let VisaStack Process My Details"). The form and the values it sends are unchanged.
    */
   readonly text?: string;
 }) {

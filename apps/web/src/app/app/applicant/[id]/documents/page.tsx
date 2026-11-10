@@ -139,10 +139,12 @@ function safetyBadge(
   return presentScanState(doc.latestVersionId ? evidence.get(doc.latestVersionId) : null);
 }
 
+/** Where a person gets help when a file keeps failing (the contact section of Help and Support). */
+const HELP_HREF = '/app/help#contact';
+
 /** What a person can do next when a file could not be used (a state with no next step is a dead end). */
 const PROBLEM_NEXT_STEP: Record<string, string> = {
-  FAILED:
-    'We could not finish checking this file. Try uploading it again. If it keeps failing, contact support.',
+  FAILED: 'We could not finish checking this file. Try uploading it again.',
   NEEDS_ATTENTION:
     'This file could not be accepted as it is. Try a different copy, such as a clearer scan or a smaller file.',
   REJECTED: 'This file was rejected. Upload a different copy if you still need it.',
@@ -173,7 +175,7 @@ const LIFECYCLE_BADGES: Record<DocumentLifecycleStatus, { label: string; tone: s
   CURRENT: { label: 'Current', tone: 'badge-success' },
   EXPIRING: { label: 'Expiring Soon', tone: 'badge-warning' },
   EXPIRED: { label: 'Expired', tone: 'badge-danger' },
-  SUPERSEDED: { label: 'Superseded', tone: 'badge-neutral' },
+  SUPERSEDED: { label: 'Replaced', tone: 'badge-neutral' },
 };
 
 export default async function ApplicantDocumentsPage({
@@ -454,10 +456,10 @@ export default async function ApplicantDocumentsPage({
   if (data.recordsUnavailable)
     return (
       <>
-        <PageHeader eyebrow="Record" title="Documents" description="Your private evidence wallet" />
+        <PageHeader eyebrow="Record" title="Documents" description="Your private documents" />
         <p role="alert" className="notice notice-warn">
           We could not load your document records or lifecycle status. Refresh to try again.
-          Unavailable records are not reported as an empty wallet.
+          Unavailable records are not shown as an empty list.
         </p>
       </>
     );
@@ -795,7 +797,15 @@ export default async function ApplicantDocumentsPage({
                   {doc.processingStatus &&
                   PROBLEM_NEXT_STEP[doc.processingStatus] &&
                   !(doc.latestVersionId && data.reading?.states.has(doc.latestVersionId)) ? (
-                    <p className="muted">{PROBLEM_NEXT_STEP[doc.processingStatus]}</p>
+                    <p className="muted">
+                      {PROBLEM_NEXT_STEP[doc.processingStatus]}
+                      {doc.processingStatus === 'FAILED' ? (
+                        <>
+                          {' '}
+                          Still failing? <Link href={HELP_HREF}>Get Help</Link>
+                        </>
+                      ) : null}
+                    </p>
                   ) : null}
                   <p className="field-hint" id={`date-hint-${doc.id}`}>
                     Used to judge freshness for routes that require recently-dated evidence.
@@ -902,7 +912,12 @@ export default async function ApplicantDocumentsPage({
                           })
                         : null;
                       return state && copy ? (
-                        <ReadingStatus copy={copy} stage={state.stage} applicantId={id} />
+                        <ReadingStatus
+                          copy={copy}
+                          stage={state.stage}
+                          applicantId={id}
+                          {...(doc.processingStatus === 'FAILED' ? { helpHref: HELP_HREF } : {})}
+                        />
                       ) : null;
                     })()}
                     {(doc.classification?.reviewRequired === true ||

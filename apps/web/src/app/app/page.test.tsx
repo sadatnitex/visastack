@@ -275,7 +275,7 @@ describe('task-first first run (WP-V3, D8)', () => {
       expect.objectContaining({
         type: 'CORE_PROCESSING',
         granted: false,
-        text: 'Allow core processing',
+        text: 'Let VisaStack Process My Details',
       }),
     ]);
     expect(text).not.toContain('Permissions You Control');
@@ -368,8 +368,8 @@ describe('task-first first run (WP-V3, D8)', () => {
     expect(text).toContain('What do you want to do?');
     expect(text).toContain('Update or Find My Records');
     expect(text).not.toContain('Complete a Request');
-    // Prepare a Brief is offered now that its screen exists, and goes to that person's outputs page.
-    expect(text).toContain('Prepare a Brief');
+    // Prepare a Summary is offered now that its screen exists, and goes to that person's outputs page.
+    expect(text).toContain('Prepare a Summary');
     expect(html).toContain(`href="/app/applicant/${SELF.id}/outputs?output=agency_brief"`);
     expect(html).toContain(`href="/app/applicant/${SELF.id}"`);
     expect(html).toContain('href="/app"');

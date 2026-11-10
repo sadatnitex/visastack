@@ -132,8 +132,7 @@ describe('the kind and name card', () => {
   });
 
   it('says plainly before Accept when accepting drops the fresh sign-in check', () => {
-    const warning =
-      'Accepting means this file no longer needs a fresh sign-in check before it opens.';
+    const warning = 'After you accept, this file will open without the extra sign-in check.';
     render();
     expect(host.textContent).not.toContain(warning);
     render({ ...suggestion, removesFreshSignIn: true });
