@@ -61,6 +61,15 @@ describe('what a WhatsApp message may hold', () => {
       `Please sign in to VisaStack to see it: ${ORIGIN}/app/shared`,
     );
     expect(text({ template: 'support-hello' })).toBe('Hello VisaStack, I need some help.');
+    const ask = `${ORIGIN}/app/contributor-requests/accept?token=abcDEF123_-xyzABC456`;
+    expect(
+      text({ template: 'contributor-request', link: ask, documentKind: 'Bank Statement' }),
+    ).toBe(
+      `Hello, I need one document from you (Bank Statement) for my visa application. I keep my documents safe on VisaStack. Open this private link to send it: ${ask}`,
+    );
+    expect(text({ template: 'contributor-request', link: ask })).toBe(
+      `Hello, I need one document from you for my visa application. I keep my documents safe on VisaStack. Open this private link to send it: ${ask}`,
+    );
   });
 
   it('lets prepared text name a due day, as the follow-up does, and nothing else shaped like a date', () => {
@@ -108,6 +117,15 @@ describe('identifiers, dates of birth and addresses can never get in (the owner 
         expect(build(input).ok).toBe(false);
       });
     }
+  }
+
+  for (const [label, value] of RISKY) {
+    it(`refuses ${label} as the contributor's document kind`, () => {
+      const ask = `${ORIGIN}/app/contributor-requests/accept?token=abcDEF123_-xyzABC456`;
+      expect(build({ template: 'contributor-request', link: ask, documentKind: value }).ok).toBe(
+        false,
+      );
+    });
   }
 
   for (const [label, value] of RISKY) {
@@ -224,6 +242,11 @@ describe("the link must be VisaStack's own and must not open a file", () => {
       '/x/photo.jpg',
     ]) {
       expect(refuse(`${ORIGIN}${path}`), path).toBe(true);
+      // The contributor request has its own single page, and no file link passes there either.
+      expect(
+        build({ template: 'contributor-request', link: `${ORIGIN}${path}?token=abc` }).ok,
+        path,
+      ).toBe(false);
     }
   });
 
@@ -239,6 +262,13 @@ describe("the link must be VisaStack's own and must not open a file", () => {
     expect(build({ template: 'sharing-invitation', link: invite }).ok).toBe(true);
     expect(build({ template: 'summary-link', link: `${ORIGIN}/app/shared` }).ok).toBe(true);
     expect(build({ template: 'collection-link', link: LINK }).ok).toBe(true);
+    const ask = `${ORIGIN}/app/contributor-requests/accept?token=abc_123`;
+    expect(build({ template: 'contributor-request', link: ask }).ok).toBe(true);
+    // The contributor message points only at the contributor page, and no other message may use it.
+    expect(build({ template: 'contributor-request', link: invite }).ok).toBe(false);
+    expect(build({ template: 'contributor-request', link: LINK }).ok).toBe(false);
+    expect(build({ template: 'client-invitation', link: ask }).ok).toBe(false);
+    expect(build({ template: 'collection-link', link: ask }).ok).toBe(false);
     // A real page of ours, but not the page this message is for.
     expect(build({ template: 'collection-link', link: invite }).ok).toBe(false);
     expect(build({ template: 'summary-link', link: invite }).ok).toBe(false);
