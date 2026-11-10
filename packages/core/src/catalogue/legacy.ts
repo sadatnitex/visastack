@@ -10,8 +10,9 @@ import type { LayerKey } from './types';
  * live field fails until this copy is changed on purpose, with a reason recorded in
  * docs/product/master-profile-enrichment/HANDOFF.md.
  *
- * Labels are included because they are what people see; the planned Title Case change for these 81
- * labels is a separate, previewed change and must update this copy in the same commit.
+ * Labels are included because they are what people see. A label change must update this copy and
+ * the live registry in the same commit; apps/web/src/lib/catalogue-labels.test.ts keeps every
+ * label in Title Case (two were corrected on 10 Nov 2026).
  *
  * "layer" is presentation only and is not part of the frozen identity.
  */
@@ -215,7 +216,7 @@ export const LEGACY_FIELD_SNAPSHOT: readonly LegacyFieldSnapshot[] = [
   },
   {
     key: 'historical_passport_expiry',
-    label: 'Expiry (or Was Expired)',
+    label: 'Expiry Date',
     sensitivity: 'STANDARD',
     pack: 'universal',
     type: 'date',
@@ -347,7 +348,7 @@ export const LEGACY_FIELD_SNAPSHOT: readonly LegacyFieldSnapshot[] = [
   },
   {
     key: 'prior_visa_validity',
-    label: 'Valid from / to',
+    label: 'Visa Valid Dates',
     sensitivity: 'STANDARD',
     pack: 'universal',
     type: 'text',

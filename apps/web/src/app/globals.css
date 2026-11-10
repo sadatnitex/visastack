@@ -20562,6 +20562,12 @@ html:has(.sticky-action-bar) .toast-region {
 }
 /* end WP-RT1 */
 
+/* WP-P9 The line under a case in the agency Cases list that says when access to it ends. Plain text, no button: only the traveller can extend it. Tokens only. */
+.agency-case-list-ends {
+  padding: 0.25rem 0.75rem 0;
+}
+/* end WP-P9 */
+
 /* WP-F2 Camera check and receipt (batch F2, 10 Nov 2026): the look-before-you-send step after a photo, and the receipt after a saved document or a sharing request, the way a bank's identity check and a bKash receipt read. Flat, tokens and the green tone, no shadows or translucent surfaces; the photo viewer's near-black ground and its white and dark outline are fixed on purpose, so the outline shows on any photo in light and dark. */
 .capture-preview {
   display: grid;

@@ -2,6 +2,7 @@ import { systemPrincipal } from '@visastack/services';
 import { after } from 'next/server';
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
 import {
+  triggerGrantExpirySweep,
   triggerNotificationSweeps,
   triggerNotificationWorker,
   triggerPackageChangeSweep,
@@ -53,7 +54,10 @@ export async function GET(request: Request): Promise<Response> {
   // UMPE P11: notes for active cases pinned to a version a newer publication replaced; its own
   // failure is reported inside and never fails the sweeps above.
   const ruleImpacts = await triggerRuleImpactSweep(scope);
+  // Sharing that ends within a week: a reminder for the traveller and the agency's owners and
+  // admins; its own failure is reported inside and never fails the sweeps above.
+  const grantReminders = await triggerGrantExpirySweep(scope);
   // Emails this run queued go out now, not at the next day's sending run.
   after(() => triggerNotificationWorker().then(() => undefined));
-  return Response.json({ ...result, removals, packages, ruleImpacts });
+  return Response.json({ ...result, removals, packages, ruleImpacts, grantReminders });
 }
