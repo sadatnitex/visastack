@@ -37,10 +37,9 @@ export const DEPTH_WORDS = {
     'Browse: the stages, what needs attention, case details, the requirement pack, tasks, appointments, letters and notes.',
   'depth.case.everything':
     'Everything: choosing evidence, submission and outcome, problems, snapshots and the itinerary.',
-  'depth.evidence.glance': 'Glance: what is waiting for you, and the reply for each.',
-  'depth.evidence.browse':
-    'Browse: dates, checklist notes, references, your questions and requests already answered.',
-  'depth.evidence.everything': 'Everything: asking the agency about an item.',
+  'depth.evidence.glance': 'Glance: what is waiting for you.',
+  'depth.evidence.browse': 'Browse: requests being checked or finished.',
+  'depth.evidence.everything': 'Everything: asking the agency about an item, in the request.',
   'depth.sharing.glance': 'Glance: who can see this record now, and how to pause or revoke it.',
   'depth.sharing.browse':
     'Browse: exactly what each person can see, access and invitations waiting to be accepted or ended, and the access log.',
