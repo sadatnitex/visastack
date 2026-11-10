@@ -198,7 +198,7 @@ describe('the briefs and summaries page', () => {
   it('shows the owner the starting preview for a brief, with the case first', async () => {
     const html = await render();
     const text = textOf(html);
-    expect(text).toContain('Briefs and Summaries');
+    expect(text).toContain('Summaries');
     expect(text).toContain('Preview: Agency Brief');
     expect(text).toContain('A summary is a one-time copy');
     expect(text).toContain('Case: London trip');

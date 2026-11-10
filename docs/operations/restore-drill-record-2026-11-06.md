@@ -30,3 +30,10 @@ Filled on the [sign-off sheet](restore-drill-signoff.md) format. The owner said 
 - The database restore itself works and is fast, and the copy matches production exactly.
 - A full pass needs: the independent copy of the documents (step 4), the key and configuration escrow (step 5), and an application started against the branch (steps 3, 6 to 9).
 - Follow-up tasks: build the independent document copy; set up escrow (owner action O5, then O16 for the key service); re-run with a restore point 30 minutes in the past and the application started.
+
+## Update of 10 November 2026: step 11 done
+
+- Step 11 (Tear down) is done. On the owner's word the recovery branch `drill/2026-11-06-restore-check` (id br-plain-smoke-a4gxiypu) was deleted from the Neon project. Checked first: no child branch, compute idle since 6 Nov, nothing written to it after it was made, and no Vercel domain, alias or workflow referring to it.
+- The Neon project now holds two branches: `main` and the preview branch for `public-beta/r2-encrypted-recovery`, which stays while its Vercel preview domain is bound to it.
+- Steps 3 to 9 are still open. The follow-up re-run needs a new branch made from a restore point about 30 minutes in the past, with the application started against it; it cannot reuse the deleted one.
+

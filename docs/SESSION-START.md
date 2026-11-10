@@ -45,7 +45,7 @@ Code: `apps/web` (Next.js 15.5, React 19), `packages/services` (all business log
 
 ## 4. How work runs
 
-1. Preflight: `git fetch origin`, check main's head, open PRs and main's CI.
+1. Preflight: `git fetch origin`, check main's head, open PRs and main's CI. The Steward brief printed at session start already shows these, plus live lanes, overlaps and the next free migration number; claim and clean up as `docs/operations/steward.md` says.
 2. One git worktree per branch (under the session scratchpad), `pnpm install --frozen-lockfile` in it.
 3. Plan large or risky work first (a Plan helper), confirm the approach with the owner in at most 3 bullets, flag anything hard to reverse, then build.
 4. Targeted tests while building (`nice -n 15`); review; fix; then ONE full check: `PORT=3101 bash scripts/agent/full-check.sh <worktree> <logdir>` (resume a failed run with `FROM=<step>`, for example `FROM=build`). Start it with the tool's background mode, never with a trailing `&` inside a foreground command (the job then loses its completion notice). Read only `<logdir>/summary.txt`. The script is guarded: it finds whatever listens on the port through `/proc/net/tcp` and stops only an earlier Next server (anything else aborts the run), runs the browser steps only against a server that serves the build id it just made, and marks the run STALE when the commit or working tree changed during the run. A STALE or FAILED line means the run cannot be trusted.
