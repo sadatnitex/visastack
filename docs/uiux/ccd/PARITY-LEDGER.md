@@ -563,3 +563,17 @@ Approved change. Nothing is removed: "Copy Link" stays on invitation and request
 | Invitation link: "Copy Link", "Share Link" | "Send on WhatsApp", "More Ways to Send" on a phone, "Copy Link", "Copy Message" | Agency Clients, Team; traveller Sharing |
 | Summaries: "Open WhatsApp", "Copy Message" | "Send on WhatsApp", "Copy Message" (same generic message) | Traveller Summaries |
 | Help: email only | Adds "Send on WhatsApp" when the business number is set | Help |
+
+## P7: a finished case is frozen (10 Nov 2026, owner decision "yes, freeze finished cases")
+
+A submitted, closed or cancelled case can no longer change, so the case page stops offering what would change it, and says so once under the header: "This case is finished, so it can no longer change." An open case keeps all of these.
+
+| Before (finished case) | After (finished case) | Where |
+|---|---|---|
+| "Edit Case Details" and its form | The line above, in the same place | Case, Case Details card |
+| "Take a Snapshot" in the header and in the phone More menu | Not offered | Case header, More |
+| "Attach Pack" and the checklist picker | Not offered; "No checklist was linked to this case." when none was | Case, Requirement Pack card |
+| "Generate New Version" for cover letters | The line above; earlier versions stay readable | Case, Cover Letters |
+| The "Something changed after you confirmed this case" alert with "Take a New Snapshot" | Not shown (a finished case is never shown as needing to be confirmed again) | Case, status area |
+
+Held by `parity-case.test.tsx` through three approved changes in `approved-changes.ts` (they apply to the closed-case state only) and by `page.test.tsx`.

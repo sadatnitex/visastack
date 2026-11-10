@@ -1111,6 +1111,21 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason:
       'Owner, 5 Nov 2026: no page should have more than 30 words. The line under the heading says who is signed in; "What needs you across every traveller on this account, with your agency work and the permissions you control." moved unchanged under "About This".',
   },
+  // P7 (owner, 10 Nov 2026, "yes, freeze finished cases"): a finished case cannot change, so the
+  // controls that would change it are not offered on it. An open case keeps every one of them.
+  ...[
+    { kind: 'button', name: 'Edit Case Details' },
+    { kind: 'component', name: 'CaseDetailsForm' },
+    { kind: 'component', name: 'SnapshotButton' },
+  ].map(
+    (from): ApprovedChange => ({
+      screen: 'case',
+      from: from as InventoryEntry,
+      to: (state) => (state === 'a closed case' ? null : (from as InventoryEntry)),
+      reason:
+        'P7: a finished case is frozen. The control is not offered, and the page says "This case is finished, so it can no longer change."',
+    }),
+  ),
 ];
 
 /**
