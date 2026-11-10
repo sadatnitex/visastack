@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useId, useState } from 'react';
 import type { StartCountry, StartData, StartRoute } from '../lib/country-start';
 import { startHrefForCountry } from '../lib/country-start-links';
+import { CountryFlag } from './country-flag';
 
 /**
  * "Pick a country, see the checklist at once" (Growth G2). A person types or chooses a country and
@@ -140,6 +141,7 @@ export function CountryChecklistPicker({
       {country ? (
         <section className="country-pick-result" aria-labelledby={headingId}>
           <div className="country-pick-head">
+            <CountryFlag iso2={country.iso2} name={country.name} size="md" decorative />
             <Heading className="country-pick-title" id={headingId}>
               {country.name}
             </Heading>

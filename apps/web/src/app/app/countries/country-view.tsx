@@ -4,6 +4,7 @@ import {
   type DestinationRoute,
   routesForDestination,
 } from '@visastack/core/destinations';
+import { CountryFlag } from '../../../components/country-flag';
 import { SourceNote } from '../../../components/source-note';
 import { EmptyState, PageHeader, StatusBadge } from '../../../components/ui';
 import {
@@ -169,6 +170,7 @@ export function CountryView({
       <PageHeader
         back={{ href: backHref, label: 'All Countries' }}
         eyebrow="Country"
+        lead={<CountryFlag iso2={destination.iso2} name={destination.country} size="lg" />}
         title={destination.country}
         description="For an ordinary Bangladeshi passport. Rules change, so confirm on the official page before you apply."
         meta={

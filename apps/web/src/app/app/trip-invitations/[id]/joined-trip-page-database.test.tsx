@@ -92,7 +92,8 @@ describe('the joined trip page', () => {
     const html = await page();
     const words = textOf(html);
     expect(words).toContain('Japan - Tourism');
-    expect(words).toContain('Where Japan');
+    // The flag of the country is drawn in front of its name.
+    expect(words).toMatch(/Where \S+ Japan/);
     expect(words).toContain('Why Tourism');
     expect(words).toContain('Travelling The organiser');
     // The organiser's family member is counted, never named.

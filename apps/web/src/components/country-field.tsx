@@ -2,6 +2,7 @@
 
 import { useId, useState } from 'react';
 import type { CaseCountryOption } from '../lib/case-choices';
+import { CountryFlag } from './country-flag';
 
 /**
  * Where are you going? A plain text box with the browser's own list of country names, in place of
@@ -121,12 +122,17 @@ export function CountryField({
           {hint}
         </p>
       ) : null}
-      <output
-        id={statusId}
-        className={noMatch ? 'field-msg field-msg-err' : 'field-msg field-msg-ok'}
-      >
-        {status}
-      </output>
+      <div className="country-field-status">
+        {settled && country ? (
+          <CountryFlag iso2={country.iso2} name={country.name} size="sm" decorative />
+        ) : null}
+        <output
+          id={statusId}
+          className={noMatch ? 'field-msg field-msg-err' : 'field-msg field-msg-ok'}
+        >
+          {status}
+        </output>
+      </div>
     </div>
   );
 }

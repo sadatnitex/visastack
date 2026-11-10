@@ -20404,4 +20404,17 @@ html:has(.sticky-action-bar) .toast-region {
     padding: var(--space-4) var(--space-5);
   }
 }
+.country-row-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.country-field-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.country-pick-head .country-flag {
+  flex: none;
+}
 /* end WP-P12 */

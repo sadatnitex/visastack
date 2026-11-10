@@ -139,13 +139,13 @@ describe('CountryFlag', () => {
     root = createRoot(container);
     act(() =>
       root?.render(
-        <main>
+        <div>
           <CountryFlag iso2="JP" name="Japan" />
           <CountryFlag iso2="??" name="Somewhere" size="sm" />
           <CountryFlag iso2="JP" name="Japan" decorative size="lg" />
-        </main>,
+        </div>,
       ),
     );
-    expect(await axeViolations(container)).toEqual([]);
+    expect(await axeViolations(container.innerHTML)).toEqual([]);
   });
 });

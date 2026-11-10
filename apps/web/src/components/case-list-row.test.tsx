@@ -166,7 +166,7 @@ describe('a case row', () => {
   });
 
   it('has no accessibility violations in its states', async () => {
-    const doc = document.createElement('main');
+    const doc = document.createElement('div');
     doc.innerHTML = `<ul>${[
       base,
       { ...base, id: 'c2', progress: { kind: 'no-checklist' } as const, nextStep: null },
@@ -176,7 +176,7 @@ describe('a case row', () => {
       .map((props) => renderToStaticMarkup(<CaseListRow {...props} />))
       .join('')}</ul>`;
     document.body.append(doc);
-    expect(await axeViolations(doc)).toEqual([]);
+    expect(await axeViolations(doc.outerHTML)).toEqual([]);
     doc.remove();
   });
 });

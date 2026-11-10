@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { showMoreCount } from './show-more';
 import { EmptyState, StatusBadge } from './ui';
+import { CountryFlag } from './country-flag';
 
 export interface CountryBrowserItem {
   readonly iso2: string;
@@ -128,7 +129,10 @@ export function CountryBrowser({
             {visible.map((item) => (
               <li key={item.iso2}>
                 <Link href={item.href} className="country-row">
-                  <span className="country-row-name">{item.name}</span>
+                  <span className="country-row-lead">
+                    <CountryFlag iso2={item.iso2} name={item.name} size="md" decorative />
+                    <span className="country-row-name">{item.name}</span>
+                  </span>
                   <span className="country-row-facts">
                     <StatusBadge tone={item.status === 'NOT_FOUND' ? 'warning' : 'neutral'}>
                       {labelOf(item.status)}

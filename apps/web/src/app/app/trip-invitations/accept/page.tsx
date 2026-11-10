@@ -21,6 +21,7 @@ import {
 import { CoreConsentStep } from './core-consent';
 import { networkLimited } from './network-limit';
 import { INVITATION_BUSY, INVITATION_UNAVAILABLE } from './words';
+import { DestinationLabel } from '../../../../components/destination-label';
 
 export const metadata: Metadata = {
   title: 'Join a Trip',
@@ -144,7 +145,9 @@ export default async function TripInvitationPage({
             </div>
             <div className="row">
               <dt>Where</dt>
-              <dd>{invite.destination}</dd>
+              <dd>
+                <DestinationLabel destination={invite.destination} />
+              </dd>
             </div>
             <div className="row">
               <dt>Why</dt>

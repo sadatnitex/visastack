@@ -6,6 +6,7 @@ import type { StartData } from '../../lib/country-start';
 import { appHrefForCountry, permissionStepHref } from '../../lib/country-start-links';
 import { AddApplicantForm } from './add-applicant-form';
 import { ConsentButton } from './consent-button';
+import { DestinationLabel } from '../../components/destination-label';
 
 /**
  * Task-first first run (WP-V3, decision D8, preview approved 25 Oct 2026). Screen 1 asks for core
@@ -46,7 +47,10 @@ function ChosenCountry({
   if (!name) return null;
   return (
     <p className="first-run-country">
-      Your Country: <b>{name}</b>
+      Your Country:{' '}
+      <b>
+        <DestinationLabel destination={name} />
+      </b>
       {changeHref ? (
         <>
           {' '}

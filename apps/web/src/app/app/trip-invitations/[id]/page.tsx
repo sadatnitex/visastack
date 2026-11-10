@@ -22,6 +22,7 @@ import {
   RemovePaperForm,
   ShareLevelForm,
 } from './joined-trip-forms';
+import { DestinationLabel } from '../../../../components/destination-label';
 
 export const metadata: Metadata = {
   title: 'Joined Trip',
@@ -85,7 +86,9 @@ export default async function JoinedTripPage({
         <dl className="rows">
           <div className="row">
             <dt>Where</dt>
-            <dd>{trip.destination}</dd>
+            <dd>
+              <DestinationLabel destination={trip.destination} />
+            </dd>
           </div>
           <div className="row">
             <dt>Why</dt>
