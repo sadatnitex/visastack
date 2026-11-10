@@ -64,6 +64,7 @@ import {
   applyCaseSharingAnswers,
   listCaseSharingQuestions,
 } from './sharing';
+import { INACTIVE_CASE_STATES } from './umpe-package-tables';
 
 /**
  * Mission Workspaces (Build Spec §4.3; PRD §4).
@@ -2027,6 +2028,36 @@ export async function snapshotMission(
 
 export type SelectedEvidence = typeof schema.selectedEvidence.$inferSelect;
 
+/** The plain line a traveller reads when a finished case's evidence is touched. */
+const CASE_FINISHED_SELECTION =
+  'This case is finished, so the files and answers it uses can no longer change.';
+
+/**
+ * A submitted, closed or cancelled case keeps exactly what it was sent with: the choice of which
+ * file or answer counts for a checklist item is locked. One rule, the same list of states as the
+ * wording and trip package rules (`INACTIVE_CASE_STATES`).
+ */
+function selectionLocked(state: string): boolean {
+  return (INACTIVE_CASE_STATES as readonly string[]).includes(state);
+}
+
+/**
+ * The same rule read again inside the writing transaction, under a share lock on the case row, so a
+ * submit that lands between the first check and the write cannot be undone by it.
+ */
+async function refuseIfSelectionLocked(tx: Db, missionId: string): Promise<ServiceError | null> {
+  const current = first(
+    await tx
+      .select({ state: schema.missions.state })
+      .from(schema.missions)
+      .where(eq(schema.missions.id, missionId))
+      .limit(1)
+      .for('share'),
+  );
+  if (!current) return serviceError('not_found', 'case not found');
+  return selectionLocked(current.state) ? serviceError('invalid', CASE_FINISHED_SELECTION) : null;
+}
+
 async function loadOwnedRequirement(
   db: Db,
   actorAccountId: string,
@@ -2086,6 +2117,9 @@ export async function selectEvidence(
   );
   if (!loaded.ok) return loaded;
   const { mission, requirement } = loaded.value;
+  if (selectionLocked(mission.state)) {
+    return err(serviceError('invalid', CASE_FINISHED_SELECTION));
+  }
 
   if (requirement.kind === 'FIELD') {
     if (!input.factId || input.documentId) {
@@ -2141,6 +2175,8 @@ export async function selectEvidence(
   }
 
   return db.transaction(async (tx) => {
+    const locked = await refuseIfSelectionLocked(tx, mission.id);
+    if (locked) return err(locked);
     const existing = first(
       await tx
         .select()
@@ -2205,6 +2241,8 @@ export async function unselectEvidence(
   if (!owned.ok) return owned;
 
   return db.transaction(async (tx) => {
+    const locked = await refuseIfSelectionLocked(tx, input.missionId);
+    if (locked) return err(locked);
     const deleted = first(
       await tx
         .delete(schema.selectedEvidence)
