@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Fragment, useActionState, useEffect, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
 import { InvitationLink } from '../../../../../components/invitation-link';
+import { ReceiptCard } from '../../../../../components/receipt-card';
 import {
   SelectedScopeSummary,
   describeGrantScope,
@@ -91,6 +92,14 @@ export function GrantForm({
   useEffect(() => {
     if (invitationUrl) router.refresh();
   }, [invitationUrl, router]);
+  // The receipt (F2): built only from what the action returned plus the moment it came back and
+  // the address typed. It is closed with Done and replaced by the next result.
+  const [receipt, setReceipt] = useState<{
+    readonly at: number;
+    readonly to: string;
+    readonly invited: boolean;
+  } | null>(null);
+  const typedEmail = useRef('');
 
   // Native fields remain the server action's source of truth. Review is an
   // explicit confirmation of their current scope, invalidated by any edit.
@@ -99,6 +108,15 @@ export function GrantForm({
   const [reviewed, setReviewed] = useState(false);
   const [reviewError, setReviewError] = useState('');
   const [recipientEmail, setRecipientEmail] = useState('');
+  useEffect(() => {
+    typedEmail.current = recipientEmail;
+  }, [recipientEmail]);
+  useEffect(() => {
+    if (!state.ok) setReceipt(null);
+    else if (state.message !== '') {
+      setReceipt({ at: Date.now(), to: typedEmail.current, invited: Boolean(state.invitationUrl) });
+    }
+  }, [state]);
   const [purpose, setPurpose] = useState('');
   const [actions, setActions] = useState<readonly string[]>(
     SHAREABLE_ACTIONS.filter((a) => a.defaultOn).map((a) => a.value),
@@ -476,6 +494,26 @@ export function GrantForm({
           className="btn btn-primary"
         />
         <FormMessage result={state} />
+        {receipt ? (
+          <ReceiptCard
+            title={receipt.invited ? 'Invitation Created' : 'Sharing Request Created'}
+            what={
+              receipt.invited
+                ? 'Your invitation to see what you chose is ready.'
+                : 'Your sharing request is made.'
+            }
+            at={receipt.at}
+            to={receipt.to || undefined}
+            toLabel="To"
+            honestLine="Not shared yet. They see nothing until they accept."
+            next={{
+              label: 'See Who Has Access',
+              href: `/app/applicant/${applicantId}/sharing#who-has-access`,
+            }}
+            onDone={() => setReceipt(null)}
+            returnFocusTo={() => document.getElementById('recipientEmail')}
+          />
+        ) : null}
         {state.ok && state.invitationUrl ? (
           <InvitationLink url={state.invitationUrl} purpose="sharing" />
         ) : null}

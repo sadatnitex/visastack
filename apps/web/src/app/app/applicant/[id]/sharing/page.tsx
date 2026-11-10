@@ -520,7 +520,7 @@ export default async function SharingPage({
             />
             <div className="sharing-workspace">
               <div className="sharing-access-column">
-                <article className="card lc-empty-host">
+                <article className="card lc-empty-host" id="who-has-access">
                   <p className="card-kicker">Controlled Collaboration</p>
                   <h2 className="card-title">Who Has Access</h2>
                   {doneLine ? <DoneNotice line={doneLine} /> : null}

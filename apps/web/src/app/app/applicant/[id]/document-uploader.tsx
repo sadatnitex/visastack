@@ -3,7 +3,9 @@
 import { isOtherDocumentType } from '@visastack/core';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { CapturePreview } from '../../../../components/capture-preview';
 import { UndoStatus } from '../../../../components/lifecycle/undo-status';
+import { ReceiptCard } from '../../../../components/receipt-card';
 import { UpgradeLine, type UpgradeLineKind } from '../../../../components/upgrade-line';
 import {
   type UploadOutcome,
@@ -80,6 +82,10 @@ interface UploadItem {
   readonly shrink: boolean;
   /** The photo's size before it was made smaller, once it was; the new size is `size`. */
   readonly shrunkFrom: number | null;
+  /** When the server stored it (the device clock at that moment), for the receipt. */
+  readonly addedAt: number | null;
+  /** The receipt has been closed with Done, so it is not shown again for this file. */
+  readonly receipted: boolean;
 }
 
 const ACTIVE: ReadonlySet<ItemStatus> = new Set(['waiting', 'preparing', 'sending', 'checking']);
@@ -125,6 +131,19 @@ function statusLine(item: UploadItem): string {
     default:
       return item.message;
   }
+}
+
+/** The receipt's plain sentence: what was saved, and how many were not. */
+function receiptWhat(
+  added: readonly Pick<UploadItem, 'title' | 'name'>[],
+  notAdded: number,
+): string {
+  const saved =
+    added.length === 1
+      ? `${added[0]?.title ?? added[0]?.name ?? 'Your file'} is saved in your documents.`
+      : `${added.length} files are saved in your documents.`;
+  if (notAdded === 0) return saved;
+  return `${saved} ${files(notAdded)} not added; the list below says why.`;
 }
 
 function outcomeToItem(outcome: UploadOutcome): Partial<UploadItem> {
@@ -187,9 +206,24 @@ export function DocumentUploader({
   const [items, setItems] = useState<readonly UploadItem[]>([]);
   const pickerRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  // A photo just taken, shown for Use This or Retake before anything is sent (F2).
+  const [photo, setPhoto] = useState<File | null>(null);
+  // On a phone the camera comes first, the way a bank's identity check opens. Decided after the
+  // page loads, so the page the server sends is the same for everyone.
+  const [phone, setPhone] = useState(false);
   const nextId = useRef(1);
   const running = useRef(false);
   const addedSinceRefresh = useRef(false);
+
+  useEffect(() => {
+    const query = window.matchMedia?.('(pointer: coarse)');
+    if (!query) return;
+    setPhone(query.matches);
+    const follow = (event: MediaQueryListEvent) => setPhone(event.matches);
+    query.addEventListener?.('change', follow);
+    return () => query.removeEventListener?.('change', follow);
+  }, []);
 
   const update = useCallback((id: number, change: Partial<UploadItem>) => {
     setItems((current) => current.map((item) => (item.id === id ? { ...item, ...change } : item)));
@@ -217,6 +251,8 @@ export function DocumentUploader({
         uploadId: newUploadId(),
         shrink: false,
         shrunkFrom: null,
+        addedAt: null,
+        receipted: false,
       };
       if (index >= MAX_FILES_AT_ONCE) {
         return {
@@ -283,7 +319,7 @@ export function DocumentUploader({
           // Once the file is stored nothing needs the copy again, so a smaller photo is let go.
           update(next.id, {
             ...outcomeToItem(outcome),
-            ...(outcome.kind === 'added' ? { file: null } : {}),
+            ...(outcome.kind === 'added' ? { file: null, addedAt: Date.now() } : {}),
           });
         });
     };
@@ -330,6 +366,19 @@ export function DocumentUploader({
   );
 
   const finished = items.length > 0 && !items.some((item) => ACTIVE.has(item.status));
+  const cameraButton = (
+    <button
+      type="button"
+      className={`btn ${phone ? 'btn-primary' : 'btn-secondary'}`}
+      onClick={() => cameraRef.current?.click()}
+    >
+      Take a Photo
+    </button>
+  );
+  const unreceipted = finished
+    ? items.filter((item) => item.status === 'added' && !item.receipted)
+    : [];
+  const notAddedCount = items.filter((item) => item.status !== 'added').length;
 
   return (
     <div className="uploader">
@@ -390,37 +439,51 @@ export function DocumentUploader({
         </div>
       ) : null}
 
-      <section
-        className="upload-drop"
-        data-dragging={dragging ? 'true' : undefined}
-        aria-labelledby={dropTitleId}
-        aria-describedby={dropHintId}
-        {...dropHandlers}
-      >
-        <p className="upload-drop-title" id={dropTitleId}>
-          Drop Files Here
-        </p>
-        <p className="upload-drop-hint" id={dropHintId}>
-          Drag one or more files into this box, or use a button. Each file gets its own line below.
-        </p>
-        <div className="upload-drop-actions">
-          <button
-            type="button"
-            className="btn btn-primary"
-            aria-describedby={limitsId}
-            onClick={() => pickerRef.current?.click()}
-          >
-            Choose Files
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => cameraRef.current?.click()}
-          >
-            Take a Photo
-          </button>
-        </div>
-      </section>
+      {photo ? (
+        <CapturePreview
+          file={photo}
+          onUse={(taken) => {
+            setPhoto(null);
+            addFiles([taken]);
+            requestAnimationFrame(() => actionsRef.current?.querySelector('button')?.focus());
+          }}
+          onRetake={() => {
+            setPhoto(null);
+            // Pressed by the person, so the phone's camera may open again at once.
+            cameraRef.current?.click();
+          }}
+        />
+      ) : (
+        <section
+          className="upload-drop"
+          data-dragging={dragging ? 'true' : undefined}
+          data-phone={phone ? 'true' : undefined}
+          aria-labelledby={dropTitleId}
+          aria-describedby={dropHintId}
+          {...dropHandlers}
+        >
+          <p className="upload-drop-title" id={dropTitleId}>
+            Drop Files Here
+          </p>
+          <p className="upload-drop-hint" id={dropHintId}>
+            {phone
+              ? 'Take a photo of the card or page, or choose files already on your phone. Each file gets its own line below.'
+              : 'Drag one or more files into this box, or use a button. Each file gets its own line below.'}
+          </p>
+          <div className="upload-drop-actions" ref={actionsRef}>
+            {phone ? cameraButton : null}
+            <button
+              type="button"
+              className={`btn ${phone ? 'btn-secondary' : 'btn-primary'}`}
+              aria-describedby={limitsId}
+              onClick={() => pickerRef.current?.click()}
+            >
+              Choose Files
+            </button>
+            {phone ? null : cameraButton}
+          </div>
+        </section>
+      )}
       <input
         ref={pickerRef}
         className="sr-only"
@@ -448,12 +511,32 @@ export function DocumentUploader({
         aria-label="Camera Photo"
         data-testid="camera-photo"
         onChange={(event) => {
-          addFiles(Array.from(event.currentTarget.files ?? []));
+          // One photo, shown for a check before anything is sent (F2). The file stays valid
+          // after the input is cleared, which lets the same camera be opened again at once.
+          const taken = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
+          if (taken) setPhoto(taken);
         }}
       />
 
       <output className="upload-summary">{uploadSummary(items)}</output>
+      {unreceipted.length > 0 ? (
+        <ReceiptCard
+          title={unreceipted.length === 1 ? 'Document Saved' : 'Documents Saved'}
+          what={receiptWhat(unreceipted, notAddedCount)}
+          at={Math.max(...unreceipted.map((item) => item.addedAt ?? 0))}
+          honestLine="Saved privately. Nobody else can open it until you share it."
+          next={{ label: 'View Your Documents', href: `/app/applicant/${applicantId}/documents` }}
+          onDone={() =>
+            setItems((current) =>
+              current.map((item) =>
+                item.status === 'added' ? { ...item, receipted: true } : item,
+              ),
+            )
+          }
+          returnFocusTo={() => actionsRef.current?.querySelector('button') ?? null}
+        />
+      ) : null}
       {items.length > 0 ? (
         <ul className="upload-list" aria-label="Files Being Added">
           {items.map((item) => {

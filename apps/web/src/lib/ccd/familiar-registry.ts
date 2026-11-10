@@ -154,20 +154,21 @@ export const FAMILIAR_ROWS: readonly FamiliarRow[] = [
   {
     screen: 'add documents',
     pattern: 'camera or file upload',
-    class: 'partly',
-    matches: 'WhatsApp attach, but with a type to choose',
+    class: 'familiar',
+    matches:
+      'WhatsApp and bank identity check: Take a Photo first on a phone, then Use This or Retake',
     weight: 5,
-    files: ['app/app/applicant/[id]/document-uploader.tsx'],
+    files: ['app/app/applicant/[id]/document-uploader.tsx', 'components/capture-preview.tsx'],
+    proof: { file: 'components/capture-preview.tsx', includes: 'Retake' },
   },
   {
     screen: 'add documents',
     pattern: 'upload receipt',
-    class: 'bespoke',
-    matches: 'bKash receipt, but ours lists checks run on the file',
+    class: 'familiar',
+    matches: 'bKash transaction receipt: a tick, what happened, when, and Done',
     weight: 3,
-    files: ['app/app/applicant/[id]/documents/add/page.tsx'],
-    reason:
-      'It reports what was really checked on each file, which no everyday app does; it must stay exact.',
+    files: ['components/receipt-card.tsx', 'app/app/applicant/[id]/document-uploader.tsx'],
+    proof: { file: 'app/app/applicant/[id]/document-uploader.tsx', includes: '<ReceiptCard' },
   },
   {
     screen: 'every form',

@@ -20253,3 +20253,134 @@ html:has(.sticky-action-bar) .toast-region {
   margin: 0;
 }
 /* end WP-F3C */
+
+/* WP-F2 Camera check and receipt (batch F2, 10 Nov 2026): the look-before-you-send step after a photo, and the receipt after a saved document or a sharing request, the way a bank's identity check and a bKash receipt read. Flat, tokens and the green tone only, no shadows or translucent surfaces. */
+.capture-preview {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 32rem;
+}
+.capture-title {
+  margin: 0;
+  font-size: var(--text-lead);
+}
+.capture-title:focus {
+  outline: none;
+}
+.capture-title:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.capture-hint,
+.capture-note {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.capture-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  min-height: 12rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: #152b37;
+}
+.capture-image {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+}
+.capture-unreadable {
+  margin: 0;
+  padding: var(--space-5);
+  color: #f9f8f5;
+  text-align: center;
+}
+/* The outline only draws: it ignores taps, never covers the buttons and never fills the photo. */
+.capture-outline {
+  position: absolute;
+  pointer-events: none;
+  border: 2px solid #ffffff;
+  outline: 2px solid #152b37;
+  border-radius: var(--radius-sm);
+  inset: 8% 6%;
+}
+.capture-frame[data-shape="page"] .capture-outline {
+  inset: 5% 14%;
+}
+.capture-actions,
+.receipt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.capture-actions .btn,
+.receipt-actions .btn {
+  min-height: 44px;
+}
+.upload-drop[data-phone="true"] .upload-drop-actions .btn {
+  flex: 1 1 100%;
+}
+.receipt-card {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  max-width: 32rem;
+  padding: var(--space-5);
+  border: 1px solid var(--tone);
+  border-radius: var(--radius);
+  background: var(--tone-bg);
+  color: var(--text);
+}
+.receipt-mark {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: var(--tone);
+  color: #ffffff;
+}
+.receipt-title {
+  margin: 0;
+  color: var(--tone);
+}
+.receipt-title:focus {
+  outline: none;
+}
+.receipt-title:focus-visible {
+  outline: 3px solid var(--tone);
+  outline-offset: 3px;
+}
+.receipt-what,
+.receipt-honest,
+.receipt-reference {
+  margin: 0;
+}
+.receipt-honest {
+  font-size: var(--text-small);
+}
+.receipt-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  width: 100%;
+}
+.receipt-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-top: 1px solid var(--tone);
+}
+.receipt-facts dt {
+  font-weight: 600;
+}
+.receipt-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* end WP-F2 */

@@ -261,3 +261,125 @@ describe('adding several files at once', () => {
     expect(rows()[20]?.textContent).toContain('Add up to 20 files at a time');
   });
 });
+
+describe('the photo check before sending (F2)', () => {
+  const camera = () => host.querySelector('[data-testid="camera-photo"]') as HTMLInputElement;
+  const button = (label: string) =>
+    Array.from(host.querySelectorAll('button')).find((b) => b.textContent === label);
+  const raf = () =>
+    vi.stubGlobal('requestAnimationFrame', (run: () => void) => {
+      run();
+      return 1;
+    });
+
+  beforeEach(() => {
+    let n = 0;
+    URL.createObjectURL = () => `blob:photo/${n++}`;
+    URL.revokeObjectURL = () => undefined;
+  });
+
+  it('shows the photo to check and sends nothing until Use This', async () => {
+    await mount();
+    await choose(camera(), [file('IMG_1.jpg', 10, 'image/jpeg')]);
+    expect(host.querySelector('.capture-preview h3')?.textContent).toBe('Check Your Photo');
+    expect(document.activeElement).toBe(host.querySelector('.capture-preview h3'));
+    expect(FakeRequest.sent).toHaveLength(0);
+    expect(rows()).toHaveLength(0);
+    // The drop box steps aside while the photo is being checked.
+    expect(host.querySelector('.upload-drop')).toBeNull();
+
+    raf();
+    await act(async () => button('Use This')?.click());
+    expect(host.querySelector('.capture-preview')).toBeNull();
+    expect(rows()).toHaveLength(1);
+    expect(FakeRequest.sent).toHaveLength(1);
+    expect(host.querySelector('.upload-drop')).not.toBeNull();
+  });
+
+  it('Retake throws the photo away and opens the camera again', async () => {
+    await mount();
+    await choose(camera(), [file('IMG_1.jpg', 10, 'image/jpeg')]);
+    const opened: string[] = [];
+    camera().addEventListener('click', () => opened.push('camera'));
+    await act(async () => button('Retake')?.click());
+    expect(opened).toEqual(['camera']);
+    expect(host.querySelector('.capture-preview')).toBeNull();
+    expect(rows()).toHaveLength(0);
+    expect(FakeRequest.sent).toHaveLength(0);
+  });
+
+  it('a file the form cannot take is turned away on Use This, like any other file', async () => {
+    await mount();
+    await choose(camera(), [file('huge.pdf', 5000, 'application/pdf')]);
+    raf();
+    await act(async () => button('Use This')?.click());
+    expect(FakeRequest.sent).toHaveLength(0);
+    expect(rows()[0]?.getAttribute('data-status')).toBe('not_sent');
+  });
+
+  it('puts the camera first and makes it the main button on a phone only', async () => {
+    const labels = () =>
+      Array.from(host.querySelectorAll('.upload-drop-actions button')).map((b) => b.textContent);
+    await mount();
+    expect(labels()).toEqual(['Choose Files', 'Take a Photo']);
+    await act(async () => root.unmount());
+    root = createRoot(host);
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(pointer: coarse)',
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    await mount();
+    expect(labels()).toEqual(['Take a Photo', 'Choose Files']);
+    expect(button('Take a Photo')?.className).toContain('btn-primary');
+    expect(button('Choose Files')?.className).toContain('btn-secondary');
+  });
+});
+
+describe('the receipt after a document is saved (F2)', () => {
+  const picker2 = () => host.querySelector('[data-testid="document-files"]') as HTMLInputElement;
+
+  it('appears once the file is stored, with the time, the honest line and the two buttons', async () => {
+    await mount();
+    await choose(picker2(), [file('passport.png', 10, 'image/png')]);
+    expect(host.querySelector('.receipt-card')).toBeNull();
+    await act(async () =>
+      (FakeRequest.sent[0] as FakeRequest).answer(201, {
+        message: 'Added.',
+        title: 'Passport',
+        documentId: '11111111-1111-4111-8111-111111111111',
+      }),
+    );
+    const card = host.querySelector('.receipt-card') as HTMLElement;
+    expect(card.querySelector('h3')?.textContent).toBe('Document Saved');
+    expect(card.textContent).toContain('Passport is saved in your documents.');
+    expect(card.querySelector('time')).not.toBeNull();
+    expect(card.textContent).toContain('Nobody else can open it until you share it.');
+    expect(card.querySelector('a')?.getAttribute('href')).toBe('/app/applicant/a-1/documents');
+    expect(card.textContent).not.toMatch(/reviewed|approved|accepted/i);
+    expect(document.activeElement).toBe(card.querySelector('h3'));
+  });
+
+  it('says how many were not added, and Done closes the receipt but keeps the list for them', async () => {
+    await mount();
+    await choose(picker2(), [file('one.png', 10, 'image/png'), file('two.png', 10, 'image/png')]);
+    await act(async () =>
+      (FakeRequest.sent[0] as FakeRequest).answer(201, { message: 'Added.', title: 'One' }),
+    );
+    await act(async () =>
+      (FakeRequest.sent[1] as FakeRequest).answer(400, { message: 'This file is not allowed.' }),
+    );
+    const card = host.querySelector('.receipt-card') as HTMLElement;
+    expect(card.textContent).toContain('1 file not added; the list below says why.');
+    const first = host.querySelector('.upload-drop-actions button') as HTMLButtonElement;
+    vi.stubGlobal('requestAnimationFrame', (run: () => void) => {
+      run();
+      return 1;
+    });
+    const done = Array.from(card.querySelectorAll('button')).find((b) => b.textContent === 'Done');
+    await act(async () => done?.click());
+    expect(host.querySelector('.receipt-card')).toBeNull();
+    expect(rows()).toHaveLength(2);
+    expect(document.activeElement).toBe(first);
+  });
+});
