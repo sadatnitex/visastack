@@ -19,10 +19,13 @@ import { InvitationLink } from './invitation-link';
 export function InvitationOutcome({
   state,
   pendingInvitationIds,
+  purpose,
 }: {
   readonly state: ActionState;
   /** Invitations still waiting, as the page last read them. */
   readonly pendingInvitationIds: readonly string[];
+  /** Who the invitation is for: a client or a colleague on the team. */
+  readonly purpose: 'client' | 'team';
 }) {
   const id = state.invitationId;
   const listed = id !== undefined && pendingInvitationIds.includes(id);
@@ -35,7 +38,7 @@ export function InvitationOutcome({
     <>
       <FormMessage result={shown} />
       {shown.ok && shown !== NO_RESULT && state.invitationUrl ? (
-        <InvitationLink key={state.invitationUrl} url={state.invitationUrl} />
+        <InvitationLink key={state.invitationUrl} url={state.invitationUrl} purpose={purpose} />
       ) : null}
     </>
   );
