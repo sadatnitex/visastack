@@ -47,10 +47,21 @@ export function SwitcherTabs({
   const [first, setFirst] = useState<string | null>(null);
   // A link's target inside a panel, to scroll to once its panel is shown.
   const pending = useRef<HTMLElement | null>(null);
+  // Every change of the chosen section goes through here, so the ref never lags the state.
+  const choose = (key: string | null) => {
+    chosenNow.current = key;
+    setChosen(key);
+  };
+  // The chosen section as of now, for a link handler that outlives a render.
+  const chosenNow = useRef<string | null>(initial ?? null);
   const root = useRef<HTMLDivElement>(null);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => setReady(true), []);
+  // A change made by depth (not by a link or a click) also reaches the ref.
+  useEffect(() => {
+    chosenNow.current = chosen;
+  }, [chosen]);
 
   // Once the tabs are drawn (not before: a hidden row of tabs has no drawn tab), choose the wanted
   // section whenever its tab is drawn, else keep the chosen one while it is, else none.
@@ -83,8 +94,16 @@ export function SwitcherTabs({
       const key = panel?.getAttribute('data-switcher-panel');
       if (key && target && panel && root.current?.contains(panel)) {
         wanted.current = key;
-        pending.current = target;
-        setChosen(key);
+        if (chosenNow.current === key) {
+          // Already showing: go to the target now. Nothing would run later, so nothing is left
+          // waiting to pull focus back when the person returns to this tab.
+          pending.current = null;
+          focusTarget(target);
+        } else {
+          pending.current = target;
+          chosenNow.current = key;
+          setChosen(key);
+        }
       }
     };
     const fromHash = () => {
@@ -146,7 +165,7 @@ export function SwitcherTabs({
     const key = keys[to];
     if (key) {
       wanted.current = key;
-      setChosen(key);
+      choose(key);
     }
     tabs.current[to]?.focus();
   };
@@ -169,7 +188,7 @@ export function SwitcherTabs({
             className="sw-tab"
             onClick={() => {
               wanted.current = section.key;
-              setChosen(section.key);
+              choose(section.key);
             }}
             onKeyDown={(event) => move(event, index)}
             {...atLevel(section.level)}

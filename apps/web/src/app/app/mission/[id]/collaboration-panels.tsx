@@ -1,12 +1,21 @@
 'use client';
 
 import { type ReactNode, useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
 import { useLatestOf } from '../../../../components/latest-result';
 import { TimeZoneSelect } from '../../../../components/time-zone-select';
+import { StatusPill } from '../../../../components/ui-lift/status-pill';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { plural } from '../../../../lib/plural';
+import {
+  CHOSEN_STATUS,
+  FRESHNESS_UNKNOWN_STATUS,
+  NOT_ELIGIBLE_STATUS,
+  type StatusWord,
+  TOO_OLD_STATUS,
+} from '../../../../lib/status-words';
 import {
   type ActionState,
   createAppointmentAction,
@@ -447,37 +456,79 @@ export interface CandidateView {
 
 type EvidenceAction = (formData: FormData) => void;
 
+/** One row's own button: busy only while this row's form is being sent, with words that say what it does. */
+function RowSubmit({
+  idle,
+  busy,
+  label,
+}: {
+  readonly idle: string;
+  readonly busy: string;
+  readonly label: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <SubmitButton
+      pending={pending}
+      idle={idle}
+      busy={busy}
+      label={label}
+      className="btn btn-secondary u-btn-xs"
+    />
+  );
+}
+
+/** A small status chip beside a file's name, from the one chip vocabulary. */
+function FileChip({ status }: { readonly status: StatusWord }) {
+  return (
+    <span className="lp-choice-chip">
+      <StatusPill tone={status.tone}>{status.word}</StatusPill>
+    </span>
+  );
+}
+
 /** One item's files, each with Select or Selected - Remove, drawn with the actions it is given. */
 function CandidateRows({
   missionId,
   candidate: c,
   selectAction,
   unselectAction,
-  selectPending,
-  unselectPending,
+  editable = true,
 }: {
   readonly missionId: string;
   readonly candidate: CandidateView;
   readonly selectAction: EvidenceAction;
   readonly unselectAction: EvidenceAction;
-  readonly selectPending: boolean;
-  readonly unselectPending: boolean;
+  /** The case is open. When it is not, the files are listed with the chosen one marked, and no buttons. */
+  readonly editable?: boolean;
 }) {
-  const choice = (id: string, kind: 'fact' | 'document', label: ReactNode, selected: boolean) => {
+  const choice = (
+    id: string,
+    kind: 'fact' | 'document',
+    name: string,
+    chips: ReactNode,
+    selected: boolean,
+  ) => {
     const selectionId =
       c.selectionIdsByCandidate[composeSelectionCandidateKey(c.packRequirementId, id)];
     return (
-      <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        <span style={{ fontSize: 'var(--text-small)', flex: 1 }}>{label}</span>
-        {selected && selectionId ? (
+      <div key={id} className="lp-choice">
+        <span className="lp-choice-label">
+          {name}
+          {chips}
+        </span>
+        {!editable ? (
+          selected ? (
+            <FileChip status={CHOSEN_STATUS} />
+          ) : null
+        ) : selected && selectionId ? (
           <form action={unselectAction}>
             <input type="hidden" name="missionId" value={missionId} />
             <input type="hidden" name="selectionId" value={selectionId} />
-            <SubmitButton
-              pending={unselectPending}
+            <RowSubmit
               idle="Selected - Remove"
-              busy="Selected - Remove"
-              className="btn btn-secondary u-btn-xs"
+              busy="Removing…"
+              label={`Selected - Remove ${name}`}
             />
           </form>
         ) : (
@@ -485,12 +536,7 @@ function CandidateRows({
             <input type="hidden" name="missionId" value={missionId} />
             <input type="hidden" name="packRequirementId" value={c.packRequirementId} />
             <input type="hidden" name={kind === 'fact' ? 'factId' : 'documentId'} value={id} />
-            <SubmitButton
-              pending={selectPending}
-              idle="Select"
-              busy="Select"
-              className="btn btn-secondary u-btn-xs"
-            />
+            <RowSubmit idle="Select" busy="Choosing…" label={`Select ${name}`} />
           </form>
         )}
       </div>
@@ -501,15 +547,8 @@ function CandidateRows({
         choice(
           fact.factId,
           'fact',
-          <>
-            {fact.value}
-            {fact.repeatingRecordKey ? ` (${fact.repeatingRecordKey})` : ''}
-            {!fact.eligible ? (
-              <span className="badge badge-danger" style={{ marginLeft: '0.4rem' }}>
-                not eligible
-              </span>
-            ) : null}
-          </>,
+          `${fact.value || 'This answer'}${fact.repeatingRecordKey ? ` (${fact.repeatingRecordKey})` : ''}`,
+          fact.eligible ? null : <FileChip status={NOT_ELIGIBLE_STATUS} />,
           c.selectedFactIds.includes(fact.factId),
         ),
       )
@@ -517,28 +556,15 @@ function CandidateRows({
         choice(
           doc.documentId,
           'document',
+          doc.displayName,
           <>
-            {doc.displayName}
-            {!doc.eligible ? (
-              <span className="badge badge-danger" style={{ marginLeft: '0.4rem' }}>
-                not eligible
-              </span>
-            ) : null}
-            {doc.staleness === 'stale' ? (
-              <span className="badge badge-danger" style={{ marginLeft: '0.4rem' }}>
-                too old for this route
-              </span>
-            ) : null}
-            {doc.staleness === 'unknown' ? (
-              <span className="badge badge-neutral" style={{ marginLeft: '0.4rem' }}>
-                freshness unknown
-              </span>
-            ) : null}
+            {doc.eligible ? null : <FileChip status={NOT_ELIGIBLE_STATUS} />}
+            {doc.staleness === 'stale' ? <FileChip status={TOO_OLD_STATUS} /> : null}
+            {doc.staleness === 'unknown' ? <FileChip status={FRESHNESS_UNKNOWN_STATUS} /> : null}
             {doc.lifecycleLabel ? (
-              <>
-                {' '}
-                <span className="badge badge-neutral">{doc.lifecycleLabel}</span>
-              </>
+              <span className="lp-choice-chip">
+                <StatusPill tone="neutral">{doc.lifecycleLabel}</StatusPill>
+              </span>
             ) : null}
           </>,
           c.selectedDocumentIds.includes(doc.documentId),
@@ -557,11 +583,8 @@ export function EvidenceItemChoices({
   readonly missionId: string;
   readonly candidate: CandidateView;
 }) {
-  const [selectState, selectAction, selectPending] = useActionState(selectEvidenceAction, INITIAL);
-  const [unselectState, unselectAction, unselectPending] = useActionState(
-    unselectEvidenceAction,
-    INITIAL,
-  );
+  const [selectState, selectAction] = useActionState(selectEvidenceAction, INITIAL);
+  const [unselectState, unselectAction] = useActionState(unselectEvidenceAction, INITIAL);
   const [status] = useLatestOf({ select: selectState, unselect: unselectState });
   return (
     <div className="rows">
@@ -570,8 +593,6 @@ export function EvidenceItemChoices({
         candidate={candidate}
         selectAction={selectAction}
         unselectAction={unselectAction}
-        selectPending={selectPending}
-        unselectPending={unselectPending}
       />
       <FormMessage result={status} />
     </div>
@@ -581,15 +602,15 @@ export function EvidenceItemChoices({
 export function EvidenceSelectionPanel({
   missionId,
   candidates,
+  editable = true,
 }: {
   readonly missionId: string;
   readonly candidates: readonly CandidateView[];
+  /** The case is open, so the choice can still change. */
+  readonly editable?: boolean;
 }) {
-  const [selectState, selectAction, selectPending] = useActionState(selectEvidenceAction, INITIAL);
-  const [unselectState, unselectAction, unselectPending] = useActionState(
-    unselectEvidenceAction,
-    INITIAL,
-  );
+  const [selectState, selectAction] = useActionState(selectEvidenceAction, INITIAL);
+  const [unselectState, unselectAction] = useActionState(unselectEvidenceAction, INITIAL);
   // One line for the panel: selecting and removing answer in the same place.
   const [evidenceStatus] = useLatestOf({ select: selectState, unselect: unselectState });
   const multiCandidate = candidates.filter(hasSeveralToChoose);
@@ -600,24 +621,20 @@ export function EvidenceSelectionPanel({
     <article className="card">
       <p className="card-kicker">Precision</p>
       <h2 className="card-title">Select Evidence</h2>
-      <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
+      <p className="muted lp-choice-intro">
         More than one instance is on file for these requirements - pick exactly which one backs
         each. Until you select, any eligible instance may count.
       </p>
       <div className="rows">
         {multiCandidate.map((c) => (
-          <div
-            key={c.packRequirementId}
-            style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}
-          >
+          <div key={c.packRequirementId} className="lp-choice-group">
             <span className="row-key">{c.label}</span>
             <CandidateRows
               missionId={missionId}
               candidate={c}
               selectAction={selectAction}
               unselectAction={unselectAction}
-              selectPending={selectPending}
-              unselectPending={unselectPending}
+              editable={editable}
             />
           </div>
         ))}
