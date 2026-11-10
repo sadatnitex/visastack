@@ -153,6 +153,48 @@ export async function previewSharingInvitation(
 }
 
 /**
+ * Who is sharing, for the page where the invited person reviews the access (friction F3): the
+ * sender's email address, so the recipient can recognise who sent it. It takes the invitation that
+ * `previewSharingInvitation` just returned for this person, and checks again, on its own, that the
+ * invitation was sent to this person's email, is still pending and has not expired; for anyone
+ * else, and for an invitation that has ended, it returns nothing. If the sender's account cannot
+ * be found it also returns nothing (never a guess). It reads two account rows and no applicant
+ * record, writes nothing and starts no access. An account holds no display name, so the email is
+ * the one thing that identifies the sender.
+ */
+export async function sharingInvitationSender(
+  db: Db,
+  input: {
+    readonly actorAccountId: string;
+    readonly invitation: Pick<
+      SharingInvitation,
+      'email' | 'status' | 'expiresAt' | 'invitedByAccountId'
+    >;
+  },
+): Promise<{ readonly email: string } | null> {
+  const { invitation } = input;
+  if (invitation.status !== 'PENDING' || invitation.expiresAt.getTime() <= Date.now()) return null;
+  const [recipient, sender] = await Promise.all([
+    db
+      .select({ email: schema.accounts.email })
+      .from(schema.accounts)
+      .where(eq(schema.accounts.id, input.actorAccountId))
+      .limit(1),
+    db
+      .select({ email: schema.accounts.email })
+      .from(schema.accounts)
+      .where(eq(schema.accounts.id, invitation.invitedByAccountId))
+      .limit(1),
+  ]);
+  const recipientEmail = first(recipient)?.email.toLowerCase();
+  const senderEmail = first(sender)?.email;
+  if (!recipientEmail || recipientEmail !== invitation.email.toLowerCase() || !senderEmail) {
+    return null;
+  }
+  return { email: senderEmail };
+}
+
+/**
  * The named documents that are not in Recently Deleted or being removed, in their order
  * (presentDocumentCondition). Before migration 0113 every named document is kept.
  */

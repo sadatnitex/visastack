@@ -20079,3 +20079,57 @@ html:has(.sticky-action-bar) .toast-region {
   border-color: var(--danger);
 }
 /* end WP-F1C */
+
+/* WP-LP4 Sharing on the list pattern (10 Nov 2026): each grant is one row that says what is shared and until when; the grant, and the form for a new sharing request, open in the side panel (a full screen on a phone). The panel takes the side column only while it is open. Flat, tokens only, 44 px targets. */
+.sharing-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.sharing-main {
+  min-width: 0;
+}
+.sharing-workspace {
+  grid-template-columns: minmax(0, 1fr);
+}
+.rows:has(> .sharing-grant-item) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.sharing-grant-item {
+  min-width: 0;
+}
+@media (min-width: 1181px) {
+  .sharing-shell > .lp-root > .lp-pane {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: calc(var(--header-height) + 1rem);
+    max-height: calc(100vh - var(--header-height) - 2rem);
+    overflow-y: auto;
+  }
+  .sharing-shell:has(> .lp-root > .lp-pane[data-sheet="open"]) {
+    grid-template-columns: minmax(0, 1fr) 24rem;
+  }
+}
+.sharing-grant-pane .lc-revoke-short {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.grant-purpose-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  border: 0;
+}
+.grant-purpose-chip[aria-pressed="true"] {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+/* end WP-LP4 */

@@ -113,7 +113,10 @@ describe('native scoped sharing confirmation', () => {
     ready();
     review();
     expect(submit?.disabled).toBe(false);
-    expect(container.textContent).toContain('They must accept');
+    // One warning near the button, not three (friction F5): that they must accept is said above
+    // the form, so it is not repeated beside the button.
+    expect(container.textContent).not.toContain('They must accept');
+    expect(container.querySelectorAll('.scope-summary-note')).toHaveLength(1);
     expect(container.textContent).toContain('your whole profile');
     expect(container.textContent).toContain('every document');
     expect(document.activeElement?.className).toBe('sharing-scope-review');
@@ -253,6 +256,44 @@ describe('grant review brief (WP-X2)', () => {
     expect(brief?.textContent).toContain('Everything you did not select stays private.');
   });
 
+  it('says why Confirm Sharing Request is not ready, until the access is reviewed (friction F7)', () => {
+    const reason = () => container.querySelector('[data-testid="confirm-reason"]');
+    expect(reason()?.textContent).toBe('Press Review and Confirm first.');
+    ready();
+    expect(reason()?.textContent).toBe('Press Review and Confirm first.');
+    review();
+    expect(reason()).toBeNull();
+    change('purpose', 'Changed purpose');
+    expect(reason()?.textContent).toBe('Press Review and Confirm first.');
+  });
+
+  it('fills the Purpose box from a common reason and leaves it editable and required (friction F8)', () => {
+    const purpose = () => container.querySelector<HTMLInputElement>('#purpose');
+    const chips = () => [...container.querySelectorAll<HTMLButtonElement>('.grant-purpose-chip')];
+    expect(chips().map((chip) => chip.textContent)).toEqual([
+      'Review My Documents',
+      'Help with My Visa Form',
+      'Check My Bank Statements',
+    ]);
+    expect(chips().every((chip) => chip.type === 'button')).toBe(true);
+    ready();
+    review();
+    act(() => chips()[1]?.click());
+    expect(purpose()?.value).toBe('Help with my visa form');
+    expect(purpose()?.required).toBe(true);
+    expect(chips()[1]?.getAttribute('aria-pressed')).toBe('true');
+    expect(chips()[0]?.getAttribute('aria-pressed')).toBe('false');
+    // The words a chip wrote are part of what is about to be confirmed, so the review starts again.
+    expect(container.querySelector('[data-testid="confirm-reason"]')).not.toBeNull();
+    const form = container.querySelector('form');
+    if (!form) throw new Error('Form');
+    expect(new FormData(form).get('purpose')).toBe('Help with my visa form');
+    // Typing over it still works, and no chip stays pressed.
+    change('purpose', 'Help with my Canada form');
+    expect(purpose()?.value).toBe('Help with my Canada form');
+    expect(chips().some((chip) => chip.getAttribute('aria-pressed') === 'true')).toBe(false);
+  });
+
   it('still requires review before confirming', () => {
     ready();
     const submit = container.querySelector<HTMLButtonElement>('button[type="submit"]');
@@ -273,6 +314,10 @@ describe('grant review brief (WP-X2)', () => {
       container.querySelector<HTMLInputElement>('input[value="DOWNLOAD_REDACTED"]')?.click(),
     );
     expect(container.querySelector('.scope-summary-download')?.textContent).toBe(sentence);
+    // That is the only warning: the line before it states what is included and says no more about pausing.
+    expect(container.querySelector('.scope-summary-note')?.textContent).toBe(
+      'Safe copies may be downloaded; original downloads are not included.',
+    );
     act(() =>
       container.querySelector<HTMLInputElement>('input[value="DOWNLOAD_REDACTED"]')?.click(),
     );

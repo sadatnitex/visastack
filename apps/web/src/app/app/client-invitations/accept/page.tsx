@@ -1,4 +1,5 @@
 import {
+  GRANT_DEFAULT_DURATION_DAYS,
   aiAssistAvailable,
   getConsents,
   getOrganizationBrandingForDisplay,
@@ -7,7 +8,10 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { InvitingAgency } from '../../../../components/inviting-agency';
-import { clientInvitationTerms } from '../../../../lib/client-invitation-terms';
+import {
+  clientAccessDurationLine,
+  clientInvitationTerms,
+} from '../../../../lib/client-invitation-terms';
 import { withSession } from '../../../../lib/session';
 import { AcceptClientInvitationForm } from './accept-form';
 import { ConsentGate } from './consent-gate';
@@ -110,6 +114,9 @@ export default async function AcceptClientInvitationPage({
                   ))}
                 </ul>
                 {terms.agencyCannot ? <p className="card-body">{terms.agencyCannot}</p> : null}
+                <p className="card-body" data-testid="client-access-duration">
+                  {clientAccessDurationLine(GRANT_DEFAULT_DURATION_DAYS)}
+                </p>
               </>
             ) : (
               <p className="card-body">

@@ -591,14 +591,19 @@ test.describe
       await page.getByLabel('Purpose').fill('E2E revoke before acceptance');
       await page.getByRole('button', { name: 'Review and Confirm' }).click();
       await page.getByRole('button', { name: 'Confirm Sharing Request' }).click();
-      const pendingRow = page.locator('.row', { hasText: 'E2E revoke before acceptance' });
+      // The new grant is a row in the list; the row opens its panel, where Revoke is.
+      const pendingRow = page.locator('[data-pattern="list-row"]', { hasText: email2 ?? '' });
       await expect(pendingRow).toBeVisible({ timeout: 10_000 });
-      await pendingRow.getByRole('button', { name: 'Revoke' }).click();
-      await pendingRow.getByRole('button', { name: 'Yes, Revoke Access' }).click();
-      await expect(page.locator('.row', { hasText: 'E2E revoke before acceptance' })).toContainText(
-        /revoked/i,
-        { timeout: 10_000 },
-      );
+      await pendingRow.getByRole('link').first().click();
+      const grantPanel = page.locator('[data-pattern="detail-pane"]:visible');
+      await expect(grantPanel).toContainText('E2E revoke before acceptance');
+      await grantPanel.getByRole('button', { name: 'Revoke' }).click();
+      await grantPanel.getByRole('button', { name: 'Yes, Revoke Access' }).click();
+      // A revoke reloads the page with every panel closed; the row is now under Ended Access.
+      await expect(page).toHaveURL(/done=revoked/, { timeout: 10_000 });
+      await expect(
+        page.locator('[data-pattern="list-row"]', { hasText: email2 ?? '' }).first(),
+      ).toContainText(/revoked/i);
 
       // Failure path: the recipient never sees it as something to accept.
       const recipient = await secondSession(browser, baseURL);
@@ -617,7 +622,9 @@ test.describe
       await page.getByLabel('Preview Documents').uncheck();
       await page.getByRole('button', { name: 'Review and Confirm' }).click();
       await page.getByRole('button', { name: 'Confirm Sharing Request' }).click();
-      await expect(page.locator('.row', { hasText: sharedFixture.grantPurpose })).toBeVisible({
+      await expect(
+        page.locator('[data-pattern="list-row"]', { hasText: email2 ?? '' }).first(),
+      ).toBeVisible({
         timeout: 10_000,
       });
     });

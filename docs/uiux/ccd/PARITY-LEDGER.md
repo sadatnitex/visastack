@@ -563,3 +563,25 @@ Approved change. Nothing is removed: "Copy Link" stays on invitation and request
 | Invitation link: "Copy Link", "Share Link" | "Send on WhatsApp", "More Ways to Send" on a phone, "Copy Link", "Copy Message" | Agency Clients, Team; traveller Sharing |
 | Summaries: "Open WhatsApp", "Copy Message" | "Send on WhatsApp", "Copy Message" (same generic message) | Traveller Summaries |
 | Help: email only | Adds "Send on WhatsApp" when the business number is set | Help |
+
+
+## 08. Sharing: package 5 of the case page plan and friction F1 to F9 (10 Nov 2026)
+
+Approved changes (coordinator brief, 10 Nov 2026; `lib/ccd/approved-changes.ts`). Nothing is removed: every grant, scope, purpose, expiry, pause, resume, revoke and invitation rule, every consent gate, every server action and form field name, and the Access Log are unchanged. No database change.
+
+| Before | After | Where |
+|---|---|---|
+| Each grant a card with its details behind a "Grant Details" fold | Each grant a row: name, status word and one line of what they receive and until when ("Documents: 3 of 12. Ends 12 Dec 2026"); the row opens the grant in the side panel (a full screen on a phone) with the scope, Pause, Resume, Revoke and the revoke sentence beside them | Sharing |
+| "Ended Access (n)" fold | "Ended Access" group with its count, same kit as the case page | Sharing |
+| The form for a new request always in a second column | The form opens in the side panel from New Sharing Request (and opens at once from Share on a document, `?item=new`, or the old `#new-sharing-request` address) | Sharing |
+| Three warnings around the confirm button | What is included, and one revoke sentence (the owner-approved one when safe copies are on) | Sharing form |
+| Confirm button disabled with no reason | "Press Review and Confirm first." beside it | Sharing form |
+| Purpose typed from nothing | Three one-tap reasons fill the same required, editable box | Sharing form |
+| "Access is purpose-bound..." | "They can only use it for the reason you gave. It starts when they accept. You can pause or stop it any time." | About Sharing |
+| Permissions as a list of labels | "They can open and read your documents." style phrases | Sharing, shared access page |
+| Agency invitation page silent on how long | "Access lasts 30 days from the day you accept. You can pause or end it any time in Sharing & Requests." (the number is the services' own default, pinned by a test) | Agency invitation page |
+| Shared access page did not say who sends it | "Shared By" with the sender's email, shown only to the invited person while the invitation is open | Shared access page |
+| Raw category names | The same names the traveller saw | Shared access page |
+| Contributor request: link only | Adds "Send on WhatsApp" (document kind and the private link only) | Case page, Ask a Contributor |
+
+Guard tests: `lib/ccd/parity-sharing.test.tsx`, `lib/ccd/pattern-conformance.test.tsx` (Sharing converted, waiting count 15), `lib/grant-row-line.test.ts`, `lib/permission-phrases.test.ts`, `applicant/[id]/sharing/{page,grant-form}.test.tsx`, `client-invitations/accept/page.test.tsx`, `sharing-invitations/accept/page.test.tsx`, `lib/whatsapp-link.test.ts`, `mission/[id]/contributor-requests-panel.test.tsx`, services `sharing-invitations.test.ts` (a different recipient learns nothing) and `client-invitations.test.ts` (the 30 days).

@@ -558,6 +558,7 @@ export {
   type ScopeExpansionCandidate,
   type ExtendGrantInput,
   type ExtendGrantResult,
+  GRANT_DEFAULT_DURATION_DAYS,
   GRANT_EXTENSION_DAYS,
   GRANT_EXTEND_ENDED,
   GRANT_EXTEND_RESUME_FIRST,
@@ -1633,6 +1634,7 @@ export { type PlatformOverview, getPlatformOverview } from './platform-overview'
 
 export {
   createSharingInvitation,
+  sharingInvitationSender,
   previewSharingInvitation,
   acceptSharingInvitation,
   listSharingInvitations,
