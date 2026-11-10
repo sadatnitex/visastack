@@ -96,7 +96,13 @@ export function daysSinceSent(
   now: Date,
   timezone: string | null | undefined,
 ): number {
-  return localDateDiffInDays(new Date(sentAt), now, timezone || 'UTC');
+  const sent = new Date(sentAt);
+  try {
+    return localDateDiffInDays(sent, now, timezone || 'UTC');
+  } catch {
+    // An unknown zone name counts as UTC rather than break the page (as `todayIndex` does).
+    return localDateDiffInDays(sent, now, 'UTC');
+  }
 }
 
 /** A task's own due day rule: its own time zone when it has one, else the traveller's. */

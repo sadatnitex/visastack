@@ -854,20 +854,17 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
   ),
 
   // P4 entries (agency Do Next chases requests with no due date)
-  ...[
-    [
-      'Past due items first, then items waiting for review, overdue tasks and cases with no owner.',
-      'Past due items first, then requests with no reply after 3 days, items waiting for review, overdue tasks and cases with no owner.',
-    ],
-    [
-      'For the cases in your current view. Past due items first, then items waiting for review, overdue tasks and cases with no owner.',
-      'For the cases in your current view. Past due items first, then requests with no reply after 3 days, items waiting for review, overdue tasks and cases with no owner.',
-    ],
-  ].map(
-    ([from, to]): ApprovedChange => ({
+  ...['', 'For the cases in your current view. '].map(
+    (prefix): ApprovedChange => ({
       screen: 'agency-home',
-      from: { kind: 'text', name: from as string },
-      to: { kind: 'text', name: to as string },
+      from: {
+        kind: 'text',
+        name: `${prefix}Past due items first, then items waiting for review, overdue tasks and cases with no owner.`,
+      },
+      to: {
+        kind: 'text',
+        name: `${prefix}Past due items first, then requests with no reply after 3 days, items waiting for review, overdue tasks and cases with no owner.`,
+      },
       reason:
         'Owner, 10 Nov 2026 (friction register E3, packet P4): a request with no due date that has had no reply for 3 days now joins the first group, so the line on how the list is sorted says so. Nothing else on the screen changed.',
     }),

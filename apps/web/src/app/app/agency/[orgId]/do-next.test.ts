@@ -434,8 +434,8 @@ describe('Do next chases requests with no due date (owner decision, 10 Nov 2026)
   });
 
   it('counts whole days in the traveller time zone, not UTC', () => {
-    // Sent at 23:00 on the 3rd day back in UTC: still 2 whole days in UTC at 01:00, but in a
-    // zone 6 hours ahead the sent moment is already the next morning, so only 2 days there.
+    // Sent 3 days back at 20:00 UTC, checked at 01:00 UTC: 3 whole days in UTC. In a zone 6 hours
+    // ahead the sent moment is already 02:00 the next day, so only 2 days have passed there.
     const now = new Date(Date.UTC(2027, 5, 10, 1, 0));
     const sent = new Date(Date.UTC(2027, 5, 7, 20, 0)).toISOString();
     const at = (applicantTimezone: string) =>

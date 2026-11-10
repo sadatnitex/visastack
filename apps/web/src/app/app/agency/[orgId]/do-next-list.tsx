@@ -54,7 +54,7 @@ export function DoNextList({
             // The first item is the one thing to do now; the rest wait at Browse.
             <li
               key={item.key}
-              className={`do-next-item do-next-tier-${item.tier}`}
+              className={`do-next-item do-next-tier-${item.tier}${item.tierLabel ? ' do-next-chase' : ''}`}
               {...(index === 0 ? {} : atLevel('browse'))}
             >
               <div className="do-next-item-head">

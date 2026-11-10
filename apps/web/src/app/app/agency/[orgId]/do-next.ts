@@ -234,8 +234,8 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
       if (group === 'MISSING' && !request.dueDate) {
         // No due date to pass, so it is chased by how long it has gone unanswered. Sent-back items
         // are not counted this way: their send date is the original request, not the fix request.
-        if (!request.createdAt || created === 0) continue;
-        const waited = daysSinceSent(request.createdAt, now, timezone);
+        if (created === 0) continue; // no usable sent date, so nothing to count
+        const waited = daysSinceSent(new Date(created), now, timezone);
         if (waited < CHASE_AFTER_DAYS) continue;
         ranked.push({
           primary: AFTER_OVERDUE,

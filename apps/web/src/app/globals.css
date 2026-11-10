@@ -19757,3 +19757,11 @@ details.collapsible-group[hidden],
   margin-top: var(--space-5);
 }
 /* end WP-LP2 */
+
+/* P4 chased request in Do Next (10 Nov 2026): it has no due date, so it takes the warning colour, not the past-due red. */
+.do-next-chase {
+  border-left-color: var(--warning);
+}
+.do-next-chase .do-next-tier {
+  color: var(--warning);
+}
