@@ -13,6 +13,10 @@ on:
         description: 'Delete what is proven obsolete (leave off for a dry run)'
         type: boolean
         default: false
+      delete_branches:
+        description: 'Branches the owner asked to drop, comma separated (protected and open-PR branches are always refused)'
+        type: string
+        default: ''
 
 permissions:
   contents: write # delete proven-obsolete branch refs
@@ -42,7 +46,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
           APPLY_INPUT: ${{ inputs.apply }}
+          DELETE_BRANCHES: ${{ inputs.delete_branches }}
         run: |
           flag=""
           if [ "$EVENT" = "schedule" ] || [ "$APPLY_INPUT" = "true" ]; then flag="--apply"; fi
           node scripts/steward/hygiene.mjs $flag | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ -n "$DELETE_BRANCHES" ]; then
+            node scripts/steward/hygiene.mjs --delete "$DELETE_BRANCHES" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi

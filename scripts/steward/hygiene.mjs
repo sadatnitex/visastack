@@ -4,6 +4,8 @@
 //   node scripts/steward/hygiene.mjs                  dry run (default): report only
 //   node scripts/steward/hygiene.mjs --apply          delete proven branches, old artifacts, stale caches
 //   --scope branches,artifacts,caches                 limit the sweep (default: all three)
+//   --delete a,b                                      delete branches the owner named (never protected,
+//                                                     current or open-PR branches); prints restore commands
 //   --verbose                                         also list what is kept and why
 //
 // Three outcomes per branch. DELETE means a proof was found (see classifyBranch). REVIEW means a
@@ -143,6 +145,66 @@ export async function sweepBranches({ gh, config, apply, currentBranch = '', now
   return { decisions, deleted, failed };
 }
 
+const BRANCH_NAME = /^[A-Za-z0-9._][A-Za-z0-9._/-]*$/;
+
+/**
+ * Deletes branches the OWNER named. The proof-based sweep never touches unmerged work, so a person's
+ * decision goes through here. It still refuses the default branch, protected branches, the current
+ * branch and any branch with an open pull request. Each deletion keeps the sha for a restore.
+ */
+export async function deleteNamed({ gh, config, names, currentBranch = '' }) {
+  const owner = config.repo.split('/')[0];
+  const branches = await listBranches(gh, config);
+  const results = [];
+  for (const name of names) {
+    const refuse = (why) => results.push({ name, done: false, why });
+    if (!BRANCH_NAME.test(name) || name.includes('..')) {
+      refuse('not a valid branch name');
+      continue;
+    }
+    const branch = branches.find((b) => b.name === name);
+    if (!branch) {
+      refuse('no such branch');
+      continue;
+    }
+    if (name === currentBranch || isProtectedBranch(name, config)) {
+      refuse('protected or in use');
+      continue;
+    }
+    const open = await gh.get(
+      `repos/${config.repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${name}`)}`,
+    );
+    if (open.length) {
+      refuse(`has an open pull request (#${open[0].number})`);
+      continue;
+    }
+    try {
+      await gh.del(`repos/${config.repo}/git/refs/heads/${encodeRef(name)}`);
+      results.push({ name, done: true, sha: branch.sha });
+    } catch (error) {
+      refuse(error.message);
+    }
+  }
+  return results;
+}
+
+export function renderDeleteNamed(results, config) {
+  const out = [`DELETE NAMED BRANCHES - ${config.repo}`];
+  for (const r of results) {
+    out.push(r.done ? `  deleted ${r.name} (was ${r.sha})` : `  kept ${r.name} - ${r.why}`);
+  }
+  const done = results.filter((r) => r.done);
+  if (done.length) {
+    out.push('To restore one:');
+    for (const r of done) {
+      out.push(
+        `  gh api -X POST repos/${config.repo}/git/refs -f ref=refs/heads/${r.name} -f sha=${r.sha}`,
+      );
+    }
+  }
+  return out;
+}
+
 // ---------- artifacts and caches (safe: both are rebuilt on demand) ----------
 
 const mb = (bytes) => `${(bytes / 1_048_576).toFixed(1)} MB`;
@@ -256,6 +318,14 @@ async function guarded(label, fn, out) {
   }
 }
 
+function currentBranchName() {
+  return new Promise((resolve) => {
+    execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], (error, stdout) =>
+      resolve(error ? '' : stdout.trim()),
+    );
+  });
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const apply = argv.includes('--apply');
@@ -263,14 +333,21 @@ async function main() {
   const scope = parseScope(argv);
   const config = loadConfig(process.cwd());
   const gh = createGh();
+  const named = argv.indexOf('--delete');
+  if (named >= 0) {
+    const names = (argv[named + 1] ?? '')
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const currentBranch = await currentBranchName();
+    const results = await deleteNamed({ gh, config, names, currentBranch });
+    say(renderDeleteNamed(results, config).join('\n'));
+    return;
+  }
   const now = new Date();
   const out = [`HYGIENE ${apply ? 'applied' : 'dry run (nothing deleted)'} - ${config.repo}`];
   if (scope.has('branches')) {
-    const currentBranch = await new Promise((resolve) => {
-      execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], (error, stdout) =>
-        resolve(error ? '' : stdout.trim()),
-      );
-    });
+    const currentBranch = await currentBranchName();
     const result = await guarded(
       'branches',
       () => sweepBranches({ gh, config, apply, currentBranch, now }),

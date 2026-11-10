@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { classifyBranch, sweepArtifacts, sweepBranches, sweepCaches } from './hygiene.mjs';
+import {
+  classifyBranch,
+  deleteNamed,
+  renderDeleteNamed,
+  sweepArtifacts,
+  sweepBranches,
+  sweepCaches,
+} from './hygiene.mjs';
 
 const config = {
   repo: 'o/r',
@@ -233,4 +240,41 @@ test('a branch that disappears mid-run is skipped, not fatal', async () => {
   const result = await sweepBranches({ gh, config, apply: true, now });
   assert.equal(result.decisions.length, 0);
   assert.equal(gh.deleted.length, 0);
+});
+
+test('named deletion refuses protected, open-PR, unknown and badly named branches', async () => {
+  const names = ['umpe/old', 'keep/me', 'claude/busy', 'no/such', '../evil'];
+  const deleted = [];
+  const gh = {
+    async list() {
+      return ['umpe/old', 'keep/me', 'claude/busy'].map((name) => ({
+        name,
+        commit: { sha: `sha-${name}` },
+      }));
+    },
+    async get(path) {
+      return path.includes('claude%2Fbusy') ? [{ number: 9 }] : [];
+    },
+    async del(path) {
+      deleted.push(path);
+    },
+  };
+  const results = await deleteNamed({ gh, config, names });
+  assert.deepEqual(deleted, ['repos/o/r/git/refs/heads/umpe/old']);
+  assert.deepEqual(
+    results.map((r) => [r.name, r.done]),
+    [
+      ['umpe/old', true],
+      ['keep/me', false],
+      ['claude/busy', false],
+      ['no/such', false],
+      ['../evil', false],
+    ],
+  );
+  assert.match(results[2].why, /#9/);
+  const text = renderDeleteNamed(results, config).join('\n');
+  assert.match(text, /deleted umpe\/old \(was sha-umpe\/old\)/);
+  assert.match(text, /-f sha=sha-umpe\/old/);
+  const current = await deleteNamed({ gh, config, names: ['umpe/old'], currentBranch: 'umpe/old' });
+  assert.equal(current[0].done, false);
 });

@@ -51,6 +51,10 @@ node scripts/steward/audit.mjs
 
 In a session, `/steward start <task>`, `/steward intake <new instruction>`, `/steward close`, `/steward sweep`.
 
+## Dropping branches the owner chose
+
+The sweep never deletes unmerged work. When the owner decides to drop named branches, run the Steward hygiene workflow by hand with "delete_branches" set to the comma separated names (or `node scripts/steward/hygiene.mjs --delete a,b` where the token allows it). It refuses the default branch, protected branches, the current branch, a branch with an open pull request, and any name that is not a plain branch name. It prints each branch's sha and the restore command.
+
 ## Adding another repository
 
 ```bash
