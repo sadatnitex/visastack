@@ -23,6 +23,7 @@ vi.mock('react', async (importOriginal) => {
         : actual.useActionState(...args)) as typeof actual.useActionState,
   };
 });
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 vi.mock('./actions', () => ({
   submitEvidenceResponseAction: vi.fn(),
   askAboutRequestItemAction: vi.fn(),
@@ -92,13 +93,13 @@ describe.each([
 });
 
 describe('Saved at', () => {
-  it('names the confirmed time in the traveller zone once the answer is saved, after the form is gone', () => {
+  it('says nothing once the answer is saved: the page draws the receipt from the saved request', () => {
     show({
       state: { ok: true, message: 'The agency will review it.', savedAt: AT },
       pending: false,
     });
     const html = respond({ awaiting: false });
-    expect(textOf(html)).toBe('Saved at 14:32 GMT+6. The agency will review it.');
+    expect(textOf(html)).toBe('');
     expect(html).not.toContain('<form');
   });
 

@@ -20567,3 +20567,164 @@ html:has(.sticky-action-bar) .toast-region {
   padding: 0.25rem 0.75rem 0;
 }
 /* end WP-P9 */
+
+/* WP-F2 Camera check and receipt (batch F2, 10 Nov 2026): the look-before-you-send step after a photo, and the receipt after a saved document or a sharing request, the way a bank's identity check and a bKash receipt read. Flat, tokens and the green tone, no shadows or translucent surfaces; the photo viewer's near-black ground and its white and dark outline are fixed on purpose, so the outline shows on any photo in light and dark. */
+.capture-preview {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 32rem;
+}
+.capture-title {
+  margin: 0;
+  font-size: var(--text-lead);
+}
+.capture-title:focus {
+  outline: none;
+}
+.capture-title:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.capture-hint,
+.capture-note {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.capture-frame {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  line-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: #152b37;
+}
+.capture-frame[hidden] {
+  display: none;
+}
+.capture-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 60vh;
+}
+/* The outline only draws: it ignores taps, never covers the buttons and never fills the photo. */
+.capture-outline {
+  position: absolute;
+  pointer-events: none;
+  border: 2px solid #ffffff;
+  outline: 2px solid #152b37;
+  border-radius: var(--radius-sm);
+  inset: 8% 6%;
+}
+.capture-frame[data-shape="page"] .capture-outline {
+  inset: 5% 14%;
+}
+.capture-actions,
+.receipt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.capture-actions .btn,
+.receipt-actions .btn {
+  min-height: 44px;
+}
+.upload-hint-touch {
+  display: none;
+}
+/* A phone: the camera first and the main button, and the hint that fits, by style alone, so nothing moves after the page loads. */
+@media (pointer: coarse) {
+  .upload-drop-actions .btn {
+    flex: 1 1 100%;
+  }
+  .upload-drop-actions .btn[data-camera] {
+    order: -1;
+    background: var(--accent-strong);
+    color: #fff;
+    border-color: transparent;
+  }
+  .upload-hint-touch {
+    display: inline;
+  }
+  .upload-hint-pointer {
+    display: none;
+  }
+  .upload-drop-actions .btn[data-camera]:hover {
+    background: var(--accent-hover);
+  }
+  .upload-drop-actions .btn[data-choose] {
+    background: var(--bg-elevated);
+    color: var(--text);
+    border-color: var(--edge-control);
+  }
+  .upload-drop-actions .btn[data-choose]:hover {
+    background: var(--bg-subtle);
+    border-color: var(--text-tertiary);
+  }
+}
+.receipt-card {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  max-width: 32rem;
+  padding: var(--space-5);
+  border: 1px solid var(--tone);
+  border-radius: var(--radius);
+  background: var(--tone-bg);
+  color: var(--text);
+}
+.receipt-mark {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: var(--tone);
+  color: #ffffff;
+}
+.receipt-title {
+  margin: 0;
+  color: var(--tone);
+}
+.receipt-title:focus {
+  outline: none;
+}
+.receipt-title:focus-visible {
+  outline: 3px solid var(--tone);
+  outline-offset: 3px;
+}
+.receipt-what,
+.receipt-honest,
+.receipt-reference {
+  margin: 0;
+}
+.receipt-honest {
+  font-size: var(--text-small);
+}
+.receipt-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  width: 100%;
+}
+.receipt-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-top: 1px solid var(--tone);
+}
+.receipt-facts dt {
+  font-weight: 600;
+}
+.receipt-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* end WP-F2 */

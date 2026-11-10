@@ -3,8 +3,9 @@
 import type { PermissionAction } from '@visastack/core';
 import { useRouter } from 'next/navigation';
 import { Fragment, useActionState, useEffect, useRef, useState } from 'react';
-import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { FormMessage, NO_RESULT, SubmitButton } from '../../../../../components/form-feedback';
 import { InvitationLink } from '../../../../../components/invitation-link';
+import { ReceiptCard } from '../../../../../components/receipt-card';
 import {
   SelectedScopeSummary,
   describeGrantScope,
@@ -12,9 +13,13 @@ import {
 import { PERMISSION_ACTION_LABELS } from '../../../../../lib/labels';
 import { permissionPhrase } from '../../../../../lib/permission-phrases';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
+import { SHARE_CREATED_LINE } from '../../../../../lib/success-lines';
 import { type ActionState, createGrantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+/** The receipt's line for a request to someone who already has an account. */
+const DIRECT_RECEIPT_LINE = SHARE_CREATED_LINE.replace(/^Shared\.\s*/, '');
 
 /** Every grant ends; with no days given the service applies its 30-day default. */
 const DEFAULT_EXPIRY_DAYS = 30;
@@ -91,6 +96,15 @@ export function GrantForm({
   useEffect(() => {
     if (invitationUrl) router.refresh();
   }, [invitationUrl, router]);
+  // The receipt (F2): built only from what the action returned plus the moment it came back and
+  // the address typed. It is set in the same render the result arrives in (no flash of the old
+  // line), closed with Done and replaced by the next result.
+  const [receipt, setReceipt] = useState<{
+    readonly at: number;
+    readonly to: string;
+    readonly invited: boolean;
+  } | null>(null);
+  const [lastResult, setLastResult] = useState<ActionState>(INITIAL);
 
   // Native fields remain the server action's source of truth. Review is an
   // explicit confirmation of their current scope, invalidated by any edit.
@@ -99,6 +113,14 @@ export function GrantForm({
   const [reviewed, setReviewed] = useState(false);
   const [reviewError, setReviewError] = useState('');
   const [recipientEmail, setRecipientEmail] = useState('');
+  if (state !== lastResult) {
+    setLastResult(state);
+    setReceipt(
+      state.ok && state.message !== ''
+        ? { at: Date.now(), to: recipientEmail, invited: Boolean(state.invitationUrl) }
+        : null,
+    );
+  }
   const [purpose, setPurpose] = useState('');
   const [actions, setActions] = useState<readonly string[]>(
     SHAREABLE_ACTIONS.filter((a) => a.defaultOn).map((a) => a.value),
@@ -475,7 +497,27 @@ export function GrantForm({
           busy="Sharing…"
           className="btn btn-primary"
         />
-        <FormMessage result={state} />
+        {/* The receipt says what the line would, so it stands in for it on success (no second
+            "Shared." beside "Not shared yet."); a refusal still shows its own line. */}
+        <FormMessage result={receipt && state.ok ? NO_RESULT : state} toast={!receipt} />
+        {receipt ? (
+          <ReceiptCard
+            key={receipt.at}
+            title={receipt.invited ? 'Invitation Created' : 'Sharing Request Created'}
+            what={receipt.invited ? state.message : DIRECT_RECEIPT_LINE}
+            at={receipt.at}
+            to={receipt.to || undefined}
+            toLabel="To"
+            honestLine="Not shared yet. They see nothing until they accept."
+            // An in-page link, so the sheet this form sits in on a phone closes first.
+            next={{ label: 'See Who Has Access', href: '#who-has-access' }}
+            onDone={() => setReceipt(null)}
+            // A button, never a field, so Done does not bring up the phone's keyboard.
+            returnFocusTo={() =>
+              form.current?.querySelector<HTMLElement>('.sharing-confirm-controls button') ?? null
+            }
+          />
+        ) : null}
         {state.ok && state.invitationUrl ? (
           <InvitationLink url={state.invitationUrl} purpose="sharing" />
         ) : null}
