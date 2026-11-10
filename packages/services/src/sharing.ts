@@ -137,7 +137,7 @@ export interface CreateGrantInput {
 const GRANT_MAX_DURATION_DAYS = 90;
 
 /** PRD SHR-01: "Default duration is 30 days." Applied when the caller names no expiry at all, so a grant is never silently permanent. */
-const GRANT_DEFAULT_DURATION_DAYS = 30;
+export const GRANT_DEFAULT_DURATION_DAYS = 30;
 
 /**
  * Create a pending, purpose-bound grant (applicant owner only).

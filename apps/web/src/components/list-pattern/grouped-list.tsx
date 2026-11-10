@@ -13,12 +13,32 @@ export interface ListGroupProps {
   readonly open: boolean;
   /** The rows shown at once. */
   readonly children: ReactNode;
+  /** The heading level, one below the heading of the card or section the group sits in. Four unless the screen says otherwise. */
+  readonly headingLevel?: 3 | 4 | undefined;
   /** The rest of the rows, folded under "n More Items". */
   readonly rest?: ReactNode;
   /** The label of the fold of the rest ("4 More Items"). */
   readonly restLabel?: string | undefined;
   /** The fold of the rest starts open (the chosen item is in it). */
   readonly restOpen?: boolean | undefined;
+}
+
+/** The folder's heading, a real heading inside the opener so heading navigation finds every group. */
+function GroupHeading({
+  level,
+  count,
+  children,
+}: {
+  readonly level: 3 | 4 | undefined;
+  readonly count: number;
+  readonly children: ReactNode;
+}) {
+  const Heading = level === 3 ? 'h3' : 'h4';
+  return (
+    <Heading className="case-group-heading collapsible-group-title" data-pattern="group-heading">
+      {children} <span className="muted lift-state-count">{count}</span>
+    </Heading>
+  );
 }
 
 /**
@@ -38,9 +58,9 @@ export function GroupedList({ groups }: { readonly groups: readonly ListGroupPro
           open={group.open}
         >
           <summary className="collapsible-group-summary">
-            <h4 className="case-group-heading collapsible-group-title" data-pattern="group-heading">
-              {group.heading} <span className="muted lift-state-count">{group.count}</span>
-            </h4>
+            <GroupHeading level={group.headingLevel} count={group.count}>
+              {group.heading}
+            </GroupHeading>
           </summary>
           <div className="collapsible-group-body">
             <div className="rows">{group.children}</div>
