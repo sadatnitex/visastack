@@ -10,12 +10,14 @@ const mocks = vi.hoisted(() => ({
   getMissionForOwner: vi.fn(),
   selectableChecklists: vi.fn(),
   selectEvidence: vi.fn(),
+  unselectEvidence: vi.fn(),
   computeReadiness: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 vi.mock('@visastack/services', () => ({
   getMissionForOwner: mocks.getMissionForOwner,
   selectEvidence: mocks.selectEvidence,
+  unselectEvidence: mocks.unselectEvidence,
   computeReadiness: mocks.computeReadiness,
 }));
 vi.mock('../../../../lib/case-checklist-match', () => ({
@@ -36,7 +38,9 @@ vi.mock('../../../../lib/session', () => ({
     fn({ db: { tag: 'db' }, accountId: 'owner' }),
 }));
 
-const { attachPackAction, selectEvidenceAction } = await import('./actions');
+const { attachPackAction, selectEvidenceAction, unselectEvidenceAction } = await import(
+  './actions'
+);
 
 const form = (values: Record<string, string>) => {
   const data = new FormData();
@@ -156,5 +160,28 @@ describe('selectEvidenceAction', () => {
       form({ missionId: 'm1', packRequirementId: 'r1', factId: 'f1' }),
     );
     expect(result.message).toBe('Evidence chosen for this item. 1 of 1 item ready.');
+  });
+});
+
+describe('a finished case refuses a change of evidence in plain words', () => {
+  const FINISHED = 'This case is finished, so the files and answers it uses can no longer change.';
+  const refusal = { ok: false, error: { code: 'invalid', message: FINISHED } };
+
+  it('choosing shows the finished line and does not refresh the page or count readiness', async () => {
+    mocks.selectEvidence.mockResolvedValue(refusal);
+    const result = await selectEvidenceAction(
+      PREV,
+      form({ missionId: 'm1', packRequirementId: 'r1', documentId: 'd1' }),
+    );
+    expect(result).toEqual({ ok: false, message: FINISHED });
+    expect(mocks.computeReadiness).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('removing shows the finished line and does not refresh the page', async () => {
+    mocks.unselectEvidence.mockResolvedValue(refusal);
+    const result = await unselectEvidenceAction(PREV, form({ missionId: 'm1', selectionId: 's1' }));
+    expect(result).toEqual({ ok: false, message: FINISHED });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });

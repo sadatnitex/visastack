@@ -11,6 +11,11 @@ import type { Db } from './db';
 /** Case states whose package is no longer worked on: nothing is re-evaluated, changed or sent. */
 export const INACTIVE_CASE_STATES = ['CLOSED', 'CANCELLED', 'SUBMITTED'] as const;
 
+/** True when the case is submitted, closed or cancelled: the one test of `INACTIVE_CASE_STATES`. */
+export function isInactiveCaseState(state: string): boolean {
+  return (INACTIVE_CASE_STATES as readonly string[]).includes(state);
+}
+
 const PACKAGE_TABLES = ['umpe_package_choices', 'umpe_package_handoffs', 'umpe_package_changes'];
 const SOURCE_TABLES = ['official_sources', 'source_change_candidates'];
 
