@@ -55,7 +55,7 @@ export const PATTERN_SCREENS: readonly PatternScreen[] = [
     screen: 'sharing',
     pattern: 'list+pane',
     files: ['app/app/applicant/[id]/sharing/page.tsx'],
-    converted: false,
+    converted: true,
     phase: 5,
   },
   {

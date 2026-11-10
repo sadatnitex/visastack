@@ -31,6 +31,7 @@ import {
   uploadIdFromHash,
 } from '../../../../../lib/import/import-queue';
 import { useDropZone } from '../../../../../lib/import/use-drop-zone';
+import { shrunkNotice } from '../../../../../lib/photo-shrink';
 import { batchHref, canFollowBatch } from '../../../../../lib/upload-batch';
 import { uploadLimitsText } from '../../../../../lib/upload-rules';
 import { UPLOAD_UNKNOWN_OUTCOME } from '../document-uploader';
@@ -152,6 +153,7 @@ export function importLine(item: ImportItem): { readonly flag: string; readonly 
     case 'held':
       return { flag: 'Paused by the Hourly Limit. ', text: HELD_LINE };
     case 'uploading':
+      if (item.preparing) return { flag: '', text: 'Making this photo smaller to fit.' };
       return {
         flag: '',
         text:
@@ -239,6 +241,9 @@ const ImportRow = memo(function ImportRow({
           value={item.progress}
           aria-label={`Upload of ${item.name}`}
         />
+      ) : null}
+      {item.shrunkTo !== null && item.size !== null ? (
+        <p className="upload-item-status">{shrunkNotice(item.size, item.shrunkTo)}</p>
       ) : null}
       {(item.state === 'added' || item.state === 'duplicate') && item.title ? (
         <p className="upload-item-title">Added as {item.title}</p>
@@ -406,7 +411,7 @@ export function ImportPanel({
       new ImportQueue({
         applicantId,
         scopeFor: () => (family.current ? 'family' : personFor(targetRef.current, applicantId)),
-        rules: { limitBytes, limitLabel, pdfAccepted },
+        rules: { limitBytes, limitLabel, pdfAccepted, shrinkPhotos: true },
         earlierState: (file) => manifest.current?.earlierState(file) ?? null,
         beforeSend: (item) => manifest.current?.markSending(item),
         onSettled: (item) => {
@@ -614,7 +619,8 @@ export function ImportPanel({
   return (
     <div className="uploader import-panel">
       <p className="uploader-limits" id={limitsId}>
-        {uploadLimitsText(limitLabel, pdfAccepted)} Up to {MAX_IMPORT_FILES} files in one import.
+        {uploadLimitsText(limitLabel, pdfAccepted, true)} Up to {MAX_IMPORT_FILES} files in one
+        import.
       </p>
       {remembered > 0 ? (
         <div className="import-earlier">

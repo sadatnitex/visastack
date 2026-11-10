@@ -20,7 +20,7 @@ import { EmptyState, PageHeader, StatusBadge, type Tone } from '../../../../../c
 import { AboutDisclosure } from '../../../../../components/ui-lift';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
-import { formatTimestampDate } from '../../../../../lib/format-date';
+import { formatDateOnly } from '../../../../../lib/format-date';
 import {
   type SearchParamsRecord,
   TRAVELLER_LIST_STEP,
@@ -63,20 +63,26 @@ const STALENESS_BADGE: Record<StalenessStatus, { label: string; tone: string }> 
 };
 
 /**
- * Why a document shows no expiry date, and what to do. Today an expiry date is only ever filled in
- * from a passport's machine-readable lines (intake), so the wording never suggests a date can be
- * typed in, and never guesses one.
+ * Why a document shows no expiry date, and what to do. A date is read from a passport's
+ * machine-readable lines (intake) or typed by the person; the wording never guesses one.
+ * `canType` is false until typed dates are switched on.
  */
-function missingExpiryNote(docType: string | null): string {
+function missingExpiryNote(docType: string | null, canType: boolean): string {
   if (docType === 'PASSPORT') {
-    return 'No expiry date has been read from this passport yet. It is read from the two lines of letters and numbers at the bottom of the photo page. If they were not clear, open it on Documents to check it again, or upload a sharper scan.';
+    return canType
+      ? 'No expiry date has been read from this passport yet. Check the file again on Documents, or enter the date yourself.'
+      : 'No expiry date has been read from this passport yet. It is read from the two lines of letters and numbers at the bottom of the photo page. If they were not clear, open it on Documents to check it again, or upload a sharper scan.';
   }
   // Nothing is saved about what a document is until the person accepts its kind, so an
   // unconfirmed passport has no type yet: say what to do first rather than guess.
   if (docType === null) {
-    return 'No expiry date is on file. Confirm what kind of document this is on Documents. For a passport, the date is then read from the two lines at the bottom of the photo page.';
+    return canType
+      ? 'No expiry date is on file. Enter the date printed on this document yourself.'
+      : 'No expiry date is on file. Confirm what kind of document this is on Documents. For a passport, the date is then read from the two lines at the bottom of the photo page.';
   }
-  return 'No expiry date is on file. For now, expiry dates are read only from passports, so check the date printed on this document yourself.';
+  return canType
+    ? 'No expiry date is on file. Enter the date printed on this document yourself.'
+    : 'No expiry date is on file. For now, expiry dates are read only from passports, so check the date printed on this document yourself.';
 }
 
 /** The three lists, each with its own Show More (WP-SB4): `?docs=`, `?rules=`, `?checks=`. */
@@ -150,7 +156,10 @@ export default async function ExpiryCentrePage({
     const deadlinesRead = loadDeadlineEntries(db, accountId, id, now, CLOCK_EXPIRY_PAGE_LIMIT);
 
     // Only everyday documents are watched for expiry: an archived file raises no reminder (LC-Z).
-    const documents = await listDocumentsDetailed(db, accountId, id, { lifecycle: 'everyday' });
+    const documents = await listDocumentsDetailed(db, accountId, id, {
+      lifecycle: 'everyday',
+      withExpiry: true,
+    });
     const documentRows = documents.ok ? documents.value : [];
 
     const intrinsic = await Promise.all(
@@ -271,11 +280,30 @@ export default async function ExpiryCentrePage({
                                   ? `Expires in ${plural(classification.daysRemaining, 'day')}`
                                   : `Expired ${plural(Math.abs(classification.daysRemaining), 'day')} ago`}
                                 {' · '}
-                                {formatTimestampDate(doc.expiresAt)}
+                                {formatDateOnly(doc.expiresAt)}
                               </span>
                             ) : classification.urgency === 'unknown' ? (
                               <span className="attention-detail">
-                                {missingExpiryNote(doc.docType)}
+                                {missingExpiryNote(doc.docType, doc.expiry?.canType === true)}
+                                {doc.expiry?.canType ? (
+                                  <>
+                                    {' '}
+                                    <Link
+                                      href={`/app/applicant/${id}/documents?document=${doc.id}#expiry-${doc.id}`}
+                                      aria-label={`Set Expiry Date: ${doc.approvedName ?? doc.originalName}`}
+                                    >
+                                      Set Expiry Date
+                                    </Link>
+                                  </>
+                                ) : null}
+                              </span>
+                            ) : null}
+                            {doc.expiresAt && doc.expiry?.origin === 'TYPED' ? (
+                              <span className="attention-detail">Entered by you.</span>
+                            ) : null}
+                            {doc.expiry?.mismatch ? (
+                              <span className="attention-detail">
+                                You entered a different date. Check which is right on Documents.
                               </span>
                             ) : null}
                           </span>

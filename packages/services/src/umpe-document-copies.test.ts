@@ -440,6 +440,48 @@ describe('which documents and people a copy is refused for', () => {
     expect(JSON.stringify(event)).not.toContain('Salma');
   });
 
+  it('keeps a typed expiry date labelled as typed on the copy, and a read one as read', async () => {
+    const { husband, wife } = await couple();
+    const typed = await certificate(husband);
+    await db
+      .update(schema.documents)
+      .set({ expiresAt: new Date('2031-04-30T00:00:00.000Z') })
+      .where(eq(schema.documents.id, typed.documentId));
+    await db.insert(schema.documentExpiryEntries).values({
+      documentId: typed.documentId,
+      expiresOn: '2031-04-30',
+      source: 'TYPED',
+      mirrored: true,
+    });
+    expect(isOk(await copy(husband, wife, typed.documentId))).toBe(true);
+    const [typedCopy] = await documentsOf(wife.applicantId);
+    expect(typedCopy?.expiresAt?.toISOString().slice(0, 10)).toBe('2031-04-30');
+    const copied = await db
+      .select()
+      .from(schema.documentExpiryEntries)
+      .where(eq(schema.documentExpiryEntries.documentId, typedCopy?.id ?? ''));
+    expect(copied.map((e) => [e.source, e.expiresOn, e.mirrored])).toEqual([
+      ['TYPED', '2031-04-30', true],
+    ]);
+
+    // A date saved before typed dates existed (no entries) is a read date on the copy too.
+    const other = await couple('legacy-copies@example.invalid');
+    const legacy = await certificate(other.husband);
+    await db
+      .update(schema.documents)
+      .set({ expiresAt: new Date('2032-01-15T00:00:00.000Z') })
+      .where(eq(schema.documents.id, legacy.documentId));
+    expect(isOk(await copy(other.husband, other.wife, legacy.documentId))).toBe(true);
+    const [legacyCopy] = await documentsOf(other.wife.applicantId);
+    const legacyEntries = await db
+      .select()
+      .from(schema.documentExpiryEntries)
+      .where(eq(schema.documentExpiryEntries.documentId, legacyCopy?.id ?? ''));
+    expect(legacyEntries.map((e) => [e.source, e.expiresOn, e.mirrored])).toEqual([
+      ['READ', '2032-01-15', false],
+    ]);
+  });
+
   it('says whose space is full, in plain words, and reads no file for it', async () => {
     const { husband, wife } = await couple();
     const original = await certificate(husband);

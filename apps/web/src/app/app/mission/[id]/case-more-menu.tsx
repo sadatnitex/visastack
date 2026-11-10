@@ -40,6 +40,8 @@ export function CaseMoreMenu({
   readonly headerActions?: {
     readonly addEvidenceHref: string;
     readonly newCaseHref: string;
+    /** False on a finished case, which takes no new snapshot. */
+    readonly snapshot?: boolean;
   };
 }) {
   const [state, formAction, pending] = useActionState(transitionMissionAction, INITIAL);
@@ -203,9 +205,11 @@ export function CaseMoreMenu({
                       Start a New Case from This One
                     </Link>
                   </li>
-                  <li className="case-more-phone case-more-snapshot">
-                    <SnapshotButton missionId={missionId} align="start" />
-                  </li>
+                  {headerActions.snapshot === false ? null : (
+                    <li className="case-more-phone case-more-snapshot">
+                      <SnapshotButton missionId={missionId} align="start" />
+                    </li>
+                  )}
                 </>
               ) : null}
               <li>

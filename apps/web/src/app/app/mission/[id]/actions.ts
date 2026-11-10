@@ -54,6 +54,11 @@ export interface ActionState {
   readonly message: string;
   /** The plain line after a refusal a paid plan would help with (ADR 0025 section 12.2). */
   readonly upgrade?: UpgradeLineKind;
+  /** A contributor request just made: its private link and the kind of document asked for, so the screen can offer Send on WhatsApp. */
+  readonly acceptUrl?: string;
+  readonly askedFor?: string;
+  /** The request just made, so the screen can stop offering its link once it is revoked. */
+  readonly requestId?: string;
 }
 
 /** Attach a PUBLISHED pack version to the mission. */
@@ -491,18 +496,28 @@ export async function createContributorRequestAction(
       ok: true,
       message: `Request created. Share this link with ${contributorEmail} (expires in 7 days): ${acceptUrl}`,
       acceptUrl,
+      requestId: created.value.request.id,
       ...(created.value.emailQueued ? { sendFor: created.value.request.id } : {}),
     };
   });
   if (!result.ok) return result;
   revalidatePath(`/app/mission/${missionId}`);
   if (!('sendFor' in result) || !result.sendFor) {
-    return { ok: true, message: result.message } satisfies ActionState;
+    return {
+      ok: true,
+      message: result.message,
+      acceptUrl: result.acceptUrl,
+      askedFor: docType,
+      requestId: result.requestId,
+    } satisfies ActionState;
   }
   // Email the contributor while the owner waits, so the screen can say whether it went.
   const email = await sendEmailNow(result.sendFor);
   return {
     ok: true,
+    acceptUrl: result.acceptUrl,
+    askedFor: docType,
+    requestId: result.requestId,
     message:
       email === 'sent'
         ? `Request emailed to ${contributorEmail}. If it does not arrive in a few minutes, ask them to check Spam or Promotions. This link works too (expires in 7 days): ${result.acceptUrl}`

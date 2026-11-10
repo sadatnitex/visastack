@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
 import { ListFilterBar } from '../components/list-pattern/list-filter-bar';
+import { SearchableList } from '../components/list-pattern/searchable-list';
 import { aiConfigView } from './ai-config-view.test-support';
 import { axeViolations } from './axe.test-support';
 import {
@@ -200,6 +201,7 @@ const { describeReading } = await import('./reading-state');
 const { NeedsDecision, RelationDecisionForm } = await import(
   '../app/app/applicant/[id]/documents/needs-decision'
 );
+const { DocumentExpiryForm } = await import('../app/app/applicant/[id]/document-expiry-form');
 const { DocumentRenameForm } = await import('../app/app/applicant/[id]/document-rename-form');
 const { SubmitResponseForm } = await import(
   '../app/app/applicant/[id]/evidence/submit-response-form'
@@ -417,6 +419,23 @@ const DOCS: readonly Case[] = [
       );
     }),
     fields: ['name'],
+  },
+  {
+    ...row('set the expiry date of a document', () => {
+      const documentId = rowId();
+      return (
+        <DocumentExpiryForm
+          applicantId="a1"
+          documentId={documentId}
+          origin="READ"
+          typedOn="2031-04-30"
+          mismatch
+          savedLabel="30 Apr 2030"
+          typedLabel="30 Apr 2031"
+        />
+      );
+    }),
+    fields: ['expiresOn'],
   },
   {
     name: 'keep a copy of a document for another person',
@@ -1450,6 +1469,42 @@ const CASES_MISSION: readonly Case[] = [
         searchLabel="Search the Checklist"
         placeholder="Search the Checklist"
       />
+    ),
+  },
+  {
+    name: 'search a long list with filters behind a button',
+    element: () => (
+      <ListFilterBar
+        rows={9}
+        query="visa"
+        onQuery={() => undefined}
+        searchLabel="Search Documents"
+        activeFilters={1}
+        results={{ count: 0, noun: { one: 'document', other: 'documents' } }}
+      >
+        <label>
+          <span className="sr-only">Category</span>
+          <select className="input" defaultValue="all">
+            <option value="all">All Categories</option>
+          </select>
+        </label>
+      </ListFilterBar>
+    ),
+  },
+  {
+    name: 'search a list the page drew',
+    element: () => (
+      <SearchableList
+        items={Array.from({ length: 6 }, (_, index) => ({
+          id: `c${index}`,
+          text: `Case ${index}`,
+          node: <a href={`/app/mission/c${index}`}>Case {index}</a>,
+        }))}
+        noun={{ one: 'case', other: 'cases' }}
+        searchLabel="Search Cases"
+      >
+        <p>Layout</p>
+      </SearchableList>
     ),
   },
   {

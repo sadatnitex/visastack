@@ -66,6 +66,15 @@ export type ShareInput =
   | ({ readonly template: 'sharing-invitation'; readonly link: string } & Named)
   /** A traveller telling someone to sign in and see what was shared. */
   | { readonly template: 'summary-link'; readonly link: string }
+  /**
+   * A traveller asking a sponsor or relative for one document, through the private contributor
+   * link. It names the kind of document and nothing else about the case.
+   */
+  | {
+      readonly template: 'contributor-request';
+      readonly link: string;
+      readonly documentKind?: string | undefined;
+    }
   /** A person starting a conversation with VisaStack support. No link, no details. */
   | { readonly template: 'support-hello' };
 
@@ -83,6 +92,7 @@ const LINK_PAGES = {
   'team-invitation': ['/invitation'],
   'sharing-invitation': ['/invitation'],
   'summary-link': ['/app/shared'],
+  'contributor-request': ['/app/contributor-requests/accept'],
 } as const;
 
 const MAX_WORDS_LENGTH = 80;
@@ -249,6 +259,16 @@ export function composeShareMessage(input: ShareInput, options: ShareOptions): S
   if (input.template === 'summary-link') {
     return finish(
       `Hello, I have put my visa details together on VisaStack and shared what you need there. Please sign in to VisaStack to see it: ${link}`,
+      link,
+    );
+  }
+
+  if (input.template === 'contributor-request') {
+    const kind = optionalWords(input.documentKind);
+    if (!kind.ok) return fail({ reason: 'unsafe-text', field: 'documentKind' });
+    const of = kind.value ? ` (${kind.value})` : '';
+    return finish(
+      `Hello, I need one document from you${of} for my visa application. I keep my documents safe on VisaStack. Open this private link to send it: ${link}`,
       link,
     );
   }
