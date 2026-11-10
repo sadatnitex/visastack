@@ -206,5 +206,4 @@ Added 10 Nov 2026 (Lane 1, the traveller's first journey, plain words for a grad
 | The profile page counts and notes | Fields Backed by a Document, Fields That Do Not Match, "Every save keeps the earlier value", "How This Was Checked" (no internal tier shown) | "Document-supported fields", "Conflicting fields", "immutable version", "Assurance (E2)" | **Done (Lane 1)** |
 | Where a passport is read from its two printed lines | Read from the Two Lines at the Bottom of the Passport | "Read from the Machine-Readable Lines", "Code Lines" | **Done (Lane 1)** |
 | The storage meter on Add Documents, and the Documents subtitle | Document Storage; "Your private documents" | "Evidence Storage", "Your private evidence wallet" | **Done (Lane 1)** |
-
 | An agency request with no due date that has had no reply for 3 days, in the agency Do Next list (P4) | The group heading No Reply Yet; the line reads "Sent N days ago with no due date. No reply yet." | "Stale", "Dormant", "Chase", "Past Due" (it has no due date) | **New (P4)** |
