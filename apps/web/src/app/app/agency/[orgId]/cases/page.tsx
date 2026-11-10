@@ -9,6 +9,7 @@ import { depthCopy } from '../../../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { formatDateOnly } from '../../../../../lib/format-date';
+import { evidenceDocumentGroups, evidenceFieldGroups } from '../../../../../lib/master-profile';
 import {
   SHOW_MAX,
   type SearchParamsRecord,
@@ -20,6 +21,7 @@ import { caseAnchorId } from '../case-anchor';
 import { caseNeedsYou } from '../case-needs';
 import { STAGE_LABELS } from '../case-search-form';
 import { caseTriageView } from '../case-triage';
+import { FormGroup } from '../clients/form-group';
 import {
   AGENCY_LIST_SIZES,
   CASE_NOTES_STEP,
@@ -31,6 +33,7 @@ import {
   loadOrgAccess,
 } from '../console-data';
 import { MissionCollaboration } from '../mission-collaboration';
+import { RequestEvidenceForm } from '../request-evidence-form';
 import { ListPager } from './list-pager';
 import { type ListKeys, type ListWindow, listWindow } from './list-window';
 import { OpenCaseFromLink } from './open-case-from-link';
@@ -158,7 +161,7 @@ export default async function AgencyCasesPage({
           >
             {data.admin
               ? 'No cases are reachable yet - a traveller must grant this organization access to a specific case.'
-              : "You aren't assigned to any cases yet - ask an admin to assign you to one."}
+              : "You aren't assigned to any cases yet. An owner or admin of this organization can assign you to one."}
           </EmptyState>
         ) : (
           <>
@@ -333,6 +336,34 @@ function OpenCaseWorkspace({
             newestLabel="Back to the Newest Notes"
           />
         }
+        // Asking is administrator work, exactly as on Clients (the same bar the server applies).
+        // The traveller and the case are this case's own; the server still checks the organization's
+        // grant for them when the request is sent.
+        {...(admin
+          ? {
+              ask: (
+                <FormGroup
+                  key={open.missionId}
+                  id="case-ask-for-evidence"
+                  title="Ask for a Document or Detail"
+                  icon="clipboard"
+                  openAtFirst={false}
+                >
+                  <RequestEvidenceForm
+                    organizationId={orgId}
+                    fieldGroups={evidenceFieldGroups()}
+                    documentGroups={evidenceDocumentGroups()}
+                    fixed={{
+                      applicantId: open.applicantId,
+                      applicantName: open.applicantName,
+                      missionId: open.missionId,
+                      caseTitle: open.title,
+                    }}
+                  />
+                </FormGroup>
+              ),
+            }
+          : {})}
         needsYou={caseNeedsYou({
           viewerAccountId,
           admin,
