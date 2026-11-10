@@ -1091,6 +1091,7 @@ export default async function MissionPage({
               totals={{ openTasks: data.openTaskCount, notes: data.noteTotal }}
               views={evidenceViews}
               notesLevel={notesLevel}
+              evidenceEditable={data.wordingEditable}
             />
           </div>
         </div>

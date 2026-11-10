@@ -10,6 +10,7 @@ import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { plural } from '../../../../lib/plural';
 import {
+  CHOSEN_STATUS,
   FRESHNESS_UNKNOWN_STATUS,
   NOT_ELIGIBLE_STATUS,
   type StatusWord,
@@ -492,11 +493,14 @@ function CandidateRows({
   candidate: c,
   selectAction,
   unselectAction,
+  editable = true,
 }: {
   readonly missionId: string;
   readonly candidate: CandidateView;
   readonly selectAction: EvidenceAction;
   readonly unselectAction: EvidenceAction;
+  /** The case is open. When it is not, the files are listed with the chosen one marked, and no buttons. */
+  readonly editable?: boolean;
 }) {
   const choice = (
     id: string,
@@ -513,7 +517,11 @@ function CandidateRows({
           {name}
           {chips}
         </span>
-        {selected && selectionId ? (
+        {!editable ? (
+          selected ? (
+            <FileChip status={CHOSEN_STATUS} />
+          ) : null
+        ) : selected && selectionId ? (
           <form action={unselectAction}>
             <input type="hidden" name="missionId" value={missionId} />
             <input type="hidden" name="selectionId" value={selectionId} />
@@ -539,7 +547,7 @@ function CandidateRows({
         choice(
           fact.factId,
           'fact',
-          `${fact.value ?? ''}${fact.repeatingRecordKey ? ` (${fact.repeatingRecordKey})` : ''}`,
+          `${fact.value || 'This answer'}${fact.repeatingRecordKey ? ` (${fact.repeatingRecordKey})` : ''}`,
           fact.eligible ? null : <FileChip status={NOT_ELIGIBLE_STATUS} />,
           c.selectedFactIds.includes(fact.factId),
         ),
@@ -594,9 +602,12 @@ export function EvidenceItemChoices({
 export function EvidenceSelectionPanel({
   missionId,
   candidates,
+  editable = true,
 }: {
   readonly missionId: string;
   readonly candidates: readonly CandidateView[];
+  /** The case is open, so the choice can still change. */
+  readonly editable?: boolean;
 }) {
   const [selectState, selectAction] = useActionState(selectEvidenceAction, INITIAL);
   const [unselectState, unselectAction] = useActionState(unselectEvidenceAction, INITIAL);
@@ -623,6 +634,7 @@ export function EvidenceSelectionPanel({
               candidate={c}
               selectAction={selectAction}
               unselectAction={unselectAction}
+              editable={editable}
             />
           </div>
         ))}

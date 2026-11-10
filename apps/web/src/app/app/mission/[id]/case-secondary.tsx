@@ -94,6 +94,8 @@ export interface CaseSecondaryProps {
   readonly views?: readonly CandidateView[] | undefined;
   /** The depth the Notes tab shows at, worked out once by the page so the link and the tab agree. */
   readonly notesLevel: DepthLevel;
+  /** The case is open, so the choice of which file counts can still change. */
+  readonly evidenceEditable?: boolean;
 }
 
 /** What a row says beside its name: a count in words, or a quiet "none yet". */
@@ -129,6 +131,7 @@ export function CaseSecondary({
   more,
   totals,
   notesLevel,
+  evidenceEditable = true,
   views: given,
 }: CaseSecondaryProps) {
   const openTasks =
@@ -146,7 +149,11 @@ export function CaseSecondary({
       pill: countPill(candidates.length, 'Checklist Item', 'Checklist Items', 'No Items Yet'),
       content: (
         <div className="grid" id="evidence">
-          <EvidenceSelectionPanel missionId={missionId} candidates={views} />
+          <EvidenceSelectionPanel
+            missionId={missionId}
+            candidates={views}
+            editable={evidenceEditable}
+          />
         </div>
       ),
     },

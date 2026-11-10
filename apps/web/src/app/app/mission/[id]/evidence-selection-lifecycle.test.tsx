@@ -101,4 +101,43 @@ describe('Select Evidence: lifecycle labels', () => {
     expect(html).toContain('aria-label="Select Old statement"');
     expect(html).toContain('aria-label="Select New statement"');
   });
+
+  it('lists the files with the chosen one marked and no buttons when the case is not open', () => {
+    const html = renderToStaticMarkup(
+      <EvidenceSelectionPanel
+        missionId="m1"
+        editable={false}
+        candidates={[
+          {
+            packRequirementId: 'q1',
+            kind: 'DOCUMENT',
+            label: 'Bank statement',
+            citation: 'rule',
+            factCandidates: [],
+            documentCandidates: [
+              {
+                documentId: 'd1',
+                displayName: 'October statement',
+                eligible: true,
+                staleness: 'fresh',
+              },
+              {
+                documentId: 'd2',
+                displayName: 'September statement',
+                eligible: true,
+                staleness: 'fresh',
+              },
+            ],
+            selectedFactIds: [],
+            selectedDocumentIds: ['d1'],
+            selectionIdsByCandidate: { d1: 'sel1' },
+          },
+        ]}
+      />,
+    );
+    expect(html).toContain('October statement');
+    expect(html.match(/>Chosen</g)).toHaveLength(1);
+    expect(html).not.toContain('<form');
+    expect(html).not.toContain('>Select<');
+  });
 });
