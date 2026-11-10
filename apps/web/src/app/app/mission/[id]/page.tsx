@@ -867,11 +867,9 @@ export default async function MissionPage({
         wordingMax: CHECKLIST_WORDING_MAX,
         selfReviewed: data.selfReviewed,
         explanations,
-        evidence: new Map(
-          candidateViews(data.candidates, data.evidenceLifecycle, data.selectionIdsByCandidate).map(
-            (view) => [view.packRequirementId, view] as const,
-          ),
-        ),
+        evidence: new Map(evidenceViews.map((view) => [view.packRequirementId, view] as const)),
+        // The same open-case rule as the wording: the service's own check of an open case with a list.
+        evidenceEditable: data.wordingEditable,
         packageItems: new Map(
           (data.casePackage?.items ?? []).map((item) => [item.packRequirementId, item] as const),
         ),
@@ -1092,7 +1090,7 @@ export default async function MissionPage({
               more={more}
               totals={{ openTasks: data.openTaskCount, notes: data.noteTotal }}
               views={evidenceViews}
-              selfReviewed={data.selfReviewed}
+              notesLevel={notesLevel}
             />
           </div>
         </div>

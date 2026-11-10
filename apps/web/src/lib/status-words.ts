@@ -31,9 +31,17 @@ export const COVERED_STATUS: StatusWord = { word: 'Covered by Another Option', t
 /** Something received but not yet reviewed: blue, never green. */
 export const RECEIVED_STATUS: StatusWord = { word: 'Received', tone: 'info' };
 
+/** A file that cannot back an item (not eligible, too old for the route, freshness not known). */
+export const NOT_ELIGIBLE_STATUS: StatusWord = { word: 'Not Eligible', tone: 'danger' };
+export const TOO_OLD_STATUS: StatusWord = { word: 'Too Old for This Route', tone: 'danger' };
+export const FRESHNESS_UNKNOWN_STATUS: StatusWord = { word: 'Freshness Unknown', tone: 'neutral' };
+
 /** Every chip word a list row may carry. */
 export const CHIP_WORDS: ReadonlySet<string> = new Set([
   ...Object.values(REQUIREMENT_STATUS).map((status) => status.word),
   COVERED_STATUS.word,
   RECEIVED_STATUS.word,
+  NOT_ELIGIBLE_STATUS.word,
+  TOO_OLD_STATUS.word,
+  FRESHNESS_UNKNOWN_STATUS.word,
 ]);

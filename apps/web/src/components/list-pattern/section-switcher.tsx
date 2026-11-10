@@ -47,6 +47,9 @@ export function SwitcherTabs({
   const [first, setFirst] = useState<string | null>(null);
   // A link's target inside a panel, to scroll to once its panel is shown.
   const pending = useRef<HTMLElement | null>(null);
+  // The chosen section as of now, for a link handler that outlives a render.
+  const chosenNow = useRef<string | null>(initial ?? null);
+  chosenNow.current = chosen;
   const root = useRef<HTMLDivElement>(null);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -83,8 +86,15 @@ export function SwitcherTabs({
       const key = panel?.getAttribute('data-switcher-panel');
       if (key && target && panel && root.current?.contains(panel)) {
         wanted.current = key;
-        pending.current = target;
-        setChosen(key);
+        if (chosenNow.current === key) {
+          // Already showing: go to the target now. Nothing would run later, so nothing is left
+          // waiting to pull focus back when the person returns to this tab.
+          pending.current = null;
+          focusTarget(target);
+        } else {
+          pending.current = target;
+          setChosen(key);
+        }
       }
     };
     const fromHash = () => {

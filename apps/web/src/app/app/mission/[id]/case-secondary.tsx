@@ -92,8 +92,8 @@ export interface CaseSecondaryProps {
   readonly totals?: CaseSecondaryTotals | undefined;
   /** The files on file per item, when the page already built them (it does, for the item panels). */
   readonly views?: readonly CandidateView[] | undefined;
-  /** No agency has access: notes show at Everything unless there are some. */
-  readonly selfReviewed?: boolean;
+  /** The depth the Notes tab shows at, worked out once by the page so the link and the tab agree. */
+  readonly notesLevel: DepthLevel;
 }
 
 /** What a row says beside its name: a count in words, or a quiet "none yet". */
@@ -128,7 +128,7 @@ export function CaseSecondary({
   expanded,
   more,
   totals,
-  selfReviewed = false,
+  notesLevel,
   views: given,
 }: CaseSecondaryProps) {
   const openTasks =
@@ -138,9 +138,6 @@ export function CaseSecondary({
   const outcomeCount = totals?.outcomes ?? outcomes.length;
   const problemCount = totals?.problems ?? complaints.length + feedback.length;
   const views = given ?? candidateViews(candidates, evidenceLifecycle, selectionIdsByCandidate);
-  // Notes show at Browse when there are any, or when an agency can see the case; a traveller
-  // reviewing alone with no notes finds them at Everything.
-  const notesLevel: DepthLevel = noteCount > 0 || !selfReviewed ? 'browse' : 'everything';
   const sections: SwitcherSection[] = [
     {
       key: 'evidence',
@@ -199,9 +196,8 @@ export function CaseSecondary({
             <p className="card-kicker">Delegate</p>
             <h2 className="card-title">Ask a Contributor</h2>
             <p className="card-body u-mb-125">
-              Ask a sponsor or family member - who never gets a wallet, profile, or case view of any
-              kind - for exactly one named document. They see only what you type below before
-              deciding whether to upload.
+              Ask a sponsor or family member for one named document. They see only the message you
+              type here, nothing else from your record.
             </p>
             <ContributorRequestsPanel missionId={missionId} requests={contributorRequests} />
           </article>
