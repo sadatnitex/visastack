@@ -19753,6 +19753,15 @@ details.collapsible-group[hidden],
 }
 /* end WP-LP2 */
 
+/* WP-PLAIN-P4 A chased request in Do Next (10 Nov 2026) has no due date, so it takes the warning colour, not the past-due red. */
+.do-next-chase {
+  border-left-color: var(--warning);
+}
+.do-next-chase .do-next-tier {
+  color: var(--warning);
+}
+/* end WP-PLAIN-P4 */
+
 /* WP-F1A Done strip and tab count. The done strip after an action (a short bordered line at the bottom, above the phone bar, clear of the sticky action bar and the Add button), and the count on a phone tab. Flat: 1px borders, no shadow, no gradient. Tokens only. */
 .toast-region {
   position: fixed;

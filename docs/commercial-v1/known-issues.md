@@ -7782,6 +7782,13 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Correction to the Steward notes: a claim push on a branch with no pull request still creates a Vercel deployment record, shown as CANCELED by the main-only setting. No build ran; whether the record counts against the daily deployment limit was not verified.
 - First Steward cleanup: 5 merged branches deleted by the daily workflow run of 10 Nov and 1,139 old artifacts removed. Nine branches with work not on main are waiting for the owner's decision.
 
+## 2026-11-10 - UX packet P4: agency Do Next chases requests with no due date
+
+- Owner decision, 10 Nov 2026 ("yes P4", after 3 days without a reply; friction register E3). Before: `do-next.ts` skipped every request with no due date, so a request sent with no due date was never chased. After: a request still waiting for a first answer (triage group MISSING, status Open) with no due date joins the first group once it has waited 3 or more whole days, after every past-due item, oldest sent first. Same ranking tie rules; tiers are not renumbered.
+- Days are counted in the traveller's time zone (`daysSinceSent` in `console-format.ts`, built on the existing `localDateDiffInDays`, now exported from the services package; no second date helper). The 3 is one named constant, `CHASE_AFTER_DAYS`. Nothing new is read: `createdAt` was already loaded on every request row (it was the tie-break).
+- Wording: the group heading is No Reply Yet (a chased row has no due date, so Past Due would be wrong); the line reads "Sent N days ago with no due date. No reply yet." The follow-up message is the same one (same scrubbing, no due line). The "How This Is Sorted" line gained "requests with no reply after 3 days", recorded as two approved changes in the parity guard.
+- Not included, on purpose: a request sent back for a fix or whose file was unusable, with no due date. Its loaded send date is the original request, so "No reply yet" would be untrue; it needs a sent-back date that the dashboard does not load. Left for the owner to decide.
+- Guards proven by breaking the code: threshold 2, ordering key, rule switched off, and time zone ignored each turned the matching tests red.
 
 ## UX mandate F1: familiar patterns (10 Nov 2026, branch claude/ux-f1-familiar-patterns)
 
