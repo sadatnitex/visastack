@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { SearchableList } from '../../../../components/list-pattern';
 import { PageHeader } from '../../../../components/ui';
 import { AboutDisclosure } from '../../../../components/ui-lift';
 import { formatTimestampDate } from '../../../../lib/format-date';
@@ -9,6 +10,22 @@ import { loadJoinedTrips, loadTripList } from '../trip-data';
 export const metadata: Metadata = { title: 'Group Trips' };
 
 export const dynamic = 'force-dynamic';
+
+/** One group trip in the list: its name and how many travellers it holds. */
+function TripItem({
+  trip,
+}: {
+  readonly trip: { readonly id: string; readonly title: string; readonly travellerCount: number };
+}) {
+  return (
+    <li>
+      <Link href={`/app/trips/${trip.id}`}>{trip.title}</Link>{' '}
+      <span className="muted u-fs-085">
+        {trip.travellerCount === 1 ? '1 Traveller' : `${trip.travellerCount} Travellers`}
+      </span>
+    </li>
+  );
+}
 
 /** UMPE P5: the account holder's group trips. */
 export default async function TripsPage() {
@@ -38,16 +55,23 @@ export default async function TripsPage() {
       </AboutDisclosure>
       <article className="card">
         {trips.length > 0 ? (
-          <ul className="trip-list">
-            {trips.map((trip) => (
-              <li key={trip.id}>
-                <Link href={`/app/trips/${trip.id}`}>{trip.title}</Link>{' '}
-                <span className="muted u-fs-085">
-                  {trip.travellerCount === 1 ? '1 Traveller' : `${trip.travellerCount} Travellers`}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <SearchableList
+            items={trips.map((trip) => ({
+              id: trip.id,
+              text: trip.title,
+              node: <TripItem trip={trip} />,
+            }))}
+            noun={{ one: 'trip', other: 'trips' }}
+            searchLabel="Search Group Trips"
+            resultsTag="ul"
+            resultsClassName="trip-list"
+          >
+            <ul className="trip-list">
+              {trips.map((trip) => (
+                <TripItem key={trip.id} trip={trip} />
+              ))}
+            </ul>
+          </SearchableList>
         ) : hasTravellers ? (
           <p className="u-m-0">No group trips yet.</p>
         ) : (
