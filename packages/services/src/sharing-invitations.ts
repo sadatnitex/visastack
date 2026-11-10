@@ -153,6 +153,31 @@ export async function previewSharingInvitation(
 }
 
 /**
+ * Who is sharing, for the page where the invited person reviews the access (friction F3): the
+ * sender's email address, so the recipient can recognise who sent it. It is read only after
+ * `previewSharingInvitation` has passed for this very person, which means the invitation was sent
+ * to their email, is still pending and has not expired; for anyone else, and for an invitation that
+ * has ended, it returns nothing. If the sender's account cannot be found it also returns nothing
+ * (never a guess). A read only: no access starts and nothing is written. An account holds no
+ * display name, so the email is the one thing that identifies the sender.
+ */
+export async function getSharingInvitationSender(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly rawToken: string },
+): Promise<{ readonly email: string } | null> {
+  const preview = await previewSharingInvitation(db, input);
+  if (!preview.ok) return null;
+  const sender = first(
+    await db
+      .select({ email: schema.accounts.email })
+      .from(schema.accounts)
+      .where(eq(schema.accounts.id, preview.value.invitedByAccountId))
+      .limit(1),
+  );
+  return sender ? { email: sender.email } : null;
+}
+
+/**
  * The named documents that are not in Recently Deleted or being removed, in their order
  * (presentDocumentCondition). Before migration 0113 every named document is kept.
  */

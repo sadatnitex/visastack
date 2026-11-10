@@ -15,6 +15,7 @@ import type { KeyManagementPort } from './ports';
 import {
   acceptSharingInvitation,
   createSharingInvitation,
+  getSharingInvitationSender,
   previewSharingInvitation,
   revokeSharingInvitation,
 } from './sharing-invitations';
@@ -347,5 +348,55 @@ describe('personal sharing before registration', () => {
     expect(!refused.ok && refused.error.message).toBe(
       'The documents in this invitation are no longer available.',
     );
+  });
+
+  it('tells only the invited person who is sharing, and only while the invitation is open (friction F3)', async () => {
+    const request = input();
+    const created = await createSharingInvitation(db, request);
+    if (!created.ok) throw new Error('Invitation failed');
+    const rawToken = created.value.rawToken;
+    const invited = await recipient(request.email);
+    const stranger = await recipient(`stranger-${randomUUID()}@example.test`);
+
+    // The invited person learns the sender's email, nothing else.
+    expect(await getSharingInvitationSender(db, { actorAccountId: invited, rawToken })).toEqual({
+      email: 'sharing-owner@example.test',
+    });
+    // A different signed-in person with the link learns nothing, exactly as the preview refuses them.
+    expect(await getSharingInvitationSender(db, { actorAccountId: stranger, rawToken })).toBeNull();
+    // A wrong or malformed link learns nothing.
+    expect(
+      await getSharingInvitationSender(db, { actorAccountId: invited, rawToken: 'x'.repeat(43) }),
+    ).toBeNull();
+    expect(
+      await getSharingInvitationSender(db, { actorAccountId: invited, rawToken: 'short' }),
+    ).toBeNull();
+
+    // Nothing was written or started by asking.
+    const [row] = await db
+      .select()
+      .from(schema.sharingInvitations)
+      .where(eq(schema.sharingInvitations.id, created.value.invitation.id));
+    expect(row?.status).toBe('PENDING');
+
+    // Once the invitation is revoked, or past its end, nobody learns the sender from it.
+    const revoked = await revokeSharingInvitation(db, owner, created.value.invitation.id);
+    expect(revoked.ok).toBe(true);
+    expect(await getSharingInvitationSender(db, { actorAccountId: invited, rawToken })).toBeNull();
+
+    const expiring = input();
+    const second = await createSharingInvitation(db, expiring);
+    if (!second.ok) throw new Error('Invitation failed');
+    const invitedSecond = await recipient(expiring.email);
+    await db
+      .update(schema.sharingInvitations)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(schema.sharingInvitations.id, second.value.invitation.id));
+    expect(
+      await getSharingInvitationSender(db, {
+        actorAccountId: invitedSecond,
+        rawToken: second.value.rawToken,
+      }),
+    ).toBeNull();
   });
 });

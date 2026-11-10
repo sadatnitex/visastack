@@ -80,3 +80,8 @@ Run order (at most two build sessions at a time beside the owner's case page ses
 | Graphify | Not used now | Each lane already has its files named; reconsider for package 7 if agency changes span many modules |
 | Superpowers | Practices only (test first, prove a guard fails, verify before claiming done), already required by `CLAUDE.md` | Its session-start hook would compete with the repo's agent rules, so it is not installed |
 | Taste Skill | Not used | It targets photo-led marketing sites with motion and effects, against the flat Harbor rules |
+
+
+## 6. Status of Lane 3 (sharing), 10 Nov 2026
+
+F1 to F9 and the contributor WhatsApp action are built on `claude/ux-lane3-sharing` and wait for the coordinator's review; nothing is merged. F3 was built after the coordinator's approval (sender email only: accounts hold no display name). See the 08 Sharing section of `PARITY-LEDGER.md`.

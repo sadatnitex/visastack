@@ -15,7 +15,7 @@ export interface ListRowProps {
   readonly status: string;
   /** A quiet tag after the name ("Mandatory"). */
   readonly tag?: string | undefined;
-  /** One quiet line under the name. */
+  /** One quiet line of values under the name ("Documents: 3 of 12. Ends 12 Dec 2026"): at most 12 words, never a sentence. */
   readonly meta?: string | undefined;
   /** The one thing to do about this item. */
   readonly action?: LiftAction | undefined;
@@ -87,7 +87,12 @@ export function ListRow({
             </span>
           ) : null}
         </div>
-        {meta ? <p className="lp-row-meta">{meta}</p> : null}
+        {/* A value (counts and dates), never a sentence: the 30-word rule treats it as data. */}
+        {meta ? (
+          <p className="lp-row-meta" data-value="meta">
+            {meta}
+          </p>
+        ) : null}
       </div>
       <StatusPill tone={tone} size="md">
         {status}

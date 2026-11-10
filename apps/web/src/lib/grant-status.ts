@@ -16,3 +16,9 @@ export function grantStatusBadge(status: string, t: Translator): { label: string
   };
   return { label: status in GRANT_STATUS_KEYS ? t(entry.key) : status, tone: entry.tone };
 }
+
+/** The colour role of a grant's status on a list row: live is green, paused is amber, anything else is quiet. */
+export function grantStatusTone(status: string): 'success' | 'warning' | 'neutral' {
+  const tone = GRANT_STATUS_KEYS[status]?.tone;
+  return tone === 'badge-success' ? 'success' : tone === 'badge-warning' ? 'warning' : 'neutral';
+}

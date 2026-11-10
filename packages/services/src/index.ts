@@ -556,6 +556,7 @@ export {
   type RecipientFieldView,
   type RecipientWorkspaceView,
   type ScopeExpansionCandidate,
+  GRANT_DEFAULT_DURATION_DAYS,
   acceptGrant,
   applyCaseSharingAnswers,
   createGrant,
@@ -1619,6 +1620,7 @@ export { type PlatformOverview, getPlatformOverview } from './platform-overview'
 
 export {
   createSharingInvitation,
+  getSharingInvitationSender,
   previewSharingInvitation,
   acceptSharingInvitation,
   listSharingInvitations,

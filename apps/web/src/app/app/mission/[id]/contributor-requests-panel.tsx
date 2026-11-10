@@ -2,6 +2,8 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useShareMessage } from '../../../../components/share/use-share-message';
+import { WhatsAppShare } from '../../../../components/share/whatsapp-share';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../lib/labels';
 import {
@@ -123,9 +125,35 @@ export function ContributorRequestsPanel({
           />
           <FormMessage result={state} style={{ wordBreak: 'break-all' }} />
         </div>
+        {state.ok && state.acceptUrl ? (
+          <ContributorLinkShare
+            url={state.acceptUrl}
+            {...(state.askedFor ? { askedFor: state.askedFor } : {})}
+          />
+        ) : null}
       </form>
     </>
   );
+}
+
+/**
+ * Send on WhatsApp for the private link of a request just made. The words come from the one
+ * builder (kind of document and the link, nothing else); when it refuses them, no WhatsApp action
+ * shows and the link in the message above still works.
+ */
+function ContributorLinkShare({
+  url,
+  askedFor,
+}: {
+  readonly url: string;
+  readonly askedFor?: string;
+}) {
+  const message = useShareMessage({
+    template: 'contributor-request',
+    link: url,
+    ...(askedFor ? { documentKind: askedFor } : {}),
+  });
+  return message ? <WhatsAppShare message={message} title="VisaStack Request" /> : null;
 }
 
 function RevokeButton({

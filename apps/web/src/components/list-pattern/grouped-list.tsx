@@ -13,6 +13,8 @@ export interface ListGroupProps {
   readonly open: boolean;
   /** The rows shown at once. */
   readonly children: ReactNode;
+  /** The heading level, one below the heading of the card or section the group sits in. Four unless the screen says otherwise. */
+  readonly headingLevel?: 3 | 4 | undefined;
   /** The rest of the rows, folded under "n More Items". */
   readonly rest?: ReactNode;
   /** The label of the fold of the rest ("4 More Items"). */
@@ -38,9 +40,17 @@ export function GroupedList({ groups }: { readonly groups: readonly ListGroupPro
           open={group.open}
         >
           <summary className="collapsible-group-summary">
-            <h4 className="case-group-heading collapsible-group-title" data-pattern="group-heading">
-              {group.heading} <span className="muted lift-state-count">{group.count}</span>
-            </h4>
+            {(() => {
+              const Heading = group.headingLevel === 3 ? 'h3' : 'h4';
+              return (
+                <Heading
+                  className="case-group-heading collapsible-group-title"
+                  data-pattern="group-heading"
+                >
+                  {group.heading} <span className="muted lift-state-count">{group.count}</span>
+                </Heading>
+              );
+            })()}
           </summary>
           <div className="collapsible-group-body">
             <div className="rows">{group.children}</div>

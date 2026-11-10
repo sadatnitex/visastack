@@ -217,7 +217,10 @@ describe('sharing levels', () => {
   const levelOf = (el: Element | null | undefined) =>
     el ? levelContaining(el as HTMLElement, el.ownerDocument.body) : 'none';
   const rowFor = (doc: Document, label: string) =>
-    [...doc.querySelectorAll('.sharing-grant')].find((row) => row.textContent?.includes(label));
+    [...doc.querySelectorAll('.sharing-grant-item')].find((row) =>
+      row.textContent?.includes(label),
+    );
+  const paneOf = (doc: Document, grantId: string) => doc.getElementById(`lp-pane-${grantId}`);
   beforeEach(() => {
     state.access = { ok: true, value: [] };
     state.documents = { ok: true, value: [passport] };
@@ -238,7 +241,13 @@ describe('sharing levels', () => {
     for (const id of ['g1', 'g2']) {
       const row = rowFor(doc, `Recipient ${id}`);
       expect(levelOf(row)).toBe('glance');
-      expect(levelOf(row?.querySelector('[data-stub="GrantOpButtons"]'))).toBe('glance');
+      // The row opens the grant's panel, where Pause, Resume and Revoke are, with the warning beside them.
+      expect(row?.querySelector(`a[data-pane-open="${id}"]`)).not.toBeNull();
+      const pane = paneOf(doc, id);
+      expect(pane?.querySelector('[data-stub="GrantOpButtons"]')).not.toBeNull();
+      expect(pane?.textContent).toContain(
+        'Pausing or revoking stops access now; copies already downloaded cannot be erased.',
+      );
     }
     for (const id of ['g3', 'g4', 'g5'])
       expect(levelOf(rowFor(doc, `Recipient ${id}`))).toBe('browse');
@@ -252,17 +261,40 @@ describe('sharing levels', () => {
     expect(doc.querySelector('[data-only="glance"]')?.textContent).toContain(
       '3 more waiting or ended, under Browse.',
     );
-    expect(levelOf(doc.getElementById('new-sharing-request'))).toBe('everything');
   });
 
-  it('opens the form one level earlier while nobody has access, and at Glance from Share on a document', async () => {
-    expect(levelOf((await page()).getElementById('new-sharing-request'))).toBe('browse');
-    expect(
-      levelOf((await page({ document: 'passport' })).getElementById('new-sharing-request')),
-    ).toBe('glance');
-    expect(
-      levelOf((await page({ document: 'not-mine' })).getElementById('new-sharing-request')),
-    ).toBe('browse');
+  it('says what each grant gives and until when, in one line on the row (friction F1)', async () => {
+    state.access = {
+      ok: true,
+      value: [
+        grant('ACTIVE', 'g1', { expiryAt: new Date('2030-12-12T10:00:00Z') }),
+        grant('ACTIVE', 'g2', {
+          documentIds: null,
+          expiryAt: new Date('2030-12-12T10:00:00Z'),
+          actions: ['VIEW_METADATA', 'PREVIEW'],
+        }),
+      ],
+    };
+    const doc = await page();
+    expect(rowFor(doc, 'Recipient g1')?.querySelector('[data-value="meta"]')?.textContent).toBe(
+      'Documents: 1 of 1. Ends 12 Dec 2030',
+    );
+    expect(rowFor(doc, 'Recipient g2')?.querySelector('[data-value="meta"]')?.textContent).toBe(
+      'Profile: all. Documents: all 1. Ends 12 Dec 2030',
+    );
+  });
+
+  it('keeps the form for a new request in the side panel, closed until it is asked for, and open from Share on a document', async () => {
+    const closed = (doc: Document) => doc.getElementById('lp-pane-new')?.hasAttribute('hidden');
+    const first = await page();
+    expect(closed(first)).toBe(true);
+    expect(first.getElementById('new-sharing-request')).not.toBeNull();
+    expect(first.querySelector('#lp-pane-new [data-stub="GrantForm"]')).not.toBeNull();
+    expect(closed(await page({ document: 'passport' }))).toBe(false);
+    expect(closed(await page({ document: 'not-mine' }))).toBe(true);
+    expect(closed(await page({ item: 'new' }))).toBe(false);
+    // The address names a grant that is not theirs: no panel opens.
+    expect(closed(await page({ item: 'someone-elses' }))).toBe(true);
   });
 
   it('counts invitations not yet accepted at Glance and lists them at Browse', async () => {
@@ -295,6 +327,7 @@ describe('sharing levels', () => {
     expect(doc.querySelector('[role="alert"]')?.textContent).toContain(
       'This does not mean nobody has access',
     );
-    expect(levelOf(doc.getElementById('new-sharing-request'))).toBe('everything');
+    // The form for a new request is still there, so the person can act once the page is reloaded.
+    expect(doc.getElementById('new-sharing-request')).not.toBeNull();
   });
 });

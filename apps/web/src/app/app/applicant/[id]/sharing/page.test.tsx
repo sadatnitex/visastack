@@ -192,7 +192,8 @@ describe('grant cards describe each grant in rows (WP-X2)', () => {
       ],
     });
     const html = await render();
-    const cards = html.split('class="row sharing-grant"').slice(1);
+    // Each grant's full description is its panel; its row carries only the one line.
+    const cards = html.split('class="lp-pane-content sharing-grant-pane"').slice(1);
     expect(cards).toHaveLength(3);
     const [active, paused, revoked] = cards.map((card) => textOf(card));
     expect(active).toContain('They can');
@@ -214,7 +215,9 @@ describe('grant cards describe each grant in rows (WP-X2)', () => {
       ok: true,
       value: [{ ...grant('ACTIVE'), expiryAt: new Date('2020-01-01') }],
     });
-    const card = textOf((await render()).split('class="row sharing-grant"')[1] ?? '');
+    const card = textOf(
+      (await render()).split('class="lp-pane-content sharing-grant-pane"')[1] ?? '',
+    );
     expect(card).toContain('They could');
     expect(card).toContain('Ended');
     expect(card).not.toMatch(/They can(?!not)/);
@@ -635,7 +638,7 @@ describe('a long list of grants stays short (WP-SB3)', () => {
     expect(mocks.listAccessForApplicantDetailed).toHaveBeenCalledWith({}, 'owner', 'owned', {
       limit: 5,
     });
-    expect(html.split('class="row sharing-grant"')).toHaveLength(6);
+    expect(html.split('class="sharing-grant-item"')).toHaveLength(6);
     const text = textOf(html);
     expect(text).toContain('Showing 5 of 40 grants.');
     expect(text).toContain('8 active grants.');
@@ -648,22 +651,32 @@ describe('a long list of grants stays short (WP-SB3)', () => {
     const ended = () => [grant('ACTIVE', 'g0'), grant('REVOKED', 'g1'), grant('REVOKED', 'g2')];
     mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: true, value: ended() });
     const closed = await render();
-    expect(textOf(closed)).toContain('Ended Access (2)');
-    expect(closed).toMatch(/<details class="lc-ended-group"[^>]*data-level="browse"/);
-    expect(closed).not.toMatch(/<details class="lc-ended-group"[^>]*open/);
+    expect(textOf(closed)).toContain('Ended Access 2');
+    expect(closed).toMatch(/<div data-level="browse"><div class="collapsible-groups/);
+    expect(closed).not.toMatch(/<details[^>]*id="sharing-ended-access"[^>]*open/);
     mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: true, value: ended() });
     const paged = await renderAt({ show: '10' });
-    expect(paged).toMatch(/<details class="lc-ended-group"[^>]*open/);
+    expect(paged).toMatch(/<details[^>]*id="sharing-ended-access"[^>]*open/);
+    // An address that names an ended grant opens the group too, so its row is on screen.
+    mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: true, value: ended() });
+    expect(await renderAt({ item: 'g1' })).toMatch(
+      /<details[^>]*id="sharing-ended-access"[^>]*open/,
+    );
     // The rows are in the group either way, so every id Show More lands on exists.
     expect(paged).toContain('id="sharing-grant-3"');
   });
 
-  it('keeps each grant’s details behind its own Grant Details expander', async () => {
+  it('opens each grant in its own panel, all closed until one is chosen', async () => {
     mocks.listAccessForApplicantDetailed.mockResolvedValue({ ok: true, value: many() });
     const html = await render();
-    expect(html.match(/<details class="sharing-grant-details"/g)).toHaveLength(5);
-    expect(html).not.toMatch(/<details class="sharing-grant-details"[^>]*open/);
-    expect(textOf(html)).toContain('Grant Details for Synthetic recipient');
+    // Five grants and the form for a new request, each its own panel.
+    expect(html.match(/class="lp-pane-item"/g)).toHaveLength(6);
+    expect(html.match(/class="lp-pane-item"[^>]*hidden/g)).toHaveLength(6);
+    expect(html.match(/data-pane-open="g\d+"/g)).toHaveLength(5);
+    expect(html).toContain('data-sheet="closed"');
+    const chosen = await renderAt({ item: 'g1' });
+    expect(chosen).toContain('data-sheet="open"');
+    expect(chosen.match(/class="lp-pane-item"[^>]*hidden/g)).toHaveLength(5);
   });
 
   it('grows by five with each Show More and clamps a hand-edited address', async () => {
