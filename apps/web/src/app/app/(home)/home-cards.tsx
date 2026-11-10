@@ -73,19 +73,22 @@ export function CaseCard({
   title,
   person,
   badge,
+  flag,
   children,
 }: {
   readonly href: string;
   readonly title: string;
   readonly person: ReactNode;
   readonly badge?: ReactNode;
+  /** The flag of the case's country, in place of the plain globe when the case names one. */
+  readonly flag?: ReactNode;
   readonly children?: ReactNode;
 }) {
   return (
     <li className="home-case">
       <Link className="home-case-link plain-link" href={href}>
-        <span className="home-case-icon" aria-hidden="true">
-          <Icon name="globe" size={20} />
+        <span className="home-case-icon" {...(flag ? {} : { 'aria-hidden': true as const })}>
+          {flag ?? <Icon name="globe" size={20} />}
         </span>
         <span className="home-case-title">{title}</span>
         <span className="home-case-person">{person}</span>

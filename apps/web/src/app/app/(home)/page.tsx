@@ -23,9 +23,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { CaseReadinessBar, type ReadinessCounts } from '../../../components/case-readiness-ring';
+import { CountryFlag } from '../../../components/country-flag';
 import { DeadlineClock } from '../../../components/deadline-clock';
 import { DepthScope, atLevel } from '../../../components/depth';
 import { DepthSwitch } from '../../../components/depth-switch';
+import { destinationFlagCode } from '../../../components/destination-label';
 import { Icon, type IconName } from '../../../components/icons';
 import { PROGRESS_IN_CASE_LINE } from '../../../components/progress-ring';
 import {
@@ -642,6 +644,7 @@ export default async function AppPage({
       id: entry.id,
       title: entry.title,
       person: row.applicant.displayName,
+      destination: entry.destination,
     })),
   );
 
@@ -928,6 +931,17 @@ export default async function AppPage({
                       href={data.caseNotices.get(entry.id)?.href ?? `/app/mission/${entry.id}`}
                       title={entry.title}
                       person={entry.person}
+                      {...(destinationFlagCode(entry.destination)
+                        ? {
+                            flag: (
+                              <CountryFlag
+                                iso2={destinationFlagCode(entry.destination)}
+                                name={entry.destination}
+                                size="md"
+                              />
+                            ),
+                          }
+                        : {})}
                       {...(data.caseNotices.has(entry.id)
                         ? {
                             // Beside the trip it concerns (UMPE P13): what changed, in two words.

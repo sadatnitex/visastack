@@ -217,3 +217,5 @@ Send on WhatsApp, everywhere a person sends something (10 Nov 2026). Owner decis
 | Copying the whole message | Copy Message (always there) | none | **Done (package P6)** |
 | Copying only the link | Copy Link (kept on invitation and request links) | none | **Done (package P6)** |
 | WhatsApp to VisaStack support | Send on WhatsApp under "Something Is Not Working" on Help, only when the business number is set | none | **Done (package P6)** |
+| The stage of a case on the Trips list | Getting Started, Gathering Documents, Agency Is Checking, Needs You, Ready to Submit, Submitted, Closed, Cancelled (`CASE_STATUS`); older stages read as the nearest word | "Draft", "Intake", "In Review", "Awaiting Traveller", "Submission Ready", "Approved" (never used for Submitted) | **Done (P12)** |
+| The two groups on the Trips list | Active (N) and Past Trips (N) | "Active Cases", "Past Cases", "All Past Cases" | **Done (P12)** |

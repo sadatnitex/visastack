@@ -111,11 +111,7 @@ export function CaseListRow({
   const country = destination?.trim() ? destination : null;
   const purposeText = purpose?.trim() ? purpose : null;
   const tone = HARBOR_TONE[status.tone];
-  const step = past
-    ? null
-    : progress.kind === 'no-checklist'
-      ? 'Pick a Checklist'
-      : nextStep;
+  const step = past ? null : progress.kind === 'no-checklist' ? 'Pick a Checklist' : nextStep;
   return (
     <li className="case-list-item">
       <Link

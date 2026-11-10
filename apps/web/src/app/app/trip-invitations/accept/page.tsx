@@ -10,6 +10,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { DestinationLabel } from '../../../../components/destination-label';
 import { PageHeader } from '../../../../components/ui';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
@@ -21,7 +22,6 @@ import {
 import { CoreConsentStep } from './core-consent';
 import { networkLimited } from './network-limit';
 import { INVITATION_BUSY, INVITATION_UNAVAILABLE } from './words';
-import { DestinationLabel } from '../../../../components/destination-label';
 
 export const metadata: Metadata = {
   title: 'Join a Trip',

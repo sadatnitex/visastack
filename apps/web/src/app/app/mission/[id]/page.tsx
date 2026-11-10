@@ -64,6 +64,7 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
+import { DestinationLabel } from '../../../../components/destination-label';
 import { ListWithPane } from '../../../../components/list-pattern';
 import { ReferenceCode } from '../../../../components/reference-code';
 import { ShowMore } from '../../../../components/show-more';
@@ -124,7 +125,6 @@ import { evidenceDocumentIds, evidenceLifecycleLabels } from './evidence-lifecyc
 import { composeSelectionCandidateKey } from './evidence-selection-key';
 import { SnapshotButton } from './mission-buttons';
 import { PackagePanel } from './package-panel';
-import { DestinationLabel } from '../../../../components/destination-label';
 
 export const metadata: Metadata = { title: 'Case' };
 

@@ -45,15 +45,21 @@ describe('the Trips list block', () => {
   });
 
   it('keeps the card on a fixed grid so a long name never moves the chip', () => {
-    expect(rules).toMatch(/\.case-row\s*\{[^}]*grid-template-columns:\s*44px minmax\(0, 1fr\) 20px/);
+    expect(rules).toMatch(
+      /\.case-row\s*\{[^}]*grid-template-columns:\s*44px minmax\(0, 1fr\) 20px/,
+    );
     expect(rules).toMatch(/\.case-row-title\s*\{[^}]*white-space:\s*nowrap/);
     expect(rules).toMatch(/\.case-row-title\s*\{[^}]*text-overflow:\s*ellipsis/);
     expect(rules).toMatch(/\.case-row-chipline\s*\{[^}]*display:\s*flex/);
   });
 
   it('sets the name at 17px bold, the flag at 44px and the bar at 8px', () => {
-    expect(rules).toMatch(/\.case-row-title\s*\{[^}]*font-size:\s*1\.0625rem[^}]*font-weight:\s*750/);
-    expect(rules).toMatch(/\.country-flag\[data-size="lg"\]\s*\{[^}]*width:\s*44px;\s*height:\s*44px/);
+    expect(rules).toMatch(
+      /\.case-row-title\s*\{[^}]*font-size:\s*1\.0625rem[^}]*font-weight:\s*750/,
+    );
+    expect(rules).toMatch(
+      /\.country-flag\[data-size="lg"\]\s*\{[^}]*width:\s*44px;\s*height:\s*44px/,
+    );
     expect(rules).toMatch(/\.case-bar-track\s*\{[^}]*height:\s*8px/);
   });
 
@@ -69,7 +75,9 @@ describe('the Trips list block', () => {
   });
 
   it('takes every chip colour from the six Harbor tones, never a new colour, and keeps white readable on each', () => {
-    expect(rules).toMatch(/\.case-chip\[data-tone\]\s*\{[^}]*background:\s*var\(--tone\)[^}]*color:\s*#ffffff/);
+    expect(rules).toMatch(
+      /\.case-chip\[data-tone\]\s*\{[^}]*background:\s*var\(--tone\)[^}]*color:\s*#ffffff/,
+    );
     // The chip rules name no colour of their own besides the white text and the grey ground.
     const chipRules = rules.match(/\.case-chip[^{]*\{[^}]*\}/g)?.join('') ?? '';
     const colours = chipRules.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
@@ -93,6 +101,8 @@ describe('the Trips list block', () => {
   });
 
   it('gives the chip a dot', () => {
-    expect(rules).toMatch(/\.case-chip-dot\s*\{[^}]*width:\s*8px;\s*height:\s*8px;\s*border-radius:\s*50%/);
+    expect(rules).toMatch(
+      /\.case-chip-dot\s*\{[^}]*width:\s*8px;\s*height:\s*8px;\s*border-radius:\s*50%/,
+    );
   });
 });

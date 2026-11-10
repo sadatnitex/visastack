@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { DestinationLabel } from '../../../../components/destination-label';
 import { SearchableList } from '../../../../components/list-pattern';
 import { PageHeader } from '../../../../components/ui';
 import { AboutDisclosure } from '../../../../components/ui-lift';
@@ -94,7 +95,7 @@ export default async function TripsPage() {
                   <span>{trip.title}</span>
                 )}{' '}
                 <span className="muted u-fs-085">
-                  {trip.destination}
+                  <DestinationLabel destination={trip.destination} />
                   {trip.joined
                     ? ''
                     : `. Invitation ends ${formatTimestampDate(trip.endsAt)}. Open the link in your email to answer.`}

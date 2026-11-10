@@ -2,9 +2,9 @@
 import type { EntryStatus } from '@visastack/core/destinations';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { CountryFlag } from './country-flag';
 import { showMoreCount } from './show-more';
 import { EmptyState, StatusBadge } from './ui';
-import { CountryFlag } from './country-flag';
 
 export interface CountryBrowserItem {
   readonly iso2: string;

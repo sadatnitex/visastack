@@ -599,3 +599,14 @@ A submitted, closed or cancelled case can no longer change, so the case page sto
 | The "Something changed after you confirmed this case" alert with "Take a New Snapshot" | Not shown (a finished case is never shown as needing to be confirmed again) | Case, status area |
 
 Held by `parity-case.test.tsx` through three approved changes in `approved-changes.ts` (they apply to the closed-case state only) and by `page.test.tsx`.
+
+## Cases list: one card per case (P12, 10 Nov 2026)
+
+| Before | Now | Where |
+|---|---|---|
+| Heading "Active Cases", list of plain rows with a ring and a grey stage badge | Heading "Active (N)"; each case is one card (flag, name, country and purpose, stage chip, bar and count, next step, chevron) | Cases |
+| Heading "Past Cases" with a note, rows folded only above three | A folded row "Past Trips (N)" always, cards inside, no advice on them | Cases |
+| A row link named by its text (name, count line, stage, arrow) | One link per card named "case, stage, count" | Cases |
+| Stage names Draft, Intake, In Review, Awaiting Traveller, Submission Ready (and older ones) | Getting Started, Gathering Documents, Agency Is Checking, Needs You, Ready to Submit, Submitted, Closed, Cancelled | Cases, glance line |
+
+Held by `parity-cases.test.tsx` through the approved changes in `approved-changes.ts`, by `page.test.tsx` and by `components/case-list-row.test.tsx`.

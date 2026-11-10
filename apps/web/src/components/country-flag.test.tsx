@@ -4,12 +4,7 @@ import { type Root, createRoot, hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from '../lib/axe.test-support';
-import {
-  CountryFlag,
-  flagEmoji,
-  flagLetters,
-  platformLacksFlagEmoji,
-} from './country-flag';
+import { CountryFlag, flagEmoji, flagLetters, platformLacksFlagEmoji } from './country-flag';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -90,7 +85,10 @@ describe('CountryFlag', () => {
   });
 
   it('shows the letters on a plain round badge on a Windows desktop, keeping the name', () => {
-    stubNavigator({ userAgent: 'Mozilla/5.0 (Windows NT 10.0)', userAgentData: { platform: 'Windows' } });
+    stubNavigator({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0)',
+      userAgentData: { platform: 'Windows' },
+    });
     root = createRoot(container);
     act(() => root?.render(<CountryFlag iso2="jp" name="Japan" />));
     const flag = container.querySelector('.country-flag');
@@ -111,7 +109,9 @@ describe('CountryFlag', () => {
       });
     });
     expect(problems).toEqual([]);
-    expect(container.querySelector('.country-flag')?.getAttribute('data-flag-kind')).toBe('letters');
+    expect(container.querySelector('.country-flag')?.getAttribute('data-flag-kind')).toBe(
+      'letters',
+    );
   });
 
   it('draws a plain globe for a code that is not a country code, named when it has a name', () => {

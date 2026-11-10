@@ -45,14 +45,14 @@ describe('the status words of a case', () => {
   });
 
   it('uses the owner-approved words and colours for the eight stages', () => {
-    expect(CASE_STATUS['DRAFT']).toEqual({ word: 'Getting Started', tone: 'warning' });
-    expect(CASE_STATUS['INTAKE']).toEqual({ word: 'Gathering Documents', tone: 'warning' });
-    expect(CASE_STATUS['IN_REVIEW']).toEqual({ word: 'Agency Is Checking', tone: 'info' });
-    expect(CASE_STATUS['AWAITING_APPLICANT']).toEqual({ word: 'Needs You', tone: 'danger' });
-    expect(CASE_STATUS['SUBMISSION_READY']).toEqual({ word: 'Ready to Submit', tone: 'success' });
-    expect(CASE_STATUS['SUBMITTED']).toEqual({ word: 'Submitted', tone: 'info' });
-    expect(CASE_STATUS['CLOSED']).toEqual({ word: 'Closed', tone: 'neutral' });
-    expect(CASE_STATUS['CANCELLED']).toEqual({ word: 'Cancelled', tone: 'neutral' });
+    expect(CASE_STATUS.DRAFT).toEqual({ word: 'Getting Started', tone: 'warning' });
+    expect(CASE_STATUS.INTAKE).toEqual({ word: 'Gathering Documents', tone: 'warning' });
+    expect(CASE_STATUS.IN_REVIEW).toEqual({ word: 'Agency Is Checking', tone: 'info' });
+    expect(CASE_STATUS.AWAITING_APPLICANT).toEqual({ word: 'Needs You', tone: 'danger' });
+    expect(CASE_STATUS.SUBMISSION_READY).toEqual({ word: 'Ready to Submit', tone: 'success' });
+    expect(CASE_STATUS.SUBMITTED).toEqual({ word: 'Submitted', tone: 'info' });
+    expect(CASE_STATUS.CLOSED).toEqual({ word: 'Closed', tone: 'neutral' });
+    expect(CASE_STATUS.CANCELLED).toEqual({ word: 'Cancelled', tone: 'neutral' });
   });
 
   it('reads an older stage as the nearest stage, and never claims a decision', () => {
@@ -119,10 +119,12 @@ describe('a case row', () => {
   it('shows the country and the purpose on one muted line, and invents neither', () => {
     expect(draw().querySelector('.case-row-sub')?.textContent).toBe('Japan · Tourism');
     expect(draw({ purpose: null }).querySelector('.case-row-sub')?.textContent).toBe('Japan');
-    expect(draw({ destination: null, iso2: null }).querySelector('.case-row-sub')?.textContent).toBe(
-      'Tourism',
-    );
-    expect(draw({ destination: null, iso2: null, purpose: null }).querySelector('.case-row-sub')).toBeNull();
+    expect(
+      draw({ destination: null, iso2: null }).querySelector('.case-row-sub')?.textContent,
+    ).toBe('Tourism');
+    expect(
+      draw({ destination: null, iso2: null, purpose: null }).querySelector('.case-row-sub'),
+    ).toBeNull();
   });
 
   it('draws a thin bar with the count and the next step from the checklist', () => {
@@ -162,12 +164,12 @@ describe('a case row', () => {
   });
 
   it('says why there is no count instead of making one up', () => {
-    expect(draw({ progress: { kind: 'none-required' } }).querySelector('.case-row-count')?.textContent).toBe(
-      'No required items',
-    );
-    expect(draw({ progress: { kind: 'unread' } }).querySelector('.case-row-count')?.textContent).toBe(
-      'Open the case to see its progress.',
-    );
+    expect(
+      draw({ progress: { kind: 'none-required' } }).querySelector('.case-row-count')?.textContent,
+    ).toBe('No required items');
+    expect(
+      draw({ progress: { kind: 'unread' } }).querySelector('.case-row-count')?.textContent,
+    ).toBe('Open the case to see its progress.');
   });
 
   it('shows no next step when nothing required is missing', () => {

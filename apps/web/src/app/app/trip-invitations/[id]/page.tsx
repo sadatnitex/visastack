@@ -13,6 +13,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { DestinationLabel } from '../../../../components/destination-label';
 import { PageHeader } from '../../../../components/ui';
 import { withSession } from '../../../../lib/session';
 import {
@@ -22,7 +23,6 @@ import {
   RemovePaperForm,
   ShareLevelForm,
 } from './joined-trip-forms';
-import { DestinationLabel } from '../../../../components/destination-label';
 
 export const metadata: Metadata = {
   title: 'Joined Trip',

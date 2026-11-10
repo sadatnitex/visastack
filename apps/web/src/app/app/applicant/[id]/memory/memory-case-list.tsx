@@ -1,12 +1,12 @@
 import type { MemoryCase, MemoryEvent } from '@visastack/services';
 import Link from 'next/link';
 import { CollapsibleGroup } from '../../../../../components/collapsible-group';
+import { DestinationLabel } from '../../../../../components/destination-label';
 import { ShowMore } from '../../../../../components/show-more';
 import { eventKey, eventLine } from '../../../../../lib/application-memory-labels';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { type SearchParamsRecord, TRAVELLER_LIST_STEP, nextShow } from '../../../../../lib/paging';
-import { DestinationLabel } from '../../../../../components/destination-label';
 
 /** A reported submission date and a decision date are calendar dates the person gave. */
 export function eventDate(event: MemoryEvent): string {

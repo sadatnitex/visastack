@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { caseListReadiness, caseRowProgress, caseRowProps } from './case-list-model';
 import { nextStepFor } from './case-next-step';
-import { caseListReadiness, caseRowProps, caseRowProgress } from './case-list-model';
 
 const mission = {
   id: 'm1',
@@ -21,10 +21,14 @@ describe('the next step on a row', () => {
       ]),
     ).toBe('Add Bank Statement');
     expect(
-      nextStepFor([{ kind: 'DOCUMENT', key: 'passport', optional: false, reason: 'stale_evidence' }]),
+      nextStepFor([
+        { kind: 'DOCUMENT', key: 'passport', optional: false, reason: 'stale_evidence' },
+      ]),
     ).toMatch(/^Update /);
     expect(
-      nextStepFor([{ kind: 'FIELD', key: 'full_name', optional: false, reason: 'unresolved_conflict' }]),
+      nextStepFor([
+        { kind: 'FIELD', key: 'full_name', optional: false, reason: 'unresolved_conflict' },
+      ]),
     ).toMatch(/^Fix /);
   });
 

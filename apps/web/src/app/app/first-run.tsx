@@ -1,12 +1,12 @@
 import type { Locale } from '@visastack/i18n';
 import Link from 'next/link';
 import { CountryChecklistPicker } from '../../components/country-checklist-picker';
+import { DestinationLabel } from '../../components/destination-label';
 import { CONFIRMED_LINE } from '../../lib/confirmed-landing';
 import type { StartData } from '../../lib/country-start';
 import { appHrefForCountry, permissionStepHref } from '../../lib/country-start-links';
 import { AddApplicantForm } from './add-applicant-form';
 import { ConsentButton } from './consent-button';
-import { DestinationLabel } from '../../components/destination-label';
 
 /**
  * Task-first first run (WP-V3, decision D8, preview approved 25 Oct 2026). Screen 1 asks for core

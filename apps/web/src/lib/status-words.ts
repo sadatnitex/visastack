@@ -1,3 +1,4 @@
+import type { MissionState } from '@visastack/core';
 import type { RequirementResultState } from '@visastack/services';
 
 /**
@@ -67,7 +68,7 @@ export const INVITATION_STATUS: Readonly<Record<string, StatusWord>> = {
  * only older cases carry (`LEGACY_ONLY_MISSION_STATES`) read as the nearest stage and keep their
  * stored value; a test holds every stored stage to a word here.
  */
-export const CASE_STATUS: Readonly<Record<string, StatusWord>> = {
+export const CASE_STATUS: Readonly<Record<MissionState, StatusWord>> = {
   DRAFT: { word: 'Getting Started', tone: 'warning' },
   INTAKE: { word: 'Gathering Documents', tone: 'warning' },
   IN_REVIEW: { word: 'Agency Is Checking', tone: 'info' },
@@ -89,7 +90,7 @@ const UNKNOWN_CASE_STATUS: StatusWord = { word: 'Getting Started', tone: 'warnin
 
 /** The word and tone for a case's stored stage. */
 export function caseStatus(state: string): StatusWord {
-  return CASE_STATUS[state] ?? UNKNOWN_CASE_STATUS;
+  return (CASE_STATUS as Readonly<Record<string, StatusWord>>)[state] ?? UNKNOWN_CASE_STATUS;
 }
 
 /** Every chip word a list row may carry. */
