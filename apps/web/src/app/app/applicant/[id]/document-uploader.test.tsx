@@ -176,10 +176,13 @@ describe('Remove This New Copy after an upload (LC-C)', () => {
       removableCopyId: COPY,
     });
     expect(host.textContent).toContain('You already keep an identical copy of this file.');
+    expect(host.querySelector('.receipt-card')).not.toBeNull();
     await act(async () => {
       removeButton(host)?.click();
     });
     expect(copy.remove).toHaveBeenCalledWith('a1', COPY, true);
+    // The copy is gone again, so the receipt no longer says it is saved.
+    expect(host.querySelector('.receipt-card')).toBeNull();
     expect(host.querySelector('output.lc-undo')?.textContent).toContain(
       'Moved to Recently Deleted. Removed in 30 Days.',
     );

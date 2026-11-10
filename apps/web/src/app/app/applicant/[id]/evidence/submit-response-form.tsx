@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useActionState, useId, useState } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../../components/form-feedback';
 import { Icon } from '../../../../../components/icons';
@@ -78,7 +79,30 @@ export function SubmitResponseForm({
   /** What the request is for, so several Send buttons on one page each say which item they send. */
   readonly itemLabel?: string;
 }) {
-  const [state, formAction, pending] = useActionState(submitEvidenceResponseAction, INITIAL);
+  const router = useRouter();
+  // After a saved answer the address says so (`done=answered`), and the page draws the receipt
+  // from the saved request. This form is rebuilt when the page refreshes after an answer, so it
+  // cannot hold the receipt itself; the address change runs from here, not from an effect that
+  // the rebuild could skip.
+  const [state, formAction, pending] = useActionState(
+    async (previous: ActionState, formData: FormData): Promise<ActionState> => {
+      const next = await submitEvidenceResponseAction(previous, formData);
+      if (next.ok && next.savedAt) {
+        // Best effort: the answer is already saved, so a failure to move the address must never
+        // turn that into an error on screen.
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('item', requestId);
+          url.searchParams.set('done', 'answered');
+          router.replace(`${url.pathname}${url.search}`, { scroll: false });
+        } catch {
+          // The page still refreshes and shows the request as answered.
+        }
+      }
+      return next;
+    },
+    INITIAL,
+  );
   const onlyFact = candidateFacts.length === 1 ? (candidateFacts[0]?.factId ?? '') : '';
   // What is chosen before the person does anything: one fitting item that was not just sent back.
   const [initial] = useState(kind === 'FIELD' ? onlyFact : initialChoice(documentChoices));
@@ -90,13 +114,9 @@ export function SubmitResponseForm({
   // waiting list, and never beside a fresh Send button.
   const waitingResult = state.ok ? NO_RESULT : result;
 
-  if (!awaiting) {
-    return state.ok && state.savedAt ? (
-      <div className="request-response">
-        <FormMessage result={result} />
-      </div>
-    ) : null;
-  }
+  // Once the request no longer waits on the traveller, the page shows the receipt (answered just
+  // now) or the thread; the form has nothing left to say.
+  if (!awaiting) return null;
 
   if (kind === 'FIELD' && candidateFacts.length === 0) {
     return (

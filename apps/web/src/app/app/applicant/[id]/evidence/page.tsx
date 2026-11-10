@@ -47,6 +47,8 @@ const REQUEST_SHOW_MAX = 500;
 const REQUEST_NOUN = { one: 'request', other: 'requests' } as const;
 /** The address parameter that names the request whose panel is open. */
 const ITEM_KEY = 'item';
+/** `done=answered` with `item=<request>` draws the receipt for that request after an answer (F2). */
+const DONE_KEY = 'done';
 
 export default async function EvidencePage({
   params,
@@ -176,6 +178,9 @@ export default async function EvidencePage({
     !data.moreRequests &&
     !entries.some(needsPerson);
   const openItem = firstParam(search[ITEM_KEY]);
+  const answeredId = firstParam(search[DONE_KEY]) === 'answered' ? openItem : undefined;
+  // Links the page draws keep the other parameters but not `done`: the receipt is for this visit.
+  const { [DONE_KEY]: _receipt, ...linkSearch } = search;
   // After Show More, the first request it added: its folder opens so the landing is on screen.
   const landPosition =
     requestsShown > TRAVELLER_LIST_STEP ? requestsShown - TRAVELLER_LIST_STEP + 1 : undefined;
@@ -184,7 +189,7 @@ export default async function EvidencePage({
   const itemHref = (requestId: string) =>
     pagingHref(
       `/app/applicant/${id}/evidence`,
-      search,
+      linkSearch,
       { [ITEM_KEY]: requestId },
       `request-${requestId}`,
     );
@@ -199,6 +204,7 @@ export default async function EvidencePage({
     extras: data.extras,
     choiceBasis: data.choiceBasis,
     histories: data.histories,
+    ...(answeredId ? { answeredId } : {}),
   });
 
   return (
@@ -279,7 +285,7 @@ export default async function EvidencePage({
                 <ShowMore
                   id="evidence-requests-more"
                   pathname={`/app/applicant/${id}/evidence`}
-                  searchParams={search}
+                  searchParams={linkSearch}
                   next={requestsNext === null ? null : { [SHOW_KEY]: requestsNext }}
                   shown={data.requests.length}
                   total={data.requestCounts.total}
