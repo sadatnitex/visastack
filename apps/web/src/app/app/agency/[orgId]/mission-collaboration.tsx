@@ -1,6 +1,7 @@
 'use client';
 
-import { type ReactNode, useActionState, useId } from 'react';
+import { type ComponentProps, type ReactNode, useActionState, useId } from 'react';
+import { useFormStatus } from 'react-dom';
 import { atLevel, revealAt } from '../../../../components/depth';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
 import { useLatestOf } from '../../../../components/latest-result';
@@ -26,6 +27,16 @@ import type { CaseTriageView } from './case-triage';
 import { CaseTriageSummary } from './case-triage-summary';
 
 const INITIAL: ActionState = { ok: true, message: '' };
+
+/**
+ * A submit button that is busy only while its own form is sending. A row button that changes its
+ * wording while busy must not share one flag across rows: pressing Remove for one member would
+ * make every row read "Removing" and drop every row's name.
+ */
+function RowSubmitButton(props: Omit<ComponentProps<typeof SubmitButton>, 'pending'>) {
+  const { pending } = useFormStatus();
+  return <SubmitButton pending={pending} {...props} />;
+}
 
 const PRIORITY_LABELS: Record<string, string> = {
   LOW: 'Low',
@@ -120,6 +131,8 @@ interface MissionCollaborationProps {
   readonly needsYou?: string;
   /** WP-SB5: the end of the notes list (how many show, Show More), placed right under the notes. */
   readonly notesMore?: ReactNode;
+  /** Asking this traveller for a document or detail, for an administrator only (the page decides). */
+  readonly ask?: ReactNode;
 }
 
 export function MissionCollaboration({
@@ -141,13 +154,11 @@ export function MissionCollaboration({
   viewerAssigned,
   triage,
   needsYou,
+  ask,
 }: MissionCollaborationProps) {
   const [noteState, noteAction, notePending] = useActionState(addNoteAction, INITIAL);
   const [assignState, assignAction, assignPending] = useActionState(assignMemberAction, INITIAL);
-  const [unassignState, unassignAction, unassignPending] = useActionState(
-    unassignMemberAction,
-    INITIAL,
-  );
+  const [unassignState, unassignAction] = useActionState(unassignMemberAction, INITIAL);
   const [taskCreateState, taskCreateAction, taskCreatePending] = useActionState(
     createTaskForOrgAction,
     INITIAL,
@@ -156,10 +167,7 @@ export function MissionCollaboration({
     decideTaskForOrgAction,
     INITIAL,
   );
-  const [taskReassignState, taskReassignAction, taskReassignPending] = useActionState(
-    updateTaskForOrgAction,
-    INITIAL,
-  );
+  const [taskReassignState, taskReassignAction] = useActionState(updateTaskForOrgAction, INITIAL);
   const [apptCreateState, apptCreateAction, apptCreatePending] = useActionState(
     createAppointmentForOrgAction,
     INITIAL,
@@ -227,6 +235,12 @@ export function MissionCollaboration({
         </div>
       ) : null}
 
+      {ask ? (
+        <div id={`ask-${missionId}`} style={{ marginTop: '0.6rem' }} {...atLevel('browse')}>
+          {ask}
+        </div>
+      ) : null}
+
       <div id={`assigned-${missionId}`} style={{ marginTop: '0.6rem' }} {...atLevel('browse')}>
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.35rem' }}>
           Assigned
@@ -245,13 +259,12 @@ export function MissionCollaboration({
                 <input type="hidden" name="missionId" value={missionId} />
                 <input type="hidden" name="memberAccountId" value={a.memberAccountId} />
                 <span className="badge badge-neutral">{a.memberEmail}</span>
-                <SubmitButton
-                  pending={unassignPending}
-                  idle="×"
-                  busy="×"
+                <RowSubmitButton
+                  idle="Remove"
+                  busy="Removing…"
+                  label={`Remove ${a.memberEmail}`}
                   className="btn btn-secondary"
                   style={{ padding: '0.1rem 0.5rem', fontSize: 'var(--text-caption)' }}
-                  title="Unassign"
                 />
               </form>
             ))}
@@ -335,10 +348,9 @@ export function MissionCollaboration({
                         </option>
                       ))}
                     </select>
-                    <SubmitButton
-                      pending={taskReassignPending}
+                    <RowSubmitButton
                       idle="Reassign"
-                      busy="Reassign"
+                      busy="Reassigning…"
                       className="btn btn-secondary"
                       style={{ padding: '0.15rem 0.5rem', fontSize: 'var(--text-caption)' }}
                     />

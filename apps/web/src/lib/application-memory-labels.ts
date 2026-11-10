@@ -222,18 +222,6 @@ export const RESULT_NEXT_STEPS: Readonly<
   },
 };
 
-/** How a version was saved, in plain words. Never "verified": a status is not proof. */
-export const FACT_STATUS_LABELS: Readonly<Record<string, string>> = {
-  DECLARED: 'Entered by Hand',
-  EXTRACTED_PENDING: 'Read from a Document, Not Checked Yet',
-  APPLICANT_CONFIRMED: 'Confirmed by You',
-  DOCUMENT_SUPPORTED: 'Backed by a Document',
-  AGENCY_REVIEWED: 'Reviewed by an Agency',
-  CONFLICTED: 'Marked as Not Matching',
-  STALE: 'Out of Date',
-  SUPERSEDED: 'Replaced by a Newer Version',
-};
-
 export const AMOUNT_BASIS_LABELS: Readonly<Record<'GROSS' | 'NET', string>> = {
   GROSS: 'Before Tax',
   NET: 'After Tax',

@@ -285,10 +285,6 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     { kind: 'text', name: 'No Cases Yet' },
     {
       kind: 'text',
-      name: "A case checks this person's documents against the checklist of one visa route. Start one with the form on this page.",
-    },
-    {
-      kind: 'text',
       name: 'Once a checklist is attached, you see how many items are ready and what is still missing.',
     },
   ].map(
@@ -300,6 +296,227 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
         'When the list could not be read, the page says so instead of "No Cases Yet", which invited a duplicate case.',
     }),
   ),
+  {
+    screen: 'cases',
+    from: { kind: 'link', name: 'Prepare a Brief', detail: '/app/applicant/person/outputs' },
+    to: { kind: 'link', name: 'Prepare a Summary', detail: '/app/applicant/person/outputs' },
+    reason:
+      'Lane 1: one name for the page: Summaries. "Brief" was a second word for the same thing (docs/uiux/ccd/VOCABULARY.md).',
+  },
+  ...['Start a Case'].flatMap((name): ApprovedChange[] => [
+    {
+      screen: 'cases',
+      from: { kind: 'link', name, detail: '#start-case' },
+      // With core processing off there is nothing to start, so the link still points at the card that
+      // says what to turn on; otherwise it opens Start a Trip with this traveller already ticked.
+      to: (state) =>
+        state === 'core processing off'
+          ? { kind: 'link', name, detail: '#start-case' }
+          : { kind: 'link', name: 'Start a Trip', detail: '/app/mission/start?traveller=person' },
+      reason:
+        'Lane 1: the main way to start a case is the three-question Start a Trip, with the traveller already chosen.',
+    },
+  ]),
+  {
+    screen: 'cases',
+    from: {
+      kind: 'text',
+      name: "A case checks this person's documents against the checklist of one visa route. Start one with the form on this page.",
+    },
+    to: (state) =>
+      state === 'cases could not be read'
+        ? null
+        : {
+            kind: 'text',
+            name: "A case checks this person's documents against the checklist of one visa route. Start one by saying where and why.",
+          },
+    reason: 'Lane 1: the form moved to Start a Trip, so the sentence no longer points at the page.',
+  },
+  {
+    screen: 'cases',
+    from: {
+      kind: 'text',
+      name: 'Turn on Let VisaStack Process My Details on Home to create cases.',
+    },
+    to: { kind: 'link', name: 'Home', detail: '/app#permissions' },
+    reason:
+      'Lane 1: the words "Home" now link to the Permissions section where the switch is (the sentence is counted through its link).',
+  },
+  {
+    screen: 'home',
+    from: { kind: 'heading', name: 'Turn On Core Processing to Begin', detail: '2' },
+    to: { kind: 'heading', name: 'Let VisaStack Process My Details', detail: '2' },
+    reason: 'Lane 1: the processing consent has one name everywhere (lib/labels.ts CONSENT_PLAIN).',
+  },
+  {
+    screen: 'home',
+    from: {
+      kind: 'link',
+      name: '1Allow Core ProcessingNeeded before anything can be saved. You can turn it off at any time.',
+      detail: '#permissions',
+    },
+    to: {
+      kind: 'link',
+      name: '1Let VisaStack Process My DetailsNeeded before anything can be saved. You can turn it off at any time.',
+      detail: '#permissions',
+    },
+    reason: "Lane 1: the first setup step uses the consent's one name.",
+  },
+  {
+    screen: 'home',
+    from: {
+      kind: 'text',
+      name: '\u2713Allow Core ProcessingNeeded before anything can be saved. You can turn it off at any time.Done',
+    },
+    to: {
+      kind: 'text',
+      name: '\u2713Let VisaStack Process My DetailsNeeded before anything can be saved. You can turn it off at any time.Done',
+    },
+    reason: "Lane 1: the first setup step uses the consent's one name.",
+  },
+  {
+    screen: 'traveller',
+    from: { kind: 'heading', name: 'Allow Core Processing', detail: '2' },
+    to: { kind: 'heading', name: 'Let VisaStack Process My Details', detail: '2' },
+    reason: 'Lane 1: the processing consent has one name everywhere (lib/labels.ts CONSENT_PLAIN).',
+  },
+  {
+    screen: 'cases',
+    from: {
+      kind: 'text',
+      name: "A case assembles this applicant's evidence against a published requirement pack.",
+    },
+    to: {
+      kind: 'text',
+      name: "A case checks this traveller's documents against the list for one visa.",
+    },
+    reason:
+      'Lane 1: plain words for a grade 5 to 8 reader (docs/uiux/ccd/VOCABULARY.md, 10 Nov 2026); the meaning is unchanged.',
+  },
+  {
+    screen: 'documents',
+    from: {
+      kind: 'text',
+      name: 'We could not finish checking this file. Try uploading it again. If it keeps failing, contact support.',
+    },
+    to: { kind: 'link', name: 'Get Help', detail: '/app/help#contact' },
+    reason:
+      'Lane 1: the help words are now a working link to Help and Support (/app/help#contact); the sentence is counted through it.',
+  },
+  {
+    screen: 'documents',
+    from: {
+      kind: 'text',
+      name: 'We could not load your document records or lifecycle status. Refresh to try again. Unavailable records are not reported as an empty wallet.',
+    },
+    to: {
+      kind: 'text',
+      name: 'We could not load your document records or lifecycle status. Refresh to try again. Unavailable records are not shown as an empty list.',
+    },
+    reason:
+      'Lane 1: plain words for a grade 5 to 8 reader (docs/uiux/ccd/VOCABULARY.md, 10 Nov 2026); the meaning is unchanged.',
+  },
+  {
+    screen: 'documents',
+    from: { kind: 'text', name: 'Your private evidence wallet' },
+    to: { kind: 'text', name: 'Your private documents' },
+    reason:
+      'Lane 1: plain words for a grade 5 to 8 reader (docs/uiux/ccd/VOCABULARY.md, 10 Nov 2026); the meaning is unchanged.',
+  },
+  {
+    screen: 'expiry',
+    from: { kind: 'text', name: 'Case-Specific Freshness' },
+    to: { kind: 'text', name: 'Route Date Rules' },
+    reason:
+      'Lane 1: plain words for a grade 5 to 8 reader (docs/uiux/ccd/VOCABULARY.md, 10 Nov 2026); the meaning is unchanged.',
+  },
+  {
+    screen: 'expiry',
+    from: { kind: 'text', name: 'Intrinsic Expiry' },
+    to: { kind: 'text', name: 'Document Expiry' },
+    reason:
+      'Lane 1: plain words for a grade 5 to 8 reader (docs/uiux/ccd/VOCABULARY.md, 10 Nov 2026); the meaning is unchanged.',
+  },
+  {
+    screen: 'expiry',
+    from: { kind: 'text', name: 'Verification Expiry' },
+    to: { kind: 'text', name: 'Confirmation Dates' },
+    reason:
+      'Lane 1: plain words for a grade 5 to 8 reader (docs/uiux/ccd/VOCABULARY.md, 10 Nov 2026); the meaning is unchanged.',
+  },
+  {
+    screen: 'expiry',
+    from: {
+      kind: 'text',
+      name: "Three separate signals - a document's own expiry, whether a route needs it more recently dated, and how long an issuer confirmation stays valid. Never merged into one status.",
+    },
+    to: {
+      kind: 'text',
+      name: 'Three separate dates: when a document expires, whether a route wants a newer one, and how long a confirmation from an issuer stays valid. We never merge them into one status.',
+    },
+    reason:
+      'Lane 1: plain words for a grade 5 to 8 reader (docs/uiux/ccd/VOCABULARY.md, 10 Nov 2026); the meaning is unchanged.',
+  },
+  {
+    screen: 'profile',
+    from: {
+      kind: 'text',
+      name: 'AI suggestions do not change your profile until you approve them. Human and issuer assurance remain separate.',
+    },
+    to: {
+      kind: 'text',
+      name: 'AI suggestions do not change your profile until you approve them. Your confirming a detail is not the same as the issuer confirming it.',
+    },
+    reason:
+      'Lane 1: plain words for a grade 5 to 8 reader (docs/uiux/ccd/VOCABULARY.md, 10 Nov 2026); the meaning is unchanged.',
+  },
+  {
+    screen: 'profile',
+    from: { kind: 'text', name: 'Personal profile. Fact assurance is shown beside each field.' },
+    to: { kind: 'text', name: 'Personal profile. How each detail was checked is shown beside it.' },
+    reason:
+      'Lane 1: plain words for a grade 5 to 8 reader (docs/uiux/ccd/VOCABULARY.md, 10 Nov 2026); the meaning is unchanged.',
+  },
+  {
+    screen: 'profile',
+    from: {
+      kind: 'text',
+      name: 'These are distinct recorded states, not an overall verification score. Check field details for agency reviews and issuer confirmations.',
+    },
+    to: {
+      kind: 'text',
+      name: 'These counts are separate. They are not a score that proves anything. Open a field to see agency reviews and confirmations from issuers.',
+    },
+    reason:
+      'Lane 1: plain words for a grade 5 to 8 reader (docs/uiux/ccd/VOCABULARY.md, 10 Nov 2026); the meaning is unchanged.',
+  },
+  {
+    screen: 'expiry',
+    from: { kind: 'heading', name: 'Issuer Confirmations', detail: '2' },
+    to: { kind: 'heading', name: 'Confirmations from Issuers', detail: '2' },
+    reason:
+      'Lane 1: plain words for a grade 5 to 8 reader (docs/uiux/ccd/VOCABULARY.md, 10 Nov 2026); the meaning is unchanged.',
+  },
+  ...['Family Name', 'Given Name', 'Nationality'].map(
+    (field): ApprovedChange => ({
+      screen: 'profile',
+      from: { kind: 'link', name: `${field}MANUAL`, detail: '/app/applicant/person/history' },
+      to: { kind: 'link', name: `${field}Typed In`, detail: '/app/applicant/person/history' },
+      reason:
+        'Lane 1: the stored method code MANUAL is shown as Typed In (lib/field-state-words.ts).',
+    }),
+  ),
+  {
+    screen: 'cases',
+    from: { kind: 'heading', name: 'Start a Case', detail: '2' },
+    to: (state) => ({
+      kind: 'heading',
+      name: state === 'core processing off' ? 'Start a Case' : 'Start a Trip',
+      detail: '2',
+    }),
+    reason:
+      'Lane 1: the card is named like its button, Start a Trip, once there is something to start.',
+  },
   ...[0, 2].map(
     (count): ApprovedChange => ({
       screen: 'sharing',
@@ -342,6 +559,27 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     from: { kind: 'text', name: 'Issuer confirmations (EVI-05)' },
     to: { kind: 'text', name: 'Issuer Confirmations' },
     reason: 'D3: plain names, no reference codes in visible text (VOCABULARY.md).',
+  },
+  {
+    screen: 'agency-cases',
+    from: { kind: 'button', name: '\u00d7' },
+    // The fixture's one assigned member; the button is named with the member it removes.
+    to: { kind: 'button', name: 'Remove me@example.com' },
+    reason:
+      'UX lane 2 (E10): the bare multiplication sign had no name; the button says Remove and is named Remove with the member it removes.',
+  },
+  {
+    screen: 'agency-cases',
+    from: {
+      kind: 'text',
+      name: "You aren't assigned to any cases yet - ask an admin to assign you to one.",
+    },
+    to: {
+      kind: 'text',
+      name: "You aren't assigned to any cases yet. An owner or admin of this organization can assign you to one.",
+    },
+    reason:
+      'UX lane 2 (E9): the dead end now says who can help; the Team page is for owners and admins only, so a member is not sent there.',
   },
   {
     screen: 'case',
@@ -828,7 +1066,7 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     },
     to: {
       kind: 'text',
-      name: '1 field has conflicting values. Check the fields marked Conflicted before relying on them.',
+      name: '1 field has conflicting values. Check the fields marked Does Not Match before relying on them.',
     },
     reason:
       'Owner, 5 Nov 2026: no page should have more than 30 words. The warning and what to do about it are one sentence that stays visible: the same meaning in fewer words, with nothing folded away.',
