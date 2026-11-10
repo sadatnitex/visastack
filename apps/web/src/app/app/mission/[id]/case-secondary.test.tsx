@@ -67,58 +67,81 @@ const render = (extra: Record<string, unknown> = {}) =>
 
 const words = (el: Element | null | undefined) =>
   (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-const rowOf = (doc: Document, title: string) =>
-  [...doc.querySelectorAll('.lift-more-item')].find(
-    (item) => words(item.querySelector('.lift-action-title')) === title,
+const tabOf = (doc: Document, title: string) =>
+  [...doc.querySelectorAll('.sw-tab')].find(
+    (tab) => words(tab.querySelector('.sw-tab-name')) === title,
   );
-const pillOf = (doc: Document, title: string) => words(rowOf(doc, title)?.querySelector('.badge'));
+const panelOf = (doc: Document, key: string) => doc.querySelector(`[data-switcher-panel="${key}"]`);
+const pillOf = (doc: Document, title: string) => words(tabOf(doc, title)?.querySelector('.badge'));
 
 describe('More for This Case', () => {
-  it('is one card with a real heading and five closed rows, in order', () => {
+  it('is one card with a real heading and one row of tabs, in order', () => {
     const doc = render();
     expect(words(doc.querySelector('h2.lift-card-title'))).toBe('More for This Case');
     expect(doc.querySelectorAll('.lift-card')).toHaveLength(1);
-    const titles = [...doc.querySelectorAll('.lift-more-item .lift-action-title')].map((t) =>
-      words(t),
+    expect(doc.querySelector('[role="tablist"]')?.getAttribute('aria-label')).toBe(
+      'Sections of This Case',
     );
+    const titles = [...doc.querySelectorAll('.sw-tab .sw-tab-name')].map((t) => words(t));
     expect(titles).toEqual([
       'Select or Update Evidence',
       'Tasks, Appointments and Letters',
-      'Contributors and Notes from Your Agency',
+      'Ask a Contributor',
+      'Notes from Your Agency',
       'Submission and Outcome',
       'Problems and Feedback',
     ]);
-    for (const item of doc.querySelectorAll('.lift-more-item')) {
-      const details = item.querySelector(':scope > details');
-      expect(details?.hasAttribute('open')).toBe(false);
-      expect(details?.firstElementChild?.tagName).toBe('SUMMARY');
+  });
+
+  it('draws every section in the page and no tab before the script runs, so nothing is lost', () => {
+    const doc = render();
+    // Without script the tabs are hidden and every section shows one under the other.
+    expect(doc.querySelector('.sw-tabs')?.hasAttribute('hidden')).toBe(true);
+    for (const panel of doc.querySelectorAll('[data-switcher-panel]')) {
+      expect(panel.hasAttribute('hidden')).toBe(false);
     }
   });
 
-  it('keeps each section at the depth level it had, so the level switch hides the same rows', () => {
+  it('keeps each section at the depth level it had, so the level switch hides the same tabs and panels', () => {
     const doc = render();
-    const level = (title: string) => rowOf(doc, title)?.getAttribute('data-level');
+    const level = (title: string) => tabOf(doc, title)?.getAttribute('data-level');
     expect(level('Select or Update Evidence')).toBe('everything');
     expect(level('Tasks, Appointments and Letters')).toBe('browse');
-    expect(level('Contributors and Notes from Your Agency')).toBe('browse');
+    expect(level('Ask a Contributor')).toBe('browse');
     expect(level('Submission and Outcome')).toBe('everything');
     expect(level('Problems and Feedback')).toBe('everything');
-    // The card itself shows at the shallowest level of its rows.
+    expect(panelOf(doc, 'work')?.getAttribute('data-level')).toBe('browse');
+    expect(panelOf(doc, 'outcome')?.getAttribute('data-level')).toBe('everything');
     expect(doc.querySelector('.lift-more-slot')?.getAttribute('data-level')).toBe('browse');
+  });
+
+  it('shows Notes from Your Agency at Browse when notes exist or an agency can see the case, else at Everything', () => {
+    const level = (extra: Record<string, unknown>) =>
+      tabOf(render(extra), 'Notes from Your Agency')?.getAttribute('data-level');
+    expect(level({ selfReviewed: false })).toBe('browse');
+    expect(level({ selfReviewed: true })).toBe('everything');
+    expect(
+      level({
+        selfReviewed: true,
+        notes: [{ id: 'n1', body: 'Hi', authorEmail: null, createdAt: '2026-11-01T00:00:00Z' }],
+      }),
+    ).toBe('browse');
+    // Asking a sponsor or family member is the traveller's own feature: Browse either way.
+    expect(
+      tabOf(render({ selfReviewed: true }), 'Ask a Contributor')?.getAttribute('data-level'),
+    ).toBe('browse');
   });
 
   it('keeps the anchors the page links to inside the section they open', () => {
     const doc = render();
-    expect(rowOf(doc, 'Select or Update Evidence')?.querySelector('#evidence')).not.toBeNull();
-    expect(rowOf(doc, 'Tasks, Appointments and Letters')?.querySelector('#work')).not.toBeNull();
-    expect(rowOf(doc, 'Submission and Outcome')?.querySelector('#outcome')).not.toBeNull();
-    // #notes is the row itself, so a link to it lands on the row, with its details inside.
-    const notes = doc.querySelector('#notes');
-    expect(notes?.classList.contains('lift-more-item')).toBe(true);
-    expect(notes?.querySelector('details')).not.toBeNull();
+    expect(panelOf(doc, 'evidence')?.querySelector('#evidence')).not.toBeNull();
+    expect(panelOf(doc, 'work')?.querySelector('#work')).not.toBeNull();
+    expect(panelOf(doc, 'notes')?.querySelector('#notes')).not.toBeNull();
+    expect(panelOf(doc, 'contributors')?.querySelector('#contributors')).not.toBeNull();
+    expect(panelOf(doc, 'outcome')?.querySelector('#outcome')).not.toBeNull();
   });
 
-  it('keeps every panel in the markup, so nothing is lost behind a closed row', () => {
+  it('keeps every panel in the markup, so nothing is lost behind a tab', () => {
     const doc = render();
     const stubs = [...doc.querySelectorAll('[data-stub]')].map((s) => s.getAttribute('data-stub'));
     expect(stubs).toEqual([
@@ -142,7 +165,7 @@ describe('More for This Case', () => {
     let doc = render();
     expect(pillOf(doc, 'Select or Update Evidence')).toBe('No Items Yet');
     expect(pillOf(doc, 'Tasks, Appointments and Letters')).toBe('No Open Tasks');
-    expect(pillOf(doc, 'Contributors and Notes from Your Agency')).toBe('No Notes Yet');
+    expect(pillOf(doc, 'Notes from Your Agency')).toBe('No Notes Yet');
     expect(pillOf(doc, 'Submission and Outcome')).toBe('No Outcome Yet');
     expect(pillOf(doc, 'Problems and Feedback')).toBe('None Raised');
     doc = render({
@@ -190,24 +213,16 @@ describe('More for This Case', () => {
     });
     expect(pillOf(doc, 'Select or Update Evidence')).toBe('1 Checklist Item');
     expect(pillOf(doc, 'Tasks, Appointments and Letters')).toBe('2 Open Tasks');
-    expect(pillOf(doc, 'Contributors and Notes from Your Agency')).toBe('1 Note');
+    expect(pillOf(doc, 'Notes from Your Agency')).toBe('1 Note');
     expect(pillOf(doc, 'Problems and Feedback')).toBe('3 Raised');
   });
 
   it('prefers the full totals over the rows it was handed, because a long list is cut short', () => {
     const doc = render({ totals: { openTasks: 25, notes: 34, outcomes: 3, problems: 7 } });
     expect(pillOf(doc, 'Tasks, Appointments and Letters')).toBe('25 Open Tasks');
-    expect(pillOf(doc, 'Contributors and Notes from Your Agency')).toBe('34 Notes');
+    expect(pillOf(doc, 'Notes from Your Agency')).toBe('34 Notes');
     expect(pillOf(doc, 'Submission and Outcome')).toBe('3 Outcomes');
     expect(pillOf(doc, 'Problems and Feedback')).toBe('7 Raised');
-  });
-
-  it('opens a row when its list was asked to show more, and only that row', () => {
-    const doc = render({ expanded: { ...none, notes: true } });
-    const open = [...doc.querySelectorAll('.lift-more-item')]
-      .filter((item) => item.querySelector(':scope > details')?.hasAttribute('open'))
-      .map((item) => words(item.querySelector('.lift-action-title')));
-    expect(open).toEqual(['Contributors and Notes from Your Agency']);
   });
 
   it('keeps shared notes as rows with the ids that Show More lands on', () => {

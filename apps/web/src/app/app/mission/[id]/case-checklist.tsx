@@ -19,6 +19,8 @@ import {
   plural,
   requirementLabel,
 } from './case-model';
+import { ChecklistSearch } from './checklist-search';
+import type { CandidateView } from './collaboration-panels';
 import { OpenGroupOnLink } from './open-group-on-link';
 import type { ExplainGapButton } from './readiness-gap-explain';
 
@@ -66,6 +68,8 @@ export interface CaseItemPanesProps {
   /** No agency has access to the case: an agency-added item says who added it, not who asked. */
   readonly selfReviewed?: boolean;
   readonly packageItems: ReadonlyMap<string, PackageItem>;
+  /** The files on file for each item, by item. */
+  readonly evidence: ReadonlyMap<string, CandidateView>;
   /** The traveller may still change what the package uses: the package is open. */
   readonly packageEditable: boolean;
   /** How each document must be provided, by item (the checklist's format rules). */
@@ -148,6 +152,7 @@ export function CaseChecklist({
         {/* WP-SB2: each group opens and closes. Its heading stays a real heading inside the
             opener, so heading navigation still finds every group. */}
         <OpenGroupOnLink scopeId="readiness" />
+        <ChecklistSearch scopeId="readiness" rows={rows.length} />
         <GroupedList
           groups={groups.map((group) => {
             const first = shown(group.rows.length);
@@ -190,6 +195,7 @@ export function caseItemPanes({
   wordingMax = 400,
   selfReviewed = false,
   packageItems,
+  evidence,
   packageEditable,
   formatLines,
 }: CaseItemPanesProps): PaneEntry[] {
@@ -204,6 +210,7 @@ export function caseItemPanes({
         rows={rows}
         chosen={chosenByRequirement[row.packRequirementId]}
         formatLines={formatLines[row.packRequirementId]}
+        candidate={evidence.get(row.packRequirementId)}
         packageItem={packageItems.get(row.packRequirementId)}
         packageEditable={packageEditable}
         explanations={explanations}

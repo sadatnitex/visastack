@@ -55,3 +55,32 @@ describe('the list pattern block', () => {
     expect(block).toMatch(/\.package-reason\[hidden\]\s*\{\s*display:\s*none/);
   });
 });
+
+describe('the list pattern second block (WP-LP2)', () => {
+  const start = css.lastIndexOf('/* WP-LP2 ');
+  const block2 = css.slice(start, css.indexOf('/* end WP-LP2 */', start));
+
+  it('is one whole block', () => {
+    expect(start).toBeGreaterThan(-1);
+    expect(css.match(/\/\* WP-LP2 /g)).toHaveLength(1);
+  });
+
+  it('keeps the search under the page header, flat', () => {
+    expect(block2).toMatch(/\.lp-sticky-filter\s*\{[^}]*position:\s*sticky/);
+    expect(block2).toMatch(/\.lp-sticky-filter\s*\{[^}]*background:\s*var\(--bg-elevated\)/);
+  });
+
+  it('makes every section tab a 44px target that scrolls inside its own row on a narrow screen', () => {
+    expect(block2).toMatch(/\.sw-tab\s*\{[^}]*min-height:\s*44px/);
+    expect(block2).toMatch(/\.sw-tabs\s*\{[^}]*overflow-x:\s*auto/);
+  });
+
+  it('draws a hidden tab row, panel, folder or row as nothing', () => {
+    expect(block2).toMatch(/\.sw-tabs\[hidden\]\s*\{\s*display:\s*none/);
+    expect(block2).toMatch(/\.sw-panel\[hidden\]\s*\{\s*display:\s*none/);
+  });
+
+  it('is flat', () => {
+    expect(block2).not.toMatch(/box-shadow|text-shadow|gradient|backdrop-filter|rgba\(/);
+  });
+});

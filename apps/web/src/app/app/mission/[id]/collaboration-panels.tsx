@@ -18,6 +18,7 @@ import {
   unselectEvidenceAction,
 } from './actions';
 import { composeSelectionCandidateKey } from './evidence-selection-key';
+import { hasSeveralToChoose } from './evidence-several';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -418,7 +419,7 @@ export function LettersPanel({
   );
 }
 
-interface CandidateView {
+export interface CandidateView {
   readonly packRequirementId: string;
   readonly kind: 'FIELD' | 'DOCUMENT';
   readonly label: string;
@@ -444,6 +445,139 @@ interface CandidateView {
   readonly selectionIdsByCandidate: Readonly<Record<string, string>>;
 }
 
+type EvidenceAction = (formData: FormData) => void;
+
+/** One item's files, each with Select or Selected - Remove, drawn with the actions it is given. */
+function CandidateRows({
+  missionId,
+  candidate: c,
+  selectAction,
+  unselectAction,
+  selectPending,
+  unselectPending,
+}: {
+  readonly missionId: string;
+  readonly candidate: CandidateView;
+  readonly selectAction: EvidenceAction;
+  readonly unselectAction: EvidenceAction;
+  readonly selectPending: boolean;
+  readonly unselectPending: boolean;
+}) {
+  const choice = (id: string, kind: 'fact' | 'document', label: ReactNode, selected: boolean) => {
+    const selectionId =
+      c.selectionIdsByCandidate[composeSelectionCandidateKey(c.packRequirementId, id)];
+    return (
+      <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <span style={{ fontSize: 'var(--text-small)', flex: 1 }}>{label}</span>
+        {selected && selectionId ? (
+          <form action={unselectAction}>
+            <input type="hidden" name="missionId" value={missionId} />
+            <input type="hidden" name="selectionId" value={selectionId} />
+            <SubmitButton
+              pending={unselectPending}
+              idle="Selected - Remove"
+              busy="Selected - Remove"
+              className="btn btn-secondary u-btn-xs"
+            />
+          </form>
+        ) : (
+          <form action={selectAction}>
+            <input type="hidden" name="missionId" value={missionId} />
+            <input type="hidden" name="packRequirementId" value={c.packRequirementId} />
+            <input type="hidden" name={kind === 'fact' ? 'factId' : 'documentId'} value={id} />
+            <SubmitButton
+              pending={selectPending}
+              idle="Select"
+              busy="Select"
+              className="btn btn-secondary u-btn-xs"
+            />
+          </form>
+        )}
+      </div>
+    );
+  };
+  return c.kind === 'FIELD'
+    ? c.factCandidates.map((fact) =>
+        choice(
+          fact.factId,
+          'fact',
+          <>
+            {fact.value}
+            {fact.repeatingRecordKey ? ` (${fact.repeatingRecordKey})` : ''}
+            {!fact.eligible ? (
+              <span className="badge badge-danger" style={{ marginLeft: '0.4rem' }}>
+                not eligible
+              </span>
+            ) : null}
+          </>,
+          c.selectedFactIds.includes(fact.factId),
+        ),
+      )
+    : c.documentCandidates.map((doc) =>
+        choice(
+          doc.documentId,
+          'document',
+          <>
+            {doc.displayName}
+            {!doc.eligible ? (
+              <span className="badge badge-danger" style={{ marginLeft: '0.4rem' }}>
+                not eligible
+              </span>
+            ) : null}
+            {doc.staleness === 'stale' ? (
+              <span className="badge badge-danger" style={{ marginLeft: '0.4rem' }}>
+                too old for this route
+              </span>
+            ) : null}
+            {doc.staleness === 'unknown' ? (
+              <span className="badge badge-neutral" style={{ marginLeft: '0.4rem' }}>
+                freshness unknown
+              </span>
+            ) : null}
+            {doc.lifecycleLabel ? (
+              <>
+                {' '}
+                <span className="badge badge-neutral">{doc.lifecycleLabel}</span>
+              </>
+            ) : null}
+          </>,
+          c.selectedDocumentIds.includes(doc.documentId),
+        ),
+      );
+}
+
+/**
+ * One item's own choice of which file counts, with its own state, so the panel of one item never
+ * shares a form result with another (the all-items panel below shares one on purpose).
+ */
+export function EvidenceItemChoices({
+  missionId,
+  candidate,
+}: {
+  readonly missionId: string;
+  readonly candidate: CandidateView;
+}) {
+  const [selectState, selectAction, selectPending] = useActionState(selectEvidenceAction, INITIAL);
+  const [unselectState, unselectAction, unselectPending] = useActionState(
+    unselectEvidenceAction,
+    INITIAL,
+  );
+  const [status] = useLatestOf({ select: selectState, unselect: unselectState });
+  return (
+    <div className="rows">
+      <CandidateRows
+        missionId={missionId}
+        candidate={candidate}
+        selectAction={selectAction}
+        unselectAction={unselectAction}
+        selectPending={selectPending}
+        unselectPending={unselectPending}
+      />
+      <FormMessage result={status} />
+    </div>
+  );
+}
+
 export function EvidenceSelectionPanel({
   missionId,
   candidates,
@@ -458,9 +592,7 @@ export function EvidenceSelectionPanel({
   );
   // One line for the panel: selecting and removing answer in the same place.
   const [evidenceStatus] = useLatestOf({ select: selectState, unselect: unselectState });
-  const multiCandidate = candidates.filter(
-    (c) => c.factCandidates.length + c.documentCandidates.length > 1,
-  );
+  const multiCandidate = candidates.filter(hasSeveralToChoose);
 
   if (multiCandidate.length === 0) return null;
 
@@ -479,124 +611,14 @@ export function EvidenceSelectionPanel({
             style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}
           >
             <span className="row-key">{c.label}</span>
-            {c.kind === 'FIELD'
-              ? c.factCandidates.map((fact) => {
-                  const selected = c.selectedFactIds.includes(fact.factId);
-                  const selectionId =
-                    c.selectionIdsByCandidate[
-                      composeSelectionCandidateKey(c.packRequirementId, fact.factId)
-                    ];
-                  return (
-                    <div
-                      key={fact.factId}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                    >
-                      <span style={{ fontSize: 'var(--text-small)', flex: 1 }}>
-                        {fact.value}
-                        {fact.repeatingRecordKey ? ` (${fact.repeatingRecordKey})` : ''}
-                        {!fact.eligible ? (
-                          <span className="badge badge-danger" style={{ marginLeft: '0.4rem' }}>
-                            not eligible
-                          </span>
-                        ) : null}
-                      </span>
-                      {selected && selectionId ? (
-                        <form action={unselectAction}>
-                          <input type="hidden" name="missionId" value={missionId} />
-                          <input type="hidden" name="selectionId" value={selectionId} />
-                          <SubmitButton
-                            pending={unselectPending}
-                            idle="Selected - Remove"
-                            busy="Selected - Remove"
-                            className="btn btn-secondary u-btn-xs"
-                          />
-                        </form>
-                      ) : (
-                        <form action={selectAction}>
-                          <input type="hidden" name="missionId" value={missionId} />
-                          <input
-                            type="hidden"
-                            name="packRequirementId"
-                            value={c.packRequirementId}
-                          />
-                          <input type="hidden" name="factId" value={fact.factId} />
-                          <SubmitButton
-                            pending={selectPending}
-                            idle="Select"
-                            busy="Select"
-                            className="btn btn-secondary u-btn-xs"
-                          />
-                        </form>
-                      )}
-                    </div>
-                  );
-                })
-              : c.documentCandidates.map((doc) => {
-                  const selected = c.selectedDocumentIds.includes(doc.documentId);
-                  const selectionId =
-                    c.selectionIdsByCandidate[
-                      composeSelectionCandidateKey(c.packRequirementId, doc.documentId)
-                    ];
-                  return (
-                    <div
-                      key={doc.documentId}
-                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                    >
-                      <span style={{ fontSize: 'var(--text-small)', flex: 1 }}>
-                        {doc.displayName}
-                        {!doc.eligible ? (
-                          <span className="badge badge-danger" style={{ marginLeft: '0.4rem' }}>
-                            not eligible
-                          </span>
-                        ) : null}
-                        {doc.staleness === 'stale' ? (
-                          <span className="badge badge-danger" style={{ marginLeft: '0.4rem' }}>
-                            too old for this route
-                          </span>
-                        ) : null}
-                        {doc.staleness === 'unknown' ? (
-                          <span className="badge badge-neutral" style={{ marginLeft: '0.4rem' }}>
-                            freshness unknown
-                          </span>
-                        ) : null}
-                        {doc.lifecycleLabel ? (
-                          <>
-                            {' '}
-                            <span className="badge badge-neutral">{doc.lifecycleLabel}</span>
-                          </>
-                        ) : null}
-                      </span>
-                      {selected && selectionId ? (
-                        <form action={unselectAction}>
-                          <input type="hidden" name="missionId" value={missionId} />
-                          <input type="hidden" name="selectionId" value={selectionId} />
-                          <SubmitButton
-                            pending={unselectPending}
-                            idle="Selected - Remove"
-                            busy="Selected - Remove"
-                            className="btn btn-secondary u-btn-xs"
-                          />
-                        </form>
-                      ) : (
-                        <form action={selectAction}>
-                          <input type="hidden" name="missionId" value={missionId} />
-                          <input
-                            type="hidden"
-                            name="packRequirementId"
-                            value={c.packRequirementId}
-                          />
-                          <input type="hidden" name="documentId" value={doc.documentId} />
-                          <SubmitButton
-                            pending={selectPending}
-                            idle="Select"
-                            busy="Select"
-                            className="btn btn-secondary u-btn-xs"
-                          />
-                        </form>
-                      )}
-                    </div>
-                  );
-                })}
+            <CandidateRows
+              missionId={missionId}
+              candidate={c}
+              selectAction={selectAction}
+              unselectAction={unselectAction}
+              selectPending={selectPending}
+              unselectPending={unselectPending}
+            />
           </div>
         ))}
       </div>

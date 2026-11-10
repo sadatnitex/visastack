@@ -57,6 +57,7 @@ vi.mock('./case-more-menu', () => ({ CaseMoreMenu: stub('CaseMoreMenu') }));
 vi.mock('./case-welcome', () => ({ CaseWelcome: stub('CaseWelcome') }));
 vi.mock('./collaboration-panels', () => ({
   AppointmentsPanel: stub('AppointmentsPanel'),
+  EvidenceItemChoices: stub('EvidenceItemChoices'),
   EvidenceSelectionPanel: stub('EvidenceSelectionPanel'),
   LettersPanel: stub('LettersPanel'),
   TasksPanel: stub('TasksPanel'),
@@ -963,9 +964,11 @@ describe('the case on Glance, Browse and Everything (CCD-4)', () => {
   it('puts every section a link can point at where the link opens it', async () => {
     setUp({ requirements: ['CRITICAL_GAP', 'SATISFIED'], openTasks: 1 });
     const doc = await dom(await render());
-    for (const id of ['#pack', '#work', '#notes']) {
+    for (const id of ['#pack', '#work', '#contributors']) {
       expect(levelOf(doc, id), id).toBe('browse');
     }
+    // No agency can see this case and no notes are shared, so the notes wait at Everything.
+    expect(levelOf(doc, '#notes'), '#notes').toBe('everything');
     // The checklist is the heart of the page, so it shows at every level (Owner, 4 Nov 2026).
     expect(levelOf(doc, '#readiness'), '#readiness').toBe('glance');
     for (const id of ['#evidence', '#outcome', '#snapshots']) {
@@ -980,6 +983,47 @@ describe('the case on Glance, Browse and Everything (CCD-4)', () => {
       expect(link.getAttribute('data-level'), target).toBe(levelOf(doc, target));
     }
     expect(doc.querySelectorAll('#readiness')).toHaveLength(1);
+  });
+
+  it('puts the stage tracker and Advance the Case at Everything while no agency can see the case, and at Browse once one can', async () => {
+    setUp({ requirements: ['CRITICAL_GAP'] });
+    const alone = await dom(await render());
+    expect(levelOf(alone, '.lift-status-stages')).toBe('everything');
+    // The deepest block that holds the heading (the rail around it is Browse).
+    const advance = [...alone.querySelectorAll<HTMLElement>('[data-level]')]
+      .filter((el) => el.textContent?.includes('Advance the Case'))
+      .pop();
+    expect(advance?.getAttribute('data-level')).toBe('everything');
+    // Nothing is removed: the tracker and the buttons are still in the page.
+    expect(alone.querySelector('.lift-status-stages')).not.toBeNull();
+
+    mocks.listAccessForApplicant.mockResolvedValue(
+      ok([
+        {
+          id: 'g-live',
+          applicantId: 'synthetic-family',
+          recipientAccountId: null,
+          recipientOrganizationId: 'org-a',
+          missionId: null,
+          actions: ['VIEW_METADATA'],
+          categories: null,
+          documentIds: null,
+          documentScopeSnapshot: null,
+          purpose: 'review',
+          status: 'ACTIVE',
+          acceptedAt: new Date('2026-10-01T00:00:00Z'),
+          startAt: new Date('2026-10-01T00:00:00Z'),
+          expiryAt: null,
+          caseExceptions: [],
+        },
+      ]),
+    );
+    const withAgency = await dom(await render());
+    expect(levelOf(withAgency, '.lift-status-stages')).toBe('browse');
+    const advanceWith = [...withAgency.querySelectorAll<HTMLElement>('[data-level]')]
+      .filter((el) => el.textContent?.includes('Advance the Case'))
+      .pop();
+    expect(advanceWith?.getAttribute('data-level')).toBe('browse');
   });
 
   it('keeps the summary card as #readiness when there is no checklist', async () => {
@@ -1125,10 +1169,9 @@ describe('WP-SB2: a worst-case case stays short', () => {
     expect(link?.textContent).toBe('Show More notes');
     // Only this list grows, and the one-time welcome note is not asked for again.
     expect(link?.getAttribute('href')).toBe('/app/mission/synthetic-case?notes=20#case-note-10');
-    expect(notes?.querySelector('details')?.hasAttribute('open')).toBe(false);
   });
 
-  it('keeps the section open after Show More and drops the link once every row is shown', async () => {
+  it('drops the link once every row is shown (the section starts chosen in the tabs)', async () => {
     setUp();
     mocks.listNotesForOwner.mockResolvedValue({
       items: Array.from({ length: 14 }, (_, i) => note(i)),
@@ -1136,7 +1179,6 @@ describe('WP-SB2: a worst-case case stays short', () => {
     });
     const page = await doc(await renderWith({ notes: '20' }));
     const notes = page.querySelector('#notes');
-    expect(notes?.querySelector('details')?.hasAttribute('open')).toBe(true);
     expect(notes?.querySelector('.show-more-count')?.textContent).toBe('Showing all 14 notes.');
     expect(notes?.querySelector('a.show-more-link')).toBeNull();
   });

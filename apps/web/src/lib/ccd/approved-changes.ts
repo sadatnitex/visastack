@@ -588,6 +588,7 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
         'Contributors and Notes from Your Agency',
         'Ask a sponsor for one document, read shared notes',
         () => 'No Notes Yet',
+        'Notes from Your Agency',
       ],
       ['Submission and Outcome', 'Open when you need to make a change', () => 'No Outcome Yet'],
       [
@@ -597,14 +598,26 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
       ],
     ] as const
   ).map(
-    ([title, hint, count]): ApprovedChange => ({
+    ([title, hint, count, renamed]: readonly [
+      string,
+      string,
+      (state: string) => string,
+      string?,
+    ]): ApprovedChange => ({
       screen: 'case',
       from: { kind: 'button', name: `${title}${hint}` },
-      to: (state) => ({ kind: 'button', name: `${title}${count(state)}` }),
+      to: (state) => ({ kind: 'button', name: `${renamed ?? title}${count(state)}` }),
       reason:
         'Owner, 4 Nov 2026 (redesign the case pages): the five sections are rows of one card, More for This Case, and each shows how much is inside (a count) instead of the line that said when to open it. Same section, same panels, same ids.',
     }),
   ),
+  {
+    screen: 'case',
+    from: { kind: 'link', name: 'Contributors and Notes', detail: '#notes' },
+    to: { kind: 'link', name: 'Notes', detail: '#notes' },
+    reason:
+      "Owner, 9 Nov 2026 (case page plan, package 3): Contributors and Notes are two sections. Ask a Contributor is the traveller's own feature and has its own link; Notes from Your Agency has this link, shown at Browse only when notes exist or an agency can see the case.",
+  },
   // WP-LIFT-C entries
   {
     screen: 'traveller',

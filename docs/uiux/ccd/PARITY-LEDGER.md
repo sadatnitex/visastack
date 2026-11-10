@@ -539,3 +539,14 @@ Safety and consent wording shortened on a screen (full wording one tap away): th
 | Row button "Provide Evidence" | Row button "Add" (Documents page or profile); "Provide Evidence" (to `#evidence`) is in the item's panel | always |
 | Trip Package listed every item again with its own choice form | Each item's choice is in its panel; the package is the summary; an item with no checklist row is drawn under "Other Items in This Package" | Browse |
 | Item named by file type in the package ("Other", "Nid", "Noc") | Named by its own sentence, else the catalogue label ("National ID") | always |
+
+## 09. Case: package 3 of the case page plan (10 Nov 2026)
+
+| Was | Now | Level |
+|---|---|---|
+| Stage tracker, About Stages and Advance the Case at Browse | Everything while no agency can see the case; Browse once one can (never removed) | Everything or Browse |
+| "More for This Case": six stacked closed rows | One row of tabs, one section at a time; every section in the page; without script all shown | Browse |
+| "Contributors and Notes from Your Agency" as one row | "Ask a Contributor" (Browse) and "Notes from Your Agency" (Browse with notes or an agency, else Everything) | Browse or Everything |
+| Link "Contributors and Notes" | Links "Contributors" and "Notes" | Browse |
+| Item panel: "What This Item Uses" only | "Which File Counts" (new in the panel, same actions) and "Which File Goes in the Handoff" | always |
+| No search on a long checklist | Search the Checklist from 8 rows, after the script runs | always |
