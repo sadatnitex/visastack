@@ -57,7 +57,7 @@ describe('Trips You Joined', () => {
     const html = await page();
     const words = textOf(html);
     expect(words).toContain('Trips You Joined');
-    expect(words).toContain('Japan - Tourism Japan');
+    expect(words).toMatch(/Japan - Tourism [\p{Regional_Indicator}]{2} Japan/u);
     expect(html).toContain(`href="/app/trip-invitations/${w.tripId}"`);
     expect(html).not.toContain(FRIEND);
     expect(html).not.toContain('organiser@example.com');

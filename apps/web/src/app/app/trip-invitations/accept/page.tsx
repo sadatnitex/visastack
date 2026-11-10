@@ -10,6 +10,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { DestinationLabel } from '../../../../components/destination-label';
 import { PageHeader } from '../../../../components/ui';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
@@ -144,7 +145,9 @@ export default async function TripInvitationPage({
             </div>
             <div className="row">
               <dt>Where</dt>
-              <dd>{invite.destination}</dd>
+              <dd>
+                <DestinationLabel destination={invite.destination} />
+              </dd>
             </div>
             <div className="row">
               <dt>Why</dt>

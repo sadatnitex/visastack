@@ -229,6 +229,8 @@ export interface AttentionActiveCase {
   readonly id: string;
   readonly title: string;
   readonly state: string;
+  /** Where the case goes, as saved (a country name); already on the case row, used for its flag. */
+  readonly destination: string | null;
 }
 
 export interface NeedsAttention {
@@ -311,6 +313,7 @@ export async function listNeedsAttention(
         id: schema.missions.id,
         title: schema.missions.title,
         state: schema.missions.state,
+        destination: schema.missions.destination,
         createdAt: schema.missions.createdAt,
       })
       .from(schema.missions)
@@ -602,9 +605,12 @@ export async function listNeedsAttention(
     applicantId,
     applicantName,
     items: rankAttentionItems(items),
-    activeCases: active
-      .slice(0, ATTENTION_ACTIVE_CASE_LIMIT)
-      .map((m) => ({ id: m.id, title: m.title, state: m.state })),
+    activeCases: active.slice(0, ATTENTION_ACTIVE_CASE_LIMIT).map((m) => ({
+      id: m.id,
+      title: m.title,
+      state: m.state,
+      destination: m.destination ?? null,
+    })),
     activeCaseCount: active.length,
     requests: { waitingOnYou, withAgency },
   });

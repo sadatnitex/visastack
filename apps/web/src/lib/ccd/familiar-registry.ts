@@ -371,6 +371,25 @@ export const FAMILIAR_ROWS: readonly FamiliarRow[] = [
     files: ['app/collect/guest-forms.tsx', 'components/code-input.tsx'],
     proof: { file: 'app/collect/guest-forms.tsx', includes: 'CodeInput' },
   },
+  {
+    screen: 'trips list',
+    pattern: 'order card: flag, name, stage chip, progress bar, next step',
+    class: 'familiar',
+    matches:
+      'Foodpanda and Pathao order card: picture, name, status chip, progress, one tap opens it',
+    weight: 4,
+    files: ['components/case-list-row.tsx'],
+    proof: { file: 'components/case-list-row.tsx', includes: 'trip-card-chipline' },
+  },
+  {
+    screen: 'trips, case, countries, destination box, home',
+    pattern: 'country flag beside the country name',
+    class: 'familiar',
+    matches: 'Wise and bKash country lists show a round flag beside the name',
+    weight: 3,
+    files: ['components/country-flag.tsx', 'components/destination-label.tsx'],
+    proof: { file: 'components/country-flag.tsx', includes: 'flagEmoji' },
+  },
 ];
 
 /** The two shares the baseline records, from the rows as they are now. */

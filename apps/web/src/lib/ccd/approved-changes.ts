@@ -272,9 +272,43 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
   {
     screen: 'cases',
     from: { kind: 'heading', name: 'Active & Past', detail: '2' },
-    to: { kind: 'heading', name: 'Active Cases', detail: '2' },
-    reason: 'LC-G2: open cases under Active Cases, closed and cancelled under Past Cases.',
+    // P12: the heading carries the count of open cases; the finished ones are in a folded Past Trips row.
+    to: (state) => ({
+      kind: 'heading',
+      name:
+        state === 'an active case with a checklist, one without, and a closed one'
+          ? 'Active (2)'
+          : 'Active (0)',
+      detail: '2',
+    }),
+    reason:
+      'LC-G2 and P12: open cases under "Active (N)", closed and cancelled under a folded "Past Trips (N)" row.',
   },
+  ...[
+    [
+      'Synthetic japan6 of 8 items readyIn Progress\u2192',
+      '/app/mission/japan',
+      'Synthetic japan, Gathering Documents, 6 of 8 ready',
+    ],
+    [
+      'Synthetic koreaPick a checklist to see what is readyDraft\u2192',
+      '/app/mission/korea',
+      'Synthetic korea, Getting Started, Next: Pick a Checklist',
+    ],
+    [
+      'Synthetic oldPick a checklist to see what is readyClosed\u2192',
+      '/app/mission/old',
+      'Synthetic old, Closed',
+    ],
+  ].map(
+    ([name, detail, now]): ApprovedChange => ({
+      screen: 'cases',
+      from: { kind: 'link', name: name as string, detail: detail as string },
+      to: { kind: 'link', name: now as string, detail: detail as string },
+      reason:
+        'P12: each case is one card, one link, whose name is the case, its stage in plain words and its count (components/case-list-row.tsx).',
+    }),
+  ),
   {
     screen: 'cases',
     from: { kind: 'text', name: 'Your Cases' },

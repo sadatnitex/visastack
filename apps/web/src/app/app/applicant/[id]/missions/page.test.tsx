@@ -103,27 +103,27 @@ const parse = (html: string) => new JSDOM(html).window.document;
 const section = (doc: Document, name: string) =>
   doc.querySelector<HTMLElement>(`[data-case-group="${name}"]`);
 const titlesIn = (element: HTMLElement | null) =>
-  [...(element?.querySelectorAll('.row-link .row-key') ?? [])].map((node) =>
-    (node.firstChild?.textContent ?? '').trim(),
+  [...(element?.querySelectorAll('.trip-card-title') ?? [])].map((node) =>
+    (node.textContent ?? '').trim(),
   );
 
-describe('Active Cases and Past Cases (LC-G2)', () => {
-  it('with no case at all, shows Active Cases with the empty state and no Past Cases', async () => {
+describe('Active and Past Trips (LC-G2, P12)', () => {
+  it('with no case at all, shows Active (0) with the empty state and no Past Trips', async () => {
     const doc = parse(await render());
-    expect(section(doc, 'active')?.textContent).toContain('Active Cases');
+    expect(section(doc, 'active')?.textContent).toContain('Active (0)');
     expect(section(doc, 'active')?.textContent).toContain('No Cases Yet');
     expect(section(doc, 'past')).toBeNull();
     expect(doc.body.textContent).not.toContain('All Cases');
   });
 
-  it('with one open case and none finished, lists it under Active Cases only', async () => {
+  it('with one open case and none finished, lists it under Active (1) only', async () => {
     withCases([open('a', 3)]);
     const doc = parse(await render());
     expect(titlesIn(section(doc, 'active'))).toEqual(['Open a']);
     expect(section(doc, 'past')).toBeNull();
   });
 
-  it('puts many open cases first, newest first, and many finished ones under a closed Past Cases', async () => {
+  it('puts many open cases first, newest first, and many finished ones under a folded Past Trips', async () => {
     withCases([
       finished('p1', 1),
       open('a', 2),
@@ -138,28 +138,30 @@ describe('Active Cases and Past Cases (LC-G2)', () => {
     const past = section(doc, 'past');
     expect(titlesIn(active)).toEqual(['Open b', 'Open c', 'Open a']);
     expect(titlesIn(past)).toEqual(['Past p2', 'Past p4', 'Past p3', 'Past p1']);
-    // Active Cases comes before Past Cases in reading order.
+    // Active comes before Past Trips in reading order.
     expect(
       (active as HTMLElement).compareDocumentPosition(past as HTMLElement) &
         4 /* DOCUMENT_POSITION_FOLLOWING */,
     ).toBeTruthy();
-    expect(past?.querySelector('h2')?.textContent).toBe('Past Cases');
-    const fold = past?.querySelector('details');
-    expect(fold).not.toBeNull();
-    expect(fold?.hasAttribute('open')).toBe(false);
-    expect(fold?.querySelector('.collapsible-group-title')?.textContent).toBe('All Past Cases');
-    expect(fold?.querySelector('summary')?.textContent).toContain('4 cases');
-    // Each past row keeps its stage badge.
-    const badges = [...(past?.querySelectorAll('.row-end') ?? [])].map((n) => n.textContent ?? '');
-    expect(badges[0]).toContain('Cancelled');
-    expect(badges[1]).toContain('Closed');
+    expect(active?.querySelector('h2')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'Active (3)',
+    );
+    expect(past?.tagName).toBe('DETAILS');
+    expect(past?.hasAttribute('open')).toBe(false);
+    expect(past?.querySelector('summary')?.textContent).toBe('Past Trips (4)');
+    // Each past row keeps its stage chip.
+    const chips = [...(past?.querySelectorAll('.case-chip') ?? [])].map((n) => n.textContent ?? '');
+    expect(chips[0]).toBe('Cancelled');
+    expect(chips[1]).toBe('Closed');
   });
 
-  it('shows up to three finished cases without folding them away', async () => {
+  it('folds finished cases away whatever their number, and keeps them reachable', async () => {
     withCases([open('a', 7), finished('p1', 1), finished('p2', 2), finished('p3', 3)]);
     const past = section(parse(await render()), 'past');
     expect(titlesIn(past)).toEqual(['Past p3', 'Past p2', 'Past p1']);
-    expect(past?.querySelector('details')).toBeNull();
+    expect(past?.tagName).toBe('DETAILS');
+    expect(past?.hasAttribute('open')).toBe(false);
+    expect(past?.querySelector('summary')?.textContent).toBe('Past Trips (3)');
   });
 
   it('with one finished case and none open, says no case is being worked on and lists the past one', async () => {
@@ -206,6 +208,50 @@ describe('Active Cases and Past Cases (LC-G2)', () => {
       finished('p4', 1),
     ]);
     expect(textOf(await render()).toLowerCase()).not.toContain('mission');
+  });
+
+  it('draws every case as one card with its flag, country, stage, count and next step', async () => {
+    service.computeReadiness.mockResolvedValue({
+      ok: true,
+      value: {
+        requiredCount: 8,
+        satisfiedRequired: 6,
+        missing: [
+          { kind: 'DOCUMENT', key: 'bank_statement', optional: false, reason: 'not_provided' },
+        ],
+      },
+    });
+    withCases([
+      {
+        ...open('jp', 5),
+        title: 'Tokyo Trip',
+        state: 'INTAKE',
+        destination: 'Japan',
+        purpose: 'Tourism',
+        packVersionId: 'pack',
+      } as CaseRow,
+      { ...open('kr', 4), state: 'DRAFT', destination: 'Not sure yet' } as CaseRow,
+      { ...finished('old', 1), destination: 'Japan' } as CaseRow,
+    ]);
+    const doc = parse(await render());
+    const jp = doc.querySelector('[data-case-id="jp"]') as HTMLElement;
+    expect(jp.getAttribute('href')).toBe('/app/mission/jp');
+    expect(jp.getAttribute('aria-label')).toBe(
+      'Tokyo Trip, Gathering Documents, 6 of 8 ready, Next: Add Bank Statement',
+    );
+    expect(jp.querySelector('.country-flag')?.getAttribute('data-size')).toBe('lg');
+    expect(jp.querySelector('.trip-card-sub')?.textContent).toBe('Japan \u00b7 Tourism');
+    expect(jp.querySelector('.trip-card-count')?.textContent).toBe('6 of 8 ready');
+    expect(jp.querySelector('.trip-card-next')?.textContent).toBe('Next: Add Bank Statement');
+    // No checklist: no bar, picking one is the step; a destination that names no country has no flag.
+    const kr = doc.querySelector('[data-case-id="kr"]') as HTMLElement;
+    expect(kr.querySelector('progress')).toBeNull();
+    expect(kr.querySelector('.trip-card-next')?.textContent).toBe('Next: Pick a Checklist');
+    expect(kr.querySelector('.country-flag-unknown')).not.toBeNull();
+    // A finished case gets no advice.
+    const old = doc.querySelector('[data-case-id="old"]') as HTMLElement;
+    expect(old.querySelector('.trip-card-next')).toBeNull();
+    expect(section(doc, 'past')?.textContent).not.toContain('Pick a Checklist');
   });
 
   it('leads the main button to Start a Trip with this traveller chosen, and keeps the by-name form', async () => {
