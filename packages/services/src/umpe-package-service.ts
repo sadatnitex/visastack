@@ -92,6 +92,7 @@ import {
 } from './umpe-package-phrases';
 import {
   INACTIVE_CASE_STATES,
+  isInactiveCaseState,
   packageTablesPresent,
   sourceTablesPresent,
 } from './umpe-package-tables';
@@ -908,7 +909,11 @@ async function buildPackage(
       .filter((r) => r.state === 'UNVERIFIED')
       .map((r) => r.packRequirementId),
   );
-  const questions = await questionsFor(tx, mission, requirements, unverified);
+  // A finished case can no longer be changed, so it asks nothing: its questions would also read
+  // today's record rather than the case.
+  const questions = isInactiveCaseState(mission.state)
+    ? []
+    : await questionsFor(tx, mission, requirements, unverified);
   const phraseInput: PhraseInput = {
     overallState: readiness.value.overallState,
     requiredLeftMissing,

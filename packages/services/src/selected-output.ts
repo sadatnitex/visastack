@@ -31,11 +31,18 @@ import {
   lifecycleTablesPresent,
   presentDocumentCondition,
 } from './lifecycle/foundation';
-import { type Readiness, computeReadiness, isFactStatusEligible } from './missions';
+import {
+  type PinnedFactVersion,
+  type Readiness,
+  computeReadiness,
+  isFactStatusEligible,
+  pinnedFactVersionsOfFinishedCase,
+} from './missions';
 import { toLocalDateParts } from './notification-sweep';
 import type { KeyManagementPort } from './ports';
 import { buildFactVersionAad, revealValue } from './protected-fields';
 import { referenceCodesFor } from './reference-codes';
+import { isInactiveCaseState } from './umpe-package-tables';
 
 /**
  * The selected-output engine (ADR 0021 section 4, WP-V5). One server-side projection of one
@@ -265,6 +272,11 @@ export interface SelectedOutput {
 }
 
 export interface SelectedOutputOptions {
+  /**
+   * Show the details a finished case used as that case used them (the version it kept), not
+   * today's. Only the person's own pages ask for it.
+   */
+  readonly asFinished?: boolean;
   /** The clock (tests). */
   readonly now?: Date;
   /**
@@ -720,6 +732,8 @@ async function composeOutput(
 
   const caseContexts: CaseContext[] = [];
   const needs: CaseNeeds = { fieldKeys: new Map(), documentKeys: new Map() };
+  // Details a case that is still open needs: for those, today's value wins over a finished case's.
+  const openFieldKeys = new Set<string>();
   for (const mission of missions) {
     const readiness = mission.packVersionId ? await computeReadiness(db, mission.id, now) : null;
     const resolved = readiness?.ok ? readiness.value : null;
@@ -729,6 +743,7 @@ async function composeOutput(
       const target = item.kind === 'FIELD' ? needs.fieldKeys : needs.documentKeys;
       const key = item.kind === 'FIELD' ? item.key : (documentKey(item.key) ?? item.key);
       target.set(key, (target.get(key) ?? false) || !item.optional);
+      if (item.kind === 'FIELD' && !isInactiveCaseState(mission.state)) openFieldKeys.add(item.key);
     }
   }
   const withCases = chosen.cases.kind !== 'none';
@@ -743,7 +758,20 @@ async function composeOutput(
     options.fieldKeys?.length === 0 ||
     (onlyLayers !== null && onlyLayers.size === 0 && !includeBasics);
   const wantsFacts = !noValues && (chosen.layers.length > 0 || includeBasics);
-  const factRows = wantsFacts ? await loadFactRows(db, applicant.id) : [];
+  const currentFactRows = wantsFacts ? await loadFactRows(db, applicant.id) : [];
+  // With `asFinished`, a detail a finished case used is shown as that case used it. Never on an
+  // agency AI call or for the person's own AI connection (a later correction or removal must win
+  // there), and never where a case that is still open needs the same detail (today's value wins).
+  const factRows =
+    agency || options.asFinished !== true || currentFactRows.length === 0
+      ? currentFactRows
+      : await withFinishedCaseVersions(
+          db,
+          applicant.id,
+          currentFactRows,
+          await pinnedFacts(proof, missions),
+          openFieldKeys,
+        );
   const recordNumbers = recordNumbering(factRows);
   const selectedRows: {
     row: FactRow;
@@ -1037,6 +1065,84 @@ async function loadFactRows(db: Db, applicantId: string): Promise<FactRow[]> {
     .innerJoin(schema.factVersions, eq(schema.factVersions.id, schema.facts.currentVersionId))
     .where(eq(schema.facts.applicantId, applicantId));
   return rows;
+}
+
+/**
+ * The details the finished cases of an output used, one pinned version per detail. A detail two
+ * finished cases used at different versions is left out (one list cannot show both, so it shows
+ * today's).
+ */
+async function pinnedFacts(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+  missions: readonly MissionRow[],
+): Promise<Map<string, PinnedFactVersion>> {
+  const pins = new Map<string, PinnedFactVersion>();
+  const clashing = new Set<string>();
+  for (const mission of missions) {
+    for (const [factId, pin] of await pinnedFactVersionsOfFinishedCase(proof, mission)) {
+      const earlier = pins.get(factId);
+      if (earlier && earlier.factVersionId !== pin.factVersionId) clashing.add(factId);
+      pins.set(factId, pin);
+    }
+  }
+  for (const factId of clashing) pins.delete(factId);
+  return pins;
+}
+
+/**
+ * The rows of the details that finished cases used, swapped for the exact version each case
+ * used (read by version id under the person's own record). A version that cannot be found keeps
+ * today's row.
+ */
+async function withFinishedCaseVersions(
+  db: Db,
+  applicantId: string,
+  rows: readonly FactRow[],
+  pins: ReadonlyMap<string, PinnedFactVersion>,
+  openFieldKeys: ReadonlySet<string>,
+): Promise<FactRow[]> {
+  const wanted = rows.filter((row) => {
+    const pin = pins.get(row.factId);
+    return pin && pin.factVersionId !== row.factVersionId && !openFieldKeys.has(row.fieldKey);
+  });
+  if (wanted.length === 0) return [...rows];
+  const versionIds = wanted.flatMap((row) => pins.get(row.factId)?.factVersionId ?? []);
+  const found = await db
+    .select({
+      factId: schema.facts.id,
+      packId: schema.fieldDefinitions.packId,
+      repeatingRecordKey: schema.facts.repeatingRecordKey,
+      factCreatedAt: schema.facts.createdAt,
+      fieldKey: schema.fieldDefinitions.key,
+      factVersionId: schema.factVersions.id,
+      value: schema.factVersions.value,
+      valueCiphertext: schema.factVersions.valueCiphertext,
+      valueNonce: schema.factVersions.valueNonce,
+      protectedKeyVersion: schema.factVersions.protectedKeyVersion,
+      status: schema.factVersions.status,
+      method: schema.factVersions.method,
+      effectiveFrom: schema.factVersions.effectiveFrom,
+      validUntil: schema.factVersions.validUntil,
+      updatedAt: schema.factVersions.createdAt,
+      sourceDocumentVersionId: schema.factVersions.sourceDocumentVersionId,
+    })
+    .from(schema.factVersions)
+    .innerJoin(schema.facts, eq(schema.facts.id, schema.factVersions.factId))
+    .innerJoin(
+      schema.fieldDefinitions,
+      eq(schema.fieldDefinitions.id, schema.facts.fieldDefinitionId),
+    )
+    .where(
+      and(eq(schema.facts.applicantId, applicantId), inArray(schema.factVersions.id, versionIds)),
+    );
+  const byVersion = new Map(found.map((row) => [row.factVersionId, row] as const));
+  return rows.map((row) => {
+    const pin = pins.get(row.factId);
+    const old =
+      pin && pin.factVersionId !== row.factVersionId ? byVersion.get(pin.factVersionId) : undefined;
+    if (!pin || !old || openFieldKeys.has(row.fieldKey)) return row;
+    return { ...old, status: pin.status };
+  });
 }
 
 /** Records of one repeating group are numbered 1, 2, 3 in the order they were first added. */
