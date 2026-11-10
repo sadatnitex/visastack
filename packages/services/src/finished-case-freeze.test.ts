@@ -6,11 +6,13 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import { decideAcknowledgement } from './acknowledgements';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
+import { setDocumentExpiry } from './document-expiry';
 import { addDocumentVersion, registerDocument, setDocumentType } from './documents';
 import { incrementMaterialRevision, missionsSelectingDocument } from './material-revision';
 import {
@@ -288,6 +290,32 @@ describe('edits to the traveller record and a finished case', () => {
     );
     expect(await liveConfirmations(db, c.finishedId)).toBe(1);
     expect(await liveConfirmations(db, c.openId)).toBe(0);
+  });
+
+  it('a typed expiry date changes an open case as before and leaves a finished case alone', async () => {
+    const c = await twoCases(db, 'DOCUMENT');
+    if (!c.documentId) throw new Error('document');
+    const finishedBefore = await caseRow(db, c.finishedId);
+    const openBefore = await caseRow(db, c.openId);
+    const access = await requireAccess(
+      db,
+      accountPrincipal(c.accountId),
+      'MANAGE',
+      { documentId: c.documentId },
+      { purpose: 'owner_document_expiry' },
+    );
+    if (!isOk(access)) throw new Error('access');
+    const day = new Date(Date.now() + 400 * 86_400_000).toISOString().slice(0, 10);
+
+    const saved = await setDocumentExpiry(access.value, { expiresOn: day });
+
+    expect(isOk(saved)).toBe(true);
+    expect((await caseRow(db, c.openId)).materialRevision).toBe(openBefore.materialRevision + 1);
+    expect(await liveConfirmations(db, c.openId)).toBe(0);
+    expect((await caseRow(db, c.finishedId)).materialRevision).toBe(
+      finishedBefore.materialRevision,
+    );
+    expect(await liveConfirmations(db, c.finishedId)).toBe(1);
   });
 
   it('a document that expires voids the open case confirmation and not the finished one', async () => {
