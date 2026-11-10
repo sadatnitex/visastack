@@ -32,6 +32,8 @@ vi.mock('../../../../../../lib/base-url', () => ({
 vi.mock('../../../../../../lib/providers', () => ({
   paymentPorts: mocks.paymentPorts,
   createMalwareScanner: () => ({ scanner: true }),
+}));
+vi.mock('../../../../../../lib/providers-media', () => ({
   createImageSanitizer: () => ({ images: true }),
 }));
 vi.mock('../../../../../../lib/session', () => ({

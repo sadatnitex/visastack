@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { triggerIntakeAndReading } from './run';
 
 const mocks = vi.hoisted(() => ({ intake: vi.fn(), reading: vi.fn() }));
-vi.mock('../../../../lib/jobs', () => ({
+vi.mock('../../../../lib/jobs-reading', () => ({
   triggerIntakeWorker: mocks.intake,
   triggerAiReadingWorker: mocks.reading,
 }));

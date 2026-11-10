@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { GET } from './route';
 
 const mocks = vi.hoisted(() => ({ worker: vi.fn() }));
-vi.mock('../../../../lib/jobs', () => ({
+vi.mock('../../../../lib/jobs-reading', () => ({
   triggerAiReadingWorker: mocks.worker,
   triggerIntakeWorker: vi.fn(),
 }));

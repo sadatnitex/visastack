@@ -1,5 +1,5 @@
 import { rejectUnauthorizedCron } from '../../../../lib/cron-auth';
-import { triggerIntakeWorker } from '../../../../lib/jobs';
+import { triggerIntakeWorker } from '../../../../lib/jobs-reading';
 
 /**
  * Periodic sweep for the low-volume durable job queue (master directive §5).

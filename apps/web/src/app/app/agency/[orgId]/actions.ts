@@ -42,11 +42,8 @@ import {
 import { parseFieldKeyInput } from '../../../../lib/catalogue-input';
 import { humanizeCode } from '../../../../lib/format-code';
 import { triggerNotificationWorker } from '../../../../lib/jobs';
-import {
-  createImageSanitizer,
-  createKeyManagementPort,
-  createMalwareScanner,
-} from '../../../../lib/providers';
+import { createKeyManagementPort, createMalwareScanner } from '../../../../lib/providers';
+import { createImageSanitizer } from '../../../../lib/providers-media';
 import { parseAskItems } from '../../../../lib/request-items';
 import { sendEmailNow } from '../../../../lib/send-now';
 import { withSession } from '../../../../lib/session';

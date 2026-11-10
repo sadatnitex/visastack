@@ -65,7 +65,8 @@ import {
 import { ensureDocumentFieldsRegistered } from '../../../../lib/field-registry';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldRegistryInputOf, savableField } from '../../../../lib/master-profile';
-import { createKeyManagementPort, createPreviewRenderer } from '../../../../lib/providers';
+import { createKeyManagementPort } from '../../../../lib/providers';
+import { createPreviewRenderer } from '../../../../lib/providers-media';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';

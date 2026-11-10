@@ -5,7 +5,7 @@ import {
   recheckDocumentAccess,
   verifyDocumentAccessToken,
 } from '@visastack/services';
-import { createPreviewRenderer } from '../../../../lib/providers';
+import { createPreviewRenderer } from '../../../../lib/providers-media';
 import { reportRenderFailure } from '../../../../lib/server-error';
 import { createStorage } from '../../../../lib/storage';
 import { withFileExtension } from '../../../../lib/upload-rules';

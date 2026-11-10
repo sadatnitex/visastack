@@ -29,6 +29,8 @@ vi.mock('../../lib/storage', () => ({ createStorage: () => ({}) }));
 vi.mock('../../lib/providers', () => ({
   createKeyManagementPort: () => ({}),
   createMalwareScanner: () => ({ name: 'basic-structural-scanner', version: '1', scan: vi.fn() }),
+}));
+vi.mock('../../lib/providers-media', () => ({
   createContentLimitsChecker: () => ({ name: 'limits', version: '1', check: vi.fn() }),
 }));
 vi.mock('../../lib/upload-preflight', async (importOriginal) => ({
