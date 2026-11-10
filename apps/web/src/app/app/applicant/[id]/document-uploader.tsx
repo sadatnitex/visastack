@@ -5,12 +5,16 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { UndoStatus } from '../../../../components/lifecycle/undo-status';
 import { UpgradeLine, type UpgradeLineKind } from '../../../../components/upgrade-line';
-import { type UploadOutcome, sendDocumentFile } from '../../../../lib/document-upload-client';
+import {
+  type UploadOutcome,
+  reportUploadProblem,
+  sendDocumentFile,
+} from '../../../../lib/document-upload-client';
 import { newUploadId } from '../../../../lib/document-upload-client-id';
 import { formatFileSize } from '../../../../lib/format-size';
 import { useDropZone } from '../../../../lib/import/use-drop-zone';
 import type { ChoiceGroup } from '../../../../lib/master-profile-types';
-import { photoStillTooLargeMessage, shrinkPhoto, shrunkNotice } from '../../../../lib/photo-shrink';
+import { photoNotShrunkMessage, shrinkPhoto, shrunkNotice } from '../../../../lib/photo-shrink';
 import { uploadCheckNotice } from '../../../../lib/scan-state';
 import { acceptAttribute, checkChosenFile, uploadLimitsText } from '../../../../lib/upload-rules';
 import { deleteDuplicateAction, restoreDeletedAction } from './documents/manage/delete/actions';
@@ -276,7 +280,11 @@ export function DocumentUploader({
         .then((outcome) => {
           if (outcome.kind === 'added') addedSinceRefresh.current = true;
           running.current = false;
-          update(next.id, outcomeToItem(outcome));
+          // Once the file is stored nothing needs the copy again, so a smaller photo is let go.
+          update(next.id, {
+            ...outcomeToItem(outcome),
+            ...(outcome.kind === 'added' ? { file: null } : {}),
+          });
         });
     };
     if (!next.shrink) {
@@ -292,8 +300,17 @@ export function DocumentUploader({
           status: 'not_sent',
           file: null,
           shrink: false,
-          message: photoStillTooLargeMessage(limitLabel, pdfAccepted),
+          message: photoNotShrunkMessage(shrunk.reason, limitLabel, pdfAccepted),
         });
+        if (shrunk.reason === 'unreadable') {
+          reportUploadProblem({
+            route: 'upload',
+            reason: 'unreadable',
+            status: 0,
+            redirected: false,
+            ms: 0,
+          });
+        }
         return;
       }
       update(next.id, {
@@ -317,7 +334,7 @@ export function DocumentUploader({
   return (
     <div className="uploader">
       <p className="uploader-limits" id={limitsId}>
-        {uploadLimitsText(limitLabel, pdfAccepted)}
+        {uploadLimitsText(limitLabel, pdfAccepted, true)}
       </p>
       {kindGroups.length > 0 ? (
         <div className="field-stack">

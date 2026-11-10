@@ -194,3 +194,16 @@ describe('a photo over the limit when shrinking is allowed (P2)', () => {
     expect(canShrinkToFit('image/jpeg', 4 * MB, 4 * MB)).toBe(false);
   });
 });
+
+describe('the limits line where photos are made smaller (P2)', () => {
+  it('says so after the kinds, and before the PDF reason', () => {
+    expect(uploadLimitsText('4 MB', true, true)).toBe(
+      'Up to 4 MB per file; PDF, JPG, PNG, HEIC, Word or text files. Larger photos are made smaller to fit.',
+    );
+    expect(uploadLimitsText('4 MB', false, true)).toBe(
+      'Up to 4 MB per file; JPG, PNG, HEIC, Word or text files. Larger photos are made smaller to fit. PDF files can be added only while our virus scan is switched on.',
+    );
+    // Everywhere that does not shrink photos keeps the plain line.
+    expect(uploadLimitsText('4 MB', true)).not.toContain('smaller');
+  });
+});

@@ -243,7 +243,7 @@ const ImportRow = memo(function ImportRow({
         />
       ) : null}
       {item.shrunkTo !== null && item.size !== null ? (
-        <output className="upload-item-status">{shrunkNotice(item.size, item.shrunkTo)}</output>
+        <p className="upload-item-status">{shrunkNotice(item.size, item.shrunkTo)}</p>
       ) : null}
       {(item.state === 'added' || item.state === 'duplicate') && item.title ? (
         <p className="upload-item-title">Added as {item.title}</p>
@@ -619,7 +619,8 @@ export function ImportPanel({
   return (
     <div className="uploader import-panel">
       <p className="uploader-limits" id={limitsId}>
-        {uploadLimitsText(limitLabel, pdfAccepted)} Up to {MAX_IMPORT_FILES} files in one import.
+        {uploadLimitsText(limitLabel, pdfAccepted, true)} Up to {MAX_IMPORT_FILES} files in one
+        import.
       </p>
       {remembered > 0 ? (
         <div className="import-earlier">

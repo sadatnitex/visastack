@@ -26,9 +26,18 @@
  */
 
 import type { UpgradeLineKind } from '../../components/upgrade-line';
-import { type UploadOutcome, sendDocumentFile } from '../document-upload-client';
+import {
+  type UploadOutcome,
+  reportUploadProblem,
+  sendDocumentFile,
+} from '../document-upload-client';
 import { newUploadId } from '../document-upload-client-id';
-import { type ShrinkOutcome, photoStillTooLargeMessage, shrinkPhoto } from '../photo-shrink';
+import {
+  type ShrinkFailure,
+  type ShrinkOutcome,
+  photoNotShrunkMessage,
+  shrinkPhoto,
+} from '../photo-shrink';
 import { checkChosenFile } from '../upload-rules';
 
 export type ImportState =
@@ -321,6 +330,14 @@ const blank = {
   earlier: false,
 } as const;
 
+/** A file the queue still holds to send: the bytes (a smaller copy once a photo was shrunk). */
+interface HeldFile {
+  readonly file: Blob;
+  readonly contentType: string;
+  /** A photo over the limit that is still to be made smaller. */
+  readonly shrink: boolean;
+}
+
 export class ImportQueue {
   private readonly options: ImportQueueOptions;
   private readonly concurrency: number;
@@ -329,7 +346,7 @@ export class ImportQueue {
   private readonly wait: (ms: number) => Promise<void>;
   private readonly progressIntervalMs: number;
   private readonly newUploadId: () => string;
-  private readonly files = new Map<number, { file: Blob; contentType: string; shrink: boolean }>();
+  private readonly files = new Map<number, HeldFile>();
   private readonly listeners = new Set<() => void>();
   private readonly idleWaiters: (() => void)[] = [];
   /** Lines by id; each line object is replaced, never changed, so a row can tell it is unchanged. */
@@ -348,8 +365,6 @@ export class ImportQueue {
    * which request is "the first" is then the same on every machine, however loaded.
    */
   private startGate: Promise<void> = Promise.resolve();
-  /** Photos are made smaller one at a time, so a phone holds one decoded picture in memory. */
-  private shrinkGate: Promise<void> = Promise.resolve();
   private progressTimer: ReturnType<typeof setTimeout> | null = null;
   /** Adds run one after another, so a second add sees every line of the first. */
   private adding: Promise<void> = Promise.resolve();
@@ -466,10 +481,7 @@ export class ImportQueue {
         return;
       }
       seen.add(fingerprint);
-      const check = checkChosenFile(
-        { name, size: file.size, type: file.type },
-        { ...this.options.rules, shrinkPhotos: this.options.rules.shrinkPhotos === true },
-      );
+      const check = checkChosenFile({ name, size: file.size, type: file.type }, this.options.rules);
       if (!check.ok) {
         added.push({ ...base, state: 'unsupported', message: check.reason });
         return;
@@ -648,25 +660,25 @@ export class ImportQueue {
   }
 
   private async run(id: number): Promise<void> {
-    let held = this.files.get(id);
     const generation = this.generation;
     try {
-      if (!held) {
+      if (!this.files.has(id)) {
         this.settle(id, { state: 'unknown' });
         return;
-      }
-      if (held.shrink) {
-        const shrunk = await this.shrinkOne(id, held.file);
-        if (!shrunk) return;
-        held = shrunk;
       }
       for (;;) {
         const attempts = (this.byId.get(id)?.attempts ?? 0) + 1;
         this.update(id, { attempts, progress: 0, state: 'uploading', waitingToRetry: false });
         const sending = this.byId.get(id);
         const beforeSend = this.options.beforeSend;
-        if (sending && beforeSend) {
+        // A large photo is made smaller inside its turn at the gate, so sends still start in queue
+        // order and only one photo is being made smaller at a time.
+        const shrinking = this.files.get(id)?.shrink === true;
+        const shrunk: { failure: ShrinkFailure | null } = { failure: null };
+        if ((sending && beforeSend) || shrinking || this.options.rules.shrinkPhotos === true) {
           const turn = this.startGate.then(async () => {
+            if (shrinking) shrunk.failure = await this.shrinkOne(id);
+            if (shrunk.failure || !sending || !beforeSend) return;
             try {
               await beforeSend(sending);
             } catch {
@@ -675,6 +687,33 @@ export class ImportQueue {
           });
           this.startGate = turn;
           await turn;
+        }
+        const notShrunk = shrunk.failure;
+        if (notShrunk) {
+          this.settle(id, {
+            state: 'unsupported',
+            preparing: false,
+            message: photoNotShrunkMessage(
+              notShrunk,
+              this.options.rules.limitLabel,
+              this.options.rules.pdfAccepted,
+            ),
+          });
+          if (notShrunk === 'unreadable') {
+            reportUploadProblem({
+              route: 'upload',
+              reason: 'unreadable',
+              status: 0,
+              redirected: false,
+              ms: 0,
+            });
+          }
+          return;
+        }
+        const held = this.files.get(id);
+        if (!held) {
+          this.settle(id, { state: 'unknown' });
+          return;
         }
         let outcome: UploadOutcome;
         try {
@@ -761,42 +800,24 @@ export class ImportQueue {
 
   /**
    * Makes one large photo smaller (P2) and keeps the smaller copy in place of the original for this
-   * and every later attempt. Photos wait their turn, so only one is decoded at a time. Returns the
-   * copy to send, or null after listing the photo as not added (it cannot be made small enough).
+   * and every later attempt. Called inside the photo's turn at the start gate. Returns why it
+   * could not be done, or null when the smaller copy is ready.
    */
-  private async shrinkOne(
-    id: number,
-    file: Blob,
-  ): Promise<{ file: Blob; contentType: string; shrink: boolean } | null> {
+  private async shrinkOne(id: number): Promise<ShrinkFailure | null> {
+    const held = this.files.get(id);
+    if (!held) return 'unreadable';
     this.update(id, { preparing: true });
-    const turn = this.shrinkGate.then(async (): Promise<ShrinkOutcome> => {
-      const shrink = this.options.shrink ?? shrinkPhoto;
-      try {
-        return await shrink(file as File, this.options.rules.limitBytes);
-      } catch {
-        return { ok: false, reason: 'unreadable' };
-      }
-    });
-    this.shrinkGate = turn.then(
-      () => undefined,
-      () => undefined,
-    );
-    const shrunk = await turn;
-    if (!shrunk.ok) {
-      this.settle(id, {
-        state: 'unsupported',
-        preparing: false,
-        message: photoStillTooLargeMessage(
-          this.options.rules.limitLabel,
-          this.options.rules.pdfAccepted,
-        ),
-      });
-      return null;
+    const shrink = this.options.shrink ?? shrinkPhoto;
+    let shrunk: ShrinkOutcome;
+    try {
+      shrunk = await shrink(held.file as File, this.options.rules.limitBytes);
+    } catch {
+      shrunk = { ok: false, reason: 'unreadable' };
     }
-    const kept = { file: shrunk.file, contentType: shrunk.file.type, shrink: false };
-    this.files.set(id, kept);
+    if (!shrunk.ok) return shrunk.reason;
+    this.files.set(id, { file: shrunk.file, contentType: shrunk.file.type, shrink: false });
     this.update(id, { preparing: false, shrunkTo: shrunk.toBytes });
-    return kept;
+    return null;
   }
 
   /** The hourly limit: this file and every file still waiting are held, nothing more is sent. */
@@ -825,6 +846,10 @@ export class ImportQueue {
   private settle(id: number, change: Partial<ImportItem>): void {
     this.update(id, { waitingToRetry: false, ...change });
     const item = this.byId.get(id);
+    // A smaller copy of a photo is only kept for a retry; once the file is stored it is let go.
+    if (item?.shrunkTo != null && (item.state === 'added' || item.state === 'duplicate')) {
+      this.files.delete(id);
+    }
     if (item) this.options.onSettled?.(item);
   }
 

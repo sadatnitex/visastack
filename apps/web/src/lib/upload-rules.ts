@@ -67,13 +67,21 @@ export function acceptAttribute(pdfAccepted: boolean): string {
 export const PDF_NEEDS_SCAN_TEXT =
   'PDF files can be added only while our virus scan is switched on.';
 
+/** Said beside the limit where a JPG or PNG photo over it is made smaller by the browser (P2). */
+export const PHOTOS_SHRINK_TEXT = 'Larger photos are made smaller to fit.';
+
 /**
  * The limits as people read them, shown before they choose a file: the per-file size the server
  * enforces, the kinds it accepts and, while PDF files are refused, why (decision D5).
  */
-export function uploadLimitsText(limitLabel: string, pdfAccepted: boolean): string {
+export function uploadLimitsText(
+  limitLabel: string,
+  pdfAccepted: boolean,
+  photosShrink = false,
+): string {
   const base = uploadKindsText(limitLabel, pdfAccepted);
-  return pdfAccepted ? base : `${base} ${PDF_NEEDS_SCAN_TEXT}`;
+  const withPhotos = photosShrink ? `${base} ${PHOTOS_SHRINK_TEXT}` : base;
+  return pdfAccepted ? withPhotos : `${withPhotos} ${PDF_NEEDS_SCAN_TEXT}`;
 }
 
 /** The size and the kinds alone. */

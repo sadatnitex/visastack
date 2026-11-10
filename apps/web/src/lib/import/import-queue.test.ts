@@ -740,7 +740,9 @@ describe('a photo over the limit (P2)', () => {
     await settle();
     const refused = byName(queue, 'IMG_9.jpg');
     expect(refused.state).toBe('unsupported');
-    expect(refused.message).toContain('Take the photo again');
+    expect(refused.message).toBe(
+      'This photo is larger than 1 KB, and making it smaller would lose detail. Take the photo again.',
+    );
     expect(refused.preparing).toBe(false);
     expect(send).toHaveBeenCalledTimes(1);
     expect(byName(queue, 'fine.jpg').state).toBe('added');
@@ -797,5 +799,75 @@ describe('a photo over the limit (P2)', () => {
     expect(shrink).toHaveBeenCalledTimes(1);
     expect(byName(queue, 'IMG_9.jpg').state).toBe('added');
     expect(byName(queue, 'IMG_9.jpg').shrunkTo).toBe(800);
+  });
+});
+
+describe('a photo over the limit, the order and the memory (P2)', () => {
+  const SHRINKING = { ...RULES, shrinkPhotos: true };
+  const big = (name: string) =>
+    new File([new Uint8Array(5000)], name, { type: 'image/jpeg', lastModified: 3 });
+  const smaller = (file: File): ShrinkOutcome => ({
+    ok: true,
+    file: new File([new Uint8Array(800)], file.name, { type: 'image/jpeg', lastModified: 3 }),
+    fromBytes: file.size,
+    toBytes: 800,
+  });
+
+  it('still starts sends in queue order when an earlier photo is slow to shrink', async () => {
+    const order: string[] = [];
+    const send: ImportSend = async (request) => {
+      order.push((request.file as File).name);
+      return ADDED;
+    };
+    const queue = queueWith(send, {
+      rules: SHRINKING,
+      concurrency: 2,
+      shrink: async (file) => {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        return smaller(file);
+      },
+    });
+    await queue.add([
+      { file: big('A-big.jpg'), path: '' },
+      { file: photo('B-small.jpg', 10), path: '' },
+    ]);
+    await queue.whenIdle();
+    await settle();
+    expect(order).toEqual(['A-big.jpg', 'B-small.jpg']);
+  });
+
+  it('says when the browser could not work on the photo, and leaves a trace of it', async () => {
+    const queue = queueWith(async () => ADDED, {
+      rules: SHRINKING,
+      shrink: async () => ({ ok: false, reason: 'unreadable' }),
+    });
+    await queue.add([{ file: big('IMG_9.jpg'), path: '' }]);
+    await queue.whenIdle();
+    await settle();
+    expect(byName(queue, 'IMG_9.jpg').message).toBe(
+      'We could not make this photo smaller than 1 KB. Take the photo again.',
+    );
+  });
+
+  it('lets go of the smaller copy once the file is stored, but keeps it for a retry until then', async () => {
+    const queue = queueWith(async () => ADDED, {
+      rules: SHRINKING,
+      shrink: async (f) => smaller(f),
+    });
+    const refusing = queueWith(async () => ({ kind: 'refused', message: 'No.' }) as UploadOutcome, {
+      rules: SHRINKING,
+      shrink: async (f) => smaller(f),
+    });
+    await queue.add([{ file: big('a.jpg'), path: '' }]);
+    await refusing.add([{ file: big('b.jpg'), path: '' }]);
+    await queue.whenIdle();
+    await refusing.whenIdle();
+    await settle();
+    const held = (q: ImportQueue, name: string) =>
+      (q as unknown as { files: Map<number, unknown> }).files.has(byName(q, name).id);
+    expect(byName(queue, 'a.jpg').state).toBe('added');
+    expect(held(queue, 'a.jpg')).toBe(false);
+    expect(byName(refusing, 'b.jpg').state).toBe('refused');
+    expect(held(refusing, 'b.jpg')).toBe(true);
   });
 });

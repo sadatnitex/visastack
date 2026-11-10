@@ -12,8 +12,16 @@ const { DocumentUploader, UPLOAD_UNKNOWN_OUTCOME, uploadSummary } = await import
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }));
 
-const copy = vi.hoisted(() => ({ send: vi.fn(), remove: vi.fn(), restore: vi.fn() }));
-vi.mock('../../../../lib/document-upload-client', () => ({ sendDocumentFile: copy.send }));
+const copy = vi.hoisted(() => ({
+  send: vi.fn(),
+  report: vi.fn(),
+  remove: vi.fn(),
+  restore: vi.fn(),
+}));
+vi.mock('../../../../lib/document-upload-client', () => ({
+  sendDocumentFile: copy.send,
+  reportUploadProblem: copy.report,
+}));
 const shrinkCopy = vi.hoisted(() => ({ shrink: vi.fn() }));
 vi.mock('../../../../lib/photo-shrink', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../../lib/photo-shrink')>()),
@@ -289,6 +297,28 @@ describe('a large photo is made smaller before it is sent (P2)', () => {
     expect(shrinkCopy.shrink).not.toHaveBeenCalled();
     expect((copy.send.mock.calls[0]?.[0] as { file: File }).file).toBe(small);
     expect(host.querySelector('output.upload-item-status')).toBeNull();
+  });
+
+  it('says the browser could not work on the photo, and leaves a trace of it, when it cannot be read', async () => {
+    shrinkCopy.shrink.mockReset().mockResolvedValue({ ok: false, reason: 'unreadable' });
+    copy.report.mockReset();
+    const host = await choose(big('IMG_7.jpg', 'image/jpeg'));
+    expect(copy.send).not.toHaveBeenCalled();
+    expect(host.textContent).toContain(
+      'Not added. We could not make this photo smaller than 4 MB. Take the photo again.',
+    );
+    expect(copy.report).toHaveBeenCalledWith(
+      expect.objectContaining({ route: 'upload', reason: 'unreadable', status: 0 }),
+    );
+  });
+
+  it('says photos over the limit are made smaller, beside the limit', async () => {
+    const html = textOf(
+      renderToStaticMarkup(<DocumentUploader applicantId="a1" limitLabel="4 MB" />),
+    );
+    expect(html).toContain(
+      'Up to 4 MB per file; JPG, PNG, HEIC, Word or text files. Larger photos are made smaller to fit.',
+    );
   });
 
   it('stops and says what to do when the photo cannot be made small enough', async () => {
