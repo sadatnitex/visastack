@@ -1,5 +1,7 @@
 import type { GrantWithRecipient } from '@visastack/services';
 import type { ComponentProps } from 'react';
+import { ExtendGrantButton } from '../../../../../components/grant-expiry/extend-grant-button';
+import { canOfferExtension } from '../../../../../components/grant-expiry/grant-extension';
 import {
   SelectedScopeSummary,
   describeGrantScope,
@@ -135,6 +137,14 @@ export function GrantPane({
                 : []),
             ]}
           />
+          {/* Only the traveller sees this panel. Offered while the full 30 days can still be added. */}
+          {grant.expiryAt && canOfferExtension(grant) ? (
+            <ExtendGrantButton
+              applicantId={applicantId}
+              grantId={grant.id}
+              expiresAt={new Date(grant.expiryAt).toISOString()}
+            />
+          ) : null}
         </div>
       ) : null}
       {expansions.length > 0 ? (

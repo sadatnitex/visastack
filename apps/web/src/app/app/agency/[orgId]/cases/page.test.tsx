@@ -17,7 +17,13 @@ const mocks = vi.hoisted(() => ({
   loadCases: vi.fn(),
   // WP-V4: the page also reads requests (administrator data) for the open case's triage summary.
   loadEvidenceRequests: vi.fn(async () => [] as unknown[]),
+  // P9: when access to each listed case ends; asked for the listed case ids only.
+  listAccessEndsForOrg: vi.fn(async (..._args: unknown[]) => new Map<string, Date | null>()),
 }));
+vi.mock('@visastack/services', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@visastack/services')>();
+  return { ...actual, listAccessEndsForOrg: mocks.listAccessEndsForOrg };
+});
 
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
@@ -150,6 +156,29 @@ describe('agency Cases', () => {
     expect(mocks.loadCases).not.toHaveBeenCalled();
     expect(mocks.loadEvidenceRequests).not.toHaveBeenCalled();
     expect(text).toContain('Choose a case to open its workspace');
+  });
+
+  it('says when access to a listed case ends, and that only the traveller can extend it, with no button', async () => {
+    mocks.listAccessEndsForOrg.mockResolvedValue(
+      new Map<string, Date | null>([
+        [M1, new Date('2026-12-05T10:00:00Z')],
+        [M2, null],
+      ]),
+    );
+    const html = await renderServer(Page(props));
+    const text = textOf(html);
+    // Only the cases this member can already see on the page are asked about.
+    expect(mocks.listAccessEndsForOrg).toHaveBeenCalledWith({}, 'o1', [M1, M2]);
+    expect(text).toContain('Access ends on 5 Dec 2026. The traveller can extend it.');
+    // One line only: a case with no end date shows none, and nothing here extends anything.
+    expect(html.match(/data-testid="access-ends-note"/g)).toHaveLength(1);
+    expect(text).not.toContain('Keep Sharing');
+  });
+
+  it('asks about no cases when the list is empty', async () => {
+    mocks.loadCaseListPage.mockResolvedValue(listOf(true, []));
+    await renderServer(Page(props));
+    expect(mocks.listAccessEndsForOrg).toHaveBeenCalledWith({}, 'o1', []);
   });
 
   it('opens one case in its workspace, with the people who can be assigned', async () => {

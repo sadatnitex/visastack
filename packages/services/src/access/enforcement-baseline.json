@@ -1,4 +1,5 @@
 [
+  "access-ends#listAccessEndsForOrg",
   "account-export#runAccountExportWorker",
   "account-retention#sweepInactiveAccountDeletionRequests",
   "account-retention#sweepInactiveAccountNotices",
