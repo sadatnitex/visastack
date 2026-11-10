@@ -21010,3 +21010,99 @@ html:has(.sticky-action-bar) .toast-region {
   flex: none;
 }
 /* end WP-P12 */
+
+/* WP-P15 Trip purpose pictures (10 Nov 2026, owner: "things should talk loudly"). The purpose of a trip is drawn beside its word: a small picture in front of the purpose on a Trips card and in the case header, and on Start a Trip the first view of "Why?" is eight picture tiles, each a real radio button, with a More Purposes tile that opens the whole grouped list. Flat: 1px edges, no shadow, gradient or translucency; the six Harbor tones only; tokens only; every tile is 44 px or taller. */
+.trip-card-purpose .mark-tile,
+.country-flag-purpose .mark-tile {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--radius-sm);
+  vertical-align: middle;
+}
+.purpose-choice {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.purpose-choice > legend {
+  padding: 0;
+}
+.purpose-choice-back {
+  margin-top: var(--space-2);
+}
+.purpose-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+@media (min-width: 640px) {
+  .purpose-tile-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.purpose-tile {
+  position: relative;
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+.purpose-tile-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.purpose-tile-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-2);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+}
+.purpose-tile-word {
+  font-size: var(--text-small);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.purpose-tile-input:checked + .purpose-tile-face {
+  border-color: var(--brand);
+  background: var(--brand-bg);
+  color: var(--selected-text);
+  border-width: 2px;
+  padding: calc(var(--space-3) - 1px) calc(var(--space-2) - 1px);
+}
+.purpose-tile-input:focus-visible + .purpose-tile-face,
+.purpose-tile-more:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.purpose-tile-more {
+  width: 100%;
+}
+.purpose-tile-more .purpose-tile-face {
+  border-style: dashed;
+}
+.purpose-choice[aria-invalid="true"] .purpose-tile-face {
+  border-color: var(--danger);
+}
+/* end WP-P15 */

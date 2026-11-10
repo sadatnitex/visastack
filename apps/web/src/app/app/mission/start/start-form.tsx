@@ -9,7 +9,7 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
-import { PurposeSelect } from '../../../../components/purpose-select';
+import { PurposeChoice } from '../../../../components/purpose-choice';
 import { StickyActionBar } from '../../../../components/sticky-action-bar';
 import { AboutDisclosure } from '../../../../components/ui-lift';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../../lib/case-choices';
@@ -92,15 +92,12 @@ export function TripStartForm({
         />
       </div>
       <div className="lc-step">
-        <label className="label" htmlFor={`${id}-purpose`}>
-          Why?
-        </label>
-        <PurposeSelect
+        <PurposeChoice
           id={`${id}-purpose`}
           purposes={purposes}
           value={purpose}
           onChange={setPurpose}
-          {...fieldProblem(state, 'purpose', messageId)}
+          problem={fieldProblem(state, 'purpose', messageId)}
         />
       </div>
       <fieldset className="trip-start-travellers lc-step">
