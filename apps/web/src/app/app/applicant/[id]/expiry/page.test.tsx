@@ -375,7 +375,7 @@ describe('which documents the Expiry page watches (resource lifecycle, LC-Z)', (
       expect.anything(),
       expect.anything(),
       'person',
-      { lifecycle: 'everyday' },
+      { lifecycle: 'everyday', withExpiry: true },
     );
   });
 });
