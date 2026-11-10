@@ -244,3 +244,46 @@ describe('account export and the resource lifecycle (LC-A2)', () => {
     HEAVY_TIMEOUT_MS,
   );
 });
+
+describe('account export and typed expiry dates', () => {
+  it(
+    'exports every typed and read expiry entry with its document',
+    async () => {
+      const db = await freshDb();
+      const s = await seedLifecycle(db);
+      await db.insert(schema.documentExpiryEntries).values([
+        { documentId: s.currentDocument, expiresOn: '2031-04-30', source: 'TYPED', mirrored: true },
+        { documentId: s.currentDocument, expiresOn: '2030-04-30', source: 'READ' },
+      ]);
+      const data = await exportFor(db, s.owner.id);
+      const documents = data.applicants.flatMap((a) => a.documents);
+      expect(
+        documents.find((d) => d.document.id === s.currentDocument)?.expiryEntries,
+      ).toHaveLength(2);
+      const csv = buildExportCsvTables(data).find((t) => t.name === 'document_expiry_entries.csv');
+      expect(csv).toBeDefined();
+      expect(csv?.rowCount).toBe(2);
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+
+  it(
+    'still exports every document while the expiry entries table is missing',
+    async () => {
+      const client = await createMigratedPglite();
+      await client.exec('drop table document_expiry_entries');
+      const db = drizzle(client, { schema }) as unknown as Db;
+      const s = await seedLifecycle(db);
+      const data = await exportFor(db, s.owner.id);
+      const documents = data.applicants.flatMap((a) => a.documents);
+      expect(documents).toHaveLength(3);
+      expect(documents.every((d) => d.expiryEntries.length === 0)).toBe(true);
+      expect(
+        buildExportCsvTables(data).find((t) => t.name === 'document_expiry_entries.csv'),
+      ).toMatchObject({
+        rowCount: 0,
+      });
+    },
+    HEAVY_TIMEOUT_MS,
+  );
+});

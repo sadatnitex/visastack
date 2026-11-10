@@ -53,6 +53,17 @@ export function drawPreview(canvas: HTMLCanvasElement, photo: DecodedPhoto, crop
   if (context) drawCrop(context, photo, crop, pixels);
 }
 
+/** A canvas as a JPEG blob, or null when the browser cannot write one (it never throws). */
+export function canvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob(
+      (blob) => resolve(blob && blob.type === 'image/jpeg' ? blob : null),
+      'image/jpeg',
+      quality,
+    );
+  });
+}
+
 /** The cropped square as a JPEG (a canvas never writes location or other metadata). */
 export async function exportSquareJpeg(photo: DecodedPhoto, crop: Crop): Promise<Blob> {
   const canvas = document.createElement('canvas');
@@ -61,11 +72,7 @@ export async function exportSquareJpeg(photo: DecodedPhoto, crop: Crop): Promise
   const context = canvas.getContext('2d');
   if (!context) throw new Error('canvas unavailable');
   drawCrop(context, photo, crop, OUTPUT_SIZE);
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('photo export failed'))),
-      'image/jpeg',
-      OUTPUT_QUALITY,
-    );
-  });
+  const blob = await canvasToJpeg(canvas, OUTPUT_QUALITY);
+  if (!blob) throw new Error('photo export failed');
+  return blob;
 }
