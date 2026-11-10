@@ -49,6 +49,7 @@ export const documentSchema = z.looseObject({
   groupKey: z.string(),
   documentDate: z.string().nullable(),
   expiresOn: z.string().nullable(),
+  expirySource: z.enum(['typed', 'read']).nullable().optional(),
   status: z.string(),
   relevance: z.string(),
 });
@@ -57,6 +58,7 @@ export const expirySchema = z.looseObject({
   referenceCode: z.string().nullable(),
   kind: z.string(),
   expiresOn: z.string(),
+  expirySource: z.enum(['typed', 'read']).nullable().optional(),
   daysLeft: z.number(),
 });
 

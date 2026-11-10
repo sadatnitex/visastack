@@ -930,6 +930,27 @@ describe('selected output: documents', () => {
     expect(json).not.toContain('objectKey');
   });
 
+  it('says whether each expiry date was typed by the person or read, so a typed date is never passed on as read', async () => {
+    const { ownerId, applicantId } = await person();
+    const typed = await document(applicantId, 'VISA', {
+      expiresAt: new Date('2031-02-01T00:00:00Z'),
+    });
+    await db.insert(schema.documentExpiryEntries).values({
+      documentId: typed.documentId,
+      expiresOn: '2031-02-01',
+      source: 'TYPED',
+      mirrored: true,
+    });
+    await document(applicantId, 'PASSPORT', { expiresAt: new Date('2031-01-01T00:00:00Z') });
+    await document(applicantId, 'BANK_STATEMENT');
+    const output = await build(ownerId, applicantId, { documentList: true });
+    const sources = Object.fromEntries(output.documents.map((d) => [d.kind, d.expirySource]));
+    expect(sources).toEqual({ Visa: 'typed', Passport: 'read', 'Bank Statement': null });
+    expect(
+      Object.fromEntries(output.expiry.map((entry) => [entry.kind, entry.expirySource])),
+    ).toEqual({ Visa: 'typed', Passport: 'read' });
+  });
+
   it('leaves the list out unless it was chosen', async () => {
     const { ownerId, applicantId } = await person();
     await document(applicantId, 'PASSPORT');
