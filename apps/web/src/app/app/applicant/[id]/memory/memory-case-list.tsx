@@ -1,6 +1,7 @@
 import type { MemoryCase, MemoryEvent } from '@visastack/services';
 import Link from 'next/link';
 import { CollapsibleGroup } from '../../../../../components/collapsible-group';
+import { DestinationLabel } from '../../../../../components/destination-label';
 import { ShowMore } from '../../../../../components/show-more';
 import { eventKey, eventLine } from '../../../../../lib/application-memory-labels';
 import { humanizeCode } from '../../../../../lib/format-code';
@@ -55,7 +56,9 @@ export function MemoryCaseList({
             open={index === 0}
           >
             <article className="memory-case">
-              <p className="card-kicker">{item.destination ?? 'Case'}</p>
+              <p className="card-kicker">
+                {item.destination ? <DestinationLabel destination={item.destination} /> : 'Case'}
+              </p>
               <h3 className="card-title">
                 <Link href={`/app/mission/${item.missionId}`}>{item.title}</Link>
               </h3>

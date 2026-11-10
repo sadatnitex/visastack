@@ -1,6 +1,7 @@
 import type { Locale } from '@visastack/i18n';
 import Link from 'next/link';
 import { CountryChecklistPicker } from '../../components/country-checklist-picker';
+import { DestinationLabel } from '../../components/destination-label';
 import { CONFIRMED_LINE } from '../../lib/confirmed-landing';
 import type { StartData } from '../../lib/country-start';
 import { appHrefForCountry, permissionStepHref } from '../../lib/country-start-links';
@@ -46,7 +47,10 @@ function ChosenCountry({
   if (!name) return null;
   return (
     <p className="first-run-country">
-      Your Country: <b>{name}</b>
+      Your Country:{' '}
+      <b>
+        <DestinationLabel destination={name} />
+      </b>
       {changeHref ? (
         <>
           {' '}

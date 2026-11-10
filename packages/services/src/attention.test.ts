@@ -679,6 +679,26 @@ describe('listNeedsAttention', () => {
   );
 
   it(
+    'carries the saved destination of each open case, for its flag, and null when it has none',
+    async () => {
+      const { ownerId, applicantId } = await person('flags@example.com');
+      const named = await createMission(db, {
+        actorAccountId: ownerId,
+        applicantId,
+        title: 'Tokyo Trip',
+        destination: 'Japan',
+      });
+      if (!isOk(named)) throw new Error('mission');
+      await caseFor(ownerId, applicantId, 'Somewhere');
+      const result = await attention(ownerId, applicantId, new Date('2026-10-26T00:00:00Z'));
+      const byTitle = new Map(result.activeCases.map((c) => [c.title, c.destination]));
+      expect(byTitle.get('Tokyo Trip')).toBe('Japan');
+      expect(byTitle.get('Somewhere')).toBeNull();
+    },
+    HEAVY,
+  );
+
+  it(
     'reads the due day in the task time zone, else the applicant time zone',
     async () => {
       const { ownerId, applicantId } = await person('zones@example.com');

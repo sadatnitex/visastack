@@ -18,6 +18,9 @@ function withItem(param: string, id: string | null): URL {
   const url = new URL(window.location.href);
   if (id) url.searchParams.set(param, id);
   else url.searchParams.delete(param);
+  // A finished-action notice (`done`, a receipt or a line) belongs to the visit that made it: opening
+  // another item or closing the panel ends it.
+  url.searchParams.delete('done');
   return url;
 }
 
@@ -102,6 +105,19 @@ export function ListWithPane({
     const onClick = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0) return;
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      // A link inside the panel that says it closes the panel (`data-pane-close`, for example a
+      // receipt's Back to Requests) shuts it, then goes where it points.
+      const closing = (event.target as Element | null)?.closest<HTMLAnchorElement>(
+        '.lp-pane a[data-pane-close]',
+      );
+      if (closing && el.contains(closing)) {
+        // The link itself goes to the list (no item in its address), so no history step back is
+        // taken here: that would race the link's own navigation.
+        setSelected(null);
+        pushed.current = false;
+        opener.current = null;
+        return;
+      }
       // A link inside the panel to somewhere on this page (Provide Evidence) leaves the panel, so a
       // full screen never covers the place the link points at. The link then does its own work.
       const inside = (event.target as Element | null)?.closest<HTMLAnchorElement>(

@@ -159,20 +159,21 @@ export const FAMILIAR_ROWS: readonly FamiliarRow[] = [
   {
     screen: 'add documents',
     pattern: 'camera or file upload',
-    class: 'partly',
-    matches: 'WhatsApp attach, but with a type to choose',
+    class: 'familiar',
+    matches:
+      'WhatsApp and bank identity check: Take a Photo first on a phone, then Use This or Retake',
     weight: 5,
-    files: ['app/app/applicant/[id]/document-uploader.tsx'],
+    files: ['app/app/applicant/[id]/document-uploader.tsx', 'components/capture-preview.tsx'],
+    proof: { file: 'components/capture-preview.tsx', includes: 'Retake' },
   },
   {
     screen: 'add documents',
     pattern: 'upload receipt',
-    class: 'bespoke',
-    matches: 'bKash receipt, but ours lists checks run on the file',
+    class: 'familiar',
+    matches: 'bKash transaction receipt: a tick, what happened, when, and Done',
     weight: 3,
-    files: ['app/app/applicant/[id]/documents/add/page.tsx'],
-    reason:
-      'It reports what was really checked on each file, which no everyday app does; it must stay exact.',
+    files: ['components/receipt-card.tsx', 'app/app/applicant/[id]/document-uploader.tsx'],
+    proof: { file: 'app/app/applicant/[id]/document-uploader.tsx', includes: '<ReceiptCard' },
   },
   {
     screen: 'every form',
@@ -369,6 +370,25 @@ export const FAMILIAR_ROWS: readonly FamiliarRow[] = [
     weight: 2,
     files: ['app/collect/guest-forms.tsx', 'components/code-input.tsx'],
     proof: { file: 'app/collect/guest-forms.tsx', includes: 'CodeInput' },
+  },
+  {
+    screen: 'trips list',
+    pattern: 'order card: flag, name, stage chip, progress bar, next step',
+    class: 'familiar',
+    matches:
+      'Foodpanda and Pathao order card: picture, name, status chip, progress, one tap opens it',
+    weight: 4,
+    files: ['components/case-list-row.tsx'],
+    proof: { file: 'components/case-list-row.tsx', includes: 'trip-card-chipline' },
+  },
+  {
+    screen: 'trips, case, countries, destination box, home',
+    pattern: 'country flag beside the country name',
+    class: 'familiar',
+    matches: 'Wise and bKash country lists show a round flag beside the name',
+    weight: 3,
+    files: ['components/country-flag.tsx', 'components/destination-label.tsx'],
+    proof: { file: 'components/country-flag.tsx', includes: 'flagEmoji' },
   },
 ];
 

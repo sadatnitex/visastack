@@ -2,22 +2,23 @@ import { computeReadiness, getApplicant, hasConsent, listMissions } from '@visas
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  CaseReadinessRing,
-  type ReadinessCounts,
-} from '../../../../../components/case-readiness-ring';
-import { CollapsibleGroup } from '../../../../../components/collapsible-group';
+import { CaseListRow } from '../../../../../components/case-list-row';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import { SearchableList } from '../../../../../components/list-pattern';
-import { PROGRESS_IN_CASE_LINE } from '../../../../../components/progress-ring';
-import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
+import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { AboutDisclosure } from '../../../../../components/ui-lift';
 import { caseCountryOptions, casePurposeGroups } from '../../../../../lib/case-choices';
-import { caseStateLabel, openCasesNewestFirst } from '../../../../../lib/case-stages';
+import {
+  type CaseListReadiness,
+  caseListReadiness,
+  caseRowProps,
+} from '../../../../../lib/case-list-model';
+import { openCasesNewestFirst } from '../../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { withSession } from '../../../../../lib/session';
+import { caseStatus } from '../../../../../lib/status-words';
 import { CreateMissionForm } from './create-mission-form';
 
 export const metadata: Metadata = { title: 'Cases' };
@@ -27,13 +28,12 @@ export const dynamic = 'force-dynamic';
 /** The most cases whose readiness is worked out for the list, so a long history never slows the page. */
 const RING_LIMIT = 25;
 
-/** Past Cases folds away once it holds more than this many, so open work stays in view. */
-const PAST_OPEN_LIMIT = 3;
-
-type CaseListRow = {
+type CaseSource = {
   readonly id: string;
   readonly title: string;
   readonly state: string;
+  readonly destination: string | null;
+  readonly purpose: string | null;
   readonly packVersionId: string | null;
   readonly updatedAt: Date;
 };
@@ -42,7 +42,7 @@ type CaseListRow = {
  * Open cases first (newest first, the first one is "the case you are on"), then the closed and
  * cancelled ones, also newest first. Presentation only: no case changes state here.
  */
-function groupCases<T extends CaseListRow>(cases: readonly T[]): { active: T[]; past: T[] } {
+function groupCases<T extends CaseSource>(cases: readonly T[]): { active: T[]; past: T[] } {
   const active = openCasesNewestFirst(cases);
   const openIds = new Set(active.map((item) => item.id));
   const past = cases
@@ -51,48 +51,34 @@ function groupCases<T extends CaseListRow>(cases: readonly T[]): { active: T[]; 
   return { active, past };
 }
 
-function CaseRow({
+/** One case as a card: the row the Trips list draws for every case (components/case-list-row.tsx). */
+function CaseListItem({
   mission,
   readiness,
+  past,
 }: {
-  readonly mission: CaseListRow;
-  readonly readiness: ReadonlyMap<string, ReadinessCounts>;
+  readonly mission: CaseSource;
+  readonly readiness: ReadonlyMap<string, CaseListReadiness>;
+  readonly past: boolean;
 }) {
-  return (
-    <Link className="row row-link" href={`/app/mission/${mission.id}`}>
-      <span className="row-key">
-        {mission.title}
-        <span className="progress-ring-row">
-          <CaseReadinessRing
-            size="sm"
-            readiness={readiness.get(mission.id) ?? null}
-            {...(mission.packVersionId ? { emptyLine: PROGRESS_IN_CASE_LINE } : {})}
-          />
-        </span>
-      </span>
-      <span className="row-end">
-        <StatusBadge tone="neutral">{caseStateLabel(mission.state)}</StatusBadge>
-        <span className="muted" aria-hidden="true">
-          →
-        </span>
-      </span>
-    </Link>
-  );
+  return <CaseListRow {...caseRowProps(mission, readiness.get(mission.id), past)} />;
 }
 
 function CaseRows({
   cases,
   readiness,
+  past = false,
 }: {
-  readonly cases: readonly CaseListRow[];
-  readonly readiness: ReadonlyMap<string, ReadinessCounts>;
+  readonly cases: readonly CaseSource[];
+  readonly readiness: ReadonlyMap<string, CaseListReadiness>;
+  readonly past?: boolean;
 }) {
   return (
-    <div className="rows u-mt-050">
+    <ul className="case-list">
       {cases.map((mission) => (
-        <CaseRow key={mission.id} mission={mission} readiness={readiness} />
+        <CaseListItem key={mission.id} mission={mission} readiness={readiness} past={past} />
       ))}
-    </div>
+    </ul>
   );
 }
 
@@ -121,14 +107,14 @@ export default async function MissionsPage({
     const groups = groupCases(rows);
     // Readiness only for a case with a checklist attached, open cases first so a long history never
     // pushes them past the limit; the owner check above covers every case here.
-    const readiness = new Map<string, ReadinessCounts>();
+    const readiness = new Map<string, CaseListReadiness>();
     await Promise.all(
       [...groups.active, ...groups.past]
         .filter((mission) => mission.packVersionId)
         .slice(0, RING_LIMIT)
         .map(async (mission) => {
           const result = await computeReadiness(db, mission.id);
-          if (result.ok) readiness.set(mission.id, result.value);
+          if (result.ok) readiness.set(mission.id, caseListReadiness(result.value));
         }),
     );
     return { applicant, groups, missionsRead: missions.ok, readiness, coreGranted };
@@ -148,13 +134,15 @@ export default async function MissionsPage({
   const startLabel = data.coreGranted ? 'Start a Trip' : 'Start a Case';
   // The search finds a case by its name or its stage, among the cases this page already holds.
   const searchItems = [
-    ...activeCases.map((mission) => ({ mission, group: 'Active Cases' })),
-    ...pastCases.map((mission) => ({ mission, group: 'Past Cases' })),
-  ].map(({ mission, group }) => ({
+    ...activeCases.map((mission) => ({ mission, group: 'Active', past: false })),
+    ...pastCases.map((mission) => ({ mission, group: 'Past Trips', past: true })),
+  ].map(({ mission, group, past }) => ({
     id: mission.id,
     group,
-    text: `${mission.title} ${caseStateLabel(mission.state)}`,
-    node: <CaseRow mission={mission} readiness={data.readiness} />,
+    text: [mission.title, mission.destination, mission.purpose, caseStatus(mission.state).word]
+      .filter(Boolean)
+      .join(' '),
+    node: <CaseListItem mission={mission} readiness={data.readiness} past={past} />,
   }));
 
   return (
@@ -182,7 +170,7 @@ export default async function MissionsPage({
             <>
               Your case: <Link href={`/app/mission/${active.id}`}>{active.title}</Link>
               {' \u00b7 '}
-              {caseStateLabel(active.state)}
+              {caseStatus(active.state).word}
             </>
           ) : data.missionsRead ? (
             'No active case yet.'
@@ -197,10 +185,11 @@ export default async function MissionsPage({
               items={searchItems}
               noun={{ one: 'case', other: 'cases' }}
               searchLabel="Search Cases"
-              resultsClassName="rows u-mt-050"
+              resultsTag="ul"
+              resultsClassName="case-list"
             >
               <div data-case-group="active">
-                <h2 className="card-title">Active Cases</h2>
+                <h2 className="case-section-title">Active ({activeCases.length})</h2>
                 {!data.missionsRead ? (
                   // A failed read never claims there are no cases: that invites a duplicate case.
                   <p className="notice notice-warn u-mt-050">
@@ -227,21 +216,10 @@ export default async function MissionsPage({
               </div>
 
               {pastCases.length > 0 ? (
-                <div className="u-mt-150" data-case-group="past">
-                  <h2 className="card-title">Past Cases</h2>
-                  <p className="muted">Closed and cancelled cases. You can still open them.</p>
-                  {pastCases.length > PAST_OPEN_LIMIT ? (
-                    <CollapsibleGroup
-                      title="All Past Cases"
-                      count={pastCases.length}
-                      noun={{ one: 'case', other: 'cases' }}
-                    >
-                      <CaseRows cases={pastCases} readiness={data.readiness} />
-                    </CollapsibleGroup>
-                  ) : (
-                    <CaseRows cases={pastCases} readiness={data.readiness} />
-                  )}
-                </div>
+                <details className="case-past-fold" data-case-group="past">
+                  <summary>Past Trips ({pastCases.length})</summary>
+                  <CaseRows cases={pastCases} readiness={data.readiness} past />
+                </details>
               ) : null}
             </SearchableList>
           </article>

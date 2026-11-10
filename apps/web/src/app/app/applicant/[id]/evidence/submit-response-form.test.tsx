@@ -11,6 +11,7 @@ import type { DocumentChoice } from './response-choices';
  * file version the person saw is the one posted.
  */
 
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 vi.mock('./actions', () => ({ submitEvidenceResponseAction: vi.fn() }));
 
 const { SubmitResponseForm, CONSENT_LINE } = await import('./submit-response-form');

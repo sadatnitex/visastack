@@ -55,6 +55,32 @@ describe('PersonCard', () => {
 });
 
 describe('CaseCard and the Start a Case tile', () => {
+  it('shows the flag of the case country in place of the plain globe, and keeps the globe otherwise', () => {
+    const withFlag = renderToStaticMarkup(
+      <ul>
+        <CaseCard
+          href="/app/mission/c1"
+          title="Tokyo"
+          person="Nazmus"
+          flag={
+            <span role="img" aria-label="Japan">
+              JP
+            </span>
+          }
+        />
+      </ul>,
+    );
+    expect(withFlag).toContain('aria-label="Japan"');
+    expect(withFlag).not.toContain('<svg');
+    const without = renderToStaticMarkup(
+      <ul>
+        <CaseCard href="/app/mission/c1" title="Tokyo" person="Nazmus" />
+      </ul>,
+    );
+    expect(without).toContain('<svg');
+    expect(without).toContain('aria-hidden="true"');
+  });
+
   it('is one link with a title, a person, a chip and what is passed in', () => {
     const html = renderToStaticMarkup(
       <ul>

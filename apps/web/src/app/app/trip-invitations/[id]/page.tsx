@@ -13,6 +13,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { DestinationLabel } from '../../../../components/destination-label';
 import { PageHeader } from '../../../../components/ui';
 import { withSession } from '../../../../lib/session';
 import {
@@ -85,7 +86,9 @@ export default async function JoinedTripPage({
         <dl className="rows">
           <div className="row">
             <dt>Where</dt>
-            <dd>{trip.destination}</dd>
+            <dd>
+              <DestinationLabel destination={trip.destination} />
+            </dd>
           </div>
           <div className="row">
             <dt>Why</dt>

@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { CountryFlag } from '../../../../components/country-flag';
+import { destinationFlagCode } from '../../../../components/destination-label';
 import { PageHeader } from '../../../../components/ui';
 import { withSession } from '../../../../lib/session';
 import { loadTripPage } from '../trip-data';
@@ -41,6 +43,15 @@ export default async function GroupTripPage({
   return (
     <>
       <PageHeader
+        lead={
+          destinationFlagCode(data.destination) ? (
+            <CountryFlag
+              iso2={destinationFlagCode(data.destination)}
+              name={data.destination}
+              size="lg"
+            />
+          ) : null
+        }
         title={data.title}
         description={`${data.destination} for ${data.purpose}.`}
         back={{ href: '/app/trips', label: 'Group Trips' }}

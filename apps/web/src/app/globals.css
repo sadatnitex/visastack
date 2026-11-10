@@ -20567,3 +20567,446 @@ html:has(.sticky-action-bar) .toast-region {
   padding: 0.25rem 0.75rem 0;
 }
 /* end WP-P9 */
+
+/* WP-F2 Camera check and receipt (batch F2, 10 Nov 2026): the look-before-you-send step after a photo, and the receipt after a saved document or a sharing request, the way a bank's identity check and a bKash receipt read. Flat, tokens and the green tone, no shadows or translucent surfaces; the photo viewer's near-black ground and its white and dark outline are fixed on purpose, so the outline shows on any photo in light and dark. */
+.capture-preview {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 32rem;
+}
+.capture-title {
+  margin: 0;
+  font-size: var(--text-lead);
+}
+.capture-title:focus {
+  outline: none;
+}
+.capture-title:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.capture-hint,
+.capture-note {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.capture-frame {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  line-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  background: #152b37;
+}
+.capture-frame[hidden] {
+  display: none;
+}
+.capture-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 60vh;
+}
+/* The outline only draws: it ignores taps, never covers the buttons and never fills the photo. */
+.capture-outline {
+  position: absolute;
+  pointer-events: none;
+  border: 2px solid #ffffff;
+  outline: 2px solid #152b37;
+  border-radius: var(--radius-sm);
+  inset: 8% 6%;
+}
+.capture-frame[data-shape="page"] .capture-outline {
+  inset: 5% 14%;
+}
+.capture-actions,
+.receipt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.capture-actions .btn,
+.receipt-actions .btn {
+  min-height: 44px;
+}
+.upload-hint-touch {
+  display: none;
+}
+/* A phone: the camera first and the main button, and the hint that fits, by style alone, so nothing moves after the page loads. */
+@media (pointer: coarse) {
+  .upload-drop-actions .btn {
+    flex: 1 1 100%;
+  }
+  .upload-drop-actions .btn[data-camera] {
+    order: -1;
+    background: var(--accent-strong);
+    color: #fff;
+    border-color: transparent;
+  }
+  .upload-hint-touch {
+    display: inline;
+  }
+  .upload-hint-pointer {
+    display: none;
+  }
+  .upload-drop-actions .btn[data-camera]:hover {
+    background: var(--accent-hover);
+  }
+  .upload-drop-actions .btn[data-choose] {
+    background: var(--bg-elevated);
+    color: var(--text);
+    border-color: var(--edge-control);
+  }
+  .upload-drop-actions .btn[data-choose]:hover {
+    background: var(--bg-subtle);
+    border-color: var(--text-tertiary);
+  }
+}
+.receipt-card {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  max-width: 32rem;
+  padding: var(--space-5);
+  border: 1px solid var(--tone);
+  border-radius: var(--radius);
+  background: var(--tone-bg);
+  color: var(--text);
+}
+.receipt-mark {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: var(--tone);
+  color: #ffffff;
+}
+.receipt-title {
+  margin: 0;
+  color: var(--tone);
+}
+.receipt-title:focus {
+  outline: none;
+}
+.receipt-title:focus-visible {
+  outline: 3px solid var(--tone);
+  outline-offset: 3px;
+}
+.receipt-what,
+.receipt-honest,
+.receipt-reference {
+  margin: 0;
+}
+.receipt-honest {
+  font-size: var(--text-small);
+}
+.receipt-facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  width: 100%;
+}
+.receipt-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-top: 1px solid var(--tone);
+}
+.receipt-facts dt {
+  font-weight: 600;
+}
+.receipt-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+/* end WP-F2 */
+
+/* WP-P12 Trips list rows and country flags (10 Nov 2026, owner: "things should talk loudly"). Every case is one card of the same shape whatever the length of its name: a round flag, a bold one-line name, the country and purpose, the stage as a filled chip with a dot on its own line, a thin bar with the count, one brand-coloured next step and a chevron. The whole card is one link. Chip colour is urgency: amber is a step still to do, red is waiting on you, blue is with someone else, green is ready, grey is finished. Flat: 1px edges, no shadow, gradient or translucency; tokens only; 44 px targets. */
+.country-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border: 1px solid var(--edge-card);
+  border-radius: 50%;
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  line-height: 1;
+  overflow: hidden;
+}
+.country-flag[data-size="sm"] {
+  width: 24px;
+  height: 24px;
+  font-size: 1rem;
+}
+.country-flag[data-size="md"] {
+  width: 32px;
+  height: 32px;
+  font-size: 1.125rem;
+}
+.country-flag[data-size="lg"] {
+  width: 44px;
+  height: 44px;
+  font-size: 1.625rem;
+}
+.country-flag-letters {
+  border-color: var(--brand-tint-4);
+  background: var(--brand-bg);
+  color: var(--brand);
+  font-family: var(--font-sans);
+  font-weight: 750;
+  letter-spacing: 0.02em;
+}
+.country-flag-letters[data-size="sm"] {
+  font-size: var(--text-caption);
+}
+.country-flag-letters[data-size="md"] {
+  font-size: var(--text-small);
+}
+.country-flag-letters[data-size="lg"] {
+  font-size: 1rem;
+}
+.country-flag-unknown {
+  color: var(--text-tertiary);
+}
+.country-flag-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  vertical-align: middle;
+}
+
+.case-section-title {
+  margin: var(--space-5) 0 var(--space-3);
+  font-size: var(--text-title);
+  font-weight: 750;
+  line-height: 1.2;
+  color: var(--text);
+}
+.case-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.case-list-item {
+  margin: 0;
+  padding: 0;
+}
+.trip-card {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 20px;
+  align-items: start;
+  gap: var(--space-4);
+  min-height: 88px;
+  padding: var(--space-4);
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: inherit;
+  text-decoration: none;
+}
+.trip-card:hover {
+  border-color: var(--brand);
+  background: var(--brand-tint-1);
+  text-decoration: none;
+}
+.trip-card-flag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+}
+.trip-card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.trip-card-title {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.0625rem;
+  font-weight: 750;
+  line-height: 1.3;
+  color: var(--text);
+}
+.trip-card-sub {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-small);
+  color: var(--text-secondary);
+}
+.trip-card-chipline {
+  display: flex;
+  margin-top: var(--space-1);
+}
+.case-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 28px;
+  padding: 0.2rem 0.75rem;
+  border-radius: var(--radius-pill);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-size: var(--text-small);
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.case-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+/* Chip colours are the six Harbor tones (WP-PLAIN-TONE): the chip carries data-tone and takes --tone as its fill. Grey (finished) carries none. */
+.case-chip[data-tone] {
+  background: var(--tone);
+  color: #ffffff;
+}
+.trip-card-progress {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.case-bar {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 96px;
+  max-width: 240px;
+  height: 8px;
+}
+.case-bar-track {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 8px;
+  margin: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--hairline);
+  overflow: hidden;
+}
+.case-bar-track::-webkit-progress-bar {
+  background: var(--hairline);
+}
+.case-bar-track::-webkit-progress-value {
+  background: var(--brand);
+  border-radius: var(--radius-pill);
+}
+.case-bar-track::-moz-progress-bar {
+  background: var(--brand);
+  border-radius: var(--radius-pill);
+}
+.case-bar[data-empty="true"]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+.trip-card-count {
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--text);
+}
+.trip-card-next {
+  display: block;
+  max-width: 100%;
+  margin-top: var(--space-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-small);
+  font-weight: 700;
+  color: var(--brand);
+}
+.trip-card-chevron {
+  align-self: center;
+  color: var(--text-tertiary);
+}
+.case-past-fold {
+  margin-top: var(--space-5);
+}
+.case-past-fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--edge-control);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 1.0625rem;
+  font-weight: 750;
+  cursor: pointer;
+  list-style: none;
+}
+.case-past-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.case-past-fold > summary::after {
+  content: "\25BE";
+  color: var(--text-tertiary);
+}
+.case-past-fold[open] > summary::after {
+  content: "\25B4";
+}
+.case-past-fold > .case-list {
+  margin-top: var(--space-3);
+}
+@media (min-width: 720px) {
+  .trip-card {
+    gap: var(--space-5);
+    padding: var(--space-4) var(--space-5);
+  }
+}
+.country-row-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.country-field-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.trip-card-purpose,
+.country-flag-purpose {
+  display: inline-flex;
+  align-items: center;
+  margin-right: var(--space-1);
+  vertical-align: middle;
+}
+.country-pick-head .country-flag {
+  flex: none;
+}
+/* end WP-P12 */

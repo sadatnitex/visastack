@@ -693,7 +693,7 @@ export const STATUS_ICON_BY_WORD: Readonly<Record<string, StatusIcon>> = {
   // A case on the Trips list.
   'Getting Started': 'stateNeedsYou',
   'Gathering Documents': 'stateNeedsYou',
-  'Agency Is Checking': 'stateWaiting',
+  'Being Checked': 'stateWaiting',
   'Needs You': 'stateNeedsYou',
   'Ready to Submit': 'stateDone',
   Submitted: 'stateReceived',

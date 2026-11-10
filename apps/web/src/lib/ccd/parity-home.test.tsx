@@ -69,6 +69,7 @@ vi.mock('@visastack/services', async (importOriginal) => {
             id: `case-${access.applicantId.slice(-2)}-${i}`,
             title: `Synthetic Case ${i + 1}`,
             state: 'IN_PROGRESS',
+            destination: null,
           })),
           activeCaseCount: data.missions,
           requests: { waitingOnYou: data.openRequests, withAgency: data.withAgency },

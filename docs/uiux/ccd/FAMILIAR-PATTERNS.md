@@ -50,3 +50,15 @@ Rules each one follows:
 - Recent Activity: one bounded read, the newest five events of ONE record (the person's own when there is one, else the first person Home reads), through the same owner check as the Sharing page's Access Log. It uses the Access Log words, never a code; "You" for the person's own actions, a Blocked mark for a refused attempt. The read is skipped while core processing is off; a failed read is logged and leaves the card out. See All opens the Access Log on the Sharing page. Extra cost: one query on `audit_events` by `applicant_id` (index `audit_events_applicant_idx`), limit 5, once per Home load.
 - Registry: the filter bar row moves to familiar; two rows are added for the new patterns. The activity log component itself (the long, filterable log) is unchanged and stays partly familiar.
 
+
+## F2 camera check and receipts (10 Nov 2026)
+
+- Take a Photo: opens the phone's own camera (a live view inside the page is blocked by the site's camera permission policy, so it is not used). The photo then shows with an outline frame and Use This or Retake, the way a bank identity check or a scanning app does; nothing is sent before Use This. On a phone it is the first, main button.
+- Receipt: one shared card after a saved document or a sharing request: tick, what happened, when, to whom, an existing reference with Copy, an honest line, the next step and Done. It says Received, not Reviewed, where someone still has to look, and never that a file or a request was accepted.
+- Registry: camera or file upload and upload receipt move to familiar.
+
+## Trips list card and country flags (P12, 10 Nov 2026)
+
+- Trips list card: it works like an order card in Foodpanda or Pathao: a round picture (the flag), the name, a coloured status chip, a progress bar and one next step, and the whole card opens the case. Estimated familiar.
+- Country flag: a round flag beside the country name, as in Wise and bKash country lists, on the Trips list, Home cards, the case page, Countries and the destination box. Estimated familiar.
+- Registry: two rows added. Estimated weighted share 70.3 percent before, 72.0 percent after (37 to 39 rows). An estimate from reading the code, not measured with people.
