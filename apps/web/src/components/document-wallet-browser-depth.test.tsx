@@ -59,7 +59,7 @@ const button = (text: string) =>
   ) as HTMLButtonElement;
 
 describe('the documents list on a page with the depth switch', () => {
-  it('is on screen at Glance, with the four numbers; only search and categories wait for Browse', async () => {
+  it('is on screen at Glance, with the four numbers and the search; only the Filters button waits for Browse', async () => {
     await act(async () => {
       root.render(
         <DepthScope family="record" depth="glance">
@@ -78,9 +78,13 @@ describe('the documents list on a page with the depth switch', () => {
     expect(container.querySelector('.wallet-overview-strip')?.hasAttribute('data-level')).toBe(
       false,
     );
-    expect(container.querySelector('.wallet-filter-controls')?.getAttribute('data-level')).toBe(
+    // The search is always in view (owner, 10 Nov 2026); the filters behind it wait for Browse.
+    expect(container.querySelector('.lp-filter-bar-wrap')?.hasAttribute('data-level')).toBe(false);
+    expect(container.querySelector('input[type="search"]')).not.toBeNull();
+    expect(container.querySelector('.lp-filters-toggle')?.getAttribute('data-level')).toBe(
       'browse',
     );
+    expect(container.querySelector('.lp-filters-panel')?.getAttribute('data-level')).toBe('browse');
   });
 
   it('filters the list with a tile and leaves the chosen level alone', async () => {

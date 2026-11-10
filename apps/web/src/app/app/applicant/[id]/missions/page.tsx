@@ -9,6 +9,7 @@ import {
 import { CollapsibleGroup } from '../../../../../components/collapsible-group';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
+import { SearchableList } from '../../../../../components/list-pattern';
 import { PROGRESS_IN_CASE_LINE } from '../../../../../components/progress-ring';
 import { EmptyState, PageHeader, StatusBadge } from '../../../../../components/ui';
 import { AboutDisclosure } from '../../../../../components/ui-lift';
@@ -50,6 +51,35 @@ function groupCases<T extends CaseListRow>(cases: readonly T[]): { active: T[]; 
   return { active, past };
 }
 
+function CaseRow({
+  mission,
+  readiness,
+}: {
+  readonly mission: CaseListRow;
+  readonly readiness: ReadonlyMap<string, ReadinessCounts>;
+}) {
+  return (
+    <Link className="row row-link" href={`/app/mission/${mission.id}`}>
+      <span className="row-key">
+        {mission.title}
+        <span className="progress-ring-row">
+          <CaseReadinessRing
+            size="sm"
+            readiness={readiness.get(mission.id) ?? null}
+            {...(mission.packVersionId ? { emptyLine: PROGRESS_IN_CASE_LINE } : {})}
+          />
+        </span>
+      </span>
+      <span className="row-end">
+        <StatusBadge tone="neutral">{caseStateLabel(mission.state)}</StatusBadge>
+        <span className="muted" aria-hidden="true">
+          →
+        </span>
+      </span>
+    </Link>
+  );
+}
+
 function CaseRows({
   cases,
   readiness,
@@ -60,24 +90,7 @@ function CaseRows({
   return (
     <div className="rows u-mt-050">
       {cases.map((mission) => (
-        <Link className="row row-link" key={mission.id} href={`/app/mission/${mission.id}`}>
-          <span className="row-key">
-            {mission.title}
-            <span className="progress-ring-row">
-              <CaseReadinessRing
-                size="sm"
-                readiness={readiness.get(mission.id) ?? null}
-                {...(mission.packVersionId ? { emptyLine: PROGRESS_IN_CASE_LINE } : {})}
-              />
-            </span>
-          </span>
-          <span className="row-end">
-            <StatusBadge tone="neutral">{caseStateLabel(mission.state)}</StatusBadge>
-            <span className="muted" aria-hidden="true">
-              →
-            </span>
-          </span>
-        </Link>
+        <CaseRow key={mission.id} mission={mission} readiness={readiness} />
       ))}
     </div>
   );
@@ -133,6 +146,12 @@ export default async function MissionsPage({
   // consent the start card explains what to turn on first, so the links stay on this page.
   const startHref = data.coreGranted ? `/app/mission/start?traveller=${id}` : '#start-case';
   const startLabel = data.coreGranted ? 'Start a Trip' : 'Start a Case';
+  // The search finds a case by its name or its stage, among the cases this page already holds.
+  const searchItems = [...activeCases, ...pastCases].map((mission) => ({
+    id: mission.id,
+    text: `${mission.title} ${caseStateLabel(mission.state)}`,
+    node: <CaseRow mission={mission} readiness={data.readiness} />,
+  }));
 
   return (
     <>
@@ -170,50 +189,57 @@ export default async function MissionsPage({
 
         <div className="grid">
           <article className="card lc-empty-host" {...atLevel('browse')}>
-            <div data-case-group="active">
-              <h2 className="card-title">Active Cases</h2>
-              {!data.missionsRead ? (
-                // A failed read never claims there are no cases: that invites a duplicate case.
-                <p className="notice notice-warn u-mt-050">
-                  Your cases could not be loaded. Refresh to try again.
-                </p>
-              ) : hasNoCase ? (
-                <EmptyState
-                  icon="briefcase"
-                  title="No Cases Yet"
-                  fold
-                  why="Once a checklist is attached, you see how many items are ready and what is still missing."
-                  action={{ href: startHref, label: startLabel }}
-                >
-                  A case checks this person's documents against the checklist of one visa route.
-                  Start one by saying where and why.
-                </EmptyState>
-              ) : activeCases.length === 0 ? (
-                <p className="muted u-mt-050">
-                  No case is being worked on right now. <Link href={startHref}>{startLabel}</Link>
-                </p>
-              ) : (
-                <CaseRows cases={activeCases} readiness={data.readiness} />
-              )}
-            </div>
-
-            {pastCases.length > 0 ? (
-              <div className="u-mt-150" data-case-group="past">
-                <h2 className="card-title">Past Cases</h2>
-                <p className="muted">Closed and cancelled cases. You can still open them.</p>
-                {pastCases.length > PAST_OPEN_LIMIT ? (
-                  <CollapsibleGroup
-                    title="All Past Cases"
-                    count={pastCases.length}
-                    noun={{ one: 'case', other: 'cases' }}
+            <SearchableList
+              items={searchItems}
+              noun={{ one: 'case', other: 'cases' }}
+              searchLabel="Search Cases"
+              resultsClassName="rows u-mt-050"
+            >
+              <div data-case-group="active">
+                <h2 className="card-title">Active Cases</h2>
+                {!data.missionsRead ? (
+                  // A failed read never claims there are no cases: that invites a duplicate case.
+                  <p className="notice notice-warn u-mt-050">
+                    Your cases could not be loaded. Refresh to try again.
+                  </p>
+                ) : hasNoCase ? (
+                  <EmptyState
+                    icon="briefcase"
+                    title="No Cases Yet"
+                    fold
+                    why="Once a checklist is attached, you see how many items are ready and what is still missing."
+                    action={{ href: startHref, label: startLabel }}
                   >
-                    <CaseRows cases={pastCases} readiness={data.readiness} />
-                  </CollapsibleGroup>
+                    A case checks this person's documents against the checklist of one visa route.
+                    Start one by saying where and why.
+                  </EmptyState>
+                ) : activeCases.length === 0 ? (
+                  <p className="muted u-mt-050">
+                    No case is being worked on right now. <Link href={startHref}>{startLabel}</Link>
+                  </p>
                 ) : (
-                  <CaseRows cases={pastCases} readiness={data.readiness} />
+                  <CaseRows cases={activeCases} readiness={data.readiness} />
                 )}
               </div>
-            ) : null}
+
+              {pastCases.length > 0 ? (
+                <div className="u-mt-150" data-case-group="past">
+                  <h2 className="card-title">Past Cases</h2>
+                  <p className="muted">Closed and cancelled cases. You can still open them.</p>
+                  {pastCases.length > PAST_OPEN_LIMIT ? (
+                    <CollapsibleGroup
+                      title="All Past Cases"
+                      count={pastCases.length}
+                      noun={{ one: 'case', other: 'cases' }}
+                    >
+                      <CaseRows cases={pastCases} readiness={data.readiness} />
+                    </CollapsibleGroup>
+                  ) : (
+                    <CaseRows cases={pastCases} readiness={data.readiness} />
+                  )}
+                </div>
+              ) : null}
+            </SearchableList>
           </article>
 
           <article

@@ -195,7 +195,8 @@ export function DocumentWalletBrowser({
             <ListFilterBar
               rows={documents.length}
               minRows={1}
-              level="browse"
+              filtersLevel="browse"
+              activeFilters={category === 'all' ? 0 : 1}
               query={query}
               onQuery={(value) => {
                 setQuery(value);

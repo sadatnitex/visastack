@@ -13,6 +13,7 @@ The share is an estimate from reading the code, not a measurement with people. R
 | Code audit (10 Nov 2026, 31 rows) | 37.5% | 41.9% | 31 |
 | Before batch F1, with the Add button and two code screens added as rows | 38.2% | 41.2% | 34 |
 | After batch F1 | 52.9% | 55.9% | 34 |
+| After batch F3b | 57.9% | 61.1% | 36 |
 
 The audit estimated about 39%; the rows as written come to 37.5%. The floating Add button on Documents already existed (#448): its row is counted in both the before and after figures.
 
@@ -33,3 +34,19 @@ Rules each one follows:
 - Code boxes: one real labelled input (`autocomplete="one-time-code"`, numeric keypad, paste of the whole code, spaces and dashes dropped) with boxes drawn over it. The field name, the format check and the server rules are unchanged. Before the page runs, or without scripts, it is the plain input. The staff "6 digit code or a backup code" box stays a plain field because a backup code is not all digits.
 
 Not changed on purpose: the WhatsApp connect screen shows a code to send from WhatsApp, it does not take one, so there is no code to type there.
+
+## Batch F3b: search first, and recent activity on Home
+
+| Pattern | Matches | Where |
+|---|---|---|
+| Search box always in view, other filters behind a Filters button with a number | Google Drive and Gmail search | My Documents (every depth; the Filters button waits for Browse), the case checklist |
+| Search above a long list, one plain line when nothing matches | Gmail and Drive search results | Cases for a traveller and Group Trips, from five rows |
+| Recent activity as a short dated statement, then See All | bKash statement | Home (Browse depth), the last five events of the person's own record |
+
+Rules each one follows:
+
+- Search: it only hides rows the page already holds, client side; no new read. Every typed word must appear in the row's words, in any order, capitals ignored. With nothing typed the page's own layout shows untouched (folders, headings, links). Typing swaps it for one flat list of the matches and says how many match (read out politely); with none, one line says to clear the search or remove a filter, with a Clear Search button.
+- Filters button: it shows the number of filters in use and opens the screen's own filters under the search box. Documents counts the category choice only; the four state tiles above stay as they are.
+- Recent Activity: one bounded read, the newest five events of ONE record (the person's own when there is one, else the first person Home reads), through the same owner check as the Sharing page's Access Log. It uses the Access Log words, never a code; "You" for the person's own actions, a Blocked mark for a refused attempt. A failed read leaves the card out. See All opens the Access Log on the Sharing page. Extra cost: one query on `audit_events` by `applicant_id` (index `audit_events_applicant_idx`), limit 5, once per Home load.
+- Registry: the filter bar row moves to familiar; two rows are added for the new patterns. The activity log component itself (the long, filterable log) is unchanged and stays partly familiar.
+

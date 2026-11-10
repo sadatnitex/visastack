@@ -20079,3 +20079,123 @@ html:has(.sticky-action-bar) .toast-region {
   border-color: var(--danger);
 }
 /* end WP-F1C */
+
+/* WP-F3B Search first, like the box at the top of Drive or Gmail: the search box fills the row, a quiet Filters button with the number of filters in use sits beside it (also on a phone), and the screen's own filters open under it. Flat, tokens only, 44 px targets. */
+.lp-filter-bar-wrap {
+  margin: 0 0 var(--space-3);
+}
+.lp-filter-bar-wrap .lp-filter-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  margin: 0;
+}
+.lp-filter-bar-wrap .lp-filter-bar label {
+  margin: 0;
+}
+.lp-filters-toggle {
+  min-height: 44px;
+  gap: var(--space-1);
+}
+.lp-filters-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--accent-strong);
+  color: #fff;
+  font-size: var(--text-caption);
+  font-weight: 700;
+  line-height: 1;
+}
+.lp-filters-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.lp-filters-panel[hidden] {
+  display: none;
+}
+.lp-filters-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--text-small);
+}
+@media (max-width: 760px) {
+  .lp-filters-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.lp-filter-none {
+  margin: var(--space-2) 0 0;
+}
+.lp-filter-none .btn {
+  margin-inline-start: var(--space-1);
+}
+.lp-sticky-filter .lp-filter-bar-wrap {
+  margin: 0;
+}
+/* end WP-F3B */
+
+/* WP-F3C Recent Activity on Home, a short dated statement like bKash: what happened, when, and who. Flat, tokens only. */
+.home-activity {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--edge-card);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+.home-activity-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3);
+}
+.home-activity-row + .home-activity-row {
+  border-top: 1px solid var(--hairline);
+}
+.home-activity-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
+.home-activity-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+.home-activity-what {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-activity-when,
+.home-activity-who {
+  color: var(--text-secondary);
+  font-size: var(--text-small);
+}
+.home-activity-who {
+  flex: 0 0 auto;
+}
+.home-activity-all {
+  margin-top: var(--space-3);
+}
+.home-activity-empty {
+  margin: 0;
+}
+/* end WP-F3C */

@@ -10,6 +10,7 @@ import {
   computeReadiness,
   getConsents,
   listApplicants,
+  listAuditEventsForApplicant,
   listDocuments,
   listGrantsForRecipientAccount,
   listMembershipsForAccount,
@@ -58,6 +59,13 @@ import {
   readPackageNotices,
 } from '../../../lib/package-notices';
 import { plural } from '../../../lib/plural';
+import {
+  RECENT_ACTIVITY_LIMIT,
+  type RecentActivityEntry,
+  activityPerson,
+  recentActivityEntries,
+  seeAllActivityHref,
+} from '../../../lib/recent-activity';
 import { withSession } from '../../../lib/session';
 import { attentionContext, attentionHeading, attentionWhen } from '../attention-display';
 import { ConsentButton } from '../consent-button';
@@ -77,6 +85,7 @@ import {
 } from '../first-run';
 import { HeldFilesLine, readHeldFileCount } from '../held-files-line';
 import { CaseCard, PersonCard, StartCaseTile } from './home-cards';
+import { RecentActivity } from './recent-activity';
 import { TidyUpCard, tidyUpLine, tidyUpShortLine } from './tidy-up';
 
 export const metadata: Metadata = { title: 'Account Overview' };
@@ -212,6 +221,39 @@ function tidyUpSummary(
   };
 }
 
+/**
+ * The newest few events of ONE person's Access Log for Home's Recent Activity: the person's own
+ * record when there is one, else the first person Home reads. One bounded read (the same owner
+ * check and newest-first order as the Sharing page's log); a failure leaves the card out, so Home
+ * never fails for it.
+ */
+async function loadRecentActivity(
+  db: Db,
+  accountId: string,
+  email: string,
+  people: readonly Basics['applicants'][number][],
+): Promise<{
+  readonly seeAllHref: string;
+  readonly entries: readonly RecentActivityEntry[];
+} | null> {
+  const person = activityPerson(people);
+  if (!person) return null;
+  try {
+    const events = await listAuditEventsForApplicant(
+      db,
+      accountId,
+      person.id,
+      RECENT_ACTIVITY_LIMIT,
+    );
+    return {
+      seeAllHref: seeAllActivityHref(person.id),
+      entries: recentActivityEntries(events, email),
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function loadDashboard(db: Db, accountId: string, email: string, basics: Basics) {
   const { consents, incomingGrants, applicants } = basics;
   const now = new Date();
@@ -281,6 +323,16 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     readable: perApplicant.length === 0 || readable.length > 0,
   };
 
+  const [heldFiles, recentActivity] = await Promise.all([
+    readHeldFileCount(db, accountId, perApplicant[0]?.applicant.id),
+    loadRecentActivity(
+      db,
+      accountId,
+      email,
+      perApplicant.map((row) => row.applicant),
+    ),
+  ]);
+
   return {
     email,
     consents,
@@ -288,7 +340,8 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
     perApplicant,
     tidyUp: tidyUpSummary(perApplicant),
     // UMPE G4: family files waiting for Which Person? (never throws; a failed read counts none).
-    heldFiles: await readHeldFileCount(db, accountId, perApplicant[0]?.applicant.id),
+    heldFiles,
+    recentActivity,
     clock,
     readinessByCase,
     unreadableCases,
@@ -917,6 +970,13 @@ export default async function AppPage({
               </p>
             ) : null}
           </section>
+        ) : null}
+
+        {coreGranted && data.recentActivity ? (
+          <RecentActivity
+            entries={data.recentActivity.entries}
+            seeAllHref={data.recentActivity.seeAllHref}
+          />
         ) : null}
 
         {/* Supporting content, after the actionable sections: the get-started checklist while it is
