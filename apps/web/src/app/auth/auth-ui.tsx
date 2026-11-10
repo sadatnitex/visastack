@@ -81,6 +81,8 @@ export function TextField(props: {
   required?: boolean;
   maxLength: number;
   minLength?: number;
+  /** A value to start with, for the one case where we already know it (see sign-in). */
+  defaultValue?: string | undefined;
   errorId?: string | undefined;
 }) {
   const { id, name, label, type = 'text', errorId, ...rest } = props;
