@@ -82,8 +82,32 @@ function uploadKindsText(limitLabel: string, pdfAccepted: boolean): string {
   return `Up to ${limitLabel} per file; ${kinds}, Word or text files.`;
 }
 
+/**
+ * The photo types the browser shrinks before sending when they are over the size limit (P2). Only
+ * JPEG and PNG: they are the picture types the server stores as they are. iPhone photos (HEIC)
+ * are turned into JPEG by the server, and PDF, Word and text files are never changed.
+ */
+export const SHRINKABLE_PHOTO_TYPES: readonly string[] = ['image/jpeg', 'image/png'];
+
+/** A photo larger than this is not read into the browser's memory to shrink; the size line applies. */
+export const MAX_SHRINK_INPUT_BYTES = 40 * 1024 * 1024;
+
+/** Whether a photo of this type and size over `limitBytes` is one the browser may shrink to fit. */
+export function canShrinkToFit(contentType: string, size: number, limitBytes: number): boolean {
+  return (
+    SHRINKABLE_PHOTO_TYPES.includes(contentType) &&
+    size > limitBytes &&
+    size <= MAX_SHRINK_INPUT_BYTES
+  );
+}
+
 export type FileCheck =
-  | { readonly ok: true; readonly contentType: string }
+  | {
+      readonly ok: true;
+      readonly contentType: string;
+      /** True when the photo is over the limit and must be shrunk before it is sent. */
+      readonly shrink?: true;
+    }
   | { readonly ok: false; readonly reason: string };
 
 function extensionOf(name: string): string {
@@ -102,6 +126,8 @@ export function checkChosenFile(
     readonly limitBytes: number;
     readonly limitLabel: string;
     readonly pdfAccepted: boolean;
+    /** Let a JPEG or PNG photo over the limit through, marked `shrink`, for the caller to shrink. */
+    readonly shrinkPhotos?: boolean;
   },
 ): FileCheck {
   if (file.size === 0) return { ok: false, reason: 'This file is empty. Choose another copy.' };
@@ -125,6 +151,9 @@ export function checkChosenFile(
     };
   }
   if (file.size > rules.limitBytes) {
+    if (rules.shrinkPhotos && canShrinkToFit(contentType, file.size, rules.limitBytes)) {
+      return { ok: true, contentType, shrink: true };
+    }
     return {
       ok: false,
       reason: `This file is larger than ${rules.limitLabel}. Choose a smaller copy, or take a photo of it instead.`,

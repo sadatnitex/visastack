@@ -10,6 +10,7 @@ import { newUploadId } from '../../../../lib/document-upload-client-id';
 import { formatFileSize } from '../../../../lib/format-size';
 import { useDropZone } from '../../../../lib/import/use-drop-zone';
 import type { ChoiceGroup } from '../../../../lib/master-profile-types';
+import { photoStillTooLargeMessage, shrinkPhoto, shrunkNotice } from '../../../../lib/photo-shrink';
 import { uploadCheckNotice } from '../../../../lib/scan-state';
 import { acceptAttribute, checkChosenFile, uploadLimitsText } from '../../../../lib/upload-rules';
 import { deleteDuplicateAction, restoreDeletedAction } from './documents/manage/delete/actions';
@@ -33,7 +34,15 @@ export const MAX_FILES_AT_ONCE = 20;
 /** The configured per-file limit when none is passed (one request to the host carries 4 MB). */
 const DEFAULT_LIMIT_BYTES = 4 * 1024 * 1024;
 
-type ItemStatus = 'waiting' | 'sending' | 'checking' | 'added' | 'refused' | 'unknown' | 'not_sent';
+type ItemStatus =
+  | 'waiting'
+  | 'preparing'
+  | 'sending'
+  | 'checking'
+  | 'added'
+  | 'refused'
+  | 'unknown'
+  | 'not_sent';
 
 interface UploadItem {
   readonly id: number;
@@ -63,9 +72,13 @@ interface UploadItem {
    * after no answer came back is answered with the copy already stored, never a second one.
    */
   readonly uploadId: string;
+  /** A photo over the limit, still to be made smaller before it is sent (P2). */
+  readonly shrink: boolean;
+  /** The photo's size before it was made smaller, once it was; the new size is `size`. */
+  readonly shrunkFrom: number | null;
 }
 
-const ACTIVE: ReadonlySet<ItemStatus> = new Set(['waiting', 'sending', 'checking']);
+const ACTIVE: ReadonlySet<ItemStatus> = new Set(['waiting', 'preparing', 'sending', 'checking']);
 const RETRYABLE: ReadonlySet<ItemStatus> = new Set(['refused', 'unknown']);
 
 const files = (count: number) => `${count} ${count === 1 ? 'file' : 'files'}`;
@@ -73,7 +86,10 @@ const files = (count: number) => `${count} ${count === 1 ? 'file' : 'files'}`;
 /** The one polite announcement for the whole list: which file is going, then how the batch went. */
 export function uploadSummary(items: readonly Pick<UploadItem, 'status' | 'name'>[]): string {
   if (items.length === 0) return '';
-  const current = items.find((item) => item.status === 'sending' || item.status === 'checking');
+  const current = items.find(
+    (item) =>
+      item.status === 'preparing' || item.status === 'sending' || item.status === 'checking',
+  );
   const active = items.filter((item) => ACTIVE.has(item.status)).length;
   if (active > 0) {
     // Counted among the files that go out; ones refused on the spot are not in the count.
@@ -92,6 +108,8 @@ function statusLine(item: UploadItem): string {
   switch (item.status) {
     case 'waiting':
       return 'Waiting to upload.';
+    case 'preparing':
+      return 'Making this photo smaller to fit.';
     case 'sending':
       return `Uploading, ${item.progress}% sent. Please keep this page open.`;
     case 'checking':
@@ -175,7 +193,7 @@ export function DocumentUploader({
 
   const addFiles = (chosen: readonly File[]) => {
     if (chosen.length === 0) return;
-    const rules = { limitBytes, limitLabel, pdfAccepted };
+    const rules = { limitBytes, limitLabel, pdfAccepted, shrinkPhotos: true };
     const docType = kind;
     const subject = isOtherDocumentType(kind) ? kindName.trim() : '';
     const added = chosen.map((file, index): UploadItem => {
@@ -193,6 +211,8 @@ export function DocumentUploader({
         removal: 'none' as const,
         removedDays: 0,
         uploadId: newUploadId(),
+        shrink: false,
+        shrunkFrom: null,
       };
       if (index >= MAX_FILES_AT_ONCE) {
         return {
@@ -204,7 +224,14 @@ export function DocumentUploader({
         };
       }
       return check.ok
-        ? { ...base, file, contentType: check.contentType, status: 'waiting', message: '' }
+        ? {
+            ...base,
+            file,
+            contentType: check.contentType,
+            status: 'waiting',
+            message: '',
+            shrink: check.shrink === true,
+          }
         : { ...base, file: null, contentType: '', status: 'not_sent', message: check.reason };
     });
     setItems((current) => [...current, ...added]);
@@ -227,30 +254,58 @@ export function DocumentUploader({
     }
     running.current = true;
     const file = next.file;
-    update(next.id, { status: 'sending', progress: 0 });
-    void sendDocumentFile({
-      applicantId,
-      file,
-      contentType: next.contentType,
-      docType: next.docType,
-      subject: next.subject,
-      uploadId: next.uploadId,
-      fileName: file.name,
-      onProgress: (fraction) =>
-        update(
-          next.id,
-          fraction >= 1
-            ? { status: 'checking', progress: 100 }
-            : { progress: Math.min(99, Math.floor(fraction * 100)) },
-        ),
-    })
-      .catch((): UploadOutcome => ({ kind: 'unknown' }))
-      .then((outcome) => {
-        if (outcome.kind === 'added') addedSinceRefresh.current = true;
+    const send = (toSend: File, contentType: string) => {
+      update(next.id, { status: 'sending', progress: 0 });
+      void sendDocumentFile({
+        applicantId,
+        file: toSend,
+        contentType,
+        docType: next.docType,
+        subject: next.subject,
+        uploadId: next.uploadId,
+        fileName: toSend.name,
+        onProgress: (fraction) =>
+          update(
+            next.id,
+            fraction >= 1
+              ? { status: 'checking', progress: 100 }
+              : { progress: Math.min(99, Math.floor(fraction * 100)) },
+          ),
+      })
+        .catch((): UploadOutcome => ({ kind: 'unknown' }))
+        .then((outcome) => {
+          if (outcome.kind === 'added') addedSinceRefresh.current = true;
+          running.current = false;
+          update(next.id, outcomeToItem(outcome));
+        });
+    };
+    if (!next.shrink) {
+      send(file, next.contentType);
+      return;
+    }
+    // A photo over the limit is made smaller first (P2), one at a time, then sent like any file.
+    update(next.id, { status: 'preparing' });
+    void shrinkPhoto(file, limitBytes).then((shrunk) => {
+      if (!shrunk.ok) {
         running.current = false;
-        update(next.id, outcomeToItem(outcome));
+        update(next.id, {
+          status: 'not_sent',
+          file: null,
+          shrink: false,
+          message: photoStillTooLargeMessage(limitLabel, pdfAccepted),
+        });
+        return;
+      }
+      update(next.id, {
+        file: shrunk.file,
+        size: shrunk.toBytes,
+        contentType: shrunk.file.type,
+        shrink: false,
+        shrunkFrom: shrunk.fromBytes,
       });
-  }, [items, applicantId, router, update]);
+      send(shrunk.file, shrunk.file.type);
+    });
+  }, [items, applicantId, limitBytes, limitLabel, pdfAccepted, router, update]);
 
   // The drop area, and the page guard against a file dropped beside it (shared with the import).
   const { dragging, handlers: dropHandlers } = useDropZone((transfer) =>
@@ -400,6 +455,11 @@ export function DocumentUploader({
                     value={item.progress}
                     aria-label={`Upload of ${item.name}`}
                   />
+                ) : null}
+                {item.shrunkFrom !== null ? (
+                  <output className="upload-item-status">
+                    {shrunkNotice(item.shrunkFrom, item.size)}
+                  </output>
                 ) : null}
                 {item.status === 'added' && item.title ? (
                   <p className="upload-item-title">Added as {item.title}</p>
