@@ -76,12 +76,39 @@ export const FAMILIAR_ROWS: readonly FamiliarRow[] = [
     files: ['components/list-pattern/grouped-list.tsx'],
   },
   {
-    screen: 'case, documents',
+    screen: 'documents, case checklist',
     pattern: 'filter bar',
-    class: 'partly',
-    matches: 'Daraz filter chips',
+    class: 'familiar',
+    matches:
+      'Google Drive and Gmail: the search box is always in view, the other filters sit behind a Filters button with a number',
     weight: 3,
     files: ['components/list-pattern/list-filter-bar.tsx'],
+    proof: { file: 'components/list-pattern/list-filter-bar.tsx', includes: 'lp-filters-toggle' },
+  },
+  {
+    screen: 'cases, group trips',
+    pattern: 'search box above a long list',
+    class: 'familiar',
+    matches: 'Gmail and Drive search: type, the list narrows, one plain line when nothing matches',
+    weight: 2,
+    files: [
+      'components/list-pattern/searchable-list.tsx',
+      'app/app/applicant/[id]/missions/page.tsx',
+      'app/app/trips/(list)/page.tsx',
+    ],
+    proof: {
+      file: 'app/app/applicant/[id]/missions/page.tsx',
+      includes: 'searchLabel="Search Cases"',
+    },
+  },
+  {
+    screen: 'home',
+    pattern: 'recent activity statement',
+    class: 'familiar',
+    matches: 'bKash statement: the last few dated lines, then See All',
+    weight: 3,
+    files: ['app/app/(home)/recent-activity.tsx', 'lib/recent-activity.ts'],
+    proof: { file: 'app/app/(home)/recent-activity.tsx', includes: 'See All' },
   },
   {
     screen: 'agency cases',

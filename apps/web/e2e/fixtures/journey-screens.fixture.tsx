@@ -8,7 +8,7 @@ import { CaseReadinessRing } from '../../src/components/case-readiness-ring';
 import { DocumentReviewPanel } from '../../src/components/document-review-panel';
 import { NextStepCard, PageHeader, StatusBadge } from '../../src/components/ui';
 import { CASE_STATE_LABELS } from '../../src/lib/case-stages';
-import { fixtureDocumentGroups, fixtureFieldGroups } from '../../src/lib/master-profile-fixture';
+import { fixturePicker } from '../../src/lib/master-profile-fixture';
 import { FIXTURE_NAVIGATE_EVENT } from './navigation';
 
 /**
@@ -184,8 +184,7 @@ function Request() {
         <h2 className="card-title">Ask for Evidence</h2>
         <RequestEvidenceForm
           organizationId="synthetic-org"
-          fieldGroups={fixtureFieldGroups}
-          documentGroups={fixtureDocumentGroups}
+          picker={fixturePicker}
           applicants={[{ applicantId: 'applicant-1', displayName: 'Specimen Traveller' }]}
           missions={[
             {

@@ -45,7 +45,6 @@ export function RequestsList({
         tone={chip.tone}
         status={chip.word}
         meta={req.dueDate ? `Needed by ${formatDateOnly(req.dueDate)}` : undefined}
-        metaIsData
         icon={req.kind === 'FIELD' ? 'clipboard' : 'file'}
         openHref={itemHref(req.id)}
         domId={`request-${req.id}`}

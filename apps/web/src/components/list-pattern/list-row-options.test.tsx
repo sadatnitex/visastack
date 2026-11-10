@@ -23,24 +23,6 @@ describe('the list row options a screen may use', () => {
     expect(row('request-r1')?.id).toBe('request-r1');
     expect(row()?.hasAttribute('id')).toBe(false);
   });
-
-  it('marks a date or count line as data, not explanation', () => {
-    const meta = (metaIsData?: boolean) =>
-      parse(
-        renderToStaticMarkup(
-          <ListRow
-            id="r1"
-            name="x"
-            tone="neutral"
-            status="Received"
-            meta="Needed by 10 Nov 2026"
-            metaIsData={metaIsData}
-          />,
-        ),
-      ).querySelector('.lp-row-meta');
-    expect(meta(true)?.hasAttribute('data-value')).toBe(true);
-    expect(meta()?.hasAttribute('data-value')).toBe(false);
-  });
 });
 
 describe('the folder heading level', () => {

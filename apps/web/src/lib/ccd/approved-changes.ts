@@ -1058,6 +1058,30 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     screen: 'sharing',
     from: {
       kind: 'text',
+      name: 'You control every grant. Access is purpose-bound, takes effect only once accepted, and can be paused or revoked at any time.',
+    },
+    to: {
+      kind: 'text',
+      name: 'They can only use it for the reason you gave. It starts when they accept. You can pause or stop it any time.',
+    },
+    reason:
+      'Friction F6 (journey friction register, 10 Nov 2026): plain words, no "purpose-bound". The same three facts: used only for the reason given, starts on accepting, can be paused or stopped.',
+  },
+  {
+    screen: 'sharing',
+    from: { kind: 'link', name: 'New Sharing Request', detail: '#new-sharing-request' },
+    to: {
+      kind: 'link',
+      name: 'New Sharing Request',
+      detail: '/app/applicant/person/sharing?item=new',
+    },
+    reason:
+      'Package 5 (sharing on the list pattern): the button opens the new request in the side panel (a full screen on a phone). The old address #new-sharing-request still opens it.',
+  },
+  {
+    screen: 'sharing',
+    from: {
+      kind: 'text',
       name: 'Pause stops access straight away and you can resume it later. Revoke ends this access.',
     },
     to: null,
@@ -1117,6 +1141,21 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason:
       'Owner, 5 Nov 2026: no page should have more than 30 words. The line under the heading says who is signed in; "What needs you across every traveller on this account, with your agency work and the permissions you control." moved unchanged under "About This".',
   },
+  // P7 (owner, 10 Nov 2026, "yes, freeze finished cases"): a finished case cannot change, so the
+  // controls that would change it are not offered on it. An open case keeps every one of them.
+  ...[
+    { kind: 'button', name: 'Edit Case Details' },
+    { kind: 'component', name: 'CaseDetailsForm' },
+    { kind: 'component', name: 'SnapshotButton' },
+  ].map(
+    (from): ApprovedChange => ({
+      screen: 'case',
+      from: from as InventoryEntry,
+      to: (state) => (state === 'a closed case' ? null : (from as InventoryEntry)),
+      reason:
+        'P7: a finished case is frozen. The control is not offered, and the page says "This case is finished, so it can no longer change."',
+    }),
+  ),
 ];
 
 /**

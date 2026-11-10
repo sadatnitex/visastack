@@ -40,6 +40,26 @@ export const NOT_ELIGIBLE_STATUS: StatusWord = { word: 'Not Eligible', tone: 'da
 export const TOO_OLD_STATUS: StatusWord = { word: 'Too Old for This Route', tone: 'danger' };
 export const FRESHNESS_UNKNOWN_STATUS: StatusWord = { word: 'Freshness Unknown', tone: 'neutral' };
 
+/**
+ * A sharing grant's state on its row. The words are the ones the grant's own badge already uses
+ * (`grantStatusBadge`, from the translated messages); a test keeps the two equal.
+ */
+export const GRANT_STATUS: Readonly<Record<string, StatusWord>> = {
+  PENDING_ACCEPTANCE: { word: 'Pending Acceptance', tone: 'info' },
+  ACTIVE: { word: 'Active', tone: 'success' },
+  PAUSED: { word: 'Paused', tone: 'warning' },
+  REVOKED: { word: 'Revoked', tone: 'neutral' },
+  EXPIRED: { word: 'Expired', tone: 'neutral' },
+};
+
+/** A sharing invitation's state on its row. A pending one past its end day reads Expired. */
+export const INVITATION_STATUS: Readonly<Record<string, StatusWord>> = {
+  PENDING: { word: 'Pending', tone: 'info' },
+  ACCEPTED: { word: 'Accepted', tone: 'success' },
+  REVOKED: { word: 'Revoked', tone: 'neutral' },
+  EXPIRED: { word: 'Expired', tone: 'neutral' },
+};
+
 /** Every chip word a list row may carry. */
 export const CHIP_WORDS: ReadonlySet<string> = new Set([
   ...Object.values(REQUIREMENT_STATUS).map((status) => status.word),
@@ -52,4 +72,6 @@ export const CHIP_WORDS: ReadonlySet<string> = new Set([
   // A request's words come from the one set of labels the agency's own summary uses.
   ...Object.values(REQUEST_ITEM_STATUS_LABELS),
   ...Object.values(CLOSED_REQUEST_LABELS),
+  ...Object.values(GRANT_STATUS).map((status) => status.word),
+  ...Object.values(INVITATION_STATUS).map((status) => status.word),
 ]);

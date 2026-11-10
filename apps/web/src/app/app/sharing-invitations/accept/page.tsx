@@ -1,10 +1,14 @@
-import { getConsents, previewSharingInvitation } from '@visastack/services';
+import {
+  getConsents,
+  previewSharingInvitation,
+  sharingInvitationSender,
+} from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { humanizeCode } from '../../../../lib/format-code';
 import { formatTimestampDate } from '../../../../lib/format-date';
-import { permissionActionLabel } from '../../../../lib/labels';
+import { categoryLabel } from '../../../../lib/master-profile';
+import { recipientPermissionSentence } from '../../../../lib/permission-phrases';
 import { plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { ConsentGate } from '../../client-invitations/accept/consent-gate';
@@ -45,24 +49,43 @@ export default async function SharingInvitationPage({
         </section>
       );
     const invite = result.value;
-    const consent = await getConsents(db, accountId);
+    // Who is sharing (friction F3): their email, so the invited person can recognise the sender.
+    // Nothing extra is shown if it cannot be found, never a guess.
+    const [consent, sender] = await Promise.all([
+      getConsents(db, accountId),
+      sharingInvitationSender(db, { actorAccountId: accountId, invitation: invite }),
+    ]);
     return (
       <section className="section container">
         <h1 className="section-title">Review Shared Access</h1>
         <article className="card">
           <p>Opening this invitation grants no access. Review everything before accepting.</p>
           <dl className="rows">
+            {sender ? (
+              <div className="row">
+                <dt>Shared By</dt>
+                <dd>{sender.email}</dd>
+              </div>
+            ) : null}
             <div className="row">
               <dt>Purpose</dt>
               <dd>{invite.purpose}</dd>
             </div>
             <div className="row">
               <dt>Permissions</dt>
-              <dd>{invite.actions.map(permissionActionLabel).join(', ')}</dd>
+              <dd>
+                <ul className="u-m-0">
+                  {invite.actions.map((action) => (
+                    <li key={action}>{recipientPermissionSentence(action)}</li>
+                  ))}
+                </ul>
+              </dd>
             </div>
             <div className="row">
               <dt>Profile Categories</dt>
-              <dd>{invite.categories?.map(humanizeCode).join(', ') || 'All profile categories'}</dd>
+              <dd>
+                {invite.categories?.map(categoryLabel).join(', ') || 'All profile categories'}
+              </dd>
             </div>
             <div className="row">
               <dt>Documents</dt>

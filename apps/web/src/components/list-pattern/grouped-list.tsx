@@ -15,6 +15,8 @@ export interface ListGroupProps {
   readonly open: boolean;
   /** The rows shown at once. */
   readonly children: ReactNode;
+  /** The heading level, one below the heading of the card or section the group sits in. Four unless the screen says otherwise. */
+  readonly headingLevel?: GroupHeadingLevel | undefined;
   /** The rest of the rows, folded under "n More Items". */
   readonly rest?: ReactNode;
   /** The label of the fold of the rest ("4 More Items"). */
@@ -28,6 +30,24 @@ export interface ListGroupProps {
 /** The heading level of the folder names: 4 under a card, 2 on a screen whose title is the h1. */
 export type GroupHeadingLevel = 2 | 3 | 4;
 
+/** The folder's heading, a real heading inside the opener so heading navigation finds every group. */
+function GroupHeading({
+  level,
+  count,
+  children,
+}: {
+  readonly level: GroupHeadingLevel;
+  readonly count: number;
+  readonly children: ReactNode;
+}) {
+  const Heading = `h${level}` as const;
+  return (
+    <Heading className="case-group-heading collapsible-group-title" data-pattern="group-heading">
+      {children} <span className="muted lift-state-count">{count}</span>
+    </Heading>
+  );
+}
+
 /**
  * A folder of rows: a Title Case header with a count, the first rows shown, the rest folded.
  * Every list screen groups the same way. The header stays a real heading inside the fold's opener,
@@ -39,9 +59,9 @@ export function GroupedList({
   level = 4,
 }: {
   readonly groups: readonly ListGroupProps[];
+  /** The heading level of every folder name unless the group sets its own. */
   readonly level?: GroupHeadingLevel;
 }) {
-  const Heading = `h${level}` as const;
   return (
     <div className="collapsible-groups lift-groups" data-pattern="grouped-list">
       {groups.map((group) => (
@@ -53,12 +73,9 @@ export function GroupedList({
           {...(group.level ? atLevel(group.level) : {})}
         >
           <summary className="collapsible-group-summary">
-            <Heading
-              className="case-group-heading collapsible-group-title"
-              data-pattern="group-heading"
-            >
-              {group.heading} <span className="muted lift-state-count">{group.count}</span>
-            </Heading>
+            <GroupHeading level={group.headingLevel ?? level} count={group.count}>
+              {group.heading}
+            </GroupHeading>
           </summary>
           <div className="collapsible-group-body">
             <div className="rows">{group.children}</div>

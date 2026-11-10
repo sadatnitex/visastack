@@ -10,6 +10,7 @@ import {
   describeGrantScope,
 } from '../../../../../components/selected-scope-summary';
 import { PERMISSION_ACTION_LABELS } from '../../../../../lib/labels';
+import { permissionPhrase } from '../../../../../lib/permission-phrases';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
 import { type ActionState, createGrantAction } from './actions';
 
@@ -45,6 +46,17 @@ const SHAREABLE_ACTIONS: ReadonlyArray<{
     { value: 'PROPOSE_EDIT' },
   ] as const
 ).map((action) => ({ ...action, label: PERMISSION_ACTION_LABELS[action.value] }));
+
+/**
+ * Common reasons to share, offered as one-tap fills for the Purpose box (friction F8). Tapping one
+ * only writes its words into the box; the box stays editable and required, and the server checks
+ * the purpose exactly as before. The button names are Title Case; the filled words read as a sentence.
+ */
+const PURPOSE_SUGGESTIONS: ReadonlyArray<{ readonly name: string; readonly purpose: string }> = [
+  { name: 'Review My Documents', purpose: 'Review my documents' },
+  { name: 'Help with My Visa Form', purpose: 'Help with my visa form' },
+  { name: 'Check My Bank Statements', purpose: 'Check my bank statements' },
+];
 
 function toggled(current: readonly string[], value: string, on: boolean): string[] {
   return on ? [...current, value] : current.filter((v) => v !== value);
@@ -209,8 +221,28 @@ export function GrantForm({
           required
           className="input"
           placeholder="e.g. Review my UK student visa documents"
+          value={purpose}
           onChange={(e) => setPurpose(e.target.value)}
         />
+        <fieldset className="fieldset grant-purpose-chips">
+          <legend className="sr-only">Common Reasons</legend>
+          {PURPOSE_SUGGESTIONS.map((suggestion) => (
+            <button
+              key={suggestion.name}
+              type="button"
+              className="btn btn-secondary grant-purpose-chip"
+              aria-pressed={purpose === suggestion.purpose}
+              onClick={() => {
+                setPurpose(suggestion.purpose);
+                // Filling the box changes the scope the person is about to confirm.
+                setReviewed(false);
+                setReviewError('');
+              }}
+            >
+              {suggestion.name}
+            </button>
+          ))}
+        </fieldset>
       </div>
 
       <fieldset className="fieldset">
@@ -387,24 +419,23 @@ export function GrantForm({
           purpose={purpose || null}
           permissions={
             actions.length === 0
-              ? ['nothing yet - select at least one permission']
+              ? ['nothing yet, select at least one permission']
               : actions
-                  .map((a) => SHAREABLE_ACTIONS.find((s) => s.value === a)?.label.toLowerCase())
-                  .filter((label): label is string => Boolean(label))
+                  .filter((a) => SHAREABLE_ACTIONS.some((s) => s.value === a))
+                  .map((a) => permissionPhrase(a))
           }
           profile={scope.profile}
           documents={scope.documents}
           endsOn={endsOn}
           endsNote={endsNote}
         />
+        {/* One warning, not three (friction F5): that they must accept is already said above the
+            form, and pausing is in the panel, so only what is included and the one limit of
+            revoking are left, each said once. */}
         <p className="scope-summary-note">
           {canDownload
-            ? 'Safe copies may be downloaded; original downloads are not included. '
-            : 'Downloads are not included. '}
-          They must accept before anything is visible to them.{' '}
-          {canDownload
-            ? 'You can pause or revoke access at any time.'
-            : 'You can pause or revoke future access at any time; copies already downloaded cannot be recalled.'}
+            ? 'Safe copies may be downloaded; original downloads are not included.'
+            : 'Downloads are not included. You can pause or revoke future access at any time; copies already downloaded cannot be recalled.'}
         </p>
         {canDownload ? (
           // Owner-approved wording, 25 Oct 2026; shown only when downloads are allowed.
@@ -421,6 +452,12 @@ export function GrantForm({
         </p>
       ) : null}
       <div className="sharing-confirm-controls">
+        {/* Friction F7: the confirm button is not ready until the access has been reviewed. */}
+        {reviewed || pending ? null : (
+          <p className="muted u-m-0" data-testid="confirm-reason">
+            Press Review and Confirm first.
+          </p>
+        )}
         <button
           type="button"
           className="btn btn-secondary"

@@ -125,6 +125,8 @@ vi.mock('@visastack/services', async (importOriginal) => {
       })),
     listMembershipsForAccount: async () => data.memberships,
     listDocuments: async () => ({ ok: true, value: Array.from({ length: data.documents }) }),
+    // Recent Activity on Home: no events in these tests.
+    listAuditEventsForApplicant: async () => [],
     listPackageNotices: async () => {
       if (data.notices === 'fail') throw new Error('synthetic read failure');
       return { ok: true, value: data.notices };

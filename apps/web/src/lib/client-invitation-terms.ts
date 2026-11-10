@@ -1,4 +1,5 @@
 import type { PermissionAction } from '@visastack/core';
+import { SHARING_AND_REQUESTS } from './workspace-navigation';
 
 /**
  * The terms shown on the public page of an agency's client invitation, before anyone has signed in
@@ -87,4 +88,15 @@ export function invitationExpiryBadge(expiresAt: Date, now: Date): string {
         ? '1 Day Left'
         : 'Less Than a Day Left';
   return `Expires ${day}, ${left}`;
+}
+
+/**
+ * One line on how long an agency's access lasts and how to stop it, for the page where a traveller
+ * accepts (friction F2). It states what is true: the access is made when the invitation is
+ * accepted and gets the standard length of a sharing grant from that day (the caller passes the
+ * services' own number, so this line cannot drift), and the traveller can pause or end it at any
+ * time in Sharing & Requests. Nothing here changes what the access allows or how long it lasts.
+ */
+export function clientAccessDurationLine(days: number): string {
+  return `Access lasts ${days} days from the day you accept. You can pause or end it any time in ${SHARING_AND_REQUESTS}.`;
 }

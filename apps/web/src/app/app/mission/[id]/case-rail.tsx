@@ -1,5 +1,5 @@
 import type { MissionState, TripCheck } from '@visastack/core';
-import type { Mission } from '@visastack/services';
+import { CASE_FINISHED_NO_CHANGE, type Mission, isInactiveCaseState } from '@visastack/services';
 import Link from 'next/link';
 import { atLevel } from '../../../../components/depth';
 import { Icon } from '../../../../components/icons';
@@ -200,18 +200,23 @@ function CaseDetailsCard({
           </p>
         ) : null}
         {showAddDatesHint ? <p className="muted lift-rail-note">{ADD_DATES_HINT}</p> : null}
-        <details className="case-details-edit lift-rail-edit">
-          <summary>Edit Case Details</summary>
-          <CaseDetailsForm
-            missionId={mission.id}
-            jurisdiction={mission.jurisdiction}
-            serviceCategory={mission.serviceCategory}
-            travelStartDate={mission.travelStartDate}
-            travelEndDate={mission.travelEndDate}
-            targetDeadline={mission.targetDeadline}
-            manualMode={mission.manualMode}
-          />
-        </details>
+        {isInactiveCaseState(mission.state) ? (
+          // A finished case cannot be edited: the control is not offered, and the line says why.
+          <p className="muted lift-rail-note">{CASE_FINISHED_NO_CHANGE}</p>
+        ) : (
+          <details className="case-details-edit lift-rail-edit">
+            <summary>Edit Case Details</summary>
+            <CaseDetailsForm
+              missionId={mission.id}
+              jurisdiction={mission.jurisdiction}
+              serviceCategory={mission.serviceCategory}
+              travelStartDate={mission.travelStartDate}
+              travelEndDate={mission.travelEndDate}
+              targetDeadline={mission.targetDeadline}
+              manualMode={mission.manualMode}
+            />
+          </details>
+        )}
       </SectionCard>
     </RailFold>
   );
@@ -269,7 +274,9 @@ function PackCard({
           </>
         ) : (
           <>
-            {packOptions.length === 0 ? (
+            {isInactiveCaseState(mission.state) ? (
+              <p className="lift-rail-line">No checklist was linked to this case.</p>
+            ) : packOptions.length === 0 ? (
               // VS-006: no reviewed checklist to pick. Say so and why, and promise nothing.
               <>
                 {noChecklistLines.map((line) => (
@@ -297,7 +304,16 @@ function PackCard({
                 ready.
               </p>
             )}
-            <AttachPackForm missionId={mission.id} options={packOptions} primary={primaryAttach} />
+            {isInactiveCaseState(mission.state) ? (
+              // The checklist of a finished case stays as it was; no control, and the line says why.
+              <p className="muted lift-rail-note">{CASE_FINISHED_NO_CHANGE}</p>
+            ) : (
+              <AttachPackForm
+                missionId={mission.id}
+                options={packOptions}
+                primary={primaryAttach}
+              />
+            )}
           </>
         )}
         {sources.length > 0 ? <RailSources sources={sources} /> : null}
