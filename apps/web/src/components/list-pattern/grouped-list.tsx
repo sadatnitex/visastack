@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import type { DepthLevel } from '../../lib/ccd/depth';
+import { atLevel } from '../depth';
 import type { LiftTone } from '../ui-lift/types';
 
 export interface ListGroupProps {
@@ -19,6 +21,8 @@ export interface ListGroupProps {
   readonly restLabel?: string | undefined;
   /** The fold of the rest starts open (the chosen item is in it). */
   readonly restOpen?: boolean | undefined;
+  /** The depth at which the whole folder shows; always when left out. */
+  readonly level?: DepthLevel | undefined;
 }
 
 /** The heading level of the folder names: 4 under a card, 2 on a screen whose title is the h1. */
@@ -46,6 +50,7 @@ export function GroupedList({
           id={group.id}
           key={group.id}
           open={group.open}
+          {...(group.level ? atLevel(group.level) : {})}
         >
           <summary className="collapsible-group-summary">
             <Heading

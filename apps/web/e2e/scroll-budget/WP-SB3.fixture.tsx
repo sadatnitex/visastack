@@ -226,16 +226,16 @@ function Evidence({ total, shown }: { total: number; shown: number }) {
               tone: 'neutral',
               open: true,
               children: rows(shown).map((n) => (
-                <div className="rt-row-anchor" id={`evidence-row-${n + 1}`} key={n}>
-                  <ListRow
-                    id={`r${n}`}
-                    name={`Document: Bank Statement ${n + 1}`}
-                    tone="success"
-                    status="Reviewed"
-                    icon="file"
-                    openHref={`?item=r${n}`}
-                  />
-                </div>
+                <ListRow
+                  key={n}
+                  id={`r${n}`}
+                  name={`Document: Bank Statement ${n + 1}`}
+                  tone="success"
+                  status="Reviewed"
+                  icon="file"
+                  openHref={`?item=r${n}`}
+                  nameId={`evidence-row-${n + 1}`}
+                />
               )),
             },
           ]}

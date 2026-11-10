@@ -21,12 +21,12 @@ const item = (key: string): DoNextItem => ({
   action: { kind: 'link', label: 'Open Case', href: '/app/agency/o1/cases' },
 });
 
-const draw = (quietHidden: number) =>
+const draw = (quietHidden: number, filtered = false) =>
   renderToStaticMarkup(
     <DoNextList
       items={[item('request:a'), item('request:b'), item('request:c')]}
       admin
-      filtered={false}
+      filtered={filtered}
       quietHidden={quietHidden}
       base="/app/agency/o1"
     />,
@@ -41,6 +41,13 @@ describe('the quiet requests line on Do Next', () => {
 
   it('agrees with one request', () => {
     expect(draw(1)).toContain('1 more request has had no reply');
+  });
+
+  it('says the count is for the cases in view when the view is narrowed, and offers all open requests', () => {
+    const html = draw(5, true);
+    expect(html).toContain('5 more requests in this view have had no reply.');
+    expect(html).toContain('See All Open Requests');
+    expect(html).toContain('href="/app/agency/o1/clients?status=open"');
   });
 
   it('draws no line when none were left off', () => {

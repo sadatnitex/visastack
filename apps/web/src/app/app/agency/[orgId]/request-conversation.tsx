@@ -1,6 +1,6 @@
 import { evidenceRequestTriageGroup } from '@visastack/services';
 import { RequestThread } from '../../../../components/request-thread/request-thread';
-import { buildThread } from '../../../../components/request-thread/thread-model';
+import { buildThread, toThreadSendList } from '../../../../components/request-thread/thread-model';
 import type { EvidenceRequestRow } from './console-data';
 import type { EvidenceCopies as EvidenceCopiesData } from './evidence-copies-data';
 
@@ -35,20 +35,7 @@ export function RequestConversation({
     group,
     decisions: { state: 'none' },
     sends: copies
-      ? {
-          state: 'read',
-          value: {
-            available: copies.list.available,
-            submissions: copies.list.submissions.map((s) => ({
-              id: s.id,
-              title: s.title,
-              sentAt: s.sentAt,
-              state: s.state,
-              decidedAt: s.decidedAt,
-              reason: s.reason,
-            })),
-          },
-        }
+      ? { state: 'read', value: toThreadSendList(copies.list) }
       : hasCopies
         ? { state: 'unread' }
         : { state: 'none' },
@@ -56,7 +43,12 @@ export function RequestConversation({
   return (
     <details className="request-conversation">
       <summary>Conversation</summary>
-      <RequestThread thread={thread} viewer="agency" timeZone={null} showHeading={false} />
+      <RequestThread
+        thread={thread}
+        viewer="agency"
+        timeZone={req.applicantTimezone ?? null}
+        showHeading={false}
+      />
     </details>
   );
 }

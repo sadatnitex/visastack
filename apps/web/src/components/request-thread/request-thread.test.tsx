@@ -94,9 +94,17 @@ describe('the request conversation', () => {
     expect(() => draw(bad, 'traveller')).toThrow(/Not a thread word/);
   });
 
-  it('says a time was not kept instead of guessing one', () => {
-    const doc = draw({ note: 'times-not-kept', messages: [message({ at: null })] }, 'traveller');
-    expect(doc.querySelector('.rt-meta')?.textContent).toContain('Time not kept');
+  it('says a send had no time kept instead of guessing one, and shows no time for an agency line that was not read', () => {
+    const doc = draw(
+      {
+        note: 'times-not-kept',
+        messages: [message({ side: 'traveller', at: null }), message({ id: 'x', at: null })],
+      },
+      'traveller',
+    );
+    const meta = [...doc.querySelectorAll('.rt-meta')].map((m) => m.textContent);
+    expect(meta[0]).toContain('Time not kept');
+    expect(meta[1]).not.toContain('Time not kept');
     expect(doc.querySelector('.rt-note')?.textContent).toBe(
       'Some earlier sends have no time on record.',
     );

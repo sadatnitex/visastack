@@ -27,6 +27,8 @@ export interface ListRowProps {
   readonly icon?: IconName | undefined;
   /** An address anchor for the row (`#request-<id>`), when emails or notices link to it. */
   readonly domId?: string | undefined;
+  /** An address anchor on the name itself, for a link that must land on this row (Show More). */
+  readonly nameId?: string | undefined;
 }
 
 const TONE_ICON: Record<LiftTone, IconName> = {
@@ -54,10 +56,15 @@ export function ListRow({
   openHref,
   icon,
   domId,
+  nameId,
 }: ListRowProps) {
   const short = shortName(name);
   const label = (
-    <span className="lp-row-name row-key lift-check-name" data-value="name">
+    <span
+      className="lp-row-name row-key lift-check-name"
+      data-value="name"
+      {...(nameId ? { id: nameId } : {})}
+    >
       {short.text}
     </span>
   );

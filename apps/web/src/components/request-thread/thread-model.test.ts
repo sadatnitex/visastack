@@ -36,7 +36,7 @@ const send = (over: Partial<ThreadSend> = {}): ThreadSend => ({
 });
 
 const sends = (...list: ThreadSend[]) =>
-  ({ state: 'read', value: { available: true, submissions: list } }) as const;
+  ({ state: 'read', value: { available: true, submissions: list, legacy: [] } }) as const;
 
 describe('the words a request thread may use', () => {
   it('are exactly four, and none is a tick or a delivery mark', () => {
@@ -157,6 +157,37 @@ describe('a reply sent back for a fix', () => {
       }),
     );
     expect(thread.messages[2]?.text).toBe('The agency sent this back. No reason was given.');
+  });
+});
+
+describe('rounds decided before exact copies were kept', () => {
+  it('stay in the conversation, before the exact sends, with the reason recorded at the time', () => {
+    const thread = buildThread(
+      base({
+        group: 'RECEIVED',
+        request: { ...base().request, status: 'RECEIVED' },
+        decisions: {
+          state: 'read',
+          value: [{ outcome: 'NEEDS_REPLACEMENT', reason: 'Too old.', createdAt: at(3) }],
+        },
+        sends: {
+          state: 'read',
+          value: {
+            available: true,
+            submissions: [send({ id: 's2', sentAt: at(5) })],
+            legacy: [{ sentAt: null, state: 'NEEDS_REPLACEMENT', decidedAt: at(3) }],
+          },
+        },
+      }),
+    );
+    expect(thread.messages.map((m) => [m.id, m.word])).toEqual([
+      ['ask', 'Sent'],
+      ['legacy-0', 'Sent Back for a Fix'],
+      ['legacy-reason-0', 'Sent'],
+      ['send-s2', 'Received'],
+    ]);
+    expect(thread.messages[2]?.text).toBe('Replacement needed: Too old.');
+    expect(thread.note).toBe('times-not-kept');
   });
 });
 

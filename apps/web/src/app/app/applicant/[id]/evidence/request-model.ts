@@ -1,8 +1,7 @@
 import type { DocumentSummary, EvidenceRequest, TriageDocumentState } from '@visastack/services';
 import { humanizeCode } from '../../../../../lib/format-code';
-import { CLOSED_REQUEST_LABELS } from '../../../../../lib/labels';
 import { fieldLabel } from '../../../../../lib/master-profile';
-import { REQUEST_STATUS, type StatusWord } from '../../../../../lib/status-words';
+import type { StatusWord } from '../../../../../lib/status-words';
 import { AWAITING_SUBMISSION } from './due-label';
 import type { RequestItemView } from './request-item';
 
@@ -53,18 +52,14 @@ export function requestName(req: {
   return `${req.kind === 'FIELD' ? 'Detail' : 'Document'}: ${requestTarget(req)}`;
 }
 
-/** The word and tone on a request's chip: one vocabulary, Received blue and never green. */
+/**
+ * The word and tone on a request's chip: the labels and colours the agency's own summary uses, so
+ * the two screens cannot disagree. Received is blue and never green; only Reviewed is green.
+ */
 export function requestChip(
-  req: Pick<EvidenceRequest, 'status'>,
-  item: Pick<RequestItemView, 'group'>,
+  item: Pick<RequestItemView, 'group' | 'statusLabel' | 'tone'>,
 ): StatusWord {
-  const found = item.group
-    ? REQUEST_STATUS[item.group]
-    : (REQUEST_STATUS[req.status] ?? {
-        word: CLOSED_REQUEST_LABELS[req.status] ?? 'Closed',
-        tone: 'neutral' as const,
-      });
-  return found ?? { word: 'Closed', tone: 'neutral' };
+  return { word: item.statusLabel, tone: item.group === 'RECEIVED' ? 'info' : item.tone };
 }
 
 /**

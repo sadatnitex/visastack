@@ -70,8 +70,9 @@ export default async function EvidencePage({
     ]);
     const requestList = requests.ok ? requests.value.items : [];
     // What was said on each request so far: its decisions and, for a document, every send with its
-    // time, read as the owner. A read that fails is shown as such, never as "nothing happened".
-    const histories = await loadRequestHistories({
+    // time, read as the owner. It runs beside the reads below; a read that fails is shown as such,
+    // never as "nothing happened".
+    const historiesRead = loadRequestHistories({
       db,
       accountId,
       applicantId: id,
@@ -113,6 +114,7 @@ export default async function EvidencePage({
         ),
       ),
     });
+    const histories = await historiesRead;
     return {
       applicant,
       referenceCodes,
@@ -171,6 +173,9 @@ export default async function EvidencePage({
     !data.moreRequests &&
     !entries.some(needsPerson);
   const openItem = firstParam(search[ITEM_KEY]);
+  // After Show More, the first request it added: its folder opens so the landing is on screen.
+  const landPosition =
+    requestsShown > TRAVELLER_LIST_STEP ? requestsShown - TRAVELLER_LIST_STEP + 1 : undefined;
   const itemHref = (requestId: string) => {
     const next = new URLSearchParams();
     for (const [key, value] of Object.entries(search)) {
@@ -252,7 +257,6 @@ export default async function EvidencePage({
           </article>
         ) : (
           <div className="req-grid" {...(nothingWaiting ? atLevel('browse') : {})}>
-            <OpenRequestFromHash />
             <ListWithPane
               panes={panes}
               initial={openItem}
@@ -267,6 +271,7 @@ export default async function EvidencePage({
                   itemHref={itemHref}
                   openItem={openItem}
                   positions={positions}
+                  landPosition={landPosition}
                 />
                 <ShowMore
                   id="evidence-requests-more"
@@ -280,6 +285,8 @@ export default async function EvidencePage({
                 />
               </div>
             </ListWithPane>
+            {/* After the list, so its click handling is already in place when this opens a panel. */}
+            <OpenRequestFromHash />
           </div>
         )}
       </DepthScope>

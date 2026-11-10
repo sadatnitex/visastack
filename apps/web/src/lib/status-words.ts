@@ -1,4 +1,5 @@
 import type { RequirementResultState } from '@visastack/services';
+import { CLOSED_REQUEST_LABELS, REQUEST_ITEM_STATUS_LABELS } from './labels';
 
 /**
  * The one chip vocabulary of the signed-in screens: the word on a row's status chip and its tone.
@@ -39,21 +40,6 @@ export const NOT_ELIGIBLE_STATUS: StatusWord = { word: 'Not Eligible', tone: 'da
 export const TOO_OLD_STATUS: StatusWord = { word: 'Too Old for This Route', tone: 'danger' };
 export const FRESHNESS_UNKNOWN_STATUS: StatusWord = { word: 'Freshness Unknown', tone: 'neutral' };
 
-/**
- * Where an agency's request stands for the traveller, in the words of the agency's own summary.
- * Received is blue and never green; only an agency's acceptance is Reviewed (and green).
- */
-export const REQUEST_STATUS: Readonly<Record<string, StatusWord>> = {
-  MISSING: { word: 'Missing', tone: 'warning' },
-  PROCESSING: { word: 'Processing', tone: 'neutral' },
-  RECEIVED: { word: 'Received', tone: 'info' },
-  NEEDS_CORRECTION: { word: 'Needs Correction', tone: 'warning' },
-  REVIEWED: { word: 'Reviewed', tone: 'success' },
-  CANCELLED: { word: 'Cancelled', tone: 'neutral' },
-  FULFILLED: { word: 'Closed', tone: 'neutral' },
-  DECLINED: { word: 'Declined', tone: 'neutral' },
-};
-
 /** Every chip word a list row may carry. */
 export const CHIP_WORDS: ReadonlySet<string> = new Set([
   ...Object.values(REQUIREMENT_STATUS).map((status) => status.word),
@@ -63,5 +49,7 @@ export const CHIP_WORDS: ReadonlySet<string> = new Set([
   NOT_ELIGIBLE_STATUS.word,
   TOO_OLD_STATUS.word,
   FRESHNESS_UNKNOWN_STATUS.word,
-  ...Object.values(REQUEST_STATUS).map((status) => status.word),
+  // A request's words come from the one set of labels the agency's own summary uses.
+  ...Object.values(REQUEST_ITEM_STATUS_LABELS),
+  ...Object.values(CLOSED_REQUEST_LABELS),
 ]);

@@ -8,10 +8,11 @@ import {
   listEvidenceSubmissions,
   requireAccess,
 } from '@visastack/services';
-import type {
-  ThreadDecision,
-  ThreadRead,
-  ThreadSendList,
+import {
+  type ThreadDecision,
+  type ThreadRead,
+  type ThreadSendList,
+  toThreadSendList,
 } from '../../../../../components/request-thread/thread-model';
 import { reportServerError } from '../../../../../lib/server-error';
 
@@ -87,17 +88,7 @@ export async function loadRequestHistories(input: {
             : sends?.ok
               ? {
                   state: 'read',
-                  value: {
-                    available: sends.value.available,
-                    submissions: sends.value.submissions.map((s) => ({
-                      id: s.id,
-                      title: s.title,
-                      sentAt: s.sentAt,
-                      state: s.state,
-                      decidedAt: s.decidedAt,
-                      reason: s.reason,
-                    })),
-                  },
+                  value: toThreadSendList(sends.value),
                 }
               : { state: 'unread' },
       };

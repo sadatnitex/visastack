@@ -107,9 +107,18 @@ export function DoNextList({
       ) : null}
       {quietHidden > 0 ? (
         <p className="muted do-next-more do-next-quiet" {...atLevel('browse')}>
-          <Link href={`${base}/clients?status=open`}>
-            {quietHidden} more {agree(quietHidden, 'request has', 'requests have')} had no reply
-          </Link>
+          {filtered ? (
+            // The count is for the cases in view; the list it leads to is every open request.
+            <>
+              {quietHidden} more{' '}
+              {agree(quietHidden, 'request in this view has', 'requests in this view have')} had no
+              reply. <Link href={`${base}/clients?status=open`}>See All Open Requests</Link>
+            </>
+          ) : (
+            <Link href={`${base}/clients?status=open`}>
+              {quietHidden} more {agree(quietHidden, 'request has', 'requests have')} had no reply
+            </Link>
+          )}
         </p>
       ) : null}
       {items.length > shown.length ? (

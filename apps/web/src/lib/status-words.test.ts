@@ -1,20 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { CHIP_WORDS, REQUEST_STATUS } from './status-words';
+import { CLOSED_REQUEST_LABELS, REQUEST_ITEM_STATUS_LABELS } from './labels';
+import { CHIP_WORDS } from './status-words';
 import { isTitleCase } from './title-case';
 
 describe('the words on a request row', () => {
-  it('are in the one chip vocabulary, in Title Case', () => {
-    for (const { word } of Object.values(REQUEST_STATUS)) {
+  it('are the labels the agency summary uses, in the one chip vocabulary, in Title Case', () => {
+    for (const word of [
+      ...Object.values(REQUEST_ITEM_STATUS_LABELS),
+      ...Object.values(CLOSED_REQUEST_LABELS),
+    ]) {
       expect(CHIP_WORDS.has(word), word).toBe(true);
       expect(isTitleCase(word), word).toBe(true);
     }
-  });
-
-  it('keep Received blue and never green; only Reviewed is green', () => {
-    const named = (word: string) => Object.values(REQUEST_STATUS).find((s) => s.word === word);
-    expect(named('Received')).toEqual({ word: 'Received', tone: 'info' });
-    expect(named('Reviewed')).toEqual({ word: 'Reviewed', tone: 'success' });
-    const green = Object.values(REQUEST_STATUS).filter((status) => status.tone === 'success');
-    expect(green.map((status) => status.word)).toEqual(['Reviewed']);
   });
 });

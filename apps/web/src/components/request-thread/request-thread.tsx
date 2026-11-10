@@ -41,9 +41,11 @@ function Message({
         <span className={`rt-word ${WORD_CLASS[word]}`}>{word}</span>
         {message.at ? (
           <time dateTime={message.at.toISOString()}>{when(message.at)}</time>
-        ) : (
+        ) : message.side === 'traveller' ? (
+          // A send whose time was never recorded says so. An agency line with no time shows none:
+          // it may simply not have been read, which is not the same as not kept.
           <span>Time not kept</span>
-        )}
+        ) : null}
         {message.wordAt && message.wordAt.getTime() !== message.at?.getTime() ? (
           <span>
             {word === 'Reviewed' ? 'Reviewed ' : 'Sent back '}

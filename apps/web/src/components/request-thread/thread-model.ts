@@ -60,10 +60,38 @@ export interface ThreadSend {
   readonly reason: string | null;
 }
 
+/** A send and decision recorded before exact copies were kept: its state and decision time, never its file. */
+export interface ThreadLegacySend {
+  readonly sentAt: Date | null;
+  readonly state: Exclude<ThreadSendState, 'WITHDRAWN'>;
+  readonly decidedAt: Date | null;
+}
+
 export interface ThreadSendList {
   /** False before the exact copies were kept: the sends below are then empty. */
   readonly available: boolean;
   readonly submissions: readonly ThreadSend[];
+  readonly legacy: readonly ThreadLegacySend[];
+}
+
+/** The list of sends the service returns, reduced to what a thread needs (no file or scan data). */
+export function toThreadSendList(list: {
+  readonly available: boolean;
+  readonly submissions: readonly (ThreadSend & object)[];
+  readonly legacy: readonly ThreadLegacySend[];
+}): ThreadSendList {
+  return {
+    available: list.available,
+    submissions: list.submissions.map((s) => ({
+      id: s.id,
+      title: s.title,
+      sentAt: s.sentAt,
+      state: s.state,
+      decidedAt: s.decidedAt,
+      reason: s.reason,
+    })),
+    legacy: list.legacy.map((l) => ({ sentAt: l.sentAt, state: l.state, decidedAt: l.decidedAt })),
+  };
 }
 
 export interface ThreadInput {
@@ -162,6 +190,35 @@ export function buildThread(input: ThreadInput): Thread {
       : 'The agency sent this back. No reason was given.';
 
   if (exact && exact.length > 0) {
+    // Rounds decided before exact copies were kept come first: their send time was not recorded,
+    // their decision time was, and the reason is the one on the decision made at that moment.
+    const legacy =
+      input.sends.state === 'read'
+        ? [...input.sends.value.legacy].sort(
+            (a, b) => (a.decidedAt?.getTime() ?? 0) - (b.decidedAt?.getTime() ?? 0),
+          )
+        : [];
+    legacy.forEach((old, index) => {
+      add({
+        id: `legacy-${index}`,
+        side: 'traveller',
+        text: `${who === 'You' ? 'You sent' : `${who} sent`} ${noun}`,
+        at: old.sentAt,
+        word: old.state === 'AWAITING_DECISION' ? openWord(input.group) : decidedWord(old.state),
+        wordAt: old.state === 'AWAITING_DECISION' ? null : old.decidedAt,
+      });
+      const recorded = decisions.find((d) => d.createdAt.getTime() === old.decidedAt?.getTime());
+      if (SENT_BACK.has(old.state) && recorded) {
+        add({
+          id: `legacy-reason-${index}`,
+          side: 'agency',
+          text: reason(old.state, recorded.reason),
+          at: old.decidedAt,
+          word: 'Sent',
+          wordAt: null,
+        });
+      }
+    });
     // Every send, with its own time and its own decision.
     for (const send of exact) {
       const word =

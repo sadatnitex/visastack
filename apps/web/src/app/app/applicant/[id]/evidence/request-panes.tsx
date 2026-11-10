@@ -79,7 +79,7 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
   const code = data.referenceCodes.get(req.id);
   const questions = data.extras.questions.get(req.id) ?? [];
   const canAsk = Boolean(req.missionId && code && item.group !== null);
-  const chip = requestChip(req, item);
+  const chip = requestChip(item);
   const history = data.histories.get(req.id);
   const thread = buildThread({
     viewer: 'traveller',
