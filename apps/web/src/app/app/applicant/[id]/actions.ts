@@ -48,6 +48,7 @@ import {
   runInconsistencyCheck,
   runOcr,
   setDocumentDate,
+  setDocumentExpiry,
   setDocumentType,
   suggestDocumentKind,
 } from '@visastack/services';
@@ -122,6 +123,11 @@ export interface ActionState {
    * for another traveller; the route answers 409.
    */
   readonly refusal?: 'rate_limited' | 'in_progress' | 'upload_conflict';
+  /**
+   * An expiry date that has passed and still needs the person's "Save anyway": the form sends
+   * this same date back as its confirmation, and a different date asks again.
+   */
+  readonly confirmPastDate?: string;
   /** With `in_progress`: seconds until the same upload can be checked again. */
   readonly retryAfterSeconds?: number;
 }
@@ -1097,6 +1103,72 @@ export async function renameDocumentAction(
   });
 
   if (result.ok) revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  return result;
+}
+
+/** Said once before a date that has passed is saved, so a typing slip never blocks a case unseen. */
+const PAST_EXPIRY_QUESTION =
+  'This date has passed. This document will count as expired for your cases. Save anyway?';
+
+/**
+ * Type an expiry date for any document, or clear the one typed (Owner, 10 Nov 2026). The owner
+ * only, through the access gate with a proof for this one document; anyone else gets the same
+ * "Not authorized." as for a missing document. A date that has passed asks once first.
+ */
+export async function setDocumentExpiryAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const applicantId = String(formData.get('applicantId') ?? '');
+  const documentId = String(formData.get('documentId') ?? '');
+  const clearing = formData.get('intent') === 'clear';
+  const expiresOn = String(formData.get('expiresOn') ?? '').trim();
+  const confirmedFor = String(formData.get('confirmPastDate') ?? '');
+  if (!clearing && expiresOn.length === 0) {
+    return { ok: false, message: 'Enter the expiry date.', field: 'expiresOn' };
+  }
+
+  const result = await withSession(async ({ db, accountId }) => {
+    const access = await requireAccess(
+      db,
+      accountPrincipal(accountId),
+      'MANAGE',
+      { documentId },
+      { purpose: 'owner_document_expiry' },
+    );
+    if (!access.ok || access.value.applicant.id !== applicantId) {
+      return { ok: false, message: 'Not authorized.' } satisfies ActionState;
+    }
+    const saved = await setDocumentExpiry(access.value, {
+      expiresOn: clearing ? null : expiresOn,
+      acknowledgePast: !clearing && confirmedFor === expiresOn,
+    });
+    if (!saved.ok) {
+      return {
+        ok: false,
+        message: plainError(saved.error),
+        ...(saved.error.code === 'invalid' ? { field: 'expiresOn' } : {}),
+      } satisfies ActionState;
+    }
+    if (saved.value.status === 'needs_confirmation') {
+      return {
+        ok: false,
+        message: PAST_EXPIRY_QUESTION,
+        field: 'expiresOn',
+        confirmPastDate: expiresOn,
+      } satisfies ActionState;
+    }
+    if (!saved.value.changed)
+      return { ok: true, message: 'Nothing to change.' } satisfies ActionState;
+    return {
+      ok: true,
+      message: clearing ? 'Your date is cleared.' : 'Expiry date saved.',
+    } satisfies ActionState;
+  });
+
+  if (result.ok) {
+    revalidatePath(`/app/applicant/${applicantId}`, 'layout');
+  }
   return result;
 }
 

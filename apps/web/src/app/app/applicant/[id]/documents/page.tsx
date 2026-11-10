@@ -67,7 +67,7 @@ import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
 import { readingOffer, readingStatusCopy } from '../../../../../lib/document-reading';
-import { formatTimestampDate } from '../../../../../lib/format-date';
+import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
 import { documentTypeLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
 import { categoryLabel, evidenceDocumentGroups } from '../../../../../lib/master-profile';
@@ -93,6 +93,7 @@ import {
   RunClassificationButton,
   RunInconsistencyCheckButton,
 } from '../ai-review';
+import { DocumentExpiryForm } from '../document-expiry-form';
 import { DocumentRenameForm } from '../document-rename-form';
 import { documentSuggestionView } from '../document-suggestion';
 import { DocumentSuggestionCard } from '../document-suggestion-card';
@@ -244,7 +245,7 @@ export default async function ApplicantDocumentsPage({
       pendingInconsistencyFlags,
       wallet,
     ] = await Promise.all([
-      listDocumentsDetailed(db, accountId, id, { lifecycle: 'all' }),
+      listDocumentsDetailed(db, accountId, id, { lifecycle: 'all', withExpiry: true }),
       hasConsent(db, accountId, 'CORE_PROCESSING'),
       hasConsent(db, accountId, 'AI_EXTRACTION'),
       hasConsent(db, accountId, 'AI_OCR'),
@@ -987,6 +988,21 @@ export default async function ApplicantDocumentsPage({
                         </button>
                       </div>
                     </form>
+                    {doc.expiry?.canType ? (
+                      <DocumentExpiryForm
+                        applicantId={id}
+                        documentId={doc.id}
+                        origin={doc.expiry.origin}
+                        typedOn={doc.expiry.typedOn}
+                        mismatch={doc.expiry.mismatch}
+                        savedLabel={doc.expiresAt ? formatDateOnly(doc.expiresAt) : null}
+                        typedLabel={
+                          doc.expiry.typedOn
+                            ? formatDateOnly(`${doc.expiry.typedOn}T00:00:00.000Z`)
+                            : null
+                        }
+                      />
+                    ) : null}
                     <DocumentRenameForm
                       applicantId={id}
                       documentId={doc.id}

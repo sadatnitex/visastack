@@ -1,13 +1,15 @@
 import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { accountPrincipal, requireAccess } from './access';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
 import type { Db } from './db';
+import { setDocumentExpiry } from './document-expiry';
 import { listNameVersions } from './document-naming';
 import { addDocumentVersion, getDocumentTypeOfVersion, registerDocument } from './documents';
 import type { DocumentConverterPort, ExtractionOutcome } from './extraction';
@@ -229,5 +231,86 @@ describe('what intake proposes for a person to check', () => {
     expect(isOk(result) && result.value.processingStatus).toBe('AWAITING_REVIEW');
     expect(await classificationsOf(db, versionId)).toHaveLength(0);
     expect(await listNameVersions(db, documentId)).toHaveLength(0);
+  });
+});
+
+describe('what a passport reading does to an expiry date the person typed', () => {
+  let db: Db;
+  beforeEach(async () => {
+    db = await freshDb();
+  });
+
+  async function typeDate(documentId: string, expiresOn: string) {
+    const [row] = await db
+      .select()
+      .from(schema.documents)
+      .where(eq(schema.documents.id, documentId));
+    const access = await requireAccess(
+      db,
+      accountPrincipal(
+        (
+          await db
+            .select()
+            .from(schema.applicants)
+            .where(eq(schema.applicants.id, row?.applicantId ?? ''))
+        )[0]?.ownerAccountId ?? '',
+      ),
+      'MANAGE',
+      { documentId },
+      { purpose: 'owner_document_expiry' },
+    );
+    if (!isOk(access)) throw new Error('access');
+    const saved = await setDocumentExpiry(access.value, { expiresOn, acknowledgePast: true });
+    if (!isOk(saved)) throw new Error(saved.error.message);
+  }
+
+  const entriesOf = (documentId: string) =>
+    db
+      .select()
+      .from(schema.documentExpiryEntries)
+      .where(eq(schema.documentExpiryEntries.documentId, documentId))
+      .orderBy(desc(schema.documentExpiryEntries.createdAt), desc(schema.documentExpiryEntries.id));
+
+  it('records the read date beside the entries when the document had no date', async () => {
+    const { documentId, versionId } = await seed(db);
+    await processIntake(db, cleanScanner, extractorFor(PASSPORT_TEXT), withinLimits, {
+      documentVersionId: versionId,
+    });
+    expect((await documentRow(db, documentId)).expiresAt?.toISOString().slice(0, 10)).toBe(
+      '2012-04-15',
+    );
+    expect((await entriesOf(documentId)).map((e) => [e.source, e.expiresOn, e.mirrored])).toEqual([
+      ['READ', '2012-04-15', false],
+    ]);
+  });
+
+  it('replaces a date that is only a mirror of a typed one, keeps the typed row and flags the mismatch', async () => {
+    const { documentId, versionId } = await seed(db);
+    await typeDate(documentId, '2031-04-30');
+    await processIntake(db, cleanScanner, extractorFor(PASSPORT_TEXT), withinLimits, {
+      documentVersionId: versionId,
+    });
+    expect((await documentRow(db, documentId)).expiresAt?.toISOString().slice(0, 10)).toBe(
+      '2012-04-15',
+    );
+    expect((await entriesOf(documentId)).map((e) => [e.source, e.expiresOn])).toEqual([
+      ['READ', '2012-04-15'],
+      ['TYPED', '2031-04-30'],
+    ]);
+  });
+
+  it('leaves a date read earlier, or saved before typed dates existed, alone', async () => {
+    const { documentId, versionId } = await seed(db);
+    await db
+      .update(schema.documents)
+      .set({ expiresAt: new Date('2030-01-01T00:00:00.000Z') })
+      .where(eq(schema.documents.id, documentId));
+    await processIntake(db, cleanScanner, extractorFor(PASSPORT_TEXT), withinLimits, {
+      documentVersionId: versionId,
+    });
+    expect((await documentRow(db, documentId)).expiresAt?.toISOString().slice(0, 10)).toBe(
+      '2030-01-01',
+    );
+    expect(await entriesOf(documentId)).toHaveLength(0);
   });
 });

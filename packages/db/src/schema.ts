@@ -6094,6 +6094,55 @@ export const caseChecklistEdits = pgTable(
   ],
 );
 
+// The expiry date of a document, as TYPED by its owner (Owner, 10 Nov 2026, "yes P3") or READ from a
+// passport's machine-readable lines. Append-only: a change adds a row (a null date records that
+// the person cleared theirs), nothing is edited or removed, so the history stays. The in-force
+// value is mirrored into documents.expires_at only when that column is empty or already a mirror of
+// an earlier typed entry (document-expiry.ts is the writer; the passport reading and the copy to
+// another person add rows by the same rules), so every existing reader of the date keeps working.
+// A typed date is never shown as read from the document.
+export const documentExpiryEntries = pgTable(
+  'document_expiry_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    /** The date (a calendar day, no time). Null records that the person cleared a typed date. */
+    expiresOn: date('expires_on', { mode: 'string' }),
+    /** TYPED (by the person) or READ (from the passport's lines). */
+    source: text('source').notNull(),
+    /**
+     * True only on a typed entry whose date was also saved as the document's date. A typed date
+     * that agreed with a date already read is not mirrored, so clearing it can never remove that
+     * read date.
+     */
+    mirrored: boolean('mirrored').notNull().default(false),
+    enteredByAccountId: uuid('entered_by_account_id').references(() => accounts.id, {
+      onDelete: 'set null',
+    }),
+    // The moment of insertion (clock_timestamp), not of the transaction start (now), because "the
+    // newest entry" decides where the saved date came from: two saves that wait on the document's
+    // row lock must be ordered the way they were written.
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    index('document_expiry_entries_document_idx').on(table.documentId, table.createdAt),
+    index('document_expiry_entries_entered_by_idx').on(table.enteredByAccountId),
+    check('document_expiry_entries_source_known', sql`${table.source} in ('TYPED', 'READ')`),
+    check(
+      'document_expiry_entries_mirrored_typed',
+      sql`not ${table.mirrored} or (${table.source} = 'TYPED' and ${table.expiresOn} is not null)`,
+    ),
+    check(
+      'document_expiry_entries_read_has_date',
+      sql`${table.source} = 'TYPED' or ${table.expiresOn} is not null`,
+    ),
+  ],
+);
+
 // The traveller's explicit "Prepared for Handoff" confirmation: an immutable record of the exact
 // package (pack version and checksum, every selection by version id, the caveats still open, the
 // freshness check and the steps outside VisaStack) at that moment. A database trigger refuses any
