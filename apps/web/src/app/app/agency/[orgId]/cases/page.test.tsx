@@ -17,7 +17,13 @@ const mocks = vi.hoisted(() => ({
   loadCases: vi.fn(),
   // WP-V4: the page also reads requests (administrator data) for the open case's triage summary.
   loadEvidenceRequests: vi.fn(async () => [] as unknown[]),
+  // P9: when access to each listed case ends; asked for the listed case ids only.
+  listAccessEndsForOrg: vi.fn(async (..._args: unknown[]) => new Map<string, Date | null>()),
 }));
+vi.mock('@visastack/services', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@visastack/services')>();
+  return { ...actual, listAccessEndsForOrg: mocks.listAccessEndsForOrg };
+});
 
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) =>
@@ -152,6 +158,29 @@ describe('agency Cases', () => {
     expect(text).toContain('Choose a case to open its workspace');
   });
 
+  it('says when access to a listed case ends, and that only the traveller can extend it, with no button', async () => {
+    mocks.listAccessEndsForOrg.mockResolvedValue(
+      new Map<string, Date | null>([
+        [M1, new Date('2026-12-05T10:00:00Z')],
+        [M2, null],
+      ]),
+    );
+    const html = await renderServer(Page(props));
+    const text = textOf(html);
+    // Only the cases this member can already see on the page are asked about.
+    expect(mocks.listAccessEndsForOrg).toHaveBeenCalledWith({}, 'o1', [M1, M2]);
+    expect(text).toContain('Access ends on 5 Dec 2026. The traveller can extend it.');
+    // One line only: a case with no end date shows none, and nothing here extends anything.
+    expect(html.match(/data-testid="access-ends-note"/g)).toHaveLength(1);
+    expect(text).not.toContain('Keep Sharing');
+  });
+
+  it('asks about no cases when the list is empty', async () => {
+    mocks.loadCaseListPage.mockResolvedValue(listOf(true, []));
+    await renderServer(Page(props));
+    expect(mocks.listAccessEndsForOrg).toHaveBeenCalledWith({}, 'o1', []);
+  });
+
   it('opens one case in its workspace, with the people who can be assigned', async () => {
     const html = await renderServer(Page(opening({ case: M1 })));
     const workspaces = stubProps<{
@@ -217,6 +246,53 @@ describe('agency Cases', () => {
     ]);
   });
 
+  it('marks an item Already Asked, unticked, when it was asked from Clients with no case', async () => {
+    mocks.loadOpenCase.mockResolvedValue(
+      openOf({
+        ...aCase(M1, 'Rahim Uddin'),
+        manualMode: false,
+        readiness: {
+          missing: [
+            { kind: 'DOCUMENT', key: 'NID', optional: false, reason: 'not_provided' },
+            { kind: 'DOCUMENT', key: 'BANK_STATEMENT', optional: false, reason: 'not_provided' },
+          ],
+        },
+      } as never),
+    );
+    // The case has no request of its own; the traveller has one with no case, for the NID.
+    mocks.loadEvidenceRequests.mockResolvedValue([
+      {
+        id: 'r9',
+        missionId: null,
+        kind: 'DOCUMENT',
+        status: 'OPEN',
+        fieldKey: null,
+        docType: 'NID',
+      },
+    ]);
+    const html = await renderServer(Page(opening({ case: M1 })));
+    const forms = stubProps<{ missing: { rows: { id: string; state: string }[] } | null }>(
+      html,
+      'RequestEvidenceForm',
+    );
+    expect(forms[0]?.missing?.rows.map((r) => [r.id, r.state])).toEqual([
+      ['DOCUMENT:NID', 'asked'],
+      ['DOCUMENT:BANK_STATEMENT', 'ask'],
+    ]);
+    // One read, through the same administrator check, for this case and this traveller only.
+    expect(mocks.loadEvidenceRequests).toHaveBeenCalledTimes(1);
+    expect(mocks.loadEvidenceRequests).toHaveBeenCalledWith(
+      {},
+      'acct-1',
+      'o1',
+      { org: { id: 'o1' }, admin: true, member: true },
+      {
+        withFileStates: true,
+        forCase: { missionId: M1, applicantId: `ap-${M1}`, alsoWaitingWithoutCase: true },
+      },
+    );
+  });
+
   it('gives a member who is not an administrator no way to ask, exactly as Clients does', async () => {
     mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: true });
     const html = await renderServer(Page(opening({ case: M1 })));
@@ -246,7 +322,10 @@ describe('agency Cases', () => {
       'acct-1',
       'o1',
       { org: { id: 'o1' }, admin: true, member: true },
-      { withFileStates: true, forCase: { missionId: M1, applicantId: `ap-${M1}` } },
+      {
+        withFileStates: true,
+        forCase: { missionId: M1, applicantId: `ap-${M1}`, alsoWaitingWithoutCase: true },
+      },
     );
   });
 
@@ -489,6 +568,29 @@ describe('agency Cases: where each case stands (WP-V4, E02)', () => {
     expect(JSON.stringify(workspace?.triage)).not.toContain('Reviewed');
   });
 
+  it('keeps a request with no case out of the case summary', async () => {
+    mocks.loadOpenCase.mockResolvedValue(openOf(withChecklist));
+    const sentBack = {
+      id: 'r9',
+      kind: 'DOCUMENT',
+      fieldKey: null,
+      docType: 'BANK_STATEMENT',
+      status: 'NEEDS_REPLACEMENT',
+      dueDate: null,
+      createdAt: new Date('2026-10-01T00:00:00.000Z'),
+    };
+    // With no case it is only for the ask form's marks...
+    mocks.loadEvidenceRequests.mockResolvedValue([{ ...sentBack, missionId: null }]);
+    const [without] = await triageOf();
+    expect(without?.triage.groups.map((g) => g.label)).not.toContain(
+      'Needs Correction or Clarification',
+    );
+    // ...while the same request naming this case does reach the summary (the positive control).
+    mocks.loadEvidenceRequests.mockResolvedValue([{ ...sentBack, missionId: M1 }]);
+    const [named] = await triageOf();
+    expect(named?.triage.groups.map((g) => g.label)).toContain('Needs Correction or Clarification');
+  });
+
   it('builds a member summary from the checklist only, and says requests are for administrators', async () => {
     mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: true });
     mocks.loadMembers.mockResolvedValue([]);
@@ -513,7 +615,10 @@ describe('agency Cases: where each case stands (WP-V4, E02)', () => {
       'acct-1',
       'o1',
       { org: { id: 'o1' }, admin: false, member: true },
-      { withFileStates: true, forCase: { missionId: M1, applicantId: `ap-${M1}` } },
+      {
+        withFileStates: true,
+        forCase: { missionId: M1, applicantId: `ap-${M1}`, alsoWaitingWithoutCase: true },
+      },
     );
     expect(workspace?.triage.groups.map((g) => g.label)).toEqual([
       'Missing',

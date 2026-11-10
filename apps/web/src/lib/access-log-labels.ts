@@ -49,6 +49,7 @@ const ACCESS_LOG_LABELS: ReadonlyMap<string, string> = new Map([
   ['GRANT_CREATED', 'Access Granted'],
   ['GRANT_ACCEPTED', 'Access Accepted'],
   ['GRANT_REVOKED', 'Access Removed'],
+  ['GRANT_EXTENDED', 'Access Extended'],
   ['GRANT_SCOPE_EXPANDED', 'Access Widened'],
   ['GRANT_CASE_EXCLUDED', 'Case Left Out of Access'],
   ['GRANT_CASE_ALLOWED', 'Case Included in Access'],
