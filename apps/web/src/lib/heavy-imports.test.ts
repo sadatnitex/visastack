@@ -51,7 +51,9 @@ const HEAVY_ADAPTERS = [
 
 const importersOf = (module: string) =>
   files
-    .filter(({ text }) => new RegExp(`from '[./]+(?:[a-z-]+/)*${module}'`).test(text))
+    .filter(({ text }) =>
+      new RegExp(`(?:from |import\\()\\s*'[./]+(?:[a-z-]+/)*${module}'`).test(text),
+    )
     .map(({ path }) => path)
     .sort();
 

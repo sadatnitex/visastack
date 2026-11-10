@@ -107,7 +107,7 @@ export function createIdentityPort(): IdentityPort {
  * not by this port: intake dispatches to it. The few small uploads that are
  * checked here synchronously (agency logos, photo proofs of payment, profile
  * photos) get the structural checker, so each is also re-encoded server side
- * (`createImageSanitizer` below, and the profile photo re-encoder) and only
+ * (`createImageSanitizer` in `./providers-media`, and the profile photo re-encoder) and only
  * image data is ever stored; a PDF proof is refused by the structural checker.
  */
 export function createMalwareScanner(

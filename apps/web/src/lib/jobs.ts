@@ -74,8 +74,8 @@ import { reportServerError } from './server-error';
 
 /**
  * Runs the erasure outbox worker (master directive §7 "PR 4") on its own
- * short-lived pooled connection — same rationale as `triggerIntakeWorker`
- * above: never the request's own `db`/pool, since `withSession` closes that
+ * short-lived pooled connection - same rationale as `triggerIntakeWorker`
+ * (now in `./jobs-reading`, where its reasoning is written out): never the request's own `db`/pool, since `withSession` closes that
  * pool before an `after()` callback runs.
  */
 export async function triggerErasureWorker(
