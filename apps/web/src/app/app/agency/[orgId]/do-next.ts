@@ -14,7 +14,8 @@
  *   3. Cases with overdue tasks, most overdue first.
  *   4. Cases with nobody assigned (administrators only).
  * Ties: oldest created first, then by title, then by an internal key, so the order never jumps
- * around between visits. Closed, cancelled and submitted cases are left out. A case appears once
+ * around between visits. At most CHASE_VISIBLE of the no-reply rows are listed; the rest are
+ * counted in one line. Closed, cancelled and submitted cases are left out. A case appears once
  * among the case rows: a case with overdue tasks and nobody assigned shows in row 3 with
  * "Nobody assigned" as its owner.
  */
@@ -38,6 +39,13 @@ export const CHASE_AFTER_DAYS = 3;
 
 /** The heading a chased request carries in place of "Past Due" (it has no due date). */
 export const CHASE_LABEL = 'No Reply Yet';
+
+/**
+ * At most this many "No Reply Yet" rows are listed. The rest are counted in one line that leads to
+ * the Clients request list, so a pile of old quiet requests never pushes a file that is ready to
+ * review off the list (owner, 10 Nov 2026, friction register E4).
+ */
+export const CHASE_VISIBLE = 3;
 
 /** Sorts after every past-due date inside tier 1, so chased requests follow all overdue ones. */
 const AFTER_OVERDUE = Number.MAX_SAFE_INTEGER;
@@ -163,7 +171,19 @@ interface Ranked {
   readonly created: number;
 }
 
+/** The ranked list, and how many quiet requests were left off it (see `CHASE_VISIBLE`). */
+export interface DoNextList {
+  readonly items: DoNextItem[];
+  /** Requests with no due date that have had no reply, past the ones listed. */
+  readonly quietHidden: number;
+}
+
+/** The ranked list only; `buildDoNextList` also says how many quiet requests it left off. */
 export function buildDoNext(input: DoNextInput): DoNextItem[] {
+  return buildDoNextList(input).items;
+}
+
+export function buildDoNextList(input: DoNextInput): DoNextList {
   const now = input.now ?? new Date();
   const openCases = input.cases.filter((c) => !CLOSED_CASE_STATES.has(c.state));
   const caseById = new Map(openCases.map((c) => [c.missionId, c]));
@@ -349,7 +369,7 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
     }
   }
 
-  return ranked
+  const sorted = ranked
     .sort(
       (a, b) =>
         a.item.tier - b.item.tier ||
@@ -360,4 +380,16 @@ export function buildDoNext(input: DoNextInput): DoNextItem[] {
         (a.item.key < b.item.key ? -1 : a.item.key > b.item.key ? 1 : 0),
     )
     .map((entry) => entry.item);
+
+  // The oldest quiet requests stay; the rest are only counted. Every other row is untouched.
+  let quiet = 0;
+  let quietHidden = 0;
+  const items = sorted.filter((item) => {
+    if (item.tierLabel !== CHASE_LABEL) return true;
+    quiet += 1;
+    if (quiet <= CHASE_VISIBLE) return true;
+    quietHidden += 1;
+    return false;
+  });
+  return { items, quietHidden };
 }

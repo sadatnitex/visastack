@@ -23,11 +23,17 @@ export function DoNextList({
   items,
   admin,
   filtered,
+  quietHidden = 0,
+  base,
 }: {
   readonly items: readonly DoNextItem[];
   readonly admin: boolean;
   /** A search or quick view narrows the cases on the page. */
   readonly filtered: boolean;
+  /** Requests with no reply that were left off the list (see `CHASE_VISIBLE`). */
+  readonly quietHidden?: number;
+  /** The console base path, for the link to the Clients request list. */
+  readonly base: string;
 }) {
   const shown = items.slice(0, DO_NEXT_VISIBLE);
   return (
@@ -97,6 +103,13 @@ export function DoNextList({
         <p className="muted do-next-more" data-only="glance">
           {items.length - 1} more {agree(items.length - 1, 'needs', 'need')} you. Choose Browse to
           see {agree(items.length - 1, 'it', 'them')}.
+        </p>
+      ) : null}
+      {quietHidden > 0 ? (
+        <p className="muted do-next-more do-next-quiet" {...atLevel('browse')}>
+          <Link href={`${base}/clients?status=open`}>
+            {quietHidden} more {agree(quietHidden, 'request has', 'requests have')} had no reply
+          </Link>
         </p>
       ) : null}
       {items.length > shown.length ? (
