@@ -119,6 +119,15 @@ describe('SwitcherTabs', () => {
     link.remove();
   });
 
+  it('has a tab stop in the row before the first drawn tab is known', () => {
+    act(() => root.render(<SwitcherTabs label="Sections" sections={sections} />));
+    // Whatever the moment, at least one tab can be reached by keyboard.
+    const stops = [...container.querySelectorAll<HTMLElement>('.sw-tab')].filter(
+      (el) => el.tabIndex === 0,
+    );
+    expect(stops.length).toBeGreaterThan(0);
+  });
+
   it('gives one tab stop while nothing is chosen: the first drawn tab', () => {
     draw();
     expect(tab('work')?.tabIndex).toBe(0);

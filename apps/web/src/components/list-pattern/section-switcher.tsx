@@ -121,6 +121,11 @@ export function SwitcherTabs({
     focusTarget(target);
   }, [chosen]);
 
+  // The one tab stop: the chosen tab, else the first drawn one. Until the first drawn one is known,
+  // every tab is a stop, so a row of tabs never has none (a scrollable row needs one).
+  const stop = (key: string) =>
+    chosen !== null ? chosen === key : first === null || first === key;
+
   const move = (event: KeyboardEvent, from: number) => {
     const drawn = tabs.current
       .map((tab, index) => (tab && tab.getClientRects().length > 0 ? index : -1))
@@ -160,7 +165,7 @@ export function SwitcherTabs({
             id={`sw-tab-${section.key}`}
             aria-selected={chosen === section.key}
             aria-controls={`sw-panel-${section.key}`}
-            tabIndex={(chosen ?? first) === section.key ? 0 : -1}
+            tabIndex={stop(section.key) ? 0 : -1}
             className="sw-tab"
             onClick={() => {
               wanted.current = section.key;
