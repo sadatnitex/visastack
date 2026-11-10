@@ -20271,7 +20271,7 @@ html:has(.sticky-action-bar) .toast-region {
 .country-flag[data-size="sm"] {
   width: 24px;
   height: 24px;
-  font-size: 0.875rem;
+  font-size: 1rem;
 }
 .country-flag[data-size="md"] {
   width: 32px;
@@ -20292,10 +20292,10 @@ html:has(.sticky-action-bar) .toast-region {
   letter-spacing: 0.02em;
 }
 .country-flag-letters[data-size="sm"] {
-  font-size: 0.6875rem;
+  font-size: var(--text-caption);
 }
 .country-flag-letters[data-size="md"] {
-  font-size: 0.8125rem;
+  font-size: var(--text-small);
 }
 .country-flag-letters[data-size="lg"] {
   font-size: 1rem;
@@ -20392,7 +20392,7 @@ html:has(.sticky-action-bar) .toast-region {
   border-radius: var(--radius-pill);
   background: var(--bg-subtle);
   color: var(--text);
-  font-size: 0.8125rem;
+  font-size: var(--text-small);
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
