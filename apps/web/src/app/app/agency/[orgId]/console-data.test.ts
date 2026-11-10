@@ -670,6 +670,66 @@ describe('loadEvidenceRequestPage (WP-SB5)', () => {
   });
 });
 
+describe("loadEvidenceRequests for one case, also counting the traveller's requests with no case", () => {
+  const asked = { forCase: { missionId: 'm1', applicantId: 'ap1', alsoWaitingWithoutCase: true } };
+
+  it("adds only this traveller's waiting requests with no case, from this organization", async () => {
+    svc.listEvidenceRequestsForOrgDetailed.mockResolvedValue(
+      ok([
+        { id: 'named', organizationId: 'o1', missionId: 'm1', applicantId: 'ap1', status: 'OPEN' },
+        { id: 'wide', organizationId: 'o1', missionId: null, applicantId: 'ap1', status: 'OPEN' },
+        {
+          id: 'wide-fix',
+          organizationId: 'o1',
+          missionId: null,
+          applicantId: 'ap1',
+          status: 'NEEDS_REPLACEMENT',
+        },
+        {
+          id: 'wide-done',
+          organizationId: 'o1',
+          missionId: null,
+          applicantId: 'ap1',
+          status: 'RECEIVED',
+        },
+        {
+          id: 'other-case',
+          organizationId: 'o1',
+          missionId: 'm2',
+          applicantId: 'ap1',
+          status: 'OPEN',
+        },
+        {
+          id: 'other-traveller',
+          organizationId: 'o1',
+          missionId: null,
+          applicantId: 'ap2',
+          status: 'OPEN',
+        },
+        // Another organization's request for the same traveller never counts, even if it arrived.
+        {
+          id: 'other-org',
+          organizationId: 'o2',
+          missionId: null,
+          applicantId: 'ap1',
+          status: 'OPEN',
+        },
+      ]),
+    );
+    const rows = await loadEvidenceRequests(db, 'acct', 'o1', admin, asked);
+    expect(rows.map((r) => r.id)).toEqual(['named', 'wide', 'wide-fix']);
+    expect(svc.listEvidenceRequestsForOrgDetailed).toHaveBeenCalledTimes(1);
+    expect(svc.listEvidenceRequestsForOrgDetailed).toHaveBeenCalledWith(db, 'acct', 'o1');
+  });
+
+  it('reads nothing for a non-administrator', async () => {
+    svc.listEvidenceRequestsForOrgDetailed.mockClear();
+    const rows = await loadEvidenceRequests(db, 'acct', 'o1', notAdmin, asked);
+    expect(rows).toEqual([]);
+    expect(svc.listEvidenceRequestsForOrgDetailed).not.toHaveBeenCalled();
+  });
+});
+
 describe('loadEvidenceRequests for one case (WP-SB5)', () => {
   it('keeps only the requests that name the case before reading any code', async () => {
     svc.listEvidenceRequestsForOrgDetailed.mockResolvedValue(

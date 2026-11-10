@@ -109,13 +109,21 @@ export default async function AgencyCasesPage({
           })
         : Promise.resolve(null),
     ]);
-    // Requests are administrator data (none for anyone else), read only for the open case.
-    const requests = open
+    // Requests are administrator data (none for anyone else), read only for the open case, in one
+    // read. The traveller's requests with no case come back with them only to mark an item
+    // "Already Asked" in the ask form; they are split off here and never reach the case summary.
+    const read = open
       ? await loadEvidenceRequests(db, accountId, orgId, access, {
           withFileStates: true,
-          forCase: { missionId: open.missionId, applicantId: open.applicantId },
+          forCase: {
+            missionId: open.missionId,
+            applicantId: open.applicantId,
+            alsoWaitingWithoutCase: true,
+          },
         })
       : [];
+    const requests = read.filter((r) => r.missionId !== null);
+    const travellerRequests = read.filter((r) => r.missionId === null);
     // When access to each listed case ends. Asked only for the cases this member can already see
     // on this page, so it adds no case and no detail. The traveller alone can extend it.
     const accessEnds = await listAccessEndsForOrg(
@@ -129,6 +137,7 @@ export default async function AgencyCasesPage({
       list,
       open,
       requests,
+      travellerRequests,
       accessEnds,
       viewerAccountId: accountId,
     };
@@ -262,6 +271,7 @@ export default async function AgencyCasesPage({
             members={data.members}
             open={open}
             requests={data.requests}
+            travellerRequests={data.travellerRequests}
             notesPage={notesPage}
           />
         </article>
@@ -279,6 +289,7 @@ function OpenCaseWorkspace({
   members,
   open,
   requests,
+  travellerRequests,
   notesPage,
 }: {
   readonly orgId: string;
@@ -289,6 +300,8 @@ function OpenCaseWorkspace({
   readonly members: readonly { readonly accountId: string; readonly email: string }[];
   readonly open: OpenCase;
   readonly requests: Awaited<ReturnType<typeof loadEvidenceRequests>>;
+  /** The traveller's requests with no case: only for "Already Asked", never in the summary. */
+  readonly travellerRequests: Awaited<ReturnType<typeof loadEvidenceRequests>>;
   readonly notesPage: ListWindow;
 }) {
   const summary = summarizeCaseTriage({
@@ -391,7 +404,7 @@ function OpenCaseWorkspace({
                     picker={picker}
                     missing={buildMissingForCase(
                       open.readiness,
-                      requests,
+                      [...requests, ...travellerRequests],
                       requestPickerIndex(picker),
                     )}
                     fixed={{
