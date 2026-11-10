@@ -199,6 +199,7 @@ const { describeReading } = await import('./reading-state');
 const { NeedsDecision, RelationDecisionForm } = await import(
   '../app/app/applicant/[id]/documents/needs-decision'
 );
+const { DocumentExpiryForm } = await import('../app/app/applicant/[id]/document-expiry-form');
 const { DocumentRenameForm } = await import('../app/app/applicant/[id]/document-rename-form');
 const { SubmitResponseForm } = await import(
   '../app/app/applicant/[id]/evidence/submit-response-form'
@@ -416,6 +417,23 @@ const DOCS: readonly Case[] = [
       );
     }),
     fields: ['name'],
+  },
+  {
+    ...row('set the expiry date of a document', () => {
+      const documentId = rowId();
+      return (
+        <DocumentExpiryForm
+          applicantId="a1"
+          documentId={documentId}
+          origin="READ"
+          typedOn="2031-04-30"
+          mismatch
+          savedLabel="30 Apr 2030"
+          typedLabel="30 Apr 2031"
+        />
+      );
+    }),
+    fields: ['expiresOn'],
   },
   {
     name: 'keep a copy of a document for another person',

@@ -20,6 +20,8 @@ import { and, desc, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access';
 import { appendAuditEvent } from './audit';
 import { type Db, first, schema } from './db';
+import { expiryDay, isTypedMirror, toExpiryEntry } from './document-expiry-rules';
+import { documentExpiryEntriesTablePresent } from './document-expiry-tables';
 import {
   type RegisteredDocumentWithVersion,
   isDocumentVersionUsable,
@@ -401,6 +403,32 @@ export async function copyDocumentToPerson(
             ...(source.expiresAt !== null ? { expiresAt: source.expiresAt } : {}),
           })
           .where(eq(documents.id, copy.document.id));
+      }
+      // A date the person typed stays labelled as typed on the copy; any other date is a read one.
+      if (source.expiresAt !== null && (await documentExpiryEntriesTablePresent(tx))) {
+        const sourceEntries = (
+          await tx
+            .select({
+              source: schema.documentExpiryEntries.source,
+              expiresOn: schema.documentExpiryEntries.expiresOn,
+              mirrored: schema.documentExpiryEntries.mirrored,
+            })
+            .from(schema.documentExpiryEntries)
+            .where(eq(schema.documentExpiryEntries.documentId, source.id))
+            .orderBy(
+              desc(schema.documentExpiryEntries.createdAt),
+              desc(schema.documentExpiryEntries.id),
+            )
+        ).map(toExpiryEntry);
+        const typedOnSource = isTypedMirror(source.expiresAt, sourceEntries);
+        await tx.insert(schema.documentExpiryEntries).values({
+          documentId: copy.document.id,
+          expiresOn: expiryDay(source.expiresAt),
+          source: typedOnSource ? 'TYPED' : 'READ',
+          // The copy's own date was set above, so a copied typed date is its typed mirror.
+          mirrored: typedOnSource,
+          enteredByAccountId: typedOnSource ? owner : null,
+        });
       }
       // The copy goes through the same pipeline as any new file, and its space is now counted: all
       // inside this transaction, so a failure anywhere undoes the lot.

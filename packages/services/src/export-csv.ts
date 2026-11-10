@@ -161,6 +161,10 @@ export function buildExportCsvTables(
       applicants.flatMap((a) => a.documents.flatMap((d) => d.nameVersions)),
     ),
     table(
+      'document_expiry_entries.csv',
+      applicants.flatMap((a) => a.documents.flatMap((d) => d.expiryEntries)),
+    ),
+    table(
       'document_scan_results.csv',
       applicants.flatMap((a) => a.documents.flatMap((d) => d.scanResults)),
     ),

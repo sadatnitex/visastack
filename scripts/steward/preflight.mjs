@@ -7,11 +7,10 @@
 //   add --migration to reserve the next migration number, --json for machine output
 //
 // It never writes anything. Exit code is 0 unless --strict is given and a blocking problem exists.
-import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 import {
   createGh,
+  currentBranchName,
   daysBetween,
   describeBranch,
   formatClaim,
@@ -26,10 +25,9 @@ import {
   parseClaim,
   patternsOverlap,
   say,
+  splitList,
   topicMatches,
 } from './lib.mjs';
-
-const execFileAsync = promisify(execFile);
 
 // ---------- pure analysis (unit tested) ----------
 
@@ -275,15 +273,6 @@ export function render(report, { plan = null, topic = null } = {}) {
 
 // ---------- collection ----------
 
-async function currentBranchName() {
-  try {
-    const { stdout } = await execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
-    return stdout.trim();
-  } catch {
-    return '';
-  }
-}
-
 /** Only the migration folder is needed from main, so list that folder instead of the whole tree. */
 async function mainMigrationFiles(gh, config, cwd) {
   if (!config.migrations) return [];
@@ -370,10 +359,7 @@ async function main() {
     const data = await collect({ gh, config, cwd, now, withTopicSubjects: Boolean(topicText) });
     const currentBranch = await currentBranchName();
     const report = analyse({ ...data, config, currentBranch, now });
-    const planPaths = (args.values.plan ?? '')
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean);
+    const planPaths = splitList(args.values.plan);
     const plan = planPaths.length
       ? checkPlan({
           planPaths,

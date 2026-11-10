@@ -38,6 +38,13 @@ import {
   appendDocumentAccessToken,
   signDocumentAccessToken,
 } from './document-access-token';
+import {
+  type ExpiryEntry,
+  type ExpiryOrigin,
+  describeExpiry,
+  toExpiryEntry,
+} from './document-expiry-rules';
+import { documentExpiryEntriesTablePresent } from './document-expiry-tables';
 import { enqueueErasureJob, hasActiveOrVerifiedErasureJob, safeCopyDrawingIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { isValidDocumentDateString } from './expiry';
@@ -984,6 +991,11 @@ export type DocumentListLifecycle = 'everyday' | 'present' | 'all';
 
 export interface ListDocumentsOptions {
   readonly lifecycle?: DocumentListLifecycle;
+  /**
+   * Also say where each saved expiry date came from (`expiry` on each summary). Costs one more
+   * read, so only the screens that show the source ask for it (Documents and Dates & Expiry).
+   */
+  readonly withExpiry?: boolean;
 }
 
 /** List an applicant's documents (owner-scoped). */
@@ -1036,6 +1048,18 @@ export interface DocumentSummary {
   /** NTF-01: the document's own claimed date (`YYYY-MM-DD`), for case-specific staleness. `null` = unknown, never fabricated. */
   readonly documentDate: string | null;
   readonly expiresAt: string | null;
+  /**
+   * Where the saved expiry date came from: READ from a passport's lines (or saved before typed dates
+   * existed), TYPED by the person, or NONE. `typedOn` is the day the person typed and has not
+   * cleared; `mismatch` is true when it differs from a read date in force. `canType` is false until
+   * the entries table exists (migration "document expiry entries").
+   */
+  readonly expiry?: {
+    readonly origin: ExpiryOrigin;
+    readonly typedOn: string | null;
+    readonly mismatch: boolean;
+    readonly canType: boolean;
+  };
   /** A naming proposal awaiting a human decision (Release C), if any. */
   readonly pendingNameVersion: { readonly id: string; readonly proposedName: string } | null;
   /** Deterministic classification of the latest version, if it ran. */
@@ -1056,7 +1080,7 @@ export async function listDocumentsDetailed(
   const listed = await listDocuments(db, actorAccountId, applicantId, options);
   if (!listed.ok) return listed;
 
-  // Three queries for the whole list, not three per document. Measured on a database 40 ms away,
+  // Three queries for the whole list (a fourth only for withExpiry), not three per document. Measured on a database 40 ms away,
   // the per-document version took 1.3 s at p95 for a traveller with six documents
   // (docs/operations/capacity.md).
   const documentIds = listed.value.map((doc) => doc.id);
@@ -1066,6 +1090,28 @@ export async function listDocumentsDetailed(
     string,
     typeof schema.documentClassifications.$inferSelect
   >();
+  // One query for every document's typed and read expiry dates, newest first (none until the
+  // entries table exists), only when the screen shows where a date came from.
+  const expiryEntries = new Map<string, ExpiryEntry[]>();
+  const expiryTypeable =
+    options.withExpiry === true && (await documentExpiryEntriesTablePresent(db));
+  if (expiryTypeable && documentIds.length > 0) {
+    const rows = await db
+      .select({
+        documentId: schema.documentExpiryEntries.documentId,
+        source: schema.documentExpiryEntries.source,
+        expiresOn: schema.documentExpiryEntries.expiresOn,
+        mirrored: schema.documentExpiryEntries.mirrored,
+      })
+      .from(schema.documentExpiryEntries)
+      .where(inArray(schema.documentExpiryEntries.documentId, documentIds))
+      .orderBy(desc(schema.documentExpiryEntries.createdAt), desc(schema.documentExpiryEntries.id));
+    for (const row of rows) {
+      const list = expiryEntries.get(row.documentId) ?? [];
+      list.push(toExpiryEntry(row));
+      expiryEntries.set(row.documentId, list);
+    }
+  }
   if (documentIds.length > 0) {
     const versions = await db
       .select()
@@ -1133,6 +1179,14 @@ export async function listDocumentsDetailed(
       createdAt: doc.createdAt.toISOString(),
       documentDate: doc.documentDate,
       expiresAt: doc.expiresAt ? doc.expiresAt.toISOString() : null,
+      ...(options.withExpiry === true
+        ? {
+            expiry: {
+              ...describeExpiry(doc.expiresAt, expiryEntries.get(doc.id) ?? []),
+              canType: expiryTypeable,
+            },
+          }
+        : {}),
       pendingNameVersion: nameVersion
         ? { id: nameVersion.id, proposedName: nameVersion.proposedName }
         : null,
