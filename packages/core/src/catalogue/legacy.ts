@@ -215,7 +215,7 @@ export const LEGACY_FIELD_SNAPSHOT: readonly LegacyFieldSnapshot[] = [
   },
   {
     key: 'historical_passport_expiry',
-    label: 'Expiry (or Was Expired)',
+    label: 'Expiry (Or Was Expired)',
     sensitivity: 'STANDARD',
     pack: 'universal',
     type: 'date',
@@ -347,7 +347,7 @@ export const LEGACY_FIELD_SNAPSHOT: readonly LegacyFieldSnapshot[] = [
   },
   {
     key: 'prior_visa_validity',
-    label: 'Valid from / to',
+    label: 'Valid from / To',
     sensitivity: 'STANDARD',
     pack: 'universal',
     type: 'text',

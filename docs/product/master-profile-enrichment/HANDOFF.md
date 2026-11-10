@@ -313,3 +313,10 @@ Correction, same day: `computeTripChecks` no longer takes the case the page load
 - 185 labels in the catalogue are shared by more than one key (263 items; Date of Birth is four different details, Passport Number is five). The picker shows a context line wherever a name repeats, from the record or section the detail belongs to (for example Family Member, Earlier Passport, Dependant). `apps/web/src/lib/request-picker.test.ts` walks the WHOLE catalogue: every item is one real key or document type, once, in Title Case, in a group, and name plus context line is unique. Adding a field or document type whose name repeats fails that test until it has a context line, which is the intent.
 - Labels are shown in Title Case in the picker even where the catalogue wrote them otherwise (for example "Valid from / to"); the catalogue labels themselves were not changed.
 - Not changed: fields, document types, purposes, packs, extraction keys, sensitivity.
+
+### 2026-11-10, Claude: catalogue labels in Title Case at the source (P14 follow-up)
+
+- Five display labels the picker used to retitle now hold the Title Case spelling themselves: "Travelling with You" (three catalogue details: `family_member_is_accompanying`, `dependant_is_accompanying`, `travel_companion_travelling_with_you`, in `fields/people.ts`), "Valid from / To" (`prior_visa_validity`) and "Expiry (Or Was Expired)" (`historical_passport_expiry`), the last two in both `legacy.ts` and `apps/web/src/lib/profile-fields.ts`, which must agree. The picker's output is unchanged; the profile screen now reads the same way.
+- Labels only. No key, pack, sensitivity, type, group, document type or purpose changed, and no stored answer value was retitled (stored values such as "Before tax" are not labels). `CATALOGUE-REPORT.md` regenerated.
+- New guard `apps/web/src/lib/catalogue-labels.test.ts`: every catalogue detail, group, section and document name and every live profile field and group name must already be in the picker's Title Case. Proven by reverting one label (red), then restoring.
+- The catalogue's own guards were not edited.
