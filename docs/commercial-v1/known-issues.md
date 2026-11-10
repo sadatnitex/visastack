@@ -7828,3 +7828,14 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Open question, not provable without a real email: the link is checked on Neon's own address, and the sign-in cookie this site reads is set by this site. A signed-in person arrives only if Neon's sign-in check can pass the session on. The landing page handles both outcomes; if production shows people still land on the sign-in form, the next step is a Neon-side or SDK change, to be reported to the owner first.
 - An expired or already used link now says so and offers a new one instead of saying "confirmed". The destination (`next`) is checked by the same rule as before (one leading slash, no `//`, no backslash, no control characters); a repeated parameter is refused rather than failing.
 - Guards proven by breaking the code: destination check, session decision, failed-link decision, protected-path list, import-free request filter, cookie clearing, and the prefill condition each turned the matching tests red. A code review found the request filter would have failed the production build by importing a server-only module; fixed and guarded.
+
+## UX mandate F1: familiar patterns (10 Nov 2026, branch claude/ux-f1-familiar-patterns)
+
+- Done strip (`components/toast.tsx`, hosted once in the workspace frame): `FormMessage` echoes a success that arrives after the page is showing, once per result, in the same words; the sharing done line does the same. Hidden from assistive technology and out of the tab order, so the existing message line and live region stay the single announcement. Errors never go there. Waits on pointer or focus, 4 seconds, Escape closes, motion only when the person has not asked for less.
+- Tab counts: `loadWorkspaceToolbarState` now also returns `unreadRequests`, counted from the same unread rows with a FILTER clause (no extra read). `lib/tab-badges.ts` puts request notices on Sharing & Requests and the rest on Home; the link name says "N new". A true "waiting on you" count is not built: it needs a new gated read on every page.
+- Case stages: `StepBar` adds a "Now: {stage}" headline; opening About Stages shows the steps down a line on a phone. No dates, no outcomes. Nothing on the case page itself was edited.
+- Code boxes: `components/code-input.tsx` (one real input drawn as boxes) on the staff authenticator code and the guest request code. The WhatsApp connect screen shows a code, it does not take one.
+- Floating Add on Documents (phone) already existed (#448); no change, registered in the ratchet.
+- Ratchet: `lib/ccd/familiar-registry.ts`, `familiar-baseline.json`, `familiar-conformance.test.tsx`. Estimated weighted familiar share 38.2 percent before, 52.9 percent after (audit rows alone: 37.5 percent). Three audit paths were wrong and are corrected (case search form, document uploader and collection link panel live under app/app).
+- Not verified: real phones, real screen readers, signed-in live pages.
+

@@ -11,6 +11,7 @@ import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { BrandMark } from '../../components/brand-mark';
 import { Icon } from '../../components/icons';
 import { ShortcutHint } from '../../components/shortcut-hint';
+import { countLabel } from '../../lib/count-label';
 import type { WorkspaceAccess, WorkspaceNavigation } from '../../lib/workspace-navigation';
 import { AccountMenu } from './account-menu';
 
@@ -257,7 +258,7 @@ export function WorkspaceRecordToolbar({
           <Icon name="bell" size={20} />
           {state && state.unread > 0 ? (
             <span className="record-unread" aria-hidden="true">
-              {state.unread > 99 ? '99+' : state.unread}
+              {countLabel(state.unread, 99)}
             </span>
           ) : null}
         </Link>

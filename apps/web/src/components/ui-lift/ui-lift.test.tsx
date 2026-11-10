@@ -291,6 +291,31 @@ describe('StepBar', () => {
     expect(host.querySelector('details.lift-help > summary')?.textContent).toBe('About Stages');
   });
 
+  it('names the current stage in a "Now:" headline, with no date and no outcome', () => {
+    const host = render(<StepBar ariaLabel="Stages" steps={steps} position="Stage 2 of 3" />);
+    const now = host.querySelector('p.lift-steps-now');
+    expect(now?.textContent).toBe('Now: In Progress');
+    // The headline comes first, then the position words.
+    expect(host.querySelector('section')?.firstElementChild).toBe(now);
+    expect(now?.textContent).not.toMatch(/\d{1,2}\s?(?:[A-Z][a-z]{2}|\/)|will|expected|estimated/);
+  });
+
+  it('names a stage that is off the path when that is where the case is', () => {
+    const host = render(
+      <StepBar
+        ariaLabel="Stages"
+        steps={[{ label: 'Draft' }]}
+        apart={[{ label: 'Cancelled', current: true }]}
+      />,
+    );
+    expect(host.querySelector('.lift-steps-now')?.textContent).toBe('Now: Cancelled');
+  });
+
+  it('leaves the headline out when no stage is current', () => {
+    const host = render(<StepBar ariaLabel="Stages" steps={[{ label: 'Draft' }]} />);
+    expect(host.querySelector('.lift-steps-now')).toBeNull();
+  });
+
   it('adds a strip of one hidden segment per stage on the path for a phone', () => {
     const host = render(
       <StepBar ariaLabel="Stages" steps={steps} apart={[{ label: 'Cancelled' }]} />,
@@ -593,8 +618,10 @@ describe('the lift block in globals.css', () => {
   it('defines every lift- class the components can write, in every variant', () => {
     const found = renderedLiftClasses();
     expect(found.size).toBeGreaterThan(60);
+    // The step bar's "Now:" headline is drawn by the WP-F1B block, which overrides the step bar layout.
+    const f1b = css.slice(css.indexOf('/* WP-F1B '), css.indexOf('/* end WP-F1B */'));
     const missing = [...found].filter(
-      (token) => !new RegExp(`\\.${token}(?![a-z0-9-])`).test(block),
+      (token) => !new RegExp(`\\.${token}(?![a-z0-9-])`).test(`${block}${f1b}`),
     );
     expect(missing).toEqual([]);
   });
@@ -627,13 +654,13 @@ describe('the lift block in globals.css', () => {
     ].map((marker) => tail.indexOf(marker));
     expect(order.every((index) => index >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    // Nothing but a later pass's own whole blocks (WP-PLAIN-..., WP-LP1, WP-TS1, WP-P6, each closed by its own end line)
+    // Nothing but a later pass's own whole blocks (WP-PLAIN-..., WP-LP1, WP-TS1, WP-P6, WP-F1A to C, each closed by its own end line)
     // comes after the last Lift block, so a package never edits another's lines.
     const afterLast = tail.slice(
       tail.indexOf('/* end WP-LIFT-C */') + '/* end WP-LIFT-C */'.length,
     );
     const withoutPlain = afterLast.replace(
-      /\/\* WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+) [\s\S]*?\/\* end WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+) \*\//g,
+      /\/\* WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+|F[0-9]+[A-Z]?) [\s\S]*?\/\* end WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|P[0-9]+|F[0-9]+[A-Z]?) \*\//g,
       '',
     );
     expect(withoutPlain.trim()).toBe('');
