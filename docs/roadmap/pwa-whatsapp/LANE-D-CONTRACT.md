@@ -320,6 +320,3 @@ Known gaps, each with its reason:
 | Meta payload shapes are from search excerpts | This environment cannot fetch developers.facebook.com | Owner action 14.1, then copy the official examples into the test fixtures and re-check the `user_id_update` notice shape |
 
 Go-live environment variables (owner, Vercel): `WHATSAPP_CHANNEL_ENABLED=on`, `WHATSAPP_APP_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_SUPPORT_EMAIL` (required), optional `WHATSAPP_BUSINESS_NUMBER`, `WHATSAPP_GRAPH_API_VERSION`, `WHATSAPP_APP_SECRET_PREVIOUS`. The webhook URL to register in Meta is `https://vs.obsidianglobal.studio/api/channels/whatsapp/webhook`.
-
-## Note 10 November 2026 (P11): the installed app's start page
-The manifest's `start_url` and both shortcut urls now carry `?source=pwa` (for example `/app?source=pwa`). `id` and `scope` are unchanged. The marker lets a launch from the home screen that landed in a browser tab say so. See known-issues 2026-11-10, P11.

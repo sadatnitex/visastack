@@ -5,11 +5,9 @@ import { describe, expect, it } from 'vitest';
 import {
   DEEP_LINK_ROUTES,
   type DeepLink,
-  HOME_SCREEN_MARKER,
   InvalidDeepLinkError,
   deepLinkPath,
   deepLinkUrl,
-  homeScreenLaunchPath,
 } from './deep-links';
 
 const APP_DIR = join(__dirname, '..', 'app');
@@ -81,15 +79,5 @@ describe('deepLinkUrl', () => {
     expect(
       deepLinkUrl('https://vs.obsidianglobal.studio', { kind: 'expiry', applicantId: ID }),
     ).toBe(`https://vs.obsidianglobal.studio/app/applicant/${ID}/expiry`);
-  });
-});
-
-describe('the home-screen marker', () => {
-  it('rides on the start page and shortcuts only, and holds no personal value', () => {
-    expect(HOME_SCREEN_MARKER).toEqual({ name: 'source', value: 'pwa' });
-    expect(homeScreenLaunchPath({ kind: 'workspace' })).toBe('/app?source=pwa');
-    expect(homeScreenLaunchPath({ kind: 'notifications' })).toBe('/app/notifications?source=pwa');
-    // The plain link is unchanged, so emails and notifications do not carry the marker.
-    expect(deepLinkPath({ kind: 'workspace' })).toBe('/app');
   });
 });

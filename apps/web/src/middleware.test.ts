@@ -110,8 +110,8 @@ describe('the files the installed app needs', () => {
 describe('a sign-in redirect stays on the app address', () => {
   const protectedPaths = [
     '/app',
-    '/app?source=pwa',
-    '/app/notifications?source=pwa',
+    '/app?tab=documents',
+    '/app/notifications',
     '/app/mission/00000000-0000-4000-8000-000000000001',
     '/pilot-access-denied',
     '/oauth/authorize?client_id=x',
@@ -155,9 +155,9 @@ describe('a sign-in redirect stays on the app address', () => {
     }
   }
 
-  it('keeps the home-screen marker so it survives the round trip through sign-in', async () => {
-    const response = await run(request('/app?source=pwa'));
+  it('keeps the page and its query so the person returns to the same place after sign-in', async () => {
+    const response = await run(request('/app/notifications?show=all'));
     const target = new URL(response?.headers.get('location') ?? '', APP);
-    expect(target.searchParams.get('next')).toBe('/app?source=pwa');
+    expect(target.searchParams.get('next')).toBe('/app/notifications?show=all');
   });
 });

@@ -8,12 +8,12 @@ import { PwaRuntime } from './pwa-runtime';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 /** A Chrome on a phone: touch, "Google Inc.", 412 wide, in a browser tab unless told otherwise. */
-function phone(options: { layoutWidth?: number; search?: string; displayMode?: string } = {}) {
-  const { layoutWidth = 412, search = '', displayMode = 'browser' } = options;
+function phone(options: { layoutWidth?: number } = {}) {
+  const { layoutWidth = 412 } = options;
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
     value: (query: string) => ({
-      matches: query === '(pointer: coarse)' ? true : query === `(display-mode: ${displayMode})`,
+      matches: query === '(pointer: coarse)',
     }),
   });
   Object.defineProperty(navigator, 'vendor', { configurable: true, value: 'Google Inc.' });
@@ -23,7 +23,6 @@ function phone(options: { layoutWidth?: number; search?: string; displayMode?: s
     configurable: true,
     value: layoutWidth,
   });
-  window.history.replaceState(null, '', `/${search}`);
 }
 
 async function mount() {
@@ -47,7 +46,6 @@ afterEach(() => {
   Reflect.deleteProperty(window.screen, 'width');
   Reflect.deleteProperty(document.documentElement, 'clientWidth');
   window.sessionStorage.clear();
-  window.history.replaceState(null, '', '/');
 });
 
 describe('the browser tip in the installed-app runtime', () => {
@@ -64,20 +62,6 @@ describe('the browser tip in the installed-app runtime', () => {
     const tip = host.querySelector<HTMLElement>('aside[aria-label="Browser Tip"]');
     expect(tip?.textContent).toContain(BROWSER_HINT_TEXT);
     expect(Number(tip?.style.getPropertyValue('--hint-scale'))).toBeGreaterThan(2);
-    await unmount();
-  });
-
-  it('shows for a home-screen launch that landed in a browser tab', async () => {
-    phone({ search: '?source=pwa' });
-    const { host, unmount } = await mount();
-    expect(host.querySelector('aside[aria-label="Browser Tip"]')).not.toBeNull();
-    await unmount();
-  });
-
-  it('stays away inside the installed app window', async () => {
-    phone({ search: '?source=pwa', displayMode: 'standalone' });
-    const { host, unmount } = await mount();
-    expect(host.querySelector('aside')).toBeNull();
     await unmount();
   });
 

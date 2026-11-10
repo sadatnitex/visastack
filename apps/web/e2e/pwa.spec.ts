@@ -47,7 +47,7 @@ test.describe('install details', () => {
       id: '/',
       name: 'VisaStack',
       short_name: 'VisaStack',
-      start_url: '/app?source=pwa',
+      start_url: '/app',
       scope: '/',
       display: 'standalone',
     });

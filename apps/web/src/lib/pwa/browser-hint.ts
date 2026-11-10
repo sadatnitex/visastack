@@ -8,14 +8,12 @@
  * a shortcut made in that state is a plain bookmark rather than an installed app. Nothing in the
  * site can switch the setting, so the page says what it is seeing and what to change.
  *
- * Two signs, either is enough:
- * 1. A touch phone drawing a desktop-wide page. The layout width is read from the document (not
- *    `innerWidth`, which shrinks when the person pinch-zooms) and compared with the screen width.
- * 2. The page was started from the home screen (the manifest's `?source=pwa` marker) but is
- *    running in a browser tab instead of the installed app's own window.
+ * The sign: a touch phone drawing a desktop-wide page. The layout width is read from the document
+ * (not `innerWidth`, which shrinks when the person pinch-zooms) and compared with the screen
+ * width. (A marker on the manifest's start page was considered to also catch a home-screen launch
+ * that fell back to a tab, and left out: changing `start_url` makes Android rebuild every
+ * installed copy of the app.)
  */
-
-import { HOME_SCREEN_MARKER } from '../deep-links';
 
 /** The one line shown for either sign. */
 export const BROWSER_HINT_TEXT =
@@ -35,7 +33,6 @@ export interface HintEnvironment {
   readonly navigator: { readonly vendor?: string; readonly maxTouchPoints?: number };
   readonly screen: { readonly width: number };
   readonly document: { readonly documentElement: { readonly clientWidth: number } };
-  readonly location: { readonly search: string };
 }
 
 export type BrowserHint =
@@ -43,11 +40,6 @@ export type BrowserHint =
   | { readonly show: true; readonly scale: number };
 
 const HIDDEN: BrowserHint = { show: false };
-
-/** Whether the address carries the home-screen marker. */
-export function hasHomeScreenMarker(search: string): boolean {
-  return new URLSearchParams(search).get(HOME_SCREEN_MARKER.name) === HOME_SCREEN_MARKER.value;
-}
 
 /**
  * How much to enlarge the line so it reads at the phone's real size. A desktop-wide page is shown
@@ -76,13 +68,5 @@ export function browserHint(env: HintEnvironment): BrowserHint {
   const layoutWidth = env.document.documentElement.clientWidth;
   const scale = readableScale(layoutWidth, screenWidth);
 
-  if (layoutWidth >= DESKTOP_LAYOUT_MIN) return { show: true, scale };
-  // A browser tab is the only display mode with an address bar; every installed window differs.
-  if (
-    hasHomeScreenMarker(env.location.search) &&
-    env.matchMedia('(display-mode: browser)').matches
-  ) {
-    return { show: true, scale };
-  }
-  return HIDDEN;
+  return layoutWidth >= DESKTOP_LAYOUT_MIN ? { show: true, scale } : HIDDEN;
 }

@@ -119,7 +119,6 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
         navigator,
         screen: window.screen,
         document,
-        location: window.location,
       }),
     );
   }, []);
