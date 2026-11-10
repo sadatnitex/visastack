@@ -178,8 +178,8 @@ export default async function AddDocumentsPage({
         <article className="card">
           <p className="card-body">
             Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
-            <Link href="/app">Home</Link> to add new documents. Your existing documents stay
-            visible.
+            <Link href="/app#permissions">Home</Link> to add new documents. Your existing documents
+            stay visible.
           </p>
         </article>
       ) : (
@@ -228,7 +228,7 @@ export default async function AddDocumentsPage({
               />
             </details>
             <UsageMeter
-              label="Evidence Storage"
+              label="Document Storage"
               usedBytes={data.evidenceBytes}
               limitBytes={data.personLimitBytes}
             />

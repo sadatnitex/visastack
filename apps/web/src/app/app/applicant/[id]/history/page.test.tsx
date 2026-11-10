@@ -159,7 +159,7 @@ describe('Profile History in a fixed log (WP-SB1)', () => {
     }
     expect(text).toContain('Someone Else');
     expect(text).toContain('Current');
-    expect(text).toContain('Superseded');
+    expect(text).toContain('Replaced');
   });
 
   it('passes a cursor and a known part to the server, keeps them in the links, and offers the newest page', async () => {
@@ -201,7 +201,7 @@ describe('Profile History in a fixed log (WP-SB1)', () => {
     });
     const text = textOf(await page());
     // The recorded value leads; the facts about it follow, each apart.
-    for (const part of ['Anna', 'Declared', 'Manual', 'Used by Japan Visitor Visa']) {
+    for (const part of ['Anna', 'Entered', 'Typed In', 'Used by Japan Visitor Visa']) {
       expect(text).toContain(part);
     }
     expect(service.listMissionsUsingField).toHaveBeenCalledTimes(1);

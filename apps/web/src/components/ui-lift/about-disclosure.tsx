@@ -7,6 +7,8 @@ export interface AboutDisclosureProps {
   readonly children: ReactNode;
   /** An extra class for the page's own spacing. */
   readonly className?: string | undefined;
+  /** Start unfolded, for a person who arrived by a link that points at what is inside. */
+  readonly open?: boolean | undefined;
 }
 
 /**
@@ -14,9 +16,12 @@ export interface AboutDisclosureProps {
  * reachable (what a count means, that preparing is not submitting) live here instead of in the
  * flow of the page, so the page itself stays short.
  */
-export function AboutDisclosure({ summary, children, className }: AboutDisclosureProps) {
+export function AboutDisclosure({ summary, children, className, open }: AboutDisclosureProps) {
   return (
-    <details className={`lift-help lift-about${className ? ` ${className}` : ''}`}>
+    <details
+      className={`lift-help lift-about${className ? ` ${className}` : ''}`}
+      {...(open ? { open: true } : {})}
+    >
       <summary>{summary}</summary>
       <div className="lift-help-body">{children}</div>
     </details>
