@@ -92,16 +92,26 @@ export function install({ source, target, repo, force = false, withWorkflow = fa
     log.push(`copied ${file}`);
   }
   const configPath = join(target, 'scripts/steward/steward.config.json');
-  if (!existsSync(configPath) || force) {
-    writeFileSync(configPath, `${JSON.stringify(starterConfig(repo), null, 2)}\n`);
+  try {
+    // 'wx' fails if the file exists, so an existing config is never overwritten (and there is no
+    // check-then-write gap).
+    writeFileSync(configPath, `${JSON.stringify(starterConfig(repo), null, 2)}\n`, {
+      flag: force ? 'w' : 'wx',
+    });
     log.push(
       'wrote scripts/steward/steward.config.json (review the checks, hot files and audit gates)',
     );
-  } else {
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
     log.push('kept the existing scripts/steward/steward.config.json');
   }
   const settingsPath = join(target, '.claude/settings.json');
-  const current = existsSync(settingsPath) ? JSON.parse(readFileSync(settingsPath, 'utf8')) : null;
+  let current = null;
+  try {
+    current = JSON.parse(readFileSync(settingsPath, 'utf8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
   mkdirSync(dirname(settingsPath), { recursive: true });
   writeFileSync(settingsPath, `${JSON.stringify(mergeSettings(current), null, 2)}\n`);
   log.push('added the session-start hook to .claude/settings.json');
