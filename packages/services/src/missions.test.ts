@@ -1267,7 +1267,8 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
   });
 
   describe('a finished case keeps the evidence it was sent with (owner decision, 10 Nov 2026)', () => {
-    const FINISHED = 'This case is finished, so the files and answers it uses can no longer change.';
+    const FINISHED =
+      'This case is finished, so the files and answers it uses can no longer change.';
 
     async function setState(missionId: string, state: MissionState) {
       await db.update(schema.missions).set({ state }).where(eq(schema.missions.id, missionId));
@@ -1325,8 +1326,14 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
     it.each(['SUBMITTED', 'CLOSED', 'CANCELLED'] as const)(
       'refuses to select or unselect once the case is %s, and changes nothing',
       async (state) => {
-        const { account, missionId, factId, documentId, fieldRequirementId, documentRequirementId } =
-          await setUp(db);
+        const {
+          account,
+          missionId,
+          factId,
+          documentId,
+          fieldRequirementId,
+          documentRequirementId,
+        } = await setUp(db);
         const chosen = await selectEvidence(db, {
           actorAccountId: account.id,
           missionId,
@@ -1413,7 +1420,9 @@ describe('mission collaboration — evidence selection, tasks, grounded letters 
       await setState(missionId, 'CLOSED');
       const closedSelect = await attempt();
       const closedUnselect = await attemptRemoval();
-      expect(isErr(closedSelect) && closedSelect.error).toEqual(isErr(openSelect) && openSelect.error);
+      expect(isErr(closedSelect) && closedSelect.error).toEqual(
+        isErr(openSelect) && openSelect.error,
+      );
       expect(isErr(closedUnselect) && closedUnselect.error).toEqual(
         isErr(openUnselect) && openUnselect.error,
       );

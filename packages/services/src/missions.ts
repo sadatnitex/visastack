@@ -64,7 +64,7 @@ import {
   applyCaseSharingAnswers,
   listCaseSharingQuestions,
 } from './sharing';
-import { INACTIVE_CASE_STATES } from './umpe-package-tables';
+import { isInactiveCaseState } from './umpe-package-tables';
 
 /**
  * Mission Workspaces (Build Spec §4.3; PRD §4).
@@ -2033,29 +2033,37 @@ const CASE_FINISHED_SELECTION =
   'This case is finished, so the files and answers it uses can no longer change.';
 
 /**
- * A submitted, closed or cancelled case keeps exactly what it was sent with: the choice of which
- * file or answer counts for a checklist item is locked. One rule, the same list of states as the
- * wording and trip package rules (`INACTIVE_CASE_STATES`).
+ * A submitted, closed or cancelled case keeps the choice of which file or answer counts for each
+ * checklist item exactly as it was sent: the choice is locked. The states are the same list as the
+ * wording and trip package rules (`isInactiveCaseState`).
  */
-function selectionLocked(state: string): boolean {
-  return (INACTIVE_CASE_STATES as readonly string[]).includes(state);
+function refusal(): ServiceError {
+  return serviceError('invalid', CASE_FINISHED_SELECTION);
+}
+
+/** Carries the finished-case refusal out of a transaction so every write in it is undone. */
+class SelectionLockedAbort extends Error {
+  constructor() {
+    super(CASE_FINISHED_SELECTION);
+  }
 }
 
 /**
- * The same rule read again inside the writing transaction, under a share lock on the case row, so a
- * submit that lands between the first check and the write cannot be undone by it.
+ * The rule read again inside the writing transaction, under a write lock on the case row, so a
+ * submit that lands between the first check and the write cannot be undone by it. The write lock
+ * (not a share lock) is the one the revision bump needs next: two requests on one case queue here
+ * instead of each holding a share lock and deadlocking on the bump.
  */
-async function refuseIfSelectionLocked(tx: Db, missionId: string): Promise<ServiceError | null> {
+async function isSelectionLocked(tx: Db, missionId: string): Promise<boolean | null> {
   const current = first(
     await tx
       .select({ state: schema.missions.state })
       .from(schema.missions)
       .where(eq(schema.missions.id, missionId))
       .limit(1)
-      .for('share'),
+      .for('update'),
   );
-  if (!current) return serviceError('not_found', 'case not found');
-  return selectionLocked(current.state) ? serviceError('invalid', CASE_FINISHED_SELECTION) : null;
+  return current ? isInactiveCaseState(current.state) : null;
 }
 
 async function loadOwnedRequirement(
@@ -2117,9 +2125,7 @@ export async function selectEvidence(
   );
   if (!loaded.ok) return loaded;
   const { mission, requirement } = loaded.value;
-  if (selectionLocked(mission.state)) {
-    return err(serviceError('invalid', CASE_FINISHED_SELECTION));
-  }
+  if (isInactiveCaseState(mission.state)) return err(refusal());
 
   if (requirement.kind === 'FIELD') {
     if (!input.factId || input.documentId) {
@@ -2175,8 +2181,9 @@ export async function selectEvidence(
   }
 
   return db.transaction(async (tx) => {
-    const locked = await refuseIfSelectionLocked(tx, mission.id);
-    if (locked) return err(locked);
+    const locked = await isSelectionLocked(tx, mission.id);
+    if (locked === null) return err(serviceError('not_found', 'case not found'));
+    if (locked) return err(refusal());
     const existing = first(
       await tx
         .select()
@@ -2240,33 +2247,42 @@ export async function unselectEvidence(
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
 
-  return db.transaction(async (tx) => {
-    const locked = await refuseIfSelectionLocked(tx, input.missionId);
-    if (locked) return err(locked);
-    const deleted = first(
-      await tx
-        .delete(schema.selectedEvidence)
-        .where(
-          and(
-            eq(schema.selectedEvidence.id, input.selectionId),
-            eq(schema.selectedEvidence.missionId, input.missionId),
-          ),
-        )
-        .returning(),
-    );
-    if (!deleted) return err(serviceError('not_found', 'selection not found'));
-    await incrementMaterialRevision(tx, input.missionId);
-    await appendAuditEvent(tx, {
-      eventType: 'MISSION_EVIDENCE_UNSELECTED',
-      actorAccountId: input.actorAccountId,
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      missionId: input.missionId,
-      resourceType: 'selected_evidence',
-      resourceId: input.selectionId,
+  try {
+    return await db.transaction(async (tx) => {
+      // The selection row first and the case row second, the order every other writer of
+      // `selected_evidence` keeps (a removal, a merge of duplicates, a chosen copy), so two of
+      // them never wait on each other. A finished case rolls the delete back.
+      const deleted = first(
+        await tx
+          .delete(schema.selectedEvidence)
+          .where(
+            and(
+              eq(schema.selectedEvidence.id, input.selectionId),
+              eq(schema.selectedEvidence.missionId, input.missionId),
+            ),
+          )
+          .returning(),
+      );
+      const locked = await isSelectionLocked(tx, input.missionId);
+      if (locked === null) return err(serviceError('not_found', 'case not found'));
+      if (locked) throw new SelectionLockedAbort();
+      if (!deleted) return err(serviceError('not_found', 'selection not found'));
+      await incrementMaterialRevision(tx, input.missionId);
+      await appendAuditEvent(tx, {
+        eventType: 'MISSION_EVIDENCE_UNSELECTED',
+        actorAccountId: input.actorAccountId,
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        missionId: input.missionId,
+        resourceType: 'selected_evidence',
+        resourceId: input.selectionId,
+      });
+      return ok(undefined);
     });
-    return ok(undefined);
-  });
+  } catch (error) {
+    if (error instanceof SelectionLockedAbort) return err(refusal());
+    throw error;
+  }
 }
 
 /** Every current evidence selection for a mission (owner-scoped). */
