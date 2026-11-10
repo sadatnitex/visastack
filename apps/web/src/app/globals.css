@@ -20561,3 +20561,8 @@ html:has(.sticky-action-bar) .toast-region {
   color: var(--selected-text);
 }
 /* end WP-RT1 */
+
+/* WP-P9 The line under a case in the agency Cases list that says when access to it ends. Plain text, no button: only the traveller can extend it. Tokens only. */
+.agency-case-list-ends {
+  padding: 0.25rem 0.75rem 0;
+}
