@@ -5,8 +5,8 @@ import { ReferenceCode } from '../../../../../components/reference-code';
 import { EmptyState } from '../../../../../components/ui';
 import { AboutDisclosure, SectionCard } from '../../../../../components/ui-lift';
 import { formatDateOnly, formatTimestampDate } from '../../../../../lib/format-date';
-import { evidenceDocumentGroups, evidenceFieldGroups } from '../../../../../lib/master-profile';
 import { type SearchParamsRecord, firstParam, pagingHref } from '../../../../../lib/paging';
+import { buildRequestPicker } from '../../../../../lib/request-picker';
 import { withSession } from '../../../../../lib/session';
 import { ListPager } from '../cases/list-pager';
 import { type ListKeys, listWindow } from '../cases/list-window';
@@ -304,8 +304,7 @@ export default async function AgencyClientsPage({
             >
               <RequestEvidenceForm
                 organizationId={orgId}
-                fieldGroups={evidenceFieldGroups()}
-                documentGroups={evidenceDocumentGroups()}
+                picker={buildRequestPicker()}
                 applicants={data.applicants}
                 missions={data.cases.map((m) => ({
                   missionId: m.missionId,
