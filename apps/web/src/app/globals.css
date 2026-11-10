@@ -20562,6 +20562,12 @@ html:has(.sticky-action-bar) .toast-region {
 }
 /* end WP-RT1 */
 
+/* WP-P9 The line under a case in the agency Cases list that says when access to it ends. Plain text, no button: only the traveller can extend it. Tokens only. */
+.agency-case-list-ends {
+  padding: 0.25rem 0.75rem 0;
+}
+/* end WP-P9 */
+
 /* WP-P12 Trips list rows and country flags (10 Nov 2026, owner: "things should talk loudly"). Every case is one card of the same shape whatever the length of its name: a round flag, a bold one-line name, the country and purpose, the stage as a filled chip with a dot on its own line, a thin bar with the count, one brand-coloured next step and a chevron. The whole card is one link. Chip colour is urgency: amber is a step still to do, red is waiting on you, blue is with someone else, green is ready, grey is finished. Flat: 1px edges, no shadow, gradient or translucency; tokens only; 44 px targets. */
 .country-flag {
   display: inline-flex;

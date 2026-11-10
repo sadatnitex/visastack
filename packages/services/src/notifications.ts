@@ -125,7 +125,16 @@ export type NotificationEventType =
   // UMPE P11: a newer checklist was published for a traveller's active case; one note per impact.
   | typeof RULE_CHANGED_EVENT
   // UMPE G4: a family file has waited 7 days for Which Person?; for the uploading account only.
-  | typeof HELD_FILE_REMINDER_EVENT;
+  | typeof HELD_FILE_REMINDER_EVENT
+  // Sharing ends soon: one for the traveller who owns the grant, one for the agency's owners and
+  // admins when an agency holds it. Neither is a link that changes anything.
+  | typeof GRANT_ENDING_EVENT
+  | typeof AGENCY_ACCESS_ENDING_EVENT;
+
+/** The traveller's reminder, a week before a sharing grant they own ends. */
+export const GRANT_ENDING_EVENT = 'GRANT_ENDING_REMINDER';
+/** The agency's matching heads-up (owners and admins only): access to a client ends soon. */
+export const AGENCY_ACCESS_ENDING_EVENT = 'AGENCY_ACCESS_ENDING';
 
 // --- UMPE P4: trip package change notes ----------------------------------------------------------
 /** A note to a traveller that something changed for one of their trip packages (UMPE P4, R19). */
@@ -265,6 +274,8 @@ const ADMIN_NOTICE_LIST = [
   'AGENCY_COLLECTION_RESPONSE_SUBMITTED',
   // Lane D: evidence arrived on one of the agency's requests.
   'EVIDENCE_RESPONSE_RECEIVED',
+  // A client's sharing ends within a week: owners and admins only.
+  AGENCY_ACCESS_ENDING_EVENT,
 ];
 const BILLING_NOTICE_TYPES: ReadonlySet<string> = new Set(ADMIN_NOTICE_LIST);
 
@@ -298,6 +309,11 @@ export function billingNoticeStillAllowedSql(row: {
 export interface NotificationPayload {
   readonly subject: string;
   readonly summary: string;
+  /**
+   * The same fact worded for email, when the in-app summary names a person or an agency. An email
+   * is forwarded and sits in inboxes, so it carries no such name (NTF-02); the signed-in app does.
+   */
+  readonly emailSummary?: string;
   readonly deepLinkPath: string;
   readonly sealedInvitationLink?: SealedInvitationLink;
   /** Task and invoice reminders only: whether the due day is ahead, today or past, for the email's heading. */
@@ -869,6 +885,29 @@ async function guestCodeEmailCheck(
   return (await guestCodeStillDeliverable(db, proof)) ? { code } : 'closed';
 }
 
+/**
+ * A "sharing ends soon" note (the traveller's and the agency's) goes only while it is still true:
+ * the grant is active, has not ended, and ends within the reminder window. A pause, a revoke, an
+ * end date that already passed, or an extension that moved the date (the extension also cancels
+ * the queue) makes it stale, and a stale note is cancelled, never sent and never marked failed.
+ */
+async function grantEndingStillApplies(db: Db, notification: Notification): Promise<boolean> {
+  const grantId = notification.resourceId;
+  // A malformed id is a stale note, not a database error.
+  if (!grantId || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(grantId)) return false;
+  const now = Date.now();
+  const grant = first(
+    await db
+      .select({ status: schema.grants.status, expiryAt: schema.grants.expiryAt })
+      .from(schema.grants)
+      .where(eq(schema.grants.id, grantId))
+      .limit(1),
+  );
+  if (!grant || grant.status !== 'ACTIVE' || !grant.expiryAt) return false;
+  const left = grant.expiryAt.getTime() - now;
+  return left > 0 && left <= 9 * 24 * 60 * 60 * 1000;
+}
+
 async function dispatchOne(
   db: Db,
   notification: Notification,
@@ -893,6 +932,27 @@ async function dispatchOne(
   );
   if (!current) return 'deferred';
   const attempts = notification.attempts + 1;
+
+  // A "sharing ends soon" note that is no longer true is cancelled before anything else decides
+  // its fate, so a pause or an end date that passed never ends as a failure for staff to chase.
+  if (
+    (notification.eventType === GRANT_ENDING_EVENT ||
+      notification.eventType === AGENCY_ACCESS_ENDING_EVENT) &&
+    !(await grantEndingStillApplies(db, notification))
+  ) {
+    const updated = await db
+      .update(schema.notifications)
+      .set({
+        status: 'CANCELLED',
+        attempts,
+        lastError: 'no longer applies',
+        leaseOwner: null,
+        leaseExpiresAt: null,
+      })
+      .where(ownedQueue)
+      .returning({ id: schema.notifications.id });
+    return updated.length ? 'failed' : 'deferred';
+  }
 
   if (!recipient.authorized) {
     const updated = await db
@@ -1056,7 +1116,7 @@ async function dispatchOne(
       notificationEmail({
         eventType: notification.eventType,
         subject,
-        summary: copy?.summary ?? payload.summary,
+        summary: copy?.summary ?? payload.emailSummary ?? payload.summary,
         url: `${baseUrl}${path}`,
         ...(payload.timing ? { timing: payload.timing } : {}),
         ...(payload.heading ? { heading: payload.heading } : {}),

@@ -1,8 +1,9 @@
-import { isUuid, summarizeCaseTriage } from '@visastack/services';
+import { isUuid, listAccessEndsForOrg, summarizeCaseTriage } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { DepthScope } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
+import { AccessEndsNote } from '../../../../../components/grant-expiry/access-ends-note';
 import { EmptyState } from '../../../../../components/ui';
 import { AboutDisclosure } from '../../../../../components/ui-lift/about-disclosure';
 import { depthCopy } from '../../../../../lib/ccd/depth-copy';
@@ -115,7 +116,22 @@ export default async function AgencyCasesPage({
           forCase: { missionId: open.missionId, applicantId: open.applicantId },
         })
       : [];
-    return { admin: access.admin, members, list, open, requests, viewerAccountId: accountId };
+    // When access to each listed case ends. Asked only for the cases this member can already see
+    // on this page, so it adds no case and no detail. The traveller alone can extend it.
+    const accessEnds = await listAccessEndsForOrg(
+      db,
+      orgId,
+      list.cases.map((c) => c.missionId),
+    );
+    return {
+      admin: access.admin,
+      members,
+      list,
+      open,
+      requests,
+      accessEnds,
+      viewerAccountId: accountId,
+    };
   });
   if (!data) return null;
 
@@ -196,6 +212,14 @@ export default async function AgencyCasesPage({
                         {isOpen ? 'Open Now' : 'Open Case'}
                       </span>
                     </Link>
+                    {data.accessEnds.get(row.missionId) ? (
+                      <div className="agency-case-list-ends">
+                        <AccessEndsNote
+                          endsAt={data.accessEnds.get(row.missionId) ?? null}
+                          timeZone={row.applicantTimezone}
+                        />
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}
