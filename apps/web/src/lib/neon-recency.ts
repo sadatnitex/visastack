@@ -1,4 +1,7 @@
 import 'server-only';
+import { safeReturnPath } from './safe-return-path';
+
+export { safeReturnPath };
 
 /**
  * How recently the signed-in person typed their password, for Neon Auth sessions. A Neon session
@@ -44,17 +47,6 @@ export async function neonSessionRef(reader?: SessionReader): Promise<string | n
   if (!id) return null;
   const { createHash } = await import('node:crypto');
   return createHash('sha256').update(`visastack:session-ref:v1:${id}`).digest('hex');
-}
-
-/** A same-site relative path or the app home. Never an off-site address. */
-export function safeReturnPath(value: string | null | undefined): string {
-  if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\')) {
-    return '/app';
-  }
-  for (let i = 0; i < value.length; i += 1) {
-    if (value.charCodeAt(i) < 32) return '/app';
-  }
-  return value;
 }
 
 export function neonReauthUrl(returnTo: string): string {

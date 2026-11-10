@@ -341,6 +341,8 @@ interface SearchParams {
   readonly next?: string | string[];
   readonly setup?: string | string[];
   readonly welcome?: string | string[];
+  /** P1: `1` right after the email confirmation link signed the person in. Shown once, as a line. */
+  readonly confirmed?: string | string[];
   /** Growth G2: the country chosen on the home page or in first run (a two-letter code). */
   readonly country?: string | string[];
   /** Growth G2: `consent` means the country screen is done (confirmed or skipped). */
@@ -421,6 +423,7 @@ export default async function AppPage({
         data={countryStartData()}
         iso2={country}
         action={confirmFirstRunCountryAction}
+        confirmed={params.confirmed === '1'}
       />
     );
   }
