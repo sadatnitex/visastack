@@ -105,7 +105,7 @@ describe('the five reading states', () => {
 describe('where a suggestion came from', () => {
   it('names the four sources in Title Case and explains each', () => {
     expect(READING_SOURCE_LABELS).toEqual({
-      machine_readable: 'Read from the Code Lines',
+      machine_readable: 'Read from the Two Lines at the Bottom of the Passport',
       document_text: 'Read from the Document',
       ai_image: 'Read with AI',
       // S21: a suggestion the person's own AI app made, not a reading of the file.

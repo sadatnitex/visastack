@@ -106,7 +106,7 @@ describe('traveller screens keep engineering words out (first journey, lane 1)',
    */
   const BANNED: readonly { readonly pattern: RegExp; readonly say: string }[] = [
     { pattern: /\bintrinsic\b/i, say: 'say "the document\'s own date"' },
-    { pattern: /\bmachine-readable\b/i, say: 'say "code lines"' },
+    { pattern: /\bmachine-readable\b/i, say: 'say "the two lines at the bottom of the passport"' },
     { pattern: /\bimmutable\b/i, say: 'say what is kept, in plain words' },
     { pattern: /\bsuperseded\b/i, say: 'say "replaced"' },
     { pattern: /\bstale\b/i, say: 'say "no longer current"' },

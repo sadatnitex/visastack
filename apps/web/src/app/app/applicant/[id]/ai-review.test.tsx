@@ -288,7 +288,9 @@ describe('where each suggestion came from (S6)', () => {
       [...host.querySelectorAll('.finding-card')]
         .find((card) => card.querySelector('h4')?.textContent === heading)
         ?.querySelector('.finding-origin')?.textContent;
-    expect(origin('Family Name')).toContain('Read from the Code Lines');
+    expect(origin('Family Name')).toContain(
+      'Read from the Two Lines at the Bottom of the Passport',
+    );
     expect(origin('Family Name')).toContain('No AI was used.');
     expect(origin('City')).toContain('Read from the Document');
     expect(origin('Occupation')).toContain('Read with AI');
