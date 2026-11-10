@@ -91,6 +91,36 @@ test.describe('unauthenticated access is denied, never leaked', () => {
     );
   }
 
+  test('the confirmation link landing with no sign-in goes to the sign-in form, never off-site', async ({
+    request,
+    baseURL,
+  }) => {
+    if (!baseURL) throw new Error('A deployment URL is required');
+    const app = encodeURIComponent('/app');
+    const privacy = encodeURIComponent('/app/privacy');
+    for (const [query, expected] of [
+      ['', `/auth/sign-in?n=confirmed&next=${app}`],
+      [`?next=${privacy}`, `/auth/sign-in?n=confirmed&next=${privacy}`],
+      ['?next=https%3A%2F%2Fevil.example%2Fx', `/auth/sign-in?n=confirmed&next=${app}`],
+      ['?next=%2F%2Fevil.example', `/auth/sign-in?n=confirmed&next=${app}`],
+      ['?error=token_expired', '/auth/verify-email?e=expired'],
+    ] as const) {
+      const response = await request.get(`/auth/confirmed${query}`, { maxRedirects: 0 });
+      expect([302, 307]).toContain(response.status());
+      const locationHeader = 'location';
+      const location = new URL(response.headers()[locationHeader] ?? '', baseURL);
+      expect(location.origin).toBe(new URL(baseURL).origin);
+      // Neon Auth's check may copy extra parameters from the link (such as `error`) onto the
+      // redirect; what matters is the page, the fixed code and the validated destination.
+      const [expectedPath = '', expectedQuery = ''] = expected.split('?');
+      expect(location.pathname).toBe(expectedPath);
+      for (const [name, value] of new URLSearchParams(expectedQuery)) {
+        expect(location.searchParams.get(name)).toBe(value);
+      }
+      if (expectedPath === '/auth/verify-email') expect(location.searchParams.get('n')).toBeNull();
+    }
+  });
+
   test('/callback is publicly reachable (not itself gated by auth)', async ({ request }) => {
     const response = await request.get('/callback', { maxRedirects: 0 });
     expect(response.status()).toBeLessThan(500);
