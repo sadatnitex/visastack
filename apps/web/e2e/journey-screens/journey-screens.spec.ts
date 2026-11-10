@@ -161,25 +161,32 @@ test.describe('case page card', () => {
   });
 });
 
-test.describe('evidence request form (as it is today)', () => {
-  test('every field has a name and the document list offers a typed-in name', async ({ page }) => {
+test.describe('evidence request form (the picker)', () => {
+  test('every field has a name, and the picker finds items by plain names and keeps a tray', async ({
+    page,
+  }) => {
     await openScreen(page, 'request');
     for (const name of [
       'Traveller',
       'Case',
-      'What do you need?',
-      'Which detail?',
+      'Search Documents and Details',
       'Message (Optional)',
       'Due Date (Optional)',
     ]) {
       await expect(page.getByLabel(name, { exact: true })).toBeVisible();
     }
-    await page.getByLabel('What do you need?').selectOption('DOCUMENT');
-    await expect(page.getByLabel('Which document?')).toBeVisible();
-    await page
-      .getByLabel('Which document?')
-      .selectOption({ label: 'Something Else (Type Its Name)' });
-    await expect(page.getByLabel('Name of the other document')).toBeVisible();
+    await expect(page.getByText('Selected (0)')).toBeVisible();
+    await page.getByLabel('Search Documents and Details').fill('nid');
+    await page.getByRole('checkbox', { name: 'National ID Card' }).check();
+    await page.getByLabel('Search Documents and Details').fill('something else');
+    await page.getByRole('checkbox', { name: 'Other Document' }).check();
+    await expect(page.getByText('Selected (2)')).toBeVisible();
+    await page.getByRole('button', { name: 'Remove National ID Card' }).click();
+    await expect(page.getByText('Selected (1)')).toBeVisible();
+    await page.getByLabel('Search Documents and Details').fill('zzzz');
+    await expect(
+      page.getByText('Not in the list? Choose Other Document and explain in the message.'),
+    ).toBeVisible();
   });
 
   test('it can be filled and sent from the keyboard alone, and the answer is announced', async ({
@@ -191,7 +198,8 @@ test.describe('evidence request form (as it is today)', () => {
     await page
       .getByLabel('Traveller', { exact: true })
       .selectOption({ label: 'Specimen Traveller' });
-    await page.getByLabel('Which detail?').selectOption({ index: 1 });
+    await page.getByLabel('Search Documents and Details').fill('solvency');
+    await page.getByRole('checkbox', { name: 'Bank Solvency Certificate' }).check();
     await page.getByLabel('Message (Optional)').fill('Needed for the visa form');
     await page.keyboard.press('Enter');
     await expect(page.getByText('Test fixture: nothing was changed.')).toBeVisible();

@@ -200,10 +200,15 @@ describe('agency Clients', () => {
   });
 
   it('gives the evidence request form the applicants and only the case fields it needs', async () => {
-    const [form] = stubProps<{ applicants: unknown; missions: unknown }>(
-      await renderServer(Page(props)),
-      'RequestEvidenceForm',
-    );
+    const [form] = stubProps<{
+      applicants: unknown;
+      missions: unknown;
+      picker: unknown;
+      missing?: unknown;
+    }>(await renderServer(Page(props)), 'RequestEvidenceForm');
+    // The picker list is there; no case is chosen yet, so there is no "Missing for This Case".
+    expect(form?.picker).toBeDefined();
+    expect(form?.missing).toBeUndefined();
     expect(form?.applicants).toEqual([{ id: 'ap1', displayName: 'Rahim Uddin' }]);
     expect(form?.missions).toEqual([
       { missionId: 'm1', title: 'UK Visitor', applicantName: 'Rahim Uddin' },

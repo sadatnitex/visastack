@@ -1,6 +1,8 @@
 import { ActivityLog, type ActivityLogEntry } from '../../src/components/activity-log';
 import { Icon } from '../../src/components/icons';
+import { GroupedList, ListRow } from '../../src/components/list-pattern';
 import { ShowMore } from '../../src/components/show-more';
+import { documentMark } from '../../src/lib/item-icons';
 
 /**
  * WP-SB3 scroll budget fixture: the capped parts of the sharing, insights, evidence and shared
@@ -211,33 +213,34 @@ function Evidence({ total, shown }: { total: number; shown: number }) {
   return (
     <>
       <Header
-        title="Evidence Requests"
-        description="An agency request is that organisation asking you for something, never an official visa requirement on its own."
+        title="Requests from Agencies"
+        description="An agency is asking you for this. It is not a government rule."
       />
-      <article className="card">
-        <div className="rows">
-          {rows(shown).map((n) => (
-            <div
-              className="case-row request-item request-item-neutral lc-card-finished lc-request"
-              key={n}
-            >
-              <div className="case-row-head">
-                <span className="lc-card-name">
-                  <span className="lift-action-tile" aria-hidden="true">
-                    <Icon name="file" size={20} />
-                  </span>
-                  <span className="case-row-title" id={`evidence-row-${n + 1}`}>
-                    {`Document: Bank Statement ${n + 1}`}
-                  </span>
-                </span>
-                <span className="case-row-badges">
-                  <span className="badge badge-success lift-pill lift-pill-md">Reviewed</span>
-                </span>
-              </div>
-              <p className="case-row-meta lc-card-reason u-m-0">Accepted by the agency.</p>
-            </div>
-          ))}
-        </div>
+      <div className="req-list">
+        <GroupedList
+          level={2}
+          groups={[
+            {
+              id: 'evidence-requests-finished',
+              heading: 'Finished',
+              count: shown,
+              tone: 'neutral',
+              open: true,
+              children: rows(shown).map((n) => (
+                <ListRow
+                  key={n}
+                  id={`r${n}`}
+                  name={`Document: Bank Statement ${n + 1}`}
+                  tone="success"
+                  status="Reviewed"
+                  mark={documentMark('Bank Statement')}
+                  openHref={`?item=r${n}`}
+                  nameId={`evidence-row-${n + 1}`}
+                />
+              )),
+            },
+          ]}
+        />
         <ShowMore
           id="evidence-requests-more"
           pathname="/app/applicant/a1/evidence"
@@ -247,7 +250,7 @@ function Evidence({ total, shown }: { total: number; shown: number }) {
           noun={{ one: 'request', other: 'requests' }}
           landOn={`evidence-row-${shown + 1}`}
         />
-      </article>
+      </div>
     </>
   );
 }

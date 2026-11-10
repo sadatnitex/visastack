@@ -5,6 +5,7 @@ import { Icon } from '../../../../components/icons';
 import { GroupedList, ListRow, type PaneEntry } from '../../../../components/list-pattern';
 import { SectionCard } from '../../../../components/ui-lift';
 import { formatDateOnly } from '../../../../lib/format-date';
+import { FIELD_MARK, documentMark } from '../../../../lib/item-icons';
 import { CaseItemPane } from './case-item-pane';
 import { itemAction, itemNecessity, itemStatus } from './case-item-view';
 import {
@@ -110,6 +111,7 @@ export function CaseChecklist({
         name={requirementLabel(r) || '(unnamed)'}
         tone={status.tone}
         status={status.word}
+        mark={r.kind === 'DOCUMENT' ? documentMark(r.key) : FIELD_MARK}
         tag={itemNecessity(r)}
         action={itemAction(r, applicantId)}
         openHref={itemHref(r.packRequirementId)}

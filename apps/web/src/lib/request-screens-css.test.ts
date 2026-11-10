@@ -82,7 +82,8 @@ describe('every class the request screens use is defined', () => {
   it('defines each request-* class, and each triage tone class, in the block', () => {
     const used = new Set<string>();
     for (const file of files) {
-      const source = readFileSync(join(SRC, file), 'utf8');
+      // A module path (`./request-panes`) is an import, not a class.
+      const source = readFileSync(join(SRC, file), 'utf8').replace(/from '[^']*'/g, '');
       for (const match of source.matchAll(/\brequest-[a-z-]+\b/g)) used.add(match[0]);
     }
     // Tone classes are built from the colour family at run time.

@@ -640,9 +640,15 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
   {
     screen: 'evidence',
     from: { kind: 'heading', name: 'Requests from Agencies', detail: '2' },
-    to: { kind: 'heading', name: 'Evidence Requests', detail: '1' },
+    to: { kind: 'heading', name: 'Requests from Agencies', detail: '1' },
     reason:
-      'D3 and D2: the page is "Evidence Requests", eyebrow the traveller\'s name, as the one page heading.',
+      'D3 and D2, then owner 10 Nov 2026 (friction register E7): the page is "Requests from Agencies", eyebrow the traveller\'s name, as the one page heading.',
+  },
+  {
+    screen: 'evidence',
+    from: { kind: 'heading', name: 'Evidence Requests', detail: '1' },
+    to: { kind: 'heading', name: 'Requests from Agencies', detail: '1' },
+    reason: 'Owner, 10 Nov 2026 (friction register E7): the page title says who is asking.',
   },
   {
     screen: 'evidence',
@@ -1312,6 +1318,16 @@ export const APPROVED_RULES: readonly ApprovedRule[] = [
     alternatives: (entry) => {
       const name = travellerWords(entry.name);
       return name === entry.name ? [] : [{ ...entry, name }];
+    },
+  },
+  {
+    screens: ['evidence'],
+    reason:
+      "Owner, 10 Nov 2026 (familiar pattern F3): the agency's reason is the first message of the conversation in the request's panel, in the agency's own words, with its time. The line \"Why it is needed\" that quoted it is that message.",
+    alternatives: (entry) => {
+      const quoted =
+        entry.kind === 'text' ? entry.name.match(/^Why it is needed: \u201c(.*)\u201d$/) : null;
+      return quoted?.[1] ? [{ ...entry, name: quoted[1] }] : [];
     },
   },
   {

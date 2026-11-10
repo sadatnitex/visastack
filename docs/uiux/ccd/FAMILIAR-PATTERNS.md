@@ -55,4 +55,4 @@ Rules each one follows:
 
 - Trips list card: it works like an order card in Foodpanda or Pathao: a round picture (the flag), the name, a coloured status chip, a progress bar and one next step, and the whole card opens the case. Estimated familiar.
 - Country flag: a round flag beside the country name, as in Wise and bKash country lists, on the Trips list, Home cards, the case page, Countries and the destination box. Estimated familiar.
-- Registry: two rows added. Estimated weighted share 57.9 percent before, 60.5 percent after (36 to 38 rows). An estimate from reading the code, not measured with people.
+- Registry: two rows added. Estimated weighted share 63.1 percent before, 65.3 percent after (37 to 39 rows). An estimate from reading the code, not measured with people.

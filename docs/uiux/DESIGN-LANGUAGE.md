@@ -47,3 +47,15 @@ One scale for the whole signed-in workspace, set once on the frame (`WP-PLAIN-TY
 Icons beside the 14 navigation and menu text are 18; other icons keep their own size until their screen is moved onto the scale. The brand name is a logotype and keeps its own size. A row is larger than the note under it and not larger than the title above it, always. `e2e/type-scale.spec.ts` draws the real sidebar, toolbar and case workspace and fails on any visible text off this scale, on a navigation label or a button that is not 14, and on an icon in the sidebar that is not 18.
 
 A card can name its kind by tone (`tone` on the section card): only the slice rule and the line above the heading take the colour. A tone on a fixed card is a kind (blue, violet, teal), never a state: green, amber and red are kept for what a thing says about itself.
+
+## Pictures that say what a thing is, 10 Nov 2026 (owner decision, P13)
+
+Owner, 10 Nov 2026: things "talk loudly ... like flags"; symbols, icons and art make the system "far more intuitive and self-explanatory". This supersedes rule 2 ("a rounded square tile behind an icon, repeated on every row") and rule 7 ("an icon on every item") of "What we do not draw" above, which stay as history. The rule now:
+
+1. Meaning, never decoration: an icon appears only where it says what a thing is or what state it is in.
+2. Always beside its plain word. The icon is hidden from screen readers; the word is the name.
+3. One symbol, one meaning, the same on traveller and agency screens (`lib/item-icons.ts`).
+4. Colour only from the six Harbor tones: green, amber and red for state, blue, violet and teal for kind. No new colour value.
+5. Flat line icons in the style of `components/icons.tsx` (24px, same stroke and round caps, one accent slice), in soft tone tiles. No shadow, no gradient, no 3D. Countries are always flags.
+
+The other six things we do not draw (a tinted card repeated everywhere, a coloured line along a card's edge, a pill above every title, gradients and glass and emoji, three identical cards, decorative copy) still stand.

@@ -55,7 +55,7 @@ test.describe('WP-SB3 scroll budget', () => {
 
   test('evidence requests and the shared view list ten rows, then Show More', async ({ page }) => {
     await renderFixture(page, FIXTURE, { view: 'evidence', total: 30, shown: 10 });
-    await expect(page.locator('.request-item')).toHaveCount(10);
+    await expect(page.locator('[data-pattern="list-row"]')).toHaveCount(10);
     for (const viewport of ['phone', 'desktop'] as const) {
       await expectWithinBudget(page, { screens: 3, viewport });
     }

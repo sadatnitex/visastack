@@ -37,7 +37,8 @@ const HOUR_MS = 60 * 60 * 1000;
  */
 export const RATE_LIMITS = {
   GRANT_CREATE: { limit: 20, windowMs: 60 * 60 * 1000 },
-  EVIDENCE_REQUEST: { limit: 50, windowMs: 60 * 60 * 1000 },
+  // 100 an hour, charged per item: one send may carry up to 25 items (it was 50 when each send was one item).
+  EVIDENCE_REQUEST: { limit: 100, windowMs: 60 * 60 * 1000 },
   ORG_INVITATION_CREATE: { limit: 30, windowMs: HOUR_MS },
   ORG_INVITATION_CREATE_ORG: { limit: 100, windowMs: HOUR_MS },
   CLIENT_INVITATION_CREATE: { limit: 60, windowMs: HOUR_MS },
@@ -216,6 +217,8 @@ export interface CheckRateLimitInput {
    * tests are unaffected.
    */
   readonly label?: string;
+  /** How many actions this call stands for (default 1). A batch of N items charges N in one step. */
+  readonly cost?: number;
 }
 
 /**
@@ -232,9 +235,10 @@ export async function checkRateLimit(
   now: Date = new Date(),
 ): Promise<RateLimitDecision> {
   const windowStart = windowStartFor(now, config.windowMs);
+  const cost = Math.max(1, Math.floor(input.cost ?? 1));
   const rows = await db
     .insert(schema.rateLimitBuckets)
-    .values({ subjectId: input.subjectId, action: input.action, windowStart, count: 1 })
+    .values({ subjectId: input.subjectId, action: input.action, windowStart, count: cost })
     .onConflictDoUpdate({
       target: [
         schema.rateLimitBuckets.subjectId,
@@ -242,7 +246,7 @@ export async function checkRateLimit(
         schema.rateLimitBuckets.windowStart,
       ],
       set: {
-        count: sql`${schema.rateLimitBuckets.count} + 1`,
+        count: sql`${schema.rateLimitBuckets.count} + ${cost}`,
         updatedAt: sql`now()`,
       },
     })
@@ -299,8 +303,9 @@ export async function refundRateLimit(
   input: CheckRateLimitInput,
   config: RateLimitConfig,
   now: Date = new Date(),
+  amount = 1,
 ): Promise<void> {
-  await refundRateLimitWindow(db, input, windowStartFor(now, config.windowMs));
+  await refundRateLimitWindow(db, input, windowStartFor(now, config.windowMs), amount);
 }
 
 /**
@@ -312,10 +317,14 @@ export async function refundRateLimitWindow(
   db: Db,
   input: { readonly subjectId: string; readonly action: string },
   windowStart: Date,
+  amount = 1,
 ): Promise<void> {
   await db
     .update(schema.rateLimitBuckets)
-    .set({ count: sql`greatest(${schema.rateLimitBuckets.count} - 1, 0)`, updatedAt: sql`now()` })
+    .set({
+      count: sql`greatest(${schema.rateLimitBuckets.count} - ${Math.max(1, Math.floor(amount))}, 0)`,
+      updatedAt: sql`now()`,
+    })
     .where(
       and(
         eq(schema.rateLimitBuckets.subjectId, input.subjectId),

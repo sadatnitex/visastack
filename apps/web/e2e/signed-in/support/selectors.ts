@@ -26,8 +26,7 @@ export const VERIFIED_IN_SOURCE = {
   moreDetails: 'Add More Details (Optional)',
   requestEvidenceButton: 'Request Evidence',
   requestTravellerField: 'Traveller',
-  requestKindField: 'What do you need?',
-  requestKeyField: 'Which document?',
+  requestSearchField: 'Search Documents and Details',
   notFoundHeading: "We Couldn't Find That Page",
   signOut: 'Sign Out',
 } as const;

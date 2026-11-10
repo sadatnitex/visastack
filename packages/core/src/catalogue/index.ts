@@ -18,3 +18,4 @@ export * from './completion';
 export * from './report';
 export * from './field-policy';
 export * from './registry-shape';
+export * from './request-synonyms';

@@ -10,6 +10,7 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../components/form-feedback';
+import { PurposeSelect } from '../../../components/purpose-select';
 import { AboutDisclosure } from '../../../components/ui-lift';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../lib/case-choices';
 import { AUTHORITY_SENTENCE } from '../add-applicant-form';
@@ -320,27 +321,13 @@ export function GroupTripStartForm({
       <label className="label" htmlFor={`${id}-purpose`}>
         Why?
       </label>
-      <select
+      <PurposeSelect
         id={`${id}-purpose`}
-        name="purpose"
-        className="input"
+        purposes={purposes}
         value={purpose}
-        onChange={(e) => setPurpose(e.target.value)}
+        onChange={setPurpose}
         {...fieldProblem(state, 'purpose', messageId)}
-      >
-        <option value="" disabled>
-          Choose a Purpose
-        </option>
-        {purposes.map((group) => (
-          <optgroup key={group.family} label={group.label}>
-            {group.options.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+      />
       <TravellerChecklist
         legend="Who's Travelling?"
         travellers={travellers}
