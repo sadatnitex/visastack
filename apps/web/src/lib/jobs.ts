@@ -53,6 +53,7 @@ import {
   sweepCaseRetentionPurge,
   sweepExpiredAccountExportArtifacts,
   sweepExpiryReminders,
+  sweepGrantExpiryReminders,
   sweepHeldFiles,
   sweepInactiveAccountDeletionRequests,
   sweepInactiveAccountNotices,
@@ -384,6 +385,38 @@ export async function triggerNotificationSweeps(
   } catch (error) {
     reportServerError('triggerNotificationSweeps', error, { step: 'sweep pass failed' });
     return { tasks: empty, expiry: emptyExpiry, unavailable: true };
+  } finally {
+    await pool.end();
+  }
+}
+
+/**
+ * Reminds travellers (and an agency's owners and admins) a week before sharing ends, on its own
+ * short-lived pooled connection like the sweeps above. A failure is reported and never fails the
+ * other sweeps the same cron run does.
+ */
+export async function triggerGrantExpirySweep(
+  scope: SystemScope<'process-notification-sweeps'>,
+  options: { readonly limit?: number } = {},
+): Promise<SweepResult> {
+  const empty: SweepResult = { checked: 0, enqueued: 0 };
+  const connectionString = resolveDatabaseUrl(process.env);
+  if (!connectionString) {
+    console.error('[triggerGrantExpirySweep] database not configured');
+    return empty;
+  }
+  const { db, pool } = createPooledDb(connectionString);
+  pool.on('error', (error) => {
+    reportServerError('triggerGrantExpirySweep', error, { step: 'idle pool connection error' });
+  });
+  try {
+    const handle = db as unknown as Parameters<typeof sweepGrantExpiryReminders>[0];
+    return await sweepGrantExpiryReminders(handle, scope, new Date(), {
+      limit: Math.max(options.limit ?? 0, 500),
+    });
+  } catch (error) {
+    reportServerError('triggerGrantExpirySweep', error, { step: 'sweep failed' });
+    return empty;
   } finally {
     await pool.end();
   }

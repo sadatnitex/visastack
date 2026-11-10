@@ -42,6 +42,11 @@ import {
   presentApplicantCondition,
   presentDocumentCondition,
 } from './lifecycle/foundation';
+import {
+  AGENCY_ACCESS_ENDING_EVENT,
+  GRANT_ENDING_EVENT,
+  cancelQueuedNotificationsForResource,
+} from './notifications';
 import { recordProductEvent } from './product-events';
 import { RATE_LIMITS, checkRateLimit } from './rate-limit';
 
@@ -138,6 +143,23 @@ const GRANT_MAX_DURATION_DAYS = 90;
 
 /** PRD SHR-01: "Default duration is 30 days." Applied when the caller names no expiry at all, so a grant is never silently permanent. */
 const GRANT_DEFAULT_DURATION_DAYS = 30;
+
+/** How far one "Keep Sharing for 30 More Days" moves the end date. */
+export const GRANT_EXTENSION_DAYS = 30;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Where a grant ending at `current` ends after one extension: 30 days on top of its current end,
+ * never past 90 days from `now`, and never earlier than it already ends. Stacking on the current
+ * end keeps "30 more days" literally true at the 7-day reminder; the ceiling keeps the product's
+ * "90 days at most" promise. Plain millisecond arithmetic, the same as `createGrant`.
+ */
+export function extendedGrantEnd(current: Date, now: Date): Date {
+  const stacked = current.getTime() + GRANT_EXTENSION_DAYS * DAY_MS;
+  const ceiling = now.getTime() + GRANT_MAX_DURATION_DAYS * DAY_MS;
+  return new Date(Math.max(current.getTime(), Math.min(stacked, ceiling)));
+}
 
 /**
  * Create a pending, purpose-bound grant (applicant owner only).
@@ -508,6 +530,12 @@ async function ownerTransition(
       resourceType: 'grant',
       resourceId: grant.id,
     });
+    // Revoked: a still-queued "sharing ends soon" note would be about something that is over.
+    // Nothing else about the transition changes.
+    if (to === 'REVOKED') {
+      await cancelQueuedNotificationsForResource(tx, grant.id, GRANT_ENDING_EVENT);
+      await cancelQueuedNotificationsForResource(tx, grant.id, AGENCY_ACCESS_ENDING_EVENT);
+    }
     return ok(updated);
   });
 }
@@ -569,6 +597,118 @@ export async function resumeGrant(
     'ACTIVE',
     'GRANT_RESUMED',
   );
+}
+
+export interface ExtendGrantInput {
+  readonly grantId: string;
+  /**
+   * The end date the person was looking at when they tapped. If the grant no longer ends then
+   * (a double tap, or a second device, got there first), nothing is extended a second time.
+   */
+  readonly expectedExpiryAt?: Date;
+  /** Test seam: the clock. */
+  readonly now?: Date;
+}
+
+export interface ExtendGrantResult {
+  readonly grant: Grant;
+  /** False when nothing moved: already extended by an earlier tap, or already at the limit. */
+  readonly extended: boolean;
+  /** True when the grant already ends as late as sharing is allowed to run from today. */
+  readonly atLimit: boolean;
+}
+
+/**
+ * Keep sharing for 30 more days. Owner only: the proof must be MANAGE on the traveller record,
+ * which an agency, a delegate or a stranger can never hold, so none of them can extend (an
+ * agency cannot lengthen its own access). The grant must belong to that traveller; an unknown
+ * grant and another traveller's grant get the same `not_found`, so ids cannot be probed.
+ *
+ * Only a grant that is ACTIVE and still running can be extended. A paused one must be resumed
+ * first (resume is limited to its original validity, SHR-02), and a revoked, expired or ended one
+ * is over: sharing again is a new grant. The new end date is `extendedGrantEnd`; the update is
+ * compare-and-set on the end date that was read, so two taps move it once. Writes
+ * `GRANT_EXTENDED` with the old and new date, and drops queued "ends soon" notes for the old date.
+ */
+export async function extendGrant(
+  proof: AuthorizedApplicant<'MANAGE'>,
+  input: ExtendGrantInput,
+): Promise<Result<ExtendGrantResult, ServiceError>> {
+  const denied = ownerOnly(proof, 'MANAGE');
+  if (denied) return err(denied);
+  if (proof.resource.kind !== 'applicant') {
+    return err(serviceError('invalid', 'Choose the traveller whose sharing this is.'));
+  }
+  const db = proof.tx;
+  const applicantId = proof.applicant.id;
+  const grant = await loadGrant(db, input.grantId);
+  if (!grant || grant.applicantId !== applicantId) {
+    return err(serviceError('not_found', 'grant not found'));
+  }
+  const now = input.now ?? new Date();
+  if (grant.status === 'PAUSED') {
+    return err(serviceError('invalid', 'resume this grant before extending it'));
+  }
+  if (grant.status !== 'ACTIVE' || !grant.acceptedAt || grantHasEnded(grant, now.getTime())) {
+    return err(serviceError('invalid', 'this grant has already ended'));
+  }
+  const current = grant.expiryAt;
+  if (!current) {
+    return err(serviceError('invalid', 'this grant has no end date to extend'));
+  }
+  // The person was looking at another date: an earlier tap already moved this one.
+  if (input.expectedExpiryAt && input.expectedExpiryAt.getTime() !== current.getTime()) {
+    return ok({ grant, extended: false, atLimit: false });
+  }
+  const next = extendedGrantEnd(current, now);
+  if (next.getTime() === current.getTime()) {
+    return ok({ grant, extended: false, atLimit: true });
+  }
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .update(schema.grants)
+      .set({ expiryAt: next, updatedAt: now })
+      .where(
+        and(
+          eq(schema.grants.id, grant.id),
+          eq(schema.grants.status, 'ACTIVE'),
+          eq(schema.grants.expiryAt, current),
+        ),
+      )
+      .returning();
+    const updated = first(rows);
+    if (!updated) {
+      // Lost the race to another tap or a pause or revoke: report what is true now.
+      const latest = await loadGrant(tx, grant.id);
+      if (latest && latest.status === 'ACTIVE' && latest.expiryAt) {
+        return ok({ grant: latest, extended: false, atLimit: false });
+      }
+      return err(serviceError('invalid', 'this grant has already ended'));
+    }
+    await appendAuditEvent(tx, {
+      eventType: 'GRANT_EXTENDED',
+      actorAccountId: proof.applicant.ownerAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId,
+      grantId: grant.id,
+      resourceType: 'grant',
+      resourceId: grant.id,
+      metadata: {
+        previousExpiryAt: current.toISOString(),
+        newExpiryAt: next.toISOString(),
+        days: Math.round((next.getTime() - current.getTime()) / DAY_MS),
+      },
+    });
+    // Notes queued for the old date are now wrong; the next date gets its own.
+    await cancelQueuedNotificationsForResource(tx, grant.id, GRANT_ENDING_EVENT);
+    await cancelQueuedNotificationsForResource(tx, grant.id, AGENCY_ACCESS_ENDING_EVENT);
+    return ok({
+      grant: updated,
+      extended: true,
+      atLimit: next.getTime() >= now.getTime() + GRANT_MAX_DURATION_DAYS * DAY_MS,
+    });
+  });
 }
 
 /** A grant directed at the current account, resolved with the subject's name. */

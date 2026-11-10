@@ -1,4 +1,5 @@
-import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { SystemScope } from './access';
 import { AuthorizedApplicant } from './access/require-access';
 import { type Db, schema } from './db';
 import { classifyExpiry, getReminderThresholds } from './expiry';
@@ -15,7 +16,11 @@ import {
   missionsSelectingDocument,
 } from './material-revision';
 import { titleDate } from './naming';
-import { enqueueNotificationBothChannels } from './notifications';
+import {
+  AGENCY_ACCESS_ENDING_EVENT,
+  GRANT_ENDING_EVENT,
+  enqueueNotificationBothChannels,
+} from './notifications';
 import { listRequirementDetails } from './pack-rule-details';
 import { recordProductEvent } from './product-events';
 import { INACTIVE_CASE_STATES, packageTablesPresent } from './umpe-package-tables';
@@ -197,6 +202,144 @@ export async function sweepTaskDeadlineReminders(
       }
     });
     enqueued++;
+  }
+  return { checked: rows.length, enqueued };
+}
+
+// --- Sharing ends soon sweep ------------------------------------------------
+
+/** The reminder window: from the day before a grant ends back to this many local days ahead. */
+export const GRANT_ENDING_REMINDER_DAYS = 7;
+
+/**
+ * More than one reminder per grant is never wanted, so a grant that runs for the reminder window
+ * or less in total (a short share on purpose) is not reminded on the day it starts.
+ */
+const GRANT_REMINDER_MIN_LENGTH_MS = GRANT_ENDING_REMINDER_DAYS * 24 * 60 * 60 * 1000;
+
+/** The coarse database filter: wider than the window so any time zone's local day still falls inside. */
+const GRANT_REMINDER_PREFILTER_MS = (GRANT_ENDING_REMINDER_DAYS + 2) * 24 * 60 * 60 * 1000;
+
+/** `YYYY-MM-DD` of a date in a time zone: the same local day always makes the same key. */
+function localDateKey(date: Date, timezone: string): string {
+  const { year, month, day } = toLocalDateParts(date, timezone);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/**
+ * A week before an active sharing grant ends, tell the traveller who owns it, and for an agency's
+ * grant the agency's active owners and admins too, in the app and by email. Fires on any local day
+ * from 7 down to 1 days ahead (so a missed run is caught up), but the key is the local end date,
+ * so each end date is reminded once: extending the grant moves the date and earns a new reminder.
+ *
+ * Only ACTIVE, accepted grants with an end date still ahead are looked at. A paused one is not
+ * reminded (it cannot be extended until it is resumed), and revoked, pending or ended ones are
+ * over. The agency's note is checked again when sent (the grant must still reach the case), so a
+ * pause or revoke in between stops it. Grants with no end date have nothing to remind about.
+ */
+export async function sweepGrantExpiryReminders(
+  db: Db,
+  scope: SystemScope<'process-notification-sweeps'>,
+  now: Date,
+  options: { readonly limit?: number } = {},
+): Promise<SweepResult> {
+  if (!SystemScope.isGenuine(scope) || scope.job !== 'process-notification-sweeps') {
+    return { checked: 0, enqueued: 0 };
+  }
+  const grants = schema.grants;
+  const rows = await db
+    .select({
+      grantId: grants.id,
+      applicantId: grants.applicantId,
+      missionId: grants.missionId,
+      organizationId: grants.recipientOrganizationId,
+      expiryAt: grants.expiryAt,
+      acceptedAt: grants.acceptedAt,
+      startAt: grants.startAt,
+      ownerAccountId: schema.applicants.ownerAccountId,
+      applicantName: schema.applicants.displayName,
+      timezone: schema.applicants.timezone,
+      organizationName: schema.organizations.name,
+      recipientEmail: schema.accounts.email,
+    })
+    .from(grants)
+    .innerJoin(schema.applicants, eq(schema.applicants.id, grants.applicantId))
+    .leftJoin(schema.organizations, eq(schema.organizations.id, grants.recipientOrganizationId))
+    .leftJoin(schema.accounts, eq(schema.accounts.id, grants.recipientAccountId))
+    .where(
+      and(
+        eq(grants.status, 'ACTIVE'),
+        isNotNull(grants.acceptedAt),
+        isNotNull(grants.expiryAt),
+        gt(grants.expiryAt, now),
+        lte(grants.expiryAt, new Date(now.getTime() + GRANT_REMINDER_PREFILTER_MS)),
+        (await lifecycleTablesPresent(db)) ? presentApplicantCondition() : undefined,
+      ),
+    )
+    .orderBy(asc(grants.expiryAt), asc(grants.id))
+    .limit(options.limit ?? 500);
+
+  let enqueued = 0;
+  for (const row of rows) {
+    const expiryAt = row.expiryAt;
+    if (!expiryAt) continue;
+    const daysLeft = localDateDiffInDays(now, expiryAt, row.timezone);
+    if (daysLeft < 1 || daysLeft > GRANT_ENDING_REMINDER_DAYS) continue;
+    const startedAt = row.acceptedAt ?? row.startAt;
+    if (expiryAt.getTime() - startedAt.getTime() <= GRANT_REMINDER_MIN_LENGTH_MS) continue;
+
+    const day = titleDate(expiryAt, row.timezone);
+    const threshold = `ends_7d:${localDateKey(expiryAt, row.timezone)}`;
+    const recipientLabel =
+      row.organizationName ?? row.recipientEmail ?? 'the person you shared with';
+
+    enqueued += await db.transaction(async (tx) => {
+      let written = await enqueueNotificationBothChannels(tx, {
+        eventType: GRANT_ENDING_EVENT,
+        resourceId: row.grantId,
+        recipientAccountId: row.ownerAccountId,
+        threshold,
+        applicantId: row.applicantId,
+        payload: {
+          subject: 'Your Sharing Ends Soon',
+          summary: `Your sharing with ${recipientLabel} ends on ${day}. You can keep it going for 30 more days.`,
+          deepLinkPath: `/app/applicant/${row.applicantId}/sharing#extend-grant-${row.grantId}`,
+        },
+      });
+      const organizationId = row.organizationId;
+      if (organizationId) {
+        const admins = await tx
+          .select({ accountId: schema.memberships.accountId })
+          .from(schema.memberships)
+          .where(
+            and(
+              eq(schema.memberships.organizationId, organizationId),
+              eq(schema.memberships.active, true),
+              inArray(schema.memberships.role, ['OWNER', 'ADMIN']),
+            ),
+          );
+        for (const admin of admins) {
+          written += await enqueueNotificationBothChannels(tx, {
+            eventType: AGENCY_ACCESS_ENDING_EVENT,
+            resourceId: row.grantId,
+            recipientAccountId: admin.accountId,
+            threshold,
+            applicantId: row.applicantId,
+            organizationId,
+            // A case-scoped grant is rechecked against that case when the note is sent.
+            ...(row.missionId ? { missionId: row.missionId } : {}),
+            payload: {
+              subject: 'Client Access Ends Soon',
+              summary: `Access to ${row.applicantName} ends on ${day}. The traveller can extend it.`,
+              deepLinkPath: row.missionId
+                ? `/app/agency/${organizationId}/cases#mission-${row.missionId}`
+                : `/app/agency/${organizationId}/cases`,
+            },
+          });
+        }
+      }
+      return written;
+    });
   }
   return { checked: rows.length, enqueued };
 }

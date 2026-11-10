@@ -125,7 +125,16 @@ export type NotificationEventType =
   // UMPE P11: a newer checklist was published for a traveller's active case; one note per impact.
   | typeof RULE_CHANGED_EVENT
   // UMPE G4: a family file has waited 7 days for Which Person?; for the uploading account only.
-  | typeof HELD_FILE_REMINDER_EVENT;
+  | typeof HELD_FILE_REMINDER_EVENT
+  // Sharing ends soon: one for the traveller who owns the grant, one for the agency's owners and
+  // admins when an agency holds it. Neither is a link that changes anything.
+  | typeof GRANT_ENDING_EVENT
+  | typeof AGENCY_ACCESS_ENDING_EVENT;
+
+/** The traveller's reminder, a week before a sharing grant they own ends. */
+export const GRANT_ENDING_EVENT = 'GRANT_ENDING_REMINDER';
+/** The agency's matching heads-up (owners and admins only): access to a client ends soon. */
+export const AGENCY_ACCESS_ENDING_EVENT = 'AGENCY_ACCESS_ENDING';
 
 // --- UMPE P4: trip package change notes ----------------------------------------------------------
 /** A note to a traveller that something changed for one of their trip packages (UMPE P4, R19). */
@@ -265,6 +274,8 @@ const ADMIN_NOTICE_LIST = [
   'AGENCY_COLLECTION_RESPONSE_SUBMITTED',
   // Lane D: evidence arrived on one of the agency's requests.
   'EVIDENCE_RESPONSE_RECEIVED',
+  // A client's sharing ends within a week: owners and admins only.
+  AGENCY_ACCESS_ENDING_EVENT,
 ];
 const BILLING_NOTICE_TYPES: ReadonlySet<string> = new Set(ADMIN_NOTICE_LIST);
 

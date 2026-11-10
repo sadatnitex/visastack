@@ -556,11 +556,16 @@ export {
   type RecipientFieldView,
   type RecipientWorkspaceView,
   type ScopeExpansionCandidate,
+  type ExtendGrantInput,
+  type ExtendGrantResult,
+  GRANT_EXTENSION_DAYS,
   acceptGrant,
   applyCaseSharingAnswers,
   createGrant,
   documentCategory,
   expandGrantScope,
+  extendGrant,
+  extendedGrantEnd,
   getRecipientWorkspace,
   grantReachesCase,
   listAccessForApplicant,
@@ -866,12 +871,15 @@ export {
   runNotificationWorker,
 } from './notifications';
 
+export { listAccessEndsForOrg } from './access-ends';
 export {
   type ExpirySweepResult,
   type SweepResult,
   computeTaskDeadlineThreshold,
   localDateDiffInDays,
+  GRANT_ENDING_REMINDER_DAYS,
   sweepExpiryReminders,
+  sweepGrantExpiryReminders,
   sweepTaskDeadlineReminders,
 } from './notification-sweep';
 export {

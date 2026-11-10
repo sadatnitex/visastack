@@ -5,9 +5,11 @@ const mocks = vi.hoisted(() => ({
   worker: vi.fn(),
   packages: vi.fn(),
   ruleImpacts: vi.fn(),
+  grants: vi.fn(),
   removals: vi.fn(),
 }));
 vi.mock('../../../../lib/jobs', () => ({
+  triggerGrantExpirySweep: mocks.grants,
   triggerNotificationSweeps: mocks.sweeps,
   triggerNotificationWorker: mocks.worker,
   triggerPackageChangeSweep: mocks.packages,
@@ -30,6 +32,7 @@ beforeEach(() => {
   vi.stubEnv('CRON_SECRET', 'synthetic-cron');
   mocks.worker.mockResolvedValue(undefined);
   mocks.removals.mockResolvedValue({ alerted: 0 });
+  mocks.grants.mockResolvedValue({ checked: 0, enqueued: 0 });
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -51,6 +54,16 @@ describe('daily notification sweeps (UMPE P4 package changes wired in)', () => {
       packages: { checked: 5, recorded: 1, complete: true },
       ruleImpacts: { runs: 1, casesFlagged: 2, notesQueued: 2, more: false },
     });
+  });
+
+  it('runs the sharing-ends-soon reminders under its own scope and reports them', async () => {
+    mocks.sweeps.mockResolvedValue({ queued: 0 });
+    mocks.packages.mockResolvedValue({ checked: 0, recorded: 0, complete: true });
+    mocks.ruleImpacts.mockResolvedValue({ runs: 0, casesFlagged: 0, notesQueued: 0, more: false });
+    mocks.grants.mockResolvedValue({ checked: 3, enqueued: 6 });
+    const response = await GET(authorized());
+    expect(mocks.grants).toHaveBeenCalledWith({ job: 'process-notification-sweeps' });
+    expect(await response.json()).toMatchObject({ grantReminders: { checked: 3, enqueued: 6 } });
   });
 
   it('does not reach the package sweep when the reminder sweep is unavailable', async () => {

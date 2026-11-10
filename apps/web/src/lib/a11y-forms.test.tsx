@@ -104,6 +104,7 @@ vi.mock('../app/app/applicant/[id]/section-actions', standIn);
 vi.mock('../app/app/applicant/[id]/evidence/actions', standIn);
 vi.mock('../app/app/applicant/[id]/missions/actions', standIn);
 vi.mock('../app/app/applicant/[id]/sharing/actions', standIn);
+vi.mock('../components/grant-expiry/extend-grant-action', standIn);
 vi.mock('../app/app/applicant/[id]/sharing/ai-connection-actions', standIn);
 vi.mock('../app/app/applicant/[id]/calendar/feed-actions', standIn);
 vi.mock('../app/app/client-invitations/accept/actions', standIn);
@@ -219,6 +220,7 @@ const { DocumentSuggestionCard } = await import(
 const { ProfileEditor } = await import('../app/app/applicant/[id]/profile-editor');
 const { GrantForm } = await import('../app/app/applicant/[id]/sharing/grant-form');
 const { GrantOpButtons } = await import('../app/app/applicant/[id]/sharing/grant-op-buttons');
+const { ExtendGrantButton } = await import('../components/grant-expiry/extend-grant-button');
 const { ScopeExpansionForm } = await import(
   '../app/app/applicant/[id]/sharing/scope-expansion-form'
 );
@@ -932,6 +934,9 @@ const SHARING: readonly Case[] = [
         { op: 'revoke', label: 'Stop sharing', variant: 'danger' },
       ]}
     />
+  )),
+  row('keep a share going for 30 more days', () => (
+    <ExtendGrantButton applicantId="a1" grantId={rowId()} expiresAt="2026-12-01T00:00:00.000Z" />
   )),
   row('turn off an AI app', () => (
     <AiConnectionTurnOff applicantId="a1" connectionId={rowId()} appName="Claude" />
