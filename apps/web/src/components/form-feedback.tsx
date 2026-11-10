@@ -1,6 +1,7 @@
 'use client';
 
-import { type CSSProperties, type ReactNode, type RefObject, useEffect } from 'react';
+import { type CSSProperties, type ReactNode, type RefObject, useEffect, useRef } from 'react';
+import { showToast } from './toast';
 import { UpgradeLine, type UpgradeLineKind } from './upgrade-line';
 
 /**
@@ -97,6 +98,11 @@ export function useFocusInvalidField(
  * conditional paragraph did; while empty both regions are taken out of the layout
  * (see `.field-msg:empty`) but stay in the page for assistive technology. `id` goes on
  * the failure text, the thing an invalid input should point to.
+ *
+ * A success that arrives after the page is showing is also echoed once in the done strip at the
+ * bottom of the screen (`ToastHost`), in the same words. The strip is only a visual echo: these
+ * regions stay the screen reader and no-script truth, and a failure is never echoed there. Pass
+ * `toast={false}` where a strip is wrong (a result that is already the whole point of the screen).
  */
 export function FormMessage({
   id,
@@ -105,6 +111,7 @@ export function FormMessage({
   pendingText,
   style,
   visuallyHidden = false,
+  toast = true,
 }: {
   readonly id?: string;
   readonly result: FormResult;
@@ -113,9 +120,12 @@ export function FormMessage({
   readonly style?: CSSProperties;
   /** Kept for screen readers only, while the same message is shown beside its field (`FieldError`). */
   readonly visuallyHidden?: boolean;
+  /** Whether a success is also echoed in the done strip. On by default. */
+  readonly toast?: boolean;
 }) {
   const failed = isFailure(result);
   const working = pending && pendingText !== undefined;
+  useSuccessToast(result, toast && !visuallyHidden);
   const status = working ? pendingText : failed ? '' : result.message;
   const tone = result.ok ? 'field-msg-ok' : 'field-msg-err';
   const hidden = visuallyHidden ? ' sr-only' : '';
@@ -135,6 +145,19 @@ export function FormMessage({
       </p>
     </>
   );
+}
+
+/**
+ * Echoes a success in the done strip, once per result and never for the result the form was first
+ * drawn with (that is the page's state, not something the person just did).
+ */
+function useSuccessToast(result: FormResult, enabled: boolean): void {
+  const seen = useRef(result);
+  useEffect(() => {
+    if (seen.current === result) return;
+    seen.current = result;
+    if (enabled && result.ok && result.message !== '') showToast(result.message);
+  }, [result, enabled]);
 }
 
 /**

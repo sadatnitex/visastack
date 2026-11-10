@@ -7756,3 +7756,14 @@ Docs only; no code, test, workflow or migration change. Started on main `b665fd4
 - Dropped: E5 ("Open WhatsApp" on a follow-up). The repo says WhatsApp text carries nothing from the record (`buildWhatsAppShare`, WORK-PACKAGES.md line 304), and the follow-up message names the traveller, the document and the case, which would be written into a wa.me address before any recipient is chosen; it needs the owner's word. E7 button and list rename (the e2e selectors, the agency home baseline and the traveller's "Evidence Requests" name all depend on them); E3 (chase requests with no due date) is left for a ranking change in `do-next.ts`.
 - Seeing a reply and marking it reviewed are unchanged (Clients, Evidence Requests, Accept): 3 steps from the case before and after.
 - Known cost, not changed: an administrator opening a case now receives both choice lists for the collapsed form (about 746 details and 216 documents, roughly 58 kB before compression), as Clients already does. Loading them only when the group opens would need a new read path and is left for the coordinator to decide.
+
+## UX mandate F1: familiar patterns (10 Nov 2026, branch claude/ux-f1-familiar-patterns)
+
+- Done strip (`components/toast.tsx`, hosted once in the workspace frame): `FormMessage` echoes a success that arrives after the page is showing, once per result, in the same words; the sharing done line does the same. Hidden from assistive technology and out of the tab order, so the existing message line and live region stay the single announcement. Errors never go there. Waits on pointer or focus, 4 seconds, Escape closes, motion only when the person has not asked for less.
+- Tab counts: `loadWorkspaceToolbarState` now also returns `unreadRequests`, counted from the same unread rows with a FILTER clause (no extra read). `lib/tab-badges.ts` puts request notices on Sharing & Requests and the rest on Home; the link name says "N new". A true "waiting on you" count is not built: it needs a new gated read on every page.
+- Case stages: `StepBar` adds a "Now: {stage}" headline; opening About Stages shows the steps down a line on a phone. No dates, no outcomes. Nothing on the case page itself was edited.
+- Code boxes: `components/code-input.tsx` (one real input drawn as boxes) on the staff authenticator code and the guest request code. The WhatsApp connect screen shows a code, it does not take one.
+- Floating Add on Documents (phone) already existed (#448); no change, registered in the ratchet.
+- Ratchet: `lib/ccd/familiar-registry.ts`, `familiar-baseline.json`, `familiar-conformance.test.tsx`. Estimated weighted familiar share 38.2 percent before, 52.9 percent after (audit rows alone: 37.5 percent). Three audit paths were wrong and are corrected (case search form, document uploader and collection link panel live under app/app).
+- Not verified: real phones, real screen readers, signed-in live pages.
+

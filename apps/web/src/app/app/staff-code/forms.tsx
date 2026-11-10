@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useId, useRef, useState } from 'react';
+import { CodeInput } from '../../../components/code-input';
 import {
   FormMessage,
   SubmitButton,
@@ -77,15 +78,11 @@ export function ConfirmEnrolmentForm({ returnTo }: { readonly returnTo: string }
         <label className="field-label" htmlFor={codeId}>
           6 Digit Code From Your App
         </label>
-        <input
+        <CodeInput
           id={codeId}
           name="code"
-          className="input"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="[0-9 ]*"
-          maxLength={10}
-          required
+          length={6}
+          pattern="[0-9]*"
           {...fieldProblem(state, 'code', messageId)}
         />
       </div>

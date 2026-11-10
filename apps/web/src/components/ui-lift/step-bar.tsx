@@ -21,13 +21,18 @@ export interface StepBarProps {
 }
 
 /**
- * The stages of a case as numbered steps joined by a line. Only the current stage is marked: no
- * earlier stage is ticked, because the page does not keep a history of finished stages. On a phone
- * the list collapses to the position words and a strip of segments.
+ * The stages of a case as numbered steps joined by a line, the way an order tracker shows where a
+ * parcel is. A "Now:" headline names the stage the case is in, with the position words and a strip
+ * of segments under it. Opening "About Stages" shows every step: in a row on a wide screen, down a
+ * line on a phone, with the current step marked. Only the current stage is marked: no earlier stage
+ * is ticked, because the page does not keep a history of finished stages, and it never predicts a
+ * date or an outcome.
  */
 export function StepBar({ ariaLabel, steps, apart = [], position, help }: StepBarProps) {
+  const now = [...steps, ...apart].find((step) => step.current)?.label;
   return (
     <section className="lift-steps" aria-label={ariaLabel}>
+      {now ? <p className="lift-steps-now">Now: {now}</p> : null}
       {position ? <p className="lift-steps-position">{position}</p> : null}
       <ol className="lift-steps-list">
         {steps.map((step) => (

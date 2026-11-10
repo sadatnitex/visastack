@@ -1572,7 +1572,11 @@ export {
   type WorkspaceSearchScope,
   type WorkspaceSearchResult,
 } from './workspace-search';
-export { loadWorkspaceToolbarState, type WorkspaceToolbarState } from './workspace-toolbar';
+export {
+  loadWorkspaceToolbarState,
+  REQUEST_NOTICE_EVENT_TYPES,
+  type WorkspaceToolbarState,
+} from './workspace-toolbar';
 export {
   getTravellerPlanSummary,
   listTravellerPlansForSale,

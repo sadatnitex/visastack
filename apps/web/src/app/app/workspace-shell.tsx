@@ -17,8 +17,10 @@ import {
 import { Icon, type IconName } from '../../components/icons';
 import { LinkPending, RouteProgress } from '../../components/link-pending';
 import { PersonAvatar } from '../../components/profile-photo/person-avatar';
+import { ToastHost } from '../../components/toast';
 import { isCurrentPath } from '../../lib/navigation';
 import { type SidebarState, saveSidebarState } from '../../lib/sidebar-preference';
+import { tabBadges } from '../../lib/tab-badges';
 import { useCloseOnOutsidePress, useMediaQuery } from '../../lib/use-popover';
 import {
   type WorkspaceAccess,
@@ -355,11 +357,13 @@ export function WorkspaceShell({
         data-sidebar={collapsed ? 'collapsed' : 'expanded'}
       >
         <RouteProgress />
+        <ToastHost />
         <AppNav
           links={nav.primary}
           accountLabel={accountName}
           sidebarCollapsed={collapsed}
           onToggleSidebar={toggleSidebar}
+          badges={tabBadges(nav.primary, toolbarState)}
           identity={
             <WorkspaceSelector
               // A fresh list each time the sidebar changes size, so none stays open across it.
