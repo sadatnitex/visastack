@@ -31,7 +31,7 @@ function draw(props: Partial<CaseListRowProps> = {}): HTMLElement {
 }
 
 const shape = (doc: HTMLElement) =>
-  [...(doc.querySelector('.case-row-body')?.children ?? [])].map((child) => child.className);
+  [...(doc.querySelector('.trip-card-body')?.children ?? [])].map((child) => child.className);
 
 describe('the status words of a case', () => {
   it('has a plain word and a colour for every stored stage, legacy ones included', () => {
@@ -60,7 +60,7 @@ describe('the status words of a case', () => {
     expect(caseStatus('READY_FOR_REVIEW').word).toBe('Agency Is Checking');
     expect(caseStatus('UNDER_REVIEW').word).toBe('Agency Is Checking');
     expect(caseStatus('READY_TO_EXPORT').word).toBe('Ready to Submit');
-    expect(caseStatus('LOCKED').word).toBe('Ready to Submit');
+    expect(caseStatus('LOCKED').word).toBe('Closed');
     for (const { word } of Object.values(CASE_STATUS)) expect(word).not.toMatch(/approv|grant/i);
   });
 
@@ -75,12 +75,12 @@ describe('a case row', () => {
     const long = draw({ title: `Family visit ${'to Japan and onwards '.repeat(20)}` });
     expect(shape(long)).toEqual(shape(short));
     for (const doc of [short, long]) {
-      const line = doc.querySelector('.case-row-chipline');
+      const line = doc.querySelector('.trip-card-chipline');
       expect(line?.children).toHaveLength(1);
       expect(line?.firstElementChild?.classList.contains('case-chip')).toBe(true);
       expect(line?.textContent).toBe('Gathering Documents');
       // The name sits on one line: the stylesheet cuts it, the markup keeps it whole.
-      expect(doc.querySelector('.case-row-title')?.textContent).toBe(
+      expect(doc.querySelector('.trip-card-title')?.textContent).toBe(
         doc === long ? `Family visit ${'to Japan and onwards '.repeat(20)}` : 'JP',
       );
     }
@@ -98,8 +98,8 @@ describe('a case row', () => {
 
   it('leaves a slot for the purpose icon in front of the purpose', () => {
     const doc = draw({ purposeIcon: <svg data-testid="purpose" aria-hidden="true" /> });
-    expect(doc.querySelector('.case-row-sub .case-row-purpose svg')).not.toBeNull();
-    expect(doc.querySelector('.case-row-sub')?.textContent).toBe('Japan \u00b7 Tourism');
+    expect(doc.querySelector('.trip-card-sub .trip-card-purpose svg')).not.toBeNull();
+    expect(doc.querySelector('.trip-card-sub')?.textContent).toBe('Japan \u00b7 Tourism');
   });
 
   it('is one link with one tab stop and one accessible name: case, stage and count', () => {
@@ -107,23 +107,28 @@ describe('a case row', () => {
     const links = doc.querySelectorAll('a');
     expect(links).toHaveLength(1);
     expect(links[0]?.getAttribute('href')).toBe('/app/mission/c1');
-    expect(links[0]?.getAttribute('aria-label')).toBe('Japan, Gathering Documents, 6 of 8 ready');
+    expect(links[0]?.getAttribute('aria-label')).toBe(
+      'Japan, Gathering Documents, 6 of 8 ready, Next: Add Passport',
+    );
     expect(doc.querySelectorAll('a, button, input, select, textarea, [tabindex]')).toHaveLength(1);
   });
 
   it('names the case and its stage when there is no count to say', () => {
     const none: CaseRowProgress = { kind: 'no-checklist' };
     expect(caseRowName('Korea', 'DRAFT', none)).toBe('Korea, Getting Started');
+    expect(caseRowName('Korea', 'DRAFT', none, 'Pick a Checklist')).toBe(
+      'Korea, Getting Started, Next: Pick a Checklist',
+    );
   });
 
   it('shows the country and the purpose on one muted line, and invents neither', () => {
-    expect(draw().querySelector('.case-row-sub')?.textContent).toBe('Japan · Tourism');
-    expect(draw({ purpose: null }).querySelector('.case-row-sub')?.textContent).toBe('Japan');
+    expect(draw().querySelector('.trip-card-sub')?.textContent).toBe('Japan · Tourism');
+    expect(draw({ purpose: null }).querySelector('.trip-card-sub')?.textContent).toBe('Japan');
     expect(
-      draw({ destination: null, iso2: null }).querySelector('.case-row-sub')?.textContent,
+      draw({ destination: null, iso2: null }).querySelector('.trip-card-sub')?.textContent,
     ).toBe('Tourism');
     expect(
-      draw({ destination: null, iso2: null, purpose: null }).querySelector('.case-row-sub'),
+      draw({ destination: null, iso2: null, purpose: null }).querySelector('.trip-card-sub'),
     ).toBeNull();
   });
 
@@ -131,22 +136,22 @@ describe('a case row', () => {
     const doc = draw();
     const bar = doc.querySelector<HTMLProgressElement>('progress.case-bar-track');
     expect(bar?.getAttribute('value')).toBe('75');
-    expect(doc.querySelector('.case-row-count')?.textContent).toBe('6 of 8 ready');
-    expect(doc.querySelector('.case-row-next')?.textContent).toBe('Next: Add Passport');
+    expect(doc.querySelector('.trip-card-count')?.textContent).toBe('6 of 8 ready');
+    expect(doc.querySelector('.trip-card-next')?.textContent).toBe('Next: Add Passport');
   });
 
   it('keeps a visible stub on a bar at zero', () => {
     const doc = draw({ progress: { kind: 'counted', done: 0, total: 5 } });
     expect(doc.querySelector('.case-bar')?.getAttribute('data-empty')).toBe('true');
-    expect(doc.querySelector('.case-row-count')?.textContent).toBe('0 of 5 ready');
+    expect(doc.querySelector('.trip-card-count')?.textContent).toBe('0 of 5 ready');
     expect(draw().querySelector('.case-bar')?.getAttribute('data-empty')).toBe('false');
   });
 
   it('with no checklist draws no bar and makes picking one the next step', () => {
     const doc = draw({ progress: { kind: 'no-checklist' }, nextStep: null });
     expect(doc.querySelector('progress')).toBeNull();
-    expect(doc.querySelector('.case-row-count')).toBeNull();
-    expect(doc.querySelector('.case-row-next')?.textContent).toBe('Next: Pick a Checklist');
+    expect(doc.querySelector('.trip-card-count')).toBeNull();
+    expect(doc.querySelector('.trip-card-next')?.textContent).toBe('Next: Pick a Checklist');
   });
 
   it('gives a closed or cancelled case no advice about what to do next', () => {
@@ -156,31 +161,31 @@ describe('a case row', () => {
       progress: { kind: 'no-checklist' },
       nextStep: 'Add Passport',
     });
-    expect(doc.querySelector('.case-row-next')).toBeNull();
+    expect(doc.querySelector('.trip-card-next')).toBeNull();
     expect(doc.textContent).not.toMatch(/pick a checklist/i);
     const counted = draw({ state: 'CANCELLED', past: true });
-    expect(counted.querySelector('.case-row-next')).toBeNull();
-    expect(counted.querySelector('.case-row-count')?.textContent).toBe('6 of 8 ready');
+    expect(counted.querySelector('.trip-card-next')).toBeNull();
+    expect(counted.querySelector('.trip-card-count')?.textContent).toBe('6 of 8 ready');
   });
 
   it('says why there is no count instead of making one up', () => {
     expect(
-      draw({ progress: { kind: 'none-required' } }).querySelector('.case-row-count')?.textContent,
+      draw({ progress: { kind: 'none-required' } }).querySelector('.trip-card-count')?.textContent,
     ).toBe('No required items');
     expect(
-      draw({ progress: { kind: 'unread' } }).querySelector('.case-row-count')?.textContent,
+      draw({ progress: { kind: 'unread' } }).querySelector('.trip-card-count')?.textContent,
     ).toBe('Open the case to see its progress.');
   });
 
   it('shows no next step when nothing required is missing', () => {
-    expect(draw({ nextStep: null }).querySelector('.case-row-next')).toBeNull();
+    expect(draw({ nextStep: null }).querySelector('.trip-card-next')).toBeNull();
   });
 
   it('draws the flag for the destination, and a plain globe for text that names no country', () => {
     expect(draw().querySelector('.country-flag')?.getAttribute('data-size')).toBe('lg');
     const unknown = draw({ destination: 'Not sure yet', iso2: null });
     expect(unknown.querySelector('.country-flag-unknown')).not.toBeNull();
-    expect(unknown.querySelector('.case-row-sub')?.textContent).toContain('Not sure yet');
+    expect(unknown.querySelector('.trip-card-sub')?.textContent).toContain('Not sure yet');
   });
 
   it('has no accessibility violations in its states', async () => {

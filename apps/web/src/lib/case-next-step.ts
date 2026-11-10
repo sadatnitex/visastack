@@ -21,8 +21,16 @@ const VERB: Readonly<Record<MissingRequirement['reason'], string>> = {
   stale_evidence: 'Update',
 };
 
+/** A group of alternatives is met by any one member, so it names them all (up to three) rather than one. */
+function stepTarget(item: MissingRequirement): string {
+  const members = item.alternatives ?? [];
+  if (members.length < 2) return nextStepName(item);
+  const names = members.slice(0, 3).map(nextStepName);
+  return members.length > 3 ? `${names.slice(0, 2).join(' or ')} or Another` : names.join(' or ');
+}
+
 export function nextStepFor(missing: readonly MissingRequirement[] | undefined): string | null {
   const first = (missing ?? []).find((item) => !item.optional);
   if (!first) return null;
-  return `${VERB[first.reason]} ${nextStepName(first)}`;
+  return `${VERB[first.reason]} ${stepTarget(first)}`;
 }

@@ -20328,7 +20328,7 @@ html:has(.sticky-action-bar) .toast-region {
   margin: 0;
   padding: 0;
 }
-.case-row {
+.trip-card {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 20px;
   align-items: start;
@@ -20341,25 +20341,25 @@ html:has(.sticky-action-bar) .toast-region {
   color: inherit;
   text-decoration: none;
 }
-.case-row:hover {
+.trip-card:hover {
   border-color: var(--brand);
   background: var(--brand-tint-1);
 }
-.case-row-flag {
+.trip-card-flag {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 44px;
   height: 44px;
 }
-.case-row-body {
+.trip-card-body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-1);
   min-width: 0;
 }
-.case-row-title {
+.trip-card-title {
   display: block;
   max-width: 100%;
   overflow: hidden;
@@ -20370,7 +20370,7 @@ html:has(.sticky-action-bar) .toast-region {
   line-height: 1.3;
   color: var(--text);
 }
-.case-row-sub {
+.trip-card-sub {
   display: block;
   max-width: 100%;
   overflow: hidden;
@@ -20379,7 +20379,7 @@ html:has(.sticky-action-bar) .toast-region {
   font-size: var(--text-small);
   color: var(--text-secondary);
 }
-.case-row-chipline {
+.trip-card-chipline {
   display: flex;
   margin-top: var(--space-1);
 }
@@ -20408,7 +20408,7 @@ html:has(.sticky-action-bar) .toast-region {
   background: var(--tone);
   color: #ffffff;
 }
-.case-row-progress {
+.trip-card-progress {
   display: flex;
   align-items: center;
   align-self: stretch;
@@ -20455,12 +20455,12 @@ html:has(.sticky-action-bar) .toast-region {
   border-radius: 50%;
   background: var(--brand);
 }
-.case-row-count {
+.trip-card-count {
   font-size: var(--text-small);
   font-weight: 650;
   color: var(--text);
 }
-.case-row-next {
+.trip-card-next {
   display: block;
   max-width: 100%;
   margin-top: var(--space-1);
@@ -20471,7 +20471,7 @@ html:has(.sticky-action-bar) .toast-region {
   font-weight: 700;
   color: var(--brand);
 }
-.case-row-chevron {
+.trip-card-chevron {
   align-self: center;
   color: var(--text-tertiary);
 }
@@ -20508,7 +20508,7 @@ html:has(.sticky-action-bar) .toast-region {
   margin-top: var(--space-3);
 }
 @media (min-width: 720px) {
-  .case-row {
+  .trip-card {
     gap: var(--space-5);
     padding: var(--space-4) var(--space-5);
   }
@@ -20523,7 +20523,7 @@ html:has(.sticky-action-bar) .toast-region {
   align-items: center;
   gap: var(--space-2);
 }
-.case-row-purpose,
+.trip-card-purpose,
 .country-flag-purpose {
   display: inline-flex;
   align-items: center;

@@ -43,6 +43,8 @@ export function platformLacksFlagEmoji(platform: {
   readonly userAgent?: string | undefined;
   readonly platform?: string | undefined;
 }): boolean {
+  // Firefox brings its own flag font to Windows; every other browser there shows two letters.
+  if (/firefox\//i.test(platform.userAgent ?? '')) return false;
   return /windows/i.test(platform.platform ?? '') || /windows/i.test(platform.userAgent ?? '');
 }
 

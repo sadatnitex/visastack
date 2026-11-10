@@ -52,6 +52,13 @@ describe('the flag code', () => {
     expect(platformLacksFlagEmoji({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' })).toBe(
       true,
     );
+    expect(
+      platformLacksFlagEmoji({
+        userAgent:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0',
+        platform: 'Windows',
+      }),
+    ).toBe(false);
     expect(platformLacksFlagEmoji({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X)' })).toBe(
       false,
     );

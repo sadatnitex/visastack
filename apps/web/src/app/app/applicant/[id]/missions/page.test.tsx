@@ -103,7 +103,7 @@ const parse = (html: string) => new JSDOM(html).window.document;
 const section = (doc: Document, name: string) =>
   doc.querySelector<HTMLElement>(`[data-case-group="${name}"]`);
 const titlesIn = (element: HTMLElement | null) =>
-  [...(element?.querySelectorAll('.case-row-title') ?? [])].map((node) =>
+  [...(element?.querySelectorAll('.trip-card-title') ?? [])].map((node) =>
     (node.textContent ?? '').trim(),
   );
 
@@ -236,19 +236,21 @@ describe('Active and Past Trips (LC-G2, P12)', () => {
     const doc = parse(await render());
     const jp = doc.querySelector('[data-case-id="jp"]') as HTMLElement;
     expect(jp.getAttribute('href')).toBe('/app/mission/jp');
-    expect(jp.getAttribute('aria-label')).toBe('Tokyo Trip, Gathering Documents, 6 of 8 ready');
+    expect(jp.getAttribute('aria-label')).toBe(
+      'Tokyo Trip, Gathering Documents, 6 of 8 ready, Next: Add Bank Statement',
+    );
     expect(jp.querySelector('.country-flag')?.getAttribute('data-size')).toBe('lg');
-    expect(jp.querySelector('.case-row-sub')?.textContent).toBe('Japan \u00b7 Tourism');
-    expect(jp.querySelector('.case-row-count')?.textContent).toBe('6 of 8 ready');
-    expect(jp.querySelector('.case-row-next')?.textContent).toBe('Next: Add Bank Statement');
+    expect(jp.querySelector('.trip-card-sub')?.textContent).toBe('Japan \u00b7 Tourism');
+    expect(jp.querySelector('.trip-card-count')?.textContent).toBe('6 of 8 ready');
+    expect(jp.querySelector('.trip-card-next')?.textContent).toBe('Next: Add Bank Statement');
     // No checklist: no bar, picking one is the step; a destination that names no country has no flag.
     const kr = doc.querySelector('[data-case-id="kr"]') as HTMLElement;
     expect(kr.querySelector('progress')).toBeNull();
-    expect(kr.querySelector('.case-row-next')?.textContent).toBe('Next: Pick a Checklist');
+    expect(kr.querySelector('.trip-card-next')?.textContent).toBe('Next: Pick a Checklist');
     expect(kr.querySelector('.country-flag-unknown')).not.toBeNull();
     // A finished case gets no advice.
     const old = doc.querySelector('[data-case-id="old"]') as HTMLElement;
-    expect(old.querySelector('.case-row-next')).toBeNull();
+    expect(old.querySelector('.trip-card-next')).toBeNull();
     expect(section(doc, 'past')?.textContent).not.toContain('Pick a Checklist');
   });
 

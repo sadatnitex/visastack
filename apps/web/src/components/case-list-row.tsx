@@ -47,10 +47,16 @@ const HARBOR_TONE: Readonly<Record<string, string>> = {
   info: 'blue',
 };
 
-/** The link's one accessible name: the case, its stage and its count. */
-export function caseRowName(title: string, state: string, progress: CaseRowProgress): string {
+/** The link's one accessible name: the case, its stage, its count, and the next step when there is one. */
+export function caseRowName(
+  title: string,
+  state: string,
+  progress: CaseRowProgress,
+  step: string | null = null,
+): string {
   const parts = [title, caseStatus(state).word];
   if (progress.kind === 'counted') parts.push(caseRowProgressWords(progress.done, progress.total));
+  if (step) parts.push(`Next: ${step}`);
   return parts.join(', ');
 }
 
@@ -58,11 +64,11 @@ function Progress({ progress }: { readonly progress: CaseRowProgress }) {
   if (progress.kind === 'counted') {
     const percent = progressRingPercent(progress.done, progress.total);
     return (
-      <span className="case-row-progress" data-progress="counted">
+      <span className="trip-card-progress" data-progress="counted">
         <span className="case-bar" data-empty={percent === 0 ? 'true' : 'false'} aria-hidden="true">
           <progress className="case-bar-track" max={100} value={percent} />
         </span>
-        <span className="case-row-count" data-value="count">
+        <span className="trip-card-count" data-value="count">
           {caseRowProgressWords(progress.done, progress.total)}
         </span>
       </span>
@@ -70,8 +76,8 @@ function Progress({ progress }: { readonly progress: CaseRowProgress }) {
   }
   if (progress.kind === 'none-required') {
     return (
-      <span className="case-row-progress" data-progress="none-required">
-        <span className="case-row-count" data-value="count">
+      <span className="trip-card-progress" data-progress="none-required">
+        <span className="trip-card-count" data-value="count">
           {NO_REQUIRED_LABEL}
         </span>
       </span>
@@ -79,8 +85,8 @@ function Progress({ progress }: { readonly progress: CaseRowProgress }) {
   }
   if (progress.kind === 'unread') {
     return (
-      <span className="case-row-progress" data-progress="unread">
-        <span className="case-row-count" data-value="count">
+      <span className="trip-card-progress" data-progress="unread">
+        <span className="trip-card-count" data-value="count">
           {PROGRESS_IN_CASE_LINE}
         </span>
       </span>
@@ -115,32 +121,32 @@ export function CaseListRow({
   return (
     <li className="case-list-item">
       <Link
-        className="case-row"
+        className="trip-card"
         href={href}
-        aria-label={caseRowName(title, state, progress)}
-        data-pattern="case-row"
+        aria-label={caseRowName(title, state, progress, step)}
+        data-pattern="trip-card"
         data-case-id={id}
       >
-        <span className="case-row-flag">
+        <span className="trip-card-flag">
           <CountryFlag iso2={iso2} name={destination} size="lg" decorative />
         </span>
-        <span className="case-row-body">
-          <span className="case-row-title" data-value="name">
+        <span className="trip-card-body">
+          <span className="trip-card-title" data-value="name">
             {title}
           </span>
           {country || purposeText ? (
-            <span className="case-row-sub" data-value="meta">
+            <span className="trip-card-sub" data-value="meta">
               {country}
               {country && purposeText ? ' \u00b7 ' : null}
               {purposeText ? (
                 <>
-                  {purposeIcon ? <span className="case-row-purpose">{purposeIcon}</span> : null}
+                  {purposeIcon ? <span className="trip-card-purpose">{purposeIcon}</span> : null}
                   {purposeText}
                 </>
               ) : null}
             </span>
           ) : null}
-          <span className="case-row-chipline">
+          <span className="trip-card-chipline">
             <span
               className="case-chip"
               data-case-tone={status.tone}
@@ -152,12 +158,12 @@ export function CaseListRow({
           </span>
           <Progress progress={progress} />
           {step ? (
-            <span className="case-row-next" data-value="next">
+            <span className="trip-card-next" data-value="next">
               Next: {step}
             </span>
           ) : null}
         </span>
-        <span className="case-row-chevron" aria-hidden="true">
+        <span className="trip-card-chevron" aria-hidden="true">
           <Icon name="chevron" size={20} />
         </span>
       </Link>

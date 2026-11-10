@@ -46,16 +46,16 @@ describe('the Trips list block', () => {
 
   it('keeps the card on a fixed grid so a long name never moves the chip', () => {
     expect(rules).toMatch(
-      /\.case-row\s*\{[^}]*grid-template-columns:\s*44px minmax\(0, 1fr\) 20px/,
+      /\.trip-card\s*\{[^}]*grid-template-columns:\s*44px minmax\(0, 1fr\) 20px/,
     );
-    expect(rules).toMatch(/\.case-row-title\s*\{[^}]*white-space:\s*nowrap/);
-    expect(rules).toMatch(/\.case-row-title\s*\{[^}]*text-overflow:\s*ellipsis/);
-    expect(rules).toMatch(/\.case-row-chipline\s*\{[^}]*display:\s*flex/);
+    expect(rules).toMatch(/\.trip-card-title\s*\{[^}]*white-space:\s*nowrap/);
+    expect(rules).toMatch(/\.trip-card-title\s*\{[^}]*text-overflow:\s*ellipsis/);
+    expect(rules).toMatch(/\.trip-card-chipline\s*\{[^}]*display:\s*flex/);
   });
 
   it('sets the name at 17px bold, the flag at 44px and the bar at 8px', () => {
     expect(rules).toMatch(
-      /\.case-row-title\s*\{[^}]*font-size:\s*1\.0625rem[^}]*font-weight:\s*750/,
+      /\.trip-card-title\s*\{[^}]*font-size:\s*1\.0625rem[^}]*font-weight:\s*750/,
     );
     expect(rules).toMatch(
       /\.country-flag\[data-size="lg"\]\s*\{[^}]*width:\s*44px;\s*height:\s*44px/,
@@ -65,8 +65,8 @@ describe('the Trips list block', () => {
 
   it('keeps a visible stub on an empty bar and a 44px target on the whole card and the fold', () => {
     expect(rules).toMatch(/\.case-bar\[data-empty="true"\]::after\s*\{[^}]*width:\s*8px/);
-    expect(rules).toMatch(/\.case-row\s*\{[^}]*min-height:\s*(\d+)px/);
-    const rowHeight = Number(rules.match(/\.case-row\s*\{[^}]*min-height:\s*(\d+)px/)?.[1]);
+    expect(rules).toMatch(/\.trip-card\s*\{[^}]*min-height:\s*(\d+)px/);
+    const rowHeight = Number(rules.match(/\.trip-card\s*\{[^}]*min-height:\s*(\d+)px/)?.[1]);
     expect(rowHeight).toBeGreaterThanOrEqual(44);
     const foldHeight = Number(
       rules.match(/\.case-past-fold > summary\s*\{[^}]*min-height:\s*(\d+)px/)?.[1],

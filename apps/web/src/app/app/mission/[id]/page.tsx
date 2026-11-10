@@ -77,7 +77,7 @@ import {
   whyNoChecklist,
 } from '../../../../lib/case-checklist-match';
 import { savedCaseMatchTerms } from '../../../../lib/case-choices';
-import { CASE_STATE_LABELS, caseStateLabel, stageButtonStates } from '../../../../lib/case-stages';
+import { CASE_STATE_LABELS, stageButtonStates } from '../../../../lib/case-stages';
 import { depthCopyFor } from '../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../lib/ccd/depth.server';
 import { formatTimestampDate } from '../../../../lib/format-date';
@@ -98,6 +98,7 @@ import {
 } from '../../../../lib/paging';
 import { reportServerError } from '../../../../lib/server-error';
 import { withSession } from '../../../../lib/session';
+import { caseStatus } from '../../../../lib/status-words';
 import type { PackOption } from './attach-pack-form';
 import { CaseChecklist, CaseExpiringDocuments, caseItemPanes } from './case-checklist';
 import { candidateViews } from './case-evidence-view';
@@ -906,7 +907,7 @@ export default async function MissionPage({
                     {' \u00b7 '}
                   </>
                 ) : null}
-                {caseStateLabel(mission.state)}
+                {caseStatus(mission.state).word}
               </span>
               <ReferenceCode code={data.referenceCode} label="Case Reference" />
               {data.liveAcknowledgedAt ? (

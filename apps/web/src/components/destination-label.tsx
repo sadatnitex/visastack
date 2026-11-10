@@ -1,3 +1,4 @@
+import 'server-only';
 import type { ReactNode } from 'react';
 import { resolveCaseCountry } from '../lib/case-choices';
 import { CountryFlag, type CountryFlagSize } from './country-flag';

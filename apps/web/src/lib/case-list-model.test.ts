@@ -1,3 +1,4 @@
+import type { MissingRequirement } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
 import { caseListReadiness, caseRowProgress, caseRowProps } from './case-list-model';
 import { nextStepFor } from './case-next-step';
@@ -30,6 +31,21 @@ describe('the next step on a row', () => {
         { kind: 'FIELD', key: 'full_name', optional: false, reason: 'unresolved_conflict' },
       ]),
     ).toMatch(/^Fix /);
+  });
+
+  it('names every choice when any one of a group would do, never just the first', () => {
+    const group = (keys: string[]): MissingRequirement => ({
+      kind: 'DOCUMENT',
+      key: keys[0] ?? '',
+      optional: false,
+      reason: 'not_provided',
+      groupKey: 'identity',
+      alternatives: keys.map((key) => ({ kind: 'DOCUMENT' as const, key })),
+    });
+    expect(nextStepFor([group(['passport', 'nid'])])).toBe('Add Passport or National ID');
+    expect(nextStepFor([group(['passport', 'nid', 'cv', 'tin'])])).toBe(
+      'Add Passport or National ID or Another',
+    );
   });
 
   it('says nothing when nothing required is missing, or the list is not there', () => {

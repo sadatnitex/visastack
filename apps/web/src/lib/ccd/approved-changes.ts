@@ -293,7 +293,7 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     [
       'Synthetic koreaPick a checklist to see what is readyDraft\u2192',
       '/app/mission/korea',
-      'Synthetic korea, Getting Started',
+      'Synthetic korea, Getting Started, Next: Pick a Checklist',
     ],
     [
       'Synthetic oldPick a checklist to see what is readyClosed\u2192',

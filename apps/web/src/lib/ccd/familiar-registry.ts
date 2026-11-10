@@ -356,7 +356,7 @@ export const FAMILIAR_ROWS: readonly FamiliarRow[] = [
       'Foodpanda and Pathao order card: picture, name, status chip, progress, one tap opens it',
     weight: 4,
     files: ['components/case-list-row.tsx'],
-    proof: { file: 'components/case-list-row.tsx', includes: 'case-row-chipline' },
+    proof: { file: 'components/case-list-row.tsx', includes: 'trip-card-chipline' },
   },
   {
     screen: 'trips, case, countries, destination box, home',

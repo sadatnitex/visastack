@@ -82,7 +82,7 @@ export const CASE_STATUS: Readonly<Record<MissionState, StatusWord>> = {
   READY_FOR_REVIEW: { word: 'Agency Is Checking', tone: 'info' },
   UNDER_REVIEW: { word: 'Agency Is Checking', tone: 'info' },
   READY_TO_EXPORT: { word: 'Ready to Submit', tone: 'success' },
-  LOCKED: { word: 'Ready to Submit', tone: 'success' },
+  LOCKED: { word: 'Closed', tone: 'neutral' },
 };
 
 /** A case stage a person has not met before reads as the plainest word, never as the stored code. */

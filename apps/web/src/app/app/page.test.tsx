@@ -478,7 +478,7 @@ describe('first run starts with a country (Growth G2)', () => {
     const html = await page({ country: 'JP', step: 'consent' });
     const text = textOf(html);
     expect(text).toContain('Step 2 of 3');
-    expect(text).toMatch(/Your Country: \S+ Japan/);
+    expect(text).toMatch(/Your Country: [\p{Regional_Indicator}]{2} Japan Change/u);
     expect(html).toContain('href="/app?country=JP"');
     expect(stubProps(html, 'ConsentButton')).toHaveLength(1);
     // A country we do not hold shows nothing rather than a guess.
@@ -494,7 +494,7 @@ describe('first run starts with a country (Growth G2)', () => {
     await expect(page({ country: 'ZZ' })).rejects.toThrow('NEXT_REDIRECT:/app?welcome=1');
     const name = await page({ welcome: '1', country: 'JP' });
     expect(textOf(name)).toContain('Step 3 of 3');
-    expect(textOf(name)).toMatch(/Your Country: \S+ Japan/);
+    expect(textOf(name)).toMatch(/Your Country: [\p{Regional_Indicator}]{2} Japan/u);
     data.applicants = [SELF];
     const done = await page({ welcome: '1', country: 'JP' });
     expect(textOf(done)).toContain('See Your Japan Checklist');
