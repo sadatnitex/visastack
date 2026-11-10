@@ -13,13 +13,13 @@ import {
 import { PERMISSION_ACTION_LABELS } from '../../../../../lib/labels';
 import { permissionPhrase } from '../../../../../lib/permission-phrases';
 import { PACK_LABELS, PACK_ORDER } from '../../../../../lib/profile-fields';
+import { SHARE_CREATED_LINE } from '../../../../../lib/success-lines';
 import { type ActionState, createGrantAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
 /** The receipt's line for a request to someone who already has an account. */
-const DIRECT_RECEIPT_LINE =
-  'They see only what you chose, and only after they accept. You can stop it at any time below.';
+const DIRECT_RECEIPT_LINE = SHARE_CREATED_LINE.replace(/^Shared\.\s*/, '');
 
 /** Every grant ends; with no days given the service applies its 30-day default. */
 const DEFAULT_EXPIRY_DAYS = 30;
@@ -502,6 +502,7 @@ export function GrantForm({
         <FormMessage result={receipt && state.ok ? NO_RESULT : state} toast={!receipt} />
         {receipt ? (
           <ReceiptCard
+            key={receipt.at}
             title={receipt.invited ? 'Invitation Created' : 'Sharing Request Created'}
             what={receipt.invited ? state.message : DIRECT_RECEIPT_LINE}
             at={receipt.at}

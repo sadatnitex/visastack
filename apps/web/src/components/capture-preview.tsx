@@ -49,20 +49,22 @@ export function CapturePreview({
     setShown('loading');
     decodePhoto(file).then(
       (photo) => {
+        const { width, height } = photo;
         release = photo.close;
         const target = canvas.current;
         const context = target?.getContext('2d') ?? null;
-        if (!current || !target || !context || photo.width < 1 || photo.height < 1) {
+        if (!current || !target || !context || width < 1 || height < 1) {
           photo.close();
           if (current) setShown('unreadable');
           return;
         }
-        const scale = Math.min(1, PREVIEW_SIDE / Math.max(photo.width, photo.height));
-        target.width = Math.max(1, Math.round(photo.width * scale));
-        target.height = Math.max(1, Math.round(photo.height * scale));
+        const scale = Math.min(1, PREVIEW_SIDE / Math.max(width, height));
+        target.width = Math.max(1, Math.round(width * scale));
+        target.height = Math.max(1, Math.round(height * scale));
         context.drawImage(photo.source, 0, 0, target.width, target.height);
         photo.close();
-        setShape(photo.height > photo.width ? 'page' : 'card');
+        release = null;
+        setShape(height > width ? 'page' : 'card');
         setShown('ready');
       },
       () => {

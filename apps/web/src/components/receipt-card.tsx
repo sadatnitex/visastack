@@ -16,7 +16,7 @@ import { ReferenceCode } from './reference-code';
  * reviewed"). Focus moves to the heading when the receipt appears, so a screen reader hears it at
  * once; Done hands focus back to where the person started (`returnFocusTo`).
  *
- * Focus is not taken from a field the person is typing in. Colour comes only from the green tone of `[data-tone]` (WP-PLAIN-TONE).
+ * Focus is not taken from a field the person is typing in, or from elsewhere on the page. Colour comes only from the green tone of `[data-tone]` (WP-PLAIN-TONE).
  */
 
 export interface ReceiptNext {
@@ -83,6 +83,7 @@ export function ReceiptCard({
 }) {
   const headingId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
+  const card = useRef<HTMLElement>(null);
 
   useEffect(() => {
     // Moves focus to the heading so a screen reader hears the receipt at once, unless the person
@@ -93,13 +94,20 @@ export function ReceiptCard({
     const typing =
       active instanceof HTMLElement &&
       (active.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName));
-    if (!typing) heading.current?.focus();
+    // Nor from somewhere else on the page: focus moves only from nowhere in particular or from
+    // the place the person started (the form, or the list, this receipt sits in).
+    const scope = card.current?.closest('form') ?? card.current?.parentElement ?? null;
+    const elsewhere =
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      !(scope?.contains(active) ?? false);
+    if (!typing && !elsewhere) heading.current?.focus();
   }, []);
 
   const when = useMemo(() => receiptTime(at, timeZone), [at, timeZone]);
 
   return (
-    <section className="receipt-card" data-tone="green" aria-labelledby={headingId}>
+    <section className="receipt-card" data-tone="green" aria-labelledby={headingId} ref={card}>
       <span className="receipt-mark" aria-hidden="true">
         <Icon name="check" size={32} />
       </span>

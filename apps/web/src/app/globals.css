@@ -20254,7 +20254,7 @@ html:has(.sticky-action-bar) .toast-region {
 }
 /* end WP-F3C */
 
-/* WP-F2 Camera check and receipt (batch F2, 10 Nov 2026): the look-before-you-send step after a photo, and the receipt after a saved document or a sharing request, the way a bank's identity check and a bKash receipt read. Flat, tokens and the green tone only, no shadows or translucent surfaces. */
+/* WP-F2 Camera check and receipt (batch F2, 10 Nov 2026): the look-before-you-send step after a photo, and the receipt after a saved document or a sharing request, the way a bank's identity check and a bKash receipt read. Flat, tokens and the green tone, no shadows or translucent surfaces; the photo viewer's near-black ground and its white and dark outline are fixed on purpose, so the outline shows on any photo in light and dark. */
 .capture-preview {
   display: grid;
   gap: var(--space-3);
@@ -20278,10 +20278,12 @@ html:has(.sticky-action-bar) .toast-region {
 }
 .capture-frame {
   position: relative;
-  display: grid;
-  place-items: center;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  line-height: 0;
   overflow: hidden;
-  min-height: 12rem;
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
   background: #152b37;
@@ -20291,15 +20293,10 @@ html:has(.sticky-action-bar) .toast-region {
 }
 .capture-image {
   display: block;
-  width: 100%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
   max-height: 60vh;
-  object-fit: contain;
-}
-.capture-unreadable {
-  margin: 0;
-  padding: var(--space-5);
-  color: #f9f8f5;
-  text-align: center;
 }
 /* The outline only draws: it ignores taps, never covers the buttons and never fills the photo. */
 .capture-outline {

@@ -387,7 +387,8 @@ export function DocumentUploader({
           item.removal !== 'busy',
       )
     : [];
-  const notAddedCount = items.filter((item) => item.status !== 'added').length;
+  // Only the files this receipt is about: failures already shown in an earlier receipt do not count.
+  const notAddedCount = items.filter((item) => item.status !== 'added' && !item.receipted).length;
 
   return (
     <div className="uploader">
@@ -533,6 +534,7 @@ export function DocumentUploader({
       <output className="upload-summary">{uploadSummary(items)}</output>
       {unreceipted.length > 0 ? (
         <ReceiptCard
+          key={Math.max(...unreceipted.map((item) => item.addedAt ?? 0))}
           title={unreceipted.length === 1 ? 'Document Saved' : 'Documents Saved'}
           what={receiptWhat(unreceipted, notAddedCount)}
           at={Math.max(...unreceipted.map((item) => item.addedAt ?? 0))}
@@ -541,7 +543,7 @@ export function DocumentUploader({
           onDone={() =>
             setItems((current) =>
               current.map((item) =>
-                item.status === 'added' ? { ...item, receipted: true } : item,
+                ACTIVE.has(item.status) ? item : { ...item, receipted: true },
               ),
             )
           }
@@ -632,6 +634,7 @@ export function DocumentUploader({
                         progress: 0,
                         message: '',
                         upgrade: null,
+                        receipted: false,
                       })
                     }
                   >

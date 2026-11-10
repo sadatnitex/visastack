@@ -107,4 +107,26 @@ describe('ReceiptCard', () => {
     expect(document.activeElement).toBe(field);
     field.remove();
   });
+
+  it('does not take focus from a control elsewhere on the page, but does from its own form or from nowhere', async () => {
+    const elsewhere = document.createElement('button');
+    document.body.append(elsewhere);
+    elsewhere.focus();
+    await render();
+    expect(document.activeElement).toBe(elsewhere);
+    act(() => root.render(<div />));
+    // Inside the place the receipt sits (the button the person just pressed): focus moves.
+    const inside = document.createElement('button');
+    host.append(inside);
+    inside.focus();
+    const slot = document.createElement('div');
+    host.append(slot);
+    act(() => root.unmount());
+    root = createRoot(host);
+    elsewhere.remove();
+    host.append(inside);
+    inside.focus();
+    await render();
+    expect(document.activeElement).toBe(host.querySelector('h3'));
+  });
 });
