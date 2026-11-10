@@ -106,6 +106,32 @@ describe('signInAction', () => {
     ).toBe('/auth/sign-in?e=failed');
   });
 
+  it('forgets the remembered address once sign-in succeeds, and not before', async () => {
+    const { signUpAction, signInAction } = await import('./actions');
+    readSignupForm.mockReturnValue({ id: 'form-1' });
+    consumeSignupForm.mockResolvedValue(true);
+    signupAccountExists.mockResolvedValue(false);
+    signUpEmail.mockResolvedValue({ error: null });
+    await destination(() =>
+      signUpAction(
+        form({
+          email: 'a@b.co',
+          password: 'longenough',
+          acceptNotices: 'yes',
+          signupForm: 'token',
+        }),
+      ),
+    );
+    expect(jar.get('vs_pending_confirmation')?.value).toBeTruthy();
+    signInEmail.mockResolvedValue({ error: { code: 'INVALID_EMAIL_OR_PASSWORD' } });
+    await destination(() => signInAction(form({ email: 'a@b.co', password: 'longenough' })));
+    expect(jar.get('vs_pending_confirmation')?.value).toBeTruthy();
+    signInEmail.mockResolvedValue({ error: null });
+    await destination(() => signInAction(form({ email: 'a@b.co', password: 'longenough' })));
+    expect(jar.get('vs_pending_confirmation')?.value).toBe('');
+    expect(jar.get('vs_pending_confirmation')?.options).toMatchObject({ maxAge: 0, path: '/auth' });
+  });
+
   it('stops over-limit attempts before the provider is called', async () => {
     withinAuthLimits.mockResolvedValue(false);
     const { signInAction } = await import('./actions');
@@ -215,7 +241,7 @@ describe('signUpAction', () => {
       email: 'a@b.co',
       password: 'longenough',
       name: 'Ana',
-      callbackURL: 'https://app.example.test/auth/sign-in?n=confirmed',
+      callbackURL: 'https://app.example.test/auth/confirmed?next=%2Fapp',
     });
   });
 
@@ -354,7 +380,7 @@ describe('resendConfirmationAction', () => {
     );
     expect(sendVerificationEmail).toHaveBeenCalledWith({
       email: 'a@b.co',
-      callbackURL: 'https://app.example.test/auth/sign-in?n=confirmed',
+      callbackURL: 'https://app.example.test/auth/confirmed?next=%2Fapp',
     });
     expect(await destination(() => resendConfirmationAction(form({ email: 'bad' })))).toBe(
       '/auth/verify-email?e=invalid',
@@ -420,7 +446,7 @@ describe('invitation account handoff', () => {
     );
     expect(signUpEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        callbackURL: `https://app.example.test/auth/sign-in?n=confirmed${target}`,
+        callbackURL: `https://app.example.test/auth/confirmed?next=${encodeURIComponent(next)}`,
       }),
     );
     expect(await destination(() => resendConfirmationAction(form({ email: 'a@b.co', next })))).toBe(
@@ -428,7 +454,7 @@ describe('invitation account handoff', () => {
     );
     expect(sendVerificationEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        callbackURL: `https://app.example.test/auth/sign-in?n=confirmed${target}`,
+        callbackURL: `https://app.example.test/auth/confirmed?next=${encodeURIComponent(next)}`,
       }),
     );
   });
@@ -452,7 +478,9 @@ describe('invitation account handoff', () => {
       '/auth/verify-email?s=1',
     );
     expect(signUpEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ callbackURL: 'https://app.example.test/auth/sign-in?n=confirmed' }),
+      expect.objectContaining({
+        callbackURL: 'https://app.example.test/auth/confirmed?next=%2Fapp',
+      }),
     );
   });
 });

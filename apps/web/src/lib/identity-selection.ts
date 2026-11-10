@@ -11,8 +11,11 @@
 // UMPE P7: answering an agency request from your own record (/collect/account) needs a signed-in
 // person; the filter sends anyone else to sign in (or create an account) and back to the same
 // request. The rest of /collect (the link's own landing) stays public.
+// P1 (10 Nov 2026): the landing page for the email confirmation link (/auth/confirmed) runs the
+// check so that a sign-in Neon Auth made when the link was confirmed can be passed on; with no
+// sign-in the check sends the visitor to the ordinary sign-in form (see `neonLoginUrlFor`).
 const NEON_PROTECTED =
-  /^\/(app|pilot-access-denied|oauth\/authorize|auth\/reauth|collect\/account)(\/|$)/;
+  /^\/(app|pilot-access-denied|oauth\/authorize|auth\/reauth|auth\/confirmed|collect\/account)(\/|$)/;
 
 /**
  * Whether the Neon sign-in check must run for this path. The landing page, status page, trust

@@ -14,6 +14,7 @@ export const metadata: Metadata = { title: 'Confirm Your Email Address' };
 export const dynamic = 'force-dynamic';
 
 const ERRORS: Record<string, string> = {
+  expired: 'That link has expired or was already used. We can send you a new one.',
   invalid: 'Enter a valid email address.',
   slow: 'Too many requests. Please wait a little while and try again.',
   unavailable: 'We could not request your confirmation email right now. Please try again shortly.',

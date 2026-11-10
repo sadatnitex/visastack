@@ -22,12 +22,12 @@ Objective means anyone can reproduce it (dead end, missing feedback, two forms f
 | ID | Problem | Evidence | Who | Kind | Fix | Owner of the fix |
 |---|---|---|---|---|---|---|
 | A1 | One consent button has four names; some messages name a button that does not exist under that name | `(home)/first-run.tsx` near 125 and 278, `(home)/page.tsx` near 485 and 527, `lib/labels.ts` near 239 | Every new person | Objective | One name, "Let VisaStack Process My Details", and a working link wherever a page says to turn it on | Lane 1 |
-| A2 | Confirming the email ends on a sign-in form | `app/auth/actions.ts:137` | New people on phones | Objective | Sign in automatically after confirmation | Needs the owner (packet P1) |
+| A2 | Confirming the email ends on a sign-in form | `app/auth/actions.ts:137` | New people on phones | Objective | Sign in automatically after confirmation | Built 10 Nov (packet P1), not seen live: a real confirmation email is needed |
 | A5 | First run offers 4 to 6 equal choices | `(home)/first-run.tsx` near 187 to 240 | New people | Preference | Mark one recommended first step | Lane 1 if small, else later |
 | B2 | "Add the Details Yourself" opens the whole profile, not the field | `reading-status.tsx:35` | Manual entry | Objective | Link to the right section | Lane 1 |
 | B3 | Pages say "turn on processing on Home" with no button | profile near 354, review near 227, `ai-review.tsx` near 283 | People who chose Not Now | Objective | A link to where it is switched on | Lane 1 |
 | B6 | History labels: Extracted (Pending), Declared, Stale, Conflicted, Superseded, API, System | `applicant/[id]/history/page.tsx:27-45` | Every reader | Wording | Plain labels, display only | Lane 1 |
-| C1 | 4 MB cap with no help for large phone photos | `lib/upload-preflight.ts:12` | Phone users, the main audience | Objective | Shrink large photos in the browser before sending | Needs the owner (packet P2) |
+| C1 | 4 MB cap with no help for large phone photos | `lib/upload-preflight.ts:12` | Phone users, the main audience | Objective | Shrink large photos in the browser before sending | Built in packet P2 (owner said yes, 10 Nov); awaiting review and merge |
 | B1 | No way to give a non-passport document an expiry date | `expiry/page.tsx:79` | Anyone with a visa, permit or certificate | Objective | A "Set Expiry Date" action | Needs the owner (packet P3), new capability |
 | C2 | "Contact support" with no link | `documents/page.tsx:143-153` | Anyone with a failed file | Objective | Link to help | Lane 1 |
 | D1, D2 | Two start forms; one demands a typed title | `create-mission-form.tsx:115-124`, `mission/start/start-form.tsx:115-151` | Travellers | Objective | One start path (3 questions), old form kept for "Not sure where yet" and extra details | Lane 1 |
