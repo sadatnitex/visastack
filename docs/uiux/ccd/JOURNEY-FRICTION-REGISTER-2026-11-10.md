@@ -67,6 +67,10 @@ Every lane keeps services, access rules, readiness, consent semantics, server ac
 | P3 | Let a person type an expiry date for any document | A new stored fact, likely a database change | Yes, as a separate package after the lanes |
 | P4 | Chase requests that have no due date after a set number of days | Changes the agency Do Next ranking | Yes, after 3 days without a reply |
 
+**Owner decision, 10 Nov 2026: "yes P1 P2 P3 P4", and the coordinator session controls and manages every running session.** Each packet is built in its own session, one at a time behind the lanes, and stops before merging for the coordinator's review. P3 will probably need migration 0134; running it in production still needs the owner's separate word "migrate 0134" (or whichever number is next free at the time). P1 may need a Neon Auth setting change; the session prepares it and the coordinator checks it before anything changes in production.
+
+Run order (at most two build sessions at a time beside the owner's case page session): Lane 1 and Lane 2 now; then P2 (photos), Lane 3 (sharing), P4 (agency chase, after Lane 2 merges, same files), P1 (sign-in after confirmation), P3 (expiry dates). The case page session takes the plan's next package only when the coordinator hands it over.
+
 ## 5. Outside tools (decision 10 Nov 2026)
 
 | Tool | Decision | Boundary and rollback |
