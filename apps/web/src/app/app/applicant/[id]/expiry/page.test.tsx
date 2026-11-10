@@ -100,9 +100,9 @@ describe('the deadline clock on the Expiry page (Growth G5)', () => {
     expect(text).toContain('Due today');
     expect(text).toContain('Pay the visa fee');
     expect(text).toContain('Expires in 12 days');
-    expect(html.indexOf('Deadline Clock')).toBeLessThan(html.indexOf('Intrinsic Expiry'));
+    expect(html.indexOf('Deadline Clock')).toBeLessThan(html.indexOf('Document Expiry'));
     // The three signals stay separate and are still there.
-    for (const heading of ['Intrinsic Expiry', 'Case-Specific Freshness', 'Verification Expiry']) {
+    for (const heading of ['Document Expiry', 'Route Date Rules', 'Confirmation Dates']) {
       expect(text).toContain(heading);
     }
   });
@@ -111,7 +111,7 @@ describe('the deadline clock on the Expiry page (Growth G5)', () => {
     const html = await page();
     const clock = html.slice(
       html.indexOf('expiry-deadline-clock-heading'),
-      html.indexOf('Intrinsic Expiry'),
+      html.indexOf('Document Expiry'),
     );
     expect(textOf(clock)).toContain('No Expiry Dates Yet');
     expect(textOf(clock)).toContain(
@@ -237,7 +237,7 @@ describe('Dates & Expiry levels (CCD-3)', () => {
         ?.closest('[data-level]')
         ?.getAttribute('data-level');
     expect(levelOf('Route Rules')).toBe('browse');
-    expect(levelOf('Issuer Confirmations')).toBe('browse');
+    expect(levelOf('Confirmations from Issuers')).toBe('browse');
     expect(doc.querySelector('h1')?.textContent).toBe('Dates & Expiry');
   });
 });

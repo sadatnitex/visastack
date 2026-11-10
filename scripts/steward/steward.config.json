@@ -1,0 +1,58 @@
+{
+  "repo": "sadatnitex/visastack",
+  "defaultBranch": "main",
+  "requiredChecks": [
+    "Lint · Build · Typecheck · Test",
+    "No-secret Playwright checks",
+    "No-secret smoke check"
+  ],
+  "laneBranchPrefixes": ["claude/"],
+  "protectedBranches": ["public-beta/r2-encrypted-recovery"],
+  "parkedPrefixes": ["wip/"],
+  "migrations": { "dir": "packages/db/migrations", "pattern": "^(\\d{4})_" },
+  "hotFiles": [
+    {
+      "glob": "docs/commercial-v1/known-issues.md",
+      "rule": "append-only",
+      "how": "on a merge use python3 -I scripts/agent/merge-append.py <file>"
+    },
+    {
+      "glob": "docs/commercial-v1/requirements-ledger.md",
+      "rule": "append-only",
+      "how": "on a merge use python3 -I scripts/agent/merge-append.py <file>"
+    },
+    {
+      "glob": "apps/web/src/app/globals.css",
+      "rule": "shared stylesheet",
+      "how": "on a merge use python3 -I scripts/agent/merge-css.py; every block starts with a WP marker"
+    },
+    {
+      "glob": "pnpm-lock.yaml",
+      "rule": "generated",
+      "how": "never merge by hand; regenerate with pnpm install"
+    },
+    {
+      "glob": "packages/db/migrations/meta/**",
+      "rule": "generated",
+      "how": "generate with drizzle-kit, never by hand"
+    }
+  ],
+  "retention": {
+    "graceHours": 48,
+    "laneStaleDays": 7,
+    "parkedReviewDays": 45,
+    "artifactDays": 3,
+    "cacheDays": 7
+  },
+  "audit": [
+    {
+      "name": "Production dependency advisories",
+      "cmd": ["pnpm", "audit", "--prod", "--audit-level", "high"]
+    },
+    { "name": "Supply-chain scan", "cmd": ["node", "scripts/supply-chain/scan.mjs"] },
+    {
+      "name": "Route graph and orphan pages",
+      "cmd": ["node", "scripts/check-route-navigation.mjs"]
+    }
+  ]
+}

@@ -192,6 +192,21 @@ Case page package 3 (10 Nov 2026):
 | Two stored choices in an item's panel | "Which File Counts" (counts toward readiness) and "Which File Goes in the Handoff" (the package) | "What This Item Uses" | **Done (package 3)** |
 | Checklist search | Search the Checklist; empty result "No Items Match" | none | **Done (package 3)** |
 
+Added 10 Nov 2026 (Lane 1, the traveller's first journey, plain words for a grade 5 to 8 reader). Stored codes and server action names do not change; these are display words only. The guard `apps/web/src/lib/vocabulary.test.ts` (traveller screens) keeps the retired words out of visible text.
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The switch for processing a person's details | Let VisaStack Process My Details, on every button, heading, step and message that names it; the link that says to turn it on goes to Home, Permissions (`/app#permissions`) | "Allow core processing", "Allow Core Processing", "Turn On Core Processing to Begin" | **Done (Lane 1)** |
+| Starting a case from the Cases list | The main button is Start a Trip (the three-question flow, with that traveller already ticked); the by-name form stays under "Not Sure Where Yet? Add a Case by Name". With processing off the button stays Start a Case and points at the card that says what to turn on | A typed title as the only way in | **Done (Lane 1)** |
+| A trip form where the country is not known | A plain link, Start a Case by Name | A refusal with no way forward | **Done (Lane 1)** |
+| The one-time copies a traveller prepares | Summary (page Summaries, button Prepare a Summary, step Choose a Summary, last step Check and Copy); not "Brief", and never labelled Share (Sharing is its own section) | "Brief", "Briefs and Summaries", "Prepare a Brief", "Preview and Share", eyebrow "Share" | **Done (Lane 1)** |
+| Where a saved value stands (display words; stored codes unchanged) | Entered, Suggested, Confirmed, Backed by a Document, Reviewed by an Agency, Does Not Match, No Longer Current, Replaced. Suggested is never Confirmed; Reviewed is only for a real agency review | "Declared", "Extracted (Pending)", "Document-supported", "Agency-reviewed", "Conflicted", "Stale", "Superseded" | **Done (Lane 1)**; `lib/field-state-words.ts`, the one map that History, the profile pages and Application Memory (compare page) all read; Application Memory's older words (Entered by Hand, Marked as Not Matching, Out of Date, Replaced by a Newer Version) are retired |
+| How a saved value was recorded | Typed In, From a Document, From a Connected App, Added by VisaStack | "Manual", "API", "System", the raw code | **Done (Lane 1)** |
+| The three dates cards on Dates & Expiry | Document Expiry, Route Date Rules, Confirmation Dates; the card Confirmations from Issuers | "Intrinsic Expiry", "Case-Specific Freshness", "Verification Expiry", "Issuer Confirmations" | **Done (Lane 1)** |
+| The profile page counts and notes | Fields Backed by a Document, Fields That Do Not Match, "Every save keeps the earlier value", "How This Was Checked" (no internal tier shown) | "Document-supported fields", "Conflicting fields", "immutable version", "Assurance (E2)" | **Done (Lane 1)** |
+| Where a passport is read from its two printed lines | Read from the Two Lines at the Bottom of the Passport | "Read from the Machine-Readable Lines", "Code Lines" | **Done (Lane 1)** |
+| The storage meter on Add Documents, and the Documents subtitle | Document Storage; "Your private documents" | "Evidence Storage", "Your private evidence wallet" | **Done (Lane 1)** |
+
 Send on WhatsApp, everywhere a person sends something (10 Nov 2026). Owner decision, 10 Nov 2026: "Open in WhatsApp feature should exist in all its flares. This is one of the things users are most familiar with." WhatsApp comes first wherever a person sends someone something. A message may hold the recipient's first name, the agency name, document kind names, the case name, a due date and one VisaStack link to the place to act. It never holds an identifier number, a date of birth, an address, file contents, a preview, a storage address or a link that opens a file. VisaStack never sends it: the person presses Send inside WhatsApp. This replaces the older rule that WhatsApp text carries nothing from the record.
 
 | Thing | Canonical name | Retire | Status |

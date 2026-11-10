@@ -28,6 +28,7 @@ import { caseCountriesForFamily } from '../../../../../lib/case-choices';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { confirmedValues, findingViewModel } from '../../../../../lib/document-findings';
+import { fieldMethodWords } from '../../../../../lib/field-state-words';
 import { formatTimestampDate } from '../../../../../lib/format-date';
 import { buildMasterProfileView, fieldLabel } from '../../../../../lib/master-profile';
 import { agree, plural } from '../../../../../lib/plural';
@@ -271,7 +272,7 @@ export default async function ApplicantProfilePage({
           {data.applicant.relationship === 'SELF'
             ? 'Personal profile'
             : 'Managed traveller profile'}
-          . Fact assurance is shown beside each field.
+          . How each detail was checked is shown beside it.
         </p>
       </AboutDisclosure>
       {data.appSuggestions.length > 0 || data.appSuggestionsInUse ? (
@@ -328,7 +329,8 @@ export default async function ApplicantProfilePage({
           <div className="notice notice-warn" role="alert">
             <p className="u-m-0">
               {plural(conflictedCount, 'field')} {agree(conflictedCount, 'has', 'have')} conflicting
-              values. Check the fields marked <strong>Conflicted</strong> before relying on them.
+              values. Check the fields marked <strong>Does Not Match</strong> before relying on
+              them.
             </p>
           </div>
         ) : null}
@@ -356,7 +358,7 @@ export default async function ApplicantProfilePage({
               </EmptyState>
             )}
             <p className="muted profile-version-note">
-              Every save appends an immutable version with its source. Earlier values remain in{' '}
+              Every save keeps the earlier value. You can see them in{' '}
               <Link href={`/app/applicant/${id}/history`}>History</Link>.
             </p>
           </article>
@@ -369,16 +371,16 @@ export default async function ApplicantProfilePage({
                   <strong>{confirmed}</strong>
                 </div>
                 <div className="row">
-                  <span>Document-supported fields</span>
+                  <span>Fields Backed by a Document</span>
                   <strong>{supported}</strong>
                 </div>
                 <div className="row">
-                  <span>Conflicting fields</span>
+                  <span>Fields That Do Not Match</span>
                   <strong>{conflictedCount}</strong>
                 </div>
                 <p className="muted">
-                  These are distinct recorded states, not an overall verification score. Check field
-                  details for agency reviews and issuer confirmations.
+                  These counts are separate. They are not a score that proves anything. Open a field
+                  to see agency reviews and confirmations from issuers.
                 </p>
                 <Link href={`/app/applicant/${id}/expiry`}>Dates &amp; Expiry →</Link>
               </article>
@@ -390,7 +392,7 @@ export default async function ApplicantProfilePage({
                       <li key={entry.factId}>
                         <Link href={`/app/applicant/${id}/history`}>
                           <strong>{fieldLabel(entry.fieldKey) ?? 'Profile Detail'}</strong>
-                          <span>{entry.method ?? 'Recorded Update'}</span>
+                          <span>{fieldMethodWords(entry.method) ?? 'Recorded Update'}</span>
                         </Link>
                         <time dateTime={entry.updatedAt as string}>
                           {formatTimestampDate(entry.updatedAt as string)}
@@ -411,8 +413,8 @@ export default async function ApplicantProfilePage({
               <p>AI suggestions wait for your approval.</p>
               <AboutDisclosure summary="About Suggestions">
                 <p>
-                  AI suggestions do not change your profile until you approve them. Human and issuer
-                  assurance remain separate.
+                  AI suggestions do not change your profile until you approve them. Your confirming
+                  a detail is not the same as the issuer confirming it.
                 </p>
               </AboutDisclosure>
               <Link href={`/app/applicant/${id}/documents`}>Review Document Suggestions →</Link>

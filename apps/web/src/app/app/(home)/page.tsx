@@ -482,7 +482,7 @@ export default async function AppPage({
   const setupSteps = [
     {
       key: 'consent',
-      label: 'Allow Core Processing',
+      label: 'Let VisaStack Process My Details',
       hint: 'Needed before anything can be saved. You can turn it off at any time.',
       done: coreGranted,
       href: '#permissions',
@@ -524,7 +524,7 @@ export default async function AppPage({
   const peopleLeftOut = data.applicants.length > data.perApplicant.length;
   const nextStep = !coreGranted
     ? {
-        title: 'Turn On Core Processing to Begin',
+        title: 'Let VisaStack Process My Details',
         why: 'VisaStack cannot create traveller or profile records until you allow this. You can turn it off again at any time.',
         href: '#permissions',
         action: 'Choose Permissions',

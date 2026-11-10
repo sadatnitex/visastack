@@ -13,7 +13,7 @@
     "dev": "turbo run dev",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test && pnpm run test:node",
-    "test:node": "node --test \"scripts/*.test.mjs\" \"scripts/country-packs/*.test.mjs\" \"scripts/programme/*.test.mjs\" \"infra/**/*.test.mjs\"",
+    "test:node": "node --test \"scripts/*.test.mjs\" \"scripts/country-packs/*.test.mjs\" \"scripts/programme/*.test.mjs\" \"scripts/steward/*.test.mjs\" \"infra/**/*.test.mjs\"",
     "lint": "biome check . && node scripts/check-flat-design.mjs && node scripts/check-route-navigation.mjs && node scripts/ui-ratchet.mjs",
     "scan:supply-chain": "node scripts/supply-chain/scan.mjs",
     "test:supply-chain": "node --test scripts/supply-chain/checks.test.mjs",

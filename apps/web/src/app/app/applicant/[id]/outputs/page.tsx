@@ -25,7 +25,7 @@ import { CopyTextButton, PrintButton } from './copy-button';
 import { outputsPath, prepareOutput } from './load';
 import { parseOutputRequest, requestFields } from './query';
 
-export const metadata: Metadata = { title: 'Briefs and Summaries' };
+export const metadata: Metadata = { title: 'Summaries' };
 
 export const dynamic = 'force-dynamic';
 
@@ -53,7 +53,7 @@ type OutputStep = 1 | 2 | 3;
 const STEPS: readonly (readonly [OutputStep, string])[] = [
   [1, 'Choose a Summary'],
   [2, 'Choose What to Include'],
-  [3, 'Preview and Share'],
+  [3, 'Check and Copy'],
 ];
 
 /**
@@ -183,8 +183,7 @@ export default async function OutputsPage({
   const header = (
     <PageHeader
       as="h2"
-      eyebrow="Share"
-      title="Briefs and Summaries"
+      title="Summaries"
       description="Choose what goes in, check the preview, then copy, print or download one summary. Everything you do not select stays out."
       back={{ href: `/app/applicant/${id}/record`, label: 'Records' }}
     />
