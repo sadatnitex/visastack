@@ -585,3 +585,17 @@ Approved changes (coordinator brief, 10 Nov 2026; `lib/ccd/approved-changes.ts`)
 | Contributor request: link only | Adds "Send on WhatsApp" (document kind and the private link only) | Case page, Ask a Contributor |
 
 Guard tests: `lib/ccd/parity-sharing.test.tsx`, `lib/ccd/pattern-conformance.test.tsx` (Sharing converted, waiting count 15), `lib/grant-row-line.test.ts`, `lib/permission-phrases.test.ts`, `applicant/[id]/sharing/{page,grant-form}.test.tsx`, `client-invitations/accept/page.test.tsx`, `sharing-invitations/accept/page.test.tsx`, `lib/whatsapp-link.test.ts`, `mission/[id]/contributor-requests-panel.test.tsx`, services `sharing-invitations.test.ts` (a different recipient learns nothing) and `client-invitations.test.ts` (the 30 days).
+
+## P7: a finished case is frozen (10 Nov 2026, owner decision "yes, freeze finished cases")
+
+A submitted, closed or cancelled case can no longer change, so the case page stops offering what would change it, and says so once under the header: "This case is finished, so it can no longer change." An open case keeps all of these.
+
+| Before (finished case) | After (finished case) | Where |
+|---|---|---|
+| "Edit Case Details" and its form | The line above, in the same place | Case, Case Details card |
+| "Take a Snapshot" in the header and in the phone More menu | Not offered | Case header, More |
+| "Attach Pack" and the checklist picker | Not offered; "No checklist was linked to this case." when none was | Case, Requirement Pack card |
+| "Generate New Version" for cover letters | The line above; earlier versions stay readable | Case, Cover Letters |
+| The "Something changed after you confirmed this case" alert with "Take a New Snapshot" | Not shown (a finished case is never shown as needing to be confirmed again) | Case, status area |
+
+Held by `parity-case.test.tsx` through three approved changes in `approved-changes.ts` (they apply to the closed-case state only) and by `page.test.tsx`.
