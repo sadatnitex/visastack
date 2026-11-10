@@ -134,34 +134,36 @@ export async function loadEvidenceRequests(
      * code is read. A request made for the traveller with no case is left out: the case summary
      * never counts one (W0 structural flag 2).
      */
-    readonly forCase?: { readonly missionId: string; readonly applicantId: string };
-    /**
-     * Only the requests made for this one traveller with no case at all, from this organization.
-     * For the case workspace's "Already Asked" marks, so an item asked from Clients is not offered
-     * again; the case summary never counts one, so this is a separate call from `forCase`. If
-     * `forCase` is also given it wins.
-     */
-    readonly forTravellerWithoutCase?: { readonly applicantId: string };
+    readonly forCase?: {
+      readonly missionId: string;
+      readonly applicantId: string;
+      /**
+       * Also return this traveller's requests with no case that still wait on them (open, or sent
+       * back for a fix), from this organization only. The case page uses them for the ask form's
+       * "Already Asked" marks, so an item asked from Clients is not offered again. They are
+       * returned in the same read as the case's own, with no file states; the caller must split
+       * them off (they have no case) before building the case summary, which never counts one.
+       */
+      readonly alsoWaitingWithoutCase?: boolean;
+    };
   } = {},
 ): Promise<EvidenceRequestRow[]> {
   if (!access.admin) return [];
   const result = await listEvidenceRequestsForOrgDetailed(db, accountId, orgId);
   if (!result.ok) return [];
   const forCase = options.forCase;
-  const forTraveller = options.forTravellerWithoutCase;
   const listed = forCase
     ? result.value.filter(
-        (r) => r.missionId === forCase.missionId && r.applicantId === forCase.applicantId,
-      )
-    : forTraveller
-      ? result.value.filter(
-          // The service already reads one organization; the check on the row is belt and braces.
-          (r) =>
+        (r) =>
+          (r.missionId === forCase.missionId && r.applicantId === forCase.applicantId) ||
+          (forCase.alsoWaitingWithoutCase === true &&
+            // The service already reads one organization; the check on the row is belt and braces.
             r.organizationId === orgId &&
             r.missionId === null &&
-            r.applicantId === forTraveller.applicantId,
-        )
-      : result.value;
+            r.applicantId === forCase.applicantId &&
+            (r.status === 'OPEN' || r.status === 'NEEDS_REPLACEMENT')),
+      )
+    : result.value;
   // One registry read for the whole list (ADR 0018), alongside the file states.
   const [codes, rows] = await Promise.all([
     referenceCodesFor(

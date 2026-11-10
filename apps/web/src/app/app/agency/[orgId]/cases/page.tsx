@@ -108,20 +108,21 @@ export default async function AgencyCasesPage({
           })
         : Promise.resolve(null),
     ]);
-    // Requests are administrator data (none for anyone else), read only for the open case.
-    // The traveller's requests with no case are read apart: they only mark an item "Already
-    // Asked" in the ask form and are never part of the case summary.
-    const [requests, travellerRequests] = open
-      ? await Promise.all([
-          loadEvidenceRequests(db, accountId, orgId, access, {
-            withFileStates: true,
-            forCase: { missionId: open.missionId, applicantId: open.applicantId },
-          }),
-          loadEvidenceRequests(db, accountId, orgId, access, {
-            forTravellerWithoutCase: { applicantId: open.applicantId },
-          }),
-        ])
-      : [[], []];
+    // Requests are administrator data (none for anyone else), read only for the open case, in one
+    // read. The traveller's requests with no case come back with them only to mark an item
+    // "Already Asked" in the ask form; they are split off here and never reach the case summary.
+    const read = open
+      ? await loadEvidenceRequests(db, accountId, orgId, access, {
+          withFileStates: true,
+          forCase: {
+            missionId: open.missionId,
+            applicantId: open.applicantId,
+            alsoWaitingWithoutCase: true,
+          },
+        })
+      : [];
+    const requests = read.filter((r) => r.missionId !== null);
+    const travellerRequests = read.filter((r) => r.missionId === null);
     return {
       admin: access.admin,
       members,
