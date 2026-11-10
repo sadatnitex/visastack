@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
+import { ListFilterBar } from '../components/list-pattern/list-filter-bar';
 import { aiConfigView } from './ai-config-view.test-support';
 import { axeViolations } from './axe.test-support';
 import {
@@ -1435,6 +1436,18 @@ const CASES_MISSION: readonly Case[] = [
             selectionIdsByCandidate: {},
           },
         ]}
+      />
+    ),
+  },
+  {
+    name: 'search a long list',
+    element: () => (
+      <ListFilterBar
+        rows={9}
+        query=""
+        onQuery={() => undefined}
+        searchLabel="Search the Checklist"
+        placeholder="Search the Checklist"
       />
     ),
   },

@@ -2,6 +2,7 @@
 
 import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import type { DepthLevel } from '../../lib/ccd/depth';
+import { focusTarget } from '../../lib/ccd/reveal';
 import { atLevel } from '../depth';
 
 export interface SwitcherSection {
@@ -36,39 +37,55 @@ export function SwitcherTabs({
   readonly initial?: string | undefined;
 }) {
   const keys = sections.map((s) => s.key);
+  const keyList = keys.join('|');
   const [ready, setReady] = useState(false);
   const [chosen, setChosen] = useState<string | null>(initial ?? null);
+  // The section asked for by the address, a link or a click: kept even while depth hides its tab,
+  // and chosen as soon as depth shows it.
+  const wanted = useRef<string | null>(initial ?? null);
+  // The first drawn tab is the one tab stop while nothing is chosen.
+  const [first, setFirst] = useState<string | null>(null);
+  // A link's target inside a panel, to scroll to once its panel is shown.
+  const pending = useRef<HTMLElement | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => setReady(true), []);
 
-  // Once the tabs are drawn (not before: a hidden row of tabs has no drawn tab), keep the chosen
-  // section one that is drawn: when depth hides it, nothing is chosen until a tab is.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: keys is derived from sections
+  // Once the tabs are drawn (not before: a hidden row of tabs has no drawn tab), choose the wanted
+  // section whenever its tab is drawn, else keep the chosen one while it is, else none.
   useEffect(() => {
     if (!ready) return;
-    const settle = () =>
-      setChosen((current) => {
-        const index = current ? keys.indexOf(current) : -1;
-        const tab = index >= 0 ? tabs.current[index] : null;
-        return tab && tab.getClientRects().length > 0 ? current : null;
-      });
+    const names = keyList.split('|');
+    const drawn = (key: string | null) => {
+      const tab = key ? tabs.current[names.indexOf(key)] : null;
+      return Boolean(tab && tab.getClientRects().length > 0);
+    };
+    const settle = () => {
+      setFirst(names.find((key) => drawn(key)) ?? null);
+      setChosen((current) =>
+        drawn(wanted.current) ? wanted.current : drawn(current) ? current : null,
+      );
+    };
     settle();
     const scope = root.current?.closest('[data-depth-scope]');
     if (!scope) return;
     const watcher = new MutationObserver(settle);
     watcher.observe(scope, { attributes: true, attributeFilter: ['data-depth'] });
     return () => watcher.disconnect();
-  }, [ready, sections]);
+  }, [ready, keyList]);
 
-  // A link to anything inside a section opens that section.
+  // A link to anything inside a section opens that section and then goes to the target.
   useEffect(() => {
     const open = (id: string) => {
       const target = id ? document.getElementById(id) : null;
       const panel = target?.closest<HTMLElement>('[data-switcher-panel]');
       const key = panel?.getAttribute('data-switcher-panel');
-      if (key && panel && root.current?.contains(panel)) setChosen(key);
+      if (key && target && panel && root.current?.contains(panel)) {
+        wanted.current = key;
+        pending.current = target;
+        setChosen(key);
+      }
     };
     const fromHash = () => {
       try {
@@ -90,6 +107,20 @@ export function SwitcherTabs({
     };
   }, []);
 
+  // Once the section is showing, scroll to the target the link named and put focus on it.
+  useEffect(() => {
+    const target = pending.current;
+    if (!target || chosen === null) return;
+    const panel = target.closest<HTMLElement>('[data-switcher-panel]');
+    if (
+      panel?.getAttribute('data-switcher-panel') !== chosen ||
+      target.getClientRects().length === 0
+    )
+      return;
+    pending.current = null;
+    focusTarget(target);
+  }, [chosen]);
+
   const move = (event: KeyboardEvent, from: number) => {
     const drawn = tabs.current
       .map((tab, index) => (tab && tab.getClientRects().length > 0 ? index : -1))
@@ -108,7 +139,10 @@ export function SwitcherTabs({
     if (to === undefined) return;
     event.preventDefault();
     const key = keys[to];
-    if (key) setChosen(key);
+    if (key) {
+      wanted.current = key;
+      setChosen(key);
+    }
     tabs.current[to]?.focus();
   };
 
@@ -126,9 +160,12 @@ export function SwitcherTabs({
             id={`sw-tab-${section.key}`}
             aria-selected={chosen === section.key}
             aria-controls={`sw-panel-${section.key}`}
-            tabIndex={chosen === null || chosen === section.key ? 0 : -1}
+            tabIndex={(chosen ?? first) === section.key ? 0 : -1}
             className="sw-tab"
-            onClick={() => setChosen(section.key)}
+            onClick={() => {
+              wanted.current = section.key;
+              setChosen(section.key);
+            }}
             onKeyDown={(event) => move(event, index)}
             {...atLevel(section.level)}
           >

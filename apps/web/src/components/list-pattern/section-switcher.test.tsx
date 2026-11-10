@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SwitcherTabs } from './section-switcher';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -14,6 +14,8 @@ beforeEach(() => {
   container.setAttribute('data-depth', 'browse');
   document.body.append(container);
   root = createRoot(container);
+  // jsdom has no layout, so scrolling is a no-op here.
+  (Element.prototype as { scrollIntoView: () => void }).scrollIntoView = () => undefined;
   // jsdom draws nothing, so say which elements are "drawn": those without a display:none ancestor
   // carrying a hiding depth. The component asks getClientRects, so give drawn ones a box.
   Object.defineProperty(HTMLElement.prototype, 'getClientRects', {
@@ -93,6 +95,36 @@ describe('SwitcherTabs', () => {
     link.remove();
   });
 
+  it('opens a section asked for at start as soon as depth shows its tab', async () => {
+    // The notes tab is Browse; evidence is Everything. Start wanting evidence at Browse depth.
+    draw('evidence');
+    expect(panel('evidence')?.hidden).toBe(true);
+    await act(async () => {
+      container.setAttribute('data-depth', 'everything');
+      await Promise.resolve();
+    });
+    expect(panel('evidence')?.hidden).toBe(false);
+  });
+
+  it('goes to the target of a link once its section shows', () => {
+    draw();
+    const target = container.querySelector<HTMLElement>('#notes') as HTMLElement;
+    const scroll = vi.fn();
+    target.scrollIntoView = scroll;
+    const link = document.createElement('a');
+    link.href = '#notes';
+    container.append(link);
+    act(() => link.click());
+    expect(scroll).toHaveBeenCalled();
+    link.remove();
+  });
+
+  it('gives one tab stop while nothing is chosen: the first drawn tab', () => {
+    draw();
+    expect(tab('work')?.tabIndex).toBe(0);
+    expect(tab('notes')?.tabIndex).toBe(-1);
+  });
+
   it('moves to a drawn section when depth hides the chosen one', async () => {
     container.setAttribute('data-depth', 'everything');
     draw('evidence');
@@ -102,7 +134,7 @@ describe('SwitcherTabs', () => {
       await Promise.resolve();
     });
     expect(panel('evidence')?.hidden).toBe(true);
-    // Nothing is chosen until a tab is.
+    // Nothing else is chosen in its place.
     expect(panel('work')?.hidden).toBe(true);
     expect(tab('work')?.getAttribute('aria-selected')).toBe('false');
   });

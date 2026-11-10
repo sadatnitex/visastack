@@ -83,6 +83,33 @@ describe('ChecklistSearch', () => {
     scope.remove();
   });
 
+  it('puts the folds back as they were when the search is cleared', () => {
+    const scope = list(9);
+    (scope.querySelector('#g1') as HTMLDetailsElement).open = false;
+    (scope.querySelector('#g2') as HTMLDetailsElement).open = false;
+    act(() => root.render(<ChecklistSearch scopeId="readiness" rows={9} />));
+    type('booking');
+    expect((scope.querySelector('#g1') as HTMLDetailsElement).open).toBe(true);
+    type('');
+    expect((scope.querySelector('#g1') as HTMLDetailsElement).open).toBe(false);
+    expect((scope.querySelector('#g2') as HTMLDetailsElement).open).toBe(false);
+    scope.remove();
+  });
+
+  it('searches the name only, so a status word on one row does not match another', () => {
+    const scope = list(9);
+    scope
+      .querySelector('[data-pattern="list-row"]')
+      ?.insertAdjacentHTML('beforeend', '<span class="badge">Optional</span>');
+    act(() => root.render(<ChecklistSearch scopeId="readiness" rows={9} />));
+    type('optional');
+    const shown = [...scope.querySelectorAll<HTMLElement>('[data-pattern="list-row"]')].filter(
+      (row) => !row.hidden,
+    );
+    expect(shown).toHaveLength(0);
+    scope.remove();
+  });
+
   it('shows every row again when the search is cleared, and says when nothing matches', () => {
     const scope = list(9);
     act(() => root.render(<ChecklistSearch scopeId="readiness" rows={9} />));

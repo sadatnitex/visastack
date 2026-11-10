@@ -16927,48 +16927,23 @@ a.row.lift-snap:hover {
   width: 100%;
 }
 
-/* More for This Case: five closed rows, each its own outlined box, so a hidden row leaves no gap. */
-.lift-more-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.lift-more-item {
-  min-width: 0;
-  border: 1px solid var(--edge-card);
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
-}
-.lift-more-item .lift-action {
-  border-bottom: none;
-  border-radius: var(--radius);
-}
-.lift-more-item details[open] > .lift-action-summary {
-  border-bottom: 1px solid var(--hairline-soft);
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-.lift-more-item .lift-action-summary:hover {
-  background: var(--brand-tint-1);
-}
-.lift-more-body {
-  padding: var(--space-4);
-}
-.lift-more-body > .grid {
+/* More for This Case: the section tabs hold their panels' cards as quiet blocks divided by a hairline. */
+.sw-panel > .grid {
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
 }
-.lift-more-body > .grid > .card {
+.sw-panel > .grid > .card {
   padding: var(--space-4) 0;
   border: none;
   border-top: 1px solid var(--hairline-soft);
   border-radius: 0;
   background: transparent;
 }
-.lift-more-body > .grid > .card:first-child {
+.sw-panel > .grid > .card:first-child {
   padding-top: 0;
   border-top: none;
 }
-.lift-more-body > .grid > .card:last-child {
+.sw-panel > .grid > .card:last-child {
   padding-bottom: 0;
 }
 

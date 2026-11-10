@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ListFilterBar } from '../../../../components/list-pattern';
 
 /**
@@ -21,6 +21,8 @@ export function ChecklistSearch({
   const [query, setQuery] = useState('');
   const [drawn, setDrawn] = useState(false);
   const [matches, setMatches] = useState(rows);
+  // The folds as they were before the first search, put back when the search is cleared.
+  const folds = useRef<Map<HTMLDetailsElement, boolean> | null>(null);
   useEffect(() => setDrawn(true), []);
 
   useEffect(() => {
@@ -28,9 +30,21 @@ export function ChecklistSearch({
     if (!scope) return;
     const needle = query.trim().toLocaleLowerCase();
     let shown = 0;
+    if (needle !== '' && folds.current === null) {
+      folds.current = new Map(
+        [...scope.querySelectorAll<HTMLDetailsElement>('details')].map(
+          (fold) => [fold, fold.open] as const,
+        ),
+      );
+    }
     for (const row of scope.querySelectorAll<HTMLElement>('[data-pattern="list-row"]')) {
+      // The name only, in full: a cut name is searched by its whole sentence, a short one by itself.
       const link = row.querySelector('a[data-pane-open]');
-      const text = (link?.getAttribute('aria-label') ?? row.textContent ?? '').toLocaleLowerCase();
+      const text = (
+        link?.getAttribute('aria-label') ??
+        link?.textContent ??
+        ''
+      ).toLocaleLowerCase();
       const hit = needle === '' || text.includes(needle);
       row.hidden = !hit;
       if (hit) shown += 1;
@@ -51,6 +65,10 @@ export function ChecklistSearch({
           if (rest.querySelector('[data-pattern="list-row"]:not([hidden])')) rest.open = true;
         }
       }
+    }
+    if (needle === '' && folds.current) {
+      for (const [fold, open] of folds.current) fold.open = open;
+      folds.current = null;
     }
     setMatches(shown);
   }, [query, scopeId]);

@@ -13,6 +13,7 @@ import { formatTimestampDate } from '../../../../lib/format-date';
 import { AttemptPanel } from './attempt-panel';
 import { candidateViews } from './case-evidence-view';
 import { ATTEMPT_DOCUMENT_KINDS, CAPPED_LISTS, type CappedList, type OkValue } from './case-model';
+import type { CandidateView } from './collaboration-panels';
 import {
   AppointmentsPanel,
   EvidenceSelectionPanel,
@@ -89,6 +90,8 @@ export interface CaseSecondaryProps {
   readonly more: Readonly<Record<CappedList, ReactNode>>;
   /** The full totals for the counts beside the section names; see `CaseSecondaryTotals`. */
   readonly totals?: CaseSecondaryTotals | undefined;
+  /** The files on file per item, when the page already built them (it does, for the item panels). */
+  readonly views?: readonly CandidateView[] | undefined;
   /** No agency has access: notes show at Everything unless there are some. */
   readonly selfReviewed?: boolean;
 }
@@ -126,6 +129,7 @@ export function CaseSecondary({
   more,
   totals,
   selfReviewed = false,
+  views: given,
 }: CaseSecondaryProps) {
   const openTasks =
     totals?.openTasks ??
@@ -133,7 +137,7 @@ export function CaseSecondary({
   const noteCount = totals?.notes ?? notes.length;
   const outcomeCount = totals?.outcomes ?? outcomes.length;
   const problemCount = totals?.problems ?? complaints.length + feedback.length;
-  const views = candidateViews(candidates, evidenceLifecycle, selectionIdsByCandidate);
+  const views = given ?? candidateViews(candidates, evidenceLifecycle, selectionIdsByCandidate);
   // Notes show at Browse when there are any, or when an agency can see the case; a traveller
   // reviewing alone with no notes finds them at Everything.
   const notesLevel: DepthLevel = noteCount > 0 || !selfReviewed ? 'browse' : 'everything';

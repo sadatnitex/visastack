@@ -849,6 +849,12 @@ export default async function MissionPage({
   };
   // Notes show at Browse when there are some or an agency can see the case, else at Everything.
   const notesLevel = data.selfReviewed && data.noteTotal === 0 ? 'everything' : 'browse';
+  // Built once: the item panels and the Select Evidence tab draw the same files.
+  const evidenceViews = candidateViews(
+    data.candidates,
+    data.evidenceLifecycle,
+    data.selectionIdsByCandidate,
+  );
   const checklistIds = new Set(data.requirementDetails.map((r) => r.packRequirementId));
   // One panel per checklist item; the package choice of an item sits in its own panel.
   const checklistPanes = hasChecklist
@@ -1085,6 +1091,7 @@ export default async function MissionPage({
               expanded={expandedLists}
               more={more}
               totals={{ openTasks: data.openTaskCount, notes: data.noteTotal }}
+              views={evidenceViews}
               selfReviewed={data.selfReviewed}
             />
           </div>
