@@ -68,20 +68,17 @@ describe('the Trips list block', () => {
     expect(foldHeight).toBeGreaterThanOrEqual(44);
   });
 
-  it('draws every chip tone readable: white on the solid tones, text on the grey one', () => {
-    const pairs: [string, string, string][] = [
-      ['warning', 'warning', '#ffffff'],
-      ['danger', 'danger-strong', '#ffffff'],
-      ['info', 'brand', '#ffffff'],
-      ['success', 'success', '#ffffff'],
-    ];
-    for (const [tone, fill, text] of pairs) {
-      const rule = rules.match(
-        new RegExp(`\\.case-chip\\[data-case-tone="${tone}"\\]\\s*\\{([^}]*)\\}`),
-      )?.[1];
-      expect(rule, `rule for ${tone}`).toContain(`background: var(--${fill})`);
-      expect(rule, `rule for ${tone}`).toContain(`color: ${text}`);
-      expect(contrast(text, token(fill)), `${text} on --${fill}`).toBeGreaterThanOrEqual(4.5);
+  it('takes every chip colour from the six Harbor tones, never a new colour, and keeps white readable on each', () => {
+    expect(rules).toMatch(/\.case-chip\[data-tone\]\s*\{[^}]*background:\s*var\(--tone\)[^}]*color:\s*#ffffff/);
+    // The chip rules name no colour of their own besides the white text and the grey ground.
+    const chipRules = rules.match(/\.case-chip[^{]*\{[^}]*\}/g)?.join('') ?? '';
+    const colours = chipRules.match(/#[0-9a-fA-F]{3,8}\b/g) ?? [];
+    expect([...new Set(colours)]).toEqual(['#ffffff']);
+    const tones = [...css.matchAll(/\[data-tone="([a-z]+)"\]\s*\{\s*--tone:\s*(#[0-9a-fA-F]{6})/g)];
+    for (const name of ['green', 'amber', 'red', 'blue']) {
+      const hex = tones.find((match) => match[1] === name)?.[2];
+      expect(hex, `tone ${name}`).toBeDefined();
+      expect(contrast('#ffffff', hex ?? '#ffffff'), `white on ${name}`).toBeGreaterThanOrEqual(4.5);
     }
     expect(rules).toMatch(/\.case-chip\s*\{[^}]*background:\s*var\(--bg-subtle\)/);
     expect(contrast(token('text'), token('bg-subtle'))).toBeGreaterThanOrEqual(4.5);

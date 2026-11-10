@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { caseRowProgressWords, progressRingPercent } from '../lib/readiness-words';
 import { caseStatus } from '../lib/status-words';
 import { CountryFlag } from './country-flag';
@@ -34,7 +35,17 @@ export interface CaseListRowProps {
   readonly past?: boolean;
   /** Where the whole card leads. */
   readonly href: string;
+  /** A slot for the purpose icon, drawn in front of the purpose; the visual-language lane fills it. */
+  readonly purposeIcon?: ReactNode;
 }
+
+/** The six Harbor tones (globals.css WP-PLAIN-TONE) a stage colour comes from; grey has none. */
+const HARBOR_TONE: Readonly<Record<string, string>> = {
+  success: 'green',
+  warning: 'amber',
+  danger: 'red',
+  info: 'blue',
+};
 
 /** The link's one accessible name: the case, its stage and its count. */
 export function caseRowName(title: string, state: string, progress: CaseRowProgress): string {
@@ -94,9 +105,12 @@ export function CaseListRow({
   nextStep,
   past = false,
   href,
+  purposeIcon,
 }: CaseListRowProps) {
   const status = caseStatus(state);
-  const sub = [destination, purpose].filter((part): part is string => Boolean(part?.trim()));
+  const country = destination?.trim() ? destination : null;
+  const purposeText = purpose?.trim() ? purpose : null;
+  const tone = HARBOR_TONE[status.tone];
   const step = past
     ? null
     : progress.kind === 'no-checklist'
@@ -118,13 +132,24 @@ export function CaseListRow({
           <span className="case-row-title" data-value="name">
             {title}
           </span>
-          {sub.length > 0 ? (
+          {country || purposeText ? (
             <span className="case-row-sub" data-value="meta">
-              {sub.join(' · ')}
+              {country}
+              {country && purposeText ? ' \u00b7 ' : null}
+              {purposeText ? (
+                <>
+                  {purposeIcon ? <span className="case-row-purpose">{purposeIcon}</span> : null}
+                  {purposeText}
+                </>
+              ) : null}
             </span>
           ) : null}
           <span className="case-row-chipline">
-            <span className="case-chip" data-case-tone={status.tone}>
+            <span
+              className="case-chip"
+              data-case-tone={status.tone}
+              {...(tone ? { 'data-tone': tone } : {})}
+            >
               <span className="case-chip-dot" aria-hidden="true" />
               {status.word}
             </span>

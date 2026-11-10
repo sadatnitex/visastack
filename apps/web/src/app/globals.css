@@ -20283,20 +20283,9 @@ html:has(.sticky-action-bar) .toast-region {
   border-radius: 50%;
   background: currentColor;
 }
-.case-chip[data-case-tone="warning"] {
-  background: var(--warning);
-  color: #ffffff;
-}
-.case-chip[data-case-tone="danger"] {
-  background: var(--danger-strong);
-  color: #ffffff;
-}
-.case-chip[data-case-tone="info"] {
-  background: var(--brand);
-  color: #ffffff;
-}
-.case-chip[data-case-tone="success"] {
-  background: var(--success);
+/* Chip colours are the six Harbor tones (WP-PLAIN-TONE): the chip carries data-tone and takes --tone as its fill. Grey (finished) carries none. */
+.case-chip[data-tone] {
+  background: var(--tone);
   color: #ffffff;
 }
 .case-row-progress {
@@ -20413,6 +20402,13 @@ html:has(.sticky-action-bar) .toast-region {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+.case-row-purpose,
+.country-flag-purpose {
+  display: inline-flex;
+  align-items: center;
+  margin-right: var(--space-1);
+  vertical-align: middle;
 }
 .country-pick-head .country-flag {
   flex: none;

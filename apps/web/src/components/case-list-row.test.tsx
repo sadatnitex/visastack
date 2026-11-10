@@ -86,6 +86,22 @@ describe('a case row', () => {
     }
   });
 
+  it('colours the chip with the Harbor tone of the stage, and leaves grey ones plain', () => {
+    const tone = (state: string) =>
+      draw({ state }).querySelector('.case-chip')?.getAttribute('data-tone') ?? null;
+    expect(tone('DRAFT')).toBe('amber');
+    expect(tone('AWAITING_APPLICANT')).toBe('red');
+    expect(tone('IN_REVIEW')).toBe('blue');
+    expect(tone('SUBMISSION_READY')).toBe('green');
+    expect(tone('CLOSED')).toBeNull();
+  });
+
+  it('leaves a slot for the purpose icon in front of the purpose', () => {
+    const doc = draw({ purposeIcon: <svg data-testid="purpose" aria-hidden="true" /> });
+    expect(doc.querySelector('.case-row-sub .case-row-purpose svg')).not.toBeNull();
+    expect(doc.querySelector('.case-row-sub')?.textContent).toBe('Japan \u00b7 Tourism');
+  });
+
   it('is one link with one tab stop and one accessible name: case, stage and count', () => {
     const doc = draw();
     const links = doc.querySelectorAll('a');

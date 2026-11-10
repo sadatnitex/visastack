@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { resolveCaseCountry } from '../lib/case-choices';
 import { CountryFlag, type CountryFlagSize } from './country-flag';
 
@@ -14,9 +15,12 @@ export function destinationFlagCode(destination: string | null | undefined): str
 export function DestinationLabel({
   destination,
   size = 'sm',
+  purposeIcon,
 }: {
   readonly destination: string | null | undefined;
   readonly size?: CountryFlagSize;
+  /** A slot next to the flag for the purpose icon; the visual-language lane fills it. */
+  readonly purposeIcon?: ReactNode;
 }) {
   const text = (destination ?? '').trim();
   if (text === '') return null;
@@ -25,6 +29,7 @@ export function DestinationLabel({
   return (
     <span className="country-flag-inline">
       <CountryFlag iso2={iso2} name={text} size={size} decorative />
+      {purposeIcon ? <span className="country-flag-purpose">{purposeIcon}</span> : null}
       {text}
     </span>
   );
