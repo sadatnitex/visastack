@@ -1,4 +1,3 @@
-import 'server-only';
 import type { ReactNode } from 'react';
 import { resolveCaseCountry } from '../lib/case-choices';
 import { CountryFlag, type CountryFlagSize } from './country-flag';
@@ -6,7 +5,7 @@ import { CountryFlag, type CountryFlagSize } from './country-flag';
 /**
  * A destination as a person wrote or picked it, with the flag of the country it names in front.
  * Text that names no country we hold ("Not sure yet") is shown as it is, with no flag, so a flag
- * is never guessed. Server side only: the lookup uses the country list.
+ * is never guessed. Server side only (a test keeps client files from importing it): the lookup uses the country list.
  */
 export function destinationFlagCode(destination: string | null | undefined): string | null {
   const text = (destination ?? '').trim();
