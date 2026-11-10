@@ -609,6 +609,6 @@ Held by `parity-case.test.tsx` through three approved changes in `approved-chang
 | Heading "Active Cases", list of plain rows with a ring and a grey stage badge | Heading "Active (N)"; each case is one card (flag, name, country and purpose, stage chip, bar and count, next step, chevron) | Cases |
 | Heading "Past Cases" with a note, rows folded only above three | A folded row "Past Trips (N)" always, cards inside, no advice on them | Cases |
 | A row link named by its text (name, count line, stage, arrow) | One link per card named "case, stage, count" | Cases |
-| Stage names Draft, Intake, In Review, Awaiting Traveller, Submission Ready (and older ones) | Getting Started, Gathering Documents, Agency Is Checking, Needs You, Ready to Submit, Submitted, Closed, Cancelled | Cases, glance line |
+| Stage names Draft, Intake, In Review, Awaiting Traveller, Submission Ready (and older ones) | Getting Started, Gathering Documents, Being Checked, Needs You, Ready to Submit, Submitted, Closed, Cancelled | Cases, glance line |
 
 Held by `parity-cases.test.tsx` through the approved changes in `approved-changes.ts`, by `page.test.tsx` and by `components/case-list-row.test.tsx`.

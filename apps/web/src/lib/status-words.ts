@@ -72,7 +72,7 @@ export const INVITATION_STATUS: Readonly<Record<string, StatusWord>> = {
 export const CASE_STATUS: Readonly<Record<MissionState, StatusWord>> = {
   DRAFT: { word: 'Getting Started', tone: 'warning' },
   INTAKE: { word: 'Gathering Documents', tone: 'warning' },
-  IN_REVIEW: { word: 'Agency Is Checking', tone: 'info' },
+  IN_REVIEW: { word: 'Being Checked', tone: 'info' },
   AWAITING_APPLICANT: { word: 'Needs You', tone: 'danger' },
   SUBMISSION_READY: { word: 'Ready to Submit', tone: 'success' },
   SUBMITTED: { word: 'Submitted', tone: 'info' },
@@ -80,8 +80,8 @@ export const CASE_STATUS: Readonly<Record<MissionState, StatusWord>> = {
   CANCELLED: { word: 'Cancelled', tone: 'neutral' },
   // Older cases: the nearest stage above.
   IN_PROGRESS: { word: 'Gathering Documents', tone: 'warning' },
-  READY_FOR_REVIEW: { word: 'Agency Is Checking', tone: 'info' },
-  UNDER_REVIEW: { word: 'Agency Is Checking', tone: 'info' },
+  READY_FOR_REVIEW: { word: 'Being Checked', tone: 'info' },
+  UNDER_REVIEW: { word: 'Being Checked', tone: 'info' },
   READY_TO_EXPORT: { word: 'Ready to Submit', tone: 'success' },
   LOCKED: { word: 'Closed', tone: 'neutral' },
 };

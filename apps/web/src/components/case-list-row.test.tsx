@@ -47,7 +47,7 @@ describe('the status words of a case', () => {
   it('uses the owner-approved words and colours for the eight stages', () => {
     expect(CASE_STATUS.DRAFT).toEqual({ word: 'Getting Started', tone: 'warning' });
     expect(CASE_STATUS.INTAKE).toEqual({ word: 'Gathering Documents', tone: 'warning' });
-    expect(CASE_STATUS.IN_REVIEW).toEqual({ word: 'Agency Is Checking', tone: 'info' });
+    expect(CASE_STATUS.IN_REVIEW).toEqual({ word: 'Being Checked', tone: 'info' });
     expect(CASE_STATUS.AWAITING_APPLICANT).toEqual({ word: 'Needs You', tone: 'danger' });
     expect(CASE_STATUS.SUBMISSION_READY).toEqual({ word: 'Ready to Submit', tone: 'success' });
     expect(CASE_STATUS.SUBMITTED).toEqual({ word: 'Submitted', tone: 'info' });
@@ -57,11 +57,17 @@ describe('the status words of a case', () => {
 
   it('reads an older stage as the nearest stage, and never claims a decision', () => {
     expect(caseStatus('IN_PROGRESS').word).toBe('Gathering Documents');
-    expect(caseStatus('READY_FOR_REVIEW').word).toBe('Agency Is Checking');
-    expect(caseStatus('UNDER_REVIEW').word).toBe('Agency Is Checking');
+    expect(caseStatus('READY_FOR_REVIEW').word).toBe('Being Checked');
+    expect(caseStatus('UNDER_REVIEW').word).toBe('Being Checked');
     expect(caseStatus('READY_TO_EXPORT').word).toBe('Ready to Submit');
     expect(caseStatus('LOCKED').word).toBe('Closed');
     for (const { word } of Object.values(CASE_STATUS)) expect(word).not.toMatch(/approv|grant/i);
+  });
+
+  it('never names an agency: a case with no agency must not claim one is working on it', () => {
+    for (const [state, { word }] of Object.entries(CASE_STATUS)) {
+      expect(word, `stage ${state}`).not.toMatch(/agenc/i);
+    }
   });
 
   it('reads a stage it does not know as the plainest word, never the stored code', () => {
