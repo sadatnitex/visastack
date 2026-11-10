@@ -30,16 +30,25 @@ afterEach(() => {
   container.remove();
 });
 
-const render = () =>
+const two = [...people, { applicantId: 'p2', name: 'Karim Hossain' }];
+const render = (
+  travellers: readonly { applicantId: string; name: string }[] = people,
+  initialTravellerId?: string,
+) =>
   act(() =>
     root.render(
       <TripStartForm
         countries={caseCountryOptions()}
         purposes={casePurposeGroups()}
-        travellers={people}
+        travellers={travellers}
+        {...(initialTravellerId ? { initialTravellerId } : {})}
       />,
     ),
   );
+const ticked = () =>
+  [...container.querySelectorAll<HTMLInputElement>('input[name="traveller"]')]
+    .filter((input) => input.checked)
+    .map((input) => input.value);
 const box = () => container.querySelector<HTMLInputElement>('input[name="destination"]');
 
 function type(input: HTMLInputElement, text: string) {
@@ -101,5 +110,67 @@ describe('Start a Trip: where are you going?', () => {
     expect(box()?.value).toBe('Korea');
     expect(container.textContent).toContain('We could not match that to a country.');
     expect(box()?.getAttribute('aria-invalid')).toBe('true');
+  });
+});
+
+describe('Start a Trip: arriving from the Cases list', () => {
+  it('ticks the traveller it was sent for, and nobody else', () => {
+    render(two, 'p2');
+    expect(ticked()).toEqual(['p2']);
+  });
+
+  it('ignores a traveller who is not in the list, so nothing is ticked for a stranger', () => {
+    render(two, 'someone-else');
+    expect(ticked()).toEqual([]);
+  });
+
+  it('still ticks the only traveller when none was named', () => {
+    render();
+    expect(ticked()).toEqual(['p1']);
+  });
+
+  it('gives a way forward when the country is not known, instead of only a refusal', async () => {
+    actions.startTripAction.mockResolvedValue({
+      ok: false,
+      message: 'Choose where you are going.',
+      field: 'destination',
+    });
+    render(two, 'p2');
+    const form = container.querySelector('form') as HTMLFormElement;
+    await act(async () => {
+      form.requestSubmit();
+    });
+    const link = [...container.querySelectorAll('a')].find(
+      (a) => a.textContent === 'Start a Case by Name',
+    );
+    expect(link?.getAttribute('href')).toBe('/app/applicant/p2/missions?manual=1#start-case');
+  });
+
+  it('offers no by-name link while several travellers are listed and nobody is ticked', async () => {
+    actions.startTripAction.mockResolvedValue({
+      ok: false,
+      message: 'Choose where you are going.',
+      field: 'destination',
+    });
+    render(two);
+    const form = container.querySelector('form') as HTMLFormElement;
+    await act(async () => {
+      form.requestSubmit();
+    });
+    expect(container.textContent).not.toContain('Start a Case by Name');
+  });
+
+  it('shows no such link for a refusal about something else', async () => {
+    actions.startTripAction.mockResolvedValue({
+      ok: false,
+      message: 'Choose who is travelling.',
+      field: 'traveller',
+    });
+    render(two);
+    const form = container.querySelector('form') as HTMLFormElement;
+    await act(async () => {
+      form.requestSubmit();
+    });
+    expect(container.textContent).not.toContain('Start a Case by Name');
   });
 });

@@ -28,10 +28,10 @@ export const dynamic = 'force-dynamic';
 const REASONS: Record<PrepareAgainReason, string> = {
   used_before: 'Used in your last case and still current.',
   only_match:
-    'The one current record on file that fits. It counts for the new case; tick it to keep it as the chosen one.',
+    'The only current record that fits. It counts for the new case. Tick it to choose it.',
   choose_one: 'More than one record fits. Tick the one to use, or choose later in the case.',
   needs_confirmation: 'Waiting for you to confirm or update it on your record.',
-  conflict: 'Two sources disagree. Settle it on your record first.',
+  conflict: 'Two records give different answers. Fix this on your record first.',
   too_old: 'Older than this route allows. Add a newer one.',
   not_usable: 'Still being checked, or cannot be used. Check it in Documents.',
   not_provided: 'Not on your record yet.',
@@ -167,8 +167,8 @@ export default async function PrepareAgainPage({
         />
       ) : (
         <p className="card-body">
-          Turn on <strong>Let VisaStack Process My Details</strong> on <Link href="/app">Home</Link>{' '}
-          to create cases.
+          Turn on <strong>Let VisaStack Process My Details</strong> on{' '}
+          <Link href="/app#permissions">Home</Link> to create cases.
         </p>
       )}
     </>

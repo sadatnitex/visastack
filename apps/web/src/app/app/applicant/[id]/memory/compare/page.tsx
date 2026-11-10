@@ -14,7 +14,6 @@ import { ShowMore } from '../../../../../../components/show-more';
 import { PageHeader, StatusBadge } from '../../../../../../components/ui';
 import {
   AMOUNT_BASIS_LABELS,
-  FACT_STATUS_LABELS,
   RESULT_NEXT_STEPS,
   RESULT_TONES,
   changeLine,
@@ -25,6 +24,7 @@ import {
   profileSectionHref,
   reviewSentence,
 } from '../../../../../../lib/application-memory-labels';
+import { fieldStatusWords } from '../../../../../../lib/field-state-words';
 import { formatDateOnly, formatTimestampDate } from '../../../../../../lib/format-date';
 import { TRAVELLER_LIST_STEP, nextShow, parseShow } from '../../../../../../lib/paging';
 import { createKeyManagementPort } from '../../../../../../lib/providers';
@@ -270,7 +270,7 @@ function SideFacts({
       <dt>As Of</dt>
       <dd>{asOf}</dd>
       <dt>How It Was Saved</dt>
-      <dd>{FACT_STATUS_LABELS[side.status] ?? 'Recorded'}</dd>
+      <dd>{fieldStatusWords(side.status)}</dd>
       <dt>Note Saved with It</dt>
       <dd>
         {hidden ? (

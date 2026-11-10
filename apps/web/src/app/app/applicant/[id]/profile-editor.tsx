@@ -17,6 +17,7 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { fieldStatusWords } from '../../../../lib/field-state-words';
 import { formatDateOnly } from '../../../../lib/format-date';
 import type {
   EditorFieldDef,
@@ -41,16 +42,6 @@ const INITIAL: ActionState = { ok: true, message: '' };
 
 /** The choice that opens a free text box. Matches the catalogue's own wording. */
 const OTHER_CHOICE = 'Other';
-
-const STATUS_LABELS: Record<string, string> = {
-  DECLARED: 'Declared',
-  APPLICANT_CONFIRMED: 'Confirmed',
-  DOCUMENT_SUPPORTED: 'Document-supported',
-  AGENCY_REVIEWED: 'Agency-reviewed',
-  CONFLICTED: 'Conflicted',
-  // LC-G1: the person said this value is no longer current (the version holds no value).
-  STALE: 'No Longer Current',
-};
 
 const SENSITIVITY_LABELS: Record<string, string> = {
   SENSITIVE: 'Sensitive',
@@ -110,7 +101,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
   return (
     <details style={{ marginTop: '0.3rem' }}>
       <summary className="muted" style={{ fontSize: 'var(--text-caption)', cursor: 'pointer' }}>
-        Assurance ({assurance.tier})
+        How This Was Checked
       </summary>
       <div
         style={{
@@ -123,7 +114,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
         }}
       >
         <p className="muted u-fs-075-m0">
-          {assurance.applicantDeclared ? '✓ Declared by the traveller.' : '✗ Not yet declared.'}
+          {assurance.applicantDeclared ? '✓ Entered by the traveller.' : '✗ Not yet entered.'}
         </p>
         <p className="muted u-fs-075-m0">
           {assurance.documentSupplied
@@ -132,7 +123,7 @@ function AssuranceDetail({ assurance }: { readonly assurance: FieldAssurance }) 
         </p>
         <div>
           <p className="muted u-fs-075-m0">
-            Named machine checks: {assurance.machineChecks.length === 0 ? 'none performed.' : ''}
+            Automatic checks: {assurance.machineChecks.length === 0 ? 'none done.' : ''}
           </p>
           {assurance.machineChecks.map((c) => (
             <p
@@ -240,9 +231,7 @@ function FieldRow({
               {sensitivityLabel}
             </span>
           ) : null}
-          {status ? (
-            <span className="badge badge-neutral">{STATUS_LABELS[status] ?? status}</span>
-          ) : null}
+          {status ? <span className="badge badge-neutral">{fieldStatusWords(status)}</span> : null}
         </span>
       </div>
       <div className="field-control">

@@ -19,10 +19,13 @@ export function ReadingStatus({
   copy,
   stage,
   applicantId,
+  helpHref,
 }: {
   readonly copy: ReadingStatusCopy;
   readonly stage: ReadingStage;
   readonly applicantId: string;
+  /** Where to get help when the file could not be checked at all (a failed check, not a bad copy). */
+  readonly helpHref?: string;
 }) {
   return (
     <div className="reading-status" data-stage={stage}>
@@ -30,6 +33,11 @@ export function ReadingStatus({
         <StatusBadge tone={copy.tone}>{copy.title}</StatusBadge>
         <span>{copy.body}</span>
       </output>
+      {stage === 'needs_attention' && helpHref ? (
+        <p className="muted u-fs-085 u-m-0">
+          Still failing? <Link href={helpHref}>Get Help</Link>
+        </p>
+      ) : null}
       {stage === 'could_not_read' ? (
         <Link className="btn btn-secondary" href={`/app/applicant/${applicantId}/profile`}>
           Add the Details Yourself
