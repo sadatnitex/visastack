@@ -6,15 +6,19 @@ const redirect = vi.fn((to: string) => {
 vi.mock('next/navigation', () => ({ redirect: (to: string) => redirect(to) }));
 vi.mock('server-only', () => ({}));
 const getSession = vi.fn();
-vi.mock('../../../lib/neon-auth', () => ({ getNeonAuth: () => ({ getSession }) }));
+vi.mock('../../../lib/neon-request-session', () => ({
+  requestSessionReader: () => ({ getSession }),
+}));
 
 import ConfirmedPage from './page';
 
 const INVITE = '/app/invitations/accept?token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
-async function landed(next?: string): Promise<string> {
+async function landed(next?: string | string[], extra: { error?: string } = {}): Promise<string> {
   try {
-    await ConfirmedPage({ searchParams: Promise.resolve(next === undefined ? {} : { next }) });
+    await ConfirmedPage({
+      searchParams: Promise.resolve({ ...(next === undefined ? {} : { next }), ...extra }),
+    });
   } catch (error) {
     return String((error as Error).message).replace('REDIRECT:', '');
   }
@@ -44,6 +48,22 @@ describe('/auth/confirmed', () => {
     expect(await landed()).toBe('/auth/sign-in?n=confirmed');
     expect(await landed(INVITE)).toBe(
       `/auth/sign-in?n=confirmed&next=${encodeURIComponent(INVITE)}`,
+    );
+  });
+
+  it('does not fail on a repeated destination', async () => {
+    getSession.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
+    expect(await landed(['/app/privacy', '/app/help'])).toBe('/app?confirmed=1');
+  });
+
+  it('tells an expired or already used link apart and never says confirmed', async () => {
+    getSession.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
+    expect(await landed(undefined, { error: 'token_expired' })).toBe(
+      '/auth/verify-email?e=expired',
+    );
+    getSession.mockResolvedValue({ data: null, error: null });
+    expect(await landed(INVITE, { error: 'invalid_token' })).toBe(
+      `/auth/verify-email?e=expired&next=${encodeURIComponent(INVITE)}`,
     );
   });
 

@@ -77,7 +77,11 @@ export function FirstRunCountry({
       aria-labelledby="first-run-title"
     >
       <Steps current={1} total={3} />
-      {confirmed ? <output className="first-run-notice">{CONFIRMED_LINE}</output> : null}
+      {confirmed ? (
+        <p className="first-run-notice">
+          <output>{CONFIRMED_LINE}</output>
+        </p>
+      ) : null}
       <h1 className="section-title" id="first-run-title">
         Where do you want <em>to go?</em>
       </h1>

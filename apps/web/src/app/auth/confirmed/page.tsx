@@ -8,21 +8,25 @@ export const dynamic = 'force-dynamic';
 /**
  * Where the confirmation link in the email leads (P1, 10 Nov 2026). It shows nothing of its own:
  * a person who is signed in goes straight to where they were headed (the ordinary home, or the
- * task they came for), and anyone else goes to the sign-in form with the "confirmed" line. The
- * sign-in check in `middleware.ts` runs on this path first, so a sign-in made when the link was
- * confirmed is passed on, and a visitor with none never reaches this page at all.
+ * task they came for), and anyone else goes to the sign-in form with the "confirmed" line. A link
+ * that failed (Neon Auth adds `error`) goes to ask for a new one. The sign-in check in
+ * `middleware.ts` runs on this path first, so a sign-in made when the link was confirmed is passed
+ * on, and a visitor with none is sent on before this page is reached.
  */
 export default async function ConfirmedPage({
   searchParams,
-}: { searchParams: Promise<{ next?: string }> }) {
-  const { next } = await searchParams;
+}: { searchParams: Promise<{ next?: string | string[]; error?: string | string[] }> }) {
+  const { next, error } = await searchParams;
+  const failed = error !== undefined && error !== '';
   let signedIn = false;
-  try {
-    const { getNeonAuth } = await import('../../../lib/neon-auth');
-    const { data } = await getNeonAuth().getSession();
-    signedIn = Boolean(data?.user);
-  } catch {
-    signedIn = false;
+  if (!failed) {
+    try {
+      const { requestSessionReader } = await import('../../../lib/neon-request-session');
+      const { data } = await requestSessionReader().getSession();
+      signedIn = Boolean(data?.user);
+    } catch {
+      signedIn = false;
+    }
   }
-  redirect(confirmedLandingDecision({ signedIn, next }));
+  redirect(confirmedLandingDecision({ signedIn, next, failed }));
 }

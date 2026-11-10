@@ -1,8 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   CONFIRMED_PATH,
-  confirmedCallbackUrl,
+  confirmedFailedDestination,
   confirmedLandingDecision,
+  confirmedNextQuery,
   confirmedSignInFallback,
   confirmedSignedInDestination,
   neonLoginUrlFor,
@@ -52,7 +56,8 @@ describe('what happens after the confirmation link', () => {
   it('never puts an email address in any address it builds', () => {
     const email = 'someone@example.test';
     const built = [
-      confirmedCallbackUrl('https://app.example.test', INVITE),
+      confirmedNextQuery(INVITE),
+      confirmedFailedDestination(INVITE),
       confirmedLandingDecision({ signedIn: true, next: INVITE }),
       confirmedLandingDecision({ signedIn: false, next: INVITE }),
       neonLoginUrlFor(CONFIRMED_PATH, `?next=${encodeURIComponent(INVITE)}`),
@@ -64,28 +69,54 @@ describe('what happens after the confirmation link', () => {
   });
 });
 
-describe('the address Neon Auth sends the browser to', () => {
-  it('is the landing page, with a validated destination only when it is not the home', () => {
-    expect(confirmedCallbackUrl('https://app.example.test', '/app')).toBe(
-      'https://app.example.test/auth/confirmed',
-    );
-    expect(confirmedCallbackUrl('https://app.example.test', INVITE)).toBe(
-      `https://app.example.test/auth/confirmed?next=${encodeURIComponent(INVITE)}`,
-    );
-    expect(confirmedCallbackUrl('https://app.example.test', '//evil.example')).toBe(
-      'https://app.example.test/auth/confirmed',
-    );
+describe('the landing address Neon Auth sends the browser to', () => {
+  it('carries a validated destination only when it is not the home', () => {
+    expect(confirmedNextQuery('/app')).toBe('');
+    expect(confirmedNextQuery(undefined)).toBe('');
+    expect(confirmedNextQuery(INVITE)).toBe(`?next=${encodeURIComponent(INVITE)}`);
+    expect(confirmedNextQuery('//evil.example')).toBe('');
+  });
+});
+
+describe('a link that failed (expired or already used)', () => {
+  it('asks for a new link and never says the email is confirmed, signed in or not', () => {
+    for (const signedIn of [true, false]) {
+      expect(confirmedLandingDecision({ signedIn, next: undefined, failed: true })).toBe(
+        '/auth/verify-email?e=expired',
+      );
+      expect(confirmedLandingDecision({ signedIn, next: INVITE, failed: true })).toBe(
+        `/auth/verify-email?e=expired&next=${encodeURIComponent(INVITE)}`,
+      );
+      expect(
+        confirmedLandingDecision({ signedIn, next: 'https://evil.example', failed: true }),
+      ).toBe('/auth/verify-email?e=expired');
+    }
+  });
+});
+
+describe('a repeated or odd address parameter', () => {
+  it('is refused like any unsafe destination instead of failing', () => {
+    for (const next of [['/app/a', '/app/b'], 42, {}, null]) {
+      expect(confirmedLandingDecision({ signedIn: true, next })).toBe('/app?confirmed=1');
+      expect(confirmedLandingDecision({ signedIn: false, next })).toBe('/auth/sign-in?n=confirmed');
+    }
   });
 });
 
 describe('where the sign-in check sends a visitor with no session', () => {
-  it('keeps the confirmed line and the validated destination on the landing path', () => {
-    expect(neonLoginUrlFor(CONFIRMED_PATH, '')).toBe('/auth/sign-in?n=confirmed');
+  it('spells out the validated destination so the raw one is never copied back', () => {
+    expect(neonLoginUrlFor(CONFIRMED_PATH, '')).toBe('/auth/sign-in?n=confirmed&next=%2Fapp');
     expect(neonLoginUrlFor(CONFIRMED_PATH, `?next=${encodeURIComponent(INVITE)}`)).toBe(
       `/auth/sign-in?n=confirmed&next=${encodeURIComponent(INVITE)}`,
     );
     expect(neonLoginUrlFor(CONFIRMED_PATH, '?next=https%3A%2F%2Fevil.example')).toBe(
-      '/auth/sign-in?n=confirmed',
+      '/auth/sign-in?n=confirmed&next=%2Fapp',
+    );
+  });
+
+  it('sends a failed link to ask for a new one', () => {
+    expect(neonLoginUrlFor(CONFIRMED_PATH, '?error=token_expired')).toBe(
+      '/auth/verify-email?e=expired',
     );
   });
 
@@ -93,5 +124,20 @@ describe('where the sign-in check sends a visitor with no session', () => {
     expect(neonLoginUrlFor('/app/privacy', '?x=1')).toBe(
       `/auth/sign-in?next=${encodeURIComponent('/app/privacy?x=1')}`,
     );
+  });
+});
+
+describe('the request filter can load this file', () => {
+  it('imports nothing that the edge runtime cannot compile', () => {
+    // middleware.ts loads confirmed-landing.ts; a server-only module or node:crypto in its import
+    // graph fails the production build (the unit tests alone would not notice).
+    const here = dirname(fileURLToPath(import.meta.url));
+    for (const file of ['confirmed-landing.ts', 'safe-return-path.ts']) {
+      const source = readFileSync(join(here, file), 'utf8');
+      const imports = [...source.matchAll(/^import .* from '([^']+)'/gm)].map((m) => m[1]);
+      for (const spec of imports)
+        expect(spec, `${file} imports ${spec}`).toBe('./safe-return-path');
+      expect(source).not.toMatch(/server-only|node:/);
+    }
   });
 });

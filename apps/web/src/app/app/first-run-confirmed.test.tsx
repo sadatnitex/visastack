@@ -17,7 +17,9 @@ const render = (confirmed?: boolean) =>
   );
 
 it('shows the confirmed line once, as a polite status, only when asked', () => {
-  expect(render(true)).toContain(`<output class="first-run-notice">${CONFIRMED_LINE}</output>`);
+  expect(render(true)).toContain(
+    `<p class="first-run-notice"><output>${CONFIRMED_LINE}</output></p>`,
+  );
   expect(render(false)).not.toContain(CONFIRMED_LINE);
   expect(render()).not.toContain(CONFIRMED_LINE);
 });

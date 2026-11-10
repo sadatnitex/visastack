@@ -96,14 +96,14 @@ test.describe('unauthenticated access is denied, never leaked', () => {
     baseURL,
   }) => {
     if (!baseURL) throw new Error('A deployment URL is required');
+    const app = encodeURIComponent('/app');
+    const privacy = encodeURIComponent('/app/privacy');
     for (const [query, expected] of [
-      ['', '/auth/sign-in?n=confirmed'],
-      [
-        `?next=${encodeURIComponent('/app/privacy')}`,
-        `/auth/sign-in?n=confirmed&next=${encodeURIComponent('/app/privacy')}`,
-      ],
-      ['?next=https%3A%2F%2Fevil.example%2Fx', '/auth/sign-in?n=confirmed'],
-      ['?next=%2F%2Fevil.example', '/auth/sign-in?n=confirmed'],
+      ['', `/auth/sign-in?n=confirmed&next=${app}`],
+      [`?next=${privacy}`, `/auth/sign-in?n=confirmed&next=${privacy}`],
+      ['?next=https%3A%2F%2Fevil.example%2Fx', `/auth/sign-in?n=confirmed&next=${app}`],
+      ['?next=%2F%2Fevil.example', `/auth/sign-in?n=confirmed&next=${app}`],
+      ['?error=token_expired', '/auth/verify-email?e=expired'],
     ] as const) {
       const response = await request.get(`/auth/confirmed${query}`, { maxRedirects: 0 });
       expect([302, 307]).toContain(response.status());
