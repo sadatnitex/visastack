@@ -173,12 +173,13 @@ describe('agency Cases', () => {
     const html = await renderServer(Page(opening({ case: M1 })));
     const forms = stubProps<{
       organizationId: string;
-      applicants: unknown[];
+      applicants?: unknown[];
       fixed: { applicantId: string; applicantName: string; missionId: string; caseTitle: string };
     }>(html, 'RequestEvidenceForm');
     expect(forms).toHaveLength(1);
     expect(forms[0]?.organizationId).toBe('o1');
-    expect(forms[0]?.applicants).toEqual([]);
+    // The traveller and case are the case's own: no lists to choose from are sent.
+    expect(forms[0]?.applicants).toBeUndefined();
     expect(forms[0]?.fixed).toEqual({
       applicantId: `ap-${M1}`,
       applicantName: 'Rahim Uddin',

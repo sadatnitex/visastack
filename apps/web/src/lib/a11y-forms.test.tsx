@@ -1857,7 +1857,6 @@ const AGENCY: readonly Case[] = [
         organizationId="o1"
         fieldGroups={fixtureFieldGroups}
         documentGroups={fixtureDocumentGroups}
-        applicants={[]}
         fixed={{
           applicantId: 'a1',
           applicantName: 'Rahim Uddin',
