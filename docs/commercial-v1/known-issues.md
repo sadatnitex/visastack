@@ -7947,5 +7947,5 @@ Correction, 2026-11-10 (P10, after review): (1) `requestEvidenceBatch` now takes
 
 - Owner ("drop them", 10 Nov) dropped `umpe/g2-rules` and `umpe/g4-recognise`. Checked first: both are stacked integration branches (the four earlier lane commits plus the G2 and G4 work), and #423 (UMPE W5, merged 3 Nov 10:31, after the branch tips of 3 Nov 09:19 and 09:06) put their work on main. Their temporary migrations were regenerated as 0128 (G2 rules) and 0129 (G4 automatic placements), both present on main, with `pack-rule-details.ts` and `umpe-document-recognition.ts` in the code. Neither branch ever had a pull request.
 - Deleted by the Steward hygiene workflow (run 42808723283, success), each pinned to the tip below. Restore with `gh api -X POST repos/sadatnitex/visastack/git/refs -f ref=refs/heads/<name> -f sha=<sha>`: umpe/g2-rules d87e874778ad51c716c3143eb87965b9d3071d92; umpe/g4-recognise c2e501ddfe8959486cf73ead277cb54522161c1f.
-- No `umpe/*` branch remains. The Steward hygiene run of 10 Nov 07:5x (run 42782558975) had already removed the other nine; their tips are in the entry above.
+- No `umpe/*` branch remains. The Steward hygiene run 42782558975 (10 Nov) had already removed the other nine; their tips are in the entry above.
 
