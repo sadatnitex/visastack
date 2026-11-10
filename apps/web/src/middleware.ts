@@ -31,7 +31,10 @@ export const config = {
   // Every route that renders a page, so that every page response carries the
   // policy. API routes are left out: they return JSON or bytes and set their own
   // headers (`/api/blob/[key]` ships its own sandboxing policy). Next's static
-  // assets and image optimizer are not documents. Which of these routes need a
+  // assets and image optimizer are not documents, and neither are the installed app's icons
+  // (`/icons/`, plain images that need no policy or sign-in check; `favicon.ico` is left out for the
+  // same reason). `/manifest.webmanifest` and `/sw.js` stay in on purpose: the worker's own
+  // response policy governs what the worker may fetch. Which of these routes need a
   // signed-in session is decided by `isNeonProtectedPath`.
-  matcher: ['/((?!api/|_next/static/|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!api/|_next/static/|_next/image|favicon.ico|icons/).*)'],
 };

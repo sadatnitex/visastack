@@ -236,6 +236,7 @@ describe('status words', () => {
         'Active',
         'Accepted',
         'Ready to Submit',
+        'Reviewed',
       ]).toContain(word);
     }
     expect(tones('stateReceived')).toEqual(new Set(['Received', 'Submitted']));

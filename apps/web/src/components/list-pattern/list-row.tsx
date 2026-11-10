@@ -23,6 +23,10 @@ interface ListRowBase {
   readonly action?: LiftAction | undefined;
   /** Where the name leads (the item's panel). Without it the name is plain text. */
   readonly openHref?: string | undefined;
+  /** An address anchor for the row (`#request-<id>`), when emails or notices link to it. */
+  readonly domId?: string | undefined;
+  /** An address anchor on the name itself, for a link that must land on this row (Show More). */
+  readonly nameId?: string | undefined;
 }
 
 /** The leading mark is either the kind of the item (`mark`) or a status glyph (`icon`), never both. */
@@ -68,11 +72,17 @@ export function ListRow({
   action,
   openHref,
   icon,
+  domId,
+  nameId,
   mark,
 }: ListRowProps) {
   const short = shortName(name);
   const label = (
-    <span className="lp-row-name row-key lift-check-name" data-value="name">
+    <span
+      className="lp-row-name row-key lift-check-name"
+      data-value="name"
+      {...(nameId ? { id: nameId } : {})}
+    >
       {short.text}
     </span>
   );
@@ -81,6 +91,7 @@ export function ListRow({
       className={`row lift-check lift-check-${tone} lp-row`}
       data-pattern="list-row"
       data-row={id}
+      {...(domId ? { id: domId } : {})}
     >
       {mark ? (
         <MarkTile mark={mark} className="lift-check-mark" />

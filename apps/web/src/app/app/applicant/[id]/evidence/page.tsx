@@ -1,164 +1,52 @@
-import { randomBytes } from 'node:crypto';
 import {
-  type AuthorizedApplicant,
-  type Db,
-  type DocumentSummary,
-  type EvidenceRequest,
-  type EvidenceRequestDecision,
-  REQUEST_QUESTION_LIMIT,
-  REQUEST_QUESTION_MAX_LENGTH,
-  type RequestItemExtras,
-  type TriageDocumentState,
-  type VersionScanEvidence,
   accountPrincipal,
-  evidenceSubmissionsPresent,
   getApplicant,
-  getDocumentLifecycles,
   listApplicantProfile,
   listDocumentsDetailed,
-  listEvidenceRequestDecisions,
   listEvidenceRequestsForApplicant,
   listRequestItemExtras,
-  loadVersionScanEvidence,
   referenceCodesFor,
   requireAccess,
 } from '@visastack/services';
+import type { RequestItemExtras } from '@visastack/services';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Fragment } from 'react';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
-import { MarkTile } from '../../../../../components/mark-tile';
-import { ReferenceCode } from '../../../../../components/reference-code';
+import { ListWithPane } from '../../../../../components/list-pattern';
 import { ShowMore } from '../../../../../components/show-more';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
-import { AboutDisclosure, AlertBanner, StatusPill } from '../../../../../components/ui-lift';
+import { AboutDisclosure, AlertBanner } from '../../../../../components/ui-lift';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
-import { humanizeCode } from '../../../../../lib/format-code';
-import { formatDateOnly } from '../../../../../lib/format-date';
-import { FIELD_MARK, documentMark } from '../../../../../lib/item-icons';
-import { fieldLabel } from '../../../../../lib/master-profile';
-import { TRAVELLER_LIST_STEP, nextShow, parseShow } from '../../../../../lib/paging';
-import { formatMoment } from '../../../../../lib/save-status';
+import {
+  TRAVELLER_LIST_STEP,
+  firstParam,
+  nextShow,
+  pagingHref,
+  parseShow,
+} from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
-import { AskAboutItemForm } from './ask-about-item-form';
-import { ClearerCopyPanel } from './clearer-copy-panel';
-import { AWAITING_SUBMISSION, dueLabel } from './due-label';
+import { choiceBasisFor } from './choice-basis';
+import { AWAITING_SUBMISSION } from './due-label';
+import { OpenRequestFromHash } from './open-request-from-hash';
 import { requestItemView } from './request-item';
-import { buildDocumentChoices, clearerCopyTarget } from './response-choices';
-import { SubmitResponseForm } from './submit-response-form';
+import { requestBucket, respondingDocumentState } from './request-model';
+import { type RequestEntry, requestPanes } from './request-panes';
+import { loadRequestHistories } from './request-thread-data';
+import { RequestsList } from './requests-list';
 
-export const metadata: Metadata = { title: 'Evidence Requests' };
+export const metadata: Metadata = { title: 'Requests from Agencies' };
 
 export const dynamic = 'force-dynamic';
-
-/** Statuses where the traveller's answer is on the request and the date it was sent is worth showing. */
-const ANSWERED_STATUSES: ReadonlySet<string> = new Set(['RECEIVED', 'UNDER_REVIEW', 'ACCEPTED']);
-
-/**
- * The responding document's latest state, for the Processing and Needs Correction groups. `undefined`
- * when the documents could not be read (the request status alone then decides); `null` when the
- * request names no document, or it is gone, so what was sent can no longer be used.
- */
-function respondingDocumentState(
-  request: Pick<EvidenceRequest, 'kind' | 'respondingDocumentId'>,
-  documents: readonly DocumentSummary[],
-  documentsRead: boolean,
-): TriageDocumentState | null | undefined {
-  if (request.kind !== 'DOCUMENT' || !documentsRead) return undefined;
-  const found = request.respondingDocumentId
-    ? documents.find((doc) => doc.id === request.respondingDocumentId)
-    : undefined;
-  if (!found?.latestVersionId || !found.processingStatus || !found.safetyStatus) return null;
-  return { processingStatus: found.processingStatus, safetyStatus: found.safetyStatus };
-}
-
-/** What the copy lists need beyond the documents themselves. */
-interface ChoiceBasis {
-  /** False when the lifecycle of the documents could not be read: no copy is then offered. */
-  readonly read: boolean;
-  /** Documents (lower case ids) that are still the person's everyday copy. */
-  readonly everyday: ReadonlySet<string>;
-  /** How each candidate's latest file was checked, by version id. */
-  readonly scan: ReadonlyMap<string, VersionScanEvidence>;
-  /** The service keeps the exact copy that is sent (migration 0132 has run). */
-  readonly exactCopies: boolean;
-}
-
-/**
- * The facts the copy pickers share, read once for the page: which documents are still the everyday
- * copy, how each one's latest file was checked (through the owner's own access proof), and whether
- * exact copies are kept at all. A failure to read says "not read", never "no copies".
- */
-async function choiceBasisFor(input: {
-  readonly db: Db;
-  readonly access: AuthorizedApplicant<'VIEW_METADATA'> | null;
-  readonly documents: readonly DocumentSummary[];
-  readonly docTypes: ReadonlySet<string>;
-}): Promise<ChoiceBasis> {
-  const exactCopies = await evidenceSubmissionsPresent(input.db).catch(() => false);
-  const none: ChoiceBasis = {
-    read: input.docTypes.size === 0,
-    everyday: new Set(),
-    scan: new Map(),
-    exactCopies,
-  };
-  if (input.docTypes.size === 0 || !input.access) return none;
-  try {
-    const candidates = input.documents.filter(
-      (doc) => doc.docType !== null && input.docTypes.has(doc.docType),
-    );
-    const lifecycles = await getDocumentLifecycles(
-      input.db,
-      candidates.map((doc) => doc.id),
-      input.access,
-    );
-    const everyday = new Set<string>();
-    for (const doc of candidates) {
-      const lifecycle = lifecycles.get(doc.id.toLowerCase());
-      if (lifecycle?.state === 'CURRENT' && !lifecycle.replaced) everyday.add(doc.id.toLowerCase());
-    }
-    const scan = await loadVersionScanEvidence(
-      input.access,
-      candidates.flatMap((doc) =>
-        everyday.has(doc.id.toLowerCase()) && doc.latestVersionId && doc.safetyStatus
-          ? [{ id: doc.latestVersionId, safetyStatus: doc.safetyStatus }]
-          : [],
-      ),
-    );
-    return { read: true, everyday, scan, exactCopies };
-  } catch {
-    return none;
-  }
-}
-
-/** A person-readable name for what is being asked for, never the stored key. */
-function requestTarget(req: {
-  readonly kind: string;
-  readonly fieldKey?: string | null;
-  readonly docType?: string | null;
-}): string {
-  if (req.kind === 'FIELD') {
-    const label = req.fieldKey ? fieldLabel(req.fieldKey) : undefined;
-    return label ?? (req.fieldKey ? humanizeCode(req.fieldKey) : 'Not specified');
-  }
-  return req.docType ? humanizeCode(req.docType) : 'Not specified';
-}
-
-/** Commercial V1 Part 4 §13: the applicant sees which of the four review outcomes a decision was, not just a generic rejection. */
-const DECISION_PREFIX: Record<string, string> = {
-  NEEDS_REPLACEMENT: 'Replacement needed: ',
-  CONTRADICTION: 'Contradicts your profile: ',
-  CORRECTION_PROPOSED: 'Suggested correction: ',
-};
 
 /** The address parameter for how many requests show. */
 const SHOW_KEY = 'show';
 /** Every request stays reachable (each may need a reply), so the list may grow this far. */
 const REQUEST_SHOW_MAX = 500;
 const REQUEST_NOUN = { one: 'request', other: 'requests' } as const;
+/** The address parameter that names the request whose panel is open. */
+const ITEM_KEY = 'item';
 
 export default async function EvidencePage({
   params,
@@ -184,14 +72,15 @@ export default async function EvidencePage({
       listDocumentsDetailed(db, accountId, id),
     ]);
     const requestList = requests.ok ? requests.value.items : [];
-    const decisionsByRequest = new Map<string, readonly EvidenceRequestDecision[]>();
-    for (const req of requestList) {
-      // Only a request sent back for a fix has a reason the person still needs to read. An earlier
-      // reason on one that was answered again, or accepted since, would contradict its status.
-      if (req.status !== 'NEEDS_REPLACEMENT') continue;
-      const decisions = await listEvidenceRequestDecisions(db, accountId, req.id);
-      if (decisions.ok) decisionsByRequest.set(req.id, decisions.value);
-    }
+    // What was said on each request so far: its decisions and, for a document, every send with its
+    // time, read as the owner. It runs beside the reads below; a read that fails is shown as such,
+    // never as "nothing happened".
+    const historiesRead = loadRequestHistories({
+      db,
+      accountId,
+      applicantId: id,
+      requests: requestList,
+    });
     // Visible request codes (ADR 0018), so the traveller and the agency can name the same request.
     const referenceCodes = await referenceCodesFor(
       db,
@@ -228,6 +117,7 @@ export default async function EvidencePage({
         ),
       ),
     });
+    const histories = await historiesRead;
     return {
       applicant,
       referenceCodes,
@@ -238,7 +128,7 @@ export default async function EvidencePage({
       profile,
       documents: documents.ok ? documents.value : [],
       documentsRead: documents.ok,
-      decisionsByRequest,
+      histories,
       extras,
       choiceBasis,
     };
@@ -261,41 +151,62 @@ export default async function EvidencePage({
     : null;
   const timeZone = data.applicant.timezone;
   const depth = await readDepth('evidence-requests');
-  const items = new Map(
-    sorted.map((req) => [
-      req.id,
-      requestItemView({
-        request: req,
-        document: respondingDocumentState(req, data.documents, data.documentsRead),
-        rule: data.extras.rules.get(req.id),
-      }),
-    ]),
+  const entries: RequestEntry[] = sorted.map((req) => ({
+    req,
+    item: requestItemView({
+      request: req,
+      document: respondingDocumentState(req, data.documents, data.documentsRead),
+      rule: data.extras.rules.get(req.id),
+    }),
+  }));
+  // Waiting first, then being checked, then finished, each keeping the order above.
+  const order = ['waiting', 'checking', 'finished'] as const;
+  const ordered = [...entries].sort(
+    (x, y) =>
+      order.indexOf(requestBucket(x.req, x.item)) - order.indexOf(requestBucket(y.req, y.item)),
   );
+  const positions = new Map(sorted.map((req, index) => [req.id, index + 1] as const));
   // Glance is what needs the person: a request waiting on a reply, and a sent file that could
   // not be used (they ask the agency about it). Everything else starts at Browse.
-  const needsPerson = (req: (typeof sorted)[number]) =>
-    AWAITING_SUBMISSION.has(req.status) || items.get(req.id)?.group === 'NEEDS_CORRECTION';
-  // With nothing for the person to do, the list itself starts at Browse: no empty card at Glance.
-  // While more requests exist than this page shows, it never claims nothing is waiting.
-  // Received, reviewed and closed requests are finished for now: they sit last, under their own
-  // small heading, so the ones that need a reply are never mixed in with them.
-  const isFinished = (req: (typeof sorted)[number]) => {
-    const group = items.get(req.id)?.group;
-    return group === undefined || group === null || group === 'RECEIVED' || group === 'REVIEWED';
-  };
-  const ordered = [...sorted.filter((req) => !isFinished(req)), ...sorted.filter(isFinished)];
-  const firstFinished = ordered.findIndex(isFinished);
+  const needsPerson = (entry: RequestEntry) => requestBucket(entry.req, entry.item) === 'waiting';
+  // While more requests exist than this page shows, the page never claims nothing is waiting.
   const nothingWaiting =
     data.requestCounts.total > 0 &&
     awaitingCount === 0 &&
     !data.moreRequests &&
-    !data.requests.some(needsPerson);
+    !entries.some(needsPerson);
+  const openItem = firstParam(search[ITEM_KEY]);
+  // After Show More, the first request it added: its folder opens so the landing is on screen.
+  const landPosition =
+    requestsShown > TRAVELLER_LIST_STEP ? requestsShown - TRAVELLER_LIST_STEP + 1 : undefined;
+  // The same address with this request chosen, every other parameter kept (a list that was
+  // expanded stays expanded); the anchor is the one emails and notices use.
+  const itemHref = (requestId: string) =>
+    pagingHref(
+      `/app/applicant/${id}/evidence`,
+      search,
+      { [ITEM_KEY]: requestId },
+      `request-${requestId}`,
+    );
+  const panes = requestPanes({
+    applicantId: id,
+    timeZone,
+    entries: ordered,
+    referenceCodes: data.referenceCodes,
+    profile: data.profile,
+    documents: data.documents,
+    documentsRead: data.documentsRead,
+    extras: data.extras,
+    choiceBasis: data.choiceBasis,
+    histories: data.histories,
+  });
 
   return (
     <>
-      <PageHeader eyebrow={data.applicant.displayName} title="Evidence Requests" />
-      {/* Owner, 5 Nov 2026: no page should have more than 30 words. The sentence on what a request is
-          (and is not) is one tap away instead of under the title. */}
+      <PageHeader eyebrow={data.applicant.displayName} title="Requests from Agencies" />
+      {/* Owner, 10 Nov 2026: the page says who is asking, and that it is not a government rule. */}
+      <p className="muted">An agency is asking you for this. It is not a government rule.</p>
+      {/* Owner, 5 Nov 2026: no page should have more than 30 words. The rest is one tap away. */}
       <AboutDisclosure summary="About Requests">
         <p>
           An agency request is that organisation asking you for something, never an official visa
@@ -326,13 +237,15 @@ export default async function EvidencePage({
           </div>
         ) : null}
 
-        <article className="card lc-empty-host" {...(nothingWaiting ? atLevel('browse') : {})}>
-          {!data.requestsRead ? (
-            // A failed read never claims there are no requests: one may be waiting.
+        {!data.requestsRead ? (
+          // A failed read never claims there are no requests: one may be waiting.
+          <article className="card lc-empty-host">
             <p className="notice notice-warn u-m-0" role="alert">
               Your requests could not be loaded. Refresh to try again.
             </p>
-          ) : data.requestCounts.total === 0 ? (
+          </article>
+        ) : data.requestCounts.total === 0 ? (
+          <article className="card lc-empty-host">
             <EmptyState
               icon="clipboard"
               title="No Evidence Requests"
@@ -344,243 +257,41 @@ export default async function EvidencePage({
               with what is needed, why, and the date it is needed by. Keeping your documents up to
               date makes replying quick.
             </EmptyState>
-          ) : (
-            <>
-              <div className="rows">
-                {ordered.map((req, index) => {
-                  const item =
-                    items.get(req.id) ??
-                    requestItemView({
-                      request: req,
-                      document: respondingDocumentState(req, data.documents, data.documentsRead),
-                      rule: data.extras.rules.get(req.id),
-                    });
-                  const awaitingReply = AWAITING_SUBMISSION.has(req.status);
-                  // The file sent could not be used: its guidance and the question box are the
-                  // way forward, so they show with the request.
-                  const unusableFile = !awaitingReply && item.group === 'NEEDS_CORRECTION';
-                  const target = requestTarget(req);
-                  const itemName = `${req.kind === 'FIELD' ? 'Detail' : 'Document'}: ${target}`;
-                  const decisions = data.decisionsByRequest.get(req.id) ?? [];
-                  const latestDecision = decisions[0];
-                  const candidateFacts =
-                    req.kind === 'FIELD'
-                      ? data.profile.filter(
-                          (entry) => entry.fieldKey === req.fieldKey && entry.value !== null,
-                        )
-                      : [];
-                  // Only a request still waiting on the person offers copies to send.
-                  const documentChoices =
-                    req.kind === 'DOCUMENT' && awaitingReply
-                      ? buildDocumentChoices({
-                          documents: data.documents,
-                          docType: req.docType ?? null,
-                          everyday: data.choiceBasis.everyday,
-                          scan: data.choiceBasis.scan,
-                          timeZone,
-                          sentBackDocumentId:
-                            req.status === 'NEEDS_REPLACEMENT' ? req.respondingDocumentId : null,
-                        })
-                      : [];
-                  const sentBackCopy =
-                    req.status === 'NEEDS_REPLACEMENT' ? clearerCopyTarget(documentChoices) : null;
-                  const otherCopyUsable = documentChoices.some(
-                    (choice) => choice.usable && !choice.sentBack,
-                  );
-                  const due = req.dueDate
-                    ? dueLabel(req.dueDate, req.status, data.applicant.timezone)
-                    : null;
-                  const code = data.referenceCodes.get(req.id);
-                  const questions = data.extras.questions.get(req.id) ?? [];
-                  const canAsk = Boolean(req.missionId && code && item.group !== null);
-                  const finished = isFinished(req);
-                  return (
-                    <Fragment key={req.id}>
-                      {index === firstFinished && firstFinished > 0 ? (
-                        <p className="lc-card-group" {...atLevel('browse')}>
-                          Finished
-                        </p>
-                      ) : null}
-                      <div
-                        className={`case-row request-item request-item-${item.tone}${finished ? ' lc-card-finished' : ''} lc-request`}
-                        id={`request-${req.id}`}
-                        {...(needsPerson(req) ? {} : atLevel('browse'))}
-                      >
-                        <div className="case-row-head">
-                          <span className="lc-card-name">
-                            <MarkTile
-                              mark={req.kind === 'FIELD' ? FIELD_MARK : documentMark(req.docType)}
-                            />
-                            <span
-                              className="case-row-title"
-                              id={`evidence-row-${sorted.indexOf(req) + 1}`}
-                            >
-                              {req.kind === 'FIELD' ? 'Detail' : 'Document'}: {target}
-                            </span>
-                          </span>
-                          <span className="case-row-badges">
-                            {due ? <StatusPill tone={due.tone}>{due.label}</StatusPill> : null}
-                            <StatusPill tone={item.group === 'RECEIVED' ? 'info' : item.tone}>
-                              {item.statusLabel}
-                            </StatusPill>
-                          </span>
-                        </div>
-                        {/* When the agency gave no reason the card says nothing (5 Nov 2026: the 30-word
-                            rule); the person can still ask about the item. */}
-                        {req.message ? (
-                          <p className="case-row-meta lc-card-reason u-m-0">
-                            Why it is needed: {'\u201c'}
-                            <span className="lc-card-quote">{req.message}</span>
-                            {'\u201d'}
-                          </p>
-                        ) : null}
-                        {req.dueDate ? (
-                          <p className="case-row-meta u-m-0" {...atLevel('browse')}>
-                            Needed by {formatDateOnly(req.dueDate)}
-                          </p>
-                        ) : null}
-                        {item.rule ? (
-                          <p className="case-row-meta u-m-0" {...atLevel('browse')}>
-                            {item.rule}
-                          </p>
-                        ) : null}
-                        {code ? (
-                          <div className="depth-item" {...atLevel('browse')}>
-                            <ReferenceCode code={code} label="Request Reference" />
-                          </div>
-                        ) : null}
-                        <p
-                          className="case-row-meta u-m-0"
-                          {...(unusableFile ? {} : atLevel('browse'))}
-                        >
-                          {item.guidance}
-                        </p>
-                        {req.respondedAt && ANSWERED_STATUSES.has(req.status) ? (
-                          <p className="case-row-meta u-m-0">
-                            You sent this on {formatMoment(req.respondedAt, timeZone)}.
-                          </p>
-                        ) : null}
-                        {latestDecision?.reason ? (
-                          <p className="field-msg field-msg-err u-m-0">
-                            {DECISION_PREFIX[latestDecision.outcome] ?? ''}
-                            <span className="lc-card-quote">{latestDecision.reason}</span>
-                          </p>
-                        ) : null}
-                        {item.group !== null ? (
-                          <SubmitResponseForm
-                            // A new round (the status or the answer changed) or a changed list of
-                            // copies starts the form afresh, with its own retry key.
-                            key={`${req.id}:${req.status}:${req.respondedAt ? new Date(req.respondedAt).getTime() : 0}:${documentChoices.map((choice) => choice.documentId).join(',')}`}
-                            applicantId={id}
-                            requestId={req.id}
-                            kind={req.kind}
-                            awaiting={awaitingReply}
-                            timeZone={timeZone}
-                            itemLabel={itemName}
-                            idempotencyKey={randomBytes(18).toString('base64url')}
-                            exactCopies={data.choiceBasis.exactCopies}
-                            documentsRead={data.documentsRead && data.choiceBasis.read}
-                            candidateFacts={candidateFacts.map((f) => ({
-                              factId: f.factId,
-                              value: f.value ?? '',
-                            }))}
-                            documentChoices={documentChoices}
-                          />
-                        ) : null}
-                        {awaitingReply &&
-                        req.kind === 'DOCUMENT' &&
-                        req.status === 'NEEDS_REPLACEMENT' ? (
-                          sentBackCopy ? (
-                            <ClearerCopyPanel
-                              applicantId={id}
-                              requestId={req.id}
-                              documentId={sentBackCopy.documentId}
-                              documentName={sentBackCopy.name}
-                              primary={!otherCopyUsable}
-                            />
-                          ) : !otherCopyUsable && data.documentsRead && data.choiceBasis.read ? (
-                            <Link
-                              className="btn btn-primary evidence-add-link"
-                              href={`/app/applicant/${id}/documents/add`}
-                            >
-                              Add Documents
-                              <span className="sr-only">: {itemName}</span>
-                            </Link>
-                          ) : null
-                        ) : null}
-                        {questions.length > 0 ? (
-                          <div className="request-questions lc-questions" {...atLevel('browse')}>
-                            <p className="request-questions-title lc-questions-title u-m-0">
-                              Your Questions
-                            </p>
-                            <ul className="request-questions-list">
-                              {questions.map((question) => (
-                                <li key={question.askedAt.toISOString()}>
-                                  <span className="case-row-meta">
-                                    Asked {formatMoment(question.askedAt, timeZone)}
-                                  </span>
-                                  <span className="request-question-text">{question.text}</span>
-                                </li>
-                              ))}
-                            </ul>
-                            {req.missionId ? (
-                              <Link
-                                href={`/app/mission/${req.missionId}#notes`}
-                                className="request-questions-link"
-                              >
-                                Read Replies in the Case Notes
-                                <span className="sr-only">: {itemName}</span>
-                              </Link>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        {canAsk && req.missionId ? (
-                          questions.length >= REQUEST_QUESTION_LIMIT ? (
-                            <p
-                              className="case-row-meta u-m-0"
-                              {...(unusableFile ? {} : atLevel('everything'))}
-                            >
-                              You have asked several questions about this item. The agency answers
-                              in the case notes.
-                            </p>
-                          ) : (
-                            <details
-                              className="request-ask lc-ask"
-                              {...(unusableFile ? {} : atLevel('everything'))}
-                            >
-                              <summary className="request-ask-toggle">
-                                Ask the Agency About This Item
-                                <span className="sr-only">: {itemName}</span>
-                              </summary>
-                              <AskAboutItemForm
-                                applicantId={id}
-                                missionId={req.missionId}
-                                requestId={req.id}
-                                maxLength={REQUEST_QUESTION_MAX_LENGTH}
-                                timeZone={timeZone}
-                                itemLabel={itemName}
-                              />
-                            </details>
-                          )
-                        ) : null}
-                      </div>
-                    </Fragment>
-                  );
-                })}
+          </article>
+        ) : (
+          <div className="req-grid" {...(nothingWaiting ? atLevel('browse') : {})}>
+            <ListWithPane
+              panes={panes}
+              initial={openItem}
+              param={ITEM_KEY}
+              paneLabel="Request Details"
+              backLabel="Back to Requests"
+              backHref={`/app/applicant/${id}/evidence`}
+            >
+              <div className="req-list lc-empty-host">
+                <RequestsList
+                  entries={ordered}
+                  itemHref={itemHref}
+                  openItem={openItem}
+                  positions={positions}
+                  landPosition={landPosition}
+                />
+                <ShowMore
+                  id="evidence-requests-more"
+                  pathname={`/app/applicant/${id}/evidence`}
+                  searchParams={search}
+                  next={requestsNext === null ? null : { [SHOW_KEY]: requestsNext }}
+                  shown={data.requests.length}
+                  total={data.requestCounts.total}
+                  noun={REQUEST_NOUN}
+                  landOn={`evidence-row-${data.requests.length + 1}`}
+                />
               </div>
-              <ShowMore
-                id="evidence-requests-more"
-                pathname={`/app/applicant/${id}/evidence`}
-                searchParams={search}
-                next={requestsNext === null ? null : { [SHOW_KEY]: requestsNext }}
-                shown={data.requests.length}
-                total={data.requestCounts.total}
-                noun={REQUEST_NOUN}
-                landOn={`evidence-row-${data.requests.length + 1}`}
-              />
-            </>
-          )}
-        </article>
+            </ListWithPane>
+            {/* After the list, so its click handling is already in place when this opens a panel. */}
+            <OpenRequestFromHash />
+          </div>
+        )}
       </DepthScope>
     </>
   );
