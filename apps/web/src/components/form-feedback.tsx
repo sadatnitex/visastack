@@ -103,6 +103,8 @@ export function useFocusInvalidField(
  * bottom of the screen (`ToastHost`), in the same words. The strip is only a visual echo: these
  * regions stay the screen reader and no-script truth, and a failure is never echoed there. Pass
  * `toast={false}` where a strip is wrong (a result that is already the whole point of the screen).
+ * Hand it the form's state, not an object rebuilt on each render: the strip follows the result's
+ * identity, once per result.
  */
 export function FormMessage({
   id,

@@ -82,7 +82,7 @@ export function ConfirmEnrolmentForm({ returnTo }: { readonly returnTo: string }
           id={codeId}
           name="code"
           length={6}
-          pattern="[0-9]*"
+          pattern="[0-9 ]*"
           {...fieldProblem(state, 'code', messageId)}
         />
       </div>

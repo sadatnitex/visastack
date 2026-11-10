@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * A short numeric code typed into one box per digit, the way WhatsApp or a bank asks for the code
@@ -12,6 +12,10 @@ import { useEffect, useState } from 'react';
  * Spaces and dashes are dropped, so "123 456" pasted from an app or a message becomes `123456`.
  * No length cap sits on the input itself, because a browser would cut a pasted "123 456" to six
  * characters before the spaces could be removed.
+ *
+ * The caret is always kept at the end, so the highlighted box is where the next digit goes and a
+ * tap in the middle of the boxes cannot make a digit slip out of the end. When the form is reset
+ * after a send (React does this once an action finishes), the boxes empty, as a plain input would.
  */
 export function digitsOnly(text: string, length: number): string {
   return text.replace(/\D/g, '').slice(0, length);
@@ -29,7 +33,7 @@ export function CodeInput({
   readonly name: string;
   /** How many digits the code has. */
   readonly length?: number;
-  /** The browser's own format check. Defaults to exactly `length` digits. */
+  /** The browser's own format check, which matters only before the page runs. Defaults to `length` digits, spaces allowed. */
   readonly pattern?: string;
   readonly required?: boolean;
   readonly 'aria-invalid'?: true;
@@ -38,8 +42,26 @@ export function CodeInput({
   const [value, setValue] = useState('');
   const [drawn, setDrawn] = useState(false);
   const [focused, setFocused] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
   // Boxes are drawn only once the page is running; until then the input shows its own text.
   useEffect(() => setDrawn(true), []);
+  // A form reset empties the boxes too (a controlled input would otherwise keep its last code).
+  useEffect(() => {
+    const form = field.current?.form;
+    if (!form) return;
+    const clear = () => setValue('');
+    form.addEventListener('reset', clear);
+    return () => form.removeEventListener('reset', clear);
+  }, []);
+  const toEnd = () => {
+    const input = field.current;
+    if (
+      input &&
+      (input.selectionStart !== input.value.length || input.selectionEnd !== input.value.length)
+    ) {
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  };
   const active = Math.min(value.length, length - 1);
   return (
     <div
@@ -48,19 +70,25 @@ export function CodeInput({
       data-focused={focused ? 'true' : 'false'}
     >
       <input
+        ref={field}
         id={id}
         name={name}
         type="text"
         className="input code-boxes-input"
         inputMode="numeric"
         autoComplete="one-time-code"
-        pattern={pattern ?? `[0-9]{${length}}`}
+        pattern={pattern ?? `[0-9 ]{${length},${length + 1}}`}
         spellCheck={false}
         required={required}
         value={value}
         onChange={(event) => setValue(digitsOnly(event.target.value, length))}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          setFocused(true);
+          toEnd();
+        }}
         onBlur={() => setFocused(false)}
+        onSelect={toEnd}
+        onClick={toEnd}
         {...aria}
       />
       <span className="code-boxes-cells" aria-hidden="true">

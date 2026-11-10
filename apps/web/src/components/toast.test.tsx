@@ -95,12 +95,28 @@ describe('the done strip', () => {
     expect(strip()).toBeNull();
   });
 
-  it('counts the same words raised twice at once (a double render) as one', () => {
+  it('starts the four seconds again when the same words are raised again', () => {
     act(() => showToast('Saved.'));
-    advance(100);
+    advance(3000);
     act(() => showToast('Saved.'));
-    advance(TOAST_MS - 100 + 10);
+    advance(3000);
+    expect(strip()).not.toBeNull();
+    advance(1100);
     expect(strip()).toBeNull();
+  });
+
+  it('drops a strip raised on a page with no frame, but keeps one raised as the frame arrives', () => {
+    act(() => root.unmount());
+    showToast('Raised outside the workspace.');
+    vi.advanceTimersByTime(2000);
+    root = createRoot(host);
+    act(() => root.render(<ToastHost />));
+    expect(strip()).toBeNull();
+    act(() => root.unmount());
+    showToast('Raised as the frame arrives.');
+    root = createRoot(host);
+    act(() => root.render(<ToastHost />));
+    expect(strip()?.textContent).toContain('Raised as the frame arrives.');
   });
 
   it('shows nothing for empty words, and an old timer never closes a newer strip', () => {

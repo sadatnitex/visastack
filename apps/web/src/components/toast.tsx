@@ -10,15 +10,15 @@ import { Icon } from './icons';
  * (`FormMessage`), so the strip is hidden from assistive technology and nothing is announced twice.
  * An error never goes here; it stays under the field it is about.
  *
- * One strip at a time: a newer one replaces the older. It stays 4 seconds, waits while the pointer
+ * One strip at a time: a newer one replaces the older and starts its own 4 seconds. It stays 4 seconds, waits while the pointer
  * or keyboard focus is on it, closes on its button or Escape, and only fades in when the person
  * has not asked for less motion (the stylesheet).
  */
 
 /** How long the strip stays when nothing is holding it. */
 export const TOAST_MS = 4000;
-/** The same words raised again inside this window are one strip, not two (a re-render, a double press). */
-const SAME_WORDS_MS = 600;
+/** A strip older than this when a frame first appears was raised somewhere with no frame (a page outside the workspace). */
+const STALE_ON_ARRIVAL_MS = 1000;
 
 interface ToastItem {
   readonly id: number;
@@ -49,9 +49,7 @@ function snapshot(): ToastItem | null {
 export function showToast(message: string): void {
   const words = message.trim();
   if (words === '') return;
-  const now = Date.now();
-  if (current && current.message === words && now - current.at < SAME_WORDS_MS) return;
-  current = { id: nextId++, message: words, at: now };
+  current = { id: nextId++, message: words, at: Date.now() };
   emit();
 }
 
@@ -82,9 +80,10 @@ export function ToastHost() {
   const startedAt = useRef(0);
   const id = toast?.id;
 
-  // A strip raised while no frame was on the page (a form outside the workspace) is old news.
+  // A strip raised while no frame was on the page (a form outside the workspace) is old news. One
+  // raised in this same moment (a notice read from the page address) is not.
   useEffect(() => {
-    if (current && Date.now() - current.at >= TOAST_MS) dismissToast(current.id);
+    if (current && Date.now() - current.at >= STALE_ON_ARRIVAL_MS) dismissToast(current.id);
   }, []);
 
   // A new strip starts with the full time and nothing holding it.

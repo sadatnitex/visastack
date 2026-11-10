@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { act } from 'react';
 import { type Root, createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -83,5 +85,23 @@ describe('the done strip after a form result', () => {
     show({ result: NO_RESULT, visuallyHidden: true });
     show({ result: { ok: true, message: 'Saved.' }, visuallyHidden: true });
     expect(strip()).toBeNull();
+  });
+});
+
+describe('how forms hand over their result', () => {
+  it('never builds the result inline, which would echo it again on every render', () => {
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const path = join(dir, name);
+        if (statSync(path).isDirectory()) walk(path);
+        else if (/\.tsx$/.test(name) && !/\.test\./.test(name)) {
+          if (/<FormMessage[^>]*\sresult=\{\{/.test(readFileSync(path, 'utf8')))
+            offenders.push(path);
+        }
+      }
+    };
+    walk(join(__dirname, '..'));
+    expect(offenders).toEqual([]);
   });
 });

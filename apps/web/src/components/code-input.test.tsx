@@ -58,7 +58,7 @@ describe('the code field', () => {
     expect(input().getAttribute('inputmode')).toBe('numeric');
     expect(input().getAttribute('autocomplete')).toBe('one-time-code');
     expect(input().required).toBe(true);
-    expect(input().pattern).toBe('[0-9]{6}');
+    expect(input().pattern).toBe('[0-9 ]{6,7}');
     expect(container.querySelector('label')?.getAttribute('for')).toBe(input().id);
   });
 
@@ -83,6 +83,25 @@ describe('the code field', () => {
     expect(new FormData(container.querySelector('form') as HTMLFormElement).get('code')).toBe(
       '123456',
     );
+  });
+
+  it('keeps the caret at the end, so a tap in the middle cannot push a digit out', () => {
+    mount();
+    type('1234');
+    act(() => {
+      input().setSelectionRange(1, 1);
+      input().dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(input().selectionStart).toBe(4);
+    expect(input().selectionEnd).toBe(4);
+  });
+
+  it('empties the boxes when the form is reset, as a plain input would be', () => {
+    mount();
+    type('123456');
+    act(() => (container.querySelector('form') as HTMLFormElement).reset());
+    expect(input().value).toBe('');
+    expect(boxes()).toEqual(['', '', '', '', '', '']);
   });
 
   it('refuses letters and extra digits', () => {

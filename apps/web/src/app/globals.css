@@ -12712,11 +12712,6 @@ html:has(.sticky-action-bar) {
   display: block;
   margin-block: var(--space-3);
 }
-.collect-page .collect-code-input {
-  max-width: 12rem;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.2em;
-}
 .collect-checklist {
   display: grid;
   gap: var(--space-4);
@@ -19857,6 +19852,19 @@ html:has(.sticky-action-bar) .toast-region {
     position: absolute;
     top: 6px;
     left: calc(50% + 4px);
+    margin: 0;
+    padding: 2px 3px;
+  }
+}
+/* The slim rail on a laptop has no room beside the icon: the count sits on the icon's corner. */
+@media (min-width: 1024px) {
+  .app-frame[data-sidebar="collapsed"] .app-shell-links a:has(.app-tab-badge) {
+    position: relative;
+  }
+  .app-frame[data-sidebar="collapsed"] .app-shell-links .app-tab-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
     margin: 0;
     padding: 2px 3px;
   }
