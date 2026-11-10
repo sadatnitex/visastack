@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { flagEmoji } from '../../../../../components/country-flag';
 import {
   navigationState,
   renderServer,
@@ -46,10 +47,12 @@ vi.mock('../mission-collaboration', async () => {
     MissionCollaboration: ({
       notesMore,
       ask,
+      destinationLabel,
       ...rest
-    }: { notesMore?: ReactNode; ask?: ReactNode }) => (
+    }: { notesMore?: ReactNode; ask?: ReactNode; destinationLabel?: ReactNode }) => (
       <>
         <Workspace {...rest} hasAsk={ask !== undefined} />
+        <div data-destination-label="">{destinationLabel}</div>
         <div data-notes-more="">{notesMore}</div>
         <div data-ask="">{ask}</div>
       </>
@@ -66,6 +69,7 @@ const { default: Page } = await import('./page');
 const props = { params: Promise.resolve({ orgId: 'o1' }) };
 const M1 = '11111111-1111-4111-8111-111111111111';
 const M2 = '22222222-2222-4222-8222-222222222222';
+const M3 = '33333333-3333-4333-8333-333333333333';
 const opening = (query: Record<string, string>) => ({
   params: Promise.resolve({ orgId: 'o1' }),
   searchParams: Promise.resolve(query),
@@ -173,6 +177,72 @@ describe('agency Cases', () => {
     // One line only: a case with no end date shows none, and nothing here extends anything.
     expect(html.match(/data-testid="access-ends-note"/g)).toHaveLength(1);
     expect(text).not.toContain('Keep Sharing');
+  });
+
+  it('draws the flag beside the written country of each listed case, and none for a case with no country (P16)', async () => {
+    const list = listOf(true, [
+      { missionId: M1, applicantName: 'Rahim Uddin' },
+      { missionId: M2, applicantName: 'Nusrat Jahan' },
+      { missionId: M3, applicantName: 'Salma Akter' },
+    ]);
+    mocks.loadCaseListPage.mockResolvedValue({
+      ...list,
+      cases: list.cases.map((c) =>
+        c.missionId === M2
+          ? { ...c, destination: 'Not sure yet' }
+          : c.missionId === M3
+            ? { ...c, destination: '   ' }
+            : c,
+      ),
+    });
+    const html = await renderServer(Page(props));
+    const rowOf = (id: string) =>
+      html.split(`href="/app/agency/o1/cases?case=${id}#mission-${id}"`)[1]?.split('</a>')[0] ?? '';
+    expect(rowOf(M1)).toContain(
+      `<span class="country-flag-inline"><span class="country-flag" data-size="sm" data-flag-kind="emoji" aria-hidden="true">${flagEmoji('GB')}</span>United Kingdom</span>`,
+    );
+    // The same line still carries the stage, and the heading text is untouched.
+    expect(textOf(rowOf(M1))).toContain(`Rahim Uddin · Case ${M1}`);
+    expect(textOf(rowOf(M1))).toContain('United Kingdom');
+    expect(rowOf(M2)).toContain('Not sure yet');
+    expect(rowOf(M2)).not.toContain('country-flag');
+    expect(rowOf(M3)).not.toContain('country-flag');
+    // A blank destination leaves no dangling separator after the stage.
+    const metaOf = (id: string) =>
+      rowOf(id).split('agency-case-list-meta muted">')[1]?.split('</span>')[0];
+    expect(metaOf(M3)).toBe('Intake');
+    expect(html.match(/class="country-flag"/g)).toHaveLength(1);
+    expect(html).not.toContain('country-flag-unknown');
+  });
+
+  it("keeps P9's Access Ends line under a case that also shows a flag (P16)", async () => {
+    mocks.listAccessEndsForOrg.mockResolvedValue(
+      new Map<string, Date | null>([[M1, new Date('2026-12-05T10:00:00Z')]]),
+    );
+    const html = await renderServer(Page(props));
+    expect(textOf(html)).toContain('Access ends on 5 Dec 2026. The traveller can extend it.');
+    expect(html.match(/data-testid="access-ends-note"/g)).toHaveLength(1);
+    expect(html).toContain('class="country-flag"');
+  });
+
+  it('gives the open case workspace the flag and written country of its destination, and nothing for none (P16)', async () => {
+    mocks.loadOpenCase.mockImplementation(async (...args: unknown[]) =>
+      args[4] === M1 ? openOf(aCase(M1, 'Rahim Uddin'), { destination: 'United Kingdom' }) : null,
+    );
+    const withFlag = await renderServer(Page(opening({ case: M1 })));
+    const slot = withFlag.split('data-destination-label=""')[1]?.split('</div>')[0] ?? '';
+    expect(slot).toContain('data-flag-kind="emoji" aria-hidden="true"');
+    expect(slot).toContain('data-size="md"');
+    expect(textOf(slot)).toContain('United Kingdom');
+    // The heading text the workspace gets is still the case's own title.
+    expect(stubProps(withFlag, 'MissionCollaboration')[0]).toMatchObject({ title: `Case ${M1}` });
+
+    mocks.loadOpenCase.mockImplementation(async (...args: unknown[]) =>
+      args[4] === M1 ? openOf(aCase(M1, 'Rahim Uddin'), { destination: null }) : null,
+    );
+    const without = await renderServer(Page(opening({ case: M1 })));
+    const emptySlot = without.split('data-destination-label=""')[1]?.split('</div>')[0] ?? '';
+    expect(emptySlot).not.toContain('country-flag');
   });
 
   it('asks about no cases when the list is empty', async () => {

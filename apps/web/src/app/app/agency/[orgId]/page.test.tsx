@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { flagEmoji } from '../../../../components/country-flag';
 import { navigationState, renderServer, textOf } from '../../../../lib/next-mocks.test-support';
 
 const mocks = vi.hoisted(() => ({
@@ -94,6 +95,42 @@ describe('agency Dashboard', () => {
     // WP-V4 review: an open request and one sent back for a fix both wait on the applicant.
     expect(text).toMatch(/Evidence Requests Waiting on the Traveller 2/);
     expect(text).toMatch(/Overdue Tasks 1/);
+  });
+
+  it('draws the flag of each case destination beside its written country, and none where no country is named (P16)', async () => {
+    const noCountry = { ...inGoodShape, missionId: 'm3', destination: 'Not sure yet' };
+    const noDestination = {
+      ...inGoodShape,
+      missionId: 'm4',
+      title: 'No Destination Case',
+      destination: null,
+    };
+    const blank = {
+      ...inGoodShape,
+      missionId: 'm5',
+      title: 'Blank Destination Case',
+      destination: '  ',
+    };
+    mocks.loadCases.mockResolvedValue({
+      admin: true,
+      cases: [needsAttention, inGoodShape, noCountry, noDestination, blank],
+    });
+    const html = await renderServer(Page(pageProps()));
+    const rows = html.split('id="agency-case-table-rows"')[1]?.split('</tbody>')[0] ?? '';
+    const flagged = (iso2: string, name: string) =>
+      `<span class="cell-sub"><span class="country-flag-inline"><span class="country-flag" data-size="sm" data-flag-kind="emoji" aria-hidden="true">${flagEmoji(iso2)}</span>${name}</span></span>`;
+    expect(rows).toContain(flagged('GB', 'United Kingdom'));
+    expect(rows).toContain(flagged('FR', 'France'));
+    // Text that names no country stays as written, with no flag and no empty badge.
+    expect(rows).toContain('<span class="cell-sub">Not sure yet</span>');
+    // The case that has no destination draws no second line at all.
+    expect(rows.split('No Destination Case')[1]?.split('</th>')[0]).not.toContain('cell-sub');
+    // Blank text is no destination: no empty second line.
+    expect(rows.split('Blank Destination Case')[1]?.split('</th>')[0]).not.toContain('cell-sub');
+    expect(rows.match(/class="country-flag"/g)).toHaveLength(2);
+    expect(rows.match(/country-flag-unknown/g)).toBeNull();
+    // The written name stays in the text, so nobody depends on the picture.
+    expect(textOf(rows)).toContain('United Kingdom');
   });
 
   it('puts the case that needs the most attention first', async () => {

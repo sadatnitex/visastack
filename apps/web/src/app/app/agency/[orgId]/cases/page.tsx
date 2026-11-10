@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { DepthScope } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
+import { DestinationLabel } from '../../../../../components/destination-label';
 import { AccessEndsNote } from '../../../../../components/grant-expiry/access-ends-note';
 import { EmptyState } from '../../../../../components/ui';
 import { AboutDisclosure } from '../../../../../components/ui-lift/about-disclosure';
@@ -206,7 +207,12 @@ export default async function AgencyCasesPage({
                       </span>
                       <span className="agency-case-list-meta muted">
                         {STAGE_LABELS[row.state] ?? row.state}
-                        {row.destination ? ` · ${row.destination}` : ''}
+                        {row.destination?.trim() ? (
+                          <>
+                            {' · '}
+                            <DestinationLabel destination={row.destination} />
+                          </>
+                        ) : null}
                         {row.targetDeadline
                           ? ` · deadline ${formatDateOnly(row.targetDeadline)}`
                           : ''}
@@ -350,6 +356,9 @@ function OpenCaseWorkspace({
         title={open.title}
         {...(open.referenceCode ? { referenceCode: open.referenceCode } : {})}
         applicantName={open.applicantName}
+        {...(open.destination?.trim()
+          ? { destinationLabel: <DestinationLabel destination={open.destination} size="md" /> }
+          : {})}
         members={members.map((m) => ({ accountId: m.accountId, email: m.email }))}
         assignments={open.assignments}
         notes={open.notes}

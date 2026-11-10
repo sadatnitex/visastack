@@ -72,3 +72,53 @@ describe('case workspace: removing a member', () => {
     ]);
   });
 });
+
+describe('case workspace: where the case is going (P16)', () => {
+  const render = async (destinationLabel?: React.ReactNode) => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(
+        <MissionCollaboration
+          organizationId="o1"
+          missionId="m1"
+          applicantId="a1"
+          title="UK visit"
+          applicantName="Rahim Uddin"
+          {...(destinationLabel ? { destinationLabel } : {})}
+          viewerAssigned
+          members={[]}
+          assignments={[]}
+          notes={[]}
+          tasks={[]}
+          appointments={[]}
+          requirements={[]}
+          decisions={[]}
+          issuerVerifications={[]}
+        />,
+      );
+    });
+    return host;
+  };
+
+  it('draws the slot the page fills under the title row and leaves the title as it was', async () => {
+    const host = await render(<span data-testid="where">United Kingdom</span>);
+    expect(host.querySelector('.case-work-title')?.textContent).toBe('UK visit');
+    const line = host.querySelector('[data-testid="where"]')?.parentElement;
+    expect(line?.tagName).toBe('P');
+    expect(line?.textContent).toBe('United Kingdom');
+    // It sits after the title row, never inside it, so the heading line keeps its shape.
+    expect(host.querySelector('.case-work-title')?.parentElement?.contains(line ?? null)).toBe(
+      false,
+    );
+  });
+
+  it('draws no line, and no empty paragraph, when the case has no destination', async () => {
+    const host = await render();
+    expect(host.querySelector('.case-work-title')?.textContent).toBe('UK visit');
+    expect(host.querySelector('p.muted.u-fs-085:empty')).toBeNull();
+    expect(host.textContent).not.toContain('United Kingdom');
+  });
+});

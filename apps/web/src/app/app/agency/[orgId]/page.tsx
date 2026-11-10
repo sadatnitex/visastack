@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { CaseReadinessRing } from '../../../../components/case-readiness-ring';
 import { DepthScope, atLevel } from '../../../../components/depth';
 import { DepthSwitch } from '../../../../components/depth-switch';
+import { DestinationLabel } from '../../../../components/destination-label';
 import { ShowMore } from '../../../../components/show-more';
 import { Checklist, EmptyState, StatusBadge } from '../../../../components/ui';
 import { AboutDisclosure } from '../../../../components/ui-lift/about-disclosure';
@@ -531,8 +532,10 @@ export default async function AgencyDashboardPage({
                           <Link href={agencyCaseHref(orgId, mission.missionId)}>
                             {mission.applicantName} · {mission.title}
                           </Link>
-                          {mission.destination ? (
-                            <span className="cell-sub">{mission.destination}</span>
+                          {mission.destination?.trim() ? (
+                            <span className="cell-sub">
+                              <DestinationLabel destination={mission.destination} />
+                            </span>
                           ) : null}
                         </th>
                         <td data-label="Stage">{STAGE_LABELS[mission.state] ?? mission.state}</td>
