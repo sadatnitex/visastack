@@ -26,10 +26,11 @@ export function PurposeSelect({
   readonly value: string;
   readonly onChange: (value: string) => void;
 } & SelectRest) {
-  const family = purposes.find((group) =>
-    group.options.some((option) => option.key === value),
-  )?.family;
-  const mark = value ? purposeMark(value, family) : ({ icon: 'plane', tone: 'neutral' } as const);
+  const group = purposes.find((g) => g.options.some((option) => option.key === value));
+  // The picture follows the list: a value the list does not hold (nothing chosen yet) is a plane.
+  const mark = group
+    ? purposeMark(value, group.family)
+    : ({ icon: 'plane', tone: 'neutral' } as const);
   return (
     <div className="purpose-select">
       <MarkTile mark={mark} />

@@ -20,6 +20,8 @@ export interface WalletBrowserDocument {
   readonly kind: string | null;
   /** The AI's suggested kind while nobody has approved it yet. Shown as a suggestion, never as the kind. */
   readonly suggestedKind?: string | null;
+  /** The stored type key (for example PASSPORT): the picture on the row comes from it, never from the label. */
+  readonly docType?: string | null;
   /** The sharing category the kind files this document under (for example "Identity"), or null. */
   readonly category: string | null;
   readonly version: number | null;
@@ -279,7 +281,7 @@ export function DocumentWalletBrowser({
                       }}
                     >
                       <MarkTile
-                        mark={documentMark(doc.kind)}
+                        mark={documentMark(doc.docType ?? null)}
                         size="sm"
                         className="wallet-document-icon"
                       />
@@ -312,7 +314,6 @@ export function DocumentWalletBrowser({
             </ul>
           ) : (
             <EmptyState
-              icon="file"
               art="documents"
               title={documents.length ? 'No Documents Match' : 'No Documents Yet'}
               {...(documents.length

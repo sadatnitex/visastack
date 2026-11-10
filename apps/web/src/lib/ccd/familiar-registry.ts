@@ -73,8 +73,12 @@ export const FAMILIAR_ROWS: readonly FamiliarRow[] = [
     class: 'familiar',
     matches: 'Drive folders, each file with the picture of its kind and a status beside it',
     weight: 4,
-    files: ['components/list-pattern/grouped-list.tsx', 'components/list-pattern/list-row.tsx'],
-    proof: { file: 'components/list-pattern/list-row.tsx', includes: 'MarkTile' },
+    files: [
+      'components/list-pattern/grouped-list.tsx',
+      'components/list-pattern/list-row.tsx',
+      'app/app/mission/[id]/case-checklist.tsx',
+    ],
+    proof: { file: 'app/app/mission/[id]/case-checklist.tsx', includes: 'documentMark(r.key)' },
   },
   {
     screen: 'documents, case checklist',

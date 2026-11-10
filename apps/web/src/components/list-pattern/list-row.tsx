@@ -6,7 +6,7 @@ import { StatusPill } from '../ui-lift/status-pill';
 import type { LiftAction, LiftTone } from '../ui-lift/types';
 import { shortName } from './short-name';
 
-export interface ListRowProps {
+interface ListRowBase {
   /** The stable id of the item; the panel for this item is found by it. */
   readonly id: string;
   /** The full name. A long one is cut to twelve words and read in full in the panel. */
@@ -23,15 +23,27 @@ export interface ListRowProps {
   readonly action?: LiftAction | undefined;
   /** Where the name leads (the item's panel). Without it the name is plain text. */
   readonly openHref?: string | undefined;
-  /** The leading mark when the row has no kind: a status glyph. */
-  readonly icon?: IconName | undefined;
-  /**
-   * What kind of thing the row is (a passport, a bank statement), from `lib/item-icons.ts`: a flat
-   * icon in its tone tile in place of the status glyph. The status then shows in the chip, which
-   * wears its own symbol. The tile is the same 32px as the glyph, so the row keeps its height.
-   */
-  readonly mark?: ItemMark | undefined;
 }
+
+/** The leading mark is either the kind of the item (`mark`) or a status glyph (`icon`), never both. */
+export type ListRowProps = ListRowBase &
+  (
+    | {
+        /**
+         * What kind of thing the row is (a passport, a bank statement), from `lib/item-icons.ts`: a
+         * flat icon in its tone tile in place of the status glyph. The status then shows in the
+         * chip, which wears its own symbol. The tile is the same 32px as the glyph it replaces, so
+         * the row keeps its height.
+         */
+        readonly mark: ItemMark;
+        readonly icon?: undefined;
+      }
+    | {
+        /** The leading mark when the row has no kind: a status glyph. */
+        readonly icon?: IconName | undefined;
+        readonly mark?: undefined;
+      }
+  );
 
 const TONE_ICON: Record<LiftTone, IconName> = {
   success: 'check',

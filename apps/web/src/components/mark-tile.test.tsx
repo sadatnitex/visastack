@@ -63,6 +63,12 @@ describe('StatusPill', () => {
     expect(html).toContain('On File');
   });
 
+  it('keeps the plain mark when the tone disagrees with the word', () => {
+    const html = renderToStaticMarkup(<StatusPill tone="danger">Pending</StatusPill>);
+    expect(html).not.toContain('lift-pill-icon');
+    expect(html).not.toContain('<svg');
+  });
+
   it('keeps the plain mark for a word that is not a status', () => {
     const html = renderToStaticMarkup(<StatusPill tone="warning">Due in 3 days</StatusPill>);
     expect(html).not.toContain('lift-pill-icon');
@@ -121,5 +127,10 @@ describe('PurposeSelect', () => {
     expect(chosen).toContain('data-mark="tripStudy"');
     expect(chosen).toContain('name="purpose"');
     expect(chosen).toContain('<optgroup');
+    // A value the list does not hold is not drawn as a purpose.
+    const stray = renderToStaticMarkup(
+      <PurposeSelect id="p" purposes={purposes} value="not_in_the_list" onChange={() => {}} />,
+    );
+    expect(stray).toContain('data-mark="plane"');
   });
 });

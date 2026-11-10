@@ -18,10 +18,20 @@ import {
   hasOwnDocumentIcon,
   hasOwnPurposeIcon,
   purposeMark,
+  statusIcon,
+  statusIconFor,
   statusMark,
   toneName,
 } from './item-icons';
-import { CHIP_WORDS } from './status-words';
+import {
+  CHIP_WORDS,
+  COVERED_STATUS,
+  FRESHNESS_UNKNOWN_STATUS,
+  GRANT_STATUS,
+  INVITATION_STATUS,
+  REQUIREMENT_STATUS,
+  type StatusWord,
+} from './status-words';
 
 /**
  * The picture map (owner decision, 10 Nov 2026). Three things are held here: every document type,
@@ -118,6 +128,18 @@ describe('document types', () => {
     expect(owned + DOCUMENT_FALLBACKS.length).toBe(CATALOGUE_DOCUMENTS.length);
   });
 
+  it('knows every label and alias of a catalogue type as the type itself', () => {
+    for (const document of CATALOGUE_DOCUMENTS) {
+      const expected = documentMark(document.key);
+      expect(documentMark(document.label), `${document.key} by label`).toEqual(expected);
+      for (const alias of document.aliases ?? []) {
+        expect(documentMark(alias), `${document.key} by alias ${alias}`).toEqual(expected);
+      }
+    }
+    expect(documentMark('National ID Card').icon).toBe('docId');
+    expect(documentMark('NATIONAL_ID').icon).toBe('docId');
+  });
+
   it('reads a typed name the way it reads the stored key', () => {
     expect(documentKey(' Bank statement ')).toBe('BANK_STATEMENT');
     expect(documentMark('Bank Statement')).toEqual(documentMark('BANK_STATEMENT'));
@@ -192,8 +214,7 @@ describe('status words', () => {
     for (const word of Object.keys(STATUS_ICON_BY_WORD)) {
       for (const tone of ['success', 'warning', 'danger', 'info', 'neutral'] as const) {
         const mark = statusMark(word, tone);
-        expect(mark).toBeDefined();
-        expect(['green', 'amber', 'red', 'blue', 'neutral']).toContain(mark?.tone);
+        if (mark) expect(['green', 'amber', 'red', 'blue', 'neutral']).toContain(mark.tone);
       }
     }
     expect(statusMark('Not A Status', 'danger')).toBeUndefined();
@@ -218,6 +239,31 @@ describe('status words', () => {
       ]).toContain(word);
     }
     expect(tones('stateReceived')).toEqual(new Set(['Received', 'Submitted']));
+  });
+});
+
+describe('a symbol never contradicts its chip', () => {
+  const real: StatusWord[] = [
+    ...Object.values(REQUIREMENT_STATUS),
+    COVERED_STATUS,
+    FRESHNESS_UNKNOWN_STATUS,
+    ...Object.values(GRANT_STATUS),
+    ...Object.values(INVITATION_STATUS),
+  ];
+
+  it('gives every real chip its symbol in the tone it really has', () => {
+    for (const status of real) {
+      expect(statusIconFor(status.word, status.tone), `${status.word} (${status.tone})`).toBe(
+        statusIcon(status.word),
+      );
+    }
+  });
+
+  it('withholds the symbol when the tone disagrees with it', () => {
+    expect(statusIconFor('Pending', 'info')).toBe('stateWaiting');
+    expect(statusIconFor('Pending', 'danger')).toBeUndefined();
+    expect(statusIconFor('On File', 'warning')).toBeUndefined();
+    expect(statusMark('Active', 'danger')).toBeUndefined();
   });
 });
 

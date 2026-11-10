@@ -37,7 +37,6 @@ export default async function SharedWithMePage() {
       <article className="card">
         {grants.length === 0 ? (
           <EmptyState
-            icon="share"
             art="sharing"
             title="Nothing Shared with You Yet"
             why="You see only the parts they choose to share, and only after you accept."

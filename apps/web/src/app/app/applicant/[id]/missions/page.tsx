@@ -208,7 +208,6 @@ export default async function MissionsPage({
                   </p>
                 ) : hasNoCase ? (
                   <EmptyState
-                    icon="briefcase"
                     art="trips"
                     title="No Cases Yet"
                     fold

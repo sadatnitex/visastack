@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { statusIcon } from '../../lib/item-icons';
+import { statusIconFor } from '../../lib/item-icons';
 import { Icon } from '../icons';
 import type { LiftTone } from './types';
 
@@ -16,11 +16,12 @@ export interface StatusPillProps {
  * place; `info` is the brand blue, which has no badge of its own, so it sits on the neutral badge
  * and the lift block recolours it. A word in the status map (`lib/item-icons.ts`) wears its own
  * symbol (done, needs you, needs a check, waiting, received, locked) in place of the plain tick,
- * triangle or cross; any other word keeps the plain mark. The word is always the name.
+ * triangle or cross, as long as the chip's tone agrees with that symbol; any other chip keeps the
+ * plain mark. The word is always the name.
  */
 export function StatusPill({ tone, size = 'sm', children }: StatusPillProps) {
   const tones = tone === 'info' ? 'badge-neutral lift-pill-info' : `badge-${tone}`;
-  const icon = typeof children === 'string' ? statusIcon(children) : undefined;
+  const icon = typeof children === 'string' ? statusIconFor(children, tone) : undefined;
   return (
     <span className={`badge ${tones} lift-pill lift-pill-${size}${icon ? ' lift-pill-icon' : ''}`}>
       {icon ? <Icon name={icon} size={size === 'md' ? 16 : 14} /> : null}
