@@ -140,6 +140,7 @@ describe('the rows and panels the kit draws (rendered)', () => {
           ...given,
           packageItems: new Map(),
           evidence: new Map(),
+          evidenceEditable: true,
           packageEditable: false,
           formatLines: {},
         })}
