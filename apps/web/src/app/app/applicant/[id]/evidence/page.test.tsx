@@ -371,7 +371,8 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
     expect(pill('Reviewed')?.className).toContain('badge-success');
     expect(pill('Reviewed')?.className).not.toContain('lift-pill-info');
     // A row never wears a tick for an accepted request: its mark is the kind of thing asked for.
-    expect(dom.querySelector('[data-row="done"] .lift-check-icon svg')).not.toBeNull();
+    expect(dom.querySelector('[data-row="done"] .lift-check-mark svg')).not.toBeNull();
+    expect(dom.querySelector('[data-row="done"] .lift-check-icon')).toBeNull();
   });
 
   it('numbers each row from the order the requests were read in, so Show More lands on the first new row, not on one already seen', async () => {
