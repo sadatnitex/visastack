@@ -29,7 +29,8 @@ function manualHref(
   chosen: ReadonlySet<string>,
   travellers: readonly TripTraveller[],
 ): string | null {
-  const who = travellers.find((t) => chosen.has(t.applicantId)) ?? travellers[0];
+  // Never a guess: with several travellers and nobody ticked, no case is offered for a stranger.
+  const who = travellers.find((t) => chosen.has(t.applicantId));
   return who ? `/app/applicant/${who.applicantId}/missions?manual=1#start-case` : null;
 }
 
@@ -67,6 +68,7 @@ export function TripStartForm({
             : [],
       ),
   );
+  const byNameHref = manualHref(chosen, travellers);
   const toggle = (applicantId: string, on: boolean) =>
     setChosen((prev) => {
       const next = new Set(prev);
@@ -140,10 +142,9 @@ export function TripStartForm({
         <SubmitButton pending={pending} idle="Start Trip" busy="Starting…" />
       </StickyActionBar>
       <FormMessage id={messageId} result={state} />
-      {!state.ok && state.field === 'destination' && manualHref(chosen, travellers) ? (
+      {!state.ok && state.field === 'destination' && byNameHref ? (
         <p className="muted u-fs-085">
-          Not sure where yet?{' '}
-          <Link href={manualHref(chosen, travellers) as string}>Start a Case by Name</Link>
+          Not sure where yet? <Link href={byNameHref}>Start a Case by Name</Link>
         </p>
       ) : null}
       {state.cases && state.cases.length > 0 ? (

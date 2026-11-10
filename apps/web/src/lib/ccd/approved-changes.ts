@@ -497,26 +497,25 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason:
       'Lane 1: plain words for a grade 5 to 8 reader (docs/uiux/ccd/VOCABULARY.md, 10 Nov 2026); the meaning is unchanged.',
   },
+  ...['Family Name', 'Given Name', 'Nationality'].map(
+    (field): ApprovedChange => ({
+      screen: 'profile',
+      from: { kind: 'link', name: `${field}MANUAL`, detail: '/app/applicant/person/history' },
+      to: { kind: 'link', name: `${field}Typed In`, detail: '/app/applicant/person/history' },
+      reason:
+        'Lane 1: the stored method code MANUAL is shown as Typed In (lib/field-state-words.ts).',
+    }),
+  ),
   {
-    screen: 'profile',
-    from: { kind: 'link', name: 'Family NameMANUAL', detail: '/app/applicant/person/history' },
-    to: { kind: 'link', name: 'Family NameTyped In', detail: '/app/applicant/person/history' },
+    screen: 'cases',
+    from: { kind: 'heading', name: 'Start a Case', detail: '2' },
+    to: (state) => ({
+      kind: 'heading',
+      name: state === 'core processing off' ? 'Start a Case' : 'Start a Trip',
+      detail: '2',
+    }),
     reason:
-      'Lane 1: the stored method code MANUAL is shown as Typed In (lib/field-state-words.ts).',
-  },
-  {
-    screen: 'profile',
-    from: { kind: 'link', name: 'Given NameMANUAL', detail: '/app/applicant/person/history' },
-    to: { kind: 'link', name: 'Given NameTyped In', detail: '/app/applicant/person/history' },
-    reason:
-      'Lane 1: the stored method code MANUAL is shown as Typed In (lib/field-state-words.ts).',
-  },
-  {
-    screen: 'profile',
-    from: { kind: 'link', name: 'NationalityMANUAL', detail: '/app/applicant/person/history' },
-    to: { kind: 'link', name: 'NationalityTyped In', detail: '/app/applicant/person/history' },
-    reason:
-      'Lane 1: the stored method code MANUAL is shown as Typed In (lib/field-state-words.ts).',
+      'Lane 1: the card is named like its button, Start a Trip, once there is something to start.',
   },
   ...[0, 2].map(
     (count): ApprovedChange => ({

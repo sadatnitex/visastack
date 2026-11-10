@@ -132,8 +132,7 @@ describe('the kind and name card', () => {
   });
 
   it('says plainly before Accept when accepting drops the fresh sign-in check', () => {
-    const warning =
-      'After you accept, VisaStack will not ask you to sign in again before opening this file.';
+    const warning = 'After you accept, this file will open without the extra sign-in check.';
     render();
     expect(host.textContent).not.toContain(warning);
     render({ ...suggestion, removesFreshSignIn: true });

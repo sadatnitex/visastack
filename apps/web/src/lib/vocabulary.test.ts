@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { sourceFiles, visibleText } from './visible-text.test-support';
@@ -130,13 +130,20 @@ describe('traveller screens keep engineering words out (first journey, lane 1)',
     join('app', 'app', 'applicant', '[id]', 'sharing'),
     join('app', 'app', 'applicant', '[id]', 'evidence'),
   ];
-  const files = sourceFiles(join(WEB_SRC, 'app', 'app')).filter(
-    (file) => !OTHER_PACKAGES.some((part) => relative(WEB_SRC, file).startsWith(part)),
-  );
+  // Compared by whole folder names, so a folder that only starts the same way is still scanned.
+  const inOtherPackage = (file: string) =>
+    OTHER_PACKAGES.some((part) => `${relative(WEB_SRC, file)}${sep}`.startsWith(`${part}${sep}`));
+  const files = sourceFiles(join(WEB_SRC, 'app', 'app')).filter((file) => !inOtherPackage(file));
   const all = files.flatMap((file) => visibleText(file, readFileSync(file, 'utf8')));
 
   it('scans the traveller screens', () => {
-    expect(files.length).toBeGreaterThan(40);
+    const scanned = files.map((file) => relative(WEB_SRC, file));
+    for (const page of ['profile', 'history', 'expiry', 'documents', 'missions'])
+      expect(
+        scanned.some((file) => file.includes(`${sep}${page}${sep}page.tsx`)),
+        page,
+      ).toBe(true);
+    expect(scanned.some((file) => inOtherPackage(join(WEB_SRC, file)))).toBe(false);
     expect(all.some((v) => v.text.includes('Fields Backed by a Document'))).toBe(true);
   });
 

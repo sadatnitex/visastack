@@ -9,9 +9,9 @@ import { notFound } from 'next/navigation';
 import type { ActivityLogEntry } from '../../../../../components/activity-log';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import {
-  FIELD_STATUS_WORDS,
   REPLACED_WORD,
   fieldMethodWords,
+  fieldStatusWords,
 } from '../../../../../lib/field-state-words';
 import { evidenceFieldGroups, fieldLabel } from '../../../../../lib/master-profile';
 import {
@@ -129,7 +129,7 @@ export default async function HistoryPage({
         const uses = v.isCurrent ? (usedBy.get(v.fieldKey) ?? []) : [];
         const detail = [
           value,
-          FIELD_STATUS_WORDS[v.status] ?? v.status,
+          fieldStatusWords(v.status),
           fieldMethodWords(v.method) ?? 'Recorded Update',
           reasonWords(v.reason),
           uses.length > 0 ? `Used by ${uses.join(', ')}` : null,

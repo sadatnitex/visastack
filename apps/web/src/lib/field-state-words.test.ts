@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { FIELD_METHOD_WORDS, FIELD_STATUS_WORDS, fieldMethodWords } from './field-state-words';
+import {
+  FIELD_METHOD_WORDS,
+  FIELD_STATUS_WORDS,
+  fieldMethodWords,
+  fieldStatusWords,
+} from './field-state-words';
 
 describe('the words for a saved value (lane 1, plain words)', () => {
   it('has a word for every stored state a person can see', () => {
@@ -43,5 +48,8 @@ describe('the words for a saved value (lane 1, plain words)', () => {
     expect(fieldMethodWords('API')).toBe('From a Connected App');
     expect(fieldMethodWords('SOMETHING_NEW')).toBeNull();
     expect(fieldMethodWords(null)).toBeNull();
+    expect(fieldStatusWords('DECLARED')).toBe('Entered');
+    expect(fieldStatusWords('A_FUTURE_CODE')).toBe('Recorded Value');
+    expect(fieldStatusWords(null)).toBe('Recorded Value');
   });
 });

@@ -224,7 +224,7 @@ export default async function MissionsPage({
             {...atLevel(data.missionsRead && activeCases.length === 0 ? 'browse' : 'everything')}
           >
             <p className="card-kicker">New</p>
-            <h2 className="card-title">Start a Case</h2>
+            <h2 className="card-title">{startLabel}</h2>
             {data.coreGranted ? (
               <>
                 <p className="card-body">

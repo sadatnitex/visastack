@@ -17,7 +17,7 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
-import { FIELD_STATUS_WORDS } from '../../../../lib/field-state-words';
+import { fieldStatusWords } from '../../../../lib/field-state-words';
 import { formatDateOnly } from '../../../../lib/format-date';
 import type {
   EditorFieldDef,
@@ -231,9 +231,7 @@ function FieldRow({
               {sensitivityLabel}
             </span>
           ) : null}
-          {status ? (
-            <span className="badge badge-neutral">{FIELD_STATUS_WORDS[status] ?? status}</span>
-          ) : null}
+          {status ? <span className="badge badge-neutral">{fieldStatusWords(status)}</span> : null}
         </span>
       </div>
       <div className="field-control">

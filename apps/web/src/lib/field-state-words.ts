@@ -19,6 +19,11 @@ export const FIELD_STATUS_WORDS: Readonly<Record<string, string>> = {
   SUPERSEDED: REPLACED_WORD,
 };
 
+/** The words for a saved state; a code this list does not know is never shown raw. */
+export function fieldStatusWords(status: string | null | undefined): string {
+  return (status ? FIELD_STATUS_WORDS[status] : undefined) ?? 'Recorded Value';
+}
+
 /** How a version was saved: by typing, from a document, by a connected app or by VisaStack itself. */
 export const FIELD_METHOD_WORDS: Readonly<Record<string, string>> = {
   MANUAL: 'Typed In',

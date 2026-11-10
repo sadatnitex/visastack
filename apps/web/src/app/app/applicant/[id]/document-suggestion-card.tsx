@@ -28,7 +28,7 @@ function withArticle(label: string): string {
  */
 /** Said before Accept whenever accepting would take away the fresh sign-in check (owner decision 2026-10-25). */
 export const REMOVES_FRESH_SIGN_IN =
-  'After you accept, VisaStack will not ask you to sign in again before opening this file.';
+  'After you accept, this file will open without the extra sign-in check.';
 
 export function DocumentSuggestionCard({
   applicantId,

@@ -146,6 +146,20 @@ describe('Start a Trip: arriving from the Cases list', () => {
     expect(link?.getAttribute('href')).toBe('/app/applicant/p2/missions?manual=1#start-case');
   });
 
+  it('offers no by-name link while several travellers are listed and nobody is ticked', async () => {
+    actions.startTripAction.mockResolvedValue({
+      ok: false,
+      message: 'Choose where you are going.',
+      field: 'destination',
+    });
+    render(two);
+    const form = container.querySelector('form') as HTMLFormElement;
+    await act(async () => {
+      form.requestSubmit();
+    });
+    expect(container.textContent).not.toContain('Start a Case by Name');
+  });
+
   it('shows no such link for a refusal about something else', async () => {
     actions.startTripAction.mockResolvedValue({
       ok: false,

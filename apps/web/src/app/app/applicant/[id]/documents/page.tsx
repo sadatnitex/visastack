@@ -139,6 +139,9 @@ function safetyBadge(
   return presentScanState(doc.latestVersionId ? evidence.get(doc.latestVersionId) : null);
 }
 
+/** Where a person gets help when a file keeps failing (the contact section of Help and Support). */
+const HELP_HREF = '/app/help#contact';
+
 /** What a person can do next when a file could not be used (a state with no next step is a dead end). */
 const PROBLEM_NEXT_STEP: Record<string, string> = {
   FAILED: 'We could not finish checking this file. Try uploading it again.',
@@ -799,7 +802,7 @@ export default async function ApplicantDocumentsPage({
                       {doc.processingStatus === 'FAILED' ? (
                         <>
                           {' '}
-                          Still failing? <Link href="/app/help#contact">Get Help</Link>
+                          Still failing? <Link href={HELP_HREF}>Get Help</Link>
                         </>
                       ) : null}
                     </p>
@@ -909,7 +912,12 @@ export default async function ApplicantDocumentsPage({
                           })
                         : null;
                       return state && copy ? (
-                        <ReadingStatus copy={copy} stage={state.stage} applicantId={id} />
+                        <ReadingStatus
+                          copy={copy}
+                          stage={state.stage}
+                          applicantId={id}
+                          {...(doc.processingStatus === 'FAILED' ? { helpHref: HELP_HREF } : {})}
+                        />
                       ) : null;
                     })()}
                     {(doc.classification?.reviewRequired === true ||
