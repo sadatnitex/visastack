@@ -128,6 +128,23 @@ describe('SwitcherTabs', () => {
     expect(stops.length).toBeGreaterThan(0);
   });
 
+  it('goes to the target at once when its section is already showing, and leaves nothing waiting', () => {
+    draw('notes');
+    const target = container.querySelector<HTMLElement>('#notes') as HTMLElement;
+    const scroll = vi.fn();
+    target.scrollIntoView = scroll;
+    const link = document.createElement('a');
+    link.href = '#notes';
+    container.append(link);
+    act(() => link.click());
+    expect(scroll).toHaveBeenCalledTimes(1);
+    // Away to another section and back: focus does not jump to the old target again.
+    act(() => tab('work')?.click());
+    act(() => tab('notes')?.click());
+    expect(scroll).toHaveBeenCalledTimes(1);
+    link.remove();
+  });
+
   it('gives one tab stop while nothing is chosen: the first drawn tab', () => {
     draw();
     expect(tab('work')?.tabIndex).toBe(0);

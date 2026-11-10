@@ -30,6 +30,24 @@ describe('Help and Support', () => {
     expect(text).not.toMatch(/\b(within|in under) \d+|\b24\/7\b|\bhours?\b|\bbusiness days?\b/i);
   });
 
+  it('offers Send on WhatsApp to the business number only when one is set up', async () => {
+    vi.stubEnv('WHATSAPP_BUSINESS_NUMBER', '');
+    expect(await renderServer(HelpPage())).not.toContain('wa.me');
+
+    vi.stubEnv('WHATSAPP_BUSINESS_NUMBER', 'not a number');
+    expect(await renderServer(HelpPage())).not.toContain('wa.me');
+
+    vi.stubEnv('WHATSAPP_BUSINESS_NUMBER', '+880 1711-223344');
+    const html = await renderServer(HelpPage());
+    expect(html).toContain('https://wa.me/8801711223344?text=');
+    expect(textOf(html)).toContain('Send on WhatsApp');
+    // A short hello with no details, and nothing else to copy.
+    expect(decodeURIComponent(html.split('wa.me/8801711223344?text=')[1] ?? '')).toContain(
+      'Hello VisaStack, I need some help.',
+    );
+    expect(textOf(html)).not.toContain('Copy Message');
+  });
+
   it('names each contact route in Title Case, under one heading', async () => {
     const html = await renderServer(HelpPage());
     const headings = [...html.matchAll(/<h3 id="help-contact-[a-z]+">([^<]+)<\/h3>/g)].map(
