@@ -24,7 +24,8 @@ import { checkCaseCreationEntitlement } from './entitlement-enforcement';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
-import { readStoredReadiness } from './finished-case-readiness';
+import { type StoredCaseEvidence, readStoredCaseEvidence } from './finished-case-evidence';
+import { type SavedReadiness, readStoredReadiness } from './finished-case-readiness';
 import {
   everydayDocumentCondition,
   lifecycleTablesPresent,
@@ -1072,24 +1073,45 @@ export async function computeReadiness(
   );
   if (!mission) return err(serviceError('not_found', 'case not found'));
   if (!isInactiveCaseState(mission.state)) return computeLiveReadiness(db, mission, now);
-  const saved = await savedReadinessForFinishedCase(db, mission);
-  if (saved) return ok({ ...saved, savedCopy: 'AS_FINISHED' });
+  const saved = await finishedCaseCopy(db, mission);
+  if (saved) return ok({ ...saved.readiness, savedCopy: 'AS_FINISHED' });
   const live = await computeLiveReadiness(db, mission, now);
   return live.ok ? ok({ ...live.value, savedCopy: 'NONE' }) : live;
 }
 
 /**
- * The readiness a finished case had when it finished, or null when there is no copy to trust
- * (the rules for choosing the copy are in `finished-case-readiness.ts`). Only the two parts
- * needed are pulled out of the stored copy, so a long list of cases does not read whole copies.
+ * The copy a finished case reads from, or null when there is none to trust (the rules for
+ * choosing it are in `finished-case-readiness.ts`). One choice for every surface, so the
+ * progress, the evidence list and the package panel can never disagree about whether a saved
+ * copy exists. Only the parts needed are pulled out of the stored copy, so a long list of cases
+ * does not read whole copies. A copy is usable only when its readiness is complete and it holds
+ * the requirement mapping and the list of files the evidence screens read.
  */
-async function savedReadinessForFinishedCase(
+async function finishedCaseCopy(
   db: Db,
   mission: Mission,
-): Promise<ReturnType<typeof readStoredReadiness>> {
+): Promise<{ snapshotId: string; readiness: SavedReadiness } | null> {
   const parts = {
+    snapshotId: schema.missionSnapshots.id,
     readiness: sql<unknown>`${schema.missionSnapshots.content} -> 'readiness'`,
     copiedPackVersionId: sql<unknown>`${schema.missionSnapshots.content} #> '{packVersion,id}'`,
+    hasMapping: sql<boolean>`jsonb_typeof(${schema.missionSnapshots.content} -> 'requirementMapping') = 'array' and jsonb_typeof(${schema.missionSnapshots.content} -> 'documents') = 'array'`,
+  };
+  const usable = (
+    copy: {
+      snapshotId: string;
+      readiness: unknown;
+      copiedPackVersionId: unknown;
+      hasMapping: boolean;
+    } | null,
+  ) => {
+    if (!copy || copy.hasMapping !== true) return null;
+    const readiness = readStoredReadiness(
+      copy.readiness,
+      copy.copiedPackVersionId,
+      mission.packVersionId,
+    );
+    return readiness ? { snapshotId: copy.snapshotId, readiness } : null;
   };
   const submission = first(
     await db
@@ -1100,21 +1122,20 @@ async function savedReadinessForFinishedCase(
       .limit(1),
   );
   if (submission) {
-    const copy = first(
-      await db
-        .select(parts)
-        .from(schema.missionSnapshots)
-        .where(
-          and(
-            eq(schema.missionSnapshots.id, submission.snapshotId),
-            eq(schema.missionSnapshots.missionId, mission.id),
-          ),
-        )
-        .limit(1),
+    return usable(
+      first(
+        await db
+          .select(parts)
+          .from(schema.missionSnapshots)
+          .where(
+            and(
+              eq(schema.missionSnapshots.id, submission.snapshotId),
+              eq(schema.missionSnapshots.missionId, mission.id),
+            ),
+          )
+          .limit(1),
+      ) ?? null,
     );
-    return copy
-      ? readStoredReadiness(copy.readiness, copy.copiedPackVersionId, mission.packVersionId)
-      : null;
   }
   if (!mission.closedAt) return null;
   const latest = first(
@@ -1131,7 +1152,7 @@ async function savedReadinessForFinishedCase(
       .limit(1),
   );
   if (!latest || latest.revision !== mission.materialRevision) return null;
-  return readStoredReadiness(latest.readiness, latest.copiedPackVersionId, mission.packVersionId);
+  return usable(latest);
 }
 
 async function computeLiveReadiness(
@@ -1382,11 +1403,103 @@ export interface EvidenceCandidateEntry {
 }
 
 /**
+ * What a finished case used, from the copy saved while it was open (null when there is no
+ * usable copy, and the caller reads live). Never exported: the exported readers below take a
+ * proof or have already checked that the case belongs to the caller.
+ */
+async function loadFinishedCaseEvidence(
+  db: Db,
+  mission: Mission,
+): Promise<StoredCaseEvidence | null> {
+  const copy = await finishedCaseCopy(db, mission);
+  if (!copy) return null;
+  const stored = first(
+    await db
+      .select({
+        mapping: sql<unknown>`${schema.missionSnapshots.content} -> 'requirementMapping'`,
+        documents: sql<unknown>`${schema.missionSnapshots.content} -> 'documents'`,
+      })
+      .from(schema.missionSnapshots)
+      .where(
+        and(
+          eq(schema.missionSnapshots.id, copy.snapshotId),
+          eq(schema.missionSnapshots.missionId, mission.id),
+        ),
+      )
+      .limit(1),
+  );
+  return stored ? readStoredCaseEvidence(stored.mapping, stored.documents) : null;
+}
+
+/**
+ * The files of a person that are still here: not in Recently Deleted, not being removed. A
+ * finished case keeps the files it used by name, but a file the person has since removed drops
+ * out of its list (removal wins over keeping a name on screen), as it does for an open case.
+ */
+async function documentIdsStillHere(
+  db: Db,
+  applicantId: string,
+  documentIds: readonly string[],
+): Promise<ReadonlySet<string>> {
+  if (documentIds.length === 0) return new Set();
+  const lifecycle = await lifecycleTablesPresent(db);
+  const rows = await db
+    .select({ id: schema.documents.id })
+    .from(schema.documents)
+    .where(
+      and(
+        eq(schema.documents.applicantId, applicantId),
+        inArray(schema.documents.id, [...documentIds]),
+        lifecycle ? presentDocumentCondition() : undefined,
+      ),
+    );
+  return new Set(rows.map((r) => r.id));
+}
+
+/** The exact version of one answer that a finished case used, with the status it had then. */
+export interface PinnedFactVersion {
+  readonly factVersionId: string;
+  readonly status: FactStatus;
+}
+
+/**
+ * The answers one finished case used, each at the exact version the case used (from the copy
+ * saved while it was open), keyed by the answer. A case with no usable copy, or one that is not
+ * finished, gives nothing. Owner proof only, and only this person's own case is read.
+ */
+export async function pinnedFactVersionsOfFinishedCase(
+  proof: AuthorizedApplicant<'VIEW_METADATA'>,
+  mission: Mission,
+): Promise<Map<string, PinnedFactVersion>> {
+  const pins = new Map<string, PinnedFactVersion>();
+  if (
+    !AuthorizedApplicant.isGenuine(proof, 'VIEW_METADATA') ||
+    proof.actor.kind !== 'applicant_owner' ||
+    proof.resource.kind !== 'applicant'
+  ) {
+    return pins;
+  }
+  if (mission.applicantId !== proof.applicant.id || !isInactiveCaseState(mission.state)) {
+    return pins;
+  }
+  const stored = await loadFinishedCaseEvidence(proof.tx, mission);
+  for (const used of stored?.byRequirement.values() ?? []) {
+    for (const fact of used.facts) {
+      if (fact.factVersionId) {
+        pins.set(fact.factId, { factVersionId: fact.factVersionId, status: fact.status });
+      }
+    }
+  }
+  return pins;
+}
+
+/**
  * Every candidate fact/document instance for each requirement — unlike
  * `buildRequirementMapping` (used for readiness/snapshots, which narrows to
  * only the selection once one exists), this always lists every candidate so
  * the evidence-selection UI can show what's currently chosen alongside what
- * else is available to switch to.
+ * else is available to switch to. A finished case instead lists what it used when it finished
+ * (see `loadFinishedCaseEvidence`).
  */
 export async function getEvidenceCandidates(
   db: Db,
@@ -1399,10 +1512,50 @@ export async function getEvidenceCandidates(
   if (!mission.packVersionId) return ok([]);
 
   const requirements = await listRequirements(db, mission.packVersionId);
-  const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
-  const documentPool = await loadDocumentInstancesByType(db, mission.applicantId);
   const selections = await loadSelectionsByRequirement(db, missionId);
   const now = new Date();
+
+  // A finished case lists what it used when it finished, not today's record (no saved copy:
+  // it reads live below, and the page says so).
+  if (isInactiveCaseState(mission.state)) {
+    const stored = await loadFinishedCaseEvidence(db, mission);
+    if (stored) {
+      const stillHere = await documentIdsStillHere(
+        db,
+        mission.applicantId,
+        [...stored.byRequirement.values()].flatMap((e) => e.documents.map((d) => d.documentId)),
+      );
+      return ok(
+        requirements.map((req) => {
+          const used = stored.byRequirement.get(req.id);
+          const selectedDocumentIds = selections.documentIdsByRequirement.get(req.id);
+          return {
+            packRequirementId: req.id,
+            kind: req.kind,
+            key: req.kind === 'FIELD' ? (req.fieldKey ?? '') : (req.docType ?? ''),
+            citation: req.citation,
+            optional: req.optional,
+            factCandidates: [...(used?.facts ?? [])],
+            documentCandidates: (used?.documents ?? [])
+              .filter((d) => stillHere.has(d.documentId))
+              .map((d) => ({
+                ...d,
+                staleness: classifyStaleness(
+                  parseDocumentDate(d.documentDate),
+                  req.maxAgeDays,
+                  now,
+                ),
+              })),
+            selectedFactIds: [...(selections.factIdsByRequirement.get(req.id) ?? [])],
+            selectedDocumentIds: [...(selectedDocumentIds ?? [])],
+          };
+        }),
+      );
+    }
+  }
+
+  const factsByKey = await loadFactInstancesByKey(db, mission.applicantId);
+  const documentPool = await loadDocumentInstancesByType(db, mission.applicantId);
 
   return ok(
     requirements.map((req) => {

@@ -116,6 +116,8 @@ async function prepare(
     const encryption = createKeyManagementPort();
     const engineOptions: SelectedOutputOptions = {
       ...options,
+      // The person's own pages show a finished case as it stood when it finished.
+      asFinished: true,
       ...(encryption ? { encryption } : {}),
       ...(stepUp?.kind === 'proof' ? { stepUp: stepUp.proof } : {}),
     };
