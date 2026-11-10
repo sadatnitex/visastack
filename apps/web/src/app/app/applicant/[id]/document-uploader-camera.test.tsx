@@ -332,22 +332,27 @@ describe('the photo check before sending (F2)', () => {
     expect(rows()[0]?.getAttribute('data-status')).toBe('not_sent');
   });
 
-  it('puts the camera first and makes it the main button on a phone only', async () => {
+  it('puts the camera first and makes it the main button on a phone by style alone, so nothing moves after load', async () => {
     const labels = () =>
       Array.from(host.querySelectorAll('.upload-drop-actions button')).map((b) => b.textContent);
     await mount();
+    // The page is the same for everyone: no script decides the order.
     expect(labels()).toEqual(['Choose Files', 'Take a Photo']);
-    await act(async () => root.unmount());
-    root = createRoot(host);
-    vi.stubGlobal('matchMedia', (query: string) => ({
-      matches: query === '(pointer: coarse)',
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
-    }));
-    await mount();
-    expect(labels()).toEqual(['Take a Photo', 'Choose Files']);
-    expect(button('Take a Photo')?.className).toContain('btn-primary');
-    expect(button('Choose Files')?.className).toContain('btn-secondary');
+    expect(button('Choose Files')?.className).toContain('btn-primary');
+    expect(button('Take a Photo')?.className).toContain('btn-secondary');
+    expect(button('Take a Photo')?.hasAttribute('data-camera')).toBe(true);
+    expect(button('Choose Files')?.hasAttribute('data-choose')).toBe(true);
+
+    const fs = await import('node:fs');
+    const css = fs.readFileSync(
+      (await import('node:path')).resolve(__dirname, '../../../globals.css'),
+      'utf8',
+    );
+    const own = css.slice(css.indexOf('/* WP-F2'), css.indexOf('/* end WP-F2 */'));
+    const phone = own.slice(own.indexOf('@media (pointer: coarse)'));
+    expect(phone).toMatch(/\.btn\[data-camera\]\s*\{[^}]*order:\s*-1/);
+    expect(phone).toMatch(/\.btn\[data-camera\]\s*\{[^}]*background:\s*var\(--accent-strong\)/);
+    expect(phone).toMatch(/\.btn\[data-choose\]\s*\{[^}]*background:\s*var\(--bg-elevated\)/);
   });
 });
 

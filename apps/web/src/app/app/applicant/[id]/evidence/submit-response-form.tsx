@@ -1,9 +1,9 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useActionState, useId, useState } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../../components/form-feedback';
 import { Icon } from '../../../../../components/icons';
-import { ReceiptCard } from '../../../../../components/receipt-card';
 import { AboutDisclosure } from '../../../../../components/ui-lift';
 import { SAVING_TEXT, saveResult } from '../../../../../lib/save-status';
 import { type ActionState, submitEvidenceResponseAction } from './actions';
@@ -60,7 +60,6 @@ export function SubmitResponseForm({
   awaiting = true,
   timeZone = null,
   itemLabel,
-  referenceCode,
 }: {
   readonly applicantId: string;
   readonly requestId: string;
@@ -79,42 +78,39 @@ export function SubmitResponseForm({
   readonly timeZone?: string | null;
   /** What the request is for, so several Send buttons on one page each say which item they send. */
   readonly itemLabel?: string;
-  /** The request's reference code, when it has one, so the receipt can show it with Copy. */
-  readonly referenceCode?: string;
 }) {
-  const [state, formAction, pending] = useActionState(submitEvidenceResponseAction, INITIAL);
+  const router = useRouter();
+  // After a saved answer the address says so (`done=answered`), and the page draws the receipt
+  // from the saved request. This form is rebuilt when the page refreshes after an answer, so it
+  // cannot hold the receipt itself; the address change runs from here, not from an effect that
+  // the rebuild could skip.
+  const [state, formAction, pending] = useActionState(
+    async (previous: ActionState, formData: FormData): Promise<ActionState> => {
+      const next = await submitEvidenceResponseAction(previous, formData);
+      if (next.ok && next.savedAt) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('item', requestId);
+        url.searchParams.set('done', 'answered');
+        router.replace(`${url.pathname}${url.search}`, { scroll: false });
+      }
+      return next;
+    },
+    INITIAL,
+  );
   const onlyFact = candidateFacts.length === 1 ? (candidateFacts[0]?.factId ?? '') : '';
   // What is chosen before the person does anything: one fitting item that was not just sent back.
   const [initial] = useState(kind === 'FIELD' ? onlyFact : initialChoice(documentChoices));
   const [selection, setSelection] = useState(initial);
   const hintId = useId();
-  const [receiptClosed, setReceiptClosed] = useState(false);
   const result = saveResult(state, timeZone);
   // While the request waits on the person, a success can only be about an earlier round (the
   // agency sent it back after it was saved): "Saved at" is shown once the request has left the
   // waiting list, and never beside a fresh Send button.
   const waitingResult = state.ok ? NO_RESULT : result;
 
-  if (!awaiting) {
-    // The receipt after an answer (F2), from what the action returned: the confirmed moment in the
-    // traveller's zone, the request's own reference, and the honest line that nobody has looked yet.
-    return state.ok && state.savedAt && !receiptClosed ? (
-      <div className="request-response">
-        <ReceiptCard
-          title="Answer Sent"
-          what={`${itemLabel ?? 'Your answer'} went to the agency.`}
-          at={state.savedAt}
-          timeZone={timeZone ?? undefined}
-          reference={
-            referenceCode ? { code: referenceCode, label: 'Request Reference' } : undefined
-          }
-          honestLine="Received, not yet reviewed."
-          next={{ label: 'Back to Requests', href: '#' }}
-          onDone={() => setReceiptClosed(true)}
-        />
-      </div>
-    ) : null;
-  }
+  // Once the request no longer waits on the traveller, the page shows the receipt (answered just
+  // now) or the thread; the form has nothing left to say.
+  if (!awaiting) return null;
 
   if (kind === 'FIELD' && candidateFacts.length === 0) {
     return (

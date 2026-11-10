@@ -20634,8 +20634,29 @@ html:has(.sticky-action-bar) .toast-region {
 .receipt-actions .btn {
   min-height: 44px;
 }
-.upload-drop[data-phone="true"] .upload-drop-actions .btn {
-  flex: 1 1 100%;
+/* A phone: the camera first and the main button, by style alone, so nothing moves after the page loads. */
+@media (pointer: coarse) {
+  .upload-drop-actions .btn {
+    flex: 1 1 100%;
+  }
+  .upload-drop-actions .btn[data-camera] {
+    order: -1;
+    background: var(--accent-strong);
+    color: #fff;
+    border-color: transparent;
+  }
+  .upload-drop-actions .btn[data-camera]:hover {
+    background: var(--accent-hover);
+  }
+  .upload-drop-actions .btn[data-choose] {
+    background: var(--bg-elevated);
+    color: var(--text);
+    border-color: var(--edge-control);
+  }
+  .upload-drop-actions .btn[data-choose]:hover {
+    background: var(--bg-subtle);
+    border-color: var(--text-tertiary);
+  }
 }
 .receipt-card {
   display: grid;

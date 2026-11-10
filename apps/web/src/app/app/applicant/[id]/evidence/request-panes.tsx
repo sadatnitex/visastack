@@ -15,6 +15,7 @@ import { buildThread } from '../../../../../components/request-thread/thread-mod
 import { StatusPill } from '../../../../../components/ui-lift';
 import { formatDateOnly } from '../../../../../lib/format-date';
 import { formatMoment } from '../../../../../lib/save-status';
+import { AnswerReceipt } from './answer-receipt';
 import { AskAboutItemForm } from './ask-about-item-form';
 import type { ChoiceBasis } from './choice-basis';
 import { ClearerCopyPanel } from './clearer-copy-panel';
@@ -47,6 +48,8 @@ export interface RequestPanesProps {
   readonly extras: RequestItemExtras;
   readonly choiceBasis: ChoiceBasis;
   readonly histories: ReadonlyMap<string, RequestHistory>;
+  /** The request just answered, named by the address (`done=answered`); its panel shows the receipt. */
+  readonly answeredId?: string;
 }
 
 function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & RequestPanesProps) {
@@ -105,6 +108,15 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
         <p className="case-row-meta">Needed by {formatDateOnly(req.dueDate)}</p>
       ) : null}
       {item.rule ? <p className="case-row-meta">{item.rule}</p> : null}
+      {data.answeredId === req.id && req.respondedAt && req.status === 'RECEIVED' ? (
+        <AnswerReceipt
+          applicantId={id}
+          itemName={itemName}
+          respondedAt={new Date(req.respondedAt).toISOString()}
+          timeZone={timeZone}
+          {...(code ? { referenceCode: code } : {})}
+        />
+      ) : null}
       {code ? <ReferenceCode code={code} label="Request Reference" /> : null}
       <p className="case-row-meta">{item.guidance}</p>
       {req.respondedAt && ANSWERED_STATUSES.has(req.status) ? (
@@ -122,7 +134,6 @@ function RequestPane({ entry, ...data }: { readonly entry: RequestEntry } & Requ
           awaiting={awaitingReply}
           timeZone={timeZone}
           itemLabel={itemName}
-          {...(code ? { referenceCode: code } : {})}
           idempotencyKey={randomBytes(18).toString('base64url')}
           exactCopies={choiceBasis.exactCopies}
           documentsRead={data.documentsRead && choiceBasis.read}

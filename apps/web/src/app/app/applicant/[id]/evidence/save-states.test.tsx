@@ -23,6 +23,7 @@ vi.mock('react', async (importOriginal) => {
         : actual.useActionState(...args)) as typeof actual.useActionState,
   };
 });
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 vi.mock('./actions', () => ({
   submitEvidenceResponseAction: vi.fn(),
   askAboutRequestItemAction: vi.fn(),
@@ -33,7 +34,7 @@ const { AskAboutItemForm } = await import('./ask-about-item-form');
 
 const AT = '2026-10-27T08:32:00.000Z';
 
-const respond = (props: { awaiting?: boolean; referenceCode?: string; itemLabel?: string } = {}) =>
+const respond = (props: { awaiting?: boolean } = {}) =>
   renderToStaticMarkup(
     <SubmitResponseForm
       applicantId="a1"
@@ -92,33 +93,14 @@ describe.each([
 });
 
 describe('Saved at', () => {
-  it('names the confirmed time in the traveller zone once the answer is saved, after the form is gone', () => {
+  it('says nothing once the answer is saved: the page draws the receipt from the saved request', () => {
     show({
       state: { ok: true, message: 'The agency will review it.', savedAt: AT },
       pending: false,
     });
     const html = respond({ awaiting: false });
-    // The receipt (F2): the confirmed moment in the traveller's zone, and the honest line.
-    const text = textOf(html);
-    expect(text).toContain('Answer Sent');
-    expect(text).toContain('Your answer went to the agency.');
-    expect(text).toContain('2:32 pm GMT+6');
-    expect(text).toContain('Received, not yet reviewed.');
+    expect(textOf(html)).toBe('');
     expect(html).not.toContain('<form');
-  });
-
-  it('puts the request reference and the item name on the receipt, only when there is a reference', () => {
-    show({
-      state: { ok: true, message: 'The agency will review it.', savedAt: AT },
-      pending: false,
-    });
-    const withCode = textOf(
-      respond({ awaiting: false, referenceCode: 'R-7K2Q9M', itemLabel: 'Passport' }),
-    );
-    expect(withCode).toContain('Passport went to the agency.');
-    expect(withCode).toContain('Request Reference');
-    expect(withCode).toContain('R-7K2Q9M');
-    expect(textOf(respond({ awaiting: false }))).not.toContain('Request Reference');
   });
 
   it('does not show an earlier Saved at beside a fresh Submit button (the agency sent it back)', () => {

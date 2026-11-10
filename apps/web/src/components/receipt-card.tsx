@@ -22,6 +22,8 @@ import { ReferenceCode } from './reference-code';
 export interface ReceiptNext {
   readonly label: string;
   readonly href: string;
+  /** The receipt sits in a side panel (a full screen on a phone): following this link closes it first. */
+  readonly closesPane?: boolean;
 }
 
 /** The date and time as the person reads them, with the zone named, for example `10 Nov 2026, 2:05 pm GMT+6`. */
@@ -147,7 +149,11 @@ export function ReceiptCard({
       ) : null}
       {honestLine ? <p className="receipt-honest">{honestLine}</p> : null}
       <div className="receipt-actions">
-        <Link className="btn btn-primary" href={next.href}>
+        <Link
+          className="btn btn-primary"
+          href={next.href}
+          {...(next.closesPane ? { 'data-pane-close': 'true' } : {})}
+        >
           {next.label}
         </Link>
         <button

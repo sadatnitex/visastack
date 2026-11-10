@@ -102,6 +102,15 @@ export function ListWithPane({
     const onClick = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0) return;
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      // A link inside the panel that says it closes the panel (`data-pane-close`, for example a
+      // receipt's Back to Requests) shuts it the way Back does, then goes where it points.
+      const closing = (event.target as Element | null)?.closest<HTMLAnchorElement>(
+        '.lp-pane a[data-pane-close]',
+      );
+      if (closing && el.contains(closing)) {
+        closeRef.current();
+        return;
+      }
       // A link inside the panel to somewhere on this page (Provide Evidence) leaves the panel, so a
       // full screen never covers the place the link points at. The link then does its own work.
       const inside = (event.target as Element | null)?.closest<HTMLAnchorElement>(

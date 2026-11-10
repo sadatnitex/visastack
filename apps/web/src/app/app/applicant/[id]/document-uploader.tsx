@@ -210,21 +210,9 @@ export function DocumentUploader({
   const cameraButtonRef = useRef<HTMLButtonElement>(null);
   // A photo just taken, shown for Use This or Retake before anything is sent (F2).
   const [photo, setPhoto] = useState<File | null>(null);
-  // On a phone the camera comes first, the way a bank's identity check opens. Decided after the
-  // page loads, so the page the server sends is the same for everyone.
-  const [phone, setPhone] = useState(false);
   const nextId = useRef(1);
   const running = useRef(false);
   const addedSinceRefresh = useRef(false);
-
-  useEffect(() => {
-    const query = window.matchMedia?.('(pointer: coarse)');
-    if (!query) return;
-    setPhone(query.matches);
-    const follow = (event: MediaQueryListEvent) => setPhone(event.matches);
-    query.addEventListener?.('change', follow);
-    return () => query.removeEventListener?.('change', follow);
-  }, []);
 
   const update = useCallback((id: number, change: Partial<UploadItem>) => {
     setItems((current) => current.map((item) => (item.id === id ? { ...item, ...change } : item)));
@@ -367,16 +355,6 @@ export function DocumentUploader({
   );
 
   const finished = items.length > 0 && !items.some((item) => ACTIVE.has(item.status));
-  const cameraButton = (
-    <button
-      ref={cameraButtonRef}
-      type="button"
-      className={`btn ${phone ? 'btn-primary' : 'btn-secondary'}`}
-      onClick={() => cameraRef.current?.click()}
-    >
-      Take a Photo
-    </button>
-  );
   const unreceipted = finished
     ? items.filter(
         (item) =>
@@ -469,7 +447,6 @@ export function DocumentUploader({
         <section
           className="upload-drop"
           data-dragging={dragging ? 'true' : undefined}
-          data-phone={phone ? 'true' : undefined}
           aria-labelledby={dropTitleId}
           aria-describedby={dropHintId}
           {...dropHandlers}
@@ -478,21 +455,31 @@ export function DocumentUploader({
             Drop Files Here
           </p>
           <p className="upload-drop-hint" id={dropHintId}>
-            {phone
-              ? 'Take a photo of the card or page, or choose files already on your phone. Each file gets its own line below.'
-              : 'Drag one or more files into this box, or use a button. Each file gets its own line below.'}
+            Drag one or more files into this box, or use a button. Each file gets its own line
+            below.
           </p>
           <div className="upload-drop-actions" ref={actionsRef}>
-            {phone ? cameraButton : null}
+            {/* On a phone the camera button comes first and is the main one, by style alone
+                (`@media (pointer: coarse)` in globals.css), so the page is the same for everyone
+                and nothing moves after it loads. */}
             <button
               type="button"
-              className={`btn ${phone ? 'btn-secondary' : 'btn-primary'}`}
+              className="btn btn-primary"
+              data-choose="true"
               aria-describedby={limitsId}
               onClick={() => pickerRef.current?.click()}
             >
               Choose Files
             </button>
-            {phone ? null : cameraButton}
+            <button
+              ref={cameraButtonRef}
+              type="button"
+              className="btn btn-secondary"
+              data-camera="true"
+              onClick={() => cameraRef.current?.click()}
+            >
+              Take a Photo
+            </button>
           </div>
         </section>
       )}
