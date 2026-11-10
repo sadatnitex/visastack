@@ -375,6 +375,7 @@ export async function sweepGrantExpiryReminders(
         payload: {
           subject: 'Your Sharing Ends Soon',
           summary: `Your sharing with ${recipientLabel} ends on ${day}. You can keep it going for 30 more days.`,
+          emailSummary: `Your sharing with an agency or person ends on ${day}. You can keep it going for 30 more days.`,
           deepLinkPath: `/app/applicant/${row.applicantId}/sharing#extend-grant-${row.grantId}`,
         },
       });
@@ -393,6 +394,7 @@ export async function sweepGrantExpiryReminders(
             payload: {
               subject: 'Client Access Ends Soon',
               summary: `Access to ${row.applicantName} ends on ${day}. The traveller can extend it.`,
+              emailSummary: `Access to one of your clients ends on ${day}. Only the traveller can extend it.`,
               deepLinkPath: row.missionId
                 ? `/app/agency/${organizationId}/cases#mission-${row.missionId}`
                 : `/app/agency/${organizationId}/cases`,

@@ -309,6 +309,11 @@ export function billingNoticeStillAllowedSql(row: {
 export interface NotificationPayload {
   readonly subject: string;
   readonly summary: string;
+  /**
+   * The same fact worded for email, when the in-app summary names a person or an agency. An email
+   * is forwarded and sits in inboxes, so it carries no such name (NTF-02); the signed-in app does.
+   */
+  readonly emailSummary?: string;
   readonly deepLinkPath: string;
   readonly sealedInvitationLink?: SealedInvitationLink;
   /** Task and invoice reminders only: whether the due day is ahead, today or past, for the email's heading. */
@@ -1111,7 +1116,7 @@ async function dispatchOne(
       notificationEmail({
         eventType: notification.eventType,
         subject,
-        summary: copy?.summary ?? payload.summary,
+        summary: copy?.summary ?? payload.emailSummary ?? payload.summary,
         url: `${baseUrl}${path}`,
         ...(payload.timing ? { timing: payload.timing } : {}),
         ...(payload.heading ? { heading: payload.heading } : {}),

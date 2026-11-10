@@ -742,6 +742,22 @@ describe('a note that is no longer true is cancelled, not sent and not failed', 
     );
     const toAdmin = email.sent.find((mail) => mail.to === 'agency-admin@acme.example.com');
     expect(toAdmin?.subject).toBe('Client Access Ends Soon');
+    // Emails are forwarded and sit in inboxes: no client, agency or recipient name in any of them
+    // (subject, text or HTML). The signed-in app notices keep the names.
+    expect(email.sent).toHaveLength(3);
+    for (const mail of email.sent) {
+      for (const text of [mail.subject, mail.body, mail.html ?? '']) {
+        expect(text).not.toContain('Client Name');
+        expect(text).not.toContain('Acme Visas');
+      }
+    }
+    expect(toTraveller?.body).toContain('Your sharing with an agency or person ends on');
+    expect(toAdmin?.body).toContain('Access to one of your clients ends on');
+    expect(toAdmin?.body).toContain('Only the traveller can extend it.');
+    const inAppRows = (await notificationsFor(db, grant.id)).filter((r) => r.channel === 'IN_APP');
+    expect(
+      inAppRows.some((r) => (r.payload as NotificationPayload).summary.includes('Client Name')),
+    ).toBe(true);
   });
 
   it('cancels a note whose end date has already passed', async () => {

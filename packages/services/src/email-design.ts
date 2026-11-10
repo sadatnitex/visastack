@@ -296,7 +296,7 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
   AGENCY_ACCESS_ENDING: {
     eyebrow: 'Your Agency',
     heading: 'Access to a client is about to end',
-    why: 'After that date you cannot open the case. Only the traveller can extend it.',
+    why: 'After that date you cannot open the case.',
     action: 'Open the Case',
   },
   EVIDENCE_REPLACEMENT_REQUESTED: {
