@@ -7943,6 +7943,20 @@ Correction, 2026-11-10 (P10, after review): (1) `requestEvidenceBatch` now takes
 - Guards (each proven to go red by breaking the real code): `middleware.test.ts` (no sign-in redirect leaves the app address for nine protected paths across four session states and two addresses; the manifest and worker pass with no sign-in check; the matcher covers them and skips icons), `manifest.test.ts` (id, scope, start page and shortcuts pinned), `global-error.test.tsx`, `browser-hint.test.ts`, `pwa-runtime-hint.test.tsx`.
 - Not verified: a real Android phone (Desktop site on and off, plain shortcut versus installed app, the enlarged line at 412 pixels wide). No Neon or Vercel setting was changed or needs changing for this.
 
+## 2026-11-10 - Two more old UMPE branches dropped on the owner's word
+
+- Owner ("drop them", 10 Nov) dropped `umpe/g2-rules` and `umpe/g4-recognise`. Checked first: both are stacked integration branches (the four earlier lane commits plus the G2 and G4 work), and #423 (UMPE W5, merged 3 Nov 10:31, after the branch tips of 3 Nov 09:19 and 09:06) put their work on main. Their temporary migrations were regenerated as 0128 (G2 rules) and 0129 (G4 automatic placements), both present on main, with `pack-rule-details.ts` and `umpe-document-recognition.ts` in the code. Neither branch ever had a pull request.
+- Deleted by the Steward hygiene workflow (run 42808723283, success), each pinned to the tip below. Restore with `gh api -X POST repos/sadatnitex/visastack/git/refs -f ref=refs/heads/<name> -f sha=<sha>`: umpe/g2-rules d87e874778ad51c716c3143eb87965b9d3071d92; umpe/g4-recognise c2e501ddfe8959486cf73ead277cb54522161c1f.
+- No `umpe/*` branch remains. The Steward hygiene run 42782558975 (10 Nov) had already removed the other nine; their tips are in the entry above.
+
+## UX P14 follow-ups, catalogue labels (10 Nov 2026, branch claude/ux-p14-followups)
+
+- Catalogue labels in Title Case at the source. Five display labels the request picker used to retitle now hold a Title Case spelling themselves: "Travelling with You" (three catalogue details in `fields/people.ts`), and two live fields renamed in plain words (coordinator review): "Valid from / to" became "Visa Valid Dates" (`prior_visa_validity`) and "Expiry (or Was Expired)" became "Expiry Date" (`historical_passport_expiry`, with the context line "Earlier Passport" in `request-synonyms.ts`). The two live labels sit in `legacy.ts` and `apps/web/src/lib/profile-fields.ts`, which must agree. The profile screen and the picker now read the same way. Labels only: no key, pack, sensitivity, type or stored answer value changed. `CATALOGUE-REPORT.md` regenerated; session log added to the Master Profile handoff.
+- New guard `apps/web/src/lib/catalogue-labels.test.ts`: every catalogue detail, group, section and document name and every live profile field and group name must already be Title Case by the picker's rule. Proven by reverting one label (red) and restoring it.
+- Typed expiry label, not added on three surfaces (owner follow-up from the typed expiry change, decided with the coordinator: no new reads). Documents and Dates & Expiry say "Entered by you" because they read the expiry entries. The case "Documents That Expire Before Your Trip Ends" list (`caseExpiryConflicts`), the Needs Attention items and the calendar read `documents.expiresAt` only, so a typed date shows there without the label. Adding it needs one extra read of the expiry entries per surface.
+- Agency "Already Asked" for a request with no case: not in this change; it waits for the Requests from Agencies change (PR 496) to be on main, then ships as its own small change.
+- Not verified: nothing run against production; no signed-in click-through.
+
 ## UX P12: Trips list rows and country flags (10 Nov 2026)
 
 - Review fixes (code review high): the card classes are `trip-card*` (the older `case-row*` classes belong to evidence and agency screens); the card link's name also carries the next step; a group of alternatives names its choices; the flag letters badge skips Firefox; the case page header uses the same stage words.
