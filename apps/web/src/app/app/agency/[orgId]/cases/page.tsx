@@ -19,7 +19,7 @@ import {
 import { buildRequestPicker, requestPickerIndex } from '../../../../../lib/request-picker';
 import { withSession } from '../../../../../lib/session';
 import { caseAnchorId } from '../case-anchor';
-import { caseNeedsYou } from '../case-needs';
+import { caseNeedsYou, caseReviewLink } from '../case-needs';
 import { STAGE_LABELS } from '../case-search-form';
 import { caseTriageView } from '../case-triage';
 import { FormGroup } from '../clients/form-group';
@@ -282,6 +282,17 @@ function OpenCaseWorkspace({
       ),
     ),
   });
+  const needsYouInput = {
+    viewerAccountId,
+    admin,
+    state: open.state,
+    viewerAssigned: open.viewerAssigned,
+    assignmentCount: open.assignments.length,
+    tasks: open.tasks,
+    triage: summary,
+  };
+  // The count of items to review leads to the exact request that waits (friction register E4).
+  const reviewLink = caseReviewLink({ ...needsYouInput, base: `/app/agency/${orgId}` });
   const picker = buildRequestPicker();
   const triage = caseTriageView(summary, {
     requirementLabels: new Map(open.requirements.map((r) => [r.id, r.label])),
@@ -370,15 +381,8 @@ function OpenCaseWorkspace({
               ),
             }
           : {})}
-        needsYou={caseNeedsYou({
-          viewerAccountId,
-          admin,
-          state: open.state,
-          viewerAssigned: open.viewerAssigned,
-          assignmentCount: open.assignments.length,
-          tasks: open.tasks,
-          triage: summary,
-        })}
+        needsYou={caseNeedsYou(needsYouInput)}
+        {...(reviewLink ? { needsYouReview: reviewLink } : {})}
       />
     </>
   );

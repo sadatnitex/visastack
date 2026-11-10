@@ -1,4 +1,5 @@
 import type { RequirementResultState } from '@visastack/services';
+import { CLOSED_REQUEST_LABELS, REQUEST_ITEM_STATUS_LABELS } from './labels';
 
 /**
  * The one chip vocabulary of the signed-in screens: the word on a row's status chip and its tone.
@@ -68,6 +69,9 @@ export const CHIP_WORDS: ReadonlySet<string> = new Set([
   NOT_ELIGIBLE_STATUS.word,
   TOO_OLD_STATUS.word,
   FRESHNESS_UNKNOWN_STATUS.word,
+  // A request's words come from the one set of labels the agency's own summary uses.
+  ...Object.values(REQUEST_ITEM_STATUS_LABELS),
+  ...Object.values(CLOSED_REQUEST_LABELS),
   ...Object.values(GRANT_STATUS).map((status) => status.word),
   ...Object.values(INVITATION_STATUS).map((status) => status.word),
 ]);

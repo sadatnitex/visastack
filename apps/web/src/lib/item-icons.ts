@@ -699,6 +699,11 @@ export const STATUS_ICON_BY_WORD: Readonly<Record<string, StatusIcon>> = {
   Submitted: 'stateReceived',
   Closed: 'lock',
   Cancelled: 'lock',
+  // An agency request (Received is above).
+  Processing: 'stateWaiting',
+  'Needs Correction': 'stateNeedsYou',
+  Reviewed: 'stateDone',
+  Declined: 'lock',
 };
 
 /** The colour of a chip's tone, in Harbor names: green, amber and red say how a thing stands. */
