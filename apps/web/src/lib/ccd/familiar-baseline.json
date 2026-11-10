@@ -1,7 +1,7 @@
 {
-  "weightedFamiliarShare": 0.6542,
-  "countFamiliarShare": 0.6667,
-  "rows": 36,
+  "weightedFamiliarShare": 0.7027,
+  "countFamiliarShare": 0.7027,
+  "rows": 37,
   "before": {
     "note": "Before batch F1 (10 Nov 2026), same rows: the audit's 31 rows were 37.5 percent weighted; with the Add button and the two code screens added as rows (all partly then, except the Add button) it was 38.2 percent.",
     "weightedFamiliarShare": 0.3824,
@@ -13,11 +13,17 @@
     "countFamiliarShare": 0.5588,
     "rows": 34
   },
-  "beforeF2": {
-    "note": "Before batch F2 (10 Nov 2026): the F3b result. F2 converted two rows, the camera upload (Take a Photo first on a phone, then Use This or Retake) and the receipt after a saved document or a sharing request.",
+  "beforeP13": {
+    "note": "Before P13 (10 Nov 2026): the F3b result. P13 converts one row, the grouped list with folders (a picture of the kind of item and a status symbol on every row, as in Drive).",
     "weightedFamiliarShare": 0.5794,
     "countFamiliarShare": 0.6111,
     "rows": 36
+  },
+  "beforeF2": {
+    "note": "Before batch F2 (10 Nov 2026): main with P13 and F3a merged. F2 converted two rows, the camera upload (Take a Photo first on a phone, then Use This or Retake) and the receipt after a saved document or a sharing request.",
+    "weightedFamiliarShare": 0.6306,
+    "countFamiliarShare": 0.6486,
+    "rows": 37
   },
   "note": "Estimated, from reading the code, not measured with people. The weighted share of familiar-pattern rows in familiar-registry.ts. It can only go up: raise it in the same change that converts a pattern, never lower it."
 }

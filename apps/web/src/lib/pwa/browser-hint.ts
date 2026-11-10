@@ -1,0 +1,72 @@
+/**
+ * "Opening in the browser?" hint for the installed app. Kept free of React so it is testable with
+ * plain fakes; `components/pwa/pwa-runtime.tsx` shows it.
+ *
+ * Owner report, 10 Nov 2026: on Android the home-screen icon sometimes opens VisaStack with
+ * Chrome's address bar and the desktop layout. That is what Chrome does when "Desktop site" is on:
+ * the page runs in an ordinary tab, laid out about 980 pixels wide whatever the page asks for, and
+ * a shortcut made in that state is a plain bookmark rather than an installed app. Nothing in the
+ * site can switch the setting, so the page says what it is seeing and what to change.
+ *
+ * The sign: a touch phone drawing a desktop-wide page. The layout width is read from the document
+ * (not `innerWidth`, which shrinks when the person pinch-zooms) and compared with the screen
+ * width. (A marker on the manifest's start page was considered to also catch a home-screen launch
+ * that fell back to a tab, and left out: changing `start_url` makes Android rebuild every
+ * installed copy of the app.)
+ */
+
+/** The one line shown for either sign. */
+export const BROWSER_HINT_TEXT =
+  'Opening in the browser? In Chrome, turn off Desktop site, then install VisaStack again.';
+
+/** Phones are at most this wide (CSS pixels). A tablet or a foldable opened out is never flagged. */
+const PHONE_SCREEN_MAX = 600;
+
+/** A layout this wide on a phone is a desktop layout (Chrome's Desktop site uses about 980). */
+const DESKTOP_LAYOUT_MIN = 900;
+
+/** The most the line is enlarged to stay readable on a shrunken desktop page. */
+const MAX_SCALE = 3;
+
+export interface HintEnvironment {
+  readonly matchMedia: (query: string) => { readonly matches: boolean };
+  readonly navigator: { readonly vendor?: string; readonly maxTouchPoints?: number };
+  readonly screen: { readonly width: number };
+  readonly document: { readonly documentElement: { readonly clientWidth: number } };
+}
+
+export type BrowserHint =
+  | { readonly show: false }
+  | { readonly show: true; readonly scale: number };
+
+const HIDDEN: BrowserHint = { show: false };
+
+/**
+ * How much to enlarge the line so it reads at the phone's real size. A desktop-wide page is shown
+ * shrunk to fit the screen, so a normal 16 pixel line would be tiny; 1 means no change.
+ */
+export function readableScale(layoutWidth: number, screenWidth: number): number {
+  if (!(layoutWidth > 0) || !(screenWidth > 0)) return 1;
+  return Math.min(MAX_SCALE, Math.max(1, layoutWidth / screenWidth));
+}
+
+/**
+ * Whether to show the hint, and how much to enlarge it. Only Chromium browsers on a touch device are considered:
+ * Chrome's setting is the one the line names, and Safari on an iPhone has its own wording.
+ */
+export function browserHint(env: HintEnvironment): BrowserHint {
+  const touch =
+    env.matchMedia('(pointer: coarse)').matches || (env.navigator.maxTouchPoints ?? 0) > 0;
+  if (!touch) return HIDDEN;
+  // Chrome, Edge and Samsung Internet report "Google Inc."; every browser on an iPhone says "Apple".
+  if (!(env.navigator.vendor ?? '').includes('Google')) return HIDDEN;
+
+  // Phones only: a touch laptop or a tablet has no Desktop site setting to turn off.
+  const screenWidth = env.screen.width;
+  if (!(screenWidth > 0 && screenWidth <= PHONE_SCREEN_MAX)) return HIDDEN;
+
+  const layoutWidth = env.document.documentElement.clientWidth;
+  const scale = readableScale(layoutWidth, screenWidth);
+
+  return layoutWidth >= DESKTOP_LAYOUT_MIN ? { show: true, scale } : HIDDEN;
+}

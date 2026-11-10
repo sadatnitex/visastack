@@ -1,6 +1,6 @@
 import type { CaseTriageItem } from '@visastack/services';
 import { describe, expect, it } from 'vitest';
-import { caseNeedsYou } from './case-needs';
+import { caseNeedsYou, caseReviewLink } from './case-needs';
 
 const item = (over: Partial<CaseTriageItem>): CaseTriageItem => ({
   key: 'k',
@@ -98,5 +98,47 @@ describe('what on a case needs this person (Agency Cases, Glance)', () => {
         }),
       ).toBe('Nothing needs you on this case right now.');
     }
+  });
+});
+
+describe('the count of items to review leads to the request (friction register E4)', () => {
+  const admin = { ...base, admin: true, viewerAssigned: false, base: '/app/agency/o1' };
+
+  it('links the count to the exact request, on the anchor emails and Do Next already use', () => {
+    const triage = { items: [item({}), item({ requestId: 'r-7' }), item({ requestId: 'r-8' })] };
+    expect(caseReviewLink({ ...admin, triage })).toEqual({
+      phrase: '2 items to review',
+      href: '/app/agency/o1/clients?request=r-7#request-r-7',
+    });
+  });
+
+  it('names a phrase that is inside the sentence the screen shows', () => {
+    const triage = { items: [item({ requestId: 'r-7' })] };
+    const link = caseReviewLink({ ...admin, triage });
+    expect(caseNeedsYou({ ...admin, triage })).toContain(link?.phrase ?? 'missing');
+  });
+
+  it('gives no link when only checklist items wait, which no request holds', () => {
+    expect(caseReviewLink({ ...admin, triage: { items: [item({})] } })).toBeNull();
+  });
+
+  it('gives no link to a member who is not an administrator', () => {
+    const triage = { items: [item({ requestId: 'r-7' })] };
+    expect(caseReviewLink({ ...admin, admin: false, viewerAssigned: true, triage })).toBeNull();
+  });
+
+  it('ignores replies that are not waiting for review', () => {
+    const triage = {
+      items: [
+        item({ requestId: 'r-1', group: 'MISSING' }),
+        item({ requestId: 'r-2', group: 'REVIEWED' }),
+      ],
+    };
+    expect(caseReviewLink({ ...admin, triage })).toBeNull();
+  });
+
+  it('gives no link on a closed case', () => {
+    const triage = { items: [item({ requestId: 'r-7' })] };
+    expect(caseReviewLink({ ...admin, state: 'CLOSED', triage })).toBeNull();
   });
 });

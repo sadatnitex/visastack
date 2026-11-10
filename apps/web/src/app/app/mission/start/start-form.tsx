@@ -9,6 +9,7 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { PurposeSelect } from '../../../../components/purpose-select';
 import { StickyActionBar } from '../../../../components/sticky-action-bar';
 import { AboutDisclosure } from '../../../../components/ui-lift';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../../lib/case-choices';
@@ -94,27 +95,13 @@ export function TripStartForm({
         <label className="label" htmlFor={`${id}-purpose`}>
           Why?
         </label>
-        <select
+        <PurposeSelect
           id={`${id}-purpose`}
-          name="purpose"
-          className="input"
+          purposes={purposes}
           value={purpose}
-          onChange={(e) => setPurpose(e.target.value)}
+          onChange={setPurpose}
           {...fieldProblem(state, 'purpose', messageId)}
-        >
-          <option value="" disabled>
-            Choose a Purpose
-          </option>
-          {purposes.map((group) => (
-            <optgroup key={group.family} label={group.label}>
-              {group.options.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+        />
       </div>
       <fieldset className="trip-start-travellers lc-step">
         <legend className="label">Who&apos;s Travelling?</legend>

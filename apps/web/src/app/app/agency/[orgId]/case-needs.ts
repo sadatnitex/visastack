@@ -12,7 +12,7 @@ import { CLOSED_CASE_STATES } from './do-next';
  * - for an administrator, a case nobody is assigned to (as Agency Overview's "Assign Someone").
  * A closed, cancelled or submitted case needs nothing, as on Agency Overview.
  */
-export function caseNeedsYou(input: {
+type NeedsYouInput = {
   readonly viewerAccountId: string;
   readonly admin: boolean;
   readonly state: string;
@@ -23,7 +23,18 @@ export function caseNeedsYou(input: {
     readonly assigneeAccountId: string | null;
   }[];
   readonly triage: Pick<CaseTriageSummary, 'items'>;
-}): string {
+};
+
+/** The items this person reviews on the case: sent files waiting for a decision. */
+function itemsToReview(input: NeedsYouInput): CaseTriageSummary['items'] {
+  return input.triage.items.filter(
+    (item) =>
+      item.group === 'RECEIVED' &&
+      (input.viewerAssigned || (input.admin && item.requestId !== null)),
+  );
+}
+
+export function caseNeedsYou(input: NeedsYouInput): string {
   const nothing = 'Nothing needs you on this case right now.';
   if (CLOSED_CASE_STATES.has(input.state)) return nothing;
   const tasks = input.tasks.filter(
@@ -31,11 +42,7 @@ export function caseNeedsYou(input: {
       (task.status === 'OPEN' || task.status === 'IN_PROGRESS') &&
       task.assigneeAccountId === input.viewerAccountId,
   ).length;
-  const toReview = input.triage.items.filter(
-    (item) =>
-      item.group === 'RECEIVED' &&
-      (input.viewerAssigned || (input.admin && item.requestId !== null)),
-  ).length;
+  const toReview = itemsToReview(input).length;
   const parts = [
     ...(tasks > 0 ? [plural(tasks, 'task')] : []),
     ...(toReview > 0 ? [`${plural(toReview, 'item')} to review`] : []),
@@ -44,4 +51,24 @@ export function caseNeedsYou(input: {
   if (parts.length === 0) return nothing;
   const last = parts.pop();
   return `Needs you: ${parts.length > 0 ? `${parts.join(', ')} and ${last}` : last}.`;
+}
+
+/**
+ * Where the count of items to review leads: the exact request that waits, on the Clients list
+ * where an administrator reviews it (`#request-<id>`, the anchor emails and Do Next already use).
+ * Only an administrator reviews replies to requests, so anyone else gets no link, and a count made
+ * only of checklist items (which no request holds) gets none either. `phrase` is the words of the
+ * count inside the sentence `caseNeedsYou` returns, so the screen links exactly that count.
+ */
+export function caseReviewLink(
+  input: NeedsYouInput & { readonly base: string },
+): { readonly phrase: string; readonly href: string } | null {
+  if (!input.admin || CLOSED_CASE_STATES.has(input.state)) return null;
+  const waiting = itemsToReview(input);
+  const target = waiting.find((item) => item.requestId !== null);
+  if (!target?.requestId) return null;
+  return {
+    phrase: `${plural(waiting.length, 'item')} to review`,
+    href: `${input.base}/clients?request=${target.requestId}#request-${target.requestId}`,
+  };
 }

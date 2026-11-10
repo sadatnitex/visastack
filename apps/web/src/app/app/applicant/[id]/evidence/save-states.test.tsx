@@ -33,7 +33,7 @@ const { AskAboutItemForm } = await import('./ask-about-item-form');
 
 const AT = '2026-10-27T08:32:00.000Z';
 
-const respond = (props: { awaiting?: boolean } = {}) =>
+const respond = (props: { awaiting?: boolean; referenceCode?: string; itemLabel?: string } = {}) =>
   renderToStaticMarkup(
     <SubmitResponseForm
       applicantId="a1"
@@ -98,8 +98,27 @@ describe('Saved at', () => {
       pending: false,
     });
     const html = respond({ awaiting: false });
-    expect(textOf(html)).toBe('Saved at 14:32 GMT+6. The agency will review it.');
+    // The receipt (F2): the confirmed moment in the traveller's zone, and the honest line.
+    const text = textOf(html);
+    expect(text).toContain('Answer Sent');
+    expect(text).toContain('Your answer went to the agency.');
+    expect(text).toContain('2:32 pm GMT+6');
+    expect(text).toContain('Received, not yet reviewed.');
     expect(html).not.toContain('<form');
+  });
+
+  it('puts the request reference and the item name on the receipt, only when there is a reference', () => {
+    show({
+      state: { ok: true, message: 'The agency will review it.', savedAt: AT },
+      pending: false,
+    });
+    const withCode = textOf(
+      respond({ awaiting: false, referenceCode: 'R-7K2Q9M', itemLabel: 'Passport' }),
+    );
+    expect(withCode).toContain('Passport went to the agency.');
+    expect(withCode).toContain('Request Reference');
+    expect(withCode).toContain('R-7K2Q9M');
+    expect(textOf(respond({ awaiting: false }))).not.toContain('Request Reference');
   });
 
   it('does not show an earlier Saved at beside a fresh Submit button (the agency sent it back)', () => {

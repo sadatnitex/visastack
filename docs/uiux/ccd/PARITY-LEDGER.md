@@ -231,6 +231,8 @@ Links from notifications (`#request-{id}`) open the level that shows the request
 
 Agency side (not a depth screen, so no baseline): on the agency Clients page each document request that has a copy sent shows that exact copy (name when sent, kind, which send, when, size, a short fingerprint, how it was checked, "Received is not Accepted"), earlier sends folded under "Earlier Sends (N)" with their state, time and the agency's own reason, and Download Sent File only where the service says the file can be opened. The Accept, reason and Cancel buttons are the same; they now post which copy the reviewer was shown. Test: `evidence-copies.test.tsx`, `evidence-request-actions.test.tsx`, `clients/page.test.tsx`.
 
+Package 4 (10 Nov 2026): the traveller screen is now rows in folders with a panel per request (the shared list kit), titled "Requests from Agencies". Nothing from the baseline is lost: the heading and the intro moved as the approved changes say, the agency's "Why it is needed" quote is the first message of the conversation in the panel (approved rule), and every form, link and sentence of the old card is in the panel. New: the conversation (Sent, Received, Reviewed, Sent Back for a Fix, each with its time). On the agency Clients page each request has a folded "Conversation". Test: `parity-evidence.test.tsx`, `request-thread.test.tsx`, `evidence/page.test.tsx`.
+
 ## 11. Sharing (`/app/applicant/{id}/sharing`)
 
 Baseline: `baseline/sharing.json`, three states (nobody has access; active, paused, pending and revoked access with exceptions, a scope confirmation, invitations and a log; records could not be read). Stubbed panels are counted. Test: `parity-sharing.test.tsx`.

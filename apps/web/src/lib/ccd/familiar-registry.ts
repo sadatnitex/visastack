@@ -70,10 +70,15 @@ export const FAMILIAR_ROWS: readonly FamiliarRow[] = [
   {
     screen: 'case, documents',
     pattern: 'grouped list with folders',
-    class: 'partly',
-    matches: 'Drive folders',
+    class: 'familiar',
+    matches: 'Drive folders, each file with the picture of its kind and a status beside it',
     weight: 4,
-    files: ['components/list-pattern/grouped-list.tsx'],
+    files: [
+      'components/list-pattern/grouped-list.tsx',
+      'components/list-pattern/list-row.tsx',
+      'app/app/mission/[id]/case-checklist.tsx',
+    ],
+    proof: { file: 'app/app/mission/[id]/case-checklist.tsx', includes: 'documentMark(r.key)' },
   },
   {
     screen: 'documents, case checklist',
@@ -250,7 +255,24 @@ export const FAMILIAR_ROWS: readonly FamiliarRow[] = [
     class: 'partly',
     matches: 'WhatsApp chat list, but grouped by who is waiting',
     weight: 4,
-    files: ['app/app/applicant/[id]/evidence/page.tsx'],
+    files: [
+      'app/app/applicant/[id]/evidence/page.tsx',
+      'app/app/applicant/[id]/evidence/requests-list.tsx',
+    ],
+  },
+  {
+    screen: 'evidence requests, agency clients',
+    pattern: 'request conversation',
+    class: 'familiar',
+    matches:
+      'WhatsApp and Messenger chat: their message on one side, yours on the other, each with a time. The state is a word (Sent, Received, Reviewed, Sent Back for a Fix), never a tick, because Received is not Reviewed',
+    weight: 4,
+    files: [
+      'components/request-thread/request-thread.tsx',
+      'components/request-thread/thread-model.ts',
+      'app/app/agency/[orgId]/request-conversation.tsx',
+    ],
+    proof: { file: 'components/request-thread/request-thread.tsx', includes: 'rt-msg-own' },
   },
   {
     screen: 'sharing',

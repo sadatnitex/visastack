@@ -17,17 +17,23 @@ const TIER_LABEL: Readonly<Record<DoNextTier, string>> = {
 
 /**
  * The agency's "Do Next" list: each item with its owner, the reason it is here and one action.
- * Built by `buildDoNext`, which ranks only what this person already sees.
+ * Built by `buildDoNextList`, which ranks only what this person already sees.
  */
 export function DoNextList({
   items,
   admin,
   filtered,
+  quietHidden = 0,
+  base,
 }: {
   readonly items: readonly DoNextItem[];
   readonly admin: boolean;
   /** A search or quick view narrows the cases on the page. */
   readonly filtered: boolean;
+  /** Requests with no reply that were left off the list (see `CHASE_VISIBLE`). */
+  readonly quietHidden?: number;
+  /** The console base path, for the link to the Clients request list. */
+  readonly base: string;
 }) {
   const shown = items.slice(0, DO_NEXT_VISIBLE);
   return (
@@ -97,6 +103,22 @@ export function DoNextList({
         <p className="muted do-next-more" data-only="glance">
           {items.length - 1} more {agree(items.length - 1, 'needs', 'need')} you. Choose Browse to
           see {agree(items.length - 1, 'it', 'them')}.
+        </p>
+      ) : null}
+      {quietHidden > 0 ? (
+        <p className="muted do-next-more do-next-quiet" {...atLevel('browse')}>
+          {filtered ? (
+            // The count is for the cases in view; the list it leads to is every open request.
+            <>
+              {quietHidden} more{' '}
+              {agree(quietHidden, 'request in this view has', 'requests in this view have')} had no
+              reply. <Link href={`${base}/clients?status=open`}>See All Open Requests</Link>
+            </>
+          ) : (
+            <Link href={`${base}/clients?status=open`}>
+              {quietHidden} more {agree(quietHidden, 'request has', 'requests have')} had no reply
+            </Link>
+          )}
         </p>
       ) : null}
       {items.length > shown.length ? (
