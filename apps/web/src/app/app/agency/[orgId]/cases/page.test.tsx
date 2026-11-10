@@ -37,13 +37,22 @@ vi.mock('../mission-collaboration', async () => {
   const Workspace = stub('MissionCollaboration');
   // The workspace places `notesMore` right under its notes; the stub shows it next to its props.
   return {
-    MissionCollaboration: ({ notesMore, ...rest }: { notesMore?: ReactNode }) => (
+    MissionCollaboration: ({
+      notesMore,
+      ask,
+      ...rest
+    }: { notesMore?: ReactNode; ask?: ReactNode }) => (
       <>
-        <Workspace {...rest} />
+        <Workspace {...rest} hasAsk={ask !== undefined} />
         <div data-notes-more="">{notesMore}</div>
+        <div data-ask="">{ask}</div>
       </>
     ),
   };
+});
+vi.mock('../request-evidence-form', async () => {
+  const { stub } = await import('../../../../../lib/next-mocks.test-support');
+  return { RequestEvidenceForm: stub('RequestEvidenceForm') };
 });
 
 const { default: Page } = await import('./page');
@@ -160,6 +169,33 @@ describe('agency Cases', () => {
     expect(html).toMatch(/aria-current="true"/);
   });
 
+  it('lets an administrator ask for a document or detail from the open case, with its traveller and case chosen', async () => {
+    const html = await renderServer(Page(opening({ case: M1 })));
+    const forms = stubProps<{
+      organizationId: string;
+      applicants: unknown[];
+      fixed: { applicantId: string; applicantName: string; missionId: string; caseTitle: string };
+    }>(html, 'RequestEvidenceForm');
+    expect(forms).toHaveLength(1);
+    expect(forms[0]?.organizationId).toBe('o1');
+    expect(forms[0]?.applicants).toEqual([]);
+    expect(forms[0]?.fixed).toEqual({
+      applicantId: `ap-${M1}`,
+      applicantName: 'Rahim Uddin',
+      missionId: M1,
+      caseTitle: `Case ${M1}`,
+    });
+    expect(textOf(html)).toContain('Ask for a Document or Detail');
+  });
+
+  it('gives a member who is not an administrator no way to ask, exactly as Clients does', async () => {
+    mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: true });
+    const html = await renderServer(Page(opening({ case: M1 })));
+    expect(stubProps(html, 'RequestEvidenceForm')).toHaveLength(0);
+    expect(stubProps<{ hasAsk: boolean }>(html, 'MissionCollaboration')[0]?.hasAsk).toBe(false);
+    expect(textOf(html)).not.toContain('Ask for a Document or Detail');
+  });
+
   it('reads data for the one open case only, with the roster it just read and 10 notes', async () => {
     await renderServer(Page(opening({ case: M1 })));
     expect(mocks.loadOpenCase).toHaveBeenCalledTimes(1);
@@ -235,9 +271,11 @@ describe('agency Cases', () => {
     expect(textOf(await renderServer(Page(props)))).toContain('No cases are reachable yet');
     mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: true });
     mocks.loadCaseListPage.mockResolvedValue(listOf(false, []));
-    expect(textOf(await renderServer(Page(props)))).toContain(
-      "You aren't assigned to any cases yet",
-    );
+    const memberText = textOf(await renderServer(Page(props)));
+    expect(memberText).toContain("You aren't assigned to any cases yet");
+    // Team is for owners and admins only, so the member is told who can help, not sent there.
+    expect(memberText).toContain('An owner or admin of this organization can assign you');
+    expect(memberText).not.toContain('/team');
   });
 
   it('renders nothing, and reads no case, for someone with no role', async () => {

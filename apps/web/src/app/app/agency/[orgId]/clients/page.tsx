@@ -289,15 +289,16 @@ export default async function AgencyClientsPage({
             <h3 className="agency-add-title" id="agency-add-evidence">
               Request Evidence
             </h3>
+            <p className="muted u-fs-085">For people who are already your clients.</p>
             <AboutDisclosure summary="About Requests">
               <p className="card-body">
-                Ask a traveller for a specific field or document. They decide whether to fulfil it.
+                Ask a traveller for a specific detail or document. They decide whether to fulfil it.
               </p>
             </AboutDisclosure>
             {/* Opens on its own while no request exists yet, and for a link to #ask-for-evidence. */}
             <FormGroup
               id="ask-for-evidence"
-              title="Ask for a Field or Document"
+              title="Ask for a Document or Detail"
               icon="clipboard"
               openAtFirst={requests.viewCounts.all === 0}
             >

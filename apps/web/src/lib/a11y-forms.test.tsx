@@ -1851,6 +1851,23 @@ const AGENCY: readonly Case[] = [
     ),
   },
   {
+    name: 'ask for evidence (on a case, traveller and case already chosen)',
+    element: () => (
+      <RequestEvidenceForm
+        organizationId="o1"
+        fieldGroups={fixtureFieldGroups}
+        documentGroups={fixtureDocumentGroups}
+        applicants={[]}
+        fixed={{
+          applicantId: 'a1',
+          applicantName: 'Rahim Uddin',
+          missionId: 'm1',
+          caseTitle: 'UK visit',
+        }}
+      />
+    ),
+  },
+  {
     name: 'team case workspace',
     element: () => (
       <MissionCollaboration
