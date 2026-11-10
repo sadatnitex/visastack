@@ -81,3 +81,14 @@ describe('deepLinkUrl', () => {
     ).toBe(`https://vs.obsidianglobal.studio/app/applicant/${ID}/expiry`);
   });
 });
+
+describe('the home-screen marker', () => {
+  it('rides on the start page and shortcuts only, and holds no personal value', async () => {
+    const { HOME_SCREEN_MARKER, homeScreenLaunchPath } = await import('./deep-links');
+    expect(HOME_SCREEN_MARKER).toEqual({ name: 'source', value: 'pwa' });
+    expect(homeScreenLaunchPath({ kind: 'workspace' })).toBe('/app?source=pwa');
+    expect(homeScreenLaunchPath({ kind: 'notifications' })).toBe('/app/notifications?source=pwa');
+    // The plain link is unchanged, so emails and notifications do not carry the marker.
+    expect(deepLinkPath({ kind: 'workspace' })).toBe('/app');
+  });
+});

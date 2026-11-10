@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { deepLinkPath } from '../lib/deep-links';
+import { homeScreenLaunchPath } from '../lib/deep-links';
 
 // Install and home-screen details. The icons come from the VisaStack brand pack (the maskable one
 // keeps the mark inside the centre safe zone). Every icon is a full-bleed, opaque blue square:
@@ -11,6 +11,8 @@ import { deepLinkPath } from '../lib/deep-links';
 // `id` and `scope` are the installed app's identity: changing either makes devices treat it as a
 // different app, so keep them stable. The start page and shortcuts use the same HTTPS routes as the
 // website (`lib/deep-links.ts`), which a later Android or iOS app can claim without new links.
+// They carry `?source=pwa`, so a launch from the home screen that lands in a browser tab (Chrome's
+// Desktop site setting does this) can be recognised and explained; it does not touch `id` or `scope`.
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/',
@@ -19,7 +21,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'A clean file you can stand behind.',
     lang: 'en',
     dir: 'ltr',
-    start_url: deepLinkPath({ kind: 'workspace' }),
+    start_url: homeScreenLaunchPath({ kind: 'workspace' }),
     scope: '/',
     display: 'standalone',
     background_color: '#F7F9FE',
@@ -46,13 +48,13 @@ export default function manifest(): MetadataRoute.Manifest {
       {
         name: 'Your Workspace',
         short_name: 'Workspace',
-        url: deepLinkPath({ kind: 'workspace' }),
+        url: homeScreenLaunchPath({ kind: 'workspace' }),
         icons: [{ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
       },
       {
         name: 'Notifications',
         short_name: 'Notifications',
-        url: deepLinkPath({ kind: 'notifications' }),
+        url: homeScreenLaunchPath({ kind: 'notifications' }),
         icons: [{ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
       },
     ],

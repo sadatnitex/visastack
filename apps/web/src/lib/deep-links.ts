@@ -69,6 +69,18 @@ export function deepLinkPath(link: DeepLink): string {
   return route.replace(/\[[A-Za-z]+\]/, id.toLowerCase());
 }
 
+/**
+ * The marker the installed app's start page and shortcuts carry (`?source=pwa`). It tells the page
+ * it was opened from the home screen, so a launch that landed in a browser tab can say so. It
+ * changes neither the app's identity (`id`) nor its `scope`, and it holds no personal value.
+ */
+export const HOME_SCREEN_MARKER = { name: 'source', value: 'pwa' } as const;
+
+/** A link's path with the home-screen marker, for the manifest's start page and shortcuts. */
+export function homeScreenLaunchPath(link: DeepLink): string {
+  return `${deepLinkPath(link)}?${HOME_SCREEN_MARKER.name}=${HOME_SCREEN_MARKER.value}`;
+}
+
 /** The absolute link for messages sent outside the site (email, WhatsApp, a native app). */
 export function deepLinkUrl(origin: string, link: DeepLink): string {
   return new URL(deepLinkPath(link), origin).toString();
