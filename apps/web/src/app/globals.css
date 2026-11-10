@@ -19757,3 +19757,38 @@ details.collapsible-group[hidden],
   margin-top: var(--space-5);
 }
 /* end WP-LP2 */
+
+/* WP-PLAIN-P4 A chased request in Do Next (10 Nov 2026) has no due date, so it takes the warning colour, not the past-due red. */
+.do-next-chase {
+  border-left-color: var(--warning);
+}
+.do-next-chase .do-next-tier {
+  color: var(--warning);
+}
+/* end WP-PLAIN-P4 */
+
+/* WP-LP3 The choice of which file counts, one row per file: the name, its chips and one button. Flat, tokens only. */
+.lp-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.lp-choice-label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.lp-choice-chip {
+  margin-inline-start: var(--space-2);
+}
+.lp-choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lp-choice-intro {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-small);
+}
+/* end WP-LP3 */
