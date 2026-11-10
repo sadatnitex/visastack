@@ -97,7 +97,11 @@ export function ClientInvitationForm({
           busy="Creating…"
           className="btn btn-primary"
         />
-        <InvitationOutcome state={state} pendingInvitationIds={pendingInvitationIds} />
+        <InvitationOutcome
+          state={state}
+          pendingInvitationIds={pendingInvitationIds}
+          purpose="client"
+        />
       </div>
     </form>
   );
