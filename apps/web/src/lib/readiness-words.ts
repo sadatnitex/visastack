@@ -29,3 +29,8 @@ export function readyNote(
   const done = Math.min(readiness.satisfiedRequired, readiness.requiredCount);
   return ` ${progressRingWords(done, readiness.requiredCount)}.`;
 }
+
+/** The count beside a case's bar on the Trips list: "6 of 8 ready". */
+export function caseRowProgressWords(done: number, total: number): string {
+  return `${Math.min(done, total)} of ${total} ready`;
+}

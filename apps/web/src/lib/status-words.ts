@@ -59,6 +59,39 @@ export const INVITATION_STATUS: Readonly<Record<string, StatusWord>> = {
   EXPIRED: { word: 'Expired', tone: 'neutral' },
 };
 
+/**
+ * A case's stage on the Trips list, in the word a traveller reads and the colour that says how
+ * urgent it is: amber means a step is still to do, red means it is waiting on you, blue means
+ * someone else is working or has the case, green means ready, grey means finished. Submitted is
+ * blue and never reads "Approved": VisaStack does not know the decision. The five stages that
+ * only older cases carry (`LEGACY_ONLY_MISSION_STATES`) read as the nearest stage and keep their
+ * stored value; a test holds every stored stage to a word here.
+ */
+export const CASE_STATUS: Readonly<Record<string, StatusWord>> = {
+  DRAFT: { word: 'Getting Started', tone: 'warning' },
+  INTAKE: { word: 'Gathering Documents', tone: 'warning' },
+  IN_REVIEW: { word: 'Agency Is Checking', tone: 'info' },
+  AWAITING_APPLICANT: { word: 'Needs You', tone: 'danger' },
+  SUBMISSION_READY: { word: 'Ready to Submit', tone: 'success' },
+  SUBMITTED: { word: 'Submitted', tone: 'info' },
+  CLOSED: { word: 'Closed', tone: 'neutral' },
+  CANCELLED: { word: 'Cancelled', tone: 'neutral' },
+  // Older cases: the nearest stage above.
+  IN_PROGRESS: { word: 'Gathering Documents', tone: 'warning' },
+  READY_FOR_REVIEW: { word: 'Agency Is Checking', tone: 'info' },
+  UNDER_REVIEW: { word: 'Agency Is Checking', tone: 'info' },
+  READY_TO_EXPORT: { word: 'Ready to Submit', tone: 'success' },
+  LOCKED: { word: 'Ready to Submit', tone: 'success' },
+};
+
+/** A case stage a person has not met before reads as the plainest word, never as the stored code. */
+const UNKNOWN_CASE_STATUS: StatusWord = { word: 'Getting Started', tone: 'warning' };
+
+/** The word and tone for a case's stored stage. */
+export function caseStatus(state: string): StatusWord {
+  return CASE_STATUS[state] ?? UNKNOWN_CASE_STATUS;
+}
+
 /** Every chip word a list row may carry. */
 export const CHIP_WORDS: ReadonlySet<string> = new Set([
   ...Object.values(REQUIREMENT_STATUS).map((status) => status.word),
@@ -70,4 +103,5 @@ export const CHIP_WORDS: ReadonlySet<string> = new Set([
   FRESHNESS_UNKNOWN_STATUS.word,
   ...Object.values(GRANT_STATUS).map((status) => status.word),
   ...Object.values(INVITATION_STATUS).map((status) => status.word),
+  ...Object.values(CASE_STATUS).map((status) => status.word),
 ]);

@@ -1,0 +1,145 @@
+import Link from 'next/link';
+import { caseRowProgressWords, progressRingPercent } from '../lib/readiness-words';
+import { caseStatus } from '../lib/status-words';
+import { CountryFlag } from './country-flag';
+import { Icon } from './icons';
+import { NO_REQUIRED_LABEL, PROGRESS_IN_CASE_LINE } from './progress-ring';
+
+/**
+ * How far a case's checklist is, as the row draws it. `counted` is the same count the progress
+ * ring shows (required items ready of required items); the other three say honestly why there is
+ * no count: the checklist has nothing required, the count was not worked out on this page, or no
+ * checklist is attached yet.
+ */
+export type CaseRowProgress =
+  | { readonly kind: 'counted'; readonly done: number; readonly total: number }
+  | { readonly kind: 'none-required' }
+  | { readonly kind: 'unread' }
+  | { readonly kind: 'no-checklist' };
+
+export interface CaseListRowProps {
+  readonly id: string;
+  readonly title: string;
+  /** The case's stored stage; the chip word and colour come from `lib/status-words.ts`. */
+  readonly state: string;
+  /** The destination exactly as saved (a country name, or text that names none). */
+  readonly destination: string | null;
+  /** The two-letter code the destination names, or null when it names no country we hold. */
+  readonly iso2: string | null;
+  readonly purpose: string | null;
+  readonly progress: CaseRowProgress;
+  /** The first required item still missing, as a short step ("Add Passport"), or null. */
+  readonly nextStep: string | null;
+  /** A closed or cancelled case: no advice about what to do next. */
+  readonly past?: boolean;
+  /** Where the whole card leads. */
+  readonly href: string;
+}
+
+/** The link's one accessible name: the case, its stage and its count. */
+export function caseRowName(title: string, state: string, progress: CaseRowProgress): string {
+  const parts = [title, caseStatus(state).word];
+  if (progress.kind === 'counted') parts.push(caseRowProgressWords(progress.done, progress.total));
+  return parts.join(', ');
+}
+
+function Progress({ progress }: { readonly progress: CaseRowProgress }) {
+  if (progress.kind === 'counted') {
+    const percent = progressRingPercent(progress.done, progress.total);
+    return (
+      <span className="case-row-progress" data-progress="counted">
+        <span className="case-bar" data-empty={percent === 0 ? 'true' : 'false'} aria-hidden="true">
+          <progress className="case-bar-track" max={100} value={percent} />
+        </span>
+        <span className="case-row-count" data-value="count">
+          {caseRowProgressWords(progress.done, progress.total)}
+        </span>
+      </span>
+    );
+  }
+  if (progress.kind === 'none-required') {
+    return (
+      <span className="case-row-progress" data-progress="none-required">
+        <span className="case-row-count" data-value="count">
+          {NO_REQUIRED_LABEL}
+        </span>
+      </span>
+    );
+  }
+  if (progress.kind === 'unread') {
+    return (
+      <span className="case-row-progress" data-progress="unread">
+        <span className="case-row-count" data-value="count">
+          {PROGRESS_IN_CASE_LINE}
+        </span>
+      </span>
+    );
+  }
+  return null;
+}
+
+/**
+ * One case on the Trips list. Every row has the same shape whatever the length of its name: a
+ * round flag, the name on one line, the country and purpose, the stage chip on its own line, the
+ * count with a bar, one next step, and a chevron. The whole card is one link.
+ */
+export function CaseListRow({
+  id,
+  title,
+  state,
+  destination,
+  iso2,
+  purpose,
+  progress,
+  nextStep,
+  past = false,
+  href,
+}: CaseListRowProps) {
+  const status = caseStatus(state);
+  const sub = [destination, purpose].filter((part): part is string => Boolean(part?.trim()));
+  const step = past
+    ? null
+    : progress.kind === 'no-checklist'
+      ? 'Pick a Checklist'
+      : nextStep;
+  return (
+    <li className="case-list-item">
+      <Link
+        className="case-row"
+        href={href}
+        aria-label={caseRowName(title, state, progress)}
+        data-pattern="case-row"
+        data-case-id={id}
+      >
+        <span className="case-row-flag">
+          <CountryFlag iso2={iso2} name={destination} size="lg" decorative />
+        </span>
+        <span className="case-row-body">
+          <span className="case-row-title" data-value="name">
+            {title}
+          </span>
+          {sub.length > 0 ? (
+            <span className="case-row-sub" data-value="meta">
+              {sub.join(' · ')}
+            </span>
+          ) : null}
+          <span className="case-row-chipline">
+            <span className="case-chip" data-case-tone={status.tone}>
+              <span className="case-chip-dot" aria-hidden="true" />
+              {status.word}
+            </span>
+          </span>
+          <Progress progress={progress} />
+          {step ? (
+            <span className="case-row-next" data-value="next">
+              Next: {step}
+            </span>
+          ) : null}
+        </span>
+        <span className="case-row-chevron" aria-hidden="true">
+          <Icon name="chevron" size={20} />
+        </span>
+      </Link>
+    </li>
+  );
+}
