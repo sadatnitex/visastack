@@ -291,10 +291,9 @@ export async function sweepExpiryReminders(
       for (const missionId of await missionsSelectingDocument(db, row.documentId)) {
         const live = await getLiveAcknowledgement(db, missionId);
         if (!live) continue;
-        await db.transaction(async (tx) => {
-          await incrementMaterialRevision(tx, missionId);
-        });
-        missionsDirtied++;
+        // A finished case is frozen: its confirmation stays and it is not counted.
+        const changed = await db.transaction((tx) => incrementMaterialRevision(tx, missionId));
+        if (changed) missionsDirtied++;
       }
     }
 

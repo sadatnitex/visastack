@@ -8,9 +8,11 @@ import { isStarterPackKey } from '@visastack/core';
 import { aiAppLabel } from '@visastack/core/ai-features';
 import { createTranslator } from '@visastack/i18n';
 import {
+  CASE_FINISHED_NO_CHANGE,
   CHECKLIST_WORDING_MAX,
   type ChangesSinceConfirmed,
   type Db,
+  NO_SAVED_COPY,
   type NoPackReason,
   accountPrincipal,
   caseExpiryConflicts,
@@ -27,6 +29,7 @@ import {
   getPack,
   getPackVersion,
   grantReachesCase,
+  isFinishedCaseState,
   latestSourceChecks,
   legalTransitions,
   listAccessForApplicant,
@@ -918,7 +921,10 @@ export default async function MissionPage({
                 <Link className="btn btn-secondary" href={newCaseHref}>
                   Start a New Case from This One
                 </Link>
-                <SnapshotButton missionId={mission.id} />
+                {/* A finished case takes no new snapshot; the line below the header says why. */}
+                {isFinishedCaseState(mission.state) ? null : (
+                  <SnapshotButton missionId={mission.id} />
+                )}
               </div>
               <CaseMoreMenu
                 missionId={mission.id}
@@ -945,6 +951,17 @@ export default async function MissionPage({
             })}
             primary={!hasNextStepOrAlert}
           />
+        ) : null}
+
+        {isFinishedCaseState(mission.state) ? (
+          // What a finished case shows: the copy saved while it was open, or, when none was saved,
+          // today's reading with a plain line saying so.
+          <p className="muted" id="case-finished-note">
+            {CASE_FINISHED_NO_CHANGE}{' '}
+            {data.readiness?.savedCopy === 'AS_FINISHED'
+              ? 'The progress shown is how it stood when it finished.'
+              : NO_SAVED_COPY}
+          </p>
         ) : null}
 
         <CaseStatusPanel

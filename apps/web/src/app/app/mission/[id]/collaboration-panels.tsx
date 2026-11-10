@@ -371,10 +371,13 @@ export function LettersPanel({
   missionId,
   letters,
   canGenerate,
+  finishedLine,
 }: {
   readonly missionId: string;
   readonly letters: readonly LetterView[];
   readonly canGenerate: boolean;
+  /** Set on a finished case: no new version can be made, and this line says why. */
+  readonly finishedLine?: string;
 }) {
   const [state, formAction, pending] = useActionState(generateLetterAction, INITIAL);
   return (
@@ -408,17 +411,23 @@ export function LettersPanel({
           ))}
         </div>
       )}
-      <form action={formAction}>
-        <input type="hidden" name="missionId" value={missionId} />
-        <SubmitButton
-          pending={pending}
-          unavailable={!canGenerate}
-          idle="Generate New Version"
-          busy="Generating…"
-          className="btn btn-secondary"
-        />
-      </form>
-      {!canGenerate ? (
+      {finishedLine ? (
+        <p className="muted" style={{ fontSize: 'var(--text-caption)' }}>
+          {finishedLine}
+        </p>
+      ) : (
+        <form action={formAction}>
+          <input type="hidden" name="missionId" value={missionId} />
+          <SubmitButton
+            pending={pending}
+            unavailable={!canGenerate}
+            idle="Generate New Version"
+            busy="Generating…"
+            className="btn btn-secondary"
+          />
+        </form>
+      )}
+      {!finishedLine && !canGenerate ? (
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginTop: '0.5rem' }}>
           Nothing eligible to ground a letter in yet.
         </p>

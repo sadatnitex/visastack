@@ -1,5 +1,5 @@
 import type { MissionState, TripCheck } from '@visastack/core';
-import type { Mission } from '@visastack/services';
+import { CASE_FINISHED_NO_CHANGE, type Mission, isFinishedCaseState } from '@visastack/services';
 import Link from 'next/link';
 import { atLevel } from '../../../../components/depth';
 import { Icon } from '../../../../components/icons';
@@ -200,18 +200,23 @@ function CaseDetailsCard({
           </p>
         ) : null}
         {showAddDatesHint ? <p className="muted lift-rail-note">{ADD_DATES_HINT}</p> : null}
-        <details className="case-details-edit lift-rail-edit">
-          <summary>Edit Case Details</summary>
-          <CaseDetailsForm
-            missionId={mission.id}
-            jurisdiction={mission.jurisdiction}
-            serviceCategory={mission.serviceCategory}
-            travelStartDate={mission.travelStartDate}
-            travelEndDate={mission.travelEndDate}
-            targetDeadline={mission.targetDeadline}
-            manualMode={mission.manualMode}
-          />
-        </details>
+        {isFinishedCaseState(mission.state) ? (
+          // A finished case cannot be edited: the control is not offered, and the line says why.
+          <p className="muted lift-rail-note">{CASE_FINISHED_NO_CHANGE}</p>
+        ) : (
+          <details className="case-details-edit lift-rail-edit">
+            <summary>Edit Case Details</summary>
+            <CaseDetailsForm
+              missionId={mission.id}
+              jurisdiction={mission.jurisdiction}
+              serviceCategory={mission.serviceCategory}
+              travelStartDate={mission.travelStartDate}
+              travelEndDate={mission.travelEndDate}
+              targetDeadline={mission.targetDeadline}
+              manualMode={mission.manualMode}
+            />
+          </details>
+        )}
       </SectionCard>
     </RailFold>
   );
@@ -291,13 +296,24 @@ function PackCard({
                   </p>
                 ) : null}
               </>
+            ) : isFinishedCaseState(mission.state) ? (
+              <p className="lift-rail-line">No checklist was linked to this case.</p>
             ) : (
               <p className="lift-rail-line">
                 Pick a checklist: attach a published requirement pack to see how many items are
                 ready.
               </p>
             )}
-            <AttachPackForm missionId={mission.id} options={packOptions} primary={primaryAttach} />
+            {isFinishedCaseState(mission.state) ? (
+              // The checklist of a finished case stays as it was; no control, and the line says why.
+              <p className="muted lift-rail-note">{CASE_FINISHED_NO_CHANGE}</p>
+            ) : (
+              <AttachPackForm
+                missionId={mission.id}
+                options={packOptions}
+                primary={primaryAttach}
+              />
+            )}
           </>
         )}
         {sources.length > 0 ? <RailSources sources={sources} /> : null}

@@ -1,7 +1,9 @@
 import type { MissionState } from '@visastack/core';
 import {
+  CASE_FINISHED_NO_CHANGE,
   type getEvidenceCandidates,
   isFactStatusEligible,
+  isFinishedCaseState,
   type listGeneratedOutputs,
 } from '@visastack/services';
 import type { ComponentProps, ReactNode } from 'react';
@@ -181,6 +183,9 @@ export function CaseSecondary({
               content: l.content,
               createdAt: l.createdAt.toISOString(),
             }))}
+            {...(isFinishedCaseState(missionState)
+              ? { finishedLine: CASE_FINISHED_NO_CHANGE }
+              : {})}
             canGenerate={candidates.some(
               (c) =>
                 c.factCandidates.some((f) => isFactStatusEligible(f.status)) ||

@@ -1,6 +1,16 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, isNull, notInArray, sql } from 'drizzle-orm';
 import { type Db, schema } from './db';
 import { recordProductEvent } from './product-events';
+import { INACTIVE_CASE_STATES } from './umpe-package-tables';
+
+/**
+ * True when a case is finished: submitted, closed or cancelled. A finished case is frozen (owner
+ * decision, 10 Nov 2026): nothing that later changes in the traveller's record changes it, bumps
+ * its revision or voids its confirmation. The one test of the shared state list.
+ */
+export function isFinishedCaseState(state: string): boolean {
+  return (INACTIVE_CASE_STATES as readonly string[]).includes(state);
+}
 
 /**
  * TRU-03 (master directive Part 7 §4): case material revision.
@@ -33,13 +43,30 @@ import { recordProductEvent } from './product-events';
  * at all. Only a still-valid ACKNOWLEDGED row is touched:
  * REJECTED/CORRECTION_REQUESTED rows were never a valid green light to
  * begin with, and an already-invalidated row has nothing left to mark.
+ *
+ * Returns false, having changed nothing, when the case is finished (submitted, closed or
+ * cancelled) or does not exist; callers that edit the case itself refuse in that case.
  */
-export async function incrementMaterialRevision(tx: Db, missionId: string): Promise<void> {
+export async function incrementMaterialRevision(tx: Db, missionId: string): Promise<boolean> {
+  // A submitted, closed or cancelled case is frozen: what it holds and the confirmation made
+  // for it never move again (owner decision, 10 Nov 2026). The state test is part of the one
+  // UPDATE, so it is decided on the row as it is when the write happens: a submit that commits
+  // between an edit reading the case and writing it makes this change nothing, instead of
+  // voiding the confirmation of a case that was just sent. Nothing is voided, recorded or
+  // counted for such a case, and the caller is told. A future way to reopen a finished case
+  // must set an open state first; the case then follows the latest values again and this
+  // function bumps it once.
   const [mission] = await tx
     .update(schema.missions)
     .set({ materialRevision: sql`${schema.missions.materialRevision} + 1` })
-    .where(eq(schema.missions.id, missionId))
+    .where(
+      and(
+        eq(schema.missions.id, missionId),
+        notInArray(schema.missions.state, [...INACTIVE_CASE_STATES]),
+      ),
+    )
     .returning({ organizationId: schema.missions.ownerOrganizationId });
+  if (!mission) return false;
   const invalidated = await tx
     .update(schema.acknowledgements)
     .set({ invalidatedAt: sql`now()` })
@@ -58,9 +85,10 @@ export async function incrementMaterialRevision(tx: Db, missionId: string): Prom
     await recordProductEvent(tx, {
       eventType: 'ACKNOWLEDGEMENT_INVALIDATED',
       accountId: null,
-      organizationId: mission?.organizationId ?? null,
+      organizationId: mission.organizationId,
     });
   }
+  return true;
 }
 
 /**
