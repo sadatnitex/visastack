@@ -29,7 +29,7 @@ import { notFound } from 'next/navigation';
 import { Fragment } from 'react';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
-import { Icon } from '../../../../../components/icons';
+import { MarkTile } from '../../../../../components/mark-tile';
 import { ReferenceCode } from '../../../../../components/reference-code';
 import { ShowMore } from '../../../../../components/show-more';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
@@ -38,6 +38,7 @@ import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { humanizeCode } from '../../../../../lib/format-code';
 import { formatDateOnly } from '../../../../../lib/format-date';
+import { FIELD_MARK, documentMark } from '../../../../../lib/item-icons';
 import { fieldLabel } from '../../../../../lib/master-profile';
 import { TRAVELLER_LIST_STEP, nextShow, parseShow } from '../../../../../lib/paging';
 import { formatMoment } from '../../../../../lib/save-status';
@@ -407,9 +408,9 @@ export default async function EvidencePage({
                       >
                         <div className="case-row-head">
                           <span className="lc-card-name">
-                            <span className="lift-action-tile" aria-hidden="true">
-                              <Icon name={req.kind === 'FIELD' ? 'clipboard' : 'file'} size={20} />
-                            </span>
+                            <MarkTile
+                              mark={req.kind === 'FIELD' ? FIELD_MARK : documentMark(req.docType)}
+                            />
                             <span
                               className="case-row-title"
                               id={`evidence-row-${sorted.indexOf(req) + 1}`}

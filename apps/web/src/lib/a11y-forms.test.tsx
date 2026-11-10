@@ -7,12 +7,14 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
 import { ListFilterBar } from '../components/list-pattern/list-filter-bar';
+import { SearchableList } from '../components/list-pattern/searchable-list';
 import { aiConfigView } from './ai-config-view.test-support';
 import { axeViolations } from './axe.test-support';
 import {
   fixtureDocumentGroups,
   fixtureEssentials,
-  fixtureFieldGroups,
+  fixtureMissing,
+  fixturePicker,
   fixtureView,
 } from './master-profile-fixture';
 import './next-mocks.test-support';
@@ -1470,6 +1472,42 @@ const CASES_MISSION: readonly Case[] = [
     ),
   },
   {
+    name: 'search a long list with filters behind a button',
+    element: () => (
+      <ListFilterBar
+        rows={9}
+        query="visa"
+        onQuery={() => undefined}
+        searchLabel="Search Documents"
+        activeFilters={1}
+        results={{ count: 0, noun: { one: 'document', other: 'documents' } }}
+      >
+        <label>
+          <span className="sr-only">Category</span>
+          <select className="input" defaultValue="all">
+            <option value="all">All Categories</option>
+          </select>
+        </label>
+      </ListFilterBar>
+    ),
+  },
+  {
+    name: 'search a list the page drew',
+    element: () => (
+      <SearchableList
+        items={Array.from({ length: 6 }, (_, index) => ({
+          id: `c${index}`,
+          text: `Case ${index}`,
+          node: <a href={`/app/mission/c${index}`}>Case {index}</a>,
+        }))}
+        noun={{ one: 'case', other: 'cases' }}
+        searchLabel="Search Cases"
+      >
+        <p>Layout</p>
+      </SearchableList>
+    ),
+  },
+  {
     name: 'choose which file counts for one item',
     element: () => (
       <collaborationPanels.EvidenceItemChoices
@@ -1884,8 +1922,7 @@ const AGENCY: readonly Case[] = [
     element: () => (
       <RequestEvidenceForm
         organizationId="o1"
-        fieldGroups={fixtureFieldGroups}
-        documentGroups={fixtureDocumentGroups}
+        picker={fixturePicker}
         applicants={[{ applicantId: 'a1', displayName: 'Rahim Uddin' }]}
         missions={[{ missionId: 'm1', title: 'UK visit', applicantName: 'Rahim Uddin' }]}
       />
@@ -1908,8 +1945,7 @@ const AGENCY: readonly Case[] = [
     element: () => (
       <RequestEvidenceForm
         organizationId="o1"
-        fieldGroups={fixtureFieldGroups}
-        documentGroups={fixtureDocumentGroups}
+        picker={fixturePicker}
         applicants={[{ applicantId: 'a1', displayName: 'Rahim Uddin' }]}
       />
     ),
@@ -1919,8 +1955,8 @@ const AGENCY: readonly Case[] = [
     element: () => (
       <RequestEvidenceForm
         organizationId="o1"
-        fieldGroups={fixtureFieldGroups}
-        documentGroups={fixtureDocumentGroups}
+        picker={fixturePicker}
+        missing={fixtureMissing}
         fixed={{
           applicantId: 'a1',
           applicantName: 'Rahim Uddin',
