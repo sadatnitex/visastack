@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useRef } from 'react';
+import { CodeInput } from '../../components/code-input';
 import {
   FieldError,
   FormMessage,
@@ -52,16 +53,9 @@ export function VerifyCodeForm() {
         <label className="field-label" htmlFor="guest-code">
           Six-Digit Code
         </label>
-        <input
+        <CodeInput
           id="guest-code"
           name="code"
-          type="text"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="[0-9 ]{6,7}"
-          maxLength={7}
-          required
-          className="input collect-code-input"
           {...fieldProblem(state, 'code', messageId, 'guest-code-hint')}
         />
         <p id="guest-code-hint" className="muted u-fs-085">

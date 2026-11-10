@@ -118,3 +118,42 @@ describe('toolbar status uses actual account-scoped records', () => {
     expect((await loadWorkspaceToolbarState(db, stranger)).unread).toBe(1);
   });
 });
+
+describe('the part of the unread count that is about requests', () => {
+  it('counts request notices from the same unread rows, never above the bell, and never another account', async () => {
+    const before = await loadWorkspaceToolbarState(db, owner);
+    expect(before.unreadRequests).toBe(0);
+    await db.insert(schema.notifications).values([
+      ...['EVIDENCE_REQUEST_CREATED', 'EVIDENCE_REPLACEMENT_REQUESTED'].map((eventType, i) => ({
+        recipientAccountId: owner,
+        eventType,
+        channel: 'IN_APP' as const,
+        status: 'SENT' as const,
+        idempotencyKey: `synthetic-request-${i}`,
+        payload: {},
+      })),
+      {
+        // An email copy is not an in-app notice, so it does not count.
+        recipientAccountId: owner,
+        eventType: 'EVIDENCE_REQUEST_CREATED',
+        channel: 'EMAIL' as const,
+        status: 'SENT' as const,
+        idempotencyKey: 'synthetic-request-email',
+        payload: {},
+      },
+      {
+        recipientAccountId: stranger,
+        eventType: 'EVIDENCE_REQUEST_CREATED',
+        channel: 'IN_APP' as const,
+        status: 'SENT' as const,
+        idempotencyKey: 'synthetic-request-stranger',
+        payload: {},
+      },
+    ]);
+    const after = await loadWorkspaceToolbarState(db, owner);
+    expect(after.unreadRequests).toBe(2);
+    expect(after.unread).toBe(before.unread + 2);
+    expect(after.unreadRequests ?? 0).toBeLessThanOrEqual(after.unread);
+    expect((await loadWorkspaceToolbarState(db, stranger)).unreadRequests).toBe(1);
+  });
+});

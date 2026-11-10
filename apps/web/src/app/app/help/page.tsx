@@ -1,12 +1,19 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { InstallAppCard } from '../../../components/pwa/install-app-card';
+import { WhatsAppShare } from '../../../components/share/whatsapp-share';
 import { PageHeader } from '../../../components/ui';
 import { supportEmail } from '../../../lib/support-email';
+import { supportWhatsAppNumber } from '../../../lib/support-whatsapp';
+import { composeShareMessage } from '../../../lib/whatsapp-link';
 export const metadata: Metadata = { title: 'Help and Support' };
 
 export default function HelpPage() {
   const email = supportEmail();
+  const whatsAppNumber = supportWhatsAppNumber();
+  const help = whatsAppNumber
+    ? composeShareMessage({ template: 'support-hello' }, { allowedOrigins: [] })
+    : null;
   return (
     <section className="section container workspace-help">
       <PageHeader
@@ -133,6 +140,17 @@ export default function HelpPage() {
               No case to raise it from, or nothing here fits? Email VisaStack support at{' '}
               <a href={`mailto:${email}`}>{email}</a>.
             </p>
+          ) : null}
+          {help?.ok ? (
+            <>
+              <p>Prefer WhatsApp? Start a chat with VisaStack. You press Send yourself.</p>
+              <WhatsAppShare
+                message={help.message}
+                number={whatsAppNumber}
+                title="VisaStack Help"
+                sendOnly
+              />
+            </>
           ) : null}
         </section>
       </article>

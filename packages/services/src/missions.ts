@@ -31,11 +31,7 @@ import {
   presentApplicantCondition,
   presentDocumentCondition,
 } from './lifecycle/foundation';
-import {
-  getLiveAcknowledgement,
-  incrementMaterialRevision,
-  isFinishedCaseState,
-} from './material-revision';
+import { getLiveAcknowledgement, incrementMaterialRevision } from './material-revision';
 import { cancelQueuedNotificationsForResource } from './notifications';
 import { selectionRefusal } from './pack-selectable';
 import {
@@ -69,6 +65,7 @@ import {
   applyCaseSharingAnswers,
   listCaseSharingQuestions,
 } from './sharing';
+import { isInactiveCaseState } from './umpe-package-tables';
 
 /**
  * Mission Workspaces (Build Spec §4.3; PRD §4).
@@ -123,13 +120,6 @@ export const CASE_FINISHED_NO_CHANGE = 'This case is finished, so it can no long
 
 function finishedCaseRefusal(): ServiceError {
   return serviceError('invalid', CASE_FINISHED_NO_CHANGE);
-}
-
-/** Carries the finished-case refusal out of a transaction so every write in it is undone. */
-class FinishedCaseAbort extends Error {
-  constructor() {
-    super(CASE_FINISHED_NO_CHANGE);
-  }
 }
 
 async function ownedMission(
@@ -443,7 +433,7 @@ export async function updateMissionCaseDetails(
 ): Promise<Result<Mission, ServiceError>> {
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
-  if (isFinishedCaseState(owned.value.state)) return err(finishedCaseRefusal());
+  if (isInactiveCaseState(owned.value.state)) return err(finishedCaseRefusal());
   // TRU-03 (Part 7 §4): jurisdiction/serviceCategory/dates/ownerOrganization/
   // manualMode are all case-identity/scope data the directive's own material
   // list means to cover ("itinerary; destination; purpose" and siblings) --
@@ -537,7 +527,7 @@ export async function attachPackVersion(
 ): Promise<Result<Mission, ServiceError>> {
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
-  if (isFinishedCaseState(owned.value.state)) return err(finishedCaseRefusal());
+  if (isInactiveCaseState(owned.value.state)) return err(finishedCaseRefusal());
   const packVersion = first(
     await db
       .select({ status: schema.packVersions.status })
@@ -1081,7 +1071,7 @@ export async function computeReadiness(
     await db.select().from(schema.missions).where(eq(schema.missions.id, missionId)).limit(1),
   );
   if (!mission) return err(serviceError('not_found', 'case not found'));
-  if (!isFinishedCaseState(mission.state)) return computeLiveReadiness(db, mission, now);
+  if (!isInactiveCaseState(mission.state)) return computeLiveReadiness(db, mission, now);
   const saved = await savedReadinessForFinishedCase(db, mission);
   if (saved) return ok({ ...saved, savedCopy: 'AS_FINISHED' });
   const live = await computeLiveReadiness(db, mission, now);
@@ -2046,7 +2036,7 @@ export async function snapshotMission(
   const mission = owned.value;
   // A new snapshot of a finished case would hold today's values and read as an official copy
   // of what was sent. The copies taken before it finished are the only ones.
-  if (isFinishedCaseState(mission.state)) return err(finishedCaseRefusal());
+  if (isInactiveCaseState(mission.state)) return err(finishedCaseRefusal());
 
   const { requirementMapping, packVersionSnapshot, facts, documents, evidenceScope } =
     await loadCaseEvidence(db, mission);
@@ -2135,6 +2125,44 @@ export async function snapshotMission(
 
 export type SelectedEvidence = typeof schema.selectedEvidence.$inferSelect;
 
+/** The plain line a traveller reads when a finished case's evidence is touched. */
+const CASE_FINISHED_SELECTION =
+  'This case is finished, so the files and answers it uses can no longer change.';
+
+/**
+ * A submitted, closed or cancelled case keeps the choice of which file or answer counts for each
+ * checklist item exactly as it was sent: the choice is locked. The states are the same list as the
+ * wording and trip package rules (`isInactiveCaseState`).
+ */
+function refusal(): ServiceError {
+  return serviceError('invalid', CASE_FINISHED_SELECTION);
+}
+
+/** Carries the finished-case refusal out of a transaction so every write in it is undone. */
+class SelectionLockedAbort extends Error {
+  constructor() {
+    super(CASE_FINISHED_SELECTION);
+  }
+}
+
+/**
+ * The rule read again inside the writing transaction, under a write lock on the case row, so a
+ * submit that lands between the first check and the write cannot be undone by it. The write lock
+ * (not a share lock) is the one the revision bump needs next: two requests on one case queue here
+ * instead of each holding a share lock and deadlocking on the bump.
+ */
+async function isSelectionLocked(tx: Db, missionId: string): Promise<boolean | null> {
+  const current = first(
+    await tx
+      .select({ state: schema.missions.state })
+      .from(schema.missions)
+      .where(eq(schema.missions.id, missionId))
+      .limit(1)
+      .for('update'),
+  );
+  return current ? isInactiveCaseState(current.state) : null;
+}
+
 async function loadOwnedRequirement(
   db: Db,
   actorAccountId: string,
@@ -2194,7 +2222,7 @@ export async function selectEvidence(
   );
   if (!loaded.ok) return loaded;
   const { mission, requirement } = loaded.value;
-  if (isFinishedCaseState(mission.state)) return err(finishedCaseRefusal());
+  if (isInactiveCaseState(mission.state)) return err(refusal());
 
   if (requirement.kind === 'FIELD') {
     if (!input.factId || input.documentId) {
@@ -2250,6 +2278,9 @@ export async function selectEvidence(
   }
 
   return db.transaction(async (tx) => {
+    const locked = await isSelectionLocked(tx, mission.id);
+    if (locked === null) return err(serviceError('not_found', 'case not found'));
+    if (locked) return err(refusal());
     const existing = first(
       await tx
         .select()
@@ -2267,8 +2298,7 @@ export async function selectEvidence(
     );
     if (existing) return ok(existing);
 
-    // First write after the checks: a case finished meanwhile changes nothing here.
-    if (!(await incrementMaterialRevision(tx, mission.id))) return err(finishedCaseRefusal());
+    await incrementMaterialRevision(tx, mission.id);
     const selection = required(
       first(
         await tx
@@ -2313,10 +2343,12 @@ export async function unselectEvidence(
 ): Promise<Result<void, ServiceError>> {
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
-  if (isFinishedCaseState(owned.value.state)) return err(finishedCaseRefusal());
 
   try {
     return await db.transaction(async (tx) => {
+      // The selection row first and the case row second, the order every other writer of
+      // `selected_evidence` keeps (a removal, a merge of duplicates, a chosen copy), so two of
+      // them never wait on each other. A finished case rolls the delete back.
       const deleted = first(
         await tx
           .delete(schema.selectedEvidence)
@@ -2328,9 +2360,11 @@ export async function unselectEvidence(
           )
           .returning(),
       );
+      const locked = await isSelectionLocked(tx, input.missionId);
+      if (locked === null) return err(serviceError('not_found', 'case not found'));
+      if (locked) throw new SelectionLockedAbort();
       if (!deleted) return err(serviceError('not_found', 'selection not found'));
-      // A case finished meanwhile rolls the delete back (the selection is removed before the bump).
-      if (!(await incrementMaterialRevision(tx, input.missionId))) throw new FinishedCaseAbort();
+      await incrementMaterialRevision(tx, input.missionId);
       await appendAuditEvent(tx, {
         eventType: 'MISSION_EVIDENCE_UNSELECTED',
         actorAccountId: input.actorAccountId,
@@ -2343,7 +2377,7 @@ export async function unselectEvidence(
       return ok(undefined);
     });
   } catch (error) {
-    if (error instanceof FinishedCaseAbort) return err(finishedCaseRefusal());
+    if (error instanceof SelectionLockedAbort) return err(refusal());
     throw error;
   }
 }
@@ -3067,7 +3101,7 @@ export async function generateCoverLetter(
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
   const mission = owned.value;
-  if (isFinishedCaseState(mission.state)) return err(finishedCaseRefusal());
+  if (isInactiveCaseState(mission.state)) return err(finishedCaseRefusal());
   if (!mission.packVersionId) {
     return err(serviceError('invalid', 'case has no attached pack version'));
   }

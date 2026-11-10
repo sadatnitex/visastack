@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { withinAuthLimits } from '../../lib/auth-throttle';
 import { resolveBaseUrl } from '../../lib/base-url';
+import { confirmedCallbackNext, signInNextSuffix } from '../../lib/confirmed-landing';
 import { safeReturnPath } from '../../lib/neon-recency';
 import { consumeSignupForm, readSignupForm } from '../../lib/signup-form';
 
@@ -60,6 +61,20 @@ async function rememberedPendingConfirmation(): Promise<string | null> {
   }
 }
 
+/** Forget the remembered address once the person is signed in, so it is not left in this browser. */
+async function forgetPendingConfirmation(): Promise<void> {
+  try {
+    const pending = await import('../../lib/pending-confirmation');
+    const { cookies } = await import('next/headers');
+    (await cookies()).set(pending.PENDING_CONFIRMATION_COOKIE, '', {
+      ...pending.pendingConfirmationCookieOptions(resolveBaseUrl().startsWith('https://')),
+      maxAge: 0,
+    });
+  } catch {
+    // Best effort: the cookie expires on its own after 30 minutes.
+  }
+}
+
 function validPassword(password: string): boolean {
   return password.length >= 8 && password.length <= 128;
 }
@@ -73,9 +88,7 @@ function isUnconfirmed(error: { code?: string | undefined }): boolean {
   return error.code === 'EMAIL_NOT_VERIFIED';
 }
 
-function signInTarget(next: string): string {
-  return next === '/app' ? '' : `&next=${encodeURIComponent(next)}`;
-}
+const signInTarget = signInNextSuffix;
 
 export async function signInAction(formData: FormData): Promise<void> {
   const email = field(formData, 'email').trim();
@@ -99,6 +112,7 @@ export async function signInAction(formData: FormData): Promise<void> {
     }
     redirect(`/auth/sign-in?e=failed${signInTarget(next)}`);
   }
+  await forgetPendingConfirmation();
   redirect(next);
 }
 
@@ -134,7 +148,7 @@ export async function signUpAction(formData: FormData): Promise<void> {
     email,
     password,
     name: name || email.split('@')[0] || 'Traveller',
-    callbackURL: `${resolveBaseUrl()}/auth/sign-in?n=confirmed${target}`,
+    callbackURL: `${resolveBaseUrl()}/auth/confirmed?next=${confirmedCallbackNext(next)}`,
   });
   if (error) {
     if (
@@ -152,7 +166,8 @@ export async function signUpAction(formData: FormData): Promise<void> {
 
 /** Send the confirmation email again. Same answer for every address. */
 export async function resendConfirmationAction(formData: FormData): Promise<void> {
-  const target = signInTarget(safeReturnPath(field(formData, 'next')));
+  const returnTo = safeReturnPath(field(formData, 'next'));
+  const target = signInTarget(returnTo);
   // "Send the Link Again" on the page that already knows the address sends `saved`; a typed
   // address (the "Use a Different Email" form) always wins.
   const typed = field(formData, 'email').trim();
@@ -173,7 +188,7 @@ export async function resendConfirmationAction(formData: FormData): Promise<void
   try {
     const { error } = await getNeonAuth().sendVerificationEmail({
       email,
-      callbackURL: `${resolveBaseUrl()}/auth/sign-in?n=confirmed${target}`,
+      callbackURL: `${resolveBaseUrl()}/auth/confirmed?next=${confirmedCallbackNext(returnTo)}`,
     });
     throttled = error?.status === 429;
     const unknownAccount = error?.code === 'USER_NOT_FOUND' || error?.message === 'User not found';

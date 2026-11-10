@@ -642,7 +642,7 @@ export {
   updateTask,
 } from './missions';
 export { NO_SAVED_COPY } from './finished-case-readiness';
-export { isFinishedCaseState } from './material-revision';
+export { isInactiveCaseState } from './umpe-package-tables';
 
 export {
   ACKNOWLEDGEMENT_TEXT_VERSION,
@@ -1576,7 +1576,11 @@ export {
   type WorkspaceSearchScope,
   type WorkspaceSearchResult,
 } from './workspace-search';
-export { loadWorkspaceToolbarState, type WorkspaceToolbarState } from './workspace-toolbar';
+export {
+  loadWorkspaceToolbarState,
+  REQUEST_NOTICE_EVENT_TYPES,
+  type WorkspaceToolbarState,
+} from './workspace-toolbar';
 export {
   getTravellerPlanSummary,
   listTravellerPlansForSale,
@@ -1682,7 +1686,6 @@ export {
   OUTPUT_TEMPLATE_IDS,
   TRIP_DOCUMENT_SLOTS,
   TRIP_FIELD_KEYS,
-  buildWhatsAppShare,
   cleanText,
   defaultChoice,
   engineRequest,
@@ -1705,7 +1708,6 @@ export {
   type OutputView,
   type ViewRow,
   type ViewSection,
-  type WhatsAppShare,
 } from './selected-output-views';
 export {
   REQUEST_QUESTION_LIMIT,

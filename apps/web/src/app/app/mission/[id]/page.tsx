@@ -29,7 +29,7 @@ import {
   getPack,
   getPackVersion,
   grantReachesCase,
-  isFinishedCaseState,
+  isInactiveCaseState,
   latestSourceChecks,
   legalTransitions,
   listAccessForApplicant,
@@ -237,7 +237,7 @@ export default async function MissionPage({
         : Promise.resolve(undefined),
       listMissionSnapshots(db, accountId, mission.id, { limit: SNAPSHOTS_ON_PAGE }),
       // A finished case takes no new checklist, so none is looked up for it.
-      mission.packVersionId || isFinishedCaseState(mission.state)
+      mission.packVersionId || isInactiveCaseState(mission.state)
         ? Promise.resolve(NOTHING_TO_PICK)
         : selectableChecklists(db, { accountId, mission }),
       listTasks(db, accountId, mission.id, { limit: shown.tasks }),
@@ -480,7 +480,7 @@ export default async function MissionPage({
     // live acknowledgement has replaced it since.
     // A finished case cannot be confirmed again, so it is never shown as needing it.
     const isDirty =
-      !isFinishedCaseState(mission.state) &&
+      !isInactiveCaseState(mission.state) &&
       allAcknowledgements.ok &&
       !liveAcknowledgement &&
       allAcknowledgements.value.some(
@@ -555,7 +555,7 @@ export default async function MissionPage({
     // VS-006: when reviewed checklists exist for the route but none fits, or none exists, the
     // reason is worked out once and shared by the welcome note and the Requirement Pack card.
     const emptyReasons =
-      mission.packVersionId || isFinishedCaseState(mission.state)
+      mission.packVersionId || isInactiveCaseState(mission.state)
         ? []
         : await noChecklistReasons(db, accountId, mission, choices);
     const welcomeNote =
@@ -926,7 +926,7 @@ export default async function MissionPage({
                   Start a New Case from This One
                 </Link>
                 {/* A finished case takes no new snapshot; the line below the header says why. */}
-                {isFinishedCaseState(mission.state) ? null : (
+                {isInactiveCaseState(mission.state) ? null : (
                   <SnapshotButton missionId={mission.id} />
                 )}
               </div>
@@ -938,7 +938,7 @@ export default async function MissionPage({
                 headerActions={{
                   addEvidenceHref: '#evidence',
                   newCaseHref,
-                  snapshot: !isFinishedCaseState(mission.state),
+                  snapshot: !isInactiveCaseState(mission.state),
                 }}
               />
             </>
@@ -961,7 +961,7 @@ export default async function MissionPage({
           />
         ) : null}
 
-        {isFinishedCaseState(mission.state) ? (
+        {isInactiveCaseState(mission.state) ? (
           // What a finished case shows: the copy saved while it was open, or, when none was saved,
           // today's reading with a plain line saying so.
           <p className="muted" id="case-finished-note">

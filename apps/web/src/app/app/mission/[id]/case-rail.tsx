@@ -1,5 +1,5 @@
 import type { MissionState, TripCheck } from '@visastack/core';
-import { CASE_FINISHED_NO_CHANGE, type Mission, isFinishedCaseState } from '@visastack/services';
+import { CASE_FINISHED_NO_CHANGE, type Mission, isInactiveCaseState } from '@visastack/services';
 import Link from 'next/link';
 import { atLevel } from '../../../../components/depth';
 import { Icon } from '../../../../components/icons';
@@ -200,7 +200,7 @@ function CaseDetailsCard({
           </p>
         ) : null}
         {showAddDatesHint ? <p className="muted lift-rail-note">{ADD_DATES_HINT}</p> : null}
-        {isFinishedCaseState(mission.state) ? (
+        {isInactiveCaseState(mission.state) ? (
           // A finished case cannot be edited: the control is not offered, and the line says why.
           <p className="muted lift-rail-note">{CASE_FINISHED_NO_CHANGE}</p>
         ) : (
@@ -274,7 +274,7 @@ function PackCard({
           </>
         ) : (
           <>
-            {isFinishedCaseState(mission.state) ? (
+            {isInactiveCaseState(mission.state) ? (
               <p className="lift-rail-line">No checklist was linked to this case.</p>
             ) : packOptions.length === 0 ? (
               // VS-006: no reviewed checklist to pick. Say so and why, and promise nothing.
@@ -304,7 +304,7 @@ function PackCard({
                 ready.
               </p>
             )}
-            {isFinishedCaseState(mission.state) ? (
+            {isInactiveCaseState(mission.state) ? (
               // The checklist of a finished case stays as it was; no control, and the line says why.
               <p className="muted lift-rail-note">{CASE_FINISHED_NO_CHANGE}</p>
             ) : (

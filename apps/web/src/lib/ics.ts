@@ -28,7 +28,7 @@ import {
   wallClockToUtc,
 } from '@visastack/core/calendar';
 import type { CalendarItem, CalendarItemWhen } from '@visastack/services';
-import { containsUnsafeDetail } from '../app/app/agency/[orgId]/follow-up-message';
+import { containsUnsafeDetail } from './unsafe-detail';
 
 export interface IcsAppointment {
   readonly id: string;
