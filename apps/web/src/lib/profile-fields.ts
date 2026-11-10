@@ -241,7 +241,7 @@ export const PROFILE_FIELDS: readonly ProfileFieldDef[] = [
   },
   {
     key: 'historical_passport_expiry',
-    label: 'Expiry (Or Was Expired)',
+    label: 'Expiry Date',
     sensitivity: 'STANDARD',
     pack: 'universal',
     type: 'date',
@@ -343,7 +343,7 @@ export const PROFILE_FIELDS: readonly ProfileFieldDef[] = [
   },
   {
     key: 'prior_visa_validity',
-    label: 'Valid from / To',
+    label: 'Visa Valid Dates',
     sensitivity: 'STANDARD',
     pack: 'universal',
     placeholder: 'e.g. 2022-01 to 2032-01',
