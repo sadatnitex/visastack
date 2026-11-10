@@ -145,6 +145,20 @@ describe('RequestEvidenceForm picker', () => {
     expect(row(host, 'Other Document')).toBeNull();
   });
 
+  it('Enter in the search box searches and never sends the form', async () => {
+    sendAction.mockReset();
+    const { host } = await mountWith();
+    await typeInto(byLabel(host, 'Traveller'), 'a-1');
+    await typeInto(search(host), 'passport');
+    await click(row(host, 'Passport'));
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    await act(async () => {
+      search(host).dispatchEvent(enter);
+    });
+    expect(enter.defaultPrevented).toBe(true);
+    expect(sendAction).not.toHaveBeenCalled();
+  });
+
   it('says what to do when nothing matches', async () => {
     const { host } = await mountWith();
     await typeInto(search(host), 'zzzz');
@@ -449,6 +463,31 @@ describe('RequestEvidenceForm on a case', () => {
     await click(askAll);
     expect(trayTitle(host)).toBe('Selected (2)');
     expect(row(section as HTMLElement, 'Passport')?.checked).toBe(true);
+  });
+
+  it('ticks no more than one send can carry and says how many were left out', async () => {
+    const many = {
+      rows: Array.from({ length: 31 }, (_, i) => ({
+        id: `DOCUMENT:K_${i}`,
+        label: `Gap ${i}`,
+        hint: '',
+        state: 'ask' as const,
+      })),
+      anyOf: [],
+    };
+    const { host } = await mountCase(many);
+    expect(trayTitle(host)).toBe('Selected (25)');
+    expect(host.textContent).toContain('Ask for All Missing (31)');
+    expect(host.textContent).toContain(
+      'Only the first 25 are ticked. Send these, then ask for the rest.',
+    );
+    await click(host.querySelector('[data-remove="DOCUMENT:K_0"]'));
+    const askAll = [...host.querySelectorAll('button')].find((b) =>
+      b.textContent?.startsWith('Ask for All Missing'),
+    );
+    await click(askAll);
+    expect(trayTitle(host)).toBe('Selected (25)');
+    expect(outputs(host).join(' ')).toContain('25 is the most in one send.');
   });
 
   it('shows no such group when the case has no gaps, and never on Clients', async () => {

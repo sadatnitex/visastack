@@ -115,11 +115,13 @@ export function buildRequestPicker(): RequestPicker {
   return built;
 }
 
-/** Every item by id, for the code that turns pack requirements into picker rows. */
-export function requestPickerIndex(
-  picker: RequestPicker,
-): ReadonlyMap<string, { readonly label: string; readonly hint: string }> {
-  return new Map(
+type PickerIndex = ReadonlyMap<string, { readonly label: string; readonly hint: string }>;
+let indexed: { readonly picker: RequestPicker; readonly index: PickerIndex } | undefined;
+
+/** Every item by id, for the code that turns pack requirements into picker rows. Built once per picker. */
+export function requestPickerIndex(picker: RequestPicker): PickerIndex {
+  if (indexed?.picker === picker) return indexed.index;
+  const index: PickerIndex = new Map(
     picker.groups.flatMap((group) =>
       group.items.map(
         (entry) =>
@@ -127,4 +129,6 @@ export function requestPickerIndex(
       ),
     ),
   );
+  indexed = { picker, index };
+  return index;
 }

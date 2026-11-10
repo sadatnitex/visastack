@@ -101,13 +101,11 @@ export function buildMissingForCase(
             : entry.optional
               ? 'optional'
               : 'ask';
-    rows.push(rowFor(entry, state, index));
+    const row = rowFor(entry, state, index);
+    // Two checklist lines can name the same item: it is listed, ticked and sent once.
+    if (row.id !== '' && rows.some((existing) => existing.id === row.id)) continue;
+    rows.push(row);
   }
   if (rows.length === 0 && anyOf.length === 0) return null;
   return { rows, anyOf };
-}
-
-/** The ids that start ticked: required items never provided and not already asked. */
-export function preticked(missing: MissingForCase | null): readonly string[] {
-  return missing === null ? [] : missing.rows.filter((r) => r.state === 'ask').map((r) => r.id);
 }

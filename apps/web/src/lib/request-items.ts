@@ -1,10 +1,8 @@
+import type { EvidenceRequestItem } from '@visastack/services';
 import { MAX_ASK_ITEMS } from './request-picker-types';
 
 /** One thing asked for in a send: a document type or a detail, by its catalogue key. */
-export interface AskItem {
-  readonly kind: 'FIELD' | 'DOCUMENT';
-  readonly key: string;
-}
+export type AskItem = EvidenceRequestItem;
 
 export type ParsedAskItems =
   | { readonly ok: true; readonly items: readonly AskItem[] }

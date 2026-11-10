@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildMissingForCase, preticked } from './missing-for-case';
+import { buildMissingForCase } from './missing-for-case';
 import { buildRequestPicker, requestPickerIndex } from './request-picker';
+import { preticked } from './request-picker-types';
 
 const index = requestPickerIndex(buildRequestPicker());
 const missing = (
@@ -101,6 +102,16 @@ describe('Missing for This Case', () => {
       ['', 'unlisted'],
     ]);
     expect(preticked(built)).toEqual([]);
+  });
+
+  it('lists an item once when two checklist lines name it', () => {
+    const built = buildMissingForCase(
+      { missing: [missing({ key: 'BANK_STATEMENT' }), missing({ key: 'BANK_STATEMENT' })] },
+      [],
+      index,
+    );
+    expect(built?.rows.map((r) => r.id)).toEqual(['DOCUMENT:BANK_STATEMENT']);
+    expect(preticked(built)).toEqual(['DOCUMENT:BANK_STATEMENT']);
   });
 
   it('finds a document by any name the catalogue knows it by', () => {

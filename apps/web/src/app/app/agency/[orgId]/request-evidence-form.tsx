@@ -6,6 +6,7 @@ import {
   MAX_ASK_ITEMS,
   type MissingForCase,
   type RequestPicker,
+  preticked,
 } from '../../../../lib/request-picker-types';
 import { type ActionState, requestEvidenceAction } from './actions';
 import { EvidencePicker } from './evidence-picker';
@@ -62,6 +63,14 @@ interface SentLine {
   readonly line: string;
 }
 
+/** The tray entries for these picker ids, as the case's missing list names them. */
+function trayOf(missing: MissingForCase | null, ids: readonly string[]): TrayItem[] {
+  const wanted = new Set(ids);
+  return (missing?.rows ?? [])
+    .filter((row) => wanted.has(row.id))
+    .map((row) => ({ id: row.id, label: row.label, hint: row.hint }));
+}
+
 /** The plain sentence for a send: "Sent 5 requests to Rahim Uddin." */
 function sentSentence(count: number, name: string): string {
   const things = count === 1 ? '1 request' : `${count} requests`;
@@ -91,9 +100,7 @@ export function RequestEvidenceForm({
   // What will go out, in the order it was chosen. On a case the required, never-provided
   // checklist items start ticked; the agency can remove any of them.
   const [chosen, setChosen] = useState<readonly TrayItem[]>(() =>
-    (missing?.rows ?? [])
-      .filter((row) => row.state === 'ask')
-      .map((row) => ({ id: row.id, label: row.label, hint: row.hint })),
+    trayOf(missing, preticked(missing)).slice(0, MAX_ASK_ITEMS),
   );
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
@@ -118,10 +125,7 @@ export function RequestEvidenceForm({
   };
 
   const selected = useMemo(() => new Set(chosen.map((item) => item.id)), [chosen]);
-  const missingIds = useMemo(
-    () => (missing?.rows ?? []).filter((row) => row.state === 'ask').map((row) => row.id),
-    [missing],
-  );
+  const missingIds = useMemo(() => preticked(missing), [missing]);
 
   const travellerName = fixed
     ? fixed.applicantName
@@ -180,14 +184,19 @@ export function RequestEvidenceForm({
 
   const askAllMissing = () => {
     const next = [...chosen];
-    for (const row of missing?.rows ?? []) {
-      if (row.state !== 'ask' || next.some((item) => item.id === row.id)) continue;
+    for (const item of trayOf(missing, missingIds)) {
+      if (next.some((entry) => entry.id === item.id)) continue;
       if (next.length >= MAX_ASK_ITEMS) break;
-      next.push({ id: row.id, label: row.label, hint: row.hint });
+      next.push(item);
     }
+    const added = missingIds.filter((id) => next.some((entry) => entry.id === id)).length;
     setChosen(next);
     setProblem('');
-    setAnnouncement(`${missingIds.length} missing items selected. ${next.length} selected.`);
+    setAnnouncement(
+      added < missingIds.length
+        ? `${added} of ${missingIds.length} missing items selected. ${MAX_ASK_ITEMS} is the most in one send.`
+        : `${added} missing items selected. ${next.length} selected.`,
+    );
   };
 
   const idle = chosen.length > 1 ? `Request Evidence (${chosen.length})` : 'Request Evidence';

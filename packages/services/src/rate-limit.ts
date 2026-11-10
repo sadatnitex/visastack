@@ -303,8 +303,9 @@ export async function refundRateLimit(
   input: CheckRateLimitInput,
   config: RateLimitConfig,
   now: Date = new Date(),
+  amount = 1,
 ): Promise<void> {
-  await refundRateLimitWindow(db, input, windowStartFor(now, config.windowMs));
+  await refundRateLimitWindow(db, input, windowStartFor(now, config.windowMs), amount);
 }
 
 /**
@@ -316,10 +317,14 @@ export async function refundRateLimitWindow(
   db: Db,
   input: { readonly subjectId: string; readonly action: string },
   windowStart: Date,
+  amount = 1,
 ): Promise<void> {
   await db
     .update(schema.rateLimitBuckets)
-    .set({ count: sql`greatest(${schema.rateLimitBuckets.count} - 1, 0)`, updatedAt: sql`now()` })
+    .set({
+      count: sql`greatest(${schema.rateLimitBuckets.count} - ${Math.max(1, Math.floor(amount))}, 0)`,
+      updatedAt: sql`now()`,
+    })
     .where(
       and(
         eq(schema.rateLimitBuckets.subjectId, input.subjectId),

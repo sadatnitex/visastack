@@ -8,6 +8,7 @@ import {
   requestEvidence,
   requestEvidenceBatch,
 } from './agency';
+import * as audit from './audit';
 import type { Db } from './db';
 import {
   type Agency,
@@ -20,16 +21,16 @@ import {
 import { createMission } from './missions';
 import { addMembership } from './organizations';
 import { RATE_LIMITS } from './rate-limit';
-import * as referenceCodes from './reference-codes';
 
 /**
  * One send can carry many items: each becomes its own request, all or nothing, under the same
  * access checks as a single request.
  */
 
-vi.mock('./reference-codes', async (importOriginal) => {
-  const original = await importOriginal<typeof import('./reference-codes')>();
-  return { ...original, assignReferenceCode: vi.fn(original.assignReferenceCode) };
+// Calls through to the real audit writer; one test makes it fail partway through a send.
+vi.mock('./audit', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./audit')>();
+  return { ...original, appendAuditEvent: vi.fn(original.appendAuditEvent) };
 });
 
 const TIMEOUT = 120_000;
@@ -76,7 +77,7 @@ describe('requestEvidenceBatch', () => {
   beforeEach(async () => {
     w = await world();
     // The setup also gives codes (to the grant); count only what the send does.
-    vi.mocked(referenceCodes.assignReferenceCode).mockClear();
+    vi.mocked(audit.appendAuditEvent).mockClear();
   }, TIMEOUT);
 
   it(
@@ -106,7 +107,13 @@ describe('requestEvidenceBatch', () => {
         .from(schema.auditEvents)
         .where(eq(schema.auditEvents.eventType, 'EVIDENCE_REQUESTED'));
       expect(audits).toHaveLength(3);
-      expect(referenceCodes.assignReferenceCode).toHaveBeenCalledTimes(3);
+      expect(audit.appendAuditEvent).toHaveBeenCalledTimes(3);
+      // Each request has its visible code.
+      const codes = await w.db
+        .select()
+        .from(schema.referenceCodes)
+        .where(eq(schema.referenceCodes.kind, 'R'));
+      expect(codes.map((c) => c.entityId).sort()).toEqual(stored.map((r) => r.id).sort());
 
       const sent = await notices(w.db);
       expect(sent.map((n) => n.channel).sort()).toEqual(['EMAIL', 'IN_APP']);
@@ -167,26 +174,36 @@ describe('requestEvidenceBatch', () => {
   );
 
   it(
-    'rolls EVERYTHING back when the third insert fails inside the transaction',
+    'rolls EVERYTHING back when the third audit entry fails inside the transaction',
     async () => {
-      const actual = await vi.importActual<typeof import('./reference-codes')>('./reference-codes');
+      const actual = await vi.importActual<typeof import('./audit')>('./audit');
       let calls = 0;
-      vi.mocked(referenceCodes.assignReferenceCode).mockImplementation(async (...args) => {
+      vi.mocked(audit.appendAuditEvent).mockImplementation(async (...args) => {
         calls += 1;
         if (calls === 3) throw new Error('simulated failure on the third item');
-        return actual.assignReferenceCode(...args);
+        return actual.appendAuditEvent(...args);
       });
-      await expect(
-        ask(w, [doc('NID'), doc('BANK_STATEMENT'), doc('PASSPORT'), doc('PHOTO')]),
-      ).rejects.toThrow('simulated failure');
+      try {
+        await expect(
+          ask(w, [doc('NID'), doc('BANK_STATEMENT'), doc('PASSPORT'), doc('PHOTO')]),
+        ).rejects.toThrow('simulated failure');
+      } finally {
+        vi.mocked(audit.appendAuditEvent).mockImplementation(actual.appendAuditEvent);
+      }
+      // The rows, their codes, the product events and the notice were all written before the
+      // failure; none of them is left.
       expect(await rows(w.db)).toEqual([]);
       expect(await notices(w.db)).toEqual([]);
+      const codes = await w.db
+        .select()
+        .from(schema.referenceCodes)
+        .where(eq(schema.referenceCodes.kind, 'R'));
+      expect(codes).toEqual([]);
       const audits = await w.db
         .select()
         .from(schema.auditEvents)
         .where(eq(schema.auditEvents.eventType, 'EVIDENCE_REQUESTED'));
       expect(audits).toEqual([]);
-      vi.mocked(referenceCodes.assignReferenceCode).mockImplementation(actual.assignReferenceCode);
     },
     TIMEOUT,
   );
@@ -213,13 +230,15 @@ describe('requestEvidenceBatch', () => {
   it(
     'refuses what a single request refuses: a non-admin, no grant, a case that is not the traveller’s',
     async () => {
-      // A member who is not an administrator.
+      // A member who is not an administrator (a reviewer).
       const member = await traveller(w.db, 'plain-member@acme.example');
-      await addMembership(w.db, {
+      const added = await addMembership(w.db, {
+        actorAccountId: w.acme.accountId,
         organizationId: w.acme.organizationId,
         accountId: member.accountId,
-        role: 'MEMBER',
+        role: 'REVIEWER',
       });
+      expect(isOk(added)).toBe(true);
       const asMember = await requestEvidenceBatch(w.db, {
         actorAccountId: member.accountId,
         organizationId: w.acme.organizationId,
@@ -264,7 +283,7 @@ describe('requestEvidenceBatch', () => {
   );
 
   it(
-    'a send for one case is stored with that case, and a case the agency cannot reach is refused',
+    'a send for one case is stored with that case',
     async () => {
       const mission = await createMission(w.db, {
         actorAccountId: w.alice.accountId,
@@ -276,6 +295,35 @@ describe('requestEvidenceBatch', () => {
       expect(isOk(ok)).toBe(true);
       const stored = await rows(w.db);
       expect(stored.every((r) => r.missionId === mission.value.id)).toBe(true);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'a send too big for what is left gives its charge back, so a smaller one still fits',
+    async () => {
+      const hour = 60 * 60 * 1000;
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(Math.floor(Date.now() / hour) * hour + hour + hour / 2);
+      try {
+        const { CATALOGUE_DOCUMENTS } = await import('@visastack/core/catalogue');
+        const keys = CATALOGUE_DOCUMENTS.map((d) => d.key);
+        const send = (from: number, n: number) =>
+          ask(
+            w,
+            keys.slice(from, from + n).map((k) => doc(k)),
+          );
+        for (let i = 0; i < 4; i += 1) expect(isOk(await send(i * 22, 22))).toBe(true); // 88 used
+        const tooBig = await send(100, 25); // 113 would be over 100
+        expect(isErr(tooBig) && tooBig.error.code).toBe('rate_limited');
+        const fits = await send(100, 12); // exactly the 12 that are left
+        expect(isOk(fits)).toBe(true);
+        expect(await rows(w.db)).toHaveLength(100);
+        const none = await send(112, 1);
+        expect(isErr(none) && none.error.code).toBe('rate_limited');
+      } finally {
+        vi.useRealTimers();
+      }
     },
     TIMEOUT,
   );

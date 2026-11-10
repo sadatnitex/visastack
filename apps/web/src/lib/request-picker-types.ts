@@ -61,3 +61,8 @@ export interface MissingForCase {
 
 /** The most items one send may carry. The service holds the same number (a test keeps them equal). */
 export const MAX_ASK_ITEMS = 25;
+
+/** The ids that start ticked: required items never provided and not already asked. */
+export function preticked(missing: MissingForCase | null): readonly string[] {
+  return missing === null ? [] : missing.rows.filter((r) => r.state === 'ask').map((r) => r.id);
+}

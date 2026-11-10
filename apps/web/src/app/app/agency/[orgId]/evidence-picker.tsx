@@ -7,7 +7,7 @@ import type {
   RequestPicker,
   RequestPickerGroup,
 } from '../../../../lib/request-picker-types';
-import { pickerItemId } from '../../../../lib/request-picker-types';
+import { MAX_ASK_ITEMS, pickerItemId } from '../../../../lib/request-picker-types';
 
 /** Rows drawn per group before "Show More": 962 rows are never in the page at once. */
 const PAGE = 60;
@@ -166,6 +166,10 @@ export function EvidencePicker({
           aria-describedby={hintId}
           value={query}
           onChange={(event) => onQuery(event.target.value)}
+          onKeyDown={(event) => {
+            // Enter in the search box searches; it must never send the form.
+            if (event.key === 'Enter') event.preventDefault();
+          }}
         />
         <small className="muted" id={hintId}>
           Choose as many as you need, then send them together.
@@ -203,6 +207,11 @@ export function EvidencePicker({
                   <button type="button" className="btn btn-secondary" onClick={onAskAllMissing}>
                     {`Ask for All Missing (${missingIds.length})`}
                   </button>
+                ) : null}
+                {missingIds.length > MAX_ASK_ITEMS ? (
+                  <p className="muted u-fs-085">
+                    {`Only the first ${MAX_ASK_ITEMS} are ticked. Send these, then ask for the rest.`}
+                  </p>
                 ) : null}
                 <ul className="ask-list">{missing.rows.map(missingRow)}</ul>
                 {missing.anyOf.map((members, index) => (

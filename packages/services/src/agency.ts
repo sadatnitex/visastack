@@ -66,8 +66,8 @@ import {
   toPage,
 } from './paging';
 import { recordProductEvent } from './product-events';
-import { RATE_LIMITS, checkRateLimit, checkRateLimits } from './rate-limit';
-import { assignReferenceCode } from './reference-codes';
+import { RATE_LIMITS, checkRateLimit, checkRateLimits, refundRateLimit } from './rate-limit';
+import { assignReferenceCodes } from './reference-codes';
 import { loadGrantsForPolicy, toPolicyGrant } from './sharing';
 
 /**
@@ -1710,25 +1710,16 @@ export async function requestEvidence(
     readonly dueDate?: Date;
   },
 ): Promise<Result<EvidenceRequest, ServiceError>> {
-  if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
-    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can request evidence'));
-  }
+  const notAdmin = await evidenceAdminProblem(db, input);
+  if (notAdmin) return err(notAdmin);
   if (input.kind === 'FIELD' && !input.fieldKey) {
     return err(serviceError('invalid', 'a FIELD request needs a fieldKey'));
   }
   if (input.kind === 'DOCUMENT' && !input.docType) {
     return err(serviceError('invalid', 'a DOCUMENT request needs a docType'));
   }
-  if (input.message !== undefined && input.message.length > 1000) {
-    return err(serviceError('invalid', 'message may be at most 1000 characters'));
-  }
-  if (
-    !(await orgGrantPermits(db, input.organizationId, input.applicantId, 'MANAGE', input.missionId))
-  ) {
-    return err(
-      serviceError('forbidden', 'this organization has no current grant for that applicant'),
-    );
-  }
+  const refused = await evidenceAccessProblem(db, input);
+  if (refused) return err(refused);
   if (input.packRequirementId) {
     if (!input.missionId) {
       return err(serviceError('invalid', 'a requirement-linked request must name its case'));
@@ -1770,84 +1761,153 @@ export async function requestEvidence(
   if (!rateLimit.allowed) return err(serviceError('rate_limited', rateLimit.reason));
 
   return db.transaction(async (tx) => {
-    const request = await insertEvidenceRequestRow(tx, {
+    const send = {
       actorAccountId: input.actorAccountId,
       organizationId: input.organizationId,
       applicantId: input.applicantId,
-      kind: input.kind,
-      ...(input.fieldKey !== undefined ? { fieldKey: input.fieldKey } : {}),
-      ...(input.docType !== undefined ? { docType: input.docType } : {}),
       ...(input.message !== undefined ? { message: input.message } : {}),
       ...(input.missionId !== undefined ? { missionId: input.missionId } : {}),
-      ...(input.packRequirementId !== undefined
-        ? { packRequirementId: input.packRequirementId }
-        : {}),
       ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
-    });
+    };
+    const [request] = await insertEvidenceRequestRows(tx, send, [
+      {
+        kind: input.kind,
+        ...(input.fieldKey !== undefined ? { fieldKey: input.fieldKey } : {}),
+        ...(input.docType !== undefined ? { docType: input.docType } : {}),
+        ...(input.packRequirementId !== undefined
+          ? { packRequirementId: input.packRequirementId }
+          : {}),
+      },
+    ]);
+    const only = required(request, 'evidence request');
+    await auditEvidenceRequested(tx, send, [only]);
     await enqueueEvidenceRequestNotice(tx, {
       organizationId: input.organizationId,
       applicantId: input.applicantId,
-      resourceId: request.id,
+      resourceId: only.id,
       count: 1,
       ...(input.missionId !== undefined ? { missionId: input.missionId } : {}),
     });
-    return ok(request);
+    return ok(only);
   });
 }
 
-/** One evidence request row with everything that must commit with it: its code, audit entry and count. */
-async function insertEvidenceRequestRow(
-  tx: Db,
+/**
+ * The two checks every way of asking evidence shares, in one place so the single request and the
+ * batch cannot drift apart: only an organization OWNER/ADMIN may ask, and the organization needs a
+ * current grant that permits MANAGE for the traveller (and the case, when one is named).
+ */
+async function evidenceAdminProblem(
+  db: Db,
+  input: { readonly actorAccountId: string; readonly organizationId: string },
+): Promise<ServiceError | null> {
+  return (await isOrgAdmin(db, input.actorAccountId, input.organizationId))
+    ? null
+    : serviceError('forbidden', 'only an org OWNER/ADMIN can request evidence');
+}
+
+async function evidenceAccessProblem(
+  db: Db,
   input: {
-    readonly actorAccountId: string;
     readonly organizationId: string;
     readonly applicantId: string;
-    readonly kind: 'FIELD' | 'DOCUMENT';
-    readonly fieldKey?: string;
-    readonly docType?: string;
-    readonly message?: string;
-    readonly missionId?: string;
-    readonly packRequirementId?: string;
-    readonly dueDate?: Date;
+    readonly missionId?: string | undefined;
+    readonly message?: string | undefined;
   },
-): Promise<EvidenceRequest> {
-  const request = required(
-    first(
-      await tx
-        .insert(schema.evidenceRequests)
-        .values({
-          organizationId: input.organizationId,
-          applicantId: input.applicantId,
-          missionId: input.missionId ?? null,
-          packRequirementId: input.packRequirementId ?? null,
-          requestedByAccountId: input.actorAccountId,
-          kind: input.kind,
-          fieldKey: input.fieldKey ?? null,
-          docType: input.docType ?? null,
-          message: input.message ?? null,
-          dueDate: input.dueDate ?? null,
-        })
-        .returning(),
-    ),
-    'evidence request',
+): Promise<ServiceError | null> {
+  if (input.message !== undefined && input.message.length > 1000) {
+    return serviceError('invalid', 'message may be at most 1000 characters');
+  }
+  return (await orgGrantPermits(
+    db,
+    input.organizationId,
+    input.applicantId,
+    'MANAGE',
+    input.missionId,
+  ))
+    ? null
+    : serviceError('forbidden', 'this organization has no current grant for that applicant');
+}
+
+/** What one evidence request row is made of (the parts that differ between rows of one send). */
+interface EvidenceRequestRowInput {
+  readonly kind: 'FIELD' | 'DOCUMENT';
+  readonly fieldKey?: string;
+  readonly docType?: string;
+  readonly packRequirementId?: string;
+}
+
+/** What is the same for every row of one send. */
+interface EvidenceRequestSendInput {
+  readonly actorAccountId: string;
+  readonly organizationId: string;
+  readonly applicantId: string;
+  readonly message?: string;
+  readonly missionId?: string;
+  readonly dueDate?: Date;
+}
+
+/**
+ * The request rows of one send, their reference codes (ADR 0018) and product-event counts, in the
+ * caller's transaction: one multi-row insert and one set-based code assignment, so a send of 25
+ * costs the same few statements as a send of one. The audit entries come afterwards from
+ * `auditEvidenceRequested`, kept apart so the audit chain's lock is held for as short a time as
+ * possible.
+ */
+async function insertEvidenceRequestRows(
+  tx: Db,
+  send: EvidenceRequestSendInput,
+  rows: readonly EvidenceRequestRowInput[],
+): Promise<EvidenceRequest[]> {
+  const created = await tx
+    .insert(schema.evidenceRequests)
+    .values(
+      rows.map((row) => ({
+        organizationId: send.organizationId,
+        applicantId: send.applicantId,
+        missionId: send.missionId ?? null,
+        packRequirementId: row.packRequirementId ?? null,
+        requestedByAccountId: send.actorAccountId,
+        kind: row.kind,
+        fieldKey: row.fieldKey ?? null,
+        docType: row.docType ?? null,
+        message: send.message ?? null,
+        dueDate: send.dueDate ?? null,
+      })),
+    )
+    .returning();
+  await assignReferenceCodes(
+    tx,
+    'R',
+    created.map((request) => request.id),
   );
-  // The visible code people quote (ADR 0018), in the same transaction.
-  await assignReferenceCode(tx, 'R', request.id);
-  await appendAuditEvent(tx, {
-    eventType: 'EVIDENCE_REQUESTED',
-    actorAccountId: input.actorAccountId,
-    method: 'MANUAL',
-    result: 'ALLOWED',
-    applicantId: input.applicantId,
-    resourceType: 'evidence_request',
-    resourceId: request.id,
-  });
-  await recordProductEvent(tx, {
-    eventType: 'EVIDENCE_REQUESTED',
-    accountId: input.actorAccountId,
-    organizationId: input.organizationId,
-  });
-  return request;
+  for (const _request of created) {
+    await recordProductEvent(tx, {
+      eventType: 'EVIDENCE_REQUESTED',
+      accountId: send.actorAccountId,
+      organizationId: send.organizationId,
+    });
+  }
+  return created;
+}
+
+/** One audit entry per request, written last in the transaction. */
+async function auditEvidenceRequested(
+  tx: Db,
+  send: Pick<EvidenceRequestSendInput, 'actorAccountId' | 'applicantId'>,
+  requests: readonly EvidenceRequest[],
+): Promise<void> {
+  for (const request of requests) {
+    await appendAuditEvent(tx, {
+      eventType: 'EVIDENCE_REQUESTED',
+      actorAccountId: send.actorAccountId,
+      method: 'MANUAL',
+      result: 'ALLOWED',
+      applicantId: send.applicantId,
+      resourceType: 'evidence_request',
+      resourceId: request.id,
+    });
+  }
 }
 
 /**
@@ -1942,9 +2002,8 @@ export async function requestEvidenceBatch(
     readonly dueDate?: Date;
   },
 ): Promise<Result<EvidenceRequest[], ServiceError>> {
-  if (!(await isOrgAdmin(db, input.actorAccountId, input.organizationId))) {
-    return err(serviceError('forbidden', 'only an org OWNER/ADMIN can request evidence'));
-  }
+  const notAdmin = await evidenceAdminProblem(db, input);
+  if (notAdmin) return err(notAdmin);
   const seen = new Set<string>();
   const items: EvidenceRequestItem[] = [];
   for (const item of input.items) {
@@ -1962,16 +2021,8 @@ export async function requestEvidenceBatch(
       ),
     );
   }
-  if (input.message !== undefined && input.message.length > 1000) {
-    return err(serviceError('invalid', 'message may be at most 1000 characters'));
-  }
-  if (
-    !(await orgGrantPermits(db, input.organizationId, input.applicantId, 'MANAGE', input.missionId))
-  ) {
-    return err(
-      serviceError('forbidden', 'this organization has no current grant for that applicant'),
-    );
-  }
+  const refused = await evidenceAccessProblem(db, input);
+  if (refused) return err(refused);
   for (const item of items) {
     const known =
       item.kind === 'FIELD'
@@ -1984,29 +2035,43 @@ export async function requestEvidenceBatch(
     }
   }
 
-  const rateLimit = await checkRateLimit(
-    db,
-    { subjectId: input.actorAccountId, action: 'evidence.request', cost: items.length },
-    RATE_LIMITS.EVIDENCE_REQUEST,
-  );
-  if (!rateLimit.allowed) return err(serviceError('rate_limited', rateLimit.reason));
+  const batchLimitInput = {
+    subjectId: input.actorAccountId,
+    action: 'evidence.request',
+    cost: items.length,
+  };
+  const rateLimit = await checkRateLimit(db, batchLimitInput, RATE_LIMITS.EVIDENCE_REQUEST);
+  if (!rateLimit.allowed) {
+    // A send too big for what is left must not lock out the smaller ones that still fit: the
+    // charge goes back, so only what was actually sent counts against the hour.
+    await refundRateLimit(
+      db,
+      batchLimitInput,
+      RATE_LIMITS.EVIDENCE_REQUEST,
+      new Date(),
+      items.length,
+    );
+    return err(serviceError('rate_limited', rateLimit.reason));
+  }
 
   return db.transaction(async (tx) => {
-    const created: EvidenceRequest[] = [];
-    for (const item of items) {
-      created.push(
-        await insertEvidenceRequestRow(tx, {
-          actorAccountId: input.actorAccountId,
-          organizationId: input.organizationId,
-          applicantId: input.applicantId,
-          kind: item.kind,
-          ...(item.kind === 'FIELD' ? { fieldKey: item.key } : { docType: item.key }),
-          ...(input.message !== undefined ? { message: input.message } : {}),
-          ...(input.missionId !== undefined ? { missionId: input.missionId } : {}),
-          ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
-        }),
-      );
-    }
+    const send = {
+      actorAccountId: input.actorAccountId,
+      organizationId: input.organizationId,
+      applicantId: input.applicantId,
+      ...(input.message !== undefined ? { message: input.message } : {}),
+      ...(input.missionId !== undefined ? { missionId: input.missionId } : {}),
+      ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
+    };
+    const created = await insertEvidenceRequestRows(
+      tx,
+      send,
+      items.map((item) => ({
+        kind: item.kind,
+        ...(item.kind === 'FIELD' ? { fieldKey: item.key } : { docType: item.key }),
+      })),
+    );
+    await auditEvidenceRequested(tx, send, created);
     const head = created[0];
     if (head) {
       await enqueueEvidenceRequestNotice(tx, {
