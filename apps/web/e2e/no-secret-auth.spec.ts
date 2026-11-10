@@ -110,7 +110,14 @@ test.describe('unauthenticated access is denied, never leaked', () => {
       const locationHeader = 'location';
       const location = new URL(response.headers()[locationHeader] ?? '', baseURL);
       expect(location.origin).toBe(new URL(baseURL).origin);
-      expect(`${location.pathname}${location.search}`).toBe(expected);
+      // Neon Auth's check may copy extra parameters from the link (such as `error`) onto the
+      // redirect; what matters is the page, the fixed code and the validated destination.
+      const [expectedPath = '', expectedQuery = ''] = expected.split('?');
+      expect(location.pathname).toBe(expectedPath);
+      for (const [name, value] of new URLSearchParams(expectedQuery)) {
+        expect(location.searchParams.get(name)).toBe(value);
+      }
+      if (expectedPath === '/auth/verify-email') expect(location.searchParams.get('n')).toBeNull();
     }
   });
 
