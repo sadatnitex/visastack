@@ -7,12 +7,11 @@ import {
   requireAccess,
 } from '@visastack/services';
 import { after } from 'next/server';
+import { createKeyManagementPort, createMalwareScanner } from '../../../../lib/providers';
 import {
   createContentLimitsChecker,
   createDocumentConverter,
-  createKeyManagementPort,
-  createMalwareScanner,
-} from '../../../../lib/providers';
+} from '../../../../lib/providers-media';
 import { isRecordId } from '../../../../lib/record-id';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';

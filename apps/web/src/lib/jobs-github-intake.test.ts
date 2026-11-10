@@ -6,9 +6,11 @@ vi.mock('@visastack/db', async (load) => ({
   createPooledDb: mocks.pooled,
 }));
 vi.mock('./github-intake', () => ({ dispatchGithubIntake: mocks.dispatch }));
-vi.mock('./providers', () => ({
+vi.mock('./providers-media', () => ({
   createContentLimitsChecker: vi.fn(),
   createDocumentConverter: vi.fn(),
+}));
+vi.mock('./providers', () => ({
   createEmailPort: vi.fn(),
   createKeyManagementPort: vi.fn(),
   createMalwareScanner: vi.fn(),
@@ -22,9 +24,9 @@ afterEach(() => {
 // Loading the jobs module pulls in the whole service graph. Do it once, outside any test's 5 s
 // limit: under full-suite load a cold load can exceed it, and the timed-out run then leaks into
 // the next test.
-let triggerIntakeWorker: typeof import('./jobs').triggerIntakeWorker;
+let triggerIntakeWorker: typeof import('./jobs-reading').triggerIntakeWorker;
 beforeAll(async () => {
-  ({ triggerIntakeWorker } = await import('./jobs'));
+  ({ triggerIntakeWorker } = await import('./jobs-reading'));
 }, 60_000);
 
 it('dispatches without opening a DB connection or consuming a job attempt', async () => {

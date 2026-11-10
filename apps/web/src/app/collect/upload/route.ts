@@ -1,6 +1,7 @@
 import { addGuestFile, isUploadId, loadUploadQuotaConfig } from '@visastack/services';
 import { cookies } from 'next/headers';
-import { createContentLimitsChecker, createMalwareScanner } from '../../../lib/providers';
+import { createMalwareScanner } from '../../../lib/providers';
+import { createContentLimitsChecker } from '../../../lib/providers-media';
 import { withPublicDb } from '../../../lib/public-db';
 import { reportServerError } from '../../../lib/server-error';
 import { createStorage } from '../../../lib/storage';

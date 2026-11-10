@@ -21,6 +21,8 @@ vi.mock('next/server', () => ({ after: (fn: () => unknown) => void fn }));
 vi.mock('../../../../lib/jobs', () => ({ triggerIntakeWorker: vi.fn() }));
 vi.mock('../../../../lib/providers', () => ({
   createKeyManagementPort: () => undefined,
+}));
+vi.mock('../../../../lib/providers-media', () => ({
   createPreviewRenderer: () => undefined,
 }));
 vi.mock('../../../../lib/storage', () => ({ createStorage: () => ({}) }));

@@ -1,6 +1,6 @@
 import 'server-only';
 import { systemPrincipal } from '@visastack/services';
-import { triggerAiReadingWorker, triggerIntakeWorker } from '../../../../lib/jobs';
+import { triggerAiReadingWorker, triggerIntakeWorker } from '../../../../lib/jobs-reading';
 
 /**
  * The only place outside the job route that makes the `process-ai-reading` scope (the access

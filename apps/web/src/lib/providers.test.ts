@@ -253,7 +253,8 @@ describe('createIdentityPort', () => {
 
 describe('createMalwareScanner / createDocumentConverter', () => {
   it('construct the built-in structural adapters by default', async () => {
-    const { createMalwareScanner, createDocumentConverter } = await import('./providers');
+    const { createMalwareScanner } = await import('./providers');
+    const { createDocumentConverter } = await import('./providers-media');
     expect(createMalwareScanner({} as never)).toBeInstanceOf(BasicSafetyScanner);
     expect(createDocumentConverter({} as never)).toBeInstanceOf(DeterministicTextExtractor);
   });
@@ -284,7 +285,8 @@ describe('createMalwareScanner / createDocumentConverter', () => {
   it('reject an unrecognized MALWARE_SCANNER_PROVIDER / DOCUMENT_CONVERTER_PROVIDER', async () => {
     setEnv('MALWARE_SCANNER_PROVIDER', 'windows-defender');
     setEnv('DOCUMENT_CONVERTER_PROVIDER', 'libreoffice');
-    const { createMalwareScanner, createDocumentConverter } = await import('./providers');
+    const { createMalwareScanner } = await import('./providers');
+    const { createDocumentConverter } = await import('./providers-media');
     expect(() => createMalwareScanner({} as never)).toThrow(/MALWARE_SCANNER_PROVIDER/);
     expect(() => createDocumentConverter({} as never)).toThrow(/DOCUMENT_CONVERTER_PROVIDER/);
   });

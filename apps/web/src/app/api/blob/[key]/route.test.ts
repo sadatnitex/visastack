@@ -15,7 +15,7 @@ vi.mock('@visastack/services', () => ({
   verifyDocumentAccessToken: () => true,
   recheckDocumentAccess: recheck,
 }));
-vi.mock('../../../../lib/providers', () => ({ createPreviewRenderer: () => ({ render }) }));
+vi.mock('../../../../lib/providers-media', () => ({ createPreviewRenderer: () => ({ render }) }));
 vi.mock('../../../../lib/storage', () => ({ createStorage: () => ({ getObject }) }));
 vi.mock('../../../../lib/server-error', () => ({ reportRenderFailure: vi.fn() }));
 

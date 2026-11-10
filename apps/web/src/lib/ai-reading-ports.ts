@@ -2,7 +2,8 @@ import 'server-only';
 import { type AiReadingPorts, type Db, renderOcrSourceImage } from '@visastack/services';
 import { resolveAiClassifier, resolveAiExtractor, resolveOcrAdapter } from './ai';
 import { ensureDocumentFieldsRegistered } from './field-registry';
-import { createKeyManagementPort, createPreviewRenderer, createStorage } from './providers';
+import { createKeyManagementPort, createStorage } from './providers';
+import { createPreviewRenderer } from './providers-media';
 
 /**
  * What the automatic reading job needs from this app (S5, ADR 0019): which AI provider and key are

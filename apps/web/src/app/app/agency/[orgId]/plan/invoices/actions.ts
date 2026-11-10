@@ -17,11 +17,8 @@ import { redirect } from 'next/navigation';
 import { bootstrapAdminEmails } from '../../../../../../lib/admin-emails';
 import { resolveBaseUrl } from '../../../../../../lib/base-url';
 import { paymentUrlFor } from '../../../../../../lib/payment-urls';
-import {
-  createImageSanitizer,
-  createMalwareScanner,
-  paymentPorts,
-} from '../../../../../../lib/providers';
+import { createMalwareScanner, paymentPorts } from '../../../../../../lib/providers';
+import { createImageSanitizer } from '../../../../../../lib/providers-media';
 import { reportServerError } from '../../../../../../lib/server-error';
 import { withSession } from '../../../../../../lib/session';
 import { createStorage } from '../../../../../../lib/storage';

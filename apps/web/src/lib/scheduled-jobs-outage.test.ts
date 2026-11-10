@@ -3,8 +3,8 @@ import { GET as intake } from '../app/api/jobs/process-intake/route';
 import { GET as sweeps } from '../app/api/jobs/process-notification-sweeps/route';
 
 const mocks = vi.hoisted(() => ({ intake: vi.fn(), sweeps: vi.fn() }));
+vi.mock('./jobs-reading', () => ({ triggerIntakeWorker: mocks.intake }));
 vi.mock('./jobs', () => ({
-  triggerIntakeWorker: mocks.intake,
   triggerNotificationSweeps: mocks.sweeps,
   triggerPackageChangeSweep: vi.fn(),
   triggerRuleImpactSweep: vi.fn(),

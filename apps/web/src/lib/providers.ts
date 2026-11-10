@@ -2,38 +2,28 @@ import 'server-only';
 import {
   AwsKmsKeyProvider,
   BasicSafetyScanner,
-  BuiltinContentLimitsChecker,
-  BuiltinPreviewRenderer,
   ClamAvScanner,
   ConsoleObservabilityPort,
-  DeterministicTextExtractor,
   LocalEnvelopeKeyProvider,
   NullEmailPort,
   type PaymentProviderFailure,
   ResendEmailPort,
-  SharpImageSanitizer,
 } from '@visastack/adapters';
-import {
-  type BlobStore,
-  type ContentLimitsPort,
-  type DocumentConverterPort,
-  type EmailPort,
-  type IdentityPort,
-  type ImageSanitizerPort,
-  type KeyManagementPort,
-  type MalwareScannerPort,
-  type ObservabilityPort,
-  type PaymentPort,
-  type PaymentPortResolver,
-  type PreviewRendererPort,
-  loadUploadQuotaConfig,
+import type {
+  BlobStore,
+  EmailPort,
+  IdentityPort,
+  KeyManagementPort,
+  MalwareScannerPort,
+  ObservabilityPort,
+  PaymentPort,
+  PaymentPortResolver,
 } from '@visastack/services';
 import { isClamAvConfigured, pdfUploadsSwitchedOff } from './env';
 import { NeonIdentityPort } from './identity-provider';
 import {
   type IncompletePaymentProvider,
   type OverallPaymentMode,
-  PAYMENT_PROVIDER_KEYS,
   type PaymentProviderKey,
   buildPaymentPorts,
   configuredPaymentProviders,
@@ -44,6 +34,12 @@ import {
   paymentProvidersSettingProblem,
 } from './payment-providers';
 import { paymentResultSigningProblem } from './payment-result';
+import {
+  KNOWN_PROVIDERS,
+  type KnownProviderVar,
+  checkKnownProvider,
+  readEnv,
+} from './provider-env';
 
 /**
  * The central provider registry (master directive §7 "PR 11"): the one place
@@ -67,65 +63,6 @@ import { paymentResultSigningProblem } from './payment-result';
  * satisfy `JobQueuePort`'s shape by construction (see `ports.ts`'s doc
  * comment) rather than by being built from a registry entry.
  */
-
-function readEnv(name: string): string | undefined {
-  return process.env[name];
-}
-
-const KNOWN_PROVIDERS = {
-  IDENTITY_PROVIDER: ['neon_auth'],
-  STORAGE_PROVIDER: ['vercel_blob', 'neon', 'r2'],
-  DATABASE_PROVIDER: ['neon'],
-  MALWARE_SCANNER_PROVIDER: ['builtin', 'clamav', 'github_clamav'],
-  DOCUMENT_CONVERTER_PROVIDER: ['builtin'],
-  PREVIEW_RENDERER_PROVIDER: ['builtin'],
-  CONTENT_LIMITS_PROVIDER: ['builtin'],
-  AI_PROVIDER: ['openai'],
-  JOB_PROVIDER: ['neon'],
-  EMAIL_PROVIDER: ['none', 'resend'],
-  OBSERVABILITY_PROVIDER: ['console'],
-  // S19 step 0: every provider in the payment provider registry (today: sslcommerz).
-  PAYMENT_PROVIDER: ['none', ...PAYMENT_PROVIDER_KEYS],
-  KMS_PROVIDER: ['local', 'aws_kms'],
-} as const satisfies Record<string, readonly string[]>;
-
-type KnownProviderVar = keyof typeof KNOWN_PROVIDERS;
-
-/**
- * Fails closed when `envVar` is SET to a value this deployment doesn't
- * implement. Leaving the var unset is never an error here (most
- * environments — dev, test, PR preview, and the pilot itself — legitimately
- * leave it unset and get the pilot default below); this only catches a
- * recognized-but-wrong value, e.g. a typo or a provider planned but not yet
- * built.
- *
- * A blank string is treated the same as unset (Codex review, PR-E1): every
- * optional `*_PROVIDER` line in `.env.example` is declared present but empty
- * (`IDENTITY_PROVIDER=`, etc.), so the standard `cp .env.example .env.local`
- * workflow sets each one to `''`, not `undefined`, in `process.env`. Before
- * `validateProviderEnv()` gained a real caller (finding #36) that distinction
- * was inert; wiring it into the readiness route made it live — without this,
- * every freshly-copied local environment reports readiness `degraded` on the
- * very first optional provider var, even with DB and WorkOS both genuinely
- * configured.
- *
- * The thrown message never echoes the offending value itself (Codex review,
- * PR-E1, round 2): `/api/health/ready` copies this message into its
- * (verbose-only, but still unauthenticated) response body, and `*_PROVIDER`
- * vars hold free-form operator input — nothing stops an accidentally pasted
- * credential or internal identifier from landing there. Naming the var and
- * the supported values is enough to act on; both are static, never secret.
- */
-function checkKnownProvider(envVar: KnownProviderVar): void {
-  const value = readEnv(envVar);
-  if (value === undefined || value === '') return;
-  const supported = KNOWN_PROVIDERS[envVar];
-  if (!(supported as readonly string[]).includes(value)) {
-    throw new Error(
-      `unsupported ${envVar} value — this deployment implements: ${supported.join(', ')}`,
-    );
-  }
-}
 
 /**
  * Validates every `*_PROVIDER` var this deployment recognizes. Intended as a
@@ -170,7 +107,7 @@ export function createIdentityPort(): IdentityPort {
  * not by this port: intake dispatches to it. The few small uploads that are
  * checked here synchronously (agency logos, photo proofs of payment, profile
  * photos) get the structural checker, so each is also re-encoded server side
- * (`createImageSanitizer` below, and the profile photo re-encoder) and only
+ * (`createImageSanitizer` in `./providers-media`, and the profile photo re-encoder) and only
  * image data is ever stored; a PDF proof is refused by the structural checker.
  */
 export function createMalwareScanner(
@@ -211,54 +148,6 @@ export function createMalwareScanner(
   return new BasicSafetyScanner({
     blobStore,
     allowPdf: options.allowPdf === true && !pdfUploadsSwitchedOff(),
-  });
-}
-
-/**
- * Server-side re-encoding for agency logos and photo proofs of payment (S27): a brand-new JPEG or
- * PNG written from the decoded pixels, so nothing from the upload but image data is stored.
- */
-export function createImageSanitizer(): ImageSanitizerPort {
-  return new SharpImageSanitizer();
-}
-
-/** The deterministic, bounded document-to-text converter — the only `DocumentConverterPort` implementation today. */
-export function createDocumentConverter(blobStore: BlobStore): DocumentConverterPort {
-  checkKnownProvider('DOCUMENT_CONVERTER_PROVIDER');
-  return new DeterministicTextExtractor({ blobStore });
-}
-
-/**
- * The safe preview renderer (EVI-02/EVI-06), the only `PreviewRendererPort`
- * implementation today, matching `createDocumentConverter`'s "builtin,
- * always active" shape: no external account, no configuration branch.
- * Shares `maxPdfPages` with `createContentLimitsChecker` below (same
- * `loadUploadQuotaConfig()` source) so a render at serve time re-checks the
- * same page-count limit intake already enforced, using the same number an
- * operator override would change for both, never a second independently
- * drifting constant.
- */
-export function createPreviewRenderer(): PreviewRendererPort {
-  checkKnownProvider('PREVIEW_RENDERER_PROVIDER');
-  const { maxPdfPages } = loadUploadQuotaConfig();
-  return new BuiltinPreviewRenderer({ maxPdfPages });
-}
-
-/**
- * The content-limits checker (EVI-01's "50 PDF pages, 40 megapixels per
- * image"), the only `ContentLimitsPort` implementation today, same
- * "builtin, always active" shape as `createPreviewRenderer`. Reads its
- * limits from the same `loadUploadQuotaConfig()` the upload-size checks
- * use, so an operator overriding `QUOTA_MAX_PDF_PAGES`/
- * `QUOTA_MAX_IMAGE_MEGAPIXELS` changes both what `quotas.ts` reports and
- * what this checker enforces from the one place.
- */
-export function createContentLimitsChecker(blobStore: BlobStore): ContentLimitsPort {
-  checkKnownProvider('CONTENT_LIMITS_PROVIDER');
-  const { maxPdfPages, maxImageMegapixels } = loadUploadQuotaConfig();
-  return new BuiltinContentLimitsChecker({
-    blobStore,
-    config: { maxPdfPages, maxImageMegapixels },
   });
 }
 
