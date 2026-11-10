@@ -605,6 +605,7 @@ export {
   type SelectedEvidence,
   type UpdateAppointmentInput,
   type UpdateTaskInput,
+  CASE_FINISHED_NO_CHANGE,
   attachPackVersion,
   classifyPrepareAgainRequirement,
   computeReadiness,
@@ -641,6 +642,8 @@ export {
   updateMissionCaseDetails,
   updateTask,
 } from './missions';
+export { NO_SAVED_COPY } from './finished-case-readiness';
+export { isInactiveCaseState } from './umpe-package-tables';
 
 export {
   ACKNOWLEDGEMENT_TEXT_VERSION,

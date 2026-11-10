@@ -742,6 +742,7 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
         headerActions: {
           addEvidenceHref: '#evidence',
           newCaseHref: '/app/applicant/synthetic-family/missions/prepare-again?from=synthetic-case',
+          snapshot: true,
         },
       },
     ]);
@@ -759,6 +760,26 @@ describe('owner list items 1, 3 and 10 on the case page', () => {
     expect(stubProps(html, 'CaseMoreMenu')[0]).toMatchObject({ canCancel: false, canDelete: true });
     expect(textOf(html)).toContain('This case is in a terminal state.');
     expect(html).not.toContain('data-stub="TransitionButtons"');
+  });
+
+  it('offers no control that would change a finished case, and says why once', async () => {
+    setUp();
+    mocks.getMissionForOwner.mockResolvedValue(ok({ ...MISSION, state: 'SUBMITTED' }));
+    const html = await render();
+    for (const control of ['SnapshotButton', 'CaseDetailsForm', 'AttachPackForm']) {
+      expect(html, control).not.toContain(`data-stub="${control}"`);
+    }
+    const line = 'This case is finished, so it can no longer change.';
+    expect(stubProps(html, 'LettersPanel')[0]).toMatchObject({ finishedLine: line });
+    expect(stubProps(html, 'CaseMoreMenu')[0]).toMatchObject({
+      headerActions: { snapshot: false },
+    });
+    expect(textOf(html)).toContain(line);
+    // An open case shows none of this.
+    setUp();
+    const open = await render();
+    expect(textOf(open)).not.toContain(line);
+    expect(stubProps(open, 'LettersPanel')[0]).not.toHaveProperty('finishedLine');
   });
 
   it('names the reuse and history links by what they give', async () => {
