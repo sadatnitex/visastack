@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   GhError,
   createGh,
+  flagValue,
   formatClaim,
   globToRegExp,
   mapLimit,
@@ -11,6 +12,7 @@ import {
   padMigration,
   parseClaim,
   patternsOverlap,
+  splitList,
   topicMatches,
   topicWords,
 } from './lib.mjs';
@@ -44,6 +46,11 @@ test('claims survive a round trip and ignore PRs without one', () => {
   assert.deepEqual(parseClaim(body), claim);
   assert.equal(parseClaim('## Summary\nnothing here'), null);
   assert.equal(parseClaim(null), null);
+  assert.deepEqual(parseClaim('Steward-claim:\n- paths: a/b c/d.ts, e/**').paths, [
+    'a/b',
+    'c/d.ts',
+    'e/**',
+  ]);
   assert.deepEqual(parseClaim(formatClaim({ paths: ['a'] })), {
     paths: ['a'],
     migration: null,
@@ -102,4 +109,12 @@ test('gh wrapper pages until a short page and flags a proxy refusal', async () =
     denied.get('repos/x/y/actions/caches'),
     (e) => e instanceof GhError && e.denied,
   );
+});
+
+test('splitList and flagValue read plain command line lists', () => {
+  assert.deepEqual(splitList(' a, b ,,c '), ['a', 'b', 'c']);
+  assert.deepEqual(splitList(undefined), []);
+  assert.equal(flagValue(['--x', 'one', '--y'], '--x'), 'one');
+  assert.equal(flagValue(['--y'], '--x'), null);
+  assert.equal(flagValue(['--x'], '--x'), '');
 });

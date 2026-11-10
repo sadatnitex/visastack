@@ -99,6 +99,29 @@ export async function mapLimit(items, limit, fn) {
   return results;
 }
 
+/** "a, b,,c" becomes ['a', 'b', 'c']. */
+export const splitList = (text) =>
+  (text ?? '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+/** The value after `--name` in argv, '' if the flag has none, null if the flag is absent. */
+export function flagValue(argv, name) {
+  const at = argv.indexOf(name);
+  return at < 0 ? null : (argv[at + 1] ?? '');
+}
+
+/** The checked-out branch, or '' when detached or git is unavailable. */
+export async function currentBranchName() {
+  try {
+    const { stdout } = await execFileAsync('git', ['branch', '--show-current']);
+    return stdout.trim();
+  } catch {
+    return '';
+  }
+}
+
 /** Plain stdout line; the kit prints reports, not debug output. */
 export const say = (text) => process.stdout.write(`${text}\n`);
 
@@ -169,10 +192,8 @@ export function parseClaim(body = '') {
     if (!match) break;
     const [, key, value] = match;
     if (key === 'paths') {
-      claim.paths = value
-        .split(',')
-        .map((part) => part.trim())
-        .filter(Boolean);
+      // Sessions also write the paths separated by spaces, so both separators are accepted.
+      claim.paths = value.split(/[,\s]+/).filter(Boolean);
     } else if (key === 'migration') {
       claim.migration = value.trim() || null;
     } else {
