@@ -10,6 +10,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { DestinationLabel } from '../../../components/destination-label';
 import { agencyBrand } from '../../../lib/agency-brand';
 import { formatTimestampDate } from '../../../lib/format-date';
 import { createKeyManagementPort } from '../../../lib/providers';
@@ -186,8 +187,7 @@ function RequestHeading({ heading }: { readonly heading: Heading }) {
         logoUrl: null,
       })
     : null;
-  const facts = [
-    `For ${destinationName(heading.destination)}`,
+  const more = [
     ...(heading.purpose ? [heading.purpose] : []),
     ...(heading.dueAt ? [`Due ${formatTimestampDate(heading.dueAt)}`] : []),
   ].join(' · ');
@@ -201,7 +201,10 @@ function RequestHeading({ heading }: { readonly heading: Heading }) {
       ) : (
         <h1 className="page-title">Answer an Agency Request</h1>
       )}
-      <p className="muted">{facts}</p>
+      <p className="muted">
+        For <DestinationLabel destination={destinationName(heading.destination)} />
+        {more ? ` · ${more}` : ''}
+      </p>
     </header>
   );
 }

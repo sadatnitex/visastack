@@ -24,6 +24,7 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { DestinationLabel } from '../../../../../../components/destination-label';
 import { StatusBadge } from '../../../../../../components/ui';
 import { formatDateOnly, formatTimestampDate } from '../../../../../../lib/format-date';
 import { reportServerError } from '../../../../../../lib/server-error';
@@ -204,7 +205,10 @@ export default async function CollectionRequestPage({
       <Link href={`/app/agency/${orgId}/collection`} className="page-back">
         <span aria-hidden="true">{'←'}</span> Document Requests
       </Link>
-      <h1 className="page-title">Document Request: {destinationName(detail.destination)}</h1>
+      <h1 className="page-title">
+        Document Request:{' '}
+        <DestinationLabel destination={destinationName(detail.destination)} size="md" />
+      </h1>
       <p>
         <StatusBadge tone={STATUS_TONES[detail.status]}>
           {COLLECTION_STATUS_LABELS[detail.status]}

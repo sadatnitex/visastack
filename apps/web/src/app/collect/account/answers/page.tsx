@@ -7,6 +7,7 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { DestinationLabel } from '../../../../components/destination-label';
 import { StatusBadge } from '../../../../components/ui';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { withSession } from '../../../../lib/session';
@@ -114,8 +115,8 @@ export default async function YourAnswersPage({
                       <strong>
                         {answer.agencyName ?? 'An Agency No Longer Active on VisaStack'}
                       </strong>
-                      , for {destinationName(answer.destination)} (Request Version{' '}
-                      {answer.revisionNo})
+                      , for <DestinationLabel destination={destinationName(answer.destination)} />{' '}
+                      (Request Version {answer.revisionNo})
                     </p>
                     <p className="u-fs-085">
                       {answer.withdrawnAt ? (

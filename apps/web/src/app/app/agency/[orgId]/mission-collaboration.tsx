@@ -116,6 +116,8 @@ interface MissionCollaborationProps {
   /** The case's visible code (ADR 0018), when it has one. */
   readonly referenceCode?: string;
   readonly applicantName: string;
+  /** The case's destination as flag and written country, drawn on the server (it is server-only). */
+  readonly destinationLabel?: ReactNode;
   readonly members: readonly MemberOption[];
   readonly assignments: readonly AssignmentView[];
   readonly notes: readonly NoteView[];
@@ -145,6 +147,7 @@ export function MissionCollaboration({
   title,
   referenceCode,
   applicantName,
+  destinationLabel,
   members,
   assignments,
   notes,
@@ -226,6 +229,7 @@ export function MissionCollaboration({
         <span className="row-key case-work-title">{title}</span>
         <span className="muted u-fs-085">{applicantName}</span>
       </div>
+      {destinationLabel ? <p className="muted u-fs-085">{destinationLabel}</p> : null}
       <ReferenceCode code={referenceCode} label="Case Reference" />
       {needsYou ? (
         <p className="muted u-fs-085" data-only="glance">
