@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 /**
  * A short numeric code typed into one box per digit, the way WhatsApp or a bank asks for the code
@@ -40,11 +40,14 @@ export function CodeInput({
   readonly 'aria-describedby'?: string;
 }) {
   const [value, setValue] = useState('');
-  const [drawn, setDrawn] = useState(false);
   const [focused, setFocused] = useState(false);
   const field = useRef<HTMLInputElement>(null);
-  // Boxes are drawn only once the page is running; until then the input shows its own text.
-  useEffect(() => setDrawn(true), []);
+  // Boxes are drawn only once the page is running (false on the server and until it hydrates); until then the input shows its own text.
+  const drawn = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
   // A form reset empties the boxes too (a controlled input would otherwise keep its last code).
   useEffect(() => {
     const form = field.current?.form;

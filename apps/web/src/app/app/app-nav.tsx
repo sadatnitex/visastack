@@ -7,6 +7,7 @@ import { BrandMark } from '../../components/brand-mark';
 import { Icon, type IconName } from '../../components/icons';
 import { LinkPending } from '../../components/link-pending';
 import { ShortcutHint } from '../../components/shortcut-hint';
+import { countLabel } from '../../lib/count-label';
 import { type NavAction, type NavLink, PRIMARY_NAV, isCurrentPath } from '../../lib/navigation';
 
 /** One icon per primary destination, keyed by its path. The words beside it carry the meaning. */
@@ -107,8 +108,7 @@ export function badgeFor(
   count: number | undefined,
 ): { readonly shown: string; readonly spoken: string } | null {
   if (count === undefined || !Number.isFinite(count) || count < 1) return null;
-  const whole = Math.floor(count);
-  return { shown: whole > 9 ? '9+' : String(whole), spoken: whole > 99 ? '99+' : String(whole) };
+  return { shown: countLabel(count, 9), spoken: countLabel(count, 99) };
 }
 
 /**

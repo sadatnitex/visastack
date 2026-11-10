@@ -81,7 +81,6 @@ export function ConfirmEnrolmentForm({ returnTo }: { readonly returnTo: string }
         <CodeInput
           id={codeId}
           name="code"
-          length={6}
           pattern="[0-9 ]*"
           {...fieldProblem(state, 'code', messageId)}
         />

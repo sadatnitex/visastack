@@ -56,7 +56,6 @@ export function VerifyCodeForm() {
         <CodeInput
           id="guest-code"
           name="code"
-          length={6}
           {...fieldProblem(state, 'code', messageId, 'guest-code-hint')}
         />
         <p id="guest-code-hint" className="muted u-fs-085">

@@ -1,6 +1,6 @@
 import type { WorkspaceToolbarState } from '@visastack/services';
 import type { NavLink } from './navigation';
-import { SHARING_AND_REQUESTS } from './workspace-navigation';
+import { HOME, SHARING_AND_REQUESTS } from './workspace-navigation';
 
 /**
  * The counts for the phone bar's tabs (like the red number on a Facebook or Daraz tab), made only
@@ -21,7 +21,7 @@ export function tabBadges(
   const rest = Math.max(0, state.unread - requests);
   const out: Record<string, number> = {};
   for (const link of links) {
-    if (link.label === 'Home' && link.exact && rest > 0) out[link.href] = rest;
+    if (link.label === HOME && link.exact && rest > 0) out[link.href] = rest;
     if (link.label === SHARING_AND_REQUESTS && requests > 0) out[link.href] = requests;
   }
   return out;
