@@ -21,6 +21,10 @@ export default function GlobalError({
 
   return (
     <html lang="en">
+      {/* This page replaces the root layout, so it states the device width itself. */}
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
       <body
         style={{
           fontFamily: 'system-ui, -apple-system, sans-serif',
