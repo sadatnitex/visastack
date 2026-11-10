@@ -1,3 +1,5 @@
+> Historical copy saved on 10 Nov 2026 from the dropped branch `umpe/lane-rules`. Not in force: a production migration still needs the owner's word for that number (CLAUDE.md section 4).
+
 ## Standard lane rules (binding; owner: no reruns, no rework, no conflicts, no wasted tokens)
 - Work ONLY on your branch (named above), created from origin/main at the SHA given. Push it after each green milestone. Never push any other branch, never open or ready a PR, never merge, never run production migrations, never change Vercel, Neon or GitHub settings. The UMPE lead integrates.
 - Read narrowly first: `CLAUDE.md` sections 3, 4, 6, 7; `docs/SESSION-START.md` section 3; `docs/adr/0026-umpe-interface-freeze.md` including its 2 November addendum; the files named in your scope. Grep and read line ranges; never read the append-only evidence log whole. Write a plan of at most 40 lines to `docs/umpe/operations/<UNIT>-PLAN.md`, then build without waiting for anyone.

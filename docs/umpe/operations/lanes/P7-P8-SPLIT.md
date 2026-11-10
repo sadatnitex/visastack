@@ -1,3 +1,5 @@
+> Historical copy saved on 10 Nov 2026 from the dropped branch `umpe/lane-rules`. Not in force: a production migration still needs the owner's word for that number (CLAUDE.md section 4).
+
 # P7 / P8 split (lead, drafted before P6 lands; finalize names from the P6 hand-back)
 
 Common base: main after P6 merge + migrate 0117. Both use P6's request, revision and link services and the `/collect` cookie exchange. Both behind the same `AGENCY_COLLECTION_REQUESTS` switch.

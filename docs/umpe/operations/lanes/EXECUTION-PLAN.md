@@ -1,3 +1,5 @@
+> Historical copy saved on 10 Nov 2026 from the dropped branch `umpe/lane-rules`. Not in force: a production migration still needs the owner's word for that number (CLAUDE.md section 4).
+
 # UMPE execution plan (lead, owner pre-approved everything on 2 Nov 2026 and is away)
 
 ## Owner mandate (verbatim intent)

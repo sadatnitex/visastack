@@ -1,25 +1,27 @@
 name: Steward hygiene
 
-# Removes only what can be proven obsolete: git branches whose work is already on main, old workflow
+# Removes what can be proven obsolete: git branches whose work is already on main, old workflow
 # artifacts, and caches of closed pull requests or caches nobody used for a week. Everything a
-# person might still want is only listed. Runs from the default branch, so it always uses trusted
-# code. A manual run is a dry run unless "apply" is ticked.
+# person might still want is only listed. A branch is also removed when the owner names it in
+# "delete_branches" (still refused if it is protected, has an open pull request, was touched in the
+# last 48 hours, or its tip moved after the owner reviewed it). Runs from the default branch, so it
+# always uses trusted code. Every manual run is a dry run unless "apply" is ticked.
 on:
   schedule:
     - cron: '41 4 * * *'
   workflow_dispatch:
     inputs:
       apply:
-        description: 'Delete what is proven obsolete (leave off for a dry run)'
+        description: 'Delete for real (leave off for a dry run)'
         type: boolean
         default: false
       delete_branches:
-        description: 'Branches the owner asked to drop, comma separated (protected and open-PR branches are always refused)'
+        description: 'Branches the owner chose to drop, comma separated; add @tipsha to pin the reviewed tip'
         type: string
         default: ''
 
 permissions:
-  contents: write # delete proven-obsolete branch refs
+  contents: write # delete branch refs
   actions: write # delete old artifacts and caches
   pull-requests: read
 
@@ -42,15 +44,35 @@ jobs:
           node-version: 22
 
       - name: Sweep
+        if: ${{ !inputs.delete_branches }}
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT: ${{ github.event_name }}
           APPLY_INPUT: ${{ inputs.apply }}
-          DELETE_BRANCHES: ${{ inputs.delete_branches }}
         run: |
           flag=""
           if [ "$EVENT" = "schedule" ] || [ "$APPLY_INPUT" = "true" ]; then flag="--apply"; fi
-          node scripts/steward/hygiene.mjs $flag | tee -a "$GITHUB_STEP_SUMMARY"
-          if [ -n "$DELETE_BRANCHES" ]; then
-            node scripts/steward/hygiene.mjs --delete "$DELETE_BRANCHES" | tee -a "$GITHUB_STEP_SUMMARY"
-          fi
+          set +e
+          node scripts/steward/hygiene.mjs $flag > hygiene.out
+          code=$?
+          { echo '```'; cat hygiene.out; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          cat hygiene.out
+          exit $code
+
+      - name: Drop the branches the owner named
+        if: ${{ inputs.delete_branches }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPLY_INPUT: ${{ inputs.apply }}
+          DELETE_BRANCHES: ${{ inputs.delete_branches }}
+        run: |
+          flag=""
+          if [ "$APPLY_INPUT" = "true" ]; then flag="--apply"; fi
+          set +e
+          node scripts/steward/hygiene.mjs --delete "$DELETE_BRANCHES" $flag > hygiene.out
+          code=$?
+          { echo '```'; cat hygiene.out; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          cat hygiene.out
+          exit $code

@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   classifyBranch,
-  deleteNamed,
-  renderDeleteNamed,
+  dropFailures,
+  parseDrop,
+  renderBranches,
   sweepArtifacts,
   sweepBranches,
   sweepCaches,
@@ -102,11 +103,27 @@ test('parked and recent work is kept; old parked work is flagged, not deleted', 
   );
 });
 
-function fakeGh({ branches, prsByHead = {}, artifacts = [], caches = [], pulls = {} }) {
+function fakeGh({
+  branches,
+  prsByHead = {},
+  artifacts = [],
+  caches = [],
+  pulls = {},
+  openPrs = [],
+  refTips = {},
+  failDelete = [],
+}) {
   const deleted = [];
+  const listed = [];
   return {
     deleted,
+    listed,
     async get(path) {
+      const ref = path.match(/\/git\/ref\/heads\/(.+)$/);
+      if (ref) {
+        const name = decodeURIComponent(ref[1]);
+        return { object: { sha: refTips[name] ?? branches[name].sha } };
+      }
       if (path.includes('/git/trees/'))
         return { tree: [{ type: 'blob', path: 'a.ts', sha: 'blob1' }] };
       if (path.includes('/compare/')) {
@@ -122,6 +139,8 @@ function fakeGh({ branches, prsByHead = {}, artifacts = [], caches = [], pulls =
       throw new Error(`unexpected ${path}`);
     },
     async list(path) {
+      listed.push(path);
+      if (path.endsWith('/pulls?state=open')) return openPrs;
       if (path.endsWith('/branches')) {
         return [
           { name: 'main', commit: { sha: 'm' } },
@@ -133,6 +152,7 @@ function fakeGh({ branches, prsByHead = {}, artifacts = [], caches = [], pulls =
       return [];
     },
     async del(path) {
+      if (failDelete.some((name) => path.endsWith(name))) throw new Error('HTTP 502');
       deleted.push(path);
     },
   };
@@ -229,7 +249,7 @@ test('a level branch is judged by the long window, a renamed file needs the old 
   );
 });
 
-test('a branch that disappears mid-run is skipped, not fatal', async () => {
+test('a branch that cannot be checked is kept, not skipped and not deleted', async () => {
   const branches = { 'claude/gone': { sha: SHA, compare: null } };
   const gh = fakeGh({ branches });
   const original = gh.get.bind(gh);
@@ -238,43 +258,127 @@ test('a branch that disappears mid-run is skipped, not fatal', async () => {
     return original(path);
   };
   const result = await sweepBranches({ gh, config, apply: true, now });
-  assert.equal(result.decisions.length, 0);
+  assert.equal(result.decisions.length, 1);
+  assert.equal(result.decisions[0].action, 'KEEP');
+  assert.match(result.decisions[0].reason, /could not be checked/);
   assert.equal(gh.deleted.length, 0);
 });
 
-test('named deletion refuses protected, open-PR, unknown and badly named branches', async () => {
-  const names = ['umpe/old', 'keep/me', 'claude/busy', 'no/such', '../evil'];
-  const deleted = [];
-  const gh = {
-    async list() {
-      return ['umpe/old', 'keep/me', 'claude/busy'].map((name) => ({
-        name,
-        commit: { sha: `sha-${name}` },
-      }));
+const T1 = 'a'.repeat(40);
+const T2 = 'b'.repeat(40);
+const T3 = 'c'.repeat(40);
+const T4 = 'd'.repeat(40);
+const T5 = 'e'.repeat(40);
+const ownWork = (date) =>
+  compare(1, [{ filename: 'only-here.ts', status: 'added', sha: 'zz' }], date);
+
+function ownerDropFixture(extra = {}) {
+  return fakeGh({
+    branches: {
+      'umpe/old': { sha: T1, compare: ownWork(daysAgo(10)) },
+      'keep/me': { sha: T2, compare: ownWork(daysAgo(10)) },
+      'claude/busy': { sha: T3, compare: ownWork(daysAgo(10)) },
+      'claude/base': { sha: T4, compare: ownWork(daysAgo(10)) },
+      'claude/fresh': { sha: T5, compare: ownWork(daysAgo(0.2)) },
     },
-    async get(path) {
-      return path.includes('claude%2Fbusy') ? [{ number: 9 }] : [];
-    },
-    async del(path) {
-      deleted.push(path);
-    },
-  };
-  const results = await deleteNamed({ gh, config, names });
-  assert.deepEqual(deleted, ['repos/o/r/git/refs/heads/umpe/old']);
+    openPrs: [
+      { number: 9, head: { ref: 'claude/busy' }, base: { ref: 'main' } },
+      { number: 10, head: { ref: 'claude/child' }, base: { ref: 'claude/base' } },
+    ],
+    ...extra,
+  });
+}
+const everyone = parseDrop(
+  'umpe/old,keep/me,claude/busy,claude/base,claude/fresh,no/such,main,umpe/old',
+);
+
+test('an owner drop is a dry run first and still refuses every hard keep', async () => {
+  const gh = ownerDropFixture();
+  const result = await sweepBranches({ gh, config, apply: false, now, drop: everyone });
+  assert.equal(gh.deleted.length, 0);
+  const by = Object.fromEntries(result.decisions.map((d) => [d.name, d]));
+  assert.equal(by['umpe/old'].action, 'DELETE');
+  assert.match(by['umpe/old'].reason, /the owner chose to drop it \(no PR, 1 commit not on main/);
+  assert.match(by['keep/me'].reason, /protected/);
+  assert.match(by['claude/busy'].reason, /open PR #9/);
+  assert.match(by['claude/base'].reason, /base of open PR #10/);
+  assert.match(by['claude/fresh'].reason, /hours ago/);
+  assert.equal(by['no/such'].reason, 'no such branch');
+  assert.equal(by.main.reason, 'the default branch is never deleted');
+  assert.equal(result.decisions.length, 7, 'a name listed twice is judged once');
+  for (const name of ['keep/me', 'claude/busy', 'claude/base', 'claude/fresh', 'no/such', 'main']) {
+    assert.equal(by[name].action, 'KEEP', name);
+    assert.equal(by[name].hard, true, name);
+  }
+  assert.ok(gh.listed.some((path) => path.endsWith('/pulls?state=open')));
+});
+
+test('applying an owner drop deletes only the clear one and reports the rest as failures', async () => {
+  const gh = ownerDropFixture();
+  const result = await sweepBranches({ gh, config, apply: true, now, drop: everyone });
+  assert.deepEqual(gh.deleted, ['repos/o/r/git/refs/heads/umpe/old']);
+  assert.deepEqual(dropFailures(result, everyone).sort(), [
+    'claude/base',
+    'claude/busy',
+    'claude/fresh',
+    'keep/me',
+    'main',
+    'no/such',
+  ]);
+  const text = renderBranches(result, config, { apply: true, verbose: false, named: true }).join(
+    '\n',
+  );
+  assert.match(text, /1 to delete/);
+  assert.match(text, new RegExp(`-f sha=${T1}`));
+  assert.deepEqual(dropFailures(result, parseDrop('umpe/old')), []);
+});
+
+test('an owner drop pinned to the reviewed tip keeps a branch whose tip has moved', async () => {
+  const drop = parseDrop('umpe/old@aaaaaaa,claude/base@1234567');
   assert.deepEqual(
-    results.map((r) => [r.name, r.done]),
+    [...drop.entries()],
     [
-      ['umpe/old', true],
-      ['keep/me', false],
-      ['claude/busy', false],
-      ['no/such', false],
-      ['../evil', false],
+      ['umpe/old', { pin: 'aaaaaaa' }],
+      ['claude/base', { pin: '1234567' }],
     ],
   );
-  assert.match(results[2].why, /#9/);
-  const text = renderDeleteNamed(results, config).join('\n');
-  assert.match(text, /deleted umpe\/old \(was sha-umpe\/old\)/);
-  assert.match(text, /-f sha=sha-umpe\/old/);
-  const current = await deleteNamed({ gh, config, names: ['umpe/old'], currentBranch: 'umpe/old' });
-  assert.equal(current[0].done, false);
+  assert.deepEqual(parseDrop('feature@x').get('feature@x'), { pin: null });
+  const gh = ownerDropFixture();
+  const result = await sweepBranches({ gh, config, apply: true, now, drop });
+  const by = Object.fromEntries(result.decisions.map((d) => [d.name, d]));
+  assert.equal(by['umpe/old'].action, 'DELETE');
+  assert.match(by['claude/base'].reason, /base of open PR/);
+  const moved = await sweepBranches({
+    gh: ownerDropFixture(),
+    config,
+    apply: true,
+    now,
+    drop: parseDrop('umpe/old@bbbbbbb'),
+  });
+  assert.match(moved.decisions[0].reason, /tip moved since it was reviewed/);
+  assert.equal(moved.decisions[0].action, 'KEEP');
+});
+
+test('a push between the check and the delete keeps the branch, and a failed delete shows its tip', async () => {
+  const raced = ownerDropFixture({ refTips: { 'umpe/old': T3 } });
+  const first = await sweepBranches({
+    gh: raced,
+    config,
+    apply: true,
+    now,
+    drop: parseDrop('umpe/old'),
+  });
+  assert.equal(raced.deleted.length, 0);
+  assert.match(first.failed[0].error, new RegExp(`was ${T1}, now ${T3}`));
+
+  const broken = ownerDropFixture({ failDelete: ['umpe/old'] });
+  const second = await sweepBranches({
+    gh: broken,
+    config,
+    apply: true,
+    now,
+    drop: parseDrop('umpe/old'),
+  });
+  assert.equal(second.deleted.length, 0);
+  assert.match(second.failed[0].error, new RegExp(`HTTP 502 \\(tip was ${T1}\\)`));
 });

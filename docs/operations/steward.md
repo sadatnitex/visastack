@@ -8,7 +8,7 @@ The Steward keeps parallel sessions from colliding, repeating work or leaving cl
 |---|---|---|
 | Plan once, no rework | A brief prints at every session start: main's head and CI, open PRs, live lanes, overlaps, next free migration number. Before building, `preflight --plan --topic` says whether the paths collide with a live lane and whether the work already exists. | `scripts/steward/preflight.mjs`, `.claude/settings.json` |
 | Absorb outside instructions without clashes | The intake table in the agent classifies every new instruction: fold in, widen the claim, hand off as its own task, message the owning session, or stop because it is already done. | `.claude/agents/steward.md` |
-| Stay inside branch and storage limits | Branches are deleted only with a proof; old artifacts and caches go automatically; anything a person might want is listed once, in one batch. | `scripts/steward/hygiene.mjs`, `.github/workflows/steward-hygiene.yml` |
+| Stay inside branch and storage limits | Branches are deleted only with a proof or when the owner names them; old artifacts and caches go automatically; anything a person might want is listed once, in one batch. | `scripts/steward/hygiene.mjs`, `.github/workflows/steward-hygiene.yml` |
 | No vulnerabilities, no orphan pages | One command runs the repository's own gates: production advisories, the supply-chain scan, the route graph check. | `scripts/steward/audit.mjs` |
 | Many repositories | The kit is copied by `node scripts/steward/install.mjs <path> --repo owner/name`, each repository keeps its own `steward.config.json`. | `scripts/steward/install.mjs` |
 
@@ -35,7 +35,7 @@ Files that always conflict are listed in the config (`hotFiles`) with the rule t
 |---|---|---|
 | Delete now | Branches with a proof (nothing on them main lacks, or the PR merged and the tip equals the merged head, or every changed file is identical on main). Workflow artifacts older than 3 days. Caches of closed PRs and caches idle for 7 days (main's caches stay). | The scheduled workflow, daily, and `hygiene.mjs --apply`. Each deleted branch prints its sha and the restore command. |
 | Ask once | A branch with work not on main, a parked `wip/` branch, a branch whose PR closed unmerged, any Neon branch, any Vercel setting. | The agent lists them in one batch with a recommendation. The owner answers. |
-| Never | The default branch, protected branches, a branch with an open PR, the session's own branch, anything touched in the last 48 hours. | Nobody without the owner's word. |
+| Never | The default branch, protected branches, a branch with an open PR (as its head or as the base of another PR), the session's own branch, anything touched in the last 48 hours. | Refused even when the owner names the branch; change the config or wait. |
 
 Neon branches follow the proof list in CLAUDE.md section 7 and always need the owner's yes for the exact list. There is no tool to delete Vercel deployments; the agent reports stale ones.
 
@@ -53,7 +53,7 @@ In a session, `/steward start <task>`, `/steward intake <new instruction>`, `/st
 
 ## Dropping branches the owner chose
 
-The sweep never deletes unmerged work. When the owner decides to drop named branches, run the Steward hygiene workflow by hand with "delete_branches" set to the comma separated names (or `node scripts/steward/hygiene.mjs --delete a,b` where the token allows it). It refuses the default branch, protected branches, the current branch, a branch with an open pull request, and any name that is not a plain branch name. It prints each branch's sha and the restore command.
+The sweep never deletes unmerged work. When the owner decides to drop named branches, run the Steward hygiene workflow by hand with "delete_branches" set to the names and "apply" ticked (or `node scripts/steward/hygiene.mjs --delete a@sha,b --apply` where the token allows it). Without "apply" it is a dry run that shows what would go. Add `@sha` after a name to pin the tip the owner reviewed: a branch whose tip moved is kept. The same refusals as the sweep apply (default and protected branches, open pull requests as head or base, the current branch, anything touched in the last 48 hours), the tip is read again just before each delete, and a run where any named branch is not deleted fails so it cannot look green. Each deleted branch prints its sha and the restore command.
 
 ## Adding another repository
 

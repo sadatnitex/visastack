@@ -1,30 +1,37 @@
 #!/usr/bin/env node
-// Steward hygiene: finds what is obsolete and removes only what can be PROVEN obsolete.
+// Steward hygiene: finds what is obsolete and removes what can be PROVEN obsolete, plus the
+// branches the repository owner names.
 //
 //   node scripts/steward/hygiene.mjs                  dry run (default): report only
 //   node scripts/steward/hygiene.mjs --apply          delete proven branches, old artifacts, stale caches
 //   --scope branches,artifacts,caches                 limit the sweep (default: all three)
-//   --delete a,b                                      delete branches the owner named (never protected,
-//                                                     current or open-PR branches); prints restore commands
+//   --delete a@sha,b                                  the owner chose to drop these branches. Same dry run
+//                                                     by default, deleted only with --apply. "@sha" pins the
+//                                                     tip the owner reviewed; a moved tip is kept.
 //   --verbose                                         also list what is kept and why
 //
-// Three outcomes per branch. DELETE means a proof was found (see classifyBranch). REVIEW means a
-// person decides: the tool never deletes it. KEEP means in use or too recent to judge.
+// Three outcomes per branch. DELETE means a proof was found (see classifyBranch) or the owner chose
+// it. REVIEW means a person decides: the tool never deletes it on its own. KEEP means in use or too
+// recent to judge. Some keeps are hard and hold even against the owner's choice: the current branch,
+// a protected branch, a branch with an open pull request (as head or as base), a branch touched in
+// the last 48 hours, and a tip that moved after it was reviewed.
 // Deleted branches are recoverable: the sha is printed with the exact restore command.
-import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   GhError,
   createGh,
+  currentBranchName,
   daysBetween,
   describeBranch,
   encodeRef,
+  flagValue,
   isProtectedBranch,
   listBranches,
   loadConfig,
   mainBlobMap,
   mapLimit,
   say,
+  splitList,
 } from './lib.mjs';
 
 // ---------- branches ----------
@@ -41,168 +48,202 @@ function containedInMain(info, mainBlobs) {
   });
 }
 
-/** Pure decision for one branch. `prs` is every pull request ever opened from this branch. */
+/**
+ * Pure decision for one branch.
+ *  - prs: every pull request ever opened from this branch.
+ *  - openPrs: every open pull request in the repository (a branch that is the BASE of an open PR
+ *    is in use too: deleting it would close that PR).
+ *  - drop: `{ pin }` when the owner chose to drop this branch, otherwise null.
+ * A decision with `hard: true` is a keep that holds even against the owner's choice.
+ */
 export function classifyBranch({
   config,
   info,
   prs,
+  openPrs = [],
   mainBlobs,
   currentBranch = '',
   now = new Date(),
+  drop = null,
 }) {
   const idle = info.lastCommitDate
     ? daysBetween(info.lastCommitDate, now)
     : Number.POSITIVE_INFINITY;
   const base = { name: info.name, sha: info.sha, ahead: info.ahead, idleDays: Math.round(idle) };
   const keep = (reason) => ({ ...base, action: 'KEEP', reason });
+  const hold = (reason) => ({ ...base, action: 'KEEP', hard: true, reason });
   const review = (reason) => ({ ...base, action: 'REVIEW', reason });
   const remove = (reason) => ({ ...base, action: 'DELETE', reason });
 
-  if (info.name === currentBranch) return keep('this session works on it');
-  if (isProtectedBranch(info.name, config)) return keep('protected by the config');
-  const open = prs.find((pr) => pr.state === 'open');
-  if (open) return keep(`open PR #${open.number}`);
-  if (!info.lastCommitDate) return keep('last activity unknown');
+  if (info.name === currentBranch) return hold('this session works on it');
+  if (isProtectedBranch(info.name, config)) return hold('protected by the config');
+  const open =
+    prs.find((pr) => pr.state === 'open') ?? openPrs.find((pr) => pr.head.ref === info.name);
+  if (open) return hold(`open PR #${open.number}`);
+  const stacked = openPrs.find((pr) => pr.base.ref === info.name);
+  if (stacked) return hold(`it is the base of open PR #${stacked.number}`);
+  if (!info.lastCommitDate) return hold('last activity unknown');
   if (idle * 24 < config.retention.graceHours) {
-    return keep(`touched ${Math.max(1, Math.round(idle * 24))} hours ago`);
+    return hold(`touched ${Math.max(1, Math.round(idle * 24))} hours ago`);
   }
-  if (info.ahead === 0) {
-    // A session branch starts level with main and carries main's (possibly old) tip date, so a
-    // level branch with no pull request is only judged obsolete after the longer stale window.
-    if (prs.length === 0 && idle <= config.retention.laneStaleDays) {
-      return keep('new branch with no work yet');
+  if (drop?.pin && !info.sha.startsWith(drop.pin)) {
+    return hold(`its tip moved since it was reviewed (now ${info.sha.slice(0, 7)})`);
+  }
+
+  function judge() {
+    if (info.ahead === 0) {
+      // A session branch starts level with main and carries main's (possibly old) tip date, so a
+      // level branch with no pull request is only judged obsolete after the longer stale window.
+      if (prs.length === 0 && idle <= config.retention.laneStaleDays) {
+        return keep('new branch with no work yet');
+      }
+      return remove('nothing on it that main lacks');
     }
-    return remove('nothing on it that main lacks');
+    const merged = prs.find((pr) => pr.merged_at && pr.head.sha === info.sha);
+    if (merged) {
+      return remove(`PR #${merged.number} merged and the branch tip equals the merged head`);
+    }
+    if (containedInMain(info, mainBlobs)) {
+      return remove(
+        info.files.length
+          ? `every one of its ${info.files.length} changed files is identical on main`
+          : 'it changes no files',
+      );
+    }
+    const parked = config.parkedPrefixes.some((prefix) => info.name.startsWith(prefix));
+    if (parked) {
+      return idle > config.retention.parkedReviewDays
+        ? review(
+            `parked and untouched ${Math.round(idle)} days, ${plural(info.ahead, 'commit')} not on main`,
+          )
+        : keep(`parked work, ${Math.round(idle)} days old`);
+    }
+    const closed = prs.find((pr) => pr.state === 'closed' && !pr.merged_at);
+    if (closed) {
+      return review(
+        `PR #${closed.number} was closed without merging; ${plural(info.ahead, 'commit')} not on main`,
+      );
+    }
+    const earlier = prs.find((pr) => pr.merged_at);
+    if (earlier) {
+      return review(
+        `PR #${earlier.number} merged earlier but newer work is not on main (${plural(info.ahead, 'commit')})`,
+      );
+    }
+    if (idle > config.retention.laneStaleDays) {
+      return review(
+        `no PR, ${plural(info.ahead, 'commit')} not on main, idle ${Math.round(idle)} days`,
+      );
+    }
+    return keep(`recent work, idle ${Math.round(idle)} days`);
   }
-  const merged = prs.find((pr) => pr.merged_at && pr.head.sha === info.sha);
-  if (merged)
-    return remove(`PR #${merged.number} merged and the branch tip equals the merged head`);
-  if (containedInMain(info, mainBlobs)) {
-    return remove(
-      info.files.length
-        ? `every one of its ${info.files.length} changed files is identical on main`
-        : 'it changes no files',
-    );
+
+  const verdict = judge();
+  if (drop && verdict.action !== 'DELETE') {
+    return remove(`the owner chose to drop it (${verdict.reason})`);
   }
-  const parked = config.parkedPrefixes.some((prefix) => info.name.startsWith(prefix));
-  if (parked) {
-    return idle > config.retention.parkedReviewDays
-      ? review(
-          `parked and untouched ${Math.round(idle)} days, ${plural(info.ahead, 'commit')} not on main`,
-        )
-      : keep(`parked work, ${Math.round(idle)} days old`);
-  }
-  const closed = prs.find((pr) => pr.state === 'closed' && !pr.merged_at);
-  if (closed)
-    return review(
-      `PR #${closed.number} was closed without merging; ${plural(info.ahead, 'commit')} not on main`,
-    );
-  const earlier = prs.find((pr) => pr.merged_at);
-  if (earlier) {
-    return review(
-      `PR #${earlier.number} merged earlier but newer work is not on main (${plural(info.ahead, 'commit')})`,
-    );
-  }
-  if (idle > config.retention.laneStaleDays) {
-    return review(
-      `no PR, ${plural(info.ahead, 'commit')} not on main, idle ${Math.round(idle)} days`,
-    );
-  }
-  return keep(`recent work, idle ${Math.round(idle)} days`);
+  return verdict;
 }
 
-export async function sweepBranches({ gh, config, apply, currentBranch = '', now = new Date() }) {
+/** "a@1a2b3c4,b" becomes a Map of name to `{ pin }`; "@sha" pins the tip the owner reviewed. */
+export function parseDrop(text) {
+  const drop = new Map();
+  for (const item of splitList(text)) {
+    const pinned = item.match(/^(.+)@([0-9a-f]{7,40})$/);
+    const [name, pin] = pinned ? [pinned[1], pinned[2]] : [item, null];
+    drop.set(name, { pin });
+  }
+  return drop;
+}
+
+const heldBack = (name, sha, reason) => ({
+  name,
+  sha,
+  ahead: 0,
+  idleDays: 0,
+  action: 'KEEP',
+  hard: true,
+  reason,
+});
+
+export async function sweepBranches({
+  gh,
+  config,
+  apply,
+  currentBranch = '',
+  now = new Date(),
+  drop = null,
+}) {
   const owner = config.repo.split('/')[0];
-  const [branches, mainBlobs] = await Promise.all([
+  const [listed, mainBlobs, openPrs] = await Promise.all([
     listBranches(gh, config),
     mainBlobMap(gh, config),
+    gh.list(`repos/${config.repo}/pulls?state=open`),
   ]);
+  const decisions = [];
+  let branches = listed;
+  if (drop) {
+    // Only the named branches are examined. A name that is not a listed branch is kept as is.
+    branches = listed.filter((b) => drop.has(b.name));
+    for (const name of drop.keys()) {
+      if (listed.some((b) => b.name === name)) continue;
+      decisions.push(
+        heldBack(
+          name,
+          '',
+          name === config.defaultBranch ? 'the default branch is never deleted' : 'no such branch',
+        ),
+      );
+    }
+  }
   const judged = await mapLimit(branches, 6, async (branch) => {
     try {
       const info = await describeBranch(gh, config, branch);
       const prs = await gh.get(
         `repos/${config.repo}/pulls?state=all&head=${encodeURIComponent(`${owner}:${branch.name}`)}`,
       );
-      return classifyBranch({ config, info, prs, mainBlobs, currentBranch, now });
+      return classifyBranch({
+        config,
+        info,
+        prs,
+        openPrs,
+        mainBlobs,
+        currentBranch,
+        now,
+        drop: drop?.get(branch.name) ?? null,
+      });
     } catch (error) {
       if (error instanceof GhError && error.denied) throw error;
-      return null; // the branch vanished mid-run (another session or the workflow removed it)
+      // Fail closed: a branch that cannot be checked is kept.
+      return heldBack(branch.name, branch.sha, `could not be checked (${error.message})`);
     }
   });
-  const decisions = judged.filter(Boolean);
+  decisions.push(...judged);
   const deleted = [];
   const failed = [];
   if (apply) {
     for (const decision of decisions.filter((d) => d.action === 'DELETE')) {
       try {
+        // The tip is read again just before deleting, so a push since the check keeps the branch
+        // and the sha printed for a restore is the sha that was really removed.
+        const current = await gh.get(
+          `repos/${config.repo}/git/ref/heads/${encodeRef(decision.name)}`,
+        );
+        if (current?.object?.sha !== decision.sha) {
+          failed.push({
+            ...decision,
+            error: `kept: its tip moved while checking (was ${decision.sha}, now ${current?.object?.sha ?? 'unknown'})`,
+          });
+          continue;
+        }
         await gh.del(`repos/${config.repo}/git/refs/heads/${encodeRef(decision.name)}`);
         deleted.push(decision);
       } catch (error) {
-        failed.push({ ...decision, error: error.message });
+        failed.push({ ...decision, error: `${error.message} (tip was ${decision.sha})` });
       }
     }
   }
   return { decisions, deleted, failed };
-}
-
-const BRANCH_NAME = /^[A-Za-z0-9._][A-Za-z0-9._/-]*$/;
-
-/**
- * Deletes branches the OWNER named. The proof-based sweep never touches unmerged work, so a person's
- * decision goes through here. It still refuses the default branch, protected branches, the current
- * branch and any branch with an open pull request. Each deletion keeps the sha for a restore.
- */
-export async function deleteNamed({ gh, config, names, currentBranch = '' }) {
-  const owner = config.repo.split('/')[0];
-  const branches = await listBranches(gh, config);
-  const results = [];
-  for (const name of names) {
-    const refuse = (why) => results.push({ name, done: false, why });
-    if (!BRANCH_NAME.test(name) || name.includes('..')) {
-      refuse('not a valid branch name');
-      continue;
-    }
-    const branch = branches.find((b) => b.name === name);
-    if (!branch) {
-      refuse('no such branch');
-      continue;
-    }
-    if (name === currentBranch || isProtectedBranch(name, config)) {
-      refuse('protected or in use');
-      continue;
-    }
-    const open = await gh.get(
-      `repos/${config.repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${name}`)}`,
-    );
-    if (open.length) {
-      refuse(`has an open pull request (#${open[0].number})`);
-      continue;
-    }
-    try {
-      await gh.del(`repos/${config.repo}/git/refs/heads/${encodeRef(name)}`);
-      results.push({ name, done: true, sha: branch.sha });
-    } catch (error) {
-      refuse(error.message);
-    }
-  }
-  return results;
-}
-
-export function renderDeleteNamed(results, config) {
-  const out = [`DELETE NAMED BRANCHES - ${config.repo}`];
-  for (const r of results) {
-    out.push(r.done ? `  deleted ${r.name} (was ${r.sha})` : `  kept ${r.name} - ${r.why}`);
-  }
-  const done = results.filter((r) => r.done);
-  if (done.length) {
-    out.push('To restore one:');
-    for (const r of done) {
-      out.push(
-        `  gh api -X POST repos/${config.repo}/git/refs -f ref=refs/heads/${r.name} -f sha=${r.sha}`,
-      );
-    }
-  }
-  return out;
 }
 
 // ---------- artifacts and caches (safe: both are rebuilt on demand) ----------
@@ -275,16 +316,17 @@ export async function sweepCaches({ gh, config, apply, now = new Date() }) {
 
 // ---------- CLI ----------
 
-export function renderBranches(result, config, { apply, verbose }) {
+export function renderBranches(result, config, { apply, verbose, named = false }) {
   const out = [];
   const count = (action) => result.decisions.filter((d) => d.action === action).length;
   out.push(
-    `branches: ${result.decisions.length} checked | ${count('DELETE')} proven obsolete | ` +
+    `branches: ${result.decisions.length} checked | ` +
+      `${count('DELETE')} ${named ? 'to delete' : 'proven obsolete'} | ` +
       `${count('REVIEW')} need a person | ${count('KEEP')} kept`,
   );
   const order = { DELETE: 0, REVIEW: 1, KEEP: 2 };
   for (const d of [...result.decisions].sort((a, b) => order[a.action] - order[b.action])) {
-    if (d.action === 'KEEP' && !verbose) continue;
+    if (d.action === 'KEEP' && !verbose && !named) continue;
     out.push(`  ${d.action.padEnd(6)} ${d.name} - ${d.reason}`);
   }
   if (apply && result.deleted.length) {
@@ -299,10 +341,10 @@ export function renderBranches(result, config, { apply, verbose }) {
   return out;
 }
 
-function parseScope(argv) {
-  const at = argv.indexOf('--scope');
-  const raw = at >= 0 ? (argv[at + 1] ?? '') : 'branches,artifacts,caches';
-  return new Set(raw.split(',').map((part) => part.trim()));
+/** After an owner's drop is applied, every named branch must be gone or the run reports failure. */
+export function dropFailures(result, drop) {
+  const gone = new Set(result.deleted.map((d) => d.name));
+  return [...drop.keys()].filter((name) => !gone.has(name));
 }
 
 async function guarded(label, fn, out) {
@@ -318,34 +360,39 @@ async function guarded(label, fn, out) {
   }
 }
 
-function currentBranchName() {
-  return new Promise((resolve) => {
-    execFile('git', ['rev-parse', '--abbrev-ref', 'HEAD'], (error, stdout) =>
-      resolve(error ? '' : stdout.trim()),
-    );
-  });
-}
-
 async function main() {
   const argv = process.argv.slice(2);
   const apply = argv.includes('--apply');
   const verbose = argv.includes('--verbose');
-  const scope = parseScope(argv);
+  const scope = new Set(splitList(flagValue(argv, '--scope') ?? 'branches,artifacts,caches'));
   const config = loadConfig(process.cwd());
   const gh = createGh();
-  const named = argv.indexOf('--delete');
-  if (named >= 0) {
-    const names = (argv[named + 1] ?? '')
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean);
-    const currentBranch = await currentBranchName();
-    const results = await deleteNamed({ gh, config, names, currentBranch });
-    say(renderDeleteNamed(results, config).join('\n'));
+  const now = new Date();
+  const dropText = flagValue(argv, '--delete');
+  const drop = dropText === null ? null : parseDrop(dropText);
+  if (drop && drop.size === 0) {
+    say('--delete needs at least one branch name, for example --delete umpe/old@1a2b3c4');
+    process.exitCode = 1;
     return;
   }
-  const now = new Date();
-  const out = [`HYGIENE ${apply ? 'applied' : 'dry run (nothing deleted)'} - ${config.repo}`];
+  const mode = apply ? 'applied' : 'dry run (nothing deleted)';
+  const out = [`HYGIENE ${drop ? 'owner-chosen branches, ' : ''}${mode} - ${config.repo}`];
+  if (drop) {
+    const currentBranch = await currentBranchName();
+    const result = await guarded(
+      'branches',
+      () => sweepBranches({ gh, config, apply, currentBranch, now, drop }),
+      out,
+    );
+    if (result) {
+      out.push(...renderBranches(result, config, { apply, verbose, named: true }));
+      if (apply && dropFailures(result, drop).length > 0) process.exitCode = 1;
+    } else {
+      process.exitCode = 1;
+    }
+    say(out.join('\n'));
+    return;
+  }
   if (scope.has('branches')) {
     const currentBranch = await currentBranchName();
     const result = await guarded(
