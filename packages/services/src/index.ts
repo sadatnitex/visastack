@@ -1583,7 +1583,11 @@ export {
   type WorkspaceSearchScope,
   type WorkspaceSearchResult,
 } from './workspace-search';
-export { loadWorkspaceToolbarState, type WorkspaceToolbarState } from './workspace-toolbar';
+export {
+  loadWorkspaceToolbarState,
+  REQUEST_NOTICE_EVENT_TYPES,
+  type WorkspaceToolbarState,
+} from './workspace-toolbar';
 export {
   getTravellerPlanSummary,
   listTravellerPlansForSale,
@@ -1890,6 +1894,12 @@ export {
   titleDate,
 } from './naming';
 export { OWNER_RENAME_REASON, renameDocument } from './document-naming';
+export {
+  type SetDocumentExpiryInput,
+  type SetDocumentExpiryOutcome,
+  setDocumentExpiry,
+} from './document-expiry';
+export type { ExpiryOrigin, ExpiryState } from './document-expiry-rules';
 export { CONVERTED_FROM_HEIC_SOURCE, type RegisteredDocumentWithVersion } from './documents';
 export { type GrowUploadReservationInput, growUploadReservation } from './uploads';
 export {

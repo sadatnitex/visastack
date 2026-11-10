@@ -12,8 +12,21 @@ const { DocumentUploader, UPLOAD_UNKNOWN_OUTCOME, uploadSummary } = await import
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }));
 
-const copy = vi.hoisted(() => ({ send: vi.fn(), remove: vi.fn(), restore: vi.fn() }));
-vi.mock('../../../../lib/document-upload-client', () => ({ sendDocumentFile: copy.send }));
+const copy = vi.hoisted(() => ({
+  send: vi.fn(),
+  report: vi.fn(),
+  remove: vi.fn(),
+  restore: vi.fn(),
+}));
+vi.mock('../../../../lib/document-upload-client', () => ({
+  sendDocumentFile: copy.send,
+  reportUploadProblem: copy.report,
+}));
+const shrinkCopy = vi.hoisted(() => ({ shrink: vi.fn() }));
+vi.mock('../../../../lib/photo-shrink', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../lib/photo-shrink')>()),
+  shrinkPhoto: shrinkCopy.shrink,
+}));
 vi.mock('./documents/manage/delete/actions', () => ({
   deleteDuplicateAction: copy.remove,
   restoreDeletedAction: copy.restore,
@@ -191,5 +204,132 @@ describe('Remove This New Copy after an upload (LC-C)', () => {
       removeButton(host)?.click();
     });
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('cannot be deleted');
+  });
+});
+
+describe('a large photo is made smaller before it is sent (P2)', () => {
+  const MB = 1024 * 1024;
+  const ADDED = { kind: 'added', message: 'Photo added.', title: null };
+
+  async function choose(file: File, props: { readonly pdfAccepted?: boolean } = {}) {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    copy.send.mockReset().mockResolvedValue(ADDED);
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () => {
+      root.render(
+        <DocumentUploader applicantId="a1" limitBytes={4 * MB} limitLabel="4 MB" {...props} />,
+      );
+    });
+    const picker = host.querySelector('input[aria-label="Document Files"]') as HTMLInputElement;
+    Object.defineProperty(picker, 'files', { value: [file], configurable: true });
+    await act(async () => {
+      picker.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    for (let turn = 0; turn < 4; turn++) {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+    return host;
+  }
+  const big = (name: string, type: string) =>
+    new File([new Uint8Array(5 * MB)], name, { type, lastModified: 5 });
+  const smaller = () => ({
+    ok: true,
+    file: new File([new Uint8Array(800_000)], 'IMG_7.jpg', { type: 'image/jpeg', lastModified: 5 }),
+    fromBytes: 5 * MB,
+    toBytes: 800_000,
+  });
+
+  it('shrinks a JPEG over the limit, sends the smaller copy through the same upload, and says so', async () => {
+    shrinkCopy.shrink.mockReset().mockResolvedValue(smaller());
+    const host = await choose(big('IMG_7.jpg', 'image/jpeg'));
+    expect(shrinkCopy.shrink).toHaveBeenCalledTimes(1);
+    expect(shrinkCopy.shrink.mock.calls[0]?.[1]).toBe(4 * MB);
+    expect(copy.send).toHaveBeenCalledTimes(1);
+    const sent = copy.send.mock.calls[0]?.[0] as {
+      file: File;
+      contentType: string;
+      fileName: string;
+    };
+    expect(sent.file.size).toBe(800_000);
+    expect(sent.contentType).toBe('image/jpeg');
+    expect(sent.fileName).toBe('IMG_7.jpg');
+    const note = host.querySelector('output.upload-item-status');
+    expect(note?.textContent).toBe('Made smaller to fit: 5.2 MB to 800 KB');
+    expect(host.textContent).toContain('Photo added.');
+  });
+
+  it('says it is making the photo smaller while it waits its turn', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    shrinkCopy.shrink.mockReset().mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const host = await choose(big('IMG_7.jpg', 'image/jpeg'));
+    expect(host.textContent).toContain('Making this photo smaller to fit.');
+    expect(host.querySelector('output.upload-summary')?.textContent).toBe(
+      'Uploading 1 of 1: IMG_7.jpg.',
+    );
+    expect(copy.send).not.toHaveBeenCalled();
+    await act(async () => {
+      finish(smaller());
+    });
+    expect(copy.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not shrink a PDF over the limit: it is refused as before and nothing is sent', async () => {
+    shrinkCopy.shrink.mockReset();
+    const host = await choose(big('visa.pdf', 'application/pdf'), { pdfAccepted: true });
+    expect(shrinkCopy.shrink).not.toHaveBeenCalled();
+    expect(copy.send).not.toHaveBeenCalled();
+    expect(host.textContent).toContain('This file is larger than 4 MB.');
+    expect(host.querySelector('output.upload-item-status')).toBeNull();
+  });
+
+  it('does not touch a photo under the limit', async () => {
+    shrinkCopy.shrink.mockReset();
+    const small = new File([new Uint8Array(2 * MB)], 'IMG_8.jpg', { type: 'image/jpeg' });
+    const host = await choose(small);
+    expect(shrinkCopy.shrink).not.toHaveBeenCalled();
+    expect((copy.send.mock.calls[0]?.[0] as { file: File }).file).toBe(small);
+    expect(host.querySelector('output.upload-item-status')).toBeNull();
+  });
+
+  it('says the browser could not work on the photo, and leaves a trace of it, when it cannot be read', async () => {
+    shrinkCopy.shrink.mockReset().mockResolvedValue({ ok: false, reason: 'unreadable' });
+    copy.report.mockReset();
+    const host = await choose(big('IMG_7.jpg', 'image/jpeg'));
+    expect(copy.send).not.toHaveBeenCalled();
+    expect(host.textContent).toContain(
+      'Not added. We could not make this photo smaller than 4 MB. Take the photo again.',
+    );
+    expect(copy.report).toHaveBeenCalledWith(
+      expect.objectContaining({ route: 'upload', reason: 'unreadable', status: 0 }),
+    );
+  });
+
+  it('says photos over the limit are made smaller, beside the limit', async () => {
+    const html = textOf(
+      renderToStaticMarkup(<DocumentUploader applicantId="a1" limitLabel="4 MB" />),
+    );
+    expect(html).toContain(
+      'Up to 4 MB per file; JPG, PNG, HEIC, Word or text files. Larger photos are made smaller to fit.',
+    );
+  });
+
+  it('stops and says what to do when the photo cannot be made small enough', async () => {
+    shrinkCopy.shrink.mockReset().mockResolvedValue({ ok: false, reason: 'still_too_large' });
+    const host = await choose(big('IMG_7.jpg', 'image/jpeg'), { pdfAccepted: true });
+    expect(copy.send).not.toHaveBeenCalled();
+    expect(host.textContent).toContain(
+      'Not added. This photo is larger than 4 MB, and making it smaller would lose detail. Take the photo again, or send a PDF.',
+    );
+    expect(host.querySelector('output.upload-summary')?.textContent).toBe(
+      '1 file not added; the list says why.',
+    );
   });
 });
