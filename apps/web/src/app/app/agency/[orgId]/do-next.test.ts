@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   CHASE_AFTER_DAYS,
   CHASE_LABEL,
+  CHASE_VISIBLE,
   type DoNextCase,
   type DoNextInput,
   type DoNextRequest,
   buildDoNext,
+  buildDoNextList,
 } from './do-next';
 
 const NOW = new Date('2026-10-25T09:00:00.000Z');
@@ -466,5 +468,81 @@ describe('Do next chases requests with no due date (owner decision, 10 Nov 2026)
 
   it('gives a non-administrator no chased items', () => {
     expect(run([open('r-3', { createdAt: sentDaysAgo(9) })], { admin: false })).toEqual([]);
+  });
+});
+
+describe('Do next lists at most three quiet requests (owner, 10 Nov 2026, friction register E4)', () => {
+  const clock = new Date();
+  const DAY = 24 * 60 * 60 * 1000;
+  const sentDaysAgo = (days: number): string =>
+    new Date(clock.getTime() - days * DAY).toISOString();
+  const quiet = (id: string, days: number): DoNextRequest =>
+    requestRow({ id, createdAt: sentDaysAgo(days) });
+  const run = (requests: DoNextRequest[], extra: Partial<DoNextInput> = {}) =>
+    buildDoNextList(
+      input({ cases: [caseRow({ missionId: 'm1' })], requests, now: clock, ...extra }),
+    );
+
+  it('names the cap as one constant of three', () => {
+    expect(CHASE_VISIBLE).toBe(3);
+  });
+
+  it('keeps the three oldest quiet requests and counts the rest', () => {
+    const { items, quietHidden } = run([
+      quiet('r-5', 5),
+      quiet('r-30', 30),
+      quiet('r-4', 4),
+      quiet('r-20', 20),
+      quiet('r-9', 9),
+    ]);
+    expect(items.map((item) => item.key)).toEqual(['request:r-30', 'request:r-20', 'request:r-9']);
+    expect(quietHidden).toBe(2);
+  });
+
+  it('says nothing is left off when three or fewer are quiet', () => {
+    expect(run([quiet('r-a', 4), quiet('r-b', 8), quiet('r-c', 12)]).quietHidden).toBe(0);
+    expect(run([]).quietHidden).toBe(0);
+  });
+
+  it('never lets old quiet requests crowd out a file that is ready to review', () => {
+    const ready = requestRow({ id: 'r-ready', status: 'RECEIVED', createdAt: sentDaysAgo(2) });
+    const { items, quietHidden } = run([
+      ...Array.from({ length: 12 }, (_, n) => quiet(`r-q${n}`, 10 + n)),
+      ready,
+    ]);
+    expect(items.some((item) => item.key === 'request:r-ready')).toBe(true);
+    expect(items.filter((item) => item.tierLabel === CHASE_LABEL)).toHaveLength(CHASE_VISIBLE);
+    expect(quietHidden).toBe(12 - CHASE_VISIBLE);
+    // The owner-approved order is unchanged: quiet requests are tier 1, the review is tier 2.
+    expect(items.map((item) => item.tier)).toEqual([1, 1, 1, 2]);
+  });
+
+  it('does not count overdue requests or other rows against the cap', () => {
+    const overdue = Array.from({ length: 5 }, (_, n) =>
+      requestRow({
+        id: `r-over${n}`,
+        createdAt: sentDaysAgo(40),
+        dueDate: new Date(clock.getTime() - (2 + n) * DAY).toISOString(),
+      }),
+    );
+    const { items, quietHidden } = run([...overdue, quiet('r-q1', 6), quiet('r-q2', 7)]);
+    expect(items.filter((item) => item.tierLabel === undefined && item.tier === 1)).toHaveLength(5);
+    expect(items.filter((item) => item.tierLabel === CHASE_LABEL)).toHaveLength(2);
+    expect(quietHidden).toBe(0);
+  });
+
+  it('keeps buildDoNext the same list without the count', () => {
+    const requests = Array.from({ length: 6 }, (_, n) => quiet(`r-${n}`, 5 + n));
+    const args = input({ cases: [caseRow({ missionId: 'm1' })], requests, now: clock });
+    expect(buildDoNext(args)).toEqual(buildDoNextList(args).items);
+  });
+
+  it('counts nothing for a member who is not an administrator', () => {
+    const { items, quietHidden } = run(
+      Array.from({ length: 6 }, (_, n) => quiet(`r-${n}`, 5 + n)),
+      { admin: false },
+    );
+    expect(items).toEqual([]);
+    expect(quietHidden).toBe(0);
   });
 });

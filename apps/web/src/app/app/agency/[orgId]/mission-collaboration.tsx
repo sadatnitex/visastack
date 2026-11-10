@@ -25,6 +25,7 @@ import {
 import { caseAnchorId } from './case-anchor';
 import type { CaseTriageView } from './case-triage';
 import { CaseTriageSummary } from './case-triage-summary';
+import { NeedsYouText } from './needs-you-text';
 
 const INITIAL: ActionState = { ok: true, message: '' };
 
@@ -129,6 +130,8 @@ interface MissionCollaborationProps {
   readonly triage?: CaseTriageView;
   /** What on this case waits for the viewer, in words (CCD-6): shown only at Glance. */
   readonly needsYou?: string;
+  /** The count of items to review inside `needsYou`, and the request it leads to (friction E4). */
+  readonly needsYouReview?: { readonly phrase: string; readonly href: string };
   /** WP-SB5: the end of the notes list (how many show, Show More), placed right under the notes. */
   readonly notesMore?: ReactNode;
   /** Asking this traveller for a document or detail, for an administrator only (the page decides). */
@@ -154,6 +157,7 @@ export function MissionCollaboration({
   viewerAssigned,
   triage,
   needsYou,
+  needsYouReview,
   ask,
 }: MissionCollaborationProps) {
   const [noteState, noteAction, notePending] = useActionState(addNoteAction, INITIAL);
@@ -225,7 +229,7 @@ export function MissionCollaboration({
       <ReferenceCode code={referenceCode} label="Case Reference" />
       {needsYou ? (
         <p className="muted u-fs-085" data-only="glance">
-          {needsYou}
+          <NeedsYouText text={needsYou} review={needsYouReview} />
         </p>
       ) : null}
 

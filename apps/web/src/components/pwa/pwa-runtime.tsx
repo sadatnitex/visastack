@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { BROWSER_HINT_TEXT, type BrowserHint, browserHint } from '../../lib/pwa/browser-hint';
 import { captureInstallPrompt } from '../../lib/pwa/install-prompt';
 import {
   applyUpdate,
@@ -15,7 +16,18 @@ type Connection = 'online' | 'offline' | 'restored';
 /** How long the "back online" note stays before it clears itself. */
 const RESTORED_NOTE_MS = 5000;
 
-const { dock, message, update, actions } = styles;
+const { dock, message, update, actions, hint } = styles;
+
+/** Remembered for this visit only, so the line returns on the next launch if the cause is still there. */
+const HINT_DISMISSED_KEY = 'vs-browser-hint-dismissed';
+
+function hintWasDismissed(): boolean {
+  try {
+    return window.sessionStorage.getItem(HINT_DISMISSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 if (typeof window !== 'undefined') captureInstallPrompt(window);
 
@@ -31,6 +43,7 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
   const [connection, setConnection] = useState<Connection>('online');
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [browser, setBrowser] = useState<BrowserHint>({ show: false });
   const restoredTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
@@ -97,6 +110,34 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
     };
   }, []);
 
+  // Read after the first paint so the server and browser draw the same page first.
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function' || hintWasDismissed()) return;
+    setBrowser(
+      browserHint({
+        matchMedia: (query) => window.matchMedia(query),
+        navigator,
+        screen: window.screen,
+        document,
+      }),
+    );
+  }, []);
+
+  // The enlargement is a custom property set on the element itself (a shared class cannot hold a
+  // per-device number, and the interface rules keep inline style props out of this file).
+  const setHintScale = (element: HTMLElement | null) => {
+    if (element && browser.show) element.style.setProperty('--hint-scale', String(browser.scale));
+  };
+
+  const dismissHint = () => {
+    try {
+      window.sessionStorage.setItem(HINT_DISMISSED_KEY, '1');
+    } catch {
+      // Storage blocked: the line simply returns on the next page load.
+    }
+    setBrowser({ show: false });
+  };
+
   const reloadNow = () => {
     const container = 'serviceWorker' in navigator ? navigator.serviceWorker : undefined;
     if (!waiting || !container) return;
@@ -106,6 +147,19 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
 
   return (
     <div className={dock} data-pwa-runtime="">
+      {/* First in the dock: when it is enlarged it grows upward, clear of the notices below it. */}
+      {browser.show ? (
+        <aside
+          aria-label="Browser Tip"
+          className={`notice notice-warn ${message} ${hint}`}
+          ref={setHintScale}
+        >
+          <p>{BROWSER_HINT_TEXT}</p>
+          <button type="button" className="btn btn-secondary" onClick={dismissHint}>
+            Dismiss
+          </button>
+        </aside>
+      ) : null}
       {/* Always present so screen readers hear each change (a live region added later is missed). */}
       <output aria-live="polite">
         {connection === 'offline' ? (
