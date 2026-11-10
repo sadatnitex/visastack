@@ -19811,7 +19811,7 @@ details.collapsible-group[hidden],
 }
 /* end WP-P6 */
 
-/* WP-L3 Sharing on the list pattern (10 Nov 2026): each grant is one row that says what is shared and until when; the grant, and the form for a new sharing request, open in the side panel (a full screen on a phone). The panel takes the side column only while it is open. Flat, tokens only, 44 px targets. */
+/* WP-LP4 Sharing on the list pattern (10 Nov 2026): each grant is one row that says what is shared and until when; the grant, and the form for a new sharing request, open in the side panel (a full screen on a phone). The panel takes the side column only while it is open. Flat, tokens only, 44 px targets. */
 .sharing-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -19863,4 +19863,4 @@ details.collapsible-group[hidden],
   border-color: var(--brand);
   color: var(--brand);
 }
-/* end WP-L3 */
+/* end WP-LP4 */

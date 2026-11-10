@@ -599,7 +599,11 @@ test.describe
       await expect(grantPanel).toContainText('E2E revoke before acceptance');
       await grantPanel.getByRole('button', { name: 'Revoke' }).click();
       await grantPanel.getByRole('button', { name: 'Yes, Revoke Access' }).click();
-      await expect(grantPanel).toContainText(/revoked/i, { timeout: 10_000 });
+      // A revoke reloads the page with every panel closed; the row is now under Ended Access.
+      await expect(page).toHaveURL(/done=revoked/, { timeout: 10_000 });
+      await expect(
+        page.locator('[data-pattern="list-row"]', { hasText: email2 ?? '' }).first(),
+      ).toContainText(/revoked/i);
 
       // Failure path: the recipient never sees it as something to accept.
       const recipient = await secondSession(browser, baseURL);

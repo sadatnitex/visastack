@@ -42,12 +42,8 @@ export const DEPTH_WORDS = {
     'Browse: dates, checklist notes, references, your questions and requests already answered.',
   'depth.evidence.everything': 'Everything: asking the agency about an item.',
   'depth.sharing.glance': 'Glance: who can see this record now, and how to pause or revoke it.',
-  'depth.sharing.glance.withForm':
-    'Glance: who can see this record now, how to pause or revoke it, and the form to share.',
   'depth.sharing.browse':
     'Browse: exactly what each person can see, access and invitations waiting to be accepted or ended, and the access log.',
-  'depth.sharing.browse.withForm': 'Browse: invitations, the access log and the form to share.',
-  'depth.sharing.everything': 'Everything: the form to share with someone new.',
   'depth.sharing.everything.nothingMore': 'Everything: nothing more on this screen.',
   'depth.agency-home.glance': 'Glance: your numbers and the first thing to do.',
   'depth.agency-home.glance.filtered':

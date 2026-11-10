@@ -1,4 +1,5 @@
 import type { PermissionAction } from '@visastack/core';
+import { SHARING_AND_REQUESTS } from './workspace-navigation';
 
 /**
  * The terms shown on the public page of an agency's client invitation, before anyone has signed in
@@ -97,5 +98,5 @@ export function invitationExpiryBadge(expiresAt: Date, now: Date): string {
  * time in Sharing & Requests. Nothing here changes what the access allows or how long it lasts.
  */
 export function clientAccessDurationLine(days: number): string {
-  return `Access lasts ${days} days from the day you accept. You can pause or end it any time in Sharing & Requests.`;
+  return `Access lasts ${days} days from the day you accept. You can pause or end it any time in ${SHARING_AND_REQUESTS}.`;
 }

@@ -1620,7 +1620,7 @@ export { type PlatformOverview, getPlatformOverview } from './platform-overview'
 
 export {
   createSharingInvitation,
-  getSharingInvitationSender,
+  sharingInvitationSender,
   previewSharingInvitation,
   acceptSharingInvitation,
   listSharingInvitations,

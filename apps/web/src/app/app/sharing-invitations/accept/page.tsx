@@ -1,14 +1,14 @@
 import {
   getConsents,
-  getSharingInvitationSender,
   previewSharingInvitation,
+  sharingInvitationSender,
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { formatTimestampDate } from '../../../../lib/format-date';
 import { categoryLabel } from '../../../../lib/master-profile';
-import { permissionSentence } from '../../../../lib/permission-phrases';
+import { recipientPermissionSentence } from '../../../../lib/permission-phrases';
 import { plural } from '../../../../lib/plural';
 import { withSession } from '../../../../lib/session';
 import { ConsentGate } from '../../client-invitations/accept/consent-gate';
@@ -49,13 +49,12 @@ export default async function SharingInvitationPage({
         </section>
       );
     const invite = result.value;
-    const consent = await getConsents(db, accountId);
     // Who is sharing (friction F3): their email, so the invited person can recognise the sender.
     // Nothing extra is shown if it cannot be found, never a guess.
-    const sender = await getSharingInvitationSender(db, {
-      actorAccountId: accountId,
-      rawToken: token,
-    });
+    const [consent, sender] = await Promise.all([
+      getConsents(db, accountId),
+      sharingInvitationSender(db, { actorAccountId: accountId, invitation: invite }),
+    ]);
     return (
       <section className="section container">
         <h1 className="section-title">Review Shared Access</h1>
@@ -77,7 +76,7 @@ export default async function SharingInvitationPage({
               <dd>
                 <ul className="u-m-0">
                   {invite.actions.map((action) => (
-                    <li key={action}>{permissionSentence(action)}</li>
+                    <li key={action}>{recipientPermissionSentence(action)}</li>
                   ))}
                 </ul>
               </dd>

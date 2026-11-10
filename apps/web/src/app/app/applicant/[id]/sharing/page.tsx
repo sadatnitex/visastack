@@ -50,12 +50,13 @@ import { depthWord } from '../../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
 import { grantRowLine } from '../../../../../lib/grant-row-line';
-import { grantStatusBadge, grantStatusTone } from '../../../../../lib/grant-status';
+import { grantStatusBadge } from '../../../../../lib/grant-status';
 import { getLocale } from '../../../../../lib/locale';
 import { newCategoriesWithData } from '../../../../../lib/master-profile';
 import { nextShow, pagingHref, parseCursor, parseShow } from '../../../../../lib/paging';
 import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
+import { GRANT_STATUS, INVITATION_STATUS } from '../../../../../lib/status-words';
 import { accessDoneLine } from '../../../../../lib/success-lines';
 import { CollectionAnswersSharingLine } from '../../../../collect/account/sharing-line';
 import { revokeSharingInvitationAction } from './actions';
@@ -94,9 +95,11 @@ const GRANT_SHOW_MAX = 500;
 const ONE_TIME_PARAMS = ['done', 'ai', 'ai_change', 'document', 'item'];
 /** The address parameter for how many grants show. */
 const SHOW_KEY = 'show';
-/** An invitation's state in words for its row (a pending one past its end day reads Expired, worked out where it is drawn). */
-const invitationStatusWord = (status: string) =>
-  status === 'ACCEPTED' ? 'Accepted' : status === 'REVOKED' ? 'Revoked' : 'Pending';
+/** The word and tone on a grant's row; a state with no word of its own is shown as it is. */
+const grantRowStatus = (status: string) =>
+  GRANT_STATUS[status] ?? { word: status, tone: 'neutral' as const };
+const invitationStatus = (status: string) =>
+  INVITATION_STATUS[status] ?? { word: status, tone: 'neutral' as const };
 const GRANT_NOUN = { one: 'grant', other: 'grants' } as const;
 
 export default async function SharingPage({
@@ -573,8 +576,8 @@ export default async function SharingPage({
                                   <ListRow
                                     id={grant.id}
                                     name={grantName(grant)}
-                                    tone={grantStatusTone(grant.status)}
-                                    status={grantStatusBadge(grant.status, t).label}
+                                    tone={grantRowStatus(grant.status).tone}
+                                    status={grantRowStatus(grant.status).word}
                                     meta={grantRowLine({
                                       status: grant.status,
                                       actions: grant.actions,
@@ -662,16 +665,18 @@ export default async function SharingPage({
                         const waiting =
                           invitation.status === 'PENDING' &&
                           invitation.expiresAt.getTime() > Date.now();
-                        const expired =
-                          invitation.status === 'PENDING' &&
-                          invitation.expiresAt.getTime() <= Date.now();
+                        const invitationRowStatus = invitationStatus(
+                          invitation.status === 'PENDING' && !waiting
+                            ? 'EXPIRED'
+                            : invitation.status,
+                        );
                         return (
                           <div className="sharing-invitation-item" key={invitation.id}>
                             <ListRow
                               id={invitation.id}
                               name={invitation.email}
-                              tone={waiting ? 'info' : 'neutral'}
-                              status={expired ? 'Expired' : invitationStatusWord(invitation.status)}
+                              tone={invitationRowStatus.tone}
+                              status={invitationRowStatus.word}
                               meta={invitation.purpose.replace(/[.!?]+$/, '')}
                             />
                             {waiting

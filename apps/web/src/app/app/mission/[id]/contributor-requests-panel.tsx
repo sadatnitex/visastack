@@ -125,7 +125,7 @@ export function ContributorRequestsPanel({
           />
           <FormMessage result={state} style={{ wordBreak: 'break-all' }} />
         </div>
-        {state.ok && state.acceptUrl ? (
+        {state.ok && state.acceptUrl && !revokedSince(requests, state.requestId) ? (
           <ContributorLinkShare
             url={state.acceptUrl}
             {...(state.askedFor ? { askedFor: state.askedFor } : {})}
@@ -134,6 +134,16 @@ export function ContributorRequestsPanel({
       </form>
     </>
   );
+}
+
+/**
+ * Whether the request just made has since been revoked or answered, so its link no longer works
+ * and must not be offered again. A request not in the list (it may be past the part shown) is
+ * taken as still open.
+ */
+function revokedSince(requests: readonly ContributorRequestRow[], requestId: string | undefined) {
+  const made = requestId ? requests.find((request) => request.id === requestId) : undefined;
+  return made !== undefined && made.status !== 'PENDING';
 }
 
 /**

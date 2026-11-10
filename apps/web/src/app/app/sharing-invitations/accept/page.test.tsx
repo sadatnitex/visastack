@@ -9,7 +9,7 @@ const state = vi.hoisted(() => ({
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@visastack/services')>()),
   previewSharingInvitation: async () => ({ ok: true, value: state.invite }),
-  getSharingInvitationSender: async () => state.sender,
+  sharingInvitationSender: async () => state.sender,
   getConsents: async () => ({ CORE_PROCESSING: true, SHARING: true }),
 }));
 vi.mock('../../../../lib/session', () => ({
@@ -53,9 +53,11 @@ describe('what the person who is offered access reads (friction F4 and F9)', () 
   it('writes what they can do as sentences (F9)', async () => {
     const html = await render();
     const text = textOf(html);
-    expect(text).toContain('They can see the details of your documents.');
-    expect(text).toContain('They can open and read your documents.');
-    expect(text).toContain('They can leave comments.');
+    // In the voice of the person being offered access: these are the sharer's documents, not theirs.
+    expect(text).toContain('You will be able to see the details of their documents.');
+    expect(text).toContain('You will be able to open and read their documents.');
+    expect(text).toContain('You will be able to leave comments.');
+    expect(text).not.toMatch(/\byour documents\b/i);
     // The old comma list of labels is gone.
     expect(text).not.toContain('See Document Details, Preview Documents');
   });

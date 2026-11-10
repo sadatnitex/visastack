@@ -37,7 +37,7 @@ export function grantRowLine(grant: GrantRowLineInput): string {
     actions: grant.actions.filter((action) => action !== 'AI_ASSIST'),
     caseGrant: Boolean(grant.missionId),
     partLabels: (grant.categories ?? []).map((category) => categoryLabel(category)),
-    documentNames: (grant.documentIds ?? []).map((id) => id),
+    documentNames: grant.documentIds ?? [],
     hasDocuments: true,
     partsWhen: 'atSharing',
   });

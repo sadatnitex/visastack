@@ -23,6 +23,24 @@ export interface ListGroupProps {
   readonly restOpen?: boolean | undefined;
 }
 
+/** The folder's heading, a real heading inside the opener so heading navigation finds every group. */
+function GroupHeading({
+  level,
+  count,
+  children,
+}: {
+  readonly level: 3 | 4 | undefined;
+  readonly count: number;
+  readonly children: ReactNode;
+}) {
+  const Heading = level === 3 ? 'h3' : 'h4';
+  return (
+    <Heading className="case-group-heading collapsible-group-title" data-pattern="group-heading">
+      {children} <span className="muted lift-state-count">{count}</span>
+    </Heading>
+  );
+}
+
 /**
  * A folder of rows: a Title Case header with a count, the first rows shown, the rest folded.
  * Every list screen groups the same way. The header stays a real heading inside the fold's opener,
@@ -40,17 +58,9 @@ export function GroupedList({ groups }: { readonly groups: readonly ListGroupPro
           open={group.open}
         >
           <summary className="collapsible-group-summary">
-            {(() => {
-              const Heading = group.headingLevel === 3 ? 'h3' : 'h4';
-              return (
-                <Heading
-                  className="case-group-heading collapsible-group-title"
-                  data-pattern="group-heading"
-                >
-                  {group.heading} <span className="muted lift-state-count">{group.count}</span>
-                </Heading>
-              );
-            })()}
+            <GroupHeading level={group.headingLevel} count={group.count}>
+              {group.heading}
+            </GroupHeading>
           </summary>
           <div className="collapsible-group-body">
             <div className="rows">{group.children}</div>
