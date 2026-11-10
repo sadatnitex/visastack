@@ -160,12 +160,20 @@ describe('the rows and panels the kit draws (rendered)', () => {
 
   const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html');
 
-  it('gives every row one status mark, a name of twelve words or fewer, a chip from the one vocabulary and at most one action', async () => {
+  it('gives every row one leading mark, a name of twelve words or fewer, a chip from the one vocabulary and at most one action', async () => {
     const doc = parse(await draw());
     const rows = [...doc.querySelectorAll('[data-pattern="list-row"]')];
     expect(rows).toHaveLength(states.length);
     for (const row of rows) {
-      expect(row.querySelectorAll('.lift-check-icon'), 'one status mark').toHaveLength(1);
+      // One leading mark: the kind of item in its tile (10 Nov 2026), or the status glyph.
+      expect(
+        row.querySelectorAll('.lift-check-icon, .lift-check-mark'),
+        'one leading mark',
+      ).toHaveLength(1);
+      // A row led by its kind shows its status in the chip, with the chip's own symbol.
+      if (row.querySelector('.lift-check-mark')) {
+        expect(row.querySelector('.lift-pill svg'), 'status symbol in the chip').not.toBeNull();
+      }
       expect(
         row.querySelectorAll('.lift-check-action').length,
         'at most one action',
