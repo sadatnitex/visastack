@@ -43,7 +43,7 @@ describe('follow-up message copy', () => {
     expect(container.textContent).not.toContain('Your note was left out');
   });
 
-  it('announces Copied through a polite live region once the clipboard accepts the text', async () => {
+  it('announces the copy through a polite live region once the clipboard accepts the text', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     render();
@@ -52,7 +52,30 @@ describe('follow-up message copy', () => {
     expect(status?.textContent).toBe('');
     await clickCopy();
     expect(writeText).toHaveBeenCalledWith(text);
-    expect(status?.textContent).toBe('Copied');
+    expect(status?.textContent).toContain('Message copied');
+  });
+
+  it('offers Send on WhatsApp first, with the same words, outside the fold', () => {
+    render();
+    const first = container.querySelector('a, button, summary');
+    expect(first?.textContent).toContain('Send on WhatsApp');
+    const link = container.querySelector<HTMLAnchorElement>('a.wa-share-send');
+    expect(link?.href).toBe(`https://wa.me/?text=${encodeURIComponent(text)}`);
+    expect(link?.closest('details')).toBeNull();
+    // One Copy Message, not two.
+    expect(
+      [...container.querySelectorAll('button')].filter((b) => b.textContent === 'Copy Message'),
+    ).toHaveLength(1);
+  });
+
+  it('offers no WhatsApp action, and keeps its own copy button, for text the checks refuse', async () => {
+    act(() =>
+      root.render(<FollowUpCopy text="Please send passport A01234567 today." agencyNoteLeftOut />),
+    );
+    expect(container.querySelector('a.wa-share-send')).toBeNull();
+    expect(
+      [...container.querySelectorAll('button')].filter((b) => b.textContent === 'Copy Message'),
+    ).toHaveLength(1);
   });
 
   it('selects the text for copying by hand when the clipboard is refused, and never claims Copied', async () => {

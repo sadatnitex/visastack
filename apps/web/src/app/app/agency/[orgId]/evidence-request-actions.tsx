@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useMemo, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
 import {
   type ActionState,
@@ -64,6 +64,8 @@ export function EvidenceRequestActions({
 
   const anyMessage = reviewState.message || decideState.message || cancelState.message;
   const anyOk = reviewState.ok && decideState.ok && cancelState.ok;
+  // One value per outcome, so the done strip is raised once for it and not again on every render.
+  const anyResult = useMemo(() => ({ ok: anyOk, message: anyMessage }), [anyOk, anyMessage]);
   const stale = !decideState.ok && decideState.message.startsWith(STALE_START);
   const refreshHref = `/app/agency/${organizationId}/clients?request=${requestId}#request-${requestId}`;
   const pinned = submissionId ? (
@@ -183,7 +185,7 @@ export function EvidenceRequestActions({
           />
         </form>
       ) : null}
-      <FormMessage result={{ ok: anyOk, message: anyMessage }} />
+      <FormMessage result={anyResult} />
       {stale ? (
         <p className="u-m-0">
           <a className="request-decision-refresh" href={refreshHref}>

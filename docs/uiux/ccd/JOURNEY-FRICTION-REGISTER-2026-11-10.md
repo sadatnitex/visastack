@@ -22,7 +22,7 @@ Objective means anyone can reproduce it (dead end, missing feedback, two forms f
 | ID | Problem | Evidence | Who | Kind | Fix | Owner of the fix |
 |---|---|---|---|---|---|---|
 | A1 | One consent button has four names; some messages name a button that does not exist under that name | `(home)/first-run.tsx` near 125 and 278, `(home)/page.tsx` near 485 and 527, `lib/labels.ts` near 239 | Every new person | Objective | One name, "Let VisaStack Process My Details", and a working link wherever a page says to turn it on | Lane 1 |
-| A2 | Confirming the email ends on a sign-in form | `app/auth/actions.ts:137` | New people on phones | Objective | Sign in automatically after confirmation | Needs the owner (packet P1) |
+| A2 | Confirming the email ends on a sign-in form | `app/auth/actions.ts:137` | New people on phones | Objective | Sign in automatically after confirmation | Built 10 Nov (packet P1), not seen live: a real confirmation email is needed |
 | A5 | First run offers 4 to 6 equal choices | `(home)/first-run.tsx` near 187 to 240 | New people | Preference | Mark one recommended first step | Lane 1 if small, else later |
 | B2 | "Add the Details Yourself" opens the whole profile, not the field | `reading-status.tsx:35` | Manual entry | Objective | Link to the right section | Lane 1 |
 | B3 | Pages say "turn on processing on Home" with no button | profile near 354, review near 227, `ai-review.tsx` near 283 | People who chose Not Now | Objective | A link to where it is switched on | Lane 1 |

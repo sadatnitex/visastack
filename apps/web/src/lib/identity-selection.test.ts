@@ -11,6 +11,7 @@ describe('isNeonProtectedPath', () => {
       '/pilot-access-denied',
       '/oauth/authorize',
       '/auth/reauth',
+      '/auth/confirmed',
       '/collect/account',
       '/collect/account/answers',
     ]) {
@@ -30,6 +31,7 @@ describe('isNeonProtectedPath', () => {
       '/auth/reset-password',
       '/auth/verify-email',
       '/auth/reauthorize',
+      '/auth/confirmedx',
       '/application',
       '/applications/1',
       '/apple',

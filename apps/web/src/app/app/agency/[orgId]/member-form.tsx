@@ -51,7 +51,11 @@ export function AddMemberForm({
           busy="Adding…"
           className="btn btn-primary"
         />
-        <InvitationOutcome state={state} pendingInvitationIds={pendingInvitationIds} />
+        <InvitationOutcome
+          state={state}
+          pendingInvitationIds={pendingInvitationIds}
+          purpose="team"
+        />
       </div>
     </form>
   );
