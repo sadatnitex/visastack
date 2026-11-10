@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import { Icon } from '../../components/icons';
+import { ShareOriginsProvider } from '../../components/share/share-origins';
+import { resolveBaseUrl } from '../../lib/base-url';
 import { caseSubjectFor } from '../../lib/case-subject';
 import { withSession } from '../../lib/session';
 import { getSidebarState } from '../../lib/sidebar-state';
@@ -62,7 +64,7 @@ export async function WorkspaceFrame({
         </form>
       }
     >
-      {children}
+      <ShareOriginsProvider origin={resolveBaseUrl()}>{children}</ShareOriginsProvider>
     </WorkspaceShell>
   );
 }

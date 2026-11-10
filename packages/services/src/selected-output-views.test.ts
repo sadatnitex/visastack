@@ -1,4 +1,4 @@
-import { isErr, isOk } from '@visastack/core';
+import { isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { createMigratedPglite } from '@visastack/db/testing';
 import { eq } from 'drizzle-orm';
@@ -17,7 +17,6 @@ import {
   type OutputChoice,
   TRIP_DOCUMENT_SLOTS,
   TRIP_FIELD_KEYS,
-  buildWhatsAppShare,
   cleanText,
   defaultChoice,
   engineRequest,
@@ -584,34 +583,6 @@ describe('files and fingerprints', () => {
     expect(longDay('2026-12-01T10:00:00.000Z')).toBe('1 December 2026');
     expect(longDay(null)).toBe('');
     expect(longDay('not a day')).toBe('not a day');
-  });
-});
-
-describe('the prepared WhatsApp message', () => {
-  it('is generic: a greeting and a link to the signed-in shared workspace', () => {
-    const share = buildWhatsAppShare('https://vs.obsidianglobal.studio');
-    expect(isOk(share)).toBe(true);
-    if (!isOk(share)) return;
-    expect(share.value.message).toBe(
-      'Hello, I have put my visa details together on VisaStack and shared what you need there. Please sign in to VisaStack to see it: https://vs.obsidianglobal.studio/app/shared',
-    );
-    expect(share.value.href).toBe(`https://wa.me/?text=${encodeURIComponent(share.value.message)}`);
-    // Nothing from a record can be in it: no digits, no names, no documents.
-    expect(share.value.message).not.toMatch(/\d/);
-  });
-
-  it('refuses an address that is not a plain site address', () => {
-    for (const bad of [
-      'javascript:alert(1)',
-      'https://evil.example/path?x=1',
-      'ftp://example.com',
-      '',
-      'https://a b.com',
-      'http://example.com',
-    ]) {
-      expect(isErr(buildWhatsAppShare(bad)), bad).toBe(true);
-    }
-    expect(isOk(buildWhatsAppShare('http://localhost:3100'))).toBe(true);
   });
 });
 

@@ -21,6 +21,21 @@ import { ExplainGapButton } from './readiness-gap-explain';
 import { SuggestCorrection } from './suggest-correction';
 import { WordingEditor } from './wording-editor';
 
+/** The chosen files or answers in plain words, for a case that is closed. */
+function chosenNames(c: CandidateView): string {
+  const names = [
+    ...c.documentCandidates
+      .filter((d) => c.selectedDocumentIds.includes(d.documentId))
+      .map((d) => d.displayName),
+    ...c.factCandidates
+      .filter((f) => c.selectedFactIds.includes(f.factId))
+      .map((f) => f.value ?? ''),
+  ].filter(Boolean);
+  return names.length > 0
+    ? `Chosen: ${names.join(', ')}`
+    : 'None chosen. Any eligible one counted.';
+}
+
 export interface CaseItemPaneProps {
   readonly missionId: string;
   readonly applicantId: string;
@@ -33,6 +48,8 @@ export interface CaseItemPaneProps {
   readonly formatLines: readonly string[] | undefined;
   /** The files and answers on file for this item, when the case has read them. */
   readonly candidate: CandidateView | undefined;
+  /** The case is open, so the choice of which file counts can still change (the same open-case rule as the wording). */
+  readonly evidenceEditable: boolean;
   /** The package item for this row, when the case has a package. */
   readonly packageItem: PackageItem | undefined;
   /** The traveller may still change what the package uses: the package is open. */
@@ -57,6 +74,7 @@ export function CaseItemPane({
   chosen,
   formatLines,
   candidate,
+  evidenceEditable,
   packageItem,
   packageEditable,
   explanations,
@@ -148,10 +166,17 @@ export function CaseItemPane({
       {candidate && hasSeveralToChoose(candidate) ? (
         <section className="lp-pane-section" aria-label="Which File Counts">
           <h4 className="package-subheading">Which File Counts</h4>
-          <p className="muted u-fs-085 u-m-0">
-            Several are on file. Until you pick one, any eligible one may count toward readiness.
-          </p>
-          <EvidenceItemChoices missionId={missionId} candidate={candidate} />
+          {evidenceEditable ? (
+            <>
+              <p className="muted u-fs-085 u-m-0">
+                Several are on file. Until you pick one, any eligible one may count toward
+                readiness.
+              </p>
+              <EvidenceItemChoices missionId={missionId} candidate={candidate} />
+            </>
+          ) : (
+            <p className="u-fs-085 u-m-0">{chosenNames(candidate)}</p>
+          )}
         </section>
       ) : null}
 

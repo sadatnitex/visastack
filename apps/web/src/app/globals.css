@@ -19766,3 +19766,47 @@ details.collapsible-group[hidden],
   color: var(--warning);
 }
 /* end WP-PLAIN-P4 */
+
+/* WP-LP3 The choice of which file counts, one row per file: the name, its chips and one button. Flat, tokens only. */
+.lp-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.lp-choice-label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.lp-choice-chip {
+  margin-inline-start: var(--space-2);
+}
+.lp-choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lp-choice-intro {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-small);
+}
+/* end WP-LP3 */
+
+/* WP-P6 Send on WhatsApp, the same everywhere a person sends something. The WhatsApp mark is a small green accent beside the words; the buttons stay the quiet secondary kind. Flat, tokens only, 44 px targets. */
+.wa-share {
+  display: grid;
+  gap: var(--space-2);
+}
+.wa-share-icon {
+  flex: none;
+  color: var(--success);
+}
+.wa-share-manual {
+  display: grid;
+  gap: var(--space-1);
+}
+.do-next-action .wa-share {
+  margin-bottom: var(--space-2);
+}
+/* end WP-P6 */
