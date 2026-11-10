@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_SHRINK_INPUT_BYTES,
   STORED_UPLOAD_TYPES,
   acceptAttribute,
+  canShrinkToFit,
   checkChosenFile,
   storedFileName,
   uploadLimitsText,
@@ -115,5 +117,93 @@ describe('the names a stored file carries', () => {
     for (const type of STORED_UPLOAD_TYPES) {
       expect(withFileExtension('Name', type)).toMatch(/^Name\.[a-z]+$/);
     }
+  });
+});
+
+describe('a photo over the limit when shrinking is allowed (P2)', () => {
+  const MB = 1024 * 1024;
+  const shrinking = { ...rules, shrinkPhotos: true };
+  const check = (f: ReturnType<typeof file>, r = shrinking) => checkChosenFile(f, r);
+
+  it('lets a JPEG or PNG photo over the limit through, marked to be shrunk', () => {
+    expect(check(file('IMG_1.jpg', 9 * MB, 'image/jpeg'))).toEqual({
+      ok: true,
+      contentType: 'image/jpeg',
+      shrink: true,
+    });
+    expect(check(file('shot.png', 6 * MB, 'image/png'))).toEqual({
+      ok: true,
+      contentType: 'image/png',
+      shrink: true,
+    });
+    // A browser that left the type empty: the name decides, as for any file.
+    expect(check(file('IMG_2.JPG', 9 * MB))).toMatchObject({ ok: true, shrink: true });
+  });
+
+  it('never marks a file under the limit, or one exactly at it', () => {
+    expect(check(file('a.jpg', 4 * MB, 'image/jpeg'))).toEqual({
+      ok: true,
+      contentType: 'image/jpeg',
+    });
+    expect(check(file('b.jpg', 100, 'image/jpeg'))).toEqual({
+      ok: true,
+      contentType: 'image/jpeg',
+    });
+  });
+
+  it('keeps the size refusal for everything that is not a JPEG or PNG photo', () => {
+    const tooLarge = (f: ReturnType<typeof file>) => {
+      const checked = check(f);
+      return checked.ok ? null : checked.reason;
+    };
+    expect(tooLarge(file('scan.pdf', 9 * MB, 'application/pdf'))).toContain('larger than 4 MB');
+    expect(tooLarge(file('iphone.heic', 9 * MB, 'image/heic'))).toContain('larger than 4 MB');
+    expect(
+      tooLarge(
+        file(
+          'cv.docx',
+          9 * MB,
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ),
+      ),
+    ).toContain('larger than 4 MB');
+    expect(tooLarge(file('notes.txt', 9 * MB, 'text/plain'))).toContain('larger than 4 MB');
+  });
+
+  it('keeps the size refusal for a photo too big to read into memory', () => {
+    const checked = check(file('huge.jpg', MAX_SHRINK_INPUT_BYTES + 1, 'image/jpeg'));
+    expect(checked.ok).toBe(false);
+    expect(check(file('edge.jpg', MAX_SHRINK_INPUT_BYTES, 'image/jpeg'))).toMatchObject({
+      ok: true,
+      shrink: true,
+    });
+  });
+
+  it('changes nothing unless the caller asks for it', () => {
+    for (const r of [rules, { ...rules, shrinkPhotos: false }]) {
+      const checked = checkChosenFile(file('IMG_1.jpg', 9 * MB, 'image/jpeg'), r);
+      expect(checked.ok).toBe(false);
+    }
+  });
+
+  it('knows which photos can be shrunk', () => {
+    expect(canShrinkToFit('image/jpeg', 5 * MB, 4 * MB)).toBe(true);
+    expect(canShrinkToFit('image/png', 5 * MB, 4 * MB)).toBe(true);
+    expect(canShrinkToFit('image/webp', 5 * MB, 4 * MB)).toBe(false);
+    expect(canShrinkToFit('application/pdf', 5 * MB, 4 * MB)).toBe(false);
+    expect(canShrinkToFit('image/jpeg', 4 * MB, 4 * MB)).toBe(false);
+  });
+});
+
+describe('the limits line where photos are made smaller (P2)', () => {
+  it('says so after the kinds, and before the PDF reason', () => {
+    expect(uploadLimitsText('4 MB', true, true)).toBe(
+      'Up to 4 MB per file; PDF, JPG, PNG, HEIC, Word or text files. Larger photos are made smaller to fit.',
+    );
+    expect(uploadLimitsText('4 MB', false, true)).toBe(
+      'Up to 4 MB per file; JPG, PNG, HEIC, Word or text files. Larger photos are made smaller to fit. PDF files can be added only while our virus scan is switched on.',
+    );
+    // Everywhere that does not shrink photos keeps the plain line.
+    expect(uploadLimitsText('4 MB', true)).not.toContain('smaller');
   });
 });
