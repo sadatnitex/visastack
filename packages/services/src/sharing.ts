@@ -599,8 +599,14 @@ export async function resumeGrant(
   );
 }
 
+/** The two plain reasons an extension is refused for a grant that exists, for the web layer to match exactly. */
+export const GRANT_EXTEND_RESUME_FIRST = 'resume this grant before extending it';
+export const GRANT_EXTEND_ENDED = 'this grant has already ended';
+
 export interface ExtendGrantInput {
   readonly grantId: string;
+  /** A fresh sign-in, needed only when the grant hands out a step-up action (download of originals, export, sharing on). */
+  readonly stepUp?: StepUpProof;
   /**
    * The end date the person was looking at when they tapped. If the grant no longer ends then
    * (a double tap, or a second device, got there first), nothing is extended a second time.
@@ -616,6 +622,8 @@ export interface ExtendGrantResult {
   readonly extended: boolean;
   /** True when the grant already ends as late as sharing is allowed to run from today. */
   readonly atLimit: boolean;
+  /** Whole days this call added: 30, or fewer when the 90-day ceiling cut it short, or 0. */
+  readonly daysAdded: number;
 }
 
 /**
@@ -646,24 +654,51 @@ export async function extendGrant(
     return err(serviceError('not_found', 'grant not found'));
   }
   const now = input.now ?? new Date();
-  if (grant.status === 'PAUSED') {
-    return err(serviceError('invalid', 'resume this grant before extending it'));
-  }
+  if (grant.status === 'PAUSED') return err(serviceError('invalid', GRANT_EXTEND_RESUME_FIRST));
   if (grant.status !== 'ACTIVE' || !grant.acceptedAt || grantHasEnded(grant, now.getTime())) {
-    return err(serviceError('invalid', 'this grant has already ended'));
+    return err(serviceError('invalid', GRANT_EXTEND_ENDED));
   }
   const current = grant.expiryAt;
   if (!current) {
     return err(serviceError('invalid', 'this grant has no end date to extend'));
   }
+  // The same standing createGrant asks for: current sharing consent, a recipient agency that is
+  // still verified, and a fresh sign-in when the grant hands out a step-up action. An ordinary
+  // grant (the agency client default included) stays one tap.
+  if (!(await hasConsent(db, proof.applicant.ownerAccountId, 'SHARING'))) {
+    return err(serviceError('consent_required', 'Sharing consent is needed to keep sharing.'));
+  }
+  if (grant.recipientOrganizationId) {
+    const organization = first(
+      await db
+        .select({ status: schema.organizations.status })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, grant.recipientOrganizationId))
+        .limit(1),
+    );
+    if (organization?.status !== 'ACTIVE') {
+      return err(serviceError('invalid', GRANT_EXTEND_ENDED));
+    }
+  }
+  if (
+    grant.actions.some((action) => STEP_UP_ACTIONS.includes(action)) &&
+    !StepUpProof.covers(input.stepUp, {
+      accountId: proof.applicant.ownerAccountId,
+      action: 'SHARE',
+      resourceId: applicantId,
+    })
+  ) {
+    return err(serviceError('step_up_required', 'Confirm it is you to keep sharing.'));
+  }
   // The person was looking at another date: an earlier tap already moved this one.
   if (input.expectedExpiryAt && input.expectedExpiryAt.getTime() !== current.getTime()) {
-    return ok({ grant, extended: false, atLimit: false });
+    return ok({ grant, extended: false, atLimit: false, daysAdded: 0 });
   }
   const next = extendedGrantEnd(current, now);
   if (next.getTime() === current.getTime()) {
-    return ok({ grant, extended: false, atLimit: true });
+    return ok({ grant, extended: false, atLimit: true, daysAdded: 0 });
   }
+  const daysAdded = Math.round((next.getTime() - current.getTime()) / DAY_MS);
   return db.transaction(async (tx) => {
     const rows = await tx
       .update(schema.grants)
@@ -680,10 +715,13 @@ export async function extendGrant(
     if (!updated) {
       // Lost the race to another tap or a pause or revoke: report what is true now.
       const latest = await loadGrant(tx, grant.id);
-      if (latest && latest.status === 'ACTIVE' && latest.expiryAt) {
-        return ok({ grant: latest, extended: false, atLimit: false });
+      if (latest?.status === 'PAUSED') {
+        return err(serviceError('invalid', GRANT_EXTEND_RESUME_FIRST));
       }
-      return err(serviceError('invalid', 'this grant has already ended'));
+      if (latest && latest.status === 'ACTIVE' && !grantHasEnded(latest, now.getTime())) {
+        return ok({ grant: latest, extended: false, atLimit: false, daysAdded: 0 });
+      }
+      return err(serviceError('invalid', GRANT_EXTEND_ENDED));
     }
     await appendAuditEvent(tx, {
       eventType: 'GRANT_EXTENDED',
@@ -697,7 +735,7 @@ export async function extendGrant(
       metadata: {
         previousExpiryAt: current.toISOString(),
         newExpiryAt: next.toISOString(),
-        days: Math.round((next.getTime() - current.getTime()) / DAY_MS),
+        days: daysAdded,
       },
     });
     // Notes queued for the old date are now wrong; the next date gets its own.
@@ -707,6 +745,7 @@ export async function extendGrant(
       grant: updated,
       extended: true,
       atLimit: next.getTime() >= now.getTime() + GRANT_MAX_DURATION_DAYS * DAY_MS,
+      daysAdded,
     });
   });
 }

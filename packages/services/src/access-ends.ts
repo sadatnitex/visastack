@@ -1,4 +1,4 @@
-import { and, eq, gt, isNotNull, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import { withCaseExclusions } from './access/grant-scope';
 import { type Db, schema } from './db';
 import { presentApplicantCondition } from './lifecycle/foundation/conditions';
@@ -15,7 +15,10 @@ import { lifecycleTablesPresent } from './lifecycle/foundation/presence';
 export async function listAccessEndsForOrg(
   db: Db,
   organizationId: string,
+  /** The cases the signed-in member can already see on the page; no other case is read or returned. */
+  missionIds: readonly string[],
 ): Promise<ReadonlyMap<string, Date | null>> {
+  if (missionIds.length === 0) return new Map();
   const now = new Date();
   const lifecycle = await lifecycleTablesPresent(db);
   const rows = await withCaseExclusions(db, (covers) =>
@@ -31,6 +34,7 @@ export async function listAccessEndsForOrg(
           isNotNull(schema.grants.acceptedAt),
           lte(schema.grants.startAt, now),
           or(isNull(schema.grants.expiryAt), gt(schema.grants.expiryAt, now)),
+          inArray(schema.missions.id, [...missionIds]),
           covers(schema.missions.id),
           lifecycle ? presentApplicantCondition() : undefined,
         ),

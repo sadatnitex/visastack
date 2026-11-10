@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { SystemScope } from './access';
 import { AuthorizedApplicant } from './access/require-access';
 import { type Db, schema } from './db';
@@ -218,12 +218,55 @@ export const GRANT_ENDING_REMINDER_DAYS = 7;
 const GRANT_REMINDER_MIN_LENGTH_MS = GRANT_ENDING_REMINDER_DAYS * 24 * 60 * 60 * 1000;
 
 /** The coarse database filter: wider than the window so any time zone's local day still falls inside. */
-const GRANT_REMINDER_PREFILTER_MS = (GRANT_ENDING_REMINDER_DAYS + 2) * 24 * 60 * 60 * 1000;
+const GRANT_REMINDER_PREFILTER_DAYS = GRANT_ENDING_REMINDER_DAYS + 2;
+const GRANT_REMINDER_PREFILTER_MS = GRANT_REMINDER_PREFILTER_DAYS * 24 * 60 * 60 * 1000;
 
 /** `YYYY-MM-DD` of a date in a time zone: the same local day always makes the same key. */
 function localDateKey(date: Date, timezone: string): string {
   const { year, month, day } = toLocalDateParts(date, timezone);
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+/** Another live grant from the same traveller to the same recipient that reaches these cases and ends later (or never). */
+async function laterGrantOutlasts(
+  db: Db,
+  row: {
+    readonly grantId: string;
+    readonly applicantId: string;
+    readonly missionId: string | null;
+    readonly organizationId: string | null;
+    readonly recipientAccountId: string | null;
+  },
+  expiryAt: Date,
+  now: Date,
+): Promise<boolean> {
+  const grants = schema.grants;
+  const sameRecipient = row.organizationId
+    ? eq(grants.recipientOrganizationId, row.organizationId)
+    : row.recipientAccountId
+      ? eq(grants.recipientAccountId, row.recipientAccountId)
+      : undefined;
+  if (!sameRecipient) return false;
+  const found = await db
+    .select({ id: grants.id })
+    .from(grants)
+    .where(
+      and(
+        eq(grants.applicantId, row.applicantId),
+        sameRecipient,
+        ne(grants.id, row.grantId),
+        eq(grants.status, 'ACTIVE'),
+        isNotNull(grants.acceptedAt),
+        lte(grants.startAt, now),
+        or(isNull(grants.expiryAt), gt(grants.expiryAt, expiryAt)),
+        // An all-cases grant reaches everything; a one-case grant reaches only its own case.
+        row.missionId
+          ? or(isNull(grants.missionId), eq(grants.missionId, row.missionId))
+          : isNull(grants.missionId),
+      ),
+    )
+    .limit(1);
+  return found.length > 0;
 }
 
 /**
@@ -253,6 +296,7 @@ export async function sweepGrantExpiryReminders(
       applicantId: grants.applicantId,
       missionId: grants.missionId,
       organizationId: grants.recipientOrganizationId,
+      recipientAccountId: grants.recipientAccountId,
       expiryAt: grants.expiryAt,
       acceptedAt: grants.acceptedAt,
       startAt: grants.startAt,
@@ -273,11 +317,34 @@ export async function sweepGrantExpiryReminders(
         isNotNull(grants.expiryAt),
         gt(grants.expiryAt, now),
         lte(grants.expiryAt, new Date(now.getTime() + GRANT_REMINDER_PREFILTER_MS)),
+        // Already reminded for this end date: a reminder made inside the window before the end.
+        // An extension moves the end 30 days out, so an earlier reminder never counts again.
+        sql`not exists (select 1 from ${schema.notifications} where ${schema.notifications.resourceId} = ${grants.id}::text and ${schema.notifications.eventType} = ${GRANT_ENDING_EVENT} and ${schema.notifications.createdAt} > ${grants.expiryAt} - (${GRANT_REMINDER_PREFILTER_DAYS} * interval '1 day'))`,
         (await lifecycleTablesPresent(db)) ? presentApplicantCondition() : undefined,
       ),
     )
     .orderBy(asc(grants.expiryAt), asc(grants.id))
     .limit(options.limit ?? 500);
+
+  // One lookup of an agency's owners and admins per run, however many of its grants end.
+  const adminsByOrganization = new Map<string, readonly string[]>();
+  const adminsOf = async (tx: Db, organizationId: string): Promise<readonly string[]> => {
+    const known = adminsByOrganization.get(organizationId);
+    if (known) return known;
+    const admins = await tx
+      .select({ accountId: schema.memberships.accountId })
+      .from(schema.memberships)
+      .where(
+        and(
+          eq(schema.memberships.organizationId, organizationId),
+          eq(schema.memberships.active, true),
+          inArray(schema.memberships.role, ['OWNER', 'ADMIN']),
+        ),
+      );
+    const accountIds = admins.map((admin) => admin.accountId);
+    adminsByOrganization.set(organizationId, accountIds);
+    return accountIds;
+  };
 
   let enqueued = 0;
   for (const row of rows) {
@@ -287,6 +354,9 @@ export async function sweepGrantExpiryReminders(
     if (daysLeft < 1 || daysLeft > GRANT_ENDING_REMINDER_DAYS) continue;
     const startedAt = row.acceptedAt ?? row.startAt;
     if (expiryAt.getTime() - startedAt.getTime() <= GRANT_REMINDER_MIN_LENGTH_MS) continue;
+    // Sharing again was the only way to renew before extending existed: another live grant to the
+    // same recipient that reaches the same cases and ends later means this one is not the end.
+    if (await laterGrantOutlasts(db, row, expiryAt, now)) continue;
 
     const day = titleDate(expiryAt, row.timezone);
     const threshold = `ends_7d:${localDateKey(expiryAt, row.timezone)}`;
@@ -308,21 +378,11 @@ export async function sweepGrantExpiryReminders(
       });
       const organizationId = row.organizationId;
       if (organizationId) {
-        const admins = await tx
-          .select({ accountId: schema.memberships.accountId })
-          .from(schema.memberships)
-          .where(
-            and(
-              eq(schema.memberships.organizationId, organizationId),
-              eq(schema.memberships.active, true),
-              inArray(schema.memberships.role, ['OWNER', 'ADMIN']),
-            ),
-          );
-        for (const admin of admins) {
+        for (const adminAccountId of await adminsOf(tx, organizationId)) {
           written += await enqueueNotificationBothChannels(tx, {
             eventType: AGENCY_ACCESS_ENDING_EVENT,
             resourceId: row.grantId,
-            recipientAccountId: admin.accountId,
+            recipientAccountId: adminAccountId,
             threshold,
             applicantId: row.applicantId,
             organizationId,

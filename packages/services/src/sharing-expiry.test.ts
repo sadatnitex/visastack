@@ -4,8 +4,10 @@ import { createMigratedPglite } from '@visastack/db/testing';
 import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { accountPrincipal, requireAccess, systemPrincipal } from './access';
+import { accountPrincipal, requireAccess } from './access';
 import { listAccessEndsForOrg } from './access-ends';
+import { verifyStepUp } from './access/step-up-proof';
+import { systemScopeForTest } from './access/system-scope.test-support';
 import { provisionAccount } from './accounts';
 import { createApplicant } from './applicants';
 import { setConsent } from './consent';
@@ -15,10 +17,15 @@ import { sweepGrantExpiryReminders } from './notification-sweep';
 import {
   AGENCY_ACCESS_ENDING_EVENT,
   GRANT_ENDING_EVENT,
+  type NotificationPayload,
   cancelQueuedNotificationsForResource,
+  runNotificationWorker,
 } from './notifications';
 import { addMembership, createOrganization, reviewOrganization } from './organizations';
+import type { EmailPort, SendEmailInput, SendEmailResult } from './ports';
 import {
+  GRANT_EXTEND_ENDED,
+  GRANT_EXTEND_RESUME_FIRST,
   GRANT_EXTENSION_DAYS,
   acceptGrant,
   createGrant,
@@ -27,6 +34,7 @@ import {
   pauseGrant,
   revokeGrant,
 } from './sharing';
+import { issueStepUpAssurance } from './step-up';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -144,7 +152,7 @@ async function notificationsFor(db: Db, grantId: string) {
   return db.select().from(schema.notifications).where(eq(schema.notifications.resourceId, grantId));
 }
 
-const SCOPE = systemPrincipal('process-notification-sweeps');
+const SCOPE = systemScopeForTest('process-notification-sweeps');
 
 describe('extendedGrantEnd', () => {
   it('adds 30 days to the current end, never passes 90 days from now, never shortens', () => {
@@ -192,10 +200,11 @@ describe('sharing ends soon: the reminder', () => {
     ]);
     expect(rows.every((row) => row.recipientAccountId === account.id)).toBe(true);
     const inApp = rows.find((row) => row.channel === 'IN_APP');
-    expect(inApp?.payload.subject).toBe('Your Sharing Ends Soon');
-    expect(inApp?.payload.summary).toContain('friend@example.com');
-    expect(inApp?.payload.summary).toContain('30 more days');
-    expect(inApp?.payload.deepLinkPath).toBe(
+    const inAppPayload = inApp?.payload as NotificationPayload;
+    expect(inAppPayload.subject).toBe('Your Sharing Ends Soon');
+    expect(inAppPayload.summary).toContain('friend@example.com');
+    expect(inAppPayload.summary).toContain('30 more days');
+    expect(inAppPayload.deepLinkPath).toBe(
       `/app/applicant/${applicantId}/sharing#extend-grant-${grant.id}`,
     );
   });
@@ -242,10 +251,10 @@ describe('sharing ends soon: the reminder', () => {
     );
     expect(agencyRows.some((row) => row.recipientAccountId === agency.manager.id)).toBe(false);
     expect(agencyRows.every((row) => row.organizationId === agency.orgId)).toBe(true);
-    const note = agencyRows.find((row) => row.channel === 'IN_APP');
-    expect(note?.payload.subject).toBe('Client Access Ends Soon');
-    expect(note?.payload.summary).toContain('Client Name');
-    expect(note?.payload.summary).toContain('The traveller can extend it.');
+    const note = agencyRows.find((row) => row.channel === 'IN_APP')?.payload as NotificationPayload;
+    expect(note.subject).toBe('Client Access Ends Soon');
+    expect(note.summary).toContain('Client Name');
+    expect(note.summary).toContain('The traveller can extend it.');
     // The traveller's own note is separate and offers the extension.
     const own = rows.filter((row) => row.eventType === GRANT_ENDING_EVENT);
     expect(own.every((row) => row.recipientAccountId === account.id)).toBe(true);
@@ -347,7 +356,7 @@ describe('sharing ends soon: the reminder', () => {
   });
 
   it('ignores a scope that is not the sweeps own', async () => {
-    const wrong = systemPrincipal('process-ai-reading') as unknown as typeof SCOPE;
+    const wrong = systemScopeForTest('process-ai-reading') as unknown as typeof SCOPE;
     const { account, applicantId } = await makeTraveller(db, 'wrong@example.com');
     const friend = await makeAccount(db, 'friend6@example.com');
     const grant = await activeGrant(db, {
@@ -537,7 +546,9 @@ describe('Keep Sharing for 30 More Days', () => {
     }
     // A paused one is told to resume first, not that it has ended.
     const pausedResult = await extendGrant(proof, { grantId: paused.id });
-    if (isErr(pausedResult)) expect(pausedResult.error.message).toContain('resume');
+    if (isErr(pausedResult)) expect(pausedResult.error.message).toBe(GRANT_EXTEND_RESUME_FIRST);
+    const endedResult = await extendGrant(proof, { grantId: ended.id });
+    if (isErr(endedResult)) expect(endedResult.error.message).toBe(GRANT_EXTEND_ENDED);
     const [p] = await db.select().from(schema.grants).where(eq(schema.grants.id, paused.id));
     expect(p?.status).toBe('PAUSED');
     expect(p?.expiryAt?.getTime()).toBe((paused.expiryAt as Date).getTime());
@@ -580,19 +591,26 @@ describe('Keep Sharing for 30 More Days', () => {
       title: 'Spring trip',
     });
     if (!isOk(mission)) throw new Error('mission');
-    const before = await listAccessEndsForOrg(db, agency.orgId);
+    const before = await listAccessEndsForOrg(db, agency.orgId, [mission.value.id]);
     expect(before.get(mission.value.id)?.getTime()).toBe((grant.expiryAt as Date).getTime());
 
     const proof = await ownerProof(db, account.id, applicantId);
     const result = await extendGrant(proof, { grantId: grant.id });
     if (!isOk(result)) throw new Error('extend');
-    const after = await listAccessEndsForOrg(db, agency.orgId);
+    const after = await listAccessEndsForOrg(db, agency.orgId, [mission.value.id]);
     expect(after.get(mission.value.id)?.getTime()).toBe(
       (grant.expiryAt as Date).getTime() + 30 * DAY,
     );
-    // Another agency learns nothing about this case.
-    const other = await listAccessEndsForOrg(db, '00000000-0000-4000-8000-000000000000');
+    // Another agency learns nothing about this case, and a case not named is not read.
+    const other = await listAccessEndsForOrg(db, '00000000-0000-4000-8000-000000000000', [
+      mission.value.id,
+    ]);
     expect(other.size).toBe(0);
+    expect((await listAccessEndsForOrg(db, agency.orgId, [])).size).toBe(0);
+    const unnamed = await listAccessEndsForOrg(db, agency.orgId, [
+      '00000000-0000-4000-8000-000000000000',
+    ]);
+    expect(unnamed.size).toBe(0);
   });
 });
 
@@ -645,5 +663,287 @@ describe('revoking with a reminder already queued', () => {
       ),
     );
     expect(result.cancelled).toBe(0);
+  });
+});
+
+class RecordingEmail implements EmailPort {
+  public readonly sent: SendEmailInput[] = [];
+  async send(input: SendEmailInput): Promise<SendEmailResult> {
+    this.sent.push(input);
+    return { providerMessageId: `m-${this.sent.length}` };
+  }
+}
+
+/** An accepted grant that really ends in `daysLeft` days and began 10 days ago, so the sweep at the real clock sees it. */
+async function endingGrant(db: Db, input: Parameters<typeof activeGrant>[1], daysLeft: number) {
+  const grant = await activeGrant(db, { ...input, days: 40 });
+  await db
+    .update(schema.grants)
+    .set({
+      acceptedAt: new Date(Date.now() - 10 * DAY),
+      startAt: new Date(Date.now() - 10 * DAY),
+      expiryAt: new Date(Date.now() + daysLeft * DAY),
+    })
+    .where(eq(schema.grants.id, grant.id));
+  return grant;
+}
+
+describe('a note that is no longer true is cancelled, not sent and not failed', () => {
+  it('cancels both notes when the grant is paused before they go out', async () => {
+    const db = await freshDb();
+    const { account, applicantId } = await makeTraveller(db, 'late-pause@example.com');
+    const agency = await makeAgency(db);
+    const grant = await endingGrant(
+      db,
+      {
+        travellerId: account.id,
+        applicantId,
+        recipientOrganizationId: agency.orgId,
+        acceptingAccountId: agency.owner.id,
+        days: 0,
+      },
+      3,
+    );
+    expect((await sweepGrantExpiryReminders(db, SCOPE, new Date())).enqueued).toBe(6);
+    await pauseGrant(db, { actorAccountId: account.id, grantId: grant.id });
+
+    const email = new RecordingEmail();
+    await runNotificationWorker(db, email, 'https://app.example.com');
+    expect(email.sent).toHaveLength(0);
+    const rows = await notificationsFor(db, grant.id);
+    expect(rows.every((row) => row.status === 'CANCELLED')).toBe(true);
+  });
+
+  it('sends the traveller their note and the agency its own while the grant is live', async () => {
+    const db = await freshDb();
+    const { account, applicantId } = await makeTraveller(db, 'live@example.com', 'Client Name');
+    const agency = await makeAgency(db);
+    const grant = await endingGrant(
+      db,
+      {
+        travellerId: account.id,
+        applicantId,
+        recipientOrganizationId: agency.orgId,
+        acceptingAccountId: agency.owner.id,
+        days: 0,
+      },
+      3,
+    );
+    await sweepGrantExpiryReminders(db, SCOPE, new Date());
+    const email = new RecordingEmail();
+    await runNotificationWorker(db, email, 'https://app.example.com');
+    const rows = await notificationsFor(db, grant.id);
+    expect(rows.every((row) => row.status === 'SENT')).toBe(true);
+    const toTraveller = email.sent.find((mail) => mail.to === 'live@example.com');
+    expect(toTraveller?.subject).toBe('Your Sharing Ends Soon');
+    expect(toTraveller?.body).toContain('Keep Sharing for 30 More Days');
+    expect(toTraveller?.body).toContain(
+      `https://app.example.com/app/applicant/${applicantId}/sharing#extend-grant-${grant.id}`,
+    );
+    const toAdmin = email.sent.find((mail) => mail.to === 'agency-admin@acme.example.com');
+    expect(toAdmin?.subject).toBe('Client Access Ends Soon');
+  });
+
+  it('cancels a note whose end date has already passed', async () => {
+    const db = await freshDb();
+    const { account, applicantId } = await makeTraveller(db, 'passed@example.com');
+    const friend = await makeAccount(db, 'passedfriend@example.com');
+    const grant = await endingGrant(
+      db,
+      {
+        travellerId: account.id,
+        applicantId,
+        recipientAccountId: friend.id,
+        acceptingAccountId: friend.id,
+        days: 0,
+      },
+      3,
+    );
+    await sweepGrantExpiryReminders(db, SCOPE, new Date());
+    await db
+      .update(schema.grants)
+      .set({ expiryAt: new Date(Date.now() - DAY) })
+      .where(eq(schema.grants.id, grant.id));
+    const email = new RecordingEmail();
+    await runNotificationWorker(db, email, 'https://app.example.com');
+    expect(email.sent).toHaveLength(0);
+    expect((await notificationsFor(db, grant.id)).every((row) => row.status === 'CANCELLED')).toBe(
+      true,
+    );
+  });
+});
+
+describe('reminders that would be wrong or wasteful are not made', () => {
+  it('skips a grant that another live grant to the same agency outlasts', async () => {
+    const db = await freshDb();
+    const { account, applicantId } = await makeTraveller(db, 'renewed@example.com');
+    const agency = await makeAgency(db);
+    const shared = {
+      travellerId: account.id,
+      applicantId,
+      recipientOrganizationId: agency.orgId,
+      acceptingAccountId: agency.owner.id,
+      days: 0,
+    };
+    const old = await endingGrant(db, shared, 3);
+    const renewal = await endingGrant(db, shared, 60);
+    const result = await sweepGrantExpiryReminders(db, SCOPE, new Date());
+    expect(result.enqueued).toBe(0);
+    expect(await notificationsFor(db, old.id)).toHaveLength(0);
+    expect(await notificationsFor(db, renewal.id)).toHaveLength(0);
+  });
+
+  it('does not skip when the later grant is for one case and this one is for all', async () => {
+    const db = await freshDb();
+    const { account, applicantId } = await makeTraveller(db, 'narrower@example.com');
+    const agency = await makeAgency(db);
+    const mission = await createMission(db, {
+      actorAccountId: account.id,
+      applicantId,
+      title: 'One trip',
+    });
+    if (!isOk(mission)) throw new Error('mission');
+    const shared = {
+      travellerId: account.id,
+      applicantId,
+      recipientOrganizationId: agency.orgId,
+      acceptingAccountId: agency.owner.id,
+      days: 0,
+    };
+    const allCases = await endingGrant(db, shared, 3);
+    const oneCase = await endingGrant(db, shared, 60);
+    await db
+      .update(schema.grants)
+      .set({ missionId: mission.value.id })
+      .where(eq(schema.grants.id, oneCase.id));
+    const result = await sweepGrantExpiryReminders(db, SCOPE, new Date());
+    expect(result.enqueued).toBe(6);
+    expect(await notificationsFor(db, allCases.id)).toHaveLength(6);
+  });
+
+  it('does not look again at a grant already reminded for this end date', async () => {
+    const db = await freshDb();
+    const { account, applicantId } = await makeTraveller(db, 'again@example.com');
+    const friend = await makeAccount(db, 'againfriend@example.com');
+    const grant = await endingGrant(
+      db,
+      {
+        travellerId: account.id,
+        applicantId,
+        recipientAccountId: friend.id,
+        acceptingAccountId: friend.id,
+        days: 0,
+      },
+      3,
+    );
+    const first = await sweepGrantExpiryReminders(db, SCOPE, new Date());
+    expect(first).toEqual({ checked: 1, enqueued: 2 });
+    const second = await sweepGrantExpiryReminders(db, SCOPE, new Date());
+    expect(second).toEqual({ checked: 0, enqueued: 0 });
+    expect(await notificationsFor(db, grant.id)).toHaveLength(2);
+  });
+});
+
+describe('extending asks for what creating the sharing asked for', () => {
+  it('refuses when sharing consent has been withdrawn', async () => {
+    const db = await freshDb();
+    const { account, applicantId } = await makeTraveller(db, 'noconsent@example.com');
+    const friend = await makeAccount(db, 'noconsentfriend@example.com');
+    const grant = await activeGrant(db, {
+      travellerId: account.id,
+      applicantId,
+      recipientAccountId: friend.id,
+      acceptingAccountId: friend.id,
+      days: 20,
+    });
+    const proof = await ownerProof(db, account.id, applicantId);
+    await setConsent(db, {
+      actorAccountId: account.id,
+      accountId: account.id,
+      type: 'SHARING',
+      granted: false,
+    });
+    const result = await extendGrant(proof, { grantId: grant.id });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('consent_required');
+  });
+
+  it('refuses a grant to an agency that is no longer active', async () => {
+    const db = await freshDb();
+    const { account, applicantId } = await makeTraveller(db, 'suspended@example.com');
+    const agency = await makeAgency(db);
+    const grant = await activeGrant(db, {
+      travellerId: account.id,
+      applicantId,
+      recipientOrganizationId: agency.orgId,
+      acceptingAccountId: agency.owner.id,
+      days: 20,
+    });
+    await db
+      .update(schema.organizations)
+      .set({ status: 'SUSPENDED' })
+      .where(eq(schema.organizations.id, agency.orgId));
+    const result = await extendGrant(await ownerProof(db, account.id, applicantId), {
+      grantId: grant.id,
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.message).toBe(GRANT_EXTEND_ENDED);
+  });
+
+  it('asks for a fresh sign-in only when the grant hands out a step-up action', async () => {
+    const db = await freshDb();
+    const { account, applicantId } = await makeTraveller(db, 'stepup@example.com');
+    const friend = await makeAccount(db, 'stepupfriend@example.com');
+    const created = await createGrant(db, {
+      actorAccountId: account.id,
+      applicantId,
+      recipientAccountId: friend.id,
+      actions: ['DOWNLOAD_ORIGINAL'],
+      purpose: 'visa_application',
+      expiryAt: new Date(Date.now() + 20 * DAY),
+      stepUpSatisfied: true,
+    });
+    if (!isOk(created)) throw new Error(`grant: ${created.error.message}`);
+    await acceptGrant(db, { actorAccountId: friend.id, grantId: created.value.id });
+    const proof = await ownerProof(db, account.id, applicantId);
+
+    const without = await extendGrant(proof, { grantId: created.value.id });
+    expect(isErr(without)).toBe(true);
+    if (isErr(without)) expect(without.error.code).toBe('step_up_required');
+
+    const request = { accountId: account.id, action: 'SHARE', resourceId: applicantId } as const;
+    const stepUp = verifyStepUp(
+      'step-up-secret',
+      issueStepUpAssurance('step-up-secret', request),
+      request,
+    );
+    expect(stepUp).toBeDefined();
+    const withIt = await extendGrant(proof, {
+      grantId: created.value.id,
+      ...(stepUp ? { stepUp } : {}),
+    });
+    expect(isOk(withIt)).toBe(true);
+  });
+
+  it('reports a pause that lands between the read and the write as paused, not ended', async () => {
+    const db = await freshDb();
+    const { account, applicantId } = await makeTraveller(db, 'race@example.com');
+    const friend = await makeAccount(db, 'racefriend@example.com');
+    const grant = await activeGrant(db, {
+      travellerId: account.id,
+      applicantId,
+      recipientAccountId: friend.id,
+      acceptingAccountId: friend.id,
+      days: 20,
+    });
+    const proof = await ownerProof(db, account.id, applicantId);
+    const [result] = await Promise.all([
+      extendGrant(proof, { grantId: grant.id }),
+      pauseGrant(db, { actorAccountId: account.id, grantId: grant.id }),
+    ]);
+    // Either order is possible; what must hold is that nothing reads "ended" for a paused grant.
+    if (isErr(result)) expect(result.error.message).toBe(GRANT_EXTEND_RESUME_FIRST);
+    const [row] = await db.select().from(schema.grants).where(eq(schema.grants.id, grant.id));
+    expect(row?.status).toBe('PAUSED');
   });
 });

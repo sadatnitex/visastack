@@ -411,9 +411,7 @@ export async function triggerGrantExpirySweep(
   });
   try {
     const handle = db as unknown as Parameters<typeof sweepGrantExpiryReminders>[0];
-    return await sweepGrantExpiryReminders(handle, scope, new Date(), {
-      limit: Math.max(options.limit ?? 0, 500),
-    });
+    return await sweepGrantExpiryReminders(handle, scope, new Date(), options);
   } catch (error) {
     reportServerError('triggerGrantExpirySweep', error, { step: 'sweep failed' });
     return empty;

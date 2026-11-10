@@ -880,6 +880,29 @@ async function guestCodeEmailCheck(
   return (await guestCodeStillDeliverable(db, proof)) ? { code } : 'closed';
 }
 
+/**
+ * A "sharing ends soon" note (the traveller's and the agency's) goes only while it is still true:
+ * the grant is active, has not ended, and ends within the reminder window. A pause, a revoke, an
+ * end date that already passed, or an extension that moved the date (the extension also cancels
+ * the queue) makes it stale, and a stale note is cancelled, never sent and never marked failed.
+ */
+async function grantEndingStillApplies(db: Db, notification: Notification): Promise<boolean> {
+  const grantId = notification.resourceId;
+  // A malformed id is a stale note, not a database error.
+  if (!grantId || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(grantId)) return false;
+  const now = Date.now();
+  const grant = first(
+    await db
+      .select({ status: schema.grants.status, expiryAt: schema.grants.expiryAt })
+      .from(schema.grants)
+      .where(eq(schema.grants.id, grantId))
+      .limit(1),
+  );
+  if (!grant || grant.status !== 'ACTIVE' || !grant.expiryAt) return false;
+  const left = grant.expiryAt.getTime() - now;
+  return left > 0 && left <= 9 * 24 * 60 * 60 * 1000;
+}
+
 async function dispatchOne(
   db: Db,
   notification: Notification,
@@ -904,6 +927,27 @@ async function dispatchOne(
   );
   if (!current) return 'deferred';
   const attempts = notification.attempts + 1;
+
+  // A "sharing ends soon" note that is no longer true is cancelled before anything else decides
+  // its fate, so a pause or an end date that passed never ends as a failure for staff to chase.
+  if (
+    (notification.eventType === GRANT_ENDING_EVENT ||
+      notification.eventType === AGENCY_ACCESS_ENDING_EVENT) &&
+    !(await grantEndingStillApplies(db, notification))
+  ) {
+    const updated = await db
+      .update(schema.notifications)
+      .set({
+        status: 'CANCELLED',
+        attempts,
+        lastError: 'no longer applies',
+        leaseOwner: null,
+        leaseExpiresAt: null,
+      })
+      .where(ownedQueue)
+      .returning({ id: schema.notifications.id });
+    return updated.length ? 'failed' : 'deferred';
+  }
 
   if (!recipient.authorized) {
     const updated = await db

@@ -559,6 +559,8 @@ export {
   type ExtendGrantInput,
   type ExtendGrantResult,
   GRANT_EXTENSION_DAYS,
+  GRANT_EXTEND_ENDED,
+  GRANT_EXTEND_RESUME_FIRST,
   acceptGrant,
   applyCaseSharingAnswers,
   createGrant,

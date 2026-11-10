@@ -14,8 +14,9 @@ const now = new Date('2026-11-10T09:00:00Z');
 const inDays = (days: number) => new Date(now.getTime() + days * DAY);
 
 describe('canOfferExtension', () => {
-  it('offers it for an active grant that is still running and can still grow', () => {
+  it('offers it for an active grant that is still running and can grow by the full 30 days', () => {
     expect(canOfferExtension({ status: 'ACTIVE', expiryAt: inDays(5) }, now)).toBe(true);
+    expect(canOfferExtension({ status: 'ACTIVE', expiryAt: inDays(60) }, now)).toBe(true);
     expect(canOfferExtension({ status: 'ACTIVE', expiryAt: inDays(5).toISOString() }, now)).toBe(
       true,
     );
@@ -27,6 +28,8 @@ describe('canOfferExtension', () => {
     }
     expect(canOfferExtension({ status: 'ACTIVE', expiryAt: inDays(-1) }, now)).toBe(false);
     expect(canOfferExtension({ status: 'ACTIVE', expiryAt: null }, now)).toBe(false);
+    // Near the 90-day ceiling it would add fewer than 30 days, so nothing is promised.
+    expect(canOfferExtension({ status: 'ACTIVE', expiryAt: inDays(61) }, now)).toBe(false);
     expect(canOfferExtension({ status: 'ACTIVE', expiryAt: inDays(90) }, now)).toBe(false);
     expect(canOfferExtension({ status: 'ACTIVE', expiryAt: 'not a date' }, now)).toBe(false);
   });
@@ -51,6 +54,17 @@ describe('AccessEndsNote', () => {
     const html = renderToStaticMarkup(<AccessEndsNote endsAt="2026-12-01T00:00:00.000Z" />);
     expect(html).toContain('Access ends on 1 Dec 2026. The traveller can extend it.');
     expect(html).not.toContain('<button');
+  });
+
+  it("names the traveller's own calendar day, not the server's", () => {
+    // 20:00 UTC on 2 Dec is already 3 Dec in Dhaka, the day the reminder names.
+    const at = '2026-12-02T20:00:00.000Z';
+    expect(renderToStaticMarkup(<AccessEndsNote endsAt={at} timeZone="Asia/Dhaka" />)).toContain(
+      'Access ends on 3 Dec 2026.',
+    );
+    expect(renderToStaticMarkup(<AccessEndsNote endsAt={at} />)).toContain(
+      'Access ends on 2 Dec 2026.',
+    );
   });
 
   it('says nothing when there is no end date', () => {

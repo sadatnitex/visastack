@@ -110,6 +110,8 @@ export const ACCESS_PAUSED_LINE = 'Access paused. They cannot see anything until
 export const ACCESS_RESUMED_LINE = 'Access resumed. They can see what you shared again.';
 export const ACCESS_EXTENDED_LINE =
   'Sharing extended for 30 more days. The new end date is shown below.';
+export const ACCESS_EXTENDED_SHORT_LINE =
+  'Sharing extended as far as it can go, 90 days from today. The new end date is shown below.';
 export const ACCESS_AT_LIMIT_LINE =
   'Sharing already runs as long as it can, 90 days from today. You can extend it again later.';
 export const INVITATION_WITHDRAWN_LINE = 'Invitation withdrawn. Its link no longer works.';
@@ -125,6 +127,7 @@ const ACCESS_DONE_LINES: Readonly<Record<string, string>> = {
   paused: ACCESS_PAUSED_LINE,
   resumed: ACCESS_RESUMED_LINE,
   extended: ACCESS_EXTENDED_LINE,
+  'extended-short': ACCESS_EXTENDED_SHORT_LINE,
   'extend-limit': ACCESS_AT_LIMIT_LINE,
   'invitation-withdrawn': INVITATION_WITHDRAWN_LINE,
   'invitation-not-withdrawn': INVITATION_NOT_WITHDRAWN_LINE,
