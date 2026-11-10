@@ -670,6 +670,35 @@ describe('loadEvidenceRequestPage (WP-SB5)', () => {
   });
 });
 
+describe('loadEvidenceRequests for one traveller with no case', () => {
+  it("keeps only this traveller's requests that name no case, from this organization", async () => {
+    svc.listEvidenceRequestsForOrgDetailed.mockResolvedValue(
+      ok([
+        { id: 'traveller-wide', organizationId: 'o1', missionId: null, applicantId: 'ap1' },
+        { id: 'named', organizationId: 'o1', missionId: 'm1', applicantId: 'ap1' },
+        { id: 'other-traveller', organizationId: 'o1', missionId: null, applicantId: 'ap2' },
+        // Another organization's request for the same traveller never counts, even if it arrived.
+        { id: 'other-org', organizationId: 'o2', missionId: null, applicantId: 'ap1' },
+      ]),
+    );
+    const rows = await loadEvidenceRequests(db, 'acct', 'o1', admin, {
+      forTravellerWithoutCase: { applicantId: 'ap1' },
+    });
+    expect(rows.map((r) => r.id)).toEqual(['traveller-wide']);
+    expect(svc.listEvidenceRequestsForOrgDetailed).toHaveBeenCalledWith(db, 'acct', 'o1');
+    expect(svc.referenceCodesFor).toHaveBeenCalledWith(db, 'R', ['traveller-wide']);
+  });
+
+  it('reads nothing for a non-administrator', async () => {
+    svc.listEvidenceRequestsForOrgDetailed.mockClear();
+    const rows = await loadEvidenceRequests(db, 'acct', 'o1', notAdmin, {
+      forTravellerWithoutCase: { applicantId: 'ap1' },
+    });
+    expect(rows).toEqual([]);
+    expect(svc.listEvidenceRequestsForOrgDetailed).not.toHaveBeenCalled();
+  });
+});
+
 describe('loadEvidenceRequests for one case (WP-SB5)', () => {
   it('keeps only the requests that name the case before reading any code', async () => {
     svc.listEvidenceRequestsForOrgDetailed.mockResolvedValue(

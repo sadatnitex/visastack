@@ -217,6 +217,45 @@ describe('agency Cases', () => {
     ]);
   });
 
+  it('marks an item Already Asked, unticked, when it was asked from Clients with no case', async () => {
+    mocks.loadOpenCase.mockResolvedValue(
+      openOf({
+        ...aCase(M1, 'Rahim Uddin'),
+        manualMode: false,
+        readiness: {
+          missing: [
+            { kind: 'DOCUMENT', key: 'NID', optional: false, reason: 'not_provided' },
+            { kind: 'DOCUMENT', key: 'BANK_STATEMENT', optional: false, reason: 'not_provided' },
+          ],
+        },
+      } as never),
+    );
+    // The case has no request of its own; the traveller has one with no case, for the NID.
+    mocks.loadEvidenceRequests.mockImplementation((async (...args: unknown[]) => {
+      const options = args[4] as { forTravellerWithoutCase?: unknown } | undefined;
+      return options?.forTravellerWithoutCase
+        ? [{ id: 'r9', kind: 'DOCUMENT', status: 'OPEN', fieldKey: null, docType: 'NID' }]
+        : [];
+    }) as never);
+    const html = await renderServer(Page(opening({ case: M1 })));
+    const forms = stubProps<{ missing: { rows: { id: string; state: string }[] } | null }>(
+      html,
+      'RequestEvidenceForm',
+    );
+    expect(forms[0]?.missing?.rows.map((r) => [r.id, r.state])).toEqual([
+      ['DOCUMENT:NID', 'asked'],
+      ['DOCUMENT:BANK_STATEMENT', 'ask'],
+    ]);
+    // Read for this traveller only, through the same administrator check as the case's own read.
+    expect(mocks.loadEvidenceRequests).toHaveBeenCalledWith(
+      {},
+      'acct-1',
+      'o1',
+      { org: { id: 'o1' }, admin: true, member: true },
+      { forTravellerWithoutCase: { applicantId: `ap-${M1}` } },
+    );
+  });
+
   it('gives a member who is not an administrator no way to ask, exactly as Clients does', async () => {
     mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: true });
     const html = await renderServer(Page(opening({ case: M1 })));
@@ -487,6 +526,31 @@ describe('agency Cases: where each case stands (WP-V4, E02)', () => {
     expect(workspace?.triage.groups[1]?.items[0]?.due).not.toBeNull();
     expect(workspace?.triage.requestsLeftOut).toBe(false);
     expect(JSON.stringify(workspace?.triage)).not.toContain('Reviewed');
+  });
+
+  it('keeps a request with no case out of the case summary', async () => {
+    mocks.loadOpenCase.mockResolvedValue(openOf(withChecklist));
+    mocks.loadEvidenceRequests.mockImplementation((async (...args: unknown[]) => {
+      const options = args[4] as { forTravellerWithoutCase?: unknown } | undefined;
+      return options?.forTravellerWithoutCase
+        ? [
+            {
+              id: 'r9',
+              missionId: null,
+              kind: 'DOCUMENT',
+              fieldKey: null,
+              docType: 'BANK_STATEMENT',
+              status: 'NEEDS_REPLACEMENT',
+              dueDate: null,
+              createdAt: new Date('2026-10-01T00:00:00.000Z'),
+            },
+          ]
+        : [];
+    }) as never);
+    const [workspace] = await triageOf();
+    expect(workspace?.triage.groups.map((g) => g.label)).not.toContain(
+      'Needs Correction or Clarification',
+    );
   });
 
   it('builds a member summary from the checklist only, and says requests are for administrators', async () => {

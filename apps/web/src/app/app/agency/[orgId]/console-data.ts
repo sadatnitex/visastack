@@ -135,17 +135,33 @@ export async function loadEvidenceRequests(
      * never counts one (W0 structural flag 2).
      */
     readonly forCase?: { readonly missionId: string; readonly applicantId: string };
+    /**
+     * Only the requests made for this one traveller with no case at all, from this organization.
+     * For the case workspace's "Already Asked" marks, so an item asked from Clients is not offered
+     * again; the case summary never counts one, so this is a separate call from `forCase`. If
+     * `forCase` is also given it wins.
+     */
+    readonly forTravellerWithoutCase?: { readonly applicantId: string };
   } = {},
 ): Promise<EvidenceRequestRow[]> {
   if (!access.admin) return [];
   const result = await listEvidenceRequestsForOrgDetailed(db, accountId, orgId);
   if (!result.ok) return [];
   const forCase = options.forCase;
+  const forTraveller = options.forTravellerWithoutCase;
   const listed = forCase
     ? result.value.filter(
         (r) => r.missionId === forCase.missionId && r.applicantId === forCase.applicantId,
       )
-    : result.value;
+    : forTraveller
+      ? result.value.filter(
+          // The service already reads one organization; the check on the row is belt and braces.
+          (r) =>
+            r.organizationId === orgId &&
+            r.missionId === null &&
+            r.applicantId === forTraveller.applicantId,
+        )
+      : result.value;
   // One registry read for the whole list (ADR 0018), alongside the file states.
   const [codes, rows] = await Promise.all([
     referenceCodesFor(
