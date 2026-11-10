@@ -18,6 +18,7 @@ import {
   recordMissionDecision,
   removeOrganizationLogo,
   requestEvidence,
+  requestEvidenceBatch,
   revokeClientInvitation,
   revokeOrganizationInvitation,
   setMembershipActive,
@@ -43,6 +44,7 @@ import {
   createKeyManagementPort,
   createMalwareScanner,
 } from '../../../../lib/providers';
+import { parseAskItems } from '../../../../lib/request-items';
 import { sendEmailNow } from '../../../../lib/send-now';
 import { withSession } from '../../../../lib/session';
 import { createStorage } from '../../../../lib/storage';
@@ -50,6 +52,7 @@ import {
   REQUEST_SENT_LINE,
   invitationReadyLine,
   memberAddedLine,
+  requestsSentLine,
 } from '../../../../lib/success-lines';
 
 /** Result surfaced back to the client for inline feedback. */
@@ -109,6 +112,34 @@ export async function requestEvidenceAction(
   }
 
   if (applicantId.length === 0) return { ok: false, message: 'Enter the traveller ID.' };
+
+  // The picker sends one `item` field per chosen thing. Any `item` takes this path; a post without
+  // one (the earlier single-item form) runs the code below, unchanged.
+  const chosen = formData.getAll('item').map((value) => String(value));
+  if (chosen.length > 0) {
+    const parsed = parseAskItems(chosen);
+    if (!parsed.ok) return { ok: false, message: parsed.message };
+    const sent = await withSession(async ({ db, accountId }) => {
+      const requested = await requestEvidenceBatch(db, {
+        actorAccountId: accountId,
+        organizationId,
+        applicantId,
+        items: parsed.items,
+        ...(message.length > 0 ? { message } : {}),
+        ...(missionId.length > 0 ? { missionId } : {}),
+        ...(dueDate ? { dueDate } : {}),
+      });
+      if (!requested.ok) {
+        return { ok: false, message: requested.error.message } satisfies ActionState;
+      }
+      return { ok: true, message: requestsSentLine(requested.value.length) } satisfies ActionState;
+    });
+    if (sent.ok) {
+      revalidatePath(`/app/agency/${organizationId}`, 'layout');
+      after(() => triggerNotificationWorker());
+    }
+    return sent;
+  }
   if (key.length === 0) {
     return {
       ok: false,

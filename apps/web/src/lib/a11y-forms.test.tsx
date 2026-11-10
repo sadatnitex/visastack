@@ -12,7 +12,8 @@ import { axeViolations } from './axe.test-support';
 import {
   fixtureDocumentGroups,
   fixtureEssentials,
-  fixtureFieldGroups,
+  fixtureMissing,
+  fixturePicker,
   fixtureView,
 } from './master-profile-fixture';
 import './next-mocks.test-support';
@@ -1866,8 +1867,7 @@ const AGENCY: readonly Case[] = [
     element: () => (
       <RequestEvidenceForm
         organizationId="o1"
-        fieldGroups={fixtureFieldGroups}
-        documentGroups={fixtureDocumentGroups}
+        picker={fixturePicker}
         applicants={[{ applicantId: 'a1', displayName: 'Rahim Uddin' }]}
         missions={[{ missionId: 'm1', title: 'UK visit', applicantName: 'Rahim Uddin' }]}
       />
@@ -1890,8 +1890,7 @@ const AGENCY: readonly Case[] = [
     element: () => (
       <RequestEvidenceForm
         organizationId="o1"
-        fieldGroups={fixtureFieldGroups}
-        documentGroups={fixtureDocumentGroups}
+        picker={fixturePicker}
         applicants={[{ applicantId: 'a1', displayName: 'Rahim Uddin' }]}
       />
     ),
@@ -1901,8 +1900,8 @@ const AGENCY: readonly Case[] = [
     element: () => (
       <RequestEvidenceForm
         organizationId="o1"
-        fieldGroups={fixtureFieldGroups}
-        documentGroups={fixtureDocumentGroups}
+        picker={fixturePicker}
+        missing={fixtureMissing}
         fixed={{
           applicantId: 'a1',
           applicantName: 'Rahim Uddin',
