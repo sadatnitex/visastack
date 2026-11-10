@@ -10,7 +10,7 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../components/form-feedback';
-import { PurposeSelect } from '../../../components/purpose-select';
+import { PurposeChoice } from '../../../components/purpose-choice';
 import { AboutDisclosure } from '../../../components/ui-lift';
 import type { CaseCountryOption, CasePurposeGroup } from '../../../lib/case-choices';
 import { AUTHORITY_SENTENCE } from '../add-applicant-form';
@@ -318,15 +318,12 @@ export function GroupTripStartForm({
         hint="Type a name or open the list."
         problem={fieldProblem(state, 'destination', messageId)}
       />
-      <label className="label" htmlFor={`${id}-purpose`}>
-        Why?
-      </label>
-      <PurposeSelect
+      <PurposeChoice
         id={`${id}-purpose`}
         purposes={purposes}
         value={purpose}
         onChange={setPurpose}
-        {...fieldProblem(state, 'purpose', messageId)}
+        problem={fieldProblem(state, 'purpose', messageId)}
       />
       <TravellerChecklist
         legend="Who's Travelling?"

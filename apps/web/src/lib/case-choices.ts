@@ -18,6 +18,7 @@ import type {
   TravellerMatchTerms,
 } from '@visastack/services';
 import { COUNTRY_ALIASES } from './country-start';
+import { type ItemMark, purposeMark } from './item-icons';
 
 /**
  * The two pickers on the new-case form (owner list item 1): where the person is going, from the
@@ -264,6 +265,16 @@ function purposeNamed(
     if (option) return { option, family: group.family };
   }
   return null;
+}
+
+/**
+ * The picture of the purpose a saved case names (a case saves the purpose's label), or null when
+ * the saved words match no purpose the picker offers: an older or typed purpose gets no picture
+ * rather than a guessed one. Cards and the case header draw it in front of the purpose word.
+ */
+export function savedPurposeMark(purpose: string | null | undefined): ItemMark | null {
+  const found = purposeNamed(purpose ?? '');
+  return found ? purposeMark(found.option.key, found.family) : null;
 }
 
 /**

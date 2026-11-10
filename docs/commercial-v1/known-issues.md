@@ -8011,6 +8011,18 @@ Owner decision (10 Nov 2026, option A): an agency lost access in the middle of a
 - Stage word decision (coordinator, 10 Nov 2026): a traveller with no agency can move their own case to In Review (the transition is owner-driven), so "Agency Is Checking" could be false. In Review, Ready for Review and Under Review read "Being Checked" (blue), and a test keeps every case status word free of the word Agency.
 - Follow-up (not in this PR): `scripts/agent/full-check.sh` does not run the scroll-budget browser specs (`e2e/scroll-budget/`) that CI runs, so a change that breaks their page harness (a `server-only` import did) passes the local check and fails in CI. Add them to the script's browser step.
 
+## UX P15: trip purpose pictures and the Start a Trip tiles (10 Nov 2026, branch claude/ux-p15-purpose-pictures)
+
+- Owner direction: "things should talk loudly". A trip's purpose now has a picture next to its word.
+- Trips cards and the case page header draw the purpose picture (from `purposeMark`, found by the purpose label the case saved) in front of the purpose word. The header also now names the purpose in words, so the picture has its word beside it. A purpose the picker does not offer gets no picture, never a guess. No new read: both pages already held the purpose.
+- Start a Trip and Start a Group Trip: "Why?" opens on eight picture tiles that are radio buttons in one group (visible legend, arrow keys, the refusal attached to the group, focus lands in it), plus a More Purposes tile that swaps in the existing grouped list. The submitted field name and values are unchanged; the server actions and checks are untouched; only one `purpose` field is on the screen at a time. A purpose picked from the list that has no tile keeps the list open.
+- The eight, from the purpose list itself: Tourism, Family or Friends Visit, Business Visit, Bachelor's or Master's Degree, Employer-Sponsored Skilled Job, Medical Treatment, Religious Travel (Hajj, Umrah, Pilgrimage), Transit or Airside Transit. Chosen as the reasons Bangladesh travellers start a trip most often, one picture each (a test keeps the eight pictures different). An estimate from reading the product, not measured.
+- Not done here (the purpose is loaded on them, outside the named scope): the two trip invitation pages (`trip-invitations/[id]`, `trip-invitations/accept`) and the saved-case list in the profile memory page. Not given a picture because no purpose is loaded: "Trips You Joined" and the first-run trip line.
+- Parity and familiar inventories: no baseline row changed, so no approved-change entry or familiar row was added; the parity and familiar suites pass unchanged.
+- Guards proven by breaking the code: a dropped common key, a changed radio name, the refusal left off the group, no focus move on More Purposes, the card picture dropped, the header picture dropped, a shadow in the stylesheet block, and a picture not hidden from readers each turned a test red; files restored from backup.
+- Checked in a real browser (static page with the real styles, Chromium): Tab lands on the chosen tile, Arrow keys move the choice, two columns at 375px and three at desktop width.
+- Not verified: real phones and screen readers, the signed-in live pages, the tiles inside the live form after deployment.
+
 ## 2026-11-10 - UX P8: the rest of a finished case is frozen (branch claude/ux-p8-freeze-rest)
 
 - Owner decision (10 Nov 2026, "yes, freeze finished cases"), follow-up to the freeze merged in #495. Four surfaces still read today's record on a finished case. Three are now frozen; the cover letter was already.

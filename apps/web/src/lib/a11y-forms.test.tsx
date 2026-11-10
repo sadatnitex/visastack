@@ -263,6 +263,7 @@ const { OutcomePanel } = await import('../app/app/mission/[id]/outcome-panel');
 const packageForms = await import('../app/app/mission/[id]/package-forms');
 const attemptForms = await import('../app/app/mission/[id]/attempt-forms');
 const { TripStartForm } = await import('../app/app/mission/start/start-form');
+const { PurposeChoice } = await import('../components/purpose-choice');
 const tripForms = await import('../app/app/trips/trip-forms');
 const { ExplainGapButton } = await import('../app/app/mission/[id]/readiness-gap-explain');
 const { AcknowledgementPanel } = await import(
@@ -1203,6 +1204,38 @@ const CASES_MISSION: readonly Case[] = [
       />
     ),
     fields: ['destination', 'purpose', 'traveller'],
+  },
+  {
+    name: 'choose why a trip is taken (eight picture tiles and More Purposes)',
+    element: () => (
+      <PurposeChoice id="why" purposes={casePurposeGroups()} value="" onChange={() => undefined} />
+    ),
+  },
+  {
+    name: 'choose why a trip is taken (a tile chosen, with a refusal on the group)',
+    element: () => (
+      <>
+        <PurposeChoice
+          id="why"
+          purposes={casePurposeGroups()}
+          value="medical_treatment"
+          onChange={() => undefined}
+          problem={{ 'aria-invalid': true, 'aria-describedby': 'why-msg' }}
+        />
+        <p id="why-msg">Choose why you are travelling.</p>
+      </>
+    ),
+  },
+  {
+    name: 'choose why a trip is taken (the whole list, for a purpose with no tile)',
+    element: () => (
+      <PurposeChoice
+        id="why"
+        purposes={casePurposeGroups()}
+        value="doctorate_or_research_degree"
+        onChange={() => undefined}
+      />
+    ),
   },
   {
     name: 'start a group trip',

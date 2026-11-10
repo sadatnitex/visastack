@@ -6,9 +6,14 @@ import { CaseListRow } from '../../../../../components/case-list-row';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
 import { SearchableList } from '../../../../../components/list-pattern';
+import { MarkTile } from '../../../../../components/mark-tile';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { AboutDisclosure } from '../../../../../components/ui-lift';
-import { caseCountryOptions, casePurposeGroups } from '../../../../../lib/case-choices';
+import {
+  caseCountryOptions,
+  casePurposeGroups,
+  savedPurposeMark,
+} from '../../../../../lib/case-choices';
 import {
   type CaseListReadiness,
   caseListReadiness,
@@ -61,7 +66,13 @@ function CaseListItem({
   readonly readiness: ReadonlyMap<string, CaseListReadiness>;
   readonly past: boolean;
 }) {
-  return <CaseListRow {...caseRowProps(mission, readiness.get(mission.id), past)} />;
+  const mark = savedPurposeMark(mission.purpose);
+  return (
+    <CaseListRow
+      {...caseRowProps(mission, readiness.get(mission.id), past)}
+      {...(mark ? { purposeIcon: <MarkTile mark={mark} size="sm" /> } : {})}
+    />
+  );
 }
 
 function CaseRows({
