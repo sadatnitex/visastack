@@ -69,12 +69,13 @@ describe('useSheetBehaviour', () => {
 });
 
 describe('ListFilterBar', () => {
-  const draw = (rows: number, minRows?: number) =>
+  const draw = (rows: number, minRows?: number, extra: { activeFilters?: number } = {}) =>
     act(() =>
       root.render(
         <ListFilterBar
           rows={rows}
           {...(minRows !== undefined ? { minRows } : {})}
+          {...extra}
           query="pass"
           onQuery={() => undefined}
           searchLabel="Search Items"
@@ -91,12 +92,36 @@ describe('ListFilterBar', () => {
     expect(container.querySelector('[data-pattern="filter-bar"]')).not.toBeNull();
   });
 
-  it('draws the screen filters first, then a named search box', () => {
+  it('puts the named search box first, then a Filters button', () => {
     draw(1, 1);
     const bar = container.querySelector('[data-pattern="filter-bar"]') as HTMLElement;
-    expect(bar.firstElementChild?.getAttribute('data-testid')).toBe('extra');
     const input = bar.querySelector('input[type="search"]') as HTMLInputElement;
+    expect(bar.firstElementChild?.contains(input)).toBe(true);
     expect(input.value).toBe('pass');
     expect(bar.querySelector('.sr-only')?.textContent).toBe('Search Items');
+    expect(bar.querySelector('button')?.textContent).toBe('Filters');
+  });
+
+  it('keeps the screen filters folded until Filters is pressed, and counts the ones in use', () => {
+    draw(1, 1, { activeFilters: 2 });
+    const toggle = container.querySelector('.lp-filters-toggle') as HTMLButtonElement;
+    const panel = container.querySelector('.lp-filters-panel') as HTMLElement;
+    expect(panel.hidden).toBe(true);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.getAttribute('aria-controls')).toBe(panel.id);
+    expect(toggle.textContent).toBe('Filters2, 2 in use');
+    act(() => toggle.click());
+    expect(panel.hidden).toBe(false);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(panel.querySelector('[data-testid="extra"]')).not.toBeNull();
+  });
+
+  it('draws no Filters button when the screen has no filters of its own', () => {
+    act(() =>
+      root.render(
+        <ListFilterBar rows={9} query="" onQuery={() => undefined} searchLabel="Search Items" />,
+      ),
+    );
+    expect(container.querySelector('.lp-filters-toggle')).toBeNull();
   });
 });
