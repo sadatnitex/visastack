@@ -627,13 +627,13 @@ describe('the lift block in globals.css', () => {
     ].map((marker) => tail.indexOf(marker));
     expect(order.every((index) => index >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    // Nothing but a later pass's own whole blocks (WP-PLAIN-..., WP-LP1, WP-TS1, each closed by its own end line)
+    // Nothing but a later pass's own whole blocks (WP-PLAIN-..., WP-LP1, WP-TS1, WP-RT1, each closed by its own end line)
     // comes after the last Lift block, so a package never edits another's lines.
     const afterLast = tail.slice(
       tail.indexOf('/* end WP-LIFT-C */') + '/* end WP-LIFT-C */'.length,
     );
     const withoutPlain = afterLast.replace(
-      /\/\* WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+) [\s\S]*?\/\* end WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+) \*\//g,
+      /\/\* WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|RT[0-9]+) [\s\S]*?\/\* end WP-(?:PLAIN-[A-Z0-9]+|LP[0-9]+|TS[0-9]+|RT[0-9]+) \*\//g,
       '',
     );
     expect(withoutPlain.trim()).toBe('');

@@ -17,12 +17,16 @@ export interface ListRowProps {
   readonly tag?: string | undefined;
   /** One quiet line under the name. */
   readonly meta?: string | undefined;
+  /** The meta line is a date or a count, not a sentence: it is data, not explanation. */
+  readonly metaIsData?: boolean | undefined;
   /** The one thing to do about this item. */
   readonly action?: LiftAction | undefined;
   /** Where the name leads (the item's panel). Without it the name is plain text. */
   readonly openHref?: string | undefined;
   /** The leading mark. It is the status glyph, never a picture of the file. */
   readonly icon?: IconName | undefined;
+  /** An address anchor for the row (`#request-<id>`), when emails or notices link to it. */
+  readonly domId?: string | undefined;
 }
 
 const TONE_ICON: Record<LiftTone, IconName> = {
@@ -45,9 +49,11 @@ export function ListRow({
   status,
   tag,
   meta,
+  metaIsData,
   action,
   openHref,
   icon,
+  domId,
 }: ListRowProps) {
   const short = shortName(name);
   const label = (
@@ -60,6 +66,7 @@ export function ListRow({
       className={`row lift-check lift-check-${tone} lp-row`}
       data-pattern="list-row"
       data-row={id}
+      {...(domId ? { id: domId } : {})}
     >
       <span className="lift-check-icon" aria-hidden="true">
         <Icon name={icon ?? TONE_ICON[tone]} size={16} />
@@ -87,7 +94,11 @@ export function ListRow({
             </span>
           ) : null}
         </div>
-        {meta ? <p className="lp-row-meta">{meta}</p> : null}
+        {meta ? (
+          <p className="lp-row-meta" {...(metaIsData ? { 'data-value': true } : {})}>
+            {meta}
+          </p>
+        ) : null}
       </div>
       <StatusPill tone={tone} size="md">
         {status}

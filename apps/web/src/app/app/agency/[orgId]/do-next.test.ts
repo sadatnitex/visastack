@@ -495,11 +495,7 @@ describe('Do next lists at most three quiet requests (owner, 10 Nov 2026, fricti
       quiet('r-20', 20),
       quiet('r-9', 9),
     ]);
-    expect(items.map((item) => item.key)).toEqual([
-      'request:r-30',
-      'request:r-20',
-      'request:r-9',
-    ]);
+    expect(items.map((item) => item.key)).toEqual(['request:r-30', 'request:r-20', 'request:r-9']);
     expect(quietHidden).toBe(2);
   });
 
@@ -530,9 +526,7 @@ describe('Do next lists at most three quiet requests (owner, 10 Nov 2026, fricti
       }),
     );
     const { items, quietHidden } = run([...overdue, quiet('r-q1', 6), quiet('r-q2', 7)]);
-    expect(items.filter((item) => item.tierLabel === undefined && item.tier === 1)).toHaveLength(
-      5,
-    );
+    expect(items.filter((item) => item.tierLabel === undefined && item.tier === 1)).toHaveLength(5);
     expect(items.filter((item) => item.tierLabel === CHASE_LABEL)).toHaveLength(2);
     expect(quietHidden).toBe(0);
   });

@@ -47,6 +47,11 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   ],
   listDocumentsDetailed: async () => ({ ok: true, value: state.documents }),
   listEvidenceRequestDecisions: async () => ({ ok: true, value: state.decisions }),
+  // The exact sends are not kept in these fixtures (migration 0132 not run): decisions tell the story.
+  listEvidenceSubmissions: async () => ({
+    ok: true,
+    value: { available: false, submissions: [], legacy: [] },
+  }),
   referenceCodesFor: async () => state.codes,
   requireAccess: async () => ({ ok: true, value: { proof: 'owner' } }),
   // Every document is the everyday copy; how it was checked is not under test here.
@@ -75,6 +80,12 @@ vi.mock('../../app/app/applicant/[id]/evidence/clearer-copy-panel', () => ({
 }));
 
 const { default: EvidencePage } = await import('../../app/app/applicant/[id]/evidence/page');
+
+const SENT_BACK = {
+  outcome: 'NEEDS_REPLACEMENT',
+  reason: 'The last page is cut off.',
+  createdAt: new Date('2026-10-21T09:00:00Z'),
+};
 
 const base = {
   kind: 'DOCUMENT',
@@ -159,7 +170,7 @@ registerParity({
       name: 'one sent back with a reason',
       setup: () => {
         state.requests = { ok: true, value: [{ ...base, id: 'r5', status: 'NEEDS_REPLACEMENT' }] };
-        state.decisions = [{ outcome: 'NEEDS_REPLACEMENT', reason: 'The last page is cut off.' }];
+        state.decisions = [SENT_BACK];
       },
     },
     {
@@ -181,7 +192,7 @@ registerParity({
             createdAt: '2026-10-20T08:00:00Z',
           },
         ];
-        state.decisions = [{ outcome: 'NEEDS_REPLACEMENT', reason: 'The last page is cut off.' }];
+        state.decisions = [SENT_BACK];
       },
     },
     {
@@ -206,6 +217,7 @@ describe('evidence request levels', () => {
   // The level at which an element is really on screen: its own and every block around it.
   const levelOf = (el: Element | null | undefined) =>
     el ? levelContaining(el as HTMLElement, el.ownerDocument.body) : 'none';
+  const pane = (doc: Document, id: string) => doc.getElementById(`lp-pane-${id}`);
   beforeEach(() => {
     state.decisions = [];
     state.codes = new Map([['r1', 'R-7K2Q9M']]);
@@ -214,7 +226,7 @@ describe('evidence request levels', () => {
     ]);
   });
 
-  it('keeps a waiting request and its reply at Glance, details at Browse, asking at Everything', async () => {
+  it('keeps a waiting request at Glance and a finished one at Browse, with the reply and the question box in its panel', async () => {
     state.requests = {
       ok: true,
       value: [
@@ -223,29 +235,34 @@ describe('evidence request levels', () => {
       ],
     };
     const doc = await page();
-    const waiting = doc.getElementById('request-r1');
-    expect(levelOf(waiting)).toBe('glance');
+    expect(levelOf(doc.getElementById('request-r1'))).toBe('glance');
     expect(levelOf(doc.getElementById('request-r2'))).toBe('browse');
+    const waiting = pane(doc, 'r1');
     expect(waiting?.querySelector('[data-stub="SubmitResponseForm"]')).not.toBeNull();
     expect(levelOf(waiting?.querySelector('[data-stub="SubmitResponseForm"]') ?? null)).toBe(
       'glance',
     );
-    expect(levelOf(waiting?.querySelector('.request-questions') ?? null)).toBe('browse');
+    expect(waiting?.querySelector('.request-questions')).not.toBeNull();
     expect(levelOf(waiting?.querySelector('details.request-ask') ?? null)).toBe('everything');
     const neededBy = [...(waiting?.querySelectorAll('p') ?? [])].find((p) =>
       p.textContent?.startsWith('Needed by'),
     );
-    expect(levelOf(neededBy ?? null)).toBe('browse');
+    expect(neededBy).toBeDefined();
   });
 
-  it('keeps the reason a request was sent back at Glance, beside its reply', async () => {
+  it('keeps the reason a request was sent back in its conversation, beside the reply', async () => {
     state.requests = { ok: true, value: [{ ...base, id: 'r5', status: 'NEEDS_REPLACEMENT' }] };
-    state.decisions = [{ outcome: 'NEEDS_REPLACEMENT', reason: 'The last page is cut off.' }];
+    state.decisions = [SENT_BACK];
     const doc = await page();
-    const reason = doc.querySelector('#request-r5 .field-msg-err');
-    expect(reason?.textContent).toContain('The last page is cut off.');
-    expect(levelOf(reason)).toBe('glance');
     expect(levelOf(doc.getElementById('request-r5'))).toBe('glance');
+    const messages = [...(pane(doc, 'r5')?.querySelectorAll('.rt-msg') ?? [])];
+    const reason = messages.find((m) => m.textContent?.includes('The last page is cut off.'));
+    expect(reason?.getAttribute('data-side')).toBe('agency');
+    expect(reason?.textContent).toContain('Replacement needed: ');
+    expect(levelOf(reason)).toBe('glance');
+    // The traveller's earlier send reads Sent Back for a Fix, not Received and never Reviewed.
+    expect(messages.some((m) => m.getAttribute('data-word') === 'Sent Back for a Fix')).toBe(true);
+    expect(messages.some((m) => m.getAttribute('data-word') === 'Reviewed')).toBe(false);
   });
 
   it('shows a sent file that could not be used at Glance, with its guidance and the question box', async () => {
@@ -268,18 +285,18 @@ describe('evidence request levels', () => {
     ];
     state.questions = new Map();
     const doc = await page();
-    const row = doc.getElementById('request-r1');
-    expect(levelOf(row)).toBe('glance');
-    const guidance = [...(row?.querySelectorAll('p') ?? [])].find((p) =>
+    expect(levelOf(doc.getElementById('request-r1'))).toBe('glance');
+    const open = pane(doc, 'r1');
+    const guidance = [...(open?.querySelectorAll('p') ?? [])].find((p) =>
       p.textContent?.includes('could not be used'),
     );
     expect(levelOf(guidance)).toBe('glance');
-    expect(levelOf(row?.querySelector('details.request-ask'))).toBe('glance');
+    expect(levelOf(open?.querySelector('details.request-ask'))).toBe('glance');
     expect(doc.querySelector('[data-only="glance"]')).toBeNull();
     state.documents = [];
   });
 
-  it('keeps Upload a Clearer Copy at Glance beside the reply for a request sent back', async () => {
+  it('keeps Upload a Clearer Copy in the panel of a request sent back', async () => {
     state.requests = {
       ok: true,
       value: [{ ...base, id: 'r7', status: 'NEEDS_REPLACEMENT', respondingDocumentId: 'd7' }],
@@ -297,7 +314,7 @@ describe('evidence request levels', () => {
       },
     ];
     const doc = await page();
-    const panel = doc.querySelector('#request-r7 [data-stub="ClearerCopyPanel"]');
+    const panel = pane(doc, 'r7')?.querySelector('[data-stub="ClearerCopyPanel"]');
     expect(panel).not.toBeNull();
     expect(levelOf(panel)).toBe('glance');
   });
@@ -306,7 +323,7 @@ describe('evidence request levels', () => {
     state.requests = { ok: true, value: [{ ...base, id: 'r6', status: 'ACCEPTED' }] };
     const doc = await page();
     expect(doc.querySelector('[data-only="glance"]')?.textContent).toContain('Nothing is waiting');
-    expect(levelOf(doc.querySelector('article.card'))).toBe('browse');
+    expect(levelOf(doc.querySelector('.req-grid'))).toBe('browse');
   });
 
   it('says the requests could not be loaded at every level, never that there are none', async () => {

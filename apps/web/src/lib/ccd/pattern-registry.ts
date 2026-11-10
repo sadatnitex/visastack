@@ -47,8 +47,12 @@ export const PATTERN_SCREENS: readonly PatternScreen[] = [
   {
     screen: 'evidence-requests',
     pattern: 'list+pane',
-    files: ['app/app/applicant/[id]/evidence/page.tsx'],
-    converted: false,
+    files: [
+      'app/app/applicant/[id]/evidence/page.tsx',
+      'app/app/applicant/[id]/evidence/requests-list.tsx',
+      'app/app/applicant/[id]/evidence/request-panes.tsx',
+    ],
+    converted: true,
     phase: 4,
   },
   {

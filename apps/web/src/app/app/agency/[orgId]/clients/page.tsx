@@ -33,6 +33,7 @@ import {
   loadEvidenceCopies,
 } from '../evidence-copies-data';
 import { EvidenceRequestActions } from '../evidence-request-actions';
+import { RequestConversation } from '../request-conversation';
 import { RequestEvidenceForm } from '../request-evidence-form';
 import { FormGroup } from './form-group';
 import { OpenRequestFromLink } from './open-request-from-link';
@@ -450,6 +451,7 @@ function RequestRow({
         {req.dueDate ? ` · due ${formatDateOnly(req.dueDate)}` : ''}
       </span>
       <ReferenceCode code={req.referenceCode} label="Request Reference" />
+      <RequestConversation req={req} copies={copies} hasCopies={hasCopies} />
       {hasCopies ? (
         <EvidenceCopies
           organizationId={orgId}

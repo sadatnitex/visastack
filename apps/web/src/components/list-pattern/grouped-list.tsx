@@ -21,13 +21,23 @@ export interface ListGroupProps {
   readonly restOpen?: boolean | undefined;
 }
 
+/** The heading level of the folder names: 4 under a card, 2 on a screen whose title is the h1. */
+export type GroupHeadingLevel = 2 | 3 | 4;
+
 /**
  * A folder of rows: a Title Case header with a count, the first rows shown, the rest folded.
  * Every list screen groups the same way. The header stays a real heading inside the fold's opener,
  * so heading navigation still finds every group. Groups that hold no rows are not drawn by the
  * caller (an empty group is hidden, not shown as zero).
  */
-export function GroupedList({ groups }: { readonly groups: readonly ListGroupProps[] }) {
+export function GroupedList({
+  groups,
+  level = 4,
+}: {
+  readonly groups: readonly ListGroupProps[];
+  readonly level?: GroupHeadingLevel;
+}) {
+  const Heading = `h${level}` as const;
   return (
     <div className="collapsible-groups lift-groups" data-pattern="grouped-list">
       {groups.map((group) => (
@@ -38,9 +48,12 @@ export function GroupedList({ groups }: { readonly groups: readonly ListGroupPro
           open={group.open}
         >
           <summary className="collapsible-group-summary">
-            <h4 className="case-group-heading collapsible-group-title" data-pattern="group-heading">
+            <Heading
+              className="case-group-heading collapsible-group-title"
+              data-pattern="group-heading"
+            >
               {group.heading} <span className="muted lift-state-count">{group.count}</span>
-            </h4>
+            </Heading>
           </summary>
           <div className="collapsible-group-body">
             <div className="rows">{group.children}</div>

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getDocumentLifecycles: vi.fn(),
   loadVersionScanEvidence: vi.fn(),
   evidenceSubmissionsPresent: vi.fn(),
+  listEvidenceSubmissions: vi.fn(),
 }));
 /**
  * The page asks for one page of requests (WP-SB3). Fixtures stay plain lists: this turns a list
@@ -52,6 +53,7 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   getDocumentLifecycles: mocks.getDocumentLifecycles,
   loadVersionScanEvidence: mocks.loadVersionScanEvidence,
   evidenceSubmissionsPresent: mocks.evidenceSubmissionsPresent,
+  listEvidenceSubmissions: mocks.listEvidenceSubmissions,
 }));
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) => fn({ db: {}, accountId: 'owner' }),
@@ -111,6 +113,11 @@ beforeEach(() => {
   });
   mocks.loadVersionScanEvidence.mockResolvedValue(new Map());
   mocks.evidenceSubmissionsPresent.mockResolvedValue(true);
+  // No exact sends kept in these fixtures: the thread is built from the decisions.
+  mocks.listEvidenceSubmissions.mockResolvedValue({
+    ok: true,
+    value: { available: false, submissions: [], legacy: [] },
+  });
 });
 
 const withRequests = (...requests: Record<string, unknown>[]) =>
@@ -137,7 +144,7 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
     const text = textOf(html);
     expect(text).toContain('Missing');
     expect(text).toContain('Next: send a document from your wallet');
-    expect(html).toContain('request-item-warning');
+    expect(html).toContain('lift-pill-md');
     const [form] = stubProps<{ awaiting: boolean; timeZone: string }>(html, 'SubmitResponseForm');
     expect(form).toMatchObject({ awaiting: true, timeZone: 'Asia/Dhaka' });
   });
@@ -191,7 +198,13 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
         id === 'r1'
           ? {
               ok: true,
-              value: [{ outcome: 'NEEDS_REPLACEMENT', reason: 'The last page is cut off.' }],
+              value: [
+                {
+                  outcome: 'NEEDS_REPLACEMENT',
+                  reason: 'The last page is cut off.',
+                  createdAt: new Date('2026-10-21T09:00:00Z'),
+                },
+              ],
             }
           : { ok: true, value: [] },
     );
@@ -202,24 +215,74 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
     expect(text).toContain('You sent this on 27 Oct 2026, 14:32 GMT+6.');
   });
 
-  it('shows no old reason beside a request that was answered again, and reads reasons only where one applies', async () => {
+  it('reads what was said only on requests that have been answered, and shows a reason only where it was given', async () => {
     withRequests(
+      { ...request, id: 'r0', status: 'OPEN' },
       { ...request, id: 'r1', status: 'RECEIVED' },
       { ...request, id: 'r2', status: 'ACCEPTED' },
       { ...request, id: 'r3', status: 'NEEDS_REPLACEMENT' },
     );
-    mocks.listEvidenceRequestDecisions.mockResolvedValue({
-      ok: true,
-      value: [{ outcome: 'NEEDS_REPLACEMENT', reason: 'The last page is cut off.' }],
-    });
-    const text = textOf(await render());
-    expect(mocks.listEvidenceRequestDecisions).toHaveBeenCalledTimes(1);
-    expect(mocks.listEvidenceRequestDecisions).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner',
-      'r3',
+    mocks.listEvidenceRequestDecisions.mockImplementation(
+      async (_db: unknown, _a: string, id: string) => ({
+        ok: true,
+        value:
+          id === 'r3'
+            ? [
+                {
+                  outcome: 'NEEDS_REPLACEMENT',
+                  reason: 'The last page is cut off.',
+                  createdAt: new Date('2026-10-21T09:00:00Z'),
+                },
+              ]
+            : [],
+      }),
     );
+    const text = textOf(await render());
+    const asked = mocks.listEvidenceRequestDecisions.mock.calls.map((call) => call[2]).sort();
+    // An open request nobody has answered has nothing to read.
+    expect(asked).toEqual(['r1', 'r2', 'r3']);
     expect(text.match(/The last page is cut off\./g)).toHaveLength(1);
+  });
+
+  it('says earlier history could not be loaded when a read fails, never that there is none', async () => {
+    withRequests({
+      ...request,
+      id: 'r1',
+      status: 'RECEIVED',
+      respondedAt: new Date('2026-10-27T08:32:00Z'),
+    });
+    mocks.listEvidenceRequestDecisions.mockRejectedValue(new Error('down'));
+    mocks.listEvidenceSubmissions.mockRejectedValue(new Error('down'));
+    const text = textOf(await render());
+    expect(text).toContain('Earlier history could not be loaded. Refresh to try again.');
+    expect(text).not.toMatch(/no history|nothing was sent/i);
+  });
+
+  it('reads the exact sends with the owner proof, for a document only', async () => {
+    withRequests(
+      { ...request, id: 'r1', status: 'RECEIVED', respondedAt: new Date('2026-10-27T08:32:00Z') },
+      {
+        ...request,
+        id: 'r2',
+        kind: 'FIELD',
+        docType: null,
+        fieldKey: 'passport_number',
+        status: 'RECEIVED',
+      },
+    );
+    await render();
+    expect(mocks.requireAccess).toHaveBeenCalledWith(
+      {},
+      expect.anything(),
+      'MANAGE',
+      { applicantId: 'a1' },
+      { purpose: 'self' },
+    );
+    expect(mocks.listEvidenceSubmissions).toHaveBeenCalledTimes(1);
+    expect(mocks.listEvidenceSubmissions).toHaveBeenCalledWith(
+      { gate: 'proof' },
+      { requestId: 'r1' },
+    );
   });
 
   it('shows a cancelled or older closed request as closed, with no form and no question box', async () => {
@@ -285,13 +348,14 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
     expect(text.match(/Finished/g)).toHaveLength(1);
     const dom = new JSDOM(html).window.document;
     const pill = (label: string) =>
-      [...dom.querySelectorAll('.case-row-badges .badge')].find((b) => b.textContent === label);
+      [...dom.querySelectorAll('[data-pattern="list-row"] .lift-pill')].find(
+        (b) => b.textContent === label,
+      );
     expect(pill('Received')?.className).toContain('lift-pill-info');
     expect(pill('Reviewed')?.className).toContain('badge-success');
     expect(pill('Reviewed')?.className).not.toContain('lift-pill-info');
-    for (const row of dom.querySelectorAll('.lc-card-finished')) {
-      expect(row.className).not.toContain('request-item-warning');
-    }
+    // A row never wears a tick for an accepted request: its mark is the kind of thing asked for.
+    expect(dom.querySelector('[data-row="done"] .lift-check-icon svg')).not.toBeNull();
   });
 
   it('numbers each row from the order the requests were read in, so Show More lands on the first new row, not on one already seen', async () => {
@@ -320,7 +384,9 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
     const html = await render();
     // Read order: open, done, busy. Drawn order: open, busy (still being checked), then done.
     const idOf = (name: string) =>
-      html.match(new RegExp(`id="(evidence-row-\\d+)"[^>]*>Document: ${name}`))?.[1];
+      html.match(
+        new RegExp(`id="(evidence-row-\\d+)"(?:(?!evidence-row-)[^])*?Document: ${name}`),
+      )?.[1];
     expect(idOf('Bank Statement')).toBe('evidence-row-1');
     expect(idOf('Passport')).toBe('evidence-row-2');
     expect(idOf('National Id')).toBe('evidence-row-3');
@@ -466,7 +532,7 @@ describe('a long list of requests stays short (WP-SB3)', () => {
     expect(mocks.listEvidenceRequestsForApplicant).toHaveBeenCalledWith({}, 'owner', 'a1', {
       limit: 10,
     });
-    expect(html.match(/class="case-row request-item /g)).toHaveLength(10);
+    expect(html.match(/data-pattern="list-row"/g)).toHaveLength(10);
     const text = textOf(html);
     expect(text).toContain('12 requests are waiting for you.');
     expect(text).toContain('Showing 10 of 30 requests.');
@@ -479,7 +545,7 @@ describe('a long list of requests stays short (WP-SB3)', () => {
     expect(mocks.listEvidenceRequestsForApplicant).toHaveBeenLastCalledWith({}, 'owner', 'a1', {
       limit: 20,
     });
-    expect(html.match(/class="case-row request-item /g)).toHaveLength(20);
+    expect(html.match(/data-pattern="list-row"/g)).toHaveLength(20);
     expect(textOf(html)).not.toContain('Nothing is waiting for you.');
     // The way to the rest shows at every level, so Glance is never an empty card.
     expect(html).toMatch(/<div class="show-more" id="evidence-requests-more">/);
