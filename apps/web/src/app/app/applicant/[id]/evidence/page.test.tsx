@@ -7,13 +7,12 @@ const mocks = vi.hoisted(() => ({
   listEvidenceRequestsForApplicant: vi.fn(),
   referenceCodesFor: vi.fn(),
   listDocumentsDetailed: vi.fn(),
-  listEvidenceRequestDecisions: vi.fn(),
+  listRequestHistoriesForOwner: vi.fn(),
   requireAccess: vi.fn(),
   listRequestItemExtras: vi.fn(),
   getDocumentLifecycles: vi.fn(),
   loadVersionScanEvidence: vi.fn(),
   evidenceSubmissionsPresent: vi.fn(),
-  listEvidenceSubmissions: vi.fn(),
 }));
 /**
  * The page asks for one page of requests (WP-SB3). Fixtures stay plain lists: this turns a list
@@ -47,13 +46,12 @@ vi.mock('@visastack/services', async (importOriginal) => ({
   referenceCodesFor: mocks.referenceCodesFor,
   listApplicantProfile: async () => [],
   listDocumentsDetailed: mocks.listDocumentsDetailed,
-  listEvidenceRequestDecisions: mocks.listEvidenceRequestDecisions,
+  listRequestHistoriesForOwner: mocks.listRequestHistoriesForOwner,
   requireAccess: mocks.requireAccess,
   listRequestItemExtras: mocks.listRequestItemExtras,
   getDocumentLifecycles: mocks.getDocumentLifecycles,
   loadVersionScanEvidence: mocks.loadVersionScanEvidence,
   evidenceSubmissionsPresent: mocks.evidenceSubmissionsPresent,
-  listEvidenceSubmissions: mocks.listEvidenceSubmissions,
 }));
 vi.mock('../../../../../lib/session', () => ({
   withSession: async (fn: (ctx: unknown) => Promise<unknown>) => fn({ db: {}, accountId: 'owner' }),
@@ -103,7 +101,6 @@ beforeEach(() => {
   mocks.listEvidenceRequestsForApplicant.mockResolvedValue({ ok: true, value: [request] });
   mocks.referenceCodesFor.mockResolvedValue(new Map());
   mocks.listDocumentsDetailed.mockResolvedValue({ ok: true, value: [] });
-  mocks.listEvidenceRequestDecisions.mockResolvedValue({ ok: true, value: [] });
   mocks.requireAccess.mockResolvedValue({ ok: true, value: { gate: 'proof' } });
   mocks.listRequestItemExtras.mockResolvedValue(NO_EXTRAS);
   // Every document is the everyday copy unless a test says otherwise.
@@ -113,12 +110,35 @@ beforeEach(() => {
   });
   mocks.loadVersionScanEvidence.mockResolvedValue(new Map());
   mocks.evidenceSubmissionsPresent.mockResolvedValue(true);
-  // No exact sends kept in these fixtures: the thread is built from the decisions.
-  mocks.listEvidenceSubmissions.mockResolvedValue({
-    ok: true,
-    value: { available: false, submissions: [], legacy: [] },
-  });
+  // One batched read gives every answered request its history. By default nothing was said and no
+  // exact sends are kept (migration 0132 not run): the thread is built from the decisions.
+  setHistories({});
 });
+
+type Decision = { outcome: string; reason: string | null; createdAt: Date };
+const SENT_BACK = {
+  outcome: 'NEEDS_REPLACEMENT',
+  reason: 'The last page is cut off.',
+  createdAt: new Date('2026-10-21T09:00:00Z'),
+};
+/** The history the batched read returns, by request id; anything not named has none. */
+function setHistories(byId: Record<string, { decisions?: Decision[]; olderSends?: number }>) {
+  mocks.listRequestHistoriesForOwner.mockImplementation(
+    async (_proof: unknown, input: { requestIds: string[] }) => ({
+      ok: true,
+      value: new Map(
+        input.requestIds.map((id) => [
+          id,
+          {
+            decisions: byId[id]?.decisions ?? [],
+            sends: { available: false, submissions: [], legacy: [] },
+            olderSends: byId[id]?.olderSends ?? 0,
+          },
+        ]),
+      ),
+    }),
+  );
+}
 
 const withRequests = (...requests: Record<string, unknown>[]) =>
   mocks.listEvidenceRequestsForApplicant.mockResolvedValue({ ok: true, value: requests });
@@ -193,21 +213,7 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
       { ...request, id: 'r1', status: 'NEEDS_REPLACEMENT' },
       { ...request, id: 'r2', status: 'ACCEPTED', respondedAt: new Date('2026-10-27T08:32:00Z') },
     );
-    mocks.listEvidenceRequestDecisions.mockImplementation(
-      async (_db: unknown, _a: string, id: string) =>
-        id === 'r1'
-          ? {
-              ok: true,
-              value: [
-                {
-                  outcome: 'NEEDS_REPLACEMENT',
-                  reason: 'The last page is cut off.',
-                  createdAt: new Date('2026-10-21T09:00:00Z'),
-                },
-              ],
-            }
-          : { ok: true, value: [] },
-    );
+    setHistories({ r1: { decisions: [SENT_BACK] } });
     const text = textOf(await render());
     expect(text).toContain('Needs Correction');
     expect(text).toContain('Replacement needed: The last page is cut off.');
@@ -222,25 +228,14 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
       { ...request, id: 'r2', status: 'ACCEPTED' },
       { ...request, id: 'r3', status: 'NEEDS_REPLACEMENT' },
     );
-    mocks.listEvidenceRequestDecisions.mockImplementation(
-      async (_db: unknown, _a: string, id: string) => ({
-        ok: true,
-        value:
-          id === 'r3'
-            ? [
-                {
-                  outcome: 'NEEDS_REPLACEMENT',
-                  reason: 'The last page is cut off.',
-                  createdAt: new Date('2026-10-21T09:00:00Z'),
-                },
-              ]
-            : [],
-      }),
-    );
+    setHistories({ r3: { decisions: [SENT_BACK] } });
     const text = textOf(await render());
-    const asked = mocks.listEvidenceRequestDecisions.mock.calls.map((call) => call[2]).sort();
-    // An open request nobody has answered has nothing to read.
-    expect(asked).toEqual(['r1', 'r2', 'r3']);
+    // One batched read for the whole page, and an open request nobody has answered is not in it.
+    expect(mocks.listRequestHistoriesForOwner).toHaveBeenCalledTimes(1);
+    const asked = mocks.listRequestHistoriesForOwner.mock.calls.flatMap(
+      (call) => (call[1] as { requestIds: string[] }).requestIds,
+    );
+    expect([...asked].sort()).toEqual(['r1', 'r2', 'r3']);
     expect(text.match(/The last page is cut off\./g)).toHaveLength(1);
   });
 
@@ -251,14 +246,13 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
       status: 'RECEIVED',
       respondedAt: new Date('2026-10-27T08:32:00Z'),
     });
-    mocks.listEvidenceRequestDecisions.mockRejectedValue(new Error('down'));
-    mocks.listEvidenceSubmissions.mockRejectedValue(new Error('down'));
+    mocks.listRequestHistoriesForOwner.mockRejectedValue(new Error('down'));
     const text = textOf(await render());
     expect(text).toContain('Earlier history could not be loaded. Refresh to try again.');
     expect(text).not.toMatch(/no history|nothing was sent/i);
   });
 
-  it('reads the exact sends with the owner proof, for a document only', async () => {
+  it('reads the history once for the whole page, with the owner proof', async () => {
     withRequests(
       { ...request, id: 'r1', status: 'RECEIVED', respondedAt: new Date('2026-10-27T08:32:00Z') },
       {
@@ -278,11 +272,33 @@ describe('each item shows its group and what to do (spec B09, WP-V4 U07)', () =>
       { applicantId: 'a1' },
       { purpose: 'self' },
     );
-    expect(mocks.listEvidenceSubmissions).toHaveBeenCalledTimes(1);
-    expect(mocks.listEvidenceSubmissions).toHaveBeenCalledWith(
+    expect(mocks.listRequestHistoriesForOwner).toHaveBeenCalledTimes(1);
+    expect(mocks.listRequestHistoriesForOwner).toHaveBeenCalledWith(
       { gate: 'proof' },
-      { requestId: 'r1' },
+      { requestIds: ['r1', 'r2'] },
     );
+  });
+
+  it('says earlier history could not be loaded when the service leaves a request out', async () => {
+    withRequests({
+      ...request,
+      id: 'r1',
+      status: 'RECEIVED',
+      respondedAt: new Date('2026-10-27T08:32:00Z'),
+    });
+    mocks.listRequestHistoriesForOwner.mockResolvedValue({ ok: true, value: new Map() });
+    expect(textOf(await render())).toContain('Earlier history could not be loaded.');
+  });
+
+  it('says older sends are not shown when only the newest were read', async () => {
+    withRequests({
+      ...request,
+      id: 'r1',
+      status: 'RECEIVED',
+      respondedAt: new Date('2026-10-27T08:32:00Z'),
+    });
+    setHistories({ r1: { olderSends: 4 } });
+    expect(textOf(await render())).toContain('Older sends are not shown here.');
   });
 
   it('shows a cancelled or older closed request as closed, with no form and no question box', async () => {

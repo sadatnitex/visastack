@@ -29,6 +29,7 @@ const draw = (thread: Thread, viewer: 'agency' | 'traveller', showHeading = true
 
 const thread: Thread = {
   note: null,
+  olderSends: 0,
   messages: [
     message({ id: 'ask' }),
     message({
@@ -89,6 +90,7 @@ describe('the request conversation', () => {
   it('refuses a state that is not one of the four words, so a tick cannot be added by accident', () => {
     const bad: Thread = {
       note: null,
+      olderSends: 0,
       messages: [message({ word: 'Delivered' as unknown as ThreadMessage['word'] })],
     };
     expect(() => draw(bad, 'traveller')).toThrow(/Not a thread word/);
@@ -98,6 +100,7 @@ describe('the request conversation', () => {
     const doc = draw(
       {
         note: 'times-not-kept',
+        olderSends: 0,
         messages: [message({ side: 'traveller', at: null }), message({ id: 'x', at: null })],
       },
       'traveller',
@@ -111,10 +114,16 @@ describe('the request conversation', () => {
   });
 
   it('says earlier history could not be loaded, never that there is none', () => {
-    const doc = draw({ note: 'unread', messages: [message({})] }, 'agency');
+    const doc = draw({ note: 'unread', olderSends: 0, messages: [message({})] }, 'agency');
     expect(doc.querySelector('.rt-note')?.textContent).toBe(
       'Earlier history could not be loaded. Refresh to try again.',
     );
+  });
+
+  it('says older sends are not shown when the newest only were read', () => {
+    const doc = draw({ ...thread, olderSends: 2 }, 'traveller');
+    expect(doc.querySelector('.rt-note')?.textContent).toBe('Older sends are not shown here.');
+    expect(draw(thread, 'traveller').querySelector('.rt-note')).toBeNull();
   });
 
   it('adds no heading where a fold already names it', () => {

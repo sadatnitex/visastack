@@ -1,11 +1,10 @@
 import 'server-only';
 import {
-  type AuthorizedApplicant,
   type Db,
   type EvidenceRequest,
+  REQUEST_HISTORY_MAX_REQUESTS,
   accountPrincipal,
-  listEvidenceRequestDecisions,
-  listEvidenceSubmissions,
+  listRequestHistoriesForOwner,
   requireAccess,
 } from '@visastack/services';
 import {
@@ -22,18 +21,16 @@ export interface RequestHistory {
   readonly sends: ThreadRead<ThreadSendList>;
 }
 
-/** Requests are read this many at a time, so a long list never opens hundreds of reads at once. */
-const BATCH = 10;
-
 const nothing: RequestHistory = { decisions: { state: 'none' }, sends: { state: 'none' } };
 const unread: RequestHistory = { decisions: { state: 'unread' }, sends: { state: 'unread' } };
 
 /**
- * The history behind each request's thread, read as the traveller who owns it: the decisions made
- * on it, and for a document the exact sends with their times. Both go through the services that
- * decide who may see them (the owner's own access proof for the sends). A request nobody has
- * answered yet has no history to read. A read that fails is `unread`, which the thread says in
- * words; it is never turned into "no history".
+ * The history behind each request's thread, read as the traveller who owns the requests: the
+ * decisions made on each and, for a document, the newest sends with their times. It is one batched
+ * read through the owner's own access proof (a fixed number of queries however many requests are
+ * listed, in chunks of at most `REQUEST_HISTORY_MAX_REQUESTS`), never one read per request. A
+ * request nobody has answered has no history to read. A read that fails, or a request the service
+ * leaves out, is `unread`, which the thread says in words; it is never turned into "no history".
  */
 export async function loadRequestHistories(input: {
   readonly db: Db;
@@ -41,67 +38,67 @@ export async function loadRequestHistories(input: {
   readonly applicantId: string;
   readonly requests: readonly EvidenceRequest[];
 }): Promise<ReadonlyMap<string, RequestHistory>> {
-  const { db, accountId, applicantId } = input;
   const out = new Map<string, RequestHistory>();
   const withHistory = input.requests.filter((r) => r.status !== 'OPEN' || r.respondedAt !== null);
   for (const r of input.requests) if (!withHistory.includes(r)) out.set(r.id, nothing);
   if (withHistory.length === 0) return out;
 
-  let manage: AuthorizedApplicant<'MANAGE'> | null = null;
-  if (withHistory.some((r) => r.kind === 'DOCUMENT')) {
-    try {
-      const proof = await requireAccess(
-        db,
-        accountPrincipal(accountId),
-        'MANAGE',
-        { applicantId },
-        { purpose: 'self' },
+  let read: Awaited<ReturnType<typeof listRequestHistoriesForOwner>>[] | null = null;
+  try {
+    const proof = await requireAccess(
+      input.db,
+      accountPrincipal(input.accountId),
+      'MANAGE',
+      { applicantId: input.applicantId },
+      { purpose: 'self' },
+    );
+    if (proof.ok) {
+      const chunks: EvidenceRequest[][] = [];
+      for (let at = 0; at < withHistory.length; at += REQUEST_HISTORY_MAX_REQUESTS) {
+        chunks.push(withHistory.slice(at, at + REQUEST_HISTORY_MAX_REQUESTS));
+      }
+      read = await Promise.all(
+        chunks.map((chunk) =>
+          listRequestHistoriesForOwner(proof.value, { requestIds: chunk.map((r) => r.id) }),
+        ),
       );
-      manage = proof.ok ? proof.value : null;
-    } catch (error) {
-      reportServerError('requestThreadAccess', error, { step: 'manage proof' });
     }
+  } catch (error) {
+    reportServerError('requestThreadRead', error, { step: 'history read' });
   }
 
-  const readOne = async (request: EvidenceRequest): Promise<RequestHistory> => {
-    try {
-      const [decisions, sends] = await Promise.all([
-        listEvidenceRequestDecisions(db, accountId, request.id),
-        request.kind === 'DOCUMENT' && manage
-          ? listEvidenceSubmissions(manage, { requestId: request.id })
-          : null,
-      ]);
-      return {
-        decisions: decisions.ok
-          ? {
+  const found = new Map<
+    string,
+    NonNullable<typeof read>[number] extends infer R
+      ? R extends { ok: true; value: ReadonlyMap<string, infer H> }
+        ? H
+        : never
+      : never
+  >();
+  for (const result of read ?? []) {
+    if (result.ok) for (const [id, history] of result.value) found.set(id, history);
+  }
+  for (const request of withHistory) {
+    const history = found.get(request.id);
+    out.set(
+      request.id,
+      history
+        ? {
+            decisions: {
               state: 'read',
-              value: decisions.value.map((d) => ({
+              value: history.decisions.map((d) => ({
                 outcome: d.outcome,
                 reason: d.reason,
                 createdAt: d.createdAt,
               })),
-            }
-          : { state: 'unread' },
-        sends:
-          request.kind !== 'DOCUMENT'
-            ? { state: 'none' }
-            : sends?.ok
-              ? {
-                  state: 'read',
-                  value: toThreadSendList(sends.value),
-                }
-              : { state: 'unread' },
-      };
-    } catch (error) {
-      reportServerError('requestThreadRead', error, { step: 'history read' });
-      return unread;
-    }
-  };
-
-  for (let at = 0; at < withHistory.length; at += BATCH) {
-    const batch = withHistory.slice(at, at + BATCH);
-    const read = await Promise.all(batch.map(readOne));
-    batch.forEach((request, index) => out.set(request.id, read[index] ?? unread));
+            },
+            sends:
+              request.kind === 'DOCUMENT'
+                ? { state: 'read', value: toThreadSendList(history.sends, history.olderSends) }
+                : { state: 'none' },
+          }
+        : unread,
+    );
   }
   return out;
 }

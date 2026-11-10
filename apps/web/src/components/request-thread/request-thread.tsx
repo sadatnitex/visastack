@@ -87,6 +87,7 @@ export function RequestThread({
           <Message key={message.id} message={message} viewer={viewer} timeZone={timeZone} />
         ))}
       </ol>
+      {thread.olderSends > 0 ? <p className="rt-note">Older sends are not shown here.</p> : null}
       {thread.note ? <p className="rt-note">{NOTE[thread.note]}</p> : null}
     </section>
   );

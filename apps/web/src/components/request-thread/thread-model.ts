@@ -72,15 +72,21 @@ export interface ThreadSendList {
   readonly available: boolean;
   readonly submissions: readonly ThreadSend[];
   readonly legacy: readonly ThreadLegacySend[];
+  /** Sends before the ones listed, which were not read (the newest only are). */
+  readonly older: number;
 }
 
 /** The list of sends the service returns, reduced to what a thread needs (no file or scan data). */
-export function toThreadSendList(list: {
-  readonly available: boolean;
-  readonly submissions: readonly (ThreadSend & object)[];
-  readonly legacy: readonly ThreadLegacySend[];
-}): ThreadSendList {
+export function toThreadSendList(
+  list: {
+    readonly available: boolean;
+    readonly submissions: readonly (ThreadSend & object)[];
+    readonly legacy: readonly ThreadLegacySend[];
+  },
+  older = 0,
+): ThreadSendList {
   return {
+    older,
     available: list.available,
     submissions: list.submissions.map((s) => ({
       id: s.id,
@@ -124,6 +130,8 @@ export interface ThreadMessage {
 
 export interface Thread {
   readonly messages: readonly ThreadMessage[];
+  /** How many older sends are not shown here (only the newest sends are read). */
+  readonly olderSends: number;
   /**
    * `unread`: the earlier history could not be loaded (never "there is none").
    * `times-not-kept`: some sends were made before their times were recorded.
@@ -318,6 +326,7 @@ export function buildThread(input: ThreadInput): Thread {
   const timesMissing = messages.some((m) => m.side === 'traveller' && m.at === null);
   return {
     messages,
+    olderSends: input.sends.state === 'read' ? input.sends.value.older : 0,
     note: historyUnread ? 'unread' : timesMissing ? 'times-not-kept' : null,
   };
 }

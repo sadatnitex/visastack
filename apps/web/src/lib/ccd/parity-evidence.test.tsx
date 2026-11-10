@@ -46,11 +46,20 @@ vi.mock('@visastack/services', async (importOriginal) => ({
     { factId: 'f1', fieldKey: 'passport_number', value: 'A1234567' },
   ],
   listDocumentsDetailed: async () => ({ ok: true, value: state.documents }),
-  listEvidenceRequestDecisions: async () => ({ ok: true, value: state.decisions }),
-  // The exact sends are not kept in these fixtures (migration 0132 not run): decisions tell the story.
-  listEvidenceSubmissions: async () => ({
+  // One batched read: the fixtures' decisions go to every request listed; no exact sends are kept
+  // (migration 0132 not run), so the decisions tell the story.
+  listRequestHistoriesForOwner: async (_proof: unknown, input: { requestIds: string[] }) => ({
     ok: true,
-    value: { available: false, submissions: [], legacy: [] },
+    value: new Map(
+      input.requestIds.map((id) => [
+        id,
+        {
+          decisions: state.decisions,
+          sends: { available: false, submissions: [], legacy: [] },
+          olderSends: 0,
+        },
+      ]),
+    ),
   }),
   referenceCodesFor: async () => state.codes,
   requireAccess: async () => ({ ok: true, value: { proof: 'owner' } }),

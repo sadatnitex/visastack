@@ -36,7 +36,7 @@ const send = (over: Partial<ThreadSend> = {}): ThreadSend => ({
 });
 
 const sends = (...list: ThreadSend[]) =>
-  ({ state: 'read', value: { available: true, submissions: list, legacy: [] } }) as const;
+  ({ state: 'read', value: { available: true, submissions: list, legacy: [], older: 0 } }) as const;
 
 describe('the words a request thread may use', () => {
   it('are exactly four, and none is a tick or a delivery mark', () => {
@@ -176,6 +176,7 @@ describe('rounds decided before exact copies were kept', () => {
             available: true,
             submissions: [send({ id: 's2', sentAt: at(5) })],
             legacy: [{ sentAt: null, state: 'NEEDS_REPLACEMENT', decidedAt: at(3) }],
+            older: 0,
           },
         },
       }),
@@ -270,6 +271,22 @@ describe('when no exact send times exist', () => {
 
   it('adds no note to a request nothing was read for', () => {
     expect(buildThread(base()).note).toBeNull();
+  });
+});
+
+describe('older sends that were not read', () => {
+  it('says how many are left out and never pretends the list is whole', () => {
+    const thread = buildThread(
+      base({
+        group: 'RECEIVED',
+        sends: {
+          state: 'read',
+          value: { available: true, submissions: [send()], legacy: [], older: 3 },
+        },
+      }),
+    );
+    expect(thread.olderSends).toBe(3);
+    expect(buildThread(base()).olderSends).toBe(0);
   });
 });
 

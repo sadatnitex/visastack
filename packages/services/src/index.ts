@@ -3128,6 +3128,13 @@ export {
 } from './umpe-pack-selection';
 export type { EvidenceDecisionResult, EvidenceSubmitResult } from './agency';
 export {
+  REQUEST_HISTORY_MAX_REQUESTS,
+  REQUEST_HISTORY_SENDS_SHOWN,
+  type RequestHistory,
+  type RequestHistoryDecision,
+  listRequestHistoriesForOwner,
+} from './evidence-request-histories';
+export {
   LEGACY_SEND_LABEL,
   type EvidenceSubmissionDownloadInput,
   type EvidenceSubmissionList,
