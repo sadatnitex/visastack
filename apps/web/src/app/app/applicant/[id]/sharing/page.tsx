@@ -26,16 +26,17 @@ import type { ReactNode } from 'react';
 import { ActivityLog } from '../../../../../components/activity-log';
 import { DepthScope, atLevel } from '../../../../../components/depth';
 import { DepthSwitch } from '../../../../../components/depth-switch';
-import { Icon } from '../../../../../components/icons';
 import {
-  SelectedScopeSummary,
-  describeGrantScope,
-} from '../../../../../components/selected-scope-summary';
+  GroupedList,
+  ListRow,
+  ListWithPane,
+  type PaneEntry,
+} from '../../../../../components/list-pattern';
 import { ShowMore } from '../../../../../components/show-more';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { AboutDisclosure } from '../../../../../components/ui-lift';
 import { accessLogEventLabel } from '../../../../../lib/access-log-labels';
-import { AGENCY_AI_ALLOWED_LINE, agencyAiAccessLine } from '../../../../../lib/agency-ai';
+import { agencyAiAccessLine } from '../../../../../lib/agency-ai';
 import { aiConnectorEnabled } from '../../../../../lib/ai-connector';
 import {
   type AiFileChoice,
@@ -48,13 +49,14 @@ import { depthCopy } from '../../../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { formatTimestamp, formatTimestampDate } from '../../../../../lib/format-date';
+import { grantRowLine } from '../../../../../lib/grant-row-line';
 import { grantStatusBadge } from '../../../../../lib/grant-status';
-import { permissionActionLabel } from '../../../../../lib/labels';
 import { getLocale } from '../../../../../lib/locale';
-import { categoryLabel, newCategoriesWithData } from '../../../../../lib/master-profile';
+import { newCategoriesWithData } from '../../../../../lib/master-profile';
 import { nextShow, pagingHref, parseCursor, parseShow } from '../../../../../lib/paging';
 import { plural } from '../../../../../lib/plural';
 import { withSession } from '../../../../../lib/session';
+import { GRANT_STATUS, INVITATION_STATUS } from '../../../../../lib/status-words';
 import { accessDoneLine } from '../../../../../lib/success-lines';
 import { CollectionAnswersSharingLine } from '../../../../collect/account/sharing-line';
 import { revokeSharingInvitationAction } from './actions';
@@ -64,12 +66,10 @@ import {
   AiConnectionsSection,
 } from './ai-connections';
 import { type AiDraftItem, AiDraftsSection } from './ai-drafts';
-import { CaseExceptions } from './case-exceptions';
 import { DoneNotice } from './done-notice';
-import { GrantAiChoice } from './grant-ai-choice';
 import { GrantForm } from './grant-form';
-import { GrantOpButtons } from './grant-op-buttons';
-import { ScopeExpansionForm } from './scope-expansion-form';
+import { GrantPane, REVOKE_SENTENCE } from './grant-pane';
+import { OpenComposerFromHash } from './open-composer-from-hash';
 
 const sharingInvitationFlag = 'PERSONAL_SHARING_INVITATIONS_ENABLED';
 
@@ -92,9 +92,14 @@ const GRANT_SHOW_MAX = 500;
  * Address parameters that report a one-time result or carry a sign-in return. A Show More or
  * older-entries link drops them, so loading more never replays a notice or a returning choice.
  */
-const ONE_TIME_PARAMS = ['done', 'ai', 'ai_change', 'document'];
+const ONE_TIME_PARAMS = ['done', 'ai', 'ai_change', 'document', 'item'];
 /** The address parameter for how many grants show. */
 const SHOW_KEY = 'show';
+/** The word and tone on a grant's row; a state with no word of its own is shown as it is. */
+const grantRowStatus = (status: string) =>
+  GRANT_STATUS[status] ?? { word: status, tone: 'neutral' as const };
+const invitationStatus = (status: string) =>
+  INVITATION_STATUS[status] ?? { word: status, tone: 'neutral' as const };
 const GRANT_NOUN = { one: 'grant', other: 'grants' } as const;
 
 export default async function SharingPage({
@@ -374,496 +379,393 @@ export default async function SharingPage({
       ? nextShow(data.grants.length, { step: GRANT_STEP, max: GRANT_SHOW_MAX })
       : null;
   const moreAtGlance = data.grantCounts.holdingAccess > data.grantCounts.holdingAccessShown;
+
+  const sharingPath = `/app/applicant/${id}/sharing`;
+  const itemHref = (item: string) => pagingHref(sharingPath, pagingSearch, { item });
+  // Started from Share on a document: the form is what the person came for, so its panel is open.
+  const startsWithDocument =
+    typeof documentParam === 'string' && data.documents.some((d) => d.id === documentParam);
+  const composerId = 'new';
+  const openPane = startsWithDocument ? composerId : one('item');
   // Access that has ended is kept out of the way, under its own heading with its count, so the
   // list above holds only what still matters. Nothing is removed: the rows are the same rows.
   const renderGrants = (rows: readonly { readonly ended: boolean; readonly node: ReactNode }[]) => {
     const endedRows = rows.filter((row) => row.ended);
+    const endedHoldsChosen = data.grants.some((grant) => hasEnded(grant) && grant.id === openPane);
     return (
       <>
         {rows.filter((row) => !row.ended).map((row) => row.node)}
         {endedRows.length > 0 ? (
-          <details
-            className="lc-ended-group"
-            {...(search[SHOW_KEY] !== undefined ? { open: true } : {})}
-            {...atLevel('browse')}
-          >
-            <summary className="lc-ended-summary">Ended Access ({endedRows.length})</summary>
-            <div className="rows lc-ended-rows">{endedRows.map((row) => row.node)}</div>
-          </details>
+          <div {...atLevel('browse')}>
+            <GroupedList
+              groups={[
+                {
+                  id: 'sharing-ended-access',
+                  heading: 'Ended Access',
+                  headingLevel: 3,
+                  count: endedRows.length,
+                  tone: 'neutral',
+                  open: search[SHOW_KEY] !== undefined || endedHoldsChosen,
+                  children: endedRows.map((row) => row.node),
+                },
+              ]}
+            />
+          </div>
         ) : null}
       </>
     );
   };
-  // Started from Share on a document: the form is what the person came for.
-  const startsWithDocument =
-    typeof documentParam === 'string' && data.documents.some((d) => d.id === documentParam);
-  // Nobody has access yet: the form is the next step, so it opens one level earlier.
-  const composerLevel = startsWithDocument
-    ? null
-    : data.accessAvailable && data.grantCounts.total === 0
-      ? 'browse'
-      : 'everything';
+  const grantName = (grant: (typeof data.grants)[number]) =>
+    `${grant.recipient.label}${grant.recipient.kind === 'organization' ? ' (organization)' : ''}`;
+
+  // One panel for each grant, and one for a new sharing request (the old Grant Access card).
+  const panes: PaneEntry[] = [
+    ...data.grants.map(
+      (grant): PaneEntry => ({
+        id: grant.id,
+        title: grantName(grant),
+        content: (
+          <GrantPane
+            applicantId={id}
+            grant={grant}
+            ended={hasEnded(grant)}
+            badge={grantStatusBadge(grant.status, t)}
+            documents={data.documents}
+            aiAssistReady={data.aiAssistReady}
+            expansions={data.scopeExpansions.get(grant.id) ?? []}
+          />
+        ),
+      }),
+    ),
+    {
+      id: composerId,
+      title: 'New Sharing Request',
+      content: (
+        <div className="lp-pane-content sharing-composer-card" id="new-sharing-request">
+          <p className="card-kicker">New Sharing Request</p>
+          <h2 className="card-title">Grant Access</h2>
+          <p className="card-body u-mb-125">
+            {process.env[sharingInvitationFlag] === 'true'
+              ? 'Invite someone by email, even if they do not have an account yet. They must sign in with that email and accept before access begins.'
+              : 'Share with an existing VisaStack user by email. They must accept before any access begins.'}
+          </p>
+          {data.documentsAvailable ? (
+            <GrantForm
+              applicantId={id}
+              documents={data.documents.map((d) => ({
+                id: d.id,
+                displayName: d.approvedName ?? d.originalName,
+              }))}
+              extraCategories={data.extraCategories}
+              unsortedDocuments={data.documents.filter((d) => !documentCategory(d.docType)).length}
+              {...(startsWithDocument ? { initialDocumentId: documentParam } : {})}
+            />
+          ) : (
+            <p role="alert">
+              Document records are unavailable. Reload to review the exact scope before sharing.
+            </p>
+          )}
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <>
-      <PageHeader
-        eyebrow={data.applicant.displayName}
-        title="Sharing"
-        actions={
-          <a className="btn btn-primary" href="#new-sharing-request">
-            New Sharing Request
-          </a>
-        }
-      />
+    <div className="sharing-shell">
+      <ListWithPane
+        panes={panes}
+        initial={openPane}
+        paneLabel="Sharing Details"
+        backLabel="Back to Sharing"
+        backHref={sharingPath}
+      >
+        <div className="sharing-main">
+          <OpenComposerFromHash />
+          <PageHeader
+            eyebrow={data.applicant.displayName}
+            title="Sharing"
+            actions={
+              <a
+                className="btn btn-primary"
+                href={itemHref(composerId)}
+                data-pane-open={composerId}
+              >
+                New Sharing Request
+              </a>
+            }
+          />
 
-      {/* Owner, 5 Nov 2026: no page should have more than 30 words. What sharing means is one tap away. */}
-      <AboutDisclosure summary="About Sharing">
-        <p>
-          You control every grant. Access is purpose-bound, takes effect only once accepted, and can
-          be paused or revoked at any time.
-        </p>
-        <p>Pending, paused and ended grants are labelled separately below.</p>
-        <p>
-          Pause stops access straight away and you can resume it later. Revoke ends this access.
-        </p>
-      </AboutDisclosure>
-
-      <DepthScope family="sharing" depth={depth}>
-        <DepthSwitch
-          family="sharing"
-          initial={depth}
-          copy={depthCopy({
-            glance: depthWord(
-              composerLevel === null ? 'depth.sharing.glance.withForm' : 'depth.sharing.glance',
-            ),
-            browse: depthWord(
-              composerLevel === 'browse' ? 'depth.sharing.browse.withForm' : 'depth.sharing.browse',
-            ),
-            everything: depthWord(
-              composerLevel === 'everything'
-                ? 'depth.sharing.everything'
-                : 'depth.sharing.everything.nothingMore',
-            ),
-          })}
-          notesBehindInfo
-        />
-        <div className="sharing-workspace">
-          <div className="sharing-access-column">
-            <article className="card lc-empty-host">
-              <p className="card-kicker">Controlled Collaboration</p>
-              <h2 className="card-title">Who Has Access</h2>
-              {doneLine ? <DoneNotice line={doneLine} /> : null}
-              <CollectionAnswersSharingLine applicantId={id} />
-              <p className="card-body">
-                {data.accessAvailable
-                  ? `${plural(data.grantCounts.active, 'active grant')}.`
-                  : 'Access records are unavailable. Reload before making changes.'}
-              </p>
-              {notAtGlance > 0 ? (
-                <p className="card-body" data-only="glance">
-                  {notAtGlance === 1
-                    ? '1 more waiting or ended, under Browse.'
-                    : `${notAtGlance} more waiting or ended, under Browse.`}
-                </p>
-              ) : null}
-              {data.grantCounts.total > 0 ? (
-                <div className="notice u-mb-100 lc-revoke-warning">
-                  <p className="lc-revoke-short">
-                    Pausing or revoking stops access now; copies already downloaded cannot be
-                    erased.
-                  </p>
-                  <AboutDisclosure summary="About Revoking">
-                    <p>
-                      Pausing or revoking stops all <em>future</em> access immediately. It cannot
-                      remotely erase copies the recipient already downloaded before that point.
-                    </p>
-                  </AboutDisclosure>
-                </div>
-              ) : null}
-              {!data.accessAvailable ? (
-                <p role="alert">
-                  We could not load sharing records. This does not mean nobody has access.
-                </p>
-              ) : data.grantCounts.total === 0 ? (
-                <EmptyState icon="shield" title="Nobody Has Access Yet" fold>
-                  Your profile and documents are private. When you share with someone, they appear
-                  here with what they can see and until when.
-                </EmptyState>
-              ) : (
-                <>
-                  <div className="rows u-mt-050">
-                    {renderGrants(
-                      data.grants.map((grant, index) => {
-                        const badge = grantStatusBadge(grant.status, t);
-                        const canPause = grant.status === 'ACTIVE';
-                        const canResume = grant.status === 'PAUSED';
-                        const canRevoke =
-                          grant.status === 'ACTIVE' ||
-                          grant.status === 'PAUSED' ||
-                          grant.status === 'PENDING_ACCEPTANCE';
-                        const ended = hasEnded(grant);
-                        return {
-                          ended,
-                          node: (
-                            <div
-                              className="row sharing-grant"
-                              key={grant.id}
-                              id={`sharing-grant-${index + 1}`}
-                              {...(holdsAccess(grant) ? {} : atLevel('browse'))}
-                            >
-                              <div className="lc-grant-head">
-                                <span className="lc-grant-name">
-                                  <span className="lift-action-tile" aria-hidden="true">
-                                    <Icon
-                                      name={
-                                        grant.recipient.kind === 'organization'
-                                          ? 'briefcase'
-                                          : 'users'
-                                      }
-                                      size={20}
-                                    />
-                                  </span>
-                                  <span className="row-key">
-                                    {grant.recipient.label}
-                                    {grant.recipient.kind === 'organization'
-                                      ? ' (organization)'
-                                      : ''}
-                                  </span>
-                                </span>
-                                <span className={`badge ${badge.tone} lift-pill lift-pill-md`}>
-                                  {badge.label}
-                                </span>
-                              </div>
-                              <details className="sharing-grant-details" {...atLevel('browse')}>
-                                <summary className="sharing-grant-details-summary">
-                                  Grant Details
-                                  <span className="sr-only"> for {grant.recipient.label}</span>
-                                </summary>
-                                <div className="depth-item" {...atLevel('browse')}>
-                                  <SelectedScopeSummary
-                                    purpose={grant.purpose}
-                                    permissions={grant.actions
-                                      .filter((a) => a !== 'AI_ASSIST')
-                                      .map((a) => permissionActionLabel(a).toLowerCase())}
-                                    {...describeGrantScope({
-                                      // AI tools are their own line below, never part of this sentence.
-                                      actions: grant.actions.filter((a) => a !== 'AI_ASSIST'),
-                                      caseGrant: Boolean(grant.missionId),
-                                      partLabels: (grant.categories ?? []).map((c) =>
-                                        categoryLabel(c),
-                                      ),
-                                      documentNames: (grant.documentIds ?? []).map((documentId) => {
-                                        const document = data.documents.find(
-                                          (record) => record.id === documentId,
-                                        );
-                                        return document
-                                          ? (document.approvedName ?? document.originalName)
-                                          : 'Document details unavailable';
-                                      }),
-                                      hasDocuments: true,
-                                      partsWhen: 'atSharing',
-                                    })}
-                                    tense={
-                                      ended
-                                        ? 'ended'
-                                        : grant.status === 'ACTIVE'
-                                          ? 'live'
-                                          : 'notYet'
-                                    }
-                                    revoked={grant.status === 'REVOKED'}
-                                    endsOn={
-                                      grant.expiryAt ? formatTimestampDate(grant.expiryAt) : null
-                                    }
-                                  />
-                                </div>
-                                {grant.acceptedAt ? (
-                                  <p className="muted lc-small-m0" {...atLevel('browse')}>
-                                    Accepted {formatTimestampDate(grant.acceptedAt)}
-                                  </p>
-                                ) : null}
-                                {data.aiAssistReady &&
-                                grant.recipient.kind === 'organization' &&
-                                !ended &&
-                                grant.status !== 'REVOKED' &&
-                                grant.actions.includes('VIEW_METADATA') ? (
-                                  <div {...atLevel('browse')}>
-                                    <GrantAiChoice
-                                      applicantId={id}
-                                      grantId={grant.id}
-                                      agencyName={grant.recipient.label}
-                                      allowed={grant.actions.includes('AI_ASSIST')}
-                                    />
-                                  </div>
-                                ) : null}
-                              </details>
-                              {grant.missionId === null &&
-                              canRevoke &&
-                              grant.caseExceptions.length > 0 &&
-                              (grant.expiryAt === null ||
-                                new Date(grant.expiryAt).getTime() > Date.now()) ? (
-                                <div className="depth-item" {...atLevel('browse')}>
-                                  <CaseExceptions
-                                    applicantId={id}
-                                    grantId={grant.id}
-                                    recipientLabel={grant.recipient.label}
-                                    exceptions={grant.caseExceptions.map((exception) => ({
-                                      missionId: exception.missionId,
-                                      title: exception.missionTitle,
-                                      sharedSeparately: exception.reachedByAnotherGrant,
-                                    }))}
-                                  />
-                                </div>
-                              ) : null}
-                              {grant.actions.includes('AI_ASSIST') && !ended ? (
-                                <p className="u-m-0">
-                                  <span className="badge badge-neutral">
-                                    {AGENCY_AI_ALLOWED_LINE}
-                                  </span>
-                                </p>
-                              ) : null}
-                              {canPause || canResume || canRevoke ? (
-                                <GrantOpButtons
-                                  applicantId={id}
-                                  grantId={grant.id}
-                                  ops={[
-                                    ...(canPause
-                                      ? [
-                                          {
-                                            op: 'pause' as const,
-                                            label: 'Pause',
-                                            variant: 'btn-secondary',
-                                          },
-                                        ]
-                                      : []),
-                                    ...(canResume
-                                      ? [
-                                          {
-                                            op: 'resume' as const,
-                                            label: 'Resume',
-                                            variant: 'btn-secondary',
-                                          },
-                                        ]
-                                      : []),
-                                    ...(canRevoke
-                                      ? [
-                                          {
-                                            op: 'revoke' as const,
-                                            label: 'Revoke',
-                                            variant: 'btn-danger',
-                                          },
-                                        ]
-                                      : []),
-                                  ]}
-                                />
-                              ) : null}
-                              {(() => {
-                                const candidates = data.scopeExpansions.get(grant.id);
-                                return candidates && candidates.length > 0 ? (
-                                  <div className="depth-item" {...atLevel('browse')}>
-                                    <ScopeExpansionForm
-                                      applicantId={id}
-                                      grantId={grant.id}
-                                      candidates={candidates}
-                                    />
-                                  </div>
-                                ) : null;
-                              })()}
-                            </div>
-                          ),
-                        };
-                      }),
-                    )}
-                  </div>
-                  <div {...(moreAtGlance ? {} : atLevel('browse'))}>
-                    <ShowMore
-                      id="sharing-grants-more"
-                      pathname={`/app/applicant/${id}/sharing`}
-                      searchParams={pagingSearch}
-                      next={grantsNext === null ? null : { [SHOW_KEY]: grantsNext }}
-                      shown={data.grants.length}
-                      total={data.grantCounts.total}
-                      noun={GRANT_NOUN}
-                      landOn={`sharing-grant-${data.grants.length + 1}`}
-                    />
-                  </div>
-                </>
-              )}
-            </article>
-
-            <AiConnectionsSection
-              applicantId={id}
-              list={data.aiConnections}
-              connectorOn={connectorOn}
-              cases={data.aiCases}
-              suggestionsAvailable={data.aiSuggestions.available}
-              {...(data.aiAccess && !data.aiAccess.available
-                ? { accessOff: data.aiAccess.reason }
-                : {})}
-              {...(data.aiFiles ? { files: data.aiFiles } : {})}
-              {...(aiNotice ? { notice: aiNotice } : {})}
-              {...(aiReturning
-                ? {
-                    returning: data.aiReturningFiles
-                      ? { ...aiReturning, files: data.aiReturningFiles }
-                      : aiReturning,
-                  }
-                : {})}
-            />
-
-            {/* Kept while an app may save more, so the last deletion is still confirmed here. */}
-            {data.aiSuggestions.drafts.length > 0 ||
-            data.aiConnections.active.some((item) => aiAllowsSuggestions(item.scopes)) ? (
-              <AiDraftsSection
-                applicantId={id}
-                drafts={data.aiSuggestions.drafts}
-                more={data.aiSuggestions.more}
-              />
-            ) : null}
-
-            {data.invitations.length ? (
-              <details className="card sharing-invitation-history" {...atLevel('browse')}>
-                <summary>
-                  Sharing invitations:{' '}
-                  {
-                    data.invitations.filter(
-                      (invite) =>
-                        invite.status === 'PENDING' && invite.expiresAt.getTime() > Date.now(),
-                    ).length
-                  }{' '}
-                  pending
-                </summary>
-                <p>
-                  No access starts until the recipient reviews and accepts. To resend, revoke a
-                  pending invitation and create a new one.
-                </p>
-                {data.invitations.map((invitation) => (
-                  <div className="row" key={invitation.id}>
-                    <span>
-                      {invitation.email}
-                      <br />
-                      {invitation.status === 'PENDING' &&
-                      invitation.expiresAt.getTime() <= Date.now()
-                        ? 'Expired'
-                        : invitation.status.toLowerCase()}{' '}
-                      · {invitation.purpose}
-                      {invitation.status === 'PENDING' &&
-                      invitation.expiresAt.getTime() > Date.now()
-                        ? data.invitationExceptions
-                            .filter((exception) => exception.invitationId === invitation.id)
-                            .map((exception) => (
-                              <span
-                                className="sharing-invitation-exception"
-                                key={exception.missionId}
-                              >
-                                <br />
-                                Not Shared: {exception.missionTitle}
-                              </span>
-                            ))
-                        : null}
-                    </span>
-                    {invitation.status === 'PENDING' &&
-                    invitation.expiresAt.getTime() > Date.now() ? (
-                      <form action={revokeSharingInvitationAction}>
-                        <input type="hidden" name="invitationId" value={invitation.id} />
-                        <input type="hidden" name="applicantId" value={id} />
-                        <button className="btn btn-secondary" type="submit">
-                          Revoke Invitation
-                        </button>
-                      </form>
-                    ) : null}
-                  </div>
-                ))}
-              </details>
-            ) : null}
-            <article className="card lc-empty-host" {...atLevel('browse')}>
-              <p className="card-kicker">Transparency</p>
-              <h2 className="card-title">Access Log</h2>
-              <p className="card-body u-mb-100">
-                What actually happened to your data, not just what a grant permits.
-              </p>
-              {data.auditEvents.length === 0 ? (
-                <EmptyState icon="activity" title="No Activity Yet">
-                  Every time your information is opened, shared or changed, it is recorded here.
-                </EmptyState>
-              ) : (
-                <ActivityLog
-                  filtersFolded="Filter the Log"
-                  label="Access Log Entries"
-                  id={LOG_ANCHOR}
-                  {...(data.auditOlderCursor
-                    ? {
-                        olderHref: pagingHref(
-                          `/app/applicant/${id}/sharing`,
-                          pagingSearch,
-                          { [LOG_KEY]: data.auditOlderCursor },
-                          LOG_ANCHOR,
-                        ),
-                      }
-                    : {})}
-                  {...(logBefore
-                    ? {
-                        newestHref: pagingHref(
-                          `/app/applicant/${id}/sharing`,
-                          pagingSearch,
-                          { [LOG_KEY]: null },
-                          LOG_ANCHOR,
-                        ),
-                      }
-                    : {})}
-                  entries={data.auditEvents.map((e) => ({
-                    id: String(e.seq),
-                    what: e.agencyAi
-                      ? agencyAiAccessLine(e.agencyAi.agencyName, e.agencyAi.appHost)
-                      : accessLogEventLabel(e.eventType),
-                    who: e.actorEmail ?? 'System',
-                    ...(e.result
-                      ? {
-                          outcome:
-                            e.result === 'ALLOWED'
-                              ? { label: 'Allowed', tone: 'success' as const }
-                              : { label: 'Blocked', tone: 'danger' as const },
-                        }
-                      : {}),
-                    at: e.occurredAt,
-                    when: formatTimestamp(e.occurredAt),
-                  }))}
-                />
-              )}
-            </article>
-          </div>
-          <article
-            className="card sharing-composer-card"
-            id="new-sharing-request"
-            {...(composerLevel ? atLevel(composerLevel) : {})}
-          >
-            <p className="card-kicker">New Sharing Request</p>
-            <h2 className="card-title">Grant Access</h2>
-            <p className="card-body u-mb-125">
-              {process.env[sharingInvitationFlag] === 'true'
-                ? 'Invite someone by email, even if they do not have an account yet. They must sign in with that email and accept before access begins.'
-                : 'Share with an existing VisaStack user by email. They must accept before any access begins.'}
+          {/* Owner, 5 Nov 2026: no page should have more than 30 words. What sharing means is one tap away. */}
+          <AboutDisclosure summary="About Sharing">
+            <p>
+              They can only use it for the reason you gave. It starts when they accept. You can
+              pause or stop it any time.
             </p>
-            {data.documentsAvailable ? (
-              <GrantForm
-                applicantId={id}
-                documents={data.documents.map((d) => ({
-                  id: d.id,
-                  displayName: d.approvedName ?? d.originalName,
-                }))}
-                extraCategories={data.extraCategories}
-                unsortedDocuments={
-                  data.documents.filter((d) => !documentCategory(d.docType)).length
-                }
-                {...(startsWithDocument ? { initialDocumentId: documentParam } : {})}
-              />
-            ) : (
-              <p role="alert">
-                Document records are unavailable. Reload to review the exact scope before sharing.
-              </p>
-            )}
-          </article>
+            <p>Pending, paused and ended grants are labelled separately below.</p>
+            <p>
+              Pause stops access straight away and you can resume it later. Revoke ends this access.
+            </p>
+          </AboutDisclosure>
+
+          <DepthScope family="sharing" depth={depth}>
+            <DepthSwitch
+              family="sharing"
+              initial={depth}
+              copy={depthCopy({
+                glance: depthWord('depth.sharing.glance'),
+                browse: depthWord('depth.sharing.browse'),
+                everything: depthWord('depth.sharing.everything.nothingMore'),
+              })}
+              notesBehindInfo
+            />
+            <div className="sharing-workspace">
+              <div className="sharing-access-column">
+                <article className="card lc-empty-host">
+                  <p className="card-kicker">Controlled Collaboration</p>
+                  <h2 className="card-title">Who Has Access</h2>
+                  {doneLine ? <DoneNotice line={doneLine} /> : null}
+                  <CollectionAnswersSharingLine applicantId={id} />
+                  <p className="card-body">
+                    {data.accessAvailable
+                      ? `${plural(data.grantCounts.active, 'active grant')}.`
+                      : 'Access records are unavailable. Reload before making changes.'}
+                  </p>
+                  {notAtGlance > 0 ? (
+                    <p className="card-body" data-only="glance">
+                      {notAtGlance === 1
+                        ? '1 more waiting or ended, under Browse.'
+                        : `${notAtGlance} more waiting or ended, under Browse.`}
+                    </p>
+                  ) : null}
+                  {data.grantCounts.total > 0 ? (
+                    <div className="notice u-mb-100 lc-revoke-warning">
+                      <p className="lc-revoke-short">{REVOKE_SENTENCE}</p>
+                      <AboutDisclosure summary="About Revoking">
+                        <p>
+                          Pausing or revoking stops all <em>future</em> access immediately. It
+                          cannot remotely erase copies the recipient already downloaded before that
+                          point.
+                        </p>
+                      </AboutDisclosure>
+                    </div>
+                  ) : null}
+                  {!data.accessAvailable ? (
+                    <p role="alert">
+                      We could not load sharing records. This does not mean nobody has access.
+                    </p>
+                  ) : data.grantCounts.total === 0 ? (
+                    <EmptyState icon="shield" title="Nobody Has Access Yet" fold>
+                      Your profile and documents are private. When you share with someone, they
+                      appear here with what they can see and until when.
+                    </EmptyState>
+                  ) : (
+                    <>
+                      <div className="rows u-mt-050">
+                        {renderGrants(
+                          data.grants.map((grant, index) => {
+                            const ended = hasEnded(grant);
+                            return {
+                              ended,
+                              node: (
+                                <div
+                                  className="sharing-grant-item"
+                                  key={grant.id}
+                                  id={`sharing-grant-${index + 1}`}
+                                  {...(holdsAccess(grant) ? {} : atLevel('browse'))}
+                                >
+                                  <ListRow
+                                    id={grant.id}
+                                    name={grantName(grant)}
+                                    tone={grantRowStatus(grant.status).tone}
+                                    status={grantRowStatus(grant.status).word}
+                                    meta={grantRowLine({
+                                      status: grant.status,
+                                      actions: grant.actions,
+                                      missionId: grant.missionId,
+                                      categories: grant.categories,
+                                      documentIds: grant.documentIds,
+                                      expiryAt: grant.expiryAt,
+                                      totalDocuments: data.documentsAvailable
+                                        ? data.documents.length
+                                        : null,
+                                      ended,
+                                    })}
+                                    openHref={itemHref(grant.id)}
+                                  />
+                                </div>
+                              ),
+                            };
+                          }),
+                        )}
+                      </div>
+                      <div {...(moreAtGlance ? {} : atLevel('browse'))}>
+                        <ShowMore
+                          id="sharing-grants-more"
+                          pathname={sharingPath}
+                          searchParams={pagingSearch}
+                          next={grantsNext === null ? null : { [SHOW_KEY]: grantsNext }}
+                          shown={data.grants.length}
+                          total={data.grantCounts.total}
+                          noun={GRANT_NOUN}
+                          landOn={`sharing-grant-${data.grants.length + 1}`}
+                        />
+                      </div>
+                    </>
+                  )}
+                </article>
+
+                <AiConnectionsSection
+                  applicantId={id}
+                  list={data.aiConnections}
+                  connectorOn={connectorOn}
+                  cases={data.aiCases}
+                  suggestionsAvailable={data.aiSuggestions.available}
+                  {...(data.aiAccess && !data.aiAccess.available
+                    ? { accessOff: data.aiAccess.reason }
+                    : {})}
+                  {...(data.aiFiles ? { files: data.aiFiles } : {})}
+                  {...(aiNotice ? { notice: aiNotice } : {})}
+                  {...(aiReturning
+                    ? {
+                        returning: data.aiReturningFiles
+                          ? { ...aiReturning, files: data.aiReturningFiles }
+                          : aiReturning,
+                      }
+                    : {})}
+                />
+
+                {/* Kept while an app may save more, so the last deletion is still confirmed here. */}
+                {data.aiSuggestions.drafts.length > 0 ||
+                data.aiConnections.active.some((item) => aiAllowsSuggestions(item.scopes)) ? (
+                  <AiDraftsSection
+                    applicantId={id}
+                    drafts={data.aiSuggestions.drafts}
+                    more={data.aiSuggestions.more}
+                  />
+                ) : null}
+
+                {data.invitations.length ? (
+                  <details className="card sharing-invitation-history" {...atLevel('browse')}>
+                    <summary>
+                      Sharing invitations:{' '}
+                      {
+                        data.invitations.filter(
+                          (invite) =>
+                            invite.status === 'PENDING' && invite.expiresAt.getTime() > Date.now(),
+                        ).length
+                      }{' '}
+                      pending
+                    </summary>
+                    <p>
+                      No access starts until the recipient reviews and accepts. To resend, revoke a
+                      pending invitation and create a new one.
+                    </p>
+                    <div className="rows">
+                      {data.invitations.map((invitation) => {
+                        const waiting =
+                          invitation.status === 'PENDING' &&
+                          invitation.expiresAt.getTime() > Date.now();
+                        const invitationRowStatus = invitationStatus(
+                          invitation.status === 'PENDING' && !waiting
+                            ? 'EXPIRED'
+                            : invitation.status,
+                        );
+                        return (
+                          <div className="sharing-invitation-item" key={invitation.id}>
+                            <ListRow
+                              id={invitation.id}
+                              name={invitation.email}
+                              tone={invitationRowStatus.tone}
+                              status={invitationRowStatus.word}
+                              meta={invitation.purpose.replace(/[.!?]+$/, '')}
+                            />
+                            {waiting
+                              ? data.invitationExceptions
+                                  .filter((exception) => exception.invitationId === invitation.id)
+                                  .map((exception) => (
+                                    <p
+                                      className="muted sharing-invitation-exception"
+                                      key={exception.missionId}
+                                    >
+                                      Not Shared: {exception.missionTitle}
+                                    </p>
+                                  ))
+                              : null}
+                            {waiting ? (
+                              <form action={revokeSharingInvitationAction}>
+                                <input type="hidden" name="invitationId" value={invitation.id} />
+                                <input type="hidden" name="applicantId" value={id} />
+                                <button className="btn btn-secondary" type="submit">
+                                  Revoke Invitation
+                                </button>
+                              </form>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
+                ) : null}
+                <article className="card lc-empty-host" {...atLevel('browse')}>
+                  <p className="card-kicker">Transparency</p>
+                  <h2 className="card-title">Access Log</h2>
+                  <p className="card-body u-mb-100">
+                    What actually happened to your data, not just what a grant permits.
+                  </p>
+                  {data.auditEvents.length === 0 ? (
+                    <EmptyState icon="activity" title="No Activity Yet">
+                      Every time your information is opened, shared or changed, it is recorded here.
+                    </EmptyState>
+                  ) : (
+                    <ActivityLog
+                      filtersFolded="Filter the Log"
+                      label="Access Log Entries"
+                      id={LOG_ANCHOR}
+                      {...(data.auditOlderCursor
+                        ? {
+                            olderHref: pagingHref(
+                              `/app/applicant/${id}/sharing`,
+                              pagingSearch,
+                              { [LOG_KEY]: data.auditOlderCursor },
+                              LOG_ANCHOR,
+                            ),
+                          }
+                        : {})}
+                      {...(logBefore
+                        ? {
+                            newestHref: pagingHref(
+                              `/app/applicant/${id}/sharing`,
+                              pagingSearch,
+                              { [LOG_KEY]: null },
+                              LOG_ANCHOR,
+                            ),
+                          }
+                        : {})}
+                      entries={data.auditEvents.map((e) => ({
+                        id: String(e.seq),
+                        what: e.agencyAi
+                          ? agencyAiAccessLine(e.agencyAi.agencyName, e.agencyAi.appHost)
+                          : accessLogEventLabel(e.eventType),
+                        who: e.actorEmail ?? 'System',
+                        ...(e.result
+                          ? {
+                              outcome:
+                                e.result === 'ALLOWED'
+                                  ? { label: 'Allowed', tone: 'success' as const }
+                                  : { label: 'Blocked', tone: 'danger' as const },
+                            }
+                          : {}),
+                        at: e.occurredAt,
+                        when: formatTimestamp(e.occurredAt),
+                      }))}
+                    />
+                  )}
+                </article>
+              </div>
+            </div>
+          </DepthScope>
         </div>
-      </DepthScope>
-    </>
+      </ListWithPane>
+    </div>
   );
 }

@@ -20,6 +20,7 @@ import { EMAIL_PATTERN, isEmailAddress } from './email-address';
 import { addMembership, createOrganization, reviewOrganization } from './organizations';
 import { RATE_LIMITS } from './rate-limit';
 import { exhaustRateLimit } from './rate-limit.test-support';
+import { GRANT_DEFAULT_DURATION_DAYS } from './sharing';
 
 async function freshDb(): Promise<Db> {
   const client = await createMigratedPglite();
@@ -337,6 +338,12 @@ describe('client invitations - agency invites a traveller as a new client (Comme
         .from(dbSchema.grants)
         .where(eq(dbSchema.grants.applicantId, result.value.applicantId));
       expect(grant?.status).toBe('ACTIVE');
+      // The accept page tells the traveller how long this access lasts (friction F2): the grant
+      // gets the default length from the day of accepting, and nothing extends it.
+      const lasts = (grant?.expiryAt?.getTime() ?? 0) - Date.now();
+      expect(Math.abs(lasts - GRANT_DEFAULT_DURATION_DAYS * 24 * 60 * 60 * 1000)).toBeLessThan(
+        60_000,
+      );
       expect(grant?.acceptedAt).not.toBeNull();
       expect(grant?.recipientOrganizationId).toBe(orgId);
       expect(grant?.missionId).toBe(result.value.missionId);
