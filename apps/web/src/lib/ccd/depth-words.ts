@@ -38,8 +38,7 @@ export const DEPTH_WORDS = {
   'depth.case.everything':
     'Everything: choosing evidence, submission and outcome, problems, snapshots and the itinerary.',
   'depth.evidence.glance': 'Glance: what is waiting for you.',
-  'depth.evidence.browse':
-    'Browse: requests being checked or finished, dates, checklist notes, references and your questions.',
+  'depth.evidence.browse': 'Browse: requests being checked or finished.',
   'depth.evidence.everything': 'Everything: asking the agency about an item, in the request.',
   'depth.sharing.glance': 'Glance: who can see this record now, and how to pause or revoke it.',
   'depth.sharing.glance.withForm':

@@ -172,18 +172,18 @@ interface Ranked {
 }
 
 /** The ranked list, and how many quiet requests were left off it (see `CHASE_VISIBLE`). */
-export interface DoNextList {
+export interface DoNextRanking {
   readonly items: DoNextItem[];
   /** Requests with no due date that have had no reply, past the ones listed. */
   readonly quietHidden: number;
 }
 
-/** The ranked list only; `buildDoNextList` also says how many quiet requests it left off. */
+/** The ranked list only (used by tests and callers that do not need the count); `buildDoNextList` also says how many quiet requests it left off. */
 export function buildDoNext(input: DoNextInput): DoNextItem[] {
   return buildDoNextList(input).items;
 }
 
-export function buildDoNextList(input: DoNextInput): DoNextList {
+export function buildDoNextList(input: DoNextInput): DoNextRanking {
   const now = input.now ?? new Date();
   const openCases = input.cases.filter((c) => !CLOSED_CASE_STATES.has(c.state));
   const caseById = new Map(openCases.map((c) => [c.missionId, c]));

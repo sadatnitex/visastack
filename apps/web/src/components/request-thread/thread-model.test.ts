@@ -274,6 +274,103 @@ describe('when no exact send times exist', () => {
   });
 });
 
+describe('review fixes', () => {
+  const decision = (over: Partial<ThreadDecision>): ThreadDecision => ({
+    outcome: 'ACCEPTED',
+    reason: null,
+    createdAt: at(3),
+    ...over,
+  });
+
+  it('gives the decided reply the time the request kept for it', () => {
+    const thread = buildThread(
+      base({
+        group: 'REVIEWED',
+        request: { ...base().request, kind: 'FIELD', status: 'ACCEPTED', respondedAt: at(2) },
+        decisions: { state: 'read', value: [decision({})] },
+      }),
+    );
+    expect(thread.messages[1]).toMatchObject({ word: 'Reviewed', at: at(2), wordAt: at(3) });
+    expect(thread.note).toBeNull();
+  });
+
+  it('does not give an older decided round a time that belongs to a later reply', () => {
+    const thread = buildThread(
+      base({
+        group: 'RECEIVED',
+        request: { ...base().request, kind: 'FIELD', status: 'RECEIVED', respondedAt: at(5) },
+        decisions: {
+          state: 'read',
+          value: [decision({ outcome: 'NEEDS_REPLACEMENT', reason: 'No.' })],
+        },
+      }),
+    );
+    expect(thread.messages.find((m) => m.id === 'reply-0')?.at).toBeNull();
+    expect(thread.messages.find((m) => m.id === 'reply-current')?.at).toEqual(at(5));
+  });
+
+  it('words a contradiction for the traveller as their profile, and for the agency as the profile', () => {
+    const input = (viewer: 'traveller' | 'agency') =>
+      buildThread(
+        base({
+          viewer,
+          group: 'NEEDS_CORRECTION',
+          request: {
+            ...base().request,
+            kind: 'FIELD',
+            status: 'NEEDS_REPLACEMENT',
+            respondedAt: at(2),
+          },
+          decisions: {
+            state: 'read',
+            value: [decision({ outcome: 'CONTRADICTION', reason: 'Name differs.' })],
+          },
+        }),
+      ).messages.find((m) => m.id === 'reason-0')?.text;
+    expect(input('traveller')).toBe('Contradicts your profile: Name differs.');
+    expect(input('agency')).toBe('Contradicts the profile: Name differs.');
+  });
+
+  it('puts a waiting send that was never pinned after the exact sends, not before them', () => {
+    const thread = buildThread(
+      base({
+        group: 'RECEIVED',
+        request: { ...base().request, status: 'RECEIVED' },
+        sends: {
+          state: 'read',
+          value: {
+            available: true,
+            submissions: [
+              send({ state: 'NEEDS_REPLACEMENT', decidedAt: at(3), reason: 'Blurred.' }),
+            ],
+            legacy: [{ sentAt: at(5), state: 'AWAITING_DECISION', decidedAt: null }],
+            older: 0,
+          },
+        },
+      }),
+    );
+    expect(thread.messages.map((m) => m.id)).toEqual([
+      'ask',
+      'send-s1',
+      'reason-s1',
+      'legacy-waiting-0',
+    ]);
+    expect(thread.messages[3]).toMatchObject({ word: 'Received', at: at(5) });
+  });
+
+  it('says only the latest reply is shown when no history was asked for on an answered request', () => {
+    const thread = buildThread(
+      base({
+        viewer: 'agency',
+        group: 'RECEIVED',
+        request: { ...base().request, kind: 'FIELD', status: 'RECEIVED', respondedAt: at(4) },
+      }),
+    );
+    expect(thread.note).toBe('latest-only');
+    expect(buildThread(base()).note).toBeNull();
+  });
+});
+
 describe('older sends that were not read', () => {
   it('says how many are left out and never pretends the list is whole', () => {
     const thread = buildThread(

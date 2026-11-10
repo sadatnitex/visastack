@@ -126,6 +126,11 @@ describe('the request conversation', () => {
     expect(draw(thread, 'traveller').querySelector('.rt-note')).toBeNull();
   });
 
+  it('says only the latest reply is shown where no earlier rounds were read', () => {
+    const doc = draw({ ...thread, note: 'latest-only' }, 'agency');
+    expect(doc.querySelector('.rt-note')?.textContent).toBe('Only the latest reply is shown here.');
+  });
+
   it('adds no heading where a fold already names it', () => {
     expect(draw(thread, 'agency', false).querySelector('h4')).toBeNull();
     expect(draw(thread, 'traveller').querySelector('h4')?.textContent).toBe('Conversation');

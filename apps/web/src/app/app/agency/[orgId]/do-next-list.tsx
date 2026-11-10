@@ -17,7 +17,7 @@ const TIER_LABEL: Readonly<Record<DoNextTier, string>> = {
 
 /**
  * The agency's "Do Next" list: each item with its owner, the reason it is here and one action.
- * Built by `buildDoNext`, which ranks only what this person already sees.
+ * Built by `buildDoNextList`, which ranks only what this person already sees.
  */
 export function DoNextList({
   items,

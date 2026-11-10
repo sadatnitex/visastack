@@ -135,15 +135,24 @@ export interface Thread {
   /**
    * `unread`: the earlier history could not be loaded (never "there is none").
    * `times-not-kept`: some sends were made before their times were recorded.
+   * `latest-only`: nothing but the current state of the request was read, so earlier rounds
+   * (and the reasons the agency gave) are not shown.
    */
-  readonly note: 'unread' | 'times-not-kept' | null;
+  readonly note: 'unread' | 'times-not-kept' | 'latest-only' | null;
 }
 
 /** The prefix that tells which of the review outcomes a reason belongs to. */
-const REASON_PREFIX: Readonly<Record<string, string>> = {
-  NEEDS_REPLACEMENT: 'Replacement needed: ',
-  CONTRADICTION: 'Contradicts the profile: ',
-  CORRECTION_PROPOSED: 'Suggested correction: ',
+const REASON_PREFIX: Readonly<Record<ThreadSide, Readonly<Record<string, string>>>> = {
+  traveller: {
+    NEEDS_REPLACEMENT: 'Replacement needed: ',
+    CONTRADICTION: 'Contradicts your profile: ',
+    CORRECTION_PROPOSED: 'Suggested correction: ',
+  },
+  agency: {
+    NEEDS_REPLACEMENT: 'Replacement needed: ',
+    CONTRADICTION: 'Contradicts the profile: ',
+    CORRECTION_PROPOSED: 'Suggested correction: ',
+  },
 };
 
 const SENT_BACK: ReadonlySet<string> = new Set([
@@ -194,18 +203,21 @@ export function buildThread(input: ThreadInput): Thread {
 
   const reason = (outcome: string, text: string | null) =>
     text
-      ? `${REASON_PREFIX[outcome] ?? ''}${text}`
+      ? `${REASON_PREFIX[viewer][outcome] ?? ''}${text}`
       : 'The agency sent this back. No reason was given.';
 
   if (exact && exact.length > 0) {
     // Rounds decided before exact copies were kept come first: their send time was not recorded,
     // their decision time was, and the reason is the one on the decision made at that moment.
-    const legacy =
+    const allLegacy =
       input.sends.state === 'read'
         ? [...input.sends.value.legacy].sort(
             (a, b) => (a.decidedAt?.getTime() ?? 0) - (b.decidedAt?.getTime() ?? 0),
           )
         : [];
+    // A send still waiting that was never pinned is the newest send: it follows the exact ones.
+    const legacy = allLegacy.filter((old) => old.state !== 'AWAITING_DECISION');
+    const legacyWaiting = allLegacy.filter((old) => old.state === 'AWAITING_DECISION');
     legacy.forEach((old, index) => {
       add({
         id: `legacy-${index}`,
@@ -250,17 +262,34 @@ export function buildThread(input: ThreadInput): Thread {
         });
       }
     }
+    legacyWaiting.forEach((old, index) => {
+      add({
+        id: `legacy-waiting-${index}`,
+        side: 'traveller',
+        text: `${who === 'You' ? 'You sent' : `${who} sent`} ${noun}`,
+        at: old.sentAt,
+        word: openWord(input.group),
+        wordAt: null,
+      });
+    });
   } else {
     // No exact copies (a detail, an older send, or the read failed): decisions plus the current reply.
     historyUnread =
       input.decisions.state === 'unread' ||
       (input.sends.state === 'unread' && input.decisions.state !== 'read');
     decided.forEach((d, index) => {
+      // The request keeps the time of the newest reply only: it belongs to the last decided round
+      // when no later reply has been made since that decision.
+      const isLast = index === decided.length - 1;
+      const covered =
+        isLast &&
+        request.respondedAt !== null &&
+        request.respondedAt.getTime() <= d.createdAt.getTime();
       add({
         id: `reply-${index}`,
         side: 'traveller',
         text: `${who === 'You' ? 'You sent' : `${who} sent`} ${noun}`,
-        at: null,
+        at: covered ? request.respondedAt : null,
         word: decidedWord(d.outcome),
         wordAt: d.createdAt,
       });
@@ -324,9 +353,23 @@ export function buildThread(input: ThreadInput): Thread {
   }
 
   const timesMissing = messages.some((m) => m.side === 'traveller' && m.at === null);
+  // Nothing about earlier rounds was asked for, yet the request has been answered: say that only
+  // its latest state is shown, rather than let one round look like the whole story.
+  const latestOnly =
+    !exact &&
+    input.decisions.state === 'none' &&
+    input.sends.state !== 'read' &&
+    input.sends.state !== 'unread' &&
+    request.status !== 'OPEN';
   return {
     messages,
     olderSends: input.sends.state === 'read' ? input.sends.value.older : 0,
-    note: historyUnread ? 'unread' : timesMissing ? 'times-not-kept' : null,
+    note: historyUnread
+      ? 'unread'
+      : latestOnly
+        ? 'latest-only'
+        : timesMissing
+          ? 'times-not-kept'
+          : null,
   };
 }

@@ -19,7 +19,13 @@ import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { AboutDisclosure, AlertBanner } from '../../../../../components/ui-lift';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
-import { TRAVELLER_LIST_STEP, nextShow, parseShow } from '../../../../../lib/paging';
+import {
+  TRAVELLER_LIST_STEP,
+  firstParam,
+  nextShow,
+  pagingHref,
+  parseShow,
+} from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
 import { choiceBasisFor } from './choice-basis';
 import { AWAITING_SUBMISSION } from './due-label';
@@ -41,9 +47,6 @@ const REQUEST_SHOW_MAX = 500;
 const REQUEST_NOUN = { one: 'request', other: 'requests' } as const;
 /** The address parameter that names the request whose panel is open. */
 const ITEM_KEY = 'item';
-
-const firstParam = (value: string | string[] | undefined): string | undefined =>
-  Array.isArray(value) ? value[0] : value;
 
 export default async function EvidencePage({
   params,
@@ -176,15 +179,15 @@ export default async function EvidencePage({
   // After Show More, the first request it added: its folder opens so the landing is on screen.
   const landPosition =
     requestsShown > TRAVELLER_LIST_STEP ? requestsShown - TRAVELLER_LIST_STEP + 1 : undefined;
-  const itemHref = (requestId: string) => {
-    const next = new URLSearchParams();
-    for (const [key, value] of Object.entries(search)) {
-      const single = firstParam(value);
-      if (single !== undefined && key !== ITEM_KEY) next.set(key, single);
-    }
-    next.set(ITEM_KEY, requestId);
-    return `?${next.toString()}#request-${requestId}`;
-  };
+  // The same address with this request chosen, every other parameter kept (a list that was
+  // expanded stays expanded); the anchor is the one emails and notices use.
+  const itemHref = (requestId: string) =>
+    pagingHref(
+      `/app/applicant/${id}/evidence`,
+      search,
+      { [ITEM_KEY]: requestId },
+      `request-${requestId}`,
+    );
   const panes = requestPanes({
     applicantId: id,
     timeZone,

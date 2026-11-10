@@ -8,9 +8,10 @@ const WORD_CLASS: Readonly<Record<ThreadWord, string>> = {
   'Sent Back for a Fix': 'rt-word-fix',
 };
 
-const NOTE: Readonly<Record<'unread' | 'times-not-kept', string>> = {
+const NOTE: Readonly<Record<'unread' | 'times-not-kept' | 'latest-only', string>> = {
   unread: 'Earlier history could not be loaded. Refresh to try again.',
   'times-not-kept': 'Some earlier sends have no time on record.',
+  'latest-only': 'Only the latest reply is shown here.',
 };
 
 /** The state is always a word from the closed set; anything else is a bug, not a new chip. */

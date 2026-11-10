@@ -58,6 +58,43 @@ describe('opening a request from an email link', () => {
     expect(clicked).not.toHaveBeenCalled();
   });
 
+  it('lets an explicit ?item= in the address win over a hash left behind by an earlier link', () => {
+    window.history.replaceState(null, '', '/?item=r2#request-r1');
+    mount();
+    expect(clicked).not.toHaveBeenCalled();
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('opens a request linked from this same page, which moves through the router', () => {
+    vi.useFakeTimers();
+    try {
+      mount();
+      const search = document.createElement('a');
+      search.setAttribute('href', `${window.location.pathname}#request-r1`);
+      document.body.append(search);
+      act(() => {
+        search.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+      expect(clicked).not.toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(clicked).toHaveBeenCalledWith('r1');
+      // A link to another page is left to the browser.
+      clicked.mockReset();
+      const other = document.createElement('a');
+      other.setAttribute('href', '/elsewhere#request-r1');
+      document.body.append(other);
+      act(() => {
+        other.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        vi.advanceTimersByTime(200);
+      });
+      expect(clicked).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('follows the address when it changes', () => {
     mount();
     expect(clicked).not.toHaveBeenCalled();

@@ -3,6 +3,7 @@ import {
   type Db,
   type EvidenceRequest,
   REQUEST_HISTORY_MAX_REQUESTS,
+  type RequestHistory as ServiceRequestHistory,
   accountPrincipal,
   listRequestHistoriesForOwner,
   requireAccess,
@@ -43,7 +44,8 @@ export async function loadRequestHistories(input: {
   for (const r of input.requests) if (!withHistory.includes(r)) out.set(r.id, nothing);
   if (withHistory.length === 0) return out;
 
-  let read: Awaited<ReturnType<typeof listRequestHistoriesForOwner>>[] | null = null;
+  // One batched read per chunk of ids. A chunk that fails leaves only its own requests unread.
+  const found = new Map<string, ServiceRequestHistory>();
   try {
     const proof = await requireAccess(
       input.db,
@@ -57,27 +59,24 @@ export async function loadRequestHistories(input: {
       for (let at = 0; at < withHistory.length; at += REQUEST_HISTORY_MAX_REQUESTS) {
         chunks.push(withHistory.slice(at, at + REQUEST_HISTORY_MAX_REQUESTS));
       }
-      read = await Promise.all(
+      const results = await Promise.all(
         chunks.map((chunk) =>
-          listRequestHistoriesForOwner(proof.value, { requestIds: chunk.map((r) => r.id) }),
+          listRequestHistoriesForOwner(proof.value, {
+            requestIds: chunk.map((r) => r.id),
+          }).catch((error: unknown) => {
+            reportServerError('requestThreadRead', error, { step: 'history read' });
+            return null;
+          }),
         ),
       );
+      for (const result of results) {
+        if (result?.ok) for (const [id, history] of result.value) found.set(id, history);
+      }
     }
   } catch (error) {
-    reportServerError('requestThreadRead', error, { step: 'history read' });
+    reportServerError('requestThreadRead', error, { step: 'history access' });
   }
 
-  const found = new Map<
-    string,
-    NonNullable<typeof read>[number] extends infer R
-      ? R extends { ok: true; value: ReadonlyMap<string, infer H> }
-        ? H
-        : never
-      : never
-  >();
-  for (const result of read ?? []) {
-    if (result.ok) for (const [id, history] of result.value) found.set(id, history);
-  }
   for (const request of withHistory) {
     const history = found.get(request.id);
     out.set(

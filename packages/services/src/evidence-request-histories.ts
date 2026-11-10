@@ -96,29 +96,30 @@ export async function listRequestHistoriesForOwner(
       .orderBy(asc(schema.evidenceRequestDecisions.createdAt)),
   ]);
 
-  const sendRows = available
-    ? await db
-        .select()
-        .from(schema.evidenceRequestSubmissions)
-        .where(inArray(schema.evidenceRequestSubmissions.evidenceRequestId, ids))
-        .orderBy(asc(schema.evidenceRequestSubmissions.roundNo))
-    : [];
-  const links = available
-    ? await db
-        .select({
-          submissionId: schema.evidenceRequestDecisionSubmissions.submissionId,
-          decisionId: schema.evidenceRequestDecisionSubmissions.decisionId,
-        })
-        .from(schema.evidenceRequestDecisionSubmissions)
-        .innerJoin(
-          schema.evidenceRequestDecisions,
-          eq(
-            schema.evidenceRequestDecisions.id,
-            schema.evidenceRequestDecisionSubmissions.decisionId,
-          ),
-        )
-        .where(inArray(schema.evidenceRequestDecisions.evidenceRequestId, ids))
-    : [];
+  // Independent of each other once `available` is known: one round trip for both.
+  const [sendRows, links] = available
+    ? await Promise.all([
+        db
+          .select()
+          .from(schema.evidenceRequestSubmissions)
+          .where(inArray(schema.evidenceRequestSubmissions.evidenceRequestId, ids))
+          .orderBy(asc(schema.evidenceRequestSubmissions.roundNo)),
+        db
+          .select({
+            submissionId: schema.evidenceRequestDecisionSubmissions.submissionId,
+            decisionId: schema.evidenceRequestDecisionSubmissions.decisionId,
+          })
+          .from(schema.evidenceRequestDecisionSubmissions)
+          .innerJoin(
+            schema.evidenceRequestDecisions,
+            eq(
+              schema.evidenceRequestDecisions.id,
+              schema.evidenceRequestDecisionSubmissions.decisionId,
+            ),
+          )
+          .where(inArray(schema.evidenceRequestDecisions.evidenceRequestId, ids)),
+      ])
+    : [[], []];
   const decisionBySubmission = new Map(links.map((l) => [l.submissionId, l.decisionId]));
   const linkedDecisionIds = new Set(links.map((l) => l.decisionId));
 
