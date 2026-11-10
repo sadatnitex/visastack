@@ -19766,3 +19766,29 @@ details.collapsible-group[hidden],
   color: var(--warning);
 }
 /* end WP-PLAIN-P4 */
+
+/* WP-LP3 The choice of which file counts, one row per file: the name, its chips and one button. Flat, tokens only. */
+.lp-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.lp-choice-label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.lp-choice-chip {
+  margin-inline-start: var(--space-2);
+}
+.lp-choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lp-choice-intro {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-small);
+}
+/* end WP-LP3 */

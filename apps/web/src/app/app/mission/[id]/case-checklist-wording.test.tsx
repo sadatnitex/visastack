@@ -67,6 +67,7 @@ function Both({ rows, editable = true }: { rows: RequirementDetailRow[]; editabl
         ...given,
         packageItems: new Map(),
         evidence: new Map(),
+        evidenceEditable: true,
         packageEditable: false,
         formatLines: {},
       }).map((pane) => (

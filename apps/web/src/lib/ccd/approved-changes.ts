@@ -856,6 +856,19 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason:
       "Owner, 9 Nov 2026 (case page plan, package 3): Contributors and Notes are two sections. Ask a Contributor is the traveller's own feature and has its own link; Notes from Your Agency has this link, shown at Browse only when notes exist or an agency can see the case.",
   },
+  {
+    screen: 'case',
+    from: {
+      kind: 'text',
+      name: 'Ask a sponsor or family member - who never gets a wallet, profile, or case view of any kind - for exactly one named document. They see only what you type below before deciding whether to upload.',
+    },
+    to: {
+      kind: 'text',
+      name: 'Ask a sponsor or family member for one named document. They see only the message you type here, nothing else from your record.',
+    },
+    reason:
+      'Coordinator review of package 3 (10 Nov 2026): two short sentences for a reader at about grade 5 to 8, without the word "wallet". The same meaning: one named document, and they see only the message.',
+  },
   // WP-LIFT-C entries
   {
     screen: 'traveller',

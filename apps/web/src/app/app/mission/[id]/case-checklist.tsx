@@ -70,6 +70,8 @@ export interface CaseItemPanesProps {
   readonly packageItems: ReadonlyMap<string, PackageItem>;
   /** The files on file for each item, by item. */
   readonly evidence: ReadonlyMap<string, CandidateView>;
+  /** The case is open: the choice of which file counts can still change. */
+  readonly evidenceEditable: boolean;
   /** The traveller may still change what the package uses: the package is open. */
   readonly packageEditable: boolean;
   /** How each document must be provided, by item (the checklist's format rules). */
@@ -196,6 +198,7 @@ export function caseItemPanes({
   selfReviewed = false,
   packageItems,
   evidence,
+  evidenceEditable,
   packageEditable,
   formatLines,
 }: CaseItemPanesProps): PaneEntry[] {
@@ -211,6 +214,7 @@ export function caseItemPanes({
         chosen={chosenByRequirement[row.packRequirementId]}
         formatLines={formatLines[row.packRequirementId]}
         candidate={evidence.get(row.packRequirementId)}
+        evidenceEditable={evidenceEditable}
         packageItem={packageItems.get(row.packRequirementId)}
         packageEditable={packageEditable}
         explanations={explanations}

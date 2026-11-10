@@ -59,6 +59,7 @@ const base = {
   canSubmitFeedback: true,
   expanded: none,
   more: noMore,
+  notesLevel: 'browse',
 };
 
 const render = (extra: Record<string, unknown> = {}) =>
@@ -115,20 +116,14 @@ describe('More for This Case', () => {
     expect(doc.querySelector('.lift-more-slot')?.getAttribute('data-level')).toBe('browse');
   });
 
-  it('shows Notes from Your Agency at Browse when notes exist or an agency can see the case, else at Everything', () => {
-    const level = (extra: Record<string, unknown>) =>
-      tabOf(render(extra), 'Notes from Your Agency')?.getAttribute('data-level');
-    expect(level({ selfReviewed: false })).toBe('browse');
-    expect(level({ selfReviewed: true })).toBe('everything');
-    expect(
-      level({
-        selfReviewed: true,
-        notes: [{ id: 'n1', body: 'Hi', authorEmail: null, createdAt: '2026-11-01T00:00:00Z' }],
-      }),
-    ).toBe('browse');
+  it('shows the Notes tab at the level the page worked out, so the tab and its link agree', () => {
+    const level = (notesLevel: string) =>
+      tabOf(render({ notesLevel }), 'Notes from Your Agency')?.getAttribute('data-level');
+    expect(level('browse')).toBe('browse');
+    expect(level('everything')).toBe('everything');
     // Asking a sponsor or family member is the traveller's own feature: Browse either way.
     expect(
-      tabOf(render({ selfReviewed: true }), 'Ask a Contributor')?.getAttribute('data-level'),
+      tabOf(render({ notesLevel: 'everything' }), 'Ask a Contributor')?.getAttribute('data-level'),
     ).toBe('browse');
   });
 
