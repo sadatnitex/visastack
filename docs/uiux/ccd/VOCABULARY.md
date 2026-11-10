@@ -179,6 +179,16 @@ Added 4 Nov 2026 (Lane E, the evidence loop between a traveller and an agency):
 
 Decided on 9 Nov 2026 and not yet built (a later package): Snapshot becomes Saved Copy, Freshness Check becomes Is This Still Up to Date?, Trip Package becomes Your Package, and Readiness in the section links becomes How Complete.
 
+Case page package 3 (10 Nov 2026):
+
+| Thing | Canonical name | Retire | Status |
+|---|---|---|---|
+| The sponsor and family request | Ask a Contributor (its own tab, Browse) | "Contributors and Notes from Your Agency" as one row | **Done (package 3)** |
+| Notes an agency shared | Notes from Your Agency (tab); section link "Notes" | the combined row and the link "Contributors and Notes" | **Done (package 3)** |
+| Section links | Dates, Readiness, Trip Package, Contributors, Notes, Tasks and Letters, Evidence, Snapshots, Submission and Outcome | none | **Done** |
+| Two stored choices in an item's panel | "Which File Counts" (counts toward readiness) and "Which File Goes in the Handoff" (the package) | "What This Item Uses" | **Done (package 3)** |
+| Checklist search | Search the Checklist; empty result "No Items Match" | none | **Done (package 3)** |
+
 Added 10 Nov 2026 (Lane 1, the traveller's first journey, plain words for a grade 5 to 8 reader). Stored codes and server action names do not change; these are display words only. The guard `apps/web/src/lib/vocabulary.test.ts` (traveller screens) keeps the retired words out of visible text.
 
 | Thing | Canonical name | Retire | Status |

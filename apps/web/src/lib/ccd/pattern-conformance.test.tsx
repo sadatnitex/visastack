@@ -139,6 +139,7 @@ describe('the rows and panels the kit draws (rendered)', () => {
         panes={caseItemPanes({
           ...given,
           packageItems: new Map(),
+          evidence: new Map(),
           packageEditable: false,
           formatLines: {},
         })}

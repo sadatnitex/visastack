@@ -113,6 +113,8 @@ export interface CaseRailProps {
   readonly nextStates: readonly MissionState[];
   /** The stages offered as buttons (cancelling is not one of them). */
   readonly stageStates: readonly MissionState[];
+  /** No agency has access: the stage buttons sit at Everything, not Browse. */
+  readonly selfReviewed?: boolean;
   /** The newest snapshots shown on the page. */
   readonly snapshots: readonly CaseSnapshotRow[];
   /** More snapshots exist than are listed. */
@@ -426,6 +428,7 @@ export function CaseRail({
   primaryAttach,
   nextStates,
   stageStates,
+  selfReviewed = false,
   snapshots,
   moreSnapshots,
   linkedMissions,
@@ -446,7 +449,7 @@ export function CaseRail({
         sources={sources ?? []}
       />
       <RailFold
-        level="browse"
+        level={selfReviewed ? 'everything' : 'browse'}
         icon="arrow"
         title="Advance the Case"
         meta={

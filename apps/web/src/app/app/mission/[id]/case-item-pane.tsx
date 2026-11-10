@@ -13,6 +13,8 @@ import {
   officialLabel,
   requirementLabel,
 } from './case-model';
+import { type CandidateView, EvidenceItemChoices } from './collaboration-panels';
+import { hasSeveralToChoose } from './evidence-several';
 import { PackageItemChoiceForm } from './package-forms';
 import { choiceOptions, copyName, usingLine } from './package-item-model';
 import { ExplainGapButton } from './readiness-gap-explain';
@@ -29,6 +31,8 @@ export interface CaseItemPaneProps {
   readonly chosen: readonly string[] | undefined;
   /** How the document must be provided (format rules), when the checklist states any. */
   readonly formatLines: readonly string[] | undefined;
+  /** The files and answers on file for this item, when the case has read them. */
+  readonly candidate: CandidateView | undefined;
   /** The package item for this row, when the case has a package. */
   readonly packageItem: PackageItem | undefined;
   /** The traveller may still change what the package uses: the package is open. */
@@ -52,6 +56,7 @@ export function CaseItemPane({
   rows,
   chosen,
   formatLines,
+  candidate,
   packageItem,
   packageEditable,
   explanations,
@@ -140,9 +145,19 @@ export function CaseItemPane({
         </div>
       ) : null}
 
+      {candidate && hasSeveralToChoose(candidate) ? (
+        <section className="lp-pane-section" aria-label="Which File Counts">
+          <h4 className="package-subheading">Which File Counts</h4>
+          <p className="muted u-fs-085 u-m-0">
+            Several are on file. Until you pick one, any eligible one may count toward readiness.
+          </p>
+          <EvidenceItemChoices missionId={missionId} candidate={candidate} />
+        </section>
+      ) : null}
+
       {packageItem ? (
-        <section className="lp-pane-section" aria-label="What This Item Uses">
-          <h4 className="package-subheading">What This Item Uses</h4>
+        <section className="lp-pane-section" aria-label="Which File Goes in the Handoff">
+          <h4 className="package-subheading">Which File Goes in the Handoff</h4>
           <p className="muted u-fs-085 u-m-0">{usingLine(packageItem)}</p>
           {packageItem.newerCopy ? (
             <p className="u-fs-085 u-m-0">

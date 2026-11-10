@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
+import { ListFilterBar } from '../components/list-pattern/list-filter-bar';
 import { aiConfigView } from './ai-config-view.test-support';
 import { axeViolations } from './axe.test-support';
 import {
@@ -1435,6 +1436,51 @@ const CASES_MISSION: readonly Case[] = [
             selectionIdsByCandidate: {},
           },
         ]}
+      />
+    ),
+  },
+  {
+    name: 'search a long list',
+    element: () => (
+      <ListFilterBar
+        rows={9}
+        query=""
+        onQuery={() => undefined}
+        searchLabel="Search the Checklist"
+        placeholder="Search the Checklist"
+      />
+    ),
+  },
+  {
+    name: 'choose which file counts for one item',
+    element: () => (
+      <collaborationPanels.EvidenceItemChoices
+        missionId="m1"
+        candidate={{
+          packRequirementId: 'req1',
+          kind: 'DOCUMENT',
+          label: 'Valid passport',
+          citation: 'Guidance 4.2',
+          factCandidates: [],
+          documentCandidates: [
+            {
+              documentId: 'd1',
+              displayName: 'Passport',
+              eligible: true,
+              staleness: 'fresh',
+              lifecycleLabel: null,
+            },
+            {
+              documentId: 'd2',
+              displayName: 'Old passport',
+              eligible: false,
+              staleness: 'stale',
+            },
+          ],
+          selectedFactIds: [],
+          selectedDocumentIds: ['d1'],
+          selectionIdsByCandidate: { d1: 'sel1' },
+        }}
       />
     ),
   },
