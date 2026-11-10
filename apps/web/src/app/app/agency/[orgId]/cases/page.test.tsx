@@ -189,6 +189,34 @@ describe('agency Cases', () => {
     expect(textOf(html)).toContain('Ask for a Document or Detail');
   });
 
+  it('hands the form the open case own checklist gaps, with the request already waiting marked', async () => {
+    mocks.loadOpenCase.mockResolvedValue(
+      openOf({
+        ...aCase(M1, 'Rahim Uddin'),
+        manualMode: false,
+        readiness: {
+          missing: [
+            { kind: 'DOCUMENT', key: 'NID', optional: false, reason: 'not_provided' },
+            { kind: 'DOCUMENT', key: 'BANK_STATEMENT', optional: false, reason: 'not_provided' },
+          ],
+        },
+      } as never),
+    );
+    mocks.loadEvidenceRequests.mockResolvedValue([
+      { id: 'r1', kind: 'DOCUMENT', status: 'OPEN', fieldKey: null, docType: 'BANK_STATEMENT' },
+    ]);
+    const html = await renderServer(Page(opening({ case: M1 })));
+    const forms = stubProps<{
+      missing: { rows: { id: string; state: string }[] } | null;
+      picker: { groups: unknown[] };
+    }>(html, 'RequestEvidenceForm');
+    expect(forms[0]?.picker.groups.length).toBeGreaterThan(10);
+    expect(forms[0]?.missing?.rows.map((r) => [r.id, r.state])).toEqual([
+      ['DOCUMENT:NID', 'ask'],
+      ['DOCUMENT:BANK_STATEMENT', 'asked'],
+    ]);
+  });
+
   it('gives a member who is not an administrator no way to ask, exactly as Clients does', async () => {
     mocks.loadOrgAccess.mockResolvedValue({ org: { id: 'o1' }, admin: false, member: true });
     const html = await renderServer(Page(opening({ case: M1 })));

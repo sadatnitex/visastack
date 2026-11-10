@@ -1,14 +1,18 @@
 'use client';
 
-import { useActionState, useEffect, useId, useRef, useState } from 'react';
+import { useActionState, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
-import type { ChoiceGroup } from '../../../../lib/master-profile-types';
+import {
+  MAX_ASK_ITEMS,
+  type MissingForCase,
+  type RequestPicker,
+  preticked,
+} from '../../../../lib/request-picker-types';
 import { type ActionState, requestEvidenceAction } from './actions';
+import { EvidencePicker } from './evidence-picker';
+import { EvidenceTray, type TrayItem } from './evidence-tray';
 
 const INITIAL: ActionState = { ok: true, message: '' };
-
-/** Chosen from the document list when the document is not one the product names yet. */
-const OTHER_DOCUMENT = '__other__';
 
 /** The traveller and the case, already chosen by the screen the form sits on (the case workspace). */
 export interface FixedRequestTarget {
@@ -20,10 +24,10 @@ export interface FixedRequestTarget {
 
 interface RequestEvidenceFormBaseProps {
   readonly organizationId: string;
-  /** Every detail that can be asked for, grouped by part of the profile. Built on the server. */
-  readonly fieldGroups: readonly ChoiceGroup[];
-  /** Every document type that can be asked for, grouped. Built on the server. */
-  readonly documentGroups: readonly ChoiceGroup[];
+  /** Every document and detail that can be asked for, grouped. Built on the server. */
+  readonly picker: RequestPicker;
+  /** A case's own checklist gaps (the case workspace only). Absent on Clients. */
+  readonly missing?: MissingForCase | null;
 }
 
 /** Clients: the traveller and the case are chosen from lists. */
@@ -52,73 +56,80 @@ interface FixedTargetProps extends RequestEvidenceFormBaseProps {
 
 type RequestEvidenceFormProps = ChosenTargetProps | FixedTargetProps;
 
-/** One request that went out: who it was for, which case, and the words for what was asked. */
-interface SentItem {
+/** One send that went out: to whom, for which case, and the sentence that says so. */
+interface SentLine {
   readonly applicantId: string;
   readonly missionId: string;
-  readonly travellerName: string;
-  readonly item: string;
+  readonly line: string;
 }
 
-/** The words for a stored key, from the grouped lists the form was given. */
-function labelFor(groups: readonly ChoiceGroup[], key: string): string {
-  for (const group of groups) {
-    const found = group.choices.find((choice) => choice.key === key);
-    if (found) return found.label;
-  }
-  return key;
+/** The tray entries for these picker ids, as the case's missing list names them. */
+function trayOf(missing: MissingForCase | null, ids: readonly string[]): TrayItem[] {
+  const wanted = new Set(ids);
+  return (missing?.rows ?? [])
+    .filter((row) => wanted.has(row.id))
+    .map((row) => ({ id: row.id, label: row.label, hint: row.hint }));
+}
+
+/** The plain sentence for a send: "Sent 5 requests to Rahim Uddin." */
+function sentSentence(count: number, name: string): string {
+  const things = count === 1 ? '1 request' : `${count} requests`;
+  return name ? `Sent ${things} to ${name}.` : `Sent ${things}.`;
 }
 
 export function RequestEvidenceForm({
   organizationId,
-  fieldGroups,
-  documentGroups,
+  picker,
+  missing = null,
   applicants = [],
   missions = [],
   fixed,
 }: RequestEvidenceFormProps) {
   const [state, formAction, pending] = useActionState(requestEvidenceAction, INITIAL);
   // Every field is held here. React resets a form after each send (accepted or refused), which
-  // would put every list back to its first choice. The traveller, the case and the kind of thing
-  // asked for are kept so a second and third item take one choice each; only what was asked for
-  // is cleared, and only once the request was accepted, so a refusal never costs a person what
-  // they typed. After each answer the fields are drawn again from what is held (`redraw`), which
-  // runs after the browser's reset.
+  // would put every list back to its first choice. The traveller and the case are kept so a second
+  // send takes one choice; what was asked for is cleared only once the send was accepted, so a
+  // refusal never costs a person what they chose. After each answer the fields are drawn again
+  // from what is held (`redraw`), which runs after the browser's reset.
   const [chosenApplicantId, setApplicantId] = useState('');
   const [chosenMissionId, setMissionId] = useState('');
   // On a case's workspace the two are the case's own, read from the props every time.
   const applicantId = fixed?.applicantId ?? chosenApplicantId;
   const missionId = fixed?.missionId ?? chosenMissionId;
-  const [kind, setKind] = useState<'FIELD' | 'DOCUMENT'>('FIELD');
-  const [fieldKey, setFieldKey] = useState('');
-  const [documentChoice, setDocumentChoice] = useState('');
-  const [otherName, setOtherName] = useState('');
+
+  // What will go out, in the order it was chosen. On a case the required, never-provided
+  // checklist items start ticked; the agency can remove any of them.
+  const [chosen, setChosen] = useState<readonly TrayItem[]>(() =>
+    trayOf(missing, preticked(missing)).slice(0, MAX_ASK_ITEMS),
+  );
+  const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
   const [dueDate, setDueDate] = useState('');
-  /** What has gone out from this form, each with the traveller and case it went to. */
-  const [sent, setSent] = useState<readonly SentItem[]>([]);
+  const [announcement, setAnnouncement] = useState('');
+  const [problem, setProblem] = useState('');
+  const [sent, setSent] = useState<SentLine | null>(null);
   const [, redraw] = useState(0);
-  const lastAsked = useRef<SentItem | null>(null);
+  const lastAsked = useRef<{ applicantId: string; missionId: string; line: string } | null>(null);
   const handled = useRef<ActionState>(INITIAL);
-  const itemRef = useRef<HTMLSelectElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const trayRef = useRef<HTMLDivElement>(null);
+  const afterRemove = useRef<number | null>(null);
   const uid = useId();
   const ids = {
     applicant: `${uid}-applicant`,
     mission: `${uid}-case`,
     missionHint: `${uid}-case-hint`,
-    kind: `${uid}-kind`,
-    key: `${uid}-key`,
-    other: `${uid}-other`,
     message: `${uid}-message`,
+    messageHint: `${uid}-message-hint`,
     due: `${uid}-due`,
   };
 
-  const itemWords =
-    kind === 'FIELD'
-      ? labelFor(fieldGroups, fieldKey)
-      : documentChoice === OTHER_DOCUMENT
-        ? otherName.trim()
-        : labelFor(documentGroups, documentChoice);
+  const selected = useMemo(() => new Set(chosen.map((item) => item.id)), [chosen]);
+  const missingIds = useMemo(() => preticked(missing), [missing]);
+
+  const travellerName = fixed
+    ? fixed.applicantName
+    : (applicants.find((a) => a.applicantId === applicantId)?.displayName ?? '');
 
   useEffect(() => {
     // Once per answer: the same answer is never counted twice.
@@ -127,32 +138,94 @@ export function RequestEvidenceForm({
     redraw((count) => count + 1);
     if (state === INITIAL || !state.ok || state.message === '') return;
     const asked = lastAsked.current;
-    if (asked) setSent((before) => [...before, asked]);
-    setFieldKey('');
-    setDocumentChoice('');
-    setOtherName('');
+    if (asked) setSent(asked);
+    setChosen([]);
+    setQuery('');
     setMessage('');
     setDueDate('');
-    // The next item is one choice away: keyboard focus goes to the list it is chosen from.
-    itemRef.current?.focus();
+    setProblem('');
+    // The next send is one search away: keyboard focus goes to the search box.
+    searchRef.current?.focus();
   }, [state]);
 
-  const travellerName = fixed
-    ? fixed.applicantName
-    : (applicants.find((a) => a.applicantId === applicantId)?.displayName ?? '');
-  // Only what went to the traveller and case chosen now is listed: choosing someone else never
-  // shows, or counts, a request that went elsewhere, even one that finished after the change.
-  const sentHere = sent.filter(
-    (entry) => entry.applicantId === applicantId && entry.missionId === missionId,
-  );
-  const sentName = sentHere[0]?.travellerName ?? '';
+  // After Remove, focus moves to the next Remove button, or the search box when none is left.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per change of the tray
+  useEffect(() => {
+    const index = afterRemove.current;
+    if (index === null) return;
+    afterRemove.current = null;
+    const buttons = trayRef.current?.querySelectorAll<HTMLButtonElement>('[data-remove]');
+    const next = buttons?.[Math.min(index, (buttons?.length ?? 0) - 1)];
+    (next ?? searchRef.current)?.focus();
+  }, [chosen]);
+
+  const toggle = (id: string, label: string, hint: string) => {
+    setProblem('');
+    if (selected.has(id)) {
+      const rest = chosen.filter((item) => item.id !== id);
+      setChosen(rest);
+      setAnnouncement(`Removed ${label}. ${rest.length} selected.`);
+      return;
+    }
+    if (chosen.length >= MAX_ASK_ITEMS) {
+      setAnnouncement(`${MAX_ASK_ITEMS} is the most in one send. Remove one to add another.`);
+      return;
+    }
+    setChosen([...chosen, { id, label, hint }]);
+    setAnnouncement(`Added ${label}. ${chosen.length + 1} selected.`);
+  };
+
+  const remove = (id: string, index: number) => {
+    const item = chosen.find((entry) => entry.id === id);
+    afterRemove.current = index;
+    setChosen(chosen.filter((entry) => entry.id !== id));
+    setAnnouncement(`Removed ${item?.label ?? 'item'}. ${chosen.length - 1} selected.`);
+  };
+
+  const askAllMissing = () => {
+    const next = [...chosen];
+    for (const item of trayOf(missing, missingIds)) {
+      if (next.some((entry) => entry.id === item.id)) continue;
+      if (next.length >= MAX_ASK_ITEMS) break;
+      next.push(item);
+    }
+    const added = missingIds.filter((id) => next.some((entry) => entry.id === id)).length;
+    setChosen(next);
+    setProblem('');
+    setAnnouncement(
+      added < missingIds.length
+        ? `${added} of ${missingIds.length} missing items selected. ${MAX_ASK_ITEMS} is the most in one send.`
+        : `${added} missing items selected. ${next.length} selected.`,
+    );
+  };
+
+  const idle = chosen.length > 1 ? `Request Evidence (${chosen.length})` : 'Request Evidence';
+  // Only what went to the traveller and case chosen now is shown: choosing someone else never
+  // shows a send that went elsewhere, even one that finished after the change.
+  const sentHere = sent && sent.applicantId === applicantId && sent.missionId === missionId;
+  const shown: ActionState = problem
+    ? { ok: false, message: problem }
+    : state.ok && state.message !== '' && sentHere
+      ? { ok: true, message: sent.line }
+      : state;
 
   return (
     <form
       action={formAction}
-      className="field-list form-narrow"
-      onSubmit={() => {
-        lastAsked.current = { applicantId, missionId, travellerName, item: itemWords };
+      className="field-list form-narrow ask-form"
+      onSubmit={(event) => {
+        if (chosen.length === 0) {
+          // Nothing chosen: say so where the choosing is, and send nothing.
+          event.preventDefault();
+          setProblem('Choose at least one item.');
+          searchRef.current?.focus();
+          return;
+        }
+        lastAsked.current = {
+          applicantId,
+          missionId,
+          line: sentSentence(chosen.length, travellerName),
+        };
       }}
     >
       <input type="hidden" name="organizationId" value={organizationId} />
@@ -227,92 +300,35 @@ export function RequestEvidenceForm({
             ) : null}
           </>
         )}
-        <div className="field-row">
-          <label className="field-label" htmlFor={ids.kind}>
-            What do you need?
-          </label>
-          <select
-            id={ids.kind}
-            name="kind"
-            className="input"
-            value={kind}
-            onChange={(event) => setKind(event.target.value === 'DOCUMENT' ? 'DOCUMENT' : 'FIELD')}
-          >
-            <option value="FIELD">A Detail from the Profile</option>
-            <option value="DOCUMENT">A Document</option>
-          </select>
+
+        <EvidencePicker
+          picker={picker}
+          selected={selected}
+          onToggle={toggle}
+          query={query}
+          onQuery={setQuery}
+          searchRef={searchRef}
+          missing={missing}
+          missingIds={missingIds}
+          onAskAllMissing={askAllMissing}
+        />
+
+        <div ref={trayRef}>
+          <EvidenceTray
+            items={chosen}
+            onRemove={remove}
+            onClear={() => {
+              setChosen([]);
+              setAnnouncement('Nothing selected.');
+              searchRef.current?.focus();
+            }}
+          />
         </div>
-        <div className="field-row">
-          <label className="field-label" htmlFor={ids.key}>
-            {kind === 'FIELD' ? 'Which detail?' : 'Which document?'}
-          </label>
-          {kind === 'FIELD' ? (
-            <select
-              id={ids.key}
-              ref={itemRef}
-              name="key"
-              required
-              className="input"
-              value={fieldKey}
-              onChange={(event) => setFieldKey(event.target.value)}
-              key="field-key"
-            >
-              <option value="" disabled>
-                Choose a detail…
-              </option>
-              {fieldGroups.map((group) => (
-                <optgroup key={group.key} label={group.label}>
-                  {group.choices.map((field) => (
-                    <option key={field.key} value={field.key}>
-                      {field.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          ) : (
-            <>
-              <select
-                id={ids.key}
-                ref={itemRef}
-                required
-                className="input"
-                value={documentChoice}
-                onChange={(event) => setDocumentChoice(event.target.value)}
-                key="document-key"
-              >
-                <option value="" disabled>
-                  Choose a document…
-                </option>
-                {documentGroups.map((group) => (
-                  <optgroup key={group.key} label={group.label}>
-                    {group.choices.map((document) => (
-                      <option key={document.key} value={document.key}>
-                        {document.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-                <option value={OTHER_DOCUMENT}>Something Else (Type Its Name)</option>
-              </select>
-              {documentChoice === OTHER_DOCUMENT ? (
-                <input
-                  id={ids.other}
-                  name="key"
-                  type="text"
-                  required
-                  className="input"
-                  aria-label="Name of the other document"
-                  placeholder="For example: Marriage Certificate"
-                  value={otherName}
-                  onChange={(event) => setOtherName(event.target.value)}
-                />
-              ) : (
-                <input type="hidden" name="key" value={documentChoice} />
-              )}
-            </>
-          )}
-        </div>
+        {/* Each chosen item travels as its own field; the server checks every one. */}
+        {chosen.map((item) => (
+          <input key={item.id} type="hidden" name="item" value={item.id} />
+        ))}
+
         <div className="field-row">
           <label className="field-label" htmlFor={ids.message}>
             Message (Optional)
@@ -323,9 +339,13 @@ export function RequestEvidenceForm({
             type="text"
             className="input"
             placeholder="For example: needed for the visa form"
+            aria-describedby={ids.messageHint}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
           />
+          <small className="muted" id={ids.messageHint}>
+            The message and the due date go with every item.
+          </small>
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor={ids.due}>
@@ -342,19 +362,9 @@ export function RequestEvidenceForm({
         </div>
       </div>
       <div>
-        <SubmitButton
-          pending={pending}
-          idle="Request Evidence"
-          busy="Sending…"
-          className="btn btn-primary"
-        />
-        <FormMessage result={state} />
-        {/* What has gone out from this form, so a second and third request are not guesswork. */}
-        <output className="field-msg field-msg-ok">
-          {sentHere.length > 0
-            ? `Sent${sentName ? ` to ${sentName}` : ''}: ${sentHere.map((entry) => entry.item).join(', ')}.`
-            : ''}
-        </output>
+        <SubmitButton pending={pending} idle={idle} busy="Sending…" className="btn btn-primary" />
+        <FormMessage result={shown} />
+        <output className="sr-only">{announcement}</output>
       </div>
     </form>
   );

@@ -9,13 +9,14 @@ import { depthCopy } from '../../../../../lib/ccd/depth-copy';
 import { depthWord } from '../../../../../lib/ccd/depth-words';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
 import { formatDateOnly } from '../../../../../lib/format-date';
-import { evidenceDocumentGroups, evidenceFieldGroups } from '../../../../../lib/master-profile';
+import { buildMissingForCase } from '../../../../../lib/missing-for-case';
 import {
   SHOW_MAX,
   type SearchParamsRecord,
   firstParam,
   pagingHref,
 } from '../../../../../lib/paging';
+import { buildRequestPicker, requestPickerIndex } from '../../../../../lib/request-picker';
 import { withSession } from '../../../../../lib/session';
 import { caseAnchorId } from '../case-anchor';
 import { caseNeedsYou } from '../case-needs';
@@ -281,6 +282,7 @@ function OpenCaseWorkspace({
       ),
     ),
   });
+  const picker = buildRequestPicker();
   const triage = caseTriageView(summary, {
     requirementLabels: new Map(open.requirements.map((r) => [r.id, r.label])),
     requestsIncluded: admin,
@@ -351,8 +353,12 @@ function OpenCaseWorkspace({
                 >
                   <RequestEvidenceForm
                     organizationId={orgId}
-                    fieldGroups={evidenceFieldGroups()}
-                    documentGroups={evidenceDocumentGroups()}
+                    picker={picker}
+                    missing={buildMissingForCase(
+                      open.readiness,
+                      requests,
+                      requestPickerIndex(picker),
+                    )}
                     fixed={{
                       applicantId: open.applicantId,
                       applicantName: open.applicantName,
