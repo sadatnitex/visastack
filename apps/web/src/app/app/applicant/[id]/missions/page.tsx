@@ -147,8 +147,12 @@ export default async function MissionsPage({
   const startHref = data.coreGranted ? `/app/mission/start?traveller=${id}` : '#start-case';
   const startLabel = data.coreGranted ? 'Start a Trip' : 'Start a Case';
   // The search finds a case by its name or its stage, among the cases this page already holds.
-  const searchItems = [...activeCases, ...pastCases].map((mission) => ({
+  const searchItems = [
+    ...activeCases.map((mission) => ({ mission, group: 'Active Cases' })),
+    ...pastCases.map((mission) => ({ mission, group: 'Past Cases' })),
+  ].map(({ mission, group }) => ({
     id: mission.id,
+    group,
     text: `${mission.title} ${caseStateLabel(mission.state)}`,
     node: <CaseRow mission={mission} readiness={data.readiness} />,
   }));

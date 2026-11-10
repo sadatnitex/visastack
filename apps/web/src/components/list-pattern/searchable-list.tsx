@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useState } from 'react';
+import { Fragment, type ReactNode, useState } from 'react';
 import type { RowNoun } from '../show-more';
 import { ListFilterBar } from './list-filter-bar';
 
@@ -10,6 +10,8 @@ export interface SearchableItem {
   /** Everything a person might type to find it (a name, a country, a stage). */
   readonly text: string;
   readonly node: ReactNode;
+  /** The heading the row sits under in the page's layout ("Past Cases"); kept in the results. */
+  readonly group?: string;
 }
 
 /**
@@ -26,8 +28,8 @@ export function matchesSearch(text: string, query: string): boolean {
  * The search box above a server-drawn list (Cases, Group Trips), like the one at the top of Drive
  * or Gmail. It searches only the rows the page already holds: nothing is asked of the server.
  * With nothing typed the page's own layout shows untouched (`children`: its folders, its
- * headings, its links). Typing swaps it for one flat list of the matching rows, in the order the
- * page gave them, and says how many match; with no match one plain line says what to do.
+ * headings, its links). Typing swaps it for the matching rows, in the order the page gave them
+ * and under the same headings (a row with a `group`), and says how many match; with no match one plain line says what to do.
  */
 export function SearchableList({
   items,
@@ -66,22 +68,30 @@ export function SearchableList({
         placeholder={placeholder ?? searchLabel}
         results={{ count: matches.length, noun }}
       />
-      {searching && items.length >= minRows ? (
-        matches.length > 0 ? (
-          <Results {...(resultsClassName ? { className: resultsClassName } : {})}>
-            {matches.map((item) => (
-              <SearchHit key={item.id}>{item.node}</SearchHit>
-            ))}
-          </Results>
-        ) : null
-      ) : (
-        children
-      )}
+      {searching && items.length >= minRows
+        ? groupsOf(matches).map(({ group, rows }) => (
+            <Fragment key={group}>
+              {group ? <h2 className="card-title lp-search-group">{group}</h2> : null}
+              <Results {...(resultsClassName ? { className: resultsClassName } : {})}>
+                {rows.map((item) => (
+                  <Fragment key={item.id}>{item.node}</Fragment>
+                ))}
+              </Results>
+            </Fragment>
+          ))
+        : children}
     </>
   );
 }
 
-/** A found row, wrapped so each keeps its own key whatever the row draws. */
-function SearchHit({ children }: { readonly children: ReactNode }) {
-  return <>{children}</>;
+/** The matches split under their headings, in the order the page gave them. */
+function groupsOf(matches: readonly SearchableItem[]) {
+  const groups: { group: string; rows: SearchableItem[] }[] = [];
+  for (const item of matches) {
+    const group = item.group ?? '';
+    const existing = groups.find((entry) => entry.group === group);
+    if (existing) existing.rows.push(item);
+    else groups.push({ group, rows: [item] });
+  }
+  return groups;
 }

@@ -66,6 +66,7 @@ import {
   recentActivityEntries,
   seeAllActivityHref,
 } from '../../../lib/recent-activity';
+import { reportServerError } from '../../../lib/server-error';
 import { withSession } from '../../../lib/session';
 import { attentionContext, attentionHeading, attentionWhen } from '../attention-display';
 import { ConsentButton } from '../consent-button';
@@ -232,11 +233,13 @@ async function loadRecentActivity(
   accountId: string,
   email: string,
   people: readonly Basics['applicants'][number][],
+  coreGranted: boolean,
 ): Promise<{
   readonly seeAllHref: string;
   readonly entries: readonly RecentActivityEntry[];
 } | null> {
-  const person = activityPerson(people);
+  // The card is part of the record's own section, shown only while core processing is on.
+  const person = coreGranted ? activityPerson(people) : undefined;
   if (!person) return null;
   try {
     const events = await listAuditEventsForApplicant(
@@ -249,7 +252,8 @@ async function loadRecentActivity(
       seeAllHref: seeAllActivityHref(person.id),
       entries: recentActivityEntries(events, email),
     };
-  } catch {
+  } catch (error) {
+    reportServerError('home.recentActivity', error);
     return null;
   }
 }
@@ -330,6 +334,7 @@ async function loadDashboard(db: Db, accountId: string, email: string, basics: B
       accountId,
       email,
       perApplicant.map((row) => row.applicant),
+      Boolean(consents.CORE_PROCESSING),
     ),
   ]);
 

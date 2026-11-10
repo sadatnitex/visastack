@@ -128,4 +128,21 @@ describe('SearchableList', () => {
     expect(container.querySelector('[data-testid="layout"]')).not.toBeNull();
     expect(announced()).toBe('');
   });
+
+  it('keeps the page headings over the matches that sit under them', () => {
+    const grouped = items.map((item, index) => ({
+      ...item,
+      group: index < 3 ? 'Active Cases' : 'Past Cases',
+    }));
+    draw(grouped);
+    type('visa');
+    const headings = [...container.querySelectorAll('h2')].map((el) => el.textContent);
+    expect(headings).toEqual(['Active Cases', 'Past Cases']);
+    type('canada');
+    expect([...container.querySelectorAll('h2')].map((el) => el.textContent)).toEqual([
+      'Active Cases',
+    ]);
+    type('zzz');
+    expect(container.querySelector('h2')).toBeNull();
+  });
 });
