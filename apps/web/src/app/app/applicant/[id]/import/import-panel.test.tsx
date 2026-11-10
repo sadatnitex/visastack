@@ -232,7 +232,11 @@ describe('importing many files', () => {
     expect(said('lost.jpg')).toBe(`Not confirmed. ${UPLOAD_UNKNOWN_OUTCOME}`);
     expect(said('refused.jpg')).toBe('Not added. This file type cannot be safely processed.');
     expect(said('busy.jpg')).toBe(`Not added. ${BUSY_LINE}`);
-    expect(said('huge.jpg')).toContain('Not added. This file is larger than 1 KB.');
+    // A photo over the limit is first made smaller; this test browser has nothing to read it with,
+    // so it is not added, with what to do next.
+    expect(said('huge.jpg')).toContain(
+      'Not added. We could not make this photo smaller than 1 KB. Take the photo again.',
+    );
     expect(counts()).toBe('Import finished: 3 Need a Look, 1 Not Supported.');
 
     const retry = (name: string) =>
