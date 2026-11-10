@@ -122,10 +122,8 @@ export default async function AgencyCasesPage({
           },
         })
       : [];
-<<<<<<< HEAD
     const requests = read.filter((r) => r.missionId !== null);
     const travellerRequests = read.filter((r) => r.missionId === null);
-=======
     // When access to each listed case ends. Asked only for the cases this member can already see
     // on this page, so it adds no case and no detail. The traveller alone can extend it.
     const accessEnds = await listAccessEndsForOrg(
@@ -133,18 +131,14 @@ export default async function AgencyCasesPage({
       orgId,
       list.cases.map((c) => c.missionId),
     );
->>>>>>> origin/main
     return {
       admin: access.admin,
       members,
       list,
       open,
       requests,
-<<<<<<< HEAD
       travellerRequests,
-=======
       accessEnds,
->>>>>>> origin/main
       viewerAccountId: accountId,
     };
   });
