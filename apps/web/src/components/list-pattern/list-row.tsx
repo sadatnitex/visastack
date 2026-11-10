@@ -1,10 +1,12 @@
+import type { ItemMark } from '../../lib/item-icons';
 import { Icon, type IconName } from '../icons';
+import { MarkTile } from '../mark-tile';
 import { LiftLink } from '../ui-lift/lift-parts';
 import { StatusPill } from '../ui-lift/status-pill';
 import type { LiftAction, LiftTone } from '../ui-lift/types';
 import { shortName } from './short-name';
 
-export interface ListRowProps {
+interface ListRowBase {
   /** The stable id of the item; the panel for this item is found by it. */
   readonly id: string;
   /** The full name. A long one is cut to twelve words and read in full in the panel. */
@@ -21,13 +23,31 @@ export interface ListRowProps {
   readonly action?: LiftAction | undefined;
   /** Where the name leads (the item's panel). Without it the name is plain text. */
   readonly openHref?: string | undefined;
-  /** The leading mark. It is the status glyph, never a picture of the file. */
-  readonly icon?: IconName | undefined;
   /** An address anchor for the row (`#request-<id>`), when emails or notices link to it. */
   readonly domId?: string | undefined;
   /** An address anchor on the name itself, for a link that must land on this row (Show More). */
   readonly nameId?: string | undefined;
 }
+
+/** The leading mark is either the kind of the item (`mark`) or a status glyph (`icon`), never both. */
+export type ListRowProps = ListRowBase &
+  (
+    | {
+        /**
+         * What kind of thing the row is (a passport, a bank statement), from `lib/item-icons.ts`: a
+         * flat icon in its tone tile in place of the status glyph. The status then shows in the
+         * chip, which wears its own symbol. The tile is the same 32px as the glyph it replaces, so
+         * the row keeps its height.
+         */
+        readonly mark: ItemMark;
+        readonly icon?: undefined;
+      }
+    | {
+        /** The leading mark when the row has no kind: a status glyph. */
+        readonly icon?: IconName | undefined;
+        readonly mark?: undefined;
+      }
+  );
 
 const TONE_ICON: Record<LiftTone, IconName> = {
   success: 'check',
@@ -38,7 +58,7 @@ const TONE_ICON: Record<LiftTone, IconName> = {
 };
 
 /**
- * One row of any list in the product: a status glyph, a name cut to twelve words, a status chip,
+ * One row of any list in the product: a leading mark (the kind of item in a tone tile, or a status glyph), a name cut to twelve words, a status chip,
  * and at most one action. Opening the row (its name) shows the rest in the panel. At least 56px
  * tall on every width, one line of name. This is the only row; screens do not hand-build their own.
  */
@@ -54,6 +74,7 @@ export function ListRow({
   icon,
   domId,
   nameId,
+  mark,
 }: ListRowProps) {
   const short = shortName(name);
   const label = (
@@ -72,9 +93,13 @@ export function ListRow({
       data-row={id}
       {...(domId ? { id: domId } : {})}
     >
-      <span className="lift-check-icon" aria-hidden="true">
-        <Icon name={icon ?? TONE_ICON[tone]} size={16} />
-      </span>
+      {mark ? (
+        <MarkTile mark={mark} className="lift-check-mark" />
+      ) : (
+        <span className="lift-check-icon" aria-hidden="true">
+          <Icon name={icon ?? TONE_ICON[tone]} size={16} />
+        </span>
+      )}
       <div className="lift-check-body lp-row-body">
         <div className="lift-check-line">
           {openHref ? (

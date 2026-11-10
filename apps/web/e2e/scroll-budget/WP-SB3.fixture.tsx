@@ -2,6 +2,7 @@ import { ActivityLog, type ActivityLogEntry } from '../../src/components/activit
 import { Icon } from '../../src/components/icons';
 import { GroupedList, ListRow } from '../../src/components/list-pattern';
 import { ShowMore } from '../../src/components/show-more';
+import { documentMark } from '../../src/lib/item-icons';
 
 /**
  * WP-SB3 scroll budget fixture: the capped parts of the sharing, insights, evidence and shared
@@ -232,7 +233,7 @@ function Evidence({ total, shown }: { total: number; shown: number }) {
                   name={`Document: Bank Statement ${n + 1}`}
                   tone="success"
                   status="Reviewed"
-                  icon="file"
+                  mark={documentMark('Bank Statement')}
                   openHref={`?item=r${n}`}
                   nameId={`evidence-row-${n + 1}`}
                 />

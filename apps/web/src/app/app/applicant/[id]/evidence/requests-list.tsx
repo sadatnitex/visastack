@@ -1,5 +1,6 @@
 import { GroupedList, ListRow } from '../../../../../components/list-pattern';
 import { formatDateOnly } from '../../../../../lib/format-date';
+import { FIELD_MARK, documentMark } from '../../../../../lib/item-icons';
 import { type RequestBucket, requestBucket, requestChip, requestName } from './request-model';
 import type { RequestEntry } from './request-panes';
 
@@ -45,7 +46,7 @@ export function RequestsList({
         tone={chip.tone}
         status={chip.word}
         meta={req.dueDate ? `Needed by ${formatDateOnly(req.dueDate)}` : undefined}
-        icon={req.kind === 'FIELD' ? 'clipboard' : 'file'}
+        mark={req.kind === 'FIELD' ? FIELD_MARK : documentMark(req.docType)}
         openHref={itemHref(req.id)}
         domId={`request-${req.id}`}
         nameId={`evidence-row-${positions.get(req.id) ?? 0}`}
