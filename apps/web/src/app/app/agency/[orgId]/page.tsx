@@ -490,7 +490,7 @@ export default async function AgencyDashboardPage({
                 >
                   {data.admin
                     ? 'No cases are reachable yet - a traveller must grant this organization access to a specific case.'
-                    : "You aren't assigned to any cases yet - ask an admin to assign you to one."}
+                    : "You aren't assigned to any cases yet. An owner or admin of this organization can assign you to one."}
                 </EmptyState>
               </div>
             ) : searched.length === 0 ? (

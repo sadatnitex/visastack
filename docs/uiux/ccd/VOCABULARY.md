@@ -176,6 +176,9 @@ Added 4 Nov 2026 (Lane E, the evidence loop between a traveller and an agency):
 | Adding a missing item | row action "Add" (a file goes to the Documents page, an answer to the profile); the panel keeps "Provide Evidence" to choose among files already on file | "Provide Evidence" as the row button | **Done (package 1)** |
 | Who added an item | "Added by an Agency" while no agency has access; "Requested by Your Agency" while one has; "Starter List, Not Official" on a starter list | "Requested by Your Agency" on a case no agency can see | **Done (package 0)** |
 | Header lines of the case | "You have not confirmed this case yet", "You confirmed this case on {date}", "Your confirmation" | "Traveller has not confirmed yet" to the traveller | **Done (package 0)** |
+| Asking a client for a document or detail (agency side) | Ask for a Document or Detail (the group heading, on Clients and on an open case); the button stays "Request Evidence" and the list stays "Evidence Requests", the traveller's own name for the same thing | "Ask for a Field or Document" ("field" is a profile word); renaming the button or list would split the agency and traveller names for one object | **Done (UX lane 2, E7)** |
+| Who each request page is for (agency side) | Clients, Request Evidence: "For people who are already your clients."; Document Requests: "For people who are not your clients yet." | One line that read as if both pages ask the same people | **Done (UX lane 2, E8)** |
+| Taking a member off a case | button "Remove", named "Remove {member email}", busy "Removing" followed by the three-dot character | A bare multiplication sign as the only label | **Done (UX lane 2, E10)** |
 
 Decided on 9 Nov 2026 and not yet built (a later package): Snapshot becomes Saved Copy, Freshness Check becomes Is This Still Up to Date?, Trip Package becomes Your Package, and Readiness in the section links becomes How Complete.
 

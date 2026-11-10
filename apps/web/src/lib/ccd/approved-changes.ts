@@ -561,6 +561,27 @@ export const APPROVED_CHANGES: readonly ApprovedChange[] = [
     reason: 'D3: plain names, no reference codes in visible text (VOCABULARY.md).',
   },
   {
+    screen: 'agency-cases',
+    from: { kind: 'button', name: '\u00d7' },
+    // The fixture's one assigned member; the button is named with the member it removes.
+    to: { kind: 'button', name: 'Remove me@example.com' },
+    reason:
+      'UX lane 2 (E10): the bare multiplication sign had no name; the button says Remove and is named Remove with the member it removes.',
+  },
+  {
+    screen: 'agency-cases',
+    from: {
+      kind: 'text',
+      name: "You aren't assigned to any cases yet - ask an admin to assign you to one.",
+    },
+    to: {
+      kind: 'text',
+      name: "You aren't assigned to any cases yet. An owner or admin of this organization can assign you to one.",
+    },
+    reason:
+      'UX lane 2 (E9): the dead end now says who can help; the Team page is for owners and admins only, so a member is not sent there.',
+  },
+  {
     screen: 'case',
     from: { kind: 'text', name: 'Fix 2 required items' },
     to: { kind: 'text', name: 'Fix 2 required items for Japan visitor visa' },
