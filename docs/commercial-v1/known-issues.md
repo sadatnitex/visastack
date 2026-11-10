@@ -7975,6 +7975,15 @@ Owner decision (10 Nov 2026, option A): an agency lost access in the middle of a
 
 - 2026-11-10 update (P9 agency mount): the agency Cases list now shows "Access ends on {day}. The traveller can extend it." under each listed case that has an end date, read by listAccessEndsForOrg for the listed case ids only (the member-gated page of 15), in the traveller time zone, with no button. A case with no end date shows no line. A small block marked WP-P9 was appended to globals.css.
 
+## UX P14 follow-ups, agency "Already Asked" across Clients and case (10 Nov 2026, branch claude/ux-p14-already-asked)
+
+- The case workspace's "Missing for This Case" group marked an item "Already Asked" only when an open request named this case. A request made from Clients with no case did not count, so the item showed as missing, pre-ticked, and could be asked twice. It now also counts the traveller's open requests with no case, from this organization only. Such an item is unticked and says "Already Asked". "Ask for All Missing" skips it.
+- How: `loadEvidenceRequests` takes a new flag inside `forCase`, `alsoWaitingWithoutCase`. With it, the one organization-wide read the case page already makes also returns this traveller's requests with no case that still wait on them (open, or sent back for a fix), kept only when the row's organization is this one. No second read, no file states for them, the same administrator check. The page splits the rows by case: the case's own requests feed the case summary, Do Next and the triage groups exactly as before (W0 structural flag 2; `summarizeCaseTriage` also filters by case on its own); only the ask form's "Already Asked" marks use the no-case rows.
+- Unchanged: who may see what (administrators only; a member sees none), request meanings, readiness, server actions and field names.
+- Tests: the loader adds only this traveller's waiting no-case rows (not a finished or received one, not another traveller's, not another case's) and drops another organization's row even if the service returned it; it reads once, and nothing for a non-administrator; the page marks a no-case NID request "Already Asked" and leaves the other item ticked, with one read; a no-case request stays out of the case summary while the same request naming the case reaches it. Proven by breaking the real code: removing the merge on the page, the organization check, and the status check each turned a test red. Letting no-case rows into the summary does not turn a test red on its own, because the summary filters by case itself; that test is a fence that fails only if both regress.
+- Not changed: the request list on the case workspace itself still shows only requests that name the case.
+- Not verified: no signed-in click-through; nothing run against production.
+
 ## UX P12: Trips list rows and country flags (10 Nov 2026)
 
 - Review fixes (code review high): the card classes are `trip-card*` (the older `case-row*` classes belong to evidence and agency screens); the card link's name also carries the next step; a group of alternatives names its choices; the flag letters badge skips Firefox; the case page header uses the same stage words.
