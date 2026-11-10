@@ -2,6 +2,7 @@ import {
   type PendingRequestCounts,
   countPendingRequests,
   daysUntilDueDay,
+  localDateDiffInDays,
 } from '@visastack/services';
 
 /**
@@ -83,6 +84,19 @@ export function daysUntilDue(
   timezone: string | null | undefined,
 ): number {
   return daysUntilDueDay(new Date(dueDate), now, timezone || 'UTC');
+}
+
+/**
+ * Whole calendar days from the day something was sent to today, in the traveller's time zone (UTC
+ * only when none is known): the same day rule as `daysUntilDue`, read the other way round. Sent at
+ * 23:00 and checked at 01:00 the next morning is 1 day, not 0.
+ */
+export function daysSinceSent(
+  sentAt: Date | string,
+  now: Date,
+  timezone: string | null | undefined,
+): number {
+  return localDateDiffInDays(new Date(sentAt), now, timezone || 'UTC');
 }
 
 /** A task's own due day rule: its own time zone when it has one, else the traveller's. */

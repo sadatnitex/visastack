@@ -191,3 +191,4 @@ Case page package 3 (10 Nov 2026):
 | Section links | Dates, Readiness, Trip Package, Contributors, Notes, Tasks and Letters, Evidence, Snapshots, Submission and Outcome | none | **Done** |
 | Two stored choices in an item's panel | "Which File Counts" (counts toward readiness) and "Which File Goes in the Handoff" (the package) | "What This Item Uses" | **Done (package 3)** |
 | Checklist search | Search the Checklist; empty result "No Items Match" | none | **Done (package 3)** |
+| An agency request with no due date that has had no reply for 3 days, in the agency Do Next list (P4) | The group heading No Reply Yet; the line reads "Sent N days ago with no due date. No reply yet." | "Stale", "Dormant", "Chase", "Past Due" (it has no due date) | **New (P4)** |

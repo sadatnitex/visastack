@@ -1,6 +1,13 @@
 import { referenceCheckCharacter } from '@visastack/core';
 import { describe, expect, it } from 'vitest';
-import { type DoNextCase, type DoNextInput, type DoNextRequest, buildDoNext } from './do-next';
+import {
+  CHASE_AFTER_DAYS,
+  CHASE_LABEL,
+  type DoNextCase,
+  type DoNextInput,
+  type DoNextRequest,
+  buildDoNext,
+} from './do-next';
 
 const NOW = new Date('2026-10-25T09:00:00.000Z');
 const day = (offset: number) => new Date(Date.UTC(2026, 9, 25 + offset)).toISOString(); // a date-only value, UTC midnight
@@ -80,11 +87,12 @@ describe('Do next ranking (ADR-0015)', () => {
     requestRow({ id: 'r-legacy', status: 'DECLINED', dueDate: day(-30) }),
   ];
 
-  it('orders the four rows as approved: past due, waiting for review, overdue tasks, no owner', () => {
+  it('orders the four rows as approved: past due then long-quiet with no due date, waiting for review, overdue tasks, no owner', () => {
     const items = buildDoNext(input({ cases, requests }));
     expect(items.map((item) => [item.tier, item.key])).toEqual([
       [1, 'request:r-due-early'],
       [1, 'request:r-due-late'],
+      [1, 'request:r-no-date'],
       [2, 'request:r-review'],
       [2, 'request:r-received'],
       [3, 'case:m3'],
@@ -347,5 +355,116 @@ describe('Do next uses the answered file and the calendar-day rule (WP-V4 review
         (item) => item.key,
       ),
     ).toEqual(['case:m1']);
+  });
+});
+
+describe('Do next chases requests with no due date (owner decision, 10 Nov 2026)', () => {
+  // The real clock, with sent times built from it, so no fixed calendar date can go stale.
+  const clock = new Date();
+  const DAY = 24 * 60 * 60 * 1000;
+  const sentDaysAgo = (days: number): string =>
+    new Date(clock.getTime() - days * DAY).toISOString();
+  const open = (id: string, extra: Partial<DoNextRequest> = {}): DoNextRequest =>
+    requestRow({ id, ...extra });
+  const run = (requests: DoNextRequest[], extra: Partial<DoNextInput> = {}) =>
+    buildDoNext(input({ cases: [caseRow({ missionId: 'm1' })], requests, now: clock, ...extra }));
+
+  it('names the owner decision as one constant of three days', () => {
+    expect(CHASE_AFTER_DAYS).toBe(3);
+  });
+
+  it('leaves a request with no due date alone at 2 days and lists it at 3', () => {
+    expect(run([open('r-2', { createdAt: sentDaysAgo(CHASE_AFTER_DAYS - 1) })])).toEqual([]);
+    const items = run([open('r-3', { createdAt: sentDaysAgo(CHASE_AFTER_DAYS) })]);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.tier).toBe(1);
+    expect(items[0]?.tierLabel).toBe(CHASE_LABEL);
+    expect(items[0]?.reason).toBe('Sent 3 days ago with no due date. No reply yet.');
+    expect(items[0]?.action.kind).toBe('follow-up');
+  });
+
+  it('puts chased requests after every overdue one, oldest sent first', () => {
+    const items = run([
+      open('r-chase-new', { createdAt: sentDaysAgo(4) }),
+      open('r-chase-old', { createdAt: sentDaysAgo(20) }),
+      open('r-overdue-recent', {
+        createdAt: sentDaysAgo(30),
+        dueDate: new Date(clock.getTime() - 2 * DAY).toISOString(),
+      }),
+      open('r-overdue-old', {
+        createdAt: sentDaysAgo(1),
+        dueDate: new Date(clock.getTime() - 9 * DAY).toISOString(),
+      }),
+      open('r-review', { status: 'RECEIVED', createdAt: sentDaysAgo(40) }),
+    ]);
+    expect(items.map((item) => [item.tier, item.key])).toEqual([
+      [1, 'request:r-overdue-old'],
+      [1, 'request:r-overdue-recent'],
+      [1, 'request:r-chase-old'],
+      [1, 'request:r-chase-new'],
+      [2, 'request:r-review'],
+    ]);
+  });
+
+  it('still follows the old rule for a request that has a due date', () => {
+    const future = new Date(clock.getTime() + 5 * DAY).toISOString();
+    expect(run([open('r-future', { dueDate: future, createdAt: sentDaysAgo(60) })])).toEqual([]);
+    const past = new Date(clock.getTime() - 3 * DAY).toISOString();
+    const items = run([open('r-past', { dueDate: past, createdAt: sentDaysAgo(1) })]);
+    expect(items.map((item) => item.reason)).toEqual([
+      expect.stringMatching(/^Was due .+ and has not arrived\.$/),
+    ]);
+  });
+
+  it('does not chase a received, accepted, sent-back or closed request this way', () => {
+    const old = sentDaysAgo(30);
+    const statuses: DoNextRequest['status'][] = [
+      'RECEIVED',
+      'UNDER_REVIEW',
+      'ACCEPTED',
+      'NEEDS_REPLACEMENT',
+      'CANCELLED',
+    ];
+    const items = run(statuses.map((status) => open(`r-${status}`, { status, createdAt: old })));
+    expect(items.map((item) => [item.tier, item.key]).sort()).toEqual([
+      [2, 'request:r-RECEIVED'],
+      [2, 'request:r-UNDER_REVIEW'],
+    ]);
+    for (const item of items) expect(item.reason).not.toMatch(/no due date/);
+  });
+
+  it('counts whole days in the traveller time zone, not UTC', () => {
+    // Sent at 23:00 on the 3rd day back in UTC: still 2 whole days in UTC at 01:00, but in a
+    // zone 6 hours ahead the sent moment is already the next morning, so only 2 days there.
+    const now = new Date(Date.UTC(2027, 5, 10, 1, 0));
+    const sent = new Date(Date.UTC(2027, 5, 7, 20, 0)).toISOString();
+    const at = (applicantTimezone: string) =>
+      buildDoNext(
+        input({
+          cases: [caseRow({ missionId: 'm1' })],
+          requests: [open('r-zone', { createdAt: sent, applicantTimezone })],
+          now,
+        }),
+      ).length;
+    expect(at('UTC')).toBe(1);
+    expect(at('Asia/Dhaka')).toBe(0);
+  });
+
+  it('builds the same scrubbed follow-up message, with no due line', () => {
+    const [item] = run([
+      open('r-msg', {
+        createdAt: sentDaysAgo(5),
+        message: 'Please write to me at someone@example.com',
+      }),
+    ]);
+    expect(item?.action.kind).toBe('follow-up');
+    if (item?.action.kind !== 'follow-up') return;
+    expect(item.action.message.agencyNoteLeftOut).toBe(true);
+    expect(item.action.message.text).not.toContain('Due:');
+    expect(item.action.message.text).not.toContain('@');
+  });
+
+  it('gives a non-administrator no chased items', () => {
+    expect(run([open('r-3', { createdAt: sentDaysAgo(9) })], { admin: false })).toEqual([]);
   });
 });
