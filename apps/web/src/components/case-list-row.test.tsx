@@ -102,6 +102,10 @@ describe('a case row', () => {
     expect(doc.querySelector('.trip-card-sub')?.textContent).toBe('Japan \u00b7 Tourism');
   });
 
+  it('opts out of the underline every link inside a list item gets, so the card is not underlined', () => {
+    expect(draw().querySelector('a')?.classList.contains('plain-link')).toBe(true);
+  });
+
   it('is one link with one tab stop and one accessible name: case, stage and count', () => {
     const doc = draw();
     const links = doc.querySelectorAll('a');

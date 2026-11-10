@@ -20652,6 +20652,7 @@ html:has(.sticky-action-bar) .toast-region {
 .trip-card:hover {
   border-color: var(--brand);
   background: var(--brand-tint-1);
+  text-decoration: none;
 }
 .trip-card-flag {
   display: flex;

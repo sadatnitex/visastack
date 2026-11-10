@@ -121,7 +121,7 @@ export function CaseListRow({
   return (
     <li className="case-list-item">
       <Link
-        className="trip-card"
+        className="trip-card plain-link"
         href={href}
         aria-label={caseRowName(title, state, progress, step)}
         data-pattern="trip-card"
