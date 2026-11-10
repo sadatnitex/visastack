@@ -29,10 +29,9 @@ export function signInNextSuffix(next: string): string {
   return next === '/app' ? '' : `&next=${encodeURIComponent(next)}`;
 }
 
-/** `?next=...` on the landing address for any destination other than the ordinary home. */
-export function confirmedNextQuery(next: string | null | undefined): string {
-  const safe = safeReturnPath(next);
-  return safe === '/app' ? '' : `?next=${encodeURIComponent(safe)}`;
+/** The validated destination, ready to place after `/auth/confirmed?next=` in the callback address. */
+export function confirmedCallbackNext(next: string | null | undefined): string {
+  return encodeURIComponent(safeReturnPath(next));
 }
 
 /** Where a person with no sign-in goes: today's sign-in form with the confirmed line. */

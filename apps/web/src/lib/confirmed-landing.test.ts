@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   CONFIRMED_PATH,
+  confirmedCallbackNext,
   confirmedFailedDestination,
   confirmedLandingDecision,
-  confirmedNextQuery,
   confirmedSignInFallback,
   confirmedSignedInDestination,
   neonLoginUrlFor,
@@ -56,7 +56,7 @@ describe('what happens after the confirmation link', () => {
   it('never puts an email address in any address it builds', () => {
     const email = 'someone@example.test';
     const built = [
-      confirmedNextQuery(INVITE),
+      confirmedCallbackNext(INVITE),
       confirmedFailedDestination(INVITE),
       confirmedLandingDecision({ signedIn: true, next: INVITE }),
       confirmedLandingDecision({ signedIn: false, next: INVITE }),
@@ -70,11 +70,12 @@ describe('what happens after the confirmation link', () => {
 });
 
 describe('the landing address Neon Auth sends the browser to', () => {
-  it('carries a validated destination only when it is not the home', () => {
-    expect(confirmedNextQuery('/app')).toBe('');
-    expect(confirmedNextQuery(undefined)).toBe('');
-    expect(confirmedNextQuery(INVITE)).toBe(`?next=${encodeURIComponent(INVITE)}`);
-    expect(confirmedNextQuery('//evil.example')).toBe('');
+  it('always carries the validated destination, the home when there is none or it is unsafe', () => {
+    expect(confirmedCallbackNext('/app')).toBe('%2Fapp');
+    expect(confirmedCallbackNext(undefined)).toBe('%2Fapp');
+    expect(confirmedCallbackNext(INVITE)).toBe(encodeURIComponent(INVITE));
+    expect(confirmedCallbackNext('//evil.example')).toBe('%2Fapp');
+    expect(confirmedCallbackNext('https://evil.example')).toBe('%2Fapp');
   });
 });
 

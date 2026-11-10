@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { withinAuthLimits } from '../../lib/auth-throttle';
 import { resolveBaseUrl } from '../../lib/base-url';
-import { confirmedNextQuery, signInNextSuffix } from '../../lib/confirmed-landing';
+import { confirmedCallbackNext, signInNextSuffix } from '../../lib/confirmed-landing';
 import { safeReturnPath } from '../../lib/neon-recency';
 import { consumeSignupForm, readSignupForm } from '../../lib/signup-form';
 
@@ -148,7 +148,7 @@ export async function signUpAction(formData: FormData): Promise<void> {
     email,
     password,
     name: name || email.split('@')[0] || 'Traveller',
-    callbackURL: `${resolveBaseUrl()}/auth/confirmed${confirmedNextQuery(next)}`,
+    callbackURL: `${resolveBaseUrl()}/auth/confirmed?next=${confirmedCallbackNext(next)}`,
   });
   if (error) {
     if (
@@ -188,7 +188,7 @@ export async function resendConfirmationAction(formData: FormData): Promise<void
   try {
     const { error } = await getNeonAuth().sendVerificationEmail({
       email,
-      callbackURL: `${resolveBaseUrl()}/auth/confirmed${confirmedNextQuery(returnTo)}`,
+      callbackURL: `${resolveBaseUrl()}/auth/confirmed?next=${confirmedCallbackNext(returnTo)}`,
     });
     throttled = error?.status === 429;
     const unknownAccount = error?.code === 'USER_NOT_FOUND' || error?.message === 'User not found';
