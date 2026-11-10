@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { EmptyArt, type EmptyArtKind } from './empty-art';
 import { Icon, type IconName } from './icons';
 import { AboutDisclosure } from './ui-lift/about-disclosure';
 
@@ -120,6 +121,7 @@ export function EmptyState({
   why,
   action,
   icon,
+  art,
   fold = false,
   foldWhy = false,
 }: {
@@ -128,11 +130,14 @@ export function EmptyState({
   readonly why?: string;
   readonly action?: { readonly href: string; readonly label: string };
   readonly icon?: IconName;
+  /** The small drawing for an empty Documents, Trips or Sharing place, in place of the single icon. */
+  readonly art?: EmptyArtKind;
   /** Keep the sentences under "About This" so the empty state is its title and one button. */
   readonly fold?: boolean;
   /** Keep only the reason under "About This": the sentence that says why it is empty stays. */
   readonly foldWhy?: boolean;
 }) {
+  const artKind = art;
   const sentences = (
     <>
       <p className="empty-state-body">{children}</p>
@@ -141,7 +146,7 @@ export function EmptyState({
   );
   return (
     <div className="empty-state">
-      <IconTile name={icon ?? 'folder'} />
+      {artKind ? <EmptyArt kind={artKind} /> : <IconTile name={icon ?? 'folder'} />}
       <p className="empty-state-title">{title}</p>
       {fold ? (
         <AboutDisclosure summary="About This">{sentences}</AboutDisclosure>

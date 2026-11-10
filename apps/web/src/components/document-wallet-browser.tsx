@@ -4,11 +4,13 @@ import type { ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import { DEPTH_PHONE_QUERY } from '../lib/ccd/depth';
 import { formatTimestampDate } from '../lib/format-date';
+import { documentMark } from '../lib/item-icons';
 import { agree, plural } from '../lib/plural';
 import { useMediaQuery } from '../lib/use-popover';
 import { Icon } from './icons';
 import { ListFilterBar } from './list-pattern';
 import { useSheetBehaviour } from './list-pattern/use-sheet';
+import { MarkTile } from './mark-tile';
 import { EmptyState, StatusBadge } from './ui';
 
 export interface WalletBrowserDocument {
@@ -275,9 +277,11 @@ export function DocumentWalletBrowser({
                         window.history.replaceState(window.history.state, '', url);
                       }}
                     >
-                      <span className="wallet-document-icon" aria-hidden="true">
-                        <Icon name="file" size={18} />
-                      </span>
+                      <MarkTile
+                        mark={documentMark(doc.kind)}
+                        size="sm"
+                        className="wallet-document-icon"
+                      />
                       <span className="wallet-document-name" data-value="name">
                         {doc.name}
                       </span>
@@ -308,6 +312,7 @@ export function DocumentWalletBrowser({
           ) : (
             <EmptyState
               icon="file"
+              art="documents"
               title={documents.length ? 'No Documents Match' : 'No Documents Yet'}
               {...(documents.length
                 ? {}

@@ -529,6 +529,7 @@ export default async function ApplicantOverviewPage({
                 ) : (
                   <EmptyState
                     icon="briefcase"
+                    art="trips"
                     title="No Active Case Yet"
                     why="Then you can see which checklist items are ready and which are still missing."
                     action={{

@@ -180,6 +180,7 @@ export default async function MissionsPage({
               ) : hasNoCase ? (
                 <EmptyState
                   icon="briefcase"
+                  art="trips"
                   title="No Cases Yet"
                   fold
                   why="Once a checklist is attached, you see how many items are ready and what is still missing."

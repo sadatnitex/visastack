@@ -15370,6 +15370,16 @@ output.notice {
   color: var(--brand);
   background: var(--brand-bg);
 }
+/* A status chip with its own symbol shows the symbol in place of the plain tick, triangle or cross. */
+.lift-pill-icon::before {
+  display: none;
+}
+.lift-pill .icon {
+  flex: none;
+}
+.lift-pill .icon .icon-accent {
+  color: inherit;
+}
 
 /* Progress meter: a drawing with a name, the numbers beside it. The fill width is an attribute. */
 .lift-meter {
@@ -20133,3 +20143,49 @@ html:has(.sticky-action-bar) .toast-region {
   color: var(--brand);
 }
 /* end WP-LP4 */
+
+/* WP-P13 Visual language (Owner, 10 Nov 2026: things talk loudly, like flags - an icon says what a thing is or where it stands, always beside its plain word). A flat line icon sits in a soft tile of one of the six Harbor tones (WP-PLAIN-TONE): green, amber and red say how a thing stands, blue, violet and teal say what kind of thing it is, grey is the neutral token. No new colour value, nothing but flat fills. The tile is the size of the glyph it replaces, so a row keeps its 56px. */
+.mark-tile {
+  --icon-accent: var(--tone, var(--text-secondary));
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  background: var(--tone-bg, var(--bg-subtle));
+  color: var(--tone, var(--text-secondary));
+}
+.mark-tile[data-size="sm"] {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+.mark-tile[data-size="lg"] {
+  width: 3rem;
+  height: 3rem;
+}
+.mark-tile .icon {
+  display: block;
+}
+.lift-check.lp-row > .lift-check-mark {
+  grid-column: 1;
+  grid-row: 1;
+}
+/* The small drawing in an empty Documents, Trips or Sharing place: three tiles, the middle one large. */
+.empty-art {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+/* The Why list on the forms that start a trip: the chosen purpose as a picture beside the native list. */
+.purpose-select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.purpose-select > select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* end WP-P13 */
