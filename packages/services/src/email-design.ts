@@ -283,6 +283,22 @@ export const NOTIFICATION_EMAIL_COPY: Readonly<Record<EmailEventType, Copy>> = {
     why: 'Open the request to see the exact copy that was sent. Received is not accepted until a reviewer accepts it.',
     action: 'Open the Request',
   },
+  // Sharing that ends within a week. Never a link that changes anything: it opens the sharing
+  // page, where the person taps the button themselves.
+  GRANT_ENDING_REMINDER: {
+    eyebrow: 'Your Sharing',
+    heading: 'Your sharing is about to end',
+    why: 'After that date they cannot see what you shared. Keeping it going takes one tap.',
+    action: 'Keep Sharing for 30 More Days',
+    after: 'Not needed any more? Do nothing and it ends on its own.',
+  },
+  // For the agency's owners and admins; the agency cannot extend its own access.
+  AGENCY_ACCESS_ENDING: {
+    eyebrow: 'Your Agency',
+    heading: 'Access to a client is about to end',
+    why: 'After that date you cannot open the case.',
+    action: 'Open the Case',
+  },
   EVIDENCE_REPLACEMENT_REQUESTED: {
     eyebrow: 'Your Case',
     heading: 'Your agency needs a fresh copy',

@@ -46,6 +46,11 @@ vi.mock('../../app/app/agency/[orgId]/console-data', async (importOriginal) => {
     },
   };
 });
+vi.mock('@visastack/services', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@visastack/services')>();
+  // P9: no end dates here; the same line is tested on the Cases page itself.
+  return { ...actual, listAccessEndsForOrg: async () => new Map<string, Date | null>() };
+});
 vi.mock('./depth.server', () => ({ readDepth: async () => state.depth }));
 
 const { default: Page } = await import('../../app/app/agency/[orgId]/cases/page');

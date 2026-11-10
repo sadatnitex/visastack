@@ -151,6 +151,7 @@ describe('the words of every email', () => {
   it('covers every kind of notification the product sends by email', () => {
     expect(Object.keys(NOTIFICATION_EMAIL_COPY).sort()).toEqual(
       [
+        'AGENCY_ACCESS_ENDING',
         'AGENCY_COLLECTION_GUEST_CODE',
         'AGENCY_COLLECTION_GUEST_CORRECTION',
         'CASE_PACKAGE_CHANGED',
@@ -171,6 +172,7 @@ describe('the words of every email', () => {
         'EVIDENCE_REQUEST_CREATED',
         'EVIDENCE_RESPONSE_RECEIVED',
         'EVIDENCE_REVIEW_ACCEPTED',
+        'GRANT_ENDING_REMINDER',
         'INACTIVE_ACCOUNT_NOTICE',
         'INVOICE_CREDIT_APPLIED',
         'INVOICE_ISSUED',
