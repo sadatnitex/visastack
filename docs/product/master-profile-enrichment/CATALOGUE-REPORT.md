@@ -987,13 +987,13 @@ Type is text or date. Records marked "extends" add fields to a record that is li
 | family_member_employer_name | Employer | text | STANDARD | universal | family_members | Record: Family Member | All purposes | bidesh365 |
 | family_member_is_deceased | Deceased | text | STANDARD | universal | family_members | Record: Family Member | All purposes | bidesh365 |
 | family_member_death_date | Date of Death | date | STANDARD | universal | family_members | Record: Family Member | All purposes | bidesh365 |
-| family_member_is_accompanying | Travelling With You | text | STANDARD | universal | family_members | Record: Family Member | All purposes | bidesh365 |
+| family_member_is_accompanying | Travelling with You | text | STANDARD | universal | family_members | Record: Family Member | All purposes | bidesh365 |
 | family_member_passport_number | Passport Number | text | SENSITIVE | universal | family_members | Record: Family Member | All purposes | bidesh365 |
 | family_member_legal_status_abroad | Legal Status if Abroad | text | STANDARD | universal | family_members | Record: Family Member | All purposes | bidesh365 |
 | dependant_birth_country | Country of Birth | text | STANDARD | universal | dependant_details | Extends record: dependant | All purposes | bidesh365 |
 | dependant_custody_arrangements | Custody Arrangements | text | STANDARD | universal | dependant_details | Extends record: dependant | All purposes | bidesh365 |
 | dependant_is_financially_dependent | Financially Dependent | text | STANDARD | universal | dependant_details | Extends record: dependant | All purposes | bidesh365 |
-| dependant_is_accompanying | Travelling With You | text | STANDARD | universal | dependant_details | Extends record: dependant | All purposes | bidesh365 |
+| dependant_is_accompanying | Travelling with You | text | STANDARD | universal | dependant_details | Extends record: dependant | All purposes | bidesh365 |
 | dependant_passport_number | Passport Number | text | SENSITIVE | universal | dependant_details | Extends record: dependant | All purposes | bidesh365 |
 | sponsor_type | Sponsor Type | text | STANDARD | universal | sponsor_details | Extends record: sponsor | All purposes | bidesh365 |
 | sponsor_type_other | Other Sponsor Type | text | STANDARD | universal | sponsor_details | Extends record: sponsor | All purposes | bidesh365 |
@@ -1048,7 +1048,7 @@ Type is text or date. Records marked "extends" add fields to a record that is li
 | travel_companion_name | Name | text | STANDARD | universal | travel_companions | Record: Travel Companion | All purposes | bidesh365 |
 | travel_companion_relationship | Relationship | text | STANDARD | universal | travel_companions | Record: Travel Companion | All purposes | bidesh365 |
 | travel_companion_date_of_birth | Date of Birth | date | SENSITIVE | universal | travel_companions | Record: Travel Companion | All purposes | bidesh365 |
-| travel_companion_travelling_with_you | Travelling With You | text | STANDARD | universal | travel_companions | Record: Travel Companion | All purposes | bidesh365 |
+| travel_companion_travelling_with_you | Travelling with You | text | STANDARD | universal | travel_companions | Record: Travel Companion | All purposes | bidesh365 |
 | home_tie_type | Tie Type | text | STANDARD | universal | ties_to_home | Record: Tie to Home Country | All purposes | owner_vision |
 | home_tie_type_other | Other Tie Type | text | STANDARD | universal | ties_to_home | Record: Tie to Home Country | All purposes | owner_vision |
 | home_tie_description | Description | text | STANDARD | universal | ties_to_home | Record: Tie to Home Country | All purposes | owner_vision |

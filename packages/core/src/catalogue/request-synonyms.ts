@@ -191,6 +191,7 @@ export const REQUEST_CONTEXT: Readonly<Record<string, string>> = {
   passport_expiry: 'Current Passport',
   historical_passport_number: 'Earlier Passport',
   historical_passport_country: 'Earlier Passport',
+  historical_passport_expiry: 'Earlier Passport',
   dependant_passport_number: 'Dependant',
   attendant_passport_number: 'Medical Attendant',
   attendant_passport_expiry: 'Medical Attendant',
