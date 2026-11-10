@@ -3,6 +3,8 @@
 import type { MembershipRole } from '@visastack/core';
 import { resolveDocumentType } from '@visastack/core/catalogue/documents';
 import {
+  EACH_GRANT,
+  accountPrincipal,
   addMemberByEmail,
   addNote,
   assignMember,
@@ -19,6 +21,7 @@ import {
   removeOrganizationLogo,
   requestEvidence,
   requestEvidenceBatch,
+  requireAccess,
   revokeClientInvitation,
   revokeOrganizationInvitation,
   setMembershipActive,
@@ -120,13 +123,25 @@ export async function requestEvidenceAction(
     const parsed = parseAskItems(chosen);
     if (!parsed.ok) return { ok: false, message: parsed.message };
     const sent = await withSession(async ({ db, accountId }) => {
-      const requested = await requestEvidenceBatch(db, {
-        actorAccountId: accountId,
+      // The central proof for this organization's grant, for the traveller (or the one case).
+      // A traveller or case the organization cannot reach is answered exactly like an unknown one.
+      const proof = await requireAccess(
+        db,
+        accountPrincipal(accountId),
+        'MANAGE',
+        missionId.length > 0 ? { missionId } : { applicantId },
+        { purpose: EACH_GRANT, actingFor: { organizationId } },
+      );
+      if (!proof.ok || proof.value.applicant.id !== applicantId) {
+        return {
+          ok: false,
+          message: 'this organization has no current grant for that applicant',
+        } satisfies ActionState;
+      }
+      const requested = await requestEvidenceBatch(proof.value, {
         organizationId,
-        applicantId,
         items: parsed.items,
         ...(message.length > 0 ? { message } : {}),
-        ...(missionId.length > 0 ? { missionId } : {}),
         ...(dueDate ? { dueDate } : {}),
       });
       if (!requested.ok) {

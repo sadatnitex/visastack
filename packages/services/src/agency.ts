@@ -1980,8 +1980,9 @@ function isAskableFieldKey(key: string): boolean {
  * exactly the requests `requestEvidence` would make, one per item, with the same checks:
  *
  * - only an organization OWNER/ADMIN may ask;
- * - the organization needs a current grant that permits MANAGE for this traveller and case
- *   (`orgGrantPermits`, checked once: the traveller and the case are the same for every item);
+ * - the organization needs a current grant that permits MANAGE for this traveller and case: the
+ *   caller passes the central access proof for it (checked once: the traveller and the case are
+ *   the same for every item), and the same grant test as the single request runs again here;
  * - every item is checked against the catalogue before anything is written, so a name that is not
  *   a real detail or document type refuses the whole send;
  * - the rate limit is charged once per item;
@@ -1991,17 +1992,32 @@ function isAskableFieldKey(key: string): boolean {
  * traveller sees changes: each item is its own request.
  */
 export async function requestEvidenceBatch(
-  db: Db,
-  input: {
-    readonly actorAccountId: string;
+  access: AuthorizedApplicant<'MANAGE'>,
+  request: {
     readonly organizationId: string;
-    readonly applicantId: string;
-    readonly missionId?: string;
     readonly items: readonly EvidenceRequestItem[];
     readonly message?: string;
     readonly dueDate?: Date;
   },
 ): Promise<Result<EvidenceRequest[], ServiceError>> {
+  // The traveller (and the case, when the proof names one) come from the proof itself, issued by
+  // `requireAccess` for this organization's grant: they are never taken from the caller's input.
+  const noGrant = () =>
+    serviceError('forbidden', 'this organization has no current grant for that applicant');
+  if (!AuthorizedApplicant.isGenuine(access, 'MANAGE')) return err(noGrant());
+  if (access.resource.kind === 'document') return err(noGrant());
+  // Only an organization member acting for their organization asks (a traveller never does).
+  if (access.actor.kind !== 'organization_member') return err(noGrant());
+  const db = access.tx;
+  const input = {
+    actorAccountId: access.actor.accountId,
+    organizationId: request.organizationId,
+    applicantId: access.applicant.id,
+    items: request.items,
+    ...(access.resource.kind === 'mission' ? { missionId: access.resource.mission.id } : {}),
+    ...(request.message !== undefined ? { message: request.message } : {}),
+    ...(request.dueDate !== undefined ? { dueDate: request.dueDate } : {}),
+  };
   const notAdmin = await evidenceAdminProblem(db, input);
   if (notAdmin) return err(notAdmin);
   const seen = new Set<string>();

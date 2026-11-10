@@ -1,7 +1,8 @@
-import { isErr, isOk } from '@visastack/core';
+import { err, isErr, isOk } from '@visastack/core';
 import { schema } from '@visastack/db';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { EACH_GRANT, accountPrincipal, requireAccess } from './access';
 import {
   type EvidenceRequestItem,
   MAX_EVIDENCE_REQUESTS_PER_SEND,
@@ -15,6 +16,7 @@ import {
   type Traveller,
   agency,
   freshDb,
+  ownerProof,
   share,
   traveller,
 } from './evidence-submissions.test-support';
@@ -51,14 +53,27 @@ async function world(): Promise<World> {
   return { db, alice, acme };
 }
 
+/** What the web action does: the central proof for this organization's grant, then the send. */
+async function askAs(
+  w: World,
+  actorAccountId: string,
+  applicantId: string,
+  items: readonly EvidenceRequestItem[],
+  extra: { missionId?: string } = {},
+) {
+  const proof = await requireAccess(
+    w.db,
+    accountPrincipal(actorAccountId),
+    'MANAGE',
+    extra.missionId ? { missionId: extra.missionId } : { applicantId },
+    { purpose: EACH_GRANT, actingFor: { organizationId: w.acme.organizationId } },
+  );
+  if (!proof.ok) return err(proof.error);
+  return requestEvidenceBatch(proof.value, { organizationId: w.acme.organizationId, items });
+}
+
 function ask(w: World, items: readonly EvidenceRequestItem[], extra: { missionId?: string } = {}) {
-  return requestEvidenceBatch(w.db, {
-    actorAccountId: w.acme.accountId,
-    organizationId: w.acme.organizationId,
-    applicantId: w.alice.applicantId,
-    items,
-    ...extra,
-  });
+  return askAs(w, w.acme.accountId, w.alice.applicantId, items, extra);
 }
 
 async function rows(db: Db) {
@@ -83,10 +98,16 @@ describe('requestEvidenceBatch', () => {
   it(
     'makes one request per item, each with its code, an audit entry, and ONE notice pair for the send',
     async () => {
-      const result = await requestEvidenceBatch(w.db, {
-        actorAccountId: w.acme.accountId,
+      const proof = await requireAccess(
+        w.db,
+        accountPrincipal(w.acme.accountId),
+        'MANAGE',
+        { applicantId: w.alice.applicantId },
+        { purpose: EACH_GRANT, actingFor: { organizationId: w.acme.organizationId } },
+      );
+      if (!proof.ok) throw new Error('proof');
+      const result = await requestEvidenceBatch(proof.value, {
         organizationId: w.acme.organizationId,
-        applicantId: w.alice.applicantId,
         items: [doc('NID'), doc('BANK_STATEMENT'), field('passport_number')],
         message: 'for the visa form',
       });
@@ -239,25 +260,15 @@ describe('requestEvidenceBatch', () => {
         role: 'REVIEWER',
       });
       expect(isOk(added)).toBe(true);
-      const asMember = await requestEvidenceBatch(w.db, {
-        actorAccountId: member.accountId,
-        organizationId: w.acme.organizationId,
-        applicantId: w.alice.applicantId,
-        items: [doc('NID')],
-      });
+      const asMember = await askAs(w, member.accountId, w.alice.applicantId, [doc('NID')]);
       expect(isErr(asMember) && asMember.error.code).toBe('forbidden');
 
-      // A traveller who never shared with this agency.
+      // A traveller who never shared with this agency: no proof can be made for them at all.
       const stranger = await traveller(w.db, 'stranger-batch@example.com');
-      const noGrant = await requestEvidenceBatch(w.db, {
-        actorAccountId: w.acme.accountId,
-        organizationId: w.acme.organizationId,
-        applicantId: stranger.applicantId,
-        items: [doc('NID')],
-      });
-      expect(isErr(noGrant) && noGrant.error.code).toBe('forbidden');
+      const noGrant = await askAs(w, w.acme.accountId, stranger.applicantId, [doc('NID')]);
+      expect(isErr(noGrant)).toBe(true);
 
-      // A case that belongs to another traveller, named beside a traveller the agency can reach.
+      // A case that belongs to another traveller: no proof either.
       const mission = await createMission(w.db, {
         actorAccountId: stranger.accountId,
         applicantId: stranger.applicantId,
@@ -265,7 +276,7 @@ describe('requestEvidenceBatch', () => {
       });
       if (!isOk(mission)) throw new Error('mission');
       const wrongCase = await ask(w, [doc('NID')], { missionId: mission.value.id });
-      expect(isErr(wrongCase) && wrongCase.error.code).toBe('forbidden');
+      expect(isErr(wrongCase)).toBe(true);
 
       // The same three refusals as a single request, with the same codes.
       const single = await requestEvidence(w.db, {
@@ -278,6 +289,20 @@ describe('requestEvidenceBatch', () => {
       expect(isErr(single) && single.error.code).toBe('forbidden');
       expect(await rows(w.db)).toEqual([]);
       expect(await notices(w.db)).toEqual([]);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'a traveller\u2019s own proof can never send a request',
+    async () => {
+      const mine = await ownerProof(w.db, w.alice);
+      const result = await requestEvidenceBatch(mine, {
+        organizationId: w.acme.organizationId,
+        items: [doc('NID')],
+      });
+      expect(isErr(result) && result.error.code).toBe('forbidden');
+      expect(await rows(w.db)).toEqual([]);
     },
     TIMEOUT,
   );

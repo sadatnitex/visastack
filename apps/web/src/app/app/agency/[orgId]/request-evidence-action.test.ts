@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   requestEvidence: vi.fn(),
   requestEvidenceBatch: vi.fn(),
+  requireAccess: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 vi.mock('@visastack/services', async (importOriginal) => ({
   ...(await importOriginal<object>()),
   requestEvidence: mocks.requestEvidence,
   requestEvidenceBatch: mocks.requestEvidenceBatch,
+  requireAccess: mocks.requireAccess,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/server', () => ({ after: (fn: () => unknown) => fn() }));
@@ -43,6 +45,10 @@ const addedField = CATALOGUE_FIELDS.find((field) => !field.role)?.key ?? '';
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.requestEvidence.mockResolvedValue({ ok: true, value: {} });
+  mocks.requireAccess.mockImplementation(async () => ({
+    ok: true,
+    value: { applicant: { id: 'a1' }, tag: 'proof' },
+  }));
   mocks.requestEvidenceBatch.mockImplementation(async (_db, input: { items: unknown[] }) => ({
     ok: true,
     value: input.items.map(() => ({})),
@@ -126,11 +132,14 @@ describe('asking for several things in one send', () => {
     });
     expect(mocks.requestEvidence).not.toHaveBeenCalled();
     expect(mocks.requestEvidenceBatch).toHaveBeenCalledTimes(1);
+    // The proof is asked for the case named (the traveller then comes from the proof itself).
+    expect(mocks.requireAccess.mock.calls[0]?.[3]).toEqual({ missionId: 'm1' });
+    expect(mocks.requireAccess.mock.calls[0]?.[4]).toMatchObject({
+      actingFor: { organizationId: 'org-1' },
+    });
+    expect(mocks.requestEvidenceBatch.mock.calls[0]?.[0]).toMatchObject({ tag: 'proof' });
     expect(mocks.requestEvidenceBatch.mock.calls[0]?.[1]).toMatchObject({
-      actorAccountId: 'admin-test',
       organizationId: 'org-1',
-      applicantId: 'a1',
-      missionId: 'm1',
       message: 'for the form',
       items: [
         { kind: 'DOCUMENT', key: 'NID' },
@@ -145,6 +154,8 @@ describe('asking for several things in one send', () => {
     const one = await requestEvidenceAction(initial, items(['DOCUMENT:NID', 'DOCUMENT:NID']));
     expect(one.message).toBe('Request sent. It stays open until the traveller replies.');
     expect(mocks.requestEvidenceBatch.mock.calls[0]?.[1].items).toHaveLength(1);
+    // No case named: the proof is for the traveller.
+    expect(mocks.requireAccess.mock.calls[0]?.[3]).toEqual({ applicantId: 'a1' });
   });
 
   it('refuses an empty send, more than the cap, and a badly shaped item, sending nothing', async () => {
@@ -158,6 +169,24 @@ describe('asking for several things in one send', () => {
       expect(result.ok, bad).toBe(false);
       expect(result.message).toBe('One of the items is not one we know. Choose from the list.');
     }
+    expect(mocks.requestEvidenceBatch).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('a traveller or case the organization cannot reach is refused before anything is written', async () => {
+    mocks.requireAccess.mockResolvedValue({ ok: false, error: { code: 'not_found' } });
+    const refused = await requestEvidenceAction(initial, items(['DOCUMENT:NID']));
+    expect(refused).toEqual({
+      ok: false,
+      message: 'this organization has no current grant for that applicant',
+    });
+    // A proof for a different traveller than the one named in the form is refused the same way.
+    mocks.requireAccess.mockResolvedValue({
+      ok: true,
+      value: { applicant: { id: 'someone-else' } },
+    });
+    const other = await requestEvidenceAction(initial, items(['DOCUMENT:NID']));
+    expect(other.ok).toBe(false);
     expect(mocks.requestEvidenceBatch).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
