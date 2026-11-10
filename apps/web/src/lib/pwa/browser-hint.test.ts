@@ -49,17 +49,13 @@ describe('the browser hint', () => {
 
   it('shows for a phone drawing a desktop-wide page (Chrome Desktop site)', () => {
     const hint = browserHint(env({ layoutWidth: 980 }));
-    expect(hint).toMatchObject({ show: true, reason: 'desktop-layout' });
+    expect(hint.show).toBe(true);
     // 980 / 412: the line is enlarged so it reads at the phone's real size.
     expect(hint.show && hint.scale).toBeCloseTo(2.38, 1);
   });
 
   it('shows when the home-screen marker arrives in a browser tab', () => {
-    expect(browserHint(env({ search: '?source=pwa' }))).toMatchObject({
-      show: true,
-      reason: 'home-screen-in-browser',
-      scale: 1,
-    });
+    expect(browserHint(env({ search: '?source=pwa' }))).toEqual({ show: true, scale: 1 });
   });
 
   it('stays hidden inside the installed app window, marker or not', () => {
@@ -80,6 +76,10 @@ describe('the browser hint', () => {
       show: false,
     });
     expect(browserHint(env({ screenWidth: 820, layoutWidth: 1180 }))).toEqual({ show: false });
+    // A touch laptop reopening the installed app's start page in a browser tab has no such setting.
+    expect(
+      browserHint(env({ screenWidth: 1366, layoutWidth: 1366, search: '?source=pwa' })),
+    ).toEqual({ show: false });
   });
 
   it('never flags Safari or another iPhone browser, whose setting has other words', () => {

@@ -40,11 +40,7 @@ export interface HintEnvironment {
 
 export type BrowserHint =
   | { readonly show: false }
-  | {
-      readonly show: true;
-      readonly reason: 'desktop-layout' | 'home-screen-in-browser';
-      readonly scale: number;
-    };
+  | { readonly show: true; readonly scale: number };
 
 const HIDDEN: BrowserHint = { show: false };
 
@@ -63,7 +59,7 @@ export function readableScale(layoutWidth: number, screenWidth: number): number 
 }
 
 /**
- * Whether to show the hint, and why. Only Chromium browsers on a touch device are considered:
+ * Whether to show the hint, and how much to enlarge it. Only Chromium browsers on a touch device are considered:
  * Chrome's setting is the one the line names, and Safari on an iPhone has its own wording.
  */
 export function browserHint(env: HintEnvironment): BrowserHint {
@@ -73,19 +69,20 @@ export function browserHint(env: HintEnvironment): BrowserHint {
   // Chrome, Edge and Samsung Internet report "Google Inc."; every browser on an iPhone says "Apple".
   if (!(env.navigator.vendor ?? '').includes('Google')) return HIDDEN;
 
-  const layoutWidth = env.document.documentElement.clientWidth;
+  // Phones only: a touch laptop or a tablet has no Desktop site setting to turn off.
   const screenWidth = env.screen.width;
+  if (!(screenWidth > 0 && screenWidth <= PHONE_SCREEN_MAX)) return HIDDEN;
+
+  const layoutWidth = env.document.documentElement.clientWidth;
   const scale = readableScale(layoutWidth, screenWidth);
 
-  if (screenWidth > 0 && screenWidth <= PHONE_SCREEN_MAX && layoutWidth >= DESKTOP_LAYOUT_MIN) {
-    return { show: true, reason: 'desktop-layout', scale };
-  }
+  if (layoutWidth >= DESKTOP_LAYOUT_MIN) return { show: true, scale };
   // A browser tab is the only display mode with an address bar; every installed window differs.
   if (
     hasHomeScreenMarker(env.location.search) &&
     env.matchMedia('(display-mode: browser)').matches
   ) {
-    return { show: true, reason: 'home-screen-in-browser', scale };
+    return { show: true, scale };
   }
   return HIDDEN;
 }

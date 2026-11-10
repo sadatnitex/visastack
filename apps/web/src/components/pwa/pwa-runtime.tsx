@@ -124,6 +124,12 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
     );
   }, []);
 
+  // The enlargement is a custom property set on the element itself (a shared class cannot hold a
+  // per-device number, and the interface rules keep inline style props out of this file).
+  const setHintScale = (element: HTMLElement | null) => {
+    if (element && browser.show) element.style.setProperty('--hint-scale', String(browser.scale));
+  };
+
   const dismissHint = () => {
     try {
       window.sessionStorage.setItem(HINT_DISMISSED_KEY, '1');
@@ -142,6 +148,19 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
 
   return (
     <div className={dock} data-pwa-runtime="">
+      {/* First in the dock: when it is enlarged it grows upward, clear of the notices below it. */}
+      {browser.show ? (
+        <aside
+          aria-label="Browser Tip"
+          className={`notice notice-warn ${message} ${hint}`}
+          ref={setHintScale}
+        >
+          <p>{BROWSER_HINT_TEXT}</p>
+          <button type="button" className="btn btn-secondary" onClick={dismissHint}>
+            Dismiss
+          </button>
+        </aside>
+      ) : null}
       {/* Always present so screen readers hear each change (a live region added later is missed). */}
       <output aria-live="polite">
         {connection === 'offline' ? (
@@ -154,18 +173,6 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
           <span className={`notice notice-ok ${message}`}>You are back online.</span>
         ) : null}
       </output>
-      {browser.show ? (
-        <aside
-          aria-label="Browser Tip"
-          className={`notice notice-warn ${message} ${hint}`}
-          style={{ '--hint-scale': browser.scale } as React.CSSProperties}
-        >
-          <p>{BROWSER_HINT_TEXT}</p>
-          <button type="button" className="btn btn-secondary" onClick={dismissHint}>
-            Dismiss
-          </button>
-        </aside>
-      ) : null}
       {waiting ? (
         <aside aria-label="App Update" className={`notice ${message} ${update}`}>
           <p>

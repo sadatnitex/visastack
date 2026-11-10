@@ -24,14 +24,16 @@
   display: block;
 }
 
-.update {
+.update,
+.hint {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
 }
 
-.update p {
+.update p,
+.hint p {
   flex: 1 1 14rem;
   margin: 0;
 }
@@ -42,22 +44,10 @@
   gap: 8px;
 }
 
-/* P11 browser tip: one flat line in the same dock. On a desktop-wide page (Chrome's Desktop site) the
-   whole page is drawn shrunk, so the line is made wider in layout and scaled back up from its bottom
-   edge to read at the phone's real size. It is fixed, so it never moves the page. */
-.hint {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  max-width: 32rem;
-}
-
-.hint p {
-  flex: 1 1 14rem;
-  margin: 0;
-}
-
+/* P11 browser tip: one flat line in the same dock, laid out like the update notice (see above). On a
+   desktop-wide page (Chrome's Desktop site) the whole page is drawn shrunk, so the line is made
+   wider in layout and scaled back up from its bottom edge to read at the phone's real size. It is
+   fixed and first in the dock, so it never moves the page or covers another notice. */
 .dock > .hint {
   width: calc(100% / var(--hint-scale, 1));
   transform: scale(var(--hint-scale, 1));
