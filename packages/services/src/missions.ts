@@ -9,7 +9,7 @@ import {
   ok,
   requirementNecessity,
 } from '@visastack/core';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { AuthorizedApplicant, accountPrincipal, requireAccess } from './access';
 import { lockCaseSharing } from './access/grant-scope';
 import { orgGrantPermits } from './agency';
@@ -24,7 +24,7 @@ import { checkCaseCreationEntitlement } from './entitlement-enforcement';
 import { activeOrVerifiedErasureStorageObjectIds } from './erasure';
 import { type ServiceError, serviceError } from './errors';
 import { type StalenessClassification, classifyStaleness, parseDocumentDate } from './expiry';
-import { savedReadinessForFinishedCase } from './finished-case-readiness';
+import { readStoredReadiness } from './finished-case-readiness';
 import {
   everydayDocumentCondition,
   lifecycleTablesPresent,
@@ -123,6 +123,13 @@ export const CASE_FINISHED_NO_CHANGE = 'This case is finished, so it can no long
 
 function finishedCaseRefusal(): ServiceError {
   return serviceError('invalid', CASE_FINISHED_NO_CHANGE);
+}
+
+/** Carries the finished-case refusal out of a transaction so every write in it is undone. */
+class FinishedCaseAbort extends Error {
+  constructor() {
+    super(CASE_FINISHED_NO_CHANGE);
+  }
 }
 
 async function ownedMission(
@@ -1079,6 +1086,62 @@ export async function computeReadiness(
   if (saved) return ok({ ...saved, savedCopy: 'AS_FINISHED' });
   const live = await computeLiveReadiness(db, mission, now);
   return live.ok ? ok({ ...live.value, savedCopy: 'NONE' }) : live;
+}
+
+/**
+ * The readiness a finished case had when it finished, or null when there is no copy to trust
+ * (the rules for choosing the copy are in `finished-case-readiness.ts`). Only the two parts
+ * needed are pulled out of the stored copy, so a long list of cases does not read whole copies.
+ */
+async function savedReadinessForFinishedCase(
+  db: Db,
+  mission: Mission,
+): Promise<ReturnType<typeof readStoredReadiness>> {
+  const parts = {
+    readiness: sql<unknown>`${schema.missionSnapshots.content} -> 'readiness'`,
+    copiedPackVersionId: sql<unknown>`${schema.missionSnapshots.content} #> '{packVersion,id}'`,
+  };
+  const submission = first(
+    await db
+      .select({ snapshotId: schema.missionSubmissions.snapshotId })
+      .from(schema.missionSubmissions)
+      .where(eq(schema.missionSubmissions.missionId, mission.id))
+      .orderBy(desc(schema.missionSubmissions.createdAt))
+      .limit(1),
+  );
+  if (submission) {
+    const copy = first(
+      await db
+        .select(parts)
+        .from(schema.missionSnapshots)
+        .where(
+          and(
+            eq(schema.missionSnapshots.id, submission.snapshotId),
+            eq(schema.missionSnapshots.missionId, mission.id),
+          ),
+        )
+        .limit(1),
+    );
+    return copy
+      ? readStoredReadiness(copy.readiness, copy.copiedPackVersionId, mission.packVersionId)
+      : null;
+  }
+  if (!mission.closedAt) return null;
+  const latest = first(
+    await db
+      .select({ ...parts, revision: schema.missionSnapshots.materialRevisionAtCapture })
+      .from(schema.missionSnapshots)
+      .where(
+        and(
+          eq(schema.missionSnapshots.missionId, mission.id),
+          lte(schema.missionSnapshots.createdAt, mission.closedAt),
+        ),
+      )
+      .orderBy(desc(schema.missionSnapshots.version))
+      .limit(1),
+  );
+  if (!latest || latest.revision !== mission.materialRevision) return null;
+  return readStoredReadiness(latest.readiness, latest.copiedPackVersionId, mission.packVersionId);
 }
 
 async function computeLiveReadiness(
@@ -2131,6 +2194,7 @@ export async function selectEvidence(
   );
   if (!loaded.ok) return loaded;
   const { mission, requirement } = loaded.value;
+  if (isFinishedCaseState(mission.state)) return err(finishedCaseRefusal());
 
   if (requirement.kind === 'FIELD') {
     if (!input.factId || input.documentId) {
@@ -2203,7 +2267,8 @@ export async function selectEvidence(
     );
     if (existing) return ok(existing);
 
-    await incrementMaterialRevision(tx, mission.id);
+    // First write after the checks: a case finished meanwhile changes nothing here.
+    if (!(await incrementMaterialRevision(tx, mission.id))) return err(finishedCaseRefusal());
     const selection = required(
       first(
         await tx
@@ -2248,32 +2313,39 @@ export async function unselectEvidence(
 ): Promise<Result<void, ServiceError>> {
   const owned = await ownedMission(db, input.actorAccountId, input.missionId);
   if (!owned.ok) return owned;
+  if (isFinishedCaseState(owned.value.state)) return err(finishedCaseRefusal());
 
-  return db.transaction(async (tx) => {
-    const deleted = first(
-      await tx
-        .delete(schema.selectedEvidence)
-        .where(
-          and(
-            eq(schema.selectedEvidence.id, input.selectionId),
-            eq(schema.selectedEvidence.missionId, input.missionId),
-          ),
-        )
-        .returning(),
-    );
-    if (!deleted) return err(serviceError('not_found', 'selection not found'));
-    await incrementMaterialRevision(tx, input.missionId);
-    await appendAuditEvent(tx, {
-      eventType: 'MISSION_EVIDENCE_UNSELECTED',
-      actorAccountId: input.actorAccountId,
-      method: 'MANUAL',
-      result: 'ALLOWED',
-      missionId: input.missionId,
-      resourceType: 'selected_evidence',
-      resourceId: input.selectionId,
+  try {
+    return await db.transaction(async (tx) => {
+      const deleted = first(
+        await tx
+          .delete(schema.selectedEvidence)
+          .where(
+            and(
+              eq(schema.selectedEvidence.id, input.selectionId),
+              eq(schema.selectedEvidence.missionId, input.missionId),
+            ),
+          )
+          .returning(),
+      );
+      if (!deleted) return err(serviceError('not_found', 'selection not found'));
+      // A case finished meanwhile rolls the delete back (the selection is removed before the bump).
+      if (!(await incrementMaterialRevision(tx, input.missionId))) throw new FinishedCaseAbort();
+      await appendAuditEvent(tx, {
+        eventType: 'MISSION_EVIDENCE_UNSELECTED',
+        actorAccountId: input.actorAccountId,
+        method: 'MANUAL',
+        result: 'ALLOWED',
+        missionId: input.missionId,
+        resourceType: 'selected_evidence',
+        resourceId: input.selectionId,
+      });
+      return ok(undefined);
     });
-    return ok(undefined);
-  });
+  } catch (error) {
+    if (error instanceof FinishedCaseAbort) return err(finishedCaseRefusal());
+    throw error;
+  }
 }
 
 /** Every current evidence selection for a mission (owner-scoped). */

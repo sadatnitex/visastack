@@ -26,6 +26,7 @@ import {
   selectEvidence,
   snapshotMission,
   transitionMission,
+  unselectEvidence,
   updateMissionCaseDetails,
 } from './missions';
 import { sweepExpiryReminders } from './notification-sweep';
@@ -421,6 +422,40 @@ describe('a finished case refuses changes to itself', () => {
     expect(after.materialRevision).toBe(before.materialRevision);
     expect(after.jurisdiction).toBe(before.jurisdiction);
     expect(await db.select().from(schema.missionSnapshots)).toHaveLength(snapshotsBefore.length);
+    expect(await liveConfirmations(db, c.finishedId)).toBe(1);
+  });
+
+  it('refuses to choose or remove evidence and leaves the choice and the revision alone', async () => {
+    const c = await twoCases(db, 'FIELD');
+    const [selection] = await db
+      .select()
+      .from(schema.selectedEvidence)
+      .where(eq(schema.selectedEvidence.missionId, c.finishedId));
+    if (!selection?.factId) throw new Error('selection');
+    const before = await caseRow(db, c.finishedId);
+
+    const removed = await unselectEvidence(db, {
+      actorAccountId: c.accountId,
+      missionId: c.finishedId,
+      selectionId: selection.id,
+    });
+    const chosen = await selectEvidence(db, {
+      actorAccountId: c.accountId,
+      missionId: c.finishedId,
+      packRequirementId: selection.packRequirementId,
+      factId: selection.factId,
+    });
+    for (const result of [removed, chosen]) {
+      if (result.ok) throw new Error('expected a refusal');
+      expect(result.error.message).toBe(CASE_FINISHED_NO_CHANGE);
+    }
+    expect(
+      await db
+        .select()
+        .from(schema.selectedEvidence)
+        .where(eq(schema.selectedEvidence.missionId, c.finishedId)),
+    ).toHaveLength(1);
+    expect((await caseRow(db, c.finishedId)).materialRevision).toBe(before.materialRevision);
     expect(await liveConfirmations(db, c.finishedId)).toBe(1);
   });
 

@@ -6,7 +6,9 @@ import { INACTIVE_CASE_STATES } from './umpe-package-tables';
 /**
  * True when a case is finished: submitted, closed or cancelled. A finished case is frozen (owner
  * decision, 10 Nov 2026): nothing that later changes in the traveller's record changes it, bumps
- * its revision or voids its confirmation. The one test of the shared state list.
+ * its revision or voids its confirmation. The same list as `INACTIVE_CASE_STATES` (the states
+ * after which a case is no longer worked on); some older code tests that list inline and can move
+ * to this helper later.
  */
 export function isFinishedCaseState(state: string): boolean {
   return (INACTIVE_CASE_STATES as readonly string[]).includes(state);

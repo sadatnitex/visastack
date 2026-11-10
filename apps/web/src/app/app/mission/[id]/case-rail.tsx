@@ -274,7 +274,9 @@ function PackCard({
           </>
         ) : (
           <>
-            {packOptions.length === 0 ? (
+            {isFinishedCaseState(mission.state) ? (
+              <p className="lift-rail-line">No checklist was linked to this case.</p>
+            ) : packOptions.length === 0 ? (
               // VS-006: no reviewed checklist to pick. Say so and why, and promise nothing.
               <>
                 {noChecklistLines.map((line) => (
@@ -296,8 +298,6 @@ function PackCard({
                   </p>
                 ) : null}
               </>
-            ) : isFinishedCaseState(mission.state) ? (
-              <p className="lift-rail-line">No checklist was linked to this case.</p>
             ) : (
               <p className="lift-rail-line">
                 Pick a checklist: attach a published requirement pack to see how many items are

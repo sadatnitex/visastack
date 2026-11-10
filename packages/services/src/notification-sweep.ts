@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { AuthorizedApplicant } from './access/require-access';
 import { type Db, schema } from './db';
 import { classifyExpiry, getReminderThresholds } from './expiry';
@@ -243,7 +243,9 @@ export interface ExpirySweepResult extends SweepResult {
  * every later run, so this becomes a no-op until someone re-acknowledges
  * (over still-expired evidence, which the next run then correctly
  * invalidates again) -- continuous enforcement for as long as the underlying
- * defect persists, never a one-time flag that goes stale itself.
+ * defect persists, never a one-time flag that goes stale itself. A finished
+ * case (submitted, closed, cancelled) is left out: it is frozen, keeps its
+ * confirmation, and is not visited again.
  */
 export async function sweepExpiryReminders(
   db: Db,
@@ -288,10 +290,24 @@ export async function sweepExpiryReminders(
     const classification = classifyExpiry(row.expiresAt, now, thresholds);
 
     if (classification.urgency === 'expired') {
-      for (const missionId of await missionsSelectingDocument(db, row.documentId)) {
+      // A finished case is frozen and keeps its confirmation, so it is left out here rather than
+      // visited on every run for a bump that would change nothing.
+      const selecting = await missionsSelectingDocument(db, row.documentId);
+      const open =
+        selecting.length === 0
+          ? []
+          : await db
+              .select({ id: schema.missions.id })
+              .from(schema.missions)
+              .where(
+                and(
+                  inArray(schema.missions.id, [...selecting]),
+                  notInArray(schema.missions.state, [...INACTIVE_CASE_STATES]),
+                ),
+              );
+      for (const { id: missionId } of open) {
         const live = await getLiveAcknowledgement(db, missionId);
         if (!live) continue;
-        // A finished case is frozen: its confirmation stays and it is not counted.
         const changed = await db.transaction((tx) => incrementMaterialRevision(tx, missionId));
         if (changed) missionsDirtied++;
       }

@@ -412,9 +412,7 @@ export function LettersPanel({
         </div>
       )}
       {finishedLine ? (
-        <p className="muted" style={{ fontSize: 'var(--text-caption)' }}>
-          {finishedLine}
-        </p>
+        <p className="muted u-fs-085 u-m-0">{finishedLine}</p>
       ) : (
         <form action={formAction}>
           <input type="hidden" name="missionId" value={missionId} />

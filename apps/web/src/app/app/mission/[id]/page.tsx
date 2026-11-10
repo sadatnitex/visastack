@@ -236,7 +236,8 @@ export default async function MissionPage({
         ? getPackVersion(db, mission.packVersionId)
         : Promise.resolve(undefined),
       listMissionSnapshots(db, accountId, mission.id, { limit: SNAPSHOTS_ON_PAGE }),
-      mission.packVersionId
+      // A finished case takes no new checklist, so none is looked up for it.
+      mission.packVersionId || isFinishedCaseState(mission.state)
         ? Promise.resolve(NOTHING_TO_PICK)
         : selectableChecklists(db, { accountId, mission }),
       listTasks(db, accountId, mission.id, { limit: shown.tasks }),
@@ -477,7 +478,9 @@ export default async function MissionPage({
     // "This case is dirty" (§5): was acknowledged at least once, that
     // acknowledgement was later invalidated by a material edit, and no new
     // live acknowledgement has replaced it since.
+    // A finished case cannot be confirmed again, so it is never shown as needing it.
     const isDirty =
+      !isFinishedCaseState(mission.state) &&
       allAcknowledgements.ok &&
       !liveAcknowledgement &&
       allAcknowledgements.value.some(
@@ -551,9 +554,10 @@ export default async function MissionPage({
     // shows none. `checklists` is null when the case already has one linked.
     // VS-006: when reviewed checklists exist for the route but none fits, or none exists, the
     // reason is worked out once and shared by the welcome note and the Requirement Pack card.
-    const emptyReasons = mission.packVersionId
-      ? []
-      : await noChecklistReasons(db, accountId, mission, choices);
+    const emptyReasons =
+      mission.packVersionId || isFinishedCaseState(mission.state)
+        ? []
+        : await noChecklistReasons(db, accountId, mission, choices);
     const welcomeNote =
       welcomeAsked && madeJustNow(mission.createdAt)
         ? {
@@ -931,7 +935,11 @@ export default async function MissionPage({
                 applicantId={data.applicantId}
                 canCancel={canCancel}
                 canDelete={mission.state === 'CANCELLED'}
-                headerActions={{ addEvidenceHref: '#evidence', newCaseHref }}
+                headerActions={{
+                  addEvidenceHref: '#evidence',
+                  newCaseHref,
+                  snapshot: !isFinishedCaseState(mission.state),
+                }}
               />
             </>
           }
@@ -957,10 +965,14 @@ export default async function MissionPage({
           // What a finished case shows: the copy saved while it was open, or, when none was saved,
           // today's reading with a plain line saying so.
           <p className="muted" id="case-finished-note">
-            {CASE_FINISHED_NO_CHANGE}{' '}
-            {data.readiness?.savedCopy === 'AS_FINISHED'
-              ? 'The progress shown is how it stood when it finished.'
-              : NO_SAVED_COPY}
+            {CASE_FINISHED_NO_CHANGE}
+            {data.readiness
+              ? ` ${
+                  data.readiness.savedCopy === 'AS_FINISHED'
+                    ? 'The progress shown is how it stood when it finished.'
+                    : NO_SAVED_COPY
+                }`
+              : ''}
           </p>
         ) : null}
 
