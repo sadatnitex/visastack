@@ -76,7 +76,10 @@ export async function submitContributorEvidenceAction(
     );
     if (!reservation.ok) {
       await abandonContributorSubmission(db, request.id);
-      return { ok: false, message: reservation.error.message } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(reservation.error),
+      } satisfies ActionState;
     }
     const intent = reservation.value;
     const storage = createStorage(db);

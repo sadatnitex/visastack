@@ -65,6 +65,7 @@ import {
 import { ensureDocumentFieldsRegistered } from '../../../../lib/field-registry';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { fieldRegistryInputOf, savableField } from '../../../../lib/master-profile';
+import { plainSentence } from '../../../../lib/plain-sentence';
 import { createKeyManagementPort } from '../../../../lib/providers';
 import { createPreviewRenderer } from '../../../../lib/providers-media';
 import { reportServerError } from '../../../../lib/server-error';
@@ -1067,12 +1068,6 @@ function plainError(error: ServiceError): string {
 /** The same, worded in the visitor's language when the refusal has a key. */
 async function plainErrorText(error: ServiceError): Promise<string> {
   return plainSentence(await serviceErrorMessage(error));
-}
-
-function plainSentence(message: string): string {
-  const text = message.trim();
-  if (text.length === 0) return 'Something went wrong. Try again.';
-  return `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? '' : '.'}`;
 }
 
 /**

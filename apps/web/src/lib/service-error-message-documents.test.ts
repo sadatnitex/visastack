@@ -2,8 +2,13 @@ import { keyedError, serviceError } from '@visastack/services';
 import { serviceMessages } from '@visastack/services/i18n';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const state = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn' }));
-vi.mock('./locale', () => ({ getLocale: async () => state.locale }));
+const state = vi.hoisted(() => ({ locale: 'en' as 'en' | 'bn', fail: null as unknown }));
+vi.mock('./locale', () => ({
+  getLocale: async () => {
+    if (state.fail) throw state.fail;
+    return state.locale;
+  },
+}));
 
 const { serviceErrorMessage } = await import('./service-error-message');
 
@@ -14,6 +19,7 @@ const bnKeys = Object.keys(serviceMessages.bn).filter(
 
 beforeEach(() => {
   state.locale = 'en';
+  state.fail = null;
 });
 
 describe('serviceErrorMessage for document refusals', () => {
@@ -54,5 +60,22 @@ describe('serviceErrorMessage for document refusals', () => {
     expect(await serviceErrorMessage(error)).toBe(
       '"Slip" is not a known document type. Pick one from the list, or use "Other Document".',
     );
+  });
+
+  it('shows English when there is no request to read the language from', async () => {
+    state.fail = new Error('cookies called outside a request');
+    expect(await serviceErrorMessage(keyedError('not_found', 'documents.documentNotFound'))).toBe(
+      'document not found',
+    );
+  });
+
+  it("lets Next's own redirect signal travel instead of swallowing it", async () => {
+    const signal = Object.assign(new Error('NEXT_REDIRECT'), {
+      digest: 'NEXT_REDIRECT;replace;/x;307;',
+    });
+    state.fail = signal;
+    await expect(
+      serviceErrorMessage(keyedError('not_found', 'documents.documentNotFound')),
+    ).rejects.toBe(signal);
   });
 });
