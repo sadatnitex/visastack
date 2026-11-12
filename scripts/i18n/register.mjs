@@ -222,6 +222,10 @@ export const HOLDBACK = new Map([
     'SG-cdb5fd11',
     'No records to connect: authorization screen wording waits for the owner sign-off.',
   ],
+  [
+    'SG-07369aca',
+    'Client invitation cannot be shown, ask the agency to send it again: invitation recovery wording waits for the owner sign-off.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

@@ -35,8 +35,6 @@ export const appClientInvitationsCatalog = defineCatalog({
   bn: {
     'appClientInvitations.appClientInvitationsAcceptAcceptForm.profileNameOptional':
       'প্রোফাইলের নাম (ঐচ্ছিক)',
-    'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationCannotBeShownRight':
-      'এই আমন্ত্রণ এখন দেখানো যাচ্ছে না। এজেন্সিকে আবার পাঠাতে বলুন।',
     'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationLinkIsMissingIts':
       'এই আমন্ত্রণ লিংকে টোকেন নেই।',
     'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationLinkIsNotValid':

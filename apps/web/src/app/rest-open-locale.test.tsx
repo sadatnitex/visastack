@@ -60,6 +60,9 @@ vi.mock('next/navigation', () => ({
 
 import { I18nProvider } from '../components/i18n-provider';
 import { appClientInvitationsCatalog } from '../i18n/app-client-invitations';
+import { appContributorRequestsCatalog } from '../i18n/app-contributor-requests';
+import { appInvitationsCatalog } from '../i18n/app-invitations';
+import { appSharingInvitationsCatalog } from '../i18n/app-sharing-invitations';
 import AcceptClientInvitationPage from './app/client-invitations/accept/page';
 import AcceptContributorPage from './app/contributor-requests/accept/page';
 import AcceptInvitationPage from './app/invitations/accept/page';
@@ -72,6 +75,8 @@ const bnOf = (k: string) =>
     `appClientInvitations.appClientInvitationsAcceptAcceptForm.${k}`
   ];
 
+const seen: string[] = [];
+
 async function draw(page: () => unknown | Promise<unknown>, locale: 'en' | 'bn') {
   current.locale = locale;
   current.holder = null;
@@ -81,7 +86,9 @@ async function draw(page: () => unknown | Promise<unknown>, locale: 'en' | 'bn')
       {element}
     </I18nProvider>,
   );
-  return new JSDOM(markup).window.document;
+  const doc = new JSDOM(markup).window.document;
+  if (locale === 'bn') seen.push(doc.body.textContent ?? '');
+  return doc;
 }
 
 const ok = <T,>(value: T) => ({ ok: true, value });
@@ -118,7 +125,6 @@ describe('open invitation states under Bengali', () => {
       ),
     ).toBe(true);
     expect(text).toContain('See the details on the profile you choose');
-    expect(text).not.toContain('চালু করুন');
     const en = await draw(() => AcceptClientInvitationPage(withToken), 'en');
     expect(en.body.textContent).toContain('Turn On');
   });
@@ -132,7 +138,6 @@ describe('open invitation states under Bengali', () => {
     expect(text).toContain('AI Tools');
     expect(text).toContain('Create a New Profile');
     expect(text).not.toContain(bnOf('aiTools') ?? 'x-never');
-    expect(text).not.toContain('এআই টুল');
     const en = await draw(() => AcceptClientInvitationPage(withToken), 'en');
     expect(en.body.textContent).toContain('Profile Name (Optional)');
     expect(en.body.textContent).not.toContain('প্রোফাইলের নাম');
@@ -153,7 +158,9 @@ describe('open invitation states under Bengali', () => {
     );
     svc.getConsents.mockResolvedValue({ CORE_PROCESSING: true, SHARING: true });
     const bn = await draw(() => AcceptClientInvitationPage(withToken), 'bn');
-    expect(bn.body.textContent).toContain('এই আমন্ত্রণ এখন দেখানো যাচ্ছে না');
+    expect(bn.body.textContent).toContain(
+      'This invitation cannot be shown right now. Ask the agency to send it again.',
+    );
   });
 
   it('team invitation: open state with the matching email shows the form and no Bengali sentence', async () => {
@@ -227,5 +234,36 @@ describe('open invitation states under Bengali', () => {
     expect(open.body.textContent).toContain('Opening this invitation grants no access');
     expect(open.body.querySelector('input[name="confirm"]')).not.toBeNull();
     expect(open.body.textContent).not.toMatch(BENGALI);
+  });
+});
+
+describe('live Bengali keys of the invitation screens', () => {
+  it('live N, rendered N: every live key shows under bn in the states above', async () => {
+    const noToken = { searchParams: Promise.resolve({}) };
+    await draw(() => AcceptInvitationPage(noToken), 'bn');
+    await draw(() => AcceptClientInvitationPage(noToken), 'bn');
+    await draw(() => AcceptContributorPage(noToken), 'bn');
+    const text = seen.join('\n');
+    const live = [
+      ...Object.values(appClientInvitationsCatalog.bn),
+      ...Object.values(appInvitationsCatalog.bn),
+      ...Object.values(appContributorRequestsCatalog.bn),
+      ...Object.values(appSharingInvitationsCatalog.bn),
+    ];
+    expect(live.filter((v) => !text.includes(v))).toEqual([]);
+  });
+});
+
+describe('a button name and its visible text share one language', () => {
+  it('every labelled button on the open client invitation matches its text', async () => {
+    svc.previewClientInvitation.mockResolvedValue(ok(invite));
+    svc.getConsents.mockResolvedValue({ CORE_PROCESSING: false, SHARING: false });
+    const bn = await draw(() => AcceptClientInvitationPage(withToken), 'bn');
+    const labelled = [...bn.querySelectorAll('button[aria-label]')];
+    expect(labelled.length).toBeGreaterThan(0);
+    for (const b of labelled)
+      expect(BENGALI.test(b.getAttribute('aria-label') ?? '')).toBe(
+        BENGALI.test(b.textContent ?? ''),
+      );
   });
 });

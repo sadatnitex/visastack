@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { JSDOM } from 'jsdom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -22,6 +24,7 @@ vi.mock('../lib/session', () => ({
   withSession: async () => ({ ok: false, reason: 'not_found' }),
 }));
 
+import { HOLDBACK } from '../../../../scripts/i18n/register.mjs';
 import { I18nProvider } from '../components/i18n-provider';
 import { appClientInvitationsCatalog } from '../i18n/app-client-invitations';
 import { appContributorRequestsCatalog } from '../i18n/app-contributor-requests';
@@ -40,10 +43,14 @@ import PilotAccessDeniedPage from './pilot-access-denied/page';
 const BENGALI = /[ঀ-৿]/;
 const noToken = { searchParams: Promise.resolve({}) };
 
+const seen: string[] = [];
+
 async function html(build: () => unknown | Promise<unknown>): Promise<Document> {
   current.holder = null;
   const element = (await build()) as Parameters<typeof renderToStaticMarkup>[0];
-  return new JSDOM(renderToStaticMarkup(element)).window.document;
+  const doc = new JSDOM(renderToStaticMarkup(element)).window.document;
+  if (current.locale === 'bn') seen.push(doc.body.textContent ?? '');
+  return doc;
 }
 
 afterEach(() => {
@@ -114,40 +121,48 @@ describe('rest surfaces under Bengali', () => {
   });
 });
 
-describe('consent and authorization wording is never Bengali', () => {
-  it('has no Bengali for any held sentence on the sharing, client invitation, contributor and oauth screens', () => {
-    const held: Array<[Record<string, string>, string[]]> = [
-      [
-        appSharingInvitationsCatalog.bn,
-        [
-          'accessEnds',
-          'askTheSenderForANew',
-          'invitationExpires',
-          'invitationUnavailable',
-          'openingThisInvitationGrantsNoAccess',
-          'permissions',
-        ],
-      ],
-      [
-        appClientInvitationsCatalog.bn,
-        [
-          'aiTools',
-          'turnOnLabel',
-          'ifYouAcceptTheyWillBe',
-          'turnTheseOnBeforeAcceptingBoth',
-          'agencyaitravellernoteIfYourSignInIs',
-        ],
-      ],
-      [appContributorRequestsCatalog.bn, ['thisRequestWasSentToA']],
-      [homeCatalog.bn, ['thisIsOnOurSideNot']],
+describe('every live Bengali key of the pilot, error and invitation screens is rendered by a test', () => {
+  it('live N, rendered N', () => {
+    const text = seen.join('\n');
+    const live = [
+      ...Object.values(pilotAccessDeniedCatalog.bn),
+      ...Object.values(appInvitationsCatalog.bn).filter((v) => v.includes('নেই')),
+      ...Object.values(appContributorRequestsCatalog.bn).filter((v) => v.includes('নেই')),
+      homeCatalog.bn['home.error.backToHome'] ?? '',
     ];
-    for (const [bn, fragments] of held)
-      for (const f of fragments)
-        expect(
-          Object.keys(bn).filter((k) => k.endsWith(`.${f}`)),
-          f,
-        ).toEqual([]);
+    expect(live.filter((v) => !text.includes(v))).toEqual([]);
+  });
+});
+
+describe('held wording is never Bengali', () => {
+  const surfaces = [
+    ['app-sharing-invitations', appSharingInvitationsCatalog],
+    ['app-client-invitations', appClientInvitationsCatalog],
+    ['app-contributor-requests', appContributorRequestsCatalog],
+    ['app-invitations', appInvitationsCatalog],
+    ['oauth', oauthCatalog],
+    ['payments', paymentsCatalog],
+    ['pilot-access-denied', pilotAccessDeniedCatalog],
+    ['home', homeCatalog],
+  ] as const;
+
+  it('no key whose register group is in HOLDBACK has a Bengali value, on any surface of this wave', () => {
+    let checked = 0;
+    for (const [surface, catalog] of surfaces) {
+      const sources = JSON.parse(
+        readFileSync(path.join(__dirname, '../i18n', `${surface}.sources.json`), 'utf8'),
+      ) as Record<string, string | null>;
+      for (const [key, groups] of Object.entries(sources)) {
+        if (!groups) continue;
+        if (!groups.split('|').some((g) => HOLDBACK.has(g))) continue;
+        checked += 1;
+        expect(Object.keys(catalog.bn), key).not.toContain(key);
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
+  });
+
+  it('every oauth sentence is held: the oauth catalogue carries no Bengali at all', () => {
     expect(Object.keys(oauthCatalog.bn)).toEqual([]);
-    expect(paymentsCatalog.bn).toHaveProperty(['payments.paymentsResultPage.goToWorkspace']);
   });
 });

@@ -344,6 +344,7 @@ describe('holdback list', () => {
     'SG-02122e22',
     'SG-03d5ab6c',
     'SG-056ff2bb',
+    'SG-07369aca',
     'SG-0c3f69ec',
     'SG-0f9d5b37',
     'SG-1206824f',
