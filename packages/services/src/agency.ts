@@ -42,6 +42,7 @@ import {
   newerUnlinkedDecision,
   pinnedVersionIntact,
 } from './evidence-submission-tables';
+import type { ServiceMessageKey } from './i18n';
 import {
   lifecycleTablesPresent,
   presentApplicantCondition,
@@ -3445,7 +3446,7 @@ export async function decideEvidenceResponse(
       }
       if (pinned) {
         const problem = await pinnedCopyProblem(tx, pinned, lifecycle);
-        if (problem) return err(serviceError('invalid', problem));
+        if (problem) return err(keyedError('invalid', problem));
       } else {
         // A send recorded before exact copies were kept: the newest version of the document it
         // points at must still be usable evidence (the check the older flow made at send time).
@@ -3598,8 +3599,8 @@ export async function decideEvidenceResponse(
 
 type SubmissionRecord = typeof schema.evidenceRequestSubmissions.$inferSelect;
 
-const UNAVAILABLE_COPY =
-  'The copy that was sent is no longer available as it was sent, so it cannot be accepted. Ask for a replacement.';
+const UNAVAILABLE_COPY: ServiceMessageKey = 'agency.the_copy_that_was_sent_is';
+const FILED_AS_OTHER_KIND: ServiceMessageKey = 'agency.the_file_was_filed_as_a';
 
 /**
  * The newest send of a request, if it is still waiting for a decision: not yet decided, and the
@@ -3643,7 +3644,7 @@ async function pinnedCopyProblem(
   db: Db,
   submission: SubmissionRecord,
   lifecycle: boolean,
-): Promise<string | undefined> {
+): Promise<ServiceMessageKey | undefined> {
   const unavailable = UNAVAILABLE_COPY;
   const version = first(
     await db
@@ -3668,7 +3669,7 @@ async function pinnedCopyProblem(
   );
   if (!document) return unavailable;
   if ((document.docType ?? null) !== (submission.docTypeAtSend ?? null)) {
-    return 'The file was filed as a different kind after it was sent, so it cannot be accepted as sent. Ask for a replacement.';
+    return FILED_AS_OTHER_KIND;
   }
   return undefined;
 }

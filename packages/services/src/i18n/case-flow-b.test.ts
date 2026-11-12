@@ -349,6 +349,10 @@ const OLD_ENGLISH: ReadonlyArray<readonly [string, string]> = [
     'umpe_outcome_service.this_cannot_be_earlier_than_the',
     'This cannot be earlier than the day the attempt was sent.',
   ],
+  [
+    'agency.the_file_was_filed_as_a',
+    'The file was filed as a different kind after it was sent, so it cannot be accepted as sent. Ask for a replacement.',
+  ],
 ];
 
 const FILES = [
@@ -386,7 +390,9 @@ describe('case-flow refusals, second half', () => {
     const used = new Set<string>();
     for (const file of FILES) {
       const source = readFileSync(join(__dirname, '..', `${file}.ts`), 'utf8');
-      for (const m of source.matchAll(/keyedError\(\s*'\w+',\s*'([^']+)'/g))
+      for (const m of source.matchAll(
+        /(?:keyedError\(\s*'\w+',\s*|: ServiceMessageKey =\s*)'([^']+)'/g,
+      ))
         used.add(m[1] as string);
     }
     expect(used.size).toBeGreaterThan(100);

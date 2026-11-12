@@ -200,6 +200,8 @@ export const caseFlowBEn = {
   'umpe_outcome_service.that_attempt_is_not_available': 'That attempt is not available.',
   'umpe_outcome_service.this_cannot_be_earlier_than_the':
     'This cannot be earlier than the day the attempt was sent.',
+  'agency.the_file_was_filed_as_a':
+    'The file was filed as a different kind after it was sent, so it cannot be accepted as sent. Ask for a replacement.',
 } as const;
 
 export const caseFlowBBn = {
