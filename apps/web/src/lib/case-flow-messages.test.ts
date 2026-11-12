@@ -41,4 +41,11 @@ describe('case flow refusals on the screens', () => {
       'case not found',
     );
   });
+
+  it('puts a raw number into the sentence for a refusal with a number', async () => {
+    locale.value = 'en';
+    expect(
+      await serviceErrorMessage(keyedError('invalid', 'umpe_trip_service.trip_full', { max: 5 })),
+    ).toBe('A trip holds up to 5 travellers.');
+  });
 });
