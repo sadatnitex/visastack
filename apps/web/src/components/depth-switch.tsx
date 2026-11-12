@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { componentsCatalog } from '../i18n/components';
 import {
   DEPTH_COOKIE,
   DEPTH_COOKIE_MAX_AGE,
@@ -16,7 +15,6 @@ import {
   serializeDepthCookie,
 } from '../lib/ccd/depth';
 import { currentLevel, focusTarget, raiseToShow } from '../lib/ccd/reveal';
-import { useT } from './i18n-provider';
 
 export interface DepthSwitchCopy {
   readonly group: string;
@@ -76,7 +74,6 @@ export function DepthSwitch({
    */
   readonly notesBehindInfo?: boolean;
 }) {
-  const t = useT(componentsCatalog);
   const root = useRef<HTMLDivElement>(null);
   const [choice, setChoice] = useState<DepthChoice>(initial);
   const [status, setStatus] = useState('');
