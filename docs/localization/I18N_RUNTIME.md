@@ -34,3 +34,15 @@ While `LANGUAGE_CHOICE_ENABLED` is false every visitor sees English. So that bro
 - The deployment mode is exactly `development`. `controlled_pilot` and `commercial` never qualify.
 
 Anything unexpected gives English. The language picker, `setLocaleAction` and every visitor action are unchanged; only how a cookie is read changes. Never set the flag in `apps/web/vercel.json`, a Dockerfile, an env example or a workflow: `locale-preview-guard.test.ts` fails if it appears there (a later package that uses it in the browser-check workflow adds that one file to the guard's allow list in review). A localized check step needs `DEPLOYMENT_MODE=development` and `LOCALE_PREVIEW=1`, set only for that step.
+
+## Language of parts (WCAG 3.1.2)
+
+`<html lang>` names the language of the page (`pageLanguage` in `apps/web/src/lib/page-language.ts`). Text inside the page that is in the other language needs its own `lang`: Bengali from a catalogue on a page marked English, and English fallback text on a page marked Bengali.
+
+- `catalogResolve(catalog, locale, key, params)` in `@visastack/i18n` returns `{ text, lang }`, where `lang` is the language actually used: `bn` when a Bengali value exists, otherwise `en`. `catalogTranslator` is built on it and behaves as before. The package has no React in it.
+- The page language is worked out once per request. `primeLocale()` reads the request path and stores `pageLanguage(locale, path)` next to the locale in the same request-scoped holder. The root layout takes `<html lang>` from `getPageLanguage()` and passes the same value to `I18nProvider` as `pageLang`, so the page and the translators cannot disagree. With no request to read (a unit test) the page language is `en`.
+- `getServerT`, `getT` and `useT` still return a callable string translator, and now also:
+  - `t.node(key, params)`: the bare string when the message is in the page language, otherwise `<span lang="...">text</span>`. Use it for text rendered as a child.
+  - `t.lang(key)`: `{}` or `{ lang }`, to spread onto an element that holds only that message, for example `<h2 {...t.lang('k')}>`.
+- English is unchanged: under locale `en` every key resolves `en` and the page is `en`, so `t.node` returns the bare string and the English HTML is byte-identical (checked with `verify-english snapshot` and `compare`).
+- Call sites are not converted here. A marking pass after the conversion waves merge switches JSX text from `{t('k')}` to `{t.node('k')}` across the converted screens at once. Keep `t('k')` for attributes and other plain-string uses.
