@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { serviceMessages } from './i18n';
 
 /**
  * Commercial V1 Part 9 UX-01: internal implementation vocabulary must not reach
@@ -33,7 +34,12 @@ function serviceErrorMessages(): Message[] {
   return found;
 }
 
-const messages = serviceErrorMessages();
+/** Messages that live in the catalogue: the same words, so the same rules (the real object, not a scrape). */
+function catalogueMessages(en: Readonly<Record<string, string>>): Message[] {
+  return Object.entries(en).map(([key, text]) => ({ file: `i18n/${key}`, text }));
+}
+
+const messages = [...serviceErrorMessages(), ...catalogueMessages(serviceMessages.en)];
 const describeHits = (hits: readonly Message[]) =>
   hits.map((m) => `${m.file}: ${JSON.stringify(m.text)}`).join('\n');
 
@@ -59,5 +65,13 @@ describe('service error messages use product words', () => {
   it('never shows an internal job state to someone downloading an export', () => {
     const hits = messages.filter((m) => /\bexport job\b|\bREADY but\b/i.test(m.text));
     expect(hits, describeHits(hits)).toEqual([]);
+  });
+});
+
+describe('the catalogue scan itself', () => {
+  it('reads every en value and finds a sentence that breaks a vocabulary rule', () => {
+    const sample = catalogueMessages({ 'a.b': 'This mission failed', c: 'Fine' });
+    expect(sample.map((m) => m.text)).toEqual(['This mission failed', 'Fine']);
+    expect(sample.filter((m) => /\bmissions?\b/i.test(m.text))).toHaveLength(1);
   });
 });
