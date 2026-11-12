@@ -102,21 +102,21 @@ function ComparePlans({
   ];
   return (
     <article className="card u-mt-150" aria-labelledby="compare-plans-title">
-      <p className="card-kicker">{t('appAccount.appAccountPlanPage.moreRoom')}</p>
+      <p className="card-kicker">{t.node('appAccount.appAccountPlanPage.moreRoom')}</p>
       <h2 className="card-title" id="compare-plans-title">
-        {t('appAccount.appAccountPlanPage.comparePlans')}
+        {t.node('appAccount.appAccountPlanPage.comparePlans')}
       </h2>
       <p className="card-body">
-        {t('appAccount.appAccountPlanPage.everythingInVisastackStaysFreeDuring')}
+        {t.node('appAccount.appAccountPlanPage.everythingInVisastackStaysFreeDuring')}
       </p>
       <div className="u-mt-100">
         <table className="data-table">
           <caption className="sr-only">
-            {t('appAccount.appAccountPlanPage.travellerFreeAndThePaidPlans')}
+            {t.node('appAccount.appAccountPlanPage.travellerFreeAndThePaidPlans')}
           </caption>
           <thead>
             <tr>
-              <th scope="col">{t('appAccount.appAccountPlanPage.whatYouGet')}</th>
+              <th scope="col">{t.node('appAccount.appAccountPlanPage.whatYouGet')}</th>
               {columns.map((column) => (
                 <th scope="col" key={column.id}>
                   {column.name}
@@ -126,7 +126,7 @@ function ComparePlans({
           </thead>
           <tbody>
             <tr>
-              <th scope="row">{t('appAccount.appAccountPlanPage.price')}</th>
+              <th scope="row">{t.node('appAccount.appAccountPlanPage.price')}</th>
               {columns.map((column) => (
                 <td key={column.id} data-label={column.name}>
                   {column.price}
@@ -134,7 +134,9 @@ function ComparePlans({
               ))}
             </tr>
             <tr>
-              <th scope="row">{t('appAccount.appAccountPlanPage.storageForTheWholeAccount')}</th>
+              <th scope="row">
+                {t.node('appAccount.appAccountPlanPage.storageForTheWholeAccount')}
+              </th>
               {columns.map((column) => (
                 <td key={column.id} data-label={column.name}>
                   {mbLabel(column.storage.accountBytes ?? settings.accountBytes)}
@@ -142,7 +144,7 @@ function ComparePlans({
               ))}
             </tr>
             <tr>
-              <th scope="row">{t('appAccount.appAccountPlanPage.storagePerPerson')}</th>
+              <th scope="row">{t.node('appAccount.appAccountPlanPage.storagePerPerson')}</th>
               {columns.map((column) => (
                 <td key={column.id} data-label={column.name}>
                   {mbLabel(column.storage.personBytes ?? settings.personBytes)}
@@ -211,7 +213,7 @@ function RenewalControls({ renewal, now }: { readonly renewal: OwnRenewal; reado
             className="btn btn-primary"
             href={`${PLAN_PATH}?${PURCHASE_PARAM}=${open.invoiceId}#confirm-purchase-title`}
           >
-            {t('appAccount.appAccountPlanPage.renewNow')}
+            {t.node('appAccount.appAccountPlanPage.renewNow')}
           </Link>
         ) : null}
         {renewal.renewable ? <RenewalForm renews={renewal.renews} /> : null}
@@ -236,40 +238,44 @@ function ConfirmPurchase({
       aria-labelledby="confirm-purchase-title"
       id="confirm-purchase"
     >
-      <p className="card-kicker">{t('appAccount.appAccountPlanPage.beforeYouPay')}</p>
+      <p className="card-kicker">{t.node('appAccount.appAccountPlanPage.beforeYouPay')}</p>
       <h2 className="card-title" id="confirm-purchase-title" tabIndex={-1}>
-        {t('appAccount.appAccountPlanPage.confirmYourPurchase')}
+        {t.node('appAccount.appAccountPlanPage.confirmYourPurchase')}
       </h2>
       {purchase ? (
         <>
           <div className="rows rows-grid u-mt-050">
             <div className="row">
-              <span className="row-key">{t('appAccount.appAccountPage.plan')}</span>
+              <span className="row-key">{t.node('appAccount.appAccountPage.plan')}</span>
               <span className="row-val">{purchase.planName}</span>
             </div>
             <div className="row">
-              <span className="row-key">{t('appAccount.appAccountPlanPage.price')}</span>
+              <span className="row-key">{t.node('appAccount.appAccountPlanPage.price')}</span>
               <span className="row-val">
                 {formatMoney(purchase.amountMinorUnits, purchase.currency)}
               </span>
             </div>
             <div className="row">
-              <span className="row-key">{t('appAccount.appAccountPlanPage.coversYouFrom')}</span>
+              <span className="row-key">
+                {t.node('appAccount.appAccountPlanPage.coversYouFrom')}
+              </span>
               <span className="row-val">
                 {formatBillingDate(purchase.periodStart, BILLING_TIME_ZONE)}
               </span>
             </div>
             <div className="row">
-              <span className="row-key">{t('appAccount.appAccountPlanPage.coversYouUntil')}</span>
+              <span className="row-key">
+                {t.node('appAccount.appAccountPlanPage.coversYouUntil')}
+              </span>
               <span className="row-val">{lastDay(purchase.periodEnd)}</span>
             </div>
             <div className="row">
-              <span className="row-key">{t('appAccount.appAccountPlanPage.reference')}</span>
+              <span className="row-key">{t.node('appAccount.appAccountPlanPage.reference')}</span>
               <span className="row-val">{purchase.invoiceRef}</span>
             </div>
           </div>
           <p className="card-body u-mt-100">
-            {t('appAccount.appAccountPlanPage.noAutomaticChargeWeRemindYou')}
+            {t.node('appAccount.appAccountPlanPage.noAutomaticChargeWeRemindYou')}
           </p>
           <div className="u-mt-100">
             <PayPurchaseForm invoiceId={purchase.invoiceId} />
@@ -404,11 +410,11 @@ export default async function TravellerPlanPage({
           <>
             {billing ? (
               <Link className="btn btn-secondary" href={`${PLAN_PATH}/billing`}>
-                {t('appAccount.appAccountPlanBillingPage.billingHistory')}
+                {t.node('appAccount.appAccountPlanBillingPage.billingHistory')}
               </Link>
             ) : null}
             <Link className="btn btn-secondary" href="/app/account">
-              {t('appAccount.appAccountPlanPage.yourAccount')}
+              {t.node('appAccount.appAccountPlanPage.yourAccount')}
             </Link>
           </>
         }
@@ -416,25 +422,25 @@ export default async function TravellerPlanPage({
 
       <div className="grid">
         <article className="card" aria-labelledby="current-plan-title">
-          <p className="card-kicker">{t('appAccount.appAccountPlanPage.currentPlan')}</p>
+          <p className="card-kicker">{t.node('appAccount.appAccountPlanPage.currentPlan')}</p>
           <h2 className="card-title" id="current-plan-title">
-            {summary.plan?.name ?? t('appAccount.appAccountPlanPage.yourPlan')}
+            {summary.plan?.name ?? t.node('appAccount.appAccountPlanPage.yourPlan')}
           </h2>
           {summary.paidUntil ? (
             <p className="card-body">
-              {t('appAccount.appAccountPlanPage.paidUntilFormatbillingdateFairUseSafeguards', {
+              {t.node('appAccount.appAccountPlanPage.paidUntilFormatbillingdateFairUseSafeguards', {
                 formatBillingDate: formatBillingDate(summary.paidUntil, BILLING_TIME_ZONE),
               })}
             </p>
           ) : (
             <>
               <p className="card-body">
-                {t('appAccount.appAccountPlanPage.complimentaryDuringPublicBetaNoPayment')}
+                {t.node('appAccount.appAccountPlanPage.complimentaryDuringPublicBetaNoPayment')}
               </p>
               <p className="card-body u-mt-100">
                 {offered
-                  ? t('appAccount.appAccountPlanPage.youCanCompareItWithThe')
-                  : t('appAccount.appAccountPlanPage.paidPlansForTravellersAreNot')}
+                  ? t.node('appAccount.appAccountPlanPage.youCanCompareItWithThe')
+                  : t.node('appAccount.appAccountPlanPage.paidPlansForTravellersAreNot')}
               </p>
             </>
           )}
@@ -442,12 +448,14 @@ export default async function TravellerPlanPage({
         </article>
 
         <article className="card" aria-labelledby="storage-title">
-          <p className="card-kicker">{t('appAccount.appAccountPlanPage.whatYourPlanIncludes')}</p>
+          <p className="card-kicker">
+            {t.node('appAccount.appAccountPlanPage.whatYourPlanIncludes')}
+          </p>
           <h2 className="card-title" id="storage-title">
-            {t('appAccount.appAccountPlanPage.storage')}
+            {t.node('appAccount.appAccountPlanPage.storage')}
           </h2>
           <p className="card-body u-mb-125">
-            {t('appAccount.appAccountPlanPage.everySavedVersionOfEveryDocument', {
+            {t.node('appAccount.appAccountPlanPage.everySavedVersionOfEveryDocument', {
               uploadLimitLabel: uploadLimitLabel(quota),
             })}
           </p>
@@ -480,10 +488,12 @@ export default async function TravellerPlanPage({
             />
           ) : null}
           {profiles.length === 0 ? (
-            <p className="muted u-fs-085">{t('appAccount.appAccountPlanPage.nothingStoredYet')}</p>
+            <p className="muted u-fs-085">
+              {t.node('appAccount.appAccountPlanPage.nothingStoredYet')}
+            </p>
           ) : (
             <p className="muted u-fs-085">
-              {t('appAccount.appAccountPlanPage.eachPersonYouKeepARecord', {
+              {t.node('appAccount.appAccountPlanPage.eachPersonYouKeepARecord', {
                 mbLabel: mbLabel(limits.personBytes),
               })}
             </p>
@@ -519,12 +529,14 @@ export default async function TravellerPlanPage({
 
       {aiUsage ? (
         <article className="card u-mt-150" aria-labelledby="plan-ai-title">
-          <p className="card-kicker">{t('appAccount.appAccountPlanPage.whatYourPlanIncludes')}</p>
+          <p className="card-kicker">
+            {t.node('appAccount.appAccountPlanPage.whatYourPlanIncludes')}
+          </p>
           <h2 className="card-title" id="plan-ai-title">
-            {t('appAccount.appAccountPlanPage.aiFeatures')}
+            {t.node('appAccount.appAccountPlanPage.aiFeatures')}
           </h2>
           <p className="card-body">
-            {t('appAccount.appAccountPlanPage.whetherYourPlanIncludesEachFeature')}
+            {t.node('appAccount.appAccountPlanPage.whetherYourPlanIncludesEachFeature')}
           </p>
           <div className="rows rows-grid u-mt-050">
             {aiUsage.map((feature) => {
@@ -535,12 +547,14 @@ export default async function TravellerPlanPage({
                   <span className="row-val">
                     <span className={`badge ${view.inPlan ? 'badge-success' : 'badge-neutral'}`}>
                       {view.inPlan
-                        ? t('appAccount.appAccountPlanPage.inYourPlan')
-                        : t('appAccount.appAccountPlanPage.notInYourPlan')}
+                        ? t.node('appAccount.appAccountPlanPage.inYourPlan')
+                        : t.node('appAccount.appAccountPlanPage.notInYourPlan')}
                     </span>{' '}
                     {view.now ? (
                       <span className={`badge ${view.now.tone}`}>
-                        <span className="sr-only">{t('appAccount.appAccountPlanPage.now')} </span>
+                        <span className="sr-only">
+                          {t.node('appAccount.appAccountPlanPage.now')}{' '}
+                        </span>
                         {view.now.label}
                       </span>
                     ) : null}

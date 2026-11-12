@@ -71,7 +71,7 @@ export default async function BillingHistoryPage({
         description={t('appAccount.appAccountPlanBillingPage.whatYouBoughtWithAnInvoice')}
         actions={
           <Link className="btn btn-secondary" href="/app/account/plan">
-            {t('appAccount.appAccountPage.planUsage')}
+            {t.node('appAccount.appAccountPage.planUsage')}
           </Link>
         }
       />
@@ -79,10 +79,10 @@ export default async function BillingHistoryPage({
       {purchases.length === 0 ? (
         <article className="card" aria-labelledby="billing-empty-title">
           <h2 className="card-title" id="billing-empty-title">
-            {t('appAccount.appAccountPlanBillingPage.noPurchasesYet')}
+            {t.node('appAccount.appAccountPlanBillingPage.noPurchasesYet')}
           </h2>
           <p className="card-body">
-            {t('appAccount.appAccountPlanBillingPage.whenYouBuyAPlanIts')}
+            {t.node('appAccount.appAccountPlanBillingPage.whenYouBuyAPlanIts')}
           </p>
         </article>
       ) : (
@@ -175,20 +175,20 @@ function PurchaseCard({
       <p className="invoice-note">{statusNote(purchase)}</p>
       <dl className="invoice-facts">
         <div>
-          <dt>{t('appAccount.appAccountPage.plan')}</dt>
+          <dt>{t.node('appAccount.appAccountPage.plan')}</dt>
           <dd>{purchase.planName}</dd>
         </div>
         <div>
-          <dt>{t('appAccount.appAccountPlanBillingPage.amount')}</dt>
+          <dt>{t.node('appAccount.appAccountPlanBillingPage.amount')}</dt>
           <dd>{money(purchase.amountMinorUnits)}</dd>
         </div>
         <div>
-          <dt>{t('appAccount.appAccountPlanBillingPage.period')}</dt>
+          <dt>{t.node('appAccount.appAccountPlanBillingPage.period')}</dt>
           <dd>{formatCoveredPeriod(purchase.periodStart, purchase.periodEnd)}</dd>
         </div>
         {purchase.paidAt ? (
           <div>
-            <dt>{t('appAccount.appAccountPlanBillingPage.paidOn')}</dt>
+            <dt>{t.node('appAccount.appAccountPlanBillingPage.paidOn')}</dt>
             <dd>{formatBillingDate(purchase.paidAt)}</dd>
           </div>
         ) : null}
@@ -201,17 +201,19 @@ function PurchaseCard({
             invoiceRef: purchase.invoiceRef,
           })}
         >
-          <h3 className="invoice-subhead">{t('appAccount.appAccountPlanBillingPage.receipts')}</h3>
+          <h3 className="invoice-subhead">
+            {t.node('appAccount.appAccountPlanBillingPage.receipts')}
+          </h3>
           <ul className="invoice-list">
             {purchase.receipts.map((receipt) => (
               <li key={receipt.id} className="invoice-list-item">
                 <span>
-                  {t('appAccount.appAccountPlanBillingPage.receiptNumber', {
+                  {t.node('appAccount.appAccountPlanBillingPage.receiptNumber', {
                     number: receipt.number,
                   })}
                 </span>
                 <span>
-                  {t('appAccount.appAccountPlanBillingPage.formatmoneyOnFormatbillingdate', {
+                  {t.node('appAccount.appAccountPlanBillingPage.formatmoneyOnFormatbillingdate', {
                     formatMoney: formatMoney(receipt.amountMinorUnits, receipt.currency),
                     formatBillingDate: formatBillingDate(receipt.issuedAt),
                   })}
@@ -223,7 +225,7 @@ function PurchaseCard({
                   className="invoice-link"
                   href={`/app/account/plan/billing/receipts/${receipt.id}/pdf`}
                 >
-                  {t('appAccount.appAccountPlanBillingPage.downloadReceiptPdf')}
+                  {t.node('appAccount.appAccountPlanBillingPage.downloadReceiptPdf')}
                   <span className="sr-only"> {receipt.number}</span>
                 </a>
               </li>
@@ -247,7 +249,7 @@ function PurchaseCard({
           className="btn btn-secondary"
           href={`/app/account/plan/billing/invoices/${purchase.id}/pdf`}
         >
-          {t('appAccount.appAccountPlanBillingPage.downloadInvoicePdf')}
+          {t.node('appAccount.appAccountPlanBillingPage.downloadInvoicePdf')}
           <span className="sr-only"> {purchase.invoiceRef}</span>
         </a>
       </div>
@@ -280,10 +282,10 @@ function RefundRequest({
   return (
     <section className="invoice-section" aria-labelledby={headingId}>
       <h3 className="invoice-subhead" id={headingId}>
-        {t('appAccount.appAccountPlanBillingPage.refund')}
+        {t.node('appAccount.appAccountPlanBillingPage.refund')}
       </h3>
       <p className="invoice-note">
-        {t('appAccount.appAccountPlanBillingPage.youCanAskForAFull', {
+        {t.node('appAccount.appAccountPlanBillingPage.youCanAskForAFull', {
           formatBillingDateTime: formatBillingDateTime(until),
         })}
       </p>

@@ -379,7 +379,7 @@ export function DocumentUploader({
       {kindGroups.length > 0 ? (
         <div className="field-stack">
           <label className="field-label" htmlFor={kindId}>
-            {t('appApplicant.appApplicantIdDocumentUploader.kindOfDocumentOptional')}
+            {t.node('appApplicant.appApplicantIdDocumentUploader.kindOfDocumentOptional')}
           </label>
           <select
             id={kindId}
@@ -389,7 +389,9 @@ export function DocumentUploader({
             aria-describedby={kindHintId}
             onChange={(event) => setKind(event.currentTarget.value)}
           >
-            <option value="">{t('appApplicant.appApplicantIdDocumentUploader.notSureYet')}</option>
+            <option {...t.lang('appApplicant.appApplicantIdDocumentUploader.notSureYet')} value="">
+              {t('appApplicant.appApplicantIdDocumentUploader.notSureYet')}
+            </option>
             {kindGroups.map((group) => (
               <optgroup key={group.key} label={group.label}>
                 {group.choices.map((choice) => (
@@ -403,7 +405,7 @@ export function DocumentUploader({
           {isOtherDocumentType(kind) ? (
             <>
               <label className="field-label" htmlFor={kindNameId}>
-                {t('appApplicant.appApplicantIdDocumentTypeForm.nameForAnOtherType')}
+                {t.node('appApplicant.appApplicantIdDocumentTypeForm.nameForAnOtherType')}
               </label>
               <input
                 id={kindNameId}
@@ -420,11 +422,13 @@ export function DocumentUploader({
             </>
           ) : null}
           <p className="field-hint" id={kindHintId}>
-            {t('appApplicant.appApplicantIdDocumentUploader.appliesToTheFilesYouAdd')}
+            {t.node('appApplicant.appApplicantIdDocumentUploader.appliesToTheFilesYouAdd')}
           </p>
           {originalKinds.includes(kind) ? (
             <p className="muted u-fs-075" data-testid="original-needed-note">
-              {t('appApplicant.appApplicantIdDocumentUploader.embassiesUsuallyWantThisHandedIn')}
+              {t.node(
+                'appApplicant.appApplicantIdDocumentUploader.embassiesUsuallyWantThisHandedIn',
+              )}
             </p>
           ) : null}
         </div>
@@ -455,7 +459,7 @@ export function DocumentUploader({
           {...dropHandlers}
         >
           <p className="upload-drop-title" id={dropTitleId}>
-            {t('appApplicant.appApplicantIdDocumentUploader.dropFilesHere')}
+            {t.node('appApplicant.appApplicantIdDocumentUploader.dropFilesHere')}
           </p>
           <p className="upload-drop-hint" id={dropHintId}>
             <span className="upload-hint-pointer">
@@ -477,7 +481,7 @@ export function DocumentUploader({
               aria-describedby={limitsId}
               onClick={() => pickerRef.current?.click()}
             >
-              {t('appApplicant.appApplicantIdDocumentUploader.chooseFiles')}
+              {t.node('appApplicant.appApplicantIdDocumentUploader.chooseFiles')}
             </button>
             <button
               ref={cameraButtonRef}
@@ -486,7 +490,7 @@ export function DocumentUploader({
               data-camera="true"
               onClick={() => cameraRef.current?.click()}
             >
-              {t('appApplicant.appApplicantIdDocumentUploader.takeAPhoto')}
+              {t.node('appApplicant.appApplicantIdDocumentUploader.takeAPhoto')}
             </button>
           </div>
         </section>
@@ -572,6 +576,7 @@ export function DocumentUploader({
                     aria-label={t('appApplicant.appApplicantIdDocumentUploader.uploadOfName', {
                       name: item.name,
                     })}
+                    {...t.lang('appApplicant.appApplicantIdDocumentUploader.uploadOfName')}
                   />
                 ) : null}
                 {item.shrunkFrom !== null ? (
@@ -581,7 +586,7 @@ export function DocumentUploader({
                 ) : null}
                 {item.status === 'added' && item.title ? (
                   <p className="upload-item-title">
-                    {t('appApplicant.appApplicantIdDocumentUploader.addedAsTitle', {
+                    {t.node('appApplicant.appApplicantIdDocumentUploader.addedAsTitle', {
                       title: item.title,
                     })}
                   </p>
@@ -590,8 +595,8 @@ export function DocumentUploader({
                   {failed ? (
                     <span className="upload-item-flag">
                       {item.status === 'unknown'
-                        ? t('appApplicant.appApplicantIdDocumentUploader.notConfirmed')
-                        : t('appApplicant.appApplicantIdDocumentUploader.notAdded')}
+                        ? t.node('appApplicant.appApplicantIdDocumentUploader.notConfirmed')
+                        : t.node('appApplicant.appApplicantIdDocumentUploader.notAdded')}
                     </span>
                   ) : null}
                   {statusLine(item)}
@@ -651,7 +656,7 @@ export function DocumentUploader({
                       })
                     }
                   >
-                    {t('appApplicant.appApplicantIdDocumentUploader.tryAgain')}
+                    {t.node('appApplicant.appApplicantIdDocumentUploader.tryAgain')}
                   </button>
                 ) : null}
               </li>
@@ -665,17 +670,17 @@ export function DocumentUploader({
           className="btn btn-secondary"
           onClick={() => setItems((current) => current.filter((item) => ACTIVE.has(item.status)))}
         >
-          {t('appApplicant.appApplicantIdDocumentUploader.clearTheList')}
+          {t.node('appApplicant.appApplicantIdDocumentUploader.clearTheList')}
         </button>
       ) : null}
       <p className="muted uploader-note">
-        {t(
+        {t.node(
           'appApplicant.appApplicantIdDocumentUploader.uploadchecknoticeIphonePhotosHeicAreSaved',
           { uploadCheckNotice: uploadCheckNotice(virusScanning) },
         )}
       </p>
       <p className="muted uploader-note">
-        {t('appApplicant.appApplicantIdDocumentUploader.storedPrivatelyOnlyYouAndThe')}
+        {t.node('appApplicant.appApplicantIdDocumentUploader.storedPrivatelyOnlyYouAndThe')}
       </p>
     </div>
   );
@@ -709,7 +714,7 @@ function NewCopyRemoval({
   return (
     <div className="lc-new-copy">
       <p className="lc-new-copy-line">
-        {t('appApplicant.appApplicantIdDocumentUploader.youAlreadyKeepAnIdenticalCopy')}
+        {t.node('appApplicant.appApplicantIdDocumentUploader.youAlreadyKeepAnIdenticalCopy')}
       </p>
       <button
         type="button"
@@ -721,8 +726,8 @@ function NewCopyRemoval({
         onClick={busy ? undefined : () => void onRemove()}
       >
         {busy
-          ? t('appApplicant.appApplicantIdDocumentUploader.removing')
-          : t('appApplicant.appApplicantIdDocumentUploader.removeThisNewCopy')}
+          ? t.node('appApplicant.appApplicantIdDocumentUploader.removing')
+          : t.node('appApplicant.appApplicantIdDocumentUploader.removeThisNewCopy')}
       </button>
       {typeof item.removal === 'object' ? (
         <p className="field-msg-err" role="alert">

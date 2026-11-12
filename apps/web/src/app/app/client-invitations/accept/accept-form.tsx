@@ -35,7 +35,7 @@ export function AcceptClientInvitationForm({
       <input type="hidden" name="token" value={token} />
       <div className="field-row">
         <span className="field-label">
-          {t('appClientInvitations.appClientInvitationsAcceptAcceptForm.whichProfile')}
+          {t.node('appClientInvitations.appClientInvitationsAcceptAcceptForm.whichProfile')}
         </span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -46,7 +46,7 @@ export function AcceptClientInvitationForm({
               checked={selection === 'new'}
               onChange={() => setSelection('new')}
             />
-            {t('appClientInvitations.appClientInvitationsAcceptAcceptForm.createANewProfile')}
+            {t.node('appClientInvitations.appClientInvitationsAcceptAcceptForm.createANewProfile')}
           </label>
           {applicants.map((a) => (
             <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -65,7 +65,9 @@ export function AcceptClientInvitationForm({
       {selection === 'new' ? (
         <div className="field-row">
           <label className="field-label" htmlFor="newDisplayName">
-            {t('appClientInvitations.appClientInvitationsAcceptAcceptForm.profileNameOptional')}
+            {t.node(
+              'appClientInvitations.appClientInvitationsAcceptAcceptForm.profileNameOptional',
+            )}
           </label>
           <input
             id="newDisplayName"
@@ -81,7 +83,7 @@ export function AcceptClientInvitationForm({
       {agencyAi ? (
         <fieldset className="fieldset">
           <legend className="field-label">
-            {t('appClientInvitations.appClientInvitationsAcceptAcceptForm.aiTools')}
+            {t.node('appClientInvitations.appClientInvitationsAcceptAcceptForm.aiTools')}
           </legend>
           <div className="checks">
             <label className="check" htmlFor={`${aiId}-allow`}>
@@ -95,7 +97,7 @@ export function AcceptClientInvitationForm({
             </label>
           </div>
           <small className="muted" id={`${aiId}-note`}>
-            {t(
+            {t.node(
               'appClientInvitations.appClientInvitationsAcceptAcceptForm.agencyaitravellernoteIfYourSignInIs',
               { agencyAiTravellerNote: agencyAiTravellerNote(agencyAi.agencyName) },
             )}

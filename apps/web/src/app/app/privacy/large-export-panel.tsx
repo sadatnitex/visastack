@@ -39,7 +39,7 @@ function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
     case 'CLAIMED':
       return (
         <span className="badge badge-neutral">
-          {t('appPrivacy.appPrivacyLargeExportPanel.preparing')}
+          {t.node('appPrivacy.appPrivacyLargeExportPanel.preparing')}
         </span>
       );
     case 'READY':
@@ -50,11 +50,11 @@ function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
             className="btn btn-secondary"
             download
           >
-            {t('appPrivacy.appPrivacyLargeExportPanel.downloadZip')}
+            {t.node('appPrivacy.appPrivacyLargeExportPanel.downloadZip')}
           </a>
           {job.expiresAt ? (
             <span className="muted u-fs-085">
-              {t('appPrivacy.appPrivacyLargeExportPanel.expiresFormatdatetime', {
+              {t.node('appPrivacy.appPrivacyLargeExportPanel.expiresFormatdatetime', {
                 formatDateTime: formatDateTime(job.expiresAt),
               })}
             </span>
@@ -65,7 +65,7 @@ function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
       return (
         <span className="export-failed">
           <span className="badge badge-danger">
-            {t('appPrivacy.appPrivacyLargeExportPanel.couldNotBeMade')}
+            {t.node('appPrivacy.appPrivacyLargeExportPanel.couldNotBeMade')}
           </span>
           <span className="muted">
             Your data is safe and nothing was changed. Request it again below. If it fails twice,{' '}
@@ -76,7 +76,7 @@ function StatusLine({ job }: { readonly job: LargeExportJobProps }) {
     case 'EXPIRED':
       return (
         <span className="badge badge-neutral">
-          {t('appPrivacy.appPrivacyLargeExportPanel.expired')}
+          {t.node('appPrivacy.appPrivacyLargeExportPanel.expired')}
         </span>
       );
     default:
@@ -101,7 +101,7 @@ export function LargeExportPanel({ jobs }: LargeExportPanelProps) {
           file format check passed, not a virus scan (lib/scan-state.ts), so the sentence never
           says "safe" and says plainly that no virus scan runs yet. Change all three together. */}
       <p className="card-body" style={{ marginBottom: '0.75rem' }}>
-        {t('appPrivacy.appPrivacyLargeExportPanel.needTheActualDocumentFilesToo')}
+        {t.node('appPrivacy.appPrivacyLargeExportPanel.needTheActualDocumentFilesToo')}
       </p>
       {active ? (
         <StatusLine job={active} />

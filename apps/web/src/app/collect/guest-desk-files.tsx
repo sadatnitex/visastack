@@ -66,7 +66,7 @@ export function GuestFileList({
             {file.itemId && file.status === 'ready'
               ? ` For: ${labels.get(file.itemId) ?? 'An Earlier Item'}.`
               : ''}
-            {file.sent ? t('collect.collectGuestDeskFiles.alreadySent') : ''}
+            {file.sent ? t.node('collect.collectGuestDeskFiles.alreadySent') : ''}
           </p>
           <div className="collect-file-actions">
             {file.status === 'ready' ? (
@@ -81,7 +81,7 @@ export function GuestFileList({
                 </div>
               ) : (
                 <details className="collect-file-change">
-                  <summary>{t('collect.collectGuestDeskFiles.changeItem')}</summary>
+                  <summary>{t.node('collect.collectGuestDeskFiles.changeItem')}</summary>
                   <PlaceFileForm
                     fileId={file.id}
                     fileName={file.name}
@@ -117,7 +117,7 @@ export function GuestFileList({
   return (
     <section className="collect-files" aria-labelledby="collect-files-title">
       <h2 id="collect-files-title" className="collect-step-title">
-        {t('collect.collectGuestDeskFiles.yourFiles')}
+        {t.node('collect.collectGuestDeskFiles.yourFiles')}
       </h2>
       {fileList(attention)}
       {settled.length > 0 ? (
@@ -140,7 +140,7 @@ export function GuestSentHistory({ desk }: { readonly desk: GuestUploadDesk }) {
   return (
     <section className="collect-sent" aria-labelledby="collect-sent-title">
       <h2 id="collect-sent-title" className="collect-step-title">
-        {t('collect.collectGuestDeskFiles.whatYouSent')}
+        {t.node('collect.collectGuestDeskFiles.whatYouSent')}
       </h2>
       <ol className="collect-sent-list">
         {desk.submissions.map((submission) => (
@@ -160,12 +160,12 @@ export function GuestSentHistory({ desk }: { readonly desk: GuestUploadDesk }) {
                   <span className="collect-item-label">{line.label}</span>
                   <span className="muted u-fs-085">
                     {line.missing
-                      ? t('collect.collectAccountResponseForm.stillMissing')
+                      ? t.node('collect.collectAccountResponseForm.stillMissing')
                       : line.files.join(', ')}
                   </span>
                   {line.note ? (
                     <span className="collect-item-note u-fs-085">
-                      {t('collect.collectGuestDeskFiles.agencyNoteNote', { note: line.note })}
+                      {t.node('collect.collectGuestDeskFiles.agencyNoteNote', { note: line.note })}
                     </span>
                   ) : null}
                 </li>

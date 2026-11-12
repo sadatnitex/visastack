@@ -50,7 +50,7 @@ export function DocumentRenameForm({ applicantId, documentId, name }: DocumentRe
       <input type="hidden" name="applicantId" value={applicantId} />
       <input type="hidden" name="documentId" value={documentId} />
       <label className="field-label" htmlFor={inputId}>
-        {t('appApplicant.appApplicantIdDocumentRenameForm.documentName')}
+        {t.node('appApplicant.appApplicantIdDocumentRenameForm.documentName')}
       </label>
       <div className="field-inline">
         <input

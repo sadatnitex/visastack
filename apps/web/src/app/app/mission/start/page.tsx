@@ -41,7 +41,7 @@ export default async function TripStartPage({
       <PageHeader title={t('appMission.appMissionStartPage.startATrip')} />
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. The explanation is one tap away. */}
       <AboutDisclosure summary={t('appMission.appMissionStartPage.aboutStartingATrip')}>
-        <p>{t('appMission.appMissionStartPage.tellUsWhereYouAreGoing')}</p>
+        <p>{t.node('appMission.appMissionStartPage.tellUsWhereYouAreGoing')}</p>
       </AboutDisclosure>
       <article className="card">
         {travellers.length > 0 ? (

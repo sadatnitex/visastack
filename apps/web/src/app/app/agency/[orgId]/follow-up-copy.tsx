@@ -39,11 +39,11 @@ export function FollowUpCopy({
         <div className="do-next-follow-up-body">
           {agencyNoteLeftOut ? (
             <p className="do-next-follow-up-hint">
-              {t('appAgency.appAgencyOrgidFollowUpCopy.yourNoteWasLeftOutBecause')}
+              {t.node('appAgency.appAgencyOrgidFollowUpCopy.yourNoteWasLeftOutBecause')}
             </p>
           ) : null}
           <label htmlFor={id} className="field-label">
-            {t('appAgency.appAgencyOrgidFollowUpCopy.messageToCopy')}
+            {t.node('appAgency.appAgencyOrgidFollowUpCopy.messageToCopy')}
           </label>
           <textarea
             id={id}
@@ -53,7 +53,7 @@ export function FollowUpCopy({
             rows={Math.min(14, text.split('\n').length + 1)}
           />
           <p className="muted do-next-follow-up-note">
-            {t('appAgency.appAgencyOrgidFollowUpCopy.readItFirstItIsNot')}
+            {t.node('appAgency.appAgencyOrgidFollowUpCopy.readItFirstItIsNot')}
           </p>
           {shareMessage ? null : <CopyMessageOnly text={text} />}
         </div>

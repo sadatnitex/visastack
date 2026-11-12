@@ -25,7 +25,7 @@ export function AddMemberForm({
       <div className="form-grid">
         <div className="field-row">
           <label className="field-label" htmlFor="memberEmail">
-            {t('appAgency.appAgencyOrgidMemberForm.memberEmail')}
+            {t.node('appAgency.appAgencyOrgidMemberForm.memberEmail')}
           </label>
           <input
             id="memberEmail"
@@ -38,14 +38,21 @@ export function AddMemberForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="role">
-            {t('appAgency.appAgencyOrgidMemberForm.role')}
+            {t.node('appAgency.appAgencyOrgidMemberForm.role')}
           </label>
           <select id="role" name="role" className="input" defaultValue="REVIEWER">
-            <option value="ADMIN">{t('appAgency.appAgencyOrgidMemberForm.admin')}</option>
-            <option value="CASE_MANAGER">
+            <option {...t.lang('appAgency.appAgencyOrgidMemberForm.admin')} value="ADMIN">
+              {t('appAgency.appAgencyOrgidMemberForm.admin')}
+            </option>
+            <option
+              {...t.lang('appAgency.appAgencyOrgidMemberForm.caseManager')}
+              value="CASE_MANAGER"
+            >
               {t('appAgency.appAgencyOrgidMemberForm.caseManager')}
             </option>
-            <option value="REVIEWER">{t('appAgency.appAgencyOrgidMemberForm.reviewer')}</option>
+            <option {...t.lang('appAgency.appAgencyOrgidMemberForm.reviewer')} value="REVIEWER">
+              {t('appAgency.appAgencyOrgidMemberForm.reviewer')}
+            </option>
           </select>
         </div>
       </div>

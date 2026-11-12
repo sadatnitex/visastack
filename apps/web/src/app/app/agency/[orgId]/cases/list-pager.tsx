@@ -140,7 +140,7 @@ function OlderPage({
       <output className="show-more-count muted u-fs-085">{count}</output>
       {olderHref ? (
         <Link className="btn btn-secondary u-btn-sm show-more-link" href={olderHref}>
-          {t('appAgency.appAgencyOrgidCasesListPager.showOlderEntries')}
+          {t.node('appAgency.appAgencyOrgidCasesListPager.showOlderEntries')}
         </Link>
       ) : null}
       <Link className="show-more-newest" href={newestHref}>

@@ -57,7 +57,7 @@ export function ChecklistCorrectionCard({
     <section className="card" aria-labelledby="collection-correction">
       <div className="card-body">
         <h2 id="collection-correction">
-          {t(
+          {t.node(
             'appAgency.appAgencyOrgidCollectionRequestChecklistCorrection.officialChecklistUpdates',
           )}
         </h2>
@@ -78,18 +78,18 @@ export function ChecklistCorrectionCard({
           </div>
         ) : open && impact === null ? (
           <p className="muted">
-            {t(
+            {t.node(
               'appAgency.appAgencyOrgidCollectionRequestChecklistCorrection.thisRequestFollowsTheNewestPublished',
             )}
           </p>
         ) : null}
         <h3>
-          {t(
+          {t.node(
             'appAgency.appAgencyOrgidCollectionRequestChecklistCorrection.suggestAChecklistCorrection',
           )}
         </h3>
         <p className="muted">
-          {t(
+          {t.node(
             'appAgency.appAgencyOrgidCollectionRequestChecklistCorrection.ifAnOfficialItemLooksMissing',
           )}
         </p>

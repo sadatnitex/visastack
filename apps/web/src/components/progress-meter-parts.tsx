@@ -28,6 +28,7 @@ export function ProgressMeterFigure({
       className="lift-meter-svg"
       role="img"
       aria-label={t('componentsUiLift.progressMeter.meterName', { value, max, label })}
+      {...t.lang('componentsUiLift.progressMeter.meterName')}
       width="100%"
       height={size}
       viewBox="0 0 100 10"

@@ -92,17 +92,17 @@ export default async function JoinedTripPage({
       <article className="card">
         <dl className="rows">
           <div className="row">
-            <dt>{t('appTripInvitations.appTripInvitationsIdPage.where')}</dt>
+            <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.where')}</dt>
             <dd>
               <DestinationLabel destination={trip.destination} />
             </dd>
           </div>
           <div className="row">
-            <dt>{t('appTripInvitations.appTripInvitationsIdPage.why')}</dt>
+            <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.why')}</dt>
             <dd>{trip.purpose}</dd>
           </div>
           <div className="row">
-            <dt>{t('appTripInvitations.appTripInvitationsIdPage.travelling')}</dt>
+            <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.travelling')}</dt>
             <dd>
               <ul className="companion-people">
                 {trip.people.map((name, at) => (
@@ -118,7 +118,7 @@ export default async function JoinedTripPage({
         <div className="companion-actions">
           {ownCaseId ? (
             <Link className="btn btn-primary" href={`/app/mission/${ownCaseId}`}>
-              {t('appTripInvitations.appTripInvitationsIdPage.openMyCase')}
+              {t.node('appTripInvitations.appTripInvitationsIdPage.openMyCase')}
             </Link>
           ) : (
             <PlanOwnCaseForm tripId={id} />
@@ -138,12 +138,12 @@ export default async function JoinedTripPage({
         {papers ? (
           <details className="companion-more">
             <summary>
-              {t('appTripInvitations.appTripInvitationsIdPage.papersYouShowLength', {
+              {t.node('appTripInvitations.appTripInvitationsIdPage.papersYouShowLength', {
                 length: papers.chosen.length,
               })}
             </summary>
             <p className="muted u-fs-085 u-m-0">
-              {t('appTripInvitations.appTripInvitationsIdPage.theOrganiserSeesOnlyTheName')}
+              {t.node('appTripInvitations.appTripInvitationsIdPage.theOrganiserSeesOnlyTheName')}
             </p>
             {papers.chosen.length > 0 ? (
               <ul className="companion-papers">
@@ -161,7 +161,9 @@ export default async function JoinedTripPage({
               <ChoosePaperForm tripId={id} options={papers.options} />
             ) : (
               <p className="muted u-m-0">
-                {t('appTripInvitations.appTripInvitationsIdPage.noBookingsOrItinerariesInYour')}
+                {t.node(
+                  'appTripInvitations.appTripInvitationsIdPage.noBookingsOrItinerariesInYour',
+                )}
               </p>
             )}
           </details>
@@ -170,7 +172,7 @@ export default async function JoinedTripPage({
       <div className="companion-leave">
         <LeaveTripForm tripId={id} />
         <Link href="/app/trips">
-          {t('appTripInvitations.appTripInvitationsIdPage.backToMyTrips')}
+          {t.node('appTripInvitations.appTripInvitationsIdPage.backToMyTrips')}
         </Link>
       </div>
     </Shell>

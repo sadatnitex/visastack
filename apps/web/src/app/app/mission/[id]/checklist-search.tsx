@@ -87,13 +87,15 @@ export function ChecklistSearch({
         placeholder={t('appMission.appMissionIdChecklistSearch.searchTheChecklist')}
       />
       <output className="sr-only">
-        {t('appMission.appMissionIdChecklistSearch.matchesOfRowsItemsMatch', {
+        {t.node('appMission.appMissionIdChecklistSearch.matchesOfRowsItemsMatch', {
           matches: matches,
           rows: rows,
         })}
       </output>
       {matches === 0 ? (
-        <p className="muted u-fs-085">{t('appMission.appMissionIdChecklistSearch.noItemsMatch')}</p>
+        <p className="muted u-fs-085">
+          {t.node('appMission.appMissionIdChecklistSearch.noItemsMatch')}
+        </p>
       ) : null}
     </div>
   );

@@ -137,8 +137,8 @@ export default async function CollectAccountPage({
       {loaded.state === 'not_reviewed' ? (
         <div className="card">
           <div className="card-body stack">
-            <h2>{t('collect.collectAccountPage.thisAgencyIsNotReviewedYet')}</h2>
-            <p>{t('collect.collectAccountPage.visastackHasNotFinishedReviewingThe')}</p>
+            <h2>{t.node('collect.collectAccountPage.thisAgencyIsNotReviewedYet')}</h2>
+            <p>{t.node('collect.collectAccountPage.visastackHasNotFinishedReviewingThe')}</p>
           </div>
         </div>
       ) : loaded.state === 'choose' ? (
@@ -155,7 +155,7 @@ export default async function CollectAccountPage({
               {loaded.otherPeople ? (
                 <p className="u-fs-085">
                   <Link href={answerHref()}>
-                    {t('collect.collectAccountPage.answerForSomeoneElse')}
+                    {t.node('collect.collectAccountPage.answerForSomeoneElse')}
                   </Link>
                 </p>
               ) : null}
@@ -177,7 +177,7 @@ export default async function CollectAccountPage({
           </p>
         </>
       )}
-      <p className="muted u-fs-085">{t('collect.collectAccountPage.poweredByVisastack')}</p>
+      <p className="muted u-fs-085">{t.node('collect.collectAccountPage.poweredByVisastack')}</p>
     </section>
   );
 }
@@ -201,11 +201,11 @@ function RequestHeading({ heading }: { readonly heading: Heading }) {
         <AgencyBrandScope brand={brand} className="collect-agency">
           <AgencyMark brand={brand} size="lg" />
           <h1 className="page-title">
-            {t('collect.collectAccountPage.answerName', { name: brand.name })}
+            {t.node('collect.collectAccountPage.answerName', { name: brand.name })}
           </h1>
         </AgencyBrandScope>
       ) : (
-        <h1 className="page-title">{t('collect.collectAccountPage.answerAnAgencyRequest')}</h1>
+        <h1 className="page-title">{t.node('collect.collectAccountPage.answerAnAgencyRequest')}</h1>
       )}
       <p className="muted">
         For <DestinationLabel destination={destinationName(heading.destination)} />
@@ -225,11 +225,11 @@ function ChoosePerson({
     return (
       <div className="card">
         <div className="card-body stack">
-          <h2>{t('collect.collectAccountPage.setUpYourRecordFirst')}</h2>
-          <p>{t('collect.collectAccountPage.yourAnswerComesFromYourOwn')}</p>
+          <h2>{t.node('collect.collectAccountPage.setUpYourRecordFirst')}</h2>
+          <p>{t.node('collect.collectAccountPage.yourAnswerComesFromYourOwn')}</p>
           <p>
             <Link className="btn btn-primary" href="/app">
-              {t('collect.collectAccountPage.setUpYourRecord')}
+              {t.node('collect.collectAccountPage.setUpYourRecord')}
             </Link>
           </p>
         </div>
@@ -239,8 +239,8 @@ function ChoosePerson({
   return (
     <div className="card">
       <div className="card-body stack">
-        <h2 id="collect-choose-person">{t('collect.collectAccountPage.whoIsThisFor')}</h2>
-        <p>{t('collect.collectAccountPage.chooseWhoseRecordToAnswerFrom')}</p>
+        <h2 id="collect-choose-person">{t.node('collect.collectAccountPage.whoIsThisFor')}</h2>
+        <p>{t.node('collect.collectAccountPage.chooseWhoseRecordToAnswerFrom')}</p>
         <ul className="collect-response-people" aria-labelledby="collect-choose-person">
           {people.map((person) => (
             <li key={person.id}>
@@ -261,11 +261,11 @@ function ClosedLink() {
     <section className="section container collect-page">
       <article className="card collect-card">
         <div className="card-body">
-          <h1 className="page-title">{t('collect.collectAccountPage.thisLinkIsNotOpen')}</h1>
-          <p>{t('collect.collectAccountPage.theLinkMayHaveExpiredOr')}</p>
+          <h1 className="page-title">{t.node('collect.collectAccountPage.thisLinkIsNotOpen')}</h1>
+          <p>{t.node('collect.collectAccountPage.theLinkMayHaveExpiredOr')}</p>
           <p className="u-fs-085">
             <Link href="/collect/account/answers">
-              {t('collect.collectAccountPage.seeYourAnswers')}
+              {t.node('collect.collectAccountPage.seeYourAnswers')}
             </Link>
           </p>
         </div>

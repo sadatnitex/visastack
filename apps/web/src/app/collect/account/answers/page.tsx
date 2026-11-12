@@ -89,20 +89,22 @@ export default async function YourAnswersPage({
 
   return (
     <section className="section container stack">
-      <h1 className="page-title">{t('collect.collectAccountAnswersPage.yourAnswersToAgencies')}</h1>
+      <h1 className="page-title">
+        {t.node('collect.collectAccountAnswersPage.yourAnswersToAgencies')}
+      </h1>
       {sent ? (
         <output className="notice notice-ok">
-          {t('collect.collectAccountAnswersPage.submittedToAgencyTheyCanOpen')}
+          {t.node('collect.collectAccountAnswersPage.submittedToAgencyTheyCanOpen')}
         </output>
       ) : null}
       {withdrawn ? (
         <output className="notice notice-ok">
-          {t('collect.collectAccountAnswersPage.withdrawnTheAgencyCanNoLonger')}
+          {t.node('collect.collectAccountAnswersPage.withdrawnTheAgencyCanNoLonger')}
         </output>
       ) : null}
       {people.length === 0 ? (
         <p className="muted">
-          {t('collect.collectAccountAnswersPage.youHaveNotAnsweredAnyAgency')}
+          {t.node('collect.collectAccountAnswersPage.youHaveNotAnsweredAnyAgency')}
         </p>
       ) : (
         people.map((person) => (
@@ -126,13 +128,16 @@ export default async function YourAnswersPage({
                     <p className="u-fs-085">
                       {answer.withdrawnAt ? (
                         <StatusBadge tone="neutral">
-                          {t('collect.collectAccountAnswersPage.withdrawnFormattimestampdate', {
-                            formatTimestampDate: formatTimestampDate(answer.withdrawnAt),
-                          })}
+                          {t.node(
+                            'collect.collectAccountAnswersPage.withdrawnFormattimestampdate',
+                            {
+                              formatTimestampDate: formatTimestampDate(answer.withdrawnAt),
+                            },
+                          )}
                         </StatusBadge>
                       ) : (
                         <StatusBadge tone="success">
-                          {t('collect.collectAccountAnswersPage.submittedToAgency')}
+                          {t.node('collect.collectAccountAnswersPage.submittedToAgency')}
                         </StatusBadge>
                       )}{' '}
                       Sent {formatTimestampDate(answer.submittedAt)} · {countsLine(answer)}
@@ -153,9 +158,9 @@ export default async function YourAnswersPage({
       )}
       <p className="u-fs-085">
         <Link href="/collect/account">
-          {t('collect.collectAccountAnswersPage.continueAnOpenRequest')}
+          {t.node('collect.collectAccountAnswersPage.continueAnOpenRequest')}
         </Link>{' '}
-        · <Link href="/app">{t('collect.collectAccountAnswersPage.goToYourRecord')}</Link>
+        · <Link href="/app">{t.node('collect.collectAccountAnswersPage.goToYourRecord')}</Link>
       </p>
     </section>
   );

@@ -84,7 +84,7 @@ export default async function NotificationsPage({
         <DepthSwitch family="notifications" initial={depth} copy={depthCopyFor('notifications')} />
         {allRead ? (
           <p className="muted" data-only="glance">
-            {t('appNotifications.appNotificationsPage.nothingUnreadInYourLatestNotifications')}
+            {t.node('appNotifications.appNotificationsPage.nothingUnreadInYourLatestNotifications')}
           </p>
         ) : null}
 
@@ -98,7 +98,7 @@ export default async function NotificationsPage({
               why="You never have to open every case to find out what changed."
               action={{ href: '/app', label: 'Go to Home' }}
             >
-              {t('appNotifications.appNotificationsPage.thisIsWhereVisastackTellsYou')}
+              {t.node('appNotifications.appNotificationsPage.thisIsWhereVisastackTellsYou')}
             </EmptyState>
           ) : (
             <NotificationList

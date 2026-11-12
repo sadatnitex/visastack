@@ -107,7 +107,7 @@ export function ItemEditor({
         <input type="hidden" name="requirementId" value={requirementId} />
         <div className="field-row field-wide">
           <label className="field-label" htmlFor={`${id}-wording`}>
-            {t('appAgency.appAgencyOrgidChecklistsChecklistForms.whatTheTravellerReads')}
+            {t.node('appAgency.appAgencyOrgidChecklistsChecklistForms.whatTheTravellerReads')}
           </label>
           <input
             id={`${id}-wording`}
@@ -121,7 +121,7 @@ export function ItemEditor({
         {kind === 'DOCUMENT' ? (
           <div className="field-row">
             <label className="field-label" htmlFor={`${id}-type`}>
-              {t('appAgency.appAgencyOrgidChecklistsChecklistForms.documentType')}
+              {t.node('appAgency.appAgencyOrgidChecklistsChecklistForms.documentType')}
             </label>
             <input
               id={`${id}-type`}
@@ -136,16 +136,25 @@ export function ItemEditor({
         {necessity === 'CONDITIONAL' ? null : (
           <div className="field-row">
             <label className="field-label" htmlFor={`${id}-necessity`}>
-              {t('appAgency.appAgencyOrgidChecklistsChecklistForms.howNecessary')}
+              {t.node('appAgency.appAgencyOrgidChecklistsChecklistForms.howNecessary')}
             </label>
             <select id={`${id}-necessity`} name="necessity" className="input" defaultValue={plain}>
-              <option value="MANDATORY">
+              <option
+                {...t.lang('appAgency.appAgencyOrgidChecklistsChecklistForms.required')}
+                value="MANDATORY"
+              >
                 {t('appAgency.appAgencyOrgidChecklistsChecklistForms.required')}
               </option>
-              <option value="RECOMMENDED">
+              <option
+                {...t.lang('appAgency.appAgencyOrgidChecklistsChecklistForms.recommended')}
+                value="RECOMMENDED"
+              >
                 {t('appAgency.appAgencyOrgidChecklistsChecklistForms.recommended')}
               </option>
-              <option value="OPTIONAL">
+              <option
+                {...t.lang('appAgency.appAgencyOrgidChecklistsChecklistForms.optional')}
+                value="OPTIONAL"
+              >
                 {t('appAgency.appAgencyOrgidChecklistsChecklistForms.optional')}
               </option>
             </select>
@@ -153,7 +162,7 @@ export function ItemEditor({
         )}
         <div className="field-row">
           <label className="field-label" htmlFor={`${id}-applies`}>
-            {t('appAgency.appAgencyOrgidChecklistsChecklistForms.whoItIsFor')}
+            {t.node('appAgency.appAgencyOrgidChecklistsChecklistForms.whoItIsFor')}
           </label>
           <input
             id={`${id}-applies`}
@@ -208,7 +217,7 @@ export function AddItemForm({
       <input type="hidden" name="packVersionId" value={packVersionId} />
       <div className="field-row field-wide">
         <label className="field-label" htmlFor={`${id}-wording`}>
-          {t('appAgency.appAgencyOrgidChecklistsChecklistForms.whatTheTravellerReads')}
+          {t.node('appAgency.appAgencyOrgidChecklistsChecklistForms.whatTheTravellerReads')}
         </label>
         <input
           id={`${id}-wording`}
@@ -221,7 +230,7 @@ export function AddItemForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-type`}>
-          {t('appAgency.appAgencyOrgidChecklistsChecklistForms.documentType')}
+          {t.node('appAgency.appAgencyOrgidChecklistsChecklistForms.documentType')}
         </label>
         <input
           id={`${id}-type`}
@@ -234,7 +243,7 @@ export function AddItemForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-necessity`}>
-          {t('appAgency.appAgencyOrgidChecklistsChecklistForms.howNecessary')}
+          {t.node('appAgency.appAgencyOrgidChecklistsChecklistForms.howNecessary')}
         </label>
         <select
           id={`${id}-necessity`}
@@ -242,20 +251,29 @@ export function AddItemForm({
           className="input"
           defaultValue="RECOMMENDED"
         >
-          <option value="MANDATORY">
+          <option
+            {...t.lang('appAgency.appAgencyOrgidChecklistsChecklistForms.required')}
+            value="MANDATORY"
+          >
             {t('appAgency.appAgencyOrgidChecklistsChecklistForms.required')}
           </option>
-          <option value="RECOMMENDED">
+          <option
+            {...t.lang('appAgency.appAgencyOrgidChecklistsChecklistForms.recommended')}
+            value="RECOMMENDED"
+          >
             {t('appAgency.appAgencyOrgidChecklistsChecklistForms.recommended')}
           </option>
-          <option value="OPTIONAL">
+          <option
+            {...t.lang('appAgency.appAgencyOrgidChecklistsChecklistForms.optional')}
+            value="OPTIONAL"
+          >
             {t('appAgency.appAgencyOrgidChecklistsChecklistForms.optional')}
           </option>
         </select>
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-applies`}>
-          {t('appAgency.appAgencyOrgidChecklistsChecklistForms.whoItIsFor')}
+          {t.node('appAgency.appAgencyOrgidChecklistsChecklistForms.whoItIsFor')}
         </label>
         <input
           id={`${id}-applies`}

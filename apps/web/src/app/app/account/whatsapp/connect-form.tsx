@@ -26,7 +26,7 @@ export function ConnectWhatsAppForm() {
     return (
       <div className="field-stack">
         <p className="card-body">
-          {t('appAccount.appAccountWhatsappConnectForm.sendThisMessageFromTheWhatsapp')}
+          {t.node('appAccount.appAccountWhatsappConnectForm.sendThisMessageFromTheWhatsapp')}
         </p>
         <p className="mono" translate="no">
           <strong>{state.whatsappMessage}</strong>
@@ -34,11 +34,11 @@ export function ConnectWhatsAppForm() {
         <div className="page-actions">
           {state.whatsappHref ? (
             <a className="btn btn-primary" href={state.whatsappHref} rel="noopener noreferrer">
-              {t('appAccount.appAccountWhatsappConnectForm.openWhatsapp')}
+              {t.node('appAccount.appAccountWhatsappConnectForm.openWhatsapp')}
             </a>
           ) : null}
           <a className="btn btn-secondary" href="/app/account/whatsapp">
-            {t('appAccount.appAccountWhatsappConnectForm.iHaveSentIt')}
+            {t.node('appAccount.appAccountWhatsappConnectForm.iHaveSentIt')}
           </a>
         </div>
       </div>
@@ -56,7 +56,7 @@ export function ConnectWhatsAppForm() {
           {...fieldProblem(state, 'optIn', messageId)}
         />
         <span className="output-check-text">
-          {t('appAccount.appAccountWhatsappConnectForm.iAgreeToReceiveMessagesFrom')}
+          {t.node('appAccount.appAccountWhatsappConnectForm.iAgreeToReceiveMessagesFrom')}
         </span>
       </label>
       <div>

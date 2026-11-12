@@ -45,7 +45,7 @@ export function RequestConversation({
   });
   return (
     <details className="request-conversation">
-      <summary>{t('appAgency.appAgencyOrgidRequestConversation.conversation')}</summary>
+      <summary>{t.node('appAgency.appAgencyOrgidRequestConversation.conversation')}</summary>
       <RequestThread
         thread={thread}
         viewer="agency"

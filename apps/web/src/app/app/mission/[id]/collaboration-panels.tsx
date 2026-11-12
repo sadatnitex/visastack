@@ -83,10 +83,14 @@ export function TasksPanel({
 
   return (
     <article className="card">
-      <p className="card-kicker">{t('appMission.appMissionIdCollaborationPanels.checklist')}</p>
-      <h2 className="card-title">{t('appMission.appMissionIdCollaborationPanels.tasks')}</h2>
+      <p className="card-kicker">
+        {t.node('appMission.appMissionIdCollaborationPanels.checklist')}
+      </p>
+      <h2 className="card-title">{t.node('appMission.appMissionIdCollaborationPanels.tasks')}</h2>
       {openOrInProgress.length === 0 ? (
-        <p className="card-body">{t('appMission.appMissionIdCollaborationPanels.noOpenTasks')}</p>
+        <p className="card-body">
+          {t.node('appMission.appMissionIdCollaborationPanels.noOpenTasks')}
+        </p>
       ) : (
         <div className="rows u-mb-100">
           {openOrInProgress.map((task, index) => (
@@ -108,19 +112,19 @@ export function TasksPanel({
                 </span>
                 {task.status === 'IN_PROGRESS' ? (
                   <span className="badge badge-neutral" style={{ fontSize: 'var(--text-caption)' }}>
-                    {t('appMission.appMissionIdCollaborationPanels.inProgress')}
+                    {t.node('appMission.appMissionIdCollaborationPanels.inProgress')}
                   </span>
                 ) : null}
                 {task.addedBy ? (
                   <span className="badge badge-neutral task-added-by">
-                    {t('appMission.appMissionIdCollaborationPanels.addedByAddedby', {
+                    {t.node('appMission.appMissionIdCollaborationPanels.addedByAddedby', {
                       addedBy: task.addedBy,
                     })}
                   </span>
                 ) : null}
                 {task.dueDate ? (
                   <span className="muted" style={{ fontSize: 'var(--text-caption)' }}>
-                    {t('appMission.appMissionIdCollaborationPanels.dueFormatdateonly', {
+                    {t.node('appMission.appMissionIdCollaborationPanels.dueFormatdateonly', {
                       formatDateOnly: formatDateOnly(task.dueDate, locale),
                     })}
                   </span>
@@ -165,7 +169,7 @@ export function TasksPanel({
       {decided.length > 0 ? (
         <details className="u-mb-100" open={finishedOpen}>
           <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
-            {t('appMission.appMissionIdCollaborationPanels.pluralDoneOrCancelled', {
+            {t.node('appMission.appMissionIdCollaborationPanels.pluralDoneOrCancelled', {
               plural: plural(Math.max(finishedTotal ?? 0, decided.length), 'Task'),
             })}
           </summary>
@@ -267,11 +271,13 @@ export function AppointmentsPanel({
 
   return (
     <article className="card">
-      <p className="card-kicker">{t('appMission.appMissionIdCollaborationPanels.meetings')}</p>
-      <h2 className="card-title">{t('appMission.appMissionIdCollaborationPanels.appointments')}</h2>
+      <p className="card-kicker">{t.node('appMission.appMissionIdCollaborationPanels.meetings')}</p>
+      <h2 className="card-title">
+        {t.node('appMission.appMissionIdCollaborationPanels.appointments')}
+      </h2>
       {upcoming.length === 0 ? (
         <p className="card-body u-mb-100">
-          {t('appMission.appMissionIdCollaborationPanels.noAppointmentsScheduled')}
+          {t.node('appMission.appMissionIdCollaborationPanels.noAppointmentsScheduled')}
         </p>
       ) : (
         <div className="rows u-mb-100">
@@ -300,7 +306,7 @@ export function AppointmentsPanel({
                     textDecoration: 'none',
                   }}
                 >
-                  {t('appMission.appMissionIdCollaborationPanels.addToCalendar')}
+                  {t.node('appMission.appMissionIdCollaborationPanels.addToCalendar')}
                 </a>
                 <form action={decideAction} style={{ display: 'flex', gap: '0.4rem' }}>
                   <input type="hidden" name="missionId" value={missionId} />
@@ -331,7 +337,7 @@ export function AppointmentsPanel({
       {past.length > 0 ? (
         <details className="u-mb-100">
           <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
-            {t('appMission.appMissionIdCollaborationPanels.lengthPast', {
+            {t.node('appMission.appMissionIdCollaborationPanels.lengthPast', {
               length: past.length,
             })}
           </summary>
@@ -424,27 +430,32 @@ export function LettersPanel({
   return (
     <article className="card">
       <p className="card-kicker">
-        {t('appMission.appMissionIdCollaborationPanels.groundedDocuments')}
+        {t.node('appMission.appMissionIdCollaborationPanels.groundedDocuments')}
       </p>
-      <h2 className="card-title">{t('appMission.appMissionIdCollaborationPanels.coverLetters')}</h2>
+      <h2 className="card-title">
+        {t.node('appMission.appMissionIdCollaborationPanels.coverLetters')}
+      </h2>
       <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
-        {t(
+        {t.node(
           'appMission.appMissionIdCollaborationPanels.generatedStrictlyFromConfirmedEligibleEvidence',
         )}
       </p>
       {letters.length === 0 ? (
         <p className="card-body u-mb-100">
-          {t('appMission.appMissionIdCollaborationPanels.noLettersGeneratedYet')}
+          {t.node('appMission.appMissionIdCollaborationPanels.noLettersGeneratedYet')}
         </p>
       ) : (
         <div className="rows u-mb-100">
           {letters.map((letter) => (
             <details key={letter.id}>
               <summary style={{ cursor: 'pointer', fontSize: 'var(--text-small)' }}>
-                {t('appMission.appMissionIdCollaborationPanels.versionVersionFormattimestampdate', {
-                  version: letter.version,
-                  formatTimestampDate: formatTimestampDate(letter.createdAt, locale),
-                })}
+                {t.node(
+                  'appMission.appMissionIdCollaborationPanels.versionVersionFormattimestampdate',
+                  {
+                    version: letter.version,
+                    formatTimestampDate: formatTimestampDate(letter.createdAt, locale),
+                  },
+                )}
               </summary>
               <pre
                 style={{
@@ -476,7 +487,7 @@ export function LettersPanel({
       )}
       {!finishedLine && !canGenerate ? (
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginTop: '0.5rem' }}>
-          {t('appMission.appMissionIdCollaborationPanels.nothingEligibleToGroundALetter')}
+          {t.node('appMission.appMissionIdCollaborationPanels.nothingEligibleToGroundALetter')}
         </p>
       ) : null}
       <FormMessage result={state} />
@@ -681,12 +692,14 @@ export function EvidenceSelectionPanel({
 
   return (
     <article className="card">
-      <p className="card-kicker">{t('appMission.appMissionIdCollaborationPanels.precision')}</p>
+      <p className="card-kicker">
+        {t.node('appMission.appMissionIdCollaborationPanels.precision')}
+      </p>
       <h2 className="card-title">
-        {t('appMission.appMissionIdCollaborationPanels.selectEvidence')}
+        {t.node('appMission.appMissionIdCollaborationPanels.selectEvidence')}
       </h2>
       <p className="muted lp-choice-intro">
-        {t('appMission.appMissionIdCollaborationPanels.moreThanOneInstanceIsOn')}
+        {t.node('appMission.appMissionIdCollaborationPanels.moreThanOneInstanceIsOn')}
       </p>
       <div className="rows">
         {multiCandidate.map((c) => (

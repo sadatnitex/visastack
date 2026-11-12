@@ -39,7 +39,11 @@ export function AttachPackForm({
         required
         aria-label={t('appMission.appMissionIdAttachPackForm.requirementPack')}
       >
-        <option value="" disabled>
+        <option
+          {...t.lang('appMission.appMissionIdAttachPackForm.chooseARequirementPack')}
+          value=""
+          disabled
+        >
           {t('appMission.appMissionIdAttachPackForm.chooseARequirementPack')}
         </option>
         {options.map((opt) => (

@@ -67,7 +67,7 @@ export function AcceptTripInvitationForm({
       <input type="hidden" name="token" value={token} />
       <div className="companion-field">
         <label className="label" htmlFor={`${id}-name`}>
-          {t('appTripInvitations.appTripInvitationsAcceptAcceptForm.yourName')}
+          {t.node('appTripInvitations.appTripInvitationsAcceptAcceptForm.yourName')}
         </label>
         <input
           id={`${id}-name`}
@@ -80,23 +80,27 @@ export function AcceptTripInvitationForm({
           {...fieldProblem(state, 'displayName', messageId, hintId)}
         />
         <p id={hintId} className="muted u-fs-085 u-m-0">
-          {t('appTripInvitations.appTripInvitationsAcceptAcceptForm.thisIsTheNameOthersOn')}
+          {t.node('appTripInvitations.appTripInvitationsAcceptAcceptForm.thisIsTheNameOthersOn')}
         </p>
         <FieldError result={state} field="displayName" />
       </div>
       <fieldset className="companion-share">
         <legend className="label">
-          {t('appTripInvitations.appTripInvitationsIdJoinedTripForms.whatYouShareWithTheOrganiser')}
+          {t.node(
+            'appTripInvitations.appTripInvitationsIdJoinedTripForms.whatYouShareWithTheOrganiser',
+          )}
         </legend>
         {choice(first, true)}
         <details className="companion-more">
-          <summary>{t('appTripInvitations.appTripInvitationsAcceptAcceptForm.shareMore')}</summary>
+          <summary>
+            {t.node('appTripInvitations.appTripInvitationsAcceptAcceptForm.shareMore')}
+          </summary>
           {more.map((item) => choice(item, false))}
         </details>
         <FieldError result={state} field="shareLevel" />
       </fieldset>
       <p className="muted u-fs-085 u-m-0">
-        {t('appTripInvitations.appTripInvitationsAcceptAcceptForm.youCanChangeThisOrLeave')}
+        {t.node('appTripInvitations.appTripInvitationsAcceptAcceptForm.youCanChangeThisOrLeave')}
       </p>
       <div className="companion-actions">
         <SubmitButton

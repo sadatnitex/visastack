@@ -42,26 +42,26 @@ export function DoNextList({
   return (
     <section className="card do-next" aria-labelledby="do-next-heading">
       <h2 className="card-title" id="do-next-heading">
-        {t('appAgency.appAgencyOrgidDoNextList.doNext')}
+        {t.node('appAgency.appAgencyOrgidDoNextList.doNext')}
       </h2>
       {filtered ? (
         <span className="badge badge-neutral do-next-filtered">
-          {t('appAgency.appAgencyOrgidDoNextList.filteredView')}
+          {t.node('appAgency.appAgencyOrgidDoNextList.filteredView')}
         </span>
       ) : null}
       <AboutDisclosure summary={t('appAgency.appAgencyOrgidDoNextList.howThisIsSorted')}>
         <p className="card-body do-next-intro">
-          {filtered ? t('appAgency.appAgencyOrgidDoNextList.forTheCasesInYourCurrent') : ''}
+          {filtered ? t.node('appAgency.appAgencyOrgidDoNextList.forTheCasesInYourCurrent') : ''}
           {admin
-            ? t('appAgency.appAgencyOrgidDoNextList.pastDueItemsFirstThenRequests', {
+            ? t.node('appAgency.appAgencyOrgidDoNextList.pastDueItemsFirstThenRequests', {
                 CHASE_AFTER_DAYS,
               })
-            : t('appAgency.appAgencyOrgidDoNextList.overdueTasksOnTheCasesAssigned')}
+            : t.node('appAgency.appAgencyOrgidDoNextList.overdueTasksOnTheCasesAssigned')}
         </p>
       </AboutDisclosure>
       {shown.length === 0 ? (
         <p className="do-next-empty">
-          {t('appAgency.appAgencyOrgidDoNextList.nothingNeedsYouFirstRightNow')}
+          {t.node('appAgency.appAgencyOrgidDoNextList.nothingNeedsYouFirstRightNow')}
         </p>
       ) : (
         <ol className="do-next-list">
@@ -80,16 +80,16 @@ export function DoNextList({
                 {item.traveller}
                 {item.caseTitle && item.caseTitle !== item.heading ? ` · ${item.caseTitle}` : ''}
                 {item.caseTitle === null
-                  ? t('appAgency.appAgencyOrgidDoNextList.notTiedToOneCase')
+                  ? t.node('appAgency.appAgencyOrgidDoNextList.notTiedToOneCase')
                   : ''}
               </p>
               <dl className="do-next-facts">
                 <div>
-                  <dt>{t('appAgency.appAgencyOrgidDoNextList.owner')}</dt>
+                  <dt>{t.node('appAgency.appAgencyOrgidDoNextList.owner')}</dt>
                   <dd data-value>{item.owner}</dd>
                 </div>
                 <div>
-                  <dt>{t('appAgency.appAgencyOrgidDoNextList.why')}</dt>
+                  <dt>{t.node('appAgency.appAgencyOrgidDoNextList.why')}</dt>
                   <dd>{item.reason}</dd>
                 </div>
               </dl>
@@ -127,7 +127,7 @@ export function DoNextList({
             </>
           ) : (
             <Link href={`${base}/clients?status=open`}>
-              {t('appAgency.appAgencyOrgidDoNextList.quiethiddenMoreAgreeHadNoReply', {
+              {t.node('appAgency.appAgencyOrgidDoNextList.quiethiddenMoreAgreeHadNoReply', {
                 quietHidden,
                 agree: agree(quietHidden, 'request has', 'requests have'),
               })}
@@ -137,7 +137,7 @@ export function DoNextList({
       ) : null}
       {items.length > shown.length ? (
         <p className="muted do-next-more" {...atLevel('browse')}>
-          {t('appAgency.appAgencyOrgidDoNextList.showingLengthOfLength2TheRest', {
+          {t.node('appAgency.appAgencyOrgidDoNextList.showingLengthOfLength2TheRest', {
             length: shown.length,
             length2: items.length,
           })}
