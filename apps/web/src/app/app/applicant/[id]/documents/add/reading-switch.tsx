@@ -2,6 +2,8 @@
 
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../../components/form-feedback';
+import { useT } from '../../../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../../../i18n/app-applicant';
 import type { ReadingView } from '../../../../../../lib/reading-state';
 import { type ReadingActionState, setReadingAction } from './actions';
 
@@ -30,13 +32,18 @@ export function ReadingSwitch({
   readonly applicantId: string;
   readonly view: ReadingView;
 }) {
+  const t = useT(appApplicantCatalog);
   const [state, action, pending] = useActionState(setReadingAction, INITIAL);
   const fullyOn = view.status === 'on';
   return (
     <details className="reading-control">
       <summary className="reading-control-summary">
         <span className="reading-dot" data-status={view.status} aria-hidden="true" />
-        <span>{`Automatic Reading: ${STATE_WORD[view.status]}`}</span>
+        <span>
+          {t('appApplicant.appApplicantIdDocumentsAddReadingSwitch.automaticReadingStateWord', {
+            STATE_WORD: STATE_WORD[view.status],
+          })}
+        </span>
         <span className="reading-control-caret" aria-hidden="true" />
       </summary>
       <section className="reading-control-panel" aria-labelledby={`reading-${applicantId}`}>

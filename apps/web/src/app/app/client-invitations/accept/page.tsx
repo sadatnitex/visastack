@@ -8,11 +8,12 @@ import {
 } from '@visastack/services';
 import type { Metadata } from 'next';
 import { InvitingAgency } from '../../../../components/inviting-agency';
+import { appClientInvitationsCatalog } from '../../../../i18n/app-client-invitations';
 import {
   clientAccessDurationLine,
   clientInvitationTerms,
 } from '../../../../lib/client-invitation-terms';
-import { primeLocale } from '../../../../lib/i18n-server';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import { AcceptClientInvitationForm } from './accept-form';
 import { ConsentGate } from './consent-gate';
@@ -44,13 +45,18 @@ export default async function AcceptClientInvitationPage({
 }) {
   // The agency line below reads the visitor's language.
   await primeLocale();
+  const t = getServerT(appClientInvitationsCatalog);
   const { token } = await searchParams;
 
   if (!token) {
     return (
       <section className="section container">
         <article className="card">
-          <p className="card-body">This invitation link is missing its token.</p>
+          <p className="card-body">
+            {t(
+              'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationLinkIsMissingIts',
+            )}
+          </p>
         </article>
       </section>
     );
@@ -76,16 +82,20 @@ export default async function AcceptClientInvitationPage({
   return (
     <section className="section container">
       <div className="u-mb-150">
-        <span className="eyebrow">Invitation</span>
+        <span className="eyebrow">
+          {t('appClientInvitations.appClientInvitationsAcceptPage.invitation')}
+        </span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-          Work with an Agency
+          {t('appClientInvitations.appClientInvitationsAcceptPage.workWithAnAgency')}
         </h1>
       </div>
       <article className="card">
         {!data.preview.ok ? (
           <p className="card-body">
             {data.preview.error.code === 'not_found'
-              ? 'This invitation link is not valid.'
+              ? t(
+                  'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationLinkIsNotValid',
+                )
               : data.preview.error.message}
           </p>
         ) : (
@@ -105,7 +115,7 @@ export default async function AcceptClientInvitationPage({
               .
             </p>
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
-              If you accept, they will be able to:
+              {t('appClientInvitations.appClientInvitationsAcceptPage.ifYouAcceptTheyWillBe')}
             </p>
             {terms ? (
               <>
@@ -123,13 +133,19 @@ export default async function AcceptClientInvitationPage({
               </>
             ) : (
               <p className="card-body">
-                This invitation cannot be shown right now. Ask the agency to send it again.
+                {t(
+                  'appClientInvitations.appClientInvitationsAcceptPage.thisInvitationCannotBeShownRight',
+                )}
               </p>
             )}
 
             {!terms ? null : !coreGranted || !sharingGranted ? (
               <>
-                <p className="card-body">Turn these on before accepting (both are required):</p>
+                <p className="card-body">
+                  {t(
+                    'appClientInvitations.appClientInvitationsAcceptPage.turnTheseOnBeforeAcceptingBoth',
+                  )}
+                </p>
                 <ConsentGate core={coreGranted} sharing={sharingGranted} />
               </>
             ) : (

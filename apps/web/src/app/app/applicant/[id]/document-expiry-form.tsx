@@ -7,6 +7,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { type ActionState, setDocumentExpiryAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -42,6 +44,7 @@ export function DocumentExpiryForm({
   savedLabel,
   typedLabel,
 }: DocumentExpiryFormProps) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(setDocumentExpiryAction, INITIAL);
   const [typed, setTyped] = useState(typedOn ?? '');
   const [listedTyped, setListedTyped] = useState(typedOn);
@@ -72,18 +75,25 @@ export function DocumentExpiryForm({
         <input type="hidden" name="confirmPastDate" value={state.confirmPastDate} />
       ) : null}
       <label className="field-label" htmlFor={inputId}>
-        Expiry Date
+        {t('appApplicant.appApplicantIdDocumentExpiryForm.expiryDate')}
       </label>
       <p id={hintId} className="muted u-fs-075-m0">
         {origin === 'READ' && savedLabel
-          ? `${savedLabel}, read from the document.`
+          ? t('appApplicant.appApplicantIdDocumentExpiryForm.savedlabelReadFromTheDocument', {
+              savedLabel,
+            })
           : origin === 'TYPED' && savedLabel
-            ? `${savedLabel}, entered by you.`
-            : 'No expiry date yet. Enter the one printed on the document.'}
+            ? t('appApplicant.appApplicantIdDocumentExpiryForm.savedlabelEnteredByYou', {
+                savedLabel,
+              })
+            : t('appApplicant.appApplicantIdDocumentExpiryForm.noExpiryDateYetEnterThe')}
       </p>
       {mismatch && savedLabel && typedLabel ? (
         <p className="muted u-fs-075-m0">
-          {`You entered ${typedLabel}. The document says ${savedLabel}. Check which is right.`}
+          {t('appApplicant.appApplicantIdDocumentExpiryForm.youEnteredTypedlabelTheDocumentSays', {
+            typedLabel,
+            savedLabel,
+          })}
         </p>
       ) : null}
       <div className="field-inline">

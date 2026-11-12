@@ -22,20 +22,22 @@ export default async function ResetPasswordPage({
   const { token, e, error: linkError } = await searchParams;
   if (!token || linkError) {
     return (
-      <AuthShell title={t('auth.authResetPasswordPage.chooseANewPassword')}>
+      <AuthShell title={t.node('auth.authResetPasswordPage.chooseANewPassword')}>
         <ErrorLine
           id="reset-error"
           message={t('auth.authResetPasswordPage.thatLinkHasExpiredOrIs')}
         />
         <p className="card-body">
-          <Link href="/auth/forgot-password">{t('auth.authResetPasswordPage.sendMeANewLink')}</Link>
+          <Link href="/auth/forgot-password">
+            {t.node('auth.authResetPasswordPage.sendMeANewLink')}
+          </Link>
         </p>
       </AuthShell>
     );
   }
   const error = e ? ERRORS[e] : undefined;
   return (
-    <AuthShell title={t('auth.authResetPasswordPage.chooseANewPassword')}>
+    <AuthShell title={t.node('auth.authResetPasswordPage.chooseANewPassword')}>
       <meta name="referrer" content="no-referrer" />
       <ErrorLine id="reset-error" message={error} />
       <div className="card u-mb-100">
@@ -63,7 +65,7 @@ export default async function ResetPasswordPage({
             maxLength={128}
           />
           <button type="submit" className="btn btn-primary">
-            {t('auth.authResetPasswordPage.changePassword')}
+            {t.node('auth.authResetPasswordPage.changePassword')}
           </button>
         </form>
       </div>

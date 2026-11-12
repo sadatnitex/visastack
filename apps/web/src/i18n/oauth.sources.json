@@ -1,0 +1,15 @@
+{
+  "oauth.oauthAuthorizeAgencyConsentForm.howLong": "SG-a70820b8",
+  "oauth.oauthAuthorizeConsentForm.answerAppname": "SG-a4126292",
+  "oauth.oauthAuthorizePage.agency": null,
+  "oauth.oauthAuthorizePage.aiAppAccess": "SG-3fb2aa39|SG-cc574f29",
+  "oauth.oauthAuthorizePage.chooseARecord": "SG-711744f6",
+  "oauth.oauthAuthorizePage.chooseTheRecordThisAppMay": "SG-fab4e436",
+  "oauth.oauthAuthorizePage.connectAppname": "SG-48c8ec6a",
+  "oauth.oauthAuthorizePage.connectForAnAgency": "SG-3bf94aa3",
+  "oauth.oauthAuthorizePage.isAskingToReadPartsOf": null,
+  "oauth.oauthAuthorizePage.orConnectItForAnAgency": "SG-6e5e6fff",
+  "oauth.oauthAuthorizePage.record": null,
+  "oauth.oauthAuthorizePage.thisAppRunsOnThisComputer": "SG-ee296cf8",
+  "oauth.oauthAuthorizePage.youHaveNoRecordsToConnect": "SG-cdb5fd11"
+}

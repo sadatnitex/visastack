@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { appApplicantCatalog } from '../../../../../../i18n/app-applicant';
+import { getServerT } from '../../../../../../lib/i18n-server';
 
 export type LifecycleTab = 'current' | 'archived' | 'deleted';
 
@@ -36,6 +38,7 @@ export function LifecycleTabs({
   /** The Removal Records page, or null while there are none. */
   readonly removalRecordsHref: string | null;
 }) {
+  const t = getServerT(appApplicantCatalog);
   const tabs: Array<{ readonly tab: LifecycleTab; readonly count: number | null }> = [
     { tab: 'current', count: null },
   ];
@@ -44,7 +47,10 @@ export function LifecycleTabs({
   if (deletedCount > 0 || active === 'deleted') tabs.push({ tab: 'deleted', count: deletedCount });
   if (tabs.length === 1 && removalRecordsHref === null) return null;
   return (
-    <nav className="lc-tabs" aria-label="Document lists">
+    <nav
+      className="lc-tabs"
+      aria-label={t('appApplicant.appApplicantIdDocumentsManageLifecycleTabs.documentLists')}
+    >
       <ul className="lc-tabs-list">
         {tabs.map(({ tab, count }) => (
           <li key={tab}>
@@ -61,7 +67,7 @@ export function LifecycleTabs({
         {removalRecordsHref ? (
           <li>
             <Link className="lc-tab lc-tab-records plain-link" href={removalRecordsHref}>
-              Removal Records
+              {t('appApplicant.appApplicantIdDocumentsManageLifecycleTabs.removalRecords')}
             </Link>
           </li>
         ) : null}

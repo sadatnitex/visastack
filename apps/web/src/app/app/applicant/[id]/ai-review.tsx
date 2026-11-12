@@ -4,7 +4,9 @@ import type { ReadingSource } from '@visastack/services';
 import Link from 'next/link';
 import { useActionState, useCallback, useId, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
 import { StatusBadge } from '../../../../components/ui';
+import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import { humanizeFieldKey } from '../../../../lib/field-key-label';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { profileField } from '../../../../lib/profile-fields';
@@ -84,6 +86,7 @@ export function OcrResultView({
   /** Part 8 §13 ("visible in UI"): true when this run's own `triggeredByRunId` is set -- it exists only because an earlier attempt against the primary provider recoverably failed (timeout/rate-limited) and this run is the fallback that actually succeeded. */
   readonly usedFallback?: boolean;
 }) {
+  const t = useT(appApplicantCatalog);
   return (
     <div
       className="card"
@@ -98,9 +101,9 @@ export function OcrResultView({
         <p style={{ marginBottom: '0.4rem' }}>
           <span
             className="badge badge-neutral"
-            title="The first reader timed out or was too busy, so a backup reader was used. Please check the result."
+            title={t('appApplicant.appApplicantIdAiReview.theFirstReaderTimedOutOr')}
           >
-            Fallback Provider Used
+            {t('appApplicant.appApplicantIdAiReview.fallbackProviderUsed')}
           </span>
         </p>
       ) : null}
@@ -126,7 +129,9 @@ export function OcrResultView({
           {text}
         </p>
       ) : (
-        <p className="muted u-fs-085">No legible text was found.</p>
+        <p className="muted u-fs-085">
+          {t('appApplicant.appApplicantIdAiReview.noLegibleTextWasFound')}
+        </p>
       )}
     </div>
   );
@@ -202,6 +207,7 @@ export function AiProposalReview({
    */
   readonly canApprove: boolean;
 }) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(
     async (previous: ActionState, formData: FormData) => {
       const result = await decideProposalAction(previous, formData);
@@ -243,21 +249,30 @@ export function AiProposalReview({
       <header className="finding-card-head">
         {headingLevel === 'h3' ? <h3 id={headingId}>{label}</h3> : <h4 id={headingId}>{label}</h4>}
         <StatusBadge tone={clear ? 'success' : 'warning'}>
-          {clear ? 'Clear' : 'Please Check'}
+          {clear
+            ? t('appApplicant.appApplicantIdAiReview.clear')
+            : t('appApplicant.appApplicantIdAiReview.pleaseCheck')}
         </StatusBadge>
-        {proposal.sensitive ? <StatusBadge tone="neutral">Sensitive</StatusBadge> : null}
+        {proposal.sensitive ? (
+          <StatusBadge tone="neutral">
+            {t('appApplicant.appApplicantIdAiReview.sensitive')}
+          </StatusBadge>
+        ) : null}
       </header>
       {quote ? (
         <p className="finding-source">
-          Found as <q>{quote.snippet}</q>
+          {t('appApplicant.appApplicantIdAiReview.foundAs')} <q>{quote.snippet}</q>
         </p>
       ) : null}
       {proposal.app ? (
         <p className="finding-origin">
-          <StatusBadge tone="neutral">Suggested by {proposal.app}</StatusBadge>
+          <StatusBadge tone="neutral">
+            {t('appApplicant.appApplicantIdAiReview.suggestedByApp', { app: proposal.app })}
+          </StatusBadge>
           {proposal.rationale ? (
             <small className="muted">
-              The app’s reason, in its own words: <q>{proposal.rationale}</q>
+              {t('appApplicant.appApplicantIdAiReview.theAppSReasonInIts')}{' '}
+              <q>{proposal.rationale}</q>
             </small>
           ) : null}
         </p>
@@ -269,8 +284,7 @@ export function AiProposalReview({
       ) : null}
       {unverified ? (
         <p className="muted u-fs-085">
-          We could not find these exact words in the document. Look at the document before you
-          accept.
+          {t('appApplicant.appApplicantIdAiReview.weCouldNotFindTheseExact')}
         </p>
       ) : null}
       {!mappable ? (
@@ -292,7 +306,7 @@ export function AiProposalReview({
         {mappable && canApprove ? (
           <div className="finding-value">
             <label className="field-label" htmlFor={valueId}>
-              Value to Save
+              {t('appApplicant.appApplicantIdAiReview.valueToSave')}
             </label>
             {proposal.editor?.kind === 'choice' ? (
               <select
@@ -326,8 +340,10 @@ export function AiProposalReview({
             )}
             <small className="muted">
               {readAsWritten
-                ? `We read "${readAsWritten}". Pick the date to save.`
-                : 'Change it if it is not right before you accept.'}
+                ? t('appApplicant.appApplicantIdAiReview.weReadReadaswrittenPickTheDate', {
+                    readAsWritten,
+                  })
+                : t('appApplicant.appApplicantIdAiReview.changeItIfItIsNot')}
             </small>
           </div>
         ) : null}
@@ -335,7 +351,7 @@ export function AiProposalReview({
           <fieldset className="finding-difference">
             <legend>
               {difference.current === null ? (
-                'Your profile already has a different value for this, hidden here to keep it private. Which is right?'
+                t('appApplicant.appApplicantIdAiReview.yourProfileAlreadyHasADifferent')
               ) : (
                 <>
                   Your profile has <q>{difference.current}</q>. Which is right?
@@ -351,7 +367,11 @@ export function AiProposalReview({
                 checked={choice === 'use_document'}
                 onChange={() => setChoice('use_document')}
               />
-              {proposal.app ? 'Use the Suggested Value' : <>Use This Document&rsquo;s Value</>}
+              {proposal.app ? (
+                t('appApplicant.appApplicantIdAiReview.useTheSuggestedValue')
+              ) : (
+                <>{t('appApplicant.appApplicantIdAiReview.useThisDocumentSValue')}</>
+              )}
             </label>
             {proposal.fixed ? null : (
               <label>
@@ -362,13 +382,13 @@ export function AiProposalReview({
                   checked={choice === 'changed'}
                   onChange={() => setChoice('changed')}
                 />
-                Both Are Right, It Changed
+                {t('appApplicant.appApplicantIdAiReview.bothAreRightItChanged')}
               </label>
             )}
             {choice === 'changed' && !proposal.fixed ? (
               <div className="finding-value">
                 <label className="field-label" htmlFor={dateId}>
-                  Date It Changed
+                  {t('appApplicant.appApplicantIdAiReview.dateItChanged')}
                 </label>
                 <input
                   id={dateId}
@@ -388,7 +408,7 @@ export function AiProposalReview({
                 checked={choice === 'keep'}
                 onChange={() => setChoice('keep')}
               />
-              Keep My Current Value
+              {t('appApplicant.appApplicantIdAiReview.keepMyCurrentValue')}
             </label>
           </fieldset>
         ) : null}
@@ -415,7 +435,7 @@ export function AiProposalReview({
           className="btn btn-secondary"
           name="proposalAction"
           value="reject"
-          label={`Skip: ${label}`}
+          label={t('appApplicant.appApplicantIdAiReview.skipLabel', { label })}
         />
       </form>
       <FormMessage result={state.ok ? INITIAL : state} />
@@ -436,6 +456,7 @@ export function DocumentFindings({
   readonly proposals: readonly AiProposalViewModel[];
   readonly canApprove: boolean;
 }) {
+  const t = useT(appApplicantCatalog);
   // The latest outcome, kept here: a card disappears once decided, and its message with it.
   const [lastResult, setLastResult] = useState<ActionState>(INITIAL);
   const [edited, setEdited] = useState<ReadonlySet<string>>(new Set());
@@ -480,7 +501,7 @@ export function DocumentFindings({
   return (
     // Not a landmark: several documents on one page each have one, all with this heading.
     <div className="document-findings">
-      <h3>Check What We Found</h3>
+      <h3>{t('appApplicant.appApplicantIdAiReview.checkWhatWeFound')}</h3>
       <p className="muted">
         We read this document and found {count === 1 ? 'one detail' : `${count} details`}. Nothing
         is saved to your profile until you accept it.
@@ -498,8 +519,7 @@ export function DocumentFindings({
             className="btn btn-primary"
           />
           <small className="muted">
-            Sensitive details, anything you changed, and anything that differs from your profile
-            stay here for you to check one by one.
+            {t('appApplicant.appApplicantIdAiReview.sensitiveDetailsAnythingYouChangedAnd')}
           </small>
         </form>
       ) : null}
@@ -598,6 +618,7 @@ export function InconsistencyFlagReview({
   readonly applicantId: string;
   readonly flag: InconsistencyFlagViewModel;
 }) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(decideInconsistencyFlagAction, INITIAL);
 
   return (
@@ -612,7 +633,9 @@ export function InconsistencyFlagReview({
     >
       <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.4rem' }}>
         <span className="badge badge-warning">
-          Possible inconsistency ({flag.confidence}% confidence)
+          {t('appApplicant.appApplicantIdAiReview.possibleInconsistencyConfidenceConfidence', {
+            confidence: flag.confidence,
+          })}
         </span>{' '}
         {flag.description}
         {flag.rationale ? ` - ${flag.rationale}` : ''}
@@ -672,6 +695,7 @@ export function DocumentTypeProposalReview({
   /** Same CORE_PROCESSING gate `AiProposalReview`'s own `canApprove` documents -- approving writes `documents.docType` and a naming proposal. */
   readonly canApprove: boolean;
 }) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(decideClassificationProposalAction, INITIAL);
 
   return (
@@ -686,8 +710,10 @@ export function DocumentTypeProposalReview({
     >
       <p className="muted" style={{ fontSize: 'var(--text-caption)', marginBottom: '0.4rem' }}>
         <span className="badge badge-neutral">
-          AI thinks this is a {documentTypeLabel(proposal.suggestedType).toLowerCase()} (
-          {proposal.confidence}% sure). Please check it.
+          {t('appApplicant.appApplicantIdAiReview.aiThinksThisIsATolowercase', {
+            toLowerCase: documentTypeLabel(proposal.suggestedType).toLowerCase(),
+            confidence: proposal.confidence,
+          })}
         </span>
         {proposal.rationale ? ` - ${proposal.rationale}` : ''}
       </p>

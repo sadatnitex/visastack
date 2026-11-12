@@ -1,0 +1,17 @@
+{
+  "appClientInvitations.appClientInvitationsAcceptAcceptForm.agencyaitravellernoteIfYourSignInIs": "SG-b1994b75",
+  "appClientInvitations.appClientInvitationsAcceptAcceptForm.aiTools": "SG-e432687f",
+  "appClientInvitations.appClientInvitationsAcceptAcceptForm.createANewProfile": null,
+  "appClientInvitations.appClientInvitationsAcceptAcceptForm.leaveBlankToUseTheName": "SG-f56a607f",
+  "appClientInvitations.appClientInvitationsAcceptAcceptForm.profileNameOptional": "SG-427e9e7f",
+  "appClientInvitations.appClientInvitationsAcceptAcceptForm.whichProfile": "SG-95425914",
+  "appClientInvitations.appClientInvitationsAcceptConsentGate.on": "SG-576b63a5",
+  "appClientInvitations.appClientInvitationsAcceptConsentGate.turnOnLabel": "SG-02122e22",
+  "appClientInvitations.appClientInvitationsAcceptPage.ifYouAcceptTheyWillBe": "SG-69e97063",
+  "appClientInvitations.appClientInvitationsAcceptPage.invitation": "SG-6c4c0ce5|SG-71141c69",
+  "appClientInvitations.appClientInvitationsAcceptPage.thisInvitationCannotBeShownRight": "SG-07369aca",
+  "appClientInvitations.appClientInvitationsAcceptPage.thisInvitationLinkIsMissingIts": "SG-220af164",
+  "appClientInvitations.appClientInvitationsAcceptPage.thisInvitationLinkIsNotValid": "SG-375193d7",
+  "appClientInvitations.appClientInvitationsAcceptPage.turnTheseOnBeforeAcceptingBoth": "SG-cdca8c7b",
+  "appClientInvitations.appClientInvitationsAcceptPage.workWithAnAgency": "SG-ddf6698f"
+}

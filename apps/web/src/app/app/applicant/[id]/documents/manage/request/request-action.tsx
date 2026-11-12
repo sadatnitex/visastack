@@ -1,6 +1,8 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState } from 'react';
+import { useT } from '../../../../../../../components/i18n-provider';
+import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import type { ManageActionProps } from '../registry';
 import { requestRemovalAction } from './actions';
 import { BACKUP_NOTE, REASON_CHOICES, WHAT_HAPPENS } from './messages';
@@ -17,6 +19,7 @@ export function RequestRemovalAction({
   documentName,
   onClose,
 }: ManageActionProps) {
+  const t = useT(appApplicantCatalog);
   const router = useRouter();
   const [reason, setReason] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -63,7 +66,7 @@ export function RequestRemovalAction({
     return (
       <div ref={root} className="lc-request">
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-request-heading">
-          Removal Requested
+          {t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.removalRequested')}
         </h3>
         <output className="lc-request-result">{result}</output>
         <div className="lc-request-actions">
@@ -75,7 +78,7 @@ export function RequestRemovalAction({
               router.refresh();
             }}
           >
-            Done
+            {t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.done')}
           </button>
         </div>
       </div>
@@ -85,19 +88,27 @@ export function RequestRemovalAction({
   return (
     <div ref={root} className="lc-request">
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-request-heading">
-        Ask Us to Remove This File
+        {t('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.askUsToRemoveThisFile')}
       </h3>
       <p id={hintId} className="lc-request-note">
         {WHAT_HAPPENS}
       </p>
       <p className="lc-request-note">
-        <strong>What Removed Means:</strong> {BACKUP_NOTE}
+        <strong>
+          {t('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.whatRemovedMeans')}
+        </strong>{' '}
+        {BACKUP_NOTE}
       </p>
       <fieldset
         className="lc-request-choices"
         aria-describedby={problem ? `${hintId} ${problemId}` : hintId}
       >
-        <legend className="lc-request-legend">Why should we remove {documentName}?</legend>
+        <legend className="lc-request-legend">
+          {t(
+            'appApplicant.appApplicantIdDocumentsManageRequestRequestAction.whyShouldWeRemoveDocumentname',
+            { documentName },
+          )}
+        </legend>
         {REASON_CHOICES.map((choice) => (
           <label key={choice.value} className="lc-request-choice">
             <input
@@ -126,10 +137,12 @@ export function RequestRemovalAction({
           aria-disabled={busy || undefined}
           onClick={send}
         >
-          {busy ? 'Sending' : 'Send Request'}
+          {busy
+            ? t('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.sending')
+            : t('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.sendRequest')}
         </button>
         <button type="button" className="btn btn-secondary" onClick={onClose}>
-          Cancel
+          {t('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.cancel')}
         </button>
       </div>
     </div>

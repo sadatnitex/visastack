@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { componentsCatalog } from '../i18n/components';
+import { useT } from './i18n-provider';
 import { Icon } from './icons';
 
 /**
@@ -72,6 +74,7 @@ export function resetToastForTest(): void {
  * 4-second timer, and holds it while the pointer or focus is on the strip.
  */
 export function ToastHost() {
+  const t = useT(componentsCatalog);
   const toast = useSyncExternalStore(subscribe, snapshot, () => null);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -137,7 +140,7 @@ export function ToastHost() {
           type="button"
           className="toast-close"
           tabIndex={-1}
-          aria-label="Dismiss"
+          aria-label={t('components.toast.dismiss')}
           onClick={() => dismissToast(toast.id)}
         >
           <Icon name="close" size={18} />

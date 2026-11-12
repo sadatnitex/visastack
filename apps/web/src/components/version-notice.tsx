@@ -2,7 +2,9 @@
 
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { componentsCatalog } from '../i18n/components';
 import { rememberVersionNoticeSeen } from '../lib/version-notice';
+import { useT } from './i18n-provider';
 import { Icon } from './icons';
 
 export interface VersionNoticeCopy {
@@ -29,6 +31,7 @@ export function VersionNotice({
   /** This device has already seen the notice: start with the slim label. */
   readonly folded?: boolean;
 }) {
+  const t = useT(componentsCatalog);
   const pathname = usePathname();
   const [firstPage] = useState(pathname);
   const [folded, setFolded] = useState(foldedAtStart);
@@ -44,7 +47,7 @@ export function VersionNotice({
   return (
     <section
       className={folded ? 'pilot-banner pilot-banner-slim' : 'pilot-banner'}
-      aria-label="About this version"
+      aria-label={t('components.versionNotice.aboutThisVersion')}
     >
       <span className="pilot-banner-label">{copy.label}</span>
       {folded ? null : (
@@ -55,13 +58,13 @@ export function VersionNotice({
         </>
       )}
       <a className="pilot-banner-link" href="/status" ref={link}>
-        What Works Today
+        {t.node('components.versionNotice.whatWorksToday')}
       </a>
       {folded ? null : (
         <button
           type="button"
           className="pilot-banner-hide"
-          aria-label="Hide This Notice"
+          aria-label={t('components.versionNotice.hideThisNotice')}
           onClick={() => {
             rememberVersionNoticeSeen();
             setFolded(true);

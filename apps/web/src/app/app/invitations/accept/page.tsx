@@ -1,6 +1,8 @@
 import { previewOrganizationInvitation } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { appInvitationsCatalog } from '../../../../i18n/app-invitations';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { membershipRoleLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';
 import { AcceptInvitationForm } from './accept-form';
@@ -25,13 +27,17 @@ export default async function AcceptInvitationPage({
 }: {
   readonly searchParams: Promise<{ readonly token?: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appInvitationsCatalog);
   const { token } = await searchParams;
 
   if (!token) {
     return (
       <section className="section container">
         <article className="card">
-          <p className="card-body">This invitation link is missing its token.</p>
+          <p className="card-body">
+            {t('appInvitations.appInvitationsAcceptPage.thisInvitationLinkIsMissingIts')}
+          </p>
         </article>
       </section>
     );
@@ -44,16 +50,16 @@ export default async function AcceptInvitationPage({
   return (
     <section className="section container">
       <div className="u-mb-150">
-        <span className="eyebrow">Invitation</span>
+        <span className="eyebrow">{t('appInvitations.appInvitationsAcceptPage.invitation')}</span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-          Join an Organization
+          {t('appInvitations.appInvitationsAcceptPage.joinAnOrganization')}
         </h1>
       </div>
       <article className="card">
         {!preview.ok ? (
           <p className="card-body">
             {preview.error.code === 'not_found'
-              ? 'This invitation link is not valid.'
+              ? t('appInvitations.appInvitationsAcceptPage.thisInvitationLinkIsNotValid')
               : preview.error.message}
           </p>
         ) : (

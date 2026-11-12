@@ -8,11 +8,13 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type { ActivityLogEntry } from '../../../../../components/activity-log';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 import {
   REPLACED_WORD,
   fieldMethodWords,
   fieldStatusWords,
 } from '../../../../../lib/field-state-words';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { evidenceFieldGroups, fieldLabel } from '../../../../../lib/master-profile';
 import {
   type SearchParamsRecord,
@@ -81,6 +83,8 @@ export default async function HistoryPage({
     }
   >;
 }) {
+  await primeLocale();
+  const t = getServerT(appApplicantCatalog);
   const { id } = await params;
   const query = (await searchParams) ?? {};
   const parts = profileParts();
@@ -158,22 +162,19 @@ export default async function HistoryPage({
   return (
     <>
       <PageHeader
-        eyebrow="Record"
-        title="History"
-        description="Every saved value is kept, and nothing is overwritten. This is the full trail, in order, with where each value came from."
+        eyebrow={t('appApplicant.appApplicantIdExpiryPage.record')}
+        title={t('appApplicant.appApplicantIdHistoryPage.history')}
+        description={t('appApplicant.appApplicantIdHistoryPage.everySavedValueIsKeptAnd')}
       />
 
       {nothingSaved ? (
         <article className="card">
           <EmptyState
             icon="activity"
-            title="Nothing Saved to This Profile Yet"
+            title={t('appApplicant.appApplicantIdHistoryPage.nothingSavedToThisProfileYet')}
             action={{ href: `/app/applicant/${id}/profile`, label: 'Add Your Essentials' }}
           >
-            History lists every saved version of a profile detail, with when and how it was saved.
-            Nothing has been saved to this profile yet, so there is nothing to list. Add a detail on
-            the profile, or upload a document and approve the details it suggests. Each save then
-            appears here.
+            {t('appApplicant.appApplicantIdHistoryPage.historyListsEverySavedVersionOf')}
           </EmptyState>
         </article>
       ) : (

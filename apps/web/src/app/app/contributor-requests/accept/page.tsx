@@ -1,5 +1,7 @@
 import { getRetentionPolicies, previewContributorRequest } from '@visastack/services';
 import type { Metadata } from 'next';
+import { appContributorRequestsCatalog } from '../../../../i18n/app-contributor-requests';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { documentTypeLabel } from '../../../../lib/labels';
 import { withSession } from '../../../../lib/session';
 import { SubmitEvidenceForm } from './submit-evidence-form';
@@ -25,13 +27,17 @@ export default async function AcceptContributorRequestPage({
 }: {
   readonly searchParams: Promise<{ readonly token?: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appContributorRequestsCatalog);
   const { token } = await searchParams;
 
   if (!token) {
     return (
       <section className="section container">
         <article className="card">
-          <p className="card-body">This link is missing its token.</p>
+          <p className="card-body">
+            {t('appContributorRequests.appContributorRequestsAcceptPage.thisLinkIsMissingItsToken')}
+          </p>
         </article>
       </section>
     );
@@ -52,16 +58,18 @@ export default async function AcceptContributorRequestPage({
   return (
     <section className="section container">
       <div className="u-mb-150">
-        <span className="eyebrow">Contributor Request</span>
+        <span className="eyebrow">
+          {t('appContributorRequests.appContributorRequestsAcceptPage.contributorRequest')}
+        </span>
         <h1 className="section-title" style={{ margin: '0.25rem 0 0' }}>
-          Provide One Document
+          {t('appContributorRequests.appContributorRequestsAcceptPage.provideOneDocument')}
         </h1>
       </div>
       <article className="card">
         {!data.preview.ok ? (
           <p className="card-body">
             {data.preview.error.code === 'not_found'
-              ? 'This link is not valid.'
+              ? t('appContributorRequests.appContributorRequestsAcceptPage.thisLinkIsNotValid')
               : data.preview.error.message}
           </p>
         ) : (
@@ -72,49 +80,61 @@ export default async function AcceptContributorRequestPage({
               <strong>{documentTypeLabel(data.preview.value.docType).toLowerCase()}</strong>.
             </p>
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-              Why:
+              {t('appContributorRequests.appContributorRequestsAcceptPage.why')}
             </p>
             <p className="card-body u-mb-100">{data.preview.value.purpose}</p>
             {data.preview.value.message ? (
               <>
                 <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-                  Message:
+                  {t('appContributorRequests.appContributorRequestsAcceptPage.message')}
                 </p>
                 <p className="card-body u-mb-100">{data.preview.value.message}</p>
               </>
             ) : null}
 
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-              Who will see this:
+              {t('appContributorRequests.appContributorRequestsAcceptPage.whoWillSeeThis')}
             </p>
             <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem' }}>
-              <li className="muted u-fs-085">{data.preview.value.applicantName} (the traveller)</li>
+              <li className="muted u-fs-085">
+                {t(
+                  'appContributorRequests.appContributorRequestsAcceptPage.applicantnameTheTraveller',
+                  { applicantName: data.preview.value.applicantName },
+                )}
+              </li>
               {data.preview.value.recipientOrganizationNames.map((name) => (
                 <li className="muted u-fs-085" key={name}>
-                  {name} (helping with this case)
+                  {t(
+                    'appContributorRequests.appContributorRequestsAcceptPage.nameHelpingWithThisCase',
+                    { name },
+                  )}
                 </li>
               ))}
             </ul>
 
             <p className="card-body" style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
-              How long it's kept:
+              {t('appContributorRequests.appContributorRequestsAcceptPage.howLongItSKept')}
             </p>
             <p className="card-body u-mb-100">
               {retentionDays !== null
-                ? `${retentionDays} days from upload, under this platform's standard retention policy.`
-                : "This document type doesn't have a specific retention period configured yet."}
+                ? t(
+                    'appContributorRequests.appContributorRequestsAcceptPage.retentiondaysDaysFromUploadUnderThis',
+                    { retentionDays },
+                  )
+                : t(
+                    'appContributorRequests.appContributorRequestsAcceptPage.thisDocumentTypeDoesnTHave',
+                  )}
             </p>
 
             <div className="notice notice-warn u-mb-125">
-              This document may be included in the case file the traveller reviews and submits for
-              their case. Do not upload anything you would not want the traveller and anyone helping
-              with their case to eventually see.
+              {t(
+                'appContributorRequests.appContributorRequestsAcceptPage.thisDocumentMayBeIncludedIn',
+              )}
             </div>
 
             {!data.preview.value.emailMatches ? (
               <p className="card-body" style={{ color: 'var(--danger, #b42318)' }}>
-                This request was sent to a different email address than the one you're signed in
-                with. Sign in with the email it was sent to before continuing.
+                {t('appContributorRequests.appContributorRequestsAcceptPage.thisRequestWasSentToA')}
               </p>
             ) : (
               <SubmitEvidenceForm token={token} docType={data.preview.value.docType} />

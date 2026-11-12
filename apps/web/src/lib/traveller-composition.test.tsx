@@ -30,6 +30,8 @@ vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NOT_FOUND');
   },
+  // primeLocale lets Next's own signals travel on; nothing here throws one.
+  unstable_rethrow: () => undefined,
 }));
 vi.mock('../app/app/agency/[orgId]/stage-labels', () => ({ STAGE_LABELS: { DRAFT: 'Draft' } }));
 vi.mock('../app/app/applicant/[id]/profile-editor', () => ({

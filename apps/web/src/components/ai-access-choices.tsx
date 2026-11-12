@@ -1,5 +1,8 @@
+'use client';
+
 import { AI_FEATURE_OFF_HINT } from '@visastack/core/ai-features';
 import { useId } from 'react';
+import { componentsCatalog } from '../i18n/components';
 import {
   AI_CONNECTION_LAYERS,
   AI_CONNECTION_WARNING_LAYERS,
@@ -18,6 +21,7 @@ import {
   AI_SUGGEST_KEPT_NOTE,
 } from '../lib/ai-consent-labels';
 import { AiFileChoices } from './ai-file-choices';
+import { useT } from './i18n-provider';
 
 /**
  * Up to this many cases are listed as they are; a longer list sits in a short box that scrolls
@@ -79,6 +83,7 @@ export function AiAccessChoices({
   filesInitial = [],
   filesStored = [],
 }: AiAccessChoicesProps) {
+  const t = useT(componentsCatalog);
   // Enabled while the feature works, or on Change Access when already stored (so it can be
   // unticked). Never shown ticked unless the server would keep it ticked.
   const suggestEditable = suggestionsAvailable || (suggestMode === 'change' && suggestStored);
@@ -102,14 +107,16 @@ export function AiAccessChoices({
         {...problem('cases')}
       />
       <span className="output-check-text">
-        <span>Only {item.title}</span>
+        <span>{t.node('components.aiAccessChoices.onlyTitle', { title: item.title })}</span>
       </span>
     </label>
   ));
   return (
     <>
       <fieldset className="fieldset">
-        <legend className="field-label">What {appName} Can Read</legend>
+        <legend className="field-label">
+          {t.node('components.aiAccessChoices.whatAppnameCanRead', { appName })}
+        </legend>
         <div className="checks">
           {AI_CONNECTION_LAYERS.map((layer) => (
             <label key={layer} className="check output-check" htmlFor={`${id}-ai-layer-${layer}`}>
@@ -138,7 +145,7 @@ export function AiAccessChoices({
       </fieldset>
 
       <fieldset className="fieldset" {...problemGroup('cases')}>
-        <legend className="field-label">Cases</legend>
+        <legend className="field-label">{t.node('components.aiAccessChoices.cases')}</legend>
         <div className="checks">
           <label className="check output-check" htmlFor={`${id}-ai-cases-all`}>
             <input
@@ -150,7 +157,7 @@ export function AiAccessChoices({
               {...problem('cases')}
             />
             <span className="output-check-text">
-              <span>All Current Cases</span>
+              <span>{t.node('components.aiAccessChoices.allCurrentCases')}</span>
             </span>
           </label>
           {cases.length > AI_CASES_INLINE_MAX ? (
@@ -168,14 +175,14 @@ export function AiAccessChoices({
               {...problem('cases')}
             />
             <span className="output-check-text">
-              <span>No Cases</span>
+              <span>{t.node('components.aiAccessChoices.noCases')}</span>
             </span>
           </label>
         </div>
       </fieldset>
 
       <fieldset className="fieldset">
-        <legend className="field-label">Documents</legend>
+        <legend className="field-label">{t.node('components.aiAccessChoices.documents')}</legend>
         <div className="checks">
           <label className="check output-check" htmlFor={`${id}-ai-document-list`}>
             <input
@@ -188,7 +195,7 @@ export function AiAccessChoices({
             <span className="output-check-text">
               <span>{AI_DOCUMENT_LIST_LABEL}</span>
               <span className="muted u-fs-075">
-                Kind, dates and status only. No file is shared.
+                {t.node('components.aiAccessChoices.kindDatesAndStatusOnlyNo')}
               </span>
             </span>
           </label>
@@ -202,8 +209,7 @@ export function AiAccessChoices({
             <span className="output-check-text">
               <span>{AI_DOCUMENT_TEXT_LABEL}</span>
               <span className="muted u-fs-075 ai-consent-warning">
-                Sensitive: the words read from documents in the parts you allow above. Protected
-                document types are never included.
+                {t.node('components.aiAccessChoices.sensitiveTheWordsReadFromDocuments')}
               </span>
             </span>
           </label>
@@ -218,8 +224,7 @@ export function AiAccessChoices({
             <span className="output-check-text">
               <span>{AI_FULL_NUMBERS_LABEL}</span>
               <span className="muted u-fs-075 ai-consent-warning">
-                Sensitive: shows whole passport and ID numbers instead of the last three characters.
-                You confirm it is you before this is allowed.
+                {t.node('components.aiAccessChoices.sensitiveShowsWholePassportAndId')}
               </span>
             </span>
           </label>
@@ -237,7 +242,7 @@ export function AiAccessChoices({
       ) : null}
 
       <fieldset className="fieldset">
-        <legend className="field-label">Changes</legend>
+        <legend className="field-label">{t.node('components.aiAccessChoices.changes')}</legend>
         <div className="checks">
           <label className="check output-check" htmlFor={`${id}-ai-suggest`}>
             <input
@@ -265,7 +270,7 @@ export function AiAccessChoices({
 
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-ai-duration`}>
-          How Long
+          {t.node('components.aiAccessChoices.howLong')}
         </label>
         <select
           id={`${id}-ai-duration`}

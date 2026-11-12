@@ -7,6 +7,8 @@ import {
   type RemovalRecordRow,
 } from '../../../../../components/lifecycle/removal-record-list';
 import { PageHeader } from '../../../../../components/ui';
+import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { withSession } from '../../../../../lib/session';
 import { BACKUP_SENTENCE } from './messages';
 
@@ -27,6 +29,8 @@ export default async function RemovalRecordsPage({
 }: {
   readonly params: Promise<{ id: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appApplicantCatalog);
   const { id } = await params;
   const records = await withSession(async ({ db, accountId }) => {
     const gate = await requireAccess(
@@ -63,13 +67,15 @@ export default async function RemovalRecordsPage({
   return (
     <>
       <PageHeader
-        title="Removal Records"
-        description="What was deleted from this record, and where each removal stands. Each one shows its reference code, its kind, and when and from which account it was asked, never a name or a title."
+        title={t('appApplicant.appApplicantIdRemovalRecordsPage.removalRecords')}
+        description={t(
+          'appApplicant.appApplicantIdRemovalRecordsPage.whatWasDeletedFromThisRecord',
+        )}
         back={{ href: `/app/applicant/${id}/documents`, label: 'Documents' }}
       />
       <section className="card lc-records-page" aria-labelledby="removal-records-heading">
         <h2 id="removal-records-heading" className="sr-only">
-          Records
+          {t('appApplicant.appApplicantIdRemovalRecordsPage.records')}
         </h2>
         <RemovalRecordList records={rows} />
         {rows.length > 0 ? (

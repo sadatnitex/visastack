@@ -2,7 +2,9 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useLocale, useT } from '../../../../../../../components/i18n-provider';
 import { UndoStatus } from '../../../../../../../components/lifecycle/undo-status';
+import { appApplicantCatalog } from '../../../../../../../i18n/app-applicant';
 import { formatTimestampDate } from '../../../../../../../lib/format-date';
 import type { ManageActionProps } from '../registry';
 import {
@@ -29,6 +31,8 @@ export function DeleteDuplicateAction({
   documentName,
   onClose,
 }: ManageActionProps) {
+  const t = useT(appApplicantCatalog);
+  const locale = useLocale();
   const router = useRouter();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -94,7 +98,7 @@ export function DeleteDuplicateAction({
     return (
       <div ref={root} className="lc-delete" aria-labelledby={headingId}>
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-delete-heading">
-          Duplicate Deleted
+          {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.duplicateDeleted')}
         </h3>
         <UndoStatus
           message={deletedLine(deletedDays)}
@@ -114,7 +118,7 @@ export function DeleteDuplicateAction({
               router.refresh();
             }}
           >
-            Done
+            {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.done')}
           </button>
         </div>
       </div>
@@ -124,14 +128,21 @@ export function DeleteDuplicateAction({
   return (
     <div ref={root} className="lc-delete" aria-labelledby={headingId}>
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-delete-heading">
-        Delete Duplicate?
+        {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleteDuplicate')}
       </h3>
       {problemLine}
-      {!preview && !problem ? <output>Checking this copy</output> : null}
+      {!preview && !problem ? (
+        <output>
+          {t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.checkingThisCopy')}
+        </output>
+      ) : null}
       {preview ? (
         <>
           <p>
-            {documentName} is an exact copy. The identical copy that stays is{' '}
+            {t(
+              'appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.documentnameIsAnExactCopyThe',
+              { documentName },
+            )}{' '}
             <strong>{preview.survivorName}</strong>.
           </p>
           <p>{casesLine(preview.cases.length)}</p>
@@ -143,8 +154,10 @@ export function DeleteDuplicateAction({
             </ul>
           ) : null}
           <p className="lc-delete-note">
-            It waits in Recently Deleted until {formatTimestampDate(preview.purgeAfter)}, and you
-            can restore it until then. After that it is removed for good.
+            {t(
+              'appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.itWaitsInRecentlyDeletedUntil',
+              { formatTimestampDate: formatTimestampDate(preview.purgeAfter, locale) },
+            )}
           </p>
           <div className="lc-delete-actions">
             <button
@@ -153,7 +166,11 @@ export function DeleteDuplicateAction({
               aria-disabled={busy || undefined}
               onClick={remove}
             >
-              {busy ? 'Deleting' : 'Delete Duplicate'}
+              {busy
+                ? t('appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleting')
+                : t(
+                    'appApplicant.appApplicantIdDocumentsManageDeleteDeleteAction.deleteDuplicate484f53',
+                  )}
             </button>
             <button
               type="button"
@@ -163,7 +180,7 @@ export function DeleteDuplicateAction({
                 if (!busy) onClose();
               }}
             >
-              Cancel
+              {t('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
             </button>
           </div>
         </>
@@ -171,7 +188,7 @@ export function DeleteDuplicateAction({
       {problem && !preview ? (
         <div className="lc-delete-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Close
+            {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
           </button>
         </div>
       ) : null}

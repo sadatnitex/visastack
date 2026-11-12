@@ -13,6 +13,8 @@ import {
   specAspect,
 } from '@visastack/core/photo-specs';
 import { useEffect, useId, useRef, useState } from 'react';
+import { componentsCatalog } from '../i18n/components';
+import { useT } from './i18n-provider';
 
 /**
  * Visa Photo Sizes: a section that opens on a Photograph document, for the owner on the documents
@@ -128,6 +130,7 @@ async function readMessage(response: Response): Promise<{ message: string; reaut
 }
 
 export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSizesProps) {
+  const t = useT(componentsCatalog);
   const id = useId();
   const [load, setLoad] = useState<LoadState>({ kind: 'idle' });
   const [specId, setSpecId] = useState(DEFAULT_SPEC_ID);
@@ -274,15 +277,16 @@ export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSiz
         if (event.currentTarget.open && load.kind === 'idle') void runCheck();
       }}
     >
-      <summary className="visa-photo-title">Visa Photo Sizes</summary>
+      <summary className="visa-photo-title">
+        {t.node('components.visaPhotoSizes.visaPhotoSizes')}
+      </summary>
       <p className="visa-photo-note">
-        Choose the size your application asks for, then move and zoom until your head and shoulders
-        sit in the middle. The photo itself is never edited.
+        {t.node('components.visaPhotoSizes.chooseTheSizeYourApplicationAsks')}
       </p>
 
       {load.kind === 'loading' ? (
         <output className="visa-photo-note" aria-live="polite">
-          Checking your photo...
+          {t.node('components.visaPhotoSizes.checkingYourPhoto')}
         </output>
       ) : null}
       {load.kind === 'error' ? (
@@ -294,16 +298,18 @@ export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSiz
         <p className="notice notice-warn" role="alert">
           {load.message}{' '}
           <a className="visa-photo-link" href={load.url}>
-            Confirm It Is You
+            {t.node('components.safeCopyDownload.confirmItIsYou')}
           </a>
         </p>
       ) : null}
 
       {ready ? (
         <>
-          <h3 className="visa-photo-subtitle">Photo Checks</h3>
+          <h3 className="visa-photo-subtitle">{t.node('components.visaPhotoSizes.photoChecks')}</h3>
           {ready.findings.length === 0 ? (
-            <p className="visa-photo-note">No problems found by these basic checks.</p>
+            <p className="visa-photo-note">
+              {t.node('components.visaPhotoSizes.noProblemsFoundByTheseBasic')}
+            </p>
           ) : (
             <ul className="visa-photo-findings">
               {ready.findings.map((finding) => (
@@ -315,7 +321,7 @@ export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSiz
             </ul>
           )}
           <p className="visa-photo-note">
-            These checks are a guide only. They cannot tell you whether the photo will be accepted.
+            {t.node('components.visaPhotoSizes.theseChecksAreAGuideOnly')}
           </p>
 
           <div className="visa-photo-body">
@@ -326,12 +332,15 @@ export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSiz
                 height={previewHeight}
                 className="visa-photo-canvas"
                 role="img"
-                aria-label={`Preview of the photo cropped to ${spec.sizeLabel}`}
+                aria-label={t('components.visaPhotoSizes.previewOfThePhotoCroppedTo', {
+                  sizeLabel: spec.sizeLabel,
+                })}
+                {...t.lang('components.visaPhotoSizes.previewOfThePhotoCroppedTo')}
               />
             </div>
             <div className="visa-photo-controls">
               <label className="visa-photo-label" htmlFor={`${id}-spec`}>
-                Photo Size
+                {t.node('components.visaPhotoSizes.photoSize')}
               </label>
               <select
                 id={`${id}-spec`}
@@ -349,40 +358,46 @@ export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSiz
                 ))}
               </select>
               {spec.backgroundRule ? (
-                <p className="visa-photo-note">Background: {spec.backgroundRule}</p>
+                <p className="visa-photo-note">
+                  {t.node('components.visaPhotoSizes.backgroundBackgroundrule', {
+                    backgroundRule: spec.backgroundRule,
+                  })}
+                </p>
               ) : null}
               {head ? <p className="visa-photo-note">{head}</p> : null}
 
               <fieldset className="visa-photo-adjust">
-                <legend className="visa-photo-label">Move and Zoom</legend>
+                <legend className="visa-photo-label">
+                  {t.node('components.visaPhotoSizes.moveAndZoom')}
+                </legend>
                 <div className="visa-photo-buttons">
                   <button
                     type="button"
                     className="btn btn-secondary"
                     onClick={() => move(0, -MOVE_STEP)}
                   >
-                    Move Up
+                    {t.node('components.visaPhotoSizes.moveUp')}
                   </button>
                   <button
                     type="button"
                     className="btn btn-secondary"
                     onClick={() => move(0, MOVE_STEP)}
                   >
-                    Move Down
+                    {t.node('components.visaPhotoSizes.moveDown')}
                   </button>
                   <button
                     type="button"
                     className="btn btn-secondary"
                     onClick={() => move(-MOVE_STEP, 0)}
                   >
-                    Move Left
+                    {t.node('components.visaPhotoSizes.moveLeft')}
                   </button>
                   <button
                     type="button"
                     className="btn btn-secondary"
                     onClick={() => move(MOVE_STEP, 0)}
                   >
-                    Move Right
+                    {t.node('components.visaPhotoSizes.moveRight')}
                   </button>
                   <button
                     type="button"
@@ -390,7 +405,7 @@ export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSiz
                     onClick={() => zoom(ZOOM_STEP)}
                     disabled={crop.zoom >= CROP_ZOOM_MAX}
                   >
-                    Zoom In
+                    {t.node('components.visaPhotoSizes.zoomIn')}
                   </button>
                   <button
                     type="button"
@@ -398,14 +413,14 @@ export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSiz
                     onClick={() => zoom(-ZOOM_STEP)}
                     disabled={crop.zoom <= CROP_ZOOM_MIN}
                   >
-                    Zoom Out
+                    {t.node('components.visaPhotoSizes.zoomOut')}
                   </button>
                   <button
                     type="button"
                     className="btn btn-secondary"
                     onClick={() => setCrop(CENTRED_CROP)}
                   >
-                    Reset Crop
+                    {t.node('components.visaPhotoSizes.resetCrop')}
                   </button>
                 </div>
                 <output className="visa-photo-note" aria-live="polite">
@@ -424,11 +439,11 @@ export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSiz
                 onClick={startDownload}
                 aria-disabled={download.kind === 'working' ? true : undefined}
               >
-                Download This Size
+                {t.node('components.visaPhotoSizes.downloadThisSize')}
               </button>
               {download.kind === 'working' ? (
                 <output className="visa-photo-note" aria-live="polite">
-                  Making your photo...
+                  {t.node('components.visaPhotoSizes.makingYourPhoto')}
                 </output>
               ) : null}
               {download.kind === 'done' ? (
@@ -445,7 +460,7 @@ export function VisaPhotoSizes({ documentId, returnTo, actingFor }: VisaPhotoSiz
                 <p className="notice notice-warn" role="alert">
                   {download.message}{' '}
                   <a className="visa-photo-link" href={download.url}>
-                    Confirm It Is You
+                    {t.node('components.safeCopyDownload.confirmItIsYou')}
                   </a>
                 </p>
               ) : null}

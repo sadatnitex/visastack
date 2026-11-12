@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { componentsCatalog } from '../i18n/components';
+import { useT } from './i18n-provider';
 
 /**
  * A record's visible reference code (ADR 0018), for example `C-7K2Q9M`, with
@@ -18,6 +20,7 @@ export function ReferenceCode({
   readonly code: string | null | undefined;
   readonly label?: string;
 }) {
+  const t = useT(componentsCatalog);
   const [status, setStatus] = useState('');
   if (!code) return null;
 
@@ -44,10 +47,10 @@ export function ReferenceCode({
       <button
         type="button"
         className="btn btn-secondary u-btn-sm reference-code-copy"
-        aria-label={`Copy Reference ${code}`}
+        aria-label={t('components.referenceCode.copyReferenceCode', { code })}
         onClick={copy}
       >
-        Copy
+        {t.node('components.referenceCode.copy')}
       </button>
       <output aria-live="polite" className="reference-code-status">
         {status}

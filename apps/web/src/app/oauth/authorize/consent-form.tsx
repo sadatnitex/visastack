@@ -9,7 +9,9 @@ import {
   isFailure,
   useFocusInvalidField,
 } from '../../../components/form-feedback';
+import { useT } from '../../../components/i18n-provider';
 import { StickyActionBar } from '../../../components/sticky-action-bar';
+import { oauthCatalog } from '../../../i18n/oauth';
 import {
   AI_CONNECTION_DURATIONS,
   type AiFileChoice,
@@ -56,6 +58,7 @@ export function ConsentForm({
   files,
   filesInitial = [],
 }: ConsentFormProps) {
+  const t = useT(oauthCatalog);
   const [state, formAction, pending] = useActionState<ConsentActionState, FormData>(
     answerAiConsentAction,
     NO_RESULT,
@@ -111,7 +114,7 @@ export function ConsentForm({
       <p className="card-body">{aiConsentSentence(suggestionsAvailable && suggest)}</p>
       <FormMessage id={messageId} result={state} pending={pending} pendingText="Connecting…" />
       {/* The answer stays in reach while the person reads the choices (WP-SB4). */}
-      <StickyActionBar label={`Answer ${appName}`}>
+      <StickyActionBar label={t('oauth.oauthAuthorizeConsentForm.answerAppname', { appName })}>
         <SubmitButton
           pending={pending}
           name="decision"

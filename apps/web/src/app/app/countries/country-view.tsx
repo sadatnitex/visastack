@@ -34,7 +34,10 @@ const KIND_LABEL: Readonly<Record<string, string>> = {
 };
 const KIND_ORDER = ['DOCUMENT', 'DETAIL', 'PROCESS_STEP'] as const;
 
-function Fact({ label, children }: { readonly label: string; readonly children: React.ReactNode }) {
+function Fact({
+  label,
+  children,
+}: { readonly label: React.ReactNode; readonly children: React.ReactNode }) {
   return (
     <div className="country-fact">
       <dt>{label}</dt>
@@ -50,25 +53,27 @@ function Requirement({ item }: { readonly item: DestinationRequirement }) {
     <li>
       <span>{item.text}</span>
       {item.optional ? (
-        <span className="muted"> {t('appCountries.appCountriesCountryView.optional')}</span>
+        <span className="muted"> {t.node('appCountries.appCountriesCountryView.optional')}</span>
       ) : null}
       {item.onlyWhen ? (
         <span className="muted">
           {' '}
-          {t('appCountries.appCountriesCountryView.onlyWhenOnlywhen', { onlyWhen: item.onlyWhen })}
+          {t.node('appCountries.appCountriesCountryView.onlyWhenOnlywhen', {
+            onlyWhen: item.onlyWhen,
+          })}
         </span>
       ) : null}
       {item.maxAgeDays !== null ? (
         <span className="muted">
           {' '}
-          {t('appCountries.appCountriesCountryView.mustBeDatedWithinMaxagedaysDays', {
+          {t.node('appCountries.appCountriesCountryView.mustBeDatedWithinMaxagedaysDays', {
             maxAgeDays: item.maxAgeDays,
           })}
         </span>
       ) : null}
       {warn ? (
         <span className="badge badge-warning">
-          {t('appCountries.appCountriesCountryView.needsChecking')}
+          {t.node('appCountries.appCountriesCountryView.needsChecking')}
         </span>
       ) : null}
     </li>
@@ -84,30 +89,32 @@ function RouteCard({ route }: { readonly route: DestinationRoute }) {
       <h3 className="card-title">{route.name}</h3>
       {route.description ? <p className="card-body">{route.description}</p> : null}
       <dl className="country-facts">
-        {fee ? <Fact label={t('appCountries.appCountriesCountryView.fee')}>{fee}</Fact> : null}
+        {fee ? <Fact label={t.node('appCountries.appCountriesCountryView.fee')}>{fee}</Fact> : null}
         {route.channelUrl ? (
-          <Fact label={t('appCountries.appCountriesCountryView.whereToApply')}>
+          <Fact label={t.node('appCountries.appCountriesCountryView.whereToApply')}>
             <a href={route.channelUrl} target="_blank" rel="noopener noreferrer">
               {route.channelName ?? route.channelUrl}
             </a>
           </Fact>
         ) : null}
         {route.rulesTakeEffectOn ? (
-          <Fact label={t('appCountries.appCountriesCountryView.rulesTakeEffect')}>
+          <Fact label={t.node('appCountries.appCountriesCountryView.rulesTakeEffect')}>
             {route.rulesTakeEffectOn}
           </Fact>
         ) : null}
         {route.fraudReportingUrl ? (
-          <Fact label={t('appCountries.appCountriesCountryView.reportAScam')}>
+          <Fact label={t.node('appCountries.appCountriesCountryView.reportAScam')}>
             <a href={route.fraudReportingUrl} target="_blank" rel="noopener noreferrer">
-              {t('appCountries.appCountriesCountryView.officialReportingPage')}
+              {t.node('appCountries.appCountriesCountryView.officialReportingPage')}
             </a>
           </Fact>
         ) : null}
       </dl>
       <SourceNote source={route.source} />
       {route.requirements.length === 0 ? (
-        <p className="muted">{t('appCountries.appCountriesCountryView.noListOfWhatToSubmit')}</p>
+        <p className="muted">
+          {t.node('appCountries.appCountriesCountryView.noListOfWhatToSubmit')}
+        </p>
       ) : (
         <>
           {KIND_ORDER.map((kind) => {
@@ -126,7 +133,7 @@ function RouteCard({ route }: { readonly route: DestinationRoute }) {
           })}
           {route.requirements.length < THIN_LIST ? (
             <p className="muted">
-              {t('appCountries.appCountriesCountryView.thisListMayNotBeComplete')}
+              {t.node('appCountries.appCountriesCountryView.thisListMayNotBeComplete')}
             </p>
           ) : null}
         </>
@@ -141,38 +148,40 @@ function Facts({ destination }: { readonly destination: Destination }) {
   const stay = stayLabel(destination.maximumStayDays);
   return (
     <article className="card">
-      <p className="card-kicker">{t('appCountries.appCountriesCountryView.theShortVersion')}</p>
+      <p className="card-kicker">
+        {t.node('appCountries.appCountriesCountryView.theShortVersion')}
+      </p>
       <h2 className="card-title">{ENTRY_LABEL[destination.entryStatus]}</h2>
       <dl className="country-facts">
         {stay || destination.stayPeriodRule ? (
-          <Fact label={t('appCountries.appCountriesCountryView.howLongYouCanStay')}>
+          <Fact label={t.node('appCountries.appCountriesCountryView.howLongYouCanStay')}>
             {[stay, destination.stayPeriodRule].filter(Boolean).join(' - ')}
           </Fact>
         ) : null}
         {destination.passportValidityRule ? (
-          <Fact label={t('appCountries.appCountriesCountryView.passport')}>
+          <Fact label={t.node('appCountries.appCountriesCountryView.passport')}>
             {destination.passportValidityRule}
           </Fact>
         ) : null}
         {destination.howToApply ? (
-          <Fact label={t('appCountries.appCountriesCountryView.howToApply')}>
+          <Fact label={t.node('appCountries.appCountriesCountryView.howToApply')}>
             {HOW_TO_APPLY[destination.howToApply] ?? humanizeCode(destination.howToApply)}
             {destination.applyUrl ? (
               <>
                 {' '}
                 <a href={destination.applyUrl} target="_blank" rel="noopener noreferrer">
-                  {t('appCountries.appCountriesCountryView.officialPage')}
+                  {t.node('appCountries.appCountriesCountryView.officialPage')}
                 </a>
               </>
             ) : null}
           </Fact>
         ) : null}
         {destination.bangladeshLocation ? (
-          <Fact label={t('appCountries.appCountriesCountryView.whereToSubmitInBangladesh')}>
+          <Fact label={t.node('appCountries.appCountriesCountryView.whereToSubmitInBangladesh')}>
             {destination.bangladeshLocation}
           </Fact>
         ) : null}
-        {fee ? <Fact label={t('appCountries.appCountriesCountryView.fee')}>{fee}</Fact> : null}
+        {fee ? <Fact label={t.node('appCountries.appCountriesCountryView.fee')}>{fee}</Fact> : null}
       </dl>
       <SourceNote source={destination.source} />
     </article>
@@ -228,11 +237,11 @@ export function CountryView({
         </EmptyState>
       )}
       <h2 className="country-routes-heading">
-        {t('appCountries.appCountriesCountryView.visaTypes')}
+        {t.node('appCountries.appCountriesCountryView.visaTypes')}
       </h2>
       {routes.length === 0 ? (
         <p className="muted">
-          {t('appCountries.appCountriesCountryView.theVisaTypesForCountryHave', {
+          {t.node('appCountries.appCountriesCountryView.theVisaTypesForCountryHave', {
             country: destination.country,
           })}
         </p>

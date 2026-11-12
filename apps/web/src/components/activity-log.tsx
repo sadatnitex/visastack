@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { componentsCatalog } from '../i18n/components';
+import { useT } from './i18n-provider';
 import { Icon, type IconName } from './icons';
 import { StatusBadge } from './ui';
 
@@ -105,6 +107,7 @@ export function ActivityLog({
   /** When set, the search and filters fold under this heading (open while a filter is in use). */
   readonly filtersFolded?: string;
 }) {
+  const t = useT(componentsCatalog);
   const id = useId();
   const box = useRef<HTMLElement>(null);
   const paged = Boolean(olderHref || newestHref);
@@ -171,27 +174,28 @@ export function ActivityLog({
   const filterControls = (
     <>
       <fieldset className="activity-log-filters">
-        <legend className="sr-only">Find an Activity</legend>
+        <legend className="sr-only">{t.node('components.activityLog.findAnActivity')}</legend>
         <label className="activity-log-field activity-log-search" htmlFor={`${id}-q`}>
-          <span className="field-label">Search</span>
+          <span className="field-label">{t.node('components.activityLog.search')}</span>
           <input
             id={`${id}-q`}
             type="search"
             className="input"
             value={query}
-            placeholder="Search this log"
+            placeholder={t('components.activityLog.searchThisLog')}
             onChange={(event) => setQuery(event.target.value)}
+            {...t.lang('components.activityLog.searchThisLog')}
           />
         </label>
         <label className="activity-log-field" htmlFor={`${id}-what`}>
-          <span className="field-label">What Happened</span>
+          <span className="field-label">{t.node('components.activityLog.whatHappened')}</span>
           <select
             id={`${id}-what`}
             className="input"
             value={what}
             onChange={(event) => setWhat(event.target.value)}
           >
-            <option value="">Everything</option>
+            <option value="">{t('components.activityLog.everything')}</option>
             {whats.map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -201,14 +205,14 @@ export function ActivityLog({
         </label>
         {people.length > 0 ? (
           <label className="activity-log-field" htmlFor={`${id}-who`}>
-            <span className="field-label">Who</span>
+            <span className="field-label">{t.node('components.activityLog.who')}</span>
             <select
               id={`${id}-who`}
               className="input"
               value={who}
               onChange={(event) => setWho(event.target.value)}
             >
-              <option value="">Anyone</option>
+              <option value="">{t('components.activityLog.anyone')}</option>
               {people.map((option) => (
                 <option key={option} value={option}>
                   {option}
@@ -219,14 +223,14 @@ export function ActivityLog({
         ) : null}
         {outcomes.length > 0 ? (
           <label className="activity-log-field" htmlFor={`${id}-outcome`}>
-            <span className="field-label">Result</span>
+            <span className="field-label">{t.node('components.activityLog.result')}</span>
             <select
               id={`${id}-outcome`}
               className="input"
               value={outcome}
               onChange={(event) => setOutcome(event.target.value)}
             >
-              <option value="">Any Result</option>
+              <option value="">{t('components.activityLog.anyResult')}</option>
               {outcomes.map((option) => (
                 <option key={option} value={option}>
                   {option}
@@ -236,7 +240,7 @@ export function ActivityLog({
           </label>
         ) : null}
         <label className="activity-log-field" htmlFor={`${id}-when`}>
-          <span className="field-label">When</span>
+          <span className="field-label">{t.node('components.activityLog.when')}</span>
           <select
             id={`${id}-when`}
             className="input"
@@ -267,19 +271,32 @@ export function ActivityLog({
       <div className="activity-log-summary">
         <output className="muted u-fs-085">
           {filtered
-            ? `Showing ${shown.length} of the ${entries.length} ${which} entries${reach}.${total}`
-            : `The ${entries.length} ${which} ${entries.length === 1 ? 'entry' : 'entries'}${reach}.${total}`}
+            ? t.node('components.activityLog.showingLengthOfTheLength2Which', {
+                length: shown.length,
+                length2: entries.length,
+                which,
+                reach,
+                total,
+              })
+            : t.node('components.activityLog.theLengthWhichEntriesReachTotal', {
+                length: entries.length,
+                which,
+                reach,
+                total,
+              })}
         </output>
         {filtered ? (
           <button type="button" className="btn btn-secondary u-btn-sm" onClick={clear}>
-            Clear Filters
+            {t.node('components.activityLog.clearFilters')}
           </button>
         ) : null}
       </div>
       {/* biome-ignore lint/a11y/noNoninteractiveTabindex: a scrolling box must take focus so the keyboard can scroll it */}
       <section className="activity-log-scroll" aria-label={label} tabIndex={0} ref={box}>
         {shown.length === 0 ? (
-          <p className="muted activity-log-none">Nothing matches these filters.</p>
+          <p className="muted activity-log-none">
+            {t.node('components.activityLog.nothingMatchesTheseFilters')}
+          </p>
         ) : (
           <ol className="rows activity-log-list">
             {shown.map((entry) => (
@@ -306,15 +323,18 @@ export function ActivityLog({
         )}
       </section>
       {olderHref || newestHref ? (
-        <nav className="activity-log-more" aria-label={`More of ${label}`}>
+        <nav
+          className="activity-log-more"
+          aria-label={t('components.activityLog.moreOfLabel', { label })}
+        >
           {newestHref ? (
             <Link className="btn btn-secondary u-btn-sm" href={newestHref}>
-              Show Newest Entries
+              {t.node('components.activityLog.showNewestEntries')}
             </Link>
           ) : null}
           {olderHref ? (
             <Link className="btn btn-secondary u-btn-sm" href={olderHref}>
-              Show Older Entries
+              {t.node('components.activityLog.showOlderEntries')}
             </Link>
           ) : null}
         </nav>

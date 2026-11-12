@@ -2,7 +2,9 @@
 
 import { useActionState, useEffect, useRef } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
 import { Icon } from '../../../../../components/icons';
+import { appApplicantCatalog } from '../../../../../i18n/app-applicant';
 import { withArticle } from '../../../../../lib/indefinite-article';
 import { type RelationDecisionState, needsDecisionAction } from './needs-decision-actions';
 
@@ -120,6 +122,7 @@ export function RelationDecisionForm({
   readonly action: (formData: FormData) => void;
   readonly pending: boolean;
 }) {
+  const t = useT(appApplicantCatalog);
   return (
     <form action={action} className="umpe-p3-decision-form">
       <input type="hidden" name="intent" value="relation" />
@@ -132,7 +135,7 @@ export function RelationDecisionForm({
           value="CONFIRM"
           idle="Confirm"
           busy="Saving"
-          label={`Confirm: ${title}`}
+          label={t('appApplicant.appApplicantIdDocumentsNeedsDecision.confirmTitle', { title })}
           className="btn btn-primary"
         />
         <SubmitButton
@@ -141,7 +144,9 @@ export function RelationDecisionForm({
           value="KEEP_SEPARATE"
           idle="Keep Separate"
           busy="Saving"
-          label={`Keep Separate: ${title}`}
+          label={t('appApplicant.appApplicantIdDocumentsNeedsDecision.keepSeparateTitle', {
+            title,
+          })}
           className="btn btn-secondary"
         />
       </div>
@@ -166,6 +171,7 @@ function ChangePlacementForm({
   readonly action: (formData: FormData) => void;
   readonly pending: boolean;
 }) {
+  const t = useT(appApplicantCatalog);
   return (
     <form action={action} className="umpe-p3-decision-form">
       <input
@@ -181,7 +187,9 @@ function ChangePlacementForm({
           pending={pending}
           idle="Change"
           busy="Changing"
-          label={`Change: ${item.title}`}
+          label={t('appApplicant.appApplicantIdDocumentsNeedsDecision.changeTitle', {
+            title: item.title,
+          })}
           className="btn btn-secondary"
         />
       </div>
@@ -211,6 +219,7 @@ function KeepForm({
   readonly action: (formData: FormData) => void;
   readonly pending: boolean;
 }) {
+  const t = useT(appApplicantCatalog);
   return (
     <form action={action} className="umpe-p3-decision-form">
       <input type="hidden" name="intent" value="keep" />
@@ -221,7 +230,7 @@ function KeepForm({
           pending={pending}
           idle="Keep As It Is"
           busy="Saving"
-          label={`Keep As It Is: ${title}`}
+          label={t('appApplicant.appApplicantIdDocumentsNeedsDecision.keepAsItIsTitle', { title })}
           className="btn btn-secondary"
         />
       </div>
@@ -270,6 +279,7 @@ function WhichPersonForm({
   readonly action: (formData: FormData) => void;
   readonly pending: boolean;
 }) {
+  const t = useT(appApplicantCatalog);
   const label = file.fileName ?? `File Added ${file.addedOn}`;
   const groupId = `which-person-${file.holdId}`;
   const suggestedId = file.proposedApplicantId ?? file.nameSuggestionApplicantId ?? null;
@@ -277,7 +287,9 @@ function WhichPersonForm({
   const choices = (
     <>
       <fieldset className="umpe-g1-person-choices" aria-describedby={`${groupId}-basis`}>
-        <legend>Which Person Is {label} For?</legend>
+        <legend>
+          {t('appApplicant.appApplicantIdDocumentsNeedsDecision.whichPersonIsLabelFor', { label })}
+        </legend>
         {suggested ? null : (
           <p className="muted" id={`${groupId}-basis`}>
             {basisLine(file, people)}
@@ -297,7 +309,7 @@ function WhichPersonForm({
           value="file"
           idle="File It"
           busy="Saving"
-          label={`File It: ${label}`}
+          label={t('appApplicant.appApplicantIdDocumentsNeedsDecision.fileItLabel', { label })}
           className="btn btn-primary"
         />
         <SubmitButton
@@ -306,7 +318,9 @@ function WhichPersonForm({
           value="discard"
           idle="Remove This File"
           busy="Saving"
-          label={`Remove This File: ${label}`}
+          label={t('appApplicant.appApplicantIdDocumentsNeedsDecision.removeThisFileLabel', {
+            label,
+          })}
           className="btn btn-secondary"
         />
       </div>
@@ -341,7 +355,10 @@ function WhichPersonForm({
             value="file"
             idle={`File Under ${suggested.displayName}`}
             busy="Saving"
-            label={`File Under ${suggested.displayName}: ${label}`}
+            label={t(
+              'appApplicant.appApplicantIdDocumentsNeedsDecision.fileUnderDisplaynameLabel',
+              { displayName: suggested.displayName, label },
+            )}
             className="btn btn-primary"
           />
           <SubmitButton
@@ -350,13 +367,17 @@ function WhichPersonForm({
             value="discard"
             idle="Remove This File"
             busy="Saving"
-            label={`Remove This File: ${label}`}
+            label={t('appApplicant.appApplicantIdDocumentsNeedsDecision.removeThisFileLabel', {
+              label,
+            })}
             className="btn btn-secondary"
           />
         </div>
       </form>
       <details className="add-more">
-        <summary className="add-more-summary">Choose Someone Else</summary>
+        <summary className="add-more-summary">
+          {t('appApplicant.appApplicantIdDocumentsNeedsDecision.chooseSomeoneElse')}
+        </summary>
         <form action={action} className="umpe-g1-person-form">
           <input type="hidden" name="applicantId" value={applicantId} />
           <input type="hidden" name="holdId" value={file.holdId} />
@@ -394,6 +415,7 @@ export function NeedsDecision({
   /** UMPE G4: this person's name, for Filed Under. */
   readonly personName?: string;
 }) {
+  const t = useT(appApplicantCatalog);
   const [state, formAction, pending] = useActionState(needsDecisionAction, INITIAL);
   const statusRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -417,14 +439,16 @@ export function NeedsDecision({
       {deciding ? (
         <section className="card u-mb-150 umpe-p3-needs-decision" aria-labelledby="needs-decision">
           <h2 className="card-title" id="needs-decision">
-            Needs One Decision
+            {t('appApplicant.appApplicantIdDocumentsNeedsDecision.needsOneDecision')}
           </h2>
           <div ref={statusRef} tabIndex={-1} className="umpe-p3-decision-status">
             <FormMessage result={state} />
           </div>
           {held.length > 0 ? (
             <>
-              <h3 className="umpe-p3-linked-title">Which Person?</h3>
+              <h3 className="umpe-p3-linked-title">
+                {t('appApplicant.appApplicantIdDocumentsNeedsDecision.whichPerson')}
+              </h3>
               <ul className="umpe-p3-decision-list">
                 {held.map((file) => (
                   <li key={file.holdId} className="umpe-p3-decision-item">
@@ -465,7 +489,9 @@ export function NeedsDecision({
                     </p>
                     <p>{relationLine(item)}</p>
                     <details className="docs-more">
-                      <summary>What Happens Next</summary>
+                      <summary>
+                        {t('appApplicant.appApplicantIdDocumentsAddPage.whatHappensNext')}
+                      </summary>
                       <p className="muted">{confirmLine(item)}</p>
                     </details>
                     <RelationDecisionForm
@@ -480,24 +506,39 @@ export function NeedsDecision({
                   <li key={item.exceptionId} className="umpe-p3-decision-item">
                     <p>
                       {item.kind === 'expired_on_arrival'
-                        ? `${item.title} had already expired on the day it was added.`
-                        : `We could not find any readable text in ${item.title}. It may be blank, blurred or turned sideways.`}
+                        ? t(
+                            'appApplicant.appApplicantIdDocumentsNeedsDecision.titleHadAlreadyExpiredOnThe',
+                            { title: item.title },
+                          )
+                        : t(
+                            'appApplicant.appApplicantIdDocumentsNeedsDecision.weCouldNotFindAnyReadable',
+                            { title: item.title },
+                          )}
                     </p>
                     <details className="docs-more">
-                      <summary>What You Can Do</summary>
+                      <summary>
+                        {t('appApplicant.appApplicantIdDocumentsNeedsDecision.whatYouCanDo')}
+                      </summary>
                       <p className="muted">
                         {item.kind === 'expired_on_arrival'
-                          ? 'Add a newer copy if you have one, or keep this one as it is.'
-                          : 'Add a clearer copy if you can, or keep this one as it is and add its details yourself.'}
+                          ? t(
+                              'appApplicant.appApplicantIdDocumentsNeedsDecision.addANewerCopyIfYou',
+                            )
+                          : t(
+                              'appApplicant.appApplicantIdDocumentsNeedsDecision.addAClearerCopyIfYou',
+                            )}
                       </p>
                     </details>
                     <div className="umpe-p3-decision-actions">
                       <a
                         className="btn btn-secondary"
                         href={documentHref(applicantId, item.documentId)}
-                        aria-label={`Open Document: ${item.title}`}
+                        aria-label={t(
+                          'appApplicant.appApplicantIdDocumentsNeedsDecision.openDocumentTitle',
+                          { title: item.title },
+                        )}
                       >
-                        Open Document
+                        {t('appApplicant.appApplicantIdDocumentsNeedsDecision.openDocument')}
                       </a>
                     </div>
                     <KeepForm
@@ -514,22 +555,24 @@ export function NeedsDecision({
           ) : null}
           {items.length > 0 || held.length > 0 ? (
             <details className="docs-more docs-decision-about">
-              <summary>About These Choices</summary>
+              <summary>
+                {t('appApplicant.appApplicantIdDocumentsNeedsDecision.aboutTheseChoices')}
+              </summary>
               {items.length > 0 ? (
                 <p className="card-body">
-                  Most files are sorted on their own. These need one answer from you. Nothing
-                  changes until you choose.
+                  {t('appApplicant.appApplicantIdDocumentsNeedsDecision.mostFilesAreSortedOnTheir')}
                 </p>
               ) : null}
               {grouped.suggested.length > 0 ? (
                 <p className="card-body">
-                  A suggestion is only a guess. Nothing is saved until you accept it.
+                  {t('appApplicant.appApplicantIdDocumentsNeedsDecision.aSuggestionIsOnlyAGuess')}
                 </p>
               ) : null}
               {held.length > 0 ? (
                 <p className="card-body">
-                  These files were added for several people at once. Each one waits here, seen only
-                  by you, until you choose who it belongs to.
+                  {t(
+                    'appApplicant.appApplicantIdDocumentsNeedsDecision.theseFilesWereAddedForSeveral',
+                  )}
                 </p>
               ) : null}
             </details>
@@ -540,11 +583,12 @@ export function NeedsDecision({
         <details className="card u-mb-150 docs-sorted">
           <summary className="docs-sorted-summary">
             <h2 className="docs-sorted-title">
-              Sorted for You <span className="docs-count">({automatic.length})</span>
+              {t('appApplicant.appApplicantIdDocumentsNeedsDecision.sortedForYou')}{' '}
+              <span className="docs-count">({automatic.length})</span>
             </h2>
           </summary>
           <p className="card-body">
-            These were sorted for you. If one is wrong, Change puts it back as it was.
+            {t('appApplicant.appApplicantIdDocumentsNeedsDecision.theseWereSortedForYouIf')}
           </p>
           <ul className="umpe-p3-decision-list">
             {automatic.map((item) => (
@@ -552,8 +596,13 @@ export function NeedsDecision({
                 <p className="umpe-p3-decision-badges">
                   <span className="badge badge-neutral">
                     {item.placement === 'KIND'
-                      ? 'Recognised Automatically'
-                      : `Filed Under ${personName}`}
+                      ? t(
+                          'appApplicant.appApplicantIdDocumentsNeedsDecision.recognisedAutomatically',
+                        )
+                      : t(
+                          'appApplicant.appApplicantIdDocumentsNeedsDecision.filedUnderPersonname',
+                          { personName },
+                        )}
                   </span>
                 </p>
                 <p>{placementLine(item, personName)}</p>
@@ -571,7 +620,7 @@ export function NeedsDecision({
       {linked.length > 0 ? (
         <section className="card u-mb-150" aria-labelledby="linked-copies">
           <h2 className="docs-sorted-title" id="linked-copies">
-            Linked Copies
+            {t('appApplicant.appApplicantIdDocumentsNeedsDecision.linkedCopies')}
           </h2>
           <ul className="umpe-p3-linked-list">
             {linked.map((link) => (
@@ -603,6 +652,7 @@ function ChooseGroup({
   readonly heading: readonly [string, string];
   readonly items: readonly NeedsDecisionItem[];
 }) {
+  const t = useT(appApplicantCatalog);
   if (items.length === 0) return null;
   return (
     <>
@@ -627,7 +677,9 @@ function ChooseGroup({
               </span>
               {item.kind === 'suggested_kind' ? (
                 <span className="docs-choose-kind" data-value="kind">
-                  Looks like {withArticle(item.suggestedLabel)}
+                  {t('appApplicant.appApplicantIdDocumentsNeedsDecision.looksLikeWitharticle', {
+                    withArticle: withArticle(item.suggestedLabel),
+                  })}
                 </span>
               ) : null}
               <a

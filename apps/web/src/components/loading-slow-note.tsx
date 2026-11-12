@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { componentsCatalog } from '../i18n/components';
+import { useT } from './i18n-provider';
 
 /** How long a screen may load before it says so. Short enough for weak phone data. */
 export const LOADING_SLOW_AFTER_MS = 8000;
@@ -13,12 +15,15 @@ export const LOADING_SLOW_AFTER_MS = 8000;
 export function LoadingSlowNote({
   afterMs = LOADING_SLOW_AFTER_MS,
 }: { readonly afterMs?: number }) {
+  const t = useT(componentsCatalog);
   const [slow, setSlow] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setSlow(true), afterMs);
     return () => clearTimeout(timer);
   }, [afterMs]);
   return slow ? (
-    <span className="muted loading-note">Still loading. You can keep this page open.</span>
+    <span className="muted loading-note">
+      {t.node('components.loadingSlowNote.stillLoadingYouCanKeepThis')}
+    </span>
   ) : null;
 }

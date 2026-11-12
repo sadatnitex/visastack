@@ -4,9 +4,11 @@ import { isOtherDocumentType } from '@visastack/core';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { CapturePreview } from '../../../../components/capture-preview';
+import { useT } from '../../../../components/i18n-provider';
 import { UndoStatus } from '../../../../components/lifecycle/undo-status';
 import { ReceiptCard } from '../../../../components/receipt-card';
 import { UpgradeLine, type UpgradeLineKind } from '../../../../components/upgrade-line';
+import { appApplicantCatalog } from '../../../../i18n/app-applicant';
 import {
   type UploadOutcome,
   reportUploadProblem,
@@ -194,6 +196,7 @@ export function DocumentUploader({
   /** Kinds embassies usually want handed in as the original. */
   readonly originalKinds?: readonly string[];
 }) {
+  const t = useT(appApplicantCatalog);
   const router = useRouter();
   const limitsId = useId();
   const dropTitleId = useId();
@@ -376,7 +379,7 @@ export function DocumentUploader({
       {kindGroups.length > 0 ? (
         <div className="field-stack">
           <label className="field-label" htmlFor={kindId}>
-            Kind of Document (Optional)
+            {t('appApplicant.appApplicantIdDocumentUploader.kindOfDocumentOptional')}
           </label>
           <select
             id={kindId}
@@ -386,7 +389,7 @@ export function DocumentUploader({
             aria-describedby={kindHintId}
             onChange={(event) => setKind(event.currentTarget.value)}
           >
-            <option value="">Not Sure Yet</option>
+            <option value="">{t('appApplicant.appApplicantIdDocumentUploader.notSureYet')}</option>
             {kindGroups.map((group) => (
               <optgroup key={group.key} label={group.label}>
                 {group.choices.map((choice) => (
@@ -400,7 +403,7 @@ export function DocumentUploader({
           {isOtherDocumentType(kind) ? (
             <>
               <label className="field-label" htmlFor={kindNameId}>
-                Name for an Other Type
+                {t('appApplicant.appApplicantIdDocumentTypeForm.nameForAnOtherType')}
               </label>
               <input
                 id={kindNameId}
@@ -410,18 +413,18 @@ export function DocumentUploader({
                 className="input"
                 value={kindName}
                 onChange={(event) => setKindName(event.currentTarget.value)}
-                placeholder="For example: Marriage Certificate"
+                placeholder={t(
+                  'appApplicant.appApplicantIdDocumentTypeForm.forExampleMarriageCertificate',
+                )}
               />
             </>
           ) : null}
           <p className="field-hint" id={kindHintId}>
-            Applies to the files you add next: it files them under the right sharing category and
-            names them, for example Passport and your first name. You can change both later.
+            {t('appApplicant.appApplicantIdDocumentUploader.appliesToTheFilesYouAdd')}
           </p>
           {originalKinds.includes(kind) ? (
             <p className="muted u-fs-075" data-testid="original-needed-note">
-              Embassies usually want this handed in as the original when you apply. Upload a clear
-              scan or photo here so it is ready to share, and keep the original safe.
+              {t('appApplicant.appApplicantIdDocumentUploader.embassiesUsuallyWantThisHandedIn')}
             </p>
           ) : null}
         </div>
@@ -452,7 +455,7 @@ export function DocumentUploader({
           {...dropHandlers}
         >
           <p className="upload-drop-title" id={dropTitleId}>
-            Drop Files Here
+            {t('appApplicant.appApplicantIdDocumentUploader.dropFilesHere')}
           </p>
           <p className="upload-drop-hint" id={dropHintId}>
             <span className="upload-hint-pointer">
@@ -474,7 +477,7 @@ export function DocumentUploader({
               aria-describedby={limitsId}
               onClick={() => pickerRef.current?.click()}
             >
-              Choose Files
+              {t('appApplicant.appApplicantIdDocumentUploader.chooseFiles')}
             </button>
             <button
               ref={cameraButtonRef}
@@ -483,7 +486,7 @@ export function DocumentUploader({
               data-camera="true"
               onClick={() => cameraRef.current?.click()}
             >
-              Take a Photo
+              {t('appApplicant.appApplicantIdDocumentUploader.takeAPhoto')}
             </button>
           </div>
         </section>
@@ -496,7 +499,7 @@ export function DocumentUploader({
         accept={acceptAttribute(pdfAccepted)}
         tabIndex={-1}
         aria-hidden="true"
-        aria-label="Document Files"
+        aria-label={t('appApplicant.appApplicantIdDocumentUploader.documentFiles')}
         data-testid="document-files"
         onChange={(event) => {
           addFiles(Array.from(event.currentTarget.files ?? []));
@@ -512,7 +515,7 @@ export function DocumentUploader({
         capture="environment"
         tabIndex={-1}
         aria-hidden="true"
-        aria-label="Camera Photo"
+        aria-label={t('appApplicant.appApplicantIdDocumentUploader.cameraPhoto')}
         data-testid="camera-photo"
         onChange={(event) => {
           // One photo, shown for a check before anything is sent (F2). The file stays valid
@@ -528,7 +531,11 @@ export function DocumentUploader({
         <ReceiptCard
           key={Math.max(...unreceipted.map((item) => item.addedAt ?? 0))}
           onlyIfIdle
-          title={unreceipted.length === 1 ? 'Document Saved' : 'Documents Saved'}
+          title={
+            unreceipted.length === 1
+              ? t('appApplicant.appApplicantIdDocumentUploader.documentSaved')
+              : t('appApplicant.appApplicantIdDocumentUploader.documentsSaved')
+          }
           what={receiptWhat(unreceipted, notAddedCount)}
           at={Math.max(...unreceipted.map((item) => item.addedAt ?? 0))}
           honestLine="Stored privately. Only you and the people you choose to share with can open it."
@@ -544,7 +551,10 @@ export function DocumentUploader({
         />
       ) : null}
       {items.length > 0 ? (
-        <ul className="upload-list" aria-label="Files Being Added">
+        <ul
+          className="upload-list"
+          aria-label={t('appApplicant.appApplicantIdDocumentUploader.filesBeingAdded')}
+        >
           {items.map((item) => {
             const failed =
               item.status === 'refused' || item.status === 'unknown' || item.status === 'not_sent';
@@ -559,7 +569,9 @@ export function DocumentUploader({
                     className="upload-progress"
                     max={100}
                     value={item.progress}
-                    aria-label={`Upload of ${item.name}`}
+                    aria-label={t('appApplicant.appApplicantIdDocumentUploader.uploadOfName', {
+                      name: item.name,
+                    })}
                   />
                 ) : null}
                 {item.shrunkFrom !== null ? (
@@ -568,12 +580,18 @@ export function DocumentUploader({
                   </output>
                 ) : null}
                 {item.status === 'added' && item.title ? (
-                  <p className="upload-item-title">Added as {item.title}</p>
+                  <p className="upload-item-title">
+                    {t('appApplicant.appApplicantIdDocumentUploader.addedAsTitle', {
+                      title: item.title,
+                    })}
+                  </p>
                 ) : null}
                 <p className={`upload-item-status${failed ? ' field-msg-err' : ''}`}>
                   {failed ? (
                     <span className="upload-item-flag">
-                      {item.status === 'unknown' ? 'Not confirmed. ' : 'Not added. '}
+                      {item.status === 'unknown'
+                        ? t('appApplicant.appApplicantIdDocumentUploader.notConfirmed')
+                        : t('appApplicant.appApplicantIdDocumentUploader.notAdded')}
                     </span>
                   ) : null}
                   {statusLine(item)}
@@ -620,7 +638,9 @@ export function DocumentUploader({
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    aria-label={`Try Again: ${item.name}`}
+                    aria-label={t('appApplicant.appApplicantIdDocumentUploader.tryAgainName', {
+                      name: item.name,
+                    })}
                     onClick={() =>
                       update(item.id, {
                         status: 'waiting',
@@ -631,7 +651,7 @@ export function DocumentUploader({
                       })
                     }
                   >
-                    Try Again
+                    {t('appApplicant.appApplicantIdDocumentUploader.tryAgain')}
                   </button>
                 ) : null}
               </li>
@@ -645,15 +665,17 @@ export function DocumentUploader({
           className="btn btn-secondary"
           onClick={() => setItems((current) => current.filter((item) => ACTIVE.has(item.status)))}
         >
-          Clear the List
+          {t('appApplicant.appApplicantIdDocumentUploader.clearTheList')}
         </button>
       ) : null}
       <p className="muted uploader-note">
-        {uploadCheckNotice(virusScanning)} iPhone photos (HEIC) are saved as JPG copies so they open
-        anywhere.
+        {t(
+          'appApplicant.appApplicantIdDocumentUploader.uploadchecknoticeIphonePhotosHeicAreSaved',
+          { uploadCheckNotice: uploadCheckNotice(virusScanning) },
+        )}
       </p>
       <p className="muted uploader-note">
-        Stored privately. Only you and the people you choose to share with can open it.
+        {t('appApplicant.appApplicantIdDocumentUploader.storedPrivatelyOnlyYouAndThe')}
       </p>
     </div>
   );
@@ -673,6 +695,7 @@ function NewCopyRemoval({
   readonly onRemove: () => Promise<void>;
   readonly onUndo: () => Promise<void>;
 }) {
+  const t = useT(appApplicantCatalog);
   if (item.removal === 'removed') {
     return (
       <UndoStatus
@@ -685,15 +708,21 @@ function NewCopyRemoval({
   const busy = item.removal === 'busy';
   return (
     <div className="lc-new-copy">
-      <p className="lc-new-copy-line">You already keep an identical copy of this file.</p>
+      <p className="lc-new-copy-line">
+        {t('appApplicant.appApplicantIdDocumentUploader.youAlreadyKeepAnIdenticalCopy')}
+      </p>
       <button
         type="button"
         className="btn btn-secondary"
         aria-disabled={busy || undefined}
-        aria-label={`Remove This New Copy: ${item.name}`}
+        aria-label={t('appApplicant.appApplicantIdDocumentUploader.removeThisNewCopyName', {
+          name: item.name,
+        })}
         onClick={busy ? undefined : () => void onRemove()}
       >
-        {busy ? 'Removing' : 'Remove This New Copy'}
+        {busy
+          ? t('appApplicant.appApplicantIdDocumentUploader.removing')
+          : t('appApplicant.appApplicantIdDocumentUploader.removeThisNewCopy')}
       </button>
       {typeof item.removal === 'object' ? (
         <p className="field-msg-err" role="alert">
