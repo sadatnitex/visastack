@@ -3,9 +3,11 @@
 import { type ReactNode, useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../components/form-feedback';
+import { useLocale, useT } from '../../../../components/i18n-provider';
 import { useLatestOf } from '../../../../components/latest-result';
 import { TimeZoneSelect } from '../../../../components/time-zone-select';
 import { StatusPill } from '../../../../components/ui-lift/status-pill';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatDateOnly, formatTimestampDate } from '../../../../lib/format-date';
 import { plural } from '../../../../lib/plural';
@@ -68,6 +70,8 @@ export function TasksPanel({
   /** WP-SB2: the Show More control under the list, when the page capped it. */
   readonly more?: ReactNode;
 }) {
+  const t = useT(appMissionCatalog);
+  const locale = useLocale();
   const [createState, createAction, createPending] = useActionState(createTaskAction, INITIAL);
   const [decideState, decideAction, decidePending] = useActionState(decideTaskAction, INITIAL);
   // One status line for the whole task area: the latest answer replaces the one before, and it
@@ -79,10 +83,10 @@ export function TasksPanel({
 
   return (
     <article className="card">
-      <p className="card-kicker">Checklist</p>
-      <h2 className="card-title">Tasks</h2>
+      <p className="card-kicker">{t('appMission.appMissionIdCollaborationPanels.checklist')}</p>
+      <h2 className="card-title">{t('appMission.appMissionIdCollaborationPanels.tasks')}</h2>
       {openOrInProgress.length === 0 ? (
-        <p className="card-body">No open tasks.</p>
+        <p className="card-body">{t('appMission.appMissionIdCollaborationPanels.noOpenTasks')}</p>
       ) : (
         <div className="rows u-mb-100">
           {openOrInProgress.map((task, index) => (
@@ -104,15 +108,21 @@ export function TasksPanel({
                 </span>
                 {task.status === 'IN_PROGRESS' ? (
                   <span className="badge badge-neutral" style={{ fontSize: 'var(--text-caption)' }}>
-                    In Progress
+                    {t('appMission.appMissionIdCollaborationPanels.inProgress')}
                   </span>
                 ) : null}
                 {task.addedBy ? (
-                  <span className="badge badge-neutral task-added-by">Added by {task.addedBy}</span>
+                  <span className="badge badge-neutral task-added-by">
+                    {t('appMission.appMissionIdCollaborationPanels.addedByAddedby', {
+                      addedBy: task.addedBy,
+                    })}
+                  </span>
                 ) : null}
                 {task.dueDate ? (
                   <span className="muted" style={{ fontSize: 'var(--text-caption)' }}>
-                    due {formatDateOnly(task.dueDate)}
+                    {t('appMission.appMissionIdCollaborationPanels.dueFormatdateonly', {
+                      formatDateOnly: formatDateOnly(task.dueDate, locale),
+                    })}
                   </span>
                 ) : null}
               </span>
@@ -155,7 +165,9 @@ export function TasksPanel({
       {decided.length > 0 ? (
         <details className="u-mb-100" open={finishedOpen}>
           <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
-            {plural(Math.max(finishedTotal ?? 0, decided.length), 'Task')} Done or Cancelled
+            {t('appMission.appMissionIdCollaborationPanels.pluralDoneOrCancelled', {
+              plural: plural(Math.max(finishedTotal ?? 0, decided.length), 'Task'),
+            })}
           </summary>
           <div className="rows u-mt-050">
             {decided.map((task, index) => (
@@ -181,21 +193,31 @@ export function TasksPanel({
           name="description"
           type="text"
           className="input collab-add-wide"
-          placeholder="Add a task…"
-          aria-label="Task description"
+          placeholder={t('appMission.appMissionIdCollaborationPanels.addATask')}
+          aria-label={t('appMission.appMissionIdCollaborationPanels.taskDescription')}
           required
         />
-        <select name="priority" className="input" defaultValue="NORMAL" aria-label="Priority">
+        <select
+          name="priority"
+          className="input"
+          defaultValue="NORMAL"
+          aria-label={t('appMission.appMissionIdCollaborationPanels.priority')}
+        >
           {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>
           ))}
         </select>
-        <input name="dueDate" type="date" className="input" aria-label="Due Date (Optional)" />
+        <input
+          name="dueDate"
+          type="date"
+          className="input"
+          aria-label={t('appMission.appMissionIdCollaborationPanels.dueDateOptional')}
+        />
         <TimeZoneSelect
           name="dueTimezone"
-          label="Due Time Zone (Optional)"
+          label={t('appMission.appMissionIdCollaborationPanels.dueTimeZoneOptional')}
           required={false}
           className="collab-add-wide"
         />
@@ -229,6 +251,7 @@ export function AppointmentsPanel({
   readonly missionId: string;
   readonly appointments: readonly AppointmentView[];
 }) {
+  const t = useT(appMissionCatalog);
   const [createState, createAction, createPending] = useActionState(
     createAppointmentAction,
     INITIAL,
@@ -244,10 +267,12 @@ export function AppointmentsPanel({
 
   return (
     <article className="card">
-      <p className="card-kicker">Meetings</p>
-      <h2 className="card-title">Appointments</h2>
+      <p className="card-kicker">{t('appMission.appMissionIdCollaborationPanels.meetings')}</p>
+      <h2 className="card-title">{t('appMission.appMissionIdCollaborationPanels.appointments')}</h2>
       {upcoming.length === 0 ? (
-        <p className="card-body u-mb-100">No appointments scheduled.</p>
+        <p className="card-body u-mb-100">
+          {t('appMission.appMissionIdCollaborationPanels.noAppointmentsScheduled')}
+        </p>
       ) : (
         <div className="rows u-mb-100">
           {upcoming.map((appt) => (
@@ -275,7 +300,7 @@ export function AppointmentsPanel({
                     textDecoration: 'none',
                   }}
                 >
-                  Add to Calendar
+                  {t('appMission.appMissionIdCollaborationPanels.addToCalendar')}
                 </a>
                 <form action={decideAction} style={{ display: 'flex', gap: '0.4rem' }}>
                   <input type="hidden" name="missionId" value={missionId} />
@@ -306,7 +331,9 @@ export function AppointmentsPanel({
       {past.length > 0 ? (
         <details className="u-mb-100">
           <summary className="muted" style={{ fontSize: 'var(--text-small)', cursor: 'pointer' }}>
-            {past.length} past
+            {t('appMission.appMissionIdCollaborationPanels.lengthPast', {
+              length: past.length,
+            })}
           </summary>
           <div className="rows u-mt-050">
             {past.map((appt) => (
@@ -327,26 +354,38 @@ export function AppointmentsPanel({
           name="title"
           type="text"
           className="input collab-add-wide"
-          placeholder="e.g. Visa interview prep call"
-          aria-label="Appointment title"
+          placeholder={t('appMission.appMissionIdCollaborationPanels.eGVisaInterviewPrepCall')}
+          aria-label={t('appMission.appMissionIdCollaborationPanels.appointmentTitle')}
           required
         />
-        <input name="localDate" type="date" className="input" aria-label="Date" required />
-        <input name="localTime" type="time" className="input" aria-label="Time" required />
+        <input
+          name="localDate"
+          type="date"
+          className="input"
+          aria-label={t('appMission.appMissionIdCollaborationPanels.date')}
+          required
+        />
+        <input
+          name="localTime"
+          type="time"
+          className="input"
+          aria-label={t('appMission.appMissionIdCollaborationPanels.time')}
+          required
+        />
         <TimeZoneSelect name="timezone" className="collab-add-wide" />
         <input
           name="place"
           type="text"
           className="input"
-          placeholder="Place (optional)"
-          aria-label="Place"
+          placeholder={t('appMission.appMissionIdCollaborationPanels.placeOptional')}
+          aria-label={t('appMission.appMissionIdCollaborationPanels.place')}
         />
         <input
           name="channel"
           type="text"
           className="input"
-          placeholder="Channel, e.g. video call (optional)"
-          aria-label="Channel"
+          placeholder={t('appMission.appMissionIdCollaborationPanels.channelEGVideoCallOptional')}
+          aria-label={t('appMission.appMissionIdCollaborationPanels.channel')}
         />
         <SubmitButton
           pending={createPending}
@@ -379,23 +418,33 @@ export function LettersPanel({
   /** Set on a finished case: no new version can be made, and this line says why. */
   readonly finishedLine?: string;
 }) {
+  const t = useT(appMissionCatalog);
+  const locale = useLocale();
   const [state, formAction, pending] = useActionState(generateLetterAction, INITIAL);
   return (
     <article className="card">
-      <p className="card-kicker">Grounded Documents</p>
-      <h2 className="card-title">Cover Letters</h2>
+      <p className="card-kicker">
+        {t('appMission.appMissionIdCollaborationPanels.groundedDocuments')}
+      </p>
+      <h2 className="card-title">{t('appMission.appMissionIdCollaborationPanels.coverLetters')}</h2>
       <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1rem' }}>
-        Generated strictly from confirmed, eligible evidence - nothing is invented. Not AI-written;
-        deterministic and versioned.
+        {t(
+          'appMission.appMissionIdCollaborationPanels.generatedStrictlyFromConfirmedEligibleEvidence',
+        )}
       </p>
       {letters.length === 0 ? (
-        <p className="card-body u-mb-100">No letters generated yet.</p>
+        <p className="card-body u-mb-100">
+          {t('appMission.appMissionIdCollaborationPanels.noLettersGeneratedYet')}
+        </p>
       ) : (
         <div className="rows u-mb-100">
           {letters.map((letter) => (
             <details key={letter.id}>
               <summary style={{ cursor: 'pointer', fontSize: 'var(--text-small)' }}>
-                Version {letter.version} · {formatTimestampDate(letter.createdAt)}
+                {t('appMission.appMissionIdCollaborationPanels.versionVersionFormattimestampdate', {
+                  version: letter.version,
+                  formatTimestampDate: formatTimestampDate(letter.createdAt, locale),
+                })}
               </summary>
               <pre
                 style={{
@@ -427,7 +476,7 @@ export function LettersPanel({
       )}
       {!finishedLine && !canGenerate ? (
         <p className="muted" style={{ fontSize: 'var(--text-caption)', marginTop: '0.5rem' }}>
-          Nothing eligible to ground a letter in yet.
+          {t('appMission.appMissionIdCollaborationPanels.nothingEligibleToGroundALetter')}
         </p>
       ) : null}
       <FormMessage result={state} />
@@ -509,6 +558,7 @@ function CandidateRows({
   /** The case is open. When it is not, the files are listed with the chosen one marked, and no buttons. */
   readonly editable?: boolean;
 }) {
+  const t = useT(appMissionCatalog);
   const choice = (
     id: string,
     kind: 'fact' | 'document',
@@ -535,7 +585,7 @@ function CandidateRows({
             <RowSubmit
               idle="Selected - Remove"
               busy="Removing…"
-              label={`Selected - Remove ${name}`}
+              label={t('appMission.appMissionIdCollaborationPanels.selectedRemoveName', { name })}
             />
           </form>
         ) : (
@@ -543,7 +593,11 @@ function CandidateRows({
             <input type="hidden" name="missionId" value={missionId} />
             <input type="hidden" name="packRequirementId" value={c.packRequirementId} />
             <input type="hidden" name={kind === 'fact' ? 'factId' : 'documentId'} value={id} />
-            <RowSubmit idle="Select" busy="Choosing…" label={`Select ${name}`} />
+            <RowSubmit
+              idle="Select"
+              busy="Choosing…"
+              label={t('appMission.appMissionIdCollaborationPanels.selectName', { name })}
+            />
           </form>
         )}
       </div>
@@ -616,6 +670,7 @@ export function EvidenceSelectionPanel({
   /** The case is open, so the choice can still change. */
   readonly editable?: boolean;
 }) {
+  const t = useT(appMissionCatalog);
   const [selectState, selectAction] = useActionState(selectEvidenceAction, INITIAL);
   const [unselectState, unselectAction] = useActionState(unselectEvidenceAction, INITIAL);
   // One line for the panel: selecting and removing answer in the same place.
@@ -626,11 +681,12 @@ export function EvidenceSelectionPanel({
 
   return (
     <article className="card">
-      <p className="card-kicker">Precision</p>
-      <h2 className="card-title">Select Evidence</h2>
+      <p className="card-kicker">{t('appMission.appMissionIdCollaborationPanels.precision')}</p>
+      <h2 className="card-title">
+        {t('appMission.appMissionIdCollaborationPanels.selectEvidence')}
+      </h2>
       <p className="muted lp-choice-intro">
-        More than one instance is on file for these requirements - pick exactly which one backs
-        each. Until you select, any eligible instance may count.
+        {t('appMission.appMissionIdCollaborationPanels.moreThanOneInstanceIsOn')}
       </p>
       <div className="rows">
         {multiCandidate.map((c) => (

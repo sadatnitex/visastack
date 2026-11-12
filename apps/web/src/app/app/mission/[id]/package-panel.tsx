@@ -7,8 +7,10 @@ import {
   type PackagePhrase,
 } from '@visastack/services';
 import Link from 'next/link';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { humanizeCode } from '../../../../lib/format-code';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { getServerT } from '../../../../lib/i18n-server';
 import { documentKindLabel } from '../../../../lib/item-names';
 import { fieldLabel } from '../../../../lib/master-profile';
 import {
@@ -73,6 +75,7 @@ export function PackagePanel({
    */
   readonly listedIds?: ReadonlySet<string>;
 }) {
+  const t = getServerT(appMissionCatalog);
   const items = pkg.items.filter(
     (item) => item.state !== 'NOT_APPLICABLE' && !listedIds.has(item.packRequirementId),
   );
@@ -80,19 +83,18 @@ export function PackagePanel({
   const caveats = pkg.freshness?.caveats ?? [];
   return (
     <div className="package-panel">
-      <h2 className="card-title">Trip Package</h2>
+      <h2 className="card-title">{t('appMission.appMissionIdPackagePanel.tripPackage')}</h2>
       <p>
         <span className={`badge ${PHRASE_TONE[pkg.phrase]}`}>
           {PACKAGE_PHRASE_LABELS[pkg.phrase]}
         </span>
       </p>
       <p className="muted u-fs-085">
-        This shows what you have ready. It is not a submission and nothing is sent until you share
-        it yourself.
+        {t('appMission.appMissionIdPackagePanel.thisShowsWhatYouHaveReady')}
       </p>
       {editable && listedIds.size > 0 ? (
         <p className="muted u-fs-085">
-          To choose which file an item uses, open the item in the Evidence Checklist.
+          {t('appMission.appMissionIdPackagePanel.toChooseWhichFileAnItem')}
         </p>
       ) : null}
       {pkg.reasons.length > 0 ? (
@@ -113,16 +115,19 @@ export function PackagePanel({
       {pkg.questions.length > 0 ? (
         <section aria-labelledby="package-questions-heading">
           <h3 id="package-questions-heading" className="package-subheading">
-            Questions for This Checklist
+            {t('appMission.appMissionIdPackagePanel.questionsForThisChecklist')}
           </h3>
           <ul>
             {pkg.questions.map((q) =>
               q.kind === 'TRAVEL_DATES' ? (
-                <li key="dates">Add your travel dates under Edit Case Details.</li>
+                <li key="dates">
+                  {t('appMission.appMissionIdPackagePanel.addYourTravelDatesUnderEdit')}
+                </li>
               ) : (
                 <li key={q.fieldKey ?? ''}>
-                  Add and confirm your {itemName({ kind: 'FIELD', key: q.fieldKey ?? '' })} in your
-                  profile.
+                  {t('appMission.appMissionIdPackagePanel.addAndConfirmYourItemnameIn', {
+                    itemName: itemName({ kind: 'FIELD', key: q.fieldKey ?? '' }),
+                  })}
                 </li>
               ),
             )}
@@ -133,7 +138,7 @@ export function PackagePanel({
       {items.length > 0 ? (
         <section aria-labelledby="package-items-heading">
           <h3 id="package-items-heading" className="package-subheading">
-            Other Items in This Package
+            {t('appMission.appMissionIdPackagePanel.otherItemsInThisPackage')}
           </h3>
           <ul className="package-items">
             {items.map((item) => {
@@ -166,7 +171,7 @@ export function PackagePanel({
       {caveats.length > 0 ? (
         <section aria-labelledby="package-freshness-heading">
           <h3 id="package-freshness-heading" className="package-subheading">
-            Freshness Check
+            {t('appMission.appMissionIdPackagePanel.freshnessCheck')}
           </h3>
           <ul>
             {caveats.map((caveat) => (
@@ -178,10 +183,10 @@ export function PackagePanel({
 
       <section aria-labelledby="package-outside-heading">
         <h3 id="package-outside-heading" className="package-subheading">
-          Outside VisaStack
+          {t('appMission.appMissionIdPackagePanel.outsideVisastack')}
         </h3>
         <p className="muted u-fs-085">
-          VisaStack does not do these for you. Check the official source for this trip.
+          {t('appMission.appMissionIdPackagePanel.visastackDoesNotDoTheseFor')}
         </p>
         <ul>
           {pkg.outsideSteps.map((step) => (
@@ -193,8 +198,13 @@ export function PackagePanel({
       {pkg.latestHandoff ? (
         <p className="muted u-fs-085">
           {pkg.latestHandoff.current
-            ? `Prepared for Handoff on ${formatTimestampDate(pkg.latestHandoff.confirmedAt)}.`
-            : `Prepared for Handoff on ${formatTimestampDate(pkg.latestHandoff.confirmedAt)}, before a later change. That record is kept as it was.`}
+            ? t('appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdate', {
+                formatTimestampDate: formatTimestampDate(pkg.latestHandoff.confirmedAt),
+              })
+            : t(
+                'appMission.appMissionIdPackagePanel.preparedForHandoffOnFormattimestampdateBefore',
+                { formatTimestampDate: formatTimestampDate(pkg.latestHandoff.confirmedAt) },
+              )}
         </p>
       ) : null}
       <p className="muted u-fs-085">

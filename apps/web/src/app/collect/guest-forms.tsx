@@ -9,6 +9,8 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from '../../components/form-feedback';
+import { useT } from '../../components/i18n-provider';
+import { collectCatalog } from '../../i18n/collect';
 import {
   type GuestActionState,
   leaveAction,
@@ -43,6 +45,7 @@ export function SendCodeForm({ again = false }: { readonly again?: boolean }) {
 
 /** Type the six-digit code from the email. */
 export function VerifyCodeForm() {
+  const t = useT(collectCatalog);
   const [state, formAction, pending] = useActionState(verifyCodeAction, INITIAL);
   const form = useRef<HTMLFormElement>(null);
   useFocusInvalidField(form, state);
@@ -51,7 +54,7 @@ export function VerifyCodeForm() {
     <form ref={form} action={formAction} className="field-list form-narrow">
       <div className="field-row">
         <label className="field-label" htmlFor="guest-code">
-          Six-Digit Code
+          {t('collect.collectGuestForms.sixDigitCode')}
         </label>
         <CodeInput
           id="guest-code"
@@ -59,7 +62,7 @@ export function VerifyCodeForm() {
           {...fieldProblem(state, 'code', messageId, 'guest-code-hint')}
         />
         <p id="guest-code-hint" className="muted u-fs-085">
-          It works for 10 minutes. Only the newest code works.
+          {t('collect.collectGuestForms.itWorksFor10MinutesOnly')}
         </p>
         <FieldError result={state} field="code" />
       </div>

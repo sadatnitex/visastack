@@ -3,7 +3,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '../../../../../components/ui';
+import { appMissionCatalog } from '../../../../../i18n/app-mission';
 import { formatTimestampDate } from '../../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { type SearchParamsRecord, pagingHref, parseCursor } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
 import { isPacketSnapshot } from '../snapshot-packet';
@@ -27,6 +29,8 @@ export default async function MissionSnapshotsPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
+  await primeLocale();
+  const t = getServerT(appMissionCatalog);
   const { id } = await params;
   const query: SearchParamsRecord = (await searchParams) ?? {};
   const { before: cursor } = query;
@@ -61,14 +65,14 @@ export default async function MissionSnapshotsPage({
     <section className="section container">
       <PageHeader
         back={{ href: `/app/mission/${mission.id}`, label: mission.title }}
-        eyebrow="Case"
-        title="All Snapshots"
-        description="Each snapshot keeps exactly what this case held when it was taken, newest first."
+        eyebrow={t('appMission.appMissionIdSnapshotsPage.case')}
+        title={t('appMission.appMissionIdSnapshotsPage.allSnapshots')}
+        description={t('appMission.appMissionIdSnapshotsPage.eachSnapshotKeepsExactlyWhatThis')}
       />
       <article className="card">
         {snapshots.length === 0 ? (
           <p className="card-body">
-            No snapshots yet. Take one from the case page to keep a copy of this case as it is.
+            {t('appMission.appMissionIdSnapshotsPage.noSnapshotsYetTakeOneFrom')}
           </p>
         ) : (
           <div className="rows" id="snapshots-list">
@@ -83,7 +87,7 @@ export default async function MissionSnapshotsPage({
                   Version {snap.version}
                   {snap.isPacket ? (
                     <span className="badge badge-success case-snapshot-packet">
-                      Application Packet
+                      {t('appMission.appMissionIdSnapshotsSnapshotidPage.applicationPacket')}
                     </span>
                   ) : null}
                 </span>
@@ -95,18 +99,27 @@ export default async function MissionSnapshotsPage({
           </div>
         )}
         {nextCursor || before ? (
-          <nav className="show-more" aria-label="More snapshots">
+          <nav
+            className="show-more"
+            aria-label={t('appMission.appMissionIdSnapshotsPage.moreSnapshots')}
+          >
             {nextCursor ? (
               <Link
                 className="btn btn-secondary u-btn-sm show-more-link"
                 href={pagingHref(pathname, query, { before: nextCursor }, 'snapshots-list')}
               >
-                Show Older Snapshots
+                {t('appMission.appMissionIdSnapshotsPage.showOlderSnapshots')}
               </Link>
             ) : (
-              <p className="muted u-fs-085 u-m-0">These are the oldest snapshots of this case.</p>
+              <p className="muted u-fs-085 u-m-0">
+                {t('appMission.appMissionIdSnapshotsPage.theseAreTheOldestSnapshotsOf')}
+              </p>
             )}
-            {before ? <Link href={pathname}>Back to the Newest Snapshots</Link> : null}
+            {before ? (
+              <Link href={pathname}>
+                {t('appMission.appMissionIdSnapshotsPage.backToTheNewestSnapshots')}
+              </Link>
+            ) : null}
           </nav>
         ) : null}
       </article>

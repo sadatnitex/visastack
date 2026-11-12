@@ -3,6 +3,8 @@
 import type { MissionState } from '@visastack/core';
 import { useActionState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../components/form-feedback';
+import { useT } from '../../../../components/i18n-provider';
+import { appMissionCatalog } from '../../../../i18n/app-mission';
 import { CASE_STATE_LABELS } from '../../../../lib/case-stages';
 import {
   type ActionState,
@@ -32,13 +34,14 @@ export function CaseDetailsForm({
   readonly targetDeadline: Date | null;
   readonly manualMode: boolean;
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState(updateCaseDetailsAction, INITIAL);
   return (
     <form action={formAction} className="field-list">
       <input type="hidden" name="missionId" value={missionId} />
       <div className="field-row">
         <label className="field-label" htmlFor="jurisdiction">
-          Embassy or Visa Centre
+          {t('appMission.appMissionIdMissionButtons.embassyOrVisaCentre')}
         </label>
         <input
           id="jurisdiction"
@@ -46,17 +49,16 @@ export function CaseDetailsForm({
           type="text"
           defaultValue={jurisdiction ?? ''}
           className="input"
-          placeholder="e.g. US Embassy Dhaka"
+          placeholder={t('appMission.appMissionIdMissionButtons.eGUsEmbassyDhaka')}
           aria-describedby="jurisdiction-help"
         />
         <p id="jurisdiction-help" className="muted u-fs-085">
-          Where you apply, not the country you travel to. Some checklists differ by embassy or visa
-          centre.
+          {t('appMission.appMissionIdMissionButtons.whereYouApplyNotTheCountry')}
         </p>
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="serviceCategory">
-          Service Category
+          {t('appMission.appMissionIdMissionButtons.serviceCategory')}
         </label>
         <input
           id="serviceCategory"
@@ -64,12 +66,12 @@ export function CaseDetailsForm({
           type="text"
           defaultValue={serviceCategory ?? ''}
           className="input"
-          placeholder="e.g. Tourist, Student, Work"
+          placeholder={t('appMission.appMissionIdMissionButtons.eGTouristStudentWork')}
         />
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="travelStartDate">
-          Travel Dates
+          {t('appMission.appMissionIdMissionButtons.travelDates')}
         </label>
         <div className="lift-date-pair">
           <input
@@ -78,7 +80,7 @@ export function CaseDetailsForm({
             type="date"
             defaultValue={travelStartDate ? travelStartDate.toISOString().slice(0, 10) : ''}
             className="input"
-            aria-label="Travel start date"
+            aria-label={t('appMission.appMissionIdMissionButtons.travelStartDate')}
           />
           <input
             id="travelEndDate"
@@ -86,13 +88,13 @@ export function CaseDetailsForm({
             type="date"
             defaultValue={travelEndDate ? travelEndDate.toISOString().slice(0, 10) : ''}
             className="input"
-            aria-label="Travel end date"
+            aria-label={t('appMission.appMissionIdMissionButtons.travelEndDate')}
           />
         </div>
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor="targetDeadline">
-          Target Deadline
+          {t('appMission.appMissionIdMissionButtons.targetDeadline')}
         </label>
         <input
           id="targetDeadline"
@@ -104,7 +106,7 @@ export function CaseDetailsForm({
       </div>
       <label className="lift-form-check">
         <input type="checkbox" name="manualMode" value="true" defaultChecked={manualMode} />
-        No automated requirement pack covers this route (manual mode)
+        {t('appMission.appMissionIdMissionButtons.noAutomatedRequirementPackCoversThis')}
       </label>
       <div>
         <SubmitButton
@@ -127,6 +129,7 @@ export function ItineraryForm({
   readonly missionId: string;
   readonly itineraryRef: string | null;
 }) {
+  const t = useT(appMissionCatalog);
   const [state, formAction, pending] = useActionState(setItineraryRefAction, INITIAL);
   return (
     <form action={formAction} className="lift-stack-form">
@@ -136,8 +139,8 @@ export function ItineraryForm({
         type="text"
         defaultValue={itineraryRef ?? ''}
         className="input"
-        aria-label="Itinerary Reference"
-        placeholder="e.g. Smith Family Europe 2026"
+        aria-label={t('appMission.appMissionIdCaseRail.itineraryReference')}
+        placeholder={t('appMission.appMissionIdMissionButtons.eGSmithFamilyEurope2026')}
       />
       <div>
         <SubmitButton
