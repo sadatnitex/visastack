@@ -26,8 +26,8 @@ function TripItem({
       <Link href={`/app/trips/${trip.id}`}>{trip.title}</Link>{' '}
       <span className="muted u-fs-085">
         {trip.travellerCount === 1
-          ? t('appTrips.appTripsPage.1Traveller')
-          : t('appTrips.appTripsPage.travellercountTravellers', {
+          ? t.node('appTrips.appTripsPage.1Traveller')
+          : t.node('appTrips.appTripsPage.travellercountTravellers', {
               travellerCount: trip.travellerCount,
             })}
       </span>
@@ -52,13 +52,13 @@ export default async function TripsPage() {
         actions={
           hasTravellers ? (
             <Link className="btn btn-primary" href="/app/trips/new">
-              {t('appTrips.appTripsPage.startAGroupTrip')}
+              {t.node('appTrips.appTripsPage.startAGroupTrip')}
             </Link>
           ) : null
         }
       />
       <AboutDisclosure summary={t('appTrips.appTripsPage.aboutGroupTrips')}>
-        <p>{t('appTrips.appTripsPage.planOneTripForSeveralTravellers')}</p>
+        <p>{t.node('appTrips.appTripsPage.planOneTripForSeveralTravellers')}</p>
       </AboutDisclosure>
       <article className="card">
         {trips.length > 0 ? (
@@ -80,7 +80,7 @@ export default async function TripsPage() {
             </ul>
           </SearchableList>
         ) : hasTravellers ? (
-          <p className="u-m-0">{t('appTrips.appTripsPage.noGroupTripsYet')}</p>
+          <p className="u-m-0">{t.node('appTrips.appTripsPage.noGroupTripsYet')}</p>
         ) : (
           <p className="u-m-0">
             Add a traveller first, then start a trip. <Link href="/app">Go to Home</Link>
@@ -90,7 +90,7 @@ export default async function TripsPage() {
       {joined.length > 0 ? (
         <section className="card trip-section" aria-labelledby="trips-joined-title">
           <h2 id="trips-joined-title" className="card-title">
-            {t('appTrips.appTripsPage.tripsYouJoined')}
+            {t.node('appTrips.appTripsPage.tripsYouJoined')}
           </h2>
           <ul className="trip-list">
             {joined.map((trip) => (
@@ -104,7 +104,7 @@ export default async function TripsPage() {
                   <DestinationLabel destination={trip.destination} />
                   {trip.joined
                     ? ''
-                    : t('appTrips.appTripsPage.invitationEndsFormattimestampdateOpenTheLink', {
+                    : t.node('appTrips.appTripsPage.invitationEndsFormattimestampdateOpenTheLink', {
                         formatTimestampDate: formatDate(new Date(trip.endsAt), locale, {
                           year: 'numeric',
                           month: 'short',

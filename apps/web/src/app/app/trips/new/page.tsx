@@ -32,7 +32,7 @@ export default async function GroupTripStartPage() {
         back={{ href: '/app/trips', label: 'Group Trips' }}
       />
       <AboutDisclosure summary={t('appTrips.appTripsPage.aboutGroupTrips')}>
-        <p>{t('appTrips.appTripsNewPage.tellUsWhereYouAreGoing')}</p>
+        <p>{t.node('appTrips.appTripsNewPage.tellUsWhereYouAreGoing')}</p>
       </AboutDisclosure>
       <article className="card">
         {!ready ? (

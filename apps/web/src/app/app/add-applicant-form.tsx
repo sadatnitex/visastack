@@ -56,7 +56,7 @@ function FirstRunApplicantForm() {
     <form ref={formRef} action={formAction} className="first-run-form">
       <fieldset className="first-run-choice">
         <legend className="field-label">
-          {t('appHome.appAddApplicantForm.whoIsThisRecordFor')}
+          {t.node('appHome.appAddApplicantForm.whoIsThisRecordFor')}
         </legend>
         <label>
           <input
@@ -67,8 +67,8 @@ function FirstRunApplicantForm() {
             onChange={() => setWhoFor('SELF')}
           />
           <span>
-            <b>{t('appHome.appAddApplicantForm.me')}</b>
-            <small>{t('appHome.appAddApplicantForm.myOwnPapers')}</small>
+            <b>{t.node('appHome.appAddApplicantForm.me')}</b>
+            <small>{t.node('appHome.appAddApplicantForm.myOwnPapers')}</small>
           </span>
         </label>
         <label>
@@ -83,15 +83,15 @@ function FirstRunApplicantForm() {
             }}
           />
           <span>
-            <b>{t('appHome.appAddApplicantForm.someoneIManage')}</b>
-            <small>{t('appHome.appAddApplicantForm.aFamilyMember')}</small>
+            <b>{t.node('appHome.appAddApplicantForm.someoneIManage')}</b>
+            <small>{t.node('appHome.appAddApplicantForm.aFamilyMember')}</small>
           </span>
         </label>
       </fieldset>
       <div className="first-run-managed">
         <fieldset className="first-run-choice">
           <legend className="field-label">
-            {t('appHome.appAddApplicantForm.howAreTheyRelatedToYou')}
+            {t.node('appHome.appAddApplicantForm.howAreTheyRelatedToYou')}
           </legend>
           <label>
             <input
@@ -103,8 +103,8 @@ function FirstRunApplicantForm() {
               {...fieldProblem(state, 'managedKind', messageId)}
             />
             <span>
-              <b>{t('appHome.appAddApplicantForm.familyMember')}</b>
-              <small>{t('appHome.appAddApplicantForm.adultRelative')}</small>
+              <b>{t.node('appHome.appAddApplicantForm.familyMember')}</b>
+              <small>{t.node('appHome.appAddApplicantForm.adultRelative')}</small>
             </span>
           </label>
           <label>
@@ -116,15 +116,15 @@ function FirstRunApplicantForm() {
               onChange={() => setManagedKind('MINOR_GUARDIAN')}
             />
             <span>
-              <b>{t('appHome.appAddApplicantForm.minorGuardian')}</b>
-              <small>{t('appHome.appAddApplicantForm.aChildInMyCare')}</small>
+              <b>{t.node('appHome.appAddApplicantForm.minorGuardian')}</b>
+              <small>{t.node('appHome.appAddApplicantForm.aChildInMyCare')}</small>
             </span>
           </label>
         </fieldset>
       </div>
       <div>
         <label className="field-label" htmlFor="displayName">
-          {t('appHome.appAddApplicantForm.nameAsOnThePassport')}
+          {t.node('appHome.appAddApplicantForm.nameAsOnThePassport')}
         </label>
         <input
           id="displayName"
@@ -150,7 +150,7 @@ function FirstRunApplicantForm() {
       <SubmitButton pending={pending} idle="Continue" busy="Saving…" className="btn btn-primary" />
       <FormMessage id={messageId} result={state} />
       <p className="muted first-run-note">
-        {t('appHome.appAddApplicantForm.youCanChangeThisLaterNothing')}
+        {t.node('appHome.appAddApplicantForm.youCanChangeThisLaterNothing')}
       </p>
     </form>
   );
@@ -180,12 +180,13 @@ function ApplicantForm({ selfAdded }: { readonly selfAdded: boolean }) {
     >
       <div>
         <label className="field-label" htmlFor="displayName">
-          {t('appHome.appAddApplicantForm.fullName')}
+          {t.node('appHome.appAddApplicantForm.fullName')}
         </label>
         <input
           id="displayName"
           name="displayName"
           placeholder={t('appHome.appAddApplicantForm.fullName')}
+          {...t.lang('appHome.appAddApplicantForm.fullName')}
           required
           className="input"
           {...fieldProblem(state, 'displayName', messageId)}
@@ -194,7 +195,7 @@ function ApplicantForm({ selfAdded }: { readonly selfAdded: boolean }) {
       </div>
       <div>
         <label className="field-label" htmlFor="relationship">
-          {t('appHome.appAddApplicantForm.relationship')}
+          {t.node('appHome.appAddApplicantForm.relationship')}
         </label>
         <select
           id="relationship"
@@ -205,17 +206,25 @@ function ApplicantForm({ selfAdded }: { readonly selfAdded: boolean }) {
           style={{ width: '100%', marginTop: '0.35rem' }}
           aria-describedby={secondSelf ? selfNoteId : undefined}
         >
-          <option value="SELF">
+          <option
+            {...t.lang('appHome.appAddApplicantForm.myself')}
+            {...t.lang('appHome.appAddApplicantForm.myselfAlreadyAdded')}
+            value="SELF"
+          >
             {selfAdded
               ? t('appHome.appAddApplicantForm.myselfAlreadyAdded')
               : t('appHome.appAddApplicantForm.myself')}
           </option>
-          <option value="FAMILY_MEMBER">{t('appHome.appAddApplicantForm.familyMember')}</option>
-          <option value="MINOR_GUARDIAN">{t('appHome.appAddApplicantForm.minorGuardian')}</option>
+          <option {...t.lang('appHome.appAddApplicantForm.familyMember')} value="FAMILY_MEMBER">
+            {t('appHome.appAddApplicantForm.familyMember')}
+          </option>
+          <option {...t.lang('appHome.appAddApplicantForm.minorGuardian')} value="MINOR_GUARDIAN">
+            {t('appHome.appAddApplicantForm.minorGuardian')}
+          </option>
         </select>
         {secondSelf ? (
           <p className="field-hint" id={selfNoteId}>
-            {t('appHome.appAddApplicantForm.youAlreadyHaveARecordFor')}
+            {t.node('appHome.appAddApplicantForm.youAlreadyHaveARecordFor')}
           </p>
         ) : null}
       </div>

@@ -229,7 +229,7 @@ export function AccountMenu({
           {name}
         </b>
         <b className="account-name-mobile" dir="auto">
-          {name.trim().split(/\s+/)[0] || t('appHome.appAccountMenu.account')}
+          {name.trim().split(/\s+/)[0] || t.node('appHome.appAccountMenu.account')}
         </b>
         {/* WP-X3: on the narrowest phones the account shows as an icon, leaving room for the context chip. */}
         <span className="account-icon-mobile" aria-hidden="true">
@@ -264,6 +264,7 @@ export function AccountMenu({
             type="button"
             className="account-menu-close"
             aria-label={t('appHome.appAccountMenu.closeAccountMenu')}
+            {...t.lang('appHome.appAccountMenu.closeAccountMenu')}
             onClick={() => close(true)}
           >
             <Icon name="close" size={20} />
@@ -272,12 +273,12 @@ export function AccountMenu({
         <div className="account-menu-plan">
           {plan ? (
             <p className="account-menu-plan-name">
-              <span className="sr-only">{t('appHome.appAccountMenu.yourPlan')} </span>
+              <span className="sr-only">{t.node('appHome.appAccountMenu.yourPlan')} </span>
               <span className="account-menu-chip">{plan.name}</span>
             </p>
           ) : null}
           <Link className="account-menu-plan-link" href={plan?.href ?? '/app/account/plan'}>
-            {t('appHome.appAccountMenu.viewPlan')}
+            {t.node('appHome.appAccountMenu.viewPlan')}
             <Icon name="chevron" size={16} />
           </Link>
         </div>
