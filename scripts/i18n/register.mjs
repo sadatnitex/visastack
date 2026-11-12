@@ -217,6 +217,10 @@ export const HOLDBACK = new Map([
     'SG-e004a268',
     'Button name read by screen readers while the visible text is still English (label in name).',
   ],
+  [
+    'SG-86f84a55',
+    'Button name read by screen readers while the visible text is still English (label in name).',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

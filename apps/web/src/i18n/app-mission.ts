@@ -564,8 +564,6 @@ export const appMissionCatalog = defineCatalog({
     'appMission.appMissionIdTripChecksPanel.aboutTheseChecks': 'এই পরীক্ষাগুলো সম্পর্কে',
     'appMission.appMissionIdTripChecksPanel.dates': 'তারিখসমূহ',
     'appMission.appMissionIdTripChecksPanel.tripDateChecks': 'ভ্রমণের তারিখ পরীক্ষা',
-    'appMission.appMissionIdWordingEditor.backToOriginalWordingForItemname':
-      '{itemName}-এর মূল শব্দে ফিরে যান',
     'appMission.appMissionStartPage.aboutStartingATrip': 'ভ্রমণ শুরু করা সম্পর্কে',
     'appMission.appMissionStartPage.startATrip': 'ভ্রমণ শুরু করুন',
     'appMission.appMissionStartPage.tellUsWhereYouAreGoing':

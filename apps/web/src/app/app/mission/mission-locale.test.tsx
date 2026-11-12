@@ -42,6 +42,8 @@ const HELD = [
   'SG-5efa8d43',
   'SG-84514c27',
   'SG-c0b36ea9',
+  // Label in name: the visible button text is still English, so its screen reader name stays English.
+  'SG-86f84a55',
 ];
 
 const missing: CaseAttentionItem = {
