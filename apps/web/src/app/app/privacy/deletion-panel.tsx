@@ -2,6 +2,8 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../components/form-feedback';
+import { useT } from '../../../components/i18n-provider';
+import { appPrivacyCatalog } from '../../../i18n/app-privacy';
 import { currentLevel } from '../../../lib/ccd/reveal';
 import { type ActionState, cancelDeletionAction, requestDeletionAction } from './actions';
 
@@ -61,6 +63,7 @@ function formatDate(iso: string): string {
 }
 
 export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProps) {
+  const t = useT(appPrivacyCatalog);
   const [reqState, requestAction, reqPending] = useActionState(requestDeletionAction, INITIAL);
   const [cancelState, cancelAction, cancelPending] = useActionState(cancelDeletionAction, INITIAL);
   const [confirming, setConfirming] = useState(false);
@@ -158,21 +161,20 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
           htmlFor="del-reason"
           style={{ display: 'block', marginBottom: '0.4rem' }}
         >
-          Reason (Optional)
+          {t('appPrivacy.appPrivacyDeletionPanel.reasonOptional')}
         </label>
         <input
           id="del-reason"
           name="reason"
           type="text"
           className="input"
-          placeholder="Helps us improve - not required"
+          placeholder={t('appPrivacy.appPrivacyDeletionPanel.helpsUsImproveNotRequired')}
           style={{ marginBottom: '0.85rem' }}
         />
         {confirming ? (
           <div className="notice" role="alert">
             <p className="u-m-0">
-              Schedule permanent deletion of your account and all owned data? You will have a 7-day
-              grace window to cancel.
+              {t('appPrivacy.appPrivacyDeletionPanel.schedulePermanentDeletionOfYourAccount')}
             </p>
             <div className="cta-row u-mt-050">
               <SubmitButton
@@ -186,13 +188,13 @@ export function DeletionPanel({ scheduledFor, impact, holds }: DeletionPanelProp
                 className="btn btn-secondary"
                 onClick={() => setConfirming(false)}
               >
-                Keep My Account
+                {t('appPrivacy.appPrivacyDeletionPanel.keepMyAccount')}
               </button>
             </div>
           </div>
         ) : (
           <button type="button" className="btn btn-danger" onClick={() => setConfirming(true)}>
-            Request Account Deletion
+            {t('appPrivacy.appPrivacyDeletionPanel.requestAccountDeletion')}
           </button>
         )}
         <FormMessage result={reqState} />

@@ -16,6 +16,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { PageHeader, StatusBadge } from '../../../../../components/ui';
+import { appAccountCatalog } from '../../../../../i18n/app-account';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import type { SearchParamsRecord } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
 import { supportEmail } from '../../../../../lib/support-email';
@@ -45,6 +47,8 @@ export default async function BillingHistoryPage({
 }: {
   readonly searchParams?: Promise<SearchParamsRecord>;
 }) {
+  await primeLocale();
+  const t = getServerT(appAccountCatalog);
   const query = (await searchParams) ?? {};
   // Scroll Budget (WP-SB9): the newest 10 purchases, then Show More; one extra row is read only to
   // know whether more exist. Still only this person's own rows (their SelfScope).
@@ -62,12 +66,12 @@ export default async function BillingHistoryPage({
   return (
     <section className="section container">
       <PageHeader
-        eyebrow="Account"
-        title="Billing History"
-        description="What you bought, with an invoice and receipts you can download."
+        eyebrow={t('appAccount.appAccountPlanBillingPage.account')}
+        title={t('appAccount.appAccountPlanBillingPage.billingHistory')}
+        description={t('appAccount.appAccountPlanBillingPage.whatYouBoughtWithAnInvoice')}
         actions={
           <Link className="btn btn-secondary" href="/app/account/plan">
-            Plan &amp; Usage
+            {t('appAccount.appAccountPage.planUsage')}
           </Link>
         }
       />
@@ -75,11 +79,10 @@ export default async function BillingHistoryPage({
       {purchases.length === 0 ? (
         <article className="card" aria-labelledby="billing-empty-title">
           <h2 className="card-title" id="billing-empty-title">
-            No Purchases Yet
+            {t('appAccount.appAccountPlanBillingPage.noPurchasesYet')}
           </h2>
           <p className="card-body">
-            When you buy a plan, its invoice and receipt appear here. Nothing is charged without you
-            paying for it.
+            {t('appAccount.appAccountPlanBillingPage.whenYouBuyAPlanIts')}
           </p>
         </article>
       ) : (
@@ -147,6 +150,7 @@ function PurchaseCard({
   readonly purchase: OwnPurchaseView;
   readonly supportEmail: string | null;
 }) {
+  const t = getServerT(appAccountCatalog);
   const headingId = `purchase-${purchase.id}`;
   const money = (minor: number) => formatMoney(minor, purchase.currency);
   return (
@@ -171,35 +175,46 @@ function PurchaseCard({
       <p className="invoice-note">{statusNote(purchase)}</p>
       <dl className="invoice-facts">
         <div>
-          <dt>Plan</dt>
+          <dt>{t('appAccount.appAccountPage.plan')}</dt>
           <dd>{purchase.planName}</dd>
         </div>
         <div>
-          <dt>Amount</dt>
+          <dt>{t('appAccount.appAccountPlanBillingPage.amount')}</dt>
           <dd>{money(purchase.amountMinorUnits)}</dd>
         </div>
         <div>
-          <dt>Period</dt>
+          <dt>{t('appAccount.appAccountPlanBillingPage.period')}</dt>
           <dd>{formatCoveredPeriod(purchase.periodStart, purchase.periodEnd)}</dd>
         </div>
         {purchase.paidAt ? (
           <div>
-            <dt>Paid On</dt>
+            <dt>{t('appAccount.appAccountPlanBillingPage.paidOn')}</dt>
             <dd>{formatBillingDate(purchase.paidAt)}</dd>
           </div>
         ) : null}
       </dl>
 
       {purchase.receipts.length > 0 ? (
-        <section className="invoice-section" aria-label={`Receipts for ${purchase.invoiceRef}`}>
-          <h3 className="invoice-subhead">Receipts</h3>
+        <section
+          className="invoice-section"
+          aria-label={t('appAccount.appAccountPlanBillingPage.receiptsForInvoiceref', {
+            invoiceRef: purchase.invoiceRef,
+          })}
+        >
+          <h3 className="invoice-subhead">{t('appAccount.appAccountPlanBillingPage.receipts')}</h3>
           <ul className="invoice-list">
             {purchase.receipts.map((receipt) => (
               <li key={receipt.id} className="invoice-list-item">
-                <span>{`Receipt ${receipt.number}`}</span>
                 <span>
-                  {formatMoney(receipt.amountMinorUnits, receipt.currency)} on{' '}
-                  {formatBillingDate(receipt.issuedAt)}
+                  {t('appAccount.appAccountPlanBillingPage.receiptNumber', {
+                    number: receipt.number,
+                  })}
+                </span>
+                <span>
+                  {t('appAccount.appAccountPlanBillingPage.formatmoneyOnFormatbillingdate', {
+                    formatMoney: formatMoney(receipt.amountMinorUnits, receipt.currency),
+                    formatBillingDate: formatBillingDate(receipt.issuedAt),
+                  })}
                 </span>
                 {receipt.mode === 'TEST' ? (
                   <StatusBadge tone="warning">{TEST_PAYMENT_LABEL}</StatusBadge>
@@ -208,7 +223,7 @@ function PurchaseCard({
                   className="invoice-link"
                   href={`/app/account/plan/billing/receipts/${receipt.id}/pdf`}
                 >
-                  Download Receipt (PDF)
+                  {t('appAccount.appAccountPlanBillingPage.downloadReceiptPdf')}
                   <span className="sr-only"> {receipt.number}</span>
                 </a>
               </li>
@@ -232,7 +247,7 @@ function PurchaseCard({
           className="btn btn-secondary"
           href={`/app/account/plan/billing/invoices/${purchase.id}/pdf`}
         >
-          Download Invoice (PDF)
+          {t('appAccount.appAccountPlanBillingPage.downloadInvoicePdf')}
           <span className="sr-only"> {purchase.invoiceRef}</span>
         </a>
       </div>
@@ -257,6 +272,7 @@ function RefundRequest({
   readonly paidAt: Date | null;
   readonly supportEmail: string | null;
 }) {
+  const t = getServerT(appAccountCatalog);
   const paidOn = paidAt ? `, paid on ${formatBillingDate(paidAt)}` : '';
   const mailto = email
     ? `mailto:${email}?subject=${encodeURIComponent(`Refund Request ${invoiceRef}`)}&body=${encodeURIComponent(`Please refund my purchase ${invoiceRef}${paidOn}.`)}`
@@ -264,11 +280,12 @@ function RefundRequest({
   return (
     <section className="invoice-section" aria-labelledby={headingId}>
       <h3 className="invoice-subhead" id={headingId}>
-        Refund
+        {t('appAccount.appAccountPlanBillingPage.refund')}
       </h3>
       <p className="invoice-note">
-        You can ask for a full refund until {formatBillingDateTime(until)} (Bangladesh time), and
-        you do not need to give a reason. The period it paid for ends once the refund is made.
+        {t('appAccount.appAccountPlanBillingPage.youCanAskForAFull', {
+          formatBillingDateTime: formatBillingDateTime(until),
+        })}
       </p>
       {mailto ? (
         <a className="invoice-link" href={mailto}>

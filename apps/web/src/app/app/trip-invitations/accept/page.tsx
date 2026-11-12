@@ -12,7 +12,9 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { DestinationLabel } from '../../../../components/destination-label';
 import { PageHeader } from '../../../../components/ui';
+import { appTripInvitationsCatalog } from '../../../../i18n/app-trip-invitations';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { withSession } from '../../../../lib/session';
 import {
   AcceptTripInvitationForm,
@@ -54,23 +56,25 @@ function Shell({ children }: { readonly children: ReactNode }) {
  * open. It carries the link's token only when it has the shape of one.
  */
 function Unavailable({ token, busy = false }: { readonly token: string; readonly busy?: boolean }) {
+  const t = getServerT(appTripInvitationsCatalog);
   const back = TOKEN_SHAPE.test(token)
     ? `/auth/sign-in?next=${encodeURIComponent(`/app/trip-invitations/accept?token=${token}`)}`
     : '/auth/sign-in';
   return (
     <Shell>
-      <PageHeader title="Invitation Unavailable" />
+      <PageHeader
+        title={t('appTripInvitations.appTripInvitationsAcceptPage.invitationUnavailable')}
+      />
       <article className="card">
         <p className="u-m-0">{busy ? INVITATION_BUSY : INVITATION_UNAVAILABLE}</p>
         <p className="muted u-m-0">
-          Ask the person who invited you for a new link, or sign in with the email address they
-          used.
+          {t('appTripInvitations.appTripInvitationsAcceptPage.askThePersonWhoInvitedYou')}
         </p>
         <div className="companion-actions">
           <Link className="btn btn-secondary" href={back}>
-            Sign In with the Invited Email
+            {t('appTripInvitations.appTripInvitationsAcceptPage.signInWithTheInvitedEmail')}
           </Link>
-          <Link href="/app">Go to Home</Link>
+          <Link href="/app">{t('appTripInvitations.appTripInvitationsAcceptPage.goToHome')}</Link>
         </div>
       </article>
     </Shell>
@@ -121,6 +125,8 @@ export default async function TripInvitationPage({
 }: {
   readonly searchParams: Promise<{ readonly token?: string; readonly done?: string }>;
 }) {
+  await primeLocale();
+  const t = getServerT(appTripInvitationsCatalog);
   if (!tripCompanionsEnabled()) notFound();
   const { token = '', done } = await searchParams;
   if (done === 'joined' || done === 'declined') return answered(done);
@@ -134,33 +140,32 @@ export default async function TripInvitationPage({
     return (
       <Shell>
         <PageHeader
-          title="Join a Trip"
-          description="Someone added you to a trip on VisaStack. Opening this page joins nothing."
+          title={t('appTripInvitations.appTripInvitationsAcceptPage.joinATrip')}
+          description={t('appTripInvitations.appTripInvitationsAcceptPage.someoneAddedYouToATrip')}
         />
         <article className="card">
           <dl className="rows">
             <div className="row">
-              <dt>Trip</dt>
+              <dt>{t('appTripInvitations.appTripInvitationsAcceptPage.trip')}</dt>
               <dd>{invite.title}</dd>
             </div>
             <div className="row">
-              <dt>Where</dt>
+              <dt>{t('appTripInvitations.appTripInvitationsIdPage.where')}</dt>
               <dd>
                 <DestinationLabel destination={invite.destination} />
               </dd>
             </div>
             <div className="row">
-              <dt>Why</dt>
+              <dt>{t('appTripInvitations.appTripInvitationsIdPage.why')}</dt>
               <dd>{invite.purpose}</dd>
             </div>
             <div className="row">
-              <dt>Invitation Ends</dt>
+              <dt>{t('appTripInvitations.appTripInvitationsAcceptPage.invitationEnds')}</dt>
               <dd>{formatTimestampDate(invite.expiresAt)}</dd>
             </div>
           </dl>
           <p className="u-m-0">
-            Joining shows your name to others on this trip. Nobody gets access to anyone&apos;s
-            documents.
+            {t('appTripInvitations.appTripInvitationsAcceptPage.joiningShowsYourNameToOthers')}
           </p>
           {consent.CORE_PROCESSING ? (
             <AcceptTripInvitationForm
