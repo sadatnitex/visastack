@@ -103,7 +103,7 @@ describe('shared client components under Bengali', () => {
     expect(Object.keys(componentsUiLiftCatalog.bn)).toEqual([]);
     // The component hands raw numbers to the message and builds no English text of its own: the
     // runtime formats the numbers in the language the message resolves to.
-    const source = readFileSync(join(__dirname, 'ui-lift', 'progress-meter.tsx'), 'utf8');
+    const source = readFileSync(join(__dirname, 'progress-meter-parts.tsx'), 'utf8');
     expect(source).toContain(
       "t('componentsUiLift.progressMeter.meterName', { value, max, label })",
     );

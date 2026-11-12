@@ -1,3 +1,5 @@
+'use client';
+
 import { AI_FEATURE_OFF_HINT } from '@visastack/core/ai-features';
 import { useId } from 'react';
 import { componentsCatalog } from '../i18n/components';

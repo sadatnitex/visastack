@@ -1,3 +1,5 @@
+'use client';
+
 import type { ComponentProps } from 'react';
 import { componentsCatalog } from '../i18n/components';
 import type { CasePurposeGroup } from '../lib/case-choices';
