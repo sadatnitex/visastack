@@ -1,7 +1,7 @@
 /**
  * Message syntax: `{token}` interpolation plus a small ICU plural subset:
  * `{count, plural, one {# item} other {# items}}`. `#` is the number, formatted
- * for the locale. Exact matches (`=0 {...}`) win over plural categories.
+ * for the locale. A numeric `{token}` is formatted by the message language (see formatToken). Exact matches (`=0 {...}`) win over plural categories.
  * Unknown tokens are left intact. No dependency beyond `Intl`.
  */
 
@@ -37,6 +37,18 @@ function parseBranches(source: string): Map<string, string> | null {
     i = close + 1;
   }
   return branches.has('other') ? branches : null;
+}
+
+/**
+ * A number in a `{token}` follows the language the message is written in: Bengali digits (with the
+ * locale's grouping) in Bengali, exactly `String(value)` in English so English output never changes.
+ * Strings are inserted as they are.
+ */
+function formatToken(value: string | number, localeTag: string): string {
+  if (typeof value === 'number' && localeTag.toLowerCase().startsWith('bn')) {
+    return new Intl.NumberFormat(localeTag).format(value);
+  }
+  return String(value);
 }
 
 export function formatMessage(
@@ -83,7 +95,7 @@ export function formatMessage(
       }
     } else if (/^\w+$/.test(inner)) {
       const value = params?.[inner];
-      out += value === undefined ? whole : String(value);
+      out += value === undefined ? whole : formatToken(value, localeTag);
     } else {
       out += whole;
     }
