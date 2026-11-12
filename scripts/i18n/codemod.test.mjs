@@ -3,12 +3,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
+import ts from 'typescript';
 import { parseCatalog } from './catalog.mjs';
 import { runCodemod } from './codemod.mjs';
 import { FILES, loadFormatter, loadModule, makeRoot, readTree, render } from './fixtures.mjs';
 import { renderedJsxText } from './jsx-text.mjs';
 import { KeyAllocator, fileSlug, textSlug } from './keys.mjs';
 import { HOLDBACK, Register } from './register.mjs';
+import { defaultExportFn } from './transform.mjs';
 
 const SRC = Object.keys(FILES).filter((f) => f.endsWith('.tsx'));
 const CAT = 'apps/web/src/i18n/fixture.ts';
@@ -624,5 +626,23 @@ SG-ACTION,ORDINARY_UI,Open,\u0996\u09c1\u09b2\u09c1\u09a8,PASS
     assert.throws(() => run(r3), /i18n runtime is not on this branch.*i18n-server\.ts/);
     assert.deepEqual(readTree(r3, SRC), before);
     assert.equal(run(r3, SRC, { dryRun: true }).converted.length, 15);
+  });
+});
+
+describe('the default export of a page with overloads', () => {
+  const parse = (text) => ts.createSourceFile('page.tsx', text, ts.ScriptTarget.Latest, true);
+  test('overload signatures with no body are skipped; the implementation is found', () => {
+    const sf = parse(
+      'export default function Page(a: string): string;\nexport default function Page(a: number): number;\nexport default function Page(a: unknown) { return a; }\n',
+    );
+    const found = defaultExportFn(sf);
+    assert.ok(found?.body, 'the function with a body is returned');
+    assert.equal(found.parameters[0].type.getText(sf), 'unknown');
+  });
+  test('a lone signature with no body is not a page function', () => {
+    assert.equal(
+      defaultExportFn(parse('export default function Page(a: string): string;\n')),
+      null,
+    );
   });
 });

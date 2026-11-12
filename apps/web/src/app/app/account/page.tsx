@@ -54,12 +54,13 @@ export default async function AccountPage() {
     showWhatsApp ? depthWord('depth.account.part.whatsapp') : null,
     showRoles ? depthWord('depth.account.part.roles') : null,
   ].filter((part): part is string => part !== null);
+  // The depth lines and their parts are English, so the list is joined with the English "and".
   const copy = depthCopy({
     glance: depthWord('depth.account.glance'),
-    browse: depthWord('depth.account.browse', { parts: joinParts(browseParts, locale) }),
+    browse: depthWord('depth.account.browse', { parts: joinParts(browseParts, 'en') }),
     everything: depthWord('depth.account.everything', {
       parts: everythingParts.length
-        ? joinParts(everythingParts, locale)
+        ? joinParts(everythingParts, 'en')
         : depthWord('depth.account.nothingMore'),
     }),
   });

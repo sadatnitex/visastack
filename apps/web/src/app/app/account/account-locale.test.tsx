@@ -113,6 +113,12 @@ beforeEach(() => {
 });
 
 describe('account page under Bengali', () => {
+  it('joins the English depth lines with the English "and", never a Bengali one', async () => {
+    const shown = textOf(await account('bn'));
+    expect(shown).toMatch(/Browse: .*your plan, and privacy\./);
+    expect(shown).not.toContain('এবং');
+  });
+
   it('shows the Bengali drafts on the cards, keeps Data Rights in English, and leaves the language switch as it was', async () => {
     const shown = textOf(await account('bn'));
     for (const k of [
