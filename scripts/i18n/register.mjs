@@ -42,6 +42,8 @@ export const HOLDBACK = new Map([
   [
     'SG-acdb0e90',
     'Request thread label beside a date and time that is still English (a Bengali label and an English date in one sentence); held until dates are localised.',
+  ],
+  [
     'SG-dc1af39a',
     'Held in English: its button or screen-reader name pairs with visible English text, or a leading space is lost in Bengali; waits until both are fixed together.',
   ],
