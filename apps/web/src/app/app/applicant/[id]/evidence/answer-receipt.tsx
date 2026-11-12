@@ -1,7 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useT } from '../../../../../components/i18n-provider';
 import { ReceiptCard } from '../../../../../components/receipt-card';
+import { applicantEvidenceCatalog } from '../../../../../i18n/applicant-evidence';
 
 /**
  * The receipt after a request is answered (F2). It is drawn by the page from the address
@@ -28,10 +30,11 @@ export function AnswerReceipt({
   /** What is true about review right now; left out once the agency has already decided. */
   readonly honestLine?: string;
 }) {
+  const t = useT(applicantEvidenceCatalog);
   const router = useRouter();
   return (
     <ReceiptCard
-      title="Answer Sent"
+      title={t('applicantEvidence.appApplicantIdEvidenceAnswerReceipt.answerSent')}
       what={`${itemName} went to the agency.`}
       at={respondedAt}
       timeZone={timeZone}

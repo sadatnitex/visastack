@@ -3,7 +3,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { applicantMemoryCatalog } from '../../../../../i18n/applicant-memory';
 import { eventKey, eventLine } from '../../../../../lib/application-memory-labels';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { type SearchParamsRecord, TRAVELLER_LIST_STEP, parseShow } from '../../../../../lib/paging';
 import { withSession } from '../../../../../lib/session';
 import { MemoryCaseList, eventDate } from './memory-case-list';
@@ -28,6 +30,8 @@ export default async function ApplicationMemoryPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams?: Promise<SearchParamsRecord & { readonly show?: string | string[] }>;
 }) {
+  await primeLocale();
+  const t = getServerT(applicantMemoryCatalog);
   const { id } = await params;
   const query = (await searchParams) ?? {};
   const shown = parseShow(query.show, { step: TRAVELLER_LIST_STEP });
@@ -50,19 +54,19 @@ export default async function ApplicationMemoryPage({
     <>
       <PageHeader
         back={{ href: `/app/applicant/${id}/missions`, label: 'Cases' }}
-        eyebrow="Cases"
-        title="Case History"
-        description="Every case for this person: what was prepared, what you confirmed, who it was shared with, and what you reported as submitted. A snapshot never changes after it is taken."
+        eyebrow={t('applicantMemory.appApplicantIdMemoryPage.cases')}
+        title={t('applicantMemory.appApplicantIdMemoryPage.caseHistory')}
+        description={t('applicantMemory.appApplicantIdMemoryPage.everyCaseForThisPersonWhat')}
         as="h2"
       />
 
       {memory.recordShares.length > 0 ? (
         <article className="card memory-shares" aria-labelledby="memory-shares-heading">
           <h3 className="card-title" id="memory-shares-heading">
-            Shared Outside a Case
+            {t.node('applicantMemory.appApplicantIdMemoryPage.sharedOutsideACase')}
           </h3>
           <p className="memory-case-meta">
-            These shares are of this person's record, not of one case.
+            {t.node('applicantMemory.appApplicantIdMemoryPage.theseSharesAreOfThisPerson')}
           </p>
           <ol className="memory-timeline">
             {memory.recordShares.map((share) => {
@@ -77,7 +81,7 @@ export default async function ApplicationMemoryPage({
             })}
           </ol>
           <Link className="case-changes-all" href={`/app/applicant/${id}/sharing`}>
-            Open Sharing
+            {t.node('applicantMemory.appApplicantIdMemoryPage.openSharing')}
           </Link>
         </article>
       ) : null}
@@ -86,11 +90,10 @@ export default async function ApplicationMemoryPage({
         <article className="card">
           <EmptyState
             icon="briefcase"
-            title="No Cases Yet"
+            title={t('applicantMemory.appApplicantIdMemoryPage.noCasesYet')}
             action={{ href: `/app/applicant/${id}/missions`, label: 'Open Cases' }}
           >
-            When you prepare a case, each snapshot you take and confirm is kept here exactly as it
-            was.
+            {t.node('applicantMemory.appApplicantIdMemoryPage.whenYouPrepareACaseEach')}
           </EmptyState>
         </article>
       ) : (

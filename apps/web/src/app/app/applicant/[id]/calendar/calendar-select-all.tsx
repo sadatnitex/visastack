@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useT } from '../../../../../components/i18n-provider';
+import { applicantCalendarCatalog } from '../../../../../i18n/applicant-calendar';
 
 /**
  * "Select All" for one group of dates (WP-SB4): ticks or clears every date box in the same group,
@@ -17,6 +19,7 @@ export function CalendarSelectAll({
   /** The group's name, read with the box, for example "Appointments". */
   readonly groupLabel: string;
 }) {
+  const t = useT(applicantCalendarCatalog);
   const box = useRef<HTMLInputElement>(null);
   const [running, setRunning] = useState(false);
   const [checked, setChecked] = useState(false);
@@ -75,7 +78,8 @@ export function CalendarSelectAll({
         }}
       />
       <span>
-        Select All<span className="sr-only"> {groupLabel}</span>
+        {t.node('applicantCalendar.appApplicantIdCalendarCalendarSelectAll.selectAll')}
+        <span className="sr-only"> {groupLabel}</span>
       </span>
     </label>
   );

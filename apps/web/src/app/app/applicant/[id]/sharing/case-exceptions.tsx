@@ -2,6 +2,8 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { FormMessage, SubmitButton } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
+import { applicantSharingCatalog } from '../../../../../i18n/applicant-sharing';
 import { type ActionState, allowCaseAction } from './actions';
 
 const INITIAL: ActionState = { ok: true, message: '' };
@@ -33,11 +35,13 @@ export function CaseExceptions({
   readonly recipientLabel: string;
   readonly exceptions: readonly CaseExceptionItem[];
 }) {
+  const t = useT(applicantSharingCatalog);
   return (
     <div className="sharing-case-exceptions">
       <p className="muted u-m-0">
-        This access covers every case except the ones below. Documents and profile details you
-        shared stay shared.
+        {t.node(
+          'applicantSharing.appApplicantIdSharingCaseExceptions.thisAccessCoversEveryCaseExcept',
+        )}
       </p>
       <ul className="sharing-case-exceptions-list">
         {exceptions.map((exception) => (
@@ -71,6 +75,7 @@ function CaseExceptionRow({
   readonly recipientLabel: string;
   readonly exception: CaseExceptionItem;
 }) {
+  const t = useT(applicantSharingCatalog);
   const [state, formAction, pending] = useActionState(allowCaseAction, INITIAL);
   const [confirming, setConfirming] = useState(false);
   const allowRef = useRef<HTMLButtonElement>(null);
@@ -102,16 +107,27 @@ function CaseExceptionRow({
         <input type="hidden" name="grantId" value={grantId} />
         <input type="hidden" name="missionId" value={exception.missionId} />
         <span>
-          {exception.sharedSeparately ? 'Shared Separately' : 'Not Shared'}: {exception.title}
+          {exception.sharedSeparately
+            ? t.node('applicantSharing.appApplicantIdSharingCaseExceptions.sharedSeparately')
+            : t.node('applicantSharing.appApplicantIdSharingCaseExceptions.notShared')}
+          : {exception.title}
         </span>
         {exception.sharedSeparately ? (
           <span className="muted">
-            {recipientLabel} sees this case through another access you gave.
+            {t.node(
+              'applicantSharing.appApplicantIdSharingCaseExceptions.recipientlabelSeesThisCaseThroughAnother',
+              { recipientLabel },
+            )}
           </span>
         ) : null}
         {confirming ? (
           <div className="notice" role="alert" ref={confirmRef}>
-            <p className="u-m-0">{recipientLabel} will be able to see this case and its records.</p>
+            <p className="u-m-0">
+              {t.node(
+                'applicantSharing.appApplicantIdSharingCaseExceptions.recipientlabelWillBeAbleToSee',
+                { recipientLabel },
+              )}
+            </p>
             <div className="sharing-case-exception-choices">
               <SubmitButton
                 pending={pending}
@@ -127,7 +143,7 @@ function CaseExceptionRow({
                   setConfirming(false);
                 }}
               >
-                Keep It Private
+                {t.node('applicantSharing.appApplicantIdSharingCaseExceptions.keepItPrivate')}
               </button>
             </div>
           </div>
@@ -136,10 +152,13 @@ function CaseExceptionRow({
             ref={allowRef}
             type="button"
             className="btn btn-secondary u-btn-sm"
-            aria-label={`Allow This Case: ${exception.title}`}
+            aria-label={t(
+              'applicantSharing.appApplicantIdSharingCaseExceptions.allowThisCaseTitle',
+              { title: exception.title },
+            )}
             onClick={() => setConfirming(true)}
           >
-            Allow This Case
+            {t.node('applicantSharing.appApplicantIdSharingCaseExceptions.allowThisCase')}
           </button>
         )}
         <div ref={messageRef} tabIndex={-1} className="sharing-case-exception-message">
