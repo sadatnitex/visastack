@@ -1,7 +1,9 @@
 'use client';
 
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { componentsShareCatalog } from '../../i18n/components-share';
 import { type ShareMessage, whatsAppHref } from '../../lib/whatsapp-link';
+import { useT } from '../i18n-provider';
 
 const BLOCKED = 'Copying is blocked here. The message is selected: copy it with your keyboard.';
 
@@ -114,6 +116,7 @@ export function WhatsAppShare({
   readonly sendOnly?: boolean;
   readonly children?: ReactNode;
 }) {
+  const t = useT(componentsShareCatalog);
   const [canShare, setCanShare] = useState(false);
   const copy = useCopyMessage(message.text);
 
@@ -148,7 +151,7 @@ export function WhatsAppShare({
         </a>
         {canShare && !sendOnly ? (
           <button type="button" className="btn btn-secondary" onClick={share}>
-            More Ways to Send
+            {t.node('componentsShare.shareWhatsappShare.moreWaysToSend')}
           </button>
         ) : null}
         {sendOnly ? null : copy.button}

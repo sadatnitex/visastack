@@ -2,10 +2,13 @@
 
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { componentsCatalog } from '../i18n/components';
+import { useT } from './i18n-provider';
 import { Icon } from './icons';
 
 /** One set of real links, shown inline on desktop and in a compact phone menu. */
 export function SiteNavigation({ children }: { readonly children: ReactNode }) {
+  const t = useT(componentsCatalog);
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const id = useId();
@@ -37,13 +40,13 @@ export function SiteNavigation({ children }: { readonly children: ReactNode }) {
         onClick={() => setOpen((value) => !value)}
       >
         <Icon name={open ? 'close' : 'more'} size={20} />
-        Menu
+        {t.node('components.siteNavigation.menu')}
       </button>
       <nav
         ref={links}
         id={id}
         className="nav-links"
-        aria-label="Site"
+        aria-label={t('components.siteNavigation.site')}
         onClickCapture={(event) => {
           if ((event.target as HTMLElement).closest('a')) setOpen(false);
         }}

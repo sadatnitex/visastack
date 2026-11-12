@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import { componentsCatalog } from '../i18n/components';
+import { useT } from './i18n-provider';
 import { decodePhoto } from './profile-photo/photo-canvas';
 
 /**
@@ -32,6 +34,7 @@ export function CapturePreview({
   readonly onUse: (file: File) => void;
   readonly onRetake: () => void;
 }) {
+  const t = useT(componentsCatalog);
   const headingId = useId();
   const hintId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
@@ -82,32 +85,30 @@ export function CapturePreview({
   return (
     <section className="capture-preview" aria-labelledby={headingId} aria-describedby={hintId}>
       <h3 className="capture-title" id={headingId} ref={heading} tabIndex={-1}>
-        Check Your Photo
+        {t.node('components.capturePreview.checkYourPhoto')}
       </h3>
       <p className="capture-hint" id={hintId}>
         {unreadable
-          ? 'This device cannot show the photo here, so check it on your phone first. If it looks right, press Use This. If not, retake it.'
-          : 'Is the whole card or page inside the outline, and is the writing easy to read? If not, retake it.'}
+          ? t.node('components.capturePreview.thisDeviceCannotShowThePhoto')
+          : t.node('components.capturePreview.isTheWholeCardOrPage')}
       </p>
       <div className="capture-frame" data-shape={shape} hidden={unreadable}>
         <canvas
           ref={canvas}
           className="capture-image"
           role="img"
-          aria-label="Preview of what you just captured, shown so you can check it before it is sent"
+          aria-label={t('components.capturePreview.previewOfWhatYouJustCaptured')}
+          {...t.lang('components.capturePreview.previewOfWhatYouJustCaptured')}
         />
         {shown === 'ready' ? <span className="capture-outline" aria-hidden="true" /> : null}
       </div>
-      <p className="capture-note">
-        We check the file again after you send it, so a photo that looks fine here can still be
-        turned away.
-      </p>
+      <p className="capture-note">{t.node('components.capturePreview.weCheckTheFileAgainAfter')}</p>
       <div className="capture-actions">
         <button type="button" className="btn btn-primary" onClick={() => onUse(file)}>
-          Use This
+          {t.node('components.capturePreview.useThis')}
         </button>
         <button type="button" className="btn btn-secondary" onClick={onRetake}>
-          Retake
+          {t.node('components.capturePreview.retake')}
         </button>
       </div>
     </section>

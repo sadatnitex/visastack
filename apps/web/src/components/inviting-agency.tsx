@@ -24,7 +24,7 @@ export function InvitingAgency({
       <AgencyMark brand={brand} size="md" />
       <p className="invite-brand-text">
         <strong>{brand.name}</strong>
-        <span>{t('invitation.invitingAgency.poweredByVisastack')}</span>
+        <span>{t.node('invitation.invitingAgency.poweredByVisastack')}</span>
       </p>
     </AgencyBrandScope>
   );

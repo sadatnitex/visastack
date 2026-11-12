@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { componentsUiLiftCatalog } from '../../i18n/components-ui-lift';
+import { useT } from '../i18n-provider';
 
 export interface ProgressMeterProps {
   /** How many are done. */
@@ -25,14 +27,18 @@ export function meterPercent(value: number, max: number): number {
  * The fill width is an attribute of the drawing, so it needs no inline style.
  */
 export function ProgressMeter({ value, max, label, size = 10, valueText }: ProgressMeterProps) {
+  const t = useT(componentsUiLiftCatalog);
   const percent = meterPercent(value, max);
-  const words = valueText === undefined ? `${value} of ${max}` : valueText;
+  const words =
+    valueText === undefined
+      ? t.node('componentsUiLift.progressMeter.meterWords', { value, max })
+      : valueText;
   return (
     <div className={`lift-meter lift-meter-${size}`}>
       <svg
         className="lift-meter-svg"
         role="img"
-        aria-label={`${value} of ${max} ${label}`}
+        aria-label={t('componentsUiLift.progressMeter.meterName', { value, max, label })}
         width="100%"
         height={size}
         viewBox="0 0 100 10"

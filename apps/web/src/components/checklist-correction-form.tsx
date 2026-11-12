@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useId, useRef } from 'react';
+import { componentsCatalog } from '../i18n/components';
 import {
   FieldError,
   FormMessage,
@@ -10,6 +11,7 @@ import {
   fieldProblem,
   useFocusInvalidField,
 } from './form-feedback';
+import { useT } from './i18n-provider';
 
 /** One choice in a list: the stored value and its plain words. */
 export interface CorrectionOption {
@@ -39,6 +41,7 @@ export function ChecklistCorrectionForm({
   /** The fixed item's plain name, so each form on a page says which item it is for. */
   readonly itemName?: string;
 }) {
+  const t = useT(componentsCatalog);
   const [state, formAction, pending] = useActionState<FormResult, FormData>(action, NO_RESULT);
   const form = useRef<HTMLFormElement>(null);
   useFocusInvalidField(form, state);
@@ -55,7 +58,7 @@ export function ChecklistCorrectionForm({
       {items ? (
         <div className="field-row">
           <label className="field-label" htmlFor={`${id}-item`}>
-            Checklist Item
+            {t.node('components.checklistCorrectionForm.checklistItem')}
           </label>
           <select
             id={`${id}-item`}
@@ -64,7 +67,9 @@ export function ChecklistCorrectionForm({
             defaultValue=""
             {...fieldProblem(state, 'packRequirementId', messageId)}
           >
-            <option value="">Something Missing from the Checklist</option>
+            <option value="">
+              {t.node('components.checklistCorrectionForm.somethingMissingFromTheChecklist')}
+            </option>
             {items.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
@@ -76,7 +81,7 @@ export function ChecklistCorrectionForm({
       ) : null}
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-category`}>
-          What Looks Wrong{forItem}
+          {t.node('components.checklistCorrectionForm.whatLooksWrongForitem', { forItem })}
         </label>
         <select
           id={`${id}-category`}
@@ -87,7 +92,7 @@ export function ChecklistCorrectionForm({
           {...fieldProblem(state, 'category', messageId)}
         >
           <option value="" disabled>
-            Choose One
+            {t.node('components.checklistCorrectionForm.chooseOne')}
           </option>
           {categories.map((category) => (
             <option key={category.value} value={category.value}>
@@ -99,7 +104,7 @@ export function ChecklistCorrectionForm({
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-link`}>
-          Official Page (Optional)
+          {t.node('components.checklistCorrectionForm.officialPageOptional')}
         </label>
         <input
           id={`${id}-link`}
@@ -107,18 +112,18 @@ export function ChecklistCorrectionForm({
           type="url"
           inputMode="url"
           maxLength={2048}
-          placeholder="https://"
+          placeholder={t('components.checklistCorrectionForm.https')}
           className="input"
           {...fieldProblem(state, 'officialUrl', messageId, linkHint)}
         />
         <p id={linkHint} className="muted u-fs-085 u-m-0">
-          The government, embassy or official application page that shows it.
+          {t.node('components.checklistCorrectionForm.theGovernmentEmbassyOrOfficialApplication')}
         </p>
         <FieldError result={state} field="officialUrl" />
       </div>
       <div className="field-row">
         <label className="field-label" htmlFor={`${id}-detail`}>
-          What Should It Say (Optional)
+          {t.node('components.checklistCorrectionForm.whatShouldItSayOptional')}
         </label>
         <textarea
           id={`${id}-detail`}
@@ -129,7 +134,7 @@ export function ChecklistCorrectionForm({
           {...fieldProblem(state, 'detail', messageId, detailHint)}
         />
         <p id={detailHint} className="muted u-fs-085 u-m-0">
-          Do not include names, passport numbers or other personal details.
+          {t.node('components.checklistCorrectionForm.doNotIncludeNamesPassportNumbers')}
         </p>
         <FieldError result={state} field="detail" />
       </div>

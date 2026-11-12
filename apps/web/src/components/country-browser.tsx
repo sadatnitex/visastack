@@ -2,7 +2,9 @@
 import type { EntryStatus } from '@visastack/core/destinations';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { componentsCatalog } from '../i18n/components';
 import { CountryFlag } from './country-flag';
+import { useT } from './i18n-provider';
 import { showMoreCount } from './show-more';
 import { EmptyState, StatusBadge } from './ui';
 
@@ -43,6 +45,7 @@ export function CountryBrowser({
   readonly items: readonly CountryBrowserItem[];
   readonly filters: readonly CountryBrowserFilter[];
 }) {
+  const t = useT(componentsCatalog);
   const [query, setQuery] = useState('');
   const [choice, setChoice] = useState<Choice>('all');
   const [shown, setShown] = useState(COUNTRY_STEP);
@@ -83,9 +86,12 @@ export function CountryBrowser({
 
   return (
     <>
-      <div className="country-filters" aria-label="Filter by entry rule">
+      <div
+        className="country-filters"
+        aria-label={t('components.countryBrowser.filterByEntryRule')}
+      >
         <button type="button" aria-pressed={choice === 'all'} onClick={() => choose('all')}>
-          <span>All Countries</span>
+          <span>{t.node('components.countryBrowser.allCountries')}</span>
           <strong>{count('all')}</strong>
         </button>
         {filters
@@ -103,13 +109,14 @@ export function CountryBrowser({
           ))}
       </div>
       <label className="country-search">
-        Search Countries
+        {t.node('components.countryBrowser.searchCountries')}
         <input
           className="input"
           type="search"
           value={query}
           onChange={(event) => search(event.target.value)}
-          placeholder="For example: Japan"
+          placeholder={t('components.countryBrowser.forExampleJapan')}
+          {...t.lang('components.countryBrowser.forExampleJapan')}
         />
       </label>
       <output className="muted country-count">
@@ -121,7 +128,9 @@ export function CountryBrowser({
               more,
             })
           : null}
-        {matches.length === 0 ? <span className="sr-only">No countries match.</span> : null}
+        {matches.length === 0 ? (
+          <span className="sr-only">{t.node('components.countryBrowser.noCountriesMatch')}</span>
+        ) : null}
       </output>
       {matches.length > 0 ? (
         <>
@@ -140,7 +149,9 @@ export function CountryBrowser({
                     {item.stay ? <span className="muted">{item.stay}</span> : null}
                     {item.fee ? <span className="muted">{item.fee}</span> : null}
                     {item.unconfirmed ? (
-                      <span className="badge badge-warning">Needs Checking</span>
+                      <span className="badge badge-warning">
+                        {t.node('components.countryBrowser.needsChecking')}
+                      </span>
                     ) : null}
                   </span>
                 </Link>
@@ -160,8 +171,8 @@ export function CountryBrowser({
           ) : null}
         </>
       ) : (
-        <EmptyState icon="search" title="No Countries Match">
-          Clear the search or choose another filter.
+        <EmptyState icon="search" title={t('components.countryBrowser.noCountriesMatche4ae64')}>
+          {t.node('components.countryBrowser.clearTheSearchOrChooseAnother')}
         </EmptyState>
       )}
     </>

@@ -1,6 +1,8 @@
 import type { ComponentProps } from 'react';
+import { componentsCatalog } from '../i18n/components';
 import type { CasePurposeGroup } from '../lib/case-choices';
 import { purposeMark } from '../lib/item-icons';
+import { useT } from './i18n-provider';
 import { MarkTile } from './mark-tile';
 
 type SelectRest = Omit<
@@ -26,6 +28,7 @@ export function PurposeSelect({
   readonly value: string;
   readonly onChange: (value: string) => void;
 } & SelectRest) {
+  const t = useT(componentsCatalog);
   const group = purposes.find((g) => g.options.some((option) => option.key === value));
   // The picture follows the list: a value the list does not hold (nothing chosen yet) is a plane.
   const mark = group
@@ -43,7 +46,7 @@ export function PurposeSelect({
         {...rest}
       >
         <option value="" disabled>
-          Choose a Purpose
+          {t.node('components.purposeSelect.chooseAPurpose')}
         </option>
         {purposes.map((group) => (
           <optgroup key={group.family} label={group.label}>

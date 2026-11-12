@@ -14,17 +14,17 @@ export function TrustUnavailable({ withinPage = false }: { readonly withinPage?:
   return (
     <section className="section container">
       <article className="card" aria-labelledby="trust-unavailable-title">
-        <p className="card-kicker">{t('trust.trustUnavailable.routeInformation')}</p>
+        <p className="card-kicker">{t.node('trust.trustUnavailable.routeInformation')}</p>
         <Heading className="card-title" id="trust-unavailable-title">
-          {t('trust.trustUnavailable.routeInformationIsNotAvailableRight')}
+          {t.node('trust.trustUnavailable.routeInformationIsNotAvailableRight')}
         </Heading>
-        <p className="card-body">{t('trust.trustUnavailable.weCouldNotLoadThisPage')}</p>
+        <p className="card-body">{t.node('trust.trustUnavailable.weCouldNotLoadThisPage')}</p>
         <div className="cta-row u-mt-100">
           <Link className="btn btn-primary" href="/trust">
-            {t('trust.trustUnavailable.tryAgain')}
+            {t.node('trust.trustUnavailable.tryAgain')}
           </Link>
           <Link className="btn btn-secondary" href="/">
-            {t('trust.trustUnavailable.backToHome')}
+            {t.node('trust.trustUnavailable.backToHome')}
           </Link>
         </div>
       </article>

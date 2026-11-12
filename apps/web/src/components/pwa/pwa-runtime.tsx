@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { componentsPwaCatalog } from '../../i18n/components-pwa';
 import { BROWSER_HINT_TEXT, type BrowserHint, browserHint } from '../../lib/pwa/browser-hint';
 import { captureInstallPrompt } from '../../lib/pwa/install-prompt';
 import {
@@ -9,6 +10,7 @@ import {
   scheduleUpdateChecks,
   unregisterAll,
 } from '../../lib/pwa/runtime';
+import { useT } from '../i18n-provider';
 import styles from './pwa-runtime.module.css';
 
 type Connection = 'online' | 'offline' | 'restored';
@@ -40,6 +42,7 @@ if (typeof window !== 'undefined') captureInstallPrompt(window);
  * false any worker already on the device is removed, so switching the feature off is clean.
  */
 export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
+  const t = useT(componentsPwaCatalog);
   const [connection, setConnection] = useState<Connection>('online');
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
   const [updating, setUpdating] = useState(false);
@@ -150,13 +153,13 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
       {/* First in the dock: when it is enlarged it grows upward, clear of the notices below it. */}
       {browser.show ? (
         <aside
-          aria-label="Browser Tip"
+          aria-label={t('componentsPwa.pwaPwaRuntime.browserTip')}
           className={`notice notice-warn ${message} ${hint}`}
           ref={setHintScale}
         >
           <p>{BROWSER_HINT_TEXT}</p>
           <button type="button" className="btn btn-secondary" onClick={dismissHint}>
-            Dismiss
+            {t.node('componentsPwa.pwaPwaRuntime.dismiss')}
           </button>
         </aside>
       ) : null}
@@ -164,20 +167,21 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
       <output aria-live="polite">
         {connection === 'offline' ? (
           <span className={`notice notice-warn ${message}`}>
-            You are offline. Reconnect to continue securely. Anything not yet sent has not been
-            saved.
+            {t.node('componentsPwa.pwaPwaRuntime.youAreOfflineReconnectToContinue')}
           </span>
         ) : null}
         {connection === 'restored' ? (
-          <span className={`notice notice-ok ${message}`}>You are back online.</span>
+          <span className={`notice notice-ok ${message}`}>
+            {t.node('componentsPwa.pwaPwaRuntime.youAreBackOnline')}
+          </span>
         ) : null}
       </output>
       {waiting ? (
-        <aside aria-label="App Update" className={`notice ${message} ${update}`}>
-          <p>
-            A new version of VisaStack is ready. Finish anything you are typing or uploading, then
-            reload.
-          </p>
+        <aside
+          aria-label={t('componentsPwa.pwaPwaRuntime.appUpdate')}
+          className={`notice ${message} ${update}`}
+        >
+          <p>{t.node('componentsPwa.pwaPwaRuntime.aNewVersionOfVisastackIs')}</p>
           <div className={actions}>
             <button
               type="button"
@@ -185,7 +189,9 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
               onClick={reloadNow}
               disabled={updating}
             >
-              {updating ? 'Reloading' : 'Reload Now'}
+              {updating
+                ? t.node('componentsPwa.pwaPwaRuntime.reloading')
+                : t.node('componentsPwa.pwaPwaRuntime.reloadNow')}
             </button>
             <button
               type="button"
@@ -193,7 +199,7 @@ export function PwaRuntime({ enabled }: { readonly enabled: boolean }) {
               onClick={() => setWaiting(null)}
               disabled={updating}
             >
-              Later
+              {t.node('componentsPwa.pwaPwaRuntime.later')}
             </button>
           </div>
         </aside>
