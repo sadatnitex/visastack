@@ -139,67 +139,6 @@ export const componentsCatalog = defineCatalog({
     'components.referenceCode.copy': 'Copy',
     'components.referenceCode.copyReferenceCode': 'Copy Reference {code}',
     'components.safeCopyDownload.confirmItIsYou': 'Confirm It Is You',
-    'components.safeCopyDownload.downloadSafeCopy': 'Download Safe Copy',
-    'components.safeCopyDownload.makingYourSafeCopyThisCan':
-      'Making your safe copy. This can take up to half a minute.',
-    'components.safeCopyDownload.safeCopyDownloaded': 'Safe copy downloaded.',
-    'components.safeCopyEditor.aSafeCopyIsANew':
-      'A safe copy is a new picture of each page with the parts you choose covered in black. It is what people you share safe copies with can download, never the original.',
-    'components.safeCopyEditor.accept': 'Accept',
-    'components.safeCopyEditor.acceptBox': 'Accept Box',
-    'components.safeCopyEditor.addBox': 'Add Box',
-    'components.safeCopyEditor.backToEditing': 'Back to Editing',
-    'components.safeCopyEditor.boxesOnThisPage': 'Boxes on This Page',
-    'components.safeCopyEditor.cancelEditing': 'Cancel Editing',
-    'components.safeCopyEditor.changeSafeCopy': 'Change Safe Copy',
-    'components.safeCopyEditor.checkEveryPage': 'Check Every Page',
-    'components.safeCopyEditor.checkEveryPageOnlyTheBlack':
-      'Check every page. Only the black boxes are hidden. Suggestions can miss things.',
-    'components.safeCopyEditor.checkEveryPageOnlyTheBlacka8af5a':
-      'Check every page. Only the black boxes are hidden.',
-    'components.safeCopyEditor.continuePreparing': 'Continue Preparing',
-    'components.safeCopyEditor.doneOfTotal': '{done} of {total}',
-    'components.safeCopyEditor.drawBoxes': 'Draw Boxes',
-    'components.safeCopyEditor.eachPageIsDrawnOnceWith':
-      'Each page is drawn once with its black boxes. Keep this page open; if it closes, choose Continue Preparing to carry on where it stopped.',
-    'components.safeCopyEditor.everyPageMustShowBeforeThe':
-      'Every page must show before the safe copy can be saved: {size} of {pageCount} shown so far. Scroll through every page.',
-    'components.safeCopyEditor.loadingThePage': 'Loading the page...',
-    'components.safeCopyEditor.markWhatToHide': 'Mark What to Hide',
-    'components.safeCopyEditor.nextPage': 'Next Page',
-    'components.safeCopyEditor.noBoxesOnThisPageYet': 'No boxes on this page yet.',
-    'components.safeCopyEditor.nothingToHideOnThisDocument': 'Nothing to Hide on This Document',
-    'components.safeCopyEditor.onASelectedBoxArrowKeys':
-      'On a selected box, arrow keys move it, Shift with an arrow key changes its size, and Delete removes it. Escape stops a box being drawn and lets go of the selected box.',
-    'components.safeCopyEditor.openingTheDocument': 'Opening the document...',
-    'components.safeCopyEditor.pages': 'Pages',
-    'components.safeCopyEditor.prepareSafeCopy': 'Prepare Safe Copy',
-    'components.safeCopyEditor.preparingTheSafeCopy': 'Preparing the Safe Copy',
-    'components.safeCopyEditor.previousPage': 'Previous Page',
-    'components.safeCopyEditor.remove': 'Remove',
-    'components.safeCopyEditor.removeBox': 'Remove Box',
-    'components.safeCopyEditor.removeSafeCopy': 'Remove Safe Copy',
-    'components.safeCopyEditor.reviewPages': 'Review Pages',
-    'components.safeCopyEditor.safeCopiesAreNotAvailableHere':
-      'Safe copies are not available here yet.',
-    'components.safeCopyEditor.safeCopiesAreNotReadyYet':
-      'Safe copies are not ready yet, so nothing can be saved.',
-    'components.safeCopyEditor.safeCopiesCanBeMadeFrom':
-      'Safe copies can be made from PDF files and photos only.',
-    'components.safeCopyEditor.safeCopy': 'Safe Copy',
-    'components.safeCopyEditor.saveSafeCopy': 'Save Safe Copy',
-    'components.safeCopyEditor.select': 'Select',
-    'components.safeCopyEditor.selectedBox': 'Selected Box',
-    'components.safeCopyEditor.showThePageAgain': 'Show the Page Again',
-    'components.safeCopyEditor.suggestBoxes': 'Suggest Boxes',
-    'components.safeCopyEditor.thisDocumentIsTooLargeFor':
-      'This document is too large for a safe copy. Safe copies take up to 20 pages and 25 MB.',
-    'components.safeCopyEditor.thisPageCouldNotBeShown': 'This page could not be shown.',
-    'components.safeCopyEditor.thisPageShowsWhenYouScroll':
-      'This page shows when you scroll to it.',
-    'components.safeCopyEditor.tryAgain': 'Try Again',
-    'components.safeCopyEditor.youChoseNothingToHideOn':
-      'You chose Nothing to Hide on This Document. Each page is shared as a picture, with no hidden text or file details.',
     'components.siteNavigation.menu': 'Menu',
     'components.siteNavigation.site': 'Site',
     'components.timeZoneSelect.chooseATimeZone': 'Choose a Time Zone',
@@ -275,28 +214,6 @@ export const componentsCatalog = defineCatalog({
     'components.receiptCard.when': 'কখন',
     'components.referenceCode.copy': 'কপি করুন',
     'components.referenceCode.copyReferenceCode': 'রেফারেন্স {code} কপি করুন',
-    'components.safeCopyDownload.downloadSafeCopy': 'নিরাপদ কপি ডাউনলোড করুন',
-    'components.safeCopyDownload.makingYourSafeCopyThisCan':
-      'আপনার নিরাপদ কপি তৈরি করা হচ্ছে। এতে আধা মিনিট পর্যন্ত লাগতে পারে।',
-    'components.safeCopyDownload.safeCopyDownloaded': 'নিরাপদ কপি ডাউনলোড করা হয়েছে।',
-    'components.safeCopyEditor.accept': 'গ্রহণ করুন',
-    'components.safeCopyEditor.acceptBox': 'বক্স গ্রহণ করুন',
-    'components.safeCopyEditor.changeSafeCopy': 'নিরাপদ কপি বদলান',
-    'components.safeCopyEditor.everyPageMustShowBeforeThe':
-      'নিরাপদ কপি সংরক্ষণ করার আগে প্রতিটি পাতা দেখাতে হবে: এ পর্যন্ত {pageCount}টির মধ্যে {size}টি দেখানো হয়েছে। প্রতিটি পাতা স্ক্রল করে দেখুন।',
-    'components.safeCopyEditor.prepareSafeCopy': 'নিরাপদ কপি তৈরি করুন',
-    'components.safeCopyEditor.preparingTheSafeCopy': 'নিরাপদ কপি তৈরি করা হচ্ছে',
-    'components.safeCopyEditor.previousPage': 'আগের পাতা',
-    'components.safeCopyEditor.remove': 'সরান',
-    'components.safeCopyEditor.removeBox': 'বাক্স সরান',
-    'components.safeCopyEditor.removeSafeCopy': 'নিরাপদ কপি সরান',
-    'components.safeCopyEditor.safeCopiesAreNotReadyYet':
-      'নিরাপদ কপি এখনও প্রস্তুত নয়, তাই কিছু সংরক্ষণ করা যাচ্ছে না।',
-    'components.safeCopyEditor.safeCopy': 'নিরাপদ কপি',
-    'components.safeCopyEditor.saveSafeCopy': 'নিরাপদ কপি সংরক্ষণ করুন',
-    'components.safeCopyEditor.select': 'নির্বাচন করুন',
-    'components.safeCopyEditor.thisDocumentIsTooLargeFor':
-      'এই ডকুমেন্ট নিরাপদ কপির জন্য খুব বড়। নিরাপদ কপিতে সর্বোচ্চ ২০ পাতা ও ২৫ MB থাকতে পারে।',
     'components.siteNavigation.menu': 'মেনু',
     'components.siteNavigation.site': 'সাইট',
     'components.timeZoneSelect.chooseATimeZone': 'টাইম জোন বেছে নিন',

@@ -9,8 +9,6 @@ import {
   resizeRedactionBox,
 } from '@visastack/core/redaction-boxes';
 import { type KeyboardEvent, type PointerEvent, useEffect, useId, useRef, useState } from 'react';
-import { componentsCatalog } from '../i18n/components';
-import { useT } from './i18n-provider';
 import { SafeCopyDownload, readMessage } from './safe-copy-download';
 import { SAFE_COPY_STATE_LABELS, type SafeCopyStateName } from './safe-copy-state';
 
@@ -260,7 +258,6 @@ export function SafeCopyEditor({
   initialState,
   available,
 }: SafeCopyEditorProps) {
-  const t = useT(componentsCatalog);
   const id = useId();
   const sectionId = `safe-copy-${documentId}`;
   const hintId = `${id}-hint`;
@@ -1072,10 +1069,10 @@ export function SafeCopyEditor({
         ) : (
           <div className="safe-copy-page-placeholder">
             {shown === 'error'
-              ? t.node('components.safeCopyEditor.thisPageCouldNotBeShown')
+              ? 'This page could not be shown.'
               : shown === 'loading' || interactive
-                ? t.node('components.safeCopyEditor.loadingThePage')
-                : t.node('components.safeCopyEditor.thisPageShowsWhenYouScroll')}
+                ? 'Loading the page...'
+                : 'This page shows when you scroll to it.'}
           </div>
         )}
         <svg
@@ -1186,21 +1183,22 @@ export function SafeCopyEditor({
 
   return (
     <details className="safe-copy" id={sectionId} ref={detailsRef}>
-      <summary className="safe-copy-title">{t.node('components.safeCopyEditor.safeCopy')}</summary>
+      <summary className="safe-copy-title">Safe Copy</summary>
       <p className="safe-copy-state" ref={stateRef} tabIndex={-1}>
         {SAFE_COPY_STATE_LABELS[state]}
       </p>
-      <p className="safe-copy-note">{t.node('components.safeCopyEditor.aSafeCopyIsANew')}</p>
+      <p className="safe-copy-note">
+        A safe copy is a new picture of each page with the parts you choose covered in black. It is
+        what people you share safe copies with can download, never the original.
+      </p>
       {!available ? (
-        <p className="safe-copy-note">
-          {t.node('components.safeCopyEditor.safeCopiesAreNotAvailableHere')}
-        </p>
+        <p className="safe-copy-note">Safe copies are not available here yet.</p>
       ) : null}
       {available && unavailable ? (
         <p className="safe-copy-note">
           {state === 'TOO_LARGE'
-            ? t.node('components.safeCopyEditor.thisDocumentIsTooLargeFor')
-            : t.node('components.safeCopyEditor.safeCopiesCanBeMadeFrom')}
+            ? 'This document is too large for a safe copy. Safe copies take up to 20 pages and 25 MB.'
+            : 'Safe copies can be made from PDF files and photos only.'}
         </p>
       ) : null}
 
@@ -1209,7 +1207,7 @@ export function SafeCopyEditor({
           {problem.message}{' '}
           {problem.reauthUrl ? (
             <a className="safe-copy-link" href={problem.reauthUrl}>
-              {t.node('components.safeCopyDownload.confirmItIsYou')}
+              Confirm It Is You
             </a>
           ) : null}
         </p>
@@ -1230,7 +1228,7 @@ export function SafeCopyEditor({
               onClick={() => void start(true)}
               aria-disabled={step === 'loading' ? true : undefined}
             >
-              {t.node('components.safeCopyEditor.continuePreparing')}
+              Continue Preparing
             </button>
           ) : null}
           <button
@@ -1240,9 +1238,7 @@ export function SafeCopyEditor({
             onClick={() => void start()}
             aria-disabled={step === 'loading' ? true : undefined}
           >
-            {ready || state === 'PREPARING'
-              ? t.node('components.safeCopyEditor.changeSafeCopy')
-              : t.node('components.safeCopyEditor.prepareSafeCopy')}
+            {ready || state === 'PREPARING' ? 'Change Safe Copy' : 'Prepare Safe Copy'}
           </button>
           {(ready || state === 'PREPARING') && latestVersionId ? (
             <button
@@ -1251,29 +1247,27 @@ export function SafeCopyEditor({
               onClick={clear}
               aria-disabled={busy === 'clear' ? true : undefined}
             >
-              {t.node('components.safeCopyEditor.removeSafeCopy')}
+              Remove Safe Copy
             </button>
           ) : null}
         </div>
       ) : null}
       {step === 'loading' ? (
         <output className="safe-copy-note" aria-live="polite">
-          {t.node('components.safeCopyEditor.openingTheDocument')}
+          Opening the document...
         </output>
       ) : null}
       {step === 'preparing' && progress ? (
         <div className="safe-copy-editor">
           <h3 className="safe-copy-subtitle" ref={preparingHeadingRef} tabIndex={-1}>
-            {t.node('components.safeCopyEditor.preparingTheSafeCopy')}
+            Preparing the Safe Copy
           </h3>
           <p className="safe-copy-note">
-            {t.node('components.safeCopyEditor.eachPageIsDrawnOnceWith')}
+            Each page is drawn once with its black boxes. Keep this page open; if it closes, choose
+            Continue Preparing to carry on where it stopped.
           </p>
           <progress className="safe-copy-progress" max={progress.total} value={progress.done}>
-            {t.node('components.safeCopyEditor.doneOfTotal', {
-              done: progress.done,
-              total: progress.total,
-            })}
+            {progress.done} of {progress.total}
           </progress>
         </div>
       ) : null}
@@ -1284,13 +1278,14 @@ export function SafeCopyEditor({
       {step === 'edit' && info ? (
         <div className="safe-copy-editor">
           <h3 className="safe-copy-subtitle" ref={editHeadingRef} tabIndex={-1}>
-            {t.node('components.safeCopyEditor.markWhatToHide')}
+            Mark What to Hide
           </h3>
           <p className="safe-copy-note">
-            {t.node('components.safeCopyEditor.checkEveryPageOnlyTheBlack')}
+            Check every page. Only the black boxes are hidden. Suggestions can miss things.
           </p>
           <p className="safe-copy-note" id={hintId}>
-            {t.node('components.safeCopyEditor.onASelectedBoxArrowKeys')}
+            On a selected box, arrow keys move it, Shift with an arrow key changes its size, and
+            Delete removes it. Escape stops a box being drawn and lets go of the selected box.
           </p>
           <div className="safe-copy-actions">
             <button
@@ -1299,7 +1294,7 @@ export function SafeCopyEditor({
               onClick={suggest}
               aria-disabled={busy === 'suggest' ? true : undefined}
             >
-              {t.node('components.safeCopyEditor.suggestBoxes')}
+              Suggest Boxes
             </button>
             <button
               type="button"
@@ -1307,7 +1302,7 @@ export function SafeCopyEditor({
               ref={addRef}
               onClick={() => addBox()}
             >
-              {t.node('components.safeCopyEditor.addBox')}
+              Add Box
             </button>
             <button
               type="button"
@@ -1322,18 +1317,18 @@ export function SafeCopyEditor({
                 );
               }}
             >
-              {t.node('components.safeCopyEditor.drawBoxes')}
+              Draw Boxes
             </button>
           </div>
 
-          <nav className="safe-copy-pager" aria-label={t('components.safeCopyEditor.pages')}>
+          <nav className="safe-copy-pager" aria-label="Pages">
             <button
               type="button"
               className="btn btn-secondary"
               onClick={() => goTo(current - 1)}
               aria-disabled={current === 0 ? true : undefined}
             >
-              {t.node('components.safeCopyEditor.previousPage')}
+              Previous Page
             </button>
             <span className="safe-copy-note">
               Page {current + 1} of {pageCount}
@@ -1344,7 +1339,7 @@ export function SafeCopyEditor({
               onClick={() => goTo(current + 1)}
               aria-disabled={current >= pageCount - 1 ? true : undefined}
             >
-              {t.node('components.safeCopyEditor.nextPage')}
+              Next Page
             </button>
           </nav>
 
@@ -1355,15 +1350,13 @@ export function SafeCopyEditor({
               className="btn btn-secondary"
               onClick={() => void loadPage(current, info.versionId)}
             >
-              {t.node('components.safeCopyEditor.showThePageAgain')}
+              Show the Page Again
             </button>
           ) : null}
 
           {selectedBox ? (
             <fieldset className="safe-copy-adjust" ref={adjustRef} tabIndex={-1}>
-              <legend className="safe-copy-label">
-                {t.node('components.safeCopyEditor.selectedBox')}
-              </legend>
+              <legend className="safe-copy-label">Selected Box</legend>
               <p className="safe-copy-note">
                 {describeEditorBox(selectedBox, selectedIndex, current + 1)}
               </p>
@@ -1403,7 +1396,7 @@ export function SafeCopyEditor({
                     className="btn btn-secondary"
                     onClick={() => acceptBox(selectedBox.id)}
                   >
-                    {t.node('components.safeCopyEditor.acceptBox')}
+                    Accept Box
                   </button>
                 ) : null}
                 <button
@@ -1411,19 +1404,17 @@ export function SafeCopyEditor({
                   className="btn btn-secondary"
                   onClick={() => removeBox(selectedBox.id)}
                 >
-                  {t.node('components.safeCopyEditor.removeBox')}
+                  Remove Box
                 </button>
               </div>
             </fieldset>
           ) : null}
 
           <h3 className="safe-copy-subtitle" id={`${id}-list`}>
-            {t.node('components.safeCopyEditor.boxesOnThisPage')}
+            Boxes on This Page
           </h3>
           {pageBoxes.length === 0 ? (
-            <p className="safe-copy-note">
-              {t.node('components.safeCopyEditor.noBoxesOnThisPageYet')}
-            </p>
+            <p className="safe-copy-note">No boxes on this page yet.</p>
           ) : (
             <ol className="safe-copy-list" aria-labelledby={`${id}-list`}>
               {pageBoxes.map((item, index) => (
@@ -1437,7 +1428,7 @@ export function SafeCopyEditor({
                       aria-label={`Select box ${index + 1}`}
                       aria-pressed={item.id === selected}
                     >
-                      {t.node('components.safeCopyEditor.select')}
+                      Select
                     </button>
                     {item.suggestion && !item.suggestion.accepted ? (
                       <button
@@ -1446,7 +1437,7 @@ export function SafeCopyEditor({
                         onClick={() => acceptBox(item.id)}
                         aria-label={`Accept box ${index + 1}`}
                       >
-                        {t.node('components.safeCopyEditor.accept')}
+                        Accept
                       </button>
                     ) : null}
                     <button
@@ -1455,7 +1446,7 @@ export function SafeCopyEditor({
                       onClick={() => removeBox(item.id)}
                       aria-label={`Remove box ${index + 1}`}
                     >
-                      {t.node('components.safeCopyEditor.remove')}
+                      Remove
                     </button>
                   </span>
                 </li>
@@ -1470,17 +1461,17 @@ export function SafeCopyEditor({
 
           <div className="safe-copy-actions">
             <button type="button" className="btn btn-primary" onClick={() => review(false)}>
-              {t.node('components.safeCopyEditor.reviewPages')}
+              Review Pages
             </button>
             <button type="button" className="btn btn-secondary" onClick={() => review(true)}>
-              {t.node('components.safeCopyEditor.nothingToHideOnThisDocument')}
+              Nothing to Hide on This Document
             </button>
             <button
               type="button"
               className="btn btn-secondary"
               onClick={() => closeEditor('Editing cancelled. Nothing was saved.')}
             >
-              {t.node('components.safeCopyEditor.cancelEditing')}
+              Cancel Editing
             </button>
           </div>
         </div>
@@ -1489,14 +1480,13 @@ export function SafeCopyEditor({
       {step === 'review' && info ? (
         <div className="safe-copy-editor">
           <h3 className="safe-copy-subtitle" ref={reviewHeadingRef} tabIndex={-1}>
-            {t.node('components.safeCopyEditor.checkEveryPage')}
+            Check Every Page
           </h3>
-          <p className="safe-copy-note">
-            {t.node('components.safeCopyEditor.checkEveryPageOnlyTheBlacka8af5a')}
-          </p>
+          <p className="safe-copy-note">Check every page. Only the black boxes are hidden.</p>
           {nothingToHide ? (
             <p className="safe-copy-note">
-              {t.node('components.safeCopyEditor.youChoseNothingToHideOn')}
+              You chose Nothing to Hide on This Document. Each page is shared as a picture, with no
+              hidden text or file details.
             </p>
           ) : null}
           <ol className="safe-copy-review" ref={reviewListRef}>
@@ -1520,7 +1510,7 @@ export function SafeCopyEditor({
                     onClick={() => void loadPage(index, info.versionId)}
                     aria-label={`Try again to show page ${index + 1}`}
                   >
-                    {t.node('components.safeCopyEditor.tryAgain')}
+                    Try Again
                   </button>
                 ) : null}
               </li>
@@ -1536,7 +1526,7 @@ export function SafeCopyEditor({
               }
               aria-describedby={allReviewPagesShown ? undefined : `${id}-review-wait`}
             >
-              {t.node('components.safeCopyEditor.saveSafeCopy')}
+              Save Safe Copy
             </button>
             <button
               type="button"
@@ -1547,20 +1537,18 @@ export function SafeCopyEditor({
                 void loadPage(current, info.versionId);
               }}
             >
-              {t.node('components.safeCopyEditor.backToEditing')}
+              Back to Editing
             </button>
           </div>
           {!allReviewPagesShown ? (
             <p className="safe-copy-note" id={`${id}-review-wait`}>
-              {t.node('components.safeCopyEditor.everyPageMustShowBeforeThe', {
-                size: seen.size,
-                pageCount,
-              })}
+              Every page must show before the safe copy can be saved: {seen.size} of {pageCount}{' '}
+              shown so far. Scroll through every page.
             </p>
           ) : null}
           {!info.canSave ? (
             <p className="safe-copy-note">
-              {t.node('components.safeCopyEditor.safeCopiesAreNotReadyYet')}
+              Safe copies are not ready yet, so nothing can be saved.
             </p>
           ) : null}
         </div>

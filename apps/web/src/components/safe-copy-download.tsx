@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { componentsCatalog } from '../i18n/components';
-import { useT } from './i18n-provider';
 
 /**
  * Download Safe Copy (ADR 0022, S23): one button that asks the server for the safe copy of one
@@ -41,7 +39,6 @@ export async function readMessage(
 }
 
 export function SafeCopyDownload({ documentId, returnTo, actingFor }: SafeCopyDownloadProps) {
-  const t = useT(componentsCatalog);
   const [state, setState] = useState<DownloadState>({ kind: 'idle' });
   const mounted = useRef(true);
   useEffect(() => {
@@ -97,16 +94,16 @@ export function SafeCopyDownload({ documentId, returnTo, actingFor }: SafeCopyDo
         onClick={start}
         aria-disabled={state.kind === 'working' ? true : undefined}
       >
-        {t.node('components.safeCopyDownload.downloadSafeCopy')}
+        Download Safe Copy
       </button>
       {state.kind === 'working' ? (
         <output className="safe-copy-note" aria-live="polite">
-          {t.node('components.safeCopyDownload.makingYourSafeCopyThisCan')}
+          Making your safe copy. This can take up to half a minute.
         </output>
       ) : null}
       {state.kind === 'done' ? (
         <output className="safe-copy-note" aria-live="polite">
-          {t.node('components.safeCopyDownload.safeCopyDownloaded')}
+          Safe copy downloaded.
         </output>
       ) : null}
       {state.kind === 'error' ? (
@@ -118,7 +115,7 @@ export function SafeCopyDownload({ documentId, returnTo, actingFor }: SafeCopyDo
         <p className="notice notice-warn" role="alert">
           {state.message}{' '}
           <a className="safe-copy-link" href={state.url}>
-            {t.node('components.safeCopyDownload.confirmItIsYou')}
+            Confirm It Is You
           </a>
         </p>
       ) : null}
