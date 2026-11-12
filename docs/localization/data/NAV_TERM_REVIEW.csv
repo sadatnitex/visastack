@@ -3,6 +3,8 @@ SG-3f3664b5,Document Accepted,ডকুমেন্ট গ্রহণ করা
 SG-ff9cbf34,Another Document Is Accepted,অন্য একটি ডকুমেন্ট গ্রহণযোগ্য,case_readiness,label_map_value
 SG-689dce8e,Attach a Document (Optional),ডকুমেন্ট যুক্ত করুন (ঐচ্ছিক),case_readiness,jsx_text
 SG-ebc3f4df,Documents that expire soon,যেসব ডকুমেন্টের মেয়াদ শিগগিরই শেষ হবে,case_readiness,property_text
+SG-23fb9644,List of My Documents,আমার ডকুমেন্টের তালিকা,consent,named_const_text
+SG-da40c9e7,Passports and Travel Documents,পাসপোর্ট ও ভ্রমণের ডকুমেন্ট,consent,label_map_value
 SG-384c5894,Add the Newer Document,নতুন ডকুমেন্টটি যোগ করুন,documents_vault,jsx_text
 SG-acde8915,Archive This Document,এই ডকুমেন্ট আর্কাইভ করুন,documents_vault,label_map_value
 SG-c42ba28f,Choose the Newer Document,নতুন ডকুমেন্টটি বেছে নিন,documents_vault,jsx_text
@@ -80,5 +82,7 @@ SG-d6ab04e2,Shared Documents,শেয়ার করা ডকুমেন্�
 SG-6cd9c03d,Choose a Document,একটি ডকুমেন্ট বেছে নিন,trips_countries,jsx_text
 SG-67a732e9,Travel Document,ভ্রমণ ডকুমেন্ট,trips_countries,jsx_text
 SG-b1cb23cc,Document,ডকুমেন্ট,case_readiness,jsx_expr_literal+jsx_text
+SG-81339891,Document Retention Policies,ডকুমেন্ট রেখে দেওয়ার নীতি,privacy_lifecycle,jsx_text
+SG-54884fb5,Documents Eligible for Purge,মেয়াদ শেষে মুছে ফেলার যোগ্য ডকুমেন্ট,privacy_lifecycle,jsx_attr_accessible+jsx_text
 SG-21b376ec,Other Document,অন্যান্য ডকুমেন্ট,admin_platform,candidate_sentence
 SG-9166b2a5,Document Added,ডকুমেন্ট যোগ করা হয়েছে,documents_vault,candidate_sentence

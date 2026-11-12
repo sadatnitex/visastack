@@ -345,13 +345,13 @@ No email, PDF, calendar file, export or chat message was generated or opened. Th
 | Measure | Value |
 |---|---|
 | Semantic groups in the register | 12523 |
-| Groups with a bn-BD draft | 3205 |
-| Drafts passing every automated guardrail check | 3157 |
-| Drafts flagged by an automated check (need an editor) | 48 |
-| Groups not drafted yet (queued by priority) | 9313 |
-| Draft confidence | HIGH 2566, MEDIUM 464, LOW 175 |
+| Groups with a bn-BD draft | 3389 |
+| Drafts passing every automated guardrail check | 3342 |
+| Drafts flagged by an automated check (need an editor) | 47 |
+| Groups not drafted yet (queued by priority) | 9128 |
+| Draft confidence | HIGH 2563, MEDIUM 459, LOW 367 |
 | Human-reviewed groups | 0 |
-| Groups needing a qualified reviewer (legal, privacy, terms, billing, official rules) | 1954 (297 already have a model draft); reviewer assigned: none |
+| Groups needing a qualified reviewer (legal, privacy, terms, billing, official rules) | 1954 (481 already have a model draft); reviewer assigned: none |
 | Drafts where English says version and Bengali dropped it (editor to confirm) | 21 |
 
 Review packet: 20 journeys; screens drawn per journey are in `review-packet/REVIEW_PACKET.md`. Journey J16 (guest request) has no drawn screen.
@@ -363,22 +363,22 @@ Measured on the packet screens at 390 px wide: sideways overflow in 0 of 114 ima
 | Check | Result |
 |---|---|
 | Drafts containing a bare ফাইল (ambiguous between the visa file and an uploaded document) | 0 |
-| Drafts using ভিসা ফাইল for the case | 208 |
-| Drafts holding both the visa file and an uploaded document (listed for the editor) | 14 |
+| Drafts using ভিসা ফাইল for the case | 216 |
+| Drafts holding both the visa file and an uploaded document (listed for the editor) | 16 |
 | Drafts using নথি (non-standard for document) | 0 |
 | Drafts using দলিল (allowed only for deeds) | 2 (Property Deed, Sale Deed) |
 | English label "Documents" written as ডকুমেন্টস | 3 of 3 |
-| Document-label strings listed for the owner to confirm the navigation term | 83 |
+| Document-label strings listed for the owner to confirm the navigation term | 87 |
 
 ### The 231 drafts flagged at PR head bd5eb8bc
 
-Every one was reviewed (`data/FLAGGED_AUDIT.csv`). Dispositions: CHECKER_FALSE_POSITIVE_REMOVED 86, SEMANTIC_ERROR_FIXED 54, SOURCE_ISSUE_OPEN 31, ACCEPTED_DOCUMENT_HISTORY_WORDING 21, ACCEPTED_BY_DESIGN 19, TERMINOLOGY_UPDATED 15, OPEN_EDITOR_DECISION 5. Drafts flagged by the automated checks today: 48. A flag is a prompt for an editor, not a verdict; drafts still flagged are listed with the reason they were kept.
+Every one was reviewed (`data/FLAGGED_AUDIT.csv`). Dispositions: CHECKER_FALSE_POSITIVE_REMOVED 85, SEMANTIC_ERROR_FIXED 54, SOURCE_ISSUE_OPEN 31, ACCEPTED_DOCUMENT_HISTORY_WORDING 21, ACCEPTED_BY_DESIGN 18, TERMINOLOGY_UPDATED 17, OPEN_EDITOR_DECISION 5. Drafts flagged by the automated checks today: 47. A flag is a prompt for an editor, not a verdict; drafts still flagged are listed with the reason they were kept.
 
 ### Review queues (assigned to the owner; none reviewed)
 
 | Queue | Drafted, awaiting review | Not drafted yet | File |
 |---|---|---|---|
-| PRIVACY_CONSENT_LEGAL | 83 | 185 | `data/review-queues/` |
+| PRIVACY_CONSENT_LEGAL | 267 | 1 | `data/review-queues/` |
 | COMMERCIAL | 71 | 1013 | `data/review-queues/` |
 | OFFICIAL_VISA_REQUIREMENT | 70 | 459 | `data/review-queues/` |
 | ORDINARY_UI | 2981 | 7661 | `data/review-queues/` |
