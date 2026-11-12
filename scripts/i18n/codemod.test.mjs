@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { parseCatalog } from './catalog.mjs';
@@ -7,7 +8,7 @@ import { runCodemod } from './codemod.mjs';
 import { FILES, loadFormatter, loadModule, makeRoot, readTree, render } from './fixtures.mjs';
 import { renderedJsxText } from './jsx-text.mjs';
 import { KeyAllocator, fileSlug, textSlug } from './keys.mjs';
-import { Register } from './register.mjs';
+import { HOLDBACK, Register } from './register.mjs';
 
 const SRC = Object.keys(FILES).filter((f) => f.endsWith('.tsx'));
 const CAT = 'apps/web/src/i18n/fixture.ts';
@@ -329,6 +330,28 @@ describe('review queues not signed off', () => {
   });
 });
 
+describe('holdback list', () => {
+  const header = 'semantic_group,review_queue,english,bn_BD_draft,automated_checks\n';
+  const lookup = (group) =>
+    new Register({
+      registerCsv: `${header}${group},ORDINARY_UI,Terms,\u09b6\u09b0\u09cd\u09a4,PASS\n`,
+    }).lookup({ file: 'a.tsx', line: 1, censusText: 'Terms', english: 'Terms' });
+
+  test('names exactly the three held strings, each with a reason', () => {
+    assert.deepEqual([...HOLDBACK.keys()].sort(), ['SG-0f9d5b37', 'SG-22bda9c8', 'SG-361e0c20']);
+    for (const [group, reason] of HOLDBACK) assert.ok(reason.length > 10, group);
+  });
+
+  test('a held row stays English even when its queue is released and its checks pass', () => {
+    for (const group of HOLDBACK.keys()) {
+      const r = lookup(group);
+      assert.equal(r.bn, null, group);
+      assert.match(r.reason, /^held_back:/);
+    }
+    assert.ok(lookup('SG-other').bn);
+  });
+});
+
 describe('a failed format', () => {
   // A formatter that scribbles over every file it was given and then exits 1, like a broken tool.
   const failing = (root, rels) => {
@@ -371,6 +394,18 @@ describe('the formatter used to prove English is unchanged', () => {
     assert.equal(name, 'runtime');
     // The old stand-in turned every # into the number, even inside a nested {braces} message.
     assert.equal(format('{n, plural, one {# item} other {# items}}', { n: 1234 }), '1,234 items');
+  });
+
+  test('a missing packages/i18n/src/icu.ts makes it throw instead of falling back to a copy', async () => {
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'icu-missing-'));
+    try {
+      const missing = path.join(empty, 'packages/i18n/src/icu.ts');
+      await assert.rejects(loadFormatter({ icuPath: missing, fresh: true }), (e) =>
+        e.message.includes(`the i18n runtime formatter is missing: ${missing}`),
+      );
+    } finally {
+      fs.rmSync(empty, { recursive: true, force: true });
+    }
   });
 });
 

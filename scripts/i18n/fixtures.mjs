@@ -188,18 +188,19 @@ export const readTree = (root, rels) =>
  * the "English is unchanged" tests accept. If the runtime is missing the tests fail loudly.
  */
 let formatter = null;
-export async function loadFormatter() {
-  if (formatter) return formatter;
-  const real = path.join(REPO, 'packages/i18n/src/icu.ts');
+export async function loadFormatter({ icuPath, fresh = false } = {}) {
+  if (formatter && !fresh) return formatter;
+  const real = icuPath ?? path.join(REPO, 'packages/i18n/src/icu.ts');
   if (!fs.existsSync(real)) throw new Error(`the i18n runtime formatter is missing: ${real}`);
   const mod = await import(real);
   if (typeof mod.formatMessage !== 'function')
     throw new Error('packages/i18n/src/icu.ts no longer exports formatMessage');
-  formatter = {
+  const loaded = {
     name: 'runtime',
     format: (tpl, params) => mod.formatMessage(tpl, params, 'en-GB'),
   };
-  return formatter;
+  if (!icuPath) formatter = loaded;
+  return loaded;
 }
 
 // ---------------------------------------------------------------- rendering

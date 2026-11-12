@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { EN } from '@visastack/i18n';
 import { describe, expect, it } from 'vitest';
+import { authCatalog } from '../i18n/auth';
 
 /**
  * Guard for the words about file checks. Until a trusted antivirus scan has recorded a pass for a
@@ -67,9 +68,17 @@ describe('words about file checks', () => {
   });
 
   it('the public pages keep saying plainly that virus scanning of uploads is not switched on yet', () => {
+    const BETA_NOTICE_KEY = 'auth.authSignUpPage.visastackIsAFreePublicBeta';
     for (const name of ['pilotBanner', 'signUp', 'terms', 'privacy'] as const) {
-      // The sign-up wording now lives in the auth message catalogue beside the page.
-      const text = read(SURFACES[name]) + (name === 'signUp' ? read('../i18n/auth.ts') : '');
+      let text = read(SURFACES[name]);
+      if (name === 'signUp') {
+        // The sign-up wording lives in the auth message catalogue. The page must still use the
+        // key, and the key's English must hold the exact words, so dropping either turns this red.
+        expect(text, 'sign-up page uses the beta notice key').toContain(`t('${BETA_NOTICE_KEY}')`);
+        const english = authCatalog.en[BETA_NOTICE_KEY as keyof typeof authCatalog.en];
+        expect(english, 'beta notice key has English text').toBeTruthy();
+        text = english;
+      }
       const flat = text.replace(/\s+/g, ' ');
       expect(flat, name).toContain('virus scanning of uploads');
       expect(flat, name).toContain('not switched on yet');

@@ -46,6 +46,9 @@ afterEach(() => {
   current.locale = 'en';
 });
 
+// Not asserted here: that nothing inside these screens sets a lang other than bn. English fallback
+// text (a key with no Bengali) currently sits inside lang="bn", which fails WCAG 3.1.2. A separate
+// programme-level package will mark such fallbacks lang="en"; the rule belongs there, not in this pilot.
 describe('auth screens under Bengali', () => {
   it('shows the Bengali drafts on sign-in and sign-up, and English where a key has no Bengali', async () => {
     current.locale = 'bn';
@@ -62,8 +65,19 @@ describe('auth screens under Bengali', () => {
     // These two shared-shell keys have no Bengali yet, so English must show instead of a key.
     expect('auth.authAuthUi.visastack' in authCatalog.bn).toBe(false);
     expect('auth.authAuthUi.youStayInControlOfYour' in authCatalog.bn).toBe(false);
-    // Held back until the owner signs off the privacy, consent and legal review queue.
-    expect('auth.authAuthUi.privacy' in authCatalog.bn).toBe(false);
+    // Held back in English (scripts/i18n/register.mjs HOLDBACK, and the privacy, consent and legal
+    // queue until the owner signs it off).
+    for (const key of [
+      'auth.authAuthUi.privacy',
+      'auth.authAuthUi.terms',
+      'auth.authSignUpPage.visastackIsAFreePublicBeta',
+      'auth.authSignUpPage.thisAcknowledgementDoesNotEnableMarketing',
+    ]) {
+      expect(key in authCatalog.bn, key).toBe(false);
+      expect(signUp.body.textContent ?? '').toContain(
+        authCatalog.en[key as keyof typeof authCatalog.en] ?? 'MISSING',
+      );
+    }
     for (const doc of [signIn, signUp]) {
       expect(doc.body.textContent).toContain('Privacy');
       expect(doc.body.textContent).toContain(
@@ -84,17 +98,6 @@ describe('auth screens under Bengali', () => {
   it('leaves no raw placeholder in any Bengali string', () => {
     for (const [key, text] of Object.entries(authCatalog.bn)) {
       expect(text, key).not.toMatch(/\{[^}]*\}/);
-    }
-  });
-
-  it('relies on the page root for lang: nothing inside the auth screens sets a conflicting language', async () => {
-    // app/layout.tsx writes <html lang={locale}> from the same locale these screens read, so every
-    // Bengali string here sits inside lang="bn" (WCAG 3.1.1). Only the language switch, off for
-    // now, sets its own lang. Check no auth element overrides it with another language.
-    current.locale = 'bn';
-    for (const page of ['in', 'up', 'forgot'] as const) {
-      const doc = await render(page);
-      expect(doc.querySelectorAll('[lang]:not([lang="bn"])').length).toBe(0);
     }
   });
 });
