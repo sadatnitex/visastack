@@ -10,18 +10,14 @@ import { expect, test } from '@playwright/test';
  * text are each marked.
  */
 
-test.use({ storageState: { cookies: [], origins: [] } });
-
 for (const path of ['/', '/auth/sign-in']) {
   test(`${path} with the Bengali cookie has no serious accessibility violations and valid languages`, async ({
     page,
-    baseURL,
   }) => {
-    await page
-      .context()
-      .addCookies([
-        { name: 'visastack_locale', value: 'bn', url: baseURL ?? 'http://localhost:3100' },
-      ]);
+    // Ask for Bengali the way a visitor does, with the language picker on the home page.
+    await page.goto('/');
+    await page.locator('form:has(input[name="locale"][value="bn"]) button').first().click();
+    await page.waitForLoadState('networkidle');
     await page.goto(path);
     const htmlLang = await page.locator('html').getAttribute('lang');
     const bengali = (await page.locator('html').getAttribute('data-locale')) === 'bn';
