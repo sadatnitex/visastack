@@ -21246,7 +21246,7 @@ body:lang(bn),
   text-transform: none;
 }
 /* end WP-P17 */
-/* WP-AFR Answer From Your Records */
+/* WP-RT2 Answer from Your Records (12 Nov 2026): requests from agencies, second block. */
 /* The review step that answers everything one agency waits for from saved records: its groups, the rows that are not part of this step, the receipt of what was sent, and the card on the Requests page. Flat: 1px edges, no shadow, gradient or translucency; tokens only; every control is 44 px or taller through the shared choice and button classes. */
 .answer-card {
   display: flex;
@@ -21317,3 +21317,4 @@ body:lang(bn),
 .answers-sent-line:last-child {
   border-bottom: 0;
 }
+/* end WP-RT2 */
