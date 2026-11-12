@@ -21107,8 +21107,8 @@ html:has(.sticky-action-bar) .toast-region {
 }
 /* end WP-P15 */
 
-/* WP-L1 Typography follows the chosen language, not the page language mark (12 Nov 2026). The page is marked English until its screen is fully translated (WCAG 3.1.2), yet it can still show Bengali words for a visitor who chose Bangla, so the Bengali line height keys on the chosen language (data-locale on the html element). The :lang(bn) rule above still serves marked Bengali spans. */
+/* WP-P16 Typography follows the chosen language, not the page language mark (12 Nov 2026). The page is marked English until its screen is fully translated (WCAG 3.1.2), yet it can still show Bengali words for a visitor who chose Bangla, so the Bengali line height keys on the chosen language (data-locale on the html element). The :lang(bn) rule above still serves marked Bengali spans. */
 [data-locale="bn"] {
   line-height: 1.75;
 }
-/* end WP-L1 */
+/* end WP-P16 */
