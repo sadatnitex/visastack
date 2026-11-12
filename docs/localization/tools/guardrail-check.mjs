@@ -263,6 +263,15 @@ function selfTest() {
   };
   const EN = grab('EN');
   const BN = grab('BN');
+  // The wrong Bengali the review file recorded (existing_bn) is a fixed sample. The shipped catalogue is
+  // corrected as fixes land (PR 512 applied them), so it is no longer a source of known-wrong strings.
+  const review = parseCsv(
+    fs.readFileSync(
+      path.join(ROOT, 'docs/localization/data/BN_EXISTING_CATALOGUE_REVIEW.csv'),
+      'utf8',
+    ),
+  );
+  const wrongBn = Object.fromEntries(review.map((r) => [r.key, r]));
   const mustFail = [
     'document.status.clean',
     'document.scanning',
@@ -275,7 +284,11 @@ function selfTest() {
   const mustPass = ['grant.status.active', 'consent.required', 'error.notFound.title'];
   let bad = 0;
   for (const k of mustFail) {
-    const r = check(EN[k], BN[k]);
+    const row = wrongBn[k];
+    // A length warning alone is not a guard catching a meaning error.
+    const r = row
+      ? check(row.english_now, row.existing_bn).filter((x) => !x.rule.startsWith('WARN_'))
+      : [];
     const ok = r.length > 0;
     say(
       `${ok ? 'FAILS AS EXPECTED' : 'UNEXPECTEDLY PASSES'}  ${k}  ${ok ? r.map((x) => x.rule).join(',') : ''}`,
@@ -291,12 +304,6 @@ function selfTest() {
     if (!ok) bad++;
   }
   // corrected wording from the review file must pass the same checks
-  const review = parseCsv(
-    fs.readFileSync(
-      path.join(ROOT, 'docs/localization/data/BN_EXISTING_CATALOGUE_REVIEW.csv'),
-      'utf8',
-    ),
-  );
   let fixedBad = 0;
   for (const r of review)
     if (r.proposed_bn) {
