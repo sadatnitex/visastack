@@ -27,8 +27,10 @@ export {
   type Catalog,
   type CatalogKey,
   type CatalogTranslator,
+  catalogResolve,
   catalogTranslator,
   defineCatalog,
+  type ResolvedMessage,
 } from './catalog';
 export { formatDate, formatMoney, formatNumber, localeTag } from './format';
 export { formatMessage } from './icu';

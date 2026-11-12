@@ -14,7 +14,7 @@ export type PageLanguage = 'en' | 'bn';
 export const BN_READY_ROUTES: readonly string[] = [
   // Interim entries: the sign-in, sign-up, password and email screens are listed (one by one: /auth/confirmed and /auth/account-recovery are still English) because their headings and controls
   // are predominantly Bengali for a visitor who chose it. English fallbacks there get their own
-  // lang="en" marking in PR2; the coverage gate in PR4 will decide readiness formally.
+  // lang="en" marking from the marking pass (t.node, see I18N_RUNTIME.md) once the waves merge; the coverage gate in PR4 will decide readiness formally.
   '/auth/sign-in',
   '/auth/sign-up',
   '/auth/forgot-password',
