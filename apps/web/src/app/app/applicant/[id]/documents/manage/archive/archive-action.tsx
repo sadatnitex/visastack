@@ -151,7 +151,7 @@ function ArchiveChange({
         {primary}
       </button>
       <button type="button" className="btn btn-secondary" onClick={onClose}>
-        {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
+        {t.node('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
       </button>
     </div>
   );

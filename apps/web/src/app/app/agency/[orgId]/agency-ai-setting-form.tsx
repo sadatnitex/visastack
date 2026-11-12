@@ -41,7 +41,7 @@ export function AgencyAiSettingForm({
       {enabled ? null : (
         <fieldset className="fieldset">
           <legend className="field-label">
-            {t('appAgency.appAgencyOrgidAgencyAiSettingForm.statement')}
+            {t.node('appAgency.appAgencyOrgidAgencyAiSettingForm.statement')}
           </legend>
           <p className="card-body" id={statementId}>
             {agencyAiStatement(organizationName)}
@@ -56,7 +56,7 @@ export function AgencyAiSettingForm({
                 aria-invalid={invalid || undefined}
               />
               <span>
-                {t(
+                {t.node(
                   'appAgency.appAgencyOrgidAgencyAiSettingForm.iConfirmThisStatementForOrganizationname',
                   { organizationName },
                 )}

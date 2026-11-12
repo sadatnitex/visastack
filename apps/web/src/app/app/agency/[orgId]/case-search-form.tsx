@@ -40,7 +40,7 @@ export function CaseSearchForm({
       <div className="form-grid">
         <div className="field-row">
           <label className="field-label" htmlFor="q">
-            {t('appAgency.appAgencyOrgidCaseSearchForm.search')}
+            {t.node('appAgency.appAgencyOrgidCaseSearchForm.search')}
           </label>
           <input
             id="q"
@@ -53,10 +53,12 @@ export function CaseSearchForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="stage">
-            {t('appAgency.appAgencyOrgidCaseSearchForm.stage')}
+            {t.node('appAgency.appAgencyOrgidCaseSearchForm.stage')}
           </label>
           <select id="stage" name="stage" defaultValue={stage} className="input">
-            <option value="">{t('appAgency.appAgencyOrgidCaseSearchForm.anyStage')}</option>
+            <option {...t.lang('appAgency.appAgencyOrgidCaseSearchForm.anyStage')} value="">
+              {t('appAgency.appAgencyOrgidCaseSearchForm.anyStage')}
+            </option>
             {Object.entries(STAGE_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -66,7 +68,7 @@ export function CaseSearchForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="destination">
-            {t('appAgency.appAgencyOrgidCaseSearchForm.destination')}
+            {t.node('appAgency.appAgencyOrgidCaseSearchForm.destination')}
           </label>
           <input
             id="destination"
@@ -78,10 +80,12 @@ export function CaseSearchForm({
         </div>
         <div className="field-row">
           <label className="field-label" htmlFor="assignee">
-            {t('appAgency.appAgencyOrgidCaseSearchForm.assignee')}
+            {t.node('appAgency.appAgencyOrgidCaseSearchForm.assignee')}
           </label>
           <select id="assignee" name="assignee" defaultValue={assignee} className="input">
-            <option value="">{t('appAgency.appAgencyOrgidCaseSearchForm.anyone')}</option>
+            <option {...t.lang('appAgency.appAgencyOrgidCaseSearchForm.anyone')} value="">
+              {t('appAgency.appAgencyOrgidCaseSearchForm.anyone')}
+            </option>
             {members.map((m) => (
               <option key={m.accountId} value={m.accountId}>
                 {m.email}
@@ -92,11 +96,11 @@ export function CaseSearchForm({
       </div>
       <div className="page-actions">
         <button type="submit" className="btn btn-secondary">
-          {t('appAgency.appAgencyOrgidCaseSearchForm.search')}
+          {t.node('appAgency.appAgencyOrgidCaseSearchForm.search')}
         </button>
         {hasFilters ? (
           <a href={`/app/agency/${orgId}`} className="muted u-fs-085">
-            {t('appAgency.appAgencyOrgidCaseSearchForm.clear')}
+            {t.node('appAgency.appAgencyOrgidCaseSearchForm.clear')}
           </a>
         ) : null}
       </div>

@@ -35,10 +35,12 @@ export function KeepCopyAction({
     return (
       <div className="lc-action">
         <p>
-          {t('appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.thereIsNoOneElseOn')}
+          {t.node(
+            'appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.thereIsNoOneElseOn',
+          )}
         </p>
         <button type="button" className="btn btn-secondary" onClick={onClose}>
-          {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
+          {t.node('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
         </button>
       </div>
     );
@@ -59,7 +61,7 @@ export function KeepCopyAction({
           ) : (
             <fieldset className="umpe-g1-person-choices">
               <legend>
-                {t(
+                {t.node(
                   'appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.keepACopyOfDocumentnameFor',
                   { documentName },
                 )}
@@ -73,7 +75,7 @@ export function KeepCopyAction({
             </fieldset>
           )}
           <p className="muted">
-            {t(
+            {t.node(
               'appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.itIsASeparateCopyChecked',
             )}
           </p>
@@ -92,7 +94,7 @@ export function KeepCopyAction({
               }
             />
             <button type="button" className="btn btn-secondary" onClick={onClose}>
-              {t('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
+              {t.node('appApplicant.appApplicantIdDocumentSuggestionCard.cancel')}
             </button>
           </div>
         </form>
@@ -102,11 +104,13 @@ export function KeepCopyAction({
         <div className="upload-drop-actions">
           {state.targetId ? (
             <Link className="btn btn-secondary" href={`/app/applicant/${state.targetId}/documents`}>
-              {t('appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.openTheirDocuments')}
+              {t.node(
+                'appApplicant.appApplicantIdDocumentsManageCopyKeepCopyAction.openTheirDocuments',
+              )}
             </Link>
           ) : null}
           <button ref={closeButton} type="button" className="btn btn-secondary" onClick={onClose}>
-            {t('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
+            {t.node('appApplicant.appApplicantIdDocumentsManageArchiveArchiveAction.close')}
           </button>
         </div>
       ) : null}

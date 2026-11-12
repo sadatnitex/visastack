@@ -41,9 +41,9 @@ export function SubmissionReportPanel({
 
   return (
     <article className="card">
-      <p className="card-kicker">{t('appMission.appMissionIdSubmissionReportPanel.filing')}</p>
+      <p className="card-kicker">{t.node('appMission.appMissionIdSubmissionReportPanel.filing')}</p>
       <h2 className="card-title">
-        {t('appMission.appMissionIdSubmissionReportPanel.submissionReport')}
+        {t.node('appMission.appMissionIdSubmissionReportPanel.submissionReport')}
       </h2>
       {submissions.length > 0 ? (
         <div className="rows u-mb-125">
@@ -62,7 +62,7 @@ export function SubmissionReportPanel({
               <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
                 {s.externalReportDescription}
                 {s.externalReference
-                  ? t('appMission.appMissionIdSubmissionReportPanel.refExternalreference', {
+                  ? t.node('appMission.appMissionIdSubmissionReportPanel.refExternalreference', {
                       externalReference: s.externalReference,
                     })
                   : ''}
@@ -72,7 +72,7 @@ export function SubmissionReportPanel({
         </div>
       ) : (
         <p className="card-body u-mb-125">
-          {t('appMission.appMissionIdSubmissionReportPanel.noSubmissionReportedYet')}
+          {t.node('appMission.appMissionIdSubmissionReportPanel.noSubmissionReportedYet')}
         </p>
       )}
       {eligible ? (
@@ -80,10 +80,10 @@ export function SubmissionReportPanel({
           <input type="hidden" name="missionId" value={missionId} />
           <div className="field-row">
             <label className="field-label" htmlFor="channel">
-              {t('appMission.appMissionIdSubmissionReportPanel.howWasItSubmitted')}
+              {t.node('appMission.appMissionIdSubmissionReportPanel.howWasItSubmitted')}
             </label>
             <select id="channel" name="channel" className="input" defaultValue="">
-              <option value="" disabled>
+              <option {...t.lang('appMission.appMissionIdAttemptForms.choose')} value="" disabled>
                 {t('appMission.appMissionIdAttemptForms.choose')}
               </option>
               {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
@@ -95,7 +95,7 @@ export function SubmissionReportPanel({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="externalReportDescription">
-              {t('appMission.appMissionIdSubmissionReportPanel.description')}
+              {t.node('appMission.appMissionIdSubmissionReportPanel.description')}
             </label>
             <textarea
               id="externalReportDescription"
@@ -110,7 +110,7 @@ export function SubmissionReportPanel({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="externalReference">
-              {t('appMission.appMissionIdSubmissionReportPanel.referenceNumberOptional')}
+              {t.node('appMission.appMissionIdSubmissionReportPanel.referenceNumberOptional')}
             </label>
             <input
               id="externalReference"
@@ -124,7 +124,9 @@ export function SubmissionReportPanel({
           </div>
           <div className="field-row">
             <label className="field-label" htmlFor="submittedAt">
-              {t('appMission.appMissionIdSubmissionReportPanel.submittedOnOptionalDefaultsToNow')}
+              {t.node(
+                'appMission.appMissionIdSubmissionReportPanel.submittedOnOptionalDefaultsToNow',
+              )}
             </label>
             <input id="submittedAt" name="submittedAt" type="datetime-local" className="input" />
           </div>
@@ -140,7 +142,7 @@ export function SubmissionReportPanel({
         </form>
       ) : (
         <p className="muted u-fs-085">
-          {t('appMission.appMissionIdSubmissionReportPanel.thisCaseMustReachSubmissionReady')}
+          {t.node('appMission.appMissionIdSubmissionReportPanel.thisCaseMustReachSubmissionReady')}
         </p>
       )}
     </article>

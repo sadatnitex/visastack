@@ -46,7 +46,7 @@ export function PlaceFileForm({
     <form ref={form} action={formAction} className="collect-place-form">
       <input type="hidden" name="fileId" value={fileId} />
       <label className="field-label" htmlFor={selectId}>
-        {t('collect.collectGuestFiles.checklistItemForFilename', { fileName })}
+        {t.node('collect.collectGuestFiles.checklistItemForFilename', { fileName })}
       </label>
       <select
         id={selectId}
@@ -55,7 +55,9 @@ export function PlaceFileForm({
         defaultValue={itemId ?? ''}
         {...fieldProblem(state, 'itemId', messageId)}
       >
-        <option value="">{t('collect.collectGuestFiles.notPlacedYet')}</option>
+        <option {...t.lang('collect.collectGuestFiles.notPlacedYet')} value="">
+          {t('collect.collectGuestFiles.notPlacedYet')}
+        </option>
         {items.map((item) => (
           <option key={item.id} value={item.id}>
             {item.label}

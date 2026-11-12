@@ -65,6 +65,7 @@ export function VersionNotice({
           type="button"
           className="pilot-banner-hide"
           aria-label={t('components.versionNotice.hideThisNotice')}
+          {...t.lang('components.versionNotice.hideThisNotice')}
           onClick={() => {
             rememberVersionNoticeSeen();
             setFolded(true);

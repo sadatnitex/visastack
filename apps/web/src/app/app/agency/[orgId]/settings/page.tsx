@@ -57,7 +57,7 @@ export default async function AgencySettingsPage({
       <>
         <article className="card u-mb-150">
           <p className="card-body">
-            {t('appAgency.appAgencyOrgidSettingsPage.settingsAreLimitedToThisOrganization')}
+            {t.node('appAgency.appAgencyOrgidSettingsPage.settingsAreLimitedToThisOrganization')}
           </p>
         </article>
         {data.ai ? <AgencyAiCard organizationId={orgId} name={null} ai={data.ai} /> : null}
@@ -70,8 +70,10 @@ export default async function AgencySettingsPage({
       {data.ai ? <AgencyAiCard organizationId={orgId} name={data.org.name} ai={data.ai} /> : null}
 
       <article className="card u-mb-150">
-        <p className="card-kicker">{t('appAgency.appAgencyOrgidSettingsPage.settings')}</p>
-        <h2 className="card-title">{t('appAgency.appAgencyOrgidSettingsPage.reviewPolicy')}</h2>
+        <p className="card-kicker">{t.node('appAgency.appAgencyOrgidSettingsPage.settings')}</p>
+        <h2 className="card-title">
+          {t.node('appAgency.appAgencyOrgidSettingsPage.reviewPolicy')}
+        </h2>
         <div className="row">
           <span className="row-key" style={{ maxWidth: '32rem' }}>
             Require a Different Reviewer
@@ -88,10 +90,10 @@ export default async function AgencySettingsPage({
       </article>
 
       <article className="card u-mb-150">
-        <p className="card-kicker">{t('appAgency.appAgencyOrgidSettingsPage.settings')}</p>
-        <h2 className="card-title">{t('appAgency.appAgencyOrgidSettingsPage.branding')}</h2>
+        <p className="card-kicker">{t.node('appAgency.appAgencyOrgidSettingsPage.settings')}</p>
+        <h2 className="card-title">{t.node('appAgency.appAgencyOrgidSettingsPage.branding')}</h2>
         <p className="card-body u-mb-125">
-          {t('appAgency.appAgencyOrgidSettingsPage.yourLogoYourAgencyNameAnd')}
+          {t.node('appAgency.appAgencyOrgidSettingsPage.yourLogoYourAgencyNameAnd')}
         </p>
         <BrandingForm
           organizationId={orgId}
@@ -102,10 +104,10 @@ export default async function AgencySettingsPage({
       </article>
 
       <article className="card">
-        <p className="card-kicker">{t('appAgency.appAgencyOrgidSettingsPage.export')}</p>
-        <h2 className="card-title">{t('appAgency.appAgencyOrgidSettingsPage.bulkExport')}</h2>
+        <p className="card-kicker">{t.node('appAgency.appAgencyOrgidSettingsPage.export')}</p>
+        <h2 className="card-title">{t.node('appAgency.appAgencyOrgidSettingsPage.bulkExport')}</h2>
         <p className="card-body u-mb-125">
-          {t('appAgency.appAgencyOrgidSettingsPage.downloadTheProfilesOfEveryTraveller')}
+          {t.node('appAgency.appAgencyOrgidSettingsPage.downloadTheProfilesOfEveryTraveller')}
         </p>
         {capabilities.bulkExport === 'available' ? (
           <a
@@ -113,12 +115,12 @@ export default async function AgencySettingsPage({
             className="btn btn-primary"
             download
           >
-            {t('appAgency.appAgencyOrgidSettingsPage.downloadBulkExport')}
+            {t.node('appAgency.appAgencyOrgidSettingsPage.downloadBulkExport')}
           </a>
         ) : (
           <>
             <button type="button" className="btn btn-primary" disabled>
-              {t('appAgency.appAgencyOrgidSettingsPage.downloadBulkExport')}
+              {t.node('appAgency.appAgencyOrgidSettingsPage.downloadBulkExport')}
             </button>
             <p className="muted" style={{ fontSize: 'var(--text-small)', marginTop: '0.6rem' }}>
               {capabilityUnavailableMessage('bulkExport')}
@@ -148,26 +150,28 @@ function AgencyAiCard({
   const t = getServerT(appAgencyCatalog);
   return (
     <article className="card u-mb-150" aria-labelledby="agency-ai-title">
-      <p className="card-kicker">{t('appAgency.appAgencyOrgidAiConnectionsPage.aiTools')}</p>
+      <p className="card-kicker">{t.node('appAgency.appAgencyOrgidAiConnectionsPage.aiTools')}</p>
       <h2 className="card-title" id="agency-ai-title">
         {AGENCY_AI_SETTING_TITLE}
       </h2>
-      <p className="card-body">{t('appAgency.appAgencyOrgidSettingsPage.whenThisIsOnAnOwner')}</p>
+      <p className="card-body">
+        {t.node('appAgency.appAgencyOrgidSettingsPage.whenThisIsOnAnOwner')}
+      </p>
       {!ai.available ? (
         <p className="muted">{AGENCY_AI_NOT_YET}</p>
       ) : (
         <>
           <div className="row">
-            <span className="row-key">{t('appAgency.appAgencyOrgidSettingsPage.status')}</span>
+            <span className="row-key">{t.node('appAgency.appAgencyOrgidSettingsPage.status')}</span>
             <span>
               {ai.enabled
-                ? t('appAgency.appAgencyOrgidSettingsPage.on')
-                : t('appAgency.appAgencyOrgidSettingsPage.off')}
+                ? t.node('appAgency.appAgencyOrgidSettingsPage.on')
+                : t.node('appAgency.appAgencyOrgidSettingsPage.off')}
             </span>
           </div>
           {ai.feature.available ? null : (
             <p className="notice notice-warn">
-              {t(
+              {t.node(
                 'appAgency.appAgencyOrgidSettingsPage.aifeatureoffsentenceConnectedAppsReadNothingUnti',
                 {
                   aiFeatureOffSentence: aiFeatureOffSentence('ai_agency_tools', ai.feature.reason),
@@ -187,7 +191,7 @@ function AgencyAiCard({
                   className="btn btn-secondary"
                   href={`/app/agency/${organizationId}/ai-connections`}
                 >
-                  {t('appAgency.appAgencyOrgidSettingsPage.manageAiConnections')}
+                  {t.node('appAgency.appAgencyOrgidSettingsPage.manageAiConnections')}
                 </a>
               </p>
             </>

@@ -107,7 +107,9 @@ export function CaseItemPane({
   const choice = packageItem && packageEditable ? choiceOptions(packageItem) : null;
   return (
     <div className="lp-pane-content">
-      <h3 className="lp-pane-title">{label || t('appMission.appMissionIdCaseItemPane.unnamed')}</h3>
+      <h3 className="lp-pane-title">
+        {label || t.node('appMission.appMissionIdCaseItemPane.unnamed')}
+      </h3>
       <p className="lp-pane-line">
         <StatusPill tone={status.tone} size="md">
           {status.word}
@@ -117,14 +119,16 @@ export function CaseItemPane({
       {meta.next ? <p className="lift-check-next">{meta.next}</p> : null}
       {r.myWording ? (
         <p className="lift-check-aside">
-          {t('appMission.appMissionIdCaseItemPane.originalOfficialname', { officialName })}
+          {t.node('appMission.appMissionIdCaseItemPane.originalOfficialname', { officialName })}
         </p>
       ) : null}
-      {r.myWording ? <p>{t('appMission.appMissionIdCaseItemPane.yourWording')}</p> : null}
+      {r.myWording ? <p>{t.node('appMission.appMissionIdCaseItemPane.yourWording')}</p> : null}
       {provenance ? <p>{provenance}</p> : null}
       {r.appliesWhen && r.appliesWhen.toLowerCase() !== 'all applicants' ? (
         <p>
-          {t('appMission.appMissionIdCaseItemPane.forApplieswhen', { appliesWhen: r.appliesWhen })}
+          {t.node('appMission.appMissionIdCaseItemPane.forApplieswhen', {
+            appliesWhen: r.appliesWhen,
+          })}
         </p>
       ) : null}
       {alternatives.length > 0 ? (
@@ -134,12 +138,14 @@ export function CaseItemPane({
       ) : null}
       {chosen && chosen.length > 0 ? (
         <p>
-          {t('appMission.appMissionIdCaseItemPane.chosenDocumentJoin', { join: chosen.join(', ') })}
+          {t.node('appMission.appMissionIdCaseItemPane.chosenDocumentJoin', {
+            join: chosen.join(', '),
+          })}
         </p>
       ) : null}
       {formatLines && formatLines.length > 0 ? (
         <p className="package-item-format">
-          {t('appMission.appMissionIdCaseItemPane.howToProvideItJoin', {
+          {t.node('appMission.appMissionIdCaseItemPane.howToProvideItJoin', {
             join: formatLines.join(' · '),
           })}
         </p>
@@ -147,7 +153,7 @@ export function CaseItemPane({
       {r.sourceInaccessible ? (
         <p>
           <span className="badge badge-danger">
-            {t('appMission.appMissionIdCaseItemPane.sourceCurrentlyUnreachableUnderReview')}
+            {t.node('appMission.appMissionIdCaseItemPane.sourceCurrentlyUnreachableUnderReview')}
           </span>
         </p>
       ) : null}
@@ -159,7 +165,7 @@ export function CaseItemPane({
             <>
               {' · '}
               <a href={sourceHref} target="_blank" rel="noreferrer">
-                {t('appMission.appMissionIdCaseItemPane.viewSource')}
+                {t.node('appMission.appMissionIdCaseItemPane.viewSource')}
               </a>
             </>
           ) : null}
@@ -176,7 +182,7 @@ export function CaseItemPane({
           ) : null}
           {r.state === 'CRITICAL_GAP' || r.state === 'EXPIRING_STALE' ? (
             <a className="btn btn-secondary" href="#evidence">
-              {t('appMission.appMissionIdCaseItemPane.provideEvidence')}
+              {t.node('appMission.appMissionIdCaseItemPane.provideEvidence')}
             </a>
           ) : null}
         </div>
@@ -188,12 +194,12 @@ export function CaseItemPane({
           aria-label={t('appMission.appMissionIdCaseItemPane.whichFileCounts')}
         >
           <h4 className="package-subheading">
-            {t('appMission.appMissionIdCaseItemPane.whichFileCounts')}
+            {t.node('appMission.appMissionIdCaseItemPane.whichFileCounts')}
           </h4>
           {evidenceEditable ? (
             <>
               <p className="muted u-fs-085 u-m-0">
-                {t('appMission.appMissionIdCaseItemPane.severalAreOnFileUntilYou')}
+                {t.node('appMission.appMissionIdCaseItemPane.severalAreOnFileUntilYou')}
               </p>
               <EvidenceItemChoices missionId={missionId} candidate={candidate} />
             </>
@@ -209,19 +215,19 @@ export function CaseItemPane({
           aria-label={t('appMission.appMissionIdCaseItemPane.whichFileGoesInTheHandoff')}
         >
           <h4 className="package-subheading">
-            {t('appMission.appMissionIdCaseItemPane.whichFileGoesInTheHandoff')}
+            {t.node('appMission.appMissionIdCaseItemPane.whichFileGoesInTheHandoff')}
           </h4>
           <p className="muted u-fs-085 u-m-0">{usingLine(packageItem)}</p>
           {packageItem.newerCopy ? (
             <p className="u-fs-085 u-m-0">
-              {t('appMission.appMissionIdCaseItemPane.aNewerCopyIsAvailableCopyname', {
+              {t.node('appMission.appMissionIdCaseItemPane.aNewerCopyIsAvailableCopyname', {
                 copyName: copyName(packageItem.newerCopy),
               })}
             </p>
           ) : null}
           {packageItem.chosen?.copy && !packageItem.chosen.copy.usable ? (
             <p className="u-fs-085 u-m-0">
-              {t('appMission.appMissionIdCaseItemPane.theChosenCopyCanNoLonger')}
+              {t.node('appMission.appMissionIdCaseItemPane.theChosenCopyCanNoLonger')}
             </p>
           ) : null}
           {choice ? (

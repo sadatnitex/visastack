@@ -68,13 +68,15 @@ function Unavailable({ token, busy = false }: { readonly token: string; readonly
       <article className="card">
         <p className="u-m-0">{busy ? INVITATION_BUSY : INVITATION_UNAVAILABLE}</p>
         <p className="muted u-m-0">
-          {t('appTripInvitations.appTripInvitationsAcceptPage.askThePersonWhoInvitedYou')}
+          {t.node('appTripInvitations.appTripInvitationsAcceptPage.askThePersonWhoInvitedYou')}
         </p>
         <div className="companion-actions">
           <Link className="btn btn-secondary" href={back}>
-            {t('appTripInvitations.appTripInvitationsAcceptPage.signInWithTheInvitedEmail')}
+            {t.node('appTripInvitations.appTripInvitationsAcceptPage.signInWithTheInvitedEmail')}
           </Link>
-          <Link href="/app">{t('appTripInvitations.appTripInvitationsAcceptPage.goToHome')}</Link>
+          <Link href="/app">
+            {t.node('appTripInvitations.appTripInvitationsAcceptPage.goToHome')}
+          </Link>
         </div>
       </article>
     </Shell>
@@ -146,26 +148,26 @@ export default async function TripInvitationPage({
         <article className="card">
           <dl className="rows">
             <div className="row">
-              <dt>{t('appTripInvitations.appTripInvitationsAcceptPage.trip')}</dt>
+              <dt>{t.node('appTripInvitations.appTripInvitationsAcceptPage.trip')}</dt>
               <dd>{invite.title}</dd>
             </div>
             <div className="row">
-              <dt>{t('appTripInvitations.appTripInvitationsIdPage.where')}</dt>
+              <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.where')}</dt>
               <dd>
                 <DestinationLabel destination={invite.destination} />
               </dd>
             </div>
             <div className="row">
-              <dt>{t('appTripInvitations.appTripInvitationsIdPage.why')}</dt>
+              <dt>{t.node('appTripInvitations.appTripInvitationsIdPage.why')}</dt>
               <dd>{invite.purpose}</dd>
             </div>
             <div className="row">
-              <dt>{t('appTripInvitations.appTripInvitationsAcceptPage.invitationEnds')}</dt>
+              <dt>{t.node('appTripInvitations.appTripInvitationsAcceptPage.invitationEnds')}</dt>
               <dd>{formatTimestampDate(invite.expiresAt)}</dd>
             </div>
           </dl>
           <p className="u-m-0">
-            {t('appTripInvitations.appTripInvitationsAcceptPage.joiningShowsYourNameToOthers')}
+            {t.node('appTripInvitations.appTripInvitationsAcceptPage.joiningShowsYourNameToOthers')}
           </p>
           {consent.CORE_PROCESSING ? (
             <AcceptTripInvitationForm

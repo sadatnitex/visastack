@@ -43,7 +43,7 @@ export function ChangesSinceConfirmedList({
       <div className="case-changes">
         <p className="case-changes-title">{heading}</p>
         <p className="case-changes-note">
-          {t('appMission.appMissionIdChangesSinceConfirmed.thisOlderSnapshotDidNotRecord')}
+          {t.node('appMission.appMissionIdChangesSinceConfirmed.thisOlderSnapshotDidNotRecord')}
         </p>
       </div>
     );
@@ -55,7 +55,7 @@ export function ChangesSinceConfirmedList({
       <p className="case-changes-title">{heading}</p>
       {shown.length === 0 ? (
         <p className="case-changes-note">
-          {t('appMission.appMissionIdChangesSinceConfirmed.noDetailDocumentOrCaseDate')}
+          {t.node('appMission.appMissionIdChangesSinceConfirmed.noDetailDocumentOrCaseDate')}
         </p>
       ) : (
         <ul className="case-changes-list">
@@ -82,7 +82,7 @@ export function ChangesSinceConfirmedList({
                       { name: line.name },
                     )}
                   >
-                    {t('appMission.appMissionIdChangesSinceConfirmed.compare')}
+                    {t.node('appMission.appMissionIdChangesSinceConfirmed.compare')}
                   </Link>
                 ) : null}
               </li>
@@ -92,10 +92,10 @@ export function ChangesSinceConfirmedList({
       )}
       <Link className="case-changes-all" href={compareHref(applicantId, snapshot.id)}>
         {more > 0
-          ? t('appMission.appMissionIdChangesSinceConfirmed.seeAllLengthChanges', {
+          ? t.node('appMission.appMissionIdChangesSinceConfirmed.seeAllLengthChanges', {
               length: changes.changes.length,
             })
-          : t('appMission.appMissionIdChangesSinceConfirmed.seeWhatChanged')}
+          : t.node('appMission.appMissionIdChangesSinceConfirmed.seeWhatChanged')}
       </Link>
     </div>
   );

@@ -141,6 +141,7 @@ export function ToastHost() {
           className="toast-close"
           tabIndex={-1}
           aria-label={t('components.toast.dismiss')}
+          {...t.lang('components.toast.dismiss')}
           onClick={() => dismissToast(toast.id)}
         >
           <Icon name="close" size={18} />

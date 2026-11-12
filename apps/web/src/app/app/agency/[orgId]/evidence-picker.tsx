@@ -157,7 +157,7 @@ export function EvidencePicker({
     <div className="ask-picker">
       <div className="field-row">
         <label className="field-label" htmlFor={searchId}>
-          {t('appAgency.appAgencyOrgidEvidencePicker.searchDocumentsAndDetails')}
+          {t.node('appAgency.appAgencyOrgidEvidencePicker.searchDocumentsAndDetails')}
         </label>
         <input
           id={searchId}
@@ -177,20 +177,20 @@ export function EvidencePicker({
           }}
         />
         <small className="muted" id={hintId}>
-          {t('appAgency.appAgencyOrgidEvidencePicker.chooseAsManyAsYouNeed')}
+          {t.node('appAgency.appAgencyOrgidEvidencePicker.chooseAsManyAsYouNeed')}
         </small>
         <output className="sr-only">
           {searching
             ? total === 0
-              ? t('appAgency.appAgencyOrgidEvidencePicker.noMatches')
-              : t('appAgency.appAgencyOrgidEvidencePicker.totalMatches', { total })
+              ? t.node('appAgency.appAgencyOrgidEvidencePicker.noMatches')
+              : t.node('appAgency.appAgencyOrgidEvidencePicker.totalMatches', { total })
             : ''}
         </output>
       </div>
 
       {searching && total === 0 ? (
         <p className="ask-empty">
-          {t('appAgency.appAgencyOrgidEvidencePicker.nothingMatchesTrimNotInThe', {
+          {t.node('appAgency.appAgencyOrgidEvidencePicker.nothingMatchesTrimNotInThe', {
             trim: query.trim(),
           })}
         </p>
@@ -218,14 +218,14 @@ export function EvidencePicker({
               <>
                 {missingIds.length > 0 ? (
                   <button type="button" className="btn btn-secondary" onClick={onAskAllMissing}>
-                    {t('appAgency.appAgencyOrgidEvidencePicker.askForAllMissingLength', {
+                    {t.node('appAgency.appAgencyOrgidEvidencePicker.askForAllMissingLength', {
                       length: missingIds.length,
                     })}
                   </button>
                 ) : null}
                 {missingIds.length > MAX_ASK_ITEMS ? (
                   <p className="muted u-fs-085">
-                    {t('appAgency.appAgencyOrgidEvidencePicker.onlyTheFirstMaxAskItems', {
+                    {t.node('appAgency.appAgencyOrgidEvidencePicker.onlyTheFirstMaxAskItems', {
                       MAX_ASK_ITEMS,
                     })}
                   </p>
@@ -239,10 +239,10 @@ export function EvidencePicker({
                     <legend>
                       {missing.anyOf.length > 1
                         ? `Any One of These (${index + 1})`
-                        : t('appAgency.appAgencyOrgidEvidencePicker.anyOneOfThese')}
+                        : t.node('appAgency.appAgencyOrgidEvidencePicker.anyOneOfThese')}
                     </legend>
                     <p className="muted u-fs-085">
-                      {t('appAgency.appAgencyOrgidEvidencePicker.theTravellerNeedsOnlyOneOf')}
+                      {t.node('appAgency.appAgencyOrgidEvidencePicker.theTravellerNeedsOnlyOneOf')}
                     </p>
                     <ul className="ask-list">{members.map(missingRow)}</ul>
                   </fieldset>
@@ -284,13 +284,15 @@ export function EvidencePicker({
                         {' '}
                         (
                         {searching
-                          ? t('appAgency.appAgencyOrgidEvidencePicker.lengthOfLength2', {
+                          ? t.node('appAgency.appAgencyOrgidEvidencePicker.lengthOfLength2', {
                               length: matches.length,
                               length2: view.entries.length,
                             })
                           : view.entries.length}
                         {picked > 0
-                          ? t('appAgency.appAgencyOrgidEvidencePicker.pickedSelected', { picked })
+                          ? t.node('appAgency.appAgencyOrgidEvidencePicker.pickedSelected', {
+                              picked,
+                            })
                           : ''}
                         )
                       </span>

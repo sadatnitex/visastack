@@ -77,11 +77,11 @@ export default async function AgencyPage({
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">{t('appAgency.appAgencyPage.yourOrganizations')}</p>
-          <h2 className="card-title">{t('appAgency.appAgencyPage.memberships')}</h2>
+          <p className="card-kicker">{t.node('appAgency.appAgencyPage.yourOrganizations')}</p>
+          <h2 className="card-title">{t.node('appAgency.appAgencyPage.memberships')}</h2>
           {orgs.length === 0 ? (
             <EmptyState icon="building" title={t('appAgency.appAgencyPage.noOrganizationsYet')}>
-              {t('appAgency.appAgencyPage.applyToRegisterYourAgencyHere')}
+              {t.node('appAgency.appAgencyPage.applyToRegisterYourAgencyHere')}
             </EmptyState>
           ) : (
             <div className="rows u-mt-050">
@@ -120,7 +120,7 @@ export default async function AgencyPage({
                     {link}
                     <details className="lc-g3-withdraw">
                       <summary className="btn btn-secondary lc-g3-withdraw-open">
-                        {t('appAgency.appAgencyPage.withdrawApplication')}
+                        {t.node('appAgency.appAgencyPage.withdrawApplication')}
                       </summary>
                       <form
                         action={withdrawOrganizationApplicationAction}
@@ -128,7 +128,7 @@ export default async function AgencyPage({
                       >
                         <input type="hidden" name="organizationId" value={m.organization.id} />
                         <p id={confirmId} className="lc-g3-confirm-text">
-                          {t('appAgency.appAgencyPage.withdrawTheApplicationForNameIt', {
+                          {t.node('appAgency.appAgencyPage.withdrawTheApplicationForNameIt', {
                             name: m.organization.name,
                           })}
                         </p>
@@ -137,7 +137,7 @@ export default async function AgencyPage({
                           className="btn btn-danger"
                           aria-describedby={confirmId}
                         >
-                          {t('appAgency.appAgencyPage.withdrawApplication')}
+                          {t.node('appAgency.appAgencyPage.withdrawApplication')}
                         </button>
                       </form>
                     </details>
@@ -149,10 +149,12 @@ export default async function AgencyPage({
         </article>
 
         <article className="card">
-          <p className="card-kicker">{t('appAgency.appAgencyPage.new')}</p>
-          <h2 className="card-title">{t('appAgency.appAgencyPage.applyToRegisterAnAgency')}</h2>
+          <p className="card-kicker">{t.node('appAgency.appAgencyPage.new')}</p>
+          <h2 className="card-title">
+            {t.node('appAgency.appAgencyPage.applyToRegisterAnAgency')}
+          </h2>
           <p className="card-body u-mb-125">
-            {t('appAgency.appAgencyPage.youBecomeTheOwnerNewOrganizations')}
+            {t.node('appAgency.appAgencyPage.youBecomeTheOwnerNewOrganizations')}
           </p>
           <CreateOrgForm />
         </article>

@@ -144,25 +144,25 @@ export default async function ApplicantRecordPage({
         actions={
           <>
             <Link className="btn btn-primary" href={`${base}/documents/add`}>
-              {t('appApplicant.appApplicantIdRecordPage.addADocument')}
+              {t.node('appApplicant.appApplicantIdRecordPage.addADocument')}
             </Link>
             <Link className="btn btn-secondary" href={`${base}/profile`}>
-              {t('appApplicant.appApplicantIdRecordPage.updateYourProfile')}
+              {t.node('appApplicant.appApplicantIdRecordPage.updateYourProfile')}
             </Link>
           </>
         }
       />
       <p className="muted record-hub-note">
-        {t('appApplicant.appApplicantIdRecordPage.currentVersionMeansThisIsThe')}
+        {t.node('appApplicant.appApplicantIdRecordPage.currentVersionMeansThisIsThe')}
       </p>
       {documentsLoaded ? null : (
         <p role="alert" className="notice notice-warn">
-          {t('appApplicant.appApplicantIdRecordPage.yourDocumentsCouldNotBeLoaded')}
+          {t.node('appApplicant.appApplicantIdRecordPage.yourDocumentsCouldNotBeLoaded')}
         </p>
       )}
       {documentsLoaded && documents.length === 0 ? (
         <p className="notice record-hub-start">
-          {t('appApplicant.appApplicantIdRecordPage.youHaveNotAddedADocument')}
+          {t.node('appApplicant.appApplicantIdRecordPage.youHaveNotAddedADocument')}
         </p>
       ) : null}
       <RecordBrowser items={items} documentsLoaded={documentsLoaded} />

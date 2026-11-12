@@ -54,7 +54,7 @@ export function VerifyCodeForm() {
     <form ref={form} action={formAction} className="field-list form-narrow">
       <div className="field-row">
         <label className="field-label" htmlFor="guest-code">
-          {t('collect.collectGuestForms.sixDigitCode')}
+          {t.node('collect.collectGuestForms.sixDigitCode')}
         </label>
         <CodeInput
           id="guest-code"
@@ -62,7 +62,7 @@ export function VerifyCodeForm() {
           {...fieldProblem(state, 'code', messageId, 'guest-code-hint')}
         />
         <p id="guest-code-hint" className="muted u-fs-085">
-          {t('collect.collectGuestForms.itWorksFor10MinutesOnly')}
+          {t.node('collect.collectGuestForms.itWorksFor10MinutesOnly')}
         </p>
         <FieldError result={state} field="code" />
       </div>

@@ -67,7 +67,7 @@ export function PackageItemChoiceForm({
       <input type="hidden" name="missionId" value={missionId} />
       <input type="hidden" name="packRequirementId" value={packRequirementId} />
       <label className="label" htmlFor={`${id}-choice`}>
-        {t('appMission.appMissionIdPackageForms.whatToUseForItemname', { itemName })}
+        {t.node('appMission.appMissionIdPackageForms.whatToUseForItemname', { itemName })}
       </label>
       <select
         id={`${id}-choice`}
@@ -82,16 +82,25 @@ export function PackageItemChoiceForm({
             {option.label}
           </option>
         ))}
-        <option value="missing">
+        <option
+          {...t.lang('appMission.appMissionIdPackageForms.leaveMissingForNow')}
+          value="missing"
+        >
           {t('appMission.appMissionIdPackageForms.leaveMissingForNow')}
         </option>
         {canExclude ? (
-          <option value="exclude">
+          <option
+            {...t.lang('appMission.appMissionIdPackageForms.leaveOutOfThisPackage')}
+            value="exclude"
+          >
             {t('appMission.appMissionIdPackageForms.leaveOutOfThisPackage')}
           </option>
         ) : null}
         {hasChoice ? (
-          <option value="clear">
+          <option
+            {...t.lang('appMission.appMissionIdPackageForms.goBackToTheSuggestedCopy')}
+            value="clear"
+          >
             {t('appMission.appMissionIdPackageForms.goBackToTheSuggestedCopy')}
           </option>
         ) : null}
@@ -101,7 +110,7 @@ export function PackageItemChoiceForm({
         // so a typed reason is never lost by looking at another choice and coming back.
         <div hidden={scripted && value !== 'exclude'} className="package-reason">
           <label className="label" htmlFor={`${id}-reason`}>
-            {t('appMission.appMissionIdPackageForms.reasonForLeavingOut')}
+            {t.node('appMission.appMissionIdPackageForms.reasonForLeavingOut')}
           </label>
           <input
             id={`${id}-reason`}
@@ -111,7 +120,7 @@ export function PackageItemChoiceForm({
             {...fieldProblem(state, 'reason', messageId, reasonHint)}
           />
           <p id={reasonHint} className="muted u-fs-085 u-m-0">
-            {t('appMission.appMissionIdPackageForms.neededOnlyWhenYouLeaveThis')}
+            {t.node('appMission.appMissionIdPackageForms.neededOnlyWhenYouLeaveThis')}
           </p>
         </div>
       ) : null}
@@ -173,7 +182,7 @@ export function PackageHandoffForm({ missionId }: { readonly missionId: string }
           value="yes"
           {...fieldProblem(state, 'outsideStepsSeen', messageId)}
         />
-        <span>{t('appMission.appMissionIdPackageForms.iHaveReadTheStepsOutside')}</span>
+        <span>{t.node('appMission.appMissionIdPackageForms.iHaveReadTheStepsOutside')}</span>
       </label>
       <div>
         <SubmitButton

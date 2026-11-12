@@ -1,6 +1,7 @@
 import { JSDOM } from 'jsdom';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { bengaliMarking } from '../../../lib/bengali-marked.test-support';
 
 vi.mock('server-only', () => ({}));
 vi.mock('next/headers', () => ({
@@ -94,5 +95,21 @@ describe('live Bengali keys of the payment result page', () => {
     const bn = await render('bn', { t: TRAN, x: '9999999999', s: 'sig' });
     const live = Object.values(paymentsCatalog.bn);
     expect(live.filter((v) => !(bn.body.textContent ?? '').includes(v))).toEqual([]);
+  });
+});
+
+describe('the payment result page, language of parts', () => {
+  it('marks the Bengali on an English page lang="bn"', async () => {
+    mocks.signed.mockReturnValue(true);
+    mocks.view.mockResolvedValue({
+      state: 'received',
+      invoiceRef: 'INV-100',
+      amountMinorUnits: 125050,
+      currency: 'BDT',
+    });
+    const doc = await render('bn', { t: TRAN, x: '9999999999', s: 'sig' });
+    const r = bengaliMarking(doc.body.innerHTML);
+    expect(r.unmarked).toEqual([]);
+    expect(r.marked).toBeGreaterThan(0);
   });
 });

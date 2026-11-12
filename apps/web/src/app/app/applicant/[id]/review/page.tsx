@@ -212,8 +212,8 @@ export default async function WhatWeFoundPage({
           <section className="card u-mb-150" aria-labelledby="flow-files-title">
             <h2 className="card-title" id="flow-files-title">
               {rows.length === 1
-                ? t('appApplicant.appApplicantIdReviewPage.1FileSaved')
-                : t('appApplicant.appApplicantIdReviewPage.lengthFilesSaved', {
+                ? t.node('appApplicant.appApplicantIdReviewPage.1FileSaved')
+                : t.node('appApplicant.appApplicantIdReviewPage.lengthFilesSaved', {
                     length: rows.length,
                   })}
             </h2>
@@ -227,7 +227,7 @@ export default async function WhatWeFoundPage({
             </ul>
             {working ? (
               <output className="notice">
-                {t('appApplicant.appApplicantIdReviewPage.youCanLeaveThisPageWe')}
+                {t.node('appApplicant.appApplicantIdReviewPage.youCanLeaveThisPageWe')}
               </output>
             ) : null}
           </section>
@@ -243,7 +243,7 @@ export default async function WhatWeFoundPage({
       ) : allDone ? (
         <article className="card u-mb-150" aria-labelledby="flow-done-title">
           <h2 className="card-title" id="flow-done-title">
-            {t('appApplicant.appApplicantIdReviewPage.allDone')}
+            {t.node('appApplicant.appApplicantIdReviewPage.allDone')}
           </h2>
           <p className="card-body">
             {rows.length === 1 ? 'Your file is' : `All ${rows.length} files are`} saved, named and
@@ -251,10 +251,10 @@ export default async function WhatWeFoundPage({
           </p>
           <div className="upload-drop-actions">
             <Link className="btn btn-primary" href={`/app/applicant/${id}/profile`}>
-              {t('appApplicant.appApplicantIdReviewPage.openMyProfile')}
+              {t.node('appApplicant.appApplicantIdReviewPage.openMyProfile')}
             </Link>
             <Link className="btn btn-secondary" href={`/app/applicant/${id}/documents/add`}>
-              {t('appApplicant.appApplicantIdReviewPage.addMoreDocuments')}
+              {t.node('appApplicant.appApplicantIdReviewPage.addMoreDocuments')}
             </Link>
           </div>
         </article>
@@ -264,14 +264,14 @@ export default async function WhatWeFoundPage({
           why="Every detail we found has been answered. Add a document to find more."
           action={{ href: `/app/applicant/${id}/documents/add`, label: 'Add Documents' }}
         >
-          {t('appApplicant.appApplicantIdPage.nothingIsWaitingForYou')}
+          {t.node('appApplicant.appApplicantIdPage.nothingIsWaitingForYou')}
         </EmptyState>
       ) : (
         <>
           {groups.length > 0 ? (
             <p className="card-body u-mb-150">
               {total > 0
-                ? t('appApplicant.appApplicantIdReviewPage.pluralFoundInPlural2AcceptThe', {
+                ? t.node('appApplicant.appApplicantIdReviewPage.pluralFoundInPlural2AcceptThe', {
                     plural: plural(total, 'Detail', 'Details'),
                     plural2: plural(
                       groups.filter((group) => group.found.length > 0).length,
@@ -279,7 +279,7 @@ export default async function WhatWeFoundPage({
                       'documents',
                     ),
                   })
-                : t('appApplicant.appApplicantIdReviewPage.checkTheNameWeSuggestFor')}
+                : t.node('appApplicant.appApplicantIdReviewPage.checkTheNameWeSuggestFor')}
             </p>
           ) : null}
           {groups.map(({ doc, found, suggestion }) => (
@@ -307,7 +307,7 @@ export default async function WhatWeFoundPage({
           {unread.length > 0 ? (
             <section className="u-mb-150" aria-labelledby="not-read-title">
               <h2 className="card-title" id="not-read-title">
-                {t('appApplicant.appApplicantIdReviewPage.filesNotReadYet')}
+                {t.node('appApplicant.appApplicantIdReviewPage.filesNotReadYet')}
               </h2>
               {unread.map(({ doc, versionId, state, copy }) => (
                 <article
@@ -337,7 +337,7 @@ export default async function WhatWeFoundPage({
           {inBatch ? (
             <p className="field-hint">
               <Link href={`/app/applicant/${id}/review`}>
-                {t('appApplicant.appApplicantIdReviewPage.seeEverythingThatIsWaiting')}
+                {t.node('appApplicant.appApplicantIdReviewPage.seeEverythingThatIsWaiting')}
               </Link>
             </p>
           ) : null}

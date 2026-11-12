@@ -195,7 +195,9 @@ export function ActivityLog({
             value={what}
             onChange={(event) => setWhat(event.target.value)}
           >
-            <option value="">{t('components.activityLog.everything')}</option>
+            <option {...t.lang('components.activityLog.everything')} value="">
+              {t('components.activityLog.everything')}
+            </option>
             {whats.map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -212,7 +214,9 @@ export function ActivityLog({
               value={who}
               onChange={(event) => setWho(event.target.value)}
             >
-              <option value="">{t('components.activityLog.anyone')}</option>
+              <option {...t.lang('components.activityLog.anyone')} value="">
+                {t('components.activityLog.anyone')}
+              </option>
               {people.map((option) => (
                 <option key={option} value={option}>
                   {option}
@@ -230,7 +234,9 @@ export function ActivityLog({
               value={outcome}
               onChange={(event) => setOutcome(event.target.value)}
             >
-              <option value="">{t('components.activityLog.anyResult')}</option>
+              <option {...t.lang('components.activityLog.anyResult')} value="">
+                {t('components.activityLog.anyResult')}
+              </option>
               {outcomes.map((option) => (
                 <option key={option} value={option}>
                   {option}

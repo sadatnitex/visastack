@@ -55,7 +55,7 @@ export default async function ReceiptPage({
             className="btn btn-secondary"
             href={`/app/agency/${orgId}/plan/invoices/receipts/${receiptId}/pdf`}
           >
-            {t('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.downloadReceiptPdf')}
+            {t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceCard.downloadReceiptPdf')}
           </a>
         }
         as="h2"
@@ -63,40 +63,50 @@ export default async function ReceiptPage({
       <article className="card receipt-card">
         <dl className="invoice-facts receipt-facts">
           <div>
-            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.receiptNumber')}</dt>
+            <dt>
+              {t.node('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.receiptNumber')}
+            </dt>
             <dd>{receipt.number}</dd>
           </div>
           <div>
-            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.agency')}</dt>
+            <dt>{t.node('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.agency')}</dt>
             <dd>{receipt.organizationName}</dd>
           </div>
           <div>
-            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.invoice')}</dt>
+            <dt>{t.node('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.invoice')}</dt>
             <dd>{receipt.invoiceRef}</dd>
           </div>
           <div>
-            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.amountReceived')}</dt>
+            <dt>
+              {t.node('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.amountReceived')}
+            </dt>
             <dd>{formatMoney(receipt.amountMinorUnits, receipt.currency)}</dd>
           </div>
           <div>
-            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.howItWasPaid')}</dt>
+            <dt>
+              {t.node('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.howItWasPaid')}
+            </dt>
             <dd>{receiptKindLabel(receipt.kind)}</dd>
           </div>
           <div>
-            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.paymentDate')}</dt>
+            <dt>
+              {t.node('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.paymentDate')}
+            </dt>
             <dd>{formatBillingDate(receipt.collectedDate)}</dd>
           </div>
           <div>
-            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.paymentReference')}</dt>
+            <dt>{t.node('appAgency.appAgencyOrgidPlanInvoicesInvoiceForms.paymentReference')}</dt>
             <dd>{receipt.reference}</dd>
           </div>
           <div>
-            <dt>{t('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.receiptIssued')}</dt>
+            <dt>
+              {t.node('appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.receiptIssued')}
+            </dt>
             <dd>{formatBillingDateTime(receipt.issuedAt)}</dd>
           </div>
         </dl>
         <p className="invoice-note">
-          {t(
+          {t.node(
             'appAgency.appAgencyOrgidPlanInvoicesReceiptsReceiptidPage.thisReceiptShowsThatAPayment',
           )}
         </p>

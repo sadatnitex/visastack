@@ -65,10 +65,10 @@ export default async function AgencyChecklistsPage({
       />
       <section className="stack" aria-labelledby="own-lists">
         <h2 id="own-lists" className="section-title">
-          {t('appAgency.appAgencyOrgidChecklistsPage.ourLists')}
+          {t.node('appAgency.appAgencyOrgidChecklistsPage.ourLists')}
         </h2>
         {data.own.length === 0 ? (
-          <p>{t('appAgency.appAgencyOrgidChecklistsPage.youHaveNoListsOfYour')}</p>
+          <p>{t.node('appAgency.appAgencyOrgidChecklistsPage.youHaveNoListsOfYour')}</p>
         ) : (
           <ul className="field-list">
             {data.own.map((list) => {
@@ -87,12 +87,12 @@ export default async function AgencyChecklistsPage({
       </section>
       <section className="stack" aria-labelledby="shared-lists">
         <h2 id="shared-lists" className="section-title">
-          {t('appAgency.appAgencyOrgidChecklistsPage.startFromASharedList')}
+          {t.node('appAgency.appAgencyOrgidChecklistsPage.startFromASharedList')}
         </h2>
         <form method="get" className="form-grid">
           <div className="field-row">
             <label className="field-label" htmlFor="checklist-search">
-              {t('appAgency.appAgencyOrgidChecklistsPage.country')}
+              {t.node('appAgency.appAgencyOrgidChecklistsPage.country')}
             </label>
             <input
               id="checklist-search"
@@ -104,11 +104,11 @@ export default async function AgencyChecklistsPage({
             />
           </div>
           <button type="submit" className="btn btn-secondary">
-            {t('appAgency.appAgencyOrgidCaseSearchForm.search')}
+            {t.node('appAgency.appAgencyOrgidCaseSearchForm.search')}
           </button>
         </form>
         {shown.length === 0 ? (
-          <p>{t('appAgency.appAgencyOrgidChecklistsPage.noSharedListMatches')}</p>
+          <p>{t.node('appAgency.appAgencyOrgidChecklistsPage.noSharedListMatches')}</p>
         ) : (
           <ul className="field-list">
             {shown.map((list) => (
@@ -116,12 +116,12 @@ export default async function AgencyChecklistsPage({
                 <strong>{list.packName}</strong>{' '}
                 {list.starter ? (
                   <StatusBadge tone="neutral">
-                    {t('appAgency.appAgencyOrgidChecklistsPage.starterListNotOfficial')}
+                    {t.node('appAgency.appAgencyOrgidChecklistsPage.starterListNotOfficial')}
                   </StatusBadge>
                 ) : null}
                 {list.ownCopyPackId ? (
                   <Link href={`/app/agency/${orgId}/checklists/edit?pack=${list.ownCopyPackId}`}>
-                    {t('appAgency.appAgencyOrgidChecklistsPage.openOurCopy')}
+                    {t.node('appAgency.appAgencyOrgidChecklistsPage.openOurCopy')}
                   </Link>
                 ) : (
                   <CopyListButton
@@ -136,7 +136,7 @@ export default async function AgencyChecklistsPage({
         )}
         {data.shared.length > shown.length ? (
           <p>
-            {t('appAgency.appAgencyOrgidChecklistsPage.showingTheFirstLengthSearchBy', {
+            {t.node('appAgency.appAgencyOrgidChecklistsPage.showingTheFirstLengthSearchBy', {
               length: shown.length,
             })}
           </p>

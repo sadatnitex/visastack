@@ -98,7 +98,7 @@ export default async function SharedWorkspacePage({
     <section className="section container">
       <div className="u-mb-150">
         <Link href="/app/shared" className="muted u-fs-085">
-          {t('appShared.appSharedGrantidPage.sharedWithYou')}
+          {t.node('appShared.appSharedGrantidPage.sharedWithYou')}
         </Link>
       </div>
       <PageHeader
@@ -108,7 +108,7 @@ export default async function SharedWorkspacePage({
           <>
             {workspace.grant.purpose}
             {workspace.grant.expiryAt
-              ? t('appShared.appSharedGrantidPage.expiresFormattimestampdate', {
+              ? t.node('appShared.appSharedGrantidPage.expiresFormattimestampdate', {
                   formatTimestampDate: formatTimestampDate(workspace.grant.expiryAt),
                 })
               : ''}
@@ -117,25 +117,27 @@ export default async function SharedWorkspacePage({
       />
 
       <p className="muted" style={{ fontSize: 'var(--text-small)', marginBottom: '1.5rem' }}>
-        {t('appShared.appSharedGrantidPage.everyItemBelowIsReChecked')}
+        {t.node('appShared.appSharedGrantidPage.everyItemBelowIsReChecked')}
       </p>
 
       {workspace.missionScopeUnavailable ? (
         <div className="card u-mb-150">
-          <p className="card-body">{t('appShared.appSharedGrantidPage.thisAccessIsLimitedToA')}</p>
+          <p className="card-body">
+            {t.node('appShared.appSharedGrantidPage.thisAccessIsLimitedToA')}
+          </p>
         </div>
       ) : null}
 
       <div className="grid">
         <article className="card">
-          <p className="card-kicker">{t('appShared.appSharedGrantidPage.profile')}</p>
-          <h2 className="card-title">{t('appShared.appSharedGrantidPage.sharedFields')}</h2>
+          <p className="card-kicker">{t.node('appShared.appSharedGrantidPage.profile')}</p>
+          <h2 className="card-title">{t.node('appShared.appSharedGrantidPage.sharedFields')}</h2>
           {workspace.fields.length === 0 ? (
             <EmptyState
               icon="user"
               title={t('appShared.appSharedGrantidPage.noProfileDetailsShared')}
             >
-              {t('appShared.appSharedGrantidPage.thisPersonHasNotSharedAny')}
+              {t.node('appShared.appSharedGrantidPage.thisPersonHasNotSharedAny')}
             </EmptyState>
           ) : (
             <>
@@ -164,11 +166,11 @@ export default async function SharedWorkspacePage({
         </article>
 
         <article className="card">
-          <p className="card-kicker">{t('appShared.appSharedGrantidPage.documentVault')}</p>
-          <h2 className="card-title">{t('appShared.appSharedGrantidPage.sharedDocuments')}</h2>
+          <p className="card-kicker">{t.node('appShared.appSharedGrantidPage.documentVault')}</p>
+          <h2 className="card-title">{t.node('appShared.appSharedGrantidPage.sharedDocuments')}</h2>
           {workspace.documents.length === 0 ? (
             <EmptyState icon="file" title={t('appShared.appSharedGrantidPage.noDocumentsShared')}>
-              {t('appShared.appSharedGrantidPage.thisPersonHasNotSharedAnyb926f7')}
+              {t.node('appShared.appSharedGrantidPage.thisPersonHasNotSharedAnyb926f7')}
             </EmptyState>
           ) : (
             <>
@@ -188,12 +190,12 @@ export default async function SharedWorkspacePage({
                         ) : null}
                         {offer === 'not_prepared' ? (
                           <span className="badge badge-neutral">
-                            {t('appShared.appSharedGrantidPage.safeCopyNotPreparedYet')}
+                            {t.node('appShared.appSharedGrantidPage.safeCopyNotPreparedYet')}
                           </span>
                         ) : null}
                         {offer === 'not_available' ? (
                           <span className="badge badge-neutral">
-                            {t('appShared.appSharedGrantidPage.safeCopyNotAvailableForThis')}
+                            {t.node('appShared.appSharedGrantidPage.safeCopyNotAvailableForThis')}
                           </span>
                         ) : null}
                       </span>
@@ -227,16 +229,16 @@ export default async function SharedWorkspacePage({
                 />
               ))}
               <p className="muted u-fs-085">
-                {t('appShared.appSharedGrantidPage.otherDocumentsCannotBePreviewedHere')}
+                {t.node('appShared.appSharedGrantidPage.otherDocumentsCannotBePreviewedHere')}
               </p>
               {!safeCopiesOn && workspace.grant.actions.includes('DOWNLOAD_REDACTED') ? (
                 <p className="muted u-fs-085">
-                  {t('appShared.appSharedGrantidPage.safeCopiesAreNotAvailableHere')}
+                  {t.node('appShared.appSharedGrantidPage.safeCopiesAreNotAvailableHere')}
                 </p>
               ) : null}
               {[...safeCopies.values()].some((offer) => offer !== 'none') ? (
                 <p className="muted u-fs-085">
-                  {t('appShared.appSharedGrantidPage.aSafeCopyIsAPicture')}
+                  {t.node('appShared.appSharedGrantidPage.aSafeCopyIsAPicture')}
                 </p>
               ) : null}
             </>

@@ -54,7 +54,9 @@ export function ReviewAnswerForm({
         aria-invalid={invalid || undefined}
         aria-describedby={invalid ? messageId : undefined}
       >
-        <legend>{t('appAgency.appAgencyOrgidCollectionCollectionReviewForms.yourDecision')}</legend>
+        <legend>
+          {t.node('appAgency.appAgencyOrgidCollectionCollectionReviewForms.yourDecision')}
+        </legend>
         <div className="collection-review-options">
           {(
             [
@@ -72,12 +74,12 @@ export function ReviewAnswerForm({
       </fieldset>
       <details className="collection-review-notes">
         <summary>
-          {t('appAgency.appAgencyOrgidCollectionCollectionReviewForms.addNotesForThePerson')}
+          {t.node('appAgency.appAgencyOrgidCollectionCollectionReviewForms.addNotesForThePerson')}
         </summary>
         {items.map((item) => (
           <div key={item.id} className="field-row">
             <label className="field-label" htmlFor={`${base}-note-${item.id}`}>
-              {t('appAgency.appAgencyOrgidCollectionCollectionReviewForms.noteOnLabel', {
+              {t.node('appAgency.appAgencyOrgidCollectionCollectionReviewForms.noteOnLabel', {
                 label: item.label,
               })}
             </label>
@@ -92,7 +94,7 @@ export function ReviewAnswerForm({
         ))}
         <div className="field-row">
           <label className="field-label" htmlFor={`${base}-note`}>
-            {t('appAgency.appAgencyOrgidCollectionCollectionReviewForms.generalNote')}
+            {t.node('appAgency.appAgencyOrgidCollectionCollectionReviewForms.generalNote')}
           </label>
           <textarea id={`${base}-note`} name="note" className="input" rows={2} maxLength={1000} />
         </div>
@@ -131,7 +133,7 @@ export function GuestHoldForm({
       {held ? null : (
         <div className="field-row">
           <label className="field-label" htmlFor="guest-hold-reason">
-            {t('appAgency.appAgencyOrgidCollectionCollectionReviewForms.reasonForTheHold')}
+            {t.node('appAgency.appAgencyOrgidCollectionCollectionReviewForms.reasonForTheHold')}
           </label>
           <textarea
             id="guest-hold-reason"

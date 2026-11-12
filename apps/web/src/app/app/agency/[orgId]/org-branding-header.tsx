@@ -58,6 +58,7 @@ export function AgencyMark({
         <img
           className="agency-mark-image"
           src={brand.logoUrl ?? undefined}
+          {...t.lang('appAgency.appAgencyOrgidOrgBrandingHeader.nameLogo')}
           alt={t('appAgency.appAgencyOrgidOrgBrandingHeader.nameLogo', { name: brand.name })}
           onError={() => setFailed(true)}
         />

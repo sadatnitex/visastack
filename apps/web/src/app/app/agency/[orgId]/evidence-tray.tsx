@@ -31,19 +31,19 @@ export function EvidenceTray({
     <section className="ask-tray" aria-labelledby={headingId}>
       <div className="ask-tray-head">
         <p className="ask-tray-title" id={headingId}>
-          {t('appAgency.appAgencyOrgidEvidenceTray.selectedLength', {
+          {t.node('appAgency.appAgencyOrgidEvidenceTray.selectedLength', {
             length: items.length,
           })}
         </p>
         {items.length > 1 ? (
           <button type="button" className="btn btn-secondary" onClick={onClear}>
-            {t('appAgency.appAgencyOrgidEvidenceTray.clearAll')}
+            {t.node('appAgency.appAgencyOrgidEvidenceTray.clearAll')}
           </button>
         ) : null}
       </div>
       {items.length === 0 ? (
         <p className="muted u-fs-085">
-          {t('appAgency.appAgencyOrgidEvidenceTray.nothingSelectedYetTickWhatYou')}
+          {t.node('appAgency.appAgencyOrgidEvidenceTray.nothingSelectedYetTickWhatYou')}
         </p>
       ) : (
         <ul className="ask-tray-list">
@@ -54,8 +54,8 @@ export function EvidenceTray({
                 {item.hint ? <span className="ask-hint"> ({item.hint})</span> : null}
                 <span className="ask-note">
                   {item.id.startsWith('DOCUMENT:')
-                    ? t('appAgency.appAgencyOrgidClientsPage.document')
-                    : t('appAgency.appAgencyOrgidEvidenceTray.detail')}
+                    ? t.node('appAgency.appAgencyOrgidClientsPage.document')
+                    : t.node('appAgency.appAgencyOrgidEvidenceTray.detail')}
                 </span>
               </span>
               <button
@@ -65,7 +65,7 @@ export function EvidenceTray({
                 aria-label={`Remove ${item.label}${item.hint ? ` (${item.hint})` : ''}`}
                 onClick={() => onRemove(item.id, index)}
               >
-                {t('appAgency.appAgencyOrgidEvidenceTray.remove')}
+                {t.node('appAgency.appAgencyOrgidEvidenceTray.remove')}
               </button>
             </li>
           ))}
@@ -73,7 +73,7 @@ export function EvidenceTray({
       )}
       {items.length >= MAX_ASK_ITEMS ? (
         <p className="muted u-fs-085">
-          {t('appAgency.appAgencyOrgidEvidenceTray.maxAskItemsIsTheMost', { MAX_ASK_ITEMS })}
+          {t.node('appAgency.appAgencyOrgidEvidenceTray.maxAskItemsIsTheMost', { MAX_ASK_ITEMS })}
         </p>
       ) : null}
     </section>

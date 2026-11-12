@@ -47,7 +47,7 @@ export default async function AgencyTeamPage({
     return (
       <article className="card">
         <p className="card-body">
-          {t('appAgency.appAgencyOrgidTeamPage.managingTheTeamIsLimitedTo')}
+          {t.node('appAgency.appAgencyOrgidTeamPage.managingTheTeamIsLimitedTo')}
         </p>
       </article>
     );
@@ -55,14 +55,14 @@ export default async function AgencyTeamPage({
 
   return (
     <article className="card">
-      <p className="card-kicker">{t('appAgency.appAgencyOrgidTeamPage.team')}</p>
-      <h2 className="card-title">{t('appAgency.appAgencyOrgidTeamPage.members')}</h2>
+      <p className="card-kicker">{t.node('appAgency.appAgencyOrgidTeamPage.team')}</p>
+      <h2 className="card-title">{t.node('appAgency.appAgencyOrgidTeamPage.members')}</h2>
       <p className="card-body u-mb-125">
-        {t('appAgency.appAgencyOrgidTeamPage.membershipIsOrganizationalBookkeepingItNever')}
+        {t.node('appAgency.appAgencyOrgidTeamPage.membershipIsOrganizationalBookkeepingItNever')}
       </p>
       {documentRequests ? (
         <p className="card-body u-mb-125 muted">
-          {t('appAgency.appAgencyOrgidTeamPage.allowDocumentRequestsLetsAMember')}
+          {t.node('appAgency.appAgencyOrgidTeamPage.allowDocumentRequestsLetsAMember')}
         </p>
       ) : null}
       {data.members.length > 0 ? (
@@ -79,15 +79,15 @@ export default async function AgencyTeamPage({
                 </span>
                 {documentRequests && m.mayRequestDocuments ? (
                   <span className="muted member-permission-note">
-                    {t('appAgency.appAgencyOrgidTeamPage.mayRequestDocuments')}
+                    {t.node('appAgency.appAgencyOrgidTeamPage.mayRequestDocuments')}
                   </span>
                 ) : null}
               </span>
               <span className="row-end">
                 <span className={`badge ${m.active ? 'badge-success' : 'badge-neutral'}`}>
                   {m.active
-                    ? t('appAgency.appAgencyOrgidTeamPage.active')
-                    : t('appAgency.appAgencyOrgidTeamPage.inactive')}
+                    ? t.node('appAgency.appAgencyOrgidTeamPage.active')
+                    : t.node('appAgency.appAgencyOrgidTeamPage.inactive')}
                 </span>
                 {documentRequests && m.active && m.role !== 'OWNER' && m.role !== 'ADMIN' ? (
                   <DocumentRequestToggle
@@ -124,7 +124,7 @@ export default async function AgencyTeamPage({
               </span>
               <span className="row-end">
                 <span className="badge badge-warning">
-                  {t('appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate', {
+                  {t.node('appAgency.appAgencyOrgidClientsPage.invitedExpiresFormattimestampdate', {
                     formatTimestampDate: formatTimestampDate(invitation.expiresAt),
                   })}
                 </span>

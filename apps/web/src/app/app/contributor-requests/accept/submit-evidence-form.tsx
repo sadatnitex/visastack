@@ -44,7 +44,7 @@ export function SubmitEvidenceForm({
             }}
           >
             <input type="checkbox" name="allowWalletReuse" value="true" />
-            {t(
+            {t.node(
               'appContributorRequests.appContributorRequestsAcceptSubmitEvidenceForm.alsoAllowThisDocumentToBe',
             )}
           </label>
@@ -55,7 +55,7 @@ export function SubmitEvidenceForm({
             className="btn btn-primary"
           />
           <p className="muted" style={{ fontSize: 'var(--text-small)', margin: 0 }}>
-            {t(
+            {t.node(
               'appContributorRequests.appContributorRequestsAcceptSubmitEvidenceForm.pdfPngJpegDocxTxtOr',
             )}
           </p>

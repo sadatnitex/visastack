@@ -66,7 +66,7 @@ export function RequestRemovalAction({
     return (
       <div ref={root} className="lc-request">
         <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-request-heading">
-          {t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.removalRequested')}
+          {t.node('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.removalRequested')}
         </h3>
         <output className="lc-request-result">{result}</output>
         <div className="lc-request-actions">
@@ -78,7 +78,7 @@ export function RequestRemovalAction({
               router.refresh();
             }}
           >
-            {t('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.done')}
+            {t.node('appApplicant.appApplicantIdDocumentsManageRequestCancelAction.done')}
           </button>
         </div>
       </div>
@@ -88,14 +88,18 @@ export function RequestRemovalAction({
   return (
     <div ref={root} className="lc-request">
       <h3 id={headingId} ref={heading} tabIndex={-1} className="lc-request-heading">
-        {t('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.askUsToRemoveThisFile')}
+        {t.node(
+          'appApplicant.appApplicantIdDocumentsManageRequestRequestAction.askUsToRemoveThisFile',
+        )}
       </h3>
       <p id={hintId} className="lc-request-note">
         {WHAT_HAPPENS}
       </p>
       <p className="lc-request-note">
         <strong>
-          {t('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.whatRemovedMeans')}
+          {t.node(
+            'appApplicant.appApplicantIdDocumentsManageRequestRequestAction.whatRemovedMeans',
+          )}
         </strong>{' '}
         {BACKUP_NOTE}
       </p>
@@ -104,7 +108,7 @@ export function RequestRemovalAction({
         aria-describedby={problem ? `${hintId} ${problemId}` : hintId}
       >
         <legend className="lc-request-legend">
-          {t(
+          {t.node(
             'appApplicant.appApplicantIdDocumentsManageRequestRequestAction.whyShouldWeRemoveDocumentname',
             { documentName },
           )}
@@ -138,11 +142,11 @@ export function RequestRemovalAction({
           onClick={send}
         >
           {busy
-            ? t('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.sending')
-            : t('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.sendRequest')}
+            ? t.node('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.sending')
+            : t.node('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.sendRequest')}
         </button>
         <button type="button" className="btn btn-secondary" onClick={onClose}>
-          {t('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.cancel')}
+          {t.node('appApplicant.appApplicantIdDocumentsManageRequestRequestAction.cancel')}
         </button>
       </div>
     </div>
