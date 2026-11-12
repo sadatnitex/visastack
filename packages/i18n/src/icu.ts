@@ -61,7 +61,7 @@ export function formatMessage(
     }
     const inner = template.slice(i + 1, close);
     const whole = template.slice(i, close + 1);
-    const plural = /^\s*(\w+)\s*,\s*plural\s*,([\s\S]*)$/.exec(inner);
+    const plural = inner.match(/^\s*(\w+)\s*,\s*plural\s*,([\s\S]*)$/);
     if (plural) {
       const value = params?.[plural[1] as string];
       const branches = parseBranches(plural[2] as string);
