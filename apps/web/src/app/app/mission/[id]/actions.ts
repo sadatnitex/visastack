@@ -89,7 +89,10 @@ export async function attachPackAction(
     }
     const attached = await attachChecklistFor(db, accountId, missionId, packVersionId);
     if (!attached.ok)
-      return { ok: false, message: await serviceErrorMessage(attached.error) } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(attached.error),
+      } satisfies ActionState;
     const readiness = await computeReadiness(db, missionId);
     return {
       ok: true,
@@ -118,7 +121,10 @@ export async function transitionMissionAction(
   const result = await withSession(async ({ db, accountId }) => {
     const transitioned = await transitionMission(db, { actorAccountId: accountId, missionId, to });
     if (!transitioned.ok) {
-      return { ok: false, message: await serviceErrorMessage(transitioned.error) } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(transitioned.error),
+      } satisfies ActionState;
     }
     return {
       ok: true,
@@ -163,7 +169,10 @@ export async function deleteCancelledCaseAction(
     try {
       const deleted = await deleteCancelledMission(access.value);
       if (!deleted.ok)
-        return { ok: false, message: await serviceErrorMessage(deleted.error) } satisfies ActionState;
+        return {
+          ok: false,
+          message: await serviceErrorMessage(deleted.error),
+        } satisfies ActionState;
     } catch (error) {
       // The deletion is all or nothing: a fault leaves the case exactly as it was.
       reportServerError('deleteCancelledCaseAction', error);
@@ -189,7 +198,10 @@ export async function snapshotMissionAction(
   const result = await withSession(async ({ db, accountId }) => {
     const snapshot = await snapshotMission(db, { actorAccountId: accountId, missionId });
     if (!snapshot.ok)
-      return { ok: false, message: await serviceErrorMessage(snapshot.error) } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(snapshot.error),
+      } satisfies ActionState;
     return {
       ok: true,
       message: `Snapshot version ${snapshot.value.version} captured.`,
@@ -220,7 +232,10 @@ export async function selectEvidenceAction(
       ...(documentId ? { documentId } : {}),
     });
     if (!selected.ok)
-      return { ok: false, message: await serviceErrorMessage(selected.error) } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(selected.error),
+      } satisfies ActionState;
     const readiness = await computeReadiness(db, missionId);
     return {
       ok: true,
@@ -356,7 +371,10 @@ export async function createAppointmentAction(
       ...(channel ? { channel } : {}),
     });
     if (!appointment.ok) {
-      return { ok: false, message: await serviceErrorMessage(appointment.error) } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(appointment.error),
+      } satisfies ActionState;
     }
     return { ok: true, message: 'Appointment scheduled.' } satisfies ActionState;
   });
@@ -610,7 +628,10 @@ export async function recordOutcomeAction(
       stepUpSatisfied: true,
     });
     if (!recorded.ok)
-      return { ok: false, message: await serviceErrorMessage(recorded.error) } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(recorded.error),
+      } satisfies ActionState;
     return { ok: true, message: 'Outcome recorded.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -677,7 +698,10 @@ export async function recordSubmissionAction(
       stepUpSatisfied: true,
     });
     if (!recorded.ok)
-      return { ok: false, message: await serviceErrorMessage(recorded.error) } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(recorded.error),
+      } satisfies ActionState;
     // UMPE P12: the report becomes Attempt 1 with the package that was ready then. Best effort:
     // the report stands either way, and the Application Attempts card offers Track as Attempt.
     try {
@@ -737,7 +761,10 @@ export async function withdrawComplaintAction(
   const result = await withSession(async ({ db, accountId }) => {
     const withdrawn = await withdrawOwnComplaint(db, { actorAccountId: accountId, complaintId });
     if (!withdrawn.ok)
-      return { ok: false, message: await serviceErrorMessage(withdrawn.error) } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(withdrawn.error),
+      } satisfies ActionState;
     return { ok: true, message: 'Complaint withdrawn.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -757,7 +784,10 @@ export async function submitFeedbackAction(
   const result = await withSession(async ({ db, accountId }) => {
     const submitted = await submitFeedback(db, { actorAccountId: accountId, missionId, comments });
     if (!submitted.ok)
-      return { ok: false, message: await serviceErrorMessage(submitted.error) } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(submitted.error),
+      } satisfies ActionState;
     return { ok: true, message: 'Feedback submitted. Thank you.' } satisfies ActionState;
   });
   if (result.ok) revalidatePath(`/app/mission/${missionId}`);
@@ -820,7 +850,10 @@ export async function explainReadinessGapAction(
       listRequirements(db, mission.value.packVersionId),
     ]);
     if (!readiness.ok)
-      return { ok: false, message: await serviceErrorMessage(readiness.error) } satisfies ActionState;
+      return {
+        ok: false,
+        message: await serviceErrorMessage(readiness.error),
+      } satisfies ActionState;
 
     const current = readiness.value.requirementResults.find(
       (r) => r.packRequirementId === packRequirementId,

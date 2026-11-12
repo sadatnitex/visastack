@@ -16,9 +16,9 @@ describe('case flow refusals on the screens', () => {
     locale.value = 'en';
     for (const [key, english] of Object.entries(enText)) {
       if (/\{/.test(english)) continue;
-      expect(await serviceErrorMessage(keyedError('invalid', key as keyof typeof serviceMessages.en))).toBe(
-        english,
-      );
+      expect(
+        await serviceErrorMessage(keyedError('invalid', key as keyof typeof serviceMessages.en)),
+      ).toBe(english);
     }
   });
 
@@ -26,9 +26,9 @@ describe('case flow refusals on the screens', () => {
     locale.value = 'bn';
     let rendered = 0;
     for (const key of bnKeys) {
-      expect(await serviceErrorMessage(keyedError('invalid', key as keyof typeof serviceMessages.en))).toBe(
-        bnText[key],
-      );
+      expect(
+        await serviceErrorMessage(keyedError('invalid', key as keyof typeof serviceMessages.en)),
+      ).toBe(bnText[key]);
       rendered += 1;
     }
     expect(rendered).toBe(bnKeys.length);
