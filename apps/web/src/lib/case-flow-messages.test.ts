@@ -24,6 +24,7 @@ describe('case flow refusals on the screens', () => {
 
   it('shows the Bengali under bn for every key that has a draft, in matching number', async () => {
     locale.value = 'bn';
+    expect(bnKeys.length).toBeGreaterThan(0);
     let rendered = 0;
     for (const key of bnKeys) {
       expect(
