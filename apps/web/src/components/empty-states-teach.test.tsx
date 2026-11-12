@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
@@ -12,10 +12,27 @@ import { EmptyState } from './ui';
 const root = join(__dirname, '..');
 const read = (path: string) => readFileSync(join(root, path), 'utf8');
 
-/** The text of the `<EmptyState ...>...</EmptyState>` that carries this title. */
+/** The catalogue keys whose English message is this title (a converted page names its title by key). */
+function keysFor(title: string): string[] {
+  const dir = join(root, 'i18n');
+  const keys: string[] = [];
+  for (const file of readdirSync(dir).filter((name) => name.endsWith('.ts'))) {
+    const text = readFileSync(join(dir, file), 'utf8');
+    for (const match of text.matchAll(/'([A-Za-z0-9.]+)':\s*'([^']*)'/g)) {
+      if (match[2] === title && match[1]) keys.push(match[1]);
+    }
+  }
+  return keys;
+}
+
+/** The text of the `<EmptyState ...>...</EmptyState>` that carries this title, or its catalogue key. */
 function stateWithTitle(source: string, title: string): string {
   const parts = source.split('<EmptyState');
-  const found = parts.find((part) => part.slice(0, part.indexOf('</EmptyState>')).includes(title));
+  const needles = [title, ...keysFor(title).map((key) => `t('${key}')`)];
+  const found = parts.find((part) => {
+    const head = part.slice(0, part.indexOf('</EmptyState>'));
+    return needles.some((needle) => head.includes(needle));
+  });
   if (!found) throw new Error(`no empty state titled "${title}"`);
   return found.slice(0, found.indexOf('</EmptyState>'));
 }
