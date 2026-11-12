@@ -82,6 +82,15 @@ describe('Consent history in a fixed log (WP-SB1)', () => {
     expect(service.listConsentHistory).toHaveBeenLastCalledWith({}, 'owner', { limit: 50 });
   });
 
+  it('says plainly what the kept audit trail still holds (owner decision D1), never "anonymized"', async () => {
+    const text = textOf(await page()).replace(/\s+/g, ' ');
+    expect(text).toContain('What Happens to Your Audit Trail');
+    expect(text).toContain(
+      'Your audit trail is kept, as the law and security require. It no longer links to your account, but it still holds technical details such as the IP address and device used, an internal reference number, and for invitations, the email address used.',
+    );
+    expect(text).not.toMatch(/anonymi[sz]ed/i);
+  });
+
   it('keeps the empty state when nothing changed yet', async () => {
     const text = textOf(await page());
     expect(text).toContain('No Changes Yet');

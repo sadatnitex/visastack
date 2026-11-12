@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
+import { authCatalog } from '../../../i18n/auth';
+import { getServerT, primeLocale } from '../../../lib/i18n-server';
 import { safeReturnPath } from '../../../lib/neon-recency';
 import {
   PENDING_CONFIRMATION_COOKIE,
@@ -23,6 +25,8 @@ const ERRORS: Record<string, string> = {
 export default async function VerifyEmailPage({
   searchParams,
 }: { searchParams: Promise<{ e?: string; s?: string; next?: string }> }) {
+  await primeLocale();
+  const t = getServerT(authCatalog);
   const { e, s, next } = await searchParams;
   const error = e ? ERRORS[e] : undefined;
   // The address this browser just asked us to confirm (signed, short-lived): with it, the page
@@ -38,23 +42,23 @@ export default async function VerifyEmailPage({
         id="email"
         name="email"
         type="email"
-        label="Email Address"
+        label={t('auth.authForgotPasswordPage.emailAddress')}
         autoComplete="email"
         required
         maxLength={254}
         errorId={error ? 'verify-error' : undefined}
       />
       <button type="submit" className="btn btn-primary">
-        Send the Link Again
+        {t('auth.authVerifyEmailPage.sendTheLinkAgain')}
       </button>
     </form>
   );
   return (
-    <AuthShell title="Confirm Your Email Address">
-      <ol className="auth-steps" aria-label="The three steps">
-        <li>1 Create Your Account</li>
-        <li aria-current="step">2 Confirm Your Email</li>
-        <li>3 Sign In</li>
+    <AuthShell title={t('auth.authVerifyEmailPage.confirmYourEmailAddress')}>
+      <ol className="auth-steps" aria-label={t('auth.authSignUpPage.theThreeSteps')}>
+        <li>{t('auth.authSignUpPage.1CreateYourAccount')}</li>
+        <li aria-current="step">{t('auth.authSignUpPage.2ConfirmYourEmail')}</li>
+        <li>{t('auth.authSignUpPage.3SignIn')}</li>
       </ol>
       {remembered ? (
         <>
@@ -73,11 +77,13 @@ export default async function VerifyEmailPage({
               <input type="hidden" name="next" value={returnPath} />
               <input type="hidden" name="saved" value="1" />
               <button type="submit" className="btn btn-primary">
-                {s === '1' ? 'Send the Link Again' : 'Send the Link'}
+                {s === '1'
+                  ? t('auth.authVerifyEmailPage.sendTheLinkAgain')
+                  : t('auth.authVerifyEmailPage.sendTheLink')}
               </button>
             </form>
             <details className="verify-other-address">
-              <summary>Use a Different Email</summary>
+              <summary>{t('auth.authVerifyEmailPage.useADifferentEmail')}</summary>
               {addressForm}
             </details>
           </div>
@@ -86,16 +92,18 @@ export default async function VerifyEmailPage({
         <>
           <p className="card-body">
             {s === '1'
-              ? 'Check your inbox. If your address needs confirmation, a link has been requested. It can take a few minutes, and it may land in your spam folder. Once you have opened it, sign in.'
-              : 'You need to confirm your email address before you can use VisaStack. Enter it below and we will send you a new link.'}
+              ? t('auth.authVerifyEmailPage.checkYourInboxIfYourAddress')
+              : t('auth.authVerifyEmailPage.youNeedToConfirmYourEmail')}
           </p>
-          {s === '1' ? <Notice>If you do not see it, you can ask for another below.</Notice> : null}
+          {s === '1' ? <Notice>{t('auth.authVerifyEmailPage.ifYouDoNotSeeIt')}</Notice> : null}
           <ErrorLine id="verify-error" message={error} />
           <div className="card u-mb-100">{addressForm}</div>
         </>
       )}
       <p className="card-body">
-        <Link href={`/auth/sign-in?next=${encodeURIComponent(returnPath)}`}>Back to Sign In</Link>
+        <Link href={`/auth/sign-in?next=${encodeURIComponent(returnPath)}`}>
+          {t('auth.authForgotPasswordPage.backToSignIn')}
+        </Link>
       </p>
     </AuthShell>
   );

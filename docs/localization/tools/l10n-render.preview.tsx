@@ -20,6 +20,58 @@ import { type PersonaKey, type World, buildWorld } from './world';
  * own services, so the pages react to data exactly as they will to real data.
  */
 
+/**
+ * Every render must give the same pages for the same code, so a before/after comparison of the
+ * English (scripts/i18n/verify-english.mjs) can prove "unchanged" instead of guessing. Ids, case
+ * reference codes, signing values and the clock are the only things that vary between runs, so
+ * they are drawn from a fixed-seed generator and a fixed date. This runs before any module that
+ * reads them (hoisted above the imports of the world and the services).
+ */
+await vi.hoisted(async () => {
+  const nodeModule = await import('node:module');
+  const nodeCrypto = nodeModule.createRequire(import.meta.url)('node:crypto');
+  let seed = 0x9e3779b9;
+  const next = () => {
+    // mulberry32
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const fill = <T extends ArrayBufferView>(view: T): T => {
+    const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(next() * 256);
+    return view;
+  };
+  const uuid = () => {
+    const b = fill(new Uint8Array(16));
+    b[6] = ((b[6] ?? 0) & 0x0f) | 0x40;
+    b[8] = ((b[8] ?? 0) & 0x3f) | 0x80;
+    const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+    return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+  };
+  const put = (target: object, name: string, value: unknown) => {
+    try {
+      Object.defineProperty(target, name, { value, configurable: true, writable: true });
+    } catch {
+      // A read-only property cannot be replaced; the others still are.
+    }
+  };
+  put(nodeCrypto, 'randomUUID', uuid);
+  put(nodeCrypto, 'randomBytes', (n: number) => Buffer.from(fill(new Uint8Array(n))));
+  put(nodeCrypto, 'randomFillSync', fill);
+  put(nodeCrypto, 'getRandomValues', fill);
+  put(nodeCrypto, 'randomInt', (a: number, b?: number) =>
+    b === undefined ? Math.floor(next() * a) : a + Math.floor(next() * (b - a)),
+  );
+  const web = globalThis.crypto as unknown as Record<string, unknown>;
+  put(web, 'randomUUID', uuid);
+  put(web, 'getRandomValues', fill);
+  nodeModule.syncBuiltinESMExports();
+  Math.random = next;
+  vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-11-12T12:00:00Z') });
+});
+
 const state = vi.hoisted(() => ({
   persona: null as null | { accountId: string; email: string },
   db: null as unknown,

@@ -147,3 +147,13 @@ export function titleOf(block) {
   const b = lower.indexOf('</title', gt);
   return gt === -1 || b === -1 ? '' : block.slice(gt + 1, b);
 }
+
+/**
+ * A dotted message key such as consent.issuerContact.title: an identifier mapped elsewhere, not
+ * English a person reads (owner decision D9, 2026-11-12). One linear pattern: three or more
+ * dot-separated parts, a lower-case first word of three letters or more, and at least one capital
+ * letter (so a host such as www.example.com, a version or "e.g." stays text).
+ */
+export function isMessageKey(text) {
+  return /^(?=.*[A-Z])[a-z]{3,}(?:\.[a-z][A-Za-z0-9]*){2,}$/.test(text);
+}

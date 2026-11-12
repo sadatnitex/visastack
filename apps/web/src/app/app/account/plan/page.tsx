@@ -518,8 +518,8 @@ export default async function TravellerPlanPage({
           </h2>
           <p className="card-body">
             Whether your plan includes each feature, whether it works right now, and how much you
-            used it today. Only the number is kept, never what was read. Everything in VisaStack
-            works without these features.
+            used it today. For this count, only the number is kept, never what was read. Everything
+            in VisaStack works without these features.
           </p>
           <div className="rows rows-grid u-mt-050">
             {aiUsage.map((feature) => {

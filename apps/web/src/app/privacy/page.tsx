@@ -2,6 +2,7 @@ import { SIGNUP_PRIVACY_VERSION } from '@visastack/services';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { readEnv } from '../../lib/env';
+import { isPublicBetaOpen } from '../../lib/public-beta';
 
 export const metadata: Metadata = { title: 'Privacy Notice' };
 export const dynamic = 'force-dynamic';
@@ -26,9 +27,10 @@ export default function PrivacyPage() {
       <p>
         Account registration uses your name, email address and sign-in information to create and
         protect your account and send confirmation or recovery messages. Security controls record
-        registration attempts and notice versions. During the free public beta you may add your own
-        information and documents at your own risk; some protections, such as virus scanning of
-        uploads, are not switched on yet.
+        registration attempts and notice versions.{' '}
+        {isPublicBetaOpen()
+          ? 'During the free public beta you may add your own information and documents at your own risk; some protections, such as virus scanning of uploads, are not switched on yet.'
+          : 'Please use made-up details, or documents with all personal information permanently blacked out. Real applicant details are not accepted yet. Some protections, such as virus scanning of uploads, are not switched on yet.'}
       </p>
       <h2>Services That Process Information</h2>
       <p>
