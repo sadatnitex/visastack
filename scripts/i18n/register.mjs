@@ -650,6 +650,87 @@ export const HOLDBACK = new Map([
     'SG-4bd5843b',
     'Remove: {name} (accessible name of the Remove button): the visible button text stays English, so the name waits with it.',
   ],
+  [
+    'SG-674ee0dc',
+    'Shared-access end date label: access and expiry wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-8205ffbd',
+    'Invitation recovery help (new link or invited email): invitation access wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-515d1469',
+    'Invitation expiry label: invitation expiry wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-03d5ab6c',
+    'Opening an invitation grants no access: a consent statement, waits for the owner sign-off.',
+  ],
+  [
+    'SG-8600dbb5',
+    'Permissions heading on a sharing invitation: access control wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-b1994b75',
+    'Agency AI note on the client invitation: AI and consent wording waits for the owner sign-off.',
+  ],
+  ['SG-e432687f', 'AI Tools consent toggle: AI processing wording waits for the owner sign-off.'],
+  ['SG-02122e22', 'Turn On consent toggle label: consent wording waits for the owner sign-off.'],
+  [
+    'SG-69e97063',
+    'What an agency can do if you accept: access wording waits for the owner sign-off.',
+  ],
+  ['SG-cdca8c7b', 'Turn these on before accepting: consent wording waits for the owner sign-off.'],
+  [
+    'SG-1206824f',
+    'Contributor request sent to a different email: access control wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-056ff2bb',
+    'Error page promise that saved work is safe: a data safety promise, waits for the owner sign-off.',
+  ],
+  [
+    'SG-a70820b8',
+    'App connection duration (How Long): authorization wording waits for the owner sign-off.',
+  ],
+  ['SG-a4126292', 'Answer an AI app: authorization wording waits for the owner sign-off.'],
+  [
+    'SG-3fb2aa39',
+    'AI App Access heading: AI and authorization wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-cc574f29',
+    'AI App Access heading (variant): AI and authorization wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-711744f6',
+    'Choose a record to connect to an AI app: authorization wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-fab4e436',
+    'Choose the record an app may read: authorization wording waits for the owner sign-off.',
+  ],
+  ['SG-48c8ec6a', 'Connect an app: authorization wording waits for the owner sign-off.'],
+  [
+    'SG-3bf94aa3',
+    'Connect an app for an agency: authorization wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-6e5e6fff',
+    'Connect an app for an agency you run: authorization wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-ee296cf8',
+    'Warning that an app runs on this computer: authorization wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-cdb5fd11',
+    'No records to connect: authorization screen wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-07369aca',
+    'Client invitation cannot be shown, ask the agency to send it again: invitation recovery wording waits for the owner sign-off.',
+  ],
 ]);
 
 export const REGISTER_REL = 'docs/localization/VISASTACK_TRANSLATION_REGISTER.csv';

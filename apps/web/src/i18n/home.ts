@@ -26,6 +26,13 @@ export const homeCatalog = defineCatalog({
     'home.countryChecklistPicker.whichCountryDoYouWantTo': 'Which Country Do You Want to Visit?',
     'home.countryChecklistPicker.yourChecklistAppearsHereAsSoon':
       'Your checklist appears here as soon as you pick a country.',
+    'home.error.backToHome': 'Back to Home',
+    'home.error.referenceDigest': 'Reference: {digest}',
+    'home.error.somethingWentWrong': 'Something Went Wrong',
+    'home.error.thisIsOnOurSideNot':
+      'This is on our side, not yours. Everything you already saved is safe. If you were typing something, you may need to enter it again. Try again in a moment; if it keeps happening, sign out and back in.',
+    'home.error.tryAgain': 'Try Again',
+    'home.error.weHitASnagLoadingThis': 'We hit a snag loading this page',
     'home.page.01AReusableRecord': '01 / A reusable record',
     'home.page.02SpecificRequests': '02 / Specific requests',
     'home.page.03YourChoice': '03 / Your choice',
@@ -196,6 +203,7 @@ export const homeCatalog = defineCatalog({
     'home.countryChecklistPicker.whichCountryDoYouWantTo': 'কোন দেশে যেতে চান?',
     'home.countryChecklistPicker.yourChecklistAppearsHereAsSoon':
       'দেশ বেছে নিলেই আপনার চেকলিস্ট এখানে দেখা যাবে।',
+    'home.error.backToHome': 'হোমে ফিরে যান',
     'home.page.01AReusableRecord': '০১ / বারবার ব্যবহারযোগ্য রেকর্ড',
     'home.page.02SpecificRequests': '০২ / নির্দিষ্ট অনুরোধ',
     'home.page.03YourChoice': '০৩ / আপনার পছন্দ',

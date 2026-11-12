@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect } from 'react';
+import { useT } from '../components/i18n-provider';
+import { homeCatalog } from '../i18n/home';
 
 /**
  * Route-level error boundary. Next.js renders this instead of the bare
@@ -17,28 +19,29 @@ export default function AppError({
   readonly error: Error & { digest?: string };
   readonly reset: () => void;
 }) {
+  const t = useT(homeCatalog);
   useEffect(() => {
     console.error(error);
   }, [error]);
 
   return (
     <section className="section container center">
-      <span className="eyebrow">Something Went Wrong</span>
-      <h1 className="section-title error-title">We hit a snag loading this page</h1>
-      <p className="section-sub error-body">
-        This is on our side, not yours. Everything you already saved is safe. If you were typing
-        something, you may need to enter it again. Try again in a moment; if it keeps happening,
-        sign out and back in.
-      </p>
+      <span className="eyebrow">{t('home.error.somethingWentWrong')}</span>
+      <h1 className="section-title error-title">{t('home.error.weHitASnagLoadingThis')}</h1>
+      <p className="section-sub error-body">{t('home.error.thisIsOnOurSideNot')}</p>
       <div className="cta-row cta-row-center">
         <button type="button" className="btn btn-primary" onClick={() => reset()}>
-          Try Again
+          {t('home.error.tryAgain')}
         </button>
         <Link className="btn btn-secondary" href="/">
-          Back to Home
+          {t('home.error.backToHome')}
         </Link>
       </div>
-      {error.digest ? <p className="muted error-reference">Reference: {error.digest}</p> : null}
+      {error.digest ? (
+        <p className="muted error-reference">
+          {t('home.error.referenceDigest', { digest: error.digest })}
+        </p>
+      ) : null}
     </section>
   );
 }

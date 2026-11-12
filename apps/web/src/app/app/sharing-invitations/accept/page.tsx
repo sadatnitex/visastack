@@ -6,7 +6,9 @@ import {
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { appSharingInvitationsCatalog } from '../../../../i18n/app-sharing-invitations';
 import { formatTimestampDate } from '../../../../lib/format-date';
+import { getServerT, primeLocale } from '../../../../lib/i18n-server';
 import { categoryLabel } from '../../../../lib/master-profile';
 import { recipientPermissionSentence } from '../../../../lib/permission-phrases';
 import { plural } from '../../../../lib/plural';
@@ -26,6 +28,8 @@ export const dynamic = 'force-dynamic';
 export default async function SharingInvitationPage({
   searchParams,
 }: { readonly searchParams: Promise<{ readonly token?: string }> }) {
+  await primeLocale();
+  const t = getServerT(appSharingInvitationsCatalog);
   if (process.env[sharingInvitationFlag] !== 'true') notFound();
   const { token = '' } = await searchParams;
   return withSession(async ({ db, accountId }) => {
@@ -36,16 +40,20 @@ export default async function SharingInvitationPage({
     if (!result.ok)
       return (
         <section className="section container">
-          <h1 className="section-title">Invitation Unavailable</h1>
+          <h1 className="section-title">
+            {t('appSharingInvitations.appSharingInvitationsAcceptPage.invitationUnavailable')}
+          </h1>
           <p>{result.error.message}</p>
-          <p>Ask the sender for a new link or sign in with the invited email address.</p>
+          <p>{t('appSharingInvitations.appSharingInvitationsAcceptPage.askTheSenderForANew')}</p>
           <Link
             className="btn btn-secondary"
             href={`/auth/sign-in?next=${encodeURIComponent(`/app/sharing-invitations/accept?token=${token}`)}`}
           >
-            Sign In with the Invited Email
+            {t('appSharingInvitations.appSharingInvitationsAcceptPage.signInWithTheInvitedEmail')}
           </Link>
-          <Link href="/app">Return to Your Workspace</Link>
+          <Link href="/app">
+            {t('appSharingInvitations.appSharingInvitationsAcceptPage.returnToYourWorkspace')}
+          </Link>
         </section>
       );
     const invite = result.value;
@@ -57,22 +65,28 @@ export default async function SharingInvitationPage({
     ]);
     return (
       <section className="section container">
-        <h1 className="section-title">Review Shared Access</h1>
+        <h1 className="section-title">
+          {t('appSharingInvitations.appSharingInvitationsAcceptPage.reviewSharedAccess')}
+        </h1>
         <article className="card">
-          <p>Opening this invitation grants no access. Review everything before accepting.</p>
+          <p>
+            {t(
+              'appSharingInvitations.appSharingInvitationsAcceptPage.openingThisInvitationGrantsNoAccess',
+            )}
+          </p>
           <dl className="rows">
             {sender ? (
               <div className="row">
-                <dt>Shared By</dt>
+                <dt>{t('appSharingInvitations.appSharingInvitationsAcceptPage.sharedBy')}</dt>
                 <dd>{sender.email}</dd>
               </div>
             ) : null}
             <div className="row">
-              <dt>Purpose</dt>
+              <dt>{t('appSharingInvitations.appSharingInvitationsAcceptPage.purpose')}</dt>
               <dd>{invite.purpose}</dd>
             </div>
             <div className="row">
-              <dt>Permissions</dt>
+              <dt>{t('appSharingInvitations.appSharingInvitationsAcceptPage.permissions')}</dt>
               <dd>
                 <ul className="u-m-0">
                   {invite.actions.map((action) => (
@@ -82,27 +96,37 @@ export default async function SharingInvitationPage({
               </dd>
             </div>
             <div className="row">
-              <dt>Profile Categories</dt>
+              <dt>
+                {t('appSharingInvitations.appSharingInvitationsAcceptPage.profileCategories')}
+              </dt>
               <dd>
-                {invite.categories?.map(categoryLabel).join(', ') || 'All profile categories'}
+                {invite.categories?.map(categoryLabel).join(', ') ||
+                  t('appSharingInvitations.appSharingInvitationsAcceptPage.allProfileCategories')}
               </dd>
             </div>
             <div className="row">
-              <dt>Documents</dt>
+              <dt>{t('appSharingInvitations.appSharingInvitationsAcceptPage.documents')}</dt>
               <dd>
                 {invite.documentIds
                   ? plural(invite.documentIds.length, 'selected document')
                   : invite.documentScopeSnapshot
-                    ? `${plural(invite.documentScopeSnapshot.length, 'document')} captured when invited`
-                    : 'All documents in this profile'}
+                    ? t(
+                        'appSharingInvitations.appSharingInvitationsAcceptPage.pluralCapturedWhenInvited',
+                        { plural: plural(invite.documentScopeSnapshot.length, 'document') },
+                      )
+                    : t(
+                        'appSharingInvitations.appSharingInvitationsAcceptPage.allDocumentsInThisProfile',
+                      )}
               </dd>
             </div>
             <div className="row">
-              <dt>Access Ends</dt>
+              <dt>{t('appSharingInvitations.appSharingInvitationsAcceptPage.accessEnds')}</dt>
               <dd>{formatTimestampDate(invite.grantExpiryAt)}</dd>
             </div>
             <div className="row">
-              <dt>Invitation Expires</dt>
+              <dt>
+                {t('appSharingInvitations.appSharingInvitationsAcceptPage.invitationExpires')}
+              </dt>
               <dd>{formatTimestampDate(invite.expiresAt)}</dd>
             </div>
           </dl>
@@ -115,7 +139,9 @@ export default async function SharingInvitationPage({
               <Link href="/privacy">Read the Privacy Notice</Link>.
             </p>
           )}
-          <Link href="/app">Leave Without Accepting</Link>
+          <Link href="/app">
+            {t('appSharingInvitations.appSharingInvitationsAcceptPage.leaveWithoutAccepting')}
+          </Link>
         </article>
       </section>
     );
