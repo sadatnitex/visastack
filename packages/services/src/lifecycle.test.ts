@@ -372,7 +372,7 @@ describe('account deletion workflow', () => {
     expect(await db.select().from(schema.storageObjects)).toHaveLength(0);
     expect(await storage.getObject('obj-del2@example.com')).toBeUndefined();
 
-    // The audit trail is preserved (anonymized) and the tombstone remains.
+    // The audit trail is kept as it is (append-only, not anonymized) and the tombstone remains.
     expect((await db.select().from(schema.auditEvents)).length).toBeGreaterThan(0);
     const tombstone = await db.select().from(schema.accountDeletionRequests);
     expect(tombstone[0]?.status).toBe('EXECUTED');

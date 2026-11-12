@@ -241,10 +241,12 @@ function uniqueZipEntryName(used: Set<string>, base: string, ext: string): strin
  * servability rule `accessDocument`'s own preview/download gate and
  * `missions.ts`'s readiness computation already enforce, so this can never
  * be a separate, looser (or stricter) definition of "usable" invented just
- * for export. A version that has not yet cleared malware scanning can
- * therefore never appear here either - "no executables" holds by
- * construction, since `safetyStatus === 'CLEAN'` is one of that predicate's
- * own three conditions, not a separate check added here.
+ * for export. A version whose stored status is not `CLEAN` can therefore
+ * never appear here either, since `safetyStatus === 'CLEAN'` is one of that
+ * predicate's own three conditions, not a separate check added here. Today
+ * `CLEAN` means the file format check passed, not that a virus scan ran
+ * (lib/scan-state.ts), so the screen says files are not scanned for viruses
+ * yet (large-export-panel.tsx).
  *
  * Names are built as `documents/<sanitized name> - v<versionNumber><ext>` -
  * `sanitizeNameComponent` (naming.ts) already strips path separators,

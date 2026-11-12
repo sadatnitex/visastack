@@ -48,7 +48,7 @@ Notes from the output: dates use Bengali digits and Bengali month names; groupin
 
 ## 4. What the register drafts do today
 
-Static digits in drafted Bengali prose were converted to Bengali digits by the register builder, skipping placeholders, tags, URLs, email addresses and code-like tokens. Audit of 3205 drafted groups: 56 contain Bengali digits; 12 protected tokens (emails, URLs, code-like tokens) in the English were checked for survival in the Bengali; 1 typed example(s) deliberately keep Latin digits (the form the field accepts); 0 exception(s) are listed in `data/NUMBER_DATE_AUDIT.csv` (issue types: protected token changed or missing, Latin digits left in prose, number changed or missing).
+Static digits in drafted Bengali prose were converted to Bengali digits by the register builder, skipping placeholders, tags, URLs, email addresses and code-like tokens. Audit of 3393 drafted groups: 65 contain Bengali digits; 12 protected tokens (emails, URLs, code-like tokens) in the English were checked for survival in the Bengali; 1 typed example(s) deliberately keep Latin digits (the form the field accepts); 0 exception(s) are listed in `data/NUMBER_DATE_AUDIT.csv` (issue types: protected token changed or missing, Latin digits left in prose, number changed or missing).
 
 ## 5. What a later implementation must do (not done here)
 
