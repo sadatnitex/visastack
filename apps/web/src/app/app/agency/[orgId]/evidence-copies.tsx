@@ -195,7 +195,7 @@ function LegacyCurrent({ send }: { readonly send: LegacyEvidenceSend }) {
           {t.node('appAgency.appAgencyOrgidEvidenceCopies.copyWaitingForYourDecision')}
         </p>
         <StatusPill tone="info">
-          {t.node('appAgency.appAgencyOrgidEvidenceCopies.waitingForADecision')}
+          {t('appAgency.appAgencyOrgidEvidenceCopies.waitingForADecision')}
         </StatusPill>
       </div>
       <div className="lc-copy-file">
