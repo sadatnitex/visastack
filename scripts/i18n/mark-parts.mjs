@@ -371,10 +371,13 @@ export function catalogSurfaces(root) {
 
 /** Files under apps/web/src that import the given surface's catalogue (tests never). */
 export function filesOfSurface(root, surface) {
-  const re = new RegExp(`from\\s+['"][^'"]*\\bi18n/${surface}['"]`);
+  const importsSurface = (code) =>
+    [...code.matchAll(/from\s+['"][^'"]*\bi18n\/([a-z0-9-]+)['"]/g)].some((m) => m[1] === surface);
   return walkTsx(path.join(root, 'apps/web/src'))
     .map((abs) => path.relative(root, abs).split(path.sep).join('/'))
-    .filter((rel) => !isTestFile(rel) && re.test(fs.readFileSync(path.join(root, rel), 'utf8')))
+    .filter(
+      (rel) => !isTestFile(rel) && importsSurface(fs.readFileSync(path.join(root, rel), 'utf8')),
+    )
     .sort();
 }
 
