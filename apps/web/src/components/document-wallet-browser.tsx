@@ -252,7 +252,6 @@ export function DocumentWalletBrowser({
               <span className="wallet-nokind-title">
                 {t.node('components.documentWalletBrowser.notsortedAgreeAKind', {
                   notSorted,
-                  agree: agree(notSorted, 'Needs', 'Need'),
                 })}
               </span>
               <details className="wallet-why">
