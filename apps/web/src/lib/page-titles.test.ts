@@ -101,7 +101,9 @@ describe('landmarks', () => {
     expect(read('layout.tsx')).toContain('<SiteNavigation>');
     expect(read('../components/site-navigation.tsx')).toContain('aria-label="Site"');
     expect(read('layout.tsx')).toContain('aria-label="Footer"');
-    expect(read('app/app-nav.tsx')).toContain('aria-label="Workspace"');
+    // The label now comes from the message catalogue; its English text is still "Workspace".
+    expect(read('app/app-nav.tsx')).toContain("aria-label={t('appHome.appAppNav.workspace')}");
+    expect(read('../i18n/app-home.ts')).toContain("'appHome.appAppNav.workspace': 'Workspace'");
   });
 
   it('says in which language the language switch is written', () => {

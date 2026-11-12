@@ -337,8 +337,22 @@ describe('holdback list', () => {
       registerCsv: `${header}${group},ORDINARY_UI,Terms,\u09b6\u09b0\u09cd\u09a4,PASS\n`,
     }).lookup({ file: 'a.tsx', line: 1, censusText: 'Terms', english: 'Terms' });
 
-  test('names exactly the three held strings, each with a reason', () => {
-    assert.deepEqual([...HOLDBACK.keys()].sort(), ['SG-0f9d5b37', 'SG-22bda9c8', 'SG-361e0c20']);
+  test('names exactly the held strings, each with a reason', () => {
+    assert.deepEqual([...HOLDBACK.keys()].sort(), [
+      'SG-00706ded',
+      'SG-0c3f69ec',
+      'SG-0f9d5b37',
+      'SG-192889ed',
+      'SG-22bda9c8',
+      'SG-361e0c20',
+      'SG-50c83703',
+      'SG-58cc6dc1',
+      'SG-9e771a8e',
+      'SG-b5644201',
+      'SG-c68a7790',
+      'SG-e956303b',
+      'SG-fbccaafa',
+    ]);
     for (const [group, reason] of HOLDBACK) assert.ok(reason.length > 10, group);
   });
 
