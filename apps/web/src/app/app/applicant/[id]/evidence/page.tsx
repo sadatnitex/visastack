@@ -17,8 +17,10 @@ import { ListWithPane } from '../../../../../components/list-pattern';
 import { ShowMore } from '../../../../../components/show-more';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
 import { AboutDisclosure, AlertBanner } from '../../../../../components/ui-lift';
+import { applicantEvidenceCatalog } from '../../../../../i18n/applicant-evidence';
 import { depthCopyFor } from '../../../../../lib/ccd/depth-copy';
 import { readDepth } from '../../../../../lib/ccd/depth.server';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import {
   TRAVELLER_LIST_STEP,
   firstParam,
@@ -58,6 +60,8 @@ export default async function EvidencePage({
   /** `show`: how many requests to list (WP-SB3: 10, then 10 more with each Show More). */
   readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  await primeLocale();
+  const t = getServerT(applicantEvidenceCatalog);
   const { id } = await params;
   const search = (await searchParams) ?? {};
   const requestsShown = parseShow(search[SHOW_KEY], {
@@ -209,15 +213,18 @@ export default async function EvidencePage({
 
   return (
     <>
-      <PageHeader eyebrow={data.applicant.displayName} title="Requests from Agencies" />
+      <PageHeader
+        eyebrow={data.applicant.displayName}
+        title={t('applicantEvidence.appApplicantIdEvidencePage.requestsFromAgencies')}
+      />
       {/* Owner, 10 Nov 2026: the page says who is asking, and that it is not a government rule. */}
-      <p className="muted">An agency is asking you for this. It is not a government rule.</p>
+      <p className="muted">
+        {t.node('applicantEvidence.appApplicantIdEvidencePage.anAgencyIsAskingYouFor')}
+      </p>
       {/* Owner, 5 Nov 2026: no page should have more than 30 words. The rest is one tap away. */}
-      <AboutDisclosure summary="About Requests">
+      <AboutDisclosure summary={t('applicantEvidence.appApplicantIdEvidencePage.aboutRequests')}>
         <p>
-          An agency request is that organisation asking you for something, never an official visa
-          requirement on its own. You decide what to submit, and can reuse anything already in your
-          wallet.
+          {t.node('applicantEvidence.appApplicantIdEvidencePage.anAgencyRequestIsThatOrganisation')}
         </p>
       </AboutDisclosure>
 
@@ -226,7 +233,7 @@ export default async function EvidencePage({
 
         {nothingWaiting ? (
           <p className="muted" data-only="glance">
-            Nothing is waiting for you.
+            {t.node('applicantEvidence.appApplicantIdEvidencePage.nothingIsWaitingForYou')}
           </p>
         ) : null}
 
@@ -236,8 +243,11 @@ export default async function EvidencePage({
               tone="warning"
               title={
                 awaitingCount === 1
-                  ? '1 request is waiting for you.'
-                  : `${awaitingCount} requests are waiting for you.`
+                  ? t('applicantEvidence.appApplicantIdEvidencePage.1RequestIsWaitingForYou')
+                  : t(
+                      'applicantEvidence.appApplicantIdEvidencePage.awaitingcountRequestsAreWaitingForYou',
+                      { awaitingCount },
+                    )
               }
             />
           </div>
@@ -247,21 +257,19 @@ export default async function EvidencePage({
           // A failed read never claims there are no requests: one may be waiting.
           <article className="card lc-empty-host">
             <p className="notice notice-warn u-m-0" role="alert">
-              Your requests could not be loaded. Refresh to try again.
+              {t.node('applicantEvidence.appApplicantIdEvidencePage.yourRequestsCouldNotBeLoaded')}
             </p>
           </article>
         ) : data.requestCounts.total === 0 ? (
           <article className="card lc-empty-host">
             <EmptyState
               icon="clipboard"
-              title="No Evidence Requests"
+              title={t('applicantEvidence.appApplicantIdEvidencePage.noEvidenceRequests')}
               fold
               why="You reply from your saved documents in one step, and you decide what to send."
               action={{ href: `/app/applicant/${id}/documents`, label: 'Open Documents' }}
             >
-              This is where an agency asks you for a document or a detail. A request appears here
-              with what is needed, why, and the date it is needed by. Keeping your documents up to
-              date makes replying quick.
+              {t.node('applicantEvidence.appApplicantIdEvidencePage.thisIsWhereAnAgencyAsks')}
             </EmptyState>
           </article>
         ) : (

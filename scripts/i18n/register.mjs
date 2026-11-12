@@ -42,6 +42,264 @@ export const HOLDBACK = new Map([
   [
     'SG-acdb0e90',
     'Request thread label beside a date and time that is still English (a Bengali label and an English date in one sentence); held until dates are localised.',
+    'SG-dc1af39a',
+    'Held in English: its button or screen-reader name pairs with visible English text, or a leading space is lost in Bengali; waits until both are fixed together.',
+  ],
+  [
+    'SG-02a56416',
+    'Held in English: its button or screen-reader name pairs with visible English text, or a leading space is lost in Bengali; waits until both are fixed together.',
+  ],
+  [
+    'SG-79505021',
+    'Held in English: its button or screen-reader name pairs with visible English text, or a leading space is lost in Bengali; waits until both are fixed together.',
+  ],
+  [
+    'SG-c55cd000',
+    'A date, count or label is filled in as English text inside the sentence; held in English until the value itself is shown in the reader language.',
+  ],
+  [
+    'SG-0c3da2e7',
+    'A date, count or label is filled in as English text inside the sentence; held in English until the value itself is shown in the reader language.',
+  ],
+  [
+    'SG-7fed393b',
+    'A date, count or label is filled in as English text inside the sentence; held in English until the value itself is shown in the reader language.',
+  ],
+  [
+    'SG-f22cca12',
+    'A date, count or label is filled in as English text inside the sentence; held in English until the value itself is shown in the reader language.',
+  ],
+  [
+    'SG-6840bbdb',
+    'A date, count or label is filled in as English text inside the sentence; held in English until the value itself is shown in the reader language.',
+  ],
+  [
+    'SG-8fe742c5',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-e432687f',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-96726f73',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-b80f590e',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-60e310fc',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-6c449ccc',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-c2caee76',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-4ac01dc9',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-c7267817',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-8b21f490',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-04cc7a8e',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-426b883f',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-8600dbb5',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-1fbf4fdc',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-634bfe2f',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-7f54db09',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-5ca1af5a',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-94189b82',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-b4d0d729',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-0cb96f1d',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-b8f9ef37',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-2e6db3da',
+    'Applicant sharing: who can see what, grants, expiry, revocation, access summary or AI tools wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-7393361c',
+    'Applicant calendar link: private link sharing, revoking and what it reveals; access-control wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-c94b606c',
+    'Applicant calendar link: private link sharing, revoking and what it reveals; access-control wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-0d5c8615',
+    'Applicant calendar link: private link sharing, revoking and what it reveals; access-control wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-330cb2d9',
+    'Applicant calendar link: private link sharing, revoking and what it reveals; access-control wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-ea7f1da4',
+    'Applicant calendar link: private link sharing, revoking and what it reveals; access-control wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-1741082c',
+    'Applicant evidence: says an agency request is not a government rule; official-rule wording waits for the owner sign-off.',
+  ],
+  [
+    'SG-f07aea90',
+    'Applicant insights: claims about what VisaStack reads or infers, and embassy original-paper rules; waits for the owner sign-off.',
+  ],
+  [
+    'SG-0eec3e1b',
+    'Applicant insights: claims about what VisaStack reads or infers, and embassy original-paper rules; waits for the owner sign-off.',
+  ],
+  [
+    'SG-554ff162',
+    'Applicant insights: claims about what VisaStack reads or infers, and embassy original-paper rules; waits for the owner sign-off.',
+  ],
+  [
+    'SG-ad36e94f',
+    'Applicant insights: claims about what VisaStack reads or infers, and embassy original-paper rules; waits for the owner sign-off.',
+  ],
+  [
+    'SG-4c01c938',
+    'Applicant insights: claims about what VisaStack reads or infers, and embassy original-paper rules; waits for the owner sign-off.',
+  ],
+  [
+    'SG-b6c2f783',
+    'Applicant insights: claims about what VisaStack reads or infers, and embassy original-paper rules; waits for the owner sign-off.',
+  ],
+  [
+    'SG-ccbd8ad0',
+    'Applicant insights: claims about what VisaStack reads or infers, and embassy original-paper rules; waits for the owner sign-off.',
+  ],
+  [
+    'SG-d7aece0b',
+    'Applicant insights: claims about what VisaStack reads or infers, and embassy original-paper rules; waits for the owner sign-off.',
+  ],
+  [
+    'SG-f9667433',
+    'Applicant memory: claims about what VisaStack remembers and keeps, and who records were shared with; waits for the owner sign-off.',
+  ],
+  [
+    'SG-fd86bb23',
+    'Applicant memory: claims about what VisaStack remembers and keeps, and who records were shared with; waits for the owner sign-off.',
+  ],
+  [
+    'SG-76d5a28d',
+    'Applicant memory: claims about what VisaStack remembers and keeps, and who records were shared with; waits for the owner sign-off.',
+  ],
+  [
+    'SG-afed0db1',
+    'Applicant memory: claims about what VisaStack remembers and keeps, and who records were shared with; waits for the owner sign-off.',
+  ],
+  [
+    'SG-afc89023',
+    'Applicant memory: claims about what VisaStack remembers and keeps, and who records were shared with; waits for the owner sign-off.',
+  ],
+  [
+    'SG-9d556125',
+    'Applicant memory: claims about what VisaStack remembers and keeps, and who records were shared with; waits for the owner sign-off.',
+  ],
+  [
+    'SG-1fbade6c',
+    'Applicant memory: claims about what VisaStack remembers and keeps, and who records were shared with; waits for the owner sign-off.',
+  ],
+  [
+    'SG-2bf9eb27',
+    'Applicant memory: claims about what VisaStack remembers and keeps, and who records were shared with; waits for the owner sign-off.',
+  ],
+  [
+    'SG-990cfc21',
+    'Applicant memory: claims about what VisaStack remembers and keeps, and who records were shared with; waits for the owner sign-off.',
+  ],
+  [
+    'SG-12ffe6ee',
+    'Applicant memory: claims about what VisaStack remembers and keeps, and who records were shared with; waits for the owner sign-off.',
+  ],
+  [
+    'SG-d0d5e75c',
+    'Applicant cases: promise about how existing records are reused for a new case; waits for the owner sign-off.',
+  ],
+  [
+    'SG-fb46562d',
+    'Applicant outputs: privacy promises about what a generated summary holds, and confirmed-details wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-2ebd55a3',
+    'Applicant outputs: privacy promises about what a generated summary holds, and confirmed-details wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-5f596105',
+    'Applicant outputs: privacy promises about what a generated summary holds, and confirmed-details wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-b59bc29b',
+    'Applicant outputs: privacy promises about what a generated summary holds, and confirmed-details wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-6bfef43e',
+    'Applicant outputs: privacy promises about what a generated summary holds, and confirmed-details wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-d6f8451e',
+    'Applicant outputs: privacy promises about what a generated summary holds, and confirmed-details wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-ec12eea0',
+    'Applicant outputs: privacy promises about what a generated summary holds, and confirmed-details wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-37f0599e',
+    'Applicant outputs: privacy promises about what a generated summary holds, and confirmed-details wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-fd5a5483',
+    'Applicant outputs: privacy promises about what a generated summary holds, and confirmed-details wording; waits for the owner sign-off.',
+  ],
+  [
+    'SG-3a3fd00f',
+    'Applicant outputs: privacy promises about what a generated summary holds, and confirmed-details wording; waits for the owner sign-off.',
   ],
   [
     'SG-22bda9c8',

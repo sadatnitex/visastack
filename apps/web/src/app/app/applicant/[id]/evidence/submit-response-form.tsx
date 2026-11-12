@@ -3,8 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useActionState, useId, useState } from 'react';
 import { FormMessage, NO_RESULT, SubmitButton } from '../../../../../components/form-feedback';
+import { useT } from '../../../../../components/i18n-provider';
 import { Icon } from '../../../../../components/icons';
 import { AboutDisclosure } from '../../../../../components/ui-lift';
+import { applicantEvidenceCatalog } from '../../../../../i18n/applicant-evidence';
 import { SAVING_TEXT, saveResult } from '../../../../../lib/save-status';
 import { type ActionState, submitEvidenceResponseAction } from './actions';
 import { type DocumentChoice, chooseLegendId, initialChoice } from './response-choices';
@@ -79,6 +81,7 @@ export function SubmitResponseForm({
   /** What the request is for, so several Send buttons on one page each say which item they send. */
   readonly itemLabel?: string;
 }) {
+  const t = useT(applicantEvidenceCatalog);
   const router = useRouter();
   // After a saved answer the address says so (`done=answered`), and the page draws the receipt
   // from the saved request. This form is rebuilt when the page refreshes after an answer, so it
@@ -130,7 +133,9 @@ export function SubmitResponseForm({
   if (kind === 'DOCUMENT' && !documentsRead) {
     return (
       <p className="notice notice-warn u-m-0" role="alert">
-        Your documents could not be loaded. Refresh to try again.
+        {t.node(
+          'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.yourDocumentsCouldNotBeLoaded',
+        )}
       </p>
     );
   }
@@ -138,12 +143,13 @@ export function SubmitResponseForm({
     return (
       <div className="request-response">
         <p className="muted u-fs-085 u-m-0">
-          No copy of this document type can be sent right now. Add it in Documents, then come back
-          to send it.
+          {t.node(
+            'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.noCopyOfThisDocumentType',
+          )}
         </p>
         <div className="request-response-actions">
           <a className="btn btn-secondary" href={`/app/applicant/${applicantId}/documents`}>
-            Open Documents
+            {t.node('applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.openDocuments')}
           </a>
         </div>
       </div>
@@ -179,7 +185,13 @@ export function SubmitResponseForm({
           id={chooseLegendId(requestId)}
           tabIndex={-1}
         >
-          {kind === 'FIELD' ? 'Choose the Detail to Send' : 'Choose the Copy to Send'}
+          {kind === 'FIELD'
+            ? t.node(
+                'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.chooseTheDetailToSend',
+              )
+            : t.node(
+                'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.chooseTheCopyToSend',
+              )}
         </legend>
         {kind === 'FIELD'
           ? candidateFacts.map((f) => (
@@ -211,14 +223,25 @@ export function SubmitResponseForm({
                 <span className="evidence-pick-text">
                   <span className="evidence-pick-name lc-pick-name">{choice.name}</span>
                   <span className="evidence-pick-meta">
-                    {choice.kindLabel} · Added {choice.addedLabel} · {choice.scanLabel}
+                    {t.node(
+                      'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.kindlabelAddedAddedlabelScanlabel',
+                      {
+                        kindLabel: choice.kindLabel,
+                        addedLabel: choice.addedLabel,
+                        scanLabel: choice.scanLabel,
+                      },
+                    )}
                   </span>
                   {choice.sentBack ? (
                     <span className="evidence-pick-tag evidence-pick-tag-warn">
-                      Sent Back by the Agency
+                      {t.node(
+                        'applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.sentBackByTheAgency',
+                      )}
                     </span>
                   ) : choice.newest ? (
-                    <span className="evidence-pick-tag">Newest</span>
+                    <span className="evidence-pick-tag">
+                      {t.node('applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.newest')}
+                    </span>
                   ) : null}
                   {!choice.usable ? (
                     <span className="evidence-pick-meta">{choice.scanDetail}</span>
@@ -249,7 +272,9 @@ export function SubmitResponseForm({
         </p>
       ) : null}
       {(hint && hint !== HINT_SENT_BACK) || (kind === 'DOCUMENT' && exactCopies) ? (
-        <AboutDisclosure summary="About Sending">
+        <AboutDisclosure
+          summary={t('applicantEvidence.appApplicantIdEvidenceSubmitResponseForm.aboutSending')}
+        >
           {hint && hint !== HINT_SENT_BACK ? (
             <p className="muted u-fs-085 u-m-0" id={hintId}>
               {hint}

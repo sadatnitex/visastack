@@ -18,7 +18,9 @@ import { SelectedScopeSummary } from '../../../../../components/selected-scope-s
 import { WhatsAppShare } from '../../../../../components/share/whatsapp-share';
 import { StickyActionBar } from '../../../../../components/sticky-action-bar';
 import { EmptyState, PageHeader } from '../../../../../components/ui';
+import { applicantOutputsCatalog } from '../../../../../i18n/applicant-outputs';
 import { resolveBaseUrl } from '../../../../../lib/base-url';
+import { getServerT, primeLocale } from '../../../../../lib/i18n-server';
 import { plural } from '../../../../../lib/plural';
 import { composeShareMessage } from '../../../../../lib/whatsapp-link';
 import { CopyTextButton, PrintButton } from './copy-button';
@@ -72,8 +74,12 @@ function currentStep(query: OutputsQuery, previewed: boolean, hasPreview: boolea
  * heading below, so a link here could never land on a folded part.
  */
 function StepList({ step }: { readonly step: OutputStep }) {
+  const t = getServerT(applicantOutputsCatalog);
   return (
-    <ol className="output-steps u-mb-150 output-noprint" aria-label="Steps">
+    <ol
+      className="output-steps u-mb-150 output-noprint"
+      aria-label={t('applicantOutputs.appApplicantIdOutputsPage.steps')}
+    >
       {STEPS.map(([number, label]) => (
         <li
           key={number}
@@ -84,7 +90,9 @@ function StepList({ step }: { readonly step: OutputStep }) {
             {number}
           </span>
           <span>
-            <span className="sr-only">Step {number} of 3: </span>
+            <span className="sr-only">
+              {t.node('applicantOutputs.appApplicantIdOutputsPage.stepNumberOf3', { number })}{' '}
+            </span>
             {label}
           </span>
         </li>
@@ -94,6 +102,7 @@ function StepList({ step }: { readonly step: OutputStep }) {
 }
 
 function ViewSections({ view }: { readonly view: OutputView }) {
+  const t = getServerT(applicantOutputsCatalog);
   return (
     <>
       {view.intro.map((paragraph) => (
@@ -105,7 +114,10 @@ function ViewSections({ view }: { readonly view: OutputView }) {
         <section key={section.heading} className="output-section">
           <h4 className="output-section-title">{section.heading}</h4>
           {section.rows.length === 0 ? (
-            <p className="muted u-m-0">{section.emptyNote ?? 'Nothing to show.'}</p>
+            <p className="muted u-m-0">
+              {section.emptyNote ??
+                t.node('applicantOutputs.appApplicantIdOutputsPage.nothingToShow')}
+            </p>
           ) : (
             <dl className="output-rows">
               {section.rows.map((row, index) => (
@@ -123,7 +135,9 @@ function ViewSections({ view }: { readonly view: OutputView }) {
       ))}
       {view.unknowns.length > 0 ? (
         <section className="output-section">
-          <h4 className="output-section-title">Still Unknown or Needs a Look</h4>
+          <h4 className="output-section-title">
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.stillUnknownOrNeedsALook')}
+          </h4>
           <ul className="output-unknowns">
             {view.unknowns.map((line, index) => (
               // Two lines can read the same, so the key carries the position as well.
@@ -171,6 +185,8 @@ export default async function OutputsPage({
   readonly params: Promise<{ id: string }>;
   readonly searchParams: Promise<OutputsQuery>;
 }) {
+  await primeLocale();
+  const t = getServerT(applicantOutputsCatalog);
   const { id } = await params;
   const query = await searchParams;
   const request = parseOutputRequest(query);
@@ -183,8 +199,8 @@ export default async function OutputsPage({
   const header = (
     <PageHeader
       as="h2"
-      title="Summaries"
-      description="Choose what goes in, check the preview, then copy, print or download one summary. Everything you do not select stays out."
+      title={t('applicantOutputs.appApplicantIdOutputsPage.summaries')}
+      description={t('applicantOutputs.appApplicantIdOutputsPage.chooseWhatGoesInCheckThe')}
       back={{ href: `/app/applicant/${id}/record`, label: 'Records' }}
     />
   );
@@ -194,8 +210,7 @@ export default async function OutputsPage({
       <>
         {header}
         <p role="alert" className="notice notice-warn">
-          Showing full numbers needs an extra sign-in check, which is not available here right now.
-          Turn that choice off to continue.
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.showingFullNumbersNeedsAnExtra')}
         </p>
       </>
     );
@@ -205,7 +220,7 @@ export default async function OutputsPage({
       <>
         {header}
         <p role="alert" className="notice notice-warn">
-          We could not prepare this summary just now. Refresh to try again.
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.weCouldNotPrepareThisSummary')}
         </p>
       </>
     );
@@ -236,26 +251,23 @@ export default async function OutputsPage({
       {header}
       <div className="notice u-mb-150 output-noprint">
         <p className="u-m-0">
-          A summary is a one-time copy. It does not update when your record changes, and VisaStack
-          cannot take it back once you have shared it. Sharing it with an agency or an AI app is
-          your choice each time.
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.aSummaryIsAOneTime')}
         </p>
       </div>
 
       {request.error === 'changed' ? (
         <p role="alert" className="notice notice-warn u-mb-150">
-          Your record or your choices changed after you previewed this, so nothing was downloaded.
-          Check the new preview below, then download again.
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.yourRecordOrYourChoicesChanged')}
         </p>
       ) : null}
       {request.error === 'failed' ? (
         <p role="alert" className="notice notice-warn u-mb-150">
-          We could not make the file just now. Try again.
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.weCouldNotMakeTheFile')}
         </p>
       ) : null}
       {request.error === 'nothing' ? (
         <p role="alert" className="notice notice-warn u-mb-150">
-          There is nothing to download for these choices. Choose something to include first.
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.thereIsNothingToDownloadFor')}
         </p>
       ) : null}
 
@@ -265,10 +277,16 @@ export default async function OutputsPage({
       <div className="u-mb-150 output-noprint">
         <CollapsibleGroup
           id="output-step-choose"
-          title={step === 1 ? 'Choose a Summary' : `Summary: ${template.label}`}
+          title={
+            step === 1
+              ? t('applicantOutputs.appApplicantIdOutputsPage.chooseASummary')
+              : t('applicantOutputs.appApplicantIdOutputsPage.summaryLabel', {
+                  label: template.label,
+                })
+          }
           open={step === 1}
         >
-          <nav aria-label="Kinds of Summary">
+          <nav aria-label={t('applicantOutputs.appApplicantIdOutputsPage.kindsOfSummary')}>
             <ul className="output-templates">
               {OUTPUT_TEMPLATE_IDS.map((templateId) => {
                 const item = OUTPUT_TEMPLATES[templateId];
@@ -288,7 +306,7 @@ export default async function OutputsPage({
                           className="badge badge-neutral output-template-selected"
                           aria-hidden="true"
                         >
-                          Selected
+                          {t.node('applicantOutputs.appApplicantIdOutputsPage.selected')}
                         </span>
                       ) : null}
                     </Link>
@@ -306,17 +324,21 @@ export default async function OutputsPage({
         aria-labelledby="output-choose-heading"
       >
         <h3 className="card-title" id="output-choose-heading">
-          Choose What to Include
+          {t.node('applicantOutputs.appApplicantIdOutputsPage.chooseWhatToInclude')}
         </h3>
         {/* Step 2. Folded once a preview shows, so the preview is near the top; it opens again. */}
-        <CollapsibleGroup id="output-choices" title="Your Choices" open={step !== 3}>
+        <CollapsibleGroup
+          id="output-choices"
+          title={t('applicantOutputs.appApplicantIdOutputsPage.yourChoices')}
+          open={step !== 3}
+        >
           <form method="get" action={`${pageHref}#output-preview`} className="output-form">
             <input type="hidden" name="output" value={request.template} />
             <input type="hidden" name="preview" value="1" />
             {showCasePicker ? (
               <div className="field-row">
                 <label className="field-label" htmlFor="output-case">
-                  Case
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.case')}
                 </label>
                 <select
                   id="output-case"
@@ -324,7 +346,14 @@ export default async function OutputsPage({
                   className="input"
                   defaultValue={ready.missionId ?? ''}
                 >
-                  {template.needsCase ? null : <option value="">No Case</option>}
+                  {template.needsCase ? null : (
+                    <option
+                      {...t.lang('applicantOutputs.appApplicantIdOutputsPage.noCase')}
+                      value=""
+                    >
+                      {t('applicantOutputs.appApplicantIdOutputsPage.noCase')}
+                    </option>
+                  )}
                   {ready.cases.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.title}
@@ -336,7 +365,9 @@ export default async function OutputsPage({
             ) : null}
 
             <fieldset className="fieldset">
-              <legend className="field-label">Parts of Your Record</legend>
+              <legend className="field-label">
+                {t.node('applicantOutputs.appApplicantIdOutputsPage.partsOfYourRecord')}
+              </legend>
               <div className="checks">
                 {CATALOGUE_LAYERS.filter((layer) => template.layersOffered.includes(layer.key)).map(
                   (layer) => (
@@ -356,7 +387,10 @@ export default async function OutputsPage({
                         <span>{layer.label}</span>
                         <span className="muted u-fs-075">
                           {CAREFUL_LAYERS.has(layer.key)
-                            ? `${layer.description} Sensitive: include it only if the reader needs it.`
+                            ? t.node(
+                                'applicantOutputs.appApplicantIdOutputsPage.descriptionSensitiveIncludeItOnlyIf',
+                                { description: layer.description },
+                              )
                             : layer.description}
                         </span>
                       </span>
@@ -368,7 +402,9 @@ export default async function OutputsPage({
 
             {template.offersDocumentList ? (
               <fieldset className="fieldset">
-                <legend className="field-label">Documents</legend>
+                <legend className="field-label">
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.documents')}
+                </legend>
                 <label className="check output-check" htmlFor="output-docs">
                   <input
                     id="output-docs"
@@ -378,9 +414,15 @@ export default async function OutputsPage({
                     defaultChecked={choice.documentList}
                   />
                   <span className="output-check-text">
-                    <span>Include the List of My Documents</span>
+                    <span>
+                      {t.node(
+                        'applicantOutputs.appApplicantIdOutputsPage.includeTheListOfMyDocuments',
+                      )}
+                    </span>
                     <span className="muted u-fs-075">
-                      Kind, dates and status only. No file is ever included.
+                      {t.node(
+                        'applicantOutputs.appApplicantIdOutputsPage.kindDatesAndStatusOnlyNo',
+                      )}
                     </span>
                   </span>
                 </label>
@@ -389,11 +431,11 @@ export default async function OutputsPage({
 
             {template.offersDocumentText ? (
               <fieldset className="fieldset">
-                <legend className="field-label">Text Read from My Documents</legend>
+                <legend className="field-label">
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.textReadFromMyDocuments')}
+                </legend>
                 <p className="muted u-fs-075 u-m-0" id="output-text-note">
-                  Adds the words read from your documents in the groups you tick. Passports, ID,
-                  money and health documents are never included. Choose this only if the AI app
-                  needs the words themselves.
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.addsTheWordsReadFromYour')}
                 </p>
                 <div className="checks">
                   {CATALOGUE_DOCUMENT_GROUPS.map((group) => (
@@ -419,7 +461,9 @@ export default async function OutputsPage({
 
             {template.offersDepth ? (
               <fieldset className="fieldset">
-                <legend className="field-label">How Much Detail</legend>
+                <legend className="field-label">
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.howMuchDetail')}
+                </legend>
                 <div className="checks">
                   {DEPTH_CHOICES.map(([value, label, note]) => (
                     <label
@@ -446,7 +490,9 @@ export default async function OutputsPage({
 
             {template.offersFullNumbers ? (
               <fieldset className="fieldset">
-                <legend className="field-label">Numbers</legend>
+                <legend className="field-label">
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.numbers')}
+                </legend>
                 <label className="check output-check" htmlFor="output-numbers">
                   <input
                     id="output-numbers"
@@ -457,10 +503,13 @@ export default async function OutputsPage({
                     aria-describedby="output-numbers-note"
                   />
                   <span className="output-check-text">
-                    <span>Show Full Document Numbers</span>
+                    <span>
+                      {t.node('applicantOutputs.appApplicantIdOutputsPage.showFullDocumentNumbers')}
+                    </span>
                     <span className="muted u-fs-075" id="output-numbers-note">
-                      Passport and ID numbers show only their last three characters unless you tick
-                      this. You will be asked to confirm it is you.
+                      {t.node(
+                        'applicantOutputs.appApplicantIdOutputsPage.passportAndIdNumbersShowOnly',
+                      )}
                     </span>
                   </span>
                 </label>
@@ -470,7 +519,7 @@ export default async function OutputsPage({
             {template.offersQuestion ? (
               <div className="field-row">
                 <label className="field-label" htmlFor="output-question">
-                  What You Want Help with (Optional)
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.whatYouWantHelpWithOptional')}
                 </label>
                 <input
                   id="output-question"
@@ -486,16 +535,19 @@ export default async function OutputsPage({
 
             {template.offersFieldPicker && ready.candidates.length > 0 ? (
               <fieldset className="fieldset">
-                <legend className="field-label">Details to Include</legend>
+                <legend className="field-label">
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.detailsToInclude')}
+                </legend>
                 <input type="hidden" name="picked" value="1" />
                 <p className="muted u-fs-075 u-m-0">
-                  These are the confirmed details in the parts you chose. Untick any you do not want
-                  in the sheet.
+                  {t.node(
+                    'applicantOutputs.appApplicantIdOutputsPage.theseAreTheConfirmedDetailsIn',
+                  )}
                 </p>
                 {/* Folded away by default (WP-SB4): every box keeps its tick and is sent either way. */}
                 <CollapsibleGroup
                   id="output-fields"
-                  title="Choose Details"
+                  title={t('applicantOutputs.appApplicantIdOutputsPage.chooseDetails')}
                   count={ready.candidates.length}
                   noun={{ one: 'detail', other: 'details' }}
                 >
@@ -523,13 +575,15 @@ export default async function OutputsPage({
               </fieldset>
             ) : null}
 
-            <StickyActionBar label="Preview Your Summary">
+            <StickyActionBar
+              label={t('applicantOutputs.appApplicantIdOutputsPage.previewYourSummary')}
+            >
               <button type="submit" className="btn btn-primary">
-                Preview
+                {t.node('applicantOutputs.appApplicantIdOutputsPage.preview')}
               </button>
               {request.previewed ? (
                 <Link href={`${pageHref}?output=${request.template}`} className="btn btn-secondary">
-                  Start Again
+                  {t.node('applicantOutputs.appApplicantIdOutputsPage.startAgain')}
                 </Link>
               ) : null}
             </StickyActionBar>
@@ -539,10 +593,12 @@ export default async function OutputsPage({
 
       {ready.needsCase ? (
         ready.cases.some((item) => item.current) ? (
-          <p className="notice u-mb-150">Choose a case above, then press Preview.</p>
+          <p className="notice u-mb-150">
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.chooseACaseAboveThenPress')}
+          </p>
         ) : (
           <EmptyState
-            title="No Case Yet"
+            title={t('applicantOutputs.appApplicantIdOutputsPage.noCaseYet')}
             icon="briefcase"
             action={{ href: `/app/applicant/${id}/missions`, label: 'Open Cases' }}
           >
@@ -562,11 +618,14 @@ export default async function OutputsPage({
           aria-labelledby="output-preview-heading"
         >
           <h3 className="card-title" id="output-preview-heading">
-            Preview: {template.label}
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.previewLabel', {
+              label: template.label,
+            })}
           </h3>
           <p className="muted">
-            Prepared on {longDay(output.preparedOn)}. This is exactly what the copy or file will
-            hold.
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.preparedOnLongdayThisIsExactly', {
+              longDay: longDay(output.preparedOn),
+            })}
           </p>
           <SelectedScopeSummary
             snapshot
@@ -586,12 +645,14 @@ export default async function OutputsPage({
           />
           {output.selection.documentList ? (
             <p className="muted u-fs-075">
-              Documents: the list only. No document file is included.
+              {t.node('applicantOutputs.appApplicantIdOutputsPage.documentsTheListOnlyNoDocument')}
             </p>
           ) : null}
           {output.selection.revealIdentifiers ? (
             <p className="notice notice-warn">
-              Full document numbers are included. Share this copy only with someone who needs them.
+              {t.node(
+                'applicantOutputs.appApplicantIdOutputsPage.fullDocumentNumbersAreIncludedShare',
+              )}
             </p>
           ) : null}
 
@@ -603,15 +664,14 @@ export default async function OutputsPage({
                 ))}
               </ul>
               <p className="card-body">
-                This is the exact text an AI app would receive. It has no files and no links, and
-                the app is told it is a snapshot.
+                {t.node('applicantOutputs.appApplicantIdOutputsPage.thisIsTheExactTextAn')}
               </p>
               <textarea
                 readOnly
                 className="input output-ai"
                 rows={14}
                 value={text}
-                aria-label="The exact text an AI app would receive"
+                aria-label={t('applicantOutputs.appApplicantIdOutputsPage.theExactTextAnAiApp')}
               />
             </>
           ) : view ? (
@@ -621,7 +681,11 @@ export default async function OutputsPage({
           <div className="output-actions">
             <CopyTextButton
               text={text}
-              label={request.template === 'ai_context' ? 'Copy Text' : 'Copy All'}
+              label={
+                request.template === 'ai_context'
+                  ? t('applicantOutputs.appApplicantIdOutputsPage.copyText')
+                  : t('applicantOutputs.appApplicantIdOutputsPage.copyAll')
+              }
             />
             {request.template === 'trip_essentials' ? <PrintButton /> : null}
           </div>
@@ -638,13 +702,14 @@ export default async function OutputsPage({
                 value={format}
                 className="btn btn-secondary output-action"
               >
-                {format === 'csv' ? 'Download Spreadsheet File' : 'Download Text File'}
+                {format === 'csv'
+                  ? t.node('applicantOutputs.appApplicantIdOutputsPage.downloadSpreadsheetFile')
+                  : t.node('applicantOutputs.appApplicantIdOutputsPage.downloadTextFile')}
               </button>
             ))}
           </form>
           <p className="muted u-fs-075">
-            The file is made again when you download it. If your record changed since this preview,
-            nothing is downloaded and you will be asked to preview again.
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.theFileIsMadeAgainWhen')}
           </p>
         </section>
       ) : null}
@@ -652,20 +717,22 @@ export default async function OutputsPage({
       {output && whatsapp?.ok ? (
         <section className="card output-noprint" aria-labelledby="output-whatsapp-heading">
           <h3 className="card-title" id="output-whatsapp-heading">
-            Tell Them on WhatsApp
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.tellThemOnWhatsapp')}
           </h3>
           <p className="card-body">
-            A short message you can send yourself. It holds no document, number or name, only a link
-            to sign in to VisaStack. VisaStack never sends it for you.
+            {t.node('applicantOutputs.appApplicantIdOutputsPage.aShortMessageYouCanSend')}
           </p>
           <textarea
             readOnly
             className="input output-whatsapp-message"
             rows={3}
             value={whatsapp.message.text}
-            aria-label="The WhatsApp message"
+            aria-label={t('applicantOutputs.appApplicantIdOutputsPage.theWhatsappMessage')}
           />
-          <WhatsAppShare message={whatsapp.message} title="VisaStack" />
+          <WhatsAppShare
+            message={whatsapp.message}
+            title={t('applicantOutputs.appApplicantIdOutputsPage.visastack')}
+          />
           <p className="muted u-fs-075">
             For them to see your details, share them through{' '}
             <Link href={`/app/applicant/${id}/sharing`}>Sharing</Link>. They sign in and see only
